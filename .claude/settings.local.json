@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-Item 'C:\\\\Users\\\\joaom\\\\Downloads\\\\clinicaa\\\\user\\\\clinica\\\\Documentação\\\\ClinicaOS_v2.md' | Select-Object Name, Length, LastWriteTime\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\joaom\\\\Downloads\\\\clinicaa' -Recurse -Filter 'ClinicaOS*.md' | Select-Object FullName, Length\")",
+      "Bash(powershell -Command \"if \\(Test-Path 'C:\\\\Users\\\\joaom\\\\Downloads\\\\clinicaa'\\) { Get-ChildItem 'C:\\\\Users\\\\joaom\\\\Downloads\\\\clinicaa' } else { Write-Output 'NOT FOUND' }\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\joaom\\\\Downloads\\\\clinicaa\\\\user' -Directory | Select-Object FullName\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\joaom\\\\Downloads\\\\clinicaa\\\\user\\\\clinica' | Select-Object Name, Mode, Length\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\joaom\\\\Downloads\\\\clinicaa\\\\user\\\\clinica\\\\Documentação' | Select-Object Name, Length\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2' -ErrorAction SilentlyContinue | Select-Object Name, Mode, Length\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2\\\\Documentação' -ErrorAction SilentlyContinue | Select-Object Name, Length\")",
+      "Bash(cp \"C:/Users/joaom/.claude/plans/leia-completamente-o-arquivo-elegant-rain.md\" \"C:/Users/joaom/OneDrive/Área de Trabalho/ClinicaOS_V2/Documentação/PlanoAção.md\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2\\\\.claude\\\\hooks\")",
+      "PowerShell(& \"c:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2\\\\.claude\\\\hooks\\\\inject-memory.ps1\"; Write-Output \"---exit=$LASTEXITCODE---\"; Set-Content -LiteralPath \"c:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2\\\\.claude\\\\memory.md\" -Value \"Teste inicial.`n\" -Encoding UTF8; & \"c:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2\\\\.claude\\\\hooks\\\\inject-memory.ps1\"; Clear-Content -LiteralPath \"c:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2\\\\.claude\\\\memory.md\")",
+      "PowerShell($cfg = Get-Content -Raw -LiteralPath \"c:\\\\Users\\\\joaom\\\\OneDrive\\\\Área de Trabalho\\\\ClinicaOS_V2\\\\.claude\\\\settings.json\" | ConvertFrom-Json; Write-Output \"SessionStart command:\"; $cfg.hooks.SessionStart[0].hooks[0].command; Write-Output \"---\"; Write-Output \\(\"PostToolUse matcher: \" + $cfg.hooks.PostToolUse[0].matcher\\); Write-Output \\(\"PostToolUse type:    \" + $cfg.hooks.PostToolUse[0].hooks[0].type\\); Write-Output \\(\"PostToolUse model:   \" + $cfg.hooks.PostToolUse[0].hooks[0].model\\); Write-Output \\(\"PostToolUse timeout: \" + $cfg.hooks.PostToolUse[0].hooks[0].timeout\\); Write-Output \\(\"Prompt length:       \" + $cfg.hooks.PostToolUse[0].hooks[0].prompt.Length\\))",
+      "Bash(pnpm -v)",
+      "PowerShell(node -v)",
+      "PowerShell(pnpm -v)",
+      "PowerShell(corepack enable)",
+      "PowerShell(corepack prepare pnpm@9.15.0 --activate)",
+      "PowerShell(npm install -g pnpm@9.15.0)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",
+      "c:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\.claude"
+    ]
+  }
+}

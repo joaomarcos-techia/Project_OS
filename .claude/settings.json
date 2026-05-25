@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\.claude\\hooks\\inject-memory.ps1\"",
+            "timeout": 10,
+            "statusMessage": "Carregando memory.md..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "Atualize o memory.md do projeto registrando a edição que acabou de acontecer.\n\nInput do hook (JSON do PostToolUse com tool_name, tool_input, tool_response): $ARGUMENTS\n\nRegras OBRIGATÓRIAS:\n1. Extraia o caminho do arquivo de tool_input.file_path (ou tool_response.filePath se ausente).\n2. SE o caminho contém \"\\.claude\\\" ou \"/.claude/\" OU termina em \"memory.md\" OU é um arquivo de settings (settings.json, settings.local.json): responda APENAS \"SKIP\" e pare. NÃO chame nenhuma ferramenta. Isso evita loop infinito.\n3. Caso contrário, registre a alteração em \"C:/Users/joaom/OneDrive/Área de Trabalho/ClinicaOS_V2/.claude/memory.md\":\n   a) Use Read para ler o conteúdo atual de memory.md.\n   b) Opcionalmente, faça um Read rápido do arquivo modificado (apenas se ajudar a resumir o que mudou; pule se for arquivo grande/binário).\n   c) Gere uma única linha no formato:\n      - [YYYY-MM-DD HH:MM] <Criado|Editado>: <caminho relativo a ClinicaOS_V2/> — <resumo curto em português, no máximo 15 palavras>\n      Use Criado se tool_name=Write, Editado se tool_name=Edit.\n   d) Use Write para gravar o conteúdo antigo de memory.md + \"\\n\" + a nova linha. PRESERVE TUDO que já está em memory.md — apenas adicione no FINAL.\n4. Responda APENAS \"OK\" depois de gravar (ou \"SKIP\" se pulou).\n\nSeja rápido e conciso. Não explique nada além de OK/SKIP.",
+            "timeout": 120,
+            "statusMessage": "Atualizando memory.md..."
+          }
+        ]
+      }
+    ]
+  }
+}
