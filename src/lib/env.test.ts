@@ -3,42 +3,57 @@ import { __internal } from './env';
 
 const { loadEnv } = __internal;
 
+const asEnv = (obj: Record<string, string>) =>
+  obj as unknown as NodeJS.ProcessEnv;
+
 describe('env validation', () => {
   it('accepts empty env (all DB vars optional in C0)', () => {
-    const parsed = loadEnv({} as NodeJS.ProcessEnv);
+    const parsed = loadEnv(asEnv({}));
     expect(parsed.NODE_ENV).toBe('development');
     expect(parsed.LOG_LEVEL).toBe('info');
   });
 
-  it('accepts valid full env', () => {
-    const parsed = loadEnv({
-      DATABASE_URL: 'postgres://user:pass@host:5432/db',
-      DATABASE_URL_PROD: 'postgres://user:pass@host:5432/db',
-      NEXT_PUBLIC_SUPABASE_URL: 'https://abc.supabase.co',
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-key',
-      SUPABASE_SERVICE_ROLE_KEY: 'service-key',
-      NODE_ENV: 'production',
-      LOG_LEVEL: 'warn',
-    } as NodeJS.ProcessEnv);
+  it('accepts valid full env (new Supabase key naming)', () => {
+    const parsed = loadEnv(
+      asEnv({
+        DATABASE_URL: 'postgres://user:pass@host:5432/db',
+        DATABASE_URL_PROD: 'postgres://user:pass@host:5432/db',
+        NEXT_PUBLIC_SUPABASE_URL: 'https://abc.supabase.co',
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_xyz',
+        SUPABASE_SECRET_KEY: 'sb_secret_xyz',
+        NODE_ENV: 'production',
+        LOG_LEVEL: 'warn',
+      }),
+    );
     expect(parsed.NODE_ENV).toBe('production');
     expect(parsed.LOG_LEVEL).toBe('warn');
+    expect(parsed.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).toBe(
+      'sb_publishable_xyz',
+    );
+  });
+
+  it('accepts legacy Supabase key naming (anon/service_role)', () => {
+    const parsed = loadEnv(
+      asEnv({
+        NEXT_PUBLIC_SUPABASE_URL: 'https://abc.supabase.co',
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: 'legacy-anon',
+        SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-role',
+      }),
+    );
+    expect(parsed.NEXT_PUBLIC_SUPABASE_ANON_KEY).toBe('legacy-anon');
   });
 
   it('rejects invalid NODE_ENV', () => {
-    expect(() =>
-      loadEnv({ NODE_ENV: 'banana' } as unknown as NodeJS.ProcessEnv),
-    ).toThrow(/NODE_ENV/);
+    expect(() => loadEnv(asEnv({ NODE_ENV: 'banana' }))).toThrow(/NODE_ENV/);
   });
 
   it('rejects invalid LOG_LEVEL', () => {
-    expect(() =>
-      loadEnv({ LOG_LEVEL: 'verbose' } as unknown as NodeJS.ProcessEnv),
-    ).toThrow(/LOG_LEVEL/);
+    expect(() => loadEnv(asEnv({ LOG_LEVEL: 'verbose' }))).toThrow(/LOG_LEVEL/);
   });
 
   it('rejects malformed DATABASE_URL', () => {
-    expect(() =>
-      loadEnv({ DATABASE_URL: 'not-a-url' } as NodeJS.ProcessEnv),
-    ).toThrow(/DATABASE_URL/);
+    expect(() => loadEnv(asEnv({ DATABASE_URL: 'not-a-url' }))).toThrow(
+      /DATABASE_URL/,
+    );
   });
 });

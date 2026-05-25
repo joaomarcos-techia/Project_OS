@@ -20,7 +20,13 @@
       "PowerShell(pnpm -v)",
       "PowerShell(corepack enable)",
       "PowerShell(corepack prepare pnpm@9.15.0 --activate)",
-      "PowerShell(npm install -g pnpm@9.15.0)"
+      "PowerShell(npm install -g pnpm@9.15.0)",
+      "PowerShell(pnpm install 2>&1)",
+      "PowerShell(pnpm typecheck 2>&1)",
+      "PowerShell(pnpm lint 2>&1)",
+      "PowerShell(pnpm arch:check 2>&1)",
+      "PowerShell(pnpm build 2>&1)",
+      "PowerShell(pnpm test 2>&1)"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",

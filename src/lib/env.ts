@@ -15,10 +15,17 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().url().optional(), // TODO[C1]: required
   DATABASE_URL_PROD: z.string().url().optional(), // TODO[C1]: required (only in prod runtime)
 
-  // --- Supabase (C1 makes URL/anon required; C3 makes service role required) ---
+  // --- Supabase ---
+  // Naming: Supabase renamed keys in 2024. Both legacy and new keys still work.
+  // Prefer the new names (publishable/secret) for new projects.
+  //   anon         → publishable  (client-safe, RLS-protected)
+  //   service_role → secret       (server-only, bypasses RLS)
+  // C1 requires URL + a publishable/anon key. C3 requires the secret/service_role key.
   NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(), // TODO[C1]: required
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(), // TODO[C1]: required
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(), // TODO[C3]: required (server only)
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1).optional(), // TODO[C1]: required (preferred)
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(), // legacy alias of publishable
+  SUPABASE_SECRET_KEY: z.string().min(1).optional(), // TODO[C3]: required (preferred)
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(), // legacy alias of secret
 
   // --- Runtime ---
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
