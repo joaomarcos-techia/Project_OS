@@ -21,9 +21,9 @@
     "arch:check": "madge --circular --extensions ts,tsx src"
   },
   "dependencies": {
-    "next": "15.1.6",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
+    "next": "15.5.18",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -34,7 +34,7 @@
     "@types/react": "^19.0.4",
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.17.0",
-    "eslint-config-next": "15.1.6",
+    "eslint-config-next": "15.5.18",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-boundaries": "^5.0.1",
     "madge": "^8.0.0",
