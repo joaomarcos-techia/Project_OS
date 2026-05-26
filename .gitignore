@@ -36,7 +36,13 @@ coverage/
 
 # Database operations (C1+)
 backups/
+# Incident sentinel — written by scripts/db-migrate-prod.ts on failure.
+# Operator-local: must be resolved + deleted before any re-run. Not for git.
+MIGRATION_FAILED.md
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Cache
+*.tsbuildinfo

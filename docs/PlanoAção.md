@@ -449,15 +449,15 @@ Nenhuma camada anterior — esta é a primeira.
 
 ### 0.7 ✅ Checklist de estabilidade
 
-- [ ] Estrutura de pastas está coerente com o documento de visão (8 contextos, lib subdividida)
-- [ ] Não há arquivos > 200 LOC nesta camada (impossible neste momento, mas verifique)
-- [ ] `src/contexts/*` está vazio exceto README — não tem código de feature em lugar errado
-- [ ] Nenhum import circular detectável (use `npx madge --circular src`)
-- [ ] Dependências do `package.json` são apenas as listadas em 0.2; nada "instalei só pra testar"
-- [ ] Não há nenhuma abstração em `src/lib/*` ainda (cada subpasta vazia ou com `index.ts` exportando vazio)
-- [ ] `.env.local` não está no git (confirmar `git ls-files | grep env`)
-- [ ] Vercel project tem `NODE_ENV=production` em variáveis de produção
-- [ ] Wildcard SSL provê automaticamente pela Vercel (sem manual cert)
+- [X] Estrutura de pastas está coerente com o documento de visão (8 contextos, lib subdividida)
+- [X] Não há arquivos > 200 LOC nesta camada (impossible neste momento, mas verifique)
+- [X] `src/contexts/*` está vazio exceto README — não tem código de feature em lugar errado
+- [X] Nenhum import circular detectável (use `npx madge --circular src`)
+- [X] Dependências do `package.json` são apenas as listadas em 0.2; nada "instalei só pra testar"
+- [X] Não há nenhuma abstração em `src/lib/*` ainda (cada subpasta vazia ou com `index.ts` exportando vazio)
+- [X] `.env.local` não está no git (confirmar `git ls-files | grep env`)
+- [X] Vercel project tem `NODE_ENV=production` em variáveis de produção
+- [X] Wildcard SSL provê automaticamente pela Vercel (sem manual cert)
 
 ### 0.8 🟡 Débito técnico aceitável
 
@@ -1042,7 +1042,7 @@ ON CONFLICT DO NOTHING;
      END IF;
      RETURN NEW;
    END $$ LANGUAGE plpgsql;
-   
+
    CREATE TRIGGER trg_check_clinic_slug
      BEFORE INSERT OR UPDATE OF slug ON clinics
      FOR EACH ROW EXECUTE FUNCTION check_clinic_slug();
@@ -2992,7 +2992,7 @@ Layout:
 **Server Actions** (delegam para C6/C7):
 
 ```typescript
-callNextPatient(appointmentId): TX → 
+callNextPatient(appointmentId): TX →
   scheduling.startAppointment (status=em_atendimento)
   + cria chamada (TV)
   + abre prontuário inline (se não existe, handler de appointment.started cria via outbox)
