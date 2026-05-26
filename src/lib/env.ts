@@ -10,10 +10,15 @@
  */
 import { z } from 'zod';
 
+// Empty strings from `.env.local` (e.g. `FOO=`) become `undefined` so that
+// `.optional()` actually means "not set" rather than "set to empty string".
+// Without this, an empty `NEXT_PUBLIC_SUPABASE_URL=` would fail `.url()` validation.
+const emptyToUndefined = (v: unknown) => (v === '' ? undefined : v);
+
 const EnvSchema = z.object({
   // --- Database (C1 makes required) ---
-  DATABASE_URL: z.string().url().optional(), // TODO[C1]: required
-  DATABASE_URL_PROD: z.string().url().optional(), // TODO[C1]: required (only in prod runtime)
+  DATABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()), // TODO[C1]: required
+  DATABASE_URL_PROD: z.preprocess(emptyToUndefined, z.string().url().optional()), // TODO[C1]: required (only in prod runtime)
 
   // --- Supabase ---
   // Naming: Supabase renamed keys in 2024. Both legacy and new keys still work.
@@ -21,11 +26,11 @@ const EnvSchema = z.object({
   //   anon         → publishable  (client-safe, RLS-protected)
   //   service_role → secret       (server-only, bypasses RLS)
   // C1 requires URL + a publishable/anon key. C3 requires the secret/service_role key.
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(), // TODO[C1]: required
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1).optional(), // TODO[C1]: required (preferred)
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(), // legacy alias of publishable
-  SUPABASE_SECRET_KEY: z.string().min(1).optional(), // TODO[C3]: required (preferred)
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(), // legacy alias of secret
+  NEXT_PUBLIC_SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()), // TODO[C1]: required
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // TODO[C1]: required (preferred)
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // legacy alias of publishable
+  SUPABASE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // TODO[C3]: required (preferred)
+  SUPABASE_SERVICE_ROLE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // legacy alias of secret
 
   // --- Runtime ---
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

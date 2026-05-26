@@ -13,6 +13,23 @@ describe('env validation', () => {
     expect(parsed.LOG_LEVEL).toBe('info');
   });
 
+  it('treats empty strings from .env.local as undefined (so .optional() works)', () => {
+    const parsed = loadEnv(
+      asEnv({
+        DATABASE_URL: '',
+        DATABASE_URL_PROD: '',
+        NEXT_PUBLIC_SUPABASE_URL: '',
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: '',
+        SUPABASE_SECRET_KEY: '',
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
+        SUPABASE_SERVICE_ROLE_KEY: '',
+      }),
+    );
+    expect(parsed.DATABASE_URL).toBeUndefined();
+    expect(parsed.NEXT_PUBLIC_SUPABASE_URL).toBeUndefined();
+    expect(parsed.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).toBeUndefined();
+  });
+
   it('accepts valid full env (new Supabase key naming)', () => {
     const parsed = loadEnv(
       asEnv({
