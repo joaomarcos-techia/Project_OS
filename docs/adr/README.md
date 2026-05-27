@@ -1,0 +1,35 @@
+# Architecture Decision Records (ADRs)
+
+> ADRs são append-only. Um ADR aceito nunca é editado — quando a decisão muda,
+> escreva um novo ADR que cite o anterior e marque o antigo como `superseded by`.
+> ADRs contêm apenas princípios e decisões. Narrativa, runbooks operacionais
+> e contexto histórico vivem em `docs/PlanoAção.md`, `docs/runbooks/` e
+> `docs/PROGRESS.md`.
+
+## Índice
+
+| # | Título | Status | Camada |
+|---|---|---|---|
+| [000](000-template.md) | Template | template | — |
+| [001](001-bounded-contexts.md) | Bounded contexts isolados via DDD | accepted | C0 |
+| [002](002-rls-postgres.md) | RLS Postgres como defesa de isolamento de tenant | accepted | C0 |
+| [003](003-outbox-pattern.md) | Outbox transacional para eventos cross-context | accepted | C0 / C4 |
+| [004](004-meta-cloud-api.md) | Meta Cloud API como provider primário de WhatsApp | accepted | C0 / C10 |
+| [005](005-supabase-vs-firebase.md) | Supabase (Postgres) escolhido sobre Firebase | accepted | C0 / C1 |
+| [006](006-drizzle-orm-pinning.md) | Drizzle ORM com pin exato + driver postgres-js | accepted | C1 |
+| [007](007-rls-implementation-patterns.md) | RLS implementation patterns (FORCE-principal + dual-context + single helper) | accepted | C2 |
+
+## Como propor um novo ADR
+
+1. Copie [000-template.md](000-template.md) para `NNN-<short-kebab-name>.md`
+   (próximo número disponível).
+2. Preencha as seções: Context, Decision, Consequences, Alternatives, References.
+3. Status inicial: `proposed`. Vira `accepted` quando o PR é mergeado.
+4. Adicione uma linha no índice acima no mesmo PR.
+
+## Convenções
+
+- Um ADR = uma decisão arquitetural. Decisões pequenas (renomear variável) NÃO precisam de ADR.
+- Cite ADRs anteriores que essa decisão estende, refina ou substitui.
+- Documente alternativas rejeitadas — futuras releituras dependem disso para entender o "porquê".
+- Não escreva sobre código que ainda não existe (a menos que o ADR seja sobre o contrato do que será construído).

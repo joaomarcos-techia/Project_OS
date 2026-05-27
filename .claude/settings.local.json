@@ -26,7 +26,19 @@
       "PowerShell(pnpm lint 2>&1)",
       "PowerShell(pnpm arch:check 2>&1)",
       "PowerShell(pnpm build 2>&1)",
-      "PowerShell(pnpm test 2>&1)"
+      "PowerShell(pnpm test 2>&1)",
+      "Bash(where.exe psql *)",
+      "Bash(\"C:/Program Files/PostgreSQL/17/bin/psql.exe\" --version)",
+      "Bash(git checkout *)",
+      "Bash(pnpm db:generate --name tenancy_foundation)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm arch:check)",
+      "Bash(pnpm arch:db-check)",
+      "Bash(pnpm db:migrate:dev)",
+      "Bash(git rm *)",
+      "Bash(git add *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",
