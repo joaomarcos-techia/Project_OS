@@ -38,7 +38,8 @@
       "Bash(pnpm arch:db-check)",
       "Bash(pnpm db:migrate:dev)",
       "Bash(git rm *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",

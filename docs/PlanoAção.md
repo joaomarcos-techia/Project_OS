@@ -235,7 +235,7 @@ A ordem abaixo não é negociável. Ela é o resultado direto das dependências 
 
 # Parte 3 — Plano Mestre em Camadas
 
-## CAMADA 0 — Fundação do Repositório
+## CAMADA 0 — Fundação do Repositório CONFERE✅
 
 ### 0.1 🎯 Objetivo da camada
 
@@ -564,7 +564,7 @@ Avança para C1 quando:
 
 ---
 
-## CAMADA 1 — Banco de Dados, Drizzle e Migrations
+## CAMADA 1 — Banco de Dados, Drizzle e Migrations CONFERE✅
 
 ### 1.1 🎯 Objetivo da camada
 
@@ -724,14 +724,14 @@ export async function GET() {
 
 ### 1.7 ✅ Checklist de estabilidade
 
-- [ ] Não há nenhuma conexão direta `pg` em código fora de `src/lib/db/index.ts`
-- [ ] `dbAdmin` é importado em **no máximo 3 lugares** (jobs, super_admin, migrations)
-- [ ] Nenhum schema Drizzle em `src/contexts/*` ainda — apenas `_meta.ts` em `src/lib/db/schema/`
-- [ ] Drizzle config aponta para `src/lib/db/schema/**` corretamente
-- [ ] Migrations files são commitados — nunca regenerados em outro ambiente
-- [ ] `drizzle/migrations/` em git, `node_modules/` ignorado
-- [ ] Variável `DATABASE_URL_PROD` separada (Vercel production env), nunca em `.env.local`
-- [ ] Runbook explicita quem (você) e quando (sempre antes de feature deploy) roda migration prod
+- [X] Não há nenhuma conexão direta `pg` em código fora de `src/lib/db/index.ts`
+- [X] `dbAdmin` é importado em **no máximo 3 lugares** (jobs, super_admin, migrations)
+- [X] Nenhum schema Drizzle em `src/contexts/*` ainda — apenas `_meta.ts` em `src/lib/db/schema/`
+- [X] Drizzle config aponta para `src/lib/db/schema/**` corretamente
+- [X] Migrations files são commitados — nunca regenerados em outro ambiente
+- [X] `drizzle/migrations/` em git, `node_modules/` ignorado
+- [X] Variável `DATABASE_URL_PROD` separada (Vercel production env), nunca em `.env.local`
+- [X] Runbook explicita quem (você) e quando (sempre antes de feature deploy) roda migration prod
 
 ### 1.8 🟡 Débito técnico aceitável
 
@@ -838,7 +838,7 @@ Avança para C2 quando:
 
 ---
 
-  ## CAMADA 2 — Multi-Tenant Core + RLS Foundation
+## CAMADA 2 — Multi-Tenant Core + RLS Foundation - CONFERE✅
 
   ### 2.1 🎯 Objetivo da camada
 
@@ -1096,14 +1096,14 @@ Avança para C2 quando:
 
   ### 2.7 ✅ Checklist de estabilidade
 
-  - [ ] **Toda** policy criada usa `defaultTenantPolicy()` ou está explicitamente justificada em comentário SQL
-  - [ ] Nenhuma policy `FOR ALL TO public USING (true)` em lugar nenhum
-  - [ ] `_reserved_slugs` tem trigger de bloqueio funcionando
-  - [ ] Helper `withTenant` documenta claramente quando usar (jobs) e quando não usar (endpoints HTTP)
-  - [ ] `dbAdmin` continua importado em ≤ 3 lugares
-  - [ ] Schema files vivem em `src/contexts/tenancy/schema.ts`, **não** em `src/lib/db/schema/`
-  - [ ] `src/lib/db/schema/index.ts` re-exporta de cada contexto (single source pra Drizzle config)
-  - [ ] ADR-006 escrito, comitado, link no `docs/adr/README.md`
+  - [X] **Toda** policy criada usa `defaultTenantPolicy()` ou está explicitamente justificada em comentário SQL
+  - [X] Nenhuma policy `FOR ALL TO public USING (true)` em lugar nenhum
+  - [X] `_reserved_slugs` tem trigger de bloqueio funcionando
+  - [X] Helper `withTenant` documenta claramente quando usar (jobs) e quando não usar (endpoints HTTP)
+  - [X] `dbAdmin` continua importado em ≤ 3 lugares
+  - [X] Schema files vivem em `src/contexts/tenancy/schema.ts`, **não** em `src/lib/db/schema/`
+  - [X] `src/lib/db/schema/index.ts` re-exporta de cada contexto (single source pra Drizzle config)
+  - [X] ADR-006 escrito, comitado, link no `docs/adr/README.md`
 
   ### 2.8 🟡 Débito técnico aceitável
 
