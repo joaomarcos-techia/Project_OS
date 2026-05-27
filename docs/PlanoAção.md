@@ -838,375 +838,375 @@ Avança para C2 quando:
 
 ---
 
-## CAMADA 2 — Multi-Tenant Core + RLS Foundation
+  ## CAMADA 2 — Multi-Tenant Core + RLS Foundation
 
-### 2.1 🎯 Objetivo da camada
+  ### 2.1 🎯 Objetivo da camada
 
-Estabelecer o **isolamento de tenant como invariante do banco**. Criar a tabela `clinics` (e tabelas satélites mínimas), implementar RLS policy padrão, criar helpers de **contexto de tenant** que funcionam tanto em rotas HTTP (via JWT do usuário autenticado) quanto em workers/jobs (via `SET LOCAL` explícito).
+  Estabelecer o **isolamento de tenant como invariante do banco**. Criar a tabela `clinics` (e tabelas satélites mínimas), implementar RLS policy padrão, criar helpers de **contexto de tenant** que funcionam tanto em rotas HTTP (via JWT do usuário autenticado) quanto em workers/jobs (via `SET LOCAL` explícito).
 
-Esta é a camada **mais perigosa do MVP inteiro**. Erro aqui = vazamento de dados entre clínicas = sistema morto.
+  Esta é a camada **mais perigosa do MVP inteiro**. Erro aqui = vazamento de dados entre clínicas = sistema morto.
 
-Resolve: ausência de isolamento real; risco de bug humano vazar tenant; falta de defesa em profundidade.
+  Resolve: ausência de isolamento real; risco de bug humano vazar tenant; falta de defesa em profundidade.
 
-Cria fundação para: todas as demais tabelas (C3+) que serão tenant-scoped.
+  Cria fundação para: todas as demais tabelas (C3+) que serão tenant-scoped.
 
-Evita futuro: 537 lugares com `where clinic_id = X` manual (caso do v1); SQL injection vazar cross-tenant; bug de devjr vazar produção.
+  Evita futuro: 537 lugares com `where clinic_id = X` manual (caso do v1); SQL injection vazar cross-tenant; bug de devjr vazar produção.
 
-📌 **Esta camada exige paranoia.** Se algum teste falhar, **PARA TUDO** até resolver.
+  📌 **Esta camada exige paranoia.** Se algum teste falhar, **PARA TUDO** até resolver.
 
-### 2.2 🧱 O que deve ser construído
+  ### 2.2 🧱 O que deve ser construído
 
-**Tabelas (em `src/contexts/tenancy/schema.ts`):**
+  **Tabelas (em `src/contexts/tenancy/schema.ts`):**
 
-- `clinics` (id, slug, nome, cnpj, cnes nullable, status, created_at, updated_at, deleted_at nullable)
-  - `slug`: text, unique, validação `^[a-z0-9-]{3,30}$`, **reservados bloqueados** (`app`, `admin`, `api`, etc.)
-  - `status`: enum (`trial`, `active`, `suspended_readonly`, `suspended`, `cancelled`)
-- `clinic_units` (id, clinic_id, nome, endereco, ativo) — multi-unidade opcional
-- `clinic_domains` (id, clinic_id, domain, type: `subdomain`|`custom`, verified_at)
-- `_reserved_slugs` (slug primary key) — seed table imutável
+  - `clinics` (id, slug, nome, cnpj, cnes nullable, status, created_at, updated_at, deleted_at nullable)
+    - `slug`: text, unique, validação `^[a-z0-9-]{3,30}$`, **reservados bloqueados** (`app`, `admin`, `api`, etc.)
+    - `status`: enum (`trial`, `active`, `suspended_readonly`, `suspended`, `cancelled`)
+  - `clinic_units` (id, clinic_id, nome, endereco, ativo) — multi-unidade opcional
+  - `clinic_domains` (id, clinic_id, domain, type: `subdomain`|`custom`, verified_at)
+  - `_reserved_slugs` (slug primary key) — seed table imutável
 
-**Auth wiring:**
+  **Auth wiring:**
 
-- Trigger Postgres `set_app_clinic_from_jwt` que faz `SET LOCAL app.current_clinic = current_setting('request.jwt.claims', true)::json->>'clinic_id'` em todo request via Supabase auth hook (vem em C3, mas a função SQL pode ser criada aqui)
-- No nível Drizzle, helper `withTenant(clinicId, fn)` para jobs:
-  ```typescript
-  // src/lib/db/tenant.ts
-  export async function withTenant<T>(clinicId: string, fn: () => Promise<T>) {
-    return db.transaction(async (tx) => {
-      await tx.execute(sql`SET LOCAL app.current_clinic = ${clinicId}`);
-      return fn(); // queries dentro de fn rodam com tenant setado
-    });
-  }
+  - Trigger Postgres `set_app_clinic_from_jwt` que faz `SET LOCAL app.current_clinic = current_setting('request.jwt.claims', true)::json->>'clinic_id'` em todo request via Supabase auth hook (vem em C3, mas a função SQL pode ser criada aqui)
+  - No nível Drizzle, helper `withTenant(clinicId, fn)` para jobs:
+    ```typescript
+    // src/lib/db/tenant.ts
+    export async function withTenant<T>(clinicId: string, fn: () => Promise<T>) {
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL app.current_clinic = ${clinicId}`);
+        return fn(); // queries dentro de fn rodam com tenant setado
+      });
+    }
+    ```
+
+  **RLS policies padrão** (em `src/contexts/tenancy/policies.ts`, aplicadas via migration SQL custom):
+
+  ```sql
+  ALTER TABLE clinics ENABLE ROW LEVEL SECURITY;
+
+  -- super_admin lê tudo
+  CREATE POLICY "super_admin reads all clinics"
+    ON clinics FOR SELECT
+    USING (
+      (auth.jwt() ->> 'role') = 'super_admin'
+    );
+
+  -- usuário comum só lê sua clínica
+  CREATE POLICY "tenant reads own clinic"
+    ON clinics FOR SELECT
+    USING (
+      id::text = current_setting('app.current_clinic', true)
+      OR id::text = (auth.jwt() ->> 'clinic_id')
+    );
+
+  -- writes apenas via super_admin ou owner/gestor da própria clínica
+  CREATE POLICY "tenant updates own clinic"
+    ON clinics FOR UPDATE
+    USING (
+      id::text = (auth.jwt() ->> 'clinic_id')
+      AND (auth.jwt() ->> 'role') IN ('gestor', 'owner')
+    );
+
+  CREATE POLICY "super_admin inserts clinic"
+    ON clinics FOR INSERT
+    WITH CHECK ((auth.jwt() ->> 'role') = 'super_admin');
+
+  -- DELETE só super_admin (cascade pra LGPD)
+  CREATE POLICY "super_admin deletes clinic"
+    ON clinics FOR DELETE
+    USING ((auth.jwt() ->> 'role') = 'super_admin');
   ```
 
-**RLS policies padrão** (em `src/contexts/tenancy/policies.ts`, aplicadas via migration SQL custom):
-
-```sql
-ALTER TABLE clinics ENABLE ROW LEVEL SECURITY;
-
--- super_admin lê tudo
-CREATE POLICY "super_admin reads all clinics"
-  ON clinics FOR SELECT
-  USING (
-    (auth.jwt() ->> 'role') = 'super_admin'
-  );
-
--- usuário comum só lê sua clínica
-CREATE POLICY "tenant reads own clinic"
-  ON clinics FOR SELECT
-  USING (
-    id::text = current_setting('app.current_clinic', true)
-    OR id::text = (auth.jwt() ->> 'clinic_id')
-  );
-
--- writes apenas via super_admin ou owner/gestor da própria clínica
-CREATE POLICY "tenant updates own clinic"
-  ON clinics FOR UPDATE
-  USING (
-    id::text = (auth.jwt() ->> 'clinic_id')
-    AND (auth.jwt() ->> 'role') IN ('gestor', 'owner')
-  );
-
-CREATE POLICY "super_admin inserts clinic"
-  ON clinics FOR INSERT
-  WITH CHECK ((auth.jwt() ->> 'role') = 'super_admin');
-
--- DELETE só super_admin (cascade pra LGPD)
-CREATE POLICY "super_admin deletes clinic"
-  ON clinics FOR DELETE
-  USING ((auth.jwt() ->> 'role') = 'super_admin');
-```
-
-**Convenção repetida em toda tabela tenant-scoped (a partir daqui):**
-
-```sql
--- Template para qualquer tabela X com clinic_id FK
-ALTER TABLE X ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "tenant access" ON X
-  FOR ALL
-  USING (
-    clinic_id::text = current_setting('app.current_clinic', true)
-    OR clinic_id::text = (auth.jwt() ->> 'clinic_id')
-    OR (auth.jwt() ->> 'role') = 'super_admin'
-  )
-  WITH CHECK (
-    clinic_id::text = current_setting('app.current_clinic', true)
-    OR clinic_id::text = (auth.jwt() ->> 'clinic_id')
-    OR (auth.jwt() ->> 'role') = 'super_admin'
-  );
-```
-
-🔒 **Tornar este pattern um helper:** crie `src/lib/db/rls.ts` exportando função geradora `defaultTenantPolicy(tableName)` que retorna SQL string. Toda tabela usa, **sem exceção**.
-
-**Server helper** `src/lib/auth/tenant-context.ts` (parcial — completa em C3):
-
-```typescript
-// Retorna clinic_id do JWT do request atual, ou throw.
-export async function requireClinicId(): Promise<string> { ... }
-// Retorna role do JWT, ou throw.
-export async function requireRole(allowed: Role[]): Promise<Role> { ... }
-```
-
-**Seed de slugs reservados:**
-
-```sql
-INSERT INTO _reserved_slugs (slug) VALUES
-  ('app'), ('admin'), ('api'), ('www'), ('mail'), ('status'),
-  ('qoro'), ('support'), ('help'), ('docs'), ('blog'),
-  ('cdn'), ('static'), ('media'), ('public'), ('private')
-ON CONFLICT DO NOTHING;
-```
-
-### 2.3 🚫 O que NÃO deve ser construído ainda
-
-- ❌ **Tabela `users` ou `profiles`** — C3.
-- ❌ **Sistema de planos (`subscriptions`, `invoices`)** — C13. Apenas campo `status` em `clinics` por enquanto, sem lógica.
-- ❌ **CRUD de clínicas via UI** — você (super_admin) cria via SQL direto até C15.
-- ❌ **Custom domain provisioning automatizado** — Pro feature, futuro.
-- ❌ **Resolver de subdomínio → clinic_id no middleware** — virá em C3 quando login existir.
-- ❌ **Soft delete UI / Recover deleted** — apenas o campo `deleted_at`, sem UI.
-
-### 2.4 🔗 Dependências
-
-- C0 (estrutura, env)
-- C1 (Drizzle, migrations, db client)
-- Conta Supabase com Auth habilitado (mesmo sem usuários criados)
-
-### 2.5 ✅ Critérios de pronto
-
-- Migration cria tabelas `clinics`, `clinic_units`, `clinic_domains`, `_reserved_slugs`
-- RLS habilitado e policies aplicadas em todas as 4 tabelas
-- Helper `defaultTenantPolicy(tableName)` testado gerando SQL correto
-- Slugs reservados seedados
-- `withTenant(clinicId, fn)` helper funciona em sessão Drizzle
-- Você consegue criar uma clínica via `dbAdmin` (bypass RLS) e ver ela em Studio
-- Você consegue inserir 2 clínicas e simular via psql: `SET LOCAL app.current_clinic = '<id-clinica-A>'; SELECT * FROM clinics;` retorna **apenas** a A
-- Sem `app.current_clinic` e sem JWT, SELECT em `clinics` retorna **0 rows** (RLS bloqueia anônimo)
-- Constraint UNIQUE no slug + check (`slug ~* '^[a-z0-9-]{3,30}$'`) impede slug ruim
-- ADR-006 documentando "RLS é a defesa que não falha" gravado em `docs/adr/`
-
-**❌ Quando NÃO está pronta:**
-- Alguma policy está com `USING (true)` ou `FOR ALL TO public USING (true)` (catastrófico)
-- Anon (sem JWT) consegue ler `clinics`
-- `SET LOCAL` não isola dentro de transação
-- Falta CHECK de slug ou unique constraint
-- Slug reservado consegue ser cadastrado
-
-### 2.6 🧪 Testes manuais obrigatórios
-
-**Teste 2.6.1 — Isolamento básico via `app.current_clinic`**
-
-1. Via `dbAdmin`: criar clínica A (`{id: 'aaa...', slug: 'clinica-a'}`) e clínica B (`{id: 'bbb...', slug: 'clinica-b'}`)
-2. Abrir psql com role `authenticated` (use connection string com authenticated user) **OU** simular via service_role manualmente faking auth:
-   ```sql
-   SET ROLE authenticated;
-   SET LOCAL app.current_clinic = 'aaa...';
-   SELECT id, slug FROM clinics;
-   ```
-3. Esperado: retorna **apenas** linha da clínica A
-4. Trocar para B: `SET LOCAL app.current_clinic = 'bbb...'` → retorna apenas B
-5. Reset `RESET app.current_clinic; SELECT * FROM clinics;` → retorna 0 rows (anônimo)
-6. ✋ Se passou: continua. Se vazou: **PARA** e corrige.
-
-**Teste 2.6.2 — Anon não lê nada**
-
-1. Sem `SET LOCAL`, sem JWT, simulando role `anon`:
-2. `SET ROLE anon; SELECT * FROM clinics;`
-3. Esperado: 0 rows
-4. ✋ Vazou? Para tudo. Verifica policies não têm `TO anon` ou `USING (true)`.
-
-**Teste 2.6.3 — super_admin lê tudo**
-
-1. Simular JWT com `role=super_admin`:
-   ```sql
-   SET LOCAL "request.jwt.claims" = '{"role":"super_admin"}';
-   SELECT id, slug FROM clinics;
-   ```
-2. Esperado: retorna A e B
-3. ✋ Se retornar 0 rows: policy de super_admin tá errada.
-
-**Teste 2.6.4 — Slug reservado bloqueado**
-
-1. Tentar inserir clínica com slug `'app'`:
-   ```sql
-   INSERT INTO clinics (slug, nome) VALUES ('app', 'Tentativa Reservada');
-   ```
-2. Esperado: erro de check constraint OU FK contra `_reserved_slugs` (escolha a estratégia — recomendo **trigger BEFORE INSERT** que verifica em `_reserved_slugs`)
-3. Implementar:
-   ```sql
-   CREATE OR REPLACE FUNCTION check_clinic_slug() RETURNS trigger AS $$
-   BEGIN
-     IF EXISTS (SELECT 1 FROM _reserved_slugs WHERE slug = NEW.slug) THEN
-       RAISE EXCEPTION 'Slug reservado: %', NEW.slug;
-     END IF;
-     RETURN NEW;
-   END $$ LANGUAGE plpgsql;
-
-   CREATE TRIGGER trg_check_clinic_slug
-     BEFORE INSERT OR UPDATE OF slug ON clinics
-     FOR EACH ROW EXECUTE FUNCTION check_clinic_slug();
-   ```
-4. Esperado: insert rejeitado com mensagem clara
-
-**Teste 2.6.5 — Slug format check**
-
-1. Tentar slug `'AB CDE'` (espaço, maiúscula)
-2. Esperado: rejeitado pelo regex check
-3. Tentar `'ab'` (curto demais) → rejeitado
-4. Tentar `'a'*31` (longo demais) → rejeitado
-5. Tentar `'valido-ok-123'` → aceito
-
-**Teste 2.6.6 — UPDATE cross-tenant bloqueado**
-
-1. JWT simulado de gestor da clínica A: `SET LOCAL "request.jwt.claims" = '{"role":"gestor","clinic_id":"aaa..."}'`
-2. Tentar `UPDATE clinics SET nome = 'hack' WHERE id = 'bbb...'` (id da B)
-3. Esperado: 0 rows updated (RLS rejeita) — sem erro, apenas silêncio (comportamento Postgres default)
-4. ✋ Se mudou: vazamento. Para tudo.
-
-**Teste 2.6.7 — DELETE só super_admin**
-
-1. JWT de gestor: tentar `DELETE FROM clinics WHERE id = 'aaa...'`
-2. Esperado: 0 rows deleted
-3. JWT de super_admin: mesmo DELETE → 1 row deleted, **cascade** dispara (verificar depois quando houver FKs)
-
-**Teste 2.6.8 — `withTenant` helper funciona via app**
-
-1. Criar rota temporária `/api/_test-tenant`:
-   ```typescript
-   import { dbAdmin } from '@/lib/db';
-   import { withTenant } from '@/lib/db/tenant';
-   import { clinics } from '@/contexts/tenancy/schema';
-   export async function GET() {
-     const A = 'aaa-uuid-da-A';
-     const result = await withTenant(A, async () => {
-       return dbAdmin.select().from(clinics);
-       // Wait: dbAdmin BYPASSA RLS. Test should use `db` (authenticated).
-     });
-     return Response.json(result);
-   }
-   ```
-2. ⚠️ Cuidado: `dbAdmin` bypassa RLS — pra testar **isolamento real**, use `db` (que requer JWT). `withTenant` é pra **jobs** que rodam sem JWT mas precisam respeitar tenant; ele faz `SET LOCAL` mas só funciona se a conexão tiver role correto. Documente isto explicitamente no helper.
-3. Esperado: retorna apenas clínica A
-4. **Apagar rota depois**
-
-**Teste 2.6.9 — Tentativa de URL manipulation (vazia neste momento, fica TODO até C3)**
-
-- Reservado pra C3 quando houver auth.
-
-### 2.7 ✅ Checklist de estabilidade
-
-- [ ] **Toda** policy criada usa `defaultTenantPolicy()` ou está explicitamente justificada em comentário SQL
-- [ ] Nenhuma policy `FOR ALL TO public USING (true)` em lugar nenhum
-- [ ] `_reserved_slugs` tem trigger de bloqueio funcionando
-- [ ] Helper `withTenant` documenta claramente quando usar (jobs) e quando não usar (endpoints HTTP)
-- [ ] `dbAdmin` continua importado em ≤ 3 lugares
-- [ ] Schema files vivem em `src/contexts/tenancy/schema.ts`, **não** em `src/lib/db/schema/`
-- [ ] `src/lib/db/schema/index.ts` re-exporta de cada contexto (single source pra Drizzle config)
-- [ ] ADR-006 escrito, comitado, link no `docs/adr/README.md`
-
-### 2.8 🟡 Débito técnico aceitável
-
-- 🔓 Sem UI de criação de clínica (você cria via SQL ou Studio até C15)
-- 🔓 Sem validação de CNPJ (só formato; validação real via Receita só em v2.1)
-- 🔓 Sem CEP/endereço estruturado (texto único basta no MVP)
-- 🔓 Sem fluxo de "troca de slug" (1x grátis) — adiciona quando alguém pedir
-- 🔓 Sem custom domain provisioning (mesmo plano Pro: você faz manual)
-
-### 2.9 🔴 Débito técnico proibido
-
-- 🚫 **Tabela tenant-scoped sem RLS habilitado** — toda tabela com `clinic_id` deve ter RLS, sem exceção. Faça checklist no PR.
-- 🚫 **Policy permissiva `USING (true)`** em produção — **nem mesmo "temporário"**
-- 🚫 **`dbAdmin` em código de runtime de usuário** — só jobs, scripts, super_admin
-- 🚫 **`clinic_id` opcional** em qualquer tabela tenant-scoped — sempre `NOT NULL`
-- 🚫 **Slug case-sensitive** — sempre lowercase no DB, validação no app
-- 🚫 **`clinics.id` ser `serial`** — sempre `uuid`, evita enumeration attack
-- 🚫 **Permitir slug ser editado livremente após criado** — exige fluxo controlado (1x grátis depois)
-
-### 2.10 ⚠️ Riscos conhecidos + rollback mental
-
-- **Risco crítico:** policy de RLS errada vaza tenant. → **Mitigação**: tests 2.6.1-2.6.7 ANTES de avançar. Em produção, monitor de alertas no Postgres para queries que retornam linhas de múltiplas `clinic_id` em um mesmo result set (raro, mas detectável).
-- **Risco:** `SET LOCAL` não funciona como esperado em pooled connection. → **Mitigação**: helper `withTenant` envolve em transação (`SET LOCAL` em TX é escopo da TX, não da conexão pooled).
-- **Risco:** super_admin esquece de auditar uma ação cross-tenant. → **Mitigação**: vem em C4 com `super_admin_actions`.
-- **Rollback mental:** se descobrir bug de RLS em produção depois de ter clientes, **comunique imediatamente** (LGPD Art. 48 — 72h). Não esconda. Backups + audit log permitem investigação forense.
-
-### 2.11 💀 Sinais precoces de hidra
-
-- Tentação de "fazer policy super permissiva agora e apertar depois" — **NUNCA**. Aperta agora, relaxa nunca.
-- Tentação de ter UMA policy genérica em vez de uma por tabela — soa bom, mas dificulta debug. Mantenha 1 policy por tabela usando helper.
-- Tentação de armazenar `clinic_id` em sessão Next.js em vez de JWT claim — fragiliza, JWT é a fonte da verdade.
-- Tentação de criar `is_super_admin` como flag em `users` em vez de claim no JWT — vai virar dual source of truth.
-- Tentação de pular RLS "só nessa tabela porque é interna" — abre precedente, hidra acha.
-
-### 2.12 🚦 Critério obrigatório para avançar
-
-Avança para C3 quando:
-- **TODOS** os testes 2.6.1-2.6.7 passam (2.6.8 é validação extra)
-- Você consegue explicar em 30s a alguém: "como o isolamento entre clínicas funciona aqui"
-- Você fez um "red team mental" — tentou pensar em jeito de vazar e não achou
-- ADR-006 está escrito
-
-**Não avança se:**
-- Algum vazamento (mesmo "explicável") foi observado
-- Você não testou role `anon` explicitamente
-- Você não testou role `authenticated` sem `app.current_clinic` setado (deve retornar 0 rows ou rows da clínica do JWT)
-
-### 2.13 🌡️ Stress Test Arquitetural
-
-- **10 clínicas:** RLS overhead invisível (~5%).
-- **100 clínicas:** overhead ~10-20%, totalmente aceitável.
-- **1000 clínicas:** overhead pode chegar 20-30% em queries complexas; ainda OK.
-- **Quebra primeiro em:** policy mal escrita (subquery pesada em USING) — toda policy deve ser O(1) ou usar índice.
-- **Gargalo previsível:** se super_admin acessa cross-tenant frequentemente, queries sem `clinic_id` filter podem fazer full scan; mitigar com índices.
-- **Refactor futuro mais provável:** read replica pra super_admin dashboards (não-prazo).
-
-### 2.14 ⚙️ Budget de Complexidade Operacional
-
-- Serviços novos: **0**
-- Workers/crons: **0**
-- Filas: **0**
-- Integrações externas: **0**
-- Pontos de falha novos: **1** (policy RLS mal escrita derruba todo o sistema — testes obrigatórios)
-- Dashboards: **0**
-- Custo cognitivo: **ALTO** — você precisa pensar em RLS toda vez que criar tabela; **mas** helper `defaultTenantPolicy()` reduz pra "lembrar de chamar".
-
-### 2.15 ☠️ Kill Criteria
-
-- **Mate "policy custom por tabela"** se houver tentação — usa helper `defaultTenantPolicy()` para 90%+
-- **Mate "RLS condicional via flag de feature"** se aparecer — RLS é constante, não opcional
-- **Reverta "slug editável livre"** se for tentado — mantém 1x grátis controlado
-
-### 2.16 🧠 Founder Cognitive Load
-
-- **Manter:** médio (toda tabela nova exige RLS + checklist)
-- **Debugar:** "por que retorna 0 rows?" é o bug mais comum; runbook ensina debug (`EXPLAIN ANALYZE`, `SET ROLE`, inspeção de claim JWT)
-- **Operar sozinho às 3h:** RLS não dá pager normalmente; falha é silenciosa (queries retornam 0 ou bloqueiam)
-- **Onboarding futuro:** dev junior precisa de 2-3 dias pra internalizar RLS pattern
-
-### 2.17 🎲 Apostas vs Decisões
-
-- **Decisões sólidas:** RLS em toda tabela tenant-scoped; helper `defaultTenantPolicy`; `app.current_clinic` para jobs
-- **Hipóteses:** overhead RLS aceitável até 1000 clínicas (validar com benchmark futuro)
-- **Apostas:** Postgres `SET LOCAL` em pooled connection isola corretamente (validado)
-- **Experimentos:** trigger de bloqueio de slug reservado (vs FK) — provavelmente vai ficar
-- **Improvisos:** nenhum
-
-### 2.18 🧊 Contratos Congelados ao fim de C2
-
-**Congelados:**
-- Toda tabela tenant-scoped tem `clinic_id uuid NOT NULL` + RLS via `defaultTenantPolicy()`
-- Slug format `^[a-z0-9-]{3,30}$` e lista de reservados
-- `super_admin` policy via `auth.jwt() ->> 'role' = 'super_admin'`
-- `app.current_clinic` set local em jobs
-
-**Ainda mutáveis:**
-- Lista de slugs reservados (pode crescer)
-- Detalhes de policies por tabela em camadas futuras
-
-**Experimentais:**
-- Trigger de slug reservado (pode virar FK constraint se simpler)
-
----
+  **Convenção repetida em toda tabela tenant-scoped (a partir daqui):**
+
+  ```sql
+  -- Template para qualquer tabela X com clinic_id FK
+  ALTER TABLE X ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "tenant access" ON X
+    FOR ALL
+    USING (
+      clinic_id::text = current_setting('app.current_clinic', true)
+      OR clinic_id::text = (auth.jwt() ->> 'clinic_id')
+      OR (auth.jwt() ->> 'role') = 'super_admin'
+    )
+    WITH CHECK (
+      clinic_id::text = current_setting('app.current_clinic', true)
+      OR clinic_id::text = (auth.jwt() ->> 'clinic_id')
+      OR (auth.jwt() ->> 'role') = 'super_admin'
+    );
+  ```
+
+  🔒 **Tornar este pattern um helper:** crie `src/lib/db/rls.ts` exportando função geradora `defaultTenantPolicy(tableName)` que retorna SQL string. Toda tabela usa, **sem exceção**.
+
+  **Server helper** `src/lib/auth/tenant-context.ts` (parcial — completa em C3):
+
+  ```typescript
+  // Retorna clinic_id do JWT do request atual, ou throw.
+  export async function requireClinicId(): Promise<string> { ... }
+  // Retorna role do JWT, ou throw.
+  export async function requireRole(allowed: Role[]): Promise<Role> { ... }
+  ```
+
+  **Seed de slugs reservados:**
+
+  ```sql
+  INSERT INTO _reserved_slugs (slug) VALUES
+    ('app'), ('admin'), ('api'), ('www'), ('mail'), ('status'),
+    ('qoro'), ('support'), ('help'), ('docs'), ('blog'),
+    ('cdn'), ('static'), ('media'), ('public'), ('private')
+  ON CONFLICT DO NOTHING;
+  ```
+
+  ### 2.3 🚫 O que NÃO deve ser construído ainda
+
+  - ❌ **Tabela `users` ou `profiles`** — C3.
+  - ❌ **Sistema de planos (`subscriptions`, `invoices`)** — C13. Apenas campo `status` em `clinics` por enquanto, sem lógica.
+  - ❌ **CRUD de clínicas via UI** — você (super_admin) cria via SQL direto até C15.
+  - ❌ **Custom domain provisioning automatizado** — Pro feature, futuro.
+  - ❌ **Resolver de subdomínio → clinic_id no middleware** — virá em C3 quando login existir.
+  - ❌ **Soft delete UI / Recover deleted** — apenas o campo `deleted_at`, sem UI.
+
+  ### 2.4 🔗 Dependências
+
+  - C0 (estrutura, env)
+  - C1 (Drizzle, migrations, db client)
+  - Conta Supabase com Auth habilitado (mesmo sem usuários criados)
+
+  ### 2.5 ✅ Critérios de pronto
+
+  - Migration cria tabelas `clinics`, `clinic_units`, `clinic_domains`, `_reserved_slugs`
+  - RLS habilitado e policies aplicadas em todas as 4 tabelas
+  - Helper `defaultTenantPolicy(tableName)` testado gerando SQL correto
+  - Slugs reservados seedados
+  - `withTenant(clinicId, fn)` helper funciona em sessão Drizzle
+  - Você consegue criar uma clínica via `dbAdmin` (bypass RLS) e ver ela em Studio
+  - Você consegue inserir 2 clínicas e simular via psql: `SET LOCAL app.current_clinic = '<id-clinica-A>'; SELECT * FROM clinics;` retorna **apenas** a A
+  - Sem `app.current_clinic` e sem JWT, SELECT em `clinics` retorna **0 rows** (RLS bloqueia anônimo)
+  - Constraint UNIQUE no slug + check (`slug ~* '^[a-z0-9-]{3,30}$'`) impede slug ruim
+  - ADR-006 documentando "RLS é a defesa que não falha" gravado em `docs/adr/`
+
+  **❌ Quando NÃO está pronta:**
+  - Alguma policy está com `USING (true)` ou `FOR ALL TO public USING (true)` (catastrófico)
+  - Anon (sem JWT) consegue ler `clinics`
+  - `SET LOCAL` não isola dentro de transação
+  - Falta CHECK de slug ou unique constraint
+  - Slug reservado consegue ser cadastrado
+
+  ### 2.6 🧪 Testes manuais obrigatórios
+
+  **Teste 2.6.1 — Isolamento básico via `app.current_clinic`**
+
+  1. Via `dbAdmin`: criar clínica A (`{id: 'aaa...', slug: 'clinica-a'}`) e clínica B (`{id: 'bbb...', slug: 'clinica-b'}`)
+  2. Abrir psql com role `authenticated` (use connection string com authenticated user) **OU** simular via service_role manualmente faking auth:
+    ```sql
+    SET ROLE authenticated;
+    SET LOCAL app.current_clinic = 'aaa...';
+    SELECT id, slug FROM clinics;
+    ```
+  3. Esperado: retorna **apenas** linha da clínica A
+  4. Trocar para B: `SET LOCAL app.current_clinic = 'bbb...'` → retorna apenas B
+  5. Reset `RESET app.current_clinic; SELECT * FROM clinics;` → retorna 0 rows (anônimo)
+  6. ✋ Se passou: continua. Se vazou: **PARA** e corrige.
+
+  **Teste 2.6.2 — Anon não lê nada**
+
+  1. Sem `SET LOCAL`, sem JWT, simulando role `anon`:
+  2. `SET ROLE anon; SELECT * FROM clinics;`
+  3. Esperado: 0 rows
+  4. ✋ Vazou? Para tudo. Verifica policies não têm `TO anon` ou `USING (true)`.
+
+  **Teste 2.6.3 — super_admin lê tudo**
+
+  1. Simular JWT com `role=super_admin`:
+    ```sql
+    SET LOCAL "request.jwt.claims" = '{"role":"super_admin"}';
+    SELECT id, slug FROM clinics;
+    ```
+  2. Esperado: retorna A e B
+  3. ✋ Se retornar 0 rows: policy de super_admin tá errada.
+
+  **Teste 2.6.4 — Slug reservado bloqueado**
+
+  1. Tentar inserir clínica com slug `'app'`:
+    ```sql
+    INSERT INTO clinics (slug, nome) VALUES ('app', 'Tentativa Reservada');
+    ```
+  2. Esperado: erro de check constraint OU FK contra `_reserved_slugs` (escolha a estratégia — recomendo **trigger BEFORE INSERT** que verifica em `_reserved_slugs`)
+  3. Implementar:
+    ```sql
+    CREATE OR REPLACE FUNCTION check_clinic_slug() RETURNS trigger AS $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM _reserved_slugs WHERE slug = NEW.slug) THEN
+        RAISE EXCEPTION 'Slug reservado: %', NEW.slug;
+      END IF;
+      RETURN NEW;
+    END $$ LANGUAGE plpgsql;
+
+    CREATE TRIGGER trg_check_clinic_slug
+      BEFORE INSERT OR UPDATE OF slug ON clinics
+      FOR EACH ROW EXECUTE FUNCTION check_clinic_slug();
+    ```
+  4. Esperado: insert rejeitado com mensagem clara
+
+  **Teste 2.6.5 — Slug format check**
+
+  1. Tentar slug `'AB CDE'` (espaço, maiúscula)
+  2. Esperado: rejeitado pelo regex check
+  3. Tentar `'ab'` (curto demais) → rejeitado
+  4. Tentar `'a'*31` (longo demais) → rejeitado
+  5. Tentar `'valido-ok-123'` → aceito
+
+  **Teste 2.6.6 — UPDATE cross-tenant bloqueado**
+
+  1. JWT simulado de gestor da clínica A: `SET LOCAL "request.jwt.claims" = '{"role":"gestor","clinic_id":"aaa..."}'`
+  2. Tentar `UPDATE clinics SET nome = 'hack' WHERE id = 'bbb...'` (id da B)
+  3. Esperado: 0 rows updated (RLS rejeita) — sem erro, apenas silêncio (comportamento Postgres default)
+  4. ✋ Se mudou: vazamento. Para tudo.
+
+  **Teste 2.6.7 — DELETE só super_admin**
+
+  1. JWT de gestor: tentar `DELETE FROM clinics WHERE id = 'aaa...'`
+  2. Esperado: 0 rows deleted
+  3. JWT de super_admin: mesmo DELETE → 1 row deleted, **cascade** dispara (verificar depois quando houver FKs)
+
+  **Teste 2.6.8 — `withTenant` helper funciona via app**
+
+  1. Criar rota temporária `/api/_test-tenant`:
+    ```typescript
+    import { dbAdmin } from '@/lib/db';
+    import { withTenant } from '@/lib/db/tenant';
+    import { clinics } from '@/contexts/tenancy/schema';
+    export async function GET() {
+      const A = 'aaa-uuid-da-A';
+      const result = await withTenant(A, async () => {
+        return dbAdmin.select().from(clinics);
+        // Wait: dbAdmin BYPASSA RLS. Test should use `db` (authenticated).
+      });
+      return Response.json(result);
+    }
+    ```
+  2. ⚠️ Cuidado: `dbAdmin` bypassa RLS — pra testar **isolamento real**, use `db` (que requer JWT). `withTenant` é pra **jobs** que rodam sem JWT mas precisam respeitar tenant; ele faz `SET LOCAL` mas só funciona se a conexão tiver role correto. Documente isto explicitamente no helper.
+  3. Esperado: retorna apenas clínica A
+  4. **Apagar rota depois**
+
+  **Teste 2.6.9 — Tentativa de URL manipulation (vazia neste momento, fica TODO até C3)**
+
+  - Reservado pra C3 quando houver auth.
+
+  ### 2.7 ✅ Checklist de estabilidade
+
+  - [ ] **Toda** policy criada usa `defaultTenantPolicy()` ou está explicitamente justificada em comentário SQL
+  - [ ] Nenhuma policy `FOR ALL TO public USING (true)` em lugar nenhum
+  - [ ] `_reserved_slugs` tem trigger de bloqueio funcionando
+  - [ ] Helper `withTenant` documenta claramente quando usar (jobs) e quando não usar (endpoints HTTP)
+  - [ ] `dbAdmin` continua importado em ≤ 3 lugares
+  - [ ] Schema files vivem em `src/contexts/tenancy/schema.ts`, **não** em `src/lib/db/schema/`
+  - [ ] `src/lib/db/schema/index.ts` re-exporta de cada contexto (single source pra Drizzle config)
+  - [ ] ADR-006 escrito, comitado, link no `docs/adr/README.md`
+
+  ### 2.8 🟡 Débito técnico aceitável
+
+  - 🔓 Sem UI de criação de clínica (você cria via SQL ou Studio até C15)
+  - 🔓 Sem validação de CNPJ (só formato; validação real via Receita só em v2.1)
+  - 🔓 Sem CEP/endereço estruturado (texto único basta no MVP)
+  - 🔓 Sem fluxo de "troca de slug" (1x grátis) — adiciona quando alguém pedir
+  - 🔓 Sem custom domain provisioning (mesmo plano Pro: você faz manual)
+
+  ### 2.9 🔴 Débito técnico proibido
+
+  - 🚫 **Tabela tenant-scoped sem RLS habilitado** — toda tabela com `clinic_id` deve ter RLS, sem exceção. Faça checklist no PR.
+  - 🚫 **Policy permissiva `USING (true)`** em produção — **nem mesmo "temporário"**
+  - 🚫 **`dbAdmin` em código de runtime de usuário** — só jobs, scripts, super_admin
+  - 🚫 **`clinic_id` opcional** em qualquer tabela tenant-scoped — sempre `NOT NULL`
+  - 🚫 **Slug case-sensitive** — sempre lowercase no DB, validação no app
+  - 🚫 **`clinics.id` ser `serial`** — sempre `uuid`, evita enumeration attack
+  - 🚫 **Permitir slug ser editado livremente após criado** — exige fluxo controlado (1x grátis depois)
+
+  ### 2.10 ⚠️ Riscos conhecidos + rollback mental
+
+  - **Risco crítico:** policy de RLS errada vaza tenant. → **Mitigação**: tests 2.6.1-2.6.7 ANTES de avançar. Em produção, monitor de alertas no Postgres para queries que retornam linhas de múltiplas `clinic_id` em um mesmo result set (raro, mas detectável).
+  - **Risco:** `SET LOCAL` não funciona como esperado em pooled connection. → **Mitigação**: helper `withTenant` envolve em transação (`SET LOCAL` em TX é escopo da TX, não da conexão pooled).
+  - **Risco:** super_admin esquece de auditar uma ação cross-tenant. → **Mitigação**: vem em C4 com `super_admin_actions`.
+  - **Rollback mental:** se descobrir bug de RLS em produção depois de ter clientes, **comunique imediatamente** (LGPD Art. 48 — 72h). Não esconda. Backups + audit log permitem investigação forense.
+
+  ### 2.11 💀 Sinais precoces de hidra
+
+  - Tentação de "fazer policy super permissiva agora e apertar depois" — **NUNCA**. Aperta agora, relaxa nunca.
+  - Tentação de ter UMA policy genérica em vez de uma por tabela — soa bom, mas dificulta debug. Mantenha 1 policy por tabela usando helper.
+  - Tentação de armazenar `clinic_id` em sessão Next.js em vez de JWT claim — fragiliza, JWT é a fonte da verdade.
+  - Tentação de criar `is_super_admin` como flag em `users` em vez de claim no JWT — vai virar dual source of truth.
+  - Tentação de pular RLS "só nessa tabela porque é interna" — abre precedente, hidra acha.
+
+  ### 2.12 🚦 Critério obrigatório para avançar
+
+  Avança para C3 quando:
+  - **TODOS** os testes 2.6.1-2.6.7 passam (2.6.8 é validação extra)
+  - Você consegue explicar em 30s a alguém: "como o isolamento entre clínicas funciona aqui"
+  - Você fez um "red team mental" — tentou pensar em jeito de vazar e não achou
+  - ADR-006 está escrito
+
+  **Não avança se:**
+  - Algum vazamento (mesmo "explicável") foi observado
+  - Você não testou role `anon` explicitamente
+  - Você não testou role `authenticated` sem `app.current_clinic` setado (deve retornar 0 rows ou rows da clínica do JWT)
+
+  ### 2.13 🌡️ Stress Test Arquitetural
+
+  - **10 clínicas:** RLS overhead invisível (~5%).
+  - **100 clínicas:** overhead ~10-20%, totalmente aceitável.
+  - **1000 clínicas:** overhead pode chegar 20-30% em queries complexas; ainda OK.
+  - **Quebra primeiro em:** policy mal escrita (subquery pesada em USING) — toda policy deve ser O(1) ou usar índice.
+  - **Gargalo previsível:** se super_admin acessa cross-tenant frequentemente, queries sem `clinic_id` filter podem fazer full scan; mitigar com índices.
+  - **Refactor futuro mais provável:** read replica pra super_admin dashboards (não-prazo).
+
+  ### 2.14 ⚙️ Budget de Complexidade Operacional
+
+  - Serviços novos: **0**
+  - Workers/crons: **0**
+  - Filas: **0**
+  - Integrações externas: **0**
+  - Pontos de falha novos: **1** (policy RLS mal escrita derruba todo o sistema — testes obrigatórios)
+  - Dashboards: **0**
+  - Custo cognitivo: **ALTO** — você precisa pensar em RLS toda vez que criar tabela; **mas** helper `defaultTenantPolicy()` reduz pra "lembrar de chamar".
+
+  ### 2.15 ☠️ Kill Criteria
+
+  - **Mate "policy custom por tabela"** se houver tentação — usa helper `defaultTenantPolicy()` para 90%+
+  - **Mate "RLS condicional via flag de feature"** se aparecer — RLS é constante, não opcional
+  - **Reverta "slug editável livre"** se for tentado — mantém 1x grátis controlado
+
+  ### 2.16 🧠 Founder Cognitive Load
+
+  - **Manter:** médio (toda tabela nova exige RLS + checklist)
+  - **Debugar:** "por que retorna 0 rows?" é o bug mais comum; runbook ensina debug (`EXPLAIN ANALYZE`, `SET ROLE`, inspeção de claim JWT)
+  - **Operar sozinho às 3h:** RLS não dá pager normalmente; falha é silenciosa (queries retornam 0 ou bloqueiam)
+  - **Onboarding futuro:** dev junior precisa de 2-3 dias pra internalizar RLS pattern
+
+  ### 2.17 🎲 Apostas vs Decisões
+
+  - **Decisões sólidas:** RLS em toda tabela tenant-scoped; helper `defaultTenantPolicy`; `app.current_clinic` para jobs
+  - **Hipóteses:** overhead RLS aceitável até 1000 clínicas (validar com benchmark futuro)
+  - **Apostas:** Postgres `SET LOCAL` em pooled connection isola corretamente (validado)
+  - **Experimentos:** trigger de bloqueio de slug reservado (vs FK) — provavelmente vai ficar
+  - **Improvisos:** nenhum
+
+  ### 2.18 🧊 Contratos Congelados ao fim de C2
+
+  **Congelados:**
+  - Toda tabela tenant-scoped tem `clinic_id uuid NOT NULL` + RLS via `defaultTenantPolicy()`
+  - Slug format `^[a-z0-9-]{3,30}$` e lista de reservados
+  - `super_admin` policy via `auth.jwt() ->> 'role' = 'super_admin'`
+  - `app.current_clinic` set local em jobs
+
+  **Ainda mutáveis:**
+  - Lista de slugs reservados (pode crescer)
+  - Detalhes de policies por tabela em camadas futuras
+
+  **Experimentais:**
+  - Trigger de slug reservado (pode virar FK constraint se simpler)
+
+  ---
 
 ## CAMADA 3 — Identity, Autenticação e Custom Claims
 
