@@ -18,10 +18,18 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "arch:check": "madge --circular --extensions ts,tsx src"
+    "arch:check": "madge --circular --extensions ts,tsx src",
+    "arch:db-check": "tsx scripts/arch-db-check.ts",
+    "db:generate": "cross-env NODE_ENV=development drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate:dev": "tsx scripts/db-migrate-dev.ts",
+    "db:migrate:prod": "tsx scripts/db-migrate-prod.ts",
+    "db:backup:prod": "tsx scripts/db-backup-prod.ts",
+    "db:studio": "tsx scripts/db-studio.ts"
   },
   "dependencies": {
+    "drizzle-orm": "0.36.4",
     "next": "15.5.18",
+    "postgres": "3.4.5",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "zod": "^3.24.1"
@@ -33,6 +41,9 @@
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.4",
     "@types/react-dom": "^19.0.2",
+    "cross-env": "7.0.3",
+    "dotenv": "16.4.5",
+    "drizzle-kit": "0.28.1",
     "eslint": "^9.17.0",
     "eslint-config-next": "15.5.18",
     "eslint-config-prettier": "^9.1.0",
@@ -40,6 +51,7 @@
     "madge": "^8.0.0",
     "prettier": "^3.4.2",
     "tailwindcss": "^4.0.0",
+    "tsx": "4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   }

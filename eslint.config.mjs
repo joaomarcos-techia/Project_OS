@@ -98,6 +98,76 @@ const config = [
     },
   },
 
+  // C1 db guard #1: `postgres` driver may ONLY be imported by:
+  //   - src/lib/db/index.ts (canonical pool factory for the app)
+  //   - scripts/db-migrate-prod.ts (needs dedicated 1-shot connection against
+  //     DATABASE_URL_PROD to acquire pg_advisory_lock; src/lib/db is bound to
+  //     env.DATABASE_URL at boot and can't target a different URL).
+  // Anywhere else duplicates the pool -> connection leak + config drift.
+  // Mirror this allowlist in scripts/arch-db-check.ts.
+  {
+    files: ['src/**/*.{ts,tsx}', 'scripts/**/*.ts'],
+    ignores: ['src/lib/db/index.ts', 'scripts/db-migrate-prod.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'postgres',
+              message:
+                'Direct postgres driver imports are forbidden outside src/lib/db/index.ts. Use { db, dbAdmin } from "@/lib/db" instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // C1 db guard #2: `dbAdmin` is admin-only (will bypass RLS in C2+).
+  // Allowed: src/app/(admin)/, src/app/api/admin/, scripts/, src/lib/db/.
+  // Forbidden: user-facing contexts, app routes, components, AND user-facing
+  // API routes (everything under src/app/api/ that is NOT api/admin/).
+  //
+  // Coverage discovery (C1 audit): the original glob `src/app/(app)/**` did
+  // NOT match route handlers under `src/app/api/...`. That meant a future
+  // `src/app/api/patients/route.ts` could import dbAdmin and bypass RLS
+  // silently. Added `src/app/api/**` to the block list, with
+  // `src/app/api/admin/**` in ignores for the legitimate admin path.
+  //
+  // IMPORTANT: in ESLint flat config, later rule configs REPLACE earlier
+  // ones for the same rule name. Since this block targets a subset of
+  // guard #1's glob, we MUST repeat the `postgres` restriction here.
+  {
+    files: [
+      'src/contexts/**/*.{ts,tsx}',
+      'src/app/(app)/**/*.{ts,tsx}',
+      'src/app/api/**/*.{ts,tsx}',
+      'src/components/**/*.{ts,tsx}',
+    ],
+    ignores: ['src/app/api/admin/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'postgres',
+              message:
+                'Direct postgres driver imports are forbidden outside src/lib/db/index.ts. Use { db, dbAdmin } from "@/lib/db" instead.',
+            },
+            {
+              name: '@/lib/db',
+              importNames: ['dbAdmin'],
+              message:
+                'dbAdmin bypasses RLS (in C2+). Only use inside scripts/, src/app/api/admin/, or src/app/(admin)/. See docs/runbooks/migrations.md.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   prettierConfig,
 ];
 

@@ -45,6 +45,11 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          # C0 has all envs as .optional() — build must succeed without them.
-          # C1+ adds these as required and will fail without them set in repo secrets.
           NODE_ENV: production
+          # C1+ env.ts validates these via Zod at module load (loaded by next.config.ts).
+          # Fake values satisfy validation; build does not connect to DB or Supabase.
+          # Same approach used by vitest.config.ts. To run against real Supabase in CI,
+          # replace with GitHub Secrets references (e.g. ${{ secrets.DATABASE_URL }}).
+          DATABASE_URL: 'postgres://ci:ci@localhost:5432/ci?sslmode=require'
+          NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
