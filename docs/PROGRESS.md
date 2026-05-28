@@ -6,7 +6,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 |---|---|---|---|
 | **C0** | Fundação do Repositório | ✅ **fechada** | 2026-05-26 |
 | **C1** | Banco + Drizzle + Migrations | ✅ **fechada** | 2026-05-26 (validada pós-auditoria mesma data) |
-| C2 | Multi-Tenant Core + RLS Foundation | ⏳ pendente | — |
+| **C2** | Multi-Tenant Core + RLS Foundation | ✅ **fechada** | 2026-05-28 (4 rounds de auditoria + hardening 0002) |
 | C3 | Identity + Auth + Custom Claims + RBAC | ⏳ pendente | — |
 | C4 | Outbox + Audit + Idempotency | ⏳ pendente | — |
 | C5 | Patient (encryption per-tenant, LGPD) | ⏳ pendente | — |
@@ -156,11 +156,70 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 
 ---
 
-## Próximo passo — C2 (Multi-Tenant Core + RLS Foundation)
+## C2 — Multi-Tenant Core + RLS Foundation (✅ fechada em 2026-05-28)
 
-### Pré-requisitos para começar C2
+### O que foi entregue
 
-- [x] C1 fechada com todos os 12 testes 1.6.x passando
-- [x] `withTenant` helper em vigor (consumido por policies RLS de C2)
-- [x] Convenções de schema documentadas em `src/lib/db/types.ts`
-- [x] `dbAdmin` separado fisicamente — pronto para receber service-role URL em C2
+- 3 tabelas em [src/contexts/tenancy/schema.ts](../src/contexts/tenancy/schema.ts): `clinics`, `clinic_units`, `_reserved_slugs` — todas com `ENABLE + FORCE ROW LEVEL SECURITY`. Helper `tenantIdRef()` exportado para C3+ (FK + `ON DELETE CASCADE`). Índice B-tree explícito em `clinic_units.clinic_id` (D9 — Postgres não cria auto para FK).
+- Helper RLS [src/lib/db/rls.ts](../src/lib/db/rls.ts): `defaultTenantPolicy()` gera SQL dual-context (`current_setting('app.current_clinic')` OR `current_clinic_id()` OR `is_super_admin()`) com fingerprint `GENERATED_BY: defaultTenantPolicy(v1)` + sanitização `trim().toLowerCase()` + regex `/^[a-z_][a-z0-9_]*$/` contra injection. 24 testes Vitest cobrem D2/D5/D22/D23/D25/D27/D28/D30/D33.
+- `withTenant()` em [src/lib/db/tenant.ts](../src/lib/db/tenant.ts) atualizado: `SET LOCAL ROLE authenticated` antes do `set_config('app.current_clinic', ...)` (hardening D24).
+- Placeholders C3 em [src/lib/auth/tenant-context.ts](../src/lib/auth/tenant-context.ts): `requireClinicId`/`requireRole`/`requireSuperAdmin` lançam `Error` até C3 implementar.
+- 5 funções SQL instaladas: `current_clinic_id()`, `current_platform_role()`, `is_super_admin()` (`SQL STABLE`) + `set_updated_at()`, `check_clinic_slug()` (`plpgsql VOLATILE`). Todas `SECURITY INVOKER`. Migration 0002 aplica `REVOKE EXECUTE FROM PUBLIC` + `GRANT EXECUTE TO anon, authenticated, service_role` (least-privilege, ADR-007 invariante #11).
+- 2 migrations atômicas: [0001_tenancy_foundation.sql](../drizzle/migrations/0001_tenancy_foundation.sql) (extension + functions + tables + FK + index + triggers + 6 policies + seed 22 slugs + snapshot) e [0002_tenancy_hardening.sql](../drizzle/migrations/0002_tenancy_hardening.sql) (grants).
+- [ADR-007](adr/007-rls-implementation-patterns.md): 11 invariantes congeladas (FORCE-principal, dual-context, RLS≠RBAC, 3 categorias de tabela, function grants), Threat Model formal com 8 PROIBIDOS + 5 GARANTIAS.
+- [Runbook c2-validation.md](runbooks/c2-validation.md) re-executável: 11 testes psql + 2 bonus + seção Pitfalls (psql BEGIN-aninhado, SAVEPOINT, pool reuse).
+- [CONVENTIONS.md](CONVENTIONS.md): Threat Model summary + 5 PR templates (tenant table, migration tenant, custom function, safe query, anti-pattern catalog).
+- CI workflow ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) atualizada: env vars fake no step Build (mesma estratégia do vitest config) — desbloqueia `pnpm build` em GitHub Actions com env.ts C1+ rigoroso.
+
+### Contratos congelados em C2 (mudar exige refator + ADR)
+
+- Toda tabela tenant-scoped C3+ usa `tenantIdRef()` (FK + cascade), `index()` em `clinic_id`, e `ENABLE + FORCE RLS` na mesma migration do `CREATE TABLE`.
+- Toda nova `CREATE FUNCTION` em C3+ aplica `REVOKE EXECUTE FROM PUBLIC` + `GRANT` explícito na mesma migration (invariante #11).
+- Policies usam helpers SQL (`current_clinic_id`, `is_super_admin`), NUNCA `auth.jwt() ->> 'x'` literal.
+- RLS responde apenas "pode tocar neste tenant?". Autorização funcional (gestor edita, doctor não) mora em Server Actions via `requireRole(...)` em C3+.
+- `set_config('request.jwt.claims', ...)` é PROIBIDO em código de aplicação — esse GUC pertence a PostgREST/Supabase Auth.
+- `withTenant()` é o único setter aprovado de `app.current_clinic` em jobs/workers.
+- Mutações em `clinics` (UPDATE/INSERT/DELETE) são super_admin only em C2. Edição funcional pelo gestor entra em C3 via Server Action que usa `dbAdmin` + audit em C4.
+
+### Defesas anti-vazamento validadas
+
+| Defesa | Como | Provado por |
+|---|---|---|
+| FORCE RLS em toda tabela tenant-scoped | `ALTER TABLE x FORCE ROW LEVEL SECURITY` | Inspect `pg_class.relforcerowsecurity` |
+| Dual-context (GUC OR JWT) em toda policy | `defaultTenantPolicy()` helper | Snapshot SQL em `rls.test.ts` |
+| SET LOCAL ROLE authenticated funciona | Test G pré-implementação + 2.6.9 | psql empírico contra qoro-dev |
+| Pool reuse safety (SET LOCAL morre com COMMIT) | Teste 2.6.11 | psql empírico |
+| anon retorna 0 rows (não permission_denied) | Grants explícitos pós-hardening | Teste 4/8 pós-hardening |
+| Cross-tenant UPDATE/SELECT bloqueado | RLS policy | Testes 2.6.1, 2.6.6, bonus 2 |
+| Slug reservado bloqueia INSERT/UPDATE | Trigger `check_clinic_slug` | Teste 2.6.4 + 7/8 pós-hardening |
+| `clinics` mutations super_admin only (D31) | 4 policies separadas | Teste 2.6.6 |
+| `_reserved_slugs` write bloqueado | Sem write policy + FORCE RLS | Teste 2.6.10 |
+| Authenticated não consegue ALTER/DROP policy | Postgres ownership | ADV-2 em audit |
+| Authenticated não consegue forjar role no banco | `must be owner` | ADV-2 em audit |
+| Custom functions sem PUBLIC EXECUTE | Migration 0002 | Verificação pós-hardening |
+
+### Issues conhecidos / débito técnico aceito
+
+- `tenantIdRef()` mora em `@/contexts/tenancy/schema.ts` (não em `lib/db/primitives/`) por restrição de boundaries — dívida arquitetural D35 anotada, refator estrutural em C3+ se sentir necessidade.
+- Lint rule custom para barrar `db.<query>()` fora de `withTenant()` em código tenant-scoped — vem em C3.
+- `_schema_version` aceito em `rls=t, force=f, sem policies` (Supabase auto-enabled equivalente a "sem RLS" para roles BYPASSRLS) — ADR-007 §10 cat 3 documenta.
+- Integration tests de RLS automatizados em CI — vem em C16.
+- Audit trail de `dbAdmin` (`super_admin_actions`) — vem em C4.
+- Pré-impl gate (Test G): SET LOCAL ROLE authenticated funciona no Supabase Transaction Pooler (validado em qoro-dev). Se quebrar em ambiente futuro: FORCE + dual-context absorvem; sistema fica isolado, só perde defesa em profundidade.
+
+### Forward-look: V-1 (caráter do modelo)
+
+Verificado empiricamente que código backend pode forjar `request.jwt.claims` via `set_config(...)` para escalar até super_admin via conexão direta postgres-js. NÃO é vulnerabilidade externa — PostgREST valida JWT antes de injetar claim em HTTP. Documentado como ABSOLUTAMENTE PROIBIDO em ADR-007 Threat Model. Lint rule futura (C3+) deve detectar uso literal de `set_config('request.jwt.claims', ...)` em `src/`.
+
+---
+
+## Próximo passo — C3 (Identity + Auth + Custom Claims + RBAC)
+
+### Pré-requisitos para começar C3
+
+- [x] C2 fechada com 11 testes psql + 9 adversariais + 8 pós-hardening passando
+- [x] Threat Model + 11 invariantes em ADR-007 congelados
+- [x] Templates em CONVENTIONS prontos (5 templates)
+- [x] Helpers SQL (`current_clinic_id`, `current_platform_role`, `is_super_admin`) em vigor — Auth Hook do Supabase em C3 vai popular claims que esses helpers leem
+- [x] Placeholders `requireClinicId`/`requireRole`/`requireSuperAdmin` em vigor — C3 troca os `throw` por implementação real
+- [x] `tenantIdRef()` exportado — `profiles`/`sessions`/`login_attempts` usam direto
