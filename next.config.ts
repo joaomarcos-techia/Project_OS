@@ -6,9 +6,8 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  experimental: {
-    typedRoutes: true,
-  },
+  // Promoted from `experimental.typedRoutes` in Next 15.5 (no longer experimental).
+  typedRoutes: true,
 };
 
 export default nextConfig;
