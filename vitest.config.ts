@@ -19,6 +19,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(process.cwd(), 'src'),
+      // `server-only` ships a module that throws when imported outside an RSC
+      // bundle. Under vitest (node env) we test server modules directly, so
+      // alias it to an empty stub.
+      'server-only': path.resolve(process.cwd(), 'src/lib/test/server-only-stub.ts'),
     },
   },
 });

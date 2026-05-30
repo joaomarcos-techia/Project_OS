@@ -72,26 +72,46 @@ const sharedOpts = {
 const globalForDb = globalThis as unknown as {
   __runtimeClient?: ReturnType<typeof postgres>;
   __adminClient?: ReturnType<typeof postgres>;
+  __workerClient?: ReturnType<typeof postgres>;
 };
 
 const runtimeClient =
   globalForDb.__runtimeClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 5 });
+// dbAdmin pool max:1 mantido — é admin path sparse (healthcheck, dashboard).
+// HIGH-06: worker tem seu próprio pool (dbWorker) porque é hot-loop e o pool
+// max:1 saturava completamente sob rede AWS Oregon (smoke 4.6.2 mostrou ~70s
+// para batch=50). Worker pool size é configurável via env.OUTBOX_DB_POOL_SIZE
+// (default 5). Mesma URL (service_role bypass de RLS via mesma credencial).
 const adminClient =
   globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 1 });
+const workerClient =
+  globalForDb.__workerClient ??
+  postgres(env.DATABASE_URL, { ...sharedOpts, max: env.OUTBOX_DB_POOL_SIZE });
 
 if (env.NODE_ENV !== 'production') {
   globalForDb.__runtimeClient = runtimeClient;
   globalForDb.__adminClient = adminClient;
+  globalForDb.__workerClient = workerClient;
 }
 
-// Two physically distinct Drizzle instances over two physically distinct pools.
-// Same URL in C1 (no service-role separation yet); different URL in C2.
-//
-// Pool sizes (max:5 / max:1) are intentionally low. Next.js serverless opens
-// one pool per lambda; concurrency multiplies fast. Tune up only with hard
-// observability data (C16), not on speculation.
+// Three physically distinct Drizzle instances over three pools:
+//   - db        : runtime, user-facing, RLS-enforcing (authenticated role)
+//   - dbAdmin   : admin path, BYPASSRLS, MAX:1 (sparse)
+//   - dbWorker  : outbox worker hot-loop, BYPASSRLS, MAX:N (env-tuned)
+// Pool sizes are intentionally conservative for serverless multiplication.
+// Tune up only with hard observability data (C16), not on speculation.
 export const db = drizzle(runtimeClient, { schema });
 export const dbAdmin = drizzle(adminClient, { schema });
+export const dbWorker = drizzle(workerClient, { schema });
 
 export type Db = typeof db;
 export type DbAdmin = typeof dbAdmin;
+export type DbWorker = typeof dbWorker;
+
+/**
+ * Type of the transaction handle exposed by `db.transaction(async (tx) => ...)`
+ * and `dbAdmin.transaction(async (tx) => ...)`. Used in helper signatures
+ * across C4+ (publishEvent, logAudit, handler ctx, etc.) so call sites can
+ * pass tx around without re-deriving the type at every import.
+ */
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];

@@ -118,6 +118,25 @@ const config = [
               message:
                 'Direct postgres driver imports are forbidden outside src/lib/db/index.ts. Use { db, dbAdmin } from "@/lib/db" instead.',
             },
+            {
+              // C3 D33: o helper foi renomeado para distinguir cache (JWT) de fresh (DB).
+              // Importar `requirePermission` é falsa garantia — escolha explícita entre
+              // `requireCachedPermission` ou `requireFreshPermission`. Ver ADR-008.
+              name: '@/lib/auth/tenant-context',
+              importNames: ['requirePermission'],
+              message:
+                'requirePermission was renamed (D33). Use requireCachedPermission (JWT cache) or requireFreshPermission (DB-revalidated, mandatory for CRITICAL_ACTIONS). See ADR-008.',
+            },
+            {
+              // C4 ADR-011: o placeholder de C3 foi REMOVIDO. Use:
+              //   - idempotentMutation  (default para Server Actions mutativas)
+              //   - auditedMutation     (raro: mutação sem idempotency)
+              //   - superAdminAction    (ações cross-tenant do super_admin)
+              name: '@/lib/auth/tenant-context',
+              importNames: ['auditableAction'],
+              message:
+                'auditableAction was removed in C4. Use idempotentMutation (@/lib/idempotency/mutation), auditedMutation (@/lib/audit/mutation) or superAdminAction (@/lib/audit/super-admin). See ADR-011.',
+            },
           ],
         },
       ],
@@ -145,7 +164,17 @@ const config = [
       'src/app/api/**/*.{ts,tsx}',
       'src/components/**/*.{ts,tsx}',
     ],
-    ignores: ['src/app/api/admin/**/*.{ts,tsx}'],
+    ignores: [
+      'src/app/api/admin/**/*.{ts,tsx}',
+      // C4: cron worker route precisa de dbAdmin para passar pelas 3 TXs
+      // do worker (TX1 reserve, TX3 finalize) sem RLS. TX2 (handler) usa
+      // withTenant (RLS aplica). Inline allowlist documentada em ADR-011.
+      'src/app/api/cron/**/*.{ts,tsx}',
+      // C4: healthcheck precisa de dbAdmin para queries agregadas cross-tenant
+      // (counts por tenant inteiro). Endpoint exige Bearer CRON_SECRET — não há
+      // RLS bypass exposed externamente.
+      'src/app/api/health/**/*.{ts,tsx}',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -162,7 +191,145 @@ const config = [
               message:
                 'dbAdmin bypasses RLS (in C2+). Only use inside scripts/, src/app/api/admin/, or src/app/(admin)/. See docs/runbooks/migrations.md.',
             },
+            {
+              // C3: createAdminClient usa SUPABASE_SECRET_KEY e bypassa RLS via service_role.
+              // Mesma allowlist que dbAdmin (scripts/, api/admin/, (admin)/) — sem server-only
+              // no módulo porque scripts CLI precisam importar fora do Next bundler.
+              name: '@/lib/auth/supabase-admin',
+              importNames: ['createAdminClient'],
+              message:
+                'createAdminClient bypasses RLS (service_role). Only use inside scripts/, src/app/api/admin/, or src/app/(admin)/. See ADR-008.',
+            },
+            {
+              // C3 D33 (repetida aqui por causa do "later configs REPLACE" do flat config).
+              name: '@/lib/auth/tenant-context',
+              importNames: ['requirePermission'],
+              message:
+                'requirePermission was renamed (D33). Use requireCachedPermission (JWT cache) or requireFreshPermission (DB-revalidated, mandatory for CRITICAL_ACTIONS). See ADR-008.',
+            },
+            {
+              // C4 ADR-011 (repetida aqui por causa do "later configs REPLACE").
+              name: '@/lib/auth/tenant-context',
+              importNames: ['auditableAction'],
+              message:
+                'auditableAction was removed in C4. Use idempotentMutation (@/lib/idempotency/mutation), auditedMutation (@/lib/audit/mutation) or superAdminAction (@/lib/audit/super-admin). See ADR-011.',
+            },
           ],
+        },
+      ],
+    },
+  },
+
+  // C4 guard: events.ts pertence ao CATÁLOGO (registerEventSchema). Importar
+  // do handler REGISTRY confunde producer/consumer split (ADR-011 §6). Handlers
+  // vivem em <context>/internal/handlers/* e SÓ o boot file do cron os importa.
+  // HIGH-10: events.ts NÃO pode usar z.date()/z.bigint()/z.nan() — payloads
+  // precisam ser JSON-safe (Date/BigInt/NaN não sobrevivem JSON.stringify).
+  // Use `z.string().datetime()` para timestamps, `z.string()` para BigInt.
+  {
+    files: ['src/contexts/*/events.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/lib/outbox/registry',
+              message:
+                'events.ts pertence ao catalog (registerEventSchema), não ao handler registry. Handlers vivem em <context>/internal/handlers/*. ADR-011 §6.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.name='z'][callee.property.name='date']",
+          message:
+            'z.date() em events.ts gera Date no payload — quebra JSON-safety (assertJsonSafe rejeita) e hash-stability. Use z.string().datetime() (ISO string). ADR-011 §27.',
+        },
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.name='z'][callee.property.name='bigint']",
+          message:
+            'z.bigint() em events.ts gera BigInt no payload — quebra JSON-safety. Use z.string() representando o número. ADR-011 §27.',
+        },
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.object.name='z'][callee.property.name='nan']",
+          message:
+            'z.nan() em events.ts é nonsense — NaN não sobrevive JSON. ADR-011 §27.',
+        },
+        {
+          selector:
+            "NewExpression[callee.name='Date']",
+          message:
+            'new Date() em events.ts? Schema deve descrever wire format (string), não runtime type. Use z.string().datetime(). ADR-011 §27.',
+        },
+      ],
+    },
+  },
+
+  // CRITICAL-03 / C4 guard: handlers (src/contexts/*/internal/handlers/**) NÃO
+  // podem importar `db` ou `dbAdmin` diretamente — o `tx` recebido em
+  // HandlerCtx já é o caminho RLS-correto (withTenant authenticated). Importar
+  // db direto bypassa RLS e quebra atomicidade com worker TXs.
+  {
+    files: ['src/contexts/*/internal/handlers/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/lib/db',
+              importNames: ['db', 'dbAdmin', 'dbWorker'],
+              message:
+                'Handlers DEVEM usar ctx.tx recebido em HandlerCtx — esse já é o tx do worker (withTenant authenticated, RLS aplica). Importar db/dbAdmin/dbWorker bypassa boundary tenant + quebra at-least-once dedup. ADR-011 §26.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // C3 auth guard: forbid `supabase.auth.getSession()` everywhere in src/.
+  // `getSession()` trusts the cookie WITHOUT verifying signature server-side
+  // (unsafe against tampering). Force `getUser()` (or our wrapper
+  // `getCurrentUser()` / `requireUser()`), which round-trips to Supabase Auth
+  // and validates the JWT signature. See ADR-008 + plano C3 v6.
+  //
+  // Uses no-restricted-syntax (different rule than no-restricted-imports),
+  // so this block does NOT clobber the earlier no-restricted-imports configs.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='getSession'][callee.object.type='MemberExpression'][callee.object.property.name='auth']",
+          message:
+            "supabase.auth.getSession() trusts the cookie without validating signature. Use getUser() (or our wrapper getCurrentUser/requireUser) instead. See ADR-008.",
+        },
+        // C4 ADR-011: there is no event bus. The ONLY emitter is publishEvent
+        // from @/lib/outbox/publish. Catching the *names* prevents drift via
+        // copy-paste from external examples.
+        {
+          selector: "Identifier[name='emitEvent']",
+          message:
+            'There is no emitEvent. Use publishEvent(tx, ...) from @/lib/outbox/publish — the only cross-context emitter. See ADR-011.',
+        },
+        {
+          selector: "MemberExpression[object.name='eventBus']",
+          message:
+            'There is no eventBus. Use publishEvent(tx, ...) from @/lib/outbox/publish — the only cross-context emitter. See ADR-011.',
+        },
+        {
+          selector: "Identifier[name='auditableAction']",
+          message:
+            'auditableAction was removed in C4. Use idempotentMutation (@/lib/idempotency/mutation), auditedMutation (@/lib/audit/mutation) or superAdminAction (@/lib/audit/super-admin). See ADR-011.',
         },
       ],
     },

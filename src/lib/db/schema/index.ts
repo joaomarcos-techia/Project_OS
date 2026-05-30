@@ -16,3 +16,15 @@
  */
 export * from './_meta';
 export * from '@/contexts/tenancy/schema';
+export * from '@/contexts/identity/schema';
+// patient/schema.ts also side-effect-imports './events', so re-exporting it
+// here populates the outbox catalog with patient.* schemas wherever the
+// producer (publishEvent) transitively imports this barrel.
+export * from '@/contexts/patient/schema';
+// C4 infra — cross-cutting tables (outbox, audit_events, super_admin_actions,
+// idempotency_keys). Not a bounded context, so not under src/contexts/. The
+// drizzle.config.ts glob './src/lib/db/schema/**/*' picks them up.
+export * from './infra/outbox';
+export * from './infra/audit';
+export * from './infra/super-admin';
+export * from './infra/idempotency';

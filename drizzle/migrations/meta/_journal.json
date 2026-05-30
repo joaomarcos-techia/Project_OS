@@ -22,6 +22,69 @@
       "when": 1779934800000,
       "tag": "0002_tenancy_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779975882600,
+      "tag": "0003_identity_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779975900000,
+      "tag": "0004_identity_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779975920000,
+      "tag": "0005_identity_mark_mfa",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779998500000,
+      "tag": "0006_identity_postrest_compat",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779999900000,
+      "tag": "0007_identity_mark_mfa_revoke_anon",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780010000000,
+      "tag": "0008_c4_outbox_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780010100000,
+      "tag": "0009_c4_audit_partitioned",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780020000000,
+      "tag": "0010_c4_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780030000000,
+      "tag": "0011_patient_core",
+      "breakpoints": true
     }
   ]
 }

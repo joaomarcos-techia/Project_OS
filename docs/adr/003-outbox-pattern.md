@@ -2,6 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-05-25
+**Implementation:** [ADR-011 — Outbox / Audit / Idempotency implementation patterns](011-outbox-audit-idempotency-patterns.md) (2026-05-28) congela COMO esta decisão é implementada em C4. Algumas opções deste ADR (nome da tabela como `outbox_events`, status `done`, helper chamado `emitEvent`, registro único de handlers) foram revisitadas e divergem ligeiramente do que ADR-011 implementou (`outbox` / `processed` / `publishEvent` / catalog separado de registry).
 
 ## Context
 

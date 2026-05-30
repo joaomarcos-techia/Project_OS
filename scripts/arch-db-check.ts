@@ -21,6 +21,13 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   ['src', 'lib', 'db', 'index.ts'].join('/'),
   ['scripts', 'db-migrate-prod.ts'].join('/'),
 ]);
+// Files allowed to carry `eslint-disable no-restricted-imports` for dbAdmin.
+// Each entry below requires a clear justification in the file's header comment.
+// C3: /api/health/auth-hook precisa de dbAdmin para chamar auth_hook_selftest
+// sem JWT (healthcheck público). RPC isolada — não expõe RLS bypass real.
+const ALLOWED_RESTRICTED_DISABLES = new Set([
+  ['src', 'app', 'api', 'health', 'auth-hook', 'route.ts'].join('/'),
+]);
 // This script itself defines pattern strings (e.g. "new Pool(") that would
 // false-positive against its own grep. Exclude it from its own scan.
 const SELF_RELATIVE = ['scripts', 'arch-db-check.ts'].join('/');
@@ -75,7 +82,11 @@ for (const file of sourceFiles) {
       findings.push({ file: rel, line: i + 1, pattern: "require('postgres')", excerpt: line.trim() });
     }
     // 4. Suspicious lint disables of the no-restricted-imports rule.
-    if (/eslint-disable.*no-restricted-imports/.test(line)) {
+    //    Skipped for files in ALLOWED_RESTRICTED_DISABLES (justified exceptions).
+    if (
+      !ALLOWED_RESTRICTED_DISABLES.has(rel) &&
+      /eslint-disable.*no-restricted-imports/.test(line)
+    ) {
       findings.push({
         file: rel,
         line: i + 1,

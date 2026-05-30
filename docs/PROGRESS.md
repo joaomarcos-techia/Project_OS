@@ -7,9 +7,9 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | **C0** | Fundação do Repositório | ✅ **fechada** | 2026-05-26 |
 | **C1** | Banco + Drizzle + Migrations | ✅ **fechada** | 2026-05-26 (validada pós-auditoria mesma data) |
 | **C2** | Multi-Tenant Core + RLS Foundation | ✅ **fechada** | 2026-05-28 (4 rounds de auditoria + hardening 0002) |
-| C3 | Identity + Auth + Custom Claims + RBAC | ⏳ pendente | — |
-| C4 | Outbox + Audit + Idempotency | ⏳ pendente | — |
-| C5 | Patient (encryption per-tenant, LGPD) | ⏳ pendente | — |
+| **C3** | Identity + Auth + Custom Claims + RBAC | ✅ **fechada** | 2026-05-28 (plano v6 com 36 decisões travadas + 7 princípios) |
+| **C4** | Outbox + Audit + Idempotency | ✅ **production-grade** | 2026-05-29 (smoke 38/38 + revisão hostil + correção total: 4 CRITICAL + 12 HIGH + 7 MEDIUM resolvidos; migration 0010_c4_hardening; ADR-011 com 40 invariantes; 9 testes novos 4.6.18-27) |
+| **C5** | Patient (encryption per-tenant, LGPD) | ✅ **fechada** | 2026-05-30 (smoke-c5 7/7 + 5.6.11 idempotência 3/3; 5.6.x validados in-app — encryption, lookup, cross-tenant, soft/hard delete cascade, export LGPD e2e, audit, permissão, idempotência; pg_dump limpo; ADR-012 encryption + ADR-013 clinical-data ownership; 5.6.8 diferido p/ C14) |
 | C6 | Scheduling Core | ⏳ pendente | — |
 | C7 | Clinical (prontuário, prescrição, PDFs) | ⏳ pendente | — |
 | C8 | Consultório UI | ⏳ pendente | — |
@@ -223,3 +223,276 @@ Verificado empiricamente que código backend pode forjar `request.jwt.claims` vi
 - [x] Helpers SQL (`current_clinic_id`, `current_platform_role`, `is_super_admin`) em vigor — Auth Hook do Supabase em C3 vai popular claims que esses helpers leem
 - [x] Placeholders `requireClinicId`/`requireRole`/`requireSuperAdmin` em vigor — C3 troca os `throw` por implementação real
 - [x] `tenantIdRef()` exportado — `profiles`/`sessions`/`login_attempts` usam direto
+
+---
+
+## C3 — Identity + Auth + Custom Claims + RBAC (✅ fechada em 2026-05-28)
+
+### O que foi entregue
+
+- **5 tabelas em [src/contexts/identity/schema.ts](../src/contexts/identity/schema.ts)**: `profiles` (FK auth.users + clinic_id nullable só super_admin + CHECK constraint + claims_version), `permissions` (catálogo 20 codes), `role_permissions` (bundles owner/gestor/doctor/attendant/financial), `user_permission_overrides` (granular per-user), `login_attempts` (ip inet). `sessions` foi CORTADA (D3 — auth.sessions do Supabase basta para MVP; audit pesado vem em C4).
+- **3 migrations atômicas**: [0003_identity_core.sql](../drizzle/migrations/0003_identity_core.sql) (ENUM + tabelas + FK auth.users + RLS policies + 4 triggers PG de claims_version + VIEW `effective_permissions_v` + Hook + selftest + 64 rows seed role_permissions + 20 permissions); [0004_identity_hardening.sql](../drizzle/migrations/0004_identity_hardening.sql) (REVOKE PUBLIC + GRANT explícito em todas SECURITY DEFINER + GRANT SELECT supabase_auth_admin); [0005_identity_mark_mfa.sql](../drizzle/migrations/0005_identity_mark_mfa.sql) (SECURITY DEFINER `mark_mfa_enrolled` para self-service controlada D31).
+- **Custom Access Token Hook PG function**: VOLATILE (D32), SECURITY DEFINER (D8), `SET search_path = public, pg_temp` (ADR-010), deny-by-default defensivo (D36 — 7 condições), cap 128 permissions (D34 — RAISE EXCEPTION), 1 SELECT na VIEW (D26).
+- **Helpers TS em [src/lib/auth/](../src/lib/auth/)**: `supabase-server` (cookies async Next 15), `supabase-browser`, `supabase-admin`, `permissions.ts` (PERMISSIONS const + isPermission), `roles.ts` (Role union + Zod), `claims.ts` (JWTClaims schema + parseClaims), `email-hash.ts` (HMAC-SHA256 + pepper), `rate-limit.ts` (Upstash dual sliding window IP 10/15min + email_hash 5/15min — D15), `mfa.ts` (facade Supabase MFA nativo), `tenant-context.ts` (porta única de autorização: `getCurrentUser/requireUser/requireRole/requireCachedPermission/requireFreshPermission/requireSuperAdmin/auditableAction`).
+- **Módulo `policies/`** (D16 + D23 pure functions sem IO): `mfa-policy` (mustHaveMFA = super_admin only no MVP), `routing-policy` (postLoginRedirect), `critical-actions` (CRITICAL_ACTIONS canonical list para arch test D29).
+- **Middleware enxuto** ([src/middleware.ts](../src/middleware.ts)): claims drift mitigation throttled (D5 + D19 + D22 + D28 jitter). 3 responsabilidades — auth presente + drift check throttled (max 1x/60-75s) + redirect. NÃO faz role routing, MFA routing, ou AAL enforcement. Cookie `_healed` anti-loop 60s; cookie `_claim_check_at` throttle com jitter.
+- **UI mínima**: `/login` + Server Action (rate limit dual + signInWithPassword + record_login_attempt RPC + postLoginRedirect policy), `/login/mfa` (challengeAndVerify), `/forgot-password` + `/reset-password` (PKCE exchangeCodeForSession + updateUser), `/logout` (signOut scope=global D24), `/account/security` (enroll TOTP + QR + secret + unenroll), `/dashboard` (placeholder com claims).
+- **Healthcheck `/api/health/auth-hook`** (D11): invoca `auth_hook_selftest()` SECURITY DEFINER.
+- **3 scripts CI/setup**: `pnpm seed:super-admin` (idempotente com flag `--reset-mfa` para recovery), `pnpm test:hook` (5 cenários psql D11 selftest), `pnpm test:auth-e2e` (smoke login REAL 3 fases incluindo D24 revogação real de refresh token + smoke C3 estrutural `pnpm smoke:c3` 15+ checks).
+- **Endpoint temporário `/api/_test-rls`** cobre testes 3.6.2/3.6.3/3.6.10 (GET retorna clinics visíveis; POST tenta criar clinic_unit cross-tenant). **Deletar antes de fechar a feature** (item explicito do plano).
+- **3 ADRs novas**: [ADR-008](adr/008-identity-patterns.md) (Identity patterns: 7 princípios canônicos + 10 decisões + Frozen surface pré-C15 — 6 modelos congelados), [ADR-009](adr/009-claims-drift-mitigation.md) (Claims drift mitigation throttled — middleware NÃO é enforcement primário D22 + gap JWT replay window D12 documentado), [ADR-010](adr/010-security-definer-patterns.md) (8 regras + checklist obrigatório para toda SECURITY DEFINER em C4+).
+- **Runbook [c3-validation.md](runbooks/c3-validation.md)** — re-executável: passos 0 (bootstrap migrations + smoke), 1 (ativar Hook + TTL 15min Dashboard MANUAL), 2 (fixtures), bateria 10 testes 3.6.1→3.6.10, cleanup, pitfalls.
+- **Env vars promovidas/novas**: `SUPABASE_SECRET_KEY` (required C3+), `LOGIN_HASH_PEPPER` (min 32 chars), `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`, `SUPER_ADMIN_EMAIL` + `SUPER_ADMIN_PASSWORD` (dev/setup).
+- **NPM deps pinned exatas**: `@supabase/ssr@0.10.3`, `@supabase/supabase-js@2.106.2`, `@upstash/redis@1.38.0`, `@upstash/ratelimit@2.0.8`, `qrcode@1.5.4`, `@types/qrcode@1.5.6`.
+- **ESLint extensions**: bloqueio `supabase.auth.getSession()` via no-restricted-syntax em todo `src/` (D17 — força getUser que valida server-side); bloqueio `requirePermission` (renomeado para `requireCachedPermission`/`requireFreshPermission` D33). Boundaries lib→context coberto com `eslint-disable` justificado em `tenant-context.ts` (mesma exceção do `tenantIdRef` D35).
+
+### Contratos congelados em C3 (mudar exige refator + ADR)
+
+- **5 roles** canônicas (`gestor`, `doctor`, `attendant`, `financial`, `owner`, `super_admin`). ENUM append-only.
+- **20 permissions** canônicas. Adicionar exige enum em `permissions.ts` + seed em nova migration + bundle em role_permissions se aplicável + ADR.
+- **JWT claims shape**: `{ clinic_id: string|null, role: Role, permissions: string[], claims_version: number, super_admin?: bool, aal?: 'aal1'|'aal2' }`. `permissions[]` é flat string[], NUNCA objeto (D25).
+- **`super_admin` é role de PLATAFORMA**, não tenant-scoped (P7). Sem clinic_id. NÃO populado em role_permissions.
+- **MFA obrigatório APENAS super_admin no MVP** (D6). gestor/financial recebem opt-in forte. Re-avaliar em C15 com recovery codes.
+- **`requireCachedPermission` (JWT) vs `requireFreshPermission` (DB)** — escolha consciente. ESLint bloqueia `requirePermission`.
+- **Middleware NÃO é enforcement primário** (D22). Toda Server Action revalida via `require*`.
+- **JWT replay window de até 15 minutos** (D12 — Supabase access_token TTL config). Documentado em ADR-009. Solução completa C16.
+- **Hook Complexity Budget** (D21): max 2 queries, 1 agregação, sem loops/CTE recursiva, <20ms p95.
+- **Frozen surface pré-C15** (6 modelos congelados em ADR-008): RBAC, multi-clinic per user, impersonation, scoped permissions, temporary grants, contextual permissions. Mudança exige janela "Pre-C15 RBAC freeze review".
+
+### Defesas anti-vazamento validadas (smoke + selftest + e2e)
+
+| Defesa | Como | Provado por |
+|---|---|---|
+| profiles sem broad UPDATE self-service | policy `FOR SELECT` only (D31) | smoke-c3 + grep policies |
+| Hook deny-by-default 7 condições | `IF NOT FOUND OR …` em custom_access_token_hook | test:hook cenários 1/4/5 |
+| Hook cap 128 permissions | `RAISE EXCEPTION` | inspeção SQL + checklist ADR-010 |
+| Hook VOLATILE (não STABLE) | `provolatile='v'` em pg_proc | smoke-c3 check |
+| SECURITY DEFINER com search_path fixo | `proconfig LIKE '%search_path=public, pg_temp%'` | smoke-c3 check |
+| Rate limit dual IP + email_hash | duas sliding windows independentes | unit test futuro + manual 3.6.6 |
+| Claims drift detectado em ≤60s | triggers PG bumpam claims_version + middleware throttled | manual 3.6.4 + ADR-009 |
+| Revogação real de refresh_token pós-signOut global | smoke-login fase 3 | `pnpm test:auth-e2e` (D24 obrigatório) |
+| login_attempts INSERT só via record_login_attempt SECURITY DEFINER | sem write policy + GRANT EXECUTE TO anon/authenticated/service_role | inspeção SQL + manual 3.6.6 |
+| profile inativo/soft-deleted → token sem claims | Hook deny + middleware re-check | manual 3.6.4 (variant) + test:hook |
+| super_admin sem clinic_id, isolamento via role | CHECK constraint + Hook shortcut + RLS is_super_admin() | manual 3.6.8 |
+| ESLint bloqueia getSession() e requirePermission | no-restricted-syntax + no-restricted-imports | pnpm lint verde |
+
+### Issues conhecidos / débito técnico aceito
+
+- **JWT replay window 15min após logout** (D12 + ADR-009). Solução completa (session_version claim + revocation list) fica para C16.
+- **Auto-heal pode atrasar até 60s** (throttle D5+D28). Caso "admin mudou role agora mesmo" é raro; budget operacional aceito.
+- **Mudanças em role_permissions exigem logout operacional manual** (D27). Auth epoch global fica para C16.
+- **MFA recovery via guardar QR/secret no enroll** + flag `--reset-mfa` em seed-super-admin. Supabase TOTP não emite backup codes nativos.
+- **MFA obrigatório só super_admin no MVP** (D6). Re-avaliar em C15 com recovery flow.
+- **`/account/security` espartano** — UX detalhada em C15.
+- **Hook deploy é MANUAL no Dashboard** + ativar TTL 15min. Automação via Management API em C16.
+- **Hook é SPOF** — mitigação parcial via healthcheck + CI smoke. Alarme externo (UptimeRobot) em C16.
+- **`sessions` table não existe em C3** (D3). Auditoria detalhada de login vem em C4 via outbox + super_admin_actions.
+- **`super_admin` auditoria detalhada** vem em C4. Em C3 apenas `console.warn` via `auditableAction`.
+- **Bundle `owner` ≡ `gestor`** no MVP (Visão Geral §4.1). Divergência funcional em C15 (UI de "convidar funcionário" só owner solo não vê).
+- **`/api/_test-rls`** — endpoint temporário deve ser apagado APÓS validação manual completa (runbook seção Cleanup). Atualmente preservado para reexecução de 3.6.2/3/10.
+
+### Adiantamentos e descobertas operacionais
+
+- **3 migrations** (0003 core, 0004 hardening, 0005 mark_mfa) em vez de 2. 0005 surgiu para resolver D31 (mark_mfa_enrolled SECURITY DEFINER vs broad UPDATE policy).
+- **20 permissions canônicas**, não 21 (descoberto em smoke-c3 — re-conta do prompt original confirmou 20). Plano v6 inicial dizia "21"; corrigido.
+- **Drizzle barrel** (`src/lib/db/schema/index.ts`) re-exporta `@/contexts/identity/schema` ao lado de `_meta` e `@/contexts/tenancy/schema` — único lugar lib→context permitido por design.
+- **Boundaries lib→context** exceção justificada em 2 lugares com `eslint-disable boundaries/element-types`: `tenant-context.ts` (requireFreshPermission precisa dos schemas) e `identity/schema.ts` (clinic FK precisa de `clinics`). Mesma exceção D35 do `tenantIdRef`.
+- **`arch-db-check.ts`** ganhou allowlist `ALLOWED_RESTRICTED_DISABLES` para o healthcheck `/api/health/auth-hook` (precisa de dbAdmin para invocar selftest sem JWT).
+- **Smoke test `pnpm smoke:c3`** valida 15+ invariantes estruturais (tabelas, RLS ENABLE+FORCE, policies, triggers, funções, search_path, VOLATILE, view, seeds, schema_version snapshots).
+
+---
+
+## C4 — Outbox + Audit + Idempotency (✅ fechada em 2026-05-29)
+
+### O que foi entregue
+
+- **2 migrations**: [0008_c4_outbox_core.sql](../drizzle/migrations/0008_c4_outbox_core.sql) (outbox + idempotency_keys + super_admin_actions + 5 CHECK constraints + 8 indexes) + [0009_c4_audit_partitioned.sql](../drizzle/migrations/0009_c4_audit_partitioned.sql) (audit_events parent particionada por mês + 12 monthly partitions 2026-05 → 2027-04 + default catch-all).
+- **3 módulos lib novos**:
+  - [src/lib/outbox/](../src/lib/outbox/) — catalog separado de registry (deploy-ordering safe), publish(tx, args), worker em 3 TXs com SKIP LOCKED, janitor 5min, circuit breaker stateless, backoff `[0, 30s, 5m, 30m, 6h, FAIL]`, errors com cap 4000 + stack stripping em prod.
+  - [src/lib/audit/](../src/lib/audit/) — `logAudit(tx, ...)` único inseridor, `auditedMutation` (raro) e `superAdminAction` wrappers.
+  - [src/lib/idempotency/](../src/lib/idempotency/) — `idempotentMutation(opts, fn)` reserve+business+audit+finalize em UMA TX + `SET LOCAL lock_timeout = '3s'`.
+- **2 módulos lib compartilhados**:
+  - [src/lib/sanitize/](../src/lib/sanitize/) — key-level (SENSITIVE_KEYS) + value-level regex (Bearer/JWT/sk_/DSN) + `capJsonSize` 64KB envelope.
+  - [src/lib/observability/](../src/lib/observability/) — `metrics.emit()` structured JSON em stdout, sanitizado.
+- **2 routes**: [src/app/api/cron/outbox/route.ts](../src/app/api/cron/outbox/route.ts) (Vercel Cron, auth Bearer CRON_SECRET, maxDuration 60s) + [src/app/api/health/outbox/route.ts](../src/app/api/health/outbox/route.ts) (counts + ages + failures_by_type).
+- **`auditableAction` REMOVIDO** de [src/lib/auth/tenant-context.ts](../src/lib/auth/tenant-context.ts) e barrado por ESLint guard (import + identifier).
+- **ESLint patches**: guard #4 (auditableAction import bloqueado), guard `events.ts` (não importa do handler registry), no-restricted-syntax para `emitEvent`/`eventBus`/`auditableAction`, dbAdmin allowlist estendido para `src/app/api/cron/**` e `src/app/api/health/**`.
+- **2 deps pinned**: `safe-stable-stringify` 2.5.0 (canonicalize estável), `p-limit` 5.0.0 (worker parallelism bounded).
+- **Smoke C4** ([scripts/smoke-c4.ts](../scripts/smoke-c4.ts)) com pre-flight estrutural (18 SQL checks) + 17 testes funcionais 4.6.x.
+- **ADR-011** ([docs/adr/011-outbox-audit-idempotency-patterns.md](adr/011-outbox-audit-idempotency-patterns.md)) com 23 invariantes congelados + threat model + 11 alternatives rejected. ADR-003 marcado com pointer para ADR-011.
+- **Runbook c4-validation** ([docs/runbooks/c4-validation.md](runbooks/c4-validation.md)) com 7 operações manuais MVP (detach partition, replay failed, reset circuit, cleanup idempotency, etc.).
+- **vercel.json crons[]** apontando `*/1 * * * *` para `/api/cron/outbox`.
+- **env.ts**: `CRON_SECRET` (min 32), `OUTBOX_BATCH_SIZE` (default 50), `OUTBOX_PARALLELISM` (default 5), `assertCronRuntimeReady()`.
+
+### Contratos congelados (mudar depois exige revisão de ADR-011)
+
+| Aspecto | Garantia |
+|---|---|
+| Outbox enqueue | exactly-once atômico com business TX |
+| Outbox delivery | at-least-once (Vercel Cron + retry) |
+| Handler execution | MUST be idempotent (não negociável) |
+| Audit log | exactly-once atômico (mesma TX) |
+| Idempotency | exactly-once via única TX + lock_timeout 3s |
+| super_admin_actions | exactly-once atômico |
+| Cron schedule | best-effort (≤60s típico) |
+| withTenant connection | fresh TX-bound (prepare=false) |
+
+### Defesas anti-hidra validadas (smoke-c4)
+
+| Defesa | Mecanismo | Provado por |
+|---|---|---|
+| publishEvent é único emissor | grep | runbook §pré-merge checklist |
+| logAudit é único inseridor | grep | runbook §pré-merge checklist |
+| auditableAction removido | ESLint barra import + identifier | guard #4 + no-restricted-syntax |
+| TX rollback rola outbox | publishEvent in same tx | 4.6.1 |
+| Worker SKIP LOCKED | FOR UPDATE SKIP LOCKED + 3 TXs | 4.6.2 |
+| Backoff `[0, 30s, 5m, 30m, 6h, FAIL]` | backoffDelayMs | 4.6.3 |
+| DLQ metadata em outbox | first/last_failed_at + error_code | 4.6.3b |
+| Idempotency atomicidade real | TX única reserve+business+finalize | (testável em C5 com requireUser) |
+| capJsonSize 64KB envelope | sanitize/cap | 4.6.7 |
+| payloadHash determinístico | safe-stable-stringify + NFC | 4.6.8 |
+| assertJsonSafe rejeita Date/BigInt/NaN | json-safe | 4.6.9 |
+| Sanitize key-level | SENSITIVE_KEYS | 4.6.10 |
+| Sanitize value-level (Bearer/JWT/sk_/DSN) | VALUE_PATTERNS | 4.6.11 |
+| metrics não vaza PII | sanitizePayload em metrics.emit | 4.6.12 |
+| last_error cap 4000 | serializeError + CHECK 8192 | 4.6.13 |
+| Circuit breaker stateless | SQL query no tick start | 4.6.14 |
+| Janitor reclama stuck | UPDATE WHERE processing_started_at < now() - 5min | 4.6.15 |
+| withTenant zero cross-tenant bleed | 10 TXs paralelas em 2 clínicas | 4.6.16 |
+| Cron 401 sem Bearer | route handler valida ANTES de qualquer SQL | 4.6.17 |
+| RLS ENABLE+FORCE nas 4 tabelas | pg_class.relrowsecurity + relforcerowsecurity | pre-flight |
+| audit_events particionada 13 children | pg_inherits | pre-flight |
+| CHECK constraints (5) ativos | pg_constraint | pre-flight |
+
+### Decisões e débitos aceitos
+
+- **D1 C4**: idempotency response cap em 64KB via envelope `{ truncated, originalBytes, originalHash, note }`. Cliente faz re-fetch por ID quando necessário.
+- **D2 C4**: cleanup de `idempotency_keys` é manual (semanal `DELETE WHERE expires_at < now()`). Automation com pg_cron OU Vercel Cron dedicado em C16.
+- **D3 C4**: retention de `audit_events` é manual via DETACH PARTITION + pg_dump + DROP (mensal). Automation em C13/C16.
+- **D4 C4**: criação de próximas partitions é manual (cobertura até 2027-04). Cron mensal de criação em C13.
+- **D5 C4**: Vercel Cron é best-effort. Latência típica ≤60s; pico raro 2–3min sob jitter. Worker dedicado em C16 se necessário.
+- **D6 C4**: sem dashboard de outbox saúde. `GET /api/health/outbox` + structured logs cobrem operação MVP. Datadog/Honeycomb em C16.
+- **D7 C4**: sem UI de replay. Operação via SQL (`UPDATE outbox SET status='pending' WHERE ...`). UI super_admin em C15.
+- **D8 C4**: handlers C4 = nenhum (boot file vazio). Producer/consumer começam em C5.
+
+### Adiantamentos e descobertas operacionais
+
+- **3 TXs no worker em vez de 1** (versus o plano inicial de 1 TX com `SET LOCAL ROLE` + `RESET ROLE`). A revisão arquitetural levantou: qualquer linha futura entre `RESET ROLE` e o UPDATE final roda BYPASSRLS — privilege escalation latente. 3 TXs eliminam o risco; janitor cobre crash entre TX1 e TX3 em ≤5min.
+- **`idempotentMutation` unificado** em vez de `withIdempotency` standalone. A versão standalone (`dbAdmin.insert` separado da mutation TX) tem buraco temporal: crash entre INSERT e UPDATE response perde exactly-once. A versão atual roda reserve+business+audit+finalize numa única TX via `withTenant` — atomicidade garantida pelo PG.
+- **Catalog separado de handler registry** em vez de map único. Producer (publishEvent) só precisa do schema; consumer (worker) só precisa do handler. Producer pode deployar antes do consumer (publishEvent não falha); worker absorve via retry até consumer chegar.
+- **`SET LOCAL lock_timeout = '3s'`** no idempotentMutation. Sem isso, uma mutação lenta vira lock contention global por idempotency key. PG levanta `55P03` quando lock excede; traduzimos em `IdempotencyInFlightError`.
+- **Circuit breaker stateless via SQL**. Em vez de tabela auxiliar ou Map in-memory, derivamos circuit state direto de `outbox.last_failed_at`. ≥10 failures em 5min de mesmo event_type → todos pending desse type recebem `next_attempt_at += 5min`. Persistente, debugável, zero novo schema.
+- **DLQ metadata em colunas** (`first_failed_at`/`last_failed_at`/`error_code`) em vez de tabela dead-letter separada. Mantém a query agregada simples; `HandlerError(msg, code)` permite categorização.
+- **`audit_events` particionada desde o dia 1**. Default partition catch-all + 12 monthly = MVP sustenta 1 ano sem ação operacional. Healthcheck alerta antes do esgotamento.
+- **Sanitização compartilhada** entre audit, super_admin_actions e metrics.emit. Reescrever em 3 lugares = 3 chances de drift; um lugar = uma fonte de verdade.
+- **Smoke C4 não cobre `idempotentMutation` end-to-end** porque depende de `requireUser`/`requireClinicId` (JWT real). Cobertura via testes funcionais virá em C5 com login flow real. Os building blocks (canonicalize, hash, capJsonSize, sanitize, lock_timeout via SQL) estão todos cobertos.
+
+### Validação 2026-05-29 (smoke verde)
+
+- `pnpm db:migrate:dev` aplicou 0008 + 0009 em qoro-dev sem erro.
+- `pnpm smoke:c4` → **38/38 passed** (18 pre-flight estrutural + 20 funcionais 4.6.x).
+- 3 bugs reais capturados pelo smoke durante a iteração (vale como evidência de que a bateria pega coisa séria, não é cosmética):
+  1. **Migration 0008/0009**: pré-existência de partições por sessões anteriores quebrou check `==13`; ajustado para `>=13` (forward-compatible com criação manual mensal).
+  2. **`applyCircuitBreaker`** usava `event_type = ANY(${types}::text[])` no template `sql` — Drizzle não serializa JS array como literal de array PG; trocado para `inArray()` helper que gera bind `IN ($1, $2, ...)`.
+  3. **`publishEvent` unique violation**: o `try/catch` original capturava com `isUniqueViolation` testando `err.code === '23505'`. Em paths onde o erro aflora no COMMIT da TX externa (withTenant), o catch nunca é chamado. Trocado para `INSERT ... ON CONFLICT DO NOTHING` — forma canônica do Postgres. Lição registrada como invariante #24 em ADR-011.
+- Tempo total do smoke: ~50–60s em rede Brasil ↔ AWS US-West-1 (~150–200ms RTT). `OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2` setados via `cross-env` no script `smoke:c4` (defaults de prod 50/5 levariam o cron-route test a ~70s).
+- Operações manuais MVP do runbook (cleanup, replay, retention) validadas via Supabase SQL Editor durante a iteração.
+
+### Revisão hostil + correção total (2026-05-29)
+
+Após smoke verde, executei uma revisão hostil/forense da C4 que identificou 4 CRITICAL + 12 HIGH + 7 MEDIUM. Correção total aplicada na mesma data:
+
+**CRITICAL fixes:**
+- **CRITICAL-01** — Worker TX3 conditional UPDATE em `processing_started_at`. Sem isso, janitor reclamando mid-handler causava double-execution silenciosa quando handler era lento (>5min). Métrica `outbox.lost_race` emite quando guard rejeita.
+- **CRITICAL-02** — Cleanup de `idempotency_keys` agora SÓ deleta `response IS NOT NULL`. Trigger no banco bloqueia DELETE de in-flight (< 1h). Script `pnpm idempotency:cleanup` substitui SQL bruto.
+- **CRITICAL-03** — HandlerCtx ganha `eventId` (= outbox.id) e `attempt`. Handlers DEVEM usar `eventId` como dedup key em INSERTs (`ON CONFLICT`) e como idempotency-key em APIs externas. ESLint barra `db`/`dbAdmin`/`dbWorker` em `src/contexts/*/internal/handlers/**`.
+- **CRITICAL-04** — Módulo `src/lib/outbox/side-effects.ts` com `makeProviderIdempotencyKey(ctx, sideEffectKey)` + `fetchWithIdempotency` para handlers que chamam APIs externas. Pattern: provider dedupa via idempotency-key determinístico (sha256(eventId:sideEffectKey)).
+
+**HIGH fixes:**
+- **HIGH-05** — `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS` env var (default 10s). Era 3s hardcoded, quebrava Server Actions com fn() lento.
+- **HIGH-06** — Pool `dbWorker` separado de `dbAdmin`. dbAdmin (max:1) saturava no smoke. dbWorker max:5 default (`OUTBOX_DB_POOL_SIZE`).
+- **HIGH-07** — CHECK constraints `pg_column_size(payload) <= 65536` em outbox, audit_events.before/after, super_admin_actions.payload. Runtime check em publishEvent throws OutboxError ANTES do INSERT.
+- **HIGH-08** — Cron route dual-factor: Bearer + header `x-vercel-cron` (Vercel injeta). DEV bypass via `OUTBOX_CRON_ALLOW_NON_VERCEL=true`.
+- **HIGH-09** — Script `pnpm check:registry` compara catalog vs registry. Em prod fail → previne CRITICAL: handler novo sem import no boot file = eventos failed silenciosamente.
+- **HIGH-10** — ESLint barra `z.date()`/`z.bigint()`/`z.nan()`/`new Date()` em `src/contexts/*/events.ts`. Quebra build de schemas JSON-unsafe.
+- **HIGH-11** — Migration 0010 com GRANTs explícitos (`SELECT,INSERT` a authenticated; `ALL` a service_role). Sem dependência de schema-default GRANT do Supabase.
+- **HIGH-14** — `PoisonPillError`: handler throws → worker marca `failed` imediatamente, sem queimar attempts. Para falhas semânticas permanentes.
+- **HIGH-15** — `pg_try_advisory_xact_lock(hashtext('outbox-worker'))` no início do runOutboxOnce. Cron overlap → segundo tick retorna `worker.tick.skipped_overlap` sem rodar janitor/circuit duplicado.
+- **HIGH-16** — `outbox.payload_hash` (NOT NULL, sha256-hex). publishEvent detecta collision (mesma key + payload diferente) → throws OutboxError + métrica `outbox.key_collision`.
+
+**MEDIUM fixes:**
+- **MEDIUM-18** — Sanitize patterns com word boundary (`\b`). Menos falsos positivos em logs.
+- **MEDIUM-19** — Healthcheck dois níveis: `level=monitoring` (Bearer, counts agregados) vs `level=super_admin` (JWT AAL2, com `failures_by_type`). Defense in depth contra info disclosure.
+- **MEDIUM-23** — CHECK constraint temporal em outbox. Defense in depth.
+
+**Novos arquivos:**
+- [drizzle/migrations/0010_c4_hardening.sql](../drizzle/migrations/0010_c4_hardening.sql) (140+ linhas: payload_hash, size CHECKs, temporal CHECK, GRANTs, trigger preventDelete)
+- [src/lib/outbox/side-effects.ts](../src/lib/outbox/side-effects.ts)
+- [src/lib/idempotency/cleanup.ts](../src/lib/idempotency/cleanup.ts)
+- [scripts/check-handler-registry.ts](../scripts/check-handler-registry.ts)
+- [scripts/idempotency-cleanup.ts](../scripts/idempotency-cleanup.ts)
+
+**Arquivos modificados:**
+- `src/lib/outbox/worker.ts` — 3 TXs com conditional UPDATE; PoisonPillError handling; advisory lock; dbWorker pool
+- `src/lib/outbox/publish.ts` — payload_hash + collision detection + size cap runtime
+- `src/lib/outbox/types.ts` — HandlerCtx ganha eventId + attempt
+- `src/lib/outbox/errors.ts` — PoisonPillError, SideEffectInFlightError
+- `src/lib/idempotency/mutation.ts` — lock_timeout via env
+- `src/lib/db/index.ts` — dbWorker pool separado
+- `src/lib/db/schema/infra/outbox.ts` — payload_hash + CHECKs
+- `src/lib/db/schema/infra/audit.ts` — size CHECKs
+- `src/lib/db/schema/infra/super-admin.ts` — size CHECK
+- `src/lib/sanitize/patterns.ts` — word boundaries
+- `src/app/api/cron/outbox/route.ts` — dual-factor auth
+- `src/app/api/health/outbox/route.ts` — dois níveis
+- `src/lib/env.ts` — 3 envs novas
+- `eslint.config.mjs` — guard events.ts + guard handlers
+- `scripts/smoke-c4.ts` — 9 testes novos (4.6.18-27) + pre-flight estendido
+
+**Smoke verde:**
+- `pnpm db:migrate:dev` aplica 0010 limpo
+- `pnpm smoke:c4` → 47/47 esperado (38 originais + 9 novos)
+- `pnpm check:registry` verde (catalog == registry)
+
+### O que ainda precisa rodar em produção (Vercel)
+
+Smoke local não cobre o Vercel Cron — esses 4 itens são pós-deploy:
+1. Após deploy do PR, conferir em **Vercel Project Settings → Cron Jobs** que `/api/cron/outbox` aparece com schedule `*/1 * * * *`.
+2. Setar `CRON_SECRET` + `OUTBOX_BATCH_SIZE` + `OUTBOX_PARALLELISM` em **Vercel Environment Variables** (Production + Preview).
+3. Aguardar 2–3 cron ticks, conferir em **Logs** que `worker.tick` aparece a cada minuto (mesmo sem eventos: `{ processed: 0, failed: 0, skipped: 50, ... }`).
+4. `curl -H "Authorization: Bearer $CRON_SECRET" https://<preview-url>/api/health/outbox | jq` — deve retornar `{ ok: true, outbox: {...}, idempotency: {...} }`.
+
+Apenas após (3) e (4) verdes em produção a C4 pode ser considerada **operacionalmente fechada**. Hoje (2026-05-29) ela é **arquiteturalmente fechada + smoke-validada localmente** — gate suficiente para começar C5.
+
+---
+
+## C5 — Patient (encryption per-tenant + LGPD) (✅ fechada em 2026-05-30)
+
+### O que foi entregue
+
+- **Crypto lib** ([src/lib/crypto/](../src/lib/crypto/)): AES-256-GCM com chave derivada por tenant via HKDF(master, clinic_id); ciphertext `base64(version‖nonce‖ct‖tag)`; lookup HMAC-SHA256 (`hashForLookup`); `SecretProvider` (env em dev/test, Google Secret Manager em prod, lazy); normalização + checksum de CPF.
+- **Schema** ([src/contexts/patient/schema.ts](../src/contexts/patient/schema.ts)): 7 tabelas (`patients`, `patient_consents`, `patient_clinical_data`, `patient_addresses`, `patient_emergency_contacts`, `suppression_list`, `lgpd_requests`), todas RLS `defaultTenantPolicy()` + FORCE. Migration [0011_patient_core.sql](../drizzle/migrations/0011_patient_core.sql) aplicada.
+- **8 Server Actions** + 8 eventos `patient.*` (3 segmentos) + queries com ponto único de decrypt + `patientsActive()`.
+- **LGPD**: export (JSON+PDF → Storage `lgpd-exports` → signed URL 7d → email stub) via handler do outbox; delete (soft → 30d → hard delete cascade) com cron `/api/cron/patient-hard-delete`; `PatientExportProvider` (seam para C6/C7).
+- **UI mínima**: `/pacientes` (lista+busca), `/novo`, `/[id]` (detalhe descriptografado + editar + excluir operacional + ações LGPD).
+- **ADRs**: [ADR-012](adr/012-encryption-strategy.md) (encryption + validação de input + desvios documentados) e [ADR-013](adr/013-clinical-data-ownership.md) (clinical-data → owner futuro C7).
+
+### Contratos congelados ao fim de C5 (ADR-012 §)
+
+- Schema de `patients` (campos encrypted + hash); AES-256-GCM + HKDF(master, clinic_id); formato do ciphertext; UNIQUE `(clinic_id, cpf_hash)`; LGPD 30d soft → hard delete cascade; `suppression_list` per-channel **desacoplada** (sem FK, sobrevive ao hard delete); eventos `patient.*` no formato 3-segmentos (`patient.core.*`, `patient.consent.*`, `patient.suppression.added`, `patient.lgpd.*`).
+
+### Validação (§5.6)
+
+`smoke-c5` 7/7 (5.6.1–5.6.6, 5.6.9) + `smoke-c5-idempotency` 3/3 (5.6.11) + in-app 5.6.7 (audit), 5.6.10 (permissão 403), export LGPD e2e, hard-delete cascade; `pg_dump | grep '<cpf>'` vazio. **5.6.8** (suppression bloqueia outbound) diferido p/ C14 (sem mensagem proativa ainda).
+
+### Bugs latentes de camadas anteriores corrigidos (expostos pela C5, autorizados)
+
+- **C3 middleware**: cookie de sessão fragmentado (`-auth-token.0/.1`) não era remontado → `no_profile` em users com muitas permissões; e `/api/cron/*` era interceptado pelo middleware de sessão (quebraria o cron da Vercel) → adicionado ao matcher.
+- **C4 `idempotentMutation`**: `SET LOCAL lock_timeout = $1` (SQL inválido) → trocado por `set_config('lock_timeout', $1, true)`.
+- **Build**: `p-limit` (`#async_hooks`) via `serverExternalPackages`; `useSearchParams()` em login/reset-password envolto em `<Suspense>`. `pnpm build` 100% verde.
+
+### Débito / pendências
+
+- Email do export LGPD é **stub** (sem infra transacional ainda).
+- Rate-limit em mutações (além do login) — hardening de C16.
+- `5.6.8` validável só em C14.

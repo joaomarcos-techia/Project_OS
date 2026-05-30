@@ -18,6 +18,12 @@
 | [005](005-supabase-vs-firebase.md) | Supabase (Postgres) escolhido sobre Firebase | accepted | C0 / C1 |
 | [006](006-drizzle-orm-pinning.md) | Drizzle ORM com pin exato + driver postgres-js | accepted | C1 |
 | [007](007-rls-implementation-patterns.md) | RLS implementation patterns (FORCE-principal + dual-context + single helper) | accepted | C2 |
+| [008](008-identity-patterns.md) | Identity patterns (super_admin platform-scoped, JWT cache snapshot, RBAC vs RLS) | accepted | C3 |
+| [009](009-claims-drift-mitigation.md) | Claims drift mitigation (trigger + Hook + throttled middleware) | accepted | C3 |
+| [010](010-security-definer-patterns.md) | SECURITY DEFINER patterns (8 rules + PR checklist) | accepted | C3 |
+| [011](011-outbox-audit-idempotency-patterns.md) | Outbox / Audit / Idempotency implementation patterns | accepted | C4 |
+| [012](012-encryption-strategy.md) | Encryption strategy (AES-256-GCM per-tenant via HKDF + lookup HMAC + secret provider) | accepted | C5 |
+| [013](013-clinical-data-ownership.md) | patient_clinical_data fica em C5, C7 é o futuro owner | accepted | C5 |
 
 ## Como propor um novo ADR
 
