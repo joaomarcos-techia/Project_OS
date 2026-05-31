@@ -136,12 +136,23 @@ Todos os health endpoints exigem `Authorization: Bearer <CRON_SECRET>` (por isso
 ### 5.3 Crons rodando
 - [ ] Vercel → Cron Jobs → conferir execuções verdes. Opcional: ping de dead-man-switch (Healthchecks.io) no fim do cron de outbox.
 
-### Teste local rápido (responde seu 401)
-O 401 que você viu é porque o browser não manda o Bearer. Teste assim:
+### Teste local rápido (responde o 401)
+O 401 no browser é porque ele não manda o Bearer. Teste mandando o header:
+
+**Windows PowerShell** (`curl` é alias do Invoke-WebRequest — use `curl.exe`):
+```powershell
+curl.exe -H "Authorization: Bearer SEU_CRON_SECRET" "http://localhost:3000/api/health/outbox?strict=1"
+```
+ou, nativo (lança em 503 no PS 5.1 — use só pra checar saudável):
+```powershell
+Invoke-RestMethod -Uri "http://localhost:3000/api/health/outbox?strict=1" -Headers @{ Authorization = "Bearer SEU_CRON_SECRET" }
+```
+
+**bash/macOS/Linux:**
 ```bash
 curl -H "Authorization: Bearer SEU_CRON_SECRET" "http://localhost:3000/api/health/outbox?strict=1"
 ```
-(o `CRON_SECRET` está no seu `.env.local`). Deve voltar `200` com `{ok:true, degraded:false, ...}`.
+(o `CRON_SECRET` está no `.env.local`). Deve voltar `200` com `{ok:true, degraded:false, ...}`.
 
 ---
 
