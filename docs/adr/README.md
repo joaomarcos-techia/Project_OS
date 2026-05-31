@@ -24,6 +24,8 @@
 | [011](011-outbox-audit-idempotency-patterns.md) | Outbox / Audit / Idempotency implementation patterns | accepted | C4 |
 | [012](012-encryption-strategy.md) | Encryption strategy (AES-256-GCM per-tenant via HKDF + lookup HMAC + secret provider) | accepted | C5 |
 | [013](013-clinical-data-ownership.md) | patient_clinical_data fica em C5, C7 é o futuro owner | accepted | C5 |
+| [014](014-scheduling-patterns.md) | Scheduling Core (C6): contratos congelados (R1–R13 + walk-in + lifecycle) | accepted | C6 |
+| [015](015-event-versioning.md) | Versionamento de eventos do outbox (event_type é a fronteira de versão) | accepted | C4+ |
 
 ## Como propor um novo ADR
 

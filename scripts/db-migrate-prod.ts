@@ -20,6 +20,7 @@ import { resolve } from 'node:path';
 
 import postgres from 'postgres';
 
+import { assertMigrationsSafe } from './check-migration-safety';
 import { assertProdContext, fsTimestamp, gitUserEmail, redact } from './_env';
 
 const REPO_ROOT = process.cwd();
@@ -204,6 +205,9 @@ function appendLog(line: string): void {
 
 async function main(): Promise<void> {
   assertSentinelAbsent();
+  // Gap 1.3: pré-flight fail-closed — bloqueia DROP/TRUNCATE não-aprovado ANTES
+  // de tocar prod (mesmo com backup, evitar o erro humano é mais barato).
+  assertMigrationsSafe();
   const { databaseUrl: rawUrl } = assertProdContext();
   const migrateUrl = migrationUrl(rawUrl);
   console.log(`[migrate:prod] target (session pooler): ${redact(migrateUrl)}`);
