@@ -862,7 +862,8 @@ Avança para C2 quando:
     - `slug`: text, unique, validação `^[a-z0-9-]{3,30}$`, **reservados bloqueados** (`app`, `admin`, `api`, etc.)
     - `status`: enum (`trial`, `active`, `suspended_readonly`, `suspended`, `cancelled`)
   - `clinic_units` (id, clinic_id, nome, endereco, ativo) — multi-unidade opcional
-  - `clinic_domains` (id, clinic_id, domain, type: `subdomain`|`custom`, verified_at)
+  - `clinic_domains` (id, clinic_id, domain, type: `subdomain`, verified_at) <!-- `custom` removido do roadmap (2026-05); tabela mantém só subdomínio -->
+
   - `_reserved_slugs` (slug primary key) — seed table imutável
 
   **Auth wiring:**
@@ -963,7 +964,7 @@ Avança para C2 quando:
   - ❌ **Tabela `users` ou `profiles`** — C3.
   - ❌ **Sistema de planos (`subscriptions`, `invoices`)** — C13. Apenas campo `status` em `clinics` por enquanto, sem lógica.
   - ❌ **CRUD de clínicas via UI** — você (super_admin) cria via SQL direto até C15.
-  - ❌ **Custom domain provisioning automatizado** — Pro feature, futuro.
+  - ❌ **Custom domain por clínica** — REMOVIDO do roadmap (2026-05): baixo valor p/ SaaS de clínica, custo de verificação/SSL/suporte não compensa. Modelo é subdomínio.
   - ❌ **Resolver de subdomínio → clinic_id no middleware** — virá em C3 quando login existir.
   - ❌ **Soft delete UI / Recover deleted** — apenas o campo `deleted_at`, sem UI.
 
@@ -1111,7 +1112,7 @@ Avança para C2 quando:
   - 🔓 Sem validação de CNPJ (só formato; validação real via Receita só em v2.1)
   - 🔓 Sem CEP/endereço estruturado (texto único basta no MVP)
   - 🔓 Sem fluxo de "troca de slug" (1x grátis) — adiciona quando alguém pedir
-  - 🔓 Sem custom domain provisioning (mesmo plano Pro: você faz manual)
+  - 🔓 Sem custom domain (removido do roadmap — modelo é subdomínio por clínica)
 
   ### 2.9 🔴 Débito técnico proibido
 
@@ -5185,7 +5186,7 @@ Por clínica, configuráveis em UI/SQL:
 - **Plan + addons**
 - **Toggle estoque** (v2.1)
 - **Logo + cor primária** (white-label leve)
-- **Slug e custom domain**
+- **Slug (subdomínio)**
 - **WhatsApp number ativo**
 - **User permission overrides** (acima da role default)
 

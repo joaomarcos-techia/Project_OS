@@ -26,6 +26,7 @@
 | [013](013-clinical-data-ownership.md) | patient_clinical_data fica em C5, C7 é o futuro owner | accepted | C5 |
 | [014](014-scheduling-patterns.md) | Scheduling Core (C6): contratos congelados (R1–R13 + walk-in + lifecycle) | accepted | C6 |
 | [015](015-event-versioning.md) | Versionamento de eventos do outbox (event_type é a fronteira de versão) | accepted | C4+ |
+| [016](016-clinic-lifecycle.md) | Semântica do ciclo de vida de clínica (base; enforcement em C13) | accepted | C2 / C13 |
 
 ## Como propor um novo ADR
 

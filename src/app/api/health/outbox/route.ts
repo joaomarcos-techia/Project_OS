@@ -27,6 +27,10 @@ import { env, assertCronRuntimeReady } from '@/lib/env';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Limiares de degradação (gap 4.2). Conservadores: o worker roda a cada 1min.
+const PENDING_STUCK_S = 300; // pending parado > 5min → worker provavelmente caído
+const PROCESSING_STUCK_S = 600; // processing > 10min → handler travado / janitor não reclamou
+
 type OutboxCounts = {
   pending: number;
   processing: number;
@@ -82,6 +86,10 @@ export async function GET(req: Request): Promise<Response> {
   if (level === 'denied') {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
   }
+  // `?strict=1` (ou `?alert=1`): retorna 503 quando degradado, para monitores
+  // que só checam status code alarmarem sem parsear JSON (gap 4.2).
+  const qp = new URL(req.url).searchParams;
+  const strict = qp.get('strict') === '1' || qp.get('alert') === '1';
 
   try {
     const outboxRes = await dbAdmin.execute<OutboxCounts>(sql`
@@ -113,21 +121,39 @@ export async function GET(req: Request): Promise<Response> {
       FROM idempotency_keys
     `);
 
+    const outbox = outboxRes[0] ?? {
+      pending: 0, processing: 0, failed: 0, skipped: 0,
+      oldest_pending_age_s: 0, oldest_processing_age_s: 0, oldest_failed_age_s: 0,
+    };
+    const idempotency = idemRes[0] ?? { in_flight: 0, expired: 0, in_flight_orphans_1h: 0 };
+    const defaultPartitionRows = auditRes[0]?.default_count ?? 0;
+
+    // Gap 4.2: condições operacionais que merecem alerta. `degraded` + `alarms`
+    // são aditivos (ok continua true = endpoint respondeu); `?strict=1` vira 503.
+    const alarms: string[] = [];
+    if (outbox.failed > 0) alarms.push(`outbox_failed=${outbox.failed}`);
+    if (outbox.skipped > 0) alarms.push(`outbox_skipped=${outbox.skipped}`);
+    if (outbox.oldest_pending_age_s > PENDING_STUCK_S) alarms.push(`pending_age=${outbox.oldest_pending_age_s}s`);
+    if (outbox.oldest_processing_age_s > PROCESSING_STUCK_S) alarms.push(`processing_age=${outbox.oldest_processing_age_s}s`);
+    if (idempotency.in_flight_orphans_1h > 0) alarms.push(`idem_orphans=${idempotency.in_flight_orphans_1h}`);
+    if (defaultPartitionRows > 0) alarms.push(`audit_default_rows=${defaultPartitionRows}`);
+    const degraded = alarms.length > 0;
+    const httpStatus = strict && degraded ? 503 : 200;
+
     const base = {
       ok: true,
-      outbox: outboxRes[0] ?? {
-        pending: 0, processing: 0, failed: 0, skipped: 0,
-        oldest_pending_age_s: 0, oldest_processing_age_s: 0, oldest_failed_age_s: 0,
-      },
-      audit: { default_partition_rows: auditRes[0]?.default_count ?? 0 },
-      idempotency: idemRes[0] ?? { in_flight: 0, expired: 0, in_flight_orphans_1h: 0 },
+      degraded,
+      alarms,
+      outbox,
+      audit: { default_partition_rows: defaultPartitionRows },
+      idempotency,
       ts: new Date().toISOString(),
     };
 
     if (level === 'monitoring') {
       // Sem failures_by_type. Indica para o operador que está acessível via
       // super_admin para mais detalhe.
-      return Response.json({ ...base, level: 'monitoring' }, { status: 200 });
+      return Response.json({ ...base, level: 'monitoring' }, { status: httpStatus });
     }
 
     // super_admin level — detalhe completo
@@ -159,7 +185,7 @@ export async function GET(req: Request): Promise<Response> {
         failures_by_type: [...failures],
         skipped_by_type: [...skipped],
       },
-      { status: 200 },
+      { status: httpStatus },
     );
   } catch (err) {
     return Response.json(

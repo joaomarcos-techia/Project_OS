@@ -47,7 +47,7 @@
 
 ClinicaOS é um **sistema operacional para clínicas pequenas e médias brasileiras** — não é um sistema de gestão clínica genérico. É um produto SaaS multi-tenant que combina **gestão clínica + agente de IA conversacional via WhatsApp + cobrança automatizada + auditoria forense** em um único produto integrado.
 
-O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) sob o domínio principal `qoro.dev`, com cada clínica recebendo seu próprio subdomínio (`drsilva.qoro.dev`) ou, em planos superiores, custom domain próprio (`sistema.drsilva.com.br`).
+O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) sob o domínio principal `qoro.dev`, com cada clínica recebendo seu próprio subdomínio (`drsilva.qoro.dev`).
 
 ## 1.2 Qual problema resolve
 
@@ -506,9 +506,12 @@ qoro.dev                        → landing page (Firebase Hosting, intacta)
 *.qoro.dev                      → Vercel (todo o app)
   ├─ app.qoro.dev               → app das clínicas (login genérico)
   ├─ admin.qoro.dev             → dashboard master (você)
-  ├─ {slug}.qoro.dev            → subdomínio dedicado por clínica (plano Pro)
-  └─ {custom}.{clinic}.com.br   → custom domain (plano Pro+)
+  └─ {slug}.qoro.dev            → subdomínio dedicado por clínica (plano Pro)
 ```
+<!-- Custom domain por clínica foi REMOVIDO do roadmap (decisão 2026-05): baixo
+     valor para SaaS de clínica, custo de verificação/SSL/suporte não compensa.
+     O modelo é subdomínio (`{slug}.qoro.dev`). -->
+
 
 **Configuração DNS** (uma vez):
 ```
@@ -751,7 +754,8 @@ view:consultorio
 **Entidades:**
 - `clinics` (id, slug, nome, cnpj, cnes, endereço, telefone, email, plano, status)
 - `clinic_units` (multi-unidade do plano Pro — filiais/salas)
-- `clinic_domains` (slug → clinic_id, suporte a custom domains)
+- `clinic_domains` (slug → clinic_id, roteamento por subdomínio) <!-- custom domain removido do roadmap (2026-05) -->
+
 - `plans` (Solo, Clínica, Pro, com limites)
 - `subscriptions` (clinic_id, plan_id, status, started_at, current_period_end)
 - `invoices` (clinic_id, subscription_id, valor, status, due_date, paid_at, nfe_url)
@@ -766,7 +770,7 @@ view:consultorio
 | **Solo** | R$ 149 | 1 médico, 1 usuário, 200 agendamentos/mês, 200 conversas IA/mês, WhatsApp via Z-API |
 | **Clínica** | R$ 349 | até 5 usuários, 800 agendamentos/mês, 800 conversas IA/mês, WhatsApp Meta oficial |
 | **Pro** | R$ 699 | até 15 usuários, 2500 agendamentos/mês, 2500 conversas IA/mês, multi-unidade, subdomínio dedicado |
-| **Pro+** | sob consulta | ilimitado, custom domain, SLA dedicado |
+| **Pro+** | sob consulta | ilimitado, SLA dedicado |
 
 **Add-ons:**
 - Agendamentos extras: R$ 50 por 200 adicionais
@@ -2057,7 +2061,6 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 3. **Add-ons**: agendamentos extras, sessões de pacote
 4. **Multi-unidade**: nova filial = nova subscription (ou plano Pro+)
 5. **Módulos opcionais futuros**: TISS (v2.1), telemedicina (v2.2), marketing (v2.3)
-6. **Custom domain**: SKU adicional R$ 50/mês
 
 ## 9.8 Estratégia de crescimento (5 anos)
 
@@ -2438,7 +2441,6 @@ Template ADR:
 - Dashboard único com permissões granulares (RBAC + ABAC)
 - Roles: gestor, doctor, attendant, financial, owner + super_admin
 - Subdomínios por clínica (Pro)
-- Custom domain (Pro+)
 - Módulo Consultório (kanban 3 colunas)
 - Documentos clínicos imprimíveis (sem ICP-Brasil no MVP)
 - Estoque simples opcional (sem SNGPC)
