@@ -41,6 +41,9 @@ export const clinics = pgTable(
     cnpj: text('cnpj'),                     // nullable: validation only in C13
     cnes: text('cnes'),                     // nullable: not all clinic types have CNES
     status: clinicStatus('status').notNull().default('trial'),
+    // C6 (R10/M7): timezone IANA da clínica — base do slot resolver. CONGELADO:
+    // 1 clínica = 1 timezone até existir override por unidade (ADR-014).
+    timezone: text('timezone').notNull().default('America/Sao_Paulo'),
     ...timestampsPattern(),
     deletedAt: deletedAt(),
   },

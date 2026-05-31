@@ -38,6 +38,12 @@ export type PublishEventArgs<TPayload = unknown> = {
   eventType: string;
   payload: TPayload;
   idempotencyKey: string;
+  /**
+   * M20 — distributed-tracing correlation id. Optional + additive: existing
+   * producers omit it (column nullable). Threaded so one logical operation is
+   * traceable across Scheduling → Clinical → Financial → AI → Webhook.
+   */
+  correlationId?: string | null;
 };
 
 /**
@@ -47,8 +53,17 @@ export type PublishEventArgs<TPayload = unknown> = {
 export type WorkerTickSummary = {
   processed: number;
   failed: number;
+  /**
+   * F-03: events terminally `skipped` (in catalog, no registered handler). NOT
+   * failures — they never retry. DB status='skipped'. Distinct from `empty`.
+   */
   skipped: number;
+  /** Reserve slots that found no pending row (processOne returned 'empty'). */
+  empty: number;
   stuck_reclaimed: number;
   circuit_paused: number;
   duration_ms: number;
 };
+
+/** Outcome of a single processOne() invocation (exhaustive). */
+export type ProcessOneResult = 'empty' | 'processed' | 'failed' | 'skipped';

@@ -118,7 +118,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!profile.ativo || profile.deleted_at !== null) {
-    return forceHealAndLogout(req, res, 'disabled');
+    return forceHealAndLogout(req, res, 'disabled', supabase);
   }
 
   // Drift detection: comparar claims_version do JWT com DB.
@@ -127,7 +127,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     jwtClaimsVersion !== null &&
     jwtClaimsVersion !== profile.claims_version
   ) {
-    return forceHealAndLogout(req, res, 'drift');
+    return await forceHealAndLogout(req, res, 'drift', supabase);
   }
 
   // OK: marca timestamp do last check.
@@ -216,11 +216,27 @@ function redirectToLogin(req: NextRequest, reason: string | null): NextResponse 
   return NextResponse.redirect(target);
 }
 
-function forceHealAndLogout(
+async function forceHealAndLogout(
   req: NextRequest,
   res: NextResponse,
   reason: 'disabled' | 'drift',
-): NextResponse {
+  supabase: ReturnType<typeof createServerClient>,
+): Promise<NextResponse> {
+  // F-18: usuário DESATIVADO (ativo=false / deleted) deve perder a sessão
+  // server-side — não só o cookie local. signOut({scope:'global'}) no client
+  // @supabase/ssr (com a sessão da request) revoga os refresh tokens via Auth
+  // server (Cenário A confirmado na doc Supabase). Revoga EXATAMENTE UMA VEZ:
+  // só chegamos aqui quando `_healed` ainda NÃO está setado (early-return no
+  // topo do middleware) e há sessão; setamos `_healed` logo abaixo + limpamos os
+  // cookies sb-, então a próxima request pula o middleware ou já não tem sessão —
+  // sem tempestade de revogação. Falha da revogação é NÃO-FATAL (UX > revogação).
+  if (reason === 'disabled') {
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch {
+      // não-fatal — o cookie cleanup + redirect abaixo seguem.
+    }
+  }
   // Anti-loop: marca _healed por 60s. Próximo request com o cookie pula middleware
   // e vai direto pro /login (matcher exclui /login).
   res.cookies.set({

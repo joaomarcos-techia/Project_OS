@@ -46,6 +46,7 @@ export async function logAudit(
     ipAddress: args.requestContext.ip,
     userAgent: args.requestContext.userAgent,
     requestId: args.requestContext.requestId,
+    correlationId: args.requestContext.correlationId ?? args.requestContext.requestId,
   });
   metrics.emit('audit.written', {
     action: args.action,

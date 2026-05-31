@@ -502,7 +502,9 @@ export async function requestLgpdExport(
   idempotencyKey: string,
 ): Promise<{ requestId: string }> {
   await requireUser();
-  await requireFreshPermission(PERMISSIONS.VIEW_PATIENT);
+  // F-07: export de PII completo exige permissão DEDICADA (least-privilege),
+  // não mais o view:patient mínimo. Bundles owner/gestor (migration 0013).
+  await requireFreshPermission(PERMISSIONS.EXPORT_PATIENT);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
 
@@ -579,6 +581,17 @@ export async function requestLgpdDelete(
         eventType: PATIENT_EVENTS.LGPD_DELETE_REQUESTED,
         payload: { requestId: req!.id, patientId, clinicId },
         idempotencyKey: `${idempotencyKey}:lgpd_delete`,
+      });
+      // Canonical "patient removed" signal: LGPD delete IS a deletion, so it
+      // emits patient.core.deleted too (same event as deletePatient). Lets
+      // downstream consumers (C6 Scheduling cancels future appointments — the
+      // outbox registry is one-handler-per-event, so they react to THIS, not to
+      // the LGPD-specific event which patient's own safety-net handler owns).
+      await publishEvent(tx, {
+        clinicId,
+        eventType: PATIENT_EVENTS.DELETED,
+        payload: { patientId, clinicId, soft: true },
+        idempotencyKey: `${idempotencyKey}:deleted`,
       });
       return { requestId: req!.id };
     },

@@ -1,0 +1,21 @@
+-- =====================================================================
+-- 0014_outbox_skipped_status.sql
+-- Remediação pré-C6 — F-03 (evento sem handler vira terminal `skipped`).
+--
+-- Forward-compatible / aditivo: o valor `skipped` é inerte para código antigo
+-- (o worker antigo nunca o PRODUZ; nunca aparece em queries que filtram
+-- pending/processing/processed/failed). Seguro aplicar antes do deploy do worker.
+--
+-- Transaction compatibility (F-03 evidência, Opção A): em PostgreSQL >= 12,
+-- `ALTER TYPE ... ADD VALUE` PODE rodar dentro de transação DESDE QUE o novo
+-- valor NÃO seja usado na MESMA transação. Aqui `skipped` só é usado em runtime
+-- pelo worker — nunca nesta migration. O Supabase é PG15, então o runner do
+-- drizzle-kit aplica sem erro. `IF NOT EXISTS` torna re-execução idempotente
+-- (além da deduplicação por __drizzle_migrations).
+--
+-- Rollback: PostgreSQL NÃO suporta DROP VALUE de enum. Reverter = reverter o
+-- CÓDIGO do worker (volta a tratar como erro retryável); o valor inerte pode
+-- permanecer. Remoção do valor exigiria recriar o tipo (janela de manutenção).
+-- Por isso 0014 é a ÚLTIMA migration desta remediação (isola o risco de rollback).
+-- =====================================================================
+ALTER TYPE "public"."outbox_status" ADD VALUE IF NOT EXISTS 'skipped';

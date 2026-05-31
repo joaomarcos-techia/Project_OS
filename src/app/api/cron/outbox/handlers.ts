@@ -28,4 +28,10 @@
 import '@/contexts/patient/internal/handlers/lgpd-export-requested';
 import '@/contexts/patient/internal/handlers/lgpd-delete-requested';
 
+// C6 — Scheduling: cancela agendamentos futuros quando paciente é removido
+// (reage a patient.core.deleted + patient.lgpd.delete_requested).
+import '@/contexts/scheduling/internal/handlers/patient-deleted';
+// C6 — TEMP placeholder de appointment.completed (vira Financial em C9).
+import '@/contexts/scheduling/internal/handlers/appointment-completed-temp';
+
 export {};

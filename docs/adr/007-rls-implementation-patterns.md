@@ -135,6 +135,52 @@ import { dbAdmin } from '@/lib/db'; // ESLint barra
 - [ADR-005 — Supabase vs Firebase](005-supabase-vs-firebase.md) — supplies `auth.jwt()` and the role model
 - [src/lib/db/rls.ts](../../src/lib/db/rls.ts) — the helper
 - [src/lib/db/tenant.ts](../../src/lib/db/tenant.ts) — the hardening
+
+## Correction — Remediation F-01 (2026-05-30, supersedes the D24 hierarchy above)
+
+> ADRs are add-only; this section CORRECTS the "FORCE-principal" framing in the
+> title, D24 (line 18), the operational pre-condition (line 50), Garantia #4
+> (line 86), and the Alternatives note (line 125). Those statements are
+> **technically wrong** and must not be relied upon. The audit (docs/Relatorio.md,
+> F-01) and the official PostgreSQL docs establish the correct model below.
+
+**Why the old framing is wrong.** PostgreSQL: *"Superusers and roles with the
+`BYPASSRLS` attribute always bypass the row security system."* `FORCE ROW LEVEL
+SECURITY` only removes the **table owner's** exemption — it does **NOT** subject a
+`BYPASSRLS` role to policies. The pool role `postgres.<projectref>` **holds
+BYPASSRLS** (ADR line 10 says so, and it must, because the outbox worker + the
+hard-delete cron read/write cross-tenant via `dbAdmin`/`dbWorker` with no GUC).
+Therefore, for the runtime `db` pool, `FORCE` is **not** a backstop: if a query
+runs on the connection role without dropping privilege, RLS is bypassed
+regardless of FORCE.
+
+**Correct hierarchy (replaces D24):**
+1. **PRINCIPAL runtime defense = `withTenant`'s `SET LOCAL ROLE authenticated`**
+   ([src/lib/db/tenant.ts](../../src/lib/db/tenant.ts)). It drops from the
+   BYPASSRLS pool role to `authenticated` (no BYPASSRLS), so policies + FORCE
+   actually evaluate. Every tenant-scoped access MUST go through `withTenant`.
+2. **`FORCE RLS` = defense-in-depth** against a *non-bypass* owner/role and a
+   second layer once `SET LOCAL ROLE` has executed. It does NOT, by itself,
+   isolate the BYPASSRLS connection role.
+3. **Failure mode is fail-closed only if the role-switch is a hard error.** If
+   `SET LOCAL ROLE authenticated` *raises*, the transaction aborts (no data). If
+   it silently no-ops, or if code touches `db` WITHOUT `withTenant`, isolation is
+   LOST — FORCE does not save it.
+
+**Enforcement now imposed by tooling (F-01), not convention** (the C3-promised
+guard that was never delivered): the `db`/`dbAdmin`/`dbWorker` pools and the
+`postgres`/`drizzle` connection factories are gated by a **fail-closed allowlist**
+in [scripts/arch-db-check.ts](../../scripts/arch-db-check.ts) (AST-based:
+import / dynamic-import / require / re-export, transitive) + ESLint
+`no-restricted-imports`. Contexts/app cannot import `db`; only
+[src/lib/db/tenant.ts](../../src/lib/db/tenant.ts) may. See
+[src/lib/db/connection-origin-guard.ts](../../src/lib/db/connection-origin-guard.ts)
+and its test.
+
+**Residual / deferred (C16):** connecting the `db` pool as a dedicated **non-
+BYPASSRLS** role would make a forgotten `withTenant` return zero rows (true
+fail-closed) instead of leaking. Until then, MT-1 (confirm `rolbypassrls` of the
+connection role) and the tooling above are the safeguards.
 - [drizzle/migrations/0001_tenancy_foundation.sql](../../drizzle/migrations/0001_tenancy_foundation.sql) — schema, RLS, triggers, seed
 - [drizzle/migrations/0002_tenancy_hardening.sql](../../drizzle/migrations/0002_tenancy_hardening.sql) — function grants (invariant #11)
 - [docs/runbooks/c2-validation.md](../runbooks/c2-validation.md) — re-executable test battery

@@ -113,7 +113,8 @@ check(
     claims1.clinic_id === SMOKE_CLINIC_ID &&
     claims1.app_role === 'gestor' &&
     Array.isArray(claims1.permissions) &&
-    claims1.permissions.length === 20 &&
+    // F-07: gestor bundle agora tem 21 permissions (export:patient adicionada).
+    claims1.permissions.length === 21 &&
     typeof claims1.claims_version === 'number',
   claims1,
 );
@@ -138,7 +139,7 @@ check(
     claims2.clinic_id === SMOKE_CLINIC_ID &&
     claims2.app_role === 'gestor' &&
     Array.isArray(claims2.permissions) &&
-    claims2.permissions.length === 20,
+    claims2.permissions.length === 21,
   claims2,
 );
 

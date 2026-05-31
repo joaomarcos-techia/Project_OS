@@ -27,16 +27,24 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 import { tenantId, uuidPk } from '@/lib/db/types';
 
+// F-03: 'skipped' is a TERMINAL state for an event that is in the catalog but
+// has NO registered handler (a legitimate "producer ahead of consumer" event).
+// It is NOT a failure — it never retries and never trips the circuit breaker.
 export const outboxStatus = pgEnum('outbox_status', [
   'pending',
   'processing',
   'processed',
   'failed',
+  'skipped',
 ]);
+
+/** Single source of truth for the outbox status union (exhaustiveness checks). */
+export type OutboxStatus = (typeof outboxStatus.enumValues)[number];
 
 export const outbox = pgTable(
   'outbox',
@@ -50,6 +58,8 @@ export const outbox = pgTable(
     // diferentes = bug do caller) e tomar ação explícita em vez de silenciar.
     payloadHash: text('payload_hash').notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
+    // M20: tracing cross-context. Nullable/aditivo — produtores antigos omitem.
+    correlationId: uuid('correlation_id'),
     status: outboxStatus('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     lastError: text('last_error'),

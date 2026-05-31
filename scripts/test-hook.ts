@@ -129,11 +129,12 @@ check(
 // Cenário 3: gestor válido → claims com clinic + permissions
 const r3 = await runHook(FIXTURE_USER_GESTOR);
 check(
-  '3) gestor: app_role=gestor, clinic_id setado, permissions array com 20 itens (bundle gestor)',
+  // F-07: bundle gestor agora tem 21 permissions (export:patient).
+  '3) gestor: app_role=gestor, clinic_id setado, permissions array com 21 itens (bundle gestor)',
   r3.claims?.app_role === 'gestor' &&
     r3.claims?.clinic_id === FIXTURE_CLINIC &&
     Array.isArray(r3.claims?.permissions) &&
-    r3.claims.permissions.length === 20,
+    r3.claims.permissions.length === 21,
   r3.claims,
 );
 

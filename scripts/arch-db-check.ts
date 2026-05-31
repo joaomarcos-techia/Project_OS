@@ -1,36 +1,58 @@
 /**
  * `pnpm arch:db-check`
  *
- * MINUSCULE structural guard against patterns ESLint can't fully catch.
- * NOT a lint parallel — only 4 patterns + migration filename validation.
+ * Structural guard mirroring the ESLint rules AND a FAIL-CLOSED allowlist for DB
+ * connection origins (F-01): the multi-tenant boundary is enforced by tooling,
+ * not convention.
  *
- * Add a pattern here only if it has burned us in production. Resist the urge
- * to grow this into a general-purpose linter.
+ * F-01 — connection-origin allowlist (default-deny). The runtime `db` pool
+ * connects with a BYPASSRLS role; `withTenant` (SET LOCAL ROLE authenticated) is
+ * the principal isolation defense, NOT FORCE RLS (which does not stop BYPASSRLS —
+ * ADR-007). Any path reaching a connection origin OUTSIDE the explicit allowlist
+ * is a latent cross-tenant bypass.
+ *
+ * Detection is AST-based (src/lib/db/connection-origin-guard.ts) and covers
+ * import / dynamic import() / require() / re-export (`export { db } from`,
+ * `export *`), with re-export chains tracked transitively to a fixed point.
+ *
+ * Origins + per-file allowlists:
+ *   - bare `postgres`                        → src/lib/db/index.ts, scripts/db-migrate-prod.ts
+ *   - `drizzle` from drizzle-orm/postgres-js  → src/lib/db/index.ts
+ *   - `db`      (named export of @/lib/db)    → src/lib/db/tenant.ts (withTenant)
+ *   - `dbAdmin` (named export of @/lib/db)    → ALLOWED_DB_VALUE_IMPORTS.dbAdmin
+ *   - `dbWorker`(named export of @/lib/db)    → ALLOWED_DB_VALUE_IMPORTS.dbWorker
+ *   - namespace import / dynamic / require of an origin → only src/lib/db/index.ts
+ *   - any re-export of a pool name/origin     → forbidden everywhere except origin
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { extname, join, relative, resolve, sep } from 'node:path';
+import { extname, join, relative, resolve, sep, posix } from 'node:path';
+
+import { findOriginUsages, type Classify, type SpecifierClass } from '@/lib/db/connection-origin-guard';
 
 const REPO_ROOT = process.cwd();
-// Files allowed to import the `postgres` driver directly:
-// - src/lib/db/index.ts : the canonical pool factory used by the app
-// - scripts/db-migrate-prod.ts : prod migrator needs a dedicated 1-shot
-//   connection to acquire pg_advisory_lock against DATABASE_URL_PROD (not the
-//   env-bound URL used by src/lib/db). Keeping this allowlist explicit ensures
-//   adding a 3rd file requires updating this guard intentionally.
-const ALLOWED_POSTGRES_IMPORTS = new Set([
-  ['src', 'lib', 'db', 'index.ts'].join('/'),
-  ['scripts', 'db-migrate-prod.ts'].join('/'),
-]);
-// Files allowed to carry `eslint-disable no-restricted-imports` for dbAdmin.
-// Each entry below requires a clear justification in the file's header comment.
-// C3: /api/health/auth-hook precisa de dbAdmin para chamar auth_hook_selftest
-// sem JWT (healthcheck público). RPC isolada — não expõe RLS bypass real.
-const ALLOWED_RESTRICTED_DISABLES = new Set([
-  ['src', 'app', 'api', 'health', 'auth-hook', 'route.ts'].join('/'),
-]);
-// This script itself defines pattern strings (e.g. "new Pool(") that would
-// false-positive against its own grep. Exclude it from its own scan.
-const SELF_RELATIVE = ['scripts', 'arch-db-check.ts'].join('/');
+const DB_ORIGIN = 'src/lib/db/index.ts';
+
+const ALLOWED_POSTGRES_IMPORTS = new Set(['src/lib/db/index.ts', 'scripts/db-migrate-prod.ts']);
+const ALLOWED_DRIZZLE_PG_IMPORTS = new Set(['src/lib/db/index.ts']);
+const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
+  db: new Set(['src/lib/db/tenant.ts']),
+  dbAdmin: new Set([
+    'src/lib/audit/super-admin.ts',
+    'src/lib/auth/tenant-context.ts',
+    'src/lib/idempotency/cleanup.ts',
+    'src/app/api/cron/patient-hard-delete/route.ts',
+    'src/app/api/health/outbox/route.ts',
+    'src/app/api/health/auth-hook/route.ts',
+  ]),
+  dbWorker: new Set([
+    'src/lib/outbox/worker.ts',
+    'src/lib/outbox/janitor.ts',
+    'src/lib/outbox/circuit.ts',
+  ]),
+};
+
+const ALLOWED_RESTRICTED_DISABLES = new Set(['src/app/api/health/auth-hook/route.ts']);
+const SELF_RELATIVE = 'scripts/arch-db-check.ts';
 const MIGRATIONS_DIR = resolve(REPO_ROOT, 'drizzle', 'migrations');
 const MIGRATION_NAME_RE = /^\d{4}_[a-z][a-z0-9_]*\.sql$/;
 
@@ -40,7 +62,6 @@ interface Finding {
   pattern: string;
   excerpt: string;
 }
-
 const findings: Finding[] = [];
 
 function walk(dir: string, extensions: string[]): string[] {
@@ -61,32 +82,106 @@ const sourceFiles = [
   ...walk(resolve(REPO_ROOT, 'src'), ['.ts', '.tsx']),
   ...walk(resolve(REPO_ROOT, 'scripts'), ['.ts']),
 ];
+const relOf = (file: string) => relative(REPO_ROOT, file).split(sep).join('/');
+const relSet = new Set(sourceFiles.map(relOf));
+const textCache = new Map<string, string>();
+const textOf = (rel: string): string => {
+  let t = textCache.get(rel);
+  if (t === undefined) {
+    t = readFileSync(resolve(REPO_ROOT, rel), 'utf8');
+    textCache.set(rel, t);
+  }
+  return t;
+};
 
-for (const file of sourceFiles) {
-  const rel = relative(REPO_ROOT, file).split(sep).join('/');
-  if (rel === SELF_RELATIVE) continue; // skip self — defines the pattern strings
-  const allowed = ALLOWED_POSTGRES_IMPORTS.has(rel);
-  const lines = readFileSync(file, 'utf8').split(/\r?\n/);
-  lines.forEach((line, i) => {
-    // 1. Direct postgres driver import (outside allowlist).
-    if (!allowed && /\bfrom\s+['"]postgres['"]/.test(line)) {
-      findings.push({ file: rel, line: i + 1, pattern: 'import postgres', excerpt: line.trim() });
+/** Resolve a specifier to a repo-relative .ts path, or `{ bare }`. */
+function resolveSpecifier(fromRel: string, spec: string): { rel?: string; bare?: string } {
+  let base: string;
+  if (spec.startsWith('@/')) base = posix.join('src', spec.slice(2));
+  else if (spec.startsWith('.')) base = posix.join(posix.dirname(fromRel), spec);
+  else return { bare: spec };
+  const candidates = [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`];
+  for (const c of candidates) if (relSet.has(c)) return { rel: c };
+  return { rel: base.endsWith('.ts') || base.endsWith('.tsx') ? base : `${base}/index.ts` };
+}
+
+// classify factory: poolOrigin = the origin module OR a tainted re-exporter.
+const makeClassify = (fromRel: string, tainted: ReadonlySet<string>): Classify => (spec: string): SpecifierClass => {
+  const t = resolveSpecifier(fromRel, spec);
+  return {
+    postgresDriver: t.bare === 'postgres',
+    drizzlePgFactory: t.bare === 'drizzle-orm/postgres-js',
+    poolOrigin: t.rel === DB_ORIGIN || (t.rel ? tainted.has(t.rel) : false),
+  };
+};
+
+// ---- Pass 1: transitive taint set (modules that re-export a pool/origin) ----
+const tainted = new Set<string>();
+for (let changed = true, guard = 0; changed && guard < 10; guard++) {
+  changed = false;
+  for (const rel of relSet) {
+    if (rel === SELF_RELATIVE || rel === DB_ORIGIN || tainted.has(rel)) continue;
+    const usages = findOriginUsages(textOf(rel), rel, makeClassify(rel, tainted));
+    if (usages.some((u) => u.kind === 'pool-reexport')) {
+      tainted.add(rel);
+      changed = true;
     }
-    // 2. node-postgres `new Pool(` — we don't use `pg`, and adding it later
-    //    would create a second pool. Block early.
+  }
+}
+
+// Operator tooling + admin surface may hold the admin/worker pools (mirrors the
+// original ESLint allowlist: scripts/, src/app/(admin)/, src/app/api/admin/).
+// The bare `postgres` driver + `drizzle` factory stay strict (only index.ts +
+// db-migrate-prod) — there is exactly ONE pool factory.
+const isOperatorOrAdmin = (rel: string): boolean =>
+  rel.startsWith('scripts/') ||
+  rel.startsWith('src/app/(admin)/') ||
+  rel.startsWith('src/app/api/admin/');
+const poolHolderAllowed = (rel: string, name?: string): boolean => {
+  if (isOperatorOrAdmin(rel)) return true;
+  const allow = name ? ALLOWED_DB_VALUE_IMPORTS[name] : undefined;
+  return !!allow && allow.has(rel);
+};
+const originAccessAllowed = (rel: string): boolean => rel === DB_ORIGIN || isOperatorOrAdmin(rel);
+
+// ---- Pass 2: apply the allowlist policy to every usage ----
+for (const rel of relSet) {
+  if (rel === SELF_RELATIVE) continue;
+  const text = textOf(rel);
+  const usages = findOriginUsages(text, rel, makeClassify(rel, tainted));
+  for (const u of usages) {
+    const deny = (pattern: string) => findings.push({ file: rel, line: u.line, pattern, excerpt: u.excerpt });
+    switch (u.kind) {
+      case 'postgres':
+        if (!ALLOWED_POSTGRES_IMPORTS.has(rel)) deny('import postgres (driver)');
+        break;
+      case 'drizzle-pg':
+        if (!ALLOWED_DRIZZLE_PG_IMPORTS.has(rel)) deny("import { drizzle } from 'drizzle-orm/postgres-js'");
+        break;
+      case 'pool-import':
+        if (!poolHolderAllowed(rel, u.name)) deny(`import { ${u.name} } (connection origin)`);
+        break;
+      case 'pool-namespace':
+        if (!originAccessAllowed(rel)) deny('namespace import of connection origin');
+        break;
+      case 'pool-reexport':
+        if (!originAccessAllowed(rel)) deny('re-export of connection origin');
+        break;
+      case 'dynamic':
+        if (!originAccessAllowed(rel)) deny('dynamic import() of connection origin');
+        break;
+      case 'require':
+        if (!originAccessAllowed(rel) && !ALLOWED_POSTGRES_IMPORTS.has(rel)) deny('require() of connection origin');
+        break;
+    }
+  }
+
+  // line-based: new Pool( + suspicious eslint-disable of no-restricted-imports
+  text.split(/\r?\n/).forEach((line, i) => {
     if (/\bnew\s+Pool\s*\(/.test(line)) {
       findings.push({ file: rel, line: i + 1, pattern: 'new Pool(', excerpt: line.trim() });
     }
-    // 3. CJS-style require of postgres.
-    if (/require\(\s*['"]postgres['"]\s*\)/.test(line)) {
-      findings.push({ file: rel, line: i + 1, pattern: "require('postgres')", excerpt: line.trim() });
-    }
-    // 4. Suspicious lint disables of the no-restricted-imports rule.
-    //    Skipped for files in ALLOWED_RESTRICTED_DISABLES (justified exceptions).
-    if (
-      !ALLOWED_RESTRICTED_DISABLES.has(rel) &&
-      /eslint-disable.*no-restricted-imports/.test(line)
-    ) {
+    if (!ALLOWED_RESTRICTED_DISABLES.has(rel) && /eslint-disable.*no-restricted-imports/.test(line)) {
       findings.push({
         file: rel,
         line: i + 1,
@@ -97,22 +192,20 @@ for (const file of sourceFiles) {
   });
 }
 
-// 5. Migration filename convention.
+// ---- Migration filename convention ----
 try {
   for (const entry of readdirSync(MIGRATIONS_DIR, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith('.sql')) {
-      if (!MIGRATION_NAME_RE.test(entry.name)) {
-        findings.push({
-          file: `drizzle/migrations/${entry.name}`,
-          line: 0,
-          pattern: 'migration filename',
-          excerpt: `expected ${MIGRATION_NAME_RE.source}, got "${entry.name}"`,
-        });
-      }
+    if (entry.isFile() && entry.name.endsWith('.sql') && !MIGRATION_NAME_RE.test(entry.name)) {
+      findings.push({
+        file: `drizzle/migrations/${entry.name}`,
+        line: 0,
+        pattern: 'migration filename',
+        excerpt: `expected ${MIGRATION_NAME_RE.source}, got "${entry.name}"`,
+      });
     }
   }
 } catch {
-  // First run: directory may not exist yet. Don't fail.
+  // First run: directory may not exist yet.
 }
 
 if (findings.length > 0) {
@@ -124,15 +217,12 @@ if (findings.length > 0) {
   process.exit(1);
 }
 
-// Sanity: confirm src/lib/db/index.ts still exists and imports postgres
-// (catches accidental deletion / refactor away).
+// Sanity: the canonical origin still imports postgres.
 const CANONICAL = join('src', 'lib', 'db', 'index.ts');
 try {
   const content = readFileSync(resolve(REPO_ROOT, CANONICAL), 'utf8');
   if (!/\bfrom\s+['"]postgres['"]/.test(content)) {
-    console.error(
-      `[arch:db-check] ${CANONICAL} does not import postgres. Did src/lib/db/index.ts move?`,
-    );
+    console.error(`[arch:db-check] ${CANONICAL} does not import postgres. Did src/lib/db/index.ts move?`);
     process.exit(1);
   }
   statSync(resolve(REPO_ROOT, CANONICAL));
@@ -141,4 +231,6 @@ try {
   process.exit(1);
 }
 
-console.log(`[arch:db-check] OK — scanned ${sourceFiles.length} files, 0 findings.`);
+console.log(
+  `[arch:db-check] OK — scanned ${sourceFiles.length} files (${tainted.size} tainted re-export module(s)), 0 findings.`,
+);

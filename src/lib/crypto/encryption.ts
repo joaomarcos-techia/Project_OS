@@ -77,6 +77,15 @@ export async function decryptForTenant(clinicId: string, ciphertext: string): Pr
     throw new Error('[crypto] ciphertext too short / malformed');
   }
   const version = raw[0]!;
+  // F-13: defense in depth — reject a version byte outside the supported range
+  // BEFORE deriving a key. Ciphertext comes from the DB (RLS-protected), not raw
+  // user input, but a corrupted/tampered version byte should fail fast and loud
+  // (signal of tampering) rather than reach the secret provider with garbage.
+  if (version < 1 || version > env.MASTER_KEY_VERSION) {
+    throw new Error(
+      `[crypto] unsupported ciphertext version ${version} (supported: 1..${env.MASTER_KEY_VERSION})`,
+    );
+  }
   const nonce = raw.subarray(1, 1 + NONCE_BYTES);
   const tag = raw.subarray(raw.length - TAG_BYTES);
   const ct = raw.subarray(1 + NONCE_BYTES, raw.length - TAG_BYTES);

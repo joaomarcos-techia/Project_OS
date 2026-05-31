@@ -10,7 +10,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | **C3** | Identity + Auth + Custom Claims + RBAC | ✅ **fechada** | 2026-05-28 (plano v6 com 36 decisões travadas + 7 princípios) |
 | **C4** | Outbox + Audit + Idempotency | ✅ **production-grade** | 2026-05-29 (smoke 38/38 + revisão hostil + correção total: 4 CRITICAL + 12 HIGH + 7 MEDIUM resolvidos; migration 0010_c4_hardening; ADR-011 com 40 invariantes; 9 testes novos 4.6.18-27) |
 | **C5** | Patient (encryption per-tenant, LGPD) | ✅ **fechada** | 2026-05-30 (smoke-c5 7/7 + 5.6.11 idempotência 3/3; 5.6.x validados in-app — encryption, lookup, cross-tenant, soft/hard delete cascade, export LGPD e2e, audit, permissão, idempotência; pg_dump limpo; ADR-012 encryption + ADR-013 clinical-data ownership; 5.6.8 diferido p/ C14) |
-| C6 | Scheduling Core | ⏳ pendente | — |
+| C6 | Scheduling Core | ✅ **fechada** | 2026-05-31 (migrations 0015/0016 aplicadas em qoro-dev; **smoke-c6 12/12** — UNIQUE+EXCLUDE anti-overlap, overlap de availability, snapshot imutável por trigger, backfill-único de CRM, cancelamento libera slot, walk-in isento do EXCLUDE, FK RESTRICT, RLS A/B, 6.6.6 completed→worker→handler, 6.6.7 patient.core.deleted→worker cancela+emite cancelled(patient_deleted); 152 testes Vitest + typecheck/lint/arch/registry verdes; schema 6 tabelas + RLS + generated cols; state machine; 8 eventos; slot resolver tz-aware puro; actions/catalog/config + api v1; handler `patient.core.deleted`; ADR-014. **6.6.9 permissões (gestor ALLOWED / financial DENIED via fresh-check) + 6.6.10 idempotência createAppointment validados in-app** (rota temp /api/test-c6, já removida). Sem UI — follow-up) |
 | C7 | Clinical (prontuário, prescrição, PDFs) | ⏳ pendente | — |
 | C8 | Consultório UI | ⏳ pendente | — |
 | C9 | Financial Core | ⏳ pendente | — |
@@ -496,3 +496,30 @@ Apenas após (3) e (4) verdes em produção a C4 pode ser considerada **operacio
 - Email do export LGPD é **stub** (sem infra transacional ainda).
 - Rate-limit em mutações (além do login) — hardening de C16.
 - `5.6.8` validável só em C14.
+
+---
+
+## Remediação Pré-C6 (2026-05-30) — gate de auditoria saneado
+
+Após a auditoria (`docs/Relatorio.md`: 2 HIGH + 7 MEDIUM + 7 LOW + 1 INFO), todos os
+findings foram remediados em 4 lotes (A infra/isolado, B outbox, C auth/middleware/cron,
+D RBAC). Detalhe + análise de regressão em `docs/Relatorio.md` §Remediação.
+
+- **Migrations novas:** `0012_patient_grants` (F-05 GRANTs + F-15 índice),
+  `0013_export_patient_permission` (F-07), `0014_outbox_skipped_status` (F-03) —
+  aplicadas em qoro-dev. Forward-compatible/aditivas.
+- **F-01:** isolamento tenant agora **fail-closed por tooling** (arch-db-check AST:
+  import/dynamic/require/re-export+transitivo + ESLint) — ADR-007 corrigido (withTenant
+  é a defesa principal, não FORCE).
+- **F-03:** evento sem handler → status `skipped` (terminal, não retry, não circuit) +
+  alerta `skipped_no_handler`.
+- **F-04 (correção do claim):** `smoke:c4` agora **61/61 hermético e reproduzível** (2
+  execuções idênticas). O "47/47" anterior não era reprodutível (compartilhava o outbox
+  dev). Quarentena de eventos órfãos no setup.
+- **F-07:** catálogo 20→**21** permissions (`export:patient`); `role_permissions` 64→**66**.
+- **Suítes verdes pós-remediação:** typecheck/lint/arch/arch-db ok; **66 testes unit**;
+  `smoke:c3` (21/66), `test:hook` 5/5, `smoke:c4` 61/61, `smoke:c5` 8/8, `smoke:c5:idem`
+  3/3, `test:auth-e2e` todas as fases (incl. revogação global).
+- **Pendência única (LOW-aberto):** F-18 revoga sessão de usuário desativado via
+  `signOut({scope:'global'})` no middleware — validado por doc + corroborado pelo
+  `test:auth-e2e` fase 3 (revogação real). Resto LOW documentado (F-16 by-design, F-19).

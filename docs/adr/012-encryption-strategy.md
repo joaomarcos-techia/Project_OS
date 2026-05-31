@@ -136,3 +136,19 @@ nunca entraram no audit. `suppression_list` permanece.
 - PlanoAção §5.2, §5.5, §5.6, §5.7, §5.9, §5.18
 - `src/lib/crypto/*`, `src/contexts/patient/queries.ts`
 - ADR-002, ADR-007, ADR-011, [ADR-013](013-clinical-data-ownership.md)
+
+## Addendum — Remediation (2026-05-30, pré-C6)
+
+- **F-07 (export LGPD):** a signed URL do export passa de **7 dias → 24h**
+  (`SIGNED_URL_TTL_SECONDS` + `exportSignedUrlExpiresAt`) — egresso de PII sensível,
+  janela menor. Permissão dedicada `export:patient` (ver ADR-008 addendum).
+- **F-13:** `decryptForTenant` valida `1 ≤ version ≤ MASTER_KEY_VERSION` ANTES do
+  lookup da chave (defesa-em-profundidade contra version byte corrompido/tampering).
+- **F-16 (aceito by-design, sem mudança):** o lookup HMAC usa salt **global** —
+  necessário para `UNIQUE(clinic_id, cpf_hash)` e busca exata. A correlação
+  cross-clinic da mesma pessoa só é possível com **acesso DB sem RLS**
+  (privacidade-em-profundidade), NÃO é quebra de isolamento app-layer. Redesenho
+  (salt por-clínica) exigiria re-hash de todos os dados — não justificado no MVP.
+- **F-10 (LGPD retention):** o hard-delete (cron) passa a remover do audit também
+  `dataNascimento`/`sexo`/`obitoEm` (além de nome/email) e a anular
+  `idempotency_keys.response` que contenha o paciente apagado.

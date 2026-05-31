@@ -12,9 +12,18 @@
  * Em C3 a lista é stub mínima — cresce em C4+ conforme actions destrutivas
  * forem implementadas. Manter ORDEM ALFABÉTICA para facilitar review.
  */
+// F-14: lista REAL (não mais stub). Cada nome é uma Server Action exportada que
+// DEVE chamar requireFreshPermission(...) no corpo de nível superior — enforçado
+// pelo arch-test AST em src/lib/auth/policies/critical-actions.test.ts (pega
+// código morto, ao contrário de grep textual). Ordem alfabética para review.
+//
+// Invariante de super_admin (F-14): o short-circuit `if (user.isSuperAdmin) return`
+// em requireCachedPermission/requireFreshPermission NÃO checa aal2. Toda AÇÃO
+// SENSÍVEL de super_admin DEVE passar por requireSuperAdmin (que exige aal2);
+// ações tenant (como as de paciente) já passam por requireClinicId, que LANÇA
+// para super_admin — logo um super_admin em aal1 não as alcança.
 export const CRITICAL_ACTIONS: readonly string[] = Object.freeze([
-  // C3 stub — exemplos placeholders documentam o pattern. Adicionar nomes
-  // reais de Server Actions conforme aparecerem em C5+ (delete hard patient,
-  // billing refund, audit export, etc.).
-  'deleteProfileHard',
+  'deletePatient',
+  'requestLgpdDelete',
+  'requestLgpdExport',
 ]);

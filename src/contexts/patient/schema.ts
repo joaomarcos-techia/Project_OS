@@ -98,6 +98,11 @@ export const patients = pgTable(
     activeIdx: index('patients_active_idx')
       .on(t.clinicId)
       .where(sql`deleted_at IS NULL`),
+    // F-15: serves the default listing (clinic scope + ORDER BY updated_at) on
+    // active rows — a btree (clinic_id, updated_at) is scanned backward for DESC.
+    clinicUpdatedIdx: index('patients_clinic_updated_idx')
+      .on(t.clinicId, t.updatedAt)
+      .where(sql`deleted_at IS NULL`),
   }),
 );
 

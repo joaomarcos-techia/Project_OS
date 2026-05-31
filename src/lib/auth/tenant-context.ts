@@ -42,7 +42,7 @@ import {
 /* eslint-enable boundaries/element-types */
 import { dbAdmin } from '@/lib/db';
 
-import { parseClaims, type JWTClaims } from './claims';
+import { parseClaims } from './claims';
 import { type Permission } from './permissions';
 import { type Role } from './roles';
 import { createServerClient } from './supabase-server';
@@ -79,25 +79,24 @@ export interface CurrentUser {
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) return null;
+  // F-17: getClaims() é o caminho recomendado pelo Supabase — verifica o JWT
+  // (JWKS local para signing keys assimétricas; round-trip ao Auth server para
+  // chaves simétricas, como getUser) E retorna o payload decodado, incluindo as
+  // custom claims injetadas pelo Hook (app_role/clinic_id/permissions/...).
+  // Substitui getUser()+getSession()+decode manual — sem mais eslint-disable de
+  // getSession, sem decode base64 caseiro. (auth-js 2.106.2 expõe getClaims.)
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) return null;
 
-  // Para extrair as CLAIMS customizadas injetadas pelo Hook (clinic_id, role,
-  // permissions, claims_version, super_admin), precisamos do access_token
-  // decoded. `getUser()` retorna apenas o User (sem o token bruto).
-  // `getSession()` retorna o `access_token` string que decodamos manualmente —
-  // a verificação de signature/expiry JÁ FOI FEITA por getUser() acima
-  // (server-side round-trip ao Supabase Auth). Aqui só lemos o payload.
-  // eslint-disable-next-line no-restricted-syntax -- intentional: getUser() já validou; getSession() aqui é só fonte do access_token bruto para extrair claims customizadas. Decisão server-side documentada em ADR-008.
-  const sessionResult = await supabase.auth.getSession();
-  const session = sessionResult.data.session;
-  if (!session) return null;
+  const raw = data.claims as Record<string, unknown>;
+  const userId = typeof raw.sub === 'string' ? raw.sub : null;
+  if (!userId) return null;
 
-  const claims = parseClaimsFromAccessToken(session.access_token);
+  const claims = parseClaims(raw);
   if (!claims) return null;
 
   return {
-    userId: data.user.id,
+    userId,
     clinicId: claims.clinic_id,
     // JWT claim é 'app_role' (PostgREST reserva 'role'); domain expõe como 'role'.
     role: claims.app_role,
@@ -106,23 +105,6 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     isSuperAdmin: claims.super_admin === true || claims.app_role === 'super_admin',
     aal: claims.aal ?? null,
   };
-}
-
-/** Decoda o payload do JWT (base64url middle segment). NÃO valida signature. */
-function parseClaimsFromAccessToken(token: string): JWTClaims | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  const payloadBase64 = parts[1];
-  if (!payloadBase64) return null;
-  try {
-    const normalized = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
-    const json = Buffer.from(padded, 'base64').toString('utf8');
-    const payload = JSON.parse(json) as unknown;
-    return parseClaims(payload);
-  } catch {
-    return null;
-  }
 }
 
 export async function requireUser(): Promise<CurrentUser> {

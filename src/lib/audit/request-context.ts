@@ -18,12 +18,15 @@ export function buildRequestContext(headers: Headers): RequestContext {
   const firstFromXff = xff ? xff.split(',')[0]?.trim() || null : null;
   const ip = firstFromXff ?? headers.get('x-real-ip') ?? null;
 
+  const requestId =
+    headers.get('x-request-id') ?? headers.get('x-vercel-id') ?? randomUUID();
+
   return {
     ip,
     userAgent: headers.get('user-agent') ?? null,
-    requestId:
-      headers.get('x-request-id') ??
-      headers.get('x-vercel-id') ??
-      randomUUID(),
+    requestId,
+    // M20: prefer an upstream correlation id; otherwise reuse requestId so a
+    // single HTTP operation still has a non-null correlation handle.
+    correlationId: headers.get('x-correlation-id') ?? requestId,
   };
 }

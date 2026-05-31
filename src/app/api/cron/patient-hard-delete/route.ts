@@ -32,11 +32,19 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 
 function isAuthorized(req: Request): boolean {
+  // Bearer é o gate duro (mecanismo oficial Vercel).
   if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
-  const isVercelCron = req.headers.get('x-vercel-cron') !== null;
+  // F-09: 2º fator de origem NÃO-FATAL (aceita x-vercel-cron OU o documentado
+  // x-vercel-cron-schedule). Ausência em prod → log, não 401 (ver outbox route).
+  const hasOriginHeader =
+    req.headers.get('x-vercel-cron') !== null ||
+    req.headers.get('x-vercel-cron-schedule') !== null;
   const allowNonVercel =
     process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  return isVercelCron || allowNonVercel;
+  if (!hasOriginHeader && !allowNonVercel) {
+    metrics.emit('cron.origin_header_missing', { route: 'patient-hard-delete' });
+  }
+  return true;
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -72,12 +80,23 @@ export async function GET(req: Request): Promise<Response> {
     }
 
     // 3. Anonymize PII in retained audit_events (service layer; append-only RLS).
+    //    F-10: the audit before/after hold a PatientSummary with camelCase keys
+    //    (nome, email, dataNascimento, sexo, obitoEm) — strip ALL of them, not
+    //    just nome/email. Keys are camelCase because they come from toPatientSummary().
     const allIds = rows.map((r) => r.id);
     await dbAdmin.execute(
       sql`UPDATE audit_events
-          SET before = (before - 'nome' - 'email'),
-              after  = (after  - 'nome' - 'email')
+          SET before = (before - 'nome' - 'email' - 'dataNascimento' - 'sexo' - 'obitoEm'),
+              after  = (after  - 'nome' - 'email' - 'dataNascimento' - 'sexo' - 'obitoEm')
           WHERE resource_type = 'patient' AND resource_id = ANY(${allIds}::text[])`,
+    );
+    // F-10: scrub residual PII (nome/email) from cached idempotency responses.
+    // The create/update response is a PatientSummary whose `id` is the patient id;
+    // nulling the response removes the lingering name/email until the key expires.
+    await dbAdmin.execute(
+      sql`UPDATE idempotency_keys
+          SET response = NULL
+          WHERE response IS NOT NULL AND response->>'id' = ANY(${allIds}::text[])`,
     );
 
     // 4. Per-clinic hard delete (RLS-scoped, FK cascade).

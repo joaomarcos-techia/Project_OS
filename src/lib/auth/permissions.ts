@@ -14,10 +14,18 @@
 export const PERMISSIONS = {
   VIEW_AGENDA: 'view:agenda',
   EDIT_AGENDA: 'edit:agenda',
+  // C6: catálogo de procedimentos (preço/duração) e janelas de disponibilidade.
+  // Granulares (decisão founder): seed + bundles em migration 0018.
+  MANAGE_PROCEDURES: 'manage:procedures',
+  MANAGE_AVAILABILITY: 'manage:availability',
   VIEW_PATIENT: 'view:patient',
   CREATE_PATIENT: 'create:patient',
   EDIT_PATIENT: 'edit:patient',
   DELETE_PATIENT: 'delete:patient',
+  // F-07: permissão dedicada para o export LGPD (egresso de PII completo). Antes
+  // o export exigia apenas view:patient (least-privilege violado). Seed +
+  // bundles (owner, gestor) em migration 0013. Catálogo passa a 21 permissions.
+  EXPORT_PATIENT: 'export:patient',
   VIEW_PRONTUARIO: 'view:prontuario',
   CREATE_PRONTUARIO: 'create:prontuario',
   SIGN_PRONTUARIO: 'sign:prontuario',

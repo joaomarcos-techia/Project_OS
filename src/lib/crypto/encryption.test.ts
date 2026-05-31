@@ -63,6 +63,15 @@ describe('encryptForTenant / decryptForTenant', () => {
   it('rejects malformed ciphertext', async () => {
     await expect(decryptForTenant(CLINIC_A, 'AAAA')).rejects.toThrow(/malformed|too short/);
   });
+
+  it('rejects a ciphertext whose version byte is out of range (F-13)', async () => {
+    const ct = await encryptForTenant(CLINIC_A, '12345678900');
+    const raw = Buffer.from(ct, 'base64');
+    raw[0] = 99; // unsupported version (MASTER_KEY_VERSION default is 1)
+    await expect(decryptForTenant(CLINIC_A, raw.toString('base64'))).rejects.toThrow(
+      /unsupported ciphertext version/,
+    );
+  });
 });
 
 describe('hashForLookup', () => {

@@ -17,7 +17,7 @@ import {
 } from './errors';
 import { reclaimStuckProcessing } from './janitor';
 import { getHandler } from './registry';
-import type { WorkerTickSummary } from './types';
+import type { ProcessOneResult, WorkerTickSummary } from './types';
 
 /**
  * runOutboxOnce — invocada por:
@@ -75,6 +75,7 @@ export async function runOutboxOnce(opts: {
       processed: 0,
       failed: 0,
       skipped: 0,
+      empty: 0,
       stuck_reclaimed: 0,
       circuit_paused: 0,
       duration_ms: Date.now() - t0,
@@ -91,14 +92,38 @@ export async function runOutboxOnce(opts: {
     Array.from({ length: batchSize }, () => limit(() => processOne())),
   );
 
+  // F-03: exhaustive tally over ProcessOneResult. `empty` = no row reserved;
+  // `skipped` = terminally skipped (no handler). The `default: never` makes the
+  // compiler reject any future result variant that isn't counted here.
   const summary: WorkerTickSummary = {
-    processed: results.filter((r) => r === 'processed').length,
-    failed: results.filter((r) => r === 'failed').length,
-    skipped: results.filter((r) => r === 'empty').length,
+    processed: 0,
+    failed: 0,
+    skipped: 0,
+    empty: 0,
     stuck_reclaimed: stuck,
     circuit_paused: circuit.pausedCount,
     duration_ms: Date.now() - t0,
   };
+  for (const r of results) {
+    switch (r) {
+      case 'processed':
+        summary.processed++;
+        break;
+      case 'failed':
+        summary.failed++;
+        break;
+      case 'skipped':
+        summary.skipped++;
+        break;
+      case 'empty':
+        summary.empty++;
+        break;
+      default: {
+        const _exhaustive: never = r;
+        throw new Error(`unknown processOne result: ${String(_exhaustive)}`);
+      }
+    }
+  }
   metrics.emit('worker.tick', summary);
   return summary;
 }
@@ -112,7 +137,7 @@ type ReservedRow = {
   processing_started_at: Date;
 };
 
-async function processOne(): Promise<'empty' | 'processed' | 'failed'> {
+async function processOne(): Promise<ProcessOneResult> {
   // === TX1 (dbWorker) — reserve com RETURNING processing_started_at ===
   // CRITICAL-01: TX3 precisa do processing_started_at exato setado aqui para
   // detectar reclaim do janitor. SELECT FOR UPDATE SKIP LOCKED + UPDATE numa
@@ -158,6 +183,17 @@ async function processOne(): Promise<'empty' | 'processed' | 'failed'> {
   });
   if (!reserved) return 'empty';
 
+  // F-03: an event that IS in the catalog (valid schema) but has NO registered
+  // handler is a legitimate "producer ahead of consumer" event — NOT a failure.
+  // Mark it terminally `skipped` (no retry, no circuit). A MISSING schema, by
+  // contrast, means the catalog wasn't loaded (deploy/config bug) and stays a
+  // retryable HandlerNotFoundError below.
+  const schema = getEventSchema(reserved.event_type);
+  const handler = getHandler(reserved.event_type);
+  if (schema && !handler) {
+    return finalizeSkipped(reserved);
+  }
+
   // === TX2 (withTenant authenticated) — handler ===
   // CRITICAL-03: HandlerCtx ganha eventId (= outbox.id) e attempt. Handlers
   // DEVEM usar eventId como dedup key em INSERTs (ON CONFLICT) e como
@@ -165,9 +201,7 @@ async function processOne(): Promise<'empty' | 'processed' | 'failed'> {
   let handlerError: unknown | null = null;
   try {
     await withTenant(reserved.clinic_id, async (tx) => {
-      const schema = getEventSchema(reserved.event_type);
       if (!schema) throw new HandlerNotFoundError(reserved.event_type);
-      const handler = getHandler(reserved.event_type);
       if (!handler) throw new HandlerNotFoundError(reserved.event_type);
       const payload = schema.parse(reserved.payload);
       await handler({
@@ -199,6 +233,46 @@ async function processOne(): Promise<'empty' | 'processed' | 'failed'> {
   }
 
   return finalizeRetryOrFailed(reserved, handlerError);
+}
+
+async function finalizeSkipped(reserved: ReservedRow): Promise<'skipped' | 'failed'> {
+  // F-03: terminal no-op for a catalog event without a handler. Same race guard
+  // as the other finalizers — (status='processing' AND attempts=N) — so a janitor
+  // reclaim mid-flight does NOT double-write (it would flip status→pending or
+  // bump attempts, making this UPDATE match 0 rows → lost_race, no corruption).
+  const updated = await dbWorker
+    .update(outbox)
+    .set({
+      status: 'skipped',
+      processedAt: sql`now()`,
+      processingStartedAt: null,
+    })
+    .where(
+      and(
+        eq(outbox.id, reserved.id),
+        eq(outbox.status, 'processing'),
+        eq(outbox.attempts, reserved.attempts),
+      ),
+    )
+    .returning({ id: outbox.id });
+  if (updated.length === 0) {
+    metrics.emit('outbox.lost_race', {
+      eventType: reserved.event_type,
+      clinicId: reserved.clinic_id,
+      reason: 'reclaimed_during_handler',
+      phase: 'finalize_skipped',
+    });
+    return 'failed';
+  }
+  // F-03 deploy-regression detector: a HANDLER that was expected but vanished in
+  // a deploy would surface here. `skipped_no_handler > 0` in prod is an anomaly
+  // to investigate (runbook c4-validation). Not counted as a failure.
+  metrics.emit('outbox.skipped_no_handler', {
+    clinicId: reserved.clinic_id,
+    eventType: reserved.event_type,
+    attempts: reserved.attempts,
+  });
+  return 'skipped';
 }
 
 async function finalizeProcessed(reserved: ReservedRow): Promise<'processed' | 'failed'> {

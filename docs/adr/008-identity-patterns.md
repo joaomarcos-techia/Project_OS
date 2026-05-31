@@ -77,3 +77,29 @@ Esses 6 modelos NÃO podem ser expandidos em C4-C14 sem revisão prévia em jane
 - [drizzle/migrations/0003_identity_core.sql](../../drizzle/migrations/0003_identity_core.sql)
 - [drizzle/migrations/0004_identity_hardening.sql](../../drizzle/migrations/0004_identity_hardening.sql)
 - [drizzle/migrations/0005_identity_mark_mfa.sql](../../drizzle/migrations/0005_identity_mark_mfa.sql)
+
+## Addendum — Remediation (2026-05-30, pré-C6)
+
+ADRs add-only; este addendum registra mudanças de auth da remediação (ver `docs/Relatorio.md`):
+
+- **F-07 (frozen surface RBAC):** catálogo de permissions vai de 20 → **21** com
+  `export:patient` (export LGPD deixa de exigir só `view:patient`). Bundles
+  `owner`/`gestor` recebem a nova permission (migration 0013). `role_permissions`
+  total 64 → 66. Mudança de superfície congelada feita conscientemente sob o gate
+  de remediação (não é expansão de modelo — é least-privilege de uma ação existente).
+- **F-17:** `getCurrentUser` passa a usar `supabase.auth.getClaims()` (verifica o
+  JWT — JWKS local p/ chaves assimétricas, round-trip ao Auth server p/ simétricas
+  — e retorna as custom claims). Remove o `getSession()` + decode base64 manual e o
+  respectivo `eslint-disable`. Comportamento de segurança preservado (sempre validado).
+- **F-18:** middleware revoga a sessão server-side (`signOut({scope:'global'})`) no
+  path `disabled` (usuário inativo/deletado) — não só limpa o cookie. Revoga 1×
+  (guard via cookie `_healed`). Drift continua só limpando cookie (re-login renova).
+- **F-06:** `forgot-password` ganha rate-limit (IP + email_hash) espelhando o login.
+- **F-08:** rate-limit do login/reset é **fail-open + alerta + fallback in-memory**
+  se o Upstash cair. **Limitação documentada:** o fallback é per-instância → com N
+  instâncias o limite efetivo é ~N× o configurado; é proteção PARCIAL durante outage,
+  degradação aceita, **NÃO** equivalente ao Upstash (global). Métrica `auth.ratelimit.degraded`.
+- **F-14:** `CRITICAL_ACTIONS` deixa de ser stub (`deletePatient`,
+  `requestLgpdDelete`, `requestLgpdExport`); arch-test AST exige
+  `requireFreshPermission` no nível superior de cada uma (pega código morto).
+  Invariante: ação sensível de super_admin SEMPRE via `requireSuperAdmin` (aal2).

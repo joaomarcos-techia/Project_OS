@@ -84,7 +84,13 @@ export async function listPatients(
   const offset = Math.max(opts.offset ?? 0, 0);
   const conds: SQL[] = [];
   if (!opts.includeDeleted) conds.push(patientsActiveFilter());
-  if (opts.search) conds.push(ilike(patients.nome, `%${opts.search}%`) as SQL);
+  // F-12: bound the search term (trim + cap 64 chars). The value is parameterized
+  // by Drizzle (no SQL injection) and the GIN trigram index serves `%term%`, but
+  // an unbounded string is needless DoS surface. Empty-after-trim → no filter.
+  if (opts.search) {
+    const term = opts.search.trim().slice(0, 64);
+    if (term) conds.push(ilike(patients.nome, `%${term}%`) as SQL);
+  }
 
   return withTenant(clinicId, async (tx) => {
     const rows = await tx

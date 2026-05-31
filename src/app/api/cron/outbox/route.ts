@@ -30,19 +30,26 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 function isAuthorized(req: Request): boolean {
-  // 1. Bearer check
+  // 1. Bearer check — o GATE DURO (mecanismo oficial Vercel: CRON_SECRET é
+  //    enviado automaticamente como Authorization Bearer).
   const auth = req.headers.get('authorization');
   if (auth !== `Bearer ${env.CRON_SECRET}`) return false;
 
-  // 2. Vercel cron-origin check (defense in depth)
-  // Vercel atualmente injeta `x-vercel-cron: 1` em requests originadas pelo
-  // Cron service. Em DEV / smoke, permitimos override explícito via env.
-  const isVercelCron = req.headers.get('x-vercel-cron') !== null;
+  // 2. F-09: sinal de origem como 2º fator NÃO-FATAL. A doc atual da Vercel
+  //    documenta `x-vercel-cron-schedule` (não `x-vercel-cron`). Aceitamos
+  //    QUALQUER um. Se nenhum estiver presente em prod, LOGAMOS (anomalia a
+  //    investigar) mas NÃO retornamos 401 — o Bearer secret é o controle real;
+  //    depender de um header não-documentado para um 401 duro arrisca parar o
+  //    worker silenciosamente se a Vercel mudar o nome do header.
+  const hasOriginHeader =
+    req.headers.get('x-vercel-cron') !== null ||
+    req.headers.get('x-vercel-cron-schedule') !== null;
   const allowNonVercel =
     process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' ||
     env.NODE_ENV !== 'production';
-  if (!isVercelCron && !allowNonVercel) return false;
-
+  if (!hasOriginHeader && !allowNonVercel) {
+    metrics.emit('cron.origin_header_missing', { route: 'outbox' });
+  }
   return true;
 }
 

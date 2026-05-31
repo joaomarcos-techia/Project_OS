@@ -186,10 +186,15 @@ const config = [
                 'Direct postgres driver imports are forbidden outside src/lib/db/index.ts. Use { db, dbAdmin } from "@/lib/db" instead.',
             },
             {
+              // F-01: `db` (runtime pool) bypassa RLS quando usado SEM withTenant
+              // (o role de conexão tem BYPASSRLS; FORCE não cobre BYPASSRLS).
+              // Contexts/app NUNCA importam o valor `db` — usam withTenant
+              // (@/lib/db/tenant). `dbAdmin`/`dbWorker` são admin/worker only.
+              // (`type Tx`/`type Db` são nomes diferentes e seguem permitidos.)
               name: '@/lib/db',
-              importNames: ['dbAdmin'],
+              importNames: ['db', 'dbAdmin', 'dbWorker'],
               message:
-                'dbAdmin bypasses RLS (in C2+). Only use inside scripts/, src/app/api/admin/, or src/app/(admin)/. See docs/runbooks/migrations.md.',
+                'db/dbAdmin/dbWorker bypassam RLS fora de withTenant. Em contexts/app use withTenant (@/lib/db/tenant). dbAdmin/dbWorker só em scripts/, api/admin/, api/cron/, api/health/, (admin)/. Ver ADR-007 (F-01).',
             },
             {
               // C3: createAdminClient usa SUPABASE_SECRET_KEY e bypassa RLS via service_role.

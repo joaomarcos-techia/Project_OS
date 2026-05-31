@@ -5,6 +5,7 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { z } from 'zod';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { getPatientWithDecryptedFields } from '@/contexts/patient/queries';
@@ -24,7 +25,12 @@ export default async function PacienteDetailPage({
   await requireUser();
   const clinicId = await requireClinicId();
   const { id } = await params;
-  const p = await getPatientWithDecryptedFields(clinicId, id);
+  // F-11: validate the route param is a UUID before touching the DB / decrypt.
+  // RLS + key derivation already prevent cross-tenant IDOR; this normalizes
+  // malformed ids to a clean 404 instead of an unexpected query/error path.
+  const parsedId = z.string().uuid().safeParse(id);
+  if (!parsedId.success) notFound();
+  const p = await getPatientWithDecryptedFields(clinicId, parsedId.data);
   if (!p || p.deletedAt) notFound();
 
   return (

@@ -73,14 +73,25 @@ const checks: Array<{ name: string; query: string; expect?: (r: unknown) => bool
     expect: (r) => (r as { n: number }[])[0]?.n === 1,
   },
   {
-    name: 'permissions seed has 20 codes (lista canônica do prompt)',
+    // F-07: +export:patient → 21 permissions (migration 0013).
+    name: 'permissions seed has 21 codes (20 canônicas + export:patient F-07)',
     query: `SELECT count(*)::int AS n FROM permissions`,
-    expect: (r) => (r as { n: number }[])[0]?.n === 20,
+    expect: (r) => (r as { n: number }[])[0]?.n === 21,
   },
   {
-    name: 'role_permissions seed total = 64 (20 owner + 20 gestor + 11 doctor + 7 attendant + 6 financial)',
+    // F-07: owner 20→21, gestor 20→21 (export:patient nos bundles).
+    name: 'role_permissions seed total = 66 (21 owner + 21 gestor + 11 doctor + 7 attendant + 6 financial)',
     query: `SELECT count(*)::int AS n FROM role_permissions`,
-    expect: (r) => (r as { n: number }[])[0]?.n === 64,
+    expect: (r) => (r as { n: number }[])[0]?.n === 66,
+  },
+  {
+    // F-07 cardinalidade: sem duplicatas (PK composta + ON CONFLICT DO NOTHING).
+    name: 'role_permissions sem duplicatas (COUNT = COUNT DISTINCT)',
+    query: `SELECT count(*)::int AS total, count(DISTINCT (role, permission_code))::int AS distinct_n FROM role_permissions`,
+    expect: (r) => {
+      const row = (r as { total: number; distinct_n: number }[])[0];
+      return !!row && row.total === row.distinct_n;
+    },
   },
   {
     name: 'role bundles per role correct',
@@ -90,8 +101,8 @@ const checks: Array<{ name: string; query: string; expect?: (r: unknown) => bool
         (r as { role: string; n: number }[]).map((x) => [x.role, x.n]),
       );
       return (
-        map.owner === 20 &&
-        map.gestor === 20 &&
+        map.owner === 21 &&
+        map.gestor === 21 &&
         map.doctor === 11 &&
         map.attendant === 7 &&
         map.financial === 6 &&

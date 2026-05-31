@@ -7,4 +7,10 @@ export interface RequestContext {
   ip: string | null;
   userAgent: string | null;
   requestId: string;
+  /**
+   * M20 — distributed-tracing correlation id. Optional/additive: when present
+   * (propagated via `x-correlation-id`) logAudit persists it so an operation is
+   * traceable across contexts. Falls back to `requestId` when absent.
+   */
+  correlationId?: string | null;
 }

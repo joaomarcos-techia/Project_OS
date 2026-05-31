@@ -37,6 +37,7 @@
     "test:auth-e2e": "tsx scripts/smoke-login.ts",
     "smoke:c4": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c4.ts",
     "smoke:c5": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c5.ts",
+    "smoke:c6": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c6.ts",
     "check:registry": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts",
     "check:registry:strict": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts --strict",
     "idempotency:cleanup": "tsx scripts/idempotency-cleanup.ts"

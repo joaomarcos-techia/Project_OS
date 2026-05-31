@@ -109,6 +109,19 @@ export function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
+ * Predicate for Postgres `exclusion_violation` (SQLSTATE 23P01), raised by the
+ * appointments `EXCLUDE USING gist (... && ...)` overlap constraint and by the
+ * doctor_availability overlap EXCLUDE. Scheduling maps both 23505 (exact-instant
+ * UNIQUE) and 23P01 (range overlap) to SchedulingConflictError ("horário
+ * ocupado") so a double-booking never surfaces as a raw 500.
+ */
+export function isExclusionViolation(err: unknown): boolean {
+  if (matchesPgCode(err, '23P01')) return true;
+  // Canonical libpq message, stable across versions/drivers/locales.
+  return /conflicting key value violates exclusion constraint/i.test(extractMessage(err));
+}
+
+/**
  * Predicate for Postgres `lock_not_available` (SQLSTATE 55P03), raised when
  * `SET LOCAL lock_timeout = '3s'` fires. idempotentMutation translates this
  * into `IdempotencyInFlightError` so callers do not need PG-error literacy.

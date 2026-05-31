@@ -38,6 +38,8 @@ export const auditEvents = pgTable(
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
     requestId: text('request_id'),
+    // M20: tracing cross-context. Nullable/aditivo — preenchido via RequestContext.
+    correlationId: uuid('correlation_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

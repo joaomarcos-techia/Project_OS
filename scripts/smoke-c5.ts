@@ -154,6 +154,33 @@ async function insertPatient(args: InsertPatientArgs): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  // F-05 — prova automática de GRANT: as 7 tabelas de paciente precisam de
+  // SELECT/INSERT/UPDATE/DELETE explícitos para authenticated + service_role
+  // (migration 0012). has_table_privilege falha se algum grant faltar.
+  await tryStep('F-05 — GRANTs explícitos (has_table_privilege) nas 7 tabelas', async () => {
+    const tables = [
+      'patients',
+      'patient_consents',
+      'patient_clinical_data',
+      'patient_addresses',
+      'patient_emergency_contacts',
+      'suppression_list',
+      'lgpd_requests',
+    ];
+    const roles = ['authenticated', 'service_role'];
+    const privs = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+    for (const t of tables) {
+      for (const role of roles) {
+        for (const priv of privs) {
+          const r = (await dbAdmin.execute(
+            sql`SELECT has_table_privilege(${role}, ${`public.${t}`}, ${priv}) AS ok`,
+          )) as unknown as Array<{ ok: boolean }>;
+          assert(r[0]?.ok === true, `${role} não tem ${priv} em ${t}`);
+        }
+      }
+    }
+  });
+
   // Fixtures: two clinics.
   await dbAdmin.execute(sql`
     INSERT INTO clinics (id, slug, nome, status) VALUES

@@ -80,6 +80,7 @@ export async function publishEvent<TPayload = unknown>(
       payload: parsed.data as never,
       payloadHash: hash,
       idempotencyKey: args.idempotencyKey,
+      correlationId: args.correlationId ?? null, // M20 — additive, nullable
     })
     .onConflictDoNothing({
       target: [outbox.eventType, outbox.idempotencyKey],

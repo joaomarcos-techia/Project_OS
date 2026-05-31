@@ -281,6 +281,12 @@ async function preflight(): Promise<void> {
         return row?.can_insert === true && row?.can_select === true;
       },
     },
+    {
+      // F-03: migration 0014 adiciona 'skipped' ao enum outbox_status.
+      name: "outbox_status enum tem valor 'skipped' (F-03 / migration 0014)",
+      query: `SELECT count(*)::int AS n FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='outbox_status' AND e.enumlabel='skipped'`,
+      expect: (r: unknown) => (r as { n: number }[])[0]?.n === 1,
+    },
   ];
 
   for (const c of sqlChecks) {
@@ -312,6 +318,21 @@ async function setupFixtures(): Promise<void> {
   `);
   await dbAdmin.execute(sqlTag`DELETE FROM idempotency_keys WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`);
   await dbAdmin.execute(sqlTag`DELETE FROM audit_events WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`);
+
+  // F-04 HERMETICIDADE: o worker pega a row pending MAIS ANTIGA GLOBAL (ORDER BY
+  // next_attempt_at, created_at) — cross-tenant. Eventos órfãos de outras
+  // clínicas (ex.: patient.core.* de runs do smoke:c5, cujo schema/handler NÃO
+  // estão registrados neste processo) roubariam os slots do batch e quebrariam
+  // 4.6.2/4.6.3b/4.6.20/4.6.21. Quarentenamos TODO o resto empurrando
+  // next_attempt_at +1h (qualquer status — se o janitor reclamar um processing
+  // stuck para pending, o next_attempt_at +1h o mantém fora da janela do worker).
+  // Eles voltam no próximo tick real do cron. Determinístico e reproduzível.
+  await dbAdmin.execute(sqlTag`
+    UPDATE outbox
+       SET next_attempt_at = now() + interval '1 hour'
+     WHERE clinic_id NOT IN (${CLINIC_A}, ${CLINIC_B})
+       AND next_attempt_at <= now() + interval '1 hour'
+  `);
 
   // Cria/upsert clínicas via dbAdmin (RLS bypass).
   for (const [id, slug, nome] of [
@@ -1206,6 +1227,65 @@ async function functional(): Promise<void> {
       if (e instanceof SideEffectInFlightError) threwInFlight = true;
     }
     if (!threwInFlight) throw new Error('status=pending não throw SideEffectInFlightError');
+  });
+
+  // ---- 4.6.30 F-03: evento em catálogo SEM handler → terminal 'skipped' ----
+  await tryStep('4.6.30 F-03: catálogo sem handler → skipped (sem retry, não conta como failed)', async () => {
+    await dbAdmin.execute(sqlTag`
+      DELETE FROM outbox WHERE clinic_id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)
+        AND status IN ('pending','processing')
+    `);
+    const evt = 'test.smoke.nohandler';
+    catalogTesting.reset();
+    registerEventSchema(evt, TestSchema); // schema PRESENTE no catálogo
+    registryTesting.reset(); // NENHUM handler registrado
+    const idem = `nohandler-${Date.now()}`;
+    await withTenant(CLINIC_A, async (tx) => {
+      await publishEvent(tx, {
+        clinicId: CLINIC_A,
+        eventType: evt,
+        payload: { id: 'x' },
+        idempotencyKey: idem,
+      });
+    });
+    const summary = await runOutboxOnce({ batchSize: 1, parallelism: 1 });
+    const [row] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
+    if (!row) throw new Error('row missing');
+    if (row.status !== 'skipped') throw new Error(`expected status=skipped, got ${row.status}`);
+    if (row.attempts !== 1) throw new Error(`expected attempts=1 (sem retry), got ${row.attempts}`);
+    if (row.lastFailedAt !== null) throw new Error('skipped NÃO deve setar last_failed_at (não é falha)');
+    if (summary.skipped !== 1) throw new Error(`summary.skipped=${summary.skipped} (want 1)`);
+    if (summary.failed !== 0) throw new Error(`skipped contado como failed: ${summary.failed}`);
+  });
+
+  // ---- 4.6.31 F-03: finalizeSkipped concurrency guard (reclaim mid-flight) ----
+  await tryStep('4.6.31 F-03: finalizeSkipped guard (status,attempts) impede double-write', async () => {
+    const evt = 'test.smoke.nohandler';
+    const idem = `skipguard-${Date.now()}`;
+    const ph = phash({ id: 'sg' });
+    // Row em 'processing' attempts=1 (como se A tivesse reservado para skip).
+    await dbAdmin.execute(sqlTag`
+      INSERT INTO outbox (clinic_id, event_type, payload, payload_hash, idempotency_key,
+                          status, attempts, created_at, processing_started_at)
+      VALUES (${CLINIC_A}::uuid, ${evt}, '{"id":"sg"}'::jsonb, ${ph}, ${idem},
+              'processing', 1, now() - interval '5 minutes', now() - interval '1 minute')
+    `);
+    const [orig] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
+    if (!orig) throw new Error('setup row missing');
+    // Simula janitor + worker B: pending → processing attempts=2.
+    await dbAdmin.execute(sqlTag`UPDATE outbox SET status='pending', processing_started_at=null WHERE id=${orig.id}`);
+    await dbAdmin.execute(sqlTag`UPDATE outbox SET status='processing', attempts=2, processing_started_at=now() WHERE id=${orig.id} AND status='pending'`);
+    // A tenta finalizeSkipped com guard (status='processing' AND attempts=1) → 0 rows.
+    const updated = await dbAdmin.execute<{ id: string }>(sqlTag`
+      UPDATE outbox SET status='skipped', processed_at=now(), processing_started_at=null
+       WHERE id=${orig.id} AND status='processing' AND attempts=1
+       RETURNING id
+    `);
+    if (updated.length !== 0) throw new Error('finalizeSkipped guard deveria rejeitar — attempts mudou');
+    const [final] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
+    if (final?.status !== 'processing' || final?.attempts !== 2) {
+      throw new Error(`estado final inesperado: ${final?.status}/${final?.attempts}`);
+    }
   });
 }
 

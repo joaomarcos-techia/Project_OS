@@ -31,6 +31,11 @@ type OutboxCounts = {
   pending: number;
   processing: number;
   failed: number;
+  // F-03: terminally skipped events (in catalog, no handler). `skipped > 0` in
+  // prod is an ANOMALY to alert on (a handler expected but not registered / a
+  // deploy regression). Exposed at the monitoring level so an external monitor
+  // can alarm without super_admin access.
+  skipped: number;
   oldest_pending_age_s: number;
   oldest_processing_age_s: number;
   oldest_failed_age_s: number;
@@ -63,14 +68,11 @@ async function authLevel(req: Request): Promise<'public' | 'monitoring' | 'super
   const auth = req.headers.get('authorization');
   if (auth !== `Bearer ${env.CRON_SECRET}`) return 'denied';
 
-  // For monitoring (bearer only), require Vercel header in prod (defense in
-  // depth — HIGH-08). In dev, allow override.
-  const isVercelCron = req.headers.get('x-vercel-cron') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' ||
-    env.NODE_ENV !== 'production';
-  if (!isVercelCron && !allowNonVercel) return 'denied';
-
+  // F-09: the Bearer CRON_SECRET is the control for this READ-ONLY counts
+  // endpoint. Previously it ALSO required the `x-vercel-cron` header in prod —
+  // but this endpoint is meant for external monitors (UptimeRobot), which cannot
+  // send a Vercel-injected header, so that check was self-defeating AND relied on
+  // an undocumented header. Bearer alone → monitoring level.
   return 'monitoring';
 }
 
@@ -87,6 +89,7 @@ export async function GET(req: Request): Promise<Response> {
         count(*) FILTER (WHERE status = 'pending')::int                                AS pending,
         count(*) FILTER (WHERE status = 'processing')::int                             AS processing,
         count(*) FILTER (WHERE status = 'failed')::int                                 AS failed,
+        count(*) FILTER (WHERE status = 'skipped')::int                                AS skipped,
         coalesce(extract(epoch FROM (now() - min(created_at)))::int, 0)
           FILTER (WHERE status = 'pending')                                            AS oldest_pending_age_s,
         coalesce(extract(epoch FROM (now() - min(processing_started_at)))::int, 0)
@@ -113,7 +116,7 @@ export async function GET(req: Request): Promise<Response> {
     const base = {
       ok: true,
       outbox: outboxRes[0] ?? {
-        pending: 0, processing: 0, failed: 0,
+        pending: 0, processing: 0, failed: 0, skipped: 0,
         oldest_pending_age_s: 0, oldest_processing_age_s: 0, oldest_failed_age_s: 0,
       },
       audit: { default_partition_rows: auditRes[0]?.default_count ?? 0 },
@@ -138,8 +141,24 @@ export async function GET(req: Request): Promise<Response> {
        LIMIT 20
     `);
 
+    // F-03: which event_types are being terminally skipped (no handler). A
+    // non-empty list is the signal to investigate (handler expected but absent).
+    const skipped = await dbAdmin.execute<{ event_type: string; count: number }>(sql`
+      SELECT event_type, count(*)::int AS count
+        FROM outbox
+       WHERE status = 'skipped'
+       GROUP BY event_type
+       ORDER BY count DESC
+       LIMIT 20
+    `);
+
     return Response.json(
-      { ...base, level: 'super_admin', failures_by_type: [...failures] },
+      {
+        ...base,
+        level: 'super_admin',
+        failures_by_type: [...failures],
+        skipped_by_type: [...skipped],
+      },
       { status: 200 },
     );
   } catch (err) {
