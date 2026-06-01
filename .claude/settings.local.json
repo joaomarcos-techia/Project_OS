@@ -50,7 +50,12 @@
       "Bash(pnpm smoke:c3:manual)",
       "Bash(pnpm check:registry)",
       "Bash(SEED_USER_EMAIL=\"gestor@teste.com\" SEED_USER_PASSWORD=\"SenhaForte123!\" pnpm exec tsx scripts/diag-c5-login.ts)",
-      "Bash(pnpm build *)"
+      "Bash(pnpm build *)",
+      "Bash(echo \"=== EXIT $? ===\")",
+      "WebFetch(domain:supabase.com)",
+      "Bash(rm -f src/app/api/test-c6/route.ts)",
+      "Bash(rmdir src/app/api/test-c6)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",
