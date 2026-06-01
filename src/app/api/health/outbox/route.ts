@@ -30,6 +30,7 @@ export const dynamic = 'force-dynamic';
 // Limiares de degradação (gap 4.2). Conservadores: o worker roda a cada 1min.
 const PENDING_STUCK_S = 300; // pending parado > 5min → worker provavelmente caído
 const PROCESSING_STUCK_S = 600; // processing > 10min → handler travado / janitor não reclamou
+const AUDIT_DEFAULT_MAX = 1000; // linhas na default acima disso → provisioning realmente quebrado
 
 type OutboxCounts = {
   pending: number;
@@ -98,12 +99,14 @@ export async function GET(req: Request): Promise<Response> {
         count(*) FILTER (WHERE status = 'processing')::int                             AS processing,
         count(*) FILTER (WHERE status = 'failed')::int                                 AS failed,
         count(*) FILTER (WHERE status = 'skipped')::int                                AS skipped,
-        coalesce(extract(epoch FROM (now() - min(created_at)))::int, 0)
-          FILTER (WHERE status = 'pending')                                            AS oldest_pending_age_s,
-        coalesce(extract(epoch FROM (now() - min(processing_started_at)))::int, 0)
-          FILTER (WHERE status = 'processing')                                         AS oldest_processing_age_s,
-        coalesce(extract(epoch FROM (now() - min(first_failed_at)))::int, 0)
-          FILTER (WHERE status = 'failed')                                             AS oldest_failed_age_s
+        -- FILTER aplica ao AGREGADO (min), não ao coalesce — senão "syntax error at
+        -- or near FILTER". min(col) FILTER (...) = menor valor só entre as linhas do status.
+        coalesce(extract(epoch FROM (now() - min(created_at) FILTER (WHERE status = 'pending')))::int, 0)
+          AS oldest_pending_age_s,
+        coalesce(extract(epoch FROM (now() - min(processing_started_at) FILTER (WHERE status = 'processing')))::int, 0)
+          AS oldest_processing_age_s,
+        coalesce(extract(epoch FROM (now() - min(first_failed_at) FILTER (WHERE status = 'failed')))::int, 0)
+          AS oldest_failed_age_s
       FROM outbox
     `);
 
@@ -132,11 +135,13 @@ export async function GET(req: Request): Promise<Response> {
     // são aditivos (ok continua true = endpoint respondeu); `?strict=1` vira 503.
     const alarms: string[] = [];
     if (outbox.failed > 0) alarms.push(`outbox_failed=${outbox.failed}`);
-    if (outbox.skipped > 0) alarms.push(`outbox_skipped=${outbox.skipped}`);
     if (outbox.oldest_pending_age_s > PENDING_STUCK_S) alarms.push(`pending_age=${outbox.oldest_pending_age_s}s`);
     if (outbox.oldest_processing_age_s > PROCESSING_STUCK_S) alarms.push(`processing_age=${outbox.oldest_processing_age_s}s`);
     if (idempotency.in_flight_orphans_1h > 0) alarms.push(`idem_orphans=${idempotency.in_flight_orphans_1h}`);
-    if (defaultPartitionRows > 0) alarms.push(`audit_default_rows=${defaultPartitionRows}`);
+    if (defaultPartitionRows > AUDIT_DEFAULT_MAX) alarms.push(`audit_default_rows=${defaultPartitionRows}`);
+    // `skipped` NÃO alarma: muitos eventos são legitimamente "producer ahead of
+    // consumer" (ex.: scheduling.appointment.cancelled sem handler até C9). Fica
+    // visível no corpo (outbox.skipped) p/ inspeção, mas não dispara degraded/503.
     const degraded = alarms.length > 0;
     const httpStatus = strict && degraded ? 503 : 200;
 
