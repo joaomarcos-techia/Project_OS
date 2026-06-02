@@ -24,6 +24,9 @@ export * from '@/contexts/patient/schema';
 // C6 — Scheduling. schema.ts side-effect-imports './events', registrando os
 // schemas scheduling.* no catálogo do outbox onde quer que publishEvent rode.
 export * from '@/contexts/scheduling/schema';
+// C7 — Clinical. schema.ts side-effect-imports './events', registrando os
+// schemas clinical.* no catálogo do outbox.
+export * from '@/contexts/clinical/schema';
 // C4 infra — cross-cutting tables (outbox, audit_events, super_admin_actions,
 // idempotency_keys). Not a bounded context, so not under src/contexts/. The
 // drizzle.config.ts glob './src/lib/db/schema/**/*' picks them up.

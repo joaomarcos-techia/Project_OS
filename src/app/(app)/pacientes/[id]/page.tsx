@@ -37,9 +37,14 @@ export default async function PacienteDetailPage({
     <main className="mx-auto max-w-md p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{p.nome}</h1>
-        <Link href="/pacientes" className="text-sm underline">
-          Voltar
-        </Link>
+        <div className="flex gap-3 text-sm">
+          <Link href={`/pacientes/${p.id}/prontuarios`} className="underline">
+            Prontuários
+          </Link>
+          <Link href="/pacientes" className="underline">
+            Voltar
+          </Link>
+        </div>
       </div>
 
       <dl className="mb-6 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">

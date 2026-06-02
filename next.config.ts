@@ -13,7 +13,10 @@ const nextConfig: NextConfig = {
   // ("Can't resolve '#async_hooks'") — quebrava `next build` e a rota
   // /api/cron/outbox em dev. Externalizar faz o Next usar require nativo do Node,
   // que resolve o subpath. Não altera lógica de C4 — só estratégia de bundling.
-  serverExternalPackages: ['p-limit'],
+  // @react-pdf/renderer (C7) usa o reconciler React + yoga-layout (WASM) — pesado
+  // e incompatível com bundling do Next. Externalizar mantém o render server-side
+  // (Node runtime) sem inflar o bundle nem quebrar o build.
+  serverExternalPackages: ['p-limit', '@react-pdf/renderer'],
 };
 
 export default nextConfig;

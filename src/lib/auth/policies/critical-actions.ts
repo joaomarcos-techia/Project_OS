@@ -24,6 +24,8 @@
 // para super_admin — logo um super_admin em aal1 não as alcança.
 export const CRITICAL_ACTIONS: readonly string[] = Object.freeze([
   'deletePatient',
+  'editSignedProntuario',
   'requestLgpdDelete',
   'requestLgpdExport',
+  'signProntuario',
 ]);

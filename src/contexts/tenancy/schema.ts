@@ -40,6 +40,11 @@ export const clinics = pgTable(
     nome: text('nome').notNull(),
     cnpj: text('cnpj'),                     // nullable: validation only in C13
     cnes: text('cnes'),                     // nullable: not all clinic types have CNES
+    // C7 (white-label leve nos PDFs): cabeçalho de prescrições/documentos médicos.
+    // Aditivo/nullable — clínica sem branding cai num default no render (não quebra).
+    endereco: text('endereco'),
+    logoUrl: text('logo_url'),
+    primaryColor: text('primary_color'),
     status: clinicStatus('status').notNull().default('trial'),
     // C6 (R10/M7): timezone IANA da clínica — base do slot resolver. CONGELADO:
     // 1 clínica = 1 timezone até existir override por unidade (ADR-014).

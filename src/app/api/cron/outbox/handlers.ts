@@ -34,4 +34,7 @@ import '@/contexts/scheduling/internal/handlers/patient-deleted';
 // C6 — TEMP placeholder de appointment.completed (vira Financial em C9).
 import '@/contexts/scheduling/internal/handlers/appointment-completed-temp';
 
+// C7 — Clinical: appointment.started → cria prontuário rascunho (idempotente).
+import '@/contexts/clinical/internal/handlers/appointment-started';
+
 export {};

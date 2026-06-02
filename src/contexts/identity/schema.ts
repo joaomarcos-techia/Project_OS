@@ -72,6 +72,13 @@ export const profiles = pgTable(
     nome: text('nome').notNull(),
     telefone: text('telefone'),
     role: roleEnum('role').notNull(),
+    // C7: credenciais médicas. Aditivo/nullable — o snapshot forward-compat do
+    // scheduling (snapshot_doctor_crm) já antecipava isto ("profiles ainda não os
+    // tem"). CRM é OBRIGATÓRIO para emitir prescrição/documento (assertDoctorHasCrm),
+    // NÃO para assinar prontuário (R6). Owner natural do dado de credenciamento.
+    crm: text('crm'),
+    crmUf: text('crm_uf'),
+    especialidade: text('especialidade'),
     ativo: boolean('ativo').notNull().default(true),
     mfaEnrolledAt: timestamp('mfa_enrolled_at', { withTimezone: true }),
     claimsVersion: integer('claims_version').notNull().default(1),

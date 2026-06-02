@@ -12,9 +12,15 @@
  * Inputs (env, em .env.local ou na sessão do shell):
  *   - SEED_USER_EMAIL     (obrigatório)
  *   - SEED_USER_PASSWORD  (obrigatório quando o user ainda não existe)
- *   - SEED_USER_ROLE      (opcional, default 'gestor'; use 'attendant' p/ testar 403 de delete)
+ *   - SEED_USER_ROLE      (opcional, default 'gestor'; use 'doctor' p/ C7, 'attendant' p/ testar 403)
+ *   - SEED_USER_NOME      (opcional, default 'Usuário <role>'; nome que aparece no PDF/assinatura)
+ *   - SEED_USER_CRM       (opcional; C7 — obrigatório p/ emitir prescrição/documento)
+ *   - SEED_USER_CRM_UF    (opcional; ex.: 'SP')
+ *   - SEED_USER_ESPECIALIDADE (opcional; ex.: 'Clínica Médica')
  *   - SEED_CLINIC_SLUG    (opcional, default 'clinica-teste')
  *   - SEED_CLINIC_NOME    (opcional, default 'Clínica Teste')
+ *   - SEED_CLINIC_ENDERECO, SEED_CLINIC_CNPJ, SEED_CLINIC_CNES,
+ *     SEED_CLINIC_PRIMARY_COLOR, SEED_CLINIC_LOGO_URL (opcionais; C7 white-label do PDF)
  *   - NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY (já no .env.local)
  */
 import { assertDevContext } from './_env';
@@ -30,8 +36,17 @@ console.log(`[seed-clinic-user] target: ${redact(databaseUrl)}`);
 const email = process.env.SEED_USER_EMAIL;
 const password = process.env.SEED_USER_PASSWORD;
 const role = process.env.SEED_USER_ROLE ?? 'gestor';
+const userNome = process.env.SEED_USER_NOME ?? `Usuário ${role}`;
+const crm = process.env.SEED_USER_CRM ?? null;
+const crmUf = process.env.SEED_USER_CRM_UF ?? null;
+const especialidade = process.env.SEED_USER_ESPECIALIDADE ?? null;
 const slug = process.env.SEED_CLINIC_SLUG ?? 'clinica-teste';
 const nome = process.env.SEED_CLINIC_NOME ?? 'Clínica Teste';
+const endereco = process.env.SEED_CLINIC_ENDERECO ?? null;
+const cnpj = process.env.SEED_CLINIC_CNPJ ?? null;
+const cnes = process.env.SEED_CLINIC_CNES ?? null;
+const primaryColor = process.env.SEED_CLINIC_PRIMARY_COLOR ?? null;
+const logoUrl = process.env.SEED_CLINIC_LOGO_URL ?? null;
 
 const TENANT_ROLES = ['gestor', 'owner', 'attendant', 'doctor', 'financial'];
 if (!TENANT_ROLES.includes(role)) {
@@ -51,9 +66,17 @@ const supabase = createAdminClient();
 
 // 1. Clínica (upsert por slug).
 const clinicRows = (await dbAdmin.execute(sql`
-  INSERT INTO public.clinics (slug, nome, status)
-  VALUES (${slug}, ${nome}, 'active')
-  ON CONFLICT (slug) DO UPDATE SET nome = EXCLUDED.nome, status = 'active', updated_at = now()
+  INSERT INTO public.clinics (slug, nome, status, endereco, cnpj, cnes, primary_color, logo_url)
+  VALUES (${slug}, ${nome}, 'active', ${endereco}, ${cnpj}, ${cnes}, ${primaryColor}, ${logoUrl})
+  ON CONFLICT (slug) DO UPDATE SET
+    nome = EXCLUDED.nome,
+    status = 'active',
+    endereco = COALESCE(EXCLUDED.endereco, clinics.endereco),
+    cnpj = COALESCE(EXCLUDED.cnpj, clinics.cnpj),
+    cnes = COALESCE(EXCLUDED.cnes, clinics.cnes),
+    primary_color = COALESCE(EXCLUDED.primary_color, clinics.primary_color),
+    logo_url = COALESCE(EXCLUDED.logo_url, clinics.logo_url),
+    updated_at = now()
   RETURNING id::text AS id
 `)) as unknown as Array<{ id: string }>;
 const clinicId = clinicRows[0]!.id;
@@ -84,16 +107,22 @@ if (existing) {
 
 // 3. Profile (upsert) — clinic_id obrigatório p/ não-super_admin (CHECK em profiles).
 await dbAdmin.execute(sql`
-  INSERT INTO public.profiles (id, clinic_id, nome, role, ativo)
-  VALUES (${userId}::uuid, ${clinicId}::uuid, ${'Usuário ' + role}, ${role}::role_enum, true)
+  INSERT INTO public.profiles (id, clinic_id, nome, role, ativo, crm, crm_uf, especialidade)
+  VALUES (${userId}::uuid, ${clinicId}::uuid, ${userNome}, ${role}::role_enum, true, ${crm}, ${crmUf}, ${especialidade})
   ON CONFLICT (id) DO UPDATE SET
     clinic_id = ${clinicId}::uuid,
+    nome = ${userNome},
     role = ${role}::role_enum,
     ativo = true,
+    crm = COALESCE(${crm}, profiles.crm),
+    crm_uf = COALESCE(${crmUf}, profiles.crm_uf),
+    especialidade = COALESCE(${especialidade}, profiles.especialidade),
     deleted_at = NULL,
     updated_at = now()
 `);
-console.log(`[seed-clinic-user] profile upserted: role=${role}, clinic_id=${clinicId}`);
+console.log(
+  `[seed-clinic-user] profile upserted: role=${role}, nome=${userNome}, crm=${crm ?? '—'}, clinic_id=${clinicId}`,
+);
 
 console.log(`
 [seed-clinic-user] ✅ done.

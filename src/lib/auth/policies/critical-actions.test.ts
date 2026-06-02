@@ -15,7 +15,10 @@ import { CRITICAL_ACTIONS } from './critical-actions';
  * Onde as Server Actions críticas vivem. Adicionar arquivos aqui se ações
  * críticas surgirem em outros contexts (o teste falha se um nome não for achado).
  */
-const ACTION_FILES = ['src/contexts/patient/actions.ts'];
+const ACTION_FILES = [
+  'src/contexts/patient/actions.ts',
+  'src/contexts/clinical/actions.ts',
+];
 
 function isTopLevelRequireFresh(stmt: ts.Statement): boolean {
   if (!ts.isExpressionStatement(stmt)) return false;

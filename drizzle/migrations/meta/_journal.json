@@ -120,6 +120,13 @@
       "when": 1780243440053,
       "tag": "0016_scheduling_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780288400683,
+      "tag": "0017_clinical_core",
+      "breakpoints": true
     }
   ]
 }

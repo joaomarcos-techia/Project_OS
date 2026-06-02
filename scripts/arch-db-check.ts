@@ -41,6 +41,7 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/lib/auth/tenant-context.ts',
     'src/lib/idempotency/cleanup.ts',
     'src/app/api/cron/patient-hard-delete/route.ts',
+    'src/app/api/cron/audit-partitions/route.ts',
     'src/app/api/health/outbox/route.ts',
     'src/app/api/health/auth-hook/route.ts',
   ]),

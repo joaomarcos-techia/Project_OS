@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
 export default defineConfig({
+  // C7: os renderers de PDF (.tsx) usam o automatic JSX runtime (igual ao Next /
+  // tsconfig). Sem isto, o esbuild do vitest cai no classic runtime e quebra com
+  // "React is not defined".
+  esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],

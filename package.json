@@ -41,11 +41,13 @@
     "smoke:c4": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c4.ts",
     "smoke:c5": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c5.ts",
     "smoke:c6": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c6.ts",
+    "smoke:c7": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c7.ts",
     "check:registry": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts",
     "check:registry:strict": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts --strict",
     "idempotency:cleanup": "tsx scripts/idempotency-cleanup.ts"
   },
   "dependencies": {
+    "@react-pdf/renderer": "4.5.1",
     "@supabase/ssr": "0.10.3",
     "@supabase/supabase-js": "2.106.2",
     "@upstash/ratelimit": "2.0.8",
@@ -53,7 +55,6 @@
     "drizzle-orm": "0.36.4",
     "next": "15.5.18",
     "p-limit": "5.0.0",
-    "pdf-lib": "^1.17.1",
     "postgres": "3.4.5",
     "qrcode": "1.5.4",
     "react": "19.2.6",
