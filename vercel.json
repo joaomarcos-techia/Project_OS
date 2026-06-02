@@ -5,7 +5,6 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": ".next",
   "crons": [
-    { "path": "/api/cron/outbox", "schedule": "*/1 * * * *" },
     { "path": "/api/cron/patient-hard-delete", "schedule": "0 3 * * *" },
     { "path": "/api/cron/audit-partitions", "schedule": "0 4 1 * *" }
   ]
