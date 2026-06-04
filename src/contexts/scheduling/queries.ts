@@ -12,13 +12,14 @@
  */
 import 'server-only';
 
-import { and, asc, eq, gte, lte, lt, type SQL, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, lt, type SQL, sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
 import { AppointmentNotFoundError } from './errors';
 import {
   appointments,
+  appointmentStateLog,
   clinicHolidays,
   doctorAvailability,
   procedures,
@@ -135,7 +136,9 @@ export async function listAppointments(
   if (opts.to) conds.push(lt(appointments.scheduledAt, opts.to));
   if (opts.restrictToDoctorId) conds.push(eq(appointments.doctorId, opts.restrictToDoctorId));
   if (opts.status && opts.status.length > 0) {
-    conds.push(sql`${appointments.status} = ANY(${opts.status})`);
+    // postgres-js não serializa array JS como array PG em `= ANY(${...})`
+    // (erro 42809) — usar o helper canônico inArray (lição do C4 / CONVENTIONS).
+    conds.push(inArray(appointments.status, opts.status));
   }
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
@@ -146,6 +149,50 @@ export async function listAppointments(
       .limit(limit)
       .offset(offset);
     return rows.map(toAppointmentSummary);
+  });
+}
+
+/**
+ * C8: instante de check-in (última transição → `chegou`) por appointment, para
+ * o "tempo aguardando" da Sala de Espera. Lê o appointment_state_log (mesmo
+ * contexto). Retorna mapa appointmentId → ISO.
+ */
+export async function getCheckInTimes(
+  clinicId: string,
+  appointmentIds: string[],
+): Promise<Record<string, string>> {
+  if (appointmentIds.length === 0) return {};
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        appointmentId: appointmentStateLog.appointmentId,
+        transitionedAt: appointmentStateLog.transitionedAt,
+      })
+      .from(appointmentStateLog)
+      .where(
+        and(
+          eq(appointmentStateLog.clinicId, clinicId),
+          eq(appointmentStateLog.toStatus, 'chegou'),
+          inArray(appointmentStateLog.appointmentId, appointmentIds),
+        ),
+      )
+      .orderBy(desc(appointmentStateLog.transitionedAt));
+    const out: Record<string, string> = {};
+    for (const r of rows) {
+      // ordenado desc → o primeiro visto por appointment é o mais recente.
+      if (!out[r.appointmentId]) out[r.appointmentId] = (r.transitionedAt as Date).toISOString();
+    }
+    return out;
+  });
+}
+
+/** Timezone da clínica (CONGELADO: 1 clínica = 1 tz; default America/Sao_Paulo). */
+export async function getClinicTimezone(clinicId: string): Promise<string> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx.execute<{ timezone: string | null }>(
+      sql`SELECT timezone FROM clinics WHERE id = ${clinicId} LIMIT 1`,
+    );
+    return rows[0]?.timezone ?? DEFAULT_TZ;
   });
 }
 

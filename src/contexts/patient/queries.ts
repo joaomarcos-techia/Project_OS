@@ -11,7 +11,7 @@
  */
 import 'server-only';
 
-import { and, desc, eq, ilike, isNull, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, type SQL } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -101,6 +101,40 @@ export async function listPatients(
       .limit(limit)
       .offset(offset);
     return rows.map(toPatientSummary);
+  });
+}
+
+/**
+ * Card data (C8 Consultório): nome + alergias para um lote de pacientes. NÃO
+ * decripta — `nome` é plaintext e `alergias` (jsonb) não é PII criptografado.
+ * Mesmo contexto (patient), então o leftJoin com patient_clinical_data é legítimo.
+ */
+export interface PatientCard {
+  id: string;
+  nome: string;
+  alergias: string[];
+}
+
+export async function listPatientCards(
+  clinicId: string,
+  ids: string[],
+): Promise<PatientCard[]> {
+  if (ids.length === 0) return [];
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        id: patients.id,
+        nome: patients.nome,
+        alergias: patientClinicalData.alergias,
+      })
+      .from(patients)
+      .leftJoin(patientClinicalData, eq(patientClinicalData.patientId, patients.id))
+      .where(and(inArray(patients.id, ids), patientsActiveFilter()));
+    return rows.map((r) => ({
+      id: r.id,
+      nome: r.nome,
+      alergias: Array.isArray(r.alergias) ? (r.alergias as string[]) : [],
+    }));
   });
 }
 

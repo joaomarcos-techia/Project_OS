@@ -12,7 +12,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | **C5** | Patient (encryption per-tenant, LGPD) | ✅ **fechada** | 2026-05-30 (smoke-c5 7/7 + 5.6.11 idempotência 3/3; 5.6.x validados in-app — encryption, lookup, cross-tenant, soft/hard delete cascade, export LGPD e2e, audit, permissão, idempotência; pg_dump limpo; ADR-012 encryption + ADR-013 clinical-data ownership; 5.6.8 diferido p/ C14) |
 | C6 | Scheduling Core | ✅ **fechada** | 2026-05-31 (migrations 0015/0016 aplicadas em qoro-dev; **smoke-c6 12/12** — UNIQUE+EXCLUDE anti-overlap, overlap de availability, snapshot imutável por trigger, backfill-único de CRM, cancelamento libera slot, walk-in isento do EXCLUDE, FK RESTRICT, RLS A/B, 6.6.6 completed→worker→handler, 6.6.7 patient.core.deleted→worker cancela+emite cancelled(patient_deleted); 152 testes Vitest + typecheck/lint/arch/registry verdes; schema 6 tabelas + RLS + generated cols; state machine; 8 eventos; slot resolver tz-aware puro; actions/catalog/config + api v1; handler `patient.core.deleted`; ADR-014. **6.6.9 permissões (gestor ALLOWED / financial DENIED via fresh-check) + 6.6.10 idempotência createAppointment validados in-app** (rota temp /api/test-c6, já removida). Sem UI — follow-up) |
 | C7 | Clinical (prontuário, prescrição, PDFs) | ⏳ pendente | — |
-| C8 | Consultório UI | ⏳ pendente | — |
+| C8 | Consultório UI | ✅ **fechada** (estáticos+build verdes; 14/15 in-app validados in-app, RLS A/B confirmado via banco; #4 TV descopada) | 2026-06-03 |
 | C9 | Financial Core | ⏳ pendente | — |
 | C10 | MessagingProvider + Webhook Meta | ⏳ pendente | — |
 | C11 | AI Agent Base | ⏳ pendente | — |
@@ -523,3 +523,135 @@ D RBAC). Detalhe + análise de regressão em `docs/Relatorio.md` §Remediação.
 - **Pendência única (LOW-aberto):** F-18 revoga sessão de usuário desativado via
   `signOut({scope:'global'})` no middleware — validado por doc + corroborado pelo
   `test:auth-e2e` fase 3 (revogação real). Resto LOW documentado (F-16 by-design, F-19).
+
+---
+
+## Fundação Visual (Design System) — 2026-06-02 (pré-C8)
+
+Camada não-numerada inserida **antes do C8** (decisão em [ADR-018](adr/018-ui-design-foundation.md)).
+Aplica o Design System (`docs/ClinicaOS Design System (standalone) (1).html`) como
+**fundação** — tokens + fonte + tema + shell + primitivos. Componentes de domínio
+(Consultório, Financeiro, etc.) entram com suas camadas, lendo o §08 do DS como spec.
+
+### O que foi entregue (Fase 1 — tokens & kit)
+
+- **Tokens** em [globals.css](../src/app/globals.css): escalas oklch do DS (primary 50–950,
+  success/warning/danger/info, neutral 0–950, accent teal), semânticos (canvas/surface/
+  border/fg/ring), radius, sombras, motion — via `@theme inline` do Tailwind 4 +
+  `:root`/`.dark`. Light default; dark e white-label re-tematizam em runtime.
+- **Fonte Geist + Geist Mono** via `next/font` (self-hosted) + script anti-flash de tema em
+  [layout.tsx](../src/app/layout.tsx). Helper `cn` em [src/lib/ui/cn.ts](../src/lib/ui/cn.ts).
+- **Primitivos** ([src/components/ui/](../src/components/ui/)): `Button`, `Spinner`, `Input`,
+  `Textarea`, `Label`, `Field`, `Select`, `Alert`, `Card`, `Badge`, `PageHeader`,
+  `EmptyState` + domínio `AppointmentStatusBadge`/`PaymentStatusBadge` (mapeiam a state
+  machine C6 e os status de lançamento C9 para tons). CVA + `lucide-react`.
+- **`/login` re-skinado** como prova visual.
+
+### O que foi entregue (Fase 2 — shell & re-skin)
+
+- **App shell** ([src/components/shared/app-shell.tsx](../src/components/shared/app-shell.tsx)
+  + `app-sidebar.tsx` + `theme-toggle.tsx`): sidebar 268px com nav agrupada (itens futuros
+  marcados "em breve"), theme toggle e drawer mobile com scrim.
+- **Route-group `(app)/(shell)/`** com layout que aplica o shell só às rotas autenticadas
+  (`dashboard`, `pacientes`, `account`). Login/forgot/reset e páginas de PDF ficam fora.
+  **Nenhuma URL mudou.**
+- **Re-skin**: `/dashboard` (visão geral com métricas placeholder + card de sessão),
+  `/pacientes` (PageHeader + busca + lista/empty-state), editor de prontuário (Alert de
+  assinado/conflito + Select + Textarea, lógica de auto-save intacta).
+
+### Deps adicionadas (pin exato)
+
+`geist 1.7.2`, `clsx 2.1.1`, `tailwind-merge 3.6.0`, `class-variance-authority 0.7.1`,
+`lucide-react 1.17.0`.
+
+### Validação
+
+`pnpm typecheck` ✓ · `pnpm lint` ✓ · `pnpm build` ✓ (todas as rotas preservadas).
+Verificação visual em navegador (`pnpm dev`) e dark mode pendentes de inspeção do founder.
+
+### Débito / próximos
+
+- Primitivos Radix-dependentes (Dialog/Tooltip/DropdownMenu/Drawer/Toast) ficam para
+  quando a 1ª tela precisar (provavelmente C8).
+- Geração da escala completa de white-label a partir de uma cor única.
+- PROGRESS das camadas C6/C7 no corpo deste arquivo segue pendente (tabela do topo já
+  reflete o status; corpo não foi preenchido).
+
+---
+
+## C8 — Consultório UI (✅ fechada em 2026-06-03)
+
+Cockpit operacional do médico: `/consultorio` (kanban 3 colunas + faixa de check-in
++ prontuário inline). **Camada de apresentação + orquestração** — não recria nenhuma
+regra de negócio; delega a C6 (state machine + actions com lock) e C7 (prontuário/
+autosave/assinatura). ADR-019.
+
+> **Nota (2026-06-03):** a **TV `/chamadas` foi descopada** a pedido do founder
+> ("inútil no momento"). Removidos a rota, o botão "Chamar de novo", a gravação de
+> chamada e a subscription Realtime de `chamadas`. A tabela `chamadas` +
+> `recordChamada`/`listChamadas` ficam **dormentes** (migration é imutável). O texto
+> abaixo descreve a entrega original; ver "Pós-review" no fim.
+
+### O que foi entregue
+- **Tabela `chamadas`** (Clinical; append-only; projeção de display p/ TV+board) +
+  migration [0018_consultorio_chamadas.sql](../drizzle/migrations/0018_consultorio_chamadas.sql)
+  (RLS ENABLE+FORCE `defaultTenantPolicy`, FKs cross-context, GRANTs, `REPLICA
+  IDENTITY FULL` + inclusão de `chamadas`/`appointments` na publication
+  `supabase_realtime`).
+- **Action `recordChamada`** (Clinical) — idempotente, snapshota nome do paciente
+  e do médico (= "SALA").
+- **Leituras aditivas**: `patient.listPatientCards` (nome+alergias em lote),
+  `clinical.getProntuarioByAppointment` + `listChamadas`, `scheduling.getCheckInTimes`
+  + `getClinicTimezone`. (Scheduling C6 intocado: só reads aditivos.)
+- **Orquestração** [consultorio/actions.ts](../src/app/(app)/(shell)/consultorio/actions.ts):
+  `getBoard`, `loadAtendimento`, `callNextPatient` (start + garante prontuário síncrono
+  + chamada), `recallPatient`, `checkInPatient`, `markAbsent`, `completeConsulta`,
+  `signConsulta`, `emitPrescription`, `emitDocument`. Retornam `ActionResult` (sem redirect).
+- **UI** `/consultorio` (board 25/50/25 + check-in strip + sala de espera + painel
+  central reusando `ProntuarioEditor` C7 inline + ferramentas inline de prescrição/
+  documento/assinatura + finalizadas read-only) e **TV** `/chamadas` (fullscreen,
+  fora do `(shell)`). Hook [use-consultorio-realtime](../src/lib/realtime/use-consultorio-realtime.ts)
+  (Realtime + polling backoff 5→10→15→30s + observabilidade). Link Consultório ativo
+  no sidebar.
+- **Docs**: ADR-019, runbook [c8-validation.md](runbooks/c8-validation.md).
+
+### Decisões revisadas (review do founder)
+Estado vazio do painel central; finalizadas **somente leitura** (correção pós-assinatura
+= C10+); painel ativo = `selectedAppointmentId` client-side (default 1º em_atendimento);
+bounds do board (hoje + unidade + 50/coluna); débito da TV-com-login; observabilidade
+Realtime/polling; backoff progressivo; ADR para `chamadas` em Clinical.
+
+### Validação
+Estáticos: `typecheck` ✓ · `lint` ✓ · `arch:check` ✓ · `arch:db-check` ✓ ·
+`check:migrations` ✓ · `check:registry` ✓ · `test` 192/192 ✓ (inclui `priority.test.ts`) ·
+`db:migrate:dev` 0018 aplicada em qoro-dev ✓ · `build` ✓.
+
+In-app (2026-06-03, in-app + verificação de banco): **14/15** dos testes do runbook
+validados — check-in, chamar, prontuário inline, autosave, evento `completed`,
+encerrar→centro esvazia, finalizadas read-only, Realtime em 2 abas <2s, concorrência
+(só um vence), polling fallback (observado no Console). **RLS A/B confirmado via banco**
+(contexto da clínica vê seus N appointments; qualquer outro tenant vê 0). #4 (TV)
+**descopado**. Estrutura no banco: `chamadas`/`appointments` RLS ENABLE+FORCE + policy +
+REPLICA IDENTITY FULL + na publication `supabase_realtime`.
+
+### Pós-review (2026-06-03)
+- **TV removida** (rota + wiring); `chamadas` dormente. (Eventual `0019_drop_chamadas`
+  se quiser zero rastro.)
+- **Bugfix C6 latente**: `listAppointments` usava `= ANY(${array})` (erro 42809 no
+  postgres-js) → trocado por `inArray()` (lição do C4).
+- **Performance do board**: `getBoard`/`loadAtendimento` reduzidos a 1 auth + leituras
+  em paralelo + cache de timezone; painel central recarrega só em transição de status;
+  polling de segurança (20s) **só quando o Realtime não está ao vivo**.
+- **Painel inline**: deselect ao Encerrar (centro esvazia); finalizada com título e
+  botão "Fechar" próprios.
+- **Realtime/RLS**: `setAuth` via `onAuthStateChange` garante o JWT no canal (RLS por
+  tenant no postgres_changes).
+- **Dashboard** (`/dashboard`) reescrito a partir do mockup "Painel": KPIs reais de hoje
+  (consultas/aguardando/em atendimento) + "Próximos na agenda" + placeholders honestos
+  (Financeiro/IA "em breve"). Sem dados mockados (ADR-018).
+
+### Débitos / riscos
+- "SALA"/TV adiados (descopados).
+- Worker outbox ~1×/dia (Hobby): prontuário criado de forma síncrona; handler async = no-op.
+- Sem virtualização (meta 50 cards/coluna); cards memoizados.
+- Latência alta só em dev contra banco remoto (Brasil→US-West); produção mesma região = sub-segundo.

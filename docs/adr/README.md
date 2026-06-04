@@ -27,6 +27,9 @@
 | [014](014-scheduling-patterns.md) | Scheduling Core (C6): contratos congelados (R1–R13 + walk-in + lifecycle) | accepted | C6 |
 | [015](015-event-versioning.md) | Versionamento de eventos do outbox (event_type é a fronteira de versão) | accepted | C4+ |
 | [016](016-clinic-lifecycle.md) | Semântica do ciclo de vida de clínica (base; enforcement em C13) | accepted | C2 / C13 |
+| [017](017-clinical-record-retention-vs-lgpd.md) | Retenção de prontuário (CFM) vs hard-delete LGPD | accepted | C7 |
+| [018](018-ui-design-foundation.md) | UI / Design Foundation (DS = verdade de design; foundation-first; tokens Tailwind 4) | accepted | Fundação Visual (pré-C8) |
+| [019](019-consultorio-chamadas.md) | Consultório (C8): orquestração fina + `chamadas` em Clinical + Realtime com RLS por JWT | accepted | C8 |
 
 ## Como propor um novo ADR
 

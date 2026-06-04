@@ -153,3 +153,20 @@ export async function getMedicalDocumentById(
     return row ? toMedicalDocumentSummary(row) : null;
   });
 }
+
+// --- C8: prontuário por consulta -------------------------------------------
+
+/** Carrega o prontuário vinculado a um appointment (centro do Consultório). */
+export async function getProntuarioByAppointment(
+  clinicId: string,
+  appointmentId: string,
+): Promise<ProntuarioDetail | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(prontuarios)
+      .where(and(eq(prontuarios.clinicId, clinicId), eq(prontuarios.appointmentId, appointmentId)))
+      .limit(1);
+    return row ? toProntuarioDetail(row) : null;
+  });
+}

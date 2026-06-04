@@ -127,6 +127,20 @@
       "when": 1780288400683,
       "tag": "0017_clinical_core",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780413563967,
+      "tag": "0018_consultorio_chamadas",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780533180333,
+      "tag": "0019_drop_chamadas",
+      "breakpoints": true
     }
   ]
 }
