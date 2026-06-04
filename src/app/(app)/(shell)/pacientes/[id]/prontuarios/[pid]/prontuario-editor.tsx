@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CLINICAL_TEMPLATES } from '@/contexts/clinical/templates';
 import type { ClinicalTemplate, ProntuarioContent, ProntuarioDetail } from '@/contexts/clinical/types';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/ui/cn';
 
 import { autosaveProntuario } from '../actions';
 
@@ -70,83 +75,84 @@ export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail 
   return (
     <div>
       {signed ? (
-        <div className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-900">
-          <strong>Prontuário assinado — somente leitura.</strong>
-          <div className="mt-1 text-green-800">
-            {prontuario.signedDoctorNome ?? '—'}
-            {prontuario.signedDoctorCrm
-              ? ` — CRM ${prontuario.signedDoctorCrmUf ?? ''} ${prontuario.signedDoctorCrm}`
-              : ''}
-            {prontuario.signedAt
-              ? ` · assinado em ${new Date(prontuario.signedAt).toLocaleString('pt-BR')}`
-              : ''}
-          </div>
-        </div>
+        <Alert variant="success" title="Prontuário assinado — somente leitura" className="mb-4">
+          {prontuario.signedDoctorNome ?? '—'}
+          {prontuario.signedDoctorCrm
+            ? ` — CRM ${prontuario.signedDoctorCrmUf ?? ''} ${prontuario.signedDoctorCrm}`
+            : ''}
+          {prontuario.signedAt
+            ? ` · assinado em ${new Date(prontuario.signedAt).toLocaleString('pt-BR')}`
+            : ''}
+        </Alert>
       ) : (
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <label className="text-sm">
-            Template:{' '}
-            <select
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12.5px] font-medium text-fg-muted">Template</span>
+            <Select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
+              className="min-w-55"
             >
               {CLINICAL_TEMPLATES.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.nome}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <div className="flex items-center gap-3">
             <span
-              className={
+              className={cn(
+                'text-sm',
                 status === 'saved'
-                  ? 'text-sm text-green-700'
+                  ? 'text-success-600'
                   : status === 'error'
-                    ? 'text-sm text-red-600'
-                    : 'text-sm text-gray-500'
-              }
+                    ? 'text-danger-600'
+                    : 'text-fg-subtle',
+              )}
             >
               {STATUS_LABEL[status]}
             </span>
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => void save()}
               disabled={status === 'saving'}
-              className="rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
             >
               Salvar agora
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {conflict ? (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <Alert variant="danger" className="mb-4">
           Este prontuário foi alterado em outra janela/dispositivo. Suas mudanças NÃO foram salvas.{' '}
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="underline"
+            className="font-medium underline"
           >
             Recarregar
           </button>{' '}
           para ver a versão atual.
-        </div>
+        </Alert>
       ) : null}
 
       <div className="flex flex-col gap-4">
         {template.fields.map((f) => (
-          <div key={f.key} className="flex flex-col gap-1">
-            <label className="text-xs font-semibold uppercase text-gray-500">{f.label}</label>
-            <textarea
+          <div key={f.key} className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-subtle">
+              {f.label}
+            </label>
+            <Textarea
               value={content[f.key] ?? ''}
               placeholder={f.placeholder}
               disabled={signed}
               rows={3}
               onChange={(e) => setField(f.key, e.target.value)}
-              className="rounded border border-gray-300 p-2 text-sm disabled:bg-gray-100"
+              className={signed ? 'bg-surface-inset disabled:opacity-100' : undefined}
             />
           </div>
         ))}
