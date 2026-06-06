@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Banknote,
   Calendar,
   LayoutDashboard,
   LogOut,
@@ -30,7 +31,8 @@ const GROUPS: NavGroup[] = [
       { href: '/pacientes', label: 'Pacientes', icon: Users },
       { href: '/agenda', label: 'Agenda', icon: Calendar, soon: true },
       { href: '/consultorio', label: 'Consultório', icon: Stethoscope },
-      { href: '/financeiro', label: 'Financeiro', icon: Wallet, soon: true },
+      { href: '/caixa', label: 'Caixa', icon: Banknote },
+      { href: '/financeiro', label: 'Financeiro', icon: Wallet },
       { href: '/conversas', label: 'Conversas', icon: MessageSquare, soon: true },
     ],
   },

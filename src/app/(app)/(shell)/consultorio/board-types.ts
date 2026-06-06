@@ -16,6 +16,10 @@ export interface BoardCardDTO {
   patientId: string | null;
   pacienteNome: string;
   alergias: string[];
+  /** idade em anos (derivada de data_nascimento); null se desconhecida. */
+  idade: number | null;
+  /** sexo do paciente (M|F|O|N) para a linha demográfica do card; null se ausente. */
+  sexo: 'M' | 'F' | 'O' | 'N' | null;
   /** scheduled_at (ISO). */
   horario: string;
   /** procedimento (+ observação) — "Motivo" do card. */
@@ -50,6 +54,10 @@ export interface AtendimentoDTO {
   patientId: string | null;
   pacienteNome: string;
   alergias: string[];
+  /** idade em anos (derivada de data_nascimento); null se desconhecida. */
+  idade: number | null;
+  /** sexo do paciente (M|F|O|N); null se ausente. */
+  sexo: 'M' | 'F' | 'O' | 'N' | null;
   motivo: string;
   status: AppointmentStatusDTO;
   /** prontuário vinculado (rascunho p/ editar ou assinado p/ leitura). */

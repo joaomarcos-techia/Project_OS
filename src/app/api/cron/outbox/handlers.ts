@@ -31,10 +31,16 @@ import '@/contexts/patient/internal/handlers/lgpd-delete-requested';
 // C6 — Scheduling: cancela agendamentos futuros quando paciente é removido
 // (reage a patient.core.deleted + patient.lgpd.delete_requested).
 import '@/contexts/scheduling/internal/handlers/patient-deleted';
-// C6 — TEMP placeholder de appointment.completed (vira Financial em C9).
-import '@/contexts/scheduling/internal/handlers/appointment-completed-temp';
 
 // C7 — Clinical: appointment.started → cria prontuário rascunho (idempotente).
 import '@/contexts/clinical/internal/handlers/appointment-started';
+
+// C9 — Financial: appointment.completed → cria lançamento a receber (substitui
+// o placeholder temp do C6). Idempotente via UNIQUE(appointment_id).
+import '@/contexts/financial/internal/handlers/appointment-completed';
+// C9 — Scheduling reage aos eventos de Financial para escrever a própria coluna
+// appointments.faturamento_pendente (ownership físico; ver ADR-014 R11/M12).
+import '@/contexts/scheduling/internal/handlers/financial-faturamento-pendente';
+import '@/contexts/scheduling/internal/handlers/financial-lancamento-created';
 
 export {};

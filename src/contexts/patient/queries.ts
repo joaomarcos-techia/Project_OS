@@ -105,14 +105,19 @@ export async function listPatients(
 }
 
 /**
- * Card data (C8 Consultório): nome + alergias para um lote de pacientes. NÃO
- * decripta — `nome` é plaintext e `alergias` (jsonb) não é PII criptografado.
- * Mesmo contexto (patient), então o leftJoin com patient_clinical_data é legítimo.
+ * Card data (C8 Consultório): nome, alergias e demografia (idade/sexo) para um
+ * lote de pacientes. NÃO decripta — `nome`, `data_nascimento` e `sexo` são
+ * plaintext e `alergias` (jsonb) não é PII criptografado. Mesmo contexto
+ * (patient), então o leftJoin com patient_clinical_data é legítimo.
  */
 export interface PatientCard {
   id: string;
   nome: string;
   alergias: string[];
+  /** data_nascimento (YYYY-MM-DD) — base da idade exibida no card (DS). */
+  dataNascimento: string | null;
+  /** sexo (M|F|O|N) — linha demográfica do card. */
+  sexo: 'M' | 'F' | 'O' | 'N' | null;
 }
 
 export async function listPatientCards(
@@ -125,6 +130,8 @@ export async function listPatientCards(
       .select({
         id: patients.id,
         nome: patients.nome,
+        dataNascimento: patients.dataNascimento,
+        sexo: patients.sexo,
         alergias: patientClinicalData.alergias,
       })
       .from(patients)
@@ -133,6 +140,8 @@ export async function listPatientCards(
     return rows.map((r) => ({
       id: r.id,
       nome: r.nome,
+      dataNascimento: r.dataNascimento ?? null,
+      sexo: r.sexo ?? null,
       alergias: Array.isArray(r.alergias) ? (r.alergias as string[]) : [],
     }));
   });

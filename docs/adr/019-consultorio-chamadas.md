@@ -7,10 +7,12 @@
 > founder removeu a TV ("inútil no momento"). Saíram do produto: a rota `/chamadas`,
 > o botão "Chamar de novo", a gravação de chamada (`recordChamada` deixou de ser
 > chamada) e a subscription Realtime de `chamadas` (o board escuta só `appointments`).
-> A tabela `chamadas` + `recordChamada`/`listChamadas` ficam **dormentes** (migration
-> 0018 é imutável; eventual `0019_drop_chamadas` se quiser zero rastro). Logo: D1 (onde
-> `chamadas` vive) e o débito da TV-com-login em "Consequences" valem como **registro
-> histórico**, não como estado atual. D2/D3/D4/D5 seguem vigentes.
+> `recordChamada`/`listChamadas` saíram do código e a tabela `chamadas` foi
+> **removida do banco** pela migration `0019_drop_chamadas` (`DROP TABLE chamadas
+> CASCADE`) — o caminho "zero rastro" foi tomado (0018 permanece imutável apenas no
+> histórico de migrations). Logo: D1 (onde `chamadas` vivia) e o débito da TV-com-login
+> em "Consequences" valem como **registro histórico**, não como estado atual.
+> D2/D3/D4/D5 seguem vigentes (o board e seu Realtime operam só sobre `appointments`).
 - Refs: VisãoGeral §4.5 (Módulo Consultório), ADR-014 (Scheduling C6), ADR-017
   (retenção de prontuário), ADR-018 (UI foundation), ADR-007 (RLS), ADR-011
   (outbox/audit/idempotency)

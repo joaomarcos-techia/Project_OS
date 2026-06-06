@@ -655,3 +655,24 @@ REPLICA IDENTITY FULL + na publication `supabase_realtime`.
 - Worker outbox ~1×/dia (Hobby): prontuário criado de forma síncrona; handler async = no-op.
 - Sem virtualização (meta 50 cards/coluna); cards memoizados.
 - Latência alta só em dev contra banco remoto (Brasil→US-West); produção mesma região = sub-segundo.
+
+### Atualização (2026-06-04) — auditoria de conformidade + testes automatizados
+Auditoria do C8 (já fechado) + cobertura automatizada. Sem reabrir escopo; TV segue descopada.
+- **Reconciliação de drift**: `chamadas` foi de fato **dropada** por `0019_drop_chamadas`
+  (`DROP TABLE … CASCADE`). ADR-019 e o runbook `c8-validation` foram corrigidos (diziam
+  "dormente/mantida"); os checks de RLS/Realtime passam a usar só `appointments` (que
+  mantém `REPLICA IDENTITY FULL` + publication após o 0019).
+- **Auditoria vs DS** (`Consulta (standalone)`): card da Sala de Espera e cabeçalho do
+  painel passam a exibir **idade · sexo** (`42 anos · F`). `listPatientCards` agora
+  projeta `data_nascimento`/`sexo` (plaintext, aditivo). "Indicador de retorno" já é
+  carregado pelo `motivo` (nome do procedimento) — sem flag nova no modelo congelado.
+- **Autosave**: badge do `ProntuarioEditor` virou tempo relativo ("Salvo agora" / "Salvo
+  há N segundos" / "Salvo há 1 minuto"), conforme a spec.
+- **Testes automatizados** (antes só `priority.test.ts` + validação manual):
+  - `consultorio/board-logic.ts` (helpers puros extraídos de `actions.ts`, sem mudança de
+    comportamento) + `board-logic.test.ts` (mapa de erro→banner, janela do dia DST-correct,
+    idade/sexo, bucketização).
+  - `scripts/smoke-c8.ts` (`pnpm smoke:c8`): estrutural (REPLICA IDENTITY FULL + publication
+    + `chamadas` ausente), concorrência "apenas um vence" (FOR UPDATE), prontuário síncrono
+    idempotente (`UNIQUE(appointment_id)`), encerrar→`completed` no outbox, RLS A/B em
+    `appointments`+`prontuarios`.

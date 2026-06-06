@@ -42,6 +42,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/lib/idempotency/cleanup.ts',
     'src/app/api/cron/patient-hard-delete/route.ts',
     'src/app/api/cron/audit-partitions/route.ts',
+    // C9 — crons financeiros: scan cross-tenant (reconcile) + rollup do caixa.
+    'src/app/api/cron/financial-reconcile/route.ts',
+    'src/app/api/cron/cash-flow-rollup/route.ts',
     'src/app/api/health/outbox/route.ts',
     'src/app/api/health/auth-hook/route.ts',
   ]),

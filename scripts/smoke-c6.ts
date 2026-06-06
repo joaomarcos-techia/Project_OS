@@ -321,7 +321,7 @@ async function main(): Promise<void> {
     assert(fromA.length > 0, 'A deveria ver seus próprios appointments');
   });
 
-  await tryStep('6.6.6 — appointment.completed processado pelo worker (handler temp)', async () => {
+  await tryStep('6.6.6 — appointment.completed processado pelo worker (handler Financial C9)', async () => {
     const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(7), status: 'em_atendimento' });
     const idemKey = `smoke-completed-${id}`;
     await withTenant(CLINIC_A, (tx) =>
@@ -334,7 +334,10 @@ async function main(): Promise<void> {
           doctorId,
           patientId: null,
           procedureId,
+          unitId: null,
           valor: 200,
+          snapshotProcedureName: 'Consulta Smoke',
+          snapshotDoctorNome: 'Dr. Smoke',
           scheduledAt: tomorrow(7).toISOString(),
         },
         idempotencyKey: idemKey,

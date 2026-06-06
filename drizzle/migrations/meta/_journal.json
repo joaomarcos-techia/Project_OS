@@ -141,6 +141,20 @@
       "when": 1780533180333,
       "tag": "0019_drop_chamadas",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1780642847976,
+      "tag": "0020_financial_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780644604572,
+      "tag": "0021_financial_grants_hardening",
+      "breakpoints": true
     }
   ]
 }

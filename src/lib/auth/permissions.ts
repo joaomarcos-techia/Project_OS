@@ -33,6 +33,10 @@ export const PERMISSIONS = {
   CREATE_PRESCRIPTION: 'create:prescription',
   VIEW_FINANCIAL: 'view:financial',
   MANAGE_FINANCIAL: 'manage:financial',
+  // C9: operação do Caixa (confirmar/cancelar pagamento). Granular para o
+  // atendente operar o caixa sem ganhar manage:financial (lançamento manual,
+  // fornecedores, estorno). Seed + bundles em migration 0020.
+  OPERATE_CAIXA: 'operate:caixa',
   VIEW_AUDIT: 'view:audit',
   EXPORT_AUDIT: 'export:audit',
   MANAGE_EMPLOYEES: 'manage:employees',

@@ -36,31 +36,23 @@ import {
   getClinicTimezone,
   listAppointments,
 } from '@/contexts/scheduling/queries';
-import type { AppointmentStatusDTO, AppointmentSummary } from '@/contexts/scheduling/types';
+import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser, requireUser } from '@/lib/auth/tenant-context';
 
-import type { ActionResult, AtendimentoDTO, BoardCardDTO, BoardDoctorDTO, BoardDTO } from './board-types';
-
-const BOARD_LIMIT = 50;
-const DAY_FETCH_CAP = 200;
-const STATUS_TODAY: AppointmentStatusDTO[] = [
-  'agendado',
-  'confirmado',
-  'chegou',
-  'em_atendimento',
-  'atendido',
-];
-
-const EMPTY_BOARD: BoardDTO = {
-  activeDoctorId: null,
-  doctors: [],
-  aChegar: [],
-  salaEspera: [],
-  emAtendimento: [],
-  finalizadas: [],
-  truncated: false,
-};
+import {
+  DAY_FETCH_CAP,
+  EMPTY_BOARD,
+  STATUS_TODAY,
+  ageFromBirthdate,
+  buildCard,
+  clinicDayBounds,
+  fail,
+  motivoOf,
+  ok,
+  pickByStatus,
+} from './board-logic';
+import type { ActionResult, AtendimentoDTO, BoardDoctorDTO, BoardDTO } from './board-types';
 
 // timezone é congelado por clínica (1 clínica = 1 tz) → cache de processo, evita
 // uma ida ao banco por getBoard (hot path do polling).
@@ -71,90 +63,6 @@ async function clinicTimezoneCached(clinicId: string): Promise<string> {
   const tz = await getClinicTimezone(clinicId);
   tzCache.set(clinicId, tz);
   return tz;
-}
-
-// --- helpers (module-private; não são exports) -----------------------------
-
-function ok<T>(data: T): { ok: true; data: T } {
-  return { ok: true, data };
-}
-
-function fail(err: unknown): { ok: false; code: string; message: string } {
-  const name =
-    err && typeof err === 'object' && 'name' in err ? String((err as { name?: string }).name) : '';
-  switch (name) {
-    case 'InvalidTransitionError':
-      return {
-        ok: false,
-        code: 'invalid_transition',
-        message: 'Esta ação não é mais possível — o paciente já mudou de etapa.',
-      };
-    case 'SchedulingConflictError':
-      return { ok: false, code: 'conflict', message: 'Conflito de estado. Recarregue o quadro.' };
-    case 'AppointmentNotFoundError':
-      return { ok: false, code: 'not_found', message: 'Agendamento não encontrado.' };
-    case 'AuthError':
-      return { ok: false, code: 'forbidden', message: 'Você não tem permissão para esta ação.' };
-    case 'IdempotencyConflictError':
-      return {
-        ok: false,
-        code: 'duplicate',
-        message: 'Reenvio duplicado com dados diferentes. Recarregue e tente de novo.',
-      };
-    case 'ProntuarioConflitoError':
-      return {
-        ok: false,
-        code: 'conflict',
-        message: 'O prontuário foi alterado em outra janela. Recarregue.',
-      };
-    default:
-      return {
-        ok: false,
-        code: 'error',
-        message: err instanceof Error ? err.message : 'Erro inesperado.',
-      };
-  }
-}
-
-/** local→UTC offset (ms) de uma data num timezone IANA (DST-correct via Intl). */
-function tzOffsetMs(date: Date, tz: string): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const map: Record<string, number> = {};
-  for (const p of dtf.formatToParts(date)) {
-    if (p.type !== 'literal') map[p.type] = Number(p.value);
-  }
-  const asUtc = Date.UTC(map.year!, map.month! - 1, map.day!, map.hour!, map.minute!, map.second!);
-  return asUtc - date.getTime();
-}
-
-/** Janela [00:00, 24:00) de HOJE no timezone da clínica, como instantes UTC. */
-function clinicDayBounds(tz: string): { from: Date; to: Date } {
-  const now = new Date();
-  const ymd = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now);
-  const [y, m, d] = ymd.split('-').map(Number);
-  const utcGuess = Date.UTC(y!, m! - 1, d!, 0, 0, 0);
-  const off = tzOffsetMs(new Date(utcGuess), tz);
-  const from = new Date(utcGuess - off);
-  const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
-  return { from, to };
-}
-
-function motivoOf(a: AppointmentSummary): string {
-  return a.observacoes ? `${a.snapshotProcedureName} · ${a.observacoes}` : a.snapshotProcedureName;
 }
 
 // --- board read ------------------------------------------------------------
@@ -205,26 +113,11 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
   ]);
   const cardMap = new Map(cards.map((c) => [c.id, c]));
 
-  const toCard = (a: AppointmentSummary): BoardCardDTO => {
-    const c = a.patientId ? cardMap.get(a.patientId) : undefined;
-    return {
-      appointmentId: a.id,
-      patientId: a.patientId,
-      pacienteNome: c?.nome ?? (a.patientId ? 'Paciente' : 'Walk-in'),
-      alergias: c?.alergias ?? [],
-      horario: a.scheduledAt,
-      motivo: motivoOf(a),
-      status: a.status,
-      urgencia: a.urgencia,
-      checkInAt: checkInTimes[a.id] ?? null,
-    };
-  };
-
+  const now = new Date();
   const pick = (statuses: AppointmentStatusDTO[]) =>
-    scoped
-      .filter((a) => statuses.includes(a.status))
-      .slice(0, BOARD_LIMIT)
-      .map(toCard);
+    pickByStatus(scoped, statuses).map((a) =>
+      buildCard(a, a.patientId ? cardMap.get(a.patientId) : undefined, checkInTimes[a.id] ?? null, now),
+    );
 
   return {
     activeDoctorId,
@@ -274,6 +167,8 @@ export async function loadAtendimento(appointmentId: string): Promise<ActionResu
       patientId: appt.patientId,
       pacienteNome: card?.nome ?? (appt.patientId ? 'Paciente' : 'Walk-in'),
       alergias: card?.alergias ?? [],
+      idade: ageFromBirthdate(card?.dataNascimento ?? null),
+      sexo: card?.sexo ?? null,
       motivo: motivoOf(appt),
       status: appt.status,
       prontuario,

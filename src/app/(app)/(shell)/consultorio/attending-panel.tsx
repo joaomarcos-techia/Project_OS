@@ -13,6 +13,7 @@ import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 // Reuso direto do editor de prontuário (C7): autosave 10s, conflito por
 // rowVersion e modo read-only quando assinado já estão prontos.
 import { ProntuarioEditor } from '../pacientes/[id]/prontuarios/[pid]/prontuario-editor';
+import { sexoLong } from './board-logic';
 import { loadAtendimento } from './actions';
 import { DocumentPanel, PrescriptionPanel, SignPanel } from './atendimento-tools';
 import type { AtendimentoDTO } from './board-types';
@@ -91,6 +92,13 @@ export function AttendingPanel({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold">{data.pacienteNome}</h2>
+            {data.idade != null || data.sexo ? (
+              <p className="truncate text-xs text-fg-subtle">
+                {[data.idade != null ? `${data.idade} anos` : null, sexoLong(data.sexo)]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            ) : null}
             <p className="truncate text-sm text-fg-muted">{data.motivo}</p>
           </div>
           <AppointmentStatusBadge status={data.status} />

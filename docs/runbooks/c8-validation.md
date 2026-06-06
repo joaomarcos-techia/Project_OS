@@ -1,16 +1,19 @@
 # C8 — Consultório — Validation Runbook
 
-Valida a camada C8 (`/consultorio` + TV `/chamadas`). Dividido em **automated**
-(CI: estáticos + vitest + migration) e **manual/integração** (sessão da app + 2
-abas/clínicas + Realtime). Mapeia os 15 testes obrigatórios do escopo C8.
+Valida a camada C8 (`/consultorio`; TV `/chamadas` **descopada** — ADR-019).
+Dividido em **automated** (CI: estáticos + vitest + smoke + migration) e
+**manual/integração** (sessão da app + 2 abas/clínicas + Realtime). Mapeia os 15
+testes obrigatórios do escopo C8.
 
 ## 0. One-time setup
 
 ### 0.1 Supabase Realtime
-A migration `0018` adiciona `appointments` + `chamadas` à publication
-`supabase_realtime` e seta `REPLICA IDENTITY FULL`. Confirme no Dashboard →
-Database → Replication que ambas aparecem, e que **Realtime está habilitado** no
-projeto. (Verificação SQL em 2.0.)
+A migration `0018` adicionou `appointments` (+ `chamadas`, depois removida) à
+publication `supabase_realtime` com `REPLICA IDENTITY FULL`. Após `0019`
+(`DROP TABLE chamadas`), só **`appointments`** segue na publication. Confirme no
+Dashboard → Database → Replication que `appointments` aparece, e que **Realtime
+está habilitado** no projeto. (Verificação SQL em 2.0, automatizada em
+`pnpm smoke:c8`.)
 
 ### 0.2 Dados para testar
 Precisa de: 1 clínica, 1 médico (profile com `role=doctor`), ≥1 paciente, ≥1
@@ -19,8 +22,9 @@ existentes. Para ver a faixa "A chegar hoje", crie appointment `agendado` para h
 
 ### 0.3 TV (`/chamadas`) — DESCOPADA (2026-06-03)
 A TV foi removida (ADR-019). Ignore os passos/menções de `/chamadas` e do teste #4.
-A tabela `chamadas` segue no banco (dormente), então os checks de RLS sobre `chamadas`
-em 2.0/2.7 continuam válidos como verificação estrutural.
+A tabela `chamadas` foi **dropada** pela migration `0019` (`DROP TABLE chamadas
+CASCADE`) — não existe mais no schema. Os checks de RLS/Realtime usam só
+`appointments`.
 
 ## 1. Automated (CI)
 
@@ -28,25 +32,36 @@ em 2.0/2.7 continuam válidos como verificação estrutural.
 pnpm typecheck            # tipos (inclui DTOs do board + reuso do ProntuarioEditor)
 pnpm lint                 # boundaries, no-console (warn ok), prefer-const
 pnpm arch:check           # sem ciclos (madge)
-pnpm arch:db-check        # origem de conexão + nome de migration (0018)
+pnpm arch:db-check        # origem de conexão + nome de migration
 pnpm check:migrations     # nenhuma operação destrutiva não-aprovada
-pnpm test                 # vitest: priority.test.ts (prioridade de espera, pura) + suíte
-pnpm db:migrate:dev       # aplica 0018_consultorio_chamadas.sql em qoro-dev
-pnpm build                # /consultorio e /chamadas compilam (rotas dinâmicas)
+pnpm test                 # vitest: board-logic.test.ts + priority.test.ts (puros) + suíte
+pnpm db:migrate:dev       # aplica migrations (0018 chamadas + 0019 drop) em qoro-dev
+pnpm smoke:c8             # integração DB: concorrência, prontuário idempotente, completed, RLS A/B
+pnpm build                # /consultorio compila (rota dinâmica; /chamadas não existe mais)
 ```
+
+**Cobertura automatizada vs manual dos 15 testes:**
+- **Automatizados** (CI): #11–#14 (RLS A/B + concorrência "apenas um vence") e
+  #6/#7 (encerrar + `completed` no outbox) + D3 (prontuário síncrono idempotente)
+  via `pnpm smoke:c8`; lógica de board (idade/sexo, janela do dia DST-correct,
+  mapa de erro→banner, bucketização) via `board-logic.test.ts`.
+- **Manuais** (browser, abaixo): #1–#3 fluxo na tela, #5 autosave visual, #9/#10
+  Realtime entre 2 abas, #15 fallback de polling. (#4 TV — obsoleto.)
 
 ## 2. Manual / integração (qoro-dev + sessão)
 
 ### 2.0 — Estrutura da migration (RLS + Realtime)
+`chamadas` foi dropada (0019) — os checks cobrem só `appointments`. Automatizado
+em `pnpm smoke:c8`.
 ```sql
--- FORCE RLS + replica identity FULL ('f') em chamadas e appointments
+-- FORCE RLS + replica identity FULL ('f') em appointments
 SELECT relname, relrowsecurity, relforcerowsecurity, relreplident
-FROM pg_class WHERE relname IN ('chamadas','appointments');
--- policy de tenant na chamadas
-SELECT polname FROM pg_policy WHERE polrelid = 'chamadas'::regclass; -- chamadas_tenant_access
--- publication
+FROM pg_class WHERE relname = 'appointments';
+-- publication (Realtime)
 SELECT tablename FROM pg_publication_tables
-WHERE pubname='supabase_realtime' AND tablename IN ('chamadas','appointments');
+WHERE pubname='supabase_realtime' AND tablename = 'appointments';
+-- chamadas não deve mais existir
+SELECT to_regclass('public.chamadas'); -- NULL
 ```
 
 ### Fluxo principal (testes 1–8)
@@ -80,15 +95,16 @@ WHERE pubname='supabase_realtime' AND tablename IN ('chamadas','appointments');
 9–10. **Realtime 2 abas (#9/#10).** Duas abas no mesmo `/consultorio`. Uma ação
    numa reflete na outra em **< 2s** (badge "Tempo real" verde).
 11–12. **RLS (#11/#12).** Como `authenticated` da clínica A, a clínica B é invisível
-   — board, chamadas e eventos de Realtime:
+   — board e eventos de Realtime (automatizado em `pnpm smoke:c8`):
    ```sql
    SET ROLE authenticated;
    SELECT set_config('app.current_clinic', '<CLINIC_A>', true);
-   SELECT count(*) FROM chamadas WHERE clinic_id = '<CLINIC_B>';  -- 0
+   SELECT count(*) FROM appointments WHERE clinic_id = '<CLINIC_B>';  -- 0
+   SELECT count(*) FROM prontuarios  WHERE clinic_id = '<CLINIC_B>';  -- 0
    RESET ROLE;
    ```
-   `\d chamadas` mostra `Force row security: enabled`. Numa aba logada na clínica
-   A, um INSERT em `chamadas` da clínica B **não** dispara evento Realtime.
+   `\d appointments` mostra `Force row security: enabled`. Numa aba logada na
+   clínica A, um UPDATE em `appointments` da clínica B **não** dispara Realtime.
 13–14. **Concorrência (#13/#14).** Dois usuários/abas clicam **Chamar próximo** no
    mesmo appointment quase juntos → **exatamente um** vence; o outro recebe banner
    "o paciente já mudou de etapa" (409 `InvalidTransitionError`). Nunca dois
@@ -105,7 +121,8 @@ WHERE pubname='supabase_realtime' AND tablename IN ('chamadas','appointments');
 - **Financial** (sem `view:consultorio`): `/consultorio` mostra "Sem acesso".
 
 ## 3. Débitos / riscos (ver ADR-019)
-- TV descopada (2026-06-03) — se voltar no futuro, reavaliar o token de TV read-only.
+- TV descopada (2026-06-03) e tabela `chamadas` **dropada** (migration 0019) — se
+  voltar no futuro, recriar a tabela + reavaliar o token de TV read-only.
 - "SALA" = nome do médico (sem modelo de salas).
 - Realtime depende do token da sessão (@supabase/ssr) chegar ao canal; se em teste
   o isolamento/entrega falhar, o polling cobre — investigar `setAuth`.

@@ -25,6 +25,22 @@ const STATUS_LABEL: Record<SaveStatus, string> = {
   error: 'Erro ao salvar',
 };
 
+// Cadência do "tempo desde o último salvamento" — re-renderiza o rótulo relativo.
+const SAVED_TICK_MS = 10_000;
+
+/**
+ * Rótulo relativo do autosave (spec C8): "Salvo agora" (<10s) → "Salvo há N
+ * segundos" (<60s) → "Salvo há N minuto(s)". `savedAt`/`now` em ms epoch.
+ */
+function savedLabel(savedAt: number | null, now: number): string {
+  if (savedAt == null) return STATUS_LABEL.saved;
+  const secs = Math.max(0, Math.round((now - savedAt) / 1000));
+  if (secs < 10) return 'Salvo agora';
+  if (secs < 60) return `Salvo há ${secs} segundos`;
+  const mins = Math.round(secs / 60);
+  return mins <= 1 ? 'Salvo há 1 minuto' : `Salvo há ${mins} minutos`;
+}
+
 export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail }) {
   const signed = prontuario.status === 'assinado';
   const [content, setContent] = useState<ProntuarioContent>(prontuario.content ?? {});
@@ -34,34 +50,79 @@ export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail 
     [templateId],
   );
   const [status, setStatus] = useState<SaveStatus>(signed ? 'imutavel' : 'idle');
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const rowVersionRef = useRef(prontuario.rowVersion);
   const dirtyRef = useRef(false);
+  const savingRef = useRef(false);
+  const contentRef = useRef(content);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const save = useCallback(async () => {
-    if (signed || !dirtyRef.current) return;
+  // contentRef sempre com o conteúdo mais recente — usado pelo flush no unmount
+  // (que não pode depender do closure do effect).
+  contentRef.current = content;
+
+  // persist: salva o conteúdo ATUAL (via ref, nunca stale). Reivindica as edições
+  // ANTES do await (dirty=false); se o usuário digitar durante o save lento, o
+  // setField re-marca dirty → o autosave seguinte persiste o que faltou (corrige a
+  // corrida "salvou e perdeu o que digitei no meio"). Falha → mantém dirty p/ retry.
+  const persist = useCallback(async (): Promise<void> => {
+    if (signed || savingRef.current || !dirtyRef.current) return;
+    savingRef.current = true;
+    dirtyRef.current = false;
     setStatus('saving');
-    const res = await autosaveProntuario(prontuario.id, content, rowVersionRef.current);
+    const res = await autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+    savingRef.current = false;
     if (res.ok) {
       rowVersionRef.current = res.rowVersion;
-      dirtyRef.current = false;
-      setStatus('saved');
+      setSavedAt(Date.now());
+      setNowTs(Date.now());
+      setStatus(dirtyRef.current ? 'idle' : 'saved');
     } else {
+      dirtyRef.current = true;
       setStatus(res.kind === 'conflict' ? 'conflict' : res.kind === 'imutavel' ? 'imutavel' : 'error');
     }
-  }, [content, prontuario.id, signed]);
+  }, [prontuario.id, signed]);
+
+  // "Salvar agora": força persistir o conteúdo atual mesmo se o tracking de dirty
+  // se perdeu — o clique explícito SEMPRE tenta salvar (nada de no-op silencioso).
+  const saveNow = useCallback(() => {
+    if (signed) return;
+    dirtyRef.current = true;
+    void persist();
+  }, [persist, signed]);
 
   // Debounce: salva 10s após a última alteração (evita flood de requests).
   useEffect(() => {
     if (signed || !dirtyRef.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      void save();
+      void persist();
     }, AUTOSAVE_MS);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [content, save, signed]);
+  }, [content, persist, signed]);
+
+  // Flush no unmount: ao TROCAR de paciente (ou fechar), o cleanup do debounce
+  // cancelaria o autosave pendente e perderia o texto. Aqui salvamos as edições
+  // pendentes (fire-and-forget) com o conteúdo/rowVersion mais recentes (refs).
+  useEffect(() => {
+    return () => {
+      if (!signed && dirtyRef.current) {
+        void autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+      }
+    };
+    // refs são sempre atuais; deps vazias = roda só no unmount real.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Enquanto "Salvo", re-renderiza o rótulo relativo ("há N segundos") sem refetch.
+  useEffect(() => {
+    if (status !== 'saved') return;
+    const t = setInterval(() => setNowTs(Date.now()), SAVED_TICK_MS);
+    return () => clearInterval(t);
+  }, [status]);
 
   function setField(key: keyof ProntuarioContent, value: string) {
     if (signed) return;
@@ -111,13 +172,13 @@ export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail 
                     : 'text-fg-subtle',
               )}
             >
-              {STATUS_LABEL[status]}
+              {status === 'saved' ? savedLabel(savedAt, nowTs) : STATUS_LABEL[status]}
             </span>
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => void save()}
+              onClick={saveNow}
               disabled={status === 'saving'}
             >
               Salvar agora

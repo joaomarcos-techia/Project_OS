@@ -84,13 +84,20 @@ export const AppointmentStartedSchema = z.object({
 export type AppointmentStartedPayload = z.infer<typeof AppointmentStartedSchema>;
 
 // --- completed (Financial reage → cria lançamento a receber) ---------------
+// C9: payload carrega snapshotProcedureName/snapshotDoctorNome/unitId para o
+// handler Financial gerar a descrição + Caixa patient-first SEM ler appointments
+// (boundaries). Extensão ADITIVA do contrato v1. Nome de profissional NÃO é PII;
+// nome de paciente JAMAIS entra em payload (ADR-011 #27) — só patientId.
 export const AppointmentCompletedSchema = z.object({
   appointmentId: uuid,
   clinicId: uuid,
   doctorId: uuid,
   patientId: uuid.nullable(),
   procedureId: uuid,
+  unitId: uuid.nullable(),
   valor: z.number().nonnegative(),
+  snapshotProcedureName: z.string(),
+  snapshotDoctorNome: z.string(),
   scheduledAt: z.string().datetime(),
 });
 export type AppointmentCompletedPayload = z.infer<typeof AppointmentCompletedSchema>;

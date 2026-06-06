@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/ui/cn';
 
+import { demographicsLine } from './board-logic';
 import type { BoardCardDTO } from './board-types';
 import { formatHora } from './format';
 import { formatWait, waitMinutes, waitTone, type WaitTone } from './priority';
@@ -42,6 +43,9 @@ function WaitingCardImpl({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-medium text-fg">{card.pacienteNome}</p>
+          {demographicsLine(card.idade, card.sexo) ? (
+            <p className="truncate text-xs text-fg-subtle">{demographicsLine(card.idade, card.sexo)}</p>
+          ) : null}
           <p className="truncate text-xs text-fg-muted">
             {formatHora(card.horario)} · {card.motivo}
           </p>
