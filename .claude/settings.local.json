@@ -55,7 +55,20 @@
       "WebFetch(domain:supabase.com)",
       "Bash(rm -f src/app/api/test-c6/route.ts)",
       "Bash(rmdir src/app/api/test-c6)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(pnpm remove *)",
+      "Bash(pnpm db:generate --name clinical_core)",
+      "Bash(pnpm check:migrations)",
+      "Bash(pnpm exec *)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(pnpm tsx *)",
+      "Bash(pnpm db:generate --name drop_chamadas)",
+      "Bash(git reset *)",
+      "PowerShell(pnpm tsx --conditions=react-server scripts/repro-c9.ts 2>&1)",
+      "PowerShell(pnpm tsx scripts/clean-zombies.ts 2>&1)",
+      "Bash(git check-ignore *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",

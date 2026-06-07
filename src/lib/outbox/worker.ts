@@ -154,15 +154,19 @@ async function processOne(): Promise<ProcessOneResult> {
     const row = rows[0];
     if (!row) return null;
     const nextAttempts = row.attempts + 1;
-    const updated = await tx.execute<{ processing_started_at: string | Date }>(sql`
-      UPDATE outbox
-         SET status = 'processing',
-             attempts = ${nextAttempts},
-             processing_started_at = now()
-       WHERE id = ${row.id}
-         AND status = 'pending'
-       RETURNING processing_started_at
-    `);
+    // CWE-89: usamos o query builder do drizzle (bind params $1, $2…) em vez de
+    // raw sql`` com interpolação. row.id (uuid PK) e nextAttempts (integer) são
+    // SEMPRE passados como parâmetros — nunca concatenados na string SQL — então
+    // não há caminho de SQL injection. Mesmo pattern parametrizado dos finalize*.
+    const updated = await tx
+      .update(outbox)
+      .set({
+        status: 'processing',
+        attempts: nextAttempts,
+        processingStartedAt: sql`now()`,
+      })
+      .where(and(eq(outbox.id, row.id), eq(outbox.status, 'pending')))
+      .returning({ processing_started_at: outbox.processingStartedAt });
     if (updated.length === 0) {
       // Outro worker passou na frente — não deveria com SKIP LOCKED, mas é
       // defesa em profundidade.
