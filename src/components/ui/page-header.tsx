@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
-/** Cabeçalho de página — título + descrição + ações. */
+/** Cabeçalho de página — estrutura do Design System (`page-head` / `ph-title` / `ph-desc` / `ph-actions`). */
 export function PageHeader({
   title,
   description,
@@ -15,17 +15,14 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        'mb-6 flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between',
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em]">{title}</h1>
-        {description ? <p className="text-sm text-fg-muted">{description}</p> : null}
+    <div className={cn('page-head', className)}>
+      <div className="ph-title-row">
+        <div>
+          <h1 className="ph-title">{title}</h1>
+          {description ? <p className="ph-desc">{description}</p> : null}
+        </div>
+        {actions ? <div className="ph-actions">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
     </div>
   );
 }

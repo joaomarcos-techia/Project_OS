@@ -28,6 +28,6 @@ export const MODULES: NavModule[] = [
   { id: 'caixa', icon: 'cash', label: 'Caixa', group: 'Gestão', href: '/caixa' },
   { id: 'conversas', icon: 'chat', label: 'Conversas IA', group: 'Gestão', soon: true, badge: '4' },
   { id: 'relatorios', icon: 'chart', label: 'Relatórios', group: 'Gestão', soon: true },
-  { id: 'equipe', icon: 'shield', label: 'Equipe & Permissões', group: 'Administração', soon: true },
+  { id: 'equipe', icon: 'shield', label: 'Equipe & Permissões', group: 'Administração', href: '/equipe' },
   { id: 'config', icon: 'gear', label: 'Configurações', group: 'Administração', soon: true },
 ];

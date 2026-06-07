@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
-import { Label } from './label';
 
 type FieldProps = {
   label?: ReactNode;
@@ -12,16 +11,16 @@ type FieldProps = {
   children: ReactNode;
 };
 
-/** Agrupa label + controle + hint/erro (DS §08.9, `.field`). */
+/** Agrupa label + controle + hint/erro — classe do Design System (`ds.css` `.field`). */
 export function Field({ label, htmlFor, hint, error, className, children }: FieldProps) {
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      {label ? <Label htmlFor={htmlFor}>{label}</Label> : null}
+    <div className={cn('field', className)}>
+      {label ? <label htmlFor={htmlFor}>{label}</label> : null}
       {children}
       {error ? (
-        <p className="text-[12.5px] text-danger-600">{error}</p>
+        <p style={{ fontSize: '12.5px', color: 'var(--danger-600)' }}>{error}</p>
       ) : hint ? (
-        <p className="text-[12.5px] text-fg-subtle">{hint}</p>
+        <p style={{ fontSize: '12.5px', color: 'var(--text-3)' }}>{hint}</p>
       ) : null}
     </div>
   );
