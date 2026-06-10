@@ -120,6 +120,30 @@ const EnvSchema = z
     GCP_PROJECT_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     GCP_SECRET_MASTER_KEY_NAME: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     GCP_SECRET_LOOKUP_SALT_NAME: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+
+    // --- C10: WhatsApp / Meta Cloud API ---
+    // App-level secret (1 app Meta, N números) usado para validar a assinatura
+    // HMAC dos webhooks (X-Hub-Signature-256). NÃO é per-clínica (o token
+    // per-clínica vive cifrado em clinic_whatsapp_numbers.token_encrypted).
+    // Optional no parse; assertMessagingRuntimeReady() exige em runtime.
+    META_APP_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Token do handshake de verificação do webhook (GET hub.verify_token).
+    META_WEBHOOK_VERIFY_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Versão da Graph API (v18+). Default v21.0 (atual). Formato vNN.N.
+    META_GRAPH_API_VERSION: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .regex(/^v\d+\.\d+$/)
+        .optional()
+        .default('v21.0'),
+    ),
+    // Timeout (ms) de cada chamada HTTP ao provider (AbortController). Congelado
+    // em 10s (3ª#4); env permite ajuste operacional sem redeploy. Máx 60s.
+    META_HTTP_TIMEOUT_MS: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(1000).max(60_000).optional().default(10_000),
+    ),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -206,5 +230,23 @@ export function assertCryptoRuntimeReady(): void {
         '[env] GCP_PROJECT_ID, GCP_SECRET_MASTER_KEY_NAME and GCP_SECRET_LOOKUP_SALT_NAME are required when CRYPTO_SECRET_BACKEND=gcp',
       );
     }
+  }
+}
+
+/**
+ * Runtime guard for C10 messaging routes. Fails fast when the Meta webhook
+ * secrets are missing — same shape as assertCronRuntimeReady(). Called by the
+ * webhook route handler, NOT at import time, so `next build` stays green before
+ * secrets exist. The per-clinic access token is NOT here (it lives encrypted in
+ * the DB); these two are app-level (1 Meta app validates all webhooks).
+ */
+export function assertMessagingRuntimeReady(): void {
+  if (!env.META_APP_SECRET) {
+    throw new Error('[env] META_APP_SECRET is required at runtime for /api/webhooks/meta');
+  }
+  if (!env.META_WEBHOOK_VERIFY_TOKEN) {
+    throw new Error(
+      '[env] META_WEBHOOK_VERIFY_TOKEN is required at runtime for /api/webhooks/meta',
+    );
   }
 }

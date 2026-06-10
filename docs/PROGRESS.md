@@ -14,7 +14,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | C7 | Clinical (prontuário, prescrição, PDFs) | ⏳ pendente | — |
 | C8 | Consultório UI | ⏳ pendente | — |
 | C9 | Financial Core | ⏳ pendente | — |
-| C10 | MessagingProvider + Webhook Meta | ⏳ pendente | — |
+| C10 | MessagingProvider + Webhook Meta | ✅ **fechada** (smoke-c10 18/18; migration 0022; sem IA/mídia; ADR-020) | 2026-06-07 |
 | C11 | AI Agent Base | ⏳ pendente | — |
 | C12 | AI Agent Intents Core | ⏳ pendente | — |
 | C13 | Tenancy & Billing | ⏳ pendente | — |

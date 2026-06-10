@@ -42,6 +42,8 @@
     "smoke:c5": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c5.ts",
     "smoke:c6": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c6.ts",
     "smoke:c7": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c7.ts",
+    "smoke:c10": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 META_APP_SECRET=smoke-app-secret META_WEBHOOK_VERIFY_TOKEN=verify-me CRYPTO_LOOKUP_SALT=c21va2UtYzEwLWxvb2t1cC1zYWx0LTMyLWJ5dGVzLW9rIQ== tsx --conditions=react-server scripts/smoke-c10.ts",
+    "wa:connect": "tsx --conditions=react-server scripts/whatsapp-connect.ts",
     "check:registry": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts",
     "check:registry:strict": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts --strict",
     "idempotency:cleanup": "tsx scripts/idempotency-cleanup.ts"
@@ -84,5 +86,10 @@
     "tsx": "4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss@<8.5.10": "8.5.15"
+    }
   }
 }

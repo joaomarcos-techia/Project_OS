@@ -1,0 +1,139 @@
+/**
+ * Webhook Meta (WhatsApp Cloud API) — GET verify + POST receive (C10).
+ *
+ * Ordem inviolável do POST:
+ *   0. size guard (Content-Length + leitura com cap) → 413 ANTES de qualquer HMAC.
+ *   1. validateSignature (HMAC-SHA256 sobre o raw) → 401 e PARA se falhar.
+ *   2. parseWebhook(raw).
+ *   3. resolve clínica por meta_phone_id; persistInbound/persistStatusEvents
+ *      (withTenant) OU quarantineOrphan (número não-provisionado).
+ *   4. 200 (Meta re-tenta para sempre se não receber 200).
+ *
+ * A rota NÃO importa `dbAdmin` — usa o seam `@/lib/messaging` (que o encapsula)
+ * + a persistência do contexto (withTenant). Sem alteração no eslint.
+ */
+import { assertMessagingRuntimeReady, env } from '@/lib/env';
+import {
+  getMessagingProvider,
+  quarantineOrphan,
+  resolveClinicByPhoneId,
+  type ParsedInboundMessage,
+  type ParsedStatusEvent,
+} from '@/lib/messaging';
+import { metrics } from '@/lib/observability/metrics';
+
+import { persistInbound, persistStatusEvents } from '@/contexts/messaging/internal/inbound';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
+
+const MAX_WEBHOOK_BYTES = 1_000_000;
+const PROVIDER = 'meta' as const;
+
+/** Lê o body com teto de bytes (defesa contra Content-Length mentiroso). */
+async function readBodyCapped(req: Request, cap: number): Promise<string | null> {
+  if (!req.body) {
+    const text = await req.text();
+    return Buffer.byteLength(text, 'utf8') > cap ? null : text;
+  }
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function groupByPhoneId(
+  messages: ParsedInboundMessage[],
+  statuses: ParsedStatusEvent[],
+): Map<string, { messages: ParsedInboundMessage[]; statuses: ParsedStatusEvent[] }> {
+  const map = new Map<string, { messages: ParsedInboundMessage[]; statuses: ParsedStatusEvent[] }>();
+  const ensure = (phoneId: string) => {
+    let g = map.get(phoneId);
+    if (!g) {
+      g = { messages: [], statuses: [] };
+      map.set(phoneId, g);
+    }
+    return g;
+  };
+  for (const m of messages) ensure(m.toPhoneId).messages.push(m);
+  for (const s of statuses) ensure(s.toPhoneId).statuses.push(s);
+  return map;
+}
+
+export async function GET(req: Request): Promise<Response> {
+  assertMessagingRuntimeReady();
+  const url = new URL(req.url);
+  const mode = url.searchParams.get('hub.mode');
+  const token = url.searchParams.get('hub.verify_token');
+  const challenge = url.searchParams.get('hub.challenge');
+  if (mode === 'subscribe' && token === env.META_WEBHOOK_VERIFY_TOKEN && challenge !== null) {
+    return new Response(challenge, { status: 200, headers: { 'content-type': 'text/plain' } });
+  }
+  return new Response('forbidden', { status: 403 });
+}
+
+export async function POST(req: Request): Promise<Response> {
+  assertMessagingRuntimeReady();
+
+  // 0. size guard.
+  const contentLength = Number(req.headers.get('content-length') ?? '0');
+  if (Number.isFinite(contentLength) && contentLength > MAX_WEBHOOK_BYTES) {
+    metrics.emit('messaging.webhook.oversized', { contentLength });
+    return new Response('payload too large', { status: 413 });
+  }
+  const raw = await readBodyCapped(req, MAX_WEBHOOK_BYTES);
+  if (raw === null) {
+    metrics.emit('messaging.webhook.oversized', {});
+    return new Response('payload too large', { status: 413 });
+  }
+
+  const provider = getMessagingProvider(PROVIDER);
+
+  // 1. assinatura ANTES de tudo.
+  if (!provider.validateSignature(raw, req.headers.get('x-hub-signature-256'), env.META_APP_SECRET!)) {
+    metrics.emit('messaging.webhook.invalid_signature', {});
+    return new Response('invalid signature', { status: 401 });
+  }
+
+  // 2. parse.
+  const parsed = provider.parseWebhook(raw);
+
+  // 3. resolve tenant + persistir / quarentena.
+  try {
+    for (const [phoneId, group] of groupByPhoneId(parsed.messages, parsed.statuses)) {
+      const clinicId = await resolveClinicByPhoneId(phoneId);
+      if (!clinicId) {
+        await quarantineOrphan(PROVIDER, phoneId, raw);
+        continue;
+      }
+      for (const msg of group.messages) {
+        await persistInbound(clinicId, PROVIDER, msg);
+      }
+      if (group.statuses.length > 0) {
+        await persistStatusEvents(clinicId, PROVIDER, group.statuses);
+      }
+    }
+  } catch (err) {
+    // Persistência/publishEvent falhou → rollback já ocorreu na tx. 500 faz a
+    // Meta re-tentar (nunca há inbound salvo sem evento — garantia transacional).
+    metrics.emit('messaging.webhook.error', { error: err });
+    return new Response('internal error', { status: 500 });
+  }
+
+  return Response.json(
+    { received: parsed.messages.length, statuses: parsed.statuses.length },
+    { status: 200 },
+  );
+}

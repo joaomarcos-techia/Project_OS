@@ -127,6 +127,13 @@
       "when": 1780288400683,
       "tag": "0017_clinical_core",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780800000000,
+      "tag": "0022_messaging_core",
+      "breakpoints": true
     }
   ]
 }
