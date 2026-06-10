@@ -117,7 +117,9 @@ export async function requestLgpdExportForm(
     const r = await requestLgpdExport(id, key);
     return {
       error: null,
-      message: `Exportação solicitada (req ${r.requestId}). O link (TTL 7 dias) ficará disponível após o processamento pelo worker.`,
+      // F-10 (auditoria 2026-06-10): o handler gera signed URL de 24 HORAS
+      // (lgpd-export-requested.ts) — o texto prometia 7 dias indevidamente.
+      message: `Exportação solicitada (req ${r.requestId}). O link (válido por 24 horas) ficará disponível após o processamento pelo worker.`,
     };
   } catch (err) {
     return { error: messageFrom(err), message: null };

@@ -289,8 +289,10 @@ async function main(): Promise<void> {
         .set({ deletedAt: sql`now() - interval '31 days'` })
         .where(eq(patients.id, patientA));
     });
-    const deleted = await hardDeletePatients(CLINIC_A, [patientA]);
-    assert(deleted === 1, 'hardDeletePatients não apagou 1 linha');
+    // F-02: retorno agora é um outcome por estado (deleted/anonymized/failed).
+    const outcome = await hardDeletePatients(CLINIC_A, [patientA]);
+    assert(outcome.deleted === 1, 'hardDeletePatients não apagou 1 linha');
+    assert(outcome.anonymized === 0 && outcome.failed === 0, 'outcome inesperado no hard delete');
 
     const gone = (await dbAdmin.execute(
       sql`SELECT count(*)::int AS n FROM patients WHERE id = ${patientA}::uuid`,

@@ -84,6 +84,11 @@ export const patients = pgTable(
     // Cross-context caches, populated by event handlers (never via JOIN).
     lastAppointmentAt: timestamp('last_appointment_at', { withTimezone: true }),
     lastVisitAt: timestamp('last_visit_at', { withTimezone: true }),
+    // F-02 / ADR-021: setado quando o hard-delete LGPD é bloqueado pelo FK
+    // RESTRICT clínico (ADR-017) e o cadastro é ANONIMIZADO in-place no lugar
+    // de deletado. O scan do cron exclui anonimizados (senão re-tenta para
+    // sempre). NULL = paciente normal. Aditivo/nullable — backward compatible.
+    anonymizedAt: timestamp('anonymized_at', { withTimezone: true }),
     ...timestampsPattern(),
     deletedAt: deletedAt(),
   },

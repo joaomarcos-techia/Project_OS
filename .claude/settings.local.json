@@ -68,7 +68,9 @@
       "PowerShell(pnpm tsx scripts/clean-zombies.ts 2>&1)",
       "Bash(git check-ignore *)",
       "Bash(npx tsc *)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "PowerShell(Get-ChildItem drizzle -Recurse -File | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\\(Get-Location\\).Path + '\\\\',''\\) })",
+      "PowerShell(pnpm db:generate)"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",

@@ -676,3 +676,39 @@ Auditoria do C8 (já fechado) + cobertura automatizada. Sem reabrir escopo; TV s
     + `chamadas` ausente), concorrência "apenas um vence" (FOR UPDATE), prontuário síncrono
     idempotente (`UNIQUE(appointment_id)`), encerrar→`completed` no outbox, RLS A/B em
     `appointments`+`prontuarios`.
+
+---
+
+## Remediação Forense pós-C10 (2026-06-10) — auditoria C0→C10 saneada
+
+A auditoria forense total ([docs/AUDITORIA_C0_C10_COMPLETA.md](AUDITORIA_C0_C10_COMPLETA.md),
+veredito **APROVADO COM RISCO**, 2 ALTA + 7 MÉDIA + 5 BAIXA) foi remediada
+integralmente — **14/14 findings fechados**, zero HIGH, zero MEDIUM, contratos
+C0→C10 preservados. Relatório completo:
+[docs/remediation/REMEDIACAO_FORENSE_C0_C10.md](remediation/REMEDIACAO_FORENSE_C0_C10.md).
+
+- **F-01/F-03/F-09:** agendamento 100% versionado em `vercel.json` (outbox 1min,
+  reconcile 15min, `data-retention` mensal novo — purge de outbox terminal >30d
+  + login_attempts >90d).
+- **F-02 (ALTA):** hard-delete LGPD por paciente (savepoints) + **anonimização
+  in-place** quando FK RESTRICT clínico bloqueia (ADR-021, implementa o passo 3
+  do ADR-017); migration `0023` (`patients.anonymized_at`, aditiva);
+  `lgpd_requests` ganha `completed`/`failed`.
+- **F-04/F-05:** `setDoctorAvailability` e `buildSnapshot` exigem
+  `role='doctor' AND ativo AND deleted_at IS NULL` sob RLS (mata a interferência
+  cross-tenant do EXCLUDE global).
+- **F-06:** heal do middleware revoga refresh token também no `drift` e deleta
+  cookies fragmentados (`-auth-token.0/.1`).
+- **F-07:** `arch:db-check` + `check:migrations` + `check:registry:strict`
+  agora no CI — e o gate JÁ pegou 1 violação real latente (`number-store`
+  fora da allowlist do AST, allowlistado como seam C10 documentado).
+- **F-08:** advisory lock do worker agora é segurado pela DURAÇÃO do tick
+  (lock-holder TX puro) — serialização real, validada por smoke 4.6.24.
+- **F-10..F-14:** textos TTL 24h alinhados; anonimização unificada
+  rota↔script; I/O de Storage bounded por timeout na TX do handler LGPD;
+  chave do reconcile por período (re-armável); `check:registry --strict` com
+  allowlist `PRODUCER_AHEAD` (19 eventos, fail-closed para entradas obsoletas).
+- **Validação:** typecheck/lint/madge/arch-db/migrations/registry-strict ✓ ·
+  **267 testes** (15 novos) ✓ · build ✓ · migration 0023 aplicada em qoro-dev ✓ ·
+  `smoke:remediation` **7/7** (anonimização RESTRICT end-to-end + purge) ·
+  `smoke:c4` **61/61** · `smoke:c5` **8/8**.

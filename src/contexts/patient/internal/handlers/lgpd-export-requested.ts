@@ -28,6 +28,29 @@ import { getExportCollectors } from '../export/provider';
 // self-service ainda — runbook descreve revogação manual via delete do objeto).
 const SIGNED_URL_TTL_SECONDS = 24 * 60 * 60;
 
+// F-12 (auditoria 2026-06-10): os 3 round-trips a Storage rodam DENTRO da tx
+// do worker (contrato de handler recebe só ctx.tx — split-TX real exigiria
+// evoluir o contrato ADR-011). Mitigação: cada operação de rede é LIMITADA por
+// timeout, então a tx nunca fica presa além de ~3×20s — muito abaixo da janela
+// de 5min do janitor (que causaria reclaim + reentrega). Timeout → throw →
+// retry com backoff (uploads são upsert idempotente por requestId).
+const STORAGE_IO_TIMEOUT_MS = 20_000;
+
+async function withIoTimeout<T>(p: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`[lgpd-export] ${label} excedeu ${STORAGE_IO_TIMEOUT_MS}ms`)),
+      STORAGE_IO_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 registerHandler<LgpdExportRequestedPayload>(
   PATIENT_EVENTS.LGPD_EXPORT_REQUESTED,
   async ({ tx, clinicId, payload }) => {
@@ -45,11 +68,21 @@ registerHandler<LgpdExportRequestedPayload>(
     const pdfBytes = await renderExportPdf(doc);
     const jsonBytes = Buffer.from(JSON.stringify(doc, null, 2), 'utf8');
 
-    // 3. Upload (path keyed by requestId → idempotent upsert).
+    // 3. Upload (path keyed by requestId → idempotent upsert). F-12: bounded
+    //    por timeout — Storage lento não pode segurar a tx até o janitor.
     const base = `${clinicId}/${patientId}/${requestId}`;
-    await uploadLgpdExport(`${base}.json`, jsonBytes, 'application/json');
-    await uploadLgpdExport(`${base}.pdf`, pdfBytes, 'application/pdf');
-    const signedUrl = await createSignedExportUrl(`${base}.pdf`, SIGNED_URL_TTL_SECONDS);
+    await withIoTimeout(
+      uploadLgpdExport(`${base}.json`, jsonBytes, 'application/json'),
+      'upload json',
+    );
+    await withIoTimeout(
+      uploadLgpdExport(`${base}.pdf`, pdfBytes, 'application/pdf'),
+      'upload pdf',
+    );
+    const signedUrl = await withIoTimeout(
+      createSignedExportUrl(`${base}.pdf`, SIGNED_URL_TTL_SECONDS),
+      'signed url',
+    );
 
     // 4. Persist result on the request row (RLS-scoped via ctx.tx).
     await tx
@@ -64,8 +97,9 @@ registerHandler<LgpdExportRequestedPayload>(
 
     // 5. Email — STUBBED until transactional email infra lands (later camada).
     metrics.emit('patient.lgpd.export.completed', { clinicId, requestId });
+    // F-10: TTL real é 24h (constante acima) — o texto antigo dizia "7d".
     console.warn(
-      `[lgpd-export] email send stubbed — signed URL (TTL 7d) ready for request ${requestId}`,
+      `[lgpd-export] email send stubbed — signed URL (TTL 24h) ready for request ${requestId}`,
     );
   },
 );

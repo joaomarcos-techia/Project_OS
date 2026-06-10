@@ -13,7 +13,8 @@
  * ownership de appointments fica no Scheduling).
  *
  * Auth idêntica a /api/cron/outbox (Bearer CRON_SECRET + header Vercel não-fatal).
- * Rodar FREQUENTE via agendador externo (≈15 min), junto do outbox.
+ * Agendado VERSIONADO em vercel.json a cada 15 minutos (F-03 da auditoria
+ * 2026-06-10 — antes rodava 1×/dia, violando a janela ≈15min do contrato R4).
  */
 import { sql } from 'drizzle-orm';
 
@@ -102,11 +103,19 @@ export async function GET(req: Request): Promise<Response> {
               target: faturamentoPendencias.appointmentId,
               set: { motivo: MOTIVO, status: 'aberta', resolvedAt: null, resolvedBy: null },
             });
+          // F-13: a chave inclui o dia (UTC) do run. Com a chave fixa
+          // `reconcile:<id>`, um evento que falhasse 5× e virasse `failed`
+          // terminal nunca era republicável — o dedup UNIQUE(event_type, key)
+          // engolia para sempre e a flag faturamento_pendente nunca era setada.
+          // Por período: enquanto o appointment continuar elegível no scan
+          // (flag=false e sem lançamento), cada dia re-arma um evento novo;
+          // o handler é idempotente (UPDATE da flag) e a pendência é UPSERT.
+          const period = new Date().toISOString().slice(0, 10);
           await publishEvent(tx, {
             clinicId,
             eventType: FINANCIAL_EVENTS.FATURAMENTO_PENDENTE,
             payload: { appointmentId: appt.id, clinicId, motivo: MOTIVO, valor: Number(appt.valor) },
-            idempotencyKey: `reconcile:${appt.id}`,
+            idempotencyKey: `reconcile:${appt.id}:${period}`,
           });
           opened++;
         }

@@ -162,6 +162,13 @@
       "when": 1780800000000,
       "tag": "0022_messaging_core",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781130475870,
+      "tag": "0023_wooden_risque",
+      "breakpoints": true
     }
   ]
 }

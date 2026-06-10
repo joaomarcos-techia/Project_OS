@@ -1,0 +1,27 @@
+
+- [2026-06-10 15:32] Editado: vercel.json — F-01/F-03/F-09: cron outbox 1min, reconcile 15min, data-retention mensal
+- [2026-06-10 15:33] Editado: .github/workflows/ci.yml — F-07: steps arch:db-check, check:migrations, check:registry:strict no CI
+- [2026-06-10 15:40] Editado: src/app/api/cron/financial-reconcile/route.ts — F-03 comentário + F-13 chave por período
+- [2026-06-10 15:45] Editado: src/contexts/scheduling/actions.ts — F-05: buildSnapshot exige role doctor + ativo + não deletado
+- [2026-06-10 15:45] Editado: src/contexts/scheduling/config-actions.ts — F-04/F-05: valida vínculo doctor↔clínica no tx tenant
+- [2026-06-10 15:50] Editado: src/middleware.ts — F-06: signOut global no drift + deleta cookies fragmentados (.0/.1)
+- [2026-06-10 15:55] Editado: src/contexts/patient/schema.ts — F-02: coluna anonymized_at (marcador anonimização)
+- [2026-06-10 16:00] Criado: drizzle/migrations/0023_wooden_risque.sql — F-02/ADR-021: ALTER patients ADD anonymized_at
+- [2026-06-10 16:05] Editado: src/contexts/patient/internal/hard-delete.ts — F-02: per-paciente + anonimização + helpers compartilhados
+- [2026-06-10 16:10] Editado: src/app/api/cron/patient-hard-delete/route.ts — F-02: scan exclui anonimizados, try/catch por clínica
+- [2026-06-10 16:12] Editado: scripts/run-hard-delete.ts — F-11: usa anonymizePatientAuditTrail compartilhada
+- [2026-06-10 16:13] Editado: scripts/smoke-c5.ts — adapta assert ao novo outcome de hardDeletePatients
+- [2026-06-10 16:18] Editado: src/lib/outbox/worker.ts — F-08: advisory lock segurado pela duração do tick
+- [2026-06-10 16:22] Criado: src/app/api/cron/data-retention/route.ts — F-09: purge outbox terminal + login_attempts
+- [2026-06-10 16:23] Editado: scripts/arch-db-check.ts — F-09 data-retention + F-07 number-store na allowlist dbAdmin
+- [2026-06-10 16:28] Editado: src/contexts/patient/internal/handlers/lgpd-export-requested.ts — F-12 timeout I/O + F-10 TTL 24h
+- [2026-06-10 16:29] Editado: src/app/(app)/(shell)/pacientes/actions.ts — F-10: mensagem TTL 24 horas
+- [2026-06-10 16:35] Editado: scripts/check-handler-registry.ts — F-14: allowlist PRODUCER_AHEAD + strict coerente
+- [2026-06-10 16:40] Criado: docs/adr/021-lgpd-anonymization-on-clinical-retention.md — ADR da anonimização LGPD (F-02)
+- [2026-06-10 16:45] Criado: src/contexts/patient/internal/hard-delete.test.ts — 10 testes regressão F-02/F-11
+- [2026-06-10 16:45] Criado: src/middleware.test.ts — 5 testes regressão F-06 (cookies fragmentados)
+- [2026-06-10 16:50] Criado: scripts/smoke-remediation.ts — smoke F-02 anonimização e2e + F-09 purge (7/7)
+- [2026-06-10 16:50] Editado: package.json — script smoke:remediation
+- [2026-06-10 16:55] Editado: docs/runbooks/production-readiness.md — §4 crons versionados + alarme pareado F-01
+- [2026-06-10 16:58] Editado: docs/PROGRESS.md — seção Remediação Forense pós-C10 (14/14 findings)
+- [2026-06-10 17:00] Criado: docs/remediation/REMEDIACAO_FORENSE_C0_C10.md — relatório final da remediação

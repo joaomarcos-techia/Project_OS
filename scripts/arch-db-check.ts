@@ -40,11 +40,19 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/lib/audit/super-admin.ts',
     'src/lib/auth/tenant-context.ts',
     'src/lib/idempotency/cleanup.ts',
+    // C10 — seam privilegiado ÚNICO de mensageria (superfície congelada 3ª#6,
+    // ADR-020): roteamento de tenant pré-JWT no webhook exige leitura
+    // cross-tenant. Faltava aqui porque o guard não rodava no CI (F-07) —
+    // a entrada foi adicionada na remediação ao ativar o gate.
+    'src/lib/messaging/number-store.ts',
     'src/app/api/cron/patient-hard-delete/route.ts',
     'src/app/api/cron/audit-partitions/route.ts',
     // C9 — crons financeiros: scan cross-tenant (reconcile) + rollup do caixa.
     'src/app/api/cron/financial-reconcile/route.ts',
     'src/app/api/cron/cash-flow-rollup/route.ts',
+    // F-09 — retenção: purge de outbox terminal (processed/skipped) e
+    // login_attempts exige BYPASSRLS (outbox é UPDATE/DELETE-blocked p/ tenant).
+    'src/app/api/cron/data-retention/route.ts',
     'src/app/api/health/outbox/route.ts',
     'src/app/api/health/auth-hook/route.ts',
   ]),

@@ -7,7 +7,7 @@
  *
  * Permissão: manage:availability.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
@@ -51,6 +51,24 @@ export async function setDoctorAvailability(
         },
       },
       async (tx) => {
+        // F-04/F-05 (auditoria 2026-06-10): valida vínculo doctor↔clínica DENTRO
+        // do tx tenant-scoped (mesmo padrão do buildSnapshot) — RLS faz o
+        // cross-tenant retornar 0 linhas. Sem isto, um gestor da clínica A com
+        // o UUID de um profile da clínica B criava availability "fantasma" e o
+        // EXCLUDE global (doctor_id, weekday, range) passava a rejeitar janelas
+        // legítimas da clínica B (interferência cross-tenant). Também exige
+        // role='doctor' + ativo + não soft-deletado (F-05).
+        const doc = await tx.execute<{ id: string }>(
+          sql`SELECT id FROM profiles
+               WHERE id = ${data.doctorId}
+                 AND role = 'doctor'
+                 AND ativo = true
+                 AND deleted_at IS NULL
+               LIMIT 1`,
+        );
+        if (!doc[0]) {
+          throw new SchedulingValidationError('médico inválido para esta clínica');
+        }
         const [row] = await tx
           .insert(doctorAvailability)
           .values({

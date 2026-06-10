@@ -53,37 +53,55 @@ export async function runOutboxOnce(opts: {
   const batchSize = opts.batchSize ?? env.OUTBOX_BATCH_SIZE;
   const parallelism = opts.parallelism ?? env.OUTBOX_PARALLELISM;
 
-  // Advisory lock (HIGH-15). Key derivada da string 'outbox-worker' via
-  // hashtext (PG built-in). Sessão de dbWorker; auto-released ao COMMIT.
-  // Usamos transaction-scoped (try_advisory_xact_lock) para garantir release.
-  const lockResult = await dbWorker.transaction<boolean>(async (tx) => {
-    const rows = await tx.execute<{ acquired: boolean }>(
-      sql`SELECT pg_try_advisory_xact_lock(hashtext('outbox-worker')) AS acquired`,
-    );
-    if (!rows[0]?.acquired) return false;
-
-    // Mantém o lock aberto pelo restante do tick: rodamos TUDO dentro desta TX.
-    // ERRADO — TX longa não escala. Em vez disso, libera o lock e roda fora.
-    // O advisory_xact_lock libera ao COMMIT, então só serializa a aquisição.
-    // O ganho real é: se 2 ticks fazem isto simultaneamente, um vai retornar
-    // false e abortar — sem 2× custo de janitor/circuit.
-    return true;
+  // Advisory lock (HIGH-15, corrigido em F-08 — auditoria 2026-06-10).
+  // A versão anterior adquiria pg_try_advisory_xact_lock numa TX que COMMITava
+  // imediatamente: o lock era liberado na hora e dois ticks com 1s de diferença
+  // rodavam janitor/circuit em dobro — o controle era fictício.
+  //
+  // Agora a TX do lock fica ABERTA pela duração do tick, como LOCK-HOLDER puro:
+  // nenhum trabalho roda nela (janitor/circuit/processOne usam as próprias
+  // conexões de dbWorker e o withTenant usa o pool `db`), então não há TX longa
+  // fazendo trabalho — só uma conexão idle-in-transaction segurando o advisory
+  // lock, liberado no COMMIT/ROLLBACK ao fim do tick (release garantido).
+  //
+  // Pré-condição: o pool dbWorker precisa de ≥2 conexões (1 lock-holder + as
+  // de trabalho). Com OUTBOX_DB_POOL_SIZE=1 o tick roda SEM serialização
+  // (comportamento efetivo anterior) e emite métrica de anomalia.
+  const skippedSummary = (): WorkerTickSummary => ({
+    processed: 0,
+    failed: 0,
+    skipped: 0,
+    empty: 0,
+    stuck_reclaimed: 0,
+    circuit_paused: 0,
+    duration_ms: Date.now() - t0,
   });
 
-  if (!lockResult) {
-    const summary: WorkerTickSummary = {
-      processed: 0,
-      failed: 0,
-      skipped: 0,
-      empty: 0,
-      stuck_reclaimed: 0,
-      circuit_paused: 0,
-      duration_ms: Date.now() - t0,
-    };
-    metrics.emit('worker.tick.skipped_overlap', summary);
-    return summary;
+  if (env.OUTBOX_DB_POOL_SIZE < 2) {
+    metrics.emit('worker.tick.lock_skipped_pool_too_small', {
+      poolSize: env.OUTBOX_DB_POOL_SIZE,
+    });
+    return runTickBody(t0, batchSize, parallelism);
   }
 
+  return dbWorker.transaction<WorkerTickSummary>(async (lockTx) => {
+    const rows = await lockTx.execute<{ acquired: boolean }>(
+      sql`SELECT pg_try_advisory_xact_lock(hashtext('outbox-worker')) AS acquired`,
+    );
+    if (!rows[0]?.acquired) {
+      const summary = skippedSummary();
+      metrics.emit('worker.tick.skipped_overlap', summary);
+      return summary;
+    }
+    return runTickBody(t0, batchSize, parallelism);
+  });
+}
+
+async function runTickBody(
+  t0: number,
+  batchSize: number,
+  parallelism: number,
+): Promise<WorkerTickSummary> {
   const stuck = await reclaimStuckProcessing();
   const circuit = await applyCircuitBreaker();
 

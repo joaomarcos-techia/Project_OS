@@ -143,6 +143,15 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   return res;
 }
 
+/**
+ * F-06: casa o cookie de sessão do @supabase/ssr inteiro E os fragmentos
+ * (`sb-<ref>-auth-token`, `sb-<ref>-auth-token.0`, `.1`, ...). Exportado para
+ * teste de regressão (o heal deve deletar TODOS os fragmentos).
+ */
+export function isSupabaseAuthCookie(name: string): boolean {
+  return name.startsWith('sb-') && /-auth-token(\.\d+)?$/.test(name);
+}
+
 function parseEpoch(value: string | undefined): number | null {
   if (!value) return null;
   const n = Number.parseInt(value, 10);
@@ -230,12 +239,15 @@ async function forceHealAndLogout(
   // topo do middleware) e há sessão; setamos `_healed` logo abaixo + limpamos os
   // cookies sb-, então a próxima request pula o middleware ou já não tem sessão —
   // sem tempestade de revogação. Falha da revogação é NÃO-FATAL (UX > revogação).
-  if (reason === 'disabled') {
-    try {
-      await supabase.auth.signOut({ scope: 'global' });
-    } catch {
-      // não-fatal — o cookie cleanup + redirect abaixo seguem.
-    }
+  //
+  // F-06 (auditoria 2026-06-10): revoga TAMBÉM no caminho 'drift'. O
+  // claims_version já mudou no DB — o refresh token ativo emitiria um novo
+  // access token com claims antigas se não fosse revogado; revogar é seguro
+  // (o usuário re-loga e recebe claims atualizadas).
+  try {
+    await supabase.auth.signOut({ scope: 'global' });
+  } catch {
+    // não-fatal — o cookie cleanup + redirect abaixo seguem.
   }
   // Anti-loop: marca _healed por 60s. Próximo request com o cookie pula middleware
   // e vai direto pro /login (matcher exclui /login).
@@ -248,11 +260,14 @@ async function forceHealAndLogout(
     path: '/',
     maxAge: 60,
   });
-  // Limpa cookies do Supabase para forçar re-login. signOut global server-side
-  // acontece quando o user tenta novamente — aqui o cookie cleanup é suficiente
-  // para invalidar a session do device atual.
+  // Limpa cookies do Supabase para forçar re-login. F-06 (auditoria
+  // 2026-06-10): sessões grandes (gestor/owner, 21 permissions, >~3180 bytes)
+  // são FRAGMENTADAS pelo @supabase/ssr em `...-auth-token.0`, `.1`, ... — o
+  // endsWith('-auth-token') antigo não casava os fragmentos e o "heal"
+  // anunciado deixava o token intacto. Usa o mesmo formato que
+  // getAccessTokenFromCookies já conhece (base + sufixo .N opcional).
   for (const c of req.cookies.getAll()) {
-    if (c.name.startsWith('sb-') && c.name.endsWith('-auth-token')) {
+    if (isSupabaseAuthCookie(c.name)) {
       res.cookies.delete(c.name);
     }
   }

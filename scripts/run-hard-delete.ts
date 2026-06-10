@@ -2,9 +2,12 @@
  * `pnpm hard-delete:once`
  *
  * Roda o job de hard-delete fora do HTTP (mesma lógica de
- * /api/cron/patient-hard-delete): varre pacientes com soft-delete > 30 dias,
- * anonimiza PII no audit (via dbAdmin), e apaga por clínica via withTenant
- * (cascade nos filhos; suppression_list sobrevive). SÓ dev.
+ * /api/cron/patient-hard-delete): varre pacientes com soft-delete > 30 dias
+ * (excluindo já anonimizados — F-02), anonimiza PII no audit (via dbAdmin,
+ * função COMPARTILHADA com a rota — F-11: este script removia menos chaves PII
+ * que a rota), e processa POR PACIENTE via withTenant: delete físico ou, se o
+ * FK RESTRICT clínico bloquear (ADR-017), anonimização in-place (ADR-021).
+ * suppression_list sobrevive. SÓ dev.
  *
  * Limite via env HARD_DELETE_LIMIT (default 100).
  */
@@ -12,7 +15,10 @@ import './_env';
 
 import { sql } from 'drizzle-orm';
 
-import { hardDeletePatients } from '@/contexts/patient/internal/hard-delete';
+import {
+  anonymizePatientAuditTrail,
+  hardDeletePatients,
+} from '@/contexts/patient/internal/hard-delete';
 import { dbAdmin } from '@/lib/db';
 
 const limit = Math.min(Math.max(Number(process.env.HARD_DELETE_LIMIT) || 100, 1), 1000);
@@ -21,6 +27,7 @@ const rows = (await dbAdmin.execute(
   sql`SELECT id::text AS id, clinic_id::text AS clinic_id
       FROM patients
       WHERE deleted_at IS NOT NULL AND deleted_at < now() - interval '30 days'
+        AND anonymized_at IS NULL
       ORDER BY deleted_at ASC
       LIMIT ${limit}`,
 )) as unknown as Array<{ id: string; clinic_id: string }>;
@@ -37,17 +44,24 @@ for (const r of rows) {
   byClinic.set(r.clinic_id, arr);
 }
 
-const allIds = rows.map((r) => r.id);
-await dbAdmin.execute(
-  sql`UPDATE audit_events
-      SET before = (before - 'nome' - 'email'), after = (after - 'nome' - 'email')
-      WHERE resource_type = 'patient' AND resource_id = ANY(${allIds}::text[])`,
-);
+await anonymizePatientAuditTrail(dbAdmin, rows.map((r) => r.id));
 
 let deleted = 0;
+let anonymized = 0;
+let failed = 0;
 for (const [clinicId, ids] of byClinic) {
-  deleted += await hardDeletePatients(clinicId, ids);
+  try {
+    const outcome = await hardDeletePatients(clinicId, ids);
+    deleted += outcome.deleted;
+    anonymized += outcome.anonymized;
+    failed += outcome.failed;
+  } catch (err) {
+    failed += ids.length;
+    console.error(`[hard-delete] clínica ${clinicId} falhou:`, err);
+  }
 }
 
-console.log(`[hard-delete] deleted=${deleted} clinics=${byClinic.size} (audit PII anonimizada)`);
-process.exit(0);
+console.log(
+  `[hard-delete] deleted=${deleted} anonymized=${anonymized} failed=${failed} clinics=${byClinic.size} (audit PII anonimizada)`,
+);
+process.exit(failed > 0 ? 1 : 0);

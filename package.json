@@ -46,6 +46,7 @@
     "smoke:c8": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c8.ts",
     "smoke:c9": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c9.ts",
     "smoke:c10": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 META_APP_SECRET=smoke-app-secret META_WEBHOOK_VERIFY_TOKEN=verify-me CRYPTO_LOOKUP_SALT=c21va2UtYzEwLWxvb2t1cC1zYWx0LTMyLWJ5dGVzLW9rIQ== tsx --conditions=react-server scripts/smoke-c10.ts",
+    "smoke:remediation": "tsx --conditions=react-server scripts/smoke-remediation.ts",
     "wa:connect": "tsx --conditions=react-server scripts/whatsapp-connect.ts",
     "check:registry": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts",
     "check:registry:strict": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts --strict",

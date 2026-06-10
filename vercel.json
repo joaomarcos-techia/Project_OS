@@ -3,11 +3,13 @@
   "framework": "nextjs",
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install --frozen-lockfile",
-  "outputDirectory": ".next",
   "crons": [
+    { "path": "/api/cron/outbox", "schedule": "* * * * *" },
     { "path": "/api/cron/patient-hard-delete", "schedule": "0 3 * * *" },
     { "path": "/api/cron/audit-partitions", "schedule": "0 4 1 * *" },
     { "path": "/api/cron/cash-flow-rollup", "schedule": "30 3 * * *" },
-    { "path": "/api/cron/financial-reconcile", "schedule": "0 2 * * *" }
-  ]
+    { "path": "/api/cron/financial-reconcile", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/data-retention", "schedule": "0 5 1 * *" }
+  ],
+  "outputDirectory": ".next"
 }

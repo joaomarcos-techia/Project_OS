@@ -106,25 +106,35 @@ Fonte da verdade: [src/lib/env.ts](../../src/lib/env.ts). Gere segredos **novos*
 ---
 
 ## 4. Vercel + Crons
+
+> **F-01/F-03/F-09 (remediação forense 2026-06-10):** o agendamento agora é
+> 100% **versionado** em [vercel.json](../../vercel.json) — antes o outbox e o
+> reconcile frequente dependiam de agendador externo invisível ao repo.
+
 - [ ] Deploy do branch para `main` (produção).
-- [ ] Confirmar que os crons de [vercel.json](../../vercel.json) estão ativos (Vercel → Project → Settings → Cron Jobs):
-  - `/api/cron/patient-hard-delete` — `0 3 * * *` (LGPD hard-delete após 30d).
+- [ ] Confirmar que os 6 crons de [vercel.json](../../vercel.json) estão ativos (Vercel → Project → Settings → Cron Jobs):
+  - `/api/cron/outbox` — `* * * * *` (motor event-driven; F-01).
+  - `/api/cron/patient-hard-delete` — `0 3 * * *` (LGPD hard-delete/anonimização após 30d — ADR-021).
   - `/api/cron/audit-partitions` — `0 4 1 * *` (provisiona partições do audit).
+  - `/api/cron/cash-flow-rollup` — `30 3 * * *` (agregado diário do caixa).
+  - `/api/cron/financial-reconcile` — `*/15 * * * *` (safety-net R4 ≈15min; F-03).
+  - `/api/cron/data-retention` — `0 5 1 * *` (purge outbox terminal >30d + login_attempts >90d; F-09).
 - [ ] Os crons usam o `CRON_SECRET` automaticamente (Vercel injeta o Bearer).
+- [ ] **Verificar o plano Vercel = Pro.** Crons de alta frequência (1min/15min)
+  exigem Pro; no Hobby o deploy com este `crons[]` é rejeitado. (Item 7 do
+  INSUFFICIENT_EVIDENCE da auditoria — confirmação assinada no go-live.)
 
-### 4.1 Outbox worker — agendador (plano Hobby)
-O Vercel **Hobby** permite cron **no máximo 1x/dia**, então o outbox (`*/1 * * * *`,
-o motor event-driven) **não** fica no `vercel.json`. Duas opções:
-
-- **Vercel Pro:** re-adicionar `{ "path": "/api/cron/outbox", "schedule": "*/1 * * * *" }`
-  ao `crons[]` do [vercel.json](../../vercel.json). É o caminho nativo (e `maxDuration` 60s).
-- **Agendador externo (Hobby, $0):** apontar um cron externo para
-  `GET https://<prod>/api/cron/outbox` a cada minuto, com header
-  `Authorization: Bearer <CRON_SECRET>`. A rota aceita origem não-Vercel (o header
-  `x-vercel-cron` é não-fatal — só o Bearer é o gate). Opções:
-  - **cron-job.org** (grátis, intervalo de 1 min): URL + Custom Header `Authorization: Bearer <CRON_SECRET>`.
-  - **Upstash QStash** (você já usa Upstash): schedule `* * * * *` → destino a URL acima, header Authorization.
+### 4.1 Fallback: agendador externo (apenas se Hobby)
+Se o projeto estiver no **Hobby** (cron máx. 1x/dia), remova `outbox`,
+`financial-reconcile` e `data-retention` do `crons[]` e aponte um agendador
+externo para as rotas, com header `Authorization: Bearer <CRON_SECRET>` (a rota
+aceita origem não-Vercel — `x-vercel-cron` é não-fatal; só o Bearer é o gate):
+  - **cron-job.org** (grátis, 1 min): URL + Custom Header `Authorization: Bearer <CRON_SECRET>`.
+  - **Upstash QStash**: schedule `* * * * *` → destino a URL, header Authorization.
   - **GitHub Actions** (`schedule: "*/5 * * * *"` — mínimo ~5 min; só se 5 min for tolerável).
+- [ ] **ALARME PAREADO obrigatório (F-01):** todo agendador externo precisa do
+  monitor §5.1 em `GET /api/health/outbox?strict=1` — é ele que detecta
+  (`pending_age` > 5min → 503) se o agendador parar em silêncio.
 - [ ] Defina o `CRON_SECRET` igual no Vercel **e** no agendador externo.
 - [ ] Valide: o health `GET /api/health/outbox?strict=1` (com Bearer) deve mostrar `pendingCount` baixo/estável.
 

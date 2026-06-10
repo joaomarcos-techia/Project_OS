@@ -39,6 +39,27 @@ jobs:
       - name: Arch check (madge — circular deps)
         run: pnpm arch:check
 
+      # F-07 (auditoria 2026-06-10): a metade AST do tooling de isolamento
+      # multi-tenant ("enforced by tooling, not convention") rodava só manualmente.
+      # arch:db-check cobre import dinâmico/require/re-export transitivo que o
+      # ESLint não cobre; check:migrations é o gate fail-closed anti-DROP;
+      # check:registry:strict garante catalog ⇔ registry (com allowlist
+      # producer-ahead — F-14).
+      - name: Arch DB check (AST connection-origin guard)
+        run: pnpm arch:db-check
+
+      - name: Migration safety gate (anti-destructive)
+        run: pnpm check:migrations
+
+      - name: Handler registry gate (catalog ⇔ registry)
+        run: pnpm check:registry:strict
+        env:
+          # check:registry importa o boot file de handlers → módulos que carregam
+          # src/lib/env.ts (Zod no module load). Mesmos fakes do step Build.
+          DATABASE_URL: 'postgres://ci:ci@localhost:5432/ci?sslmode=require'
+          NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
+
       - name: Test
         run: pnpm test
 

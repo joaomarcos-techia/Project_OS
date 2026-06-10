@@ -1,0 +1,18 @@
+-- 0023 — F-02 / ADR-021: anonimização LGPD (auditoria forense 2026-06-10).
+--
+-- Coluna-marcador para o caminho de anonimização do hard-delete LGPD:
+-- quando o DELETE de um paciente expira (>30d soft-delete) mas é bloqueado
+-- pelos FKs ON DELETE RESTRICT de prontuarios/prescriptions/medical_documents
+-- (retenção CFM ~20 anos, ADR-017), o cadastro é ANONIMIZADO in-place
+-- (PII removida, registro clínico preservado) e anonymized_at é setado.
+-- O scan do cron patient-hard-delete exclui `anonymized_at IS NOT NULL`
+-- (sem isso o job re-tentava os mesmos ids para sempre — F-02).
+--
+-- Aditivo, nullable, sem backfill — backward compatible (100 clínicas em prod).
+-- RLS: patients já tem ENABLE+FORCE + defaultTenantPolicy (0011); coluna nova
+-- herda as policies de linha. Nenhum grant novo necessário.
+--
+-- Nota: o drizzle-kit re-emitiu aqui o DDL do messaging (0022 foi hand-written
+-- sem snapshot). Removido manualmente: as tabelas/enums do C10 já existem via
+-- 0022 e o snapshot 0023 re-sincroniza o estado para generates futuros.
+ALTER TABLE "patients" ADD COLUMN IF NOT EXISTS "anonymized_at" timestamp with time zone;

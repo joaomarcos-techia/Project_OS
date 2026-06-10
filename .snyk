@@ -1,0 +1,33 @@
+# Snyk (https://snyk.io) policy file — ignora vulnerabilidades NÃO exploráveis nesta config.
+# Lido automaticamente pela CLI do Snyk e pela integração SCM/PR.
+# Os 2 findings abaixo SÓ têm correção no Next 16.x (sem backport p/ 15.x) e
+# não são exploráveis na configuração atual deste app. O postcss XSS NÃO está
+# aqui: foi corrigido de fato via pnpm.overrides (postcss 8.4.31 -> 8.5.15).
+# Reavaliar no próximo upgrade de rotina do Next (remover este arquivo ao subir p/ 16.1.7+).
+version: v1.25.0
+ignore:
+  # CVE-2025-59472 — Allocation of Resources Without Limits (PPR resume endpoint).
+  # Não explorável: o app NÃO habilita `experimental.ppr` nem `cacheComponents`
+  # (ver next.config.ts) e NÃO define NEXT_PRIVATE_MINIMAL_MODE=1 — pré-requisitos
+  # do advisory. Fix: next@16.1.5.
+  SNYK-JS-NEXT-15105315:
+    - '*':
+        reason: >-
+          Nao exploravel: app sem experimental.ppr/cacheComponents e sem
+          NEXT_PRIVATE_MINIMAL_MODE=1 (pre-requisitos do advisory). Fix em
+          next@16.1.5; reavaliar no proximo upgrade do Next.
+        expires: 2026-09-07T00:00:00.000Z
+        created: 2026-06-07T00:00:00.000Z
+  # CVE-2026-27980 — Allocation of Resources Without Limits (image optimization disk cache).
+  # Risco baixo: o app NÃO usa next/image, não tem bloco `images` no next.config.ts
+  # nem domínios remotos, então o cache de otimização de imagem fica efetivamente sem uso.
+  # Fix: next@16.1.7.
+  SNYK-JS-NEXT-15674556:
+    - '*':
+        reason: >-
+          Risco baixo: app nao usa next/image, sem images config nem dominios
+          remotos, cache de otimizacao inutilizado. Fix em next@16.1.7;
+          reavaliar no proximo upgrade do Next.
+        expires: 2026-09-07T00:00:00.000Z
+        created: 2026-06-07T00:00:00.000Z
+patch: {}

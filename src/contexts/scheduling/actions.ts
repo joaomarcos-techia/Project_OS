@@ -524,8 +524,16 @@ async function buildSnapshot(
   if (!proc) throw new ProcedureNotFoundError(procedureId);
 
   // doctor nome via raw SQL (RLS scopes to clinic) — evita import cross-context.
+  // F-05 (auditoria 2026-06-10): exige role='doctor', ativo e não soft-deletado.
+  // Sem isso, qualquer profile da clínica (atendente, financeiro, desligado)
+  // podia ser doctor_id de um appointment e o snapshot congelava o nome.
   const docRows = await tx.execute<{ nome: string }>(
-    sql`SELECT nome FROM profiles WHERE id = ${doctorId} LIMIT 1`,
+    sql`SELECT nome FROM profiles
+         WHERE id = ${doctorId}
+           AND role = 'doctor'
+           AND ativo = true
+           AND deleted_at IS NULL
+         LIMIT 1`,
   );
   const doctorNome = docRows[0]?.nome;
   if (!doctorNome) throw new SchedulingValidationError('médico inválido para esta clínica');
