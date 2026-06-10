@@ -211,6 +211,94 @@ dos dois — os scripts `db:migrate:prod` e `db:backup:prod` automaticamente faz
 swap `:6543/` → `:5432/` antes de conectar. App runtime mantém 6543 (Vercel/Next
 precisa).
 
+## Configuração de sistemas externos, segredos, seeds e API keys (referência completa)
+
+> Fonte da verdade dos env vars: [src/lib/env.ts](../../src/lib/env.ts). Esta seção é o
+> "como obter e configurar CADA coisa". Checklist operacional de go-live:
+> [production-readiness.md](./production-readiness.md). **Regra de ouro:** segredos de PROD ≠ DEV;
+> gere novos para prod, nunca promova de `qoro-dev`.
+
+### Inventário de todos os sistemas externos
+
+| Sistema | Papel | Camada | Obrigatório no go-live? |
+|---|---|---|---|
+| **Supabase** | Postgres (dados+RLS) · Auth (login/JWT/MFA) · Storage (PDFs LGPD) | C1/C3/C5 | **Sim** |
+| **Vercel** | Hospedagem Next.js + Cron (outbox, hard-delete, audit-partitions) | C0/C4 | **Sim** |
+| **Upstash Redis** | Rate-limit de login (sliding window IP+email) | C3 | **Sim** (login depende) |
+| **Google Secret Manager** | Master key de cripto + lookup salt em prod (alternativa ao Vercel env) | C5 | Opcional |
+| **Monitor de uptime** (UptimeRobot/BetterStack/Cronitor) | Alerta nos health endpoints | C16 | **Sim** (barato/grátis) |
+| **Meta WhatsApp Cloud API** | Webhook + envio de mensagens WhatsApp | **C10** | Quando ligar o WhatsApp |
+| **Google Gemini API** | LLM do agente (Gemini Flash; OpenAI é placeholder) | C11+ | Futuro (não wired ainda) |
+| **Provider de e-mail** (Resend/SES) | E-mail do export LGPD (hoje stub) | Futuro | Não |
+
+### 1. Supabase (DB + Auth + Storage) — C1/C3/C5
+
+1. Criar projeto (dev: `qoro-dev`; prod: região `sa-east-1`/São Paulo). Plano prod = **Pro** (daily backups).
+2. **Connection strings** (Settings → Database): runtime usa **Transaction Pooler :6543**; migrations/backups usam **Session Pooler :5432** (os scripts `db:*:prod` fazem swap automático). Sempre com `?sslmode=require`.
+3. **Keys** (Settings → API): `URL`, `publishable`/`anon`, `secret`/`service_role`.
+4. **Auth Hook (MANUAL):** Authentication → Hooks → Custom Access Token → função `custom_access_token_hook` (criada pelas migrations 0003/0004/0006). Sem isso o login não injeta claims. Setar Access Token TTL = **900s**.
+5. **MFA:** Authentication → habilitar TOTP (super_admin exige AAL2).
+6. **Storage:** bucket `lgpd-exports` via `pnpm seed:lgpd-bucket`.
+- Env: `DATABASE_URL`, `DATABASE_URL_PROD` (só shell prod), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (ou `_ANON_KEY`), `SUPABASE_SECRET_KEY` (ou `SUPABASE_SERVICE_ROLE_KEY`).
+
+### 2. Vercel (hospedagem + cron) — C0/C4
+
+1. Importar o repo; framework Next.js (já em [vercel.json](../../vercel.json)).
+2. **Env vars** (Settings → Environment Variables): todas as deste documento, ambiente Production + Preview.
+3. **Crons** ([vercel.json](../../vercel.json)): `patient-hard-delete`, `audit-partitions`, `cash-flow-rollup`, `financial-reconcile`. O **outbox** (`*/1`) NÃO cabe no Hobby (cron 1x/dia) → usar agendador externo (cron-job.org / Upstash QStash) apontando `GET /api/cron/outbox` com `Authorization: Bearer <CRON_SECRET>`. Detalhe em [production-readiness.md §4.1](./production-readiness.md).
+- Env: `CRON_SECRET` (≥32 chars, `openssl rand -base64 32`), `NODE_ENV=production`. Tuning opcional: `OUTBOX_BATCH_SIZE`, `OUTBOX_PARALLELISM`, `OUTBOX_DB_POOL_SIZE`, `OUTBOX_MAX_PAYLOAD_BYTES`, `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`, `LOG_LEVEL`.
+
+### 3. Upstash Redis (rate-limit) — C3
+
+1. Criar database Upstash (Global ou região perto). Copiar **REST URL** + **REST Token**.
+- Env: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `LOGIN_HASH_PEPPER` (≥32 chars — pepper do hash de e-mail no rate-limit).
+
+### 4. Cripto: env OU Google Secret Manager — C5
+
+Escolha **um** backend (`CRYPTO_SECRET_BACKEND`, default `gcp` em prod / `env` fora):
+- **`env` (simples, recomendado no lançamento):** `CRYPTO_MASTER_KEY_V1` (32 bytes b64: `openssl rand -base64 32`) + `CRYPTO_LOOKUP_SALT` (**≥ 16 bytes** b64: `openssl rand -base64 24`) nas env vars da Vercel.
+- **`gcp` (robusto):** `GCP_PROJECT_ID` + `GCP_SECRET_MASTER_KEY_NAME` + `GCP_SECRET_LOOKUP_SALT_NAME`; os secrets vivem no Secret Manager e `CRYPTO_MASTER_KEY_*`/`CRYPTO_LOOKUP_SALT` ficam UNSET.
+- `MASTER_KEY_VERSION` (default 1) controla a versão usada em writes novos.
+> ⚠️ **`CRYPTO_LOOKUP_SALT` < 16 bytes quebra `hashForLookup`** (afeta Patient/Messaging). **`CRYPTO_LOOKUP_SALT` e `CRYPTO_MASTER_KEY_V1` são imutáveis na prática** — trocar invalida lookups/cifrados. Rotação só via V2 aditivo.
+
+### 5. Meta WhatsApp Cloud API — C10
+
+1. Criar app em developers.facebook.com → produto **WhatsApp**. Pegar `phone_number_id` + `WhatsApp Business Account ID` + **token** (permanente/system-user) + **App Secret** (Settings → Basic).
+2. **Configuration → Webhook:** Callback URL = `https://<app>/api/webhooks/meta`, Verify Token = `META_WEBHOOK_VERIFY_TOKEN`. **Subscrever ao campo `messages`.** O GET de verificação ecoa o `hub.challenge`.
+3. **Conectar o número à clínica:** dev → `pnpm wa:connect --clinic <uuid> --phone <e164> --meta-phone-id <id> --token <token>`; prod → Server Action `connectWhatsappNumber` (super_admin). O token per-clínica fica **cifrado** em `clinic_whatsapp_numbers.token_encrypted` (não em env).
+- Env: `META_APP_SECRET` (valida a assinatura HMAC dos webhooks — app-level), `META_WEBHOOK_VERIFY_TOKEN`, `META_GRAPH_API_VERSION` (default `v21.0`), `META_HTTP_TIMEOUT_MS` (default 10000).
+
+### 6. Google Gemini (LLM do agente) — C11+ (ainda não wired)
+
+Planejado (PlanoAção §C11): `GeminiProvider` default (Gemini Flash), `OpenAIProvider` placeholder. **Nenhum env var de IA existe em `env.ts` ainda** — entram em C11. Quando chegar: `GEMINI_API_KEY` (Google AI Studio / Vertex) + budget/cost-tracking. Documentar aqui quando a camada materializar.
+
+### 7. Monitor de uptime — C16
+
+Monitorar (HTTP, intervalo 5 min, **Custom Header** `Authorization: Bearer <CRON_SECRET>`):
+`/api/health/outbox?strict=1` (503 quando degradado) e `/api/health/auth-hook`. Abrir no browser dá 401 (sem Bearer) — é esperado. Ver [production-readiness.md §5](./production-readiness.md).
+
+### 8. Bootstrap / seeds
+
+| Comando | O quê | Env necessária |
+|---|---|---|
+| `pnpm seed:super-admin` | Cria o super_admin (idempotente; `--reset-mfa` p/ recovery) | `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` (≥12) |
+| `pnpm seed:clinic-user` | Cria uma clínica + usuário de teste | — |
+| `pnpm seed:lgpd-bucket` | Cria o bucket privado `lgpd-exports` | Supabase keys |
+| `pnpm wa:connect …` | (C10) conecta um número WhatsApp a uma clínica (dev) | crypto + DB |
+
+> Não existe um "reseed destrutivo" (wipe clinics/users) pronto. Para zerar dev: apague via Supabase
+> SQL Editor (`DELETE FROM clinics CASCADE` + remover users em `auth.users`) e re-rode os seeds acima.
+
+### Resumo: todas as env vars por camada
+
+- **C1:** `DATABASE_URL`, `DATABASE_URL_PROD`, `NEXT_PUBLIC_SUPABASE_URL`, `*_PUBLISHABLE_KEY`/`*_ANON_KEY`.
+- **C3:** `SUPABASE_SECRET_KEY`/`SERVICE_ROLE_KEY`, `LOGIN_HASH_PEPPER`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`.
+- **C4:** `CRON_SECRET`, `OUTBOX_*`.
+- **C5:** `CRYPTO_SECRET_BACKEND`, `CRYPTO_MASTER_KEY_V1`(/`_V2`), `CRYPTO_LOOKUP_SALT`, `MASTER_KEY_VERSION`, `GCP_*`.
+- **C10:** `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `META_GRAPH_API_VERSION`, `META_HTTP_TIMEOUT_MS`.
+- **C11+ (futuro):** `GEMINI_API_KEY` (+ OpenAI placeholder) — ainda não em `env.ts`.
+- **Runtime/op:** `NODE_ENV`, `LOG_LEVEL`, `SUPABASE_PROJECT_ENV` (só shell prod).
+
 ## Quarterly disaster-recovery drill
 
 Uma vez por trimestre (calendário): valide que backup é restaurável.
