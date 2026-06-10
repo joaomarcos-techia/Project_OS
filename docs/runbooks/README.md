@@ -11,5 +11,6 @@ Procedimentos operacionais documentados. Cada camada que adiciona ação operaci
 | [secret-rotation.md](./secret-rotation.md) | C3+ | Inventário de segredos + ordem/impacto de rotação + GCP Secret Manager |
 | [restore-test.md](./restore-test.md) | ops | Backup PITR + teste de restore trimestral |
 | [audit-retention.md](./audit-retention.md) | ops | Provisioning + retenção das partições de audit_events |
+| [c8-validation.md](./c8-validation.md) | C8 | Validar o Consultório (`/consultorio` + TV `/chamadas`): fluxo, Realtime, RLS, concorrência |
 
 Convenção: runbook tem **passos numerados executáveis**, não filosofia. Se ficar > 500 linhas, divida.

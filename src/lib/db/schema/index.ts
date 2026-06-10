@@ -27,6 +27,9 @@ export * from '@/contexts/scheduling/schema';
 // C7 — Clinical. schema.ts side-effect-imports './events', registrando os
 // schemas clinical.* no catálogo do outbox.
 export * from '@/contexts/clinical/schema';
+// C9 — Financial. schema.ts side-effect-imports './events', registrando os
+// schemas financial.* no catálogo do outbox.
+export * from '@/contexts/financial/schema';
 // C10 — Messaging. schema.ts side-effect-imports './events', registrando
 // messaging.inbound.received no catálogo do outbox.
 export * from '@/contexts/messaging/schema';

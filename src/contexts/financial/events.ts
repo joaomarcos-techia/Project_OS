@@ -1,0 +1,87 @@
+/**
+ * Financial context events (C9). Producer-side Zod schemas registrados no catálogo
+ * do outbox no load do módulo (importado via barrel `src/lib/db/schema/index.ts`
+ * através de `./schema`).
+ *
+ * Regras frozen (ADR-011):
+ *   - Nomes 3-segmentos `<context>.<entity>.<action>` (CHECK regex no outbox).
+ *   - Payload JSON-safe: timestamps `z.string().datetime()` (NUNCA z.date());
+ *     dinheiro `z.number()`; só ids + escalares NÃO-sensíveis (sem PII).
+ *
+ * Ownership (R3): o Financial NÃO escreve `appointments`. Ele emite
+ *   `financial.lancamento.created` (com appointmentId) e `financial.faturamento.pendente`;
+ *   handlers do Scheduling consomem e marcam `appointments.faturamento_pendente`.
+ */
+import { z } from 'zod';
+
+import { registerEventSchema } from '@/lib/outbox/catalog';
+
+export const FINANCIAL_EVENTS = {
+  LANCAMENTO_CREATED: 'financial.lancamento.created',
+  LANCAMENTO_PAID: 'financial.lancamento.paid',
+  LANCAMENTO_CANCELLED: 'financial.lancamento.cancelled',
+  LANCAMENTO_ESTORNADO: 'financial.lancamento.estornado',
+  FATURAMENTO_PENDENTE: 'financial.faturamento.pendente',
+} as const;
+
+const uuid = z.string().uuid();
+const tipoEnum = z.enum(['receber', 'pagar']);
+const statusEnum = z.enum(['pendente', 'parcial', 'pago', 'cancelado', 'estornado']);
+
+// --- lancamento.created ----------------------------------------------------
+// `appointmentId` não-nulo = origem appointment (handler do Scheduling limpa a
+// flag faturamento_pendente). null = lançamento manual.
+export const LancamentoCreatedSchema = z.object({
+  lancamentoId: uuid,
+  clinicId: uuid,
+  tipo: tipoEnum,
+  valor: z.number().nonnegative(),
+  appointmentId: uuid.nullable(),
+  patientId: uuid.nullable(),
+  createdVia: z.enum(['auto', 'manual', 'estorno']),
+});
+export type LancamentoCreatedPayload = z.infer<typeof LancamentoCreatedSchema>;
+
+// --- lancamento.paid -------------------------------------------------------
+export const LancamentoPaidSchema = z.object({
+  lancamentoId: uuid,
+  clinicId: uuid,
+  valor: z.number().nonnegative(),
+  valorPago: z.number().nonnegative(),
+  status: statusEnum,
+  paymentMethod: z.string().nullable(),
+});
+export type LancamentoPaidPayload = z.infer<typeof LancamentoPaidSchema>;
+
+// --- lancamento.cancelled --------------------------------------------------
+export const LancamentoCancelledSchema = z.object({
+  lancamentoId: uuid,
+  clinicId: uuid,
+  reason: z.string().nullable(),
+});
+export type LancamentoCancelledPayload = z.infer<typeof LancamentoCancelledSchema>;
+
+// --- lancamento.estornado (append-only; lineage explícito) -----------------
+export const LancamentoEstornadoSchema = z.object({
+  originalId: uuid,
+  estornoId: uuid,
+  clinicId: uuid,
+  valor: z.number().nonnegative(),
+  motivo: z.string(),
+});
+export type LancamentoEstornadoPayload = z.infer<typeof LancamentoEstornadoSchema>;
+
+// --- faturamento.pendente (Scheduling reage → marca appointments.flag) -----
+export const FaturamentoPendenteSchema = z.object({
+  appointmentId: uuid,
+  clinicId: uuid,
+  motivo: z.string(),
+  valor: z.number().nonnegative(),
+});
+export type FaturamentoPendentePayload = z.infer<typeof FaturamentoPendenteSchema>;
+
+registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_CREATED, LancamentoCreatedSchema);
+registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_PAID, LancamentoPaidSchema);
+registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_CANCELLED, LancamentoCancelledSchema);
+registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_ESTORNADO, LancamentoEstornadoSchema);
+registerEventSchema(FINANCIAL_EVENTS.FATURAMENTO_PENDENTE, FaturamentoPendenteSchema);

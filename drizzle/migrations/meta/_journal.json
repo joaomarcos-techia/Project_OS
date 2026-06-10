@@ -131,6 +131,34 @@
     {
       "idx": 18,
       "version": "7",
+      "when": 1780413563967,
+      "tag": "0018_consultorio_chamadas",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780533180333,
+      "tag": "0019_drop_chamadas",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1780642847976,
+      "tag": "0020_financial_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780644604572,
+      "tag": "0021_financial_grants_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
       "when": 1780800000000,
       "tag": "0022_messaging_core",
       "breakpoints": true

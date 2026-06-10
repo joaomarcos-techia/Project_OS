@@ -73,7 +73,10 @@ function transitionPayload(
           doctorId: appt.doctorId,
           patientId: appt.patientId ?? null,
           procedureId: appt.procedureId,
+          unitId: appt.unitId ?? null,
           valor: Number(appt.valor),
+          snapshotProcedureName: appt.snapshotProcedureName,
+          snapshotDoctorNome: appt.snapshotDoctorNome,
           scheduledAt: (appt.scheduledAt as Date).toISOString(),
         },
       };
