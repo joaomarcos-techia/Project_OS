@@ -71,9 +71,22 @@ export async function verifyEnrollAction(
 export async function unenrollAction(formData: FormData): Promise<void> {
   const factorId = String(formData.get('factorId') ?? '');
   if (!factorId) return;
-  await requireUser();
+  const user = await requireUser();
+  // R-04 (auditoria 2026-06-10): remover um factor VERIFICADO exige sessão
+  // AAL2. O GoTrue já recusa em AAL1 (confirmado em prod 2026-06-11), mas a
+  // recusa aflorava como exceção não-tratada (500). Guard explícito aqui:
+  // AAL1 → volta ao challenge TOTP (defense-in-depth + UX). aal null é
+  // fail-closed (token antigo sem claim → trata como não-AAL2).
+  if (user.aal !== 'aal2') {
+    redirect('/login/mfa');
+  }
   const supabase = await createServerClient();
-  await unenrollTotp(supabase, factorId);
+  try {
+    await unenrollTotp(supabase, factorId);
+  } catch {
+    // Recusa do GoTrue (ex.: AAL insuficiente em corrida de sessão) ou rede.
+    redirect('/account/security?unenroll_error=1');
+  }
   // Re-checar se ainda há factor verified; se não, limpa mfa_enrolled_at via RPC.
   const remaining = await listFactors(supabase);
   if (!remaining.some((f) => f.status === 'verified')) {

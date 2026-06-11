@@ -9,7 +9,7 @@ import { UnenrollForm } from './unenroll-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: Promise<{ force?: string }>;
+  searchParams: Promise<{ force?: string; unenroll_error?: string }>;
 }
 
 export default async function AccountSecurityPage({ searchParams }: PageProps) {
@@ -29,6 +29,13 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
         <p className="mb-4 rounded border border-red-400 bg-red-50 p-3 text-sm text-red-900">
           MFA é OBRIGATÓRIO para a role <b>{user.role}</b>. Ative TOTP abaixo antes de
           continuar.
+        </p>
+      ) : null}
+
+      {params.unenroll_error ? (
+        <p className="mb-4 rounded border border-red-400 bg-red-50 p-3 text-sm text-red-900">
+          Não foi possível remover o MFA. Conclua a verificação TOTP (sessão completa) e
+          tente novamente.
         </p>
       ) : null}
 

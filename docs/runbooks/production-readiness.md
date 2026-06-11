@@ -201,7 +201,7 @@ fechando os itens 1–8 do INSUFFICIENT_EVIDENCE §12 da auditoria 2026-06-10:
 | 1 | Agendador do outbox/reconcile | cron-job.org DESATIVADO; agendamento 100% via vercel.json — 6/6 crons ativos no painel, worker processou replay em ≤15s |
 | 2 | Allowlist de redirect URLs | configurada (Site URL + `/reset-password`) |
 | 3 | TTL access token 15 min | configurado (JWT expiry = 900s) |
-| 4 | AAL2 p/ unenroll MFA | pendente do teste manual pós-MFA-enroll (R-04) |
+| 4 | AAL2 p/ unenroll MFA | **CONFIRMADO** (teste manual em prod 2026-06-11): GoTrue recusa unenroll de factor verificado em sessão AAL1. A recusa aflorava como 500; `unenrollAction` ganhou guard explícito de AAL2 (redirect a /login/mfa) + erro elegante (R-04 fechado com defense-in-depth) |
 | 5 | Buckets privados | `lgpd-exports` + `clinical-pdfs` criados privados |
 | 6 | Custom Access Token Hook | habilitado (Postgres → `public.custom_access_token_hook`); login real do super_admin entrou com claims |
 | 7 | Plano Vercel Pro | ativado; deploy com cron 1min aceito |
