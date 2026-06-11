@@ -25,3 +25,7 @@
 - [2026-06-10 16:55] Editado: docs/runbooks/production-readiness.md — §4 crons versionados + alarme pareado F-01
 - [2026-06-10 16:58] Editado: docs/PROGRESS.md — seção Remediação Forense pós-C10 (14/14 findings)
 - [2026-06-10 17:00] Criado: docs/remediation/REMEDIACAO_FORENSE_C0_C10.md — relatório final da remediação
+- [2026-06-10 19:05] Operação: cron-job.org desativado pelo founder; Vercel Pro ativado; remediação já estava em main (d1aa847) e pushed
+- [2026-06-10 19:10] Verificado: worker outbox PARADO em qoro-dev (último processed 09/06 22:52 UTC) — aguardando redeploy Vercel p/ registrar crons
+- [2026-06-10 19:15] Editado: scripts/smoke-remediation.ts — cleanup do finally agora apaga fixtures por event_type/email_hash (órfãs de runs abortados)
+- [2026-06-10 19:18] Operação: removidos 6 artefatos smoke.retention.test do outbox qoro-dev (2 pending + 2 failed + 2 processed); DLQ restante = 6× messaging.inbound.received (replay→skipped após redeploy)

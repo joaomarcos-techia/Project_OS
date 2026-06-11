@@ -292,6 +292,14 @@ async function main(): Promise<void> {
     }
     await dbAdmin.execute(sql`DELETE FROM patients WHERE clinic_id = ${CLINIC}::uuid`);
     await dbAdmin.execute(sql`DELETE FROM clinics WHERE id = ${CLINIC}::uuid`);
+    // Fixtures de retenção são identificadas por event_type/email_hash próprios
+    // (não dependem do cascade da clínica): runs abortados de iterações antigas
+    // deixaram linhas 'failed' órfãs no DLQ que mantinham o health ?strict=1 em
+    // 503 (alarme outbox_failed). Cleanup global e inequívoco por marcador.
+    await dbAdmin.execute(sql`DELETE FROM outbox WHERE event_type = 'smoke.retention.test'`);
+    await dbAdmin.execute(
+      sql`DELETE FROM login_attempts WHERE email_hash LIKE 'smoke-retention-%'`,
+    );
   }
 
   const failed = results.filter((r) => !r.ok);
