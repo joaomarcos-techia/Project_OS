@@ -28,5 +28,8 @@ export async function verifyMfaAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Código inválido.' };
   }
-  redirect('/admin/select-clinic');
+  // /dashboard até o C15 existir — '/admin/select-clinic' (destino original,
+  // hardcoded aqui e na routing-policy) é rota do platform-admin futuro e
+  // devolvia 404 no login do super_admin com MFA (observado em prod 2026-06-11).
+  redirect('/dashboard');
 }

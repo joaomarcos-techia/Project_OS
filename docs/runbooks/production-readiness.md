@@ -191,6 +191,31 @@ curl -H "Authorization: Bearer SEU_CRON_SECRET" "http://localhost:3000/api/healt
 
 ---
 
+## 6.1 Go-live 2026-06-11 — confirmações assinadas (founder + Claude)
+
+Registro do cutover real para o projeto prod `shlcbxawrxuaebazuiue` (us-east-1),
+fechando os itens 1–8 do INSUFFICIENT_EVIDENCE §12 da auditoria 2026-06-10:
+
+| # | Item (auditoria §12) | Confirmação |
+|---|---|---|
+| 1 | Agendador do outbox/reconcile | cron-job.org DESATIVADO; agendamento 100% via vercel.json — 6/6 crons ativos no painel, worker processou replay em ≤15s |
+| 2 | Allowlist de redirect URLs | configurada (Site URL + `/reset-password`) |
+| 3 | TTL access token 15 min | configurado (JWT expiry = 900s) |
+| 4 | AAL2 p/ unenroll MFA | pendente do teste manual pós-MFA-enroll (R-04) |
+| 5 | Buckets privados | `lgpd-exports` + `clinical-pdfs` criados privados |
+| 6 | Custom Access Token Hook | habilitado (Postgres → `public.custom_access_token_hook`); login real do super_admin entrou com claims |
+| 7 | Plano Vercel Pro | ativado; deploy com cron 1min aceito |
+| 8 | Backups | físicos diários confirmados no painel (5 dias listados) |
+
+Extras do cutover: migrations 0000→0023 aplicadas (backup prévio ok);
+`CRYPTO_SECRET_BACKEND=env` criado na Vercel (gap latente — sem ela o runtime
+de produção assumia `gcp`); secrets de prod NOVOS (master key/salt/pepper)
+gerados e guardados; health outbox + auth-hook = 200 em prod; Better Stack
+monitorando; Meta segue NÃO configurado (C10 dormente por design — env META_*
+ausente até o provisionamento do primeiro número).
+
+---
+
 ## 7. Operação contínua (referências)
 - Migrations: [migrations.md](./migrations.md) · Rotação de segredos: [secret-rotation.md](./secret-rotation.md)
 - Restore/PITR: [restore-test.md](./restore-test.md) · Retenção de audit: [audit-retention.md](./audit-retention.md)

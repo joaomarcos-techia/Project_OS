@@ -32,9 +32,12 @@ export function postLoginRedirect(ctx: PostLoginContext): PostLoginRoute {
   if (mustHaveMFA(ctx.role) && ctx.aal !== 'aal2') {
     return '/login/mfa';
   }
-  // super_admin já AAL2 → dashboard admin (em C15 vira "select clinic" para impersonate)
+  // super_admin já AAL2 → /dashboard ATÉ o C15 existir. O destino original
+  // ('/admin/select-clinic', mantido no union como forward-pin) só nasce com
+  // o painel platform-admin (C15) — apontar para ele hoje = 404 no login do
+  // founder (observado em prod, 2026-06-11). Restaurar quando C15 entregar.
   if (ctx.role === 'super_admin') {
-    return '/admin/select-clinic';
+    return '/dashboard';
   }
   // Demais roles: direto para dashboard
   return '/dashboard';

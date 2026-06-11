@@ -29,3 +29,10 @@
 - [2026-06-10 19:10] Verificado: worker outbox PARADO em qoro-dev (último processed 09/06 22:52 UTC) — aguardando redeploy Vercel p/ registrar crons
 - [2026-06-10 19:15] Editado: scripts/smoke-remediation.ts — cleanup do finally agora apaga fixtures por event_type/email_hash (órfãs de runs abortados)
 - [2026-06-10 19:18] Operação: removidos 6 artefatos smoke.retention.test do outbox qoro-dev (2 pending + 2 failed + 2 processed); DLQ restante = 6× messaging.inbound.received (replay→skipped após redeploy)
+- [2026-06-11 — push 44662e9 (fix cleanup smoke) disparou deploy do HEAD; 6/6 crons registrados na Vercel (Pro)
+- [2026-06-11 — worker VIVO via Vercel Cron: replay dos 6 messaging.inbound.received processado em ≤15s → skipped; outbox pending=0 failed=0; F-01 fechado EM PRODUÇÃO
+- [2026-06-11 — founder tem projeto Supabase prod separado; cutover em andamento: DATABASE_URL_PROD precisa de ?sslmode=require (guard); checklist manual pós-migrate: hook, TTL, allowlist, buckets, seed super-admin; env vars Vercel por último
+- [2026-06-11] Editado: docs/runbooks/production-readiness.md — §6.1 go-live: confirmações assinadas dos itens 1-8 INSUFFICIENT_EVIDENCE
+- [2026-06-11] Operação: super_admin criado no prod (auth.users estava VAZIO — user não tinha sido criado); login real OK = hook emitindo claims em prod; dashboard de clínica é o esperado (admin UI = C15)
+- [2026-06-11] Editado: src/lib/auth/policies/routing-policy.ts + src/app/(app)/login/mfa/actions.ts — fix login super_admin pós-MFA: /admin/select-clinic (rota C15, 404) → /dashboard até C15 existir
+- [2026-06-11 — CUTOVER PROD CONCLUÍDO: migrations 0000→0023 aplicadas no prod (shlcbxawrxuaebazuiue, us-east-1); senhas dev/prod resetadas (incidente: reset inicial pegou o projeto errado — dev); Vercel Production apontando p/ prod (6543); health outbox 200 zerado + auth-hook 200; secrets novos (CRYPTO_*, PEPPER) gerados p/ prod; CRYPTO_SECRET_BACKEND=env criado (gap latente: sem ela, NODE_ENV=production assumia gcp); Meta NÃO configurado (dormente, env ausente por design)
