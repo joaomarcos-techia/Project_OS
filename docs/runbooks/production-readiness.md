@@ -161,6 +161,41 @@ Todos os health endpoints exigem `Authorization: Bearer <CRON_SECRET>` (por isso
 ### 5.3 Crons rodando
 - [ ] Vercel → Cron Jobs → conferir execuções verdes. Opcional: ping de dead-man-switch (Healthchecks.io) no fim do cron de outbox.
 
+### 5.4 DDoS / Denial of Wallet (configurado 2026-06-12)
+
+**Modelo de ameaça no serverless:** flood L3/L4 a Vercel absorve sozinha
+(mitigação automática, todos os planos). O risco real é **L7 = custo**: cada
+request é uma invocação cobrada ("Denial of Wallet"). Defesas em camadas:
+
+| Camada | Defesa | Estado |
+|---|---|---|
+| Edge (antes de pagar invocação) | Vercel WAF: rate-limit em `/login` (~20 req/60s/IP) e `/api/webhooks/meta` (~600 req/60s/IP), action Deny | ✅ configurado no dashboard (Firewall → Custom Rules) |
+| Billing (última linha) | **Spend Management: budget $25 on-demand + alertas 50/75/100% + AUTO-PAUSE** | ✅ ativado (notifica owner+billing) |
+| App: login/reset | Upstash dual rate-limit (IP + email_hash) c/ fallback bounded | ✅ código (C3/F-08) |
+| App: webhook Meta | size-guard 413 → HMAC 401 antes de qualquer banco | ✅ código (C10) |
+| App: custo de IA | pré-filtro custo-zero + quota mensal por clínica + MAX_TOOL_ROUNDS + breaker | ✅ código (C11) |
+
+**Decisão registrada (auto-pause):** no estágio atual (Meta dormente, uso
+orgânico ~$0), $25 de uso = ataque ou bug, então pausar é o comportamento
+certo — downtime controlado em vez de conta ilimitada; Supabase intocado,
+outbox idempotente retoma ao despausar, Meta re-tenta webhooks por dias.
+**Revisitar quando clínicas reais estiverem ativas**: subir o budget bem acima
+do uso orgânico (mantendo pause como tripwire) OU desligar o pause e operar só
+com alertas — pausa em horário comercial passa a ter custo real.
+
+**Procedimento sob ataque ativo (3h da manhã):**
+1. Vercel → projeto → **Firewall** → ligar **Attack Challenge Mode** (toggle no topo).
+2. ⚠️ Com ele ligado, os webhooks da Meta FALHAM o challenge (não são browser).
+   Tolerável por curtos períodos (Meta re-tenta com backoff); se precisar de
+   horas, criar antes uma Custom Rule **Bypass** para `/api/webhooks/meta`.
+3. Desligar o Challenge Mode quando o ataque cessar (não deixar permanente).
+4. Se o budget pausou o projeto: investigar origem no Firewall → Traffic,
+   corrigir/bloquear, **Resume** no dashboard (pendências retomam sozinhas).
+
+**Pendências conhecidas:** debounce anti-spam de paciente legítimo (R9 —
+adiado pelo founder; obrigatório antes do agente atender pacientes reais);
+hardening formal completo é escopo da C16.
+
 ### Teste local rápido (responde o 401)
 O 401 no browser é porque ele não manda o Bearer. Teste mandando o header:
 
