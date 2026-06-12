@@ -12,16 +12,29 @@ import {
   createAppointment as createAction,
   rescheduleAppointment as rescheduleAction,
 } from './actions';
-import { getAppointment, getAvailableSlots, type GetAvailableSlotsOpts } from './queries';
+import {
+  getAppointment,
+  getAvailableSlots,
+  listProcedures as listProceduresQuery,
+  type GetAvailableSlotsOpts,
+} from './queries';
 import type {
   AppointmentSummary,
   CreateAppointmentInput,
+  ProcedureSummary,
   RescheduleInput,
   Slot,
 } from './types';
 
 export interface SchedulingApiV1 {
   listSlots(opts: GetAvailableSlotsOpts): Promise<Slot[]>;
+  /**
+   * Catálogo de procedimentos ATIVOS (C11: tool provide_procedure_price —
+   * lazy context, review G3). Aditivo ao contrato congelado de C6 (M14:
+   * acrescentar método é não-quebrante; o PlanoAção §11.2 referencia
+   * api.scheduling.listProcedures explicitamente).
+   */
+  listProcedures(clinicId: string, opts?: { limit?: number }): Promise<ProcedureSummary[]>;
   lookupAppointment(clinicId: string, id: string): Promise<AppointmentSummary | null>;
   createAppointment(
     input: CreateAppointmentInput,
@@ -46,6 +59,10 @@ export interface SchedulingApiV1 {
 
 export const schedulingApiV1: SchedulingApiV1 = {
   listSlots: (opts) => getAvailableSlots(opts),
+  listProcedures: async (clinicId, opts) => {
+    const rows = await listProceduresQuery(clinicId, { onlyActive: true });
+    return rows.slice(0, opts?.limit ?? 20);
+  },
   lookupAppointment: (clinicId, id) => getAppointment(clinicId, id),
   createAppointment: (input, idempotencyKey) =>
     createAction({ ...input, createdVia: input.createdVia ?? 'ai_agent' }, idempotencyKey),

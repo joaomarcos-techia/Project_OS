@@ -17,6 +17,12 @@ export {
 export { MESSAGING_EVENTS } from './events';
 export type { InboundReceivedPayload } from './events';
 
+// API interna versionada (M14) — consumida pelo AI Agent (C11): ler/marcar
+// inbound (tx-aware, decrypt DENTRO do messaging) e enviar texto outbound.
+export { messagingApiV1 } from './api';
+export type { MessagingApiV1, InboundForAgent } from './api';
+export { SuppressedRecipientError, NumberNotConnectedError } from './errors';
+
 export type {
   ConnectNumberInput,
   SendOutboundInput,

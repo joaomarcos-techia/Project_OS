@@ -68,8 +68,10 @@ const PRODUCER_AHEAD = new Set<string>([
   'financial.lancamento.paid',
   'financial.lancamento.cancelled',
   'financial.lancamento.estornado',
-  // C11 — IA atende inbound
-  'messaging.inbound.received',
+  // C11 ATIVOU o handler de messaging.inbound.received (removido daqui no
+  // mesmo PR — F-14). Novo producer-ahead: turno de conversa da IA, consumido
+  // por C14 (proactive jobs) / C15 (admin viewer).
+  'ai_agent.conversation.completed',
 ]);
 
 const inCatalog = new Set(listEventTypes());
