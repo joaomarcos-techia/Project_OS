@@ -200,6 +200,15 @@ R10 unit gemini (generationConfig congelado).
 **Critério "pronto quando" (11.5) com LLM REAL:** `ai:live-check` provou
 "qual o horário de funcionamento?" → functionCall `provide_clinic_info` →
 functionResponse → "A Clínica Live Check funciona de segunda a sexta, das
-08:00 às 18:00." com usageMetadata real. A bateria de 50 mensagens
-adversariais com Gemini real é o gate de AVANÇO para C12 (runbook
-c11-validation §pendências), não de entrega da C11.
+08:00 às 18:00." com usageMetadata real.
+
+**Gate de AVANÇO p/ C12 (§11.12) — APROVADO em 2026-06-12:** bateria de 50
+mensagens adversariais com Gemini REAL (`pnpm ai:adversarial`, 53 chamadas,
+$0.012): **0 respostas finais inseguras**; o modelo recusou **50/50** com o
+fallback literal (incl. 6 jailbreaks); pré-filtro pegou 44/50 com custo zero.
+Evidência completa: [C11_ADVERSARIAL_50.md](C11_ADVERSARIAL_50.md). Débito
+aceitável adicional registrado: o pós-guard flagga a própria recusa do modelo
+(contém "sintomas") — benigno, mas nos mistos a produção perde a metade
+operacional da resposta; refino candidato em C12 (reconhecer o fallback
+literal como já-seguro). Re-rodar a bateria a cada mudança de PROMPT_VERSION
+ou de modelo.

@@ -15,7 +15,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | C8 | Consultório UI | ✅ **fechada** (estáticos+build verdes; 14/15 in-app validados in-app, RLS A/B confirmado via banco; #4 TV descopada) | 2026-06-03 |
 | C9 | Financial Core | ✅ **fechada** (mergeada em main via feat/c8-consultorio-ui; faturamento automático + Caixa + Financeiro; smoke-c9 22/22 + 252 testes + build verdes; migrations 0020/0021; **e2e "nenhum atendimento sem faturamento" só vale 100% após deploy do worker C9 em prod**) | 2026-06-07 |
 | C10 | MessagingProvider + Webhook Meta | ✅ **fechada** (smoke-c10 18/18; migration 0022; sem IA/mídia; ADR-020) | 2026-06-07 |
-| C11 | AI Agent Base | ✅ **fechada** (smoke-c11 18/18 + ai:live-check com Gemini REAL; migration 0024; 334 testes; saga LLM-fora-de-TX; 20 gaps das reviews do founder incorporados; ADR-022; gate de avanço p/ C12 = bateria de 50 msgs adversariais) | 2026-06-11 |
+| C11 | AI Agent Base | ✅ **fechada** (smoke-c11 18/18 + ai:live-check com Gemini REAL; migration 0024; 334 testes; saga LLM-fora-de-TX; 20 gaps das reviews do founder incorporados; ADR-022; **gate §11.12 APROVADO 2026-06-12**: 50 msgs adversariais com Gemini real — 0 inseguras, recusa 50/50 incl. jailbreaks) | 2026-06-11 |
 | C12 | AI Agent Intents Core | ⏳ pendente | — |
 | C13 | Tenancy & Billing | ⏳ pendente | — |
 | C14 | Proactive Jobs | ⏳ pendente | — |
@@ -771,5 +771,11 @@ check:registry:strict/build ✓ · migration 0024 aplicada em qoro-dev ✓.
 
 Purge `expires_at` (C16) · quota real (C13) · `abandoned` 24h (C14) ·
 intent-lite G5 e debounce R9 (adiados pelo founder) · breaker distribuído
-(escala). **Avança p/ C12 quando**: bateria de 50 mensagens adversariais com
-Gemini real sem nenhum conselho clínico vazando (manual — runbook §pendências).
+(escala) · pós-guard flagga a própria recusa do modelo (benigno; nos mistos a
+produção perde a metade operacional — refino candidato em C12).
+
+**Gate de avanço p/ C12 (§11.12) — APROVADO em 2026-06-12**: bateria de 50
+mensagens adversariais com Gemini REAL (`pnpm ai:adversarial`): **0 respostas
+finais inseguras**, recusa 50/50 com o fallback literal (incl. 6 jailbreaks),
+pré-filtro pegou 44/50 com custo zero. Evidência:
+[docs/audits/C11_ADVERSARIAL_50.md](audits/C11_ADVERSARIAL_50.md).

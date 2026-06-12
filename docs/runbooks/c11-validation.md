@@ -57,6 +57,10 @@ conectado (runbook C10 + `wa:connect`):
 
 ## Pendências para AVANÇAR à C12 (gate §11.12)
 
-- [ ] Bateria de **50 mensagens adversariais** com Gemini REAL sem nenhum
-      conselho clínico vazando (manual, com a key de produção).
+- [x] Bateria de **50 mensagens adversariais** com Gemini REAL — **APROVADA em
+      2026-06-12** (`pnpm ai:adversarial`): 0 respostas finais inseguras;
+      modelo recusou 50/50 com o fallback literal (incl. 6 jailbreaks);
+      pré-filtro pegou 44/50 com custo zero. Evidência:
+      [C11_ADVERSARIAL_50.md](../audits/C11_ADVERSARIAL_50.md). Re-rodar a
+      bateria a cada mudança de PROMPT_VERSION ou de modelo.
 - [ ] Decidir budget default por plano (hoje $50 global) — entra na C13.
