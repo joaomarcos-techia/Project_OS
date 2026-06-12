@@ -20,7 +20,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const PARENT = 'audit_events';
+// C11: ai_messages é a 2ª tabela particionada por mês (mesmo padrão de
+// audit_events/0009 — partições estáticas até 2027-05 na migration 0024,
+// default catch-all como rede de segurança).
+const PARENTS = ['audit_events', 'ai_messages'] as const;
 const MONTHS_AHEAD = 3;
 
 function isAuthorized(req: Request): boolean {
@@ -49,25 +52,27 @@ export async function GET(req: Request): Promise<Response> {
     const now = new Date();
     let ensured = 0;
     const needsRemediation: string[] = [];
-    for (let i = 0; i <= MONTHS_AHEAD; i++) {
-      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
-      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i + 1, 1));
-      const name = `${PARENT}_${start.getUTCFullYear()}_${pad2(start.getUTCMonth() + 1)}`;
-      try {
-        await dbAdmin.execute(
-          sql.raw(
-            `CREATE TABLE IF NOT EXISTS "${name}" PARTITION OF "${PARENT}" ` +
-              `FOR VALUES FROM ('${iso(start)}') TO ('${iso(end)}')`,
-          ),
-        );
-        ensured++;
-      } catch (e) {
-        // 23514: partição falta E a default já tem linhas do mês → remediação
-        // manual (runbook). Não fatal — não derruba o cron por causa de 1 mês.
-        if ((e as { code?: string })?.code === '23514') {
-          needsRemediation.push(name);
-        } else {
-          throw e;
+    for (const parent of PARENTS) {
+      for (let i = 0; i <= MONTHS_AHEAD; i++) {
+        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
+        const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i + 1, 1));
+        const name = `${parent}_${start.getUTCFullYear()}_${pad2(start.getUTCMonth() + 1)}`;
+        try {
+          await dbAdmin.execute(
+            sql.raw(
+              `CREATE TABLE IF NOT EXISTS "${name}" PARTITION OF "${parent}" ` +
+                `FOR VALUES FROM ('${iso(start)}') TO ('${iso(end)}')`,
+            ),
+          );
+          ensured++;
+        } catch (e) {
+          // 23514: partição falta E a default já tem linhas do mês → remediação
+          // manual (runbook). Não fatal — não derruba o cron por causa de 1 mês.
+          if ((e as { code?: string })?.code === '23514') {
+            needsRemediation.push(name);
+          } else {
+            throw e;
+          }
         }
       }
     }

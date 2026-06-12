@@ -33,6 +33,9 @@ export * from '@/contexts/financial/schema';
 // C10 — Messaging. schema.ts side-effect-imports './events', registrando
 // messaging.inbound.received no catálogo do outbox.
 export * from '@/contexts/messaging/schema';
+// C11 — AI Agent. schema.ts side-effect-imports './events', registrando
+// ai_agent.conversation.completed no catálogo do outbox.
+export * from '@/contexts/ai-agent/schema';
 // C4 infra — cross-cutting tables (outbox, audit_events, super_admin_actions,
 // idempotency_keys). Not a bounded context, so not under src/contexts/. The
 // drizzle.config.ts glob './src/lib/db/schema/**/*' picks them up.

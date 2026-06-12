@@ -49,6 +49,10 @@ export async function persistInbound(
 ): Promise<{ deduped: boolean }> {
   // Pré-compute fora da tx (cifra/hash são CPU puro).
   const fromNumberHash = await hashForLookup(normalizePhone(msg.fromNumber));
+  // C11 (ADR-022): o número normalizado também é persistido CIFRADO — é o que
+  // permite ao AI Agent responder (hash não é reversível; payload do evento
+  // continua sem plaintext).
+  const fromNumberEncrypted = await encryptForTenant(clinicId, normalizePhone(msg.fromNumber));
   const contentEncrypted = await encryptForTenant(clinicId, msg.text ?? '');
   const pHash = payloadHash({
     providerMessageId: msg.providerMessageId,
@@ -66,6 +70,7 @@ export async function persistInbound(
         providerMessageId: msg.providerMessageId,
         provider,
         fromNumberHash,
+        fromNumberEncrypted,
         toNumber: msg.toNumber,
         contentEncrypted,
         payloadHash: pHash,

@@ -96,6 +96,10 @@ export const inboundMessagesRaw = pgTable(
     providerMessageId: text('provider_message_id').notNull(),
     provider: messagingProvider('provider').notNull(),
     fromNumberHash: text('from_number_hash').notNull(),
+    // C11 (ADR-022, emenda aditiva ao ADR-020): telefone do remetente cifrado
+    // per-tenant — sem ele o AI Agent não tem como RESPONDER (o hash não é
+    // reversível). Nullable: rows anteriores à 0024 não o possuem.
+    fromNumberEncrypted: text('from_number_encrypted'),
     toNumber: text('to_number'),
     contentEncrypted: text('content_encrypted').notNull(),
     // Canônico (payloadHash) — distingue duplicate (igual) vs conflict (diferente).
