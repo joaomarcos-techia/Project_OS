@@ -43,4 +43,8 @@ import '@/contexts/financial/internal/handlers/appointment-completed';
 import '@/contexts/scheduling/internal/handlers/financial-faturamento-pendente';
 import '@/contexts/scheduling/internal/handlers/financial-lancamento-created';
 
+// C11 — AI Agent: messaging.inbound.received → turno de conversa (saga
+// multi-fase, LLM fora de TX — ADR-022). Idempotente via eventId checkpoints.
+import '@/contexts/ai-agent/internal/handlers/inbound-received';
+
 export {};

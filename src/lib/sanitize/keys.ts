@@ -53,4 +53,17 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'logradouroencrypted',
   'cep_encrypted',
   'cepencrypted',
+  // C10/C11 (ADR-020/022): conteúdo de mensagem + telefone de resposta + prompt
+  // snapshot. Mesma lógica de defense in depth — rows cruas jamais devem vazar
+  // para metrics/audit com esses campos legíveis.
+  'content_encrypted',
+  'contentencrypted',
+  'from_number_encrypted',
+  'fromnumberencrypted',
+  'patient_phone_encrypted',
+  'patientphoneencrypted',
+  'patient_phone_hash',
+  'patientphonehash',
+  'prompt_snapshot_encrypted',
+  'promptsnapshotencrypted',
 ]);
