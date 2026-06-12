@@ -144,6 +144,36 @@ const EnvSchema = z
       emptyToUndefined,
       z.coerce.number().int().min(1000).max(60_000).optional().default(10_000),
     ),
+
+    // --- C11: AI Agent (Gemini) ---
+    // API key do Google AI Studio. Optional no parse (next build verde antes
+    // do secret existir); assertAiRuntimeReady() exige em runtime no handler.
+    GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Modelo default (decisão sólida §11.17: Gemini Flash 2.5). Trocar exige
+    // entrada correspondente na tabela de preços de src/lib/ai/cost.ts.
+    GEMINI_MODEL: z.preprocess(
+      emptyToUndefined,
+      z.string().min(1).optional().default('gemini-2.5-flash'),
+    ),
+    // Timeout (ms) de cada chamada ao LLM (AbortController) — mesmo racional
+    // do META_HTTP_TIMEOUT_MS: sem teto, um request lento trava o worker.
+    AI_HTTP_TIMEOUT_MS: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(1000).max(60_000).optional().default(15_000),
+    ),
+    // Quota guard placeholder (lógica completa em C13). Default global por
+    // clínica/mês em USD; ai_clinic_config.monthly_budget_usd sobrepõe (R4).
+    AI_MONTHLY_COST_LIMIT_USD: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().positive().optional().default(50),
+    ),
+    // R1: gate do prompt snapshot (replay determinístico G10). 'full' grava
+    // sempre; 'sample' grava ~10% (determinístico por eventId); 'off' nunca.
+    // Default: 'full' fora de produção, 'sample' em produção.
+    AI_SNAPSHOT_MODE: z.preprocess(
+      emptyToUndefined,
+      z.enum(['off', 'full', 'sample']).optional(),
+    ),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -249,4 +279,21 @@ export function assertMessagingRuntimeReady(): void {
       '[env] META_WEBHOOK_VERIFY_TOKEN is required at runtime for /api/webhooks/meta',
     );
   }
+}
+
+/**
+ * Runtime guard for C11 AI Agent. Fails fast when GEMINI_API_KEY is missing —
+ * same shape as assertMessagingRuntimeReady(). Called by the GeminiProvider on
+ * first use, NOT at import time, so `next build` stays green before the secret
+ * exists (e o handler do outbox falha retentável, não no boot).
+ */
+export function assertAiRuntimeReady(): void {
+  if (!env.GEMINI_API_KEY) {
+    throw new Error('[env] GEMINI_API_KEY is required at runtime for the AI agent (C11)');
+  }
+}
+
+/** R1: modo efetivo do prompt snapshot (default por ambiente). */
+export function resolveAiSnapshotMode(): 'off' | 'full' | 'sample' {
+  return env.AI_SNAPSHOT_MODE ?? (env.NODE_ENV === 'production' ? 'sample' : 'full');
 }

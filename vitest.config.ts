@@ -18,6 +18,9 @@ export default defineConfig({
       DATABASE_URL: 'postgres://test:test@localhost:5432/test?sslmode=require',
       NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
+      // C11: GeminiProvider chama assertAiRuntimeReady() (lê o snapshot do env
+      // singleton). Valor fictício — os testes stubam globalThis.fetch.
+      GEMINI_API_KEY: 'test-gemini-key',
     },
   },
   resolve: {
