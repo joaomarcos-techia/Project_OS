@@ -15,7 +15,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | C8 | Consultório UI | ✅ **fechada** (estáticos+build verdes; 14/15 in-app validados in-app, RLS A/B confirmado via banco; #4 TV descopada) | 2026-06-03 |
 | C9 | Financial Core | ✅ **fechada** (mergeada em main via feat/c8-consultorio-ui; faturamento automático + Caixa + Financeiro; smoke-c9 22/22 + 252 testes + build verdes; migrations 0020/0021; **e2e "nenhum atendimento sem faturamento" só vale 100% após deploy do worker C9 em prod**) | 2026-06-07 |
 | C10 | MessagingProvider + Webhook Meta | ✅ **fechada** (smoke-c10 18/18; migration 0022; sem IA/mídia; ADR-020) | 2026-06-07 |
-| C11 | AI Agent Base | ⏳ pendente | — |
+| C11 | AI Agent Base | ✅ **fechada** (smoke-c11 18/18 + ai:live-check com Gemini REAL; migration 0024; 334 testes; saga LLM-fora-de-TX; 20 gaps das reviews do founder incorporados; ADR-022; gate de avanço p/ C12 = bateria de 50 msgs adversariais) | 2026-06-11 |
 | C12 | AI Agent Intents Core | ⏳ pendente | — |
 | C13 | Tenancy & Billing | ⏳ pendente | — |
 | C14 | Proactive Jobs | ⏳ pendente | — |
@@ -712,3 +712,64 @@ C0→C10 preservados. Relatório completo:
   **267 testes** (15 novos) ✓ · build ✓ · migration 0023 aplicada em qoro-dev ✓ ·
   `smoke:remediation` **7/7** (anonimização RESTRICT end-to-end + purge) ·
   `smoke:c4` **61/61** · `smoke:c5` **8/8**.
+
+---
+
+## C11 — AI Agent Base (✅ fechada em 2026-06-11)
+
+Fundação completa do agente conversacional (Gemini Flash 2.5) sobre a infra de
+mensagens da C10. Contratos congelados em [ADR-022](adr/022-ai-agent-foundation.md);
+auditoria completa em [docs/audits/C11_IMPLEMENTATION_AUDIT.md](audits/C11_IMPLEMENTATION_AUDIT.md);
+runbook [c11-validation.md](runbooks/c11-validation.md). O plano passou por
+**2 rodadas de review do founder** (20 gaps G1–G10/R1–R10 — 18 implementados,
+2 adiados por decisão explícita: intent-lite G5 e debounce anti-spam R9).
+
+### O que foi entregue
+
+- **`src/lib/ai/`** — `AIProvider` congelado; `GeminiProvider` via fetch cru
+  (generationConfig CONGELADO temperature 0.1/topP 0.9 — R10); `OpenAIProvider`
+  placeholder; circuit breaker closed/open/half-open (3 falhas → 5 min);
+  cost table em código (tokens × $/1M).
+- **Schema (migration 0024)** — `ai_conversations` (1 ativa por contato),
+  `ai_messages` **particionada por mês** (12 partições + default; cron
+  audit-partitions generalizado), `ai_clinic_config` (+`monthly_budget_usd` R4),
+  `ai_handoff_queue`, `ai_agent_failures` (**dead letter de IA** G7, payload
+  por whitelist R8). RLS ENABLE+FORCE nas 5. Emenda aditiva ao C10:
+  `inbound_messages_raw.from_number_encrypted` (telefone de resposta) +
+  `GRANT UPDATE (processed_at)` column-level.
+- **Handler SAGA** de `messaging.inbound.received` — **LLM SEMPRE fora de
+  transação** (R2, maior risco apontado na review); fases `withTenant` curtas;
+  re-entrada idempotente por eventId com **replay determinístico** (out
+  persistida → re-entrega NÃO re-chama o LLM); envio dedupado por
+  `idempotencyKey = eventId`. Fluxo dos 10 passos do mandato intacto.
+- **Guards anti-SAMD em 2 bordas** (G4): pré-filtro na mensagem do paciente
+  (clínica → `CLINICAL_FALLBACK` com custo ZERO, sem Gemini) + pós-guard na
+  resposta do LLM. Fallback literal único.
+- **Tools com Zod nas 2 direções + whitelist** (G9/R5): `provide_clinic_info`,
+  `provide_procedure_price` (via `api.scheduling.listProcedures` aditivo M14 —
+  lazy context G3), `request_human_handoff`. Tool alucinada = security event.
+- **Orçamentos congelados** (`limits.ts`): MAX_TOOL_ROUNDS=1 (G1), janela 10,
+  prompt 10k, inbound 4k (G2), MAX_FALLBACKS=3 → handoff automático (R3).
+- **Versionamento de prompt** (G8/R6): PROMPT_VERSION + PROMPT_HASH (sha256 do
+  template) persistidos por turno; **snapshot de replay** gzip+cifrado com gate
+  `AI_SNAPSHOT_MODE` full/sample/off (G10/R1).
+- **Seam `messagingApiV1`** (C10→C11): getInboundForAgent (único decrypt point
+  de inbound), markInboundProcessed, sendText. Evento publicado:
+  `ai_agent.conversation.completed` (producer-ahead até C14/C15).
+
+### Validação
+
+`pnpm test` **334/334** ✓ · `pnpm smoke:c11` **18/18** ✓ (e2e qoro-dev pelo
+worker REAL: isolamento 11.6.1, Zod 11.6.2, guard 11.6.3, breaker 11.6.4,
+custo 11.6.5, handoff 11.6.6, RLS 11.6.7, encryption 11.6.8 + G1/G4/G7/G9/
+G10/R1/R2/R3/R4) · **`pnpm ai:live-check` com Gemini REAL** ✓ (functionCall →
+functionResponse → "funciona de segunda a sexta, das 08:00 às 18:00"; usage
+real, custo $0.000462) · lint/arch:check/arch:db-check/check:migrations/
+check:registry:strict/build ✓ · migration 0024 aplicada em qoro-dev ✓.
+
+### Débitos / gate de avanço
+
+Purge `expires_at` (C16) · quota real (C13) · `abandoned` 24h (C14) ·
+intent-lite G5 e debounce R9 (adiados pelo founder) · breaker distribuído
+(escala). **Avança p/ C12 quando**: bateria de 50 mensagens adversariais com
+Gemini real sem nenhum conselho clínico vazando (manual — runbook §pendências).
