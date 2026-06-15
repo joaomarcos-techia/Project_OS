@@ -20,7 +20,7 @@ interface Props {
     nome: string;
     cpf?: string;
     telefone?: string | null;
-    email: string;
+    email?: string | null; // C12: paciente do agente pode não ter e-mail
     dataNascimento?: string | null;
     sexo?: 'M' | 'F' | 'O' | 'N' | null;
   };
@@ -84,7 +84,7 @@ export function PatientForm({ mode, action, initial }: Props) {
           type="email"
           required={mode === 'create'}
           maxLength={120}
-          defaultValue={initial?.email}
+          defaultValue={initial?.email ?? ''}
           disabled={pending}
           className="rounded border border-gray-300 px-3 py-2"
         />

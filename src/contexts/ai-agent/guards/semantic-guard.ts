@@ -73,3 +73,19 @@ export function checkClinicalContent(text: string): SemanticCheckResult {
 export function isMedicalQuestion(inboundText: string): SemanticCheckResult {
   return checkClinicalContent(inboundText);
 }
+
+/**
+ * C12 (ADR-023) — detecção de prompt-injection APENAS PARA AUDITORIA. NÃO
+ * bloqueia: a defesa real é tool whitelist (G9) + Zod + RLS + recusa do próprio
+ * LLM (gate §11.12: 50/50). Um filtro de string é frágil e dá falsa sensação de
+ * segurança; aqui só emitimos métrica de visibilidade quando há tentativa óbvia.
+ * `matched` é categoria:termo (telemetria), nunca o texto completo.
+ */
+const INJECTION_RE =
+  /\b(ignore\w*.{0,40}(instru\w*|prompt|regras?)|disregard.{0,40}(instru|above|previous)|esque(ca|ce)\w*.{0,40}(instru\w*|tudo|regras?)|system prompt|reveal.{0,20}(prompt|system)|mostr\w*.{0,25}(prompt|banco|database|todos os pacientes|tabela)|list.{0,20}(patients|pacientes|usuarios|users)|show.{0,20}(database|all (patients|data))|drop table|select \* from|voce agora e|act as|aja como|developer mode|jailbreak)/;
+
+export function detectPromptInjection(inboundText: string): SemanticCheckResult {
+  const norm = normalize(inboundText);
+  const m = INJECTION_RE.exec(norm);
+  return m ? { safe: false, matched: `injection:${m[0]}` } : { safe: true };
+}

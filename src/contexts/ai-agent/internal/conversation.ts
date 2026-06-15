@@ -21,7 +21,12 @@ import { patients } from '@/contexts/patient';
 
 import { MAX_FALLBACKS } from '../limits';
 import { aiConversations, aiHandoffQueue, aiMessages, type AiMessageRow } from '../schema';
-import type { PromptHistoryEntry } from '../types';
+import {
+  COLLECT_REQUIRED_FIELDS,
+  type CollectedData,
+  type PromptHistoryEntry,
+  type StoredCollect,
+} from '../types';
 
 // --- conversa -----------------------------------------------------------------
 
@@ -31,6 +36,8 @@ export interface ActiveConversation {
   patientNome: string | null;
   status: 'active' | 'handoff' | 'closed' | 'abandoned';
   fallbackCount: number;
+  /** last_message_at ANTES deste turno (null se recém-criada) — p/ stale reset C12. */
+  lastMessageAt: Date | null;
 }
 
 /**
@@ -82,6 +89,7 @@ export async function findOrCreateConversation(
       patientNome: patient?.nome ?? null,
       status: existing.status,
       fallbackCount: existing.fallbackCount,
+      lastMessageAt: existing.lastMessageAt as Date,
     };
   }
 
@@ -106,6 +114,7 @@ export async function findOrCreateConversation(
       patientNome: patient?.nome ?? null,
       status: created.status,
       fallbackCount: created.fallbackCount,
+      lastMessageAt: null,
     };
   }
 
@@ -128,6 +137,7 @@ export async function findOrCreateConversation(
     patientNome: patient?.nome ?? null,
     status: raced.status,
     fallbackCount: raced.fallbackCount,
+    lastMessageAt: null,
   };
 }
 
@@ -302,4 +312,104 @@ export async function incrementFallback(
     return { fallbackCount, escalated: true };
   }
   return { fallbackCount, escalated: false };
+}
+
+/** R3/sucesso — zera o contador de fallback (paciente voltou ao trilho). */
+export async function resetFallback(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+): Promise<void> {
+  await tx
+    .update(aiConversations)
+    .set({ fallbackCount: 0 })
+    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)));
+}
+
+/** C12 — persiste o intent canônico do turno na conversa. */
+export async function setIntent(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+  intent: string | null,
+): Promise<void> {
+  await tx
+    .update(aiConversations)
+    .set({ intentAtual: intent })
+    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)));
+}
+
+// --- coleta de paciente novo (C12 — memória cifrada) -----------------------------
+
+/** Lê + decifra a coleta em andamento (null se não houver). */
+export async function getCollectedData(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+): Promise<StoredCollect | null> {
+  const [row] = await tx
+    .select({ enc: aiConversations.collectedDataEncrypted })
+    .from(aiConversations)
+    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)))
+    .limit(1);
+  if (!row?.enc) return null;
+  try {
+    return JSON.parse(await decryptForTenant(clinicId, row.enc)) as StoredCollect;
+  } catch {
+    return null; // blob corrompido/legado → trata como vazio (recomeça coleta)
+  }
+}
+
+/** Cifra + grava a coleta (ou limpa, se data=null). */
+export async function setCollectedData(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+  data: StoredCollect | null,
+): Promise<void> {
+  const enc = data ? await encryptForTenant(clinicId, JSON.stringify(data)) : null;
+  await tx
+    .update(aiConversations)
+    .set({ collectedDataEncrypted: enc })
+    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)));
+}
+
+/** Reset de coleta + intent (staleness COLLECT_STALE_RESET_DAYS ou conclusão). */
+export async function clearCollectedData(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+): Promise<void> {
+  await tx
+    .update(aiConversations)
+    .set({ collectedDataEncrypted: null, intentAtual: null })
+    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)));
+}
+
+/**
+ * Mescla campos novos na coleta. `progressed` = algum campo novo/alterado entrou;
+ * `_stagnation` zera no progresso e incrementa quando o turno não avança
+ * (MAX_COLLECT_STAGNATION → handoff). `complete` = todos os campos obrigatórios.
+ */
+export async function mergeCollectedData(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+  partial: CollectedData,
+): Promise<{ data: StoredCollect; progressed: boolean; complete: boolean; stagnation: number }> {
+  const prev = (await getCollectedData(tx, clinicId, conversationId)) ?? {};
+  const merged: StoredCollect = { ...prev };
+  let progressed = false;
+  for (const k of COLLECT_REQUIRED_FIELDS) {
+    const v = partial[k]?.trim();
+    if (v && v !== prev[k]) {
+      merged[k] = v;
+      progressed = true;
+    }
+  }
+  const stagnation = progressed ? 0 : (prev._stagnation ?? 0) + 1;
+  merged._stagnation = stagnation;
+  await setCollectedData(tx, clinicId, conversationId, merged);
+  const complete = COLLECT_REQUIRED_FIELDS.every((k) => !!merged[k]);
+  return { data: merged, progressed, complete, stagnation };
 }

@@ -80,6 +80,23 @@ export function validateTtlSeconds(ttlSeconds: number): void {
   }
 }
 
+/**
+ * Ator explícito da mutação. Quando ausente, o ator é resolvido do request
+ * (requireUser/requireClinicId) — comportamento histórico, ZERO churn nos
+ * call-sites de Server Actions.
+ *
+ * Quando presente (C12 — AI Agent na saga do outbox, SEM request/sessão), pula
+ * requireUser/requireClinicId e usa estes valores. `userId` pode ser null
+ * (ator de sistema 'ai_agent'); idempotency_keys.user_id e audit_events.user_id
+ * são nullable por design (C4). NUNCA exponha um parâmetro de ator em função
+ * 'use server' chamável pelo cliente — o caller é sempre código de servidor
+ * confiável (api versionada do contexto).
+ */
+export interface MutationActor {
+  clinicId: string;
+  userId: string | null;
+}
+
 export async function idempotentMutation<T>(
   opts: {
     idempotency: {
@@ -99,13 +116,19 @@ export async function idempotentMutation<T>(
       before: unknown;
       requestContext: RequestContext;
     };
+    /** C12: ator de sistema explícito (pula auth do request). Veja MutationActor. */
+    actor?: MutationActor;
   },
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   const ttlSeconds = opts.idempotency.ttlSeconds ?? IDEMPOTENCY_TTL_DEFAULT_SECONDS;
   validateTtlSeconds(ttlSeconds);
-  const user = await requireUser();
-  const clinicId = await requireClinicId();
+  const { clinicId, userId } = opts.actor
+    ? { clinicId: opts.actor.clinicId, userId: opts.actor.userId }
+    : await (async () => {
+        const user = await requireUser();
+        return { clinicId: await requireClinicId(), userId: user.userId };
+      })();
   const hash = payloadHash(opts.idempotency.payload);
 
   return withTenant(clinicId, async (tx) => {
@@ -131,7 +154,7 @@ export async function idempotentMutation<T>(
         .values({
           key: opts.idempotency.key,
           clinicId,
-          userId: user.userId,
+          userId,
           payloadHash: hash,
           response: null,
           statusCode: null,
@@ -177,7 +200,7 @@ export async function idempotentMutation<T>(
     // 3. Audit in the SAME tx. logAudit applies sanitizePayload internally.
     await logAudit(tx, {
       clinicId,
-      userId: user.userId,
+      userId,
       action: opts.audit.action,
       resourceType: opts.audit.resourceType,
       resourceId: opts.audit.resourceId,

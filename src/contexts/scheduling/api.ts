@@ -6,12 +6,20 @@
  * Mantém a MESMA pipeline (requireUser/permission/idempotência/audit/evento) —
  * a IA NÃO tem bypass. Estas funções só delegam às Server Actions / queries.
  */
+import { type AgentActorCtx, agentMutationActor, agentRequestContext } from '@/lib/agent/actor';
+
 import {
   cancelAppointment as cancelAction,
   confirmAppointment as confirmAction,
   createAppointment as createAction,
   rescheduleAppointment as rescheduleAction,
 } from './actions';
+import { SCHEDULING_EVENTS } from './events';
+import {
+  createAppointmentCore,
+  rescheduleCore,
+  transitionCore,
+} from './internal/appointment-core';
 import {
   getAppointment,
   getAvailableSlots,
@@ -55,6 +63,33 @@ export interface SchedulingApiV1 {
     input: RescheduleInput,
     idempotencyKey: string,
   ): Promise<AppointmentSummary>;
+
+  // --- C12: AI Agent (ator de sistema 'ai_agent', sem request) -------------
+  // Mesmos cores das Server Actions; a IA NÃO tem bypass. `idempotencyKey` é
+  // derivado por conteúdo (sha256 conversationId+intent+args) na saga (R1).
+  scheduleAsAgent(
+    ctx: AgentActorCtx,
+    input: CreateAppointmentInput,
+    idempotencyKey: string,
+  ): Promise<AppointmentSummary>;
+  confirmAsAgent(
+    ctx: AgentActorCtx,
+    appointmentId: string,
+    idempotencyKey: string,
+    reason?: string,
+  ): Promise<AppointmentSummary>;
+  cancelAsAgent(
+    ctx: AgentActorCtx,
+    appointmentId: string,
+    idempotencyKey: string,
+    reason?: string,
+  ): Promise<AppointmentSummary>;
+  rescheduleAsAgent(
+    ctx: AgentActorCtx,
+    appointmentId: string,
+    input: RescheduleInput,
+    idempotencyKey: string,
+  ): Promise<AppointmentSummary>;
 }
 
 export const schedulingApiV1: SchedulingApiV1 = {
@@ -70,4 +105,44 @@ export const schedulingApiV1: SchedulingApiV1 = {
   cancelAppointment: (id, idempotencyKey, reason) => cancelAction(id, idempotencyKey, reason),
   rescheduleAppointment: (id, input, idempotencyKey) =>
     rescheduleAction(id, input, idempotencyKey),
+
+  scheduleAsAgent: (ctx, input, idempotencyKey) =>
+    createAppointmentCore(
+      agentMutationActor(ctx),
+      'ai_agent',
+      agentRequestContext(ctx),
+      { ...input, createdVia: input.createdVia ?? 'ai_agent' },
+      idempotencyKey,
+    ),
+  confirmAsAgent: (ctx, appointmentId, idempotencyKey, reason) =>
+    transitionCore(
+      agentMutationActor(ctx),
+      'ai_agent',
+      agentRequestContext(ctx),
+      {
+        action: 'confirm',
+        target: 'confirmado',
+        eventName: SCHEDULING_EVENTS.CONFIRMED,
+        id: appointmentId,
+        reason,
+      },
+      idempotencyKey,
+    ),
+  cancelAsAgent: (ctx, appointmentId, idempotencyKey, reason) =>
+    transitionCore(
+      agentMutationActor(ctx),
+      'ai_agent',
+      agentRequestContext(ctx),
+      {
+        action: 'cancel',
+        target: 'cancelado',
+        eventName: SCHEDULING_EVENTS.CANCELLED,
+        cancelReason: 'user',
+        id: appointmentId,
+        reason,
+      },
+      idempotencyKey,
+    ),
+  rescheduleAsAgent: (ctx, appointmentId, input, idempotencyKey) =>
+    rescheduleCore(agentMutationActor(ctx), 'ai_agent', agentRequestContext(ctx), appointmentId, input, idempotencyKey),
 };

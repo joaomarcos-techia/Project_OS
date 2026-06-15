@@ -28,6 +28,15 @@ export type ToolContext = {
   conversationId: string;
   eventId: string;
   aiRequestId: string;
+  // C12 — identidade VERIFICADA pelo telefone (Meta). As tools sensíveis usam
+  // ISTO, JAMAIS um patient_id vindo do LLM (anti-spoofing — matriz de
+  // identidade). patientId = paciente casado pelo telefone (null = não
+  // cadastrado). verifiedPhone = número do inbound (E.164 normalizado).
+  patientId: string | null;
+  patientNome: string | null;
+  verifiedPhone: string;
+  // Opt-in da clínica para divulgar VALORES de cobranças (list_pending_payments).
+  canDisclosePayments: boolean;
 };
 
 export type Tool<

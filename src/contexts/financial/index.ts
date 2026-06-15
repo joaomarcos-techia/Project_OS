@@ -19,6 +19,7 @@ export {
   pendenciaStatus,
 } from './schema';
 
+export { financialApiV1, type FinancialApiV1 } from './api';
 export { FINANCIAL_EVENTS } from './events';
 export type {
   LancamentoCreatedPayload,

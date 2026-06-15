@@ -48,7 +48,10 @@ export const CreatePatientSchema = z.object({
   nome: NomeSchema,
   cpf: CpfSchema,
   telefone: TelefoneSchema.optional(),
-  email: EmailSchema,
+  // C12 (ADR-023): opcional — paciente criado pelo AI Agent não tem e-mail.
+  // Validação IDÊNTICA nos dois caminhos (Server Action + agente): quem manda
+  // e-mail valida o formato; quem não manda grava NULL (índice único é parcial).
+  email: EmailSchema.optional(),
   dataNascimento: z.string().date().optional(),
   sexo: SexoSchema.optional(),
 });
@@ -78,7 +81,8 @@ export interface PatientSummary {
   id: string;
   clinicId: string;
   nome: string;
-  email: string;
+  /** C12: opcional — paciente criado pelo AI Agent não tem e-mail. */
+  email: string | null;
   dataNascimento: string | null;
   sexo: 'M' | 'F' | 'O' | 'N' | null;
   obitoEm: string | null;

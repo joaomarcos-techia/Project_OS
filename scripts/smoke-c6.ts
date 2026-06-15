@@ -34,7 +34,9 @@ import { appointments, doctorAvailability, procedures } from '@/contexts/schedul
 // worker dispatch (6.6.6 / 6.6.7 rodam pelo dbWorker, sem requireUser).
 import '@/lib/db/schema';
 import '@/contexts/scheduling/internal/handlers/patient-deleted';
-import '@/contexts/scheduling/internal/handlers/appointment-completed-temp';
+// C9 renomeou o handler temporário: appointment.completed agora é consumido pelo
+// Financial (cria lançamento). O import side-effect registra o handler no worker.
+import '@/contexts/financial/internal/handlers/appointment-completed';
 
 assertDevContext();
 

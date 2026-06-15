@@ -779,3 +779,48 @@ mensagens adversariais com Gemini REAL (`pnpm ai:adversarial`): **0 respostas
 finais inseguras**, recusa 50/50 com o fallback literal (incl. 6 jailbreaks),
 pré-filtro pegou 44/50 com custo zero. Evidência:
 [docs/audits/C11_ADVERSARIAL_50.md](audits/C11_ADVERSARIAL_50.md).
+
+## C12 — AI Agent Intents Core (✅ fechada em 2026-06-15)
+
+Ref: [ADR-023](adr/023-ai-agent-intents.md). Plano passou por **5 rodadas de
+review do founder**. O agente passou de conversacional (C11) a **executor**.
+
+### Construído
+
+- **Ator de sistema `ai_agent` (Phase 0/A)**: `idempotentMutation` ganhou `actor`
+  opcional (backward-compatible); cores de mutação extraídos
+  (`scheduling/internal/appointment-core.ts`, `patient/internal/patient-core.ts`)
+  compartilhados por Server Action (ator `user`) e agente (`ai_agent`), validação
+  idêntica (sem bifurcação — R5). APIs versionadas: `schedulingApiV1.{schedule,
+  confirm,cancel,reschedule}AsAgent`, `patientApiV1` (findByPhone,
+  createPatientAsAgent, createLgpdRequestPending, cpfMatchesPatient),
+  `financialApiV1.listPendingByPatient`.
+- **13 tools** (3 C11 + 10 C12), inputs string-only (conversor congelado intocado);
+  identidade ancorada no telefone verificado (anti-spoofing); idempotência por
+  conteúdo (sha256 conversa+intent+args — R1).
+- **Memória de coleta** cifrada (`collected_data_encrypted`) + `COLLECT_STALE_RESET_DAYS`
+  / `MAX_COLLECT_STAGNATION`; **sem context_drift** (R2). LGPD = intake + handoff
+  (nunca cumpre — os handlers de evento cumprem). list_pending_payments sem valores
+  por padrão (opt-in clínica). Injection = audit-only (R3). Email opcional
+  unificado (migration 0025).
+
+### Validação
+
+`pnpm typecheck` ✓ · `pnpm test` **352/352** ✓ (334 + 18 novos: agentIdemKey R1,
+identidade R6, detectPromptInjection) · `check:registry:strict` ✓ · `arch:db-check`
+✓ · `check:migrations` ✓ · migration `0025` aplicada em qoro-dev (email
+nullable+índice parcial, collected_data_encrypted, can_disclose_payments_via_agent).
+
+- **`pnpm smoke:c12` 9/9 ao vivo (qoro-dev, worker REAL, Gemini stubado)**:
+  12.1 paciente novo collect→createPatient ✓ · 12.5 idempotência por conteúdo
+  (schedule 2× → 1 consulta, `idempotency.hit`) ✓ · 12.9 passado→fallback ✓ ·
+  injection auditado (não bloqueia) ✓ · 12.3 LGPD delete → request pending +
+  handoff, paciente NÃO soft-deletado ✓ · 12.7 cross-tenant (RLS) ✓.
+- **gate de extração Phase 0**: `smoke:c5` 8/8 + `smoke:c6` 12/12 ✓ ·
+  `pnpm ai:adversarial` **0 finais inseguras** (Gemini REAL) ✓.
+
+### Pendente (não bloqueia a camada)
+
+- WhatsApp real ponta-a-ponta (transporte Meta) — adiado pelo founder (conta
+  Meta), validação de transporte/UX, não de lógica. Fluxo operacional §4.
+- Débitos formais: ver "Known Future Refactors" no ADR-023.

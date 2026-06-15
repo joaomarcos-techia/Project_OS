@@ -28,7 +28,7 @@
 import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { aiCircuit } from '@/lib/ai/circuit-breaker';
 import { computeCostUsd } from '@/lib/ai/cost';
@@ -53,8 +53,13 @@ import {
 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
+import { agentIdemKey } from '@/lib/agent/actor';
+/* eslint-disable boundaries/element-types -- patientApiV1 é a API interna pública (M14), mesma exceção das tools. */
+import { patientApiV1 } from '@/contexts/patient';
+/* eslint-enable boundaries/element-types */
+
 import { AI_AGENT_EVENTS } from '../../events';
-import { MAX_TOOL_ROUNDS } from '../../limits';
+import { COLLECT_STALE_RESET_DAYS, MAX_COLLECT_STAGNATION, MAX_TOOL_ROUNDS } from '../../limits';
 import {
   buildPromptMessages,
   buildSystemPrompt,
@@ -65,19 +70,38 @@ import {
   QUOTA_FALLBACK,
   truncateInbound,
 } from '../../prompts/system';
-import { checkClinicalContent, isMedicalQuestion } from '../../guards/semantic-guard';
-import { aiAgentFailures } from '../../schema';
+import {
+  checkClinicalContent,
+  detectPromptInjection,
+  isMedicalQuestion,
+} from '../../guards/semantic-guard';
+import { aiAgentFailures, aiConversations } from '../../schema';
 import { listToolDeclarations, validateAndExecute } from '../../tools/registry';
-// Side-effect: registram as 3 tools da C11 no registry (whitelist G9).
+// Side-effect: registram as tools no registry (whitelist G9). 3 da C11 + 10 da C12.
 import '../../tools/provide-clinic-info';
 import '../../tools/provide-procedure-price';
 import '../../tools/request-human-handoff';
+import '../../tools/list-slots';
+import '../../tools/schedule-appointment';
+import '../../tools/confirm-appointment';
+import '../../tools/cancel-appointment';
+import '../../tools/reschedule-appointment';
+import '../../tools/list-pending-payments';
+import '../../tools/lgpd-export-request';
+import '../../tools/lgpd-delete-request';
+import '../../tools/patient-lookup';
+import '../../tools/collect-patient-data';
 import {
   appendInboundMessage,
   appendOutboundMessage,
+  clearCollectedData,
+  escalateToHuman,
   findOrCreateConversation,
   findTurnMessages,
+  getCollectedData,
   incrementFallback,
+  resetFallback,
+  setIntent,
 } from '../conversation';
 import type { ActiveConversation } from '../conversation';
 import { buildContext } from '../context-builder';
@@ -153,6 +177,60 @@ async function recordFailure(args: {
   } catch (e) {
     // Dead letter é best-effort: falhar aqui não pode matar o turno.
     metrics.emit('ai_agent.failure_record_error', { clinicId: args.clinicId, error: e });
+  }
+}
+
+/**
+ * C12 — resolve a coleta de paciente NOVO (handler, NÃO tool — par.12). Quando a
+ * coleta está completa E confirmada, cria o paciente (ancorado no telefone
+ * verificado). Conflito de criação (CPF de terceiro etc.) → handoff: a IA JAMAIS
+ * age sobre cadastro alheio. Estagnação (MAX_COLLECT_STAGNATION) → handoff.
+ */
+async function resolveCollect(
+  clinicId: string,
+  conversation: ActiveConversation,
+  eventId: string,
+  aiRequestId: string,
+): Promise<{ patientId?: string; handoff?: boolean }> {
+  if (conversation.patientId) return {}; // já identificado pelo telefone
+  const collected = await phase(clinicId, (tx) => getCollectedData(tx, clinicId, conversation.id));
+  if (!collected) return {};
+
+  const complete = !!(collected.nome && collected.cpf && collected.telefone && collected.motivo);
+  if (!complete) {
+    if ((collected._stagnation ?? 0) >= MAX_COLLECT_STAGNATION) {
+      await phase(clinicId, (tx) => escalateToHuman(tx, clinicId, conversation.id, 'collect_stagnation'));
+      return { handoff: true };
+    }
+    return {};
+  }
+  if (!collected._confirmed) return {}; // completo mas aguardando confirmação do resumo
+
+  try {
+    const patient = await patientApiV1.createPatientAsAgent(
+      { clinicId, eventId, aiRequestId },
+      { nome: collected.nome!, cpf: collected.cpf!, telefone: collected.telefone! },
+      agentIdemKey(conversation.id, 'register_patient', { cpf: collected.cpf }),
+    );
+    await phase(clinicId, async (tx) => {
+      await tx
+        .update(aiConversations)
+        .set({ patientId: patient.id })
+        .where(and(eq(aiConversations.id, conversation.id), eq(aiConversations.clinicId, clinicId)));
+      await clearCollectedData(tx, clinicId, conversation.id);
+    });
+    metrics.emit('ai_agent.patient.created', { clinicId, conversationId: conversation.id, aiRequestId });
+    return { patientId: patient.id };
+  } catch (err) {
+    // CPF/e-mail já cadastrado (terceiro) ou erro → handoff (nunca linka alheio).
+    await phase(clinicId, (tx) => escalateToHuman(tx, clinicId, conversation.id, 'patient_create_failed'));
+    metrics.emit('ai_agent.patient.create_failed', {
+      clinicId,
+      conversationId: conversation.id,
+      aiRequestId,
+      error: err,
+    });
+    return { handoff: true };
   }
 }
 
@@ -243,6 +321,16 @@ async function processInbound(ctx: {
     return { conversation: conv, replayedOut: turn.outRow };
   });
 
+  // C12 — staleness (COLLECT_STALE_RESET_DAYS): paciente sumiu por dias e voltou
+  // → recomeça a coleta limpa em vez de retomar formulário stale. Só fora de
+  // replay (replay não reprocessa). Usa o last_message_at ANTES deste turno.
+  if (!replayedOut && conversation.lastMessageAt) {
+    const ageMs = Date.now() - new Date(conversation.lastMessageAt).getTime();
+    if (ageMs > COLLECT_STALE_RESET_DAYS * 86_400_000) {
+      await phase(clinicId, (tx) => clearCollectedData(tx, clinicId, conversation.id));
+    }
+  }
+
   // Conversa em handoff: humano está atendendo — o agente registra o inbound
   // mas NÃO responde por cima.
   if (conversation.status === 'handoff' && !replayedOut) {
@@ -266,6 +354,16 @@ async function processInbound(ctx: {
   let alreadyPersisted = false;
 
   const preFilter = isMedicalQuestion(text);
+  // C12 (ADR-023) — injection é AUDIT-ONLY: não bloqueia (RLS + whitelist de
+  // tools + recusa do LLM são a defesa real); só dá visibilidade.
+  const injection = detectPromptInjection(text);
+  if (!injection.safe) {
+    metrics.emit('ai_agent.injection.detected', {
+      clinicId,
+      aiRequestId,
+      matched: injection.matched,
+    });
+  }
   const quota =
     replayedOut || !preFilter.safe
       ? null
@@ -361,6 +459,11 @@ async function processInbound(ctx: {
             conversationId: conversation.id,
             eventId,
             aiRequestId,
+            // C12 — identidade verificada por telefone (anti-spoofing).
+            patientId: conversation.patientId,
+            patientNome: conversation.patientNome,
+            verifiedPhone: fromNumber,
+            canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
           });
           if (!exec.ok) {
             const stage: FailureStage =
@@ -371,7 +474,14 @@ async function processInbound(ctx: {
                   : 'tool_invalid';
             return { failed: { stage, exec, toolName: call.name } as const, acc };
           }
-          if (call.name === 'request_human_handoff') handoffExecuted = true;
+          // Handoff via tool dedicado OU qualquer tool que sinalize handoff:true
+          // (lgpd_*, list_pending_payments sem identidade/disclosure — C12).
+          if (
+            call.name === 'request_human_handoff' ||
+            (exec.response as { handoff?: boolean }).handoff === true
+          ) {
+            handoffExecuted = true;
+          }
           acc.push({ name: call.name, args: call.args, response: exec.response });
         }
         return { failed: null, acc };
@@ -426,7 +536,20 @@ async function processInbound(ctx: {
       model: model ?? 'none',
     });
 
-    if (fallback || !result?.text || result.text.trim().length === 0) {
+    // C12 — coleta concluída + confirmada → cria paciente (handler, NÃO tool).
+    // Conflito de identidade/criação ou estagnação → handoff.
+    let collectHandoff = false;
+    if (!fallback) {
+      const collect = await resolveCollect(clinicId, conversation, eventId, aiRequestId);
+      if (collect.handoff) collectHandoff = true;
+      else if (collect.patientId) conversation.patientId = collect.patientId;
+    }
+
+    if (collectHandoff) {
+      responseText =
+        'Recebi seus dados! Vou confirmar sua identidade com um atendente e já te retorno, ok?';
+      outcome = 'handoff';
+    } else if (fallback || !result?.text || result.text.trim().length === 0) {
       // Falha de provider/tool/rounds OU LLM sem texto → fallback operacional.
       // Se o handoff JÁ executou, o paciente recebe a confirmação do handoff.
       if (!fallback && handoffExecuted) {
@@ -444,6 +567,16 @@ async function processInbound(ctx: {
       responseText = result.text;
       outcome = handoffExecuted ? 'handoff' : 'replied';
     }
+
+    // C12 — intent canônico do turno (1ª tool) + reset de fallback no sucesso.
+    const turnIntent =
+      Array.isArray(toolCallsRecord) && toolCallsRecord.length > 0
+        ? ((toolCallsRecord as Array<{ name: string }>)[0]?.name ?? null)
+        : null;
+    await phase(clinicId, async (tx) => {
+      await setIntent(tx, clinicId, conversation.id, turnIntent);
+      if (outcome === 'replied') await resetFallback(tx, clinicId, conversation.id);
+    });
 
     // Validação semântica PÓS-resposta (G4 — defesa em profundidade).
     const post = checkClinicalContent(responseText);

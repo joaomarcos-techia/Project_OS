@@ -28,6 +28,7 @@ function makeCtx(overrides: Partial<PromptContext> = {}): PromptContext {
       especialidades: ['cardiologia', 'dermatologia'],
       canScheduleAnonymous: false,
       maxDaysAhead: 30,
+      canDisclosePayments: false,
     },
     patient: { id: '22222222-2222-2222-2222-222222222222', nome: 'Maria' },
     history: [],

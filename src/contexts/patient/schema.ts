@@ -77,7 +77,9 @@ export const patients = pgTable(
     telefoneEncrypted: text('telefone_encrypted'),
     telefoneHash: text('telefone_hash'),
     // Normalized (lowercase+trim) before persist; plaintext is acceptable.
-    email: text('email').notNull(),
+    // C12 (ADR-023): opcional — paciente cadastrado pelo AI Agent (WhatsApp) não
+    // tem e-mail (coleta = nome/cpf/telefone/motivo). Unicidade vira PARCIAL.
+    email: text('email'),
     dataNascimento: date('data_nascimento'),
     sexo: patientSexo('sexo'),
     obitoEm: date('obito_em'),
@@ -97,7 +99,10 @@ export const patients = pgTable(
     // Same CPF may exist in N clinics, but is unique within one (test 5.6.9).
     clinicCpfUniq: uniqueIndex('patients_clinic_cpf_uniq').on(t.clinicId, t.cpfHash),
     clinicPhoneIdx: index('patients_clinic_phone_idx').on(t.clinicId, t.telefoneHash),
-    clinicEmailUniq: uniqueIndex('patients_clinic_email_uniq').on(t.clinicId, t.email),
+    // Parcial: unicidade só quando há e-mail (NULLs do agente não colidem).
+    clinicEmailUniq: uniqueIndex('patients_clinic_email_uniq')
+      .on(t.clinicId, t.email)
+      .where(sql`email IS NOT NULL`),
     // Name search + active-only listing (GIN trigram added in the migration).
     clinicNomeIdx: index('patients_clinic_nome_idx').on(t.clinicId, t.nome),
     activeIdx: index('patients_active_idx')

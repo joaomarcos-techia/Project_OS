@@ -115,6 +115,7 @@ const ctx: PromptContext = {
     especialidades: ['cardiologia', 'clínica geral'],
     canScheduleAnonymous: false,
     maxDaysAhead: 30,
+    canDisclosePayments: false,
   },
   patient: null,
   history: [],

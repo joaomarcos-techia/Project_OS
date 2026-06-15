@@ -18,6 +18,8 @@ export interface PromptAiConfig {
   especialidades: string[] | null;
   canScheduleAnonymous: boolean;
   maxDaysAhead: number;
+  /** C12: opt-in p/ divulgar valores de cobrança via agente (list_pending_payments). */
+  canDisclosePayments: boolean;
 }
 
 /** Projeção mínima do paciente identificado (sem PII além do nome). */
@@ -40,6 +42,30 @@ export interface PromptContext {
   /** Mensagem corrente, já truncada em MAX_INBOUND_CHARS. */
   currentMessage: string;
 }
+
+/**
+ * C12 — dados coletados de paciente NOVO durante o fluxo multi-turn (par.12.2).
+ * Persistido cifrado per-tenant em ai_conversations.collected_data_encrypted
+ * (contém CPF → nunca plaintext). O handler cria o paciente SÓ quando completo
+ * (nome+cpf+telefone+motivo) E confirmado pelo paciente.
+ */
+export interface CollectedData {
+  nome?: string;
+  cpf?: string;
+  telefone?: string;
+  motivo?: string;
+}
+
+/** Forma armazenada: CollectedData + estado de coleta (estagnação + confirmação). */
+export interface StoredCollect extends CollectedData {
+  /** Turnos de coleta consecutivos SEM progresso (reset a cada campo novo). */
+  _stagnation?: number;
+  /** Paciente confirmou o resumo dos dados (gate de createPatient — par.12). */
+  _confirmed?: boolean;
+}
+
+/** Campos obrigatórios para criar o paciente (par.12 — regras de coleta). */
+export const COLLECT_REQUIRED_FIELDS = ['nome', 'cpf', 'telefone', 'motivo'] as const;
 
 /** Resumo de conversa exposto cross-context (C15 lista a fila/viewer). */
 export interface ConversationSummary {

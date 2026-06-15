@@ -85,10 +85,15 @@ export const aiConversations = pgTable(
       .notNull()
       .default(sql`now()`),
     status: aiConversationStatus('status').notNull().default('active'),
-    // Intent corrente — texto livre em C11 (intents reais nascem em C12).
+    // Intent corrente — texto livre em C11; em C12 guarda o intent canônico.
     intentAtual: text('intent_atual'),
     // R3: MAX_FALLBACKS consecutivos → handoff automático.
     fallbackCount: integer('fallback_count').notNull().default(0),
+    // C12 (ADR-023): coleta de paciente novo. JSON cifrado per-tenant de
+    // { nome?, cpf?, telefone?, motivo?, _stagnation? } — contém CPF, logo
+    // NUNCA plaintext. NULL = sem coleta em andamento. (sem coluna context_drift:
+    // intent-flip gera falso-positivo; handoff é por fallback/estagnação — R2.)
+    collectedDataEncrypted: text('collected_data_encrypted'),
     // Memória 30d hot (§11.12) — purge por retention job (C16).
     expiresAt: timestamp('expires_at', { withTimezone: true })
       .notNull()
@@ -172,6 +177,12 @@ export const aiClinicConfig = pgTable(
     messageTemplateOverrides: jsonb('message_template_overrides'),
     // R4: orçamento mensal de IA por clínica (USD). NULL → env.AI_MONTHLY_COST_LIMIT_USD.
     monthlyBudgetUsd: numeric('monthly_budget_usd', { precision: 10, scale: 2 }),
+    // C12 (ADR-023): opt-in para o agente DIVULGAR valores de cobranças pendentes
+    // por WhatsApp. Default false — telefone é fator, não prova de identidade;
+    // sem opt-in a tool list_pending_payments só confirma existência + handoff.
+    canDisclosePaymentsViaAgent: boolean('can_disclose_payments_via_agent')
+      .notNull()
+      .default(false),
     ...timestampsPattern(),
   },
   (t) => ({

@@ -33,7 +33,7 @@ export const PatientCreatedSchema = z.object({
   nome: z.string(),
   cpfHash: z.string(),
   telefoneHash: z.string().nullable(),
-  email: z.string().email(),
+  email: z.string().email().nullable(), // C12: paciente do agente pode não ter e-mail
 });
 export type PatientCreatedPayload = z.infer<typeof PatientCreatedSchema>;
 

@@ -36,3 +36,21 @@ export const MAX_INBOUND_CHARS = 4_000;
  * de "atendente responde em breve".
  */
 export const MAX_FALLBACKS = 3;
+
+/**
+ * C12 (ADR-023) — coleta de paciente novo. Se a última mensagem da conversa é
+ * mais velha que isto, ao chegar um novo turno a `collected_data` + `intent`
+ * são RESETADOS antes de processar: o paciente que some por dias e volta
+ * recomeça o cadastro limpo, em vez de retomar um formulário meio-preenchido e
+ * stale. Menor que o TTL de 30d da memória (que é o teto duro).
+ */
+export const COLLECT_STALE_RESET_DAYS = 3;
+
+/**
+ * C12 (ADR-023) — handoff por ESTAGNAÇÃO de coleta. Conta turnos de coleta que
+ * NÃO adicionaram nenhum campo novo/válido; reseta a 0 a cada progresso. Ao
+ * atingir N estagnações consecutivas → handoff. Distinto de MAX_FALLBACKS
+ * (que conta falhas de LLM/tool, não estagnação de cadastro) — evita handoff
+ * falso quando o paciente erra e corrige aos poucos.
+ */
+export const MAX_COLLECT_STAGNATION = 5;

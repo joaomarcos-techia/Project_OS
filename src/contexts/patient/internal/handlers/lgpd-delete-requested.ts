@@ -34,12 +34,15 @@ registerHandler<LgpdDeleteRequestedPayload>(
       supp.push({ clinicId, contactHash: row.telefoneHash, channel: 'whatsapp', reason: 'lgpd_delete' });
       supp.push({ clinicId, contactHash: row.telefoneHash, channel: 'sms', reason: 'lgpd_delete' });
     }
-    supp.push({
-      clinicId,
-      contactHash: await hashForLookup(normalizeEmail(row.email)),
-      channel: 'email',
-      reason: 'lgpd_delete',
-    });
+    // C12: paciente criado pelo agente pode não ter e-mail — só suprime se houver.
+    if (row.email) {
+      supp.push({
+        clinicId,
+        contactHash: await hashForLookup(normalizeEmail(row.email)),
+        channel: 'email',
+        reason: 'lgpd_delete',
+      });
+    }
     for (const s of supp) {
       await tx.insert(suppressionList).values(s).onConflictDoNothing();
     }

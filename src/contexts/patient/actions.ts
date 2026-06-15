@@ -19,9 +19,7 @@
  * returns a PatientSummary projection only.
  */
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { headers } from 'next/headers';
 
-import { buildRequestContext } from '@/lib/audit/request-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import {
   requireClinicId,
@@ -54,7 +52,6 @@ import {
   ConsentInputSchema,
   ChannelSchema,
   ConsentTypeSchema,
-  CreatePatientSchema,
   UpdatePatientSchema,
   type Channel,
   type ConsentInput,
@@ -63,39 +60,22 @@ import {
   type PatientSummary,
   type UpdatePatientInput,
 } from './types';
+import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
+import { createPatientCore } from './internal/patient-core';
 
 // --- helpers ---------------------------------------------------------------
-
-/**
- * Torna o payload JSON-safe para a idempotência: remove chaves `undefined`
- * (que o Zod mantém para campos opcionais em branco). assertJsonSafe (C4)
- * rejeita `undefined` — só aceita null/ausência. Determinístico: mesmo input
- * lógico → mesmo hash (dedup/409 continuam corretos).
- */
-function jsonSafe<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-/** Build a CHECK-valid idempotency key: `patient:<action>:<hex>`. */
-function idemKey(action: string, clientKey: string): string {
-  const hex = clientKey.replace(/-/g, '').toLowerCase();
-  if (!/^[a-f0-9]{8,}$/.test(hex)) {
-    throw new PatientValidationError('idempotencyKey must be a UUID');
-  }
-  return `patient:${action}:${hex}`;
-}
-
-async function requestContext() {
-  return buildRequestContext(await headers());
-}
 
 /** Compute the suppression contact hash for a channel from stored fields. */
 async function contactHashFor(
   channel: Channel,
   telefoneHash: string | null,
-  email: string,
+  email: string | null,
 ): Promise<string> {
-  if (channel === 'email') return hashForLookup(normalizeEmail(email));
+  if (channel === 'email') {
+    // C12: paciente do agente pode não ter e-mail — não há o que suprimir.
+    if (!email) throw new PatientValidationError('cannot suppress email: patient has no email');
+    return hashForLookup(normalizeEmail(email));
+  }
   if (!telefoneHash) {
     throw new PatientValidationError(`cannot suppress ${channel}: patient has no phone`);
   }
@@ -107,7 +87,7 @@ async function suppressAllChannels(
   tx: Tx,
   clinicId: string,
   telefoneHash: string | null,
-  email: string,
+  email: string | null,
   reason: string,
 ): Promise<void> {
   const rows: { clinicId: string; contactHash: string; channel: Channel; reason: string }[] = [];
@@ -115,12 +95,15 @@ async function suppressAllChannels(
     rows.push({ clinicId, contactHash: telefoneHash, channel: 'whatsapp', reason });
     rows.push({ clinicId, contactHash: telefoneHash, channel: 'sms', reason });
   }
-  rows.push({
-    clinicId,
-    contactHash: await hashForLookup(normalizeEmail(email)),
-    channel: 'email',
-    reason,
-  });
+  // C12: só suprime e-mail se houver e-mail (paciente do agente pode não ter).
+  if (email) {
+    rows.push({
+      clinicId,
+      contactHash: await hashForLookup(normalizeEmail(email)),
+      channel: 'email',
+      reason,
+    });
+  }
   for (const r of rows) {
     await tx.insert(suppressionList).values(r).onConflictDoNothing();
   }
@@ -132,69 +115,14 @@ export async function createPatient(
   input: CreatePatientInput,
   idempotencyKey: string,
 ): Promise<PatientSummary> {
-  await requireUser();
+  // HTTP-authz stays in the Server Action wrapper; the shared core does the
+  // domain work (validation/crypto/idempotency/audit/event) for BOTH this path
+  // and the AI agent (C12 — R5, single core, identical validation).
+  const user = await requireUser();
   await requireFreshPermission(PERMISSIONS.CREATE_PATIENT);
-  const data = CreatePatientSchema.parse(input);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
-
-  const cpfNorm = normalizeCpf(data.cpf);
-  if (!validateCpf(cpfNorm)) throw new PatientValidationError('CPF inválido');
-  const cpfHash = await hashForLookup(cpfNorm);
-  const cpfEncrypted = await encryptForTenant(clinicId, cpfNorm);
-
-  let telefoneHash: string | null = null;
-  let telefoneEncrypted: string | null = null;
-  if (data.telefone) {
-    const phoneNorm = normalizePhone(data.telefone);
-    telefoneHash = await hashForLookup(phoneNorm);
-    telefoneEncrypted = await encryptForTenant(clinicId, phoneNorm);
-  }
-  const email = normalizeEmail(data.email);
-
-  try {
-    return await idempotentMutation(
-      {
-        idempotency: { key: idemKey('create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: 604_800 },
-        audit: {
-          action: PATIENT_EVENTS.CREATED,
-          resourceType: 'patient',
-          resourceId: null,
-          before: null,
-          requestContext: ctx,
-        },
-      },
-      async (tx) => {
-        const [row] = await tx
-          .insert(patients)
-          .values({
-            clinicId,
-            nome: data.nome,
-            cpfEncrypted,
-            cpfHash,
-            telefoneEncrypted,
-            telefoneHash,
-            email,
-            dataNascimento: data.dataNascimento ?? null,
-            sexo: data.sexo ?? null,
-          })
-          .returning();
-        const summary = toPatientSummary(row!);
-        await publishEvent(tx, {
-          clinicId,
-          eventType: PATIENT_EVENTS.CREATED,
-          payload: { patientId: row!.id, clinicId, nome: row!.nome, cpfHash, telefoneHash, email },
-          idempotencyKey: `${idempotencyKey}:created`,
-        });
-        return summary;
-      },
-    );
-  } catch (err) {
-    if (isUniqueViolation(err)) {
-      throw new PatientConflictError('CPF ou e-mail já cadastrado nesta clínica');
-    }
-    throw err;
-  }
+  return createPatientCore({ clinicId, userId: user.userId }, ctx, input, idempotencyKey);
 }
 
 // --- updatePatient ---------------------------------------------------------

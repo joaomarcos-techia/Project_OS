@@ -76,6 +76,34 @@ export function toLancamentoSummary(row: LancamentoRow): LancamentoSummary {
   };
 }
 
+/**
+ * C12 — cobranças PENDENTES de um paciente (a receber; pendente ou parcial).
+ * Read-only; consumida pela tool list_pending_payments do AI Agent (com gating
+ * de identidade por telefone verificado feito na saga). Sem JOIN cross-context
+ * (patientId é coluna). A IA NUNCA cria/edita cobrança (par.12 — proibido).
+ */
+export async function listPendingByPatient(
+  clinicId: string,
+  patientId: string,
+): Promise<LancamentoSummary[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(lancamentos)
+      .where(
+        and(
+          eq(lancamentos.clinicId, clinicId),
+          eq(lancamentos.patientId, patientId),
+          eq(lancamentos.tipo, 'receber'),
+          inArray(lancamentos.status, ['pendente', 'parcial']),
+        ),
+      )
+      .orderBy(desc(lancamentos.createdAt))
+      .limit(50);
+    return rows.map(toLancamentoSummary);
+  });
+}
+
 // --- Caixa -----------------------------------------------------------------
 
 export interface CaixaLancamentos {

@@ -18,6 +18,7 @@ export {
   lgpdRequestType,
   lgpdRequestStatus,
 } from './schema';
+export { patientApiV1, type PatientApiV1 } from './api';
 export { PATIENT_EVENTS } from './events';
 export type {
   PatientCreatedPayload,

@@ -30,3 +30,23 @@ export function buildRequestContext(headers: Headers): RequestContext {
     correlationId: headers.get('x-correlation-id') ?? requestId,
   };
 }
+
+/**
+ * C12 — RequestContext sintético para o AI Agent, que roda no worker do outbox
+ * (SEM request HTTP, logo sem headers). Não há IP/User-Agent reais; o rastro
+ * forense vem do turno: `requestId` = aiRequestId (R7) e `correlationId` =
+ * eventId do inbound. userAgent fixo identifica a origem nos audit_events.
+ */
+export function buildAgentRequestContext(args: {
+  /** aiRequestId do turno (R7). */
+  requestId: string;
+  /** eventId do inbound que originou a ação (rastro cross-context). */
+  correlationId: string;
+}): RequestContext {
+  return {
+    ip: null,
+    userAgent: 'clinicaos-ai-agent',
+    requestId: args.requestId,
+    correlationId: args.correlationId,
+  };
+}

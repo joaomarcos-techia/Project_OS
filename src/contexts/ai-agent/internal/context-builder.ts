@@ -68,6 +68,7 @@ export async function buildContext(
       especialidades: config?.especialidades ?? null,
       canScheduleAnonymous: config?.canScheduleAnonymous ?? false,
       maxDaysAhead: config?.maxDaysAhead ?? 30,
+      canDisclosePayments: config?.canDisclosePaymentsViaAgent ?? false,
     },
     patient: args.patient,
     history,

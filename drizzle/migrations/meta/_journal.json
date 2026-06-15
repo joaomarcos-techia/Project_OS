@@ -176,6 +176,13 @@
       "when": 1781190728883,
       "tag": "0024_ai_agent_core",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781468711020,
+      "tag": "0025_white_sugar_man",
+      "breakpoints": true
     }
   ]
 }
