@@ -80,11 +80,14 @@ authenticated (só service_role). Validado por `arch:db-check` (0 findings) + sm
   (contador=1 em 2 chamadas), RLS A≠B.
 - **Gates de arquitetura:** `typecheck` ✅ · `lint` ✅ · `arch:db-check` (370 files, 0 findings) ✅ ·
   `check:registry:strict` (catalog 44 ⇔ registry 10) ✅ · `check:migrations` ✅.
-- **Asaas REAL (13.6.1):** `pnpm billing:live-check` pronto (createCustomer→createSubscription→
-  getSubscription no sandbox); roda com `ASAAS_API_KEY` (já no .env). **A executar pelo founder.**
+- **Asaas REAL (13.6.1) — EXECUTADO ✅:** `pnpm billing:live-check` criou customer + subscription
+  ACTIVE no sandbox real; `pnpm billing:live-roundtrip` provisionou clínica + subscription com
+  persistência local (`cus_000008201215` / `sub_apblrkrulzyo9mhw`).
+- **Round-trip de webhook REAL em produção (13.6.1/13.6.2) — VERIFICADO ✅:** ver §16.
 
 ## 11. Mapa §13.6 (manuais) e §13.5
-- 13.6.1 sandbox Asaas → `billing:live-check` (gate REAL). 13.6.2 overdue→dunning → smoke + cron.
+- 13.6.1 sandbox Asaas → **VERIFICADO em produção** (live-check + round-trip do webhook real, §16).
+  13.6.2 overdue→dunning → smoke + cron (dunning diário 08:00 UTC).
 - 13.6.3 D+15/D+30 → status muda + escrita bloqueada → smoke (D+30) + `requireActiveClinic`.
 - 13.6.4 agendamento no limite NÃO bloqueia → `enforce('agendamento')` (unit). 13.6.5 user acima
   do limite bloqueia → `assertUserQuota` (unit/api; call-site de convite = onboarding).
@@ -115,7 +118,29 @@ sem múltiplos cartões, sem upgrade/downgrade UI, sem flag booleana em `plan_li
 código semelhante: nenhum encontrado para remover.
 
 ## 15. Critério de pronto
-Núcleo do billing **pronto e verificado** (unit 21/21, smoke 8/8, todos os gates verdes, migration
-aplicada). Os 23 gaps das revisões endereçados (G1–G11, F1–F8 + 8 finais — ver plano). **Pendente
-para "C13 100% fechada"**: executar `billing:live-check` no sandbox (13.6.1, founder) e a integração
-de onboarding (checkout UI + owner-creation + login gate no middleware) — débito aceitável §13.
+Motor de billing **PRONTO e VERIFICADO em produção** (unit 21/21, smoke 8/8, gates verdes, migration
+aplicada, **round-trip de webhook real fechado** — §16). Os 23 gaps das revisões endereçados
+(G1–G11, F1–F8 + 8 finais — ver plano). **Fora do escopo C13 (camada de onboarding, débito §13):**
+checkout UI + owner-creation + login-gate de suspensão no middleware. Não bloqueiam o motor.
+
+## 16. Verificação em produção (2026-06-18, deploy app.qoro.dev / banco qoro-dev)
+Round-trip real do ciclo de pagamento, ponta a ponta:
+- `billing:live-roundtrip` → Asaas real (customer+subscription) + provisiona clínica
+  `3c68f3a6-…` em `pending_payment`.
+- Asaas dispara `PAYMENT_RECEIVED` → `/api/webhooks/asaas` → **`{status: processed}`**.
+- Efeito confirmado no banco: clínica → **`active`**, invoice **materializada + `paid`**,
+  subscription → **`active`**, `payment_attempt` confirmed, `billing_events` (invoice.generated+paid),
+  `processed_webhooks` registrado.
+- Replay do mesmo evento → **`duplicate`** (idempotência/replay protection confirmada).
+
+**Dois bugs encontrados no deploy e corrigidos (commits f17dcb9, 249ddde):**
+1. **Webhook não materializava a invoice** — só atualizava invoice pré-existente; ciclo recorrente
+   nunca fechava. Fix: `ensureInvoiceForPayment` trata `PAYMENT_CREATED` e cria a invoice resolvendo
+   a subscription por `asaas_subscription_id` (out-of-order safe). [subscriptions.ts]
+2. **Middleware sequestrava o webhook** — `config.matcher` excluía `api/cron`/`api/health` mas não
+   `api/webhooks` → Asaas recebia `307 → /login` e penalizava a fila. Fix: excluir `api/webhooks`
+   do matcher (auth do webhook é por token do provider, não sessão). [middleware.ts] — corrige
+   também o webhook Meta (C10), que tinha o mesmo bug latente.
+
+**Operação:** crons `billing-dunning` (08:00 UTC) e `billing-reconcile` (09:00 UTC) registrados no
+`vercel.json` (diários — `CRON_SECRET` validado pelos crons existentes que retornam 200).
