@@ -1176,11 +1176,18 @@ Layout: kanban 3 colunas em `/app/consultorio`:
 - `ai_agent.handoff.requested`
 - `ai_agent.cost.incurred` (pra cota de plano)
 
-**Eventos consumidos:**
-- `scheduling.appointment.created` → agenda job de lembrete D-1
-- `scheduling.appointment.no_show` → dispara confirmação extra na próxima vez
-- `financial.lancamento.created` (status pendente) → agenda dunning D+3, D+7
-- `clinical.prontuario.signed` (com `needs_return`) → agenda followup pra agendar retorno
+**Proativo vs reativo (C14 — implementado, ver ADR-026):**
+- **REGRA DE OURO:** o *envio* proativo é **cron determinístico**, o **LLM nunca envia**
+  (só interpreta a resposta do paciente). Defesa de escala.
+- **Reminder** (D-1) e **Dunning** (D+3/D+7) = **cron-scan** dos read-models das origens
+  (`schedulingApiV1.listReminderCandidates` / `financialApiV1.listDunningCandidates`) —
+  NÃO são event-driven (registry = 1 handler/evento; `appointment.created`/`lancamento.created`
+  já tomados). O contexto-fonte é dono da regra de "quem recebe".
+- **Followup** = **event-driven**: handler em `clinical.prontuario.signed` (com `needs_return`).
+- **Reativo:** o "sim/não/remarcar" entra pelo webhook → AI Agent (intents). ⚠️ Falta a tool
+  `list_my_appointments` p/ o agente saber QUAL consulta confirmar (pendência C12, ver ADR-026).
+- Templates proativos **só** saem aprovados pela Meta (fora da janela 24h); nome via ENV hoje,
+  catálogo `whatsapp_templates` no nosso DB quando multi-WABA (provável feature do C15).
 
 **Regras de negócio:**
 - 🔒 **Prompt sistema é código, não DB.** Mudança = git commit + deploy. Evita prompt injection e drift.

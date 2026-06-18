@@ -35,6 +35,8 @@
     "billing:live-check": "tsx --conditions=react-server scripts/asaas-live-check.ts",
     "billing:live-roundtrip": "tsx --conditions=react-server scripts/asaas-live-roundtrip.ts",
     "smoke:c13": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c13.ts",
+    "smoke:c14": "cross-env OUTBOX_BATCH_SIZE=10 OUTBOX_PARALLELISM=1 tsx --conditions=react-server scripts/smoke-c14.ts",
+    "wa:send-template": "tsx --conditions=react-server scripts/wa-send-template.ts",
     "seed:lgpd-bucket": "tsx --conditions=react-server scripts/seed-lgpd-bucket.ts",
     "worker:once": "tsx --conditions=react-server scripts/run-outbox-once.ts",
     "hard-delete:once": "tsx --conditions=react-server scripts/run-hard-delete.ts",

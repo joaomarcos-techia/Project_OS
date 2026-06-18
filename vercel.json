@@ -11,7 +11,10 @@
     { "path": "/api/cron/financial-reconcile", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/data-retention", "schedule": "0 5 1 * *" },
     { "path": "/api/cron/billing-dunning", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/billing-reconcile", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/billing-reconcile", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/proactive-reminders", "schedule": "*/15 11-23 * * *" },
+    { "path": "/api/cron/proactive-dunning", "schedule": "*/15 11-23 * * *" },
+    { "path": "/api/cron/proactive-followup", "schedule": "*/15 11-23 * * *" }
   ],
   "outputDirectory": ".next"
 }

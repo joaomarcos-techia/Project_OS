@@ -61,7 +61,7 @@ const PRODUCER_AHEAD = new Set<string>([
   'scheduling.appointment.rescheduled',
   // C11+ — projeções clínicas/relatórios
   'clinical.prontuario.created',
-  'clinical.prontuario.signed',
+  // clinical.prontuario.signed saiu daqui: C14 ativou handler de followup (F-14).
   'clinical.prescription.created',
   'clinical.document.generated',
   // C13/C14 — financeiro downstream (recibos, cobrança, dashboards)

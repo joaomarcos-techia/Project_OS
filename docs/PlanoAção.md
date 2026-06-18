@@ -4110,6 +4110,31 @@ Mensagens **proativas** (a clínica fala primeiro) via WhatsApp template Meta ap
 **Experimentais:**
 - Hora de disparo (18h pode mudar)
 
+### 14.19 🛠️ Atualização pós-implementação (2026-06-18 — ver ADR-026)
+
+Reconciliações forçadas pela arquitetura (registry = 1 handler/evento; `appointment.created`
+e `lancamento.created` já tomados):
+- **Reminder e Dunning viraram cron-scan** dos read-models das origens
+  (`schedulingApiV1.listReminderCandidates`, `financialApiV1.listDunningCandidates`) —
+  o contexto-fonte é dono da regra de "quem recebe". **Followup** segue event-driven.
+- **REGRA DE OURO:** proativo = cron determinístico; o **LLM nunca envia** (só interpreta
+  resposta, reativo). Defesa de escala.
+- **idempotencyKey de envio = `job.id`** (estável) → at-most-once no Meta.
+- **Opt-in** `cobranca_whatsapp` exigido só p/ **dunning** (reminder/followup = transacionais).
+- **Templates:** obrigatoriamente aprovados na Meta (regra deles, fora da janela 24h).
+  Nome via ENV hoje; **catálogo `whatsapp_templates` no nosso DB** quando multi-WABA
+  (status de aprovação é por WABA) — provável feature do C15.
+
+**Pendência p/ fechar o loop de resposta (não é bug):** o lembrete entrega, mas o
+"SIM" do paciente ainda não confirma sozinho — falta a tool **`list_my_appointments`**
+no AI Agent (as tools confirm/cancel/reschedule exigem `appointment_id` e não há de
+onde descobri-lo). Aditivo, ~1 arquivo, escopo C12/intents — fazer junto da validação
+real (quando os templates aprovarem). T-1h (segundo lembrete) = experimento futuro (YAGNI).
+
+**Estado:** código completo + 388 testes + `smoke:c14` 8/8 + gates verdes + webhook
+verificado em prod. Operacional p/ go-live: aprovar 3 templates, migration 0027 em prod,
+conectar número, gate §14.7. Runbook: `docs/runbooks/c14-validation.md`.
+
 ---
 
 ## CAMADA 15 — Platform Admin (admin.qoro.dev)

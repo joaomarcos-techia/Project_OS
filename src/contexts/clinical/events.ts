@@ -35,6 +35,9 @@ export const ProntuarioCreatedSchema = z.object({
 export type ProntuarioCreatedPayload = z.infer<typeof ProntuarioCreatedSchema>;
 
 // --- prontuario.signed (C14 reage → followup) ------------------------------
+// C14: `signedDoctorNome` é extensão ADITIVA do contrato v1 (nome de profissional
+// NÃO é PII — mesmo precedente de scheduling.appointment.completed). Permite o
+// handler de followup montar o template SEM ler clinical no send (handler puro).
 export const ProntuarioSignedSchema = z.object({
   prontuarioId: uuid,
   clinicId: uuid,
@@ -43,6 +46,7 @@ export const ProntuarioSignedSchema = z.object({
   signedAt: z.string().datetime(),
   needsReturn: z.boolean(),
   returnDays: z.number().int().positive().nullable(),
+  signedDoctorNome: z.string().nullable(),
 });
 export type ProntuarioSignedPayload = z.infer<typeof ProntuarioSignedSchema>;
 

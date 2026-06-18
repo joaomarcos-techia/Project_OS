@@ -62,6 +62,13 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // (estado Asaas vs local cross-tenant). Mesma justificativa dos crons C9.
     'src/app/api/cron/billing-dunning/route.ts',
     'src/app/api/cron/billing-reconcile/route.ts',
+    // C14 — read-models de "candidatos" (regra mora no contexto-fonte) +
+    // repository da fila proativa: scans cross-tenant read-only, sem PII, bound
+    // por LIMIT; writes per-clínica continuam via withTenant. Mesma justificativa
+    // dos crons C9/C13. (Os crons proactive-* NUNCA tocam dbAdmin: só estes 3.)
+    'src/contexts/scheduling/reminder-candidates.ts',
+    'src/contexts/financial/dunning-candidates.ts',
+    'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
   ]),
   dbWorker: new Set([
     'src/lib/outbox/worker.ts',

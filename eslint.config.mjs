@@ -178,6 +178,14 @@ const config = [
       // asaas_payment_id (server-to-server, validado por token) e processa a
       // transição. Mesma justificativa dos crons. Só esta rota de webhook.
       'src/app/api/webhooks/asaas/**/*.{ts,tsx}',
+      // C14: read-models de "candidatos" (Scheduling/Financial são donos da regra
+      // de "quem recebe") + repository da fila proativa fazem scan cross-tenant
+      // read-only (sem PII, bound por LIMIT); writes per-clínica seguem em
+      // withTenant. Mesma justificativa dos crons C9/C13 — também na allowlist do
+      // arch:db-check. Só estes 3 arquivos.
+      'src/contexts/scheduling/reminder-candidates.ts',
+      'src/contexts/financial/dunning-candidates.ts',
+      'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
     ],
     rules: {
       'no-restricted-imports': [

@@ -37,6 +37,7 @@ export type { AppointmentState } from './state-machine';
 
 export { schedulingApiV1 } from './api';
 export type { SchedulingApiV1 } from './api';
+export type { ReminderCandidate } from './reminder-candidates';
 
 export type {
   AppointmentSummary,

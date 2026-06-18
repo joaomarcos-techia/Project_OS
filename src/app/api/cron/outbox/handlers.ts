@@ -53,4 +53,8 @@ import '@/contexts/ai-agent/internal/handlers/inbound-received';
 import '@/contexts/billing/internal/handlers/appointment-created';
 import '@/contexts/billing/internal/handlers/conversation-completed';
 
+// C14 — Proactive Jobs: prontuário assinado com needs_return → agenda followup.
+// (reminder/dunning NÃO são handlers — são cron-scan dos read-models das origens.)
+import '@/contexts/ai-agent/proactive-jobs/internal/handlers/prontuario-signed';
+
 export {};

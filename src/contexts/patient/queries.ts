@@ -23,9 +23,10 @@ import {
   patientConsents,
   patientEmergencyContacts,
   patients,
+  suppressionList,
   type PatientRow,
 } from './schema';
-import type { DecryptedPatient, PatientSummary } from './types';
+import type { DecryptedPatient, PatientSummary, ProactiveContact } from './types';
 
 /**
  * The single soft-delete guard. Every active-patient read composes this into
@@ -176,6 +177,66 @@ export async function findPatientByPhone(
       .where(and(eq(patients.telefoneHash, telefoneHash), patientsActiveFilter()))
       .limit(1);
     return row ? toPatientSummary(row) : null;
+  });
+}
+
+/**
+ * C14 — contato p/ mensagem proativa. Decifra o telefone (mesmo ponto central
+ * de decrypt) e agrega consent de cobrança + suppression numa leitura. NÃO é
+ * usado em listas; é 1 read por job no send-time. Retorna null se o paciente
+ * não existe / foi soft-deleted (RLS via withTenant garante o tenant).
+ */
+export async function getProactiveContact(
+  clinicId: string,
+  patientId: string,
+): Promise<ProactiveContact | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(patients)
+      .where(and(eq(patients.id, patientId), patientsActiveFilter()))
+      .limit(1);
+    if (!row) return null;
+
+    const phone = row.telefoneEncrypted
+      ? await decryptForTenant(clinicId, row.telefoneEncrypted)
+      : null;
+
+    // Consentimento mais recente (versao DESC) decide o opt-in vigente.
+    const [consent] = await tx
+      .select({
+        cobrancaWhatsapp: patientConsents.cobrancaWhatsapp,
+        revokedAt: patientConsents.revokedAt,
+      })
+      .from(patientConsents)
+      .where(eq(patientConsents.patientId, patientId))
+      .orderBy(desc(patientConsents.versao))
+      .limit(1);
+
+    // suppression_list.contact_hash é o MESMO HMAC de patients.telefone_hash.
+    let suppressedWhatsapp = false;
+    if (row.telefoneHash) {
+      const [supp] = await tx
+        .select({ id: suppressionList.id })
+        .from(suppressionList)
+        .where(
+          and(
+            eq(suppressionList.clinicId, clinicId),
+            eq(suppressionList.contactHash, row.telefoneHash),
+            eq(suppressionList.channel, 'whatsapp'),
+          ),
+        )
+        .limit(1);
+      suppressedWhatsapp = Boolean(supp);
+    }
+
+    return {
+      nome: row.nome,
+      phone,
+      cobrancaWhatsapp: consent?.cobrancaWhatsapp ?? false,
+      consentRevoked: consent?.revokedAt != null,
+      suppressedWhatsapp,
+    };
   });
 }
 

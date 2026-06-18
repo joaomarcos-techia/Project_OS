@@ -20,11 +20,17 @@ import {
   createLgpdRequestIntake,
   createPatientCore,
 } from './internal/patient-core';
-import { findPatientByPhone } from './queries';
-import type { CreatePatientInput, PatientSummary } from './types';
+import { findPatientByPhone, getProactiveContact } from './queries';
+import type { CreatePatientInput, PatientSummary, ProactiveContact } from './types';
 
 export interface PatientApiV1 {
   findByPhone(clinicId: string, phone: string): Promise<PatientSummary | null>;
+  /**
+   * C14 — contato p/ mensagem proativa (telefone decifrado + consent + suppression).
+   * Único seam de decrypt de telefone fora do detalhe; consumido pelo processor
+   * de proactive-jobs no send-time.
+   */
+  getProactiveContact(clinicId: string, patientId: string): Promise<ProactiveContact | null>;
   cpfMatchesPatient(clinicId: string, patientId: string, cpf: string): Promise<boolean>;
   createPatientAsAgent(
     ctx: AgentActorCtx,
@@ -41,6 +47,7 @@ export interface PatientApiV1 {
 
 export const patientApiV1: PatientApiV1 = {
   findByPhone: (clinicId, phone) => findPatientByPhone(clinicId, phone),
+  getProactiveContact: (clinicId, patientId) => getProactiveContact(clinicId, patientId),
   cpfMatchesPatient: (clinicId, patientId, cpf) => cpfMatchesPatient(clinicId, patientId, cpf),
   createPatientAsAgent: (ctx, input, idempotencyKey) =>
     createPatientCore(agentMutationActor(ctx), agentRequestContext(ctx), input, idempotencyKey),

@@ -36,6 +36,9 @@ export * from '@/contexts/messaging/schema';
 // C11 — AI Agent. schema.ts side-effect-imports './events', registrando
 // ai_agent.conversation.completed no catálogo do outbox.
 export * from '@/contexts/ai-agent/schema';
+// C14 — Proactive Jobs (sub-context de ai-agent): fila agendada ai_proactive_jobs.
+// Sem eventos próprios (envios saem direto via messagingApiV1), só schema.
+export * from '@/contexts/ai-agent/proactive-jobs/schema';
 // C13 — Billing. schema.ts side-effect-imports './events', registrando
 // billing.* no catálogo do outbox.
 export * from '@/contexts/billing/schema';

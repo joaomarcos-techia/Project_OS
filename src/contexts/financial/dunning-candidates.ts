@@ -1,0 +1,72 @@
+/**
+ * Dunning candidates (C14) — read-model PRIVILEGIADO do Financial.
+ *
+ * O Financial é dono da regra de "o que é cobrável e vencido" (ADR review C14,
+ * C1/C2): `pending ≠ inadimplente`. Aqui = recebível `pendente`, com `due_date`
+ * preenchido e VENCIDO por dias-calendário no tz da clínica (C2: due_date NULL
+ * nunca entra). Scan cross-tenant via dbAdmin (BYPASSRLS) — mesma justificativa
+ * do cron billing-dunning. Sem PII (só ids + snapshot operacional).
+ *
+ * `daysOverdue` é dia-CALENDÁRIO no tz da clínica (ADR-2), computado em SQL via
+ * `AT TIME ZONE`. O cron escolhe o estágio (D+3 / D+7) a partir daí. Bound 3..30
+ * dias: antes de 3 não cobra; depois de 30 o MVP para (dedup já evita re-envio).
+ */
+import 'server-only';
+
+import { sql } from 'drizzle-orm';
+
+import { dbAdmin } from '@/lib/db';
+
+export interface DunningCandidate {
+  clinicId: string;
+  lancamentoId: string;
+  patientId: string;
+  valor: number;
+  /** Vencimento YYYY-MM-DD. */
+  dueDate: string;
+  /** Dias-calendário vencidos no tz da clínica. */
+  daysOverdue: number;
+  procedureNome: string | null;
+  timezone: string;
+}
+
+export async function listDunningCandidates(limit = 500): Promise<DunningCandidate[]> {
+  const rows = (await dbAdmin.execute(
+    sql`SELECT l.clinic_id::text                                          AS clinic_id,
+               l.id::text                                                 AS lancamento_id,
+               l.patient_id::text                                         AS patient_id,
+               l.valor                                                    AS valor,
+               l.due_date::text                                           AS due_date,
+               ((now() AT TIME ZONE c.timezone)::date - l.due_date)::int  AS days_overdue,
+               l.snapshot_procedure_name                                  AS procedure_nome,
+               c.timezone                                                 AS timezone
+          FROM lancamentos l
+          JOIN clinics c ON c.id = l.clinic_id
+         WHERE l.tipo = 'receber'
+           AND l.status = 'pendente'
+           AND l.patient_id IS NOT NULL
+           AND l.due_date IS NOT NULL
+           AND ((now() AT TIME ZONE c.timezone)::date - l.due_date) BETWEEN 3 AND 30
+         LIMIT ${limit}`,
+  )) as unknown as Array<{
+    clinic_id: string;
+    lancamento_id: string;
+    patient_id: string;
+    valor: string | number;
+    due_date: string;
+    days_overdue: number;
+    procedure_nome: string | null;
+    timezone: string;
+  }>;
+
+  return rows.map((r) => ({
+    clinicId: r.clinic_id,
+    lancamentoId: r.lancamento_id,
+    patientId: r.patient_id,
+    valor: Number(r.valor),
+    dueDate: r.due_date,
+    daysOverdue: Number(r.days_overdue),
+    procedureNome: r.procedure_nome,
+    timezone: r.timezone,
+  }));
+}

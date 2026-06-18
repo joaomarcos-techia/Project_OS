@@ -30,6 +30,7 @@ describe('ProntuarioSignedSchema (needs_return no payload — teste 7.6.5)', () 
       signedAt: '2026-06-01T12:00:00Z',
       needsReturn: true,
       returnDays: 90,
+      signedDoctorNome: 'Dra. Ana',
     });
     expect(r.success).toBe(true);
   });
@@ -43,6 +44,7 @@ describe('ProntuarioSignedSchema (needs_return no payload — teste 7.6.5)', () 
       signedAt: '2026-06-01T12:00:00Z',
       needsReturn: false,
       returnDays: null,
+      signedDoctorNome: null,
     });
     expect(r.success).toBe(true);
   });

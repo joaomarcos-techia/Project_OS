@@ -73,12 +73,20 @@ function groupByPhoneId(
 }
 
 export async function GET(req: Request): Promise<Response> {
-  assertMessagingRuntimeReady();
+  // O handshake de verificação SÓ precisa do verify_token. NÃO exigir
+  // META_APP_SECRET aqui (ele valida a assinatura HMAC apenas no POST): exigir
+  // os dois fazia a Meta receber 500 e falhar a validação da Callback URL antes
+  // do app_secret existir no runtime. `verify_token` ausente → 403 (não 500).
   const url = new URL(req.url);
   const mode = url.searchParams.get('hub.mode');
   const token = url.searchParams.get('hub.verify_token');
   const challenge = url.searchParams.get('hub.challenge');
-  if (mode === 'subscribe' && token === env.META_WEBHOOK_VERIFY_TOKEN && challenge !== null) {
+  if (
+    mode === 'subscribe' &&
+    challenge !== null &&
+    Boolean(env.META_WEBHOOK_VERIFY_TOKEN) &&
+    token === env.META_WEBHOOK_VERIFY_TOKEN
+  ) {
     return new Response(challenge, { status: 200, headers: { 'content-type': 'text/plain' } });
   }
   return new Response('forbidden', { status: 403 });

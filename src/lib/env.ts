@@ -195,6 +195,17 @@ const EnvSchema = z
       emptyToUndefined,
       z.coerce.number().int().min(1000).max(60_000).optional().default(10_000),
     ),
+
+    // --- C14: Proactive Jobs (templates Meta aprovados) ---
+    // Cloud API envia template por NOME (não ID opaco). Em código vivem a CHAVE
+    // canônica + ordem das variáveis; o NOME aprovado por ambiente vem daqui
+    // (PlanoAção §14.18 — congelado: "IDs Meta em env por ambiente"). Optional no
+    // parse; assertProactiveRuntimeReady() exige em runtime nos crons proactive-*.
+    META_TEMPLATE_CONFIRMATION_REMINDER_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    META_TEMPLATE_DUNNING_FRIENDLY_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    META_TEMPLATE_FOLLOWUP_RETURN_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Idioma BCP-47 dos templates (default pt_BR).
+    META_TEMPLATE_LANG: z.preprocess(emptyToUndefined, z.string().min(2).optional().default('pt_BR')),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -336,3 +347,8 @@ export function assertBillingWebhookReady(): void {
 export function resolveAiSnapshotMode(): 'off' | 'full' | 'sample' {
   return env.AI_SNAPSHOT_MODE ?? (env.NODE_ENV === 'production' ? 'sample' : 'full');
 }
+
+// C14: a prontidão dos templates Meta é checada POR JOB no processor
+// (TemplateNotConfiguredError → job failed com reason), não num guard de rota —
+// mantém os 3 crons proactive-* desacoplados (um template ausente não derruba
+// os outros tipos).

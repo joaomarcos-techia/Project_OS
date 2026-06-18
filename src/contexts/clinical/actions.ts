@@ -260,6 +260,7 @@ export async function signProntuario(
           signedAt: signedAt.toISOString(),
           needsReturn: data.needsReturn,
           returnDays,
+          signedDoctorNome: snap.nome ?? null,
         },
         idempotencyKey: `prontuario-signed:${pid}`,
         correlationId: ctx.correlationId ?? null,

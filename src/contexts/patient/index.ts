@@ -38,4 +38,5 @@ export type {
   ConsentInput,
   PatientSummary,
   DecryptedPatient,
+  ProactiveContact,
 } from './types';

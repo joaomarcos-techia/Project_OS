@@ -96,3 +96,20 @@ export interface DecryptedPatient extends PatientSummary {
   cpf: string;
   telefone: string | null;
 }
+
+/**
+ * Contato p/ mensagens PROATIVAS (C14). Único shape que sai do Patient com o
+ * telefone em claro fora do detalhe — produzido só por getProactiveContact, que
+ * já agrega consent (cobrança) + suppression p/ a política do C14 decidir.
+ */
+export interface ProactiveContact {
+  nome: string;
+  /** Telefone decifrado (dígitos) ou null se o paciente não tem telefone. */
+  phone: string | null;
+  /** Opt-in vigente p/ cobrança via WhatsApp (LGPD — dunning exige). */
+  cobrancaWhatsapp: boolean;
+  /** Consentimento mais recente revogado. */
+  consentRevoked: boolean;
+  /** Telefone na suppression_list (canal whatsapp). */
+  suppressedWhatsapp: boolean;
+}

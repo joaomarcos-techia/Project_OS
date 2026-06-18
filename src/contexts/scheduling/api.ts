@@ -20,6 +20,7 @@ import {
   rescheduleCore,
   transitionCore,
 } from './internal/appointment-core';
+import { listReminderCandidates, type ReminderCandidate } from './reminder-candidates';
 import {
   getAppointment,
   getAvailableSlots,
@@ -44,6 +45,11 @@ export interface SchedulingApiV1 {
    */
   listProcedures(clinicId: string, opts?: { limit?: number }): Promise<ProcedureSummary[]>;
   lookupAppointment(clinicId: string, id: string): Promise<AppointmentSummary | null>;
+  /**
+   * C14 — consultas ativas cuja data local é amanhã (candidatas a lembrete D-1).
+   * Read cross-tenant (regra de "quem precisa de lembrete" mora no Scheduling).
+   */
+  listReminderCandidates(limit?: number): Promise<ReminderCandidate[]>;
   createAppointment(
     input: CreateAppointmentInput,
     idempotencyKey: string,
@@ -99,6 +105,7 @@ export const schedulingApiV1: SchedulingApiV1 = {
     return rows.slice(0, opts?.limit ?? 20);
   },
   lookupAppointment: (clinicId, id) => getAppointment(clinicId, id),
+  listReminderCandidates: (limit) => listReminderCandidates(limit),
   createAppointment: (input, idempotencyKey) =>
     createAction({ ...input, createdVia: input.createdVia ?? 'ai_agent' }, idempotencyKey),
   confirmAppointment: (id, idempotencyKey, reason) => confirmAction(id, idempotencyKey, reason),
