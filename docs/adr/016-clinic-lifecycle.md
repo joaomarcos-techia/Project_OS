@@ -48,3 +48,27 @@ contra este contrato. Nada de código agora (sem trigger de billing ainda).
 - (+) Mantém a invariante "RLS = isolamento, authz = app" (ADR-007) consistente.
 - (+) Garante que suspensão nunca corrompe a integridade do outbox (eventos drenam).
 - (−) Até C13, `status` é um campo sem efeito operacional (documentado, não implícito).
+
+## Amendment (C13 — enforcement)
+
+A semântica acima permanece LEI (enforcement app-layer, worker status-agnóstico, RLS não checa
+status). C13 adiciona:
+
+1. **Novo estado de acesso `pending_payment`** (aditivo no enum `clinic_status`): clínica
+   **provisionada** durante o checkout, antes da confirmação do 1º pagamento. Login bloqueado
+   (igual a `suspended`), exceto owner para concluir pagamento. Resolve a janela do webhook
+   assíncrono (auth/clínica existem antes da confirmação). Expira via cron se o checkout for
+   abandonado (cleanup do provisioning — não vira clínica fantasma).
+
+   | status | login | leitura | mutações |
+   |---|---|---|---|
+   | `pending_payment` | **não** (exceto owner p/ pagar) | — | não |
+
+2. **Billing-status ≠ access-status (fontes distintas).**
+   - **Billing** vive na `subscriptions.billing_status` (`trial`/`active`/`past_due`/`cancelled`)
+     e é atualizado por Asaas (webhook/reconcile). **Asaas é a fonte do pagamento.**
+   - **Access** vive em `clinics.status` (`trial`/`active`/`suspended_readonly`/`suspended`/
+     `cancelled`/`pending_payment`) e é a fonte do **acesso**. **ClinicaOS é a fonte do acesso.**
+   - O dunning **mapeia** billing→access (ex.: `past_due` D+15 → `suspended_readonly`; D+30 →
+     `suspended`; pagamento recebido → `active`). **Nunca** se copia `asaas_status` direto para
+     `clinics.status`; a decisão de acesso é sempre de ClinicaOS. Ver ADR-025.

@@ -53,7 +53,7 @@ const PRODUCER_AHEAD = new Set<string>([
   'patient.consent.revoked',
   'patient.suppression.added',
   // C14 — lembretes/notificações de agenda
-  'scheduling.appointment.created',
+  // (scheduling.appointment.created saiu daqui: C13 Billing ativou handler de metering)
   'scheduling.appointment.confirmed',
   'scheduling.appointment.checked_in',
   'scheduling.appointment.cancelled',
@@ -69,9 +69,30 @@ const PRODUCER_AHEAD = new Set<string>([
   'financial.lancamento.cancelled',
   'financial.lancamento.estornado',
   // C11 ATIVOU o handler de messaging.inbound.received (removido daqui no
-  // mesmo PR — F-14). Novo producer-ahead: turno de conversa da IA, consumido
-  // por C14 (proactive jobs) / C15 (admin viewer).
-  'ai_agent.conversation.completed',
+  // mesmo PR — F-14). (ai_agent.conversation.completed saiu daqui: C13 Billing
+  // ativou handler de metering de cota de IA.)
+  // C13 — Billing emite o ciclo de vida; consumidores chegam em camadas futuras:
+  // C14 (proactive jobs) consome dunning_advanced/payment_failed → WhatsApp/email;
+  // Identity consome subscription.activated → cria owner (seam ADR-025 F2, ativado
+  // no onboarding); demais são timeline/UI/NF/external (sem consumidor de worker).
+  // Ao ativar qualquer handler destes, REMOVA a entrada no mesmo PR (F-14).
+  'billing.customer.created',
+  'billing.customer.portal_requested',
+  'billing.subscription.created',
+  'billing.subscription.activated',
+  'billing.subscription.changed',
+  'billing.subscription.cancelled',
+  'billing.invoice.generated',
+  'billing.invoice.paid',
+  'billing.invoice.overdue',
+  'billing.invoice.refunded',
+  'billing.payment.failed',
+  'billing.trial.started',
+  'billing.trial.expired',
+  'billing.trial.converted',
+  'billing.clinic.suspended',
+  'billing.clinic.reactivated',
+  'billing.clinic.dunning_advanced',
 ]);
 
 const inCatalog = new Set(listEventTypes());

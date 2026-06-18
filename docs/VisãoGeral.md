@@ -47,7 +47,7 @@
 
 ClinicaOS é um **sistema operacional para clínicas pequenas e médias brasileiras** — não é um sistema de gestão clínica genérico. É um produto SaaS multi-tenant que combina **gestão clínica + agente de IA conversacional via WhatsApp + cobrança automatizada + auditoria forense** em um único produto integrado.
 
-O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) sob o domínio principal `qoro.dev`, com cada clínica recebendo seu próprio subdomínio (`drsilva.qoro.dev`).
+O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) sob o domínio principal `qoro.dev`. Todas as clínicas acessam por `app.qoro.dev` (o tenant é resolvido pelo `clinic_id` do JWT). **Não há subdomínio por clínica** (decisão — ver §3.9).
 
 ## 1.2 Qual problema resolve
 
@@ -504,13 +504,15 @@ Implementações: `MetaCloudProvider`, `ZApiProvider`. Sistema escolhe por `clin
 ```
 qoro.dev                        → landing page (Firebase Hosting, intacta)
 *.qoro.dev                      → Vercel (todo o app)
-  ├─ app.qoro.dev               → app das clínicas (login genérico)
-  ├─ admin.qoro.dev             → dashboard master (você)
-  └─ {slug}.qoro.dev            → subdomínio dedicado por clínica (plano Pro)
+  ├─ app.qoro.dev               → app de TODAS as clínicas (login roteia por clinic_id no JWT)
+  └─ admin.qoro.dev             → dashboard master (você)
 ```
-<!-- Custom domain por clínica foi REMOVIDO do roadmap (decisão 2026-05): baixo
-     valor para SaaS de clínica, custo de verificação/SSL/suporte não compensa.
-     O modelo é subdomínio (`{slug}.qoro.dev`). -->
+<!-- DECISÃO (atual): NÃO há subdomínio por clínica para NINGUÉM. Todas as clínicas
+     acessam por app.qoro.dev; o tenant é resolvido pelo clinic_id do JWT, não pelo
+     host. Custom domain por clínica já tinha sido removido (2026-05); o subdomínio
+     {slug}.qoro.dev por clínica foi DESCARTADO depois (baixo valor, custo de
+     SSL/verificação/suporte). `clinics.slug` permanece só como identificador interno
+     (NÃO é usado para roteamento). A tabela `clinic_domains` nunca foi criada. -->
 
 
 **Configuração DNS** (uma vez):
@@ -520,16 +522,16 @@ CNAME    *   cname.vercel-dns.com                → tudo mais → Vercel
 ```
 
 **Por que dois providers (Firebase + Vercel) é aceitável:**
-- DNS é por subdomínio, cada um pode apontar pra provider diferente
+- DNS por host (`qoro.dev` landing vs `*.qoro.dev` app), cada um aponta pra provider diferente
 - Zero conflito, zero custo extra de SSL (ambos auto-provê)
 - Landing tem ciclo de vida diferente (muda 2x/mês) — separar evita redeploy do app a cada copy change
 - Custo: free tier dos dois cobre você
 
-🔒 **Slug do subdomínio**:
+🔒 **Slug da clínica** (identificador interno — NÃO é subdomínio, sem roteamento por host):
 - Escolhido pelo gestor na contratação
-- Validação: `[a-z0-9-]{3,30}`
-- Únicos no sistema
-- **Reservados** (não permitir): `app`, `admin`, `api`, `www`, `mail`, `status`, `qoro`, `support`, `help`, `docs`, `blog`
+- Validação: `[a-z0-9-]{3,30}` (CHECK em `clinics.slug`)
+- Único no sistema
+- **Reservados** (não permitir): `app`, `admin`, `api`, `www`, `mail`, `status`, `qoro`, `support`, `help`, `docs`, `blog` (herança do tempo de subdomínio; mantido por segurança)
 - Permitir troca **1x grátis** depois (gestor errou, deixa corrigir)
 
 ## 3.10 Arquitetura de repositório
@@ -540,7 +542,7 @@ CNAME    *   cname.vercel-dns.com                → tudo mais → Vercel
 qoro-landing/         ← repo existente, manter intacto (Firebase Hosting)
 qoro/                 ← repo novo do v2
   src/app/
-    (app)/            → app.qoro.dev + {slug}.qoro.dev
+    (app)/            → app.qoro.dev (todas as clínicas; tenant via JWT)
     (admin)/          → admin.qoro.dev
     api/              → API routes
   src/lib/
@@ -753,8 +755,10 @@ view:consultorio
 
 **Entidades:**
 - `clinics` (id, slug, nome, cnpj, cnes, endereço, telefone, email, plano, status)
-- `clinic_units` (multi-unidade do plano Pro — filiais/salas)
-- `clinic_domains` (slug → clinic_id, roteamento por subdomínio) <!-- custom domain removido do roadmap (2026-05) -->
+- `clinic_units` (multi-unidade — filiais/salas; não gated por plano — ADR-024)
+<!-- `clinic_domains` (slug → clinic_id, roteamento por subdomínio) REMOVIDO: não há
+     subdomínio por clínica; tabela nunca foi criada. Slug vive em clinics.slug como
+     identificador interno. -->
 
 - `plans` (Solo, Clínica, Pro, com limites)
 - `subscriptions` (clinic_id, plan_id, status, started_at, current_period_end)
@@ -767,15 +771,56 @@ view:consultorio
 
 | Plano | Preço/mês | Limites |
 |---|---|---|
-| **Solo** | R$ 149 | 1 médico, 1 usuário, 200 agendamentos/mês, 200 conversas IA/mês, WhatsApp via Z-API |
-| **Clínica** | R$ 349 | até 5 usuários, 800 agendamentos/mês, 800 conversas IA/mês, WhatsApp Meta oficial |
-| **Pro** | R$ 699 | até 15 usuários, 2500 agendamentos/mês, 2500 conversas IA/mês, multi-unidade, subdomínio dedicado |
+| **Solo** | R$ 149 | 1 médico, 1 usuário, 200 agendamentos/mês, 200 conversas IA/mês |
+| **Clínica** | R$ 349 | até 5 usuários, 800 agendamentos/mês, 800 conversas IA/mês |
+| **Pro** | R$ 699 | até 15 usuários, 2500 agendamentos/mês, 2500 conversas IA/mês |
 | **Pro+** | sob consulta | ilimitado, SLA dedicado |
 
+<!-- ADR-024 (2026-06-15) — modelo de planos revisado, AUTORIDADE sobre menções
+     dispersas no §9:
+     1. Software-core (inclusive o agente de IA, painéis e auditoria) está em TODOS
+        os planos — sem feature-gating no código. Planos diferenciam por 3 alavancas:
+        capacidade (usuários/cotas), serviço/SLA (suporte, gerente de conta) e
+        features escala-natural (úteis só com equipe). Ver "O que cada plano destaca".
+     2. WhatsApp é Meta Cloud API em TODOS os planos. Z-API é só fallback
+        operacional se a Meta cair (não é diferencial de plano). Ver §3.5.
+     3. Multi-unidade NÃO é gated por plano. (Subdomínio por clínica não existe — §3.9.)
+     4. Limite = teto anti-abuso, não alavanca. USUÁRIOS é a única trava dura;
+        AGENDAMENTOS nunca bloqueia (anti-produto, só avisa); IA tem teto generoso
+        (só bloqueia abuso). Sem overage/add-on de volume. Números a validar com os
+        primeiros clientes (200/200 do Solo é apertado — subir). -->
+
+
 **Add-ons:**
-- Agendamentos extras: R$ 50 por 200 adicionais
-- Conversas IA extras: R$ 0,40 por conversa adicional
 - Annual prepay: 15% off sobre valor anual
+
+<!-- ADR-024: add-ons de uso extra (agendamentos/IA) REMOVIDOS. Cota é hard cap;
+     quem precisa de mais volume sobe de plano. -->
+
+**O que cada plano destaca** (uso em landing/comercial — ADR-024 §Decision #1):
+
+📌 Nada aqui é gate de código. O software-core é igual em todos; o que muda é
+capacidade (usuários), serviço/SLA e features que só passam a importar com equipe
+(escala-natural). Painéis anti-vazamento e compliance ficam no plano de ENTRADA.
+
+- **Solo** (até 2 usuários):
+  - Agente de IA no WhatsApp 24/7 (agenda, confirma, cobra, responde)
+  - Confirmação, lembrete e reativação de retornos
+  - Cobrança automática de pendências do paciente
+  - Consultório, prontuário e documentos em PDF
+  - Caixa, contas a receber/pagar e fluxo de caixa
+  - **Seus painéis: ocupação, no-show e faturamento** (core anti-vazamento — fica no base)
+  - LGPD & CFM nativo
+- **Clínica** (até 5 usuários) — tudo do Solo, mais:
+  - Permissões por função (médico, recepção, financeiro) *(escala-natural)*
+  - Auditoria de acessos — quem viu/alterou o quê *(escala-natural)*
+  - **Suporte prioritário** *(serviço/SLA)*
+- **Pro** (até 15 usuários) — tudo do Clínica, mais:
+  - Relatórios consolidados de todos os profissionais *(escopo, não feature nova)*
+  - **Gerente de conta dedicado** *(serviço/SLA)*
+  - Prioridade no suporte e em novas funcionalidades
+  - *(fora do MVP — só com flag)* acesso antecipado a novos módulos
+
 
 **Eventos emitidos:**
 - `tenancy.clinic.created`
@@ -796,7 +841,7 @@ view:consultorio
 - 🔒 Trial 14 dias COM cartão cadastrado (não trial sem cartão — atrai turista)
 - 🔒 Setup fee R$ 200-500 cobrado upfront (filtra cliente sério, paga seu white-glove)
 - 🔒 Annual prepay: cliente paga 12 meses adiantado com 15% off. Reembolso pro-rata se cancelar (CDC).
-- 🔒 Overage de uso (acima do plano): cobrado mês seguinte como add-on
+- 🔒 Limite é teto anti-abuso, não alavanca de upgrade (ADR-024). Por dimensão: **usuários** é a única trava dura (só impede convidar mais um funcionário até o upgrade); **agendamentos** NÃO bloqueia (travar a agenda seria anti-vazamento ao contrário — no máximo avisa); **IA** tem teto generoso anti-abuso (é o moat e é barato; só bloqueia abuso, degradando pra "atendente responde"). Sem overage em nenhuma. Números são ponto de partida — validar com `usage_metrics` dos primeiros clientes.
 
 **Edge cases:**
 - Cliente upgrade no meio do mês → pro-rate diff
@@ -994,7 +1039,6 @@ Layout: kanban 3 colunas em `/app/consultorio`:
 2. Médico clica "Chamar próximo" no card → automaticamente:
    - Move card pra "Em Atendimento"
    - Atualiza status pra `em_atendimento`
-   - Dispara `chamadas/` doc (TV chamar)
    - Abre painel do médico com prontuário aberto + dados do paciente
 3. Médico escreve prontuário, prescreve, emite documentos
 4. Médico clica "Encerrar consulta" → status `atendido`, card vai pra Finalizadas
@@ -1144,7 +1188,7 @@ Layout: kanban 3 colunas em `/app/consultorio`:
 - 🔒 **Sem triagem clínica.** Resposta padrão pra perguntas clínicas: "Não posso te orientar sobre sintomas. Vou marcar pra você falar com o médico."
 - 🔒 **Stateless por mensagem**: cada call ao LLM inclui contexto completo. Sem cache global de agente entre tenants.
 - 🔒 **Circuit breaker pro Gemini**: se Gemini cai, agente degrada pra "Recebi sua mensagem, atendente responde em breve" + alerta interno.
-- 🔒 **Cota de IA por plano**: quando estourou, agente envia "limite mensal atingido, atendente responde em breve" + bilha extra na fatura.
+- 🔒 **Cota de IA por plano**: teto **generoso anti-abuso** (ADR-024 — IA é o moat e é barato; clínica normal nunca encosta). Só ao estourar, agente degrada pra "limite atingido, atendente responde em breve". **Sem cobrança extra** (sem overage).
 - 🔒 **Handoff humano explícito**: certas intents (request_human, falha 3x consecutiva) escalonam pra fila de atendimento humano.
 
 **Mecânica de identificação de clínica:**
@@ -1202,7 +1246,7 @@ list_slots, schedule_appointment, confirm_appointment, ...
 **Riscos:**
 - ⚠️ Meta muda política de templates → mitigação: `MessagingProvider` abstrato
 - ⚠️ Gemini cai → circuit breaker
-- ⚠️ Custo Gemini explode com cliente fora da cota → cobra overage
+- ⚠️ Custo Gemini explode com cliente fora da cota → teto anti-abuso degrada pra fallback (sem overage — ADR-024)
 - ⚠️ LLM alucina e marca consulta inexistente → idempotency + validação rigorosa do output
 
 ## 4.8 Platform Admin
@@ -1293,10 +1337,17 @@ list_slots, schedule_appointment, confirm_appointment, ...
 8. D+1, D+7, D+14: checkin via WhatsApp/email
 9. Final do trial (D+14): cobrança normal inicia
 
-**Self-service futuro (v2.1+):**
-- Wizard de onboarding visual no app
+**Self-service futuro (jornada guiada):**
+- Wizard de onboarding visual no app (convite → dados → plano → pagamento Asaas in-app → ativa → "Monte sua equipe" → checklist)
 - Setup de Meta Cloud API automatizado com OAuth (quando Meta disponibilizar)
 - Cadastro guiado de médicos e procedimentos
+
+📌 **Spec canônica do onboarding (os dois modos): [docs/onboarding-spec.md](onboarding-spec.md).**
+O fluxo manual acima é o **modo interino (script)** — tem falha conhecida (pagamento
+desacoplado da conta; reconciliação manual no Asaas). A **jornada guiada** resolve isso
+(pagamento amarrado à clínica, ativação automática). Depende de C13 e é
+**demand-triggered** (build quando white-glove vira gargalo, ~20-30 clientes), NÃO um
+slot fixo pós-C16. Ver ADR-024 (modelo de planos) e ADR-016 (status da clínica).
 
 ⚠️ **Limite do white-glove**: ~30-40 clientes. Depois disso, você vira refém. A partir do 30º, cada nova feature de onboarding pensa em self-service.
 
@@ -1355,9 +1406,8 @@ list_slots, schedule_appointment, confirm_appointment, ...
 4. Médico clica "Chamar próximo" no card → ações atômicas:
    a. status=em_atendimento
    b. Card move pra "Em Atendimento"
-   c. Dispara doc em chamadas/ (TV/balcão chama paciente)
-   d. Cria prontuario rascunho (se não existe) com appointment_id
-   e. Abre painel: prontuário + dados paciente + timeline
+   c. Cria prontuario rascunho (se não existe) com appointment_id
+   d. Abre painel: prontuário + dados paciente + timeline
 5. Paciente vem pra sala
 6. Médico escreve prontuário (auto-save a cada 10s)
 7. Médico prescreve (verifica interação medicamentosa, se houver alerta → confirma)
@@ -1603,11 +1653,13 @@ Estratégias combinadas:
 
 **Cota por plano (mensal):**
 
-| Plano | Conversas IA incluídas | Overage |
-|---|---|---|
-| Solo | 200 | R$ 0,40/conversa extra |
-| Clínica | 800 | R$ 0,40/conversa extra |
-| Pro | 2500 | R$ 0,30/conversa extra |
+| Plano | Conversas IA/mês (teto generoso anti-abuso) |
+|---|---|
+| Solo | 200* |
+| Clínica | 800* |
+| Pro | 2500* |
+
+\* ADR-024: **teto, não overage** — ao estourar, IA degrada pra "atendente responde", sem cobrança extra. Números a validar com uso real dos primeiros clientes (200 do Solo é apertado — começar generoso).
 
 **Métrica "conversa"**: 1 sessão de 24h por número de paciente. Múltiplas mensagens contam 1 conversa.
 
@@ -1617,7 +1669,7 @@ Estratégias combinadas:
 - ~$0.001-0.002 por conversa
 - 50 clínicas × 200 conversas = 10k/mês = ~$20/mês total → desprezível
 
-**Margem confortável** mesmo cobrando R$ 0,40/overage (custo real ~$0.002 = R$ 0,01, margem 40x).
+**IA é baratíssima** (custo real ~$0.002 = R$ 0,01/conversa) — por isso o teto é generoso e não precisa de overage: o custo absorvido cabe na mensalidade com folga (margem ~40x). ADR-024.
 
 ## 6.7 Handoff humano
 
@@ -1639,7 +1691,7 @@ Fluxo:
 Métricas tracked:
 - Conversas/dia por clínica
 - Tokens/dia por clínica
-- Custo USD/dia por clínica (pra overage billing)
+- Custo USD/dia por clínica (controle de margem + base pro teto anti-abuso; não há overage — ADR-024)
 - Taxa de sucesso de intent (chegou ao objetivo?)
 - Taxa de handoff humano
 - Latência média
@@ -1653,7 +1705,7 @@ Dashboard em `admin.qoro.dev` mostra tudo.
 |---|---|---|---|
 | LLM alucina e marca consulta inexistente | Baixa | Médio | Tool validation rigorosa, idempotency |
 | LLM dá conselho clínico apesar do prompt | Média | Alto (SAMD) | System prompt forte + validação semântica + monitoring |
-| Custo Gemini explode | Baixa | Médio | Cota por plano + overage billing + circuit breaker |
+| Custo Gemini explode | Baixa | Médio | Teto de cota por plano (hard cap anti-abuso, sem overage) + circuit breaker |
 | Gemini cai por horas | Baixa | Médio | Circuit breaker → degrade gracefully |
 | Prompt injection via paciente | Média | Médio | System prompt é código, não DB. Input sanitizado. |
 | Vazamento entre tenants via cache | Baixa | Crítico | Stateless per-message, sem cache global |
@@ -2032,7 +2084,7 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 
 **Princípios:**
 
-- **Tier-based, não usage-based** pro core. Usage-based só pra IA (overage).
+- **Tier-based puro** (sem usage-based/overage — ADR-024). Cotas são teto anti-abuso, não cobrança por uso. Cliente cresce → sobe de tier.
 - **Anual sempre 15% mais barato**.
 - **Setup fee obrigatório** (filtra cliente sério).
 - **Nunca dar desconto direto** — sempre como add-on ("vou te dar 2 meses grátis se você pagar anual").
@@ -2056,11 +2108,14 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 
 **Caminhos pra expandir receita por cliente sem novos clientes:**
 
-1. **Upgrade de plano**: Solo → Clínica → Pro conforme crescem
-2. **Overage IA**: cobra extra acima da cota
-3. **Add-ons**: agendamentos extras, sessões de pacote
-4. **Multi-unidade**: nova filial = nova subscription (ou plano Pro+)
+1. **Upgrade de plano**: Solo → Clínica → Pro conforme crescem (alavanca principal — ADR-024)
+2. **Annual prepay**: 15% off prende por 12 meses
+3. **Sessões de pacote** (estética/fisio): módulo de produto, não overage
+4. **Multi-unidade**: nova filial pode virar nova subscription (modelo de cobrança por unidade — NÃO é feature-gate por plano)
 5. **Módulos opcionais futuros**: TISS (v2.1), telemedicina (v2.2), marketing (v2.3)
+
+<!-- ADR-024: removido "Overage IA" e "agendamentos extras" — cota é hard cap, sem
+     cobrança por uso. Expansão de receita vem de upgrade + módulos + multi-unidade. -->
 
 ## 9.8 Estratégia de crescimento (5 anos)
 
@@ -2101,7 +2156,6 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 - Pacotes de sessões
 - Fornecedores avançados
 - Multi-unidade
-- Subdomínio dedicado (todos usam `app.qoro.dev`)
 - Receitas favoritas
 - Calculadoras clínicas
 - Templates SOAP
@@ -2117,7 +2171,6 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 - Pacotes de sessões
 - Estoque simples
 - Multi-unidade
-- Subdomínio dedicado (plano Pro)
 - Receitas favoritas
 - Calculadoras clínicas
 - Templates SOAP por especialidade
@@ -2271,7 +2324,7 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 
 4. **"Não quero ser refém de provider"** — Drizzle ORM (pode trocar Supabase), MessagingProvider (pode trocar Meta por Z-API), AIProvider (pode trocar Gemini por GPT). Abstração paranoica mas defensável.
 
-5. **"Não quero parecer amador"** — por isso domínio próprio dedicado (`drsilva.qoro.dev`), white-label leve, PDFs com marca da clínica. Vc projeta o produto pra ser "profissional aos olhos da clínica e do paciente dela".
+5. **"Não quero parecer amador"** — por isso white-label leve (logo, cor, PDFs com marca da clínica). Vc projeta o produto pra ser "profissional aos olhos da clínica e do paciente dela". (Sem domínio/subdomínio próprio por clínica — §3.9.)
 
 ## 12.2 Preocupações conhecidas
 
@@ -2440,7 +2493,6 @@ Template ADR:
 ✅ **Produto:**
 - Dashboard único com permissões granulares (RBAC + ABAC)
 - Roles: gestor, doctor, attendant, financial, owner + super_admin
-- Subdomínios por clínica (Pro)
 - Módulo Consultório (kanban 3 colunas)
 - Documentos clínicos imprimíveis (sem ICP-Brasil no MVP)
 - Estoque simples opcional (sem SNGPC)
@@ -2453,7 +2505,7 @@ Template ADR:
 - Agente único, prompt em código
 - Parâmetros operacionais por clínica em DB
 - Sem triagem clínica (hardcoded)
-- Cota por plano + overage billing
+- Cota por plano = teto anti-abuso, sem overage (ADR-024)
 - Stateless por mensagem (isolation perfeito)
 - Conversa retenção 30d hot + 1 ano cold archive
 

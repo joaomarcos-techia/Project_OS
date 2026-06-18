@@ -30,6 +30,9 @@ export const clinicStatus = pgEnum('clinic_status', [
   'suspended_readonly',
   'suspended',
   'cancelled',
+  // C13/ADR-016 Amendment: clínica provisionada no checkout, antes do 1º pagamento.
+  // Login bloqueado (exceto owner p/ pagar); expira se o checkout for abandonado.
+  'pending_payment',
 ]);
 
 export const clinics = pgTable(

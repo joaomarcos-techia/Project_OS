@@ -55,6 +55,13 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/app/api/cron/data-retention/route.ts',
     'src/app/api/health/outbox/route.ts',
     'src/app/api/health/auth-hook/route.ts',
+    // C13/ADR-025 — webhook Asaas: resolve clínica cross-tenant por
+    // asaas_payment_id (server-to-server, validado por token) e processa.
+    'src/app/api/webhooks/asaas/route.ts',
+    // C13 — crons de billing: dunning (scan overdue cross-tenant) e reconcile
+    // (estado Asaas vs local cross-tenant). Mesma justificativa dos crons C9.
+    'src/app/api/cron/billing-dunning/route.ts',
+    'src/app/api/cron/billing-reconcile/route.ts',
   ]),
   dbWorker: new Set([
     'src/lib/outbox/worker.ts',

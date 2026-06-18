@@ -174,6 +174,10 @@ const config = [
       // (counts por tenant inteiro). Endpoint exige Bearer CRON_SECRET — não há
       // RLS bypass exposed externamente.
       'src/app/api/health/**/*.{ts,tsx}',
+      // C13/ADR-025: webhook Asaas resolve a clínica cross-tenant por
+      // asaas_payment_id (server-to-server, validado por token) e processa a
+      // transição. Mesma justificativa dos crons. Só esta rota de webhook.
+      'src/app/api/webhooks/asaas/**/*.{ts,tsx}',
     ],
     rules: {
       'no-restricted-imports': [

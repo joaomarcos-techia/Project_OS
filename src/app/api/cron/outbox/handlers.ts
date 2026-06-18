@@ -47,4 +47,10 @@ import '@/contexts/scheduling/internal/handlers/financial-lancamento-created';
 // multi-fase, LLM fora de TX — ADR-022). Idempotente via eventId checkpoints.
 import '@/contexts/ai-agent/internal/handlers/inbound-received';
 
+// C13 — Billing: metering de uso (idempotente via usage_counter_ledger).
+// scheduling.appointment.created → +1 agendamentos; ai_agent.conversation.completed
+// → +1 conversas_ia (outcome='replied'). NUNCA bloqueiam (ADR-024) — só contam.
+import '@/contexts/billing/internal/handlers/appointment-created';
+import '@/contexts/billing/internal/handlers/conversation-completed';
+
 export {};

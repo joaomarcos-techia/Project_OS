@@ -862,7 +862,9 @@ Avança para C2 quando:
     - `slug`: text, unique, validação `^[a-z0-9-]{3,30}$`, **reservados bloqueados** (`app`, `admin`, `api`, etc.)
     - `status`: enum (`trial`, `active`, `suspended_readonly`, `suspended`, `cancelled`)
   - `clinic_units` (id, clinic_id, nome, endereco, ativo) — multi-unidade opcional
-  - `clinic_domains` (id, clinic_id, domain, type: `subdomain`, verified_at) <!-- `custom` removido do roadmap (2026-05); tabela mantém só subdomínio -->
+  <!-- `clinic_domains` DESCARTADA e NUNCA criada: não há subdomínio/domínio por
+       clínica. Todas acessam app.qoro.dev (tenant via JWT). Slug vive em clinics.slug
+       como identificador interno. (O schema real tem só clinics/clinic_units/_reserved_slugs.) -->
 
   - `_reserved_slugs` (slug primary key) — seed table imutável
 
@@ -964,8 +966,8 @@ Avança para C2 quando:
   - ❌ **Tabela `users` ou `profiles`** — C3.
   - ❌ **Sistema de planos (`subscriptions`, `invoices`)** — C13. Apenas campo `status` em `clinics` por enquanto, sem lógica.
   - ❌ **CRUD de clínicas via UI** — você (super_admin) cria via SQL direto até C15.
-  - ❌ **Custom domain por clínica** — REMOVIDO do roadmap (2026-05): baixo valor p/ SaaS de clínica, custo de verificação/SSL/suporte não compensa. Modelo é subdomínio.
-  - ❌ **Resolver de subdomínio → clinic_id no middleware** — virá em C3 quando login existir.
+  - ❌ **Custom domain E subdomínio por clínica** — AMBOS descartados. Não há domínio/subdomínio por clínica; todas acessam app.qoro.dev (tenant via JWT). `clinics.slug` é só identificador interno.
+  - ❌ **Resolver de subdomínio → clinic_id no middleware** — NÃO existe (subdomínio descartado); o tenant vem do `clinic_id` no JWT.
   - ❌ **Soft delete UI / Recover deleted** — apenas o campo `deleted_at`, sem UI.
 
   ### 2.4 🔗 Dependências
@@ -1112,7 +1114,7 @@ Avança para C2 quando:
   - 🔓 Sem validação de CNPJ (só formato; validação real via Receita só em v2.1)
   - 🔓 Sem CEP/endereço estruturado (texto único basta no MVP)
   - 🔓 Sem fluxo de "troca de slug" (1x grátis) — adiciona quando alguém pedir
-  - 🔓 Sem custom domain (removido do roadmap — modelo é subdomínio por clínica)
+  - 🔓 Sem custom domain NEM subdomínio por clínica (ambos descartados — todas em app.qoro.dev, tenant via JWT)
 
   ### 2.9 🔴 Débito técnico proibido
 
@@ -1324,7 +1326,7 @@ Configurar no Supabase Dashboard: Auth → Hooks → Custom Access Token Hook �
 - `/forgot-password`
 - `/reset-password`
 - `/logout`
-- `/onboarding` placeholder (preenchido manualmente até C13)
+- `/onboarding` placeholder (preenchido manualmente via script até a jornada guiada existir — ver [docs/onboarding-spec.md](onboarding-spec.md))
 
 **Rate limit de login** via Upstash Redis (instalar agora se ainda não foi): 5 tentativas / 15min por (ip + email_hash); após 5 → bloqueia 1h.
 
@@ -2957,9 +2959,15 @@ Avança para C8 quando:
 
 ## CAMADA 8 — Consultório (Kanban 3 colunas)
 
+> ⚠️ **NOTA (2026-06-03):** toda a parte de **TV / `chamadas`** descrita nesta camada
+> foi **DESCOPADA e REMOVIDA** (rota `/chamadas`, tabela `chamadas`, Realtime de chamadas
+> — dropados em `0019_drop_chamadas`). O que foi entregue é só o kanban 3 colunas +
+> prontuário inline. Menções a `chamadas`/TV abaixo são registro histórico. Ver
+> [PROGRESS.md](PROGRESS.md) §C8.
+
 ### 8.1 🎯 Objetivo da camada
 
-Implementar a UI do **fluxo de atendimento médico**: kanban 3 colunas (Sala de Espera, Em Atendimento, Finalizadas), com transições atômicas, integração com prontuário aberto inline, e dispatch para sistema de chamadas (TV). Esta é a tela onde o médico passa o dia — UX importa.
+Implementar a UI do **fluxo de atendimento médico**: kanban 3 colunas (Sala de Espera, Em Atendimento, Finalizadas), com transições atômicas, integração com prontuário aberto inline ~~e dispatch para sistema de chamadas (TV)~~. Esta é a tela onde o médico passa o dia — UX importa.
 
 Resolve: ausência de fluxo claro pro médico; troca de contexto entre sistemas; check-in confuso.
 
@@ -3005,15 +3013,18 @@ Use Supabase Realtime pra updates em `appointments` filtrado por `clinic_id`. Ca
 
 ⚠️ **Decisão:** Supabase Realtime usa RLS — ele recebe o JWT do client, então isolamento mantido. Validar com teste.
 
-**TV /chamadas:**
+**TV /chamadas:** ❌ **DESCOPADA e REMOVIDA** (founder, 2026-06-03). A rota `/chamadas`,
+a tabela `chamadas` e o wiring Realtime foram dropados (migration `0019_drop_chamadas`).
+NÃO existe. Texto abaixo mantido só como registro histórico do plano original — ver
+[PROGRESS.md](PROGRESS.md) §C8. (E não existe "subdomínio dedicado da clínica" — §3.9.)
 
-Página `/chamadas` (subdomínio dedicado da clínica), polling a cada 5s ou via Realtime, mostra "Próximo: Maria, sala 2" em tela cheia.
+~~Página `/chamadas` (subdomínio dedicado da clínica), polling a cada 5s ou via Realtime, mostra "Próximo: Maria, sala 2" em tela cheia.~~
 
 **Auto-save indicator:** badge no editor "Salvo 10s atrás".
 
 **Botões UI:**
 
-- "Chamar de novo" (re-dispara `chamadas`)
+- ~~"Chamar de novo" (re-dispara `chamadas`)~~ (removido com a TV)
 - "Marcar ausente" (move para `cancelado` ou `faltou`)
 - "Encerrar consulta" → `completeAppointment` → card move para Finalizadas → `appointment.completed` emitido
 
@@ -3622,7 +3633,7 @@ C10 sólido + Gemini API key + Secret Manager.
 
 - **10 clínicas × 200 conv/mês = 2k:** Gemini custo ~$4/mês — trivial.
 - **100 × 200 = 20k:** ~$40/mês.
-- **1000 × 200 = 200k:** ~$400/mês — ainda OK (clínica paga overage).
+- **1000 × 200 = 200k:** ~$400/mês — ainda OK (custo absorvido na mensalidade; teto de cota cobre abuso — sem overage, ADR-024).
 - **Quebra primeiro em:** Gemini RPM limit (~1000) — improvável; circuit breaker mitiga falhas.
 - **Gargalo previsível:** `ai_messages` cresce ~50KB/conv → arquivar > 30d em C16.
 - **Refactor futuro mais provável:** AIProvider multi-LLM (custo dinâmico) em escala.
@@ -3818,9 +3829,22 @@ End-to-end testado:
 
 ### 13.1 🎯 Objetivo
 
-Cobrar você mesmo das clínicas. Integração Asaas, gestão de planos (Solo, Clínica, Pro), trial 14 dias com cartão, dunning das clínicas, cota de uso (agendamentos + IA), overage billing, NF-e automática via Asaas.
+Cobrar você mesmo das clínicas. Integração Asaas, gestão de planos (Solo, Clínica, Pro), trial 14 dias com cartão, dunning das clínicas, cota de uso (agendamentos + IA) como **hard cap** (sem overage — ADR-024), NF-e automática via Asaas.
 
-Resolve: ausência de cobrança recorrente; falta de controle de planos; ausência de medição de uso pra overage.
+Resolve: ausência de cobrança recorrente; falta de controle de planos; ausência de medição de uso.
+
+📌 **Escopo:** C13 entrega billing + planos + cota. A **jornada de onboarding guiada**
+(convite, wizard, pagamento in-app, "Monte sua equipe") NÃO faz parte da C13 — é spec
+separada **demand-triggered** que *depende* de C13. Ver [docs/onboarding-spec.md](onboarding-spec.md).
+Até ela existir, criação de clínica é via script interino (`scripts/create-clinic.ts`).
+
+📌 **NÃO construir engine de entitlements (ADR-024 §Decision #1).** Planos diferenciam
+por 3 alavancas, nenhuma exige flag de feature por plano: capacidade (limite de
+usuários + cotas), serviço/SLA (suporte/gerente — fora do código) e features
+escala-natural (permissão por função, auditoria, relatório consolidado — código ligado
+pra todos, muda só o escopo conforme nº de usuários). Software-core (IA, painéis
+anti-vazamento, compliance) NUNCA é gated por plano. Early access a módulos beta fica
+fora do MVP (seria a única coisa a exigir flag por clínica).
 
 ### 13.2 🧱 Construído
 
@@ -3828,7 +3852,7 @@ Resolve: ausência de cobrança recorrente; falta de controle de planos; ausênc
 
 - `plans` (id, codigo: solo|clinica|pro, nome, preco_mensal, preco_anual_desconto_pct, limites jsonb)
 - `subscriptions` (id, clinic_id UNIQUE, plan_id, status: trial|active|past_due|suspended|cancelled, started_at, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, asaas_subscription_id)
-- `invoices` (id, clinic_id, subscription_id, period_start, period_end, base_amount, overage_amount, total_amount, status: open|paid|overdue|cancelled, due_date, paid_at, asaas_payment_id, nfe_url, payment_method)
+- `invoices` (id, clinic_id, subscription_id, period_start, period_end, base_amount, total_amount, status: open|paid|overdue|cancelled, due_date, paid_at, asaas_payment_id, nfe_url, payment_method) <!-- ADR-024: sem overage_amount — cota é hard cap, não cobra extra -->
 - `usage_metrics` (id, clinic_id, period_yyyymm, agendamentos_count, conversas_ia_count, updated_at)
 - `setup_fees` (id, clinic_id, valor, status, paid_at, asaas_payment_id)
 - `annual_prepayments` (id, clinic_id, valor_total, valor_economizado, valid_until, refund_eligible_until)
@@ -3866,16 +3890,20 @@ D+30: status=suspended (lockdown total exceto pagamento)
 **Quota check helper:**
 
 ```typescript
-export async function checkAndIncrementQuota(clinicId, type: 'agendamento'|'conversa_ia'): Promise<{ allowed: boolean; remaining: number; overage: boolean }> { ... }
+export async function checkAndIncrementQuota(clinicId, type: 'agendamento'|'conversa_ia'): Promise<{ allowed: boolean; remaining: number }> { ... }
 ```
 
-Quando ultrapassa: `overage=true` flag, cobra extra na próxima fatura.
+ADR-024 — **teto anti-abuso, sem overage**, com efeito por dimensão:
+- **usuários**: `allowed=false` **bloqueia** o convite (única trava dura — alavanca de upgrade);
+- **agendamento**: NUNCA bloqueia a criação (travar agenda é anti-vazamento ao contrário) — no máximo retorna um aviso de "perto do limite";
+- **IA (`conversa_ia`)**: teto **generoso**; só bloqueia ao estourar, degradando pra "atendente responde" (mesmo padrão que `ai-agent/internal/quota.ts` já usa pro teto de custo).
+
+Sem cobrança extra em nenhuma dimensão. Números são ponto de partida — validar com `usage_metrics` dos primeiros clientes (200/200 do Solo é apertado, subir).
 
 **Plans seed:**
 - Solo: R$ 149/mês, 200 ag, 200 conv IA
 - Clínica: R$ 349, 800 / 800
 - Pro: R$ 699, 2500 / 2500
-- Add-ons: R$ 50/200 ag extras, R$ 0,40/conv IA extra
 
 ### 13.5 ✅ Pronto
 
@@ -3883,8 +3911,7 @@ Quando ultrapassa: `overage=true` flag, cobra extra na próxima fatura.
 - Cobrança mensal automática
 - Trial→Active transição
 - Webhooks Asaas processados
-- Quota incrementa
-- Overage cobrado mês seguinte
+- Quota incrementa; **usuários** bloqueia no teto, **agendamento** só avisa, **IA** bloqueia no teto generoso (sem overage — ADR-024)
 - Suspended bloqueia escrita (RLS via clinic.status?)
 - Annual prepay funciona com refund pro-rata
 
@@ -3893,8 +3920,9 @@ Quando ultrapassa: `overage=true` flag, cobra extra na próxima fatura.
 - 13.6.1 Sandbox Asaas: criar customer, subscription, simular pagamento
 - 13.6.2 Webhook overdue → dunning agendado
 - 13.6.3 D+15 simulado → status muda → app bloqueia escrita (mostra banner)
-- 13.6.4 Quota agendamento atinge limite → marca overage
-- 13.6.5 Overage adicionado na fatura próximo ciclo
+- 13.6.4 Quota agendamento atinge limite → criação NÃO bloqueia, só sinaliza aviso (anti-produto bloquear agenda)
+- 13.6.5 Convite de usuário acima do limite do plano → BLOQUEADO; após upgrade, libera
+- 13.6.5b Cota de IA estoura teto → agente degrada pra fallback "atendente responde"
 - 13.6.6 Annual prepay + cancelamento mid-cycle → refund pro-rata calculado correto
 - 13.6.7 RLS: clínica A não vê subscription da B
 
@@ -3902,7 +3930,7 @@ Quando ultrapassa: `overage=true` flag, cobra extra na próxima fatura.
 
 - **Estabilidade:** Asaas é único gateway no MVP; troca futura via abstração `BillingProvider` se preciso (não prematuro).
 - **Aceitável:** sem múltiplos cartões por clínica, sem split payment, sem upgrade/downgrade UI (manual via super_admin).
-- **Proibido:** quota check assíncrono (sempre síncrono na escrita), overage calculado manual, NF-e custom (Asaas faz).
+- **Proibido:** quota check assíncrono (sempre síncrono na escrita), overage de qualquer tipo (cota é hard cap — ADR-024), NF-e custom (Asaas faz).
 - **Riscos:** Asaas down → fallback boleto manual; webhook duplicado → idempotency_key Asaas → seu idempotency.
 - **Hidra:** ser tentado a "implementar gateway próprio" — não, fica em Asaas.
 - **Avança quando:** ciclo mensal de cobrança rodou completo em sandbox (criar → fatura → paga → próxima → falha → dunning → suspended).
@@ -4427,7 +4455,7 @@ Job diário agrega: agendamentos/clínica, conversas IA/clínica, custo Gemini/c
 
 - **17a** Pacotes de sessões (estética, fisio)
 - **17b** Estoque simples (toggle por clínica)
-- **17c** Multi-unidade (subdomínio dedicado Pro)
+- **17c** Multi-unidade (não gated por plano — ADR-024)
 - **17d** Receitas favoritas + Calculadoras clínicas + Templates SOAP por especialidade
 - **17e** Interação medicamentosa (banco curado ~200 interações)
 - **17f** Memed integration (prescrição digital ICP-Brasil)
@@ -5197,7 +5225,7 @@ Por clínica, configuráveis em UI/SQL:
 - ❌ **State machine custom de appointment** (estados são canônicos)
 - ❌ **Role custom** (5 roles fixos; granularidade via overrides)
 - ❌ **Template Meta novo por clínica** (você aprova centralmente, escalável; clínica preenche variáveis)
-- ❌ **Lógica de billing custom** (regras de overage iguais pra todos)
+- ❌ **Lógica de billing custom** (planos/cotas iguais pra todos; sem overage — ADR-024)
 - ❌ **Automação custom** ("quando X acontecer, dispare Y" configurável)
 - ❌ **Fluxo de approval custom** ("este lancamento precisa de approval do gestor antes de cobrar")
 - ❌ **Campos custom em entidades** ("quero campo X em paciente que outros não têm") — extensão é módulo, não campo
@@ -5374,8 +5402,7 @@ Antes de cobrar o primeiro cliente real:
 - [ ] Asaas: ciclo trial → cobrança → pagamento → renovação testado
 - [ ] Dunning automático testado (D+3, +7, +15, +30)
 - [ ] NF-e emitida automaticamente
-- [ ] Quota check síncrono funcionando
-- [ ] Overage billing testado
+- [ ] Quota check síncrono funcionando (usuários bloqueia / agendamento avisa / IA teto — sem overage, ADR-024)
 
 **IA:**
 - [ ] Prompt sistema em código (não DB)

@@ -183,6 +183,13 @@
       "when": 1781468711020,
       "tag": "0025_white_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781707326904,
+      "tag": "0026_square_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

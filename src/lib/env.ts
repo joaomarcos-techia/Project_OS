@@ -174,6 +174,27 @@ const EnvSchema = z
       emptyToUndefined,
       z.enum(['off', 'full', 'sample']).optional(),
     ),
+
+    // --- C13: Billing / Asaas ---
+    // API key do Asaas (sandbox ou prod). Optional no parse (next build verde
+    // antes do secret); assertBillingRuntimeReady() exige em runtime no adapter.
+    ASAAS_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Base URL do Asaas. Sandbox: https://sandbox.asaas.com/api/v3 ;
+    // prod: https://api.asaas.com/v3. Default sandbox (seguro por omissão).
+    ASAAS_BASE_URL: z.preprocess(
+      emptyToUndefined,
+      z.string().url().optional().default('https://sandbox.asaas.com/api/v3'),
+    ),
+    // Token configurado no painel Asaas e enviado no header `asaas-access-token`
+    // de cada webhook — validado constant-time. Optional no parse; exigido em
+    // runtime pela rota de webhook (assertBillingWebhookReady()).
+    ASAAS_WEBHOOK_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Timeout (ms) de cada chamada HTTP ao Asaas (AbortController). Mesmo racional
+    // do META/AI: sem teto, um request lento trava o caller. Máx 60s.
+    ASAAS_HTTP_TIMEOUT_MS: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().min(1000).max(60_000).optional().default(10_000),
+    ),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -290,6 +311,24 @@ export function assertMessagingRuntimeReady(): void {
 export function assertAiRuntimeReady(): void {
   if (!env.GEMINI_API_KEY) {
     throw new Error('[env] GEMINI_API_KEY is required at runtime for the AI agent (C11)');
+  }
+}
+
+/**
+ * Runtime guard for C13 Billing — fails fast when ASAAS_API_KEY is missing.
+ * Called pelo adapter Asaas no primeiro uso, NÃO no import (next build verde
+ * antes do secret). O handler/cron falha retentável, não no boot.
+ */
+export function assertBillingRuntimeReady(): void {
+  if (!env.ASAAS_API_KEY) {
+    throw new Error('[env] ASAAS_API_KEY is required at runtime for billing (C13)');
+  }
+}
+
+/** Runtime guard for the Asaas webhook route — exige o token de validação. */
+export function assertBillingWebhookReady(): void {
+  if (!env.ASAAS_WEBHOOK_TOKEN) {
+    throw new Error('[env] ASAAS_WEBHOOK_TOKEN is required at runtime for /api/webhooks/asaas');
   }
 }
 
