@@ -26,11 +26,12 @@ const CLAIM_CHECK_JITTER_MS = 15_000;
 
 export const config = {
   // Rotas excluídas: assets estáticos, healthchecks, CRON (auto-autenticadas via
-  // Bearer CRON_SECRET — NÃO têm sessão Supabase; passar pelo middleware de
-  // sessão as redirecionava para /login e quebrava o worker da Vercel em prod),
-  // fluxos auth não-autenticados, /account/security (pré-MFA-enroll super_admin).
+  // Bearer CRON_SECRET) e WEBHOOKS (auto-autenticados pelo token/assinatura do
+  // provider — Asaas/Meta). Essas rotas NÃO têm sessão Supabase; passar pelo
+  // middleware de sessão as redirecionava para /login (307) e quebrava o webhook
+  // em prod. Também: fluxos auth não-autenticados + /account/security (pré-MFA).
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/health|api/cron|login|forgot-password|reset-password|auth/callback|account/security).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/health|api/cron|api/webhooks|login|forgot-password|reset-password|auth/callback|account/security).*)',
   ],
 };
 
