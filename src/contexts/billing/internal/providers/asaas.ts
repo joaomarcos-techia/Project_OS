@@ -215,6 +215,7 @@ export interface ParsedWebhook {
   subscriptionId: string | null;
   value: number | null;
   status: string | null;
+  dueDate: string | null;
   paymentDate: string | null;
   billingType: string | null;
   invoiceUrl: string | null;
@@ -325,6 +326,7 @@ export const asaasProvider: PaymentProvider = {
       subscriptionId: asStr(payment.subscription),
       value: payment.value === undefined ? null : asNum(payment.value),
       status: asStr(payment.status),
+      dueDate: asStr(payment.dueDate),
       paymentDate: asStr(payment.paymentDate) ?? asStr(payment.clientPaymentDate),
       billingType: asStr(payment.billingType),
       invoiceUrl: asStr(payment.invoiceUrl),

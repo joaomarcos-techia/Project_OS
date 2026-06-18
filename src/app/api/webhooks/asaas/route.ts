@@ -21,11 +21,12 @@ import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
 import {
+  ensureInvoiceForPayment,
   markInvoiceOverdue,
   markInvoicePaid,
   markInvoiceRefunded,
 } from '@/contexts/billing/internal/subscriptions';
-import { invoices, processedWebhooks } from '@/contexts/billing/schema';
+import { processedWebhooks } from '@/contexts/billing/schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -73,12 +74,16 @@ export async function POST(req: Request): Promise<Response> {
 
       if (!parsed.paymentId) return { status: 'ignored' as const, reason: 'no_payment' };
 
-      const [inv] = await tx
-        .select()
-        .from(invoices)
-        .where(eq(invoices.asaasPaymentId, parsed.paymentId))
-        .limit(1);
-      if (!inv) return { status: 'ignored' as const, reason: 'unknown_payment' };
+      // Materializa a invoice local a partir do evento (resolve subscription por
+      // asaas_subscription_id). Out-of-order safe: RECEIVED antes de CREATED ainda
+      // cria a invoice e a paga. null = sem subscription local atribuível.
+      const inv = await ensureInvoiceForPayment(tx, {
+        paymentId: parsed.paymentId,
+        subscriptionId: parsed.subscriptionId,
+        value: parsed.value,
+        dueDate: parsed.dueDate,
+      });
+      if (!inv) return { status: 'ignored' as const, reason: 'unknown_subscription' };
 
       const clinicId = inv.clinicId;
       await tx
@@ -109,6 +114,9 @@ export async function POST(req: Request): Promise<Response> {
             idemSuffix: idem,
           });
           break;
+        case 'PAYMENT_CREATED':
+        case 'PAYMENT_UPDATED':
+          break; // invoice já materializada acima
         default:
           return { status: 'ignored' as const, reason: parsed.event };
       }

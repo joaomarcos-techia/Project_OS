@@ -22,7 +22,7 @@ import {
   type InvoiceRow,
 } from '../schema';
 import { type AccessMode, accessModeToClinicStatus } from './access';
-import { toCents, toReais } from './money';
+import { toCents, toReais, toReaisString } from './money';
 import { canTransitionBilling, canTransitionInvoice, type BillingStatus } from './state-machine';
 
 /** Timeline append-only da conta (G1) — legível, sem consumidores. */
@@ -130,6 +130,69 @@ export async function activateSubscription(
     payload: { clinicId, subscriptionId: sub.id, planCode: 'solo' as const },
     idempotencyKey: `sub-activated:${idemSuffix}`,
   });
+}
+
+/**
+ * Materializa a invoice local a partir de um pagamento do Asaas (out-of-order
+ * safe). Se já existe (por asaas_payment_id) retorna; senão resolve a subscription
+ * por asaas_subscription_id e cria a invoice `open` + emite invoice.generated.
+ * Retorna null se não há subscription local atribuível (evento ignorável).
+ */
+export async function ensureInvoiceForPayment(
+  tx: Tx,
+  p: { paymentId: string; subscriptionId: string | null; value: number | null; dueDate: string | null },
+): Promise<InvoiceRow | null> {
+  const [existing] = await tx
+    .select()
+    .from(invoices)
+    .where(eq(invoices.asaasPaymentId, p.paymentId))
+    .limit(1);
+  if (existing) return existing;
+  if (!p.subscriptionId) return null;
+
+  const [sub] = await tx
+    .select({ id: subscriptions.id, clinicId: subscriptions.clinicId })
+    .from(subscriptions)
+    .where(eq(subscriptions.asaasSubscriptionId, p.subscriptionId))
+    .limit(1);
+  if (!sub) return null;
+
+  const due = p.dueDate ?? new Date().toISOString().slice(0, 10);
+  const [created] = await tx
+    .insert(invoices)
+    .values({
+      clinicId: sub.clinicId,
+      subscriptionId: sub.id,
+      totalAmount: toReaisString(toCents(p.value ?? 0)),
+      status: 'open',
+      dueDate: due,
+      asaasPaymentId: p.paymentId,
+    })
+    .onConflictDoNothing({ target: invoices.asaasPaymentId, where: sql`asaas_payment_id IS NOT NULL` })
+    .returning();
+  if (!created) {
+    // corrida: outra entrega criou a invoice — re-seleciona (idempotente).
+    const [again] = await tx
+      .select()
+      .from(invoices)
+      .where(eq(invoices.asaasPaymentId, p.paymentId))
+      .limit(1);
+    return again ?? null;
+  }
+  await publishEvent(tx, {
+    clinicId: sub.clinicId,
+    eventType: BILLING_EVENTS.INVOICE_GENERATED,
+    payload: {
+      clinicId: sub.clinicId,
+      invoiceId: created.id,
+      subscriptionId: sub.id,
+      totalAmount: toReais(toCents(created.totalAmount)),
+      dueDate: due,
+    },
+    idempotencyKey: `invoice-generated:${p.paymentId}`,
+  });
+  await recordBillingEvent(tx, sub.clinicId, 'invoice.generated', { invoiceId: created.id });
+  return created;
 }
 
 /** PAYMENT_RECEIVED: invoice → paid (monotônico) + attempt + reativa acesso. */
