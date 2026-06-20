@@ -21,6 +21,8 @@ export default defineConfig({
       // C11: GeminiProvider chama assertAiRuntimeReady() (lê o snapshot do env
       // singleton). Valor fictício — os testes stubam globalThis.fetch.
       GEMINI_API_KEY: 'test-gemini-key',
+      // C15: assina o cookie de impersonate nos testes (≥32 chars). Fictício.
+      IMPERSONATION_SECRET: 'test-impersonation-secret-32-chars-min!!',
     },
   },
   resolve: {

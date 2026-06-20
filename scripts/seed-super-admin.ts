@@ -115,7 +115,7 @@ PRÓXIMOS PASSOS (manual):
   4. GUARDAR QR + SECRET no seu gerenciador de senhas — Supabase TOTP NÃO emite
      backup codes. Sem isso, perda do dispositivo = bloqueio total.
      Recovery: re-rodar 'tsx scripts/seed-super-admin.ts --reset-mfa' e reenrollar.
-  5. Verificar primeiro código TOTP → AAL2 ativo → /admin/select-clinic.
+  5. Verificar primeiro código TOTP → AAL2 ativo → /admin (Platform Admin, C15).
 `);
 
 function redact(url: string): string {

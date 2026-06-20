@@ -1,5 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 
+import { recordImpersonationAudit } from '@/lib/audit/impersonation-extra';
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
 import type { Tx } from '@/lib/db';
@@ -123,12 +124,20 @@ export async function idempotentMutation<T>(
 ): Promise<T> {
   const ttlSeconds = opts.idempotency.ttlSeconds ?? IDEMPOTENCY_TTL_DEFAULT_SECONDS;
   validateTtlSeconds(ttlSeconds);
-  const { clinicId, userId } = opts.actor
-    ? { clinicId: opts.actor.clinicId, userId: opts.actor.userId }
-    : await (async () => {
-        const user = await requireUser();
-        return { clinicId: await requireClinicId(), userId: user.userId };
-      })();
+  // C15: na via de request capturamos também o estado de impersonate (a via de
+  // actor — AI agent no outbox — nunca tem sessão/cookie, logo nunca impersona).
+  let clinicId: string;
+  let userId: string | null;
+  let impersonation: { impersonationId: string } | undefined;
+  if (opts.actor) {
+    clinicId = opts.actor.clinicId;
+    userId = opts.actor.userId;
+  } else {
+    const user = await requireUser();
+    clinicId = await requireClinicId();
+    userId = user.userId;
+    impersonation = user.session?.impersonation;
+  }
   const hash = payloadHash(opts.idempotency.payload);
 
   return withTenant(clinicId, async (tx) => {
@@ -198,7 +207,7 @@ export async function idempotentMutation<T>(
     const result = await fn(tx);
 
     // 3. Audit in the SAME tx. logAudit applies sanitizePayload internally.
-    await logAudit(tx, {
+    const auditEventId = await logAudit(tx, {
       clinicId,
       userId,
       action: opts.audit.action,
@@ -208,6 +217,19 @@ export async function idempotentMutation<T>(
       after: result,
       requestContext: opts.audit.requestContext,
     });
+    // 3b. C15 — auditoria EXTRA atômica quando a mutação ocorre sob impersonate.
+    if (impersonation && userId) {
+      await recordImpersonationAudit(tx, {
+        impersonationId: impersonation.impersonationId,
+        auditEventId,
+        superAdminId: userId,
+        clinicId,
+        action: opts.audit.action,
+        resourceType: opts.audit.resourceType,
+        resourceId: opts.audit.resourceId,
+        requestContext: opts.audit.requestContext,
+      });
+    }
 
     // 4. Finalize idempotency response in the SAME tx. capJsonSize replaces
     //    oversized results (>64KB) with an envelope referencing the original.

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Tx } from '@/lib/db';
 import { auditEvents } from '@/lib/db/schema/infra/audit';
 import { metrics } from '@/lib/observability/metrics';
@@ -34,8 +36,12 @@ export async function logAudit(
     after: unknown | null;
     requestContext: RequestContext;
   },
-): Promise<void> {
+): Promise<string> {
+  // C15: id explícito para que a auditoria EXTRA do impersonate referencie esta
+  // linha por `auditEventId` (review #4 — referência, nunca payload duplicado).
+  const auditEventId = randomUUID();
   await tx.insert(auditEvents).values({
+    id: auditEventId,
     clinicId: args.clinicId,
     userId: args.userId,
     action: args.action,
@@ -52,4 +58,5 @@ export async function logAudit(
     action: args.action,
     resourceType: args.resourceType,
   });
+  return auditEventId;
 }

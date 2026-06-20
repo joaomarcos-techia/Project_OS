@@ -41,6 +41,7 @@ import {
 } from '@/contexts/identity/schema';
 /* eslint-enable boundaries/element-types */
 import { dbAdmin } from '@/lib/db';
+import { resolveImpersonation } from '@/lib/impersonation';
 
 import { parseClaims } from './claims';
 import { type Permission } from './permissions';
@@ -68,6 +69,21 @@ export interface CurrentUser {
   claimsVersion: number;
   isSuperAdmin: boolean;
   aal: 'aal1' | 'aal2' | null;
+  /**
+   * C15 — estado de impersonate ENCAPSULADO. NUNCA vira um "role lógico" nem
+   * flags soltas em CurrentUser (review #1). Presente só quando um super_admin
+   * AAL2 tem uma sessão de impersonate válida (cookie + linha autoritativa).
+   * `clinicId` (real) continua `null` para super_admin; o escopo efetivo é
+   * resolvido por `requireClinicId()`.
+   */
+  session?: {
+    impersonation?: {
+      impersonationId: string;
+      clinicId: string;
+      /** ISO. */
+      startedAt: string;
+    };
+  };
 }
 
 /**
@@ -95,7 +111,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const claims = parseClaims(raw);
   if (!claims) return null;
 
-  return {
+  const base: CurrentUser = {
     userId,
     clinicId: claims.clinic_id,
     // JWT claim é 'app_role' (PostgREST reserva 'role'); domain expõe como 'role'.
@@ -105,6 +121,15 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     isSuperAdmin: claims.super_admin === true || claims.app_role === 'super_admin',
     aal: claims.aal ?? null,
   };
+
+  // C15 — overlay de impersonate. Só consulta a sessão (1 PK lookup) quando há
+  // cookie E o user é super_admin AAL2; usuários normais não pagam nada.
+  // Toda a lógica de cookie/HMAC/sessão vive em @/lib/impersonation (review #2).
+  const imp = await resolveImpersonation(base);
+  if (imp) {
+    base.session = { impersonation: imp };
+  }
+  return base;
 }
 
 export async function requireUser(): Promise<CurrentUser> {
@@ -116,19 +141,25 @@ export async function requireUser(): Promise<CurrentUser> {
 }
 
 /**
- * Garante clinic_id presente. super_admin LANÇA — precisa contexto explícito
- * (em C15 impersonation vai popular uma claim adicional).
+ * Garante clinic_id presente. Resolve o escopo EFETIVO: durante impersonate o
+ * super_admin opera como a clínica impersonada (C15). Fora disso, super_admin
+ * sem clínica LANÇA — precisa contexto explícito (D27/P7).
+ *
+ * Ordem (OR-I7): impersonation.clinicId tem prioridade sobre clinicId real.
+ * Quando a sessão expira/é revogada, `session.impersonation` some e voltamos a
+ * lançar para super_admin (OR-I10).
  */
 export async function requireClinicId(): Promise<string> {
   const user = await requireUser();
-  if (user.clinicId === null) {
+  const effective = user.session?.impersonation?.clinicId ?? user.clinicId;
+  if (effective === null) {
     throw new AuthError(
       'Super_admin precisa selecionar clínica antes desta ação',
       'forbidden',
       403,
     );
   }
-  return user.clinicId;
+  return effective;
 }
 
 export async function requireRole(allowed: readonly Role[]): Promise<Role> {

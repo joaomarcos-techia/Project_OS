@@ -15,7 +15,7 @@ export type PostLoginRoute =
   | '/login/mfa'
   | '/account/security?force=1'
   | '/dashboard'
-  | '/admin/select-clinic';
+  | '/admin';
 
 export interface PostLoginContext {
   role: Role;
@@ -32,12 +32,11 @@ export function postLoginRedirect(ctx: PostLoginContext): PostLoginRoute {
   if (mustHaveMFA(ctx.role) && ctx.aal !== 'aal2') {
     return '/login/mfa';
   }
-  // super_admin já AAL2 → /dashboard ATÉ o C15 existir. O destino original
-  // ('/admin/select-clinic', mantido no union como forward-pin) só nasce com
-  // o painel platform-admin (C15) — apontar para ele hoje = 404 no login do
-  // founder (observado em prod, 2026-06-11). Restaurar quando C15 entregar.
+  // super_admin já AAL2 → painel da plataforma (C15). O destino é a home do
+  // Platform Admin; o founder nunca cai no app tenant sem clínica (o que
+  // lançaria em requireClinicId). Operar uma clínica é só via impersonate.
   if (ctx.role === 'super_admin') {
-    return '/dashboard';
+    return '/admin';
   }
   // Demais roles: direto para dashboard
   return '/dashboard';

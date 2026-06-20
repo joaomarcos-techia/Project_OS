@@ -2,6 +2,7 @@ import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 
+import { recordImpersonationAudit } from './impersonation-extra';
 import { logAudit } from './log';
 import type { RequestContext } from './types';
 
@@ -30,9 +31,10 @@ export async function auditedMutation<T>(
 ): Promise<T> {
   const user = await requireUser();
   const clinicId = await requireClinicId();
+  const impersonation = user.session?.impersonation;
   return withTenant(clinicId, async (tx) => {
     const after = await fn(tx);
-    await logAudit(tx, {
+    const auditEventId = await logAudit(tx, {
       clinicId,
       userId: user.userId,
       action: opts.action,
@@ -42,6 +44,19 @@ export async function auditedMutation<T>(
       after,
       requestContext: opts.requestContext,
     });
+    // C15 — auditoria EXTRA atômica quando a mutação ocorre sob impersonate.
+    if (impersonation) {
+      await recordImpersonationAudit(tx, {
+        impersonationId: impersonation.impersonationId,
+        auditEventId,
+        superAdminId: user.userId,
+        clinicId,
+        action: opts.action,
+        resourceType: opts.resourceType,
+        resourceId: opts.resourceId,
+        requestContext: opts.requestContext,
+      });
+    }
     return after;
   });
 }

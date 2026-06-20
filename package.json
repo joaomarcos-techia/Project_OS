@@ -32,6 +32,8 @@
     "seed:clinic-user": "tsx scripts/seed-clinic-user.ts",
     "seed:c9": "tsx --conditions=react-server scripts/seed-c9-test.ts",
     "seed:plans": "tsx --conditions=react-server scripts/seed-plans.ts",
+    "seed:admin-bucket": "tsx --conditions=react-server scripts/seed-admin-bucket.ts",
+    "seed:c15": "tsx --conditions=react-server scripts/seed-c15-test.ts",
     "billing:live-check": "tsx --conditions=react-server scripts/asaas-live-check.ts",
     "billing:live-roundtrip": "tsx --conditions=react-server scripts/asaas-live-roundtrip.ts",
     "smoke:c13": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c13.ts",

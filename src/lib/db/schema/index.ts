@@ -49,3 +49,5 @@ export * from './infra/outbox';
 export * from './infra/audit';
 export * from './infra/super-admin';
 export * from './infra/idempotency';
+// C15 — Platform Admin: sessões de impersonate (fonte autoritativa do cookie).
+export * from './infra/impersonation';

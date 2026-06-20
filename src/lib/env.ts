@@ -206,6 +206,14 @@ const EnvSchema = z
     META_TEMPLATE_FOLLOWUP_RETURN_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Idioma BCP-47 dos templates (default pt_BR).
     META_TEMPLATE_LANG: z.preprocess(emptyToUndefined, z.string().min(2).optional().default('pt_BR')),
+
+    // --- C15: Platform Admin (impersonate) ---
+    // Segredo HMAC que assina o cookie `qoro_imp` (carrega só o impersonationId).
+    // A linha em impersonation_sessions é autoritativa; a assinatura só impede
+    // adulteração. Min 32 chars (baseline de entropia). Optional no parse (next
+    // build verde antes do secret); assertImpersonationRuntimeReady() exige em
+    // runtime nas Server Actions de impersonate.
+    IMPERSONATION_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -340,6 +348,17 @@ export function assertBillingRuntimeReady(): void {
 export function assertBillingWebhookReady(): void {
   if (!env.ASAAS_WEBHOOK_TOKEN) {
     throw new Error('[env] ASAAS_WEBHOOK_TOKEN is required at runtime for /api/webhooks/asaas');
+  }
+}
+
+/**
+ * Runtime guard for C15 impersonate — exige o segredo HMAC do cookie. Chamado
+ * pelas Server Actions de impersonate, NÃO no import (next build verde antes do
+ * secret existir).
+ */
+export function assertImpersonationRuntimeReady(): void {
+  if (!env.IMPERSONATION_SECRET) {
+    throw new Error('[env] IMPERSONATION_SECRET is required at runtime for impersonate (C15)');
   }
 }
 

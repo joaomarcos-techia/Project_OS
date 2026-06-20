@@ -40,6 +40,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/lib/audit/super-admin.ts',
     'src/lib/auth/tenant-context.ts',
     'src/lib/idempotency/cleanup.ts',
+    // C15 — impersonate: a tabela impersonation_sessions é a fonte autoritativa
+    // (cross-tenant, global-protected). Leitura/escrita via dbAdmin; o cookie só
+    // carrega o id assinado. Único seam do módulo que toca dbAdmin.
+    'src/lib/impersonation/session.ts',
     // C10 — seam privilegiado ÚNICO de mensageria (superfície congelada 3ª#6,
     // ADR-020): roteamento de tenant pré-JWT no webhook exige leitura
     // cross-tenant. Faltava aqui porque o guard não rodava no CI (F-07) —
