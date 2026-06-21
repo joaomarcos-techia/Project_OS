@@ -2,8 +2,8 @@
 
 /**
  * Server Actions de impersonate (C15) — as ÚNICAS mutações de SESSÃO do painel.
- * Junto de actions/exports.ts, são a única superfície de escrita de /admin
- * (review #11: read-only garantido por estrutura + arch test).
+ * Junto de clinicas/[id]/audit/export, são a única superfície de escrita de
+ * /admin (review #11: read-only garantido por estrutura + arch test).
  */
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -11,7 +11,8 @@ import { z } from 'zod';
 
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { superAdminAction } from '@/lib/audit/super-admin';
-import { requireRecentAal2 } from '@/lib/auth/require-recent-aal2';
+import { challengeAndVerify, listFactors } from '@/lib/auth/mfa';
+import { createServerClient } from '@/lib/auth/supabase-server';
 import { requireUser } from '@/lib/auth/tenant-context';
 import { assertImpersonationRuntimeReady } from '@/lib/env';
 import {
@@ -22,39 +23,56 @@ import {
 
 import { guardAdminAccess } from '../_lib/guard';
 
+export type ImpersonateState = { error: string | null };
+
 /**
- * Inicia impersonate (OR-I1..I3). Form action: lê clinicId do FormData. Exige
- * super_admin + AAL2 RECENTE (≤10min) — se expirado, manda re-fazer MFA.
- * Cria a sessão e o log impersonate_start na MESMA tx; seta o cookie; entra no
- * app tenant como a clínica.
+ * Inicia impersonate (OR-I1..I3). MFA OBRIGATÓRIO a cada impersonate (step-up):
+ * o TOTP é verificado AQUI, inline (não há bounce para /login/mfa). Form action
+ * (useActionState): devolve { error } p/ o formulário mostrar; em sucesso cria a
+ * sessão + log e entra na clínica.
  */
-export async function startImpersonationAction(formData: FormData): Promise<void> {
+export async function startImpersonationAction(
+  _prev: ImpersonateState,
+  formData: FormData,
+): Promise<ImpersonateState> {
   await guardAdminAccess();
   assertImpersonationRuntimeReady();
 
-  const clinicId = z.string().uuid().parse(formData.get('clinicId'));
+  const clinic = z.string().uuid().safeParse(formData.get('clinicId'));
+  if (!clinic.success) return { error: 'Clínica inválida.' };
+  const code = String(formData.get('code') ?? '').trim();
+  if (!/^\d{6}$/.test(code)) return { error: 'O código do autenticador tem 6 dígitos.' };
 
-  // Step-up: se o MFA não foi provado nos últimos 10min, re-challenge (não erro).
+  // Step-up: re-verifica o TOTP agora (a cada impersonate).
+  const supabase = await createServerClient();
+  let factors;
   try {
-    await requireRecentAal2(10);
+    factors = await listFactors(supabase);
   } catch {
-    redirect('/login/mfa?reason=step_up');
+    return { error: 'Não foi possível verificar o MFA. Tente novamente.' };
+  }
+  const verified = factors.find((f) => f.status === 'verified');
+  if (!verified) return { error: 'Nenhum autenticador (TOTP) configurado nesta conta.' };
+  try {
+    await challengeAndVerify(supabase, verified.id, code);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Código inválido.' };
   }
 
+  // TOTP ok → cria a sessão + log impersonate_start (atômico) e seta o cookie.
   const user = await requireUser();
   const rc = buildRequestContext(await headers());
-
   const impersonationId = await superAdminAction(
     {
       action: 'impersonate_start',
-      targetClinicId: clinicId,
-      payload: { clinicId },
+      targetClinicId: clinic.data,
+      payload: { clinicId: clinic.data },
       requestContext: rc,
     },
     (tx) =>
       createImpersonationSessionTx(tx, {
         superAdminId: user.userId,
-        clinicId,
+        clinicId: clinic.data,
         ip: rc.ip,
         userAgent: rc.userAgent,
       }),

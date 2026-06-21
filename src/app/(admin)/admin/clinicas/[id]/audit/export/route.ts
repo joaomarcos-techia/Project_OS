@@ -1,10 +1,15 @@
 /**
- * GET /admin/clinicas/[id]/audit/export?from&to (C15).
+ * POST /admin/clinicas/[id]/audit/export?from&to (C15).
  *
  * Gera o PDF de auditoria da clínica no período, com SHA256, e devolve a signed
  * URL (7 dias). Write-surface sancionada do painel (junto de actions/impersonation):
  * grava artefato no storage + log audit_export em super_admin_actions. Coberta
  * pelo allowlist do arch test read-only.
+ *
+ * POST (não GET): a operação MUDA estado (artefato no storage + linha de auditoria).
+ * GET seria acionável por CSRF (ex.: <img src=…>); POST + cookie SameSite do Supabase
+ * bloqueia requisições cross-site. Os params from/to ficam na query (idempotentes p/
+ * o mesmo período via dedup do nome do arquivo).
  */
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
@@ -21,7 +26,7 @@ export const dynamic = 'force-dynamic';
 
 const DateParam = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-export async function GET(
+export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {

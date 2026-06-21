@@ -10,7 +10,7 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, lte, sql, type SQL } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
 import { auditEvents } from '@/lib/db/schema/infra/audit';
@@ -19,6 +19,16 @@ import type { AuditEntryDTO, AuditSearchResultDTO } from '../dto';
 
 const iso = (v: Date | string): string =>
   v instanceof Date ? v.toISOString() : new Date(v).toISOString();
+
+/**
+ * Termo p/ busca parcial case-insensitive em `action`. Escapa os curingas de LIKE
+ * (`%`, `_`, `\`) para que o input seja tratado como literal (sem surpresa de
+ * wildcard) e limita o tamanho. Ex.: "impersonate" casa `impersonate_start`.
+ */
+function likeContains(term: string): string {
+  const escaped = term.trim().slice(0, 80).replace(/[\\%_]/g, (ch) => `\\${ch}`);
+  return `%${escaped}%`;
+}
 
 export interface AuditSearchQuery {
   userId?: string | undefined;
@@ -38,7 +48,7 @@ function buildConds(q: Omit<AuditSearchQuery, 'page' | 'pageSize'>): SQL[] {
   const conds: SQL[] = [];
   if (q.userId) conds.push(eq(auditEvents.userId, q.userId));
   if (q.clinicId) conds.push(eq(auditEvents.clinicId, q.clinicId));
-  if (q.action) conds.push(eq(auditEvents.action, q.action));
+  if (q.action) conds.push(ilike(auditEvents.action, likeContains(q.action)));
   if (q.entity) conds.push(eq(auditEvents.resourceType, q.entity));
   if (q.from) conds.push(gte(auditEvents.createdAt, sql`${q.from}::timestamptz`));
   if (q.to) conds.push(lte(auditEvents.createdAt, sql`${q.to}::timestamptz`));

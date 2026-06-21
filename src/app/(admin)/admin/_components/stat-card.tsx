@@ -1,22 +1,42 @@
 import type { ReactNode } from 'react';
 
-import { Card } from '@/components/ui/card';
+import { Icon } from '@/components/painel/icons';
 
-/** Card de métrica simples (sem gráfico) — dashboard e /metricas. */
+/**
+ * Stat tile do console — porte do helper `stat()` do design bundle. `icon`/`tone`
+ * renderizam o chip `.st-ico`; `delta`/`deltaTone` ('up'|'down') renderizam a
+ * variação `.st-d` colorida; `hint` é a variação neutra (fallback).
+ */
 export function StatCard({
   label,
   value,
   hint,
+  delta,
+  deltaTone,
+  icon,
+  tone,
 }: {
   label: string;
   value: ReactNode;
   hint?: ReactNode;
+  delta?: ReactNode;
+  deltaTone?: 'up' | 'down';
+  icon?: string;
+  tone?: 'teal' | 'green' | 'amber' | 'red';
 }) {
+  const d = delta ?? hint;
   return (
-    <Card className="p-5">
-      <div className="text-sm text-fg-muted">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
-      {hint ? <div className="mt-1 text-xs text-fg-subtle">{hint}</div> : null}
-    </Card>
+    <div className="stat-tile">
+      <div className="st-top">
+        <span className="st-l">{label}</span>
+        {icon ? (
+          <span className={`st-ico${tone ? ` ${tone}` : ''}`}>
+            <Icon name={icon} size={16} />
+          </span>
+        ) : null}
+      </div>
+      <div className="st-v">{value}</div>
+      {d ? <div className={`st-d${delta && deltaTone ? ` ${deltaTone}` : ''}`}>{d}</div> : null}
+    </div>
   );
 }

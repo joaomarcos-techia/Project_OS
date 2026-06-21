@@ -2,8 +2,7 @@ import Link from 'next/link';
 
 import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { DateField } from '@/components/ui/date-field';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { guardAdminAccess } from '../_lib/guard';
@@ -14,6 +13,27 @@ import { conversationsRepository } from '../_lib/repositories/conversations.repo
 export const dynamic = 'force-dynamic';
 
 type SP = { clinic?: string; from?: string; to?: string; q?: string; c?: string };
+
+/**
+ * Intents canônicos = nomes das tools do agente (gravados em
+ * `ai_conversations.intent_atual` = nome da 1ª tool do turno, ver
+ * inbound-received.ts). Mantido em sincronia manual com `tools/*`.
+ */
+const INTENTS: readonly { value: string; label: string }[] = [
+  { value: 'schedule_appointment', label: 'Agendar consulta' },
+  { value: 'confirm_appointment', label: 'Confirmar consulta' },
+  { value: 'cancel_appointment', label: 'Cancelar consulta' },
+  { value: 'reschedule_appointment', label: 'Remarcar consulta' },
+  { value: 'list_slots', label: 'Listar horários' },
+  { value: 'list_pending_payments', label: 'Pagamentos pendentes' },
+  { value: 'provide_clinic_info', label: 'Informações da clínica' },
+  { value: 'provide_procedure_price', label: 'Preço de procedimento' },
+  { value: 'collect_patient_data', label: 'Coletar dados do paciente' },
+  { value: 'patient_lookup', label: 'Buscar paciente' },
+  { value: 'request_human_handoff', label: 'Falar com humano' },
+  { value: 'lgpd_export_request', label: 'LGPD: exportar dados' },
+  { value: 'lgpd_delete_request', label: 'LGPD: excluir dados' },
+];
 
 function qstring(sp: SP, extra: Partial<SP>): string {
   const p = new URLSearchParams();
@@ -41,13 +61,18 @@ export default async function ConversasIaPage({ searchParams }: { searchParams: 
   ]);
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            Operação <span className="sep">›</span> <b>Conversas IA</b>
+          </>
+        }
         title="Conversas IA"
         description="Mensagens descriptografadas server-side (o navegador nunca recebe ciphertext)."
       />
 
-      <form className="mb-4 flex flex-wrap items-end gap-3">
+      <form className="mb-6 flex flex-wrap items-end gap-3">
         <div className="min-w-50">
           <label className="mb-1 block text-xs text-fg-muted">Clínica</label>
           <select name="clinic" defaultValue={sp.clinic ?? ''} className="select">
@@ -61,83 +86,95 @@ export default async function ConversasIaPage({ searchParams }: { searchParams: 
         </div>
         <div>
           <label className="mb-1 block text-xs text-fg-muted">De</label>
-          <input type="date" name="from" defaultValue={sp.from ?? ''} className="input" />
+          <DateField name="from" defaultValue={sp.from ?? ''} />
         </div>
         <div>
           <label className="mb-1 block text-xs text-fg-muted">Até</label>
-          <input type="date" name="to" defaultValue={sp.to ?? ''} className="input" />
+          <DateField name="to" defaultValue={sp.to ?? ''} />
         </div>
-        <div className="min-w-50 flex-1">
-          <label className="mb-1 block text-xs text-fg-muted">Busca (intent)</label>
-          <Input name="q" defaultValue={sp.q ?? ''} placeholder="intent…" />
+        <div className="min-w-50">
+          <label className="mb-1 block text-xs text-fg-muted">Intent (atual)</label>
+          <select name="q" defaultValue={sp.q ?? ''} className="select">
+            <option value="">Todos</option>
+            {INTENTS.map((i) => (
+              <option key={i.value} value={i.value}>
+                {i.label}
+              </option>
+            ))}
+          </select>
         </div>
         <button type="submit" className={buttonVariants({ variant: 'secondary' })}>
           Filtrar
         </button>
       </form>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Conversas recentes ({conversations.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
+      <div className="ia-debug">
+        {/* coluna — lista de conversas */}
+        <div className="iad-list">
+          <div className="iad-filter flex items-center justify-between">
+            <b className="text-[13px] font-semibold">Conversas recentes</b>
+            <span className="font-mono text-[11px] text-fg-subtle">{conversations.length}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
             {conversations.length === 0 ? (
-              <p className="text-sm text-fg-subtle">Nenhuma conversa.</p>
+              <p className="p-4 text-sm text-fg-subtle">Nenhuma conversa.</p>
             ) : (
-              <div className="divide-y divide-border">
-                {conversations.map((conv) => (
+              conversations.map((conv) => {
+                const active = sp.c === conv.id;
+                return (
                   <Link
                     key={conv.id}
                     href={`/admin/conversas-ia${qstring(sp, { c: conv.id, clinic: conv.clinicId })}`}
-                    className="flex items-center justify-between gap-3 py-2 text-sm hover:bg-surface-2"
+                    className={`iad-item${active ? ' active' : ''}`}
                   >
-                    <span className="min-w-0 flex-1 truncate">{conv.clinicNome}</span>
-                    <Badge tone="gray">{conv.status}</Badge>
-                    <span className="w-12 text-right text-xs text-fg-subtle">{conv.messageCount}</span>
-                    <span className="hidden w-32 text-right text-xs text-fg-subtle sm:block">
-                      {formatDateTime(conv.lastMessageAt)}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{detail ? `Conversa — ${detail.clinicNome}` : 'Selecione uma conversa'}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
-            {!detail ? (
-              <p className="text-sm text-fg-subtle">
-                Clique numa conversa para ver as mensagens (texto já descriptografado).
-              </p>
-            ) : detail.messages.length === 0 ? (
-              <p className="text-sm text-fg-subtle">Sem mensagens.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {detail.messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={
-                      m.direction === 'out'
-                        ? 'self-end max-w-[85%] rounded-lg bg-primary-50 px-3 py-2 text-sm dark:bg-primary-950'
-                        : 'self-start max-w-[85%] rounded-lg bg-surface-2 px-3 py-2 text-sm'
-                    }
-                  >
-                    <div className="whitespace-pre-wrap break-words">{m.text}</div>
-                    <div className="mt-1 text-[10px] text-fg-subtle">
-                      {m.direction === 'out' ? 'IA' : 'Paciente'} · {formatDateTime(m.createdAt)}
+                    <div className="iad-it-top">
+                      <b>{conv.clinicNome}</b>
+                      <span className="mono">{conv.messageCount} msg</span>
                     </div>
-                  </div>
-                ))}
-              </div>
+                    <div className="iad-it-subj">{conv.status}</div>
+                    <div className="iad-it-foot">
+                      <span className="mono">{formatDateTime(conv.lastMessageAt)}</span>
+                      <Badge tone="gray">{conv.status}</Badge>
+                    </div>
+                  </Link>
+                );
+              })
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* coluna — thread */}
+        <div className="iad-thread">
+          {!detail ? (
+            <div className="iad-body items-center justify-center">
+              <span className="iad-sys">Selecione uma conversa para ver as mensagens</span>
+            </div>
+          ) : (
+            <>
+              <div className="iad-th-head">
+                <b>{detail.clinicNome}</b>
+                <span className="font-mono text-[11px] text-fg-subtle">
+                  {detail.messages.length} mensagem(ns)
+                </span>
+              </div>
+              <div className="iad-body">
+                {detail.messages.length === 0 ? (
+                  <span className="iad-sys">Sem mensagens.</span>
+                ) : (
+                  detail.messages.map((m) => (
+                    <div key={m.id} className={`iad-msg ${m.direction === 'out' ? 'ai' : 'them'}`}>
+                      <div className="iad-bubble whitespace-pre-wrap break-words">{m.text}</div>
+                      <span className="iad-mm">
+                        {m.direction === 'out' ? 'IA' : 'Paciente'} · {formatDateTime(m.createdAt)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
 }

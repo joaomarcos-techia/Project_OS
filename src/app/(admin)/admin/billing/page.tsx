@@ -1,111 +1,162 @@
 import Link from 'next/link';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { Icon } from '@/components/painel/icons';
 import { PageHeader } from '@/components/ui/page-header';
 
+import { Bars, ClinicMark } from '../_components/charts';
 import { StatCard } from '../_components/stat-card';
 import { guardAdminAccess } from '../_lib/guard';
-import { formatBRLCents, formatDate, formatDateTime, formatNumber } from '../_lib/format';
+import { formatBRLCents, formatDate, formatDateTime } from '../_lib/format';
 import { billingOverviewRepository } from '../_lib/repositories/billing.repo';
+import { adminMetricsRepository } from '../_lib/repositories/metrics.repo';
 import type { InvoiceRowDTO } from '../_lib/dto';
 
 export const dynamic = 'force-dynamic';
 
-function InvoiceList({ rows }: { rows: InvoiceRowDTO[] }) {
-  if (rows.length === 0) return <p className="text-sm text-fg-subtle">Nenhuma.</p>;
-  return (
-    <div className="divide-y divide-border">
-      {rows.map((r) => (
-        <div key={r.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-          <Link href={`/admin/clinicas/${r.clinicId}`} className="min-w-0 flex-1 truncate hover:underline">
-            {r.clinicNome}
-          </Link>
-          <span className="w-24 text-right font-medium">{formatBRLCents(r.amountCents)}</span>
-          <span className="w-24 text-right text-xs text-fg-subtle">venc. {formatDate(r.dueDate)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default async function BillingPage() {
   await guardAdminAccess();
-  const o = await billingOverviewRepository.getOverview();
+  const [o, trend] = await Promise.all([
+    billingOverviewRepository.getOverview(),
+    adminMetricsRepository.getMrrTrend(6).catch(() => []),
+  ]);
+
+  const sum = (rows: InvoiceRowDTO[]) => rows.reduce((s, r) => s + r.amountCents, 0);
+  const invoices = [
+    ...o.overdue.map((r) => ({ ...r, st: 'Atrasada', tone: 'red' as const })),
+    ...o.open.map((r) => ({ ...r, st: 'Aberta', tone: 'amber' as const })),
+  ];
+
+  const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
+  const bars = trend.map((t, i) => ({ label: t.label, value: Math.round((t.cents / maxMrr) * 100), on: i === trend.length - 1 }));
 
   return (
-    <>
-      <PageHeader title="Billing" description="Visão financeira da plataforma (somente leitura)." />
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            Operação <span className="sep">›</span> <b>Pagamentos</b>
+          </>
+        }
+        title="Pagamentos"
+        description="Faturamento consolidado — recebíveis, inadimplência, dunning e reembolsos."
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="MRR (mês)" value={formatBRLCents(o.mrrCents)} />
-        <StatCard label="ARR" value={formatBRLCents(o.arrCents)} />
-        <StatCard label="Faturas abertas" value={formatNumber(o.open.length)} />
-        <StatCard label="Em atraso" value={formatNumber(o.overdue.length)} />
+      <div className="stat-row five">
+        <StatCard label="MRR" value={formatBRLCents(o.mrrCents)} delta={`ARR ${formatBRLCents(o.arrCents)}`} icon="cash" tone="green" />
+        <StatCard label="A receber" value={formatBRLCents(sum(o.open))} hint={`${o.open.length} fatura(s)`} icon="clock" />
+        <StatCard label="Em atraso" value={formatBRLCents(sum(o.overdue))} hint={`${o.overdue.length} fatura(s)`} icon="alert" tone="red" />
+        <StatCard label="Dunning ativo" value={o.dunning.length} hint="em cobrança" icon="refresh" tone="amber" />
+        <StatCard label="Reembolsos" value={o.refunds.length} hint="no período" icon="wallet" tone="teal" />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Faturas abertas</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <InvoiceList rows={o.open} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Em atraso (overdue)</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <InvoiceList rows={o.overdue} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Dunning</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
-            {o.dunning.length === 0 ? (
-              <p className="text-sm text-fg-subtle">Nenhuma clínica em dunning.</p>
-            ) : (
-              <div className="divide-y divide-border">
-                {o.dunning.map((d) => (
-                  <div key={d.clinicId} className="flex items-center justify-between py-2 text-sm">
-                    <Link href={`/admin/clinicas/${d.clinicId}`} className="truncate hover:underline">
-                      {d.nome}
-                    </Link>
-                    <span className="text-xs text-fg-subtle">stage {d.stage}</span>
-                  </div>
+      <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
+        <div className="cardblock-head">
+          <h4>Faturas recentes</h4>
+          <span className="sub">abertas e em atraso · via Asaas</span>
+        </div>
+        {invoices.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-fg-subtle">Nenhuma fatura em aberto.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="ui-table" style={{ minWidth: 620 }}>
+              <thead>
+                <tr>
+                  <th>Clínica</th>
+                  <th style={{ textAlign: 'right' }}>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <span className="td-name">
+                        <ClinicMark nome={r.clinicNome} />
+                        <b style={{ fontWeight: 600 }}>{r.clinicNome}</b>
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>{formatBRLCents(r.amountCents)}</td>
+                    <td className="td-sub">{formatDate(r.dueDate)}</td>
+                    <td>
+                      <Badge tone={r.tone}>{r.st}</Badge>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <Link href={`/admin/clinicas/${r.clinicId}`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                        <Icon name="chevR" size={16} />
+                      </Link>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Refunds</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2">
-            {o.refunds.length === 0 ? (
-              <p className="text-sm text-fg-subtle">Nenhum refund.</p>
-            ) : (
-              <div className="divide-y divide-border">
-                {o.refunds.map((r, i) => (
-                  <div key={`${r.clinicId}-${i}`} className="flex items-center justify-between py-2 text-sm">
-                    <Link href={`/admin/clinicas/${r.clinicId}`} className="truncate hover:underline">
-                      {r.nome}
-                    </Link>
-                    <span className="flex items-center gap-2">
-                      <span className="font-medium">{formatBRLCents(r.amountCents)}</span>
-                      <span className="text-xs text-fg-subtle">{formatDateTime(r.at)}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-    </>
+
+      <div className="cols-2" style={{ marginTop: 'var(--sp-4)' }}>
+        <div className="cardblock">
+          <div className="cardblock-head">
+            <h4>Dunning ativo</h4>
+            <span className="sub">cobranças em andamento</span>
+          </div>
+          {o.dunning.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-fg-subtle">Nenhuma clínica em dunning.</p>
+          ) : (
+            <div className="listrows">
+              {o.dunning.map((d) => (
+                <Link key={d.clinicId} href={`/admin/clinicas/${d.clinicId}`} className="listrow">
+                  <ClinicMark nome={d.nome} tint="var(--warning-500)" />
+                  <div className="lr-main">
+                    <b>{d.nome}</b>
+                    <span className="lr-sub">estágio {d.stage} de cobrança</span>
+                  </div>
+                  <div className="lr-end">
+                    <span className={`hc-dot ${d.stage >= 3 ? 'red' : 'amber'}`} />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="panel">
+          <h4>Receita · últimos 6 meses</h4>
+          {bars.some((b) => b.value > 0) ? (
+            <Bars data={bars} />
+          ) : (
+            <p className="muted" style={{ fontSize: 13, padding: 'var(--sp-6) 0', textAlign: 'center' }}>
+              Sem faturas pagas no período.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {o.refunds.length > 0 ? (
+        <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
+          <div className="cardblock-head">
+            <h4>Reembolsos</h4>
+            <span className="sub">recentes</span>
+          </div>
+          <div className="listrows">
+            {o.refunds.map((r, i) => (
+              <Link key={`${r.clinicId}-${i}`} href={`/admin/clinicas/${r.clinicId}`} className="listrow">
+                <ClinicMark nome={r.nome} />
+                <div className="lr-main">
+                  <b>{r.nome}</b>
+                  <span className="lr-sub">{formatDateTime(r.at)}</span>
+                </div>
+                <div className="lr-end">
+                  <span className="font-medium tabular-nums">{formatBRLCents(r.amountCents)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

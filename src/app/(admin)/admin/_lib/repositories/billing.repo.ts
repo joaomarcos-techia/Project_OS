@@ -8,7 +8,7 @@ import 'server-only';
 
 import { asc, desc, eq, gt, sql } from 'drizzle-orm';
 
-import { invoices, paymentAttempts, subscriptions } from '@/contexts/billing/schema';
+import { invoices, paymentAttempts, prices, subscriptions } from '@/contexts/billing/schema';
 import { clinics } from '@/contexts/tenancy/schema';
 import { dbAdmin } from '@/lib/db';
 
@@ -20,14 +20,16 @@ const iso = (v: Date | string | null): string | null =>
 
 export class BillingOverviewRepository {
   async getOverview(): Promise<BillingOverviewDTO> {
+    // MRR = receita recorrente normalizada das assinaturas comprometidas
+    // (active + past_due; anual → /12). Mesma definição do metrics.repo
+    // (getDashboard) — NÃO é soma de faturas pagas no mês (= caixa recebido).
     const [mrrRow] = await dbAdmin
-      .select({ mrr: sql<string>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
-      .from(invoices)
-      .where(
-        sql`${invoices.status} = 'paid'
-          AND ${invoices.paidAt} >= date_trunc('month', now())
-          AND ${invoices.paidAt} <  date_trunc('month', now()) + interval '1 month'`,
-      );
+      .select({
+        mrr: sql<string>`COALESCE(SUM(CASE WHEN ${prices.billingCycle} = 'annual' THEN ${prices.amount} / 12.0 ELSE ${prices.amount} END), 0)`,
+      })
+      .from(subscriptions)
+      .innerJoin(prices, eq(prices.id, subscriptions.priceId))
+      .where(sql`${subscriptions.billingStatus} IN ('active','past_due')`);
     const mrrCents = toCents(mrrRow?.mrr ?? '0');
 
     const invoiceRows = async (status: 'open' | 'overdue'): Promise<InvoiceRowDTO[]> => {

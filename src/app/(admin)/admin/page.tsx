@@ -1,39 +1,164 @@
+import Link from 'next/link';
+
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { Icon } from '@/components/painel/icons';
 import { PageHeader } from '@/components/ui/page-header';
 
+import { Bars, ClinicMark, Donut, Legend } from './_components/charts';
 import { StatCard } from './_components/stat-card';
 import { guardAdminAccess } from './_lib/guard';
-import { formatBRLCents, formatDateTime, formatNumber, formatPct } from './_lib/format';
+import { formatBRLCents, formatDateTime, formatPct } from './_lib/format';
 import { adminMetricsRepository } from './_lib/repositories/metrics.repo';
+import { clinicRepository } from './_lib/repositories/clinics.repo';
 
 export const dynamic = 'force-dynamic';
 
+const RISK_LABEL: Record<string, string> = {
+  suspended_readonly: 'Somente leitura — pagamento pendente',
+  suspended: 'Suspensa por inadimplência',
+  pending_payment: 'Aguardando pagamento',
+};
+
 export default async function AdminDashboardPage() {
   await guardAdminAccess();
-  const m = await adminMetricsRepository.getDashboard();
+  const [m, trend, breakdown, recent, atRisk] = await Promise.all([
+    adminMetricsRepository.getDashboard(),
+    adminMetricsRepository.getMrrTrend(6).catch(() => []),
+    adminMetricsRepository.getStatusBreakdown().catch(() => ({ active: 0, trial: 0, atRisk: 0, cancelled: 0 })),
+    clinicRepository.list({ pageSize: 4 }),
+    clinicRepository.listAtRisk(4).catch(() => []),
+  ]);
+
+  const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
+  const bars = trend.map((t, i) => ({
+    label: t.label,
+    value: Math.round((t.cents / maxMrr) * 100),
+    on: i === trend.length - 1,
+  }));
+  const donutSegs = [
+    { color: 'var(--success-500)', value: breakdown.active, label: 'Ativas' },
+    { color: 'var(--primary-500)', value: breakdown.trial, label: 'Trial' },
+    { color: 'var(--warning-500)', value: breakdown.atRisk, label: 'Em risco' },
+    { color: 'var(--neutral-400)', value: breakdown.cancelled, label: 'Canceladas' },
+  ].filter((s) => s.value > 0);
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            Operação <span className="sep">›</span> <b>Visão geral</b>
+          </>
+        }
         title="Visão geral"
-        description="Métricas globais da plataforma em tempo real."
+        description="Saúde do negócio em uma tela — receita, clientes e risco em tempo real."
+        actions={
+          <Link href="/admin" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            <Icon name="refresh" size={15} />
+            Atualizar
+          </Link>
+        }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="MRR (mês atual)" value={formatBRLCents(m.mrrCents)} hint="SUM(faturas pagas)" />
-        <StatCard label="ARR" value={formatBRLCents(m.arrCents)} hint="MRR × 12" />
-        <StatCard label="Churn (mês)" value={formatPct(m.churnRatePct)} />
-        <StatCard label="Crescimento mensal" value={formatPct(m.monthlyGrowthPct)} hint="novas clínicas vs mês anterior" />
+      <div className="stat-row five">
+        <StatCard label="MRR" value={formatBRLCents(m.mrrCents)} delta={`ARR ${formatBRLCents(m.arrCents)}`} icon="cash" tone="green" />
+        <StatCard label="Clínicas ativas" value={m.clinics.active} hint={`${m.clinics.new} novas no mês`} icon="building" />
+        <StatCard label="Em risco" value={m.clinics.atRisk} hint="churn provável" icon="alert" tone="amber" />
+        <StatCard label="Churn mensal" value={formatPct(m.churnRatePct)} icon="refresh" tone="teal" />
+        <StatCard
+          label="Crescimento MoM"
+          value={formatPct(m.monthlyGrowthPct)}
+          delta={m.monthlyGrowthPct >= 0 ? 'líquido positivo' : 'em queda'}
+          deltaTone={m.monthlyGrowthPct >= 0 ? 'up' : 'down'}
+          icon="chart"
+        />
       </div>
 
-      <h2 className="mt-8 mb-3 text-sm font-semibold text-fg-muted">Clínicas</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Ativas" value={formatNumber(m.clinics.active)} />
-        <StatCard label="Em risco" value={formatNumber(m.clinics.atRisk)} hint="suspensas / aguardando pagamento" />
-        <StatCard label="Novas (mês)" value={formatNumber(m.clinics.new)} />
-        <StatCard label="Canceladas" value={formatNumber(m.clinics.cancelled)} />
+      <div className="cols-3-2" style={{ marginTop: 'var(--sp-4)' }}>
+        <div className="panel">
+          <h4>
+            Receita paga · últimos 6 meses <Link href="/admin/billing">Pagamentos</Link>
+          </h4>
+          {bars.some((b) => b.value > 0) ? (
+            <Bars data={bars} />
+          ) : (
+            <p className="muted" style={{ fontSize: 13, padding: 'var(--sp-6) 0', textAlign: 'center' }}>
+              Sem faturas pagas no período.
+            </p>
+          )}
+        </div>
+        <div className="panel">
+          <h4>Distribuição de clínicas</h4>
+          {donutSegs.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-6)', marginTop: 'var(--sp-4)' }}>
+              <Donut segments={donutSegs} />
+              <Legend segments={donutSegs} />
+            </div>
+          ) : (
+            <p className="muted" style={{ fontSize: 13, padding: 'var(--sp-6) 0' }}>
+              Nenhuma clínica cadastrada.
+            </p>
+          )}
+        </div>
       </div>
 
-      <p className="mt-6 text-xs text-fg-subtle">Gerado em {formatDateTime(m.generatedAt)}</p>
-    </>
+      <div className="cols-2" style={{ marginTop: 'var(--sp-4)' }}>
+        <div className="cardblock">
+          <div className="cardblock-head">
+            <h4>Novas clínicas</h4>
+            <span className="sub">mais recentes</span>
+          </div>
+          <div className="listrows">
+            {recent.items.length === 0 ? (
+              <p className="px-5 py-4 text-sm text-fg-subtle">Nenhuma clínica ainda.</p>
+            ) : (
+              recent.items.map((c) => (
+                <Link key={c.id} href={`/admin/clinicas/${c.id}`} className="listrow">
+                  <ClinicMark nome={c.nome} />
+                  <div className="lr-main">
+                    <b>{c.nome}</b>
+                    <span className="lr-sub">/{c.slug}</span>
+                  </div>
+                  <div className="lr-end">
+                    {c.planCode ? <Badge tone="blue">{c.planCode}</Badge> : null}
+                    <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                      {c.lastActivityAt ? formatDateTime(c.lastActivityAt) : 'sem atividade'}
+                    </span>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="cardblock">
+          <div className="cardblock-head">
+            <h4>Clínicas em risco</h4>
+            <span className="sub">sinais de churn</span>
+          </div>
+          <div className="listrows">
+            {atRisk.length === 0 ? (
+              <p className="px-5 py-4 text-sm text-fg-subtle">Nenhuma clínica em risco. 🎉</p>
+            ) : (
+              atRisk.map((c) => (
+                <Link key={c.id} href={`/admin/clinicas/${c.id}`} className="listrow">
+                  <ClinicMark nome={c.nome} tint="var(--warning-500)" />
+                  <div className="lr-main">
+                    <b>{c.nome}</b>
+                    <span className="lr-sub" style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}>
+                      {RISK_LABEL[c.status] ?? c.status}
+                    </span>
+                  </div>
+                  <div className="lr-end">
+                    <Badge tone="amber">risco</Badge>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

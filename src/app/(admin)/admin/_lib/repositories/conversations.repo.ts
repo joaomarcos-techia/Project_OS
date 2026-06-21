@@ -11,7 +11,7 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, gte, ilike, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, lte, sql, type SQL } from 'drizzle-orm';
 
 import { aiConversations, aiMessages } from '@/contexts/ai-agent/schema';
 import { clinics } from '@/contexts/tenancy/schema';
@@ -52,7 +52,6 @@ export class ConversationsRepository {
         clinicNome: clinics.nome,
         status: aiConversations.status,
         lastMessageAt: aiConversations.lastMessageAt,
-        messageCount: sql<number>`(SELECT COUNT(*) FROM ai_messages m WHERE m.conversation_id = ${aiConversations.id})::int`,
       })
       .from(aiConversations)
       .innerJoin(clinics, eq(clinics.id, aiConversations.clinicId))
@@ -61,13 +60,28 @@ export class ConversationsRepository {
       .limit(pageSize)
       .offset(offset);
 
+    // Contagem de mensagens: UMA query agregada para os ids da página (filtra por
+    // clinic_id + conversation_id → usa o índice; evita COUNT correlacionado por
+    // linha sobre a ai_messages particionada).
+    const convIds = rows.map((r) => r.id);
+    const clinicIds = [...new Set(rows.map((r) => r.clinicId))];
+    const counts = new Map<string, number>();
+    if (convIds.length > 0) {
+      const c = await dbAdmin
+        .select({ conversationId: aiMessages.conversationId, n: sql<number>`(COUNT(*))::int` })
+        .from(aiMessages)
+        .where(and(inArray(aiMessages.clinicId, clinicIds), inArray(aiMessages.conversationId, convIds)))
+        .groupBy(aiMessages.conversationId);
+      for (const x of c) counts.set(x.conversationId, Number(x.n) || 0);
+    }
+
     return rows.map((r) => ({
       id: r.id,
       clinicId: r.clinicId,
       clinicNome: r.clinicNome,
       status: r.status,
       lastMessageAt: iso(r.lastMessageAt),
-      messageCount: Number(r.messageCount) || 0,
+      messageCount: counts.get(r.id) ?? 0,
     }));
   }
 

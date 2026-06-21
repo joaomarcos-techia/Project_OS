@@ -17,7 +17,6 @@ import { assertDevContext } from './_env';
 
 import { sql } from 'drizzle-orm';
 
-import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 
@@ -134,7 +133,8 @@ PRÓXIMOS PASSOS:
   1. pnpm seed:admin-bucket   (bucket de export)
   2. pnpm seed:super-admin    (com SUPER_ADMIN_EMAIL/PASSWORD no env)
   3. pnpm dev → login super_admin + MFA → /admin
-     - Dashboard: MRR deve mostrar R$ 299,00 (1 fatura paga este mês).
+     - Dashboard: MRR deve mostrar R$ 299,00 (1 assinatura ativa @ R$299/mês — MRR
+       é receita recorrente normalizada, não soma de faturas pagas).
      - /admin/clinicas → '${NOME}' → Impersonar / Exportar auditoria.
      - /admin/conversas-ia → ver a conversa (texto descriptografado).
 `);

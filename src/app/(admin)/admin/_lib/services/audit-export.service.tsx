@@ -19,7 +19,7 @@ import stringify from 'safe-stable-stringify';
 
 import { clinics } from '@/contexts/tenancy/schema';
 import { dbAdmin } from '@/lib/db';
-import { Footer, styles as baseStyles } from '@/lib/pdf/components';
+import { Footer, formatDate, styles as baseStyles } from '@/lib/pdf/components';
 import {
   ADMIN_EXPORT_TTL_SECONDS,
   createSignedAdminExportUrl,
@@ -56,7 +56,7 @@ function AuditExportDoc(props: {
         <Text style={baseStyles.docTitle}>Exportação de Auditoria</Text>
         <Text style={t.meta}>Clínica: {props.clinicNome}</Text>
         <Text style={t.meta}>
-          Período: {props.from} — {props.to}
+          Período: {formatDate(props.from)} — {formatDate(props.to)}
         </Text>
         <Text style={t.meta}>
           Gerado em: {props.generatedAt} · {props.rows.length} evento(s)

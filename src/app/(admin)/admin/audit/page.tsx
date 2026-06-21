@@ -1,10 +1,13 @@
 import Link from 'next/link';
 
+import { Badge, type badgeVariants } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { DateField } from '@/components/ui/date-field';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Icon } from '@/components/painel/icons';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
+import type { VariantProps } from 'class-variance-authority';
 
 import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime } from '../_lib/format';
@@ -13,6 +16,7 @@ import { clinicRepository } from '../_lib/repositories/clinics.repo';
 
 export const dynamic = 'force-dynamic';
 
+type Tone = NonNullable<VariantProps<typeof badgeVariants>['tone']>;
 type SP = {
   user?: string;
   clinic?: string;
@@ -28,6 +32,15 @@ function qstring(sp: SP, extra: Partial<SP>): string {
   for (const [k, v] of Object.entries({ ...sp, ...extra })) if (v) p.set(k, String(v));
   const s = p.toString();
   return s ? `?${s}` : '';
+}
+
+/** Ações privilegiadas/sensíveis → violeta (destaque de linha); demais por categoria. */
+function actionTone(a: string): Tone {
+  if (a.includes('impersonate') || a.includes('audit.export') || a.startsWith('super_admin')) return 'violet';
+  if (a.includes('refund') || a.includes('delete') || a.includes('overdue')) return 'red';
+  if (a.includes('create')) return 'green';
+  if (a.includes('update') || a.includes('reschedule') || a.includes('sign')) return 'amber';
+  return 'blue';
 }
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -52,42 +65,37 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   return (
-    <>
-      <PageHeader title="Auditoria" description={`Busca cross-tenant — ${result.total} evento(s).`} />
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            Plataforma <span className="sep">›</span> <b>Auditoria</b>
+          </>
+        }
+        title="Auditoria"
+        description={`Trilha cross-tenant — ${result.total} evento(s). Toda ação de super_admin é auto-registrada.`}
+      />
 
-      <form className="mb-4 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">Clínica</label>
-          <select name="clinic" defaultValue={sp.clinic ?? ''} className="select">
-            <option value="">Todas</option>
-            {clinicOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.nome}
-              </option>
-            ))}
-          </select>
+      <form className="toolbar">
+        <div className="tb-grow">
+          <div className="input-wrap">
+            <Icon name="search" size={16} />
+            <Input name="action" defaultValue={sp.action ?? ''} placeholder="Buscar por ação (ex.: impersonate, patient.create)…" />
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">Ação</label>
-          <Input name="action" defaultValue={sp.action ?? ''} placeholder="ex.: update_clinic" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">Entidade</label>
-          <Input name="entity" defaultValue={sp.entity ?? ''} placeholder="ex.: patient" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">Usuário (id)</label>
-          <Input name="user" defaultValue={sp.user ?? ''} placeholder="uuid" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">De</label>
-          <input type="date" name="from" defaultValue={sp.from ?? ''} className="input" />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">Até</label>
-          <input type="date" name="to" defaultValue={sp.to ?? ''} className="input" />
-        </div>
-        <button type="submit" className={buttonVariants({ variant: 'secondary' })}>
+        <select name="clinic" defaultValue={sp.clinic ?? ''} className="select" style={{ maxWidth: 200 }}>
+          <option value="">Todas as clínicas</option>
+          {clinicOptions.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.nome}
+            </option>
+          ))}
+        </select>
+        <Input name="entity" defaultValue={sp.entity ?? ''} placeholder="entidade" style={{ maxWidth: 130 }} />
+        <Input name="user" defaultValue={sp.user ?? ''} placeholder="usuário (uuid)" style={{ maxWidth: 150 }} />
+        <DateField name="from" defaultValue={sp.from ?? ''} style={{ maxWidth: 150 }} />
+        <DateField name="to" defaultValue={sp.to ?? ''} style={{ maxWidth: 150 }} />
+        <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
           Filtrar
         </button>
       </form>
@@ -95,37 +103,48 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
       {result.items.length === 0 ? (
         <EmptyState title="Nenhum evento" description="Ajuste os filtros." />
       ) : (
-        <Card className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-fg-muted">
-                <th className="px-3 py-2 font-medium">Data/Hora</th>
-                <th className="px-3 py-2 font-medium">Ação</th>
-                <th className="px-3 py-2 font-medium">Entidade</th>
-                <th className="px-3 py-2 font-medium">Tenant</th>
-                <th className="px-3 py-2 font-medium">Usuário</th>
-                <th className="px-3 py-2 font-medium">IP</th>
-                <th className="px-3 py-2 font-medium">Resultado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.items.map((a) => (
-                <tr key={a.id} className="border-b border-border/60">
-                  <td className="whitespace-nowrap px-3 py-2 text-xs">{formatDateTime(a.timestamp)}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{a.action}</td>
-                  <td className="px-3 py-2 text-xs">
-                    {a.resourceType}
-                    {a.resourceId ? `:${a.resourceId.slice(0, 8)}` : ''}
-                  </td>
-                  <td className="px-3 py-2 text-xs">{a.clinicId.slice(0, 8)}</td>
-                  <td className="px-3 py-2 text-xs">{a.userId ? a.userId.slice(0, 8) : '—'}</td>
-                  <td className="px-3 py-2 text-xs">{a.ip ?? '—'}</td>
-                  <td className="px-3 py-2 text-xs">{a.result}</td>
+        <div className="cardblock">
+          <div className="table-wrap">
+            <table className="ui-table" style={{ minWidth: 840 }}>
+              <thead>
+                <tr>
+                  <th>Horário</th>
+                  <th>Ator</th>
+                  <th>Clínica</th>
+                  <th>Evento</th>
+                  <th>Recurso</th>
+                  <th>IP</th>
+                  <th>Resultado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+              </thead>
+              <tbody>
+                {result.items.map((a) => {
+                  const tone = actionTone(a.action);
+                  const hl = tone === 'violet';
+                  return (
+                    <tr
+                      key={a.id}
+                      style={hl ? { background: 'color-mix(in oklch, var(--primary-500) 5%, transparent)' } : undefined}
+                    >
+                      <td className="td-sub whitespace-nowrap">{formatDateTime(a.timestamp)}</td>
+                      <td style={{ fontWeight: 500 }}>{a.userId ? a.userId.slice(0, 8) : 'sistema'}</td>
+                      <td style={{ color: 'var(--text-2)' }}>{a.clinicId.slice(0, 8)}</td>
+                      <td>
+                        <Badge tone={tone}>{a.action}</Badge>
+                      </td>
+                      <td className="mono" style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
+                        {a.resourceType}
+                        {a.resourceId ? `:${a.resourceId.slice(0, 8)}` : ''}
+                      </td>
+                      <td className="td-sub">{a.ip ?? '—'}</td>
+                      <td style={{ color: 'var(--text-2)' }}>{a.result}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {totalPages > 1 ? (
@@ -135,18 +154,18 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
           </span>
           <div className="flex gap-2">
             {page > 1 ? (
-              <Link className={buttonVariants({ variant: 'secondary' })} href={`/admin/audit${qstring(sp, { page: String(page - 1) })}`}>
+              <Link className={buttonVariants({ variant: 'secondary', size: 'sm' })} href={`/admin/audit${qstring(sp, { page: String(page - 1) })}`}>
                 Anterior
               </Link>
             ) : null}
             {page < totalPages ? (
-              <Link className={buttonVariants({ variant: 'secondary' })} href={`/admin/audit${qstring(sp, { page: String(page + 1) })}`}>
+              <Link className={buttonVariants({ variant: 'secondary', size: 'sm' })} href={`/admin/audit${qstring(sp, { page: String(page + 1) })}`}>
                 Próxima
               </Link>
             ) : null}
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

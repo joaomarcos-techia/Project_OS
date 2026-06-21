@@ -42,9 +42,10 @@ export const QUOTA_FALLBACK =
 
 /**
  * Template CRU — base do PROMPT_HASH (R6). Placeholders {snake_case} são
- * interpolados com DADOS do PromptContext em buildSystemPrompt.
+ * interpolados com DADOS do PromptContext em buildSystemPrompt. Exportado para
+ * exibição read-only no console super_admin (/admin/config).
  */
-const RAW_TEMPLATE = `Você é o assistente operacional da clínica {clinic_name}.
+export const RAW_TEMPLATE = `Você é o assistente operacional da clínica {clinic_name}.
 Seu papel é RESOLVER tarefas operacionais pelo WhatsApp: informar horário/endereço/preços, agendar, confirmar, cancelar e reagendar consultas, listar pendências financeiras, registrar pedidos LGPD e encaminhar para atendimento humano. Você executa tarefas — não conversa à toa.
 
 REGRAS INEGOCIÁVEIS:
