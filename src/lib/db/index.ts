@@ -77,13 +77,14 @@ const globalForDb = globalThis as unknown as {
 
 const runtimeClient =
   globalForDb.__runtimeClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 5 });
-// dbAdmin pool max:1 mantido — é admin path sparse (healthcheck, dashboard).
-// HIGH-06: worker tem seu próprio pool (dbWorker) porque é hot-loop e o pool
-// max:1 saturava completamente sob rede AWS Oregon (smoke 4.6.2 mostrou ~70s
-// para batch=50). Worker pool size é configurável via env.OUTBOX_DB_POOL_SIZE
-// (default 5). Mesma URL (service_role bypass de RLS via mesma credencial).
+// dbAdmin pool max:5 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
+// request do painel faz várias leituras (layout + página + pages com Promise.all),
+// que o Next renderiza concorrentemente. Com max:1 essas leituras serializavam e
+// uma query mais cara virava "loading infinito". 5 é folga suficiente p/ o painel
+// (cron/health/webhooks também usam dbAdmin e se beneficiam). HIGH-06: o worker tem
+// pool próprio (dbWorker, OUTBOX_DB_POOL_SIZE). Mesma URL (service_role bypassa RLS).
 const adminClient =
-  globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 1 });
+  globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 5 });
 const workerClient =
   globalForDb.__workerClient ??
   postgres(env.DATABASE_URL, { ...sharedOpts, max: env.OUTBOX_DB_POOL_SIZE });
@@ -96,10 +97,13 @@ if (env.NODE_ENV !== 'production') {
 
 // Three physically distinct Drizzle instances over three pools:
 //   - db        : runtime, user-facing, RLS-enforcing (authenticated role)
-//   - dbAdmin   : admin path, BYPASSRLS, MAX:1 (sparse)
+//   - dbAdmin   : admin path, BYPASSRLS, MAX:5 (painel faz fan-out concorrente —
+//                 ver nota no adminClient; com MAX:1 virava "loading infinito")
 //   - dbWorker  : outbox worker hot-loop, BYPASSRLS, MAX:N (env-tuned)
 // Pool sizes are intentionally conservative for serverless multiplication.
 // Tune up only with hard observability data (C16), not on speculation.
+// NOTA HMR: o pool é cacheado em globalThis (singleton anti-HMR). Mudar `max`
+// aqui NÃO pega em hot-reload — exige restart completo do `pnpm dev`.
 export const db = drizzle(runtimeClient, { schema });
 export const dbAdmin = drizzle(adminClient, { schema });
 export const dbWorker = drizzle(workerClient, { schema });

@@ -6,7 +6,7 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 
 import { aiConversations, aiMessages } from '@/contexts/ai-agent/schema';
 import {
@@ -65,7 +65,6 @@ export class ClinicRepository {
         status: clinics.status,
         planCode: plans.code,
         billingStatus: subscriptions.billingStatus,
-        lastActivityAt: sql<string | null>`(SELECT MAX(ae.created_at) FROM audit_events ae WHERE ae.clinic_id = ${clinics.id})`,
       })
       .from(clinics)
       .leftJoin(subscriptions, eq(subscriptions.clinicId, clinics.id))
@@ -82,6 +81,25 @@ export class ClinicRepository {
       .leftJoin(plans, eq(plans.id, subscriptions.planId))
       .where(where);
 
+    // Última atividade: UMA query agregada para os ids da página (janela 90d →
+    // partition pruning + índice clinic_id,created_at). Evita subquery correlacionada
+    // por linha sobre a audit_events particionada (causa de "loading infinito").
+    const ids = rows.map((r) => r.id);
+    const lastActivity = new Map<string, string | null>();
+    if (ids.length > 0) {
+      const act = await dbAdmin
+        .select({ clinicId: auditEvents.clinicId, last: sql<string | null>`MAX(${auditEvents.createdAt})` })
+        .from(auditEvents)
+        .where(
+          and(
+            inArray(auditEvents.clinicId, ids),
+            sql`${auditEvents.createdAt} >= now() - interval '90 days'`,
+          ),
+        )
+        .groupBy(auditEvents.clinicId);
+      for (const a of act) lastActivity.set(a.clinicId, a.last);
+    }
+
     const items: ClinicListItemDTO[] = rows.map((r) => ({
       id: r.id,
       nome: r.nome,
@@ -89,10 +107,25 @@ export class ClinicRepository {
       status: r.status,
       planCode: r.planCode ?? null,
       billingStatus: r.billingStatus ?? null,
-      lastActivityAt: iso(r.lastActivityAt),
+      lastActivityAt: iso(lastActivity.get(r.id) ?? null),
     }));
 
     return { items, total: int(countRow?.n), page, pageSize };
+  }
+
+  /** Clínicas em risco (suspensas / aguardando pagamento) — painel da visão geral. */
+  async listAtRisk(limit = 4): Promise<{ id: string; nome: string; slug: string; status: string }[]> {
+    return dbAdmin
+      .select({ id: clinics.id, nome: clinics.nome, slug: clinics.slug, status: clinics.status })
+      .from(clinics)
+      .where(
+        and(
+          isNull(clinics.deletedAt),
+          sql`${clinics.status} IN ('suspended_readonly','suspended','pending_payment')`,
+        ),
+      )
+      .orderBy(desc(clinics.createdAt))
+      .limit(limit);
   }
 
   /** Opções (id+nome) para selects de filtro (conversas/audit). Bounded. */
@@ -206,7 +239,15 @@ export class ClinicRepository {
         ip: sql<string | null>`${auditEvents.ipAddress}::text`,
       })
       .from(auditEvents)
-      .where(eq(auditEvents.clinicId, clinicId))
+      // Janela de 90d (tier "hot" — migration 0009): poda as partições antigas e
+      // evita Merge Append sobre TODAS conforme audit_events cresce. Trade-off:
+      // clínica sem auditoria nos últimos 90d aparece sem "últimas auditorias".
+      .where(
+        and(
+          eq(auditEvents.clinicId, clinicId),
+          sql`${auditEvents.createdAt} >= now() - interval '90 days'`,
+        ),
+      )
       .orderBy(desc(auditEvents.createdAt))
       .limit(8);
 
