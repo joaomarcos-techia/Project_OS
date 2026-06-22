@@ -39,6 +39,7 @@ import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { resolveAiSnapshotMode } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { getAiAgentMode } from '@/lib/platform-settings';
 import { PoisonPillError, serializeError } from '@/lib/outbox/errors';
 import { publishEvent } from '@/lib/outbox/publish';
 import { registerHandler } from '@/lib/outbox/registry';
@@ -391,6 +392,17 @@ async function processInbound(ctx: {
   } else if (quota?.blocked) {
     responseText = QUOTA_FALLBACK;
     outcome = 'quota_blocked';
+  } else if ((await getAiAgentMode()) === 'fallback_only') {
+    // Kill-switch global (platform_settings): agente em degradação MANUAL.
+    // Responde o fallback operacional SEM chamar o Gemini (custo zero) e reusa o
+    // MESMO incrementFallback do fallback de falha de provider — escalona p/
+    // humano após o limiar (não cria handoff a cada mensagem).
+    responseText = OPERATIONAL_FALLBACK;
+    const { escalated } = await phase(clinicId, (tx) =>
+      incrementFallback(tx, clinicId, conversation.id),
+    );
+    outcome = escalated ? 'handoff' : 'fallback';
+    metrics.emit('ai_agent.mode.fallback_only', { clinicId, aiRequestId });
   } else {
     // FASE B — contexto (TX curta de leitura) e LLM (SEM TX — R2).
     const promptCtx = await phase(clinicId, (tx) =>

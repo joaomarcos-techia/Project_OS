@@ -4,8 +4,10 @@
  * `clinical.prontuario.signed` (return_date − 2 dias); aqui só despacha os
  * vencidos. Auth idêntica aos demais crons.
  */
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { isProactiveEnabled } from '@/lib/platform-settings';
 
 import { processProactiveBatch } from '@/contexts/ai-agent/proactive-jobs/application/process';
 
@@ -32,8 +34,16 @@ export async function GET(req: Request): Promise<Response> {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
   }
 
+  // Kill-switch global (platform_settings): pula ANTES de reivindicar jobs.
+  if (!(await isProactiveEnabled())) {
+    metrics.emit('proactive.followup.skipped_disabled', {});
+    await recordHeartbeat('proactive-followup', 'skipped', { reason: 'disabled' });
+    return Response.json({ ok: true, skipped: 'disabled' }, { status: 200 });
+  }
+
   try {
     const batch = await processProactiveBatch('followup');
+    await recordHeartbeat('proactive-followup', 'success', { sent: batch.sent });
     return Response.json({ ok: true, ...batch }, { status: 200 });
   } catch (err) {
     metrics.emit('proactive.followup.error', { error: err });

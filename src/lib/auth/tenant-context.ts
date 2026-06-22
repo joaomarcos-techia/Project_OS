@@ -30,6 +30,8 @@
  */
 import 'server-only';
 
+import { cache } from 'react';
+
 import { and, eq } from 'drizzle-orm';
 
 /* eslint-disable boundaries/element-types -- D35-style: requireFreshPermission revalida no banco; schemas vivem em context (Drizzle FK precisa estar onde a tabela é declarada). Mesma exceção do tenancy.tenantIdRef em outros contexts. */
@@ -44,7 +46,7 @@ import { dbAdmin } from '@/lib/db';
 import { resolveImpersonation } from '@/lib/impersonation';
 
 import { parseClaims } from './claims';
-import { type Permission } from './permissions';
+import { ALL_PERMISSIONS, type Permission } from './permissions';
 import { type Role } from './roles';
 import { createServerClient } from './supabase-server';
 
@@ -93,7 +95,14 @@ export interface CurrentUser {
  * Token sem claims (Hook deny-by-default, D36) → retorna null (chamador trata
  * como sem autorização). Middleware vai redirecionar /login.
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+/**
+ * Memoizado por request (React.cache): require* chamam isto N vezes por render/
+ * action — sem cache, cada chamada refaz getClaims() (round-trip ao Auth) +
+ * resolveImpersonation() (round-trip ao banco durante impersonate). Em páginas
+ * tenant isso virava 20+ round-trips sequenciais (12–27s contra banco remoto).
+ * O cache é request-scoped: revogação de impersonate/sessão vale no próximo request.
+ */
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createServerClient();
   // F-17: getClaims() é o caminho recomendado pelo Supabase — verifica o JWT
   // (JWKS local para signing keys assimétricas; round-trip ao Auth server para
@@ -128,9 +137,18 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const imp = await resolveImpersonation(base);
   if (imp) {
     base.session = { impersonation: imp };
+    // Identidade EFETIVA durante o impersonate: o fundador opera a clínica como
+    // operador pleno. clinic_id efetivo + permissões plenas — o super_admin já
+    // bypassa RBAC no servidor (requireCachedPermission/requireFreshPermission/
+    // requireRole retornam cedo p/ isSuperAdmin); isto faz a UI tenant (que lê
+    // user.clinicId / user.permissions direto) renderizar corretamente.
+    // `role`/`isSuperAdmin` PERMANECEM: RLS usa is_super_admin() do JWT e a
+    // auditoria atribui ao super_admin. O estado fica explícito em session.
+    base.clinicId = imp.clinicId;
+    base.permissions = ALL_PERMISSIONS;
   }
   return base;
-}
+});
 
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
@@ -164,6 +182,10 @@ export async function requireClinicId(): Promise<string> {
 
 export async function requireRole(allowed: readonly Role[]): Promise<Role> {
   const user = await requireUser();
+  // P7: super_admin bypassa RBAC (consistente com requireCachedPermission/
+  // requireFreshPermission). Durante impersonate isto permite operar telas tenant
+  // gateadas por role; fora dele, super_admin não tem clínica e cai em requireClinicId.
+  if (user.isSuperAdmin) return user.role;
   if (!allowed.includes(user.role)) {
     throw new AuthError(
       `Role '${user.role}' não autorizada. Esperado uma de: ${allowed.join(', ')}`,

@@ -20,6 +20,7 @@
 import './handlers';
 import '@/lib/db/schema';
 
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { env, assertCronRuntimeReady } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { runOutboxOnce } from '@/lib/outbox/worker';
@@ -65,6 +66,7 @@ export async function GET(req: Request): Promise<Response> {
   }
   try {
     const summary = await runOutboxOnce();
+    await recordHeartbeat('outbox', 'success', summary);
     return Response.json({ ok: true, ...summary }, { status: 200 });
   } catch (err) {
     metrics.emit('worker.error', { error: err });

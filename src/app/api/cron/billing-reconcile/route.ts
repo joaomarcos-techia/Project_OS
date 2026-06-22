@@ -9,6 +9,7 @@
  */
 import { and, inArray, isNotNull, sql } from 'drizzle-orm';
 
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
@@ -86,6 +87,7 @@ export async function GET(req: Request): Promise<Response> {
       .where(sql`id = ${run!.id}`);
 
     metrics.emit('billing.reconcile.run', { scanned: 0, found, fixed });
+    await recordHeartbeat('billing-reconcile', 'success', { found, fixed });
     return Response.json({ ok: true, found, fixed }, { status: 200 });
   } catch (err) {
     await dbAdmin

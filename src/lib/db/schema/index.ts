@@ -51,3 +51,8 @@ export * from './infra/super-admin';
 export * from './infra/idempotency';
 // C15 — Platform Admin: sessões de impersonate (fonte autoritativa do cookie).
 export * from './infra/impersonation';
+// Platform globals — flags/kill-switches, heartbeats de cron e avisos globais.
+// global protected (ADR-007 §10): sem clinic_id; escrita via dbAdmin/superAdminAction.
+export * from './infra/platform-settings';
+export * from './infra/cron-heartbeats';
+export * from './infra/platform-announcements';

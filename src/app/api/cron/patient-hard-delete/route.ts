@@ -33,6 +33,7 @@ import {
   anonymizePatientAuditTrail,
   hardDeletePatients,
 } from '@/contexts/patient/internal/hard-delete';
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { env, assertCronRuntimeReady } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
@@ -83,6 +84,7 @@ export async function GET(req: Request): Promise<Response> {
     )) as unknown as Array<{ id: string; clinic_id: string }>;
 
     if (rows.length === 0) {
+      await recordHeartbeat('patient-hard-delete', 'success', { deleted: 0, anonymized: 0, failed: 0 });
       return Response.json(
         { ok: true, deleted: 0, anonymized: 0, failed: 0, clinics: 0 },
         { status: 200 },
@@ -128,6 +130,7 @@ export async function GET(req: Request): Promise<Response> {
       failed,
       clinics: byClinic.size,
     });
+    await recordHeartbeat('patient-hard-delete', 'success', { deleted, anonymized, failed });
     return Response.json(
       { ok: true, deleted, anonymized, failed, clinics: byClinic.size },
       { status: 200 },

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { buttonVariants } from '@/components/ui/button';
+import { Icon } from '@/components/painel/icons';
 
 type ExportResult = { signedUrl: string; sha256: string; rowCount: number; expiresInDays: number };
 
@@ -84,37 +85,39 @@ export function ExportAuditForm({ clinicId }: { clinicId: string }) {
 
   return (
     <form onSubmit={run} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">De</label>
+      <div className="export-row">
+        <label className="field">
+          <span className="field-l">De</span>
           <input
             inputMode="numeric"
             placeholder="dd/mm/aaaa"
             maxLength={10}
             value={from}
             onChange={(e) => setFrom(maskBrDate(e.target.value))}
-            className="input w-32"
+            className="input"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-fg-muted">Até</label>
+        </label>
+        <label className="field">
+          <span className="field-l">Até</span>
           <input
             inputMode="numeric"
             placeholder="dd/mm/aaaa"
             maxLength={10}
             value={to}
             onChange={(e) => setTo(maskBrDate(e.target.value))}
-            className="input w-32"
+            className="input"
           />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className={buttonVariants({ variant: 'secondary' })}
-        >
+        </label>
+        <button type="submit" disabled={loading} className={buttonVariants({ variant: 'primary', size: 'sm' })}>
+          <Icon name="download" size={16} />
           {loading ? 'Gerando…' : 'Exportar PDF'}
         </button>
       </div>
+
+      <p className="export-note">
+        <Icon name="shield" size={14} sw={1.9} /> O PDF é gerado server-side com hash de integridade e link
+        assinado (TTL 7 dias). A exportação registra <span className="mono">audit.export</span>.
+      </p>
 
       {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 

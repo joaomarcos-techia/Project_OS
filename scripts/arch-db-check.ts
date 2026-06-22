@@ -38,12 +38,22 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
   db: new Set(['src/lib/db/tenant.ts']),
   dbAdmin: new Set([
     'src/lib/audit/super-admin.ts',
+    // C15: auditoria extra do impersonate grava em super_admin_actions via
+    // service_role (a tx do tenant roda como authenticated e não passa na RLS
+    // is_super_admin()). Escrita pós-commit, best-effort.
+    'src/lib/audit/impersonation-extra.ts',
     'src/lib/auth/tenant-context.ts',
     'src/lib/idempotency/cleanup.ts',
     // C15 — impersonate: a tabela impersonation_sessions é a fonte autoritativa
     // (cross-tenant, global-protected). Leitura/escrita via dbAdmin; o cookie só
     // carrega o id assinado. Único seam do módulo que toca dbAdmin.
     'src/lib/impersonation/session.ts',
+    // Platform globals (global-protected, sem dado tenant): reader de flags com
+    // cache (hot path de crons/IA), writer de heartbeat e reader de anúncio do
+    // shell tenant. Leitura/escrita via dbAdmin/BYPASSRLS (tabelas sem clinic_id).
+    'src/lib/platform-settings/index.ts',
+    'src/lib/cron-heartbeat/index.ts',
+    'src/lib/platform-announcements/index.ts',
     // C10 — seam privilegiado ÚNICO de mensageria (superfície congelada 3ª#6,
     // ADR-020): roteamento de tenant pré-JWT no webhook exige leitura
     // cross-tenant. Faltava aqui porque o guard não rodava no CI (F-07) —

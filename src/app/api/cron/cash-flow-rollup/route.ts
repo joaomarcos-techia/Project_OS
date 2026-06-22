@@ -14,6 +14,7 @@
  */
 import { sql } from 'drizzle-orm';
 
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
@@ -73,6 +74,7 @@ export async function GET(req: Request): Promise<Response> {
     )) as unknown as Array<{ clinic_id: string }>;
 
     metrics.emit('financial.cash_flow_rollup.run', { rows: result.length, windowDays });
+    await recordHeartbeat('cash-flow-rollup', 'success', { rows: result.length, windowDays });
     return Response.json({ ok: true, rows: result.length, windowDays }, { status: 200 });
   } catch (err) {
     metrics.emit('financial.cash_flow_rollup.error', { error: err });

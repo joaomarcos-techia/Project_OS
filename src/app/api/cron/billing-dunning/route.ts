@@ -9,6 +9,7 @@
  */
 import { eq, sql } from 'drizzle-orm';
 
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
@@ -106,6 +107,7 @@ export async function GET(req: Request): Promise<Response> {
     }
 
     metrics.emit('billing.dunning.run', { scanned: rows.length, advanced });
+    await recordHeartbeat('billing-dunning', 'success', { scanned: rows.length, advanced });
     return Response.json({ ok: true, scanned: rows.length, advanced }, { status: 200 });
   } catch (err) {
     metrics.emit('billing.dunning.error', { error: err });

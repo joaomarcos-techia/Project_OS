@@ -16,10 +16,10 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | C9 | Financial Core | ✅ **fechada** (mergeada em main via feat/c8-consultorio-ui; faturamento automático + Caixa + Financeiro; smoke-c9 22/22 + 252 testes + build verdes; migrations 0020/0021; **e2e "nenhum atendimento sem faturamento" só vale 100% após deploy do worker C9 em prod**) | 2026-06-07 |
 | C10 | MessagingProvider + Webhook Meta | ✅ **fechada** (smoke-c10 18/18; migration 0022; sem IA/mídia; ADR-020) | 2026-06-07 |
 | C11 | AI Agent Base | ✅ **fechada** (smoke-c11 18/18 + ai:live-check com Gemini REAL; migration 0024; 334 testes; saga LLM-fora-de-TX; 20 gaps das reviews do founder incorporados; ADR-022; **gate §11.12 APROVADO 2026-06-12**: 50 msgs adversariais com Gemini real — 0 inseguras, recusa 50/50 incl. jailbreaks) | 2026-06-11 |
-| C12 | AI Agent Intents Core | ⏳ pendente | — |
-| C13 | Tenancy & Billing | ⏳ pendente | — |
-| C14 | Proactive Jobs | ⏳ pendente | — |
-| C15 | Platform Admin | ⏳ pendente | — |
+| C12 | AI Agent Intents Core | ✅ **fechada** | 2026-06-15 (5 rounds de review; ator de sistema `ai_agent` + 13 tools; smoke-c12 9/9 + 352 testes; migration 0025; ADR-023) |
+| C13 | Tenancy & Billing | ✅ **fechada** | 2026-06-17 (**verificada em prod 2026-06-18** — round-trip de webhook Asaas real; unit 21/21 + smoke-c13 8/8; migration 0026; ADR-024/025; checkout UI + owner-creation são onboarding, fora do escopo) |
+| C14 | Proactive Jobs | ✅ **fechada** | 2026-06-18 (lembrete D-1 + dunning paciente D+3/D+7 + followup; cron determinístico envia, IA interpreta resposta; 388 testes + smoke-c14 8/8; migration 0027; ADR-026; templates Meta = go-live) |
+| C15 | Platform Admin | ✅ **fechada** | 2026-06-20 (painel do fundador `/admin` com 404-absoluto + impersonate auditado + step-up MFA + export PDF; migration 0028; 408 testes; aceite manual em `docs/testesC15.md`) |
 | C16 | Observabilidade & Hardening | ⏳ pendente | — |
 
 ---
@@ -824,3 +824,233 @@ nullable+índice parcial, collected_data_encrypted, can_disclose_payments_via_ag
 - WhatsApp real ponta-a-ponta (transporte Meta) — adiado pelo founder (conta
   Meta), validação de transporte/UX, não de lógica. Fluxo operacional §4.
 - Débitos formais: ver "Known Future Refactors" no ADR-023.
+
+---
+
+## C13 — Tenancy & Billing (✅ fechada em 2026-06-17; verificada em prod 2026-06-18)
+
+Cobrança das clínicas. Contratos congelados em [ADR-024](adr/024-plan-model.md)
+(modelo de planos) + [ADR-025](adr/025-billing-architecture.md) (arquitetura).
+Relatório completo: [docs/implementation/C13-BILLING-REPORT.md](implementation/C13-BILLING-REPORT.md).
+**Asaas é infraestrutura atrás de um adapter — não o centro do billing.**
+
+### O que foi entregue
+
+- **Novo bounded context `src/contexts/billing/`** (schema + events + api + domínio
+  puro: money, state-machine, dunning, access, annual-prepay, quota-policy).
+  Asaas = **adapter único** (porta `PaymentProvider`), **sem multi-gateway**.
+- **Source of truth dividida** (ADR-016/025): Asaas = pagamento; ClinicaOS = acesso.
+  Money em `numeric(12,2)` + centavos no cálculo (nunca float). Transições
+  **monotônicas** (`canTransition`) p/ webhook fora de ordem.
+- **Migration 0026** — 16 tabelas (3 catálogos globais plans/prices/plan_limits
+  read-only + 4 plataforma só-service_role + 9 tenant-scoped + ledger), `ALTER TYPE
+  clinic_status ADD VALUE pending_payment`, RLS FORCE, GRANTs **sem DELETE**, seed
+  idempotente de planos/preços/limites.
+- **17 eventos `billing.*`** ([contrato](contracts/events/billing.md)); consumers
+  ativos de metering: `scheduling.appointment.created` + `ai_agent.conversation.completed`
+  (demais producer-ahead p/ C14/timeline/Identity-onboarding).
+- **Quota** = teto anti-abuso (ADR-024): contagem via ledger idempotente; gate
+  síncrono `checkAndIncrementQuota`; **usuários** trava dura (`assertUserQuota`),
+  agendamento nunca bloqueia, IA degrada. IA deduplicada por `conversationId`
+  (desvio documentado — evento não traz telefone p/ "1×/24h por número").
+- **Rotas**: webhook `/api/webhooks/asaas` (dedup via `processed_webhooks`), crons
+  `billing-dunning` (08:00 UTC) e `billing-reconcile` (09:00 UTC).
+- `clinics.status` é write privilegiado (D31) → transição de acesso roda via `dbAdmin`
+  (webhook/crons), nunca `withTenant` authenticated.
+
+### Validação
+
+- **Unit** `vitest run src/contexts/billing` → **21/21** (money, refund pro-rata,
+  dunning+grace, access mapping, state-machine monotônica, quota-policy).
+- **`pnpm smoke:c13` 8/8** (provisionamento `pending_payment`, webhook
+  PAYMENT_RECEIVED → invoice paid + clínica reativada, dunning D+30 → suspended,
+  quota idempotente, RLS A≠B).
+- Gates: typecheck/lint/`arch:db-check` (0 findings)/`check:registry:strict`/
+  `check:migrations` ✓. Migration 0026 aplicada em qoro-dev.
+- **Asaas REAL** (`billing:live-check` + `billing:live-roundtrip`): customer +
+  subscription ACTIVE no sandbox; provisionamento com persistência local.
+- **Round-trip de webhook REAL em produção (§16, 2026-06-18)**: clínica
+  `pending_payment` → Asaas `PAYMENT_RECEIVED` → `/api/webhooks/asaas` → `processed`;
+  clínica `active`, invoice materializada + `paid`, subscription `active`; replay →
+  `duplicate`. **2 bugs de deploy corrigidos** (commits f17dcb9, 249ddde): webhook
+  não materializava invoice em ciclo recorrente (`ensureInvoiceForPayment` trata
+  `PAYMENT_CREATED` out-of-order) + middleware sequestrava o webhook (`api/webhooks/*`
+  fora do matcher — corrige também o webhook Meta da C10, mesmo bug latente).
+
+### Débito técnico ACEITÁVEL (camada de onboarding — fora do escopo C13)
+
+- **UI `/checkout`** não construída (backend `provisionTenant` pronto/testado).
+- **Owner-creation (Identity)**: evento + seam + allowlist prontos; criação de
+  auth-user (Supabase admin) é integração de onboarding.
+- **Login gate em middleware**: predicado `isLoginBlocked` pronto, falta plugar
+  (`pending_payment`/`suspended`/`cancelled` → não loga, exceto owner).
+  `requireActiveClinic` (bloqueio de ESCRITA) já implementado/testado; falta o
+  rollout nas mutations dos demais contextos.
+- **PROIBIDO e não introduzido (verificado)**: overage/pay-as-you-go, feature-flags
+  por plano, entitlements engine, multi-gateway, múltiplos cartões, upgrade/downgrade UI.
+
+---
+
+## C14 — Proactive Jobs (✅ fechada em 2026-06-18)
+
+A clínica **fala primeiro** no WhatsApp via template Meta. Contratos em
+[ADR-026](adr/026-proactive-jobs.md); runbook [c14-validation.md](runbooks/c14-validation.md).
+**C14 é transporte**: a regra de "quem recebe" mora no contexto-fonte; a resposta
+(SIM/NÃO/REMARCAR) é do C11.
+
+### O que foi entregue
+
+- **REGRA DE OURO**: quem **ENVIA é um cron determinístico, nunca o LLM**. Reativo
+  (interpretar resposta) continua sendo do agente (C11). 3 tipos de job: **lembrete
+  D-1** (prevenção de no-show), **dunning paciente D+3/D+7** (inadimplente), **followup**
+  (retorno pedido pelo médico).
+- **Migration 0027** — `ai_proactive_jobs`. Enqueue cross-tenant (read-models por
+  fonte) + claim via CTE `claimDue` com `FOR UPDATE SKIP LOCKED` + janela
+  `AT TIME ZONE` (envio só 8–20h local).
+- **Policy LGPD/suppression**: `suppression_list` (canal whatsapp) → job `cancelled`
+  (`suppressed`); **dunning exige `cobranca_whatsapp=true`** (lembrete/followup são
+  transacionais, não exigem o flag).
+- **At-most-once no Meta**: `outbound_messages.idempotency_key = ai_proactive_jobs.id`
+  (chave estável). Backoff 30s→5m→30m→6h, MAX 5 (igual outbox).
+- **3 crons** `proactive-{reminders,dunning,followup}` (`*/15 11-23 * * *` = janela
+  8–20h BRT). Handler de followup ativo no registry.
+
+### Validação
+
+- **`pnpm test` 388 passed** (tz dias-calendário, policy suppression/consent,
+  processor T1/T2/T5/T6). Gates typecheck/lint/`arch:db-check` (0 findings)/
+  `check:registry:strict` (catalog 44 ⇔ registry 11)/`check:migrations` ✓.
+- **`pnpm smoke:c14` 8/8** contra qoro-dev (getProactiveContact decrypt+consent,
+  suppression, reminder enqueue+DEDUP, dunning D+3/D+7, guard "pagou→não envia",
+  `claimDue` CTE/SKIP LOCKED + janela, followup via worker, RLS A↔B).
+- Cobertura §14.6: **T1** ativo→job→cron→enviado; **T2** suppression→cancelled;
+  **T5** dunning pago→`already_paid`; **T6** falha Meta→retry/backoff→failed.
+  **T3/T4** (SIM/REMARCAR) são do C11/C12 (inbound webhook → tools confirm/reschedule).
+
+### Pendente (go-live, não bloqueia a camada)
+
+- Aplicar 0027 em **prod**; cadastrar + **aprovar 3 templates no Meta** (`confirmation_reminder`,
+  `dunning_friendly`, `followup_return`) + setar `META_TEMPLATE_*_ID`/`META_TEMPLATE_LANG`;
+  Vercel **Pro** (agora 11 crons); cada clínica com número WhatsApp conectado (C10).
+- Gate §14.7: validar 1 ciclo D-1 (lembrete→resposta→confirmação) com 5 pacientes reais.
+- Débitos: reconciliação delivery-callback (`unknown→sent`) C15/C16; trim mensal de
+  `ai_proactive_jobs` C16; `smoke-c14.ts` automatizado coberto pela validação manual.
+
+---
+
+## C15 — Platform Admin (✅ fechada em 2026-06-20)
+
+Painel do fundador (`/admin`, admin.qoro.dev): **read-only sobre dados de clínica**,
+com impersonate auditado como única forma de mutar. Aceite manual completo em
+[docs/testesC15.md](testesC15.md) (mapa de cobertura do brief no fim do doc).
+
+### O que foi entregue
+
+- **404 absoluto** (regra suprema do brief): qualquer não-`super_admin` em **AAL2**
+  recebe **404** (igual a rota inexistente — nunca redirect/"unauthorized"/"forbidden").
+  Guard único [_lib/guard.ts](../src/app/(admin)/admin/_lib/guard.ts); o route handler
+  de export também é gateado (não é porta lateral).
+- **Impersonate (núcleo de segurança)** — [src/lib/impersonation/](../src/lib/impersonation/):
+  tabela `impersonation_sessions` é a **fonte autoritativa** (TTL 1h via `expires_at`,
+  kill switch `revoked_at`, 1 ativa por super_admin); **cookie carrega só o id assinado**
+  (HMAC); **step-up de MFA** `requireRecentAal2(10)` ao iniciar; **banner vermelho
+  permanente** e inescondível em toda tela tenant; **mutação durante impersonate gera
+  auditoria EXTRA atômica** (`impersonate_mutation` em `super_admin_actions` na MESMA tx
+  do `withTenant`, payload `{impersonationId, auditEventId}` casando com a linha de
+  `audit_events`).
+- **Migration 0028** — `impersonation_sessions` (global protected: `is_super_admin()`
+  SELECT, escrita via dbAdmin/service_role) + `GRANT INSERT ON super_admin_actions TO
+  authenticated` (a auditoria extra entra sob role authenticated durante o impersonate;
+  policy `super_admin_actions_super_insert` da 0008 já gateia por `is_super_admin()`;
+  append-only mantido — sem UPDATE/DELETE).
+- **8 áreas** (repos read-only em [_lib/repositories/](../src/app/(admin)/admin/_lib/repositories/)):
+  Visão geral/**MRR** (= `SUM(invoices.total_amount)` pagas no mês, sem cache), Clínicas
+  (lista+detalhe agregado), Billing (abertas/vencidas/dunning/refunds, nada editável),
+  **Conversas IA** (decrypt **server-side** — ciphertext nunca cruza p/ o browser; falha
+  de decrypt → `"[conteúdo indisponível]"`), Métricas (DAU/WAU/custo Gemini), Auditoria
+  cross-tenant, **Saúde** (probe ativo Supabase/Gemini/Meta/Asaas a cada load — mede
+  disponibilidade, não volume), Config (read-only).
+- **Export PDF de auditoria** ([audit-export.service.tsx](../src/app/(admin)/admin/_lib/services/audit-export.service.tsx)):
+  SHA256 no rodapé do PDF == hash na tela, signed URL 7 dias (bucket privado
+  `admin-exports`), `super_admin_actions` recebe `audit_export` com `{from,to,sha256,rowCount}`.
+
+### Validação
+
+- **408 testes unitários** (guard 404, HMAC do cookie, step-up MFA, hash do export,
+  conversão de centavos, arch read-only). typecheck/lint/`arch:db-check`/`check:migrations` ✓.
+  Migration 0028 aplicada em dev **e prod**. Bucket `admin-exports` criado (dev/prod).
+- **Aceite manual** (`docs/testesC15.md`, `pnpm seed:c15` → `clinica-demo`): acesso/404,
+  MRR bate com SQL, impersonate (start/banner/mutação-extra/stop/TTL/kill switch/step-up),
+  billing read-only, conversas IA decrypt server-side + browser sem ciphertext, métricas,
+  auditoria, export PDF (hash+signed URL), saúde (Gemini/Meta vermelho/amarelo), config
+  read-only, regressão tenant (mutação normal NÃO gera `super_admin_actions`). **Todos os
+  itens do brief marcados** (teste 10.1 do health do Asaas resolvido).
+
+### Débito / próximos
+
+- Anti-fullscan super_admin: endpoints admin paginam por default (CONVENTIONS); read
+  replica dedicada entra em ~50+ clínicas.
+- Reconciliação delivery-callback do C14 (`unknown→sent`) e demais hardening operacional
+  ficam para **C16 (Observabilidade & Hardening)** — última camada pendente.
+
+---
+
+## C15 — Platform Admin · expansão operacional (✅ 2026-06-22)
+
+Follow-up do C15 (**NÃO** é a camada C16 do roadmap, que segue pendente). Transforma
+`/admin/config` de somente-leitura em **console de controle operacional da plataforma**
+(estado GLOBAL, nunca dado de clínica). Spec:
+[admin-config-expansion.md](implementation/admin-config-expansion.md).
+
+### Fundação (3 tabelas global-protected — ADR-007 §10)
+- **Migration 0029** — `platform_settings` (flags key-value), `cron_heartbeats` (última
+  execução por job), `platform_announcements` (avisos globais). RLS ENABLE+FORCE; SELECT a
+  `authenticated` (settings/announcements), `cron_heartbeats` ops-only; escrita só
+  service_role. **Migration 0030** — `platform_announcements.title` (aditiva).
+- **Reader** `src/lib/platform-settings/` — `getPlatformSetting` com cache de 30s por
+  instância e **fail-safe** (erro → default seguro; config nunca derruba operação).
+- **Action** `setPlatformFlagAction` via `superAdminAction` (auditada; `fn(tx)` = tx dbAdmin
+  → o arquivo NÃO importa dbAdmin, compatível com `admin-read-only.test`).
+- `arch-db-check` allowlist estendido (readers/writer de plataforma).
+
+### Kill-switches (consumidos no hot path)
+- `proactive_jobs.enabled=false` → crons `proactive-*` retornam `{skipped:'disabled'}` ANTES
+  de varrer dados.
+- `ai_agent.mode=fallback_only` → handler `inbound-received` responde `OPERATIONAL_FALLBACK`
+  + `escalateToHuman`, **custo 0, ZERO Gemini** (provado pelo smoke).
+
+### Dashboards read-only
+- **Saúde dos jobs** (`jobs-health.repo` + `recordHeartbeat` no fim de cada cron) — SLA por
+  job derivado do `vercel.json`. (Em dev só popula o que você dispara; em prod, todos.)
+- **Retenção & partições** (`retention.repo`) — cobertura audit_events/ai_messages (default
+  >0 = alerta), idempotency_keys vencidas, proactive_jobs por status.
+- **Integrações** — inventário `Boolean(env.X)` (nunca o valor) + versão/hash do prompt.
+
+### Broadcast (pop-up único, sem "manutenção")
+- Decisão de produto: software clínico **não para** — o conceito de "manutenção" foi
+  **removido**. Aviso virou **pop-up único** (modal título+corpo, dispensável uma vez por
+  usuário via localStorage), não banner fixo. `AnnouncementPopup` + helper de dismissal puro
+  (testado). Reader `getActiveAnnouncement` (cache 30s) plugado no shell tenant.
+
+### Perfil clínico (import do Claude Design)
+- `/admin/clinicas/[id]` reescrito conforme o design (`ClinicaOS - Admin.html`): header de
+  perfil (`.phead`: capa, avatar, status/plano, 5 mini-stats), `kv-list` (Dados/Plano),
+  `ai-kpis` + `integ-list`, tabela de usuários, auditorias e export — **só com dado real**
+  (campos não rastreados omitidos, sem mock — ADR-018). CSS portado para `_admin/admin.css`.
+
+### Perf — débito latente do C15 corrigido
+- `getCurrentUser` agora **memoizado por request** (`React.cache`): require* o chamavam N×,
+  cada um refazendo `getClaims()` + (impersonate) `resolveImpersonation()` → 20+ round-trips
+  sequenciais (12–27s contra banco remoto em dev). Request-scoped → revogação vale no próximo request.
+
+### Validação
+- typecheck/lint/`arch:db-check` ✓ · **412 testes** · **`pnpm smoke:admin-config` 6/6**
+  (RLS+FORCE, write-boundary, reader fail-safe, heartbeat UPSERT, broadcast ignora expirado,
+  **IA fallback_only sem Gemini**) · migrations 0029/0030 aplicadas em dev (0029 também em prod).
+- **Aceite manual**: RLS A/B, kill-switch proativo, Broadcast publish/deactivate auditados,
+  pop-up único, Saúde/Retenção/Integrações com dado real, perfil clínico, impersonate rápido
+  pós-memoização.
+
+### Pendente (vai pro C16 real)
+- `cron_heartbeats` só popula em prod (Vercel) — em dev os crons não rodam.
+- `scripts/create-clinic.ts` / botão "Criar clínica" = onboarding interino (spec separada).

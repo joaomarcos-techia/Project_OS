@@ -12,6 +12,7 @@
  */
 import { sql } from 'drizzle-orm';
 
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { env, assertCronRuntimeReady } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
@@ -77,6 +78,7 @@ export async function GET(req: Request): Promise<Response> {
       }
     }
     metrics.emit('cron.audit_partitions.ensured', { ensured, needs_remediation: needsRemediation.length });
+    await recordHeartbeat('audit-partitions', 'success', { ensured, needsRemediation: needsRemediation.length });
     return Response.json({ ok: true, ensured, needs_remediation: needsRemediation }, { status: 200 });
   } catch (err) {
     metrics.emit('cron.audit_partitions.error', { error: err });

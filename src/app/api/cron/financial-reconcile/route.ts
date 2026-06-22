@@ -19,6 +19,7 @@
 import { sql } from 'drizzle-orm';
 
 import { FINANCIAL_EVENTS, faturamentoPendencias } from '@/contexts/financial';
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { assertCronRuntimeReady, env } from '@/lib/env';
@@ -76,6 +77,7 @@ export async function GET(req: Request): Promise<Response> {
 
     if (rows.length === 0) {
       metrics.emit('financial.reconcile.run', { opened: 0, clinics: 0 });
+      await recordHeartbeat('financial-reconcile', 'success', { opened: 0, clinics: 0 });
       return Response.json({ ok: true, opened: 0, clinics: 0 }, { status: 200 });
     }
 
@@ -124,6 +126,7 @@ export async function GET(req: Request): Promise<Response> {
 
     metrics.emit('financial.reconcile.pendencia_opened', { opened, clinics: byClinic.size });
     metrics.emit('financial.reconcile.run', { opened, clinics: byClinic.size });
+    await recordHeartbeat('financial-reconcile', 'success', { opened, clinics: byClinic.size });
     return Response.json({ ok: true, opened, clinics: byClinic.size }, { status: 200 });
   } catch (err) {
     metrics.emit('financial.reconcile.error', { error: err });

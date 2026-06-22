@@ -21,6 +21,7 @@
  */
 import { sql } from 'drizzle-orm';
 
+import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
@@ -98,6 +99,7 @@ export async function GET(req: Request): Promise<Response> {
       outboxPurged,
       loginAttemptsPurged,
     });
+    await recordHeartbeat('data-retention', 'success', { outboxPurged, loginAttemptsPurged });
     return Response.json(
       { ok: true, outboxPurged, loginAttemptsPurged },
       { status: 200 },

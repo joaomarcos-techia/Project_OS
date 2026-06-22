@@ -1,0 +1,1 @@
+ALTER TABLE "platform_announcements" ADD COLUMN "title" text;
