@@ -32,31 +32,36 @@ export async function auditedMutation<T>(
   const user = await requireUser();
   const clinicId = await requireClinicId();
   const impersonation = user.session?.impersonation;
-  return withTenant(clinicId, async (tx) => {
-    const after = await fn(tx);
-    const auditEventId = await logAudit(tx, {
+
+  let auditEventId: string | undefined;
+  const after = await withTenant(clinicId, async (tx) => {
+    const result = await fn(tx);
+    auditEventId = await logAudit(tx, {
       clinicId,
       userId: user.userId,
       action: opts.action,
       resourceType: opts.resourceType,
       resourceId: opts.resourceId,
       before: opts.before,
-      after,
+      after: result,
       requestContext: opts.requestContext,
     });
-    // C15 — auditoria EXTRA atômica quando a mutação ocorre sob impersonate.
-    if (impersonation) {
-      await recordImpersonationAudit(tx, {
-        impersonationId: impersonation.impersonationId,
-        auditEventId,
-        superAdminId: user.userId,
-        clinicId,
-        action: opts.action,
-        resourceType: opts.resourceType,
-        resourceId: opts.resourceId,
-        requestContext: opts.requestContext,
-      });
-    }
-    return after;
+    return result;
   });
+
+  // C15 — auditoria EXTRA do impersonate: gravada APÓS o commit, via dbAdmin
+  // (super_admin_actions só aceita service_role). Best-effort (ver helper).
+  if (impersonation && auditEventId) {
+    await recordImpersonationAudit({
+      impersonationId: impersonation.impersonationId,
+      auditEventId,
+      superAdminId: user.userId,
+      clinicId,
+      action: opts.action,
+      resourceType: opts.resourceType,
+      resourceId: opts.resourceId,
+      requestContext: opts.requestContext,
+    });
+  }
+  return after;
 }

@@ -2,6 +2,9 @@
 
 import { useActionState, useMemo } from 'react';
 
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+
 import {
   requestLgpdDeleteForm,
   requestLgpdExportForm,
@@ -17,9 +20,9 @@ export function LgpdActions({ id }: { id: string }) {
   const deleteKey = useMemo(() => crypto.randomUUID(), []);
 
   return (
-    <section className="mt-8 border-t border-gray-200 pt-4">
-      <h2 className="mb-1 text-sm font-semibold uppercase text-gray-500">LGPD (pedido do titular)</h2>
-      <p className="mb-2 text-xs text-gray-500">
+    <section className="mt-8 border-t border-border pt-4">
+      <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">LGPD (pedido do titular)</h2>
+      <p className="mb-3 text-xs text-fg-subtle">
         Direitos do paciente sobre os próprios dados (LGPD). A exclusão aqui registra um
         pedido formal de eliminação (Art. 18) — diferente da exclusão operacional acima.
       </p>
@@ -27,22 +30,19 @@ export function LgpdActions({ id }: { id: string }) {
         <form action={exportAction}>
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="idempotencyKey" value={exportKey} />
-          <button
-            type="submit"
-            disabled={exporting}
-            className="rounded border border-gray-400 px-3 py-2 text-sm font-medium disabled:opacity-50"
-          >
-            {exporting ? 'Solicitando…' : 'Exportar dados (LGPD)'}
-          </button>
+          <Button type="submit" variant="secondary" size="sm" loading={exporting}>
+            Exportar dados (LGPD)
+          </Button>
         </form>
 
         <form action={deleteAction}>
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="idempotencyKey" value={deleteKey} />
-          <button
+          <Button
             type="submit"
-            disabled={deleting}
-            className="rounded border border-red-400 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50"
+            variant="danger"
+            size="sm"
+            loading={deleting}
             onClick={(e) => {
               if (
                 !confirm(
@@ -53,18 +53,18 @@ export function LgpdActions({ id }: { id: string }) {
               }
             }}
           >
-            {deleting ? 'Solicitando…' : 'Solicitar exclusão (LGPD)'}
-          </button>
+            Solicitar exclusão (LGPD)
+          </Button>
         </form>
       </div>
 
       {exportState.message ? (
-        <p className="mt-2 rounded border border-green-400 bg-green-50 p-2 text-sm text-green-900">
+        <Alert variant="success" className="mt-3">
           {exportState.message}
-        </p>
+        </Alert>
       ) : null}
       {(exportState.error || deleteState.error) ? (
-        <p className="mt-2 text-sm text-red-700">{exportState.error ?? deleteState.error}</p>
+        <p className="mt-2 text-sm text-danger-600">{exportState.error ?? deleteState.error}</p>
       ) : null}
     </section>
   );

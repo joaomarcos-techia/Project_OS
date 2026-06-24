@@ -145,8 +145,13 @@ export function ConsultorioBoard({
   const viewingFinalizada = selectedStatus === 'atendido';
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            Operação <span className="sep">›</span> <b>Consultório</b>
+          </>
+        }
         title="Consultório"
         description="Atenda um turno inteiro sem trocar de tela."
         actions={
@@ -264,6 +269,6 @@ export function ConsultorioBoard({
           />
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

@@ -21,6 +21,27 @@ import { cookies } from 'next/headers';
 
 import { env } from '@/lib/env';
 
+// Teto de tempo para QUALQUER chamada à API do Supabase (Auth/REST) feita por
+// este cliente. Sem isto, um stall do Supabase (Auth saturado, rede ruim) pendura
+// o Server Component / Server Action até o undici matar a resposta em ~300s — o
+// "login infinito" no passo de TOTP (challengeAndVerify/getAal) e no guard do
+// /admin (getClaims). 20s é folga grande p/ um round-trip de auth (normal < 2s) e
+// ainda tolera um cold-start; acima disso é melhor estourar e deixar o usuário
+// re-tentar do que pendurar a tela.
+const SUPABASE_FETCH_TIMEOUT_MS = 20_000;
+
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SUPABASE_FETCH_TIMEOUT_MS);
+  // Respeita um signal que o caller já tenha passado (encadeia os aborts).
+  const callerSignal = init?.signal;
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    else callerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 function supabaseEnv(): { url: string; key: string } {
   const url = env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
@@ -60,5 +81,8 @@ export async function createServerClient(): Promise<SupabaseClient> {
     },
   };
 
-  return createSsrClient(url, key, { cookies: adapter });
+  return createSsrClient(url, key, {
+    cookies: adapter,
+    global: { fetch: fetchWithTimeout },
+  });
 }

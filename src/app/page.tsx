@@ -1,10 +1,10 @@
+import { redirect } from 'next/navigation';
+
+/**
+ * Raiz (`/`) — não há landing pública; o ponto de entrada do produto é o login.
+ * (A antiga tela "Camada 0" foi removida.) Usuário já autenticado: o /login
+ * resolve o destino real (super_admin → /admin, demais → /dashboard).
+ */
 export default function HomePage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center p-8">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">ClinicaOS</h1>
-        <p className="mt-2 text-sm text-gray-500">Em construção (Camada 0).</p>
-      </div>
-    </main>
-  );
+  redirect('/login');
 }

@@ -2,6 +2,11 @@
 
 import { useActionState, useMemo, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+
 import { createMedicalDocumentForm, type FormState } from '../actions';
 
 const INITIAL: FormState = { error: null };
@@ -55,46 +60,43 @@ export function MedicalDocumentForm({ patientId }: { patientId: string }) {
   }, [type, descricao, cid, dias, texto, periodo, exames, indicacao, especialidade, motivo]);
 
   return (
-    <form action={action} className="flex flex-col gap-2">
+    <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="patientId" value={patientId} />
       <input type="hidden" name="idempotencyKey" value={key} />
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="content" value={JSON.stringify(content)} />
 
-      <select
+      <Select
         value={type}
         onChange={(e) => setType(e.target.value as DocType)}
-        className="self-start rounded border border-gray-300 px-2 py-1 text-sm"
+        className="max-w-xs"
       >
         {(Object.keys(TYPE_LABEL) as DocType[]).map((t) => (
           <option key={t} value={t}>
             {TYPE_LABEL[t]}
           </option>
         ))}
-      </select>
+      </Select>
 
       {type === 'atestado' ? (
         <>
-          <textarea
+          <Textarea
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             placeholder="Descrição (ex.: necessitou comparecer a consulta médica nesta data)"
             rows={2}
-            className="rounded border border-gray-300 p-2 text-sm"
           />
           <div className="grid grid-cols-2 gap-2">
-            <input
+            <Input
               value={cid}
               onChange={(e) => setCid(e.target.value)}
               placeholder="CID (opcional)"
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
             />
-            <input
+            <Input
               value={dias}
               onChange={(e) => setDias(e.target.value)}
               placeholder="Dias de afastamento (opcional)"
               inputMode="numeric"
-              className="rounded border border-gray-300 px-2 py-1 text-sm"
             />
           </div>
         </>
@@ -102,66 +104,56 @@ export function MedicalDocumentForm({ patientId }: { patientId: string }) {
 
       {type === 'declaracao' ? (
         <>
-          <textarea
+          <Textarea
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder="Texto da declaração"
             rows={2}
-            className="rounded border border-gray-300 p-2 text-sm"
           />
-          <input
+          <Input
             value={periodo}
             onChange={(e) => setPeriodo(e.target.value)}
             placeholder="Período (opcional)"
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
           />
         </>
       ) : null}
 
       {type === 'exame' ? (
         <>
-          <textarea
+          <Textarea
             value={exames}
             onChange={(e) => setExames(e.target.value)}
             placeholder="Exames (um por linha)"
             rows={3}
-            className="rounded border border-gray-300 p-2 text-sm"
           />
-          <input
+          <Input
             value={indicacao}
             onChange={(e) => setIndicacao(e.target.value)}
             placeholder="Indicação clínica (opcional)"
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
           />
         </>
       ) : null}
 
       {type === 'encaminhamento' ? (
         <>
-          <input
+          <Input
             value={especialidade}
             onChange={(e) => setEspecialidade(e.target.value)}
             placeholder="Especialidade de destino"
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
           />
-          <textarea
+          <Textarea
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
             placeholder="Motivo do encaminhamento"
             rows={2}
-            className="rounded border border-gray-300 p-2 text-sm"
           />
         </>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-      >
-        {pending ? 'Gerando…' : 'Emitir documento (PDF)'}
-      </button>
-      {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+      <Button type="submit" className="self-start" loading={pending}>
+        Emitir documento (PDF)
+      </Button>
+      {state.error ? <p className="text-sm text-danger-600">{state.error}</p> : null}
     </form>
   );
 }

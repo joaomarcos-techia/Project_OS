@@ -5,6 +5,7 @@ import { useActionState, useMemo, useState } from 'react';
 import type { PaymentMethodDTO, SupplierSummary } from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { DateField } from '@/components/ui/date-field';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -46,7 +47,7 @@ export function LancamentoForm({
           <Input name="valor" required inputMode="decimal" placeholder="0,00" disabled={pending} />
         </Field>
         <Field label="Vencimento" hint="Opcional">
-          <Input type="date" name="dueDate" disabled={pending} />
+          <DateField name="dueDate" disabled={pending} />
         </Field>
       </div>
 

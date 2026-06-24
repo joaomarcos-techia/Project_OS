@@ -126,8 +126,13 @@ export function CaixaView({
   );
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            Gestão <span className="sep">›</span> <b>Caixa</b>
+          </>
+        }
         title="Caixa"
         description="Recebimentos do dia — confirme pagamentos e acompanhe pendências."
         actions={
@@ -187,7 +192,7 @@ export function CaixaView({
           )}
         </Section>
       </div>
-    </>
+    </div>
   );
 }
 

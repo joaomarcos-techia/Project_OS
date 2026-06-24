@@ -2,8 +2,10 @@
 
 import { redirect } from 'next/navigation';
 
+import { getAal, challengeAndVerify, listFactors } from '@/lib/auth/mfa';
+import { postLoginRedirect } from '@/lib/auth/policies';
+import { isRole } from '@/lib/auth/roles';
 import { createServerClient } from '@/lib/auth/supabase-server';
-import { challengeAndVerify, listFactors } from '@/lib/auth/mfa';
 
 export type MfaActionState = {
   error: string | null;
@@ -28,8 +30,26 @@ export async function verifyMfaAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Código inválido.' };
   }
-  // /dashboard até o C15 existir — '/admin/select-clinic' (destino original,
-  // hardcoded aqui e na routing-policy) é rota do platform-admin futuro e
-  // devolvia 404 no login do super_admin com MFA (observado em prod 2026-06-11).
-  redirect('/dashboard');
+
+  // C15: agora em AAL2, decide o destino pela MESMA routing-policy do loginAction.
+  // super_admin → /admin (Platform Admin); demais roles → /dashboard.
+  let route = '/dashboard';
+  const { data } = await supabase.auth.getUser();
+  if (data.user) {
+    const { data: rows } = await supabase
+      .from('profiles')
+      .select('role, mfa_enrolled_at')
+      .eq('id', data.user.id)
+      .limit(1);
+    const profile = rows?.[0] as { role?: string; mfa_enrolled_at?: string | null } | undefined;
+    if (profile?.role && isRole(profile.role)) {
+      const aal = await getAal(supabase);
+      route = postLoginRedirect({
+        role: profile.role,
+        mfaEnrolledAt: profile.mfa_enrolled_at ? new Date(profile.mfa_enrolled_at) : null,
+        aal,
+      });
+    }
+  }
+  redirect(route);
 }

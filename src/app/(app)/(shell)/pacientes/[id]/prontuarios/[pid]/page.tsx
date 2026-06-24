@@ -8,6 +8,8 @@ import { z } from 'zod';
 
 import { getProntuarioById } from '@/contexts/clinical/queries';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 
 import { MedicalDocumentForm } from './medical-document-form';
 import { PrescriptionForm } from './prescription-form';
@@ -30,38 +32,54 @@ export default async function ProntuarioEditorPage({
   const prontuario = await getProntuarioById(clinicId, pidParsed.data);
   if (!prontuario || prontuario.patientId !== patParsed.data) notFound();
 
+  const assinado = prontuario.status === 'assinado';
+
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">
-          Prontuário {prontuario.status === 'assinado' ? '(assinado)' : '(rascunho)'}
-        </h1>
-        <div className="flex gap-3 text-sm">
-          {prontuario.status === 'rascunho' ? (
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            <Link href="/pacientes">Pacientes</Link> <span className="sep">›</span>{' '}
+            <Link href={`/pacientes/${patParsed.data}/prontuarios`}>Prontuários</Link>{' '}
+            <span className="sep">›</span> <b>{assinado ? 'Assinado' : 'Rascunho'}</b>
+          </>
+        }
+        title={`Prontuário ${assinado ? '(assinado)' : '(rascunho)'}`}
+        actions={
+          <>
+            {prontuario.status === 'rascunho' ? (
+              <Link
+                href={`/pacientes/${patParsed.data}/prontuarios/${prontuario.id}/assinar`}
+                className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+              >
+                Assinar
+              </Link>
+            ) : null}
             <Link
-              href={`/pacientes/${patParsed.data}/prontuarios/${prontuario.id}/assinar`}
-              className="underline"
+              href={`/pacientes/${patParsed.data}/prontuarios`}
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
             >
-              Assinar
+              Voltar
             </Link>
-          ) : null}
-          <Link href={`/pacientes/${patParsed.data}/prontuarios`} className="underline">
-            Voltar
-          </Link>
+          </>
+        }
+      />
+
+      <div className="stack" style={{ maxWidth: 860 }}>
+        <div className="cardblock wrap-pad">
+          <ProntuarioEditor prontuario={prontuario} />
+        </div>
+
+        <div className="cardblock wrap-pad">
+          <h4 className="mb-4 text-sm font-semibold">Prescrição</h4>
+          <PrescriptionForm patientId={patParsed.data} prontuarioId={prontuario.id} />
+        </div>
+
+        <div className="cardblock wrap-pad">
+          <h4 className="mb-4 text-sm font-semibold">Documento médico</h4>
+          <MedicalDocumentForm patientId={patParsed.data} />
         </div>
       </div>
-
-      <ProntuarioEditor prontuario={prontuario} />
-
-      <section className="mt-10 border-t border-gray-200 pt-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Prescrição</h2>
-        <PrescriptionForm patientId={patParsed.data} prontuarioId={prontuario.id} />
-      </section>
-
-      <section className="mt-8 border-t border-gray-200 pt-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase text-gray-500">Documento médico</h2>
-        <MedicalDocumentForm patientId={patParsed.data} />
-      </section>
-    </main>
+    </div>
   );
 }

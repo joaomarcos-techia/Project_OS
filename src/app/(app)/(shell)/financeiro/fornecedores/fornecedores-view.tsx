@@ -7,7 +7,6 @@ import type { SupplierSummary } from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -97,8 +96,8 @@ export function FornecedoresView({
       ) : null}
 
       {editingId !== null ? (
-        <Card>
-          <CardContent className="grid gap-3 p-4 sm:grid-cols-2">
+        <div className="cardblock wrap-pad">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Razão social" className="sm:col-span-2">
               <Input
                 value={draft.razaoSocial}
@@ -132,28 +131,28 @@ export function FornecedoresView({
                 Cancelar
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : null}
 
       {suppliers.length === 0 ? (
         <EmptyState title="Nenhum fornecedor" description="Cadastre fornecedores para lançar contas a pagar." />
       ) : (
-        <Card>
-          <div className="divide-y divide-border">
+        <div className="cardblock">
+          <div className="listrows">
             {suppliers.map((s) => (
-              <div key={s.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="min-w-0">
+              <div key={s.id} className="listrow">
+                <div className="lr-main">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{s.razaoSocial}</span>
+                    <b className="truncate">{s.razaoSocial}</b>
                     {!s.ativo ? <Badge tone="gray">Inativo</Badge> : null}
                   </div>
-                  <div className="truncate text-xs text-fg-subtle">
+                  <span className="lr-sub truncate">
                     {[s.cnpj, s.contato, s.condicaoPagamento].filter(Boolean).join(' · ') || '—'}
-                  </div>
+                  </span>
                 </div>
                 {canManage ? (
-                  <div className="flex shrink-0 gap-2">
+                  <div className="lr-end">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(s)} disabled={pending}>
                       Editar
                     </Button>
@@ -165,7 +164,7 @@ export function FornecedoresView({
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );

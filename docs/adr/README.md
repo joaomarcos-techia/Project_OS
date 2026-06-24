@@ -30,6 +30,14 @@
 | [017](017-clinical-record-retention-vs-lgpd.md) | Retenção de prontuário (CFM) vs hard-delete LGPD | accepted | C7 |
 | [018](018-ui-design-foundation.md) | UI / Design Foundation (DS = verdade de design; foundation-first; tokens Tailwind 4) | accepted | Fundação Visual (pré-C8) |
 | [019](019-consultorio-chamadas.md) | Consultório (C8): orquestração fina + `chamadas` em Clinical + Realtime com RLS por JWT | accepted | C8 |
+| [020](020-messaging-provider-patterns.md) | Messaging Provider Patterns (webhook Meta, inbound/outbound cifrado, dedup, identificação de tenant por número) | accepted | C10 |
+| [021](021-lgpd-anonymization-on-clinical-retention.md) | Anonimização LGPD quando o hard-delete é bloqueado por retenção clínica (RESTRICT) | accepted | Remediação forense pós-C10 |
+| [022](022-ai-agent-foundation.md) | Fundação do AI Agent (provider Gemini, saga LLM-fora-de-TX, guards anti-SAMD, orçamentos) | accepted | C11 |
+| [023](023-ai-agent-intents.md) | AI Agent Intents Core (ator de sistema `ai_agent`, intents executores, memória de coleta) | accepted | C12 |
+| [024](024-plan-model.md) | Modelo de planos (só limites, sem overage, sem feature-gating; enforcement em C13) | accepted | base / C13 |
+| [025](025-billing-architecture.md) | Arquitetura de Billing (Asaas é adapter, não o centro; Billing context é dono do modelo) | accepted | C13 |
+| [026](026-proactive-jobs.md) | Proactive Jobs (proativo determinístico via cron + reativo via IA; lembrete/dunning/followup) | accepted | C14 |
+| [027](027-onboarding-magic-invite.md) | Onboarding via convite mágico (admin → /join wizard → checkout Asaas → saga trial + owner auto-login; reusa webhook C13) | accepted | F1 |
 
 ## Como propor um novo ADR
 

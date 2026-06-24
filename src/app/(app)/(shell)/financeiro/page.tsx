@@ -13,8 +13,8 @@ import type {
 } from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Field } from '@/components/ui/field';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { buttonVariants } from '@/components/ui/button';
@@ -44,14 +44,14 @@ const isTipo = (v: string | undefined): v is LancamentoTipo => v === 'receber' |
 const isStatus = (v: string | undefined): v is LancamentoStatus =>
   v === 'pendente' || v === 'parcial' || v === 'pago' || v === 'cancelado' || v === 'estornado';
 
-function MetricCard({ label, value, tone }: { label: string; value: string; tone?: string }) {
+function StatTile({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="font-mono text-[10.5px] uppercase tracking-wide text-fg-subtle">{label}</div>
-        <div className={cn('mt-1 text-xl font-semibold tabular-nums', tone)}>{value}</div>
-      </CardContent>
-    </Card>
+    <div className="stat-tile">
+      <div className="st-top">
+        <span className="st-l">{label}</span>
+      </div>
+      <div className={cn('st-v tabular-nums', tone)}>{value}</div>
+    </div>
   );
 }
 
@@ -65,12 +65,12 @@ export default async function FinanceiroPage({
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {
     return (
-      <>
+      <div className="screen">
         <PageHeader title="Financeiro" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para o financeiro.
         </Alert>
-      </>
+      </div>
     );
   }
 
@@ -90,30 +90,41 @@ export default async function FinanceiroPage({
   ]);
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            Gestão <span className="sep">›</span> <b>Financeiro</b>
+          </>
+        }
         title="Financeiro"
         description="Visão geral do caixa e dos lançamentos da clínica."
         actions={
-          <div className="flex items-center gap-2">
-            <Link href="/financeiro/fornecedores" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+          <>
+            <Link
+              href="/financeiro/fornecedores"
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            >
               Fornecedores
             </Link>
             {canManage ? (
-              <Link href="/financeiro/lancamentos/novo" className={buttonVariants({ variant: 'primary', size: 'sm' })}>
+              <Link
+                href="/financeiro/lancamentos/novo"
+                className={buttonVariants({ variant: 'primary', size: 'sm' })}
+              >
                 Novo lançamento
               </Link>
             ) : null}
-          </div>
+          </>
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <MetricCard label="A receber" value={formatBRL(flow.receber)} tone="text-warning-600" />
-        <MetricCard label="A pagar" value={formatBRL(flow.pagar)} tone="text-warning-600" />
-        <MetricCard label="Recebido hoje" value={formatBRL(flow.recebidoHoje)} tone="text-success-600" />
-        <MetricCard label="Pago hoje" value={formatBRL(flow.pagoHoje)} />
-        <MetricCard
+      <div className="stat-row five" style={{ marginBottom: 'var(--sp-4)' }}>
+        <StatTile label="A receber" value={formatBRL(flow.receber)} tone="text-warning-600" />
+        <StatTile label="A pagar" value={formatBRL(flow.pagar)} tone="text-warning-600" />
+        <StatTile label="Recebido hoje" value={formatBRL(flow.recebidoHoje)} tone="text-success-600" />
+        <StatTile label="Pago hoje" value={formatBRL(flow.pagoHoje)} />
+        <StatTile
           label="Saldo hoje"
           value={formatBRL(flow.saldoHoje)}
           tone={flow.saldoHoje >= 0 ? 'text-success-600' : 'text-danger-600'}
@@ -121,16 +132,14 @@ export default async function FinanceiroPage({
       </div>
 
       <form className="mb-4 flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-fg-muted">Tipo</span>
+        <Field label="Tipo">
           <Select name="tipo" defaultValue={tipo ?? ''} className="min-w-40">
             <option value="">Todos</option>
             <option value="receber">A receber</option>
             <option value="pagar">A pagar</option>
           </Select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-fg-muted">Status</span>
+        </Field>
+        <Field label="Status">
           <Select name="status" defaultValue={status ?? ''} className="min-w-40">
             <option value="">Todos</option>
             <option value="pendente">Pendente</option>
@@ -139,7 +148,7 @@ export default async function FinanceiroPage({
             <option value="cancelado">Cancelado</option>
             <option value="estornado">Estornado</option>
           </Select>
-        </label>
+        </Field>
         <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
           Filtrar
         </button>
@@ -148,18 +157,18 @@ export default async function FinanceiroPage({
       {lancamentos.length === 0 ? (
         <EmptyState title="Nenhum lançamento" description="Ajuste os filtros ou crie um lançamento." />
       ) : (
-        <Card>
-          <div className="divide-y divide-border">
+        <div className="cardblock">
+          <div className="listrows">
             {lancamentos.map((l: LancamentoSummary) => (
-              <div key={l.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{l.descricao}</div>
-                  <div className="text-xs text-fg-subtle">
-                    {l.tipo === 'receber' ? 'A receber' : 'A pagar'} · venc. {formatDatePt(l.dueDate)} ·{' '}
-                    {formatDatePt(l.createdAt)}
-                  </div>
+              <div key={l.id} className="listrow">
+                <div className="lr-main">
+                  <b>{l.descricao}</b>
+                  <span className="lr-sub">
+                    {l.tipo === 'receber' ? 'A receber' : 'A pagar'} · venc.{' '}
+                    {formatDatePt(l.dueDate)} · {formatDatePt(l.createdAt)}
+                  </span>
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
+                <div className="lr-end">
                   <span
                     className={cn(
                       'tabular-nums',
@@ -174,8 +183,8 @@ export default async function FinanceiroPage({
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
-    </>
+    </div>
   );
 }

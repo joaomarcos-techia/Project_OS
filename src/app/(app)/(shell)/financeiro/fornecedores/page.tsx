@@ -17,12 +17,12 @@ export default async function FornecedoresPage() {
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {
     return (
-      <>
+      <div className="screen">
         <PageHeader title="Fornecedores" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para o financeiro.
         </Alert>
-      </>
+      </div>
     );
   }
 
@@ -30,17 +30,23 @@ export default async function FornecedoresPage() {
   const canManage = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            <Link href="/financeiro">Financeiro</Link> <span className="sep">›</span>{' '}
+            <b>Fornecedores</b>
+          </>
+        }
         title="Fornecedores"
         description="Cadastro de fornecedores para contas a pagar."
         actions={
           <Link href="/financeiro" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-            ← Financeiro
+            Voltar
           </Link>
         }
       />
       <FornecedoresView suppliers={suppliers} canManage={canManage} />
-    </>
+    </div>
   );
 }

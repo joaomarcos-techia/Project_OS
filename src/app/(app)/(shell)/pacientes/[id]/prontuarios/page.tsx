@@ -7,6 +7,11 @@ import { z } from 'zod';
 
 import { listProntuariosByPatient } from '@/contexts/clinical/queries';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { Icon } from '@/components/painel/icons';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
 
 import { NovoProntuarioButton } from './novo-prontuario-button';
 
@@ -22,58 +27,73 @@ export default async function ProntuariosPage({ params }: { params: Promise<{ id
   const list = await listProntuariosByPatient(clinicId, patientId);
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Prontuários</h1>
-        <Link href={`/pacientes/${patientId}`} className="text-sm underline">
-          Voltar
-        </Link>
-      </div>
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            <Link href="/pacientes">Pacientes</Link> <span className="sep">›</span>{' '}
+            <Link href={`/pacientes/${patientId}`}>Paciente</Link> <span className="sep">›</span>{' '}
+            <b>Prontuários</b>
+          </>
+        }
+        title="Prontuários"
+        description="Histórico clínico do paciente."
+        actions={
+          <>
+            <NovoProntuarioButton patientId={patientId} />
+            <Link
+              href={`/pacientes/${patientId}`}
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            >
+              Voltar
+            </Link>
+          </>
+        }
+      />
 
-      <NovoProntuarioButton patientId={patientId} />
-
-      <ul className="mt-4 divide-y divide-gray-200">
-        {list.length === 0 ? (
-          <li className="py-3 text-sm text-gray-500">Nenhum prontuário ainda.</li>
-        ) : null}
-        {list.map((p) => (
-          <li key={p.id} className="flex items-center justify-between py-3">
-            <div className="text-sm">
-              <span
-                className={
-                  p.status === 'assinado'
-                    ? 'rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800'
-                    : 'rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800'
-                }
-              >
-                {p.status}
-              </span>
-              <span className="ml-2 text-gray-600">
-                {new Date(p.createdAt).toLocaleString('pt-BR')}
-              </span>
-              {p.needsReturn ? (
-                <span className="ml-2 text-xs text-gray-500">retorno em {p.returnDays}d</span>
-              ) : null}
-            </div>
-            <div className="flex gap-3">
-              <Link
-                href={`/pacientes/${patientId}/prontuarios/${p.id}`}
-                className="text-sm underline"
-              >
-                {p.status === 'assinado' ? 'Ver' : 'Editar'}
-              </Link>
-              {p.status === 'rascunho' ? (
-                <Link
-                  href={`/pacientes/${patientId}/prontuarios/${p.id}/assinar`}
-                  className="text-sm underline"
-                >
-                  Assinar
-                </Link>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </main>
+      {list.length === 0 ? (
+        <EmptyState
+          icon={<Icon name="record" size={22} />}
+          title="Nenhum prontuário ainda"
+          description="Crie o primeiro prontuário para registrar o atendimento."
+        />
+      ) : (
+        <div className="cardblock">
+          <div className="listrows">
+            {list.map((p) => (
+              <div key={p.id} className="listrow">
+                <div className="lr-main">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={p.status === 'assinado' ? 'green' : 'amber'}>{p.status}</Badge>
+                    <span className="text-sm text-fg-muted">
+                      {new Date(p.createdAt).toLocaleString('pt-BR')}
+                    </span>
+                    {p.needsReturn ? (
+                      <span className="text-xs text-fg-subtle">retorno em {p.returnDays}d</span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="lr-end">
+                  <Link
+                    href={`/pacientes/${patientId}/prontuarios/${p.id}`}
+                    className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                  >
+                    {p.status === 'assinado' ? 'Ver' : 'Editar'}
+                  </Link>
+                  {p.status === 'rascunho' ? (
+                    <Link
+                      href={`/pacientes/${patientId}/prontuarios/${p.id}/assinar`}
+                      className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+                    >
+                      Assinar
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

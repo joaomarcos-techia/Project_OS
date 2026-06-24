@@ -99,6 +99,7 @@ const fallback = {
   loginEmail: new BoundedFallbackLimiter(5, FIFTEEN_MIN_MS),
   resetIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   resetEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
+  joinIp: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
 };
 
 function degraded(
@@ -201,6 +202,38 @@ export async function assertPasswordResetAllowed(ip: string, emailHash: string):
     return { ok: true };
   } catch (err) {
     return degraded('reset', fallback.resetIp, fallback.resetEmail, ip, emailHash, err);
+  }
+}
+
+const lazyJoinLimiter = (() => {
+  let cached: Ratelimit | null = null;
+  return () => {
+    if (cached) return cached;
+    cached = new Ratelimit({
+      redis: lazyRedis(),
+      limiter: Ratelimit.slidingWindow(30, '15 m'),
+      prefix: 'rl:join:ip',
+      analytics: false,
+    });
+    return cached;
+  };
+})();
+
+/**
+ * Rate limit do /join (onboarding via convite) — anti brute-force de token, por IP
+ * (30/15min). O token de 256 bits já é inviável de adivinhar; isto é defesa em
+ * profundidade. F-08: nunca lança (fail-open + fallback per-instância).
+ */
+export async function assertJoinAllowed(ip: string): Promise<LimitResult> {
+  try {
+    const r = await lazyJoinLimiter().limit(ip);
+    return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  } catch (err) {
+    metrics.emit('auth.ratelimit.degraded', {
+      kind: 'join',
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return fallback.joinIp.hit(ip) ? { ok: true } : { ok: false, reason: 'rate_limited' };
   }
 }
 

@@ -2,6 +2,12 @@
 
 import { useActionState } from 'react';
 
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+
 import { forgotPasswordAction, type ForgotState } from './actions';
 
 const INITIAL: ForgotState = { error: null, sent: false };
@@ -9,44 +15,51 @@ const INITIAL: ForgotState = { error: null, sent: false };
 export default function ForgotPasswordPage() {
   const [state, formAction, pending] = useActionState(forgotPasswordAction, INITIAL);
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-6">
-      <h1 className="mb-4 text-xl font-semibold">Esqueci minha senha</h1>
-      {state.sent ? (
-        <p className="rounded border border-green-400 bg-green-50 p-3 text-sm text-green-900">
-          Se o email existir, enviamos instruções de recuperação. Verifique sua caixa de entrada.
+    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex flex-col items-center gap-2 text-center">
+          <span className="text-lg font-semibold tracking-[-0.02em]">
+            Clinica<b className="font-bold text-primary-600">OS</b>
+          </span>
+          <p className="text-sm text-fg-muted">Recupere o acesso à sua conta.</p>
+        </div>
+
+        <Card>
+          <CardContent className="flex flex-col gap-4">
+            <h1 className="text-base font-semibold">Esqueci minha senha</h1>
+            {state.sent ? (
+              <Alert variant="success">
+                Se o email existir, enviamos instruções de recuperação. Verifique sua caixa de
+                entrada.
+              </Alert>
+            ) : (
+              <form action={formAction} className="flex flex-col gap-4">
+                <Field label="Email" htmlFor="email">
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    disabled={pending}
+                    placeholder="voce@clinica.com.br"
+                  />
+                </Field>
+                {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
+                <Button type="submit" loading={pending} className="w-full">
+                  Enviar instruções
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+
+        <p className="mt-4 text-center text-xs text-fg-muted">
+          <a href="/login" className="font-medium text-primary-600 hover:text-primary-700">
+            Voltar para login
+          </a>
         </p>
-      ) : (
-        <form action={formAction} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span>Email</span>
-            <input
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              disabled={pending}
-              className="rounded border border-gray-300 px-3 py-2"
-            />
-          </label>
-          {state.error ? (
-            <p className="rounded border border-red-400 bg-red-50 p-3 text-sm text-red-900">
-              {state.error}
-            </p>
-          ) : null}
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {pending ? 'Enviando…' : 'Enviar instruções'}
-          </button>
-        </form>
-      )}
-      <p className="mt-4 text-xs text-gray-600">
-        <a href="/login" className="underline">
-          Voltar para login
-        </a>
-      </p>
+      </div>
     </main>
   );
 }

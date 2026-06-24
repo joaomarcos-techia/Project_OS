@@ -140,7 +140,8 @@ export async function idempotentMutation<T>(
   }
   const hash = payloadHash(opts.idempotency.payload);
 
-  return withTenant(clinicId, async (tx) => {
+  let auditEventId: string | undefined;
+  const finalResult = await withTenant(clinicId, async (tx) => {
     // HIGH-05: lock_timeout configurável via env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS.
     // Default 10s (era 3s; quebrava Server Actions com fn() de 4-5s em rede lenta).
     // Aplica a TODO lock pegado nesta TX, incluindo unique constraint do INSERT.
@@ -207,7 +208,8 @@ export async function idempotentMutation<T>(
     const result = await fn(tx);
 
     // 3. Audit in the SAME tx. logAudit applies sanitizePayload internally.
-    const auditEventId = await logAudit(tx, {
+    // auditEventId é hoistado p/ a auditoria EXTRA do impersonate (pós-commit).
+    auditEventId = await logAudit(tx, {
       clinicId,
       userId,
       action: opts.audit.action,
@@ -217,19 +219,6 @@ export async function idempotentMutation<T>(
       after: result,
       requestContext: opts.audit.requestContext,
     });
-    // 3b. C15 — auditoria EXTRA atômica quando a mutação ocorre sob impersonate.
-    if (impersonation && userId) {
-      await recordImpersonationAudit(tx, {
-        impersonationId: impersonation.impersonationId,
-        auditEventId,
-        superAdminId: userId,
-        clinicId,
-        action: opts.audit.action,
-        resourceType: opts.audit.resourceType,
-        resourceId: opts.audit.resourceId,
-        requestContext: opts.audit.requestContext,
-      });
-    }
 
     // 4. Finalize idempotency response in the SAME tx. capJsonSize replaces
     //    oversized results (>64KB) with an envelope referencing the original.
@@ -245,4 +234,21 @@ export async function idempotentMutation<T>(
     });
     return result;
   });
+
+  // C15 — auditoria EXTRA do impersonate: APÓS o commit, via dbAdmin
+  // (super_admin_actions só aceita service_role). auditEventId só fica definido
+  // em execução fresca (cache hit não muta → não audita extra). Best-effort.
+  if (impersonation && userId && auditEventId) {
+    await recordImpersonationAudit({
+      impersonationId: impersonation.impersonationId,
+      auditEventId,
+      superAdminId: userId,
+      clinicId,
+      action: opts.audit.action,
+      resourceType: opts.audit.resourceType,
+      resourceId: opts.audit.resourceId,
+      requestContext: opts.audit.requestContext,
+    });
+  }
+  return finalResult;
 }

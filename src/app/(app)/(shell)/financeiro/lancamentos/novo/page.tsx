@@ -17,12 +17,12 @@ export default async function NovoLancamentoPage() {
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL) || !user.clinicId) {
     return (
-      <>
+      <div className="screen">
         <PageHeader title="Novo lançamento" />
         <Alert variant="warning" title="Sem acesso">
           Apenas perfis com gestão financeira podem criar lançamentos manuais.
         </Alert>
-      </>
+      </div>
     );
   }
 
@@ -32,17 +32,25 @@ export default async function NovoLancamentoPage() {
   ]);
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            <Link href="/financeiro">Financeiro</Link> <span className="sep">›</span>{' '}
+            <b>Novo lançamento</b>
+          </>
+        }
         title="Novo lançamento"
         description="Conta a receber ou a pagar (origem manual)."
         actions={
           <Link href="/financeiro" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-            ← Financeiro
+            Voltar
           </Link>
         }
       />
-      <LancamentoForm suppliers={suppliers} methods={methods} />
-    </>
+      <div className="cardblock wrap-pad" style={{ maxWidth: 680 }}>
+        <LancamentoForm suppliers={suppliers} methods={methods} />
+      </div>
+    </div>
   );
 }

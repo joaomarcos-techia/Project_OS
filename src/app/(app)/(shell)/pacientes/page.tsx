@@ -3,15 +3,14 @@
  * nome/email only. Search is by name (ILIKE / trigram). Tenant scope comes from
  * the session via requireClinicId.
  */
-import { Search, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import Link from 'next/link';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { listPatients } from '@/contexts/patient/queries';
+import { Icon } from '@/components/painel/icons';
 import { buttonVariants } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 
 export const dynamic = 'force-dynamic';
@@ -27,25 +26,31 @@ export default async function PacientesPage({
   const patients = await listPatients(clinicId, q ? { search: q, limit: 50 } : { limit: 50 });
 
   return (
-    <>
+    <div className="screen">
       <PageHeader
+        breadcrumb={
+          <>
+            Pacientes <span className="sep">›</span> <b>Lista</b>
+          </>
+        }
         title="Pacientes"
         description="Cadastro e busca de pacientes da clínica."
         actions={
           <Link href="/pacientes/novo" className={buttonVariants({ size: 'sm' })}>
+            <Icon name="plus" size={15} />
             Novo paciente
           </Link>
         }
       />
 
-      <form className="mb-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle" />
-          <Input
+      <form className="toolbar">
+        <div className="input-wrap tb-grow" style={{ maxWidth: 360 }}>
+          <Icon name="search" size={16} />
+          <input
+            className="input"
             name="q"
             defaultValue={q ?? ''}
             placeholder="Buscar por nome…"
-            className="pl-9"
             aria-label="Buscar pacientes por nome"
           />
         </div>
@@ -67,19 +72,22 @@ export default async function PacientesPage({
           }
         />
       ) : (
-        <Card className="divide-y divide-border overflow-hidden">
-          {patients.map((p) => (
-            <Link
-              key={p.id}
-              href={`/pacientes/${p.id}`}
-              className="flex items-center justify-between gap-4 px-4 py-3 text-sm transition-colors hover:bg-surface-inset"
-            >
-              <span className="font-medium text-fg">{p.nome}</span>
-              <span className="truncate font-mono text-xs text-fg-muted">{p.email}</span>
-            </Link>
-          ))}
-        </Card>
+        <div className="cardblock">
+          <div className="listrows">
+            {patients.map((p) => (
+              <Link key={p.id} href={`/pacientes/${p.id}`} className="listrow">
+                <div className="lr-main">
+                  <b>{p.nome}</b>
+                  <span className="lr-sub">{p.email}</span>
+                </div>
+                <span className="lr-end">
+                  <Icon name="chevR" size={16} className="text-fg-subtle" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
-    </>
+    </div>
   );
 }

@@ -1,7 +1,12 @@
+import Link from 'next/link';
+
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { listFactors } from '@/lib/auth/mfa';
 import { requireUser } from '@/lib/auth/tenant-context';
 import { mustHaveMFA } from '@/lib/auth/policies';
+import { Alert } from '@/components/ui/alert';
+import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 
 import { EnrollFlow } from './enroll-flow';
 import { UnenrollForm } from './unenroll-form';
@@ -22,44 +27,50 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
   const forced = params.force === '1';
 
   return (
-    <main className="mx-auto max-w-xl p-6">
-      <h1 className="mb-4 text-xl font-semibold">Segurança da conta</h1>
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            Conta <span className="sep">›</span> <b>Segurança</b>
+          </>
+        }
+        title="Segurança da conta"
+        description="Autenticação em duas etapas (TOTP) da sua conta."
+        actions={
+          <Link href="/dashboard" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+            Voltar ao dashboard
+          </Link>
+        }
+      />
 
-      {forced && required && verified.length === 0 ? (
-        <p className="mb-4 rounded border border-red-400 bg-red-50 p-3 text-sm text-red-900">
-          MFA é OBRIGATÓRIO para a role <b>{user.role}</b>. Ative TOTP abaixo antes de
-          continuar.
-        </p>
-      ) : null}
+      <div className="stack" style={{ maxWidth: 640 }}>
+        {forced && required && verified.length === 0 ? (
+          <Alert variant="danger">
+            MFA é OBRIGATÓRIO para a role <b>{user.role}</b>. Ative TOTP abaixo antes de continuar.
+          </Alert>
+        ) : null}
 
-      {params.unenroll_error ? (
-        <p className="mb-4 rounded border border-red-400 bg-red-50 p-3 text-sm text-red-900">
-          Não foi possível remover o MFA. Conclua a verificação TOTP (sessão completa) e
-          tente novamente.
-        </p>
-      ) : null}
+        {params.unenroll_error ? (
+          <Alert variant="danger">
+            Não foi possível remover o MFA. Conclua a verificação TOTP (sessão completa) e tente
+            novamente.
+          </Alert>
+        ) : null}
 
-      <section className="mb-6">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-600">
-          TOTP (Authy / Google Authenticator)
-        </h2>
-        {verified.length > 0 ? (
-          <div className="rounded border border-gray-300 p-4">
-            <p className="mb-3 text-sm">✅ TOTP ativo ({verified.length} factor).</p>
-            {verified.map((f) => (
-              <UnenrollForm key={f.id} factorId={f.id} />
-            ))}
-          </div>
-        ) : (
-          <EnrollFlow />
-        )}
-      </section>
-
-      <p className="text-xs text-gray-600">
-        <a href="/dashboard" className="underline">
-          Voltar ao dashboard
-        </a>
-      </p>
-    </main>
+        <div className="cardblock wrap-pad">
+          <h4 className="mb-3 text-sm font-semibold">TOTP (Authy / Google Authenticator)</h4>
+          {verified.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm">✅ TOTP ativo ({verified.length} factor).</p>
+              {verified.map((f) => (
+                <UnenrollForm key={f.id} factorId={f.id} />
+              ))}
+            </div>
+          ) : (
+            <EnrollFlow />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -56,3 +56,5 @@ export * from './infra/impersonation';
 export * from './infra/platform-settings';
 export * from './infra/cron-heartbeats';
 export * from './infra/platform-announcements';
+// Onboarding — clinic_invites (convite mágico; global protected, entidade pré-clínica).
+export * from '@/contexts/onboarding/schema';

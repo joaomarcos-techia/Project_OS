@@ -12,8 +12,19 @@ import { BillingBadge, ClinicStatusBadge } from '../_components/badges';
 import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime } from '../_lib/format';
 import { clinicRepository } from '../_lib/repositories/clinics.repo';
+import { invitesRepository } from '../_lib/repositories/invites.repo';
+import { NewClinicModal } from './new-clinic-modal';
+import { CancelInviteButton } from './cancel-invite-button';
 
 export const dynamic = 'force-dynamic';
+
+function inviteTone(s: string): 'blue' | 'amber' | 'green' | 'gray' | 'red' {
+  if (s === 'completed') return 'green';
+  if (s === 'started') return 'amber';
+  if (s === 'cancelled') return 'red';
+  if (s === 'expired') return 'gray';
+  return 'blue'; // pending
+}
 
 const CLINIC_STATUSES = [
   'trial',
@@ -39,14 +50,11 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? '1') || 1);
 
-  const result = await clinicRepository.list({
-    search: sp.q,
-    status: sp.status,
-    plan: sp.plan,
-    billing: sp.billing,
-    page,
-    pageSize: 20,
-  });
+  const [result, plans, invites] = await Promise.all([
+    clinicRepository.list({ search: sp.q, status: sp.status, plan: sp.plan, billing: sp.billing, page, pageSize: 20 }),
+    invitesRepository.listPlans(),
+    invitesRepository.list(),
+  ]);
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   return (
@@ -59,6 +67,7 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
         }
         title="Clínicas"
         description={`${result.total} tenant(s) na plataforma. Abra para inspecionar ou impersonar — toda ação é auditada.`}
+        actions={<NewClinicModal plans={plans} />}
       />
 
       <form className="toolbar">
@@ -170,6 +179,52 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
           </div>
         </div>
       ) : null}
+
+      {/* ======================== CONVITES ======================== */}
+      <div className="cardblock" style={{ marginTop: 'var(--sp-5)' }}>
+        <div className="cardblock-head">
+          <h4>Convites</h4>
+          <span className="sub">{invites.length} · onboarding via convite mágico</span>
+        </div>
+        {invites.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-fg-subtle">
+            Nenhum convite. Use <b>Nova Clínica</b> para gerar um link de onboarding.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="ui-table" style={{ minWidth: 720 }}>
+              <thead>
+                <tr>
+                  <th>Gestor / Clínica</th>
+                  <th>Plano</th>
+                  <th>Status</th>
+                  <th>Criado</th>
+                  <th>Expira</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {invites.map((i) => (
+                  <tr key={i.id}>
+                    <td>{i.clinicNome ?? i.email ?? <span className="td-sub">—</span>}</td>
+                    <td>{i.planCode ? <Badge tone="blue">{i.planCode}</Badge> : <span className="td-sub">—</span>}</td>
+                    <td>
+                      <Badge tone={inviteTone(i.status)}>{i.status}</Badge>
+                    </td>
+                    <td className="td-sub">{formatDateTime(i.createdAt)}</td>
+                    <td className="td-sub">{formatDateTime(i.expiresAt)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {i.status === 'pending' || i.status === 'started' ? (
+                        <CancelInviteButton id={i.id} />
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

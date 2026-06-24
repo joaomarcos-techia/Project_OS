@@ -54,6 +54,11 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/lib/platform-settings/index.ts',
     'src/lib/cron-heartbeat/index.ts',
     'src/lib/platform-announcements/index.ts',
+    // Onboarding (convite mágico): clinic_invites é global-protected (pré-clínica,
+    // sem clinic_id). Resolução de token (rota pública /join) e transições guardadas
+    // por version rodam via dbAdmin/BYPASSRLS. A saga de provisionamento também.
+    'src/contexts/onboarding/internal/invites.ts',
+    'src/contexts/onboarding/internal/saga.ts',
     // C10 — seam privilegiado ÚNICO de mensageria (superfície congelada 3ª#6,
     // ADR-020): roteamento de tenant pré-JWT no webhook exige leitura
     // cross-tenant. Faltava aqui porque o guard não rodava no CI (F-07) —
@@ -67,6 +72,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // F-09 — retenção: purge de outbox terminal (processed/skipped) e
     // login_attempts exige BYPASSRLS (outbox é UPDATE/DELETE-blocked p/ tenant).
     'src/app/api/cron/data-retention/route.ts',
+    // ADR-027 — invites-cleanup (LGPD): anonimiza convites incompletos > 30d
+    // (clinic_invites é global-protected, sem clinic_id → BYPASSRLS).
+    'src/app/api/cron/invites-cleanup/route.ts',
     'src/app/api/health/outbox/route.ts',
     'src/app/api/health/auth-hook/route.ts',
     // C13/ADR-025 — webhook Asaas: resolve clínica cross-tenant por

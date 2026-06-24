@@ -186,6 +186,12 @@ const config = [
       'src/contexts/scheduling/reminder-candidates.ts',
       'src/contexts/financial/dunning-candidates.ts',
       'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
+      // F1 onboarding: clinic_invites é global-protected (entidade PRÉ-clínica, sem
+      // clinic_id de tenant). Resolução de token (/join público), transições guardadas
+      // por version e a saga de provisionamento rodam via dbAdmin/BYPASSRLS. Mesma
+      // justificativa dos read-models acima — também na allowlist do arch:db-check.
+      'src/contexts/onboarding/internal/invites.ts',
+      'src/contexts/onboarding/internal/saga.ts',
     ],
     rules: {
       'no-restricted-imports': [

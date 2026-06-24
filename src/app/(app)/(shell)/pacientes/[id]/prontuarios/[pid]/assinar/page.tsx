@@ -9,6 +9,9 @@ import { z } from 'zod';
 
 import { getProntuarioById } from '@/contexts/clinical/queries';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { Alert } from '@/components/ui/alert';
+import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 
 import { SignProntuarioForm } from './sign-form';
 
@@ -34,42 +37,55 @@ export default async function AssinarPage({
   ) as [string, string][];
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Assinar prontuário</h1>
-        <Link
-          href={`/pacientes/${patParsed.data}/prontuarios/${prontuario.id}`}
-          className="text-sm underline"
-        >
-          Voltar ao editor
-        </Link>
-      </div>
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            <Link href="/pacientes">Pacientes</Link> <span className="sep">›</span>{' '}
+            <Link href={`/pacientes/${patParsed.data}/prontuarios`}>Prontuários</Link>{' '}
+            <span className="sep">›</span> <b>Assinar</b>
+          </>
+        }
+        title="Assinar prontuário"
+        actions={
+          <Link
+            href={`/pacientes/${patParsed.data}/prontuarios/${prontuario.id}`}
+            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+          >
+            Voltar ao editor
+          </Link>
+        }
+      />
 
-      {prontuario.status === 'assinado' ? (
-        <p className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-900">
-          Este prontuário já está assinado.
-        </p>
-      ) : (
-        <>
-          <div className="mb-6 rounded border border-gray-200 p-4">
-            {entries.length === 0 ? (
-              <p className="text-sm text-red-600">
-                O prontuário está vazio — preencha o conteúdo antes de assinar.
-              </p>
-            ) : (
-              <dl className="flex flex-col gap-3 text-sm">
-                {entries.map(([k, v]) => (
-                  <div key={k}>
-                    <dt className="text-xs font-semibold uppercase text-gray-500">{k}</dt>
-                    <dd className="whitespace-pre-wrap">{v}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-          </div>
-          <SignProntuarioForm patientId={patParsed.data} prontuarioId={prontuario.id} />
-        </>
-      )}
-    </main>
+      <div className="stack" style={{ maxWidth: 720 }}>
+        {prontuario.status === 'assinado' ? (
+          <Alert variant="success">Este prontuário já está assinado.</Alert>
+        ) : (
+          <>
+            <div className="cardblock wrap-pad">
+              {entries.length === 0 ? (
+                <p className="text-sm text-danger-600">
+                  O prontuário está vazio — preencha o conteúdo antes de assinar.
+                </p>
+              ) : (
+                <dl className="flex flex-col gap-3 text-sm">
+                  {entries.map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="text-xs font-semibold uppercase tracking-[0.06em] text-fg-subtle">
+                        {k}
+                      </dt>
+                      <dd className="mt-1 whitespace-pre-wrap">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
+            <div className="cardblock wrap-pad">
+              <SignProntuarioForm patientId={patParsed.data} prontuarioId={prontuario.id} />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

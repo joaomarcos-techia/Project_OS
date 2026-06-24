@@ -145,7 +145,7 @@ async function rawRequest(method: string, path: string, body?: unknown): Promise
 
 /** GET com retry/backoff (idempotente). POST sem retry (anti-duplicação). */
 async function request(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'DELETE',
   path: string,
   body?: unknown,
 ): Promise<unknown> {
@@ -183,6 +183,30 @@ export interface CreateSubscriptionInput {
   nextDueDate: string; // YYYY-MM-DD
   description: string;
   billingType?: AsaasBillingType;
+}
+
+/** Dados do cartão — transitam em memória na request, NUNCA persistidos/logados. */
+export interface CreditCardInput {
+  holderName: string;
+  number: string;
+  expiryMonth: string;
+  expiryYear: string;
+  ccv: string;
+}
+
+export interface CreditCardHolderInfo {
+  name: string;
+  email: string;
+  cpfCnpj: string;
+  postalCode: string;
+  addressNumber: string;
+  phone?: string | null;
+}
+
+export interface CreateSubscriptionWithCardInput extends CreateSubscriptionInput {
+  creditCard: CreditCardInput;
+  holderInfo: CreditCardHolderInfo;
+  remoteIp: string;
 }
 
 export interface GenerateInvoiceInput {
@@ -224,6 +248,12 @@ export interface ParsedWebhook {
 export interface PaymentProvider {
   createCustomer(input: CreateCustomerInput): Promise<{ customerId: string }>;
   createSubscription(input: CreateSubscriptionInput): Promise<{ subscriptionId: string }>;
+  /** Assinatura com cartão de crédito (tokeniza no Asaas; devolve o token p/ futuras cobranças). */
+  createSubscriptionWithCard(
+    input: CreateSubscriptionWithCardInput,
+  ): Promise<{ subscriptionId: string; creditCardToken: string | null }>;
+  /** Cancela a assinatura no Asaas (compensação da saga — mata cobrança órfã). */
+  cancelSubscription(asaasSubscriptionId: string): Promise<void>;
   generateInvoice(input: GenerateInvoiceInput): Promise<ProviderPayment>;
   getSubscription(asaasSubscriptionId: string): Promise<ProviderSubscription>;
   getPayment(asaasPaymentId: string): Promise<ProviderPayment>;
@@ -271,6 +301,44 @@ export const asaasProvider: PaymentProvider = {
     const res = (await request('POST', '/subscriptions', body)) as { id: string };
     metrics.emit('billing.asaas.subscription_created', { subscriptionId: res.id });
     return { subscriptionId: res.id };
+  },
+
+  async createSubscriptionWithCard(input) {
+    const body = {
+      customer: input.customerId,
+      billingType: 'CREDIT_CARD' as const,
+      value: input.value,
+      cycle: input.cycle,
+      nextDueDate: input.nextDueDate,
+      description: input.description,
+      creditCard: {
+        holderName: input.creditCard.holderName,
+        number: input.creditCard.number,
+        expiryMonth: input.creditCard.expiryMonth,
+        expiryYear: input.creditCard.expiryYear,
+        ccv: input.creditCard.ccv,
+      },
+      creditCardHolderInfo: {
+        name: input.holderInfo.name,
+        email: input.holderInfo.email,
+        cpfCnpj: input.holderInfo.cpfCnpj,
+        postalCode: input.holderInfo.postalCode,
+        addressNumber: input.holderInfo.addressNumber,
+        phone: input.holderInfo.phone ?? undefined,
+      },
+      remoteIp: input.remoteIp,
+    };
+    const res = (await request('POST', '/subscriptions', body)) as {
+      id: string;
+      creditCard?: { creditCardToken?: string };
+    };
+    metrics.emit('billing.asaas.subscription_created', { subscriptionId: res.id, withCard: true });
+    return { subscriptionId: res.id, creditCardToken: res.creditCard?.creditCardToken ?? null };
+  },
+
+  async cancelSubscription(id) {
+    await request('DELETE', `/subscriptions/${id}`);
+    metrics.emit('billing.asaas.subscription_cancelled', { subscriptionId: id });
   },
 
   async generateInvoice(input) {

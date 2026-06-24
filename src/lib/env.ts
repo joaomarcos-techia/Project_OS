@@ -214,6 +214,10 @@ const EnvSchema = z
     // build verde antes do secret); assertImpersonationRuntimeReady() exige em
     // runtime nas Server Actions de impersonate.
     IMPERSONATION_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
+    // Onboarding (convite mágico): HMAC do token do link /join. Build-time opcional;
+    // runtime exigido por assertOnboardingRuntimeReady(). Rotação invalida convites
+    // em aberto (aceitável — expiram em 24h).
+    MAGIC_TOKEN_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -359,6 +363,16 @@ export function assertBillingWebhookReady(): void {
 export function assertImpersonationRuntimeReady(): void {
   if (!env.IMPERSONATION_SECRET) {
     throw new Error('[env] IMPERSONATION_SECRET is required at runtime for impersonate (C15)');
+  }
+}
+
+/**
+ * Runtime guard do onboarding (convite mágico) — exige o segredo HMAC do token.
+ * Chamado pelas actions de convite/`/join`, NÃO no import.
+ */
+export function assertOnboardingRuntimeReady(): void {
+  if (!env.MAGIC_TOKEN_SECRET) {
+    throw new Error('[env] MAGIC_TOKEN_SECRET is required at runtime for onboarding invites');
   }
 }
 

@@ -9,6 +9,8 @@ import { z } from 'zod';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { getPatientWithDecryptedFields } from '@/contexts/patient/queries';
+import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 
 import { updatePatientForm } from '../actions';
 import { PatientForm } from '../patient-form';
@@ -34,47 +36,65 @@ export default async function PacienteDetailPage({
   if (!p || p.deletedAt) notFound();
 
   return (
-    <main className="mx-auto max-w-md p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{p.nome}</h1>
-        <div className="flex gap-3 text-sm">
-          <Link href={`/pacientes/${p.id}/prontuarios`} className="underline">
-            Prontuários
-          </Link>
-          <Link href="/pacientes" className="underline">
-            Voltar
-          </Link>
-        </div>
-      </div>
-
-      <dl className="mb-6 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
-        <dt className="font-medium">CPF</dt>
-        <dd className="font-mono">{p.cpf}</dd>
-        <dt className="font-medium">Telefone</dt>
-        <dd className="font-mono">{p.telefone ?? '—'}</dd>
-        <dt className="font-medium">E-mail</dt>
-        <dd className="font-mono">{p.email}</dd>
-      </dl>
-
-      <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">Editar</h2>
-      <PatientForm
-        mode="edit"
-        action={updatePatientForm}
-        initial={{
-          id: p.id,
-          nome: p.nome,
-          telefone: p.telefone,
-          email: p.email,
-          dataNascimento: p.dataNascimento,
-          sexo: p.sexo,
-        }}
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            <Link href="/pacientes">Pacientes</Link> <span className="sep">›</span> <b>{p.nome}</b>
+          </>
+        }
+        title={p.nome}
+        actions={
+          <>
+            <Link
+              href={`/pacientes/${p.id}/prontuarios`}
+              className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+            >
+              Prontuários
+            </Link>
+            <Link href="/pacientes" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+              Voltar
+            </Link>
+          </>
+        }
       />
 
-      <div className="mt-8 border-t border-gray-200 pt-4">
-        <DeletePatientForm id={p.id} />
-      </div>
+      <div className="stack" style={{ maxWidth: 720 }}>
+        <div className="cardblock">
+          <div className="cardblock-head">
+            <h4>Dados do paciente</h4>
+          </div>
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 p-5 text-sm">
+            <dt className="font-medium text-fg-muted">CPF</dt>
+            <dd className="font-mono">{p.cpf}</dd>
+            <dt className="font-medium text-fg-muted">Telefone</dt>
+            <dd className="font-mono">{p.telefone ?? '—'}</dd>
+            <dt className="font-medium text-fg-muted">E-mail</dt>
+            <dd className="font-mono">{p.email}</dd>
+          </dl>
+        </div>
 
-      <LgpdActions id={p.id} />
-    </main>
+        <div className="cardblock wrap-pad">
+          <h4 className="mb-4 text-sm font-semibold">Editar</h4>
+          <PatientForm
+            mode="edit"
+            action={updatePatientForm}
+            initial={{
+              id: p.id,
+              nome: p.nome,
+              telefone: p.telefone,
+              email: p.email,
+              dataNascimento: p.dataNascimento,
+              sexo: p.sexo,
+            }}
+          />
+        </div>
+
+        <div className="cardblock wrap-pad">
+          <DeletePatientForm id={p.id} />
+          <LgpdActions id={p.id} />
+        </div>
+      </div>
+    </div>
   );
 }

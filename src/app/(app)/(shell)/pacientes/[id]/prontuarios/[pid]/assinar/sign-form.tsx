@@ -2,6 +2,10 @@
 
 import { useActionState, useMemo, useState } from 'react';
 
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
 import { signProntuarioForm, type FormState } from '../../actions';
 
 const INITIAL: FormState = { error: null };
@@ -29,37 +33,34 @@ export function SignProntuarioForm({
           name="needsReturn"
           checked={needsReturn}
           onChange={(e) => setNeedsReturn(e.target.checked)}
+          className="size-4 accent-primary-600"
         />
         Paciente precisa retornar
       </label>
 
       {needsReturn ? (
-        <label className="text-sm">
-          Retornar em (dias):{' '}
-          <input
+        <label className="flex items-center gap-2 text-sm">
+          Retornar em (dias):
+          <Input
             type="number"
             name="returnDays"
             min={1}
             max={3650}
             defaultValue={90}
-            className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="w-24"
           />
         </label>
       ) : null}
 
-      <p className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+      <Alert variant="warning">
         Ao assinar, o prontuário torna-se <strong>imutável</strong>. Correções posteriores ficam
         registradas no histórico (com motivo).
-      </p>
+      </Alert>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
-        {pending ? 'Assinando…' : 'Assinar prontuário'}
-      </button>
-      {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+      <Button type="submit" className="self-start" loading={pending}>
+        Assinar prontuário
+      </Button>
+      {state.error ? <p className="text-sm text-danger-600">{state.error}</p> : null}
     </form>
   );
 }

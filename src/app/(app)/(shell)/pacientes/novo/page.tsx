@@ -5,6 +5,8 @@
 import Link from 'next/link';
 
 import { requireUser } from '@/lib/auth/tenant-context';
+import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 
 import { createPatientForm } from '../actions';
 import { PatientForm } from '../patient-form';
@@ -14,14 +16,25 @@ export const dynamic = 'force-dynamic';
 export default async function NovoPacientePage() {
   await requireUser();
   return (
-    <main className="mx-auto max-w-md p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Novo paciente</h1>
-        <Link href="/pacientes" className="text-sm underline">
-          Voltar
-        </Link>
+    <div className="screen">
+      <PageHeader
+        breadcrumb={
+          <>
+            <Link href="/pacientes">Pacientes</Link> <span className="sep">›</span> <b>Novo</b>
+          </>
+        }
+        title="Novo paciente"
+        description="Cadastre um novo paciente da clínica."
+        actions={
+          <Link href="/pacientes" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+            Voltar
+          </Link>
+        }
+      />
+
+      <div className="cardblock wrap-pad" style={{ maxWidth: 680 }}>
+        <PatientForm mode="create" action={createPatientForm} />
       </div>
-      <PatientForm mode="create" action={createPatientForm} />
-    </main>
+    </div>
   );
 }

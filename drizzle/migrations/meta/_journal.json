@@ -218,6 +218,20 @@
       "when": 1782096794583,
       "tag": "0030_chilly_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1782136750243,
+      "tag": "0031_wandering_forgotten_one",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1782223150243,
+      "tag": "0032_seal_clinic_invites",
+      "breakpoints": true
     }
   ]
 }

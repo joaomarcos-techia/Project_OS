@@ -66,6 +66,13 @@ const sharedOpts = {
   idle_timeout: 20, // seconds — drop idle sockets fast (lambda cold-restart safety)
   connect_timeout: 10, // seconds — fail fast on bad URL/network
   max_lifetime: 60 * 30, // 30 min — recycle long-lived sockets
+  // Fail-fast por STATEMENT (GUC por conexão). Sem isto, uma query que trava
+  // (lock, agregação patológica, Supabase saturado) segura o render até o undici
+  // matar a resposta em ~300s — o "loading infinito". 30s é folga enorme p/ OLTP;
+  // qualquer statement que passe disso é bug e deve estourar com erro claro, não
+  // pendurar a request. (Não cobre socket morto/Supabase inalcançável — isso é
+  // connect_timeout + max_lifetime + restart; ver runbook.)
+  connection: { statement_timeout: 30_000, lock_timeout: 15_000 },
 };
 
 // Singleton-safe pool storage on globalThis. ONLY active in non-production.

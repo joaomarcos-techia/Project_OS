@@ -29,9 +29,11 @@ export const config = {
   // Bearer CRON_SECRET) e WEBHOOKS (auto-autenticados pelo token/assinatura do
   // provider — Asaas/Meta). Essas rotas NÃO têm sessão Supabase; passar pelo
   // middleware de sessão as redirecionava para /login (307) e quebrava o webhook
-  // em prod. Também: fluxos auth não-autenticados + /account/security (pré-MFA).
+  // em prod. Também: fluxos auth não-autenticados + /account/security (pré-MFA) +
+  // /join (onboarding público via convite mágico — sem sessão até o owner ser criado;
+  // a "auth" é o token validado server-side + rate-limit).
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/health|api/cron|api/webhooks|login|forgot-password|reset-password|auth/callback|account/security).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/health|api/cron|api/webhooks|login|forgot-password|reset-password|auth/callback|account/security|join).*)',
   ],
 };
 
@@ -87,6 +89,10 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const accessToken = await getAccessTokenFromCookies(req, adapter);
 
   let profile: { claims_version: number; ativo: boolean; deleted_at: string | null } | null = null;
+  // `lookupOk` distingue "consultei e o profile não existe" de "não consegui
+  // consultar" (sem token remontável / 401 de token recém-expirado antes do
+  // refresh propagar ao cookie / 5xx). Só o PRIMEIRO justifica deslogar.
+  let lookupOk = false;
   if (accessToken) {
     try {
       const r = await fetch(
@@ -99,6 +105,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
         },
       );
       if (r.ok) {
+        lookupOk = true;
         const rows = (await r.json()) as Array<{
           claims_version: number;
           ativo: boolean;
@@ -106,15 +113,25 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
         }>;
         profile = rows[0] ?? null;
       }
+      // r não-ok (401 do access token recém-expirado, 5xx): lookupOk=false →
+      // segue lenient abaixo (NÃO desloga).
     } catch {
       // Network failure não deve bloquear navegação; throttle vai re-tentar em 60s.
       return res;
     }
   }
 
+  // D22: middleware é heal-layer, NÃO enforcement. Sem um lookup BEM-SUCEDIDO,
+  // não punimos o usuário (evita o "Profile não encontrado" + deslog periódico
+  // toda vez que o access token expira e o refresh ainda não propagou ao cookie).
+  // As Server Actions revalidam de verdade.
+  if (!lookupOk) {
+    return res;
+  }
+
   if (!profile) {
-    // Profile não encontrado (raro — usuário criado em auth.users mas sem profile
-    // ainda, ou RLS bloqueando). Tratamos como sem authorization.
+    // Lookup OK e vazio = profile realmente não existe (user em auth.users sem
+    // profile). Aí sim trata como sem authorization.
     return redirectToLogin(req, 'no_profile');
   }
 

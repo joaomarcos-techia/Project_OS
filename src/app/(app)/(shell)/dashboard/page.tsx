@@ -10,7 +10,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { formatBRL } from '@/lib/format';
 
-import { getDashboard } from './data';
+import { getActivationChecklist, getDashboard, type ActivationChecklistDTO } from './data';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +38,65 @@ function Stat({
       </div>
       <div className="st-v">{value}</div>
       {hint ? <div className="st-d">{hint}</div> : null}
+    </div>
+  );
+}
+
+/* ---- checklist de ativação (Fase 2) — some quando os passos estão concluídos ---- */
+function ActivationChecklist({ data }: { data: ActivationChecklistDTO }) {
+  if (data.complete) return null;
+  return (
+    <div
+      className="panel"
+      style={{
+        marginBottom: 'var(--sp-4)',
+        borderColor: 'color-mix(in oklch, var(--primary-500) 35%, var(--border))',
+        background: 'color-mix(in oklch, var(--primary-500) 4%, var(--surface))',
+      }}
+    >
+      <h4>
+        Primeiros passos
+        <span style={{ color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+          {data.done}/{data.total} concluídos
+        </span>
+      </h4>
+      <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '2px 0 var(--sp-3)' }}>
+        Falta pouco para sua clínica funcionar 100%.
+      </p>
+      <div className="mini-list">
+        {data.items.map((it) => (
+          <Link
+            key={it.key}
+            href={it.href}
+            className="mini-row"
+            style={{ opacity: it.done ? 0.55 : 1, alignItems: 'center', gap: 12 }}
+          >
+            <span
+              aria-hidden
+              style={{
+                width: 22,
+                height: 22,
+                flex: '0 0 22px',
+                borderRadius: 999,
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: 13,
+                fontWeight: 700,
+                background: it.done ? 'var(--success-500)' : 'transparent',
+                color: it.done ? '#fff' : 'var(--text-3)',
+                border: it.done ? 'none' : '1.5px solid var(--border-strong)',
+              }}
+            >
+              {it.done ? '✓' : ''}
+            </span>
+            <span className="mr-name" style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontWeight: 500, textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
+              <span className="td-sub" style={{ display: 'block' }}>{it.desc}</span>
+            </span>
+            {!it.done ? <span style={{ color: 'var(--text-3)', fontSize: 18 }}>›</span> : null}
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
@@ -161,6 +220,7 @@ export default async function DashboardPage() {
 
   const user = await requireUser();
   const clinicId = await requireClinicId();
+  const checklist = await getActivationChecklist(clinicId);
   const tz = await getClinicTimezone(clinicId);
   const { from, to } = clinicDayBounds(tz);
   const flow = await getCashFlowToday(clinicId, from, to);
@@ -221,6 +281,8 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <ActivationChecklist data={checklist} />
 
       {/* ---- stat tiles (dados reais) ---- */}
       <div className="stat-row five">

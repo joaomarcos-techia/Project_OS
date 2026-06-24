@@ -1,9 +1,12 @@
 import 'server-only';
 
+import { sql } from 'drizzle-orm';
+
 import { listPatientCards } from '@/contexts/patient/queries';
 import { getClinicTimezone, listAppointments } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 import { requireUser } from '@/lib/auth/tenant-context';
+import { withTenant } from '@/lib/db/tenant';
 
 /**
  * Dados do dashboard (Visão operacional). Apenas o que é REAL hoje: o pulso de
@@ -104,4 +107,42 @@ export async function getDashboard(): Promise<DashboardDTO> {
     finalizadas,
     proximos,
   };
+}
+
+/* =====================================================================
+   Checklist de ativação (Fase 2) — GAP 8. Derivada de PRESENÇA de dado
+   (sem tabela nova): médico cadastrado · horários definidos · 1º paciente.
+   Leitura tenant-scoped via withTenant (RLS); EXISTS é clinic-scoped pelas
+   policies. Some sozinha quando os 3 passos estão concluídos.
+   ===================================================================== */
+export interface ActivationItem {
+  key: string;
+  label: string;
+  desc: string;
+  href: string;
+  done: boolean;
+}
+export interface ActivationChecklistDTO {
+  items: ActivationItem[];
+  done: number;
+  total: number;
+  complete: boolean;
+}
+
+export async function getActivationChecklist(clinicId: string): Promise<ActivationChecklistDTO> {
+  const rows = (await withTenant(clinicId, (tx) =>
+    tx.execute(sql`SELECT
+        EXISTS(SELECT 1 FROM profiles WHERE role = 'doctor') AS has_doctor,
+        EXISTS(SELECT 1 FROM doctor_availability) AS has_hours,
+        EXISTS(SELECT 1 FROM patients) AS has_patient`),
+  )) as unknown as Array<{ has_doctor: boolean; has_hours: boolean; has_patient: boolean }>;
+  const r = rows[0] ?? { has_doctor: false, has_hours: false, has_patient: false };
+
+  const items: ActivationItem[] = [
+    { key: 'doctor', label: 'Cadastre um médico', desc: 'Adicione quem vai atender na clínica.', href: '/equipe', done: r.has_doctor },
+    { key: 'hours', label: 'Defina os horários de atendimento', desc: 'Configure a disponibilidade para a agenda funcionar.', href: '/equipe', done: r.has_hours },
+    { key: 'patient', label: 'Cadastre o primeiro paciente', desc: 'Comece sua base de pacientes.', href: '/pacientes/novo', done: r.has_patient },
+  ];
+  const done = items.filter((i) => i.done).length;
+  return { items, done, total: items.length, complete: done === items.length };
 }
