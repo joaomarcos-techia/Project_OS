@@ -14,6 +14,7 @@ const branding: PdfBranding = {
   logoUrl: null,
   primaryColor: '#0F766E',
   endereco: 'Rua A, 100',
+  telefone: '(11) 4000-0000',
   cnpj: '00.000.000/0001-00',
   cnes: '1234567',
 };

@@ -8,7 +8,7 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
-import { getPatientWithDecryptedFields } from '@/contexts/patient/queries';
+import { getPatientWithDecryptedFields, getPrincipalAddress } from '@/contexts/patient/queries';
 import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 
@@ -34,6 +34,7 @@ export default async function PacienteDetailPage({
   if (!parsedId.success) notFound();
   const p = await getPatientWithDecryptedFields(clinicId, parsedId.data);
   if (!p || p.deletedAt) notFound();
+  const endereco = await getPrincipalAddress(clinicId, parsedId.data);
 
   return (
     <div className="screen">
@@ -71,6 +72,18 @@ export default async function PacienteDetailPage({
             <dd className="font-mono">{p.telefone ?? '—'}</dd>
             <dt className="font-medium text-fg-muted">E-mail</dt>
             <dd className="font-mono">{p.email}</dd>
+            <dt className="font-medium text-fg-muted">Endereço</dt>
+            <dd>
+              {endereco
+                ? [
+                    [endereco.logradouro, endereco.complemento].filter(Boolean).join(', '),
+                    [endereco.cidade, endereco.estado].filter(Boolean).join('/'),
+                    endereco.cep ? `CEP ${endereco.cep}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' — ')
+                : '—'}
+            </dd>
           </dl>
         </div>
 
@@ -86,6 +99,7 @@ export default async function PacienteDetailPage({
               email: p.email,
               dataNascimento: p.dataNascimento,
               sexo: p.sexo,
+              endereco,
             }}
           />
         </div>

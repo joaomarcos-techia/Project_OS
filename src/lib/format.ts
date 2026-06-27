@@ -10,6 +10,20 @@ export function formatBRL(value: number): string {
   return BRL.format(Number.isFinite(value) ? value : 0);
 }
 
+/**
+ * Mascara um telefone preservando prefixo (país/DDD) + últimos 4 dígitos:
+ * `+5511999991234` → `+5511*****1234`. Usado em UI e em payload de auditoria
+ * (nunca expor o número completo no log). Entrada não-numérica → `****`.
+ */
+export function maskPhone(phone: string | null | undefined): string {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (digits.length < 4) return '****';
+  const last4 = digits.slice(-4);
+  const prefix = digits.slice(0, Math.min(4, Math.max(0, digits.length - 4)));
+  const stars = '*'.repeat(Math.max(1, digits.length - prefix.length - 4));
+  return `+${prefix}${stars}${last4}`;
+}
+
 const DATE_PT = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 /** Formata 'YYYY-MM-DD' ou ISO como dd/mm/aaaa (sem timezone shift para date puro). */

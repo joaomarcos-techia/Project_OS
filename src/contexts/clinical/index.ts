@@ -26,6 +26,7 @@ export type {
   Medicamento,
   MedicalDocumentContent,
   MedicalDocumentType,
+  PrescriptionKind,
   ProntuarioStatus,
   ProntuarioSummary,
   ProntuarioDetail,

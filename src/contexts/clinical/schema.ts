@@ -62,6 +62,11 @@ export const medicalDocumentType = pgEnum('medical_document_type', [
   'encaminhamento',
 ]);
 
+// Tipo de receita. 'simples' (default, comportamento C7) ou 'controle_especial'
+// (receituário branco de 2 vias — lista C1 / RDC 20/2011). Aditivo: linhas antigas
+// ficam 'simples'. NÃO é talão numerado (tarja preta) nem assinatura digital.
+export const prescriptionKind = pgEnum('prescription_kind', ['simples', 'controle_especial']);
+
 // --- prontuarios -----------------------------------------------------------
 
 export const prontuarios = pgTable(
@@ -157,6 +162,10 @@ export const prescriptions = pgTable(
     patientId: uuid('patient_id').notNull(), // FK patients RESTRICT (migration)
     doctorId: uuid('doctor_id').notNull(), // FK profiles RESTRICT (migration)
 
+    // Tipo de receita (default 'simples' = comportamento C7). 'controle_especial'
+    // dispara o template de 2 vias + snapshots de endereço/emitente abaixo.
+    kind: prescriptionKind('kind').notNull().default('simples'),
+
     medicamentos: jsonb('medicamentos')
       .notNull()
       .default(sql`'[]'::jsonb`)
@@ -171,6 +180,15 @@ export const prescriptions = pgTable(
     snapshotDoctorCrm: text('snapshot_doctor_crm').notNull(),
     snapshotDoctorCrmUf: text('snapshot_doctor_crm_uf'),
     snapshotDoctorEspecialidade: text('snapshot_doctor_especialidade'),
+
+    // R8/G1 — controle especial: a identificação LEGAL do emitente e o endereço
+    // do paciente são congelados na emissão (validade documental imutável). Só
+    // preenchidos quando kind='controle_especial'. Logo/cor (branding) seguem
+    // atuais no render — são cosméticos e NÃO fazem parte da validade documental.
+    snapshotPatientEndereco: text('snapshot_patient_endereco'),
+    snapshotEmitenteNome: text('snapshot_emitente_nome'),
+    snapshotEmitenteEndereco: text('snapshot_emitente_endereco'),
+    snapshotEmitenteTelefone: text('snapshot_emitente_telefone'),
 
     createdBy: uuid('created_by'),
     ...timestampsPattern(),

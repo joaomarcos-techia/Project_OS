@@ -122,6 +122,7 @@ export async function createPrescriptionForm(_prev: FormState, fd: FormData): Pr
   const parsed = CreatePrescriptionSchema.safeParse({
     patientId: str(fd, 'patientId'),
     prontuarioId: str(fd, 'prontuarioId') ?? null,
+    kind: str(fd, 'kind') ?? 'simples',
     medicamentos,
     observacoes: str(fd, 'observacoes'),
   });

@@ -241,6 +241,110 @@ export async function getProactiveContact(
 }
 
 /**
+ * Escolhe o endereço a usar no documento: `principal` primeiro; senão o mais
+ * recente (updatedAt desc). PURA (testável sem DB). Retorna null se vazio.
+ */
+export function pickPrincipalAddress<T extends { principal: boolean; updatedAt: Date | null }>(
+  rows: T[],
+): T | null {
+  if (rows.length === 0) return null;
+  return (
+    rows.find((a) => a.principal) ??
+    [...rows].sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0))[0]!
+  );
+}
+
+/**
+ * Formata o endereço (já decifrado) para o documento legal: PURA, testável.
+ * `logradouro, complemento — cidade/UF — CEP` (omite partes vazias). null se tudo vazio.
+ */
+export function formatDocumentAddress(addr: {
+  logradouro: string | null;
+  complemento: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cep: string | null;
+}): string | null {
+  const linha1 = [addr.logradouro?.trim() || null, addr.complemento?.trim() || null]
+    .filter(Boolean)
+    .join(', ');
+  const cidadeUf = [addr.cidade?.trim() || null, addr.estado?.trim() || null]
+    .filter(Boolean)
+    .join('/');
+  const cep = addr.cep?.trim();
+  const parts = [linha1 || null, cidadeUf || null, cep ? `CEP ${cep}` : null].filter(Boolean);
+  const formatted = parts.join(' — ').trim();
+  return formatted.length > 0 ? formatted : null;
+}
+
+/**
+ * Endereço formatado do paciente para documento legal (C7 — receituário de
+ * controle especial). Ponto central de decrypt (espelha collectExportBundle):
+ * escolhe o endereço `principal` (fallback: mais recente), decifra logradouro+cep
+ * SERVER-SIDE (chave per-tenant, ADR-012) e devolve UMA string já formatada para
+ * snapshot. NUNCA expõe ciphertext nem campos crus ao chamador. Retorna null
+ * quando o paciente não tem endereço cadastrado (o PDF imprime linha em branco —
+ * não bloqueia a emissão). RLS via withTenant garante o tenant.
+ */
+export async function getAddressForDocument(
+  clinicId: string,
+  patientId: string,
+): Promise<string | null> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(patientAddresses)
+      .where(eq(patientAddresses.patientId, patientId));
+    const chosen = pickPrincipalAddress(rows);
+    if (!chosen) return null;
+
+    const logradouro = await decryptForTenant(clinicId, chosen.logradouroEncrypted);
+    const cep = await decryptForTenant(clinicId, chosen.cepEncrypted);
+    return formatDocumentAddress({
+      logradouro,
+      complemento: chosen.complemento,
+      cidade: chosen.cidade,
+      estado: chosen.estado,
+      cep,
+    });
+  });
+}
+
+export interface PatientAddressFields {
+  logradouro: string;
+  complemento: string | null;
+  cidade: string;
+  estado: string;
+  cep: string;
+}
+
+/**
+ * Endereço principal DECIFRADO em campos estruturados — usado SÓ para pré-preencher
+ * o form de edição (mesma postura de decrypt server-side de cpf/telefone no detalhe).
+ * Diferente de getAddressForDocument (que devolve string formatada p/ snapshot).
+ */
+export async function getPrincipalAddress(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientAddressFields | null> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(patientAddresses)
+      .where(eq(patientAddresses.patientId, patientId));
+    const chosen = pickPrincipalAddress(rows);
+    if (!chosen) return null;
+    return {
+      logradouro: await decryptForTenant(clinicId, chosen.logradouroEncrypted),
+      complemento: chosen.complemento,
+      cidade: chosen.cidade,
+      estado: chosen.estado,
+      cep: await decryptForTenant(clinicId, chosen.cepEncrypted),
+    };
+  });
+}
+
+/**
  * THE decryption point for patient detail. Decrypts cpf + telefone only.
  * RLS (via withTenant) guarantees the row belongs to `clinicId`; the AES-GCM
  * key is derived from the same clinicId, so a cross-tenant attempt can neither

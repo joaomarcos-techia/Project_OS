@@ -61,6 +61,34 @@ describe('CreatePrescriptionSchema', () => {
       }).success,
     ).toBe(true);
   });
+
+  it('kind tem default "simples" quando ausente (backward-compat)', () => {
+    const parsed = CreatePrescriptionSchema.parse({
+      patientId: UUID,
+      medicamentos: [{ nome: 'Dipirona' }],
+    });
+    expect(parsed.kind).toBe('simples');
+  });
+
+  it('aceita kind="controle_especial"', () => {
+    const parsed = CreatePrescriptionSchema.safeParse({
+      patientId: UUID,
+      kind: 'controle_especial',
+      medicamentos: [{ nome: 'Clonazepam', dosagem: '2mg' }],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.kind).toBe('controle_especial');
+  });
+
+  it('rejeita kind inválido', () => {
+    expect(
+      CreatePrescriptionSchema.safeParse({
+        patientId: UUID,
+        kind: 'tarja_preta',
+        medicamentos: [{ nome: 'X' }],
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe('CreateMedicalDocumentSchema (discriminated union por tipo)', () => {

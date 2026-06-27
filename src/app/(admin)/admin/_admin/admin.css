@@ -230,7 +230,7 @@
 }
 
 /* ---------- Detalhe da clínica (perfil que o admin vê) ----------
-   Header de perfil (.phead/.ph-*/.avatar.xl/.ph-stats) vem do ds.css. */
+   Header de perfil (.phead, .ph-*, .avatar.xl, .ph-stats) vem do ds.css. */
 .back-link { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 500; padding: 4px 0; margin-bottom: var(--sp-3); cursor: pointer; transition: color var(--dur-fast); text-decoration: none; }
 .back-link:hover { color: var(--text); }
 .back-link svg { transform: rotate(180deg); }

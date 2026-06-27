@@ -46,6 +46,9 @@ export const clinics = pgTable(
     // C7 (white-label leve nos PDFs): cabeçalho de prescrições/documentos médicos.
     // Aditivo/nullable — clínica sem branding cai num default no render (não quebra).
     endereco: text('endereco'),
+    // Receituário de Controle Especial (R8): telefone do consultório integra a
+    // identificação legal do emitente. Aditivo/nullable — backward-compatible.
+    telefone: text('telefone'),
     logoUrl: text('logo_url'),
     primaryColor: text('primary_color'),
     status: clinicStatus('status').notNull().default('trial'),

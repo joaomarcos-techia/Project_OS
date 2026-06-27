@@ -19,6 +19,7 @@ import {
   renderEncaminhamentoPDF,
   renderExamePDF,
   renderPrescriptionPDF,
+  renderReceituarioControleEspecialPDF,
   type PdfBranding,
   type PdfDoctor,
 } from '@/lib/pdf';
@@ -70,16 +71,36 @@ export async function ensurePrescriptionPdf(
   });
   if (loaded.row.pdfStoragePath && !force) return; // idempotente: já gerado
 
-  const pdf = await renderPrescriptionPDF(
-    {
-      patientNome: loaded.row.snapshotPatientNome,
-      medicamentos: loaded.row.medicamentos ?? [],
-      observacoes: loaded.row.observacoes,
-      issuedAt: loaded.row.createdAt.toISOString(),
-    },
-    loaded.branding,
-    rowDoctor(loaded.row),
-  );
+  // Branch por kind. Controle especial usa template de 2 vias + identificação do
+  // emitente/endereço do paciente do SNAPSHOT (G1 — validade documental imutável).
+  // Demais campos do pipeline (path/bucket/upload/evento/idempotência) são idênticos.
+  const issuedAt = loaded.row.createdAt.toISOString();
+  const pdf =
+    loaded.row.kind === 'controle_especial'
+      ? await renderReceituarioControleEspecialPDF(
+          {
+            patientNome: loaded.row.snapshotPatientNome,
+            patientEndereco: loaded.row.snapshotPatientEndereco,
+            emitenteNome: loaded.row.snapshotEmitenteNome ?? loaded.branding.nome,
+            emitenteEndereco: loaded.row.snapshotEmitenteEndereco,
+            emitenteTelefone: loaded.row.snapshotEmitenteTelefone,
+            medicamentos: loaded.row.medicamentos ?? [],
+            observacoes: loaded.row.observacoes,
+            issuedAt,
+          },
+          loaded.branding,
+          rowDoctor(loaded.row),
+        )
+      : await renderPrescriptionPDF(
+          {
+            patientNome: loaded.row.snapshotPatientNome,
+            medicamentos: loaded.row.medicamentos ?? [],
+            observacoes: loaded.row.observacoes,
+            issuedAt,
+          },
+          loaded.branding,
+          rowDoctor(loaded.row),
+        );
   const path = `${clinicId}/prescriptions/${id}.pdf`;
   await uploadStorageFile(CLINICAL_PDF_BUCKET, path, pdf);
 
@@ -99,6 +120,7 @@ export async function ensurePrescriptionPdf(
           prontuarioId: loaded.row.prontuarioId ?? null,
           patientId: loaded.row.patientId,
           doctorId: loaded.row.doctorId,
+          kind: loaded.row.kind,
           createdAt: loaded.row.createdAt.toISOString(),
         },
         idempotencyKey: `prescription-created:${id}`,

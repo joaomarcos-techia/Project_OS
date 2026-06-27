@@ -232,6 +232,20 @@
       "when": 1782223150243,
       "tag": "0032_seal_clinic_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782272213408,
+      "tag": "0033_messaging_connection_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1782403612271,
+      "tag": "0034_melted_the_hunter",
+      "breakpoints": true
     }
   ]
 }

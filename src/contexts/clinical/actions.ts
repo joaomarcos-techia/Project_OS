@@ -17,6 +17,8 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+/* eslint-disable-next-line boundaries/element-types -- patientApiV1 é a API interna pública (M14) do Patient; seam de endereço decifrado server-side p/ snapshot legal (controle especial). */
+import { patientApiV1 } from '@/contexts/patient';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import {
   requireCachedPermission,
@@ -39,6 +41,7 @@ import { idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-h
 import { assertDoctorHasCrm, resolveDoctorSnapshot } from './internal/doctor';
 import { resolvePatientNome } from './internal/patient-ref';
 import { ensureMedicalDocumentPdf, ensurePrescriptionPdf } from './internal/pdf-pipeline';
+import { loadClinicEmitente } from './internal/whitelabel';
 import { getProntuarioOrThrow, toProntuarioDetail } from './queries';
 import { medicalDocuments, prescriptions, prontuarioVersions, prontuarios } from './schema';
 import {
@@ -357,6 +360,15 @@ export async function createPrescription(
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
 
+  const isControleEspecial = data.kind === 'controle_especial';
+  // Controle especial (R8/G1): endereço do paciente é decifrado SERVER-SIDE no seam
+  // de Patient (bounded context — nunca lemos a tabela direto) e snapshotado. Resolvido
+  // FORA da TX1 porque o seam abre o próprio withTenant (não aninha — Risco 2). null se
+  // o paciente não tem endereço (PDF imprime linha em branco; não bloqueia a emissão).
+  const patientEndereco = isControleEspecial
+    ? await patientApiV1.getAddressForDocument(clinicId, data.patientId)
+    : null;
+
   // TX1: insert + audit. Snapshots resolvidos dentro do tx (RLS aplica).
   const created = await idempotentMutation(
     {
@@ -377,6 +389,8 @@ export async function createPrescription(
       const doctor = await resolveDoctorSnapshot(tx, user.userId);
       assertDoctorHasCrm(doctor); // R6: documento exige CRM
       const patientNome = await resolvePatientNome(tx, data.patientId);
+      // R8/G1: identificação LEGAL do emitente congelada na emissão (controle especial).
+      const emitente = isControleEspecial ? await loadClinicEmitente(tx, clinicId) : null;
 
       const [row] = await tx
         .insert(prescriptions)
@@ -385,6 +399,7 @@ export async function createPrescription(
           prontuarioId: data.prontuarioId ?? null,
           patientId: data.patientId,
           doctorId: user.userId,
+          kind: data.kind,
           medicamentos: data.medicamentos,
           observacoes: data.observacoes ?? null,
           snapshotPatientNome: patientNome,
@@ -392,6 +407,10 @@ export async function createPrescription(
           snapshotDoctorCrm: doctor.crm,
           snapshotDoctorCrmUf: doctor.crmUf,
           snapshotDoctorEspecialidade: doctor.especialidade,
+          snapshotPatientEndereco: patientEndereco,
+          snapshotEmitenteNome: emitente?.nome ?? null,
+          snapshotEmitenteEndereco: emitente?.endereco ?? null,
+          snapshotEmitenteTelefone: emitente?.telefone ?? null,
           createdBy: user.userId,
         })
         .returning({ id: prescriptions.id });

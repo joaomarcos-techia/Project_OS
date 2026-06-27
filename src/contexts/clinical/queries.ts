@@ -69,6 +69,7 @@ export function toPrescriptionSummary(row: PrescriptionRow): PrescriptionSummary
     prontuarioId: row.prontuarioId ?? null,
     patientId: row.patientId,
     doctorId: row.doctorId,
+    kind: row.kind,
     medicamentos: row.medicamentos ?? [],
     observacoes: row.observacoes ?? null,
     pdfStoragePath: row.pdfStoragePath ?? null,

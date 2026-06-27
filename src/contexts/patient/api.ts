@@ -20,7 +20,7 @@ import {
   createLgpdRequestIntake,
   createPatientCore,
 } from './internal/patient-core';
-import { findPatientByPhone, getProactiveContact } from './queries';
+import { findPatientByPhone, getAddressForDocument, getProactiveContact } from './queries';
 import type { CreatePatientInput, PatientSummary, ProactiveContact } from './types';
 
 export interface PatientApiV1 {
@@ -31,6 +31,12 @@ export interface PatientApiV1 {
    * de proactive-jobs no send-time.
    */
   getProactiveContact(clinicId: string, patientId: string): Promise<ProactiveContact | null>;
+  /**
+   * C7 — endereço formatado (decifrado server-side) para snapshot em documento
+   * legal (receituário de controle especial). Único seam de decrypt de endereço
+   * fora do detalhe/export; nunca devolve ciphertext. null = sem endereço.
+   */
+  getAddressForDocument(clinicId: string, patientId: string): Promise<string | null>;
   cpfMatchesPatient(clinicId: string, patientId: string, cpf: string): Promise<boolean>;
   createPatientAsAgent(
     ctx: AgentActorCtx,
@@ -48,6 +54,7 @@ export interface PatientApiV1 {
 export const patientApiV1: PatientApiV1 = {
   findByPhone: (clinicId, phone) => findPatientByPhone(clinicId, phone),
   getProactiveContact: (clinicId, patientId) => getProactiveContact(clinicId, patientId),
+  getAddressForDocument: (clinicId, patientId) => getAddressForDocument(clinicId, patientId),
   cpfMatchesPatient: (clinicId, patientId, cpf) => cpfMatchesPatient(clinicId, patientId, cpf),
   createPatientAsAgent: (ctx, input, idempotencyKey) =>
     createPatientCore(agentMutationActor(ctx), agentRequestContext(ctx), input, idempotencyKey),

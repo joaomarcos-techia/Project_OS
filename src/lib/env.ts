@@ -144,6 +144,14 @@ const EnvSchema = z
       emptyToUndefined,
       z.coerce.number().int().min(1000).max(60_000).optional().default(10_000),
     ),
+    // F2 — Embedded Signup (conexão self-service do WhatsApp pelo owner).
+    // App id PÚBLICO do Meta (init do SDK no browser + troca de code server-side)
+    // e Configuration ID do Embedded Signup. NÃO são secrets (≠ META_APP_SECRET).
+    // Opcionais no parse (next build verde antes do setup); assertWhatsappOnboarding
+    // Ready() exige em runtime. Chegam ao browser via props do Server Component
+    // (sem NEXT_PUBLIC_ — um único ponto de leitura de env).
+    META_APP_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    META_CONFIG_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
 
     // --- C11: AI Agent (Gemini) ---
     // API key do Google AI Studio. Optional no parse (next build verde antes
@@ -321,6 +329,21 @@ export function assertMessagingRuntimeReady(): void {
   if (!env.META_WEBHOOK_VERIFY_TOKEN) {
     throw new Error(
       '[env] META_WEBHOOK_VERIFY_TOKEN is required at runtime for /api/webhooks/meta',
+    );
+  }
+}
+
+/**
+ * Runtime guard for F2 WhatsApp Embedded Signup (conexão self-service pelo owner).
+ * Falha cedo, SERVER-SIDE, quando falta config do Embedded Signup — nunca deixa
+ * o popup do Meta falhar silenciosamente no browser. Chamado pelas Server Actions
+ * de connect/disconnect e pela página /configuracoes/whatsapp, NÃO no import
+ * (next build verde antes do setup). META_APP_SECRET reusa o secret do webhook.
+ */
+export function assertWhatsappOnboardingReady(): void {
+  if (!env.META_APP_ID || !env.META_CONFIG_ID || !env.META_APP_SECRET) {
+    throw new Error(
+      '[env] META_APP_ID, META_CONFIG_ID e META_APP_SECRET são obrigatórios para a conexão self-service do WhatsApp (Embedded Signup)',
     );
   }
 }

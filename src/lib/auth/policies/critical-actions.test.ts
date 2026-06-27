@@ -18,6 +18,7 @@ import { CRITICAL_ACTIONS } from './critical-actions';
 const ACTION_FILES = [
   'src/contexts/patient/actions.ts',
   'src/contexts/clinical/actions.ts',
+  'src/contexts/messaging/actions.ts',
 ];
 
 function isTopLevelRequireFresh(stmt: ts.Statement): boolean {

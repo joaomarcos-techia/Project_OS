@@ -5,6 +5,7 @@ import { getEventSchema } from '@/lib/outbox/catalog';
 import {
   CLINICAL_EVENTS,
   DocumentGeneratedSchema,
+  PrescriptionCreatedSchema,
   ProntuarioCreatedSchema,
   ProntuarioSignedSchema,
 } from './events';
@@ -75,6 +76,33 @@ describe('ProntuarioCreatedSchema', () => {
         createdBy: UUID,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('PrescriptionCreatedSchema (kind aditivo — ADR-015)', () => {
+  const base = {
+    prescriptionId: UUID,
+    clinicId: UUID,
+    prontuarioId: null,
+    patientId: UUID,
+    doctorId: UUID,
+    createdAt: '2026-06-01T12:00:00Z',
+  };
+
+  it('payload SEM kind ainda valida e aplica default "simples" (backward-compat)', () => {
+    const r = PrescriptionCreatedSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.kind).toBe('simples');
+  });
+
+  it('aceita kind="controle_especial"', () => {
+    const r = PrescriptionCreatedSchema.safeParse({ ...base, kind: 'controle_especial' });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.kind).toBe('controle_especial');
+  });
+
+  it('rejeita kind inválido', () => {
+    expect(PrescriptionCreatedSchema.safeParse({ ...base, kind: 'azul' }).success).toBe(false);
   });
 });
 

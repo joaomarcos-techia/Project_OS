@@ -106,9 +106,16 @@ export const EditSignedProntuarioSchema = z.object({
 });
 export type EditSignedProntuarioInput = z.infer<typeof EditSignedProntuarioSchema>;
 
+/** Tipo de receita. 'simples' = comportamento C7; 'controle_especial' = receituário branco 2 vias. */
+export const PrescriptionKindSchema = z
+  .enum(['simples', 'controle_especial'])
+  .default('simples');
+export type PrescriptionKind = z.infer<typeof PrescriptionKindSchema>;
+
 export const CreatePrescriptionSchema = z.object({
   prontuarioId: uuid.nullable().optional(),
   patientId: uuid,
+  kind: PrescriptionKindSchema,
   medicamentos: z.array(MedicamentoSchema).min(1).max(50),
   observacoes: z.string().trim().max(2000).optional(),
 });
@@ -177,6 +184,7 @@ export interface PrescriptionSummary {
   prontuarioId: string | null;
   patientId: string;
   doctorId: string;
+  kind: PrescriptionKind;
   medicamentos: Medicamento[];
   observacoes: string | null;
   pdfStoragePath: string | null;

@@ -131,6 +131,7 @@ export function PrescriptionPanel({
   const [open, setOpen] = useState(false);
   const [meds, setMeds] = useState<MedRow[]>([emptyMed()]);
   const [observacoes, setObservacoes] = useState('');
+  const [kind, setKind] = useState<'simples' | 'controle_especial'>('simples');
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -155,6 +156,7 @@ export function PrescriptionPanel({
         {
           patientId,
           prontuarioId,
+          kind,
           medicamentos,
           ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
         },
@@ -173,6 +175,41 @@ export function PrescriptionPanel({
   return (
     <ToolCard icon={Pill} title="Emitir prescrição" open={open} onToggle={() => setOpen((v) => !v)}>
       {error ? <Alert variant="danger">{error}</Alert> : null}
+
+      <Field label="Tipo de receita">
+        <div className="inline-flex w-fit overflow-hidden rounded-md border border-border">
+          <button
+            type="button"
+            onClick={() => setKind('simples')}
+            aria-pressed={kind === 'simples'}
+            className={cn(
+              'px-3 py-1.5 text-sm',
+              kind === 'simples' ? 'bg-primary-600 text-white' : 'bg-transparent text-fg',
+            )}
+          >
+            Receita simples
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind('controle_especial')}
+            aria-pressed={kind === 'controle_especial'}
+            className={cn(
+              'px-3 py-1.5 text-sm',
+              kind === 'controle_especial' ? 'bg-primary-600 text-white' : 'bg-transparent text-fg',
+            )}
+          >
+            Controle especial
+          </button>
+        </div>
+      </Field>
+      {kind === 'controle_especial' ? (
+        <Alert variant="warning">
+          Para benzodiazepínicos e estimulantes (tarja preta) use seu talão oficial. Este
+          receituário cobre o controle especial branco de 2 vias (antibióticos, tramadol, codeína e
+          a maioria dos psiquiátricos C1). Válido somente com assinatura e carimbo físicos.
+        </Alert>
+      ) : null}
+
       {meds.map((m, i) => (
         <div key={i} className="flex flex-wrap items-end gap-2">
           <Field label={i === 0 ? 'Medicamento' : undefined} className="min-w-40 flex-1">

@@ -41,6 +41,27 @@ function str(fd: FormData, k: string): string | undefined {
   return s === '' ? undefined : s;
 }
 
+/**
+ * Monta o objeto de endereço a partir do form. Se TODOS os campos estiverem
+ * vazios, retorna undefined (sem endereço — não dispara validação). Se houver
+ * qualquer campo preenchido, devolve o objeto para o Zod validar os obrigatórios.
+ */
+function addressFrom(fd: FormData): Record<string, string> | undefined {
+  const logradouro = str(fd, 'endLogradouro');
+  const complemento = str(fd, 'endComplemento');
+  const cidade = str(fd, 'endCidade');
+  const estado = str(fd, 'endEstado');
+  const cep = str(fd, 'endCep');
+  if (!logradouro && !complemento && !cidade && !estado && !cep) return undefined;
+  const out: Record<string, string> = {};
+  if (logradouro) out.logradouro = logradouro;
+  if (complemento) out.complemento = complemento;
+  if (cidade) out.cidade = cidade;
+  if (estado) out.estado = estado;
+  if (cep) out.cep = cep;
+  return out;
+}
+
 export async function createPatientForm(
   _prev: PatientFormState,
   fd: FormData,
@@ -53,6 +74,7 @@ export async function createPatientForm(
     email: str(fd, 'email'),
     dataNascimento: str(fd, 'dataNascimento'),
     sexo: str(fd, 'sexo'),
+    endereco: addressFrom(fd),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
 
@@ -80,6 +102,7 @@ export async function updatePatientForm(
     email: str(fd, 'email'),
     dataNascimento: str(fd, 'dataNascimento'),
     sexo: str(fd, 'sexo'),
+    endereco: addressFrom(fd),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
 

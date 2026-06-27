@@ -12,6 +12,7 @@ export interface PdfBranding {
   logoUrl: string | null;
   primaryColor: string | null;
   endereco: string | null;
+  telefone: string | null;
   cnpj: string | null;
   cnes: string | null;
 }
@@ -34,6 +35,25 @@ export interface PdfMedicamento {
 
 export interface PrescriptionPdfData {
   patientNome: string;
+  medicamentos: PdfMedicamento[];
+  observacoes?: string | null;
+  /** ISO 8601 — formatado em dd/mm/aaaa no render. */
+  issuedAt: string;
+}
+
+/**
+ * Receituário de Controle Especial (branco, 2 vias). Diferente de
+ * PrescriptionPdfData: a identificação LEGAL do emitente vem de SNAPSHOT
+ * congelado na emissão (G1 — validade documental imutável), não do branding atual.
+ * Endereço do paciente também é snapshot (decifrado server-side no ato da emissão).
+ */
+export interface ReceituarioControleEspecialPdfData {
+  patientNome: string;
+  patientEndereco: string | null;
+  /** Snapshot do emitente no ato da emissão (R8). */
+  emitenteNome: string;
+  emitenteEndereco: string | null;
+  emitenteTelefone: string | null;
   medicamentos: PdfMedicamento[];
   observacoes?: string | null;
   /** ISO 8601 — formatado em dd/mm/aaaa no render. */

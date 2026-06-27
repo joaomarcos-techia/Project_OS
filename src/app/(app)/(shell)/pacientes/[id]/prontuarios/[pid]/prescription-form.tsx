@@ -28,6 +28,7 @@ export function PrescriptionForm({
   const [state, action, pending] = useActionState(createPrescriptionForm, INITIAL);
   const key = useMemo(() => crypto.randomUUID(), []);
   const [meds, setMeds] = useState<Med[]>([{ nome: '' }]);
+  const [kind, setKind] = useState<'simples' | 'controle_especial'>('simples');
 
   const cleaned = meds
     .map((m) => ({
@@ -49,6 +50,41 @@ export function PrescriptionForm({
       <input type="hidden" name="prontuarioId" value={prontuarioId} />
       <input type="hidden" name="idempotencyKey" value={key} />
       <input type="hidden" name="medicamentos" value={JSON.stringify(cleaned)} />
+      <input type="hidden" name="kind" value={kind} />
+
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-fg-muted">Tipo de receita</span>
+        <div className="inline-flex w-fit overflow-hidden rounded-md border border-border">
+          <button
+            type="button"
+            onClick={() => setKind('simples')}
+            aria-pressed={kind === 'simples'}
+            className={`px-3 py-1.5 text-sm ${
+              kind === 'simples' ? 'bg-primary-600 text-white' : 'bg-transparent text-fg'
+            }`}
+          >
+            Receita simples
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind('controle_especial')}
+            aria-pressed={kind === 'controle_especial'}
+            className={`px-3 py-1.5 text-sm ${
+              kind === 'controle_especial' ? 'bg-primary-600 text-white' : 'bg-transparent text-fg'
+            }`}
+          >
+            Controle especial
+          </button>
+        </div>
+      </div>
+
+      {kind === 'controle_especial' ? (
+        <p className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+          Para benzodiazepínicos e estimulantes (tarja preta) use seu talão oficial. Este
+          receituário cobre o controle especial branco de 2 vias (antibióticos, tramadol, codeína e
+          a maioria dos psiquiátricos C1). Válido somente com assinatura e carimbo físicos.
+        </p>
+      ) : null}
 
       {meds.map((m, i) => (
         <div key={i} className="grid grid-cols-2 gap-2 border-b border-border pb-3">

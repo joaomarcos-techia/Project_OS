@@ -51,12 +51,15 @@ export const ProntuarioSignedSchema = z.object({
 export type ProntuarioSignedPayload = z.infer<typeof ProntuarioSignedSchema>;
 
 // --- prescription.created --------------------------------------------------
+// `kind` é extensão ADITIVA do contrato v1 (ADR-015): `.default('simples')` mantém
+// payloads/consumidores antigos válidos. NÃO é PII (escalar não-sensível).
 export const PrescriptionCreatedSchema = z.object({
   prescriptionId: uuid,
   clinicId: uuid,
   prontuarioId: uuid.nullable(),
   patientId: uuid,
   doctorId: uuid,
+  kind: z.enum(['simples', 'controle_especial']).default('simples'),
   createdAt: z.string().datetime(),
 });
 export type PrescriptionCreatedPayload = z.infer<typeof PrescriptionCreatedSchema>;

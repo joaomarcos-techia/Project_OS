@@ -44,6 +44,7 @@ import { PATIENT_EVENTS } from './events';
 import { getPatientSummaryById, toPatientSummary } from './queries';
 import {
   lgpdRequests,
+  patientAddresses,
   patientConsents,
   patients,
   suppressionList,
@@ -179,6 +180,27 @@ export async function updatePatient(
     changed.push('telefone');
   }
 
+  // C7: endereço (upsert do principal). Cifra logradouro/cep FORA da TX.
+  let addrEnc:
+    | {
+        logradouroEncrypted: string;
+        cepEncrypted: string;
+        cidade: string;
+        estado: string;
+        complemento: string | null;
+      }
+    | null = null;
+  if (data.endereco !== undefined) {
+    addrEnc = {
+      logradouroEncrypted: await encryptForTenant(clinicId, data.endereco.logradouro),
+      cepEncrypted: await encryptForTenant(clinicId, data.endereco.cep),
+      cidade: data.endereco.cidade,
+      estado: data.endereco.estado,
+      complemento: data.endereco.complemento ?? null,
+    };
+    changed.push('endereco');
+  }
+
   if (changed.length === 0) return before;
 
   try {
@@ -194,19 +216,38 @@ export async function updatePatient(
         },
       },
       async (tx) => {
-        const [row] = await tx
-          .update(patients)
-          .set(set)
-          .where(and(eq(patients.id, id), isNull(patients.deletedAt)))
-          .returning();
-        if (!row) throw new PatientNotFoundError(id);
+        let summary = before;
+        // Colunas do paciente só são atualizadas se houver mudança nelas (set
+        // vazio = só o endereço mudou → não chamar update com SET vazio).
+        if (Object.keys(set).length > 0) {
+          const [row] = await tx
+            .update(patients)
+            .set(set)
+            .where(and(eq(patients.id, id), isNull(patients.deletedAt)))
+            .returning();
+          if (!row) throw new PatientNotFoundError(id);
+          summary = toPatientSummary(row);
+        }
+        // Upsert do endereço principal (atualiza o existente; senão insere).
+        if (addrEnc) {
+          const upd = await tx
+            .update(patientAddresses)
+            .set({ ...addrEnc, updatedAt: sql`now()` })
+            .where(and(eq(patientAddresses.patientId, id), eq(patientAddresses.principal, true)))
+            .returning({ id: patientAddresses.id });
+          if (upd.length === 0) {
+            await tx
+              .insert(patientAddresses)
+              .values({ patientId: id, clinicId, ...addrEnc, principal: true });
+          }
+        }
         await publishEvent(tx, {
           clinicId,
           eventType: PATIENT_EVENTS.UPDATED,
           payload: { patientId: id, clinicId, changed },
           idempotencyKey: `${idempotencyKey}:updated`,
         });
-        return toPatientSummary(row);
+        return summary;
       },
     );
   } catch (err) {

@@ -134,14 +134,21 @@ export async function getActivationChecklist(clinicId: string): Promise<Activati
     tx.execute(sql`SELECT
         EXISTS(SELECT 1 FROM profiles WHERE role = 'doctor') AS has_doctor,
         EXISTS(SELECT 1 FROM doctor_availability) AS has_hours,
-        EXISTS(SELECT 1 FROM patients) AS has_patient`),
-  )) as unknown as Array<{ has_doctor: boolean; has_hours: boolean; has_patient: boolean }>;
-  const r = rows[0] ?? { has_doctor: false, has_hours: false, has_patient: false };
+        EXISTS(SELECT 1 FROM patients) AS has_patient,
+        EXISTS(SELECT 1 FROM clinic_whatsapp_numbers WHERE active = true AND connection_status = 'connected') AS has_whatsapp`),
+  )) as unknown as Array<{
+    has_doctor: boolean;
+    has_hours: boolean;
+    has_patient: boolean;
+    has_whatsapp: boolean;
+  }>;
+  const r = rows[0] ?? { has_doctor: false, has_hours: false, has_patient: false, has_whatsapp: false };
 
   const items: ActivationItem[] = [
     { key: 'doctor', label: 'Cadastre um médico', desc: 'Adicione quem vai atender na clínica.', href: '/equipe', done: r.has_doctor },
     { key: 'hours', label: 'Defina os horários de atendimento', desc: 'Configure a disponibilidade para a agenda funcionar.', href: '/equipe', done: r.has_hours },
     { key: 'patient', label: 'Cadastre o primeiro paciente', desc: 'Comece sua base de pacientes.', href: '/pacientes/novo', done: r.has_patient },
+    { key: 'whatsapp', label: 'Conecte o WhatsApp', desc: 'Ative o atendimento por IA no WhatsApp da clínica.', href: '/configuracoes/whatsapp', done: r.has_whatsapp },
   ];
   const done = items.filter((i) => i.done).length;
   return { items, done, total: items.length, complete: done === items.length };

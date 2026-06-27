@@ -44,6 +44,20 @@ const TelefoneSchema = z
   .regex(/^[\d()\-\s+]+$/, 'Telefone deve conter apenas números');
 const EmailSchema = z.string().trim().toLowerCase().email().max(120);
 
+/**
+ * Endereço do paciente (C7 — exigido pelo Receituário de Controle Especial,
+ * Portaria 344/98). `logradouro` e `cep` são cifrados per-tenant no core; `cidade`,
+ * `estado` (UF) e `complemento` são plaintext. Opcional em ambos os fluxos.
+ */
+export const PatientAddressInputSchema = z.object({
+  logradouro: z.string().trim().min(1).max(300),
+  complemento: z.string().trim().max(120).optional(),
+  cidade: z.string().trim().min(1).max(120),
+  estado: z.string().trim().length(2).toUpperCase(), // UF
+  cep: z.string().trim().min(1).max(20),
+});
+export type PatientAddressInput = z.infer<typeof PatientAddressInputSchema>;
+
 export const CreatePatientSchema = z.object({
   nome: NomeSchema,
   cpf: CpfSchema,
@@ -54,6 +68,7 @@ export const CreatePatientSchema = z.object({
   email: EmailSchema.optional(),
   dataNascimento: z.string().date().optional(),
   sexo: SexoSchema.optional(),
+  endereco: PatientAddressInputSchema.optional(),
 });
 export type CreatePatientInput = z.infer<typeof CreatePatientSchema>;
 
@@ -64,6 +79,7 @@ export const UpdatePatientSchema = z.object({
   email: EmailSchema.optional(),
   dataNascimento: z.string().date().nullable().optional(),
   sexo: SexoSchema.nullable().optional(),
+  endereco: PatientAddressInputSchema.optional(),
 });
 export type UpdatePatientInput = z.infer<typeof UpdatePatientSchema>;
 

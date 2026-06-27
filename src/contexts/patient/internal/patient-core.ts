@@ -28,7 +28,7 @@ import { publishEvent } from '@/lib/outbox/publish';
 import { PatientConflictError, PatientNotFoundError, PatientValidationError } from '../errors';
 import { PATIENT_EVENTS } from '../events';
 import { getPatientSummaryById, toPatientSummary } from '../queries';
-import { lgpdRequests, patients } from '../schema';
+import { lgpdRequests, patientAddresses, patients } from '../schema';
 import { CreatePatientSchema, type CreatePatientInput, type PatientSummary } from '../types';
 import { idemKey, jsonSafe, PATIENT_IDEM_TTL } from './action-helpers';
 
@@ -63,6 +63,17 @@ export async function createPatientCore(
   // o core já tolera ausência para não precisar de novo refactor depois.
   const email = data.email ? normalizeEmail(data.email) : null;
 
+  // C7: endereço opcional (cifra logradouro/cep FORA da TX — compute puro).
+  const addr = data.endereco
+    ? {
+        logradouroEncrypted: await encryptForTenant(clinicId, data.endereco.logradouro),
+        cepEncrypted: await encryptForTenant(clinicId, data.endereco.cep),
+        cidade: data.endereco.cidade,
+        estado: data.endereco.estado,
+        complemento: data.endereco.complemento ?? null,
+      }
+    : null;
+
   try {
     return await idempotentMutation(
       {
@@ -96,6 +107,11 @@ export async function createPatientCore(
           })
           .returning();
         const summary = toPatientSummary(row!);
+        if (addr) {
+          await tx
+            .insert(patientAddresses)
+            .values({ patientId: row!.id, clinicId, ...addr, principal: true });
+        }
         await publishEvent(tx, {
           clinicId,
           eventType: PATIENT_EVENTS.CREATED,

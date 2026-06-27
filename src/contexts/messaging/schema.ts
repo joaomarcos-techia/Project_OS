@@ -41,6 +41,18 @@ import './events';
 // --- enums -----------------------------------------------------------------
 
 export const messagingProvider = pgEnum('messaging_provider', ['meta', 'zapi']);
+// Ciclo de vida da conexão do número (F2 onboarding self-service). Aditivo ao
+// contrato C10: `active` continua sendo a fonte de roteamento; este enum dá
+// observabilidade do estado da conexão sem tabela paralela. `expired` fica
+// reservado (só setável instrumentando o sender — congelado).
+export const whatsappConnectionStatus = pgEnum('whatsapp_connection_status', [
+  'pending',
+  'connecting',
+  'connected',
+  'failed',
+  'disconnected',
+  'expired',
+]);
 // `accepted` = ack síncrono do provider (NÃO delivered). `unknown` = falha de
 // rede indeterminada (NÃO marcar como failed — 3ª#5).
 export const outboundStatus = pgEnum('outbound_status', [
@@ -67,6 +79,9 @@ export const clinicWhatsappNumbers = pgTable(
     tokenVersion: integer('token_version').notNull().default(1),
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
     active: boolean('active').notNull().default(true),
+    // Aditivo (F2): estado de conexão. Default 'connected' preserva o INSERT do
+    // connect super_admin e os SELECTs de coluna explícita do number-store.
+    connectionStatus: whatsappConnectionStatus('connection_status').notNull().default('connected'),
     ...timestampsPattern(),
   },
   (t) => ({

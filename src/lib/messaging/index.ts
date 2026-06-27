@@ -30,6 +30,15 @@ export {
   type ActiveNumber,
 } from './number-store';
 
+// F2 — seam privilegiado de ESCRITA da conexão self-service (owner). Irmão do
+// number-store; consumido pelas Server Actions tenant em contexts/messaging.
+export {
+  upsertTenantConnection,
+  deactivateTenantConnection,
+  recordConnectionFailure,
+  type UpsertTenantConnectionInput,
+} from './connection-store';
+
 export {
   ProviderNotImplementedError,
   ProviderSendError,

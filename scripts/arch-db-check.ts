@@ -64,6 +64,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // cross-tenant. Faltava aqui porque o guard não rodava no CI (F-07) —
     // a entrada foi adicionada na remediação ao ativar o gate.
     'src/lib/messaging/number-store.ts',
+    // F2 — seam privilegiado de ESCRITA da conexão self-service (irmão do
+    // number-store): upsert/desativa o número + audita em audit_events via
+    // service_role. F-01 proíbe dbAdmin no contexto; a escrita do owner mora aqui.
+    'src/lib/messaging/connection-store.ts',
     'src/app/api/cron/patient-hard-delete/route.ts',
     'src/app/api/cron/audit-partitions/route.ts',
     // C9 — crons financeiros: scan cross-tenant (reconcile) + rollup do caixa.

@@ -30,6 +30,13 @@ interface Props {
     email?: string | null; // C12: paciente do agente pode não ter e-mail
     dataNascimento?: string | null;
     sexo?: 'M' | 'F' | 'O' | 'N' | null;
+    endereco?: {
+      logradouro: string;
+      complemento?: string | null;
+      cidade: string;
+      estado: string;
+      cep: string;
+    } | null;
   };
 }
 
@@ -112,6 +119,68 @@ export function PatientForm({ mode, action, initial }: Props) {
           </Select>
         </Field>
       </div>
+
+      <fieldset className="flex flex-col gap-4 rounded-md border border-border p-4">
+        <legend className="px-1 text-sm font-medium text-fg-muted">
+          Endereço{' '}
+          <span className="font-normal text-fg-subtle">
+            (necessário para receituário de controle especial)
+          </span>
+        </legend>
+
+        <Field label="Logradouro (rua, número)">
+          <Input
+            name="endLogradouro"
+            maxLength={300}
+            placeholder="Rua das Flores, 50"
+            defaultValue={initial?.endereco?.logradouro ?? ''}
+            disabled={pending}
+          />
+        </Field>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Complemento">
+            <Input
+              name="endComplemento"
+              maxLength={120}
+              placeholder="Apto 12 (opcional)"
+              defaultValue={initial?.endereco?.complemento ?? ''}
+              disabled={pending}
+            />
+          </Field>
+          <Field label="CEP">
+            <Input
+              name="endCep"
+              maxLength={20}
+              inputMode="numeric"
+              placeholder="01000-000"
+              defaultValue={initial?.endereco?.cep ?? ''}
+              disabled={pending}
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-[1fr_6rem]">
+          <Field label="Cidade">
+            <Input
+              name="endCidade"
+              maxLength={120}
+              placeholder="São Paulo"
+              defaultValue={initial?.endereco?.cidade ?? ''}
+              disabled={pending}
+            />
+          </Field>
+          <Field label="UF">
+            <Input
+              name="endEstado"
+              maxLength={2}
+              placeholder="SP"
+              defaultValue={initial?.endereco?.estado ?? ''}
+              disabled={pending}
+            />
+          </Field>
+        </div>
+      </fieldset>
 
       <div className="flex gap-2">
         <Button type="submit" loading={pending}>

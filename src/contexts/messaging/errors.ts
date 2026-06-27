@@ -19,6 +19,21 @@ export class NumberNotConnectedError extends Error {
   }
 }
 
+/**
+ * Falha no fluxo de Embedded Signup (troca de code, escopos, resolução de WABA,
+ * assinatura de webhook). `code` ESTÁVEL p/ a UI exibir sem vazar internals
+ * ("Não foi possível conectar / Código: META_AUTH_FAILED"). A mensagem NUNCA
+ * deve conter o access token nem corpos crus do Meta.
+ */
+export class MetaConnectError extends Error {
+  readonly code = 'META_AUTH_FAILED';
+  readonly httpStatus = 502;
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'MetaConnectError';
+  }
+}
+
 /** Destinatário está na suppression_list do Patient — envio bloqueado (opt-out). */
 export class SuppressedRecipientError extends Error {
   readonly code = 'suppressed_recipient';

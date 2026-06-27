@@ -15,12 +15,31 @@
 import { headers } from 'next/headers';
 
 import { and, eq, sql } from 'drizzle-orm';
+import { z } from 'zod';
 
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { superAdminAction } from '@/lib/audit/super-admin';
-import { encryptForTenant } from '@/lib/crypto';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
+import { assertWhatsappOnboardingReady } from '@/lib/env';
+import { maskPhone } from '@/lib/format';
+import {
+  deactivateTenantConnection,
+  loadActiveNumberForSend,
+  recordConnectionFailure,
+  upsertTenantConnection,
+} from '@/lib/messaging';
 
-import { NumberNotConnectedError } from './errors';
+import { MetaConnectError, NumberNotConnectedError } from './errors';
+import {
+  exchangeCodeForToken,
+  resolveWabaAndPhone,
+  subscribeAppToWaba,
+  unsubscribeAppFromWaba,
+  validateTokenScopes,
+  type WabaPhone,
+} from './internal/meta-onboarding';
 import { clinicWhatsappNumbers } from './schema';
 import { ConnectNumberSchema, type ConnectNumberInput } from './types';
 
@@ -132,4 +151,117 @@ export async function rotateWhatsappToken(
       return { tokenVersion: Number(row.tokenVersion) };
     },
   );
+}
+
+// ===========================================================================
+// F2 — Conexão self-service do WhatsApp pelo OWNER (Meta Embedded Signup).
+//
+// Diferente do connect super_admin acima: tenant-scoped. O `clinicId` vem SEMPRE
+// de requireClinicId() (nunca de input) ⇒ isolamento. A escrita privilegiada do
+// número + auditoria em audit_events delega ao seam lib `connection-store` (F-01
+// proíbe dbAdmin no contexto). O token NUNCA chega ao client.
+// ===========================================================================
+
+/** Input do connect self-service. NÃO há `clinicId` — vem de requireClinicId(). */
+const ConnectMyClinicSchema = z.object({
+  code: z.string().min(1),
+  /** Sugestões do evento WA_EMBEDDED_SIGNUP; só valem se o token as alcança. */
+  wabaHint: z.string().min(1).optional(),
+  phoneHint: z.string().min(1).optional(),
+});
+export type ConnectMyClinicInput = z.input<typeof ConnectMyClinicSchema>;
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    !!err &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code?: string }).code === '23505'
+  );
+}
+
+/**
+ * Conecta (ou reconecta) o WhatsApp da PRÓPRIA clínica do owner via Embedded
+ * Signup: troca code→token (server-side), valida escopos, resolve WABA+número,
+ * assina o webhook e persiste a credencial cifrada. Retorna só dados não-sensíveis.
+ */
+export async function connectMyClinicWhatsapp(
+  input: ConnectMyClinicInput,
+): Promise<{ id: string; phoneNumberMasked: string }> {
+  assertWhatsappOnboardingReady();
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS);
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+  const data = ConnectMyClinicSchema.parse(input);
+
+  // Fase Meta (sem DB). Falha ⇒ audita connection_failed + lança MetaConnectError;
+  // nenhuma escrita no número (Caso 3).
+  let meta: { token: string; waba: WabaPhone };
+  try {
+    const token = await exchangeCodeForToken(data.code);
+    await validateTokenScopes(token);
+    const waba = await resolveWabaAndPhone(token, {
+      wabaId: data.wabaHint,
+      phoneNumberId: data.phoneHint,
+    });
+    await subscribeAppToWaba(waba.wabaId, token);
+    meta = { token, waba };
+  } catch (err) {
+    await recordConnectionFailure({
+      clinicId,
+      userId: user.userId,
+      errorCode: err instanceof MetaConnectError ? err.code : 'UNKNOWN',
+      requestContext: ctx,
+    }).catch(() => {});
+    throw err instanceof MetaConnectError
+      ? err
+      : new MetaConnectError('[meta] falha no Embedded Signup', { cause: err });
+  }
+
+  // Cifra ANTES da tx (CPU puro). Persiste via seam privilegiado (service_role).
+  const tokenEncrypted = await encryptForTenant(clinicId, meta.token);
+  try {
+    const { id } = await upsertTenantConnection({
+      clinicId,
+      userId: user.userId,
+      provider: 'meta',
+      phoneNumber: meta.waba.phoneNumber,
+      metaPhoneId: meta.waba.phoneNumberId,
+      metaBusinessId: meta.waba.wabaId,
+      tokenEncrypted,
+      requestContext: ctx,
+    });
+    return { id, phoneNumberMasked: maskPhone(meta.waba.phoneNumber) };
+  } catch (err) {
+    // Unique parcial global: número já ativo em OUTRA clínica (anti-sequestro).
+    if (isUniqueViolation(err)) {
+      throw new MetaConnectError('[meta] este número já está conectado em outra clínica');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Desconecta o WhatsApp da própria clínica do owner. Tenta cancelar a assinatura
+ * do webhook na WABA (best-effort) e desativa o número (histórico preservado).
+ */
+export async function disconnectMyClinicWhatsapp(): Promise<{ disconnected: boolean }> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS);
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+
+  // Unsubscribe ANTES de desativar (precisa do token+waba ativos). Não bloqueia o
+  // disconnect se a Meta falhar / token expirado.
+  const active = await loadActiveNumberForSend(clinicId);
+  if (active?.metaBusinessId) {
+    try {
+      const token = await decryptForTenant(clinicId, active.tokenCiphertext);
+      await unsubscribeAppFromWaba(active.metaBusinessId, token);
+    } catch {
+      /* best-effort */
+    }
+  }
+  return deactivateTenantConnection({ clinicId, userId: user.userId, requestContext: ctx });
 }
