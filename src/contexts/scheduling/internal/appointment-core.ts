@@ -146,6 +146,31 @@ export async function applyTransition(tx: Tx, o: TransitionOpts): Promise<Appoin
   return toAppointmentSummary(updated!);
 }
 
+/**
+ * R1 (gap S1) — garante que o paciente pertence à clínica ANTES de vinculá-lo a
+ * um atendimento. `patient_id` é só FK para `patients(id)` e a checagem de FK do
+ * Postgres IGNORA RLS; sem isto, um `patientId` forjado de OUTRA clínica poderia
+ * ser vinculado passando direto pela criação. A query roda sob `withTenant`
+ * (idempotentMutation), então a RLS de `patients` já isola por tenant — o filtro
+ * `clinic_id` explícito é defesa em profundidade (espelha buildSnapshot). Vive no
+ * CORE para cobrir TODOS os chamadores (Server Action, walk-in e AI Agent), não
+ * só a UI da Agenda.
+ */
+export async function assertPatientInClinic(
+  tx: Tx,
+  clinicId: string,
+  patientId: string,
+): Promise<void> {
+  const rows = await tx.execute<{ ok: number }>(
+    sql`SELECT 1 AS ok FROM patients
+         WHERE id = ${patientId}
+           AND clinic_id = ${clinicId}
+           AND deleted_at IS NULL
+         LIMIT 1`,
+  );
+  if (!rows[0]) throw new SchedulingValidationError('paciente inválido para esta clínica');
+}
+
 interface Snapshot {
   nome: string;
   codigo: string;
@@ -255,6 +280,7 @@ export async function createAppointmentCore(
         actor,
       },
       async (tx) => {
+        if (data.patientId) await assertPatientInClinic(tx, clinicId, data.patientId);
         const snap = await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
         const valor = data.valorAjustado ? data.valor!.toFixed(2) : snap.valorPadrao;
 

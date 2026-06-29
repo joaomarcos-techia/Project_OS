@@ -146,7 +146,7 @@ export async function getActivationChecklist(clinicId: string): Promise<Activati
 
   const items: ActivationItem[] = [
     { key: 'doctor', label: 'Cadastre um médico', desc: 'Adicione quem vai atender na clínica.', href: '/equipe', done: r.has_doctor },
-    { key: 'hours', label: 'Defina os horários de atendimento', desc: 'Configure a disponibilidade para a agenda funcionar.', href: '/equipe', done: r.has_hours },
+    { key: 'hours', label: 'Defina os horários de atendimento', desc: 'Configure a disponibilidade para a agenda funcionar.', href: '/configuracoes/horarios', done: r.has_hours },
     { key: 'patient', label: 'Cadastre o primeiro paciente', desc: 'Comece sua base de pacientes.', href: '/pacientes/novo', done: r.has_patient },
     { key: 'whatsapp', label: 'Conecte o WhatsApp', desc: 'Ative o atendimento por IA no WhatsApp da clínica.', href: '/configuracoes/whatsapp', done: r.has_whatsapp },
   ];

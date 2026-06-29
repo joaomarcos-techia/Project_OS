@@ -26,6 +26,7 @@ import { appointments } from './schema';
 import { type AppointmentState } from './state-machine';
 import { asConflict, idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
 import {
+  assertPatientInClinic,
   buildSnapshot,
   createAppointmentCore,
   publishCreated,
@@ -112,6 +113,7 @@ export async function createWalkInAppointment(
         },
       },
       async (tx) => {
+        if (data.patientId) await assertPatientInClinic(tx, clinicId, data.patientId);
         const snap = await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
         const [row] = await tx
           .insert(appointments)

@@ -221,6 +221,119 @@ export async function listProcedures(
   });
 }
 
+// --- horários (disponibilidade + feriados) ---------------------------------
+
+export interface DoctorAvailabilityDTO {
+  id: string;
+  doctorId: string;
+  weekday: number; // 0=domingo .. 6=sábado
+  startTime: string; // HH:MM[:SS]
+  endTime: string;
+}
+
+/** Janelas recorrentes de disponibilidade (tela de Configurações › Horários). */
+export async function listDoctorAvailability(
+  clinicId: string,
+  doctorId?: string,
+): Promise<DoctorAvailabilityDTO[]> {
+  const conds: SQL[] = [eq(doctorAvailability.clinicId, clinicId)];
+  if (doctorId) conds.push(eq(doctorAvailability.doctorId, doctorId));
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        id: doctorAvailability.id,
+        doctorId: doctorAvailability.doctorId,
+        weekday: doctorAvailability.weekday,
+        startTime: doctorAvailability.startTime,
+        endTime: doctorAvailability.endTime,
+      })
+      .from(doctorAvailability)
+      .where(and(...conds))
+      .orderBy(asc(doctorAvailability.weekday), asc(doctorAvailability.startTime));
+    return rows.map((r) => ({
+      id: r.id,
+      doctorId: r.doctorId,
+      weekday: r.weekday,
+      startTime: r.startTime,
+      endTime: r.endTime,
+    }));
+  });
+}
+
+export interface HolidayDTO {
+  id: string;
+  date: string; // YYYY-MM-DD
+  reason: string | null;
+}
+
+/** Feriados/bloqueios de dia inteiro da clínica (tela de Horários). */
+export async function listHolidays(clinicId: string): Promise<HolidayDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({ id: clinicHolidays.id, date: clinicHolidays.date, reason: clinicHolidays.reason })
+      .from(clinicHolidays)
+      .where(eq(clinicHolidays.clinicId, clinicId))
+      .orderBy(asc(clinicHolidays.date));
+    return rows.map((r) => ({ id: r.id, date: r.date as string, reason: r.reason ?? null }));
+  });
+}
+
+// --- relatórios (agregados de período) -------------------------------------
+
+export interface AppointmentStats {
+  total: number;
+  atendido: number;
+  faltou: number;
+  cancelado: number;
+  agendado: number;
+  confirmado: number;
+  /** Soma da duração (min) dos atendimentos que ocupam instante — base da ocupação. */
+  busyMinutes: number;
+}
+
+/**
+ * Contagens por status num período [from, to) (Relatórios: no-show, volume) +
+ * minutos ocupados (para a ocupação, combinada com a capacidade livre do
+ * slot-resolver canônico na page). Uma query agregada (sum(case when)) —
+ * tenant-scoped, sem trazer linhas. doctorId opcional restringe ao profissional.
+ */
+export async function getAppointmentStats(
+  clinicId: string,
+  from: Date,
+  to: Date,
+  doctorId?: string,
+): Promise<AppointmentStats> {
+  const conds: SQL[] = [
+    eq(appointments.clinicId, clinicId),
+    gte(appointments.scheduledAt, from),
+    lt(appointments.scheduledAt, to),
+  ];
+  if (doctorId) conds.push(eq(appointments.doctorId, doctorId));
+  return withTenant(clinicId, async (tx) => {
+    const [r] = await tx
+      .select({
+        total: sql<number>`count(*)::int`,
+        atendido: sql<number>`coalesce(sum(case when ${appointments.status} = 'atendido' then 1 else 0 end), 0)::int`,
+        faltou: sql<number>`coalesce(sum(case when ${appointments.status} = 'faltou' then 1 else 0 end), 0)::int`,
+        cancelado: sql<number>`coalesce(sum(case when ${appointments.status} = 'cancelado' then 1 else 0 end), 0)::int`,
+        agendado: sql<number>`coalesce(sum(case when ${appointments.status} = 'agendado' then 1 else 0 end), 0)::int`,
+        confirmado: sql<number>`coalesce(sum(case when ${appointments.status} = 'confirmado' then 1 else 0 end), 0)::int`,
+        busyMinutes: sql<number>`coalesce(sum(case when ${appointments.slotOccupiesInstant} = true then ${appointments.durationMin} else 0 end), 0)::int`,
+      })
+      .from(appointments)
+      .where(and(...conds));
+    return {
+      total: r?.total ?? 0,
+      atendido: r?.atendido ?? 0,
+      faltou: r?.faltou ?? 0,
+      cancelado: r?.cancelado ?? 0,
+      agendado: r?.agendado ?? 0,
+      confirmado: r?.confirmado ?? 0,
+      busyMinutes: r?.busyMinutes ?? 0,
+    };
+  });
+}
+
 // --- slot resolver (tz-aware wrapper) --------------------------------------
 
 export interface GetAvailableSlotsOpts {

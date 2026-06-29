@@ -36,6 +36,37 @@ export class MedicalDocumentNotFoundError extends Error {
   }
 }
 
+// --- modelos de receita (Fase 2) -------------------------------------------
+
+export class PrescriptionTemplateNotFoundError extends Error {
+  readonly code = 'prescription_template_not_found';
+  readonly httpStatus = 404;
+  constructor(id: string) {
+    super(`modelo de receita não encontrado: ${id}`);
+    this.name = 'PrescriptionTemplateNotFoundError';
+  }
+}
+
+/** Nome de modelo já existe para este médico (unique clinic+doctor+lower(nome)). */
+export class PrescriptionTemplateConflictError extends Error {
+  readonly code = 'prescription_template_conflict';
+  readonly httpStatus = 409;
+  constructor(message = 'Já existe um modelo com esse nome.') {
+    super(message);
+    this.name = 'PrescriptionTemplateConflictError';
+  }
+}
+
+/** Limite de modelos por médico atingido (higiene anti-abuso). */
+export class PrescriptionTemplateLimitError extends Error {
+  readonly code = 'prescription_template_limit';
+  readonly httpStatus = 422;
+  constructor(max: number) {
+    super(`Limite de ${max} modelos de receita atingido. Exclua algum antes de criar outro.`);
+    this.name = 'PrescriptionTemplateLimitError';
+  }
+}
+
 /** Tentativa de alterar prontuário assinado fora de editSignedProntuario (Regra 3). */
 export class ProntuarioImutavelError extends Error {
   readonly code = 'prontuario_imutavel';

@@ -233,3 +233,38 @@ export const medicalDocuments = pgTable(
 
 export type MedicalDocumentRow = typeof medicalDocuments.$inferSelect;
 export type MedicalDocumentInsert = typeof medicalDocuments.$inferInsert;
+
+// --- prescription_templates (Fase 2 — modelos de receita) ------------------
+//
+// Gabaritos reutilizáveis de prescrição POR MÉDICO (não é documento legal: sem
+// snapshot, sem PDF, sem cifra — é conteúdo do usuário). RLS defaultTenantPolicy
+// + FORCE (migration). Isolamento por médico via `doctor_id` no WHERE das queries.
+// Aplicar um modelo é client-side (preenche o form) — NUNCA emite sozinho.
+//
+// Hand-append na migration: FK doctor_id→profiles CASCADE, RLS+grants+trigger
+// updated_at, e UNIQUE (clinic_id, doctor_id, lower(nome)) — anti-duplicata
+// case-insensitive (Drizzle não expressa lower() no índice).
+export const prescriptionTemplates = pgTable(
+  'prescription_templates',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    doctorId: uuid('doctor_id').notNull(), // FK profiles CASCADE (migration)
+    nome: text('nome').notNull(),
+    categoria: text('categoria'),
+    medicamentos: jsonb('medicamentos')
+      .notNull()
+      .default(sql`'[]'::jsonb`)
+      .$type<Medicamento[]>(),
+    observacoes: text('observacoes'),
+    kind: prescriptionKind('kind').notNull().default('simples'),
+    createdBy: uuid('created_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicDoctorIdx: index('prescription_templates_clinic_doctor_idx').on(t.clinicId, t.doctorId),
+  }),
+);
+
+export type PrescriptionTemplateRow = typeof prescriptionTemplates.$inferSelect;
+export type PrescriptionTemplateInsert = typeof prescriptionTemplates.$inferInsert;

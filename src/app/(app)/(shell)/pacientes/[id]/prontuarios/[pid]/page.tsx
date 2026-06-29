@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
-import { getProntuarioById } from '@/contexts/clinical/queries';
+import { getProntuarioById, listPrescriptionTemplates } from '@/contexts/clinical/queries';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -22,7 +22,7 @@ export default async function ProntuarioEditorPage({
 }: {
   params: Promise<{ id: string; pid: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const clinicId = await requireClinicId();
   const { id, pid } = await params;
   const patParsed = z.string().uuid().safeParse(id);
@@ -33,6 +33,8 @@ export default async function ProntuarioEditorPage({
   if (!prontuario || prontuario.patientId !== patParsed.data) notFound();
 
   const assinado = prontuario.status === 'assinado';
+  // Modelos de receita do médico logado (Fase 2) — paciente-agnósticos.
+  const templates = await listPrescriptionTemplates(clinicId, user.userId);
 
   return (
     <div className="screen">
@@ -72,7 +74,11 @@ export default async function ProntuarioEditorPage({
 
         <div className="cardblock wrap-pad">
           <h4 className="mb-4 text-sm font-semibold">Prescrição</h4>
-          <PrescriptionForm patientId={patParsed.data} prontuarioId={prontuario.id} />
+          <PrescriptionForm
+            patientId={patParsed.data}
+            prontuarioId={prontuario.id}
+            templates={templates}
+          />
         </div>
 
         <div className="cardblock wrap-pad">

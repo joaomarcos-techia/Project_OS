@@ -1,8 +1,14 @@
 'use client';
 
 import { ChevronDown, FileText, Pill, Plus, Trash2, type LucideIcon } from 'lucide-react';
-import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import { useEffect, useState, useTransition } from 'react';
 
+import {
+  createPrescriptionTemplate,
+  listMyPrescriptionTemplates,
+} from '@/contexts/clinical/actions-templates';
+import type { PrescriptionTemplateSummary } from '@/contexts/clinical';
 import type { CreateMedicalDocumentInput, MedicalDocumentType } from '@/contexts/clinical/types';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -118,8 +124,14 @@ export function SignPanel({
 
 // --- prescrição inline -----------------------------------------------------
 
-type MedRow = { nome: string; dosagem: string; posologia: string };
-const emptyMed = (): MedRow => ({ nome: '', dosagem: '', posologia: '' });
+type MedRow = { nome: string; dosagem: string; posologia: string; quantidade: string; via: string };
+const emptyMed = (): MedRow => ({ nome: '', dosagem: '', posologia: '', quantidade: '', via: '' });
+
+type Kind = 'simples' | 'controle_especial';
+const KIND_LABEL: Record<Kind, string> = {
+  simples: 'Receita simples',
+  controle_especial: 'Controle especial',
+};
 
 export function PrescriptionPanel({
   patientId,
@@ -131,12 +143,96 @@ export function PrescriptionPanel({
   const [open, setOpen] = useState(false);
   const [meds, setMeds] = useState<MedRow[]>([emptyMed()]);
   const [observacoes, setObservacoes] = useState('');
-  const [kind, setKind] = useState<'simples' | 'controle_especial'>('simples');
+  const [kind, setKind] = useState<Kind>('simples');
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
+  // Modelos do médico logado — carregados sob demanda (read action).
+  const [templates, setTemplates] = useState<PrescriptionTemplateSummary[]>([]);
+  useEffect(() => {
+    let alive = true;
+    listMyPrescriptionTemplates()
+      .then((t) => {
+        if (alive) setTemplates(t);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Modelos: aplicar (G5 confirma troca de tipo) + salvar.
+  const [pendingTemplate, setPendingTemplate] = useState<PrescriptionTemplateSummary | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveNome, setSaveNome] = useState('');
+  const [saveCategoria, setSaveCategoria] = useState('');
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [savingTpl, startTpl] = useTransition();
+
   const setMed = (i: number, patch: Partial<MedRow>) =>
     setMeds((m) => m.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+
+  function applyTemplate(t: PrescriptionTemplateSummary) {
+    setMeds(
+      t.medicamentos.length
+        ? t.medicamentos.map((m) => ({
+            nome: m.nome ?? '',
+            dosagem: m.dosagem ?? '',
+            posologia: m.posologia ?? '',
+            quantidade: m.quantidade ?? '',
+            via: m.via ?? '',
+          }))
+        : [emptyMed()],
+    );
+    setObservacoes(t.observacoes ?? '');
+    setKind(t.kind);
+    setPendingTemplate(null);
+  }
+
+  function onPickTemplate(id: string) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    if (t.kind !== kind) setPendingTemplate(t);
+    else applyTemplate(t);
+  }
+
+  const cleanedForSave = meds
+    .filter((m) => m.nome.trim())
+    .map((m) => ({
+      nome: m.nome.trim(),
+      ...(m.dosagem.trim() ? { dosagem: m.dosagem.trim() } : {}),
+      ...(m.posologia.trim() ? { posologia: m.posologia.trim() } : {}),
+      ...(m.quantidade.trim() ? { quantidade: m.quantidade.trim() } : {}),
+      ...(m.via.trim() ? { via: m.via.trim() } : {}),
+    }));
+
+  function onSaveTemplate() {
+    setSaveMsg(null);
+    const nome = saveNome.trim();
+    if (!nome) return setSaveMsg({ ok: false, text: 'Dê um nome ao modelo.' });
+    if (cleanedForSave.length === 0)
+      return setSaveMsg({ ok: false, text: 'Adicione ao menos um medicamento.' });
+    startTpl(async () => {
+      try {
+        await createPrescriptionTemplate(
+          {
+            nome,
+            categoria: saveCategoria.trim() || undefined,
+            kind,
+            medicamentos: cleanedForSave,
+            observacoes: observacoes.trim() || undefined,
+          },
+          crypto.randomUUID(),
+        );
+        setSaveMsg({ ok: true, text: `Modelo "${nome}" salvo.` });
+        setSaveOpen(false);
+        setSaveNome('');
+        setSaveCategoria('');
+      } catch (err) {
+        setSaveMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro ao salvar modelo.' });
+      }
+    });
+  }
 
   const submit = () => {
     setError(null);
@@ -146,6 +242,8 @@ export function PrescriptionPanel({
         nome: m.nome.trim(),
         ...(m.dosagem.trim() ? { dosagem: m.dosagem.trim() } : {}),
         ...(m.posologia.trim() ? { posologia: m.posologia.trim() } : {}),
+        ...(m.quantidade.trim() ? { quantidade: m.quantidade.trim() } : {}),
+        ...(m.via.trim() ? { via: m.via.trim() } : {}),
       }));
     if (medicamentos.length === 0) {
       setError('Adicione ao menos um medicamento.');
@@ -175,6 +273,77 @@ export function PrescriptionPanel({
   return (
     <ToolCard icon={Pill} title="Emitir prescrição" open={open} onToggle={() => setOpen((v) => !v)}>
       {error ? <Alert variant="danger">{error}</Alert> : null}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          aria-label="Aplicar modelo"
+          value=""
+          onChange={(e) => {
+            onPickTemplate(e.target.value);
+            e.currentTarget.value = '';
+          }}
+          disabled={templates.length === 0}
+          className="max-w-56"
+        >
+          <option value="">
+            {templates.length === 0 ? 'Nenhum modelo salvo' : 'Aplicar modelo…'}
+          </option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.nome}
+              {t.categoria ? ` · ${t.categoria}` : ''} ({KIND_LABEL[t.kind]})
+            </option>
+          ))}
+        </Select>
+        <button
+          type="button"
+          onClick={() => setSaveOpen((v) => !v)}
+          className="text-sm font-medium text-primary-600 underline"
+        >
+          Salvar como modelo
+        </button>
+        <Link href="/modelos-receita" className="text-sm text-fg-muted underline">
+          Gerenciar
+        </Link>
+      </div>
+
+      {pendingTemplate ? (
+        <Alert variant="warning">
+          O modelo <b>{pendingTemplate.nome}</b> é <b>{KIND_LABEL[pendingTemplate.kind]}</b> e vai
+          mudar o tipo da receita (atual: {KIND_LABEL[kind]}).
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" onClick={() => applyTemplate(pendingTemplate)}>
+              Aplicar mesmo assim
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setPendingTemplate(null)}>
+              Cancelar
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
+
+      {saveOpen ? (
+        <div className="flex flex-col gap-2 rounded border border-border p-2">
+          <Input value={saveNome} onChange={(e) => setSaveNome(e.target.value)} placeholder="Nome do modelo" maxLength={120} />
+          <Input
+            value={saveCategoria}
+            onChange={(e) => setSaveCategoria(e.target.value)}
+            placeholder="Categoria (opcional)"
+            maxLength={60}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" loading={savingTpl} onClick={onSaveTemplate}>
+              Salvar modelo
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSaveOpen(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {saveMsg ? (
+        <Alert variant={saveMsg.ok ? 'success' : 'danger'}>{saveMsg.text}</Alert>
+      ) : null}
 
       <Field label="Tipo de receita">
         <div className="inline-flex w-fit overflow-hidden rounded-md border border-border">
@@ -231,6 +400,20 @@ export function PrescriptionPanel({
               value={m.posologia}
               onChange={(e) => setMed(i, { posologia: e.target.value })}
               placeholder="8/8h por 7 dias"
+            />
+          </Field>
+          <Field label={i === 0 ? 'Quantidade' : undefined} className="w-28">
+            <Input
+              value={m.quantidade}
+              onChange={(e) => setMed(i, { quantidade: e.target.value })}
+              placeholder="30"
+            />
+          </Field>
+          <Field label={i === 0 ? 'Via' : undefined} className="w-24">
+            <Input
+              value={m.via}
+              onChange={(e) => setMed(i, { via: e.target.value })}
+              placeholder="oral"
             />
           </Field>
           {meds.length > 1 ? (

@@ -121,6 +121,21 @@ export const CreatePrescriptionSchema = z.object({
 });
 export type CreatePrescriptionInput = z.infer<typeof CreatePrescriptionSchema>;
 
+// --- modelos de receita (Fase 2) -------------------------------------------
+// Gabarito reutilizável POR MÉDICO. Reusa MedicamentoSchema + PrescriptionKindSchema.
+// Aplicar é client-side; NUNCA emite. Sem PII de paciente (paciente-agnóstico).
+export const PrescriptionTemplateSchema = z.object({
+  nome: z.string().trim().min(1).max(120),
+  categoria: z.string().trim().max(60).optional(),
+  kind: PrescriptionKindSchema,
+  medicamentos: z.array(MedicamentoSchema).min(1).max(50),
+  observacoes: z.string().trim().max(2000).optional(),
+});
+export type PrescriptionTemplateInput = z.infer<typeof PrescriptionTemplateSchema>;
+/** Update usa o mesmo shape (substituição total do conteúdo do modelo). */
+export const UpdatePrescriptionTemplateSchema = PrescriptionTemplateSchema;
+export type UpdatePrescriptionTemplateInput = z.infer<typeof UpdatePrescriptionTemplateSchema>;
+
 export const CreateMedicalDocumentSchema = z.discriminatedUnion('type', [
   z.object({ patientId: uuid, type: z.literal('atestado'), content: AtestadoContentSchema }),
   z.object({ patientId: uuid, type: z.literal('exame'), content: ExameContentSchema }),
@@ -194,6 +209,19 @@ export interface PrescriptionSummary {
   snapshotDoctorCrmUf: string | null;
   snapshotDoctorEspecialidade: string | null;
   createdAt: string;
+}
+
+export interface PrescriptionTemplateSummary {
+  id: string;
+  clinicId: string;
+  doctorId: string;
+  nome: string;
+  categoria: string | null;
+  kind: PrescriptionKind;
+  medicamentos: Medicamento[];
+  observacoes: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MedicalDocumentSummary {

@@ -192,6 +192,10 @@ const config = [
       // justificativa dos read-models acima — também na allowlist do arch:db-check.
       'src/contexts/onboarding/internal/invites.ts',
       'src/contexts/onboarding/internal/saga.ts',
+      // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
+      // (0001/S5) → a escrita do tenant roteia por dbAdmin+audit aqui, com
+      // colunas fixas e WHERE id=clinicId (do request). Irmão do connection-store.
+      'src/contexts/tenancy/internal/profile-core.ts',
     ],
     rules: {
       'no-restricted-imports': [

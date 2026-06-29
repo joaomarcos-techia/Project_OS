@@ -9,8 +9,10 @@ export {
   prontuarioVersions,
   prescriptions,
   medicalDocuments,
+  prescriptionTemplates,
   prontuarioStatus,
   medicalDocumentType,
+  prescriptionKind,
 } from './schema';
 
 export { CLINICAL_EVENTS } from './events';
@@ -31,6 +33,7 @@ export type {
   ProntuarioSummary,
   ProntuarioDetail,
   PrescriptionSummary,
+  PrescriptionTemplateSummary,
   MedicalDocumentSummary,
   ClinicalTemplate,
 } from './types';

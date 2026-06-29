@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CreateMedicalDocumentSchema,
   CreatePrescriptionSchema,
+  PrescriptionTemplateSchema,
   ProntuarioContentSchema,
   SignProntuarioSchema,
 } from './types';
@@ -87,6 +88,41 @@ describe('CreatePrescriptionSchema', () => {
         kind: 'tarja_preta',
         medicamentos: [{ nome: 'X' }],
       }).success,
+    ).toBe(false);
+  });
+});
+
+describe('PrescriptionTemplateSchema (modelos de receita — Fase 2)', () => {
+  const okMed = { nome: 'Sertralina', dosagem: '50mg' };
+
+  it('aceita modelo válido com kind default simples', () => {
+    const r = PrescriptionTemplateSchema.safeParse({ nome: 'Sertralina início', medicamentos: [okMed] });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.kind).toBe('simples');
+  });
+
+  it('exige nome', () => {
+    expect(PrescriptionTemplateSchema.safeParse({ nome: '', medicamentos: [okMed] }).success).toBe(false);
+  });
+
+  it('exige ao menos um medicamento', () => {
+    expect(PrescriptionTemplateSchema.safeParse({ nome: 'X', medicamentos: [] }).success).toBe(false);
+  });
+
+  it('categoria é opcional e aceita controle_especial', () => {
+    const r = PrescriptionTemplateSchema.safeParse({
+      nome: 'Clonazepam padrão',
+      categoria: 'Psiquiatria',
+      kind: 'controle_especial',
+      medicamentos: [{ nome: 'Clonazepam', dosagem: '2mg', quantidade: '30' }],
+    });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.categoria).toBe('Psiquiatria');
+  });
+
+  it('rejeita nome acima de 120 chars', () => {
+    expect(
+      PrescriptionTemplateSchema.safeParse({ nome: 'a'.repeat(121), medicamentos: [okMed] }).success,
     ).toBe(false);
   });
 });

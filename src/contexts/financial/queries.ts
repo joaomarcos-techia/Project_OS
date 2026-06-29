@@ -239,6 +239,36 @@ export async function getCashFlowToday(
   });
 }
 
+/**
+ * Faturamento de um PERÍODO (Relatórios): soma o que ficou `pago` com paid_at na
+ * janela [from, to). Mesma semântica do getCashFlowToday (não depende do rollup
+ * cash_flow_daily estar populado). Estornos (status='estornado') ficam de fora.
+ */
+export async function getFaturamentoPeriodo(
+  clinicId: string,
+  from: Date,
+  to: Date,
+): Promise<{ recebido: number; pago: number; saldo: number }> {
+  return withTenant(clinicId, async (tx) => {
+    const [r] = await tx
+      .select({
+        recebido: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'receber' then ${lancamentos.valorPago} else 0 end), 0)`,
+        pago: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'pagar' then ${lancamentos.valorPago} else 0 end), 0)`,
+      })
+      .from(lancamentos)
+      .where(
+        and(
+          eq(lancamentos.status, 'pago'),
+          gte(lancamentos.paidAt, from),
+          lt(lancamentos.paidAt, to),
+        ),
+      );
+    const recebido = num(r?.recebido);
+    const pago = num(r?.pago);
+    return { recebido, pago, saldo: Math.round((recebido - pago) * 100) / 100 };
+  });
+}
+
 /** Histórico consolidado (cash_flow_daily) — Fase 2 dashboard. */
 export async function listCashFlowDaily(
   clinicId: string,
