@@ -47,3 +47,6 @@ Thumbs.db
 
 # Cache
 *.tsbuildinfo
+
+# Sentry Config File
+.env.sentry-build-plugin

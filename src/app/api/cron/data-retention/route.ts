@@ -95,13 +95,34 @@ export async function GET(req: Request): Promise<Response> {
       return rows.length;
     });
 
+    // C16: idempotency_keys EXPIRADAS (expires_at < now). O healthcheck conta
+    // `expired`/`in_flight_orphans_1h` mas nada apagava — a tabela crescia sem
+    // teto. TTL já passou (default 24h, min 60s) → seguro deletar mesmo orphans.
+    const idempotencyPurged = await purgeBatched(async () => {
+      const rows = (await dbAdmin.execute(
+        sql`WITH del AS (
+              SELECT key FROM idempotency_keys
+               WHERE expires_at < now()
+               LIMIT ${BATCH}
+            )
+            DELETE FROM idempotency_keys k USING del WHERE k.key = del.key
+            RETURNING k.key`,
+      )) as unknown as Array<{ key: string }>;
+      return rows.length;
+    });
+
     metrics.emit('retention.run', {
       outboxPurged,
       loginAttemptsPurged,
+      idempotencyPurged,
     });
-    await recordHeartbeat('data-retention', 'success', { outboxPurged, loginAttemptsPurged });
+    await recordHeartbeat('data-retention', 'success', {
+      outboxPurged,
+      loginAttemptsPurged,
+      idempotencyPurged,
+    });
     return Response.json(
-      { ok: true, outboxPurged, loginAttemptsPurged },
+      { ok: true, outboxPurged, loginAttemptsPurged, idempotencyPurged },
       { status: 200 },
     );
   } catch (err) {

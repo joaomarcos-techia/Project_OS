@@ -38,6 +38,9 @@
 | [025](025-billing-architecture.md) | Arquitetura de Billing (Asaas é adapter, não o centro; Billing context é dono do modelo) | accepted | C13 |
 | [026](026-proactive-jobs.md) | Proactive Jobs (proativo determinístico via cron + reativo via IA; lembrete/dunning/followup) | accepted | C14 |
 | [027](027-onboarding-magic-invite.md) | Onboarding via convite mágico (admin → /join wizard → checkout Asaas → saga trial + owner auto-login; reusa webhook C13) | accepted | F1 |
+| [028](028-white-label-scope-pdf-only.md) | White-label restrito aos PDFs (logo + cor no cabeçalho); sem tema de app (refina ADR-018 §5) | accepted | Fundação Visual |
+| [029](029-observability-stack.md) | Observability stack (Sentry + logger in-house + Better Stack + error envelope + health unificado) | accepted | C16 |
+| [030](030-security-headers-csp.md) | Security headers + CSP faseada (Report-Only primeiro, bloqueante com nonce depois) | accepted | C16 |
 
 ## Como propor um novo ADR
 

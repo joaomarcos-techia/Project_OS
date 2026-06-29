@@ -246,6 +246,20 @@
       "when": 1782403612271,
       "tag": "0034_melted_the_hunter",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1782593498411,
+      "tag": "0035_soft_daimon_hellstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1782702410125,
+      "tag": "0036_system_metrics_daily",
+      "breakpoints": true
     }
   ]
 }

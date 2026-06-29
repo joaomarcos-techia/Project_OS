@@ -32,13 +32,23 @@ export const config = {
   // em prod. Também: fluxos auth não-autenticados + /account/security (pré-MFA) +
   // /join (onboarding público via convite mágico — sem sessão até o owner ser criado;
   // a "auth" é o token validado server-side + rate-limit).
+  // `monitoring` é o tunnelRoute do Sentry (next.config withSentryConfig). Sem a
+  // exclusão, o middleware de sessão intercepta o túnel e redireciona p/ /login,
+  // quebrando o report de erros do client (aviso explícito da doc do Sentry).
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/health|api/cron|api/webhooks|login|forgot-password|reset-password|auth/callback|account/security|join).*)',
+    '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks|login|forgot-password|reset-password|auth/callback|account/security|join).*)',
   ],
 };
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
-  const res = NextResponse.next({ request: req });
+  // C16 (1.1): carimba x-request-id na request encaminhada E na resposta, para que
+  // logger/Sentry/audit (buildRequestContext) correlacionem pelo mesmo handle.
+  // `crypto` global existe no Edge runtime — não importar node:crypto aqui.
+  const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-request-id', requestId);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set('x-request-id', requestId);
 
   // Anti-loop: durante ciclo de healing (signOut + redirect), cookie _healed
   // bloqueia o middleware por 60s para evitar redirect loop. O cookie é

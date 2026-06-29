@@ -56,5 +56,7 @@ export * from './infra/impersonation';
 export * from './infra/platform-settings';
 export * from './infra/cron-heartbeats';
 export * from './infra/platform-announcements';
+// C16 — observabilidade: agregados diários por clínica (system_metrics_daily).
+export * from './infra/system-metrics';
 // Onboarding — clinic_invites (convite mágico; global protected, entidade pré-clínica).
 export * from '@/contexts/onboarding/schema';

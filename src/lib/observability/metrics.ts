@@ -1,16 +1,15 @@
-import { redactStringValue } from '@/lib/sanitize/patterns';
-import { sanitizePayload } from '@/lib/sanitize/redact';
+import { sanitizeFields } from './sanitize-fields';
 
 /**
  * Structured metrics emission. MVP target is "JSON line on stdout" — Vercel
- * captures it, log forwarders (Datadog/Honeycomb) ingest, ad-hoc filtering
- * works via grep. Replaced with a real metrics SDK in C16 without changing
- * the call sites.
+ * captures it, log forwarders (Better Stack/Datadog) ingest, ad-hoc filtering
+ * works via grep. A real metrics SDK can layer on in C16 without changing the
+ * call sites.
  *
- * Every field is run through sanitizePayload before serialization. This is
- * the SECOND line of PII defense (after the caller's own discipline): if a
- * Bearer token sneaks into a metric field, it's redacted before reaching
- * any external log pipeline.
+ * Every field is run through `sanitizeFields` (shared with the structured
+ * logger) before serialization. This is the SECOND line of PII defense (after
+ * the caller's own discipline): if a Bearer token sneaks into a metric field,
+ * it's redacted before reaching any external log pipeline.
  *
  * Keep emit() synchronous and allocation-cheap — it's called from hot loops
  * (worker tick, every audit insert).
@@ -28,18 +27,3 @@ export const metrics = {
     process.stdout.write(line + '\n');
   },
 };
-
-function sanitizeFields(fields: Metric): Metric {
-  const out: Metric = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if (v instanceof Error) {
-      out[k] = {
-        name: v.name,
-        message: redactStringValue(v.message || String(v)),
-      };
-    } else {
-      out[k] = sanitizePayload(v);
-    }
-  }
-  return out;
-}

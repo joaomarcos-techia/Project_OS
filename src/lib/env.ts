@@ -226,6 +226,19 @@ const EnvSchema = z
     // runtime exigido por assertOnboardingRuntimeReady(). Rotação invalida convites
     // em aberto (aceitável — expiram em 24h).
     MAGIC_TOKEN_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
+
+    // --- C16: observabilidade / Sentry ---
+    // DSN do projeto Sentry. NÃO é secret (é publishable) → NEXT_PUBLIC_ para o
+    // client SDK inlinar no bundle; server/edge leem o mesmo valor. Lido via
+    // process.env nos arquivos sentry.*.config.ts (rodam em edge/client e não
+    // podem importar este módulo). Ausente → usa o DSN baked-in do wizard.
+    NEXT_PUBLIC_SENTRY_DSN: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    // Token de upload de source maps (build-time, server-only, SECRET). Vive em
+    // .env.sentry-build-plugin (gitignored). Ausente → build sem upload de maps.
+    SENTRY_AUTH_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Org/projeto Sentry para o upload de source maps (build-time).
+    SENTRY_ORG: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    SENTRY_PROJECT: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.

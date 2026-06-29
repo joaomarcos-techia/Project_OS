@@ -16,6 +16,17 @@ Procedimentos operacionais documentados. Cada camada que adiciona ação operaci
 | [c7-validation.md](./c7-validation.md) | C7 | Validar Clinical (prontuário, prescrição, documentos/PDFs, assinatura) |
 | [restore-test.md](./restore-test.md) | ops | Backup PITR + teste de restore trimestral |
 | [audit-retention.md](./audit-retention.md) | ops | Provisioning + retenção das partições de audit_events |
+| [log-search.md](./log-search.md) | C16 | Better Stack (Vercel log drain + saved searches) e uptime monitors |
+| [incident-response.md](./incident-response.md) | C16 | **Fluxo geral de incidente: detectar → diagnosticar → resolver → comunicar** |
+| [disaster-recovery.md](./disaster-recovery.md) | C16 | DR: banco indisponível / perda parcial / restore — **RPO ≤ 24h, RTO ≤ 4h** |
+| [alert-tuning.md](./alert-tuning.md) | C16 | Política anti alert-fatigue (janela+threshold, burn-rate, severidade) |
+| [gemini-down.md](./gemini-down.md) | C16 | IA (Gemini) indisponível — degradação, circuit, rotação de key |
+| [meta-template-rejected.md](./meta-template-rejected.md) | C16 | Template WhatsApp rejeitado/pausado — jobs proativos |
+| [asaas-webhook-missing.md](./asaas-webhook-missing.md) | C16 | Webhook Asaas perdido / pagamento divergente — reconcile |
+| [super-admin-locked.md](./super-admin-locked.md) | C16 | Super-admin sem acesso (MFA/senha) — recuperação |
+| [lgpd-breach-72h.md](./lgpd-breach-72h.md) | C16 | Incidente de dados pessoais — conter, investigar, comunicar (72h) |
+| [failure-drills.md](./failure-drills.md) | C16 | Testes de falha controlada (Sentry, IA down, restore, audit hash, prompt injection) |
+| [production-rehearsal.md](./production-rehearsal.md) | C16 | **Ensaio de ciclo completo com clínica fake antes do 1º cliente pagante** |
 | [c8-validation.md](./c8-validation.md) | C8 | Validar o Consultório (`/consultorio`): fluxo, Realtime, RLS, concorrência |
 | [c10-validation.md](./c10-validation.md) | C10 | Validar MessagingProvider + webhook Meta (inbound/outbound cifrado, dedup, tenant por número) |
 | [c11-validation.md](./c11-validation.md) | C11 | Validar o AI Agent (smoke, live-check Gemini, WhatsApp manual) |
