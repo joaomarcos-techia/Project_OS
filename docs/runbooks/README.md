@@ -33,3 +33,11 @@ Procedimentos operacionais documentados. Cada camada que adiciona ação operaci
 | [c14-validation.md](./c14-validation.md) | C14 | Validar Proactive Jobs (lembrete/dunning/followup) + **checklist de prod (templates Meta, env, crons)** |
 
 Convenção: runbook tem **passos numerados executáveis**, não filosofia. Se ficar > 500 linhas, divida.
+
+---
+
+## Veja também
+
+- [../README.md](../README.md) — índice mestre da documentação.
+- [../c16/README.md](../c16/README.md) — observabilidade/hardening (contexto dos runbooks C16).
+- [../development/setup.md](../development/setup.md) — validação por camada em ambiente local.

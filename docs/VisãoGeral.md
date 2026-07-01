@@ -2536,3 +2536,12 @@ Template ADR:
 > Este documento é vivo. Atualize-o (ou crie ADRs novas) sempre que decisão importante for tomada ou revertida. Não deixe o documento decair — ele é o único ativo arquitetural que sobrevive a você esquecer o motivo de tudo.
 >
 > Última atualização: 2026-05-24
+
+---
+
+## Veja também
+
+- [README.md](./README.md) — índice mestre da documentação (porta de entrada).
+- [architecture/context-map.md](./architecture/context-map.md) — os 8 bounded contexts em 1 tela.
+- [adr/README.md](./adr/README.md) — as decisões arquiteturais com seus racionais.
+- [documentation-authority.md](./documentation-authority.md) — quando este doc conflita com um ADR, o ADR vence.

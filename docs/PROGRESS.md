@@ -1054,3 +1054,12 @@ Follow-up do C15 (**NÃO** é a camada C16 do roadmap, que segue pendente). Tran
 ### Pendente (vai pro C16 real)
 - `cron_heartbeats` só popula em prod (Vercel) — em dev os crons não rodam.
 - `scripts/create-clinic.ts` / botão "Criar clínica" = onboarding interino (spec separada).
+
+---
+
+## Veja também
+
+- [README.md](./README.md) — índice mestre da documentação.
+- [PlanoAção.md](./PlanoAção.md) — o plano de implementação por trás deste status.
+- [adr/README.md](./adr/README.md) — decisões congeladas por camada.
+- [documentation-audit.md](./documentation-audit.md) — inclui o achado da referência quebrada a `testesC15.md`.

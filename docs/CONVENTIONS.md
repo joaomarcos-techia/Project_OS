@@ -271,3 +271,12 @@ await db.execute(sql`SELECT set_config('request.jwt.claims','{"role":"super_admi
 // ❌ Re-implementar isolamento manual em vez de confiar na RLS
 const all = await db.select().from(myTable).where(eq(myTable.clinicId, X));  // bypassa pool
 ```
+
+---
+
+## Veja também
+
+- [README.md](./README.md) — índice mestre da documentação.
+- [engineering/decision-guide.md](./engineering/decision-guide.md) — fluxo "isto precisa de ADR/migration/evento?" que usa o checklist acima.
+- [adr/007-rls-implementation-patterns.md](./adr/007-rls-implementation-patterns.md) — o Threat Model canônico (esta doc é o atalho).
+- [documentation-authority.md](./documentation-authority.md) — precedência quando docs discordam.

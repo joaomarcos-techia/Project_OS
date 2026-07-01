@@ -56,3 +56,12 @@
 - Cite ADRs anteriores que essa decisão estende, refina ou substitui.
 - Documente alternativas rejeitadas — futuras releituras dependem disso para entender o "porquê".
 - Não escreva sobre código que ainda não existe (a menos que o ADR seja sobre o contrato do que será construído).
+
+---
+
+## Veja também
+
+- [../README.md](../README.md) — índice mestre da documentação.
+- [../documentation-authority.md](../documentation-authority.md) — ADRs são a **autoridade máxima** entre as famílias de doc.
+- [../engineering/decision-guide.md](../engineering/decision-guide.md) — quando uma mudança exige abrir um ADR.
+- [../architecture/context-map.md](../architecture/context-map.md) — o mapa que ADR-001 estabelece.

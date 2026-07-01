@@ -15,7 +15,8 @@ build/
 .env
 .env.local
 .env.*.local
-.env.example
+# .env.example is a committed template (placeholders only, no secrets) — do NOT ignore it.
+!.env.example
 
 # IDE
 .idea/
