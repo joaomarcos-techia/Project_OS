@@ -1,5 +1,10 @@
 # C16 — Observabilidade, Hardening e Production Readiness
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](../README.md).
+
+
 Camada que torna o ClinicaOS **operável em produção por uma única pessoa**:
 visibilidade de erros, rastreabilidade, alertas acionáveis, recuperação testada,
 segurança validada e documentação operacional — **sem criar funcionalidade nova de produto**.

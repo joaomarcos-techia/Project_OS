@@ -1,5 +1,10 @@
 # Runbook — Incidente de dados pessoais (LGPD) — janela de 72h
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASE 9. SEV1. A LGPD (art. 48) exige comunicar a ANPD e os titulares em
 > **prazo razoável** após confirmar um incidente de segurança com risco. Trate
 > como **72h** internamente. Este runbook é operacional; **não substitui o jurídico/DPO**.

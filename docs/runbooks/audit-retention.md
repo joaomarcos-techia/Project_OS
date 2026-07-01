@@ -1,5 +1,10 @@
 # Runbook — Provisioning + retenção das partições de `audit_events` (gap 4.6)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 `audit_events` é particionada por mês (RANGE em `created_at`). A migration 0009
 criou partições estáticas até **2027-04** + uma `audit_events_default` (catch-all).
 Sem manutenção, depois de 2027-04 todas as linhas caem na `default` (perde

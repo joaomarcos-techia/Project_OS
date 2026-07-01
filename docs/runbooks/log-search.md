@@ -1,5 +1,10 @@
 # Runbook — Busca de Logs (Better Stack) e Uptime
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASES 4 e 6. Agregação de logs pesquisáveis + monitoramento de disponibilidade.
 > Pré-requisito dos alertas (ver [`alert-tuning.md`](./alert-tuning.md)) e dos SLOs
 > ([`docs/c16/slo.md`](../c16/slo.md)).

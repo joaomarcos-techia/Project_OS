@@ -1,5 +1,10 @@
 # C0 — Runbook de Validação
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > **Status: ✅ CONCLUÍDA em 2026-05-26.** Todos os checks marcados.
 > Mantido como runbook re-executável — rode novamente após qualquer mudança estrutural na fundação (alteração em eslint/tsconfig/CI/env schema).
 

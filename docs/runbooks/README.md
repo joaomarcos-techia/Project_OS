@@ -1,5 +1,10 @@
 # Runbooks
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](../README.md).
+
+
 Procedimentos operacionais documentados. Cada camada que adiciona ação operacional repetível escreve um runbook aqui.
 
 | Runbook | Camada | Quando usar |

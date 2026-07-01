@@ -1,5 +1,10 @@
 # Runbook — Gemini (IA) indisponível
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASE 9. SEV2 (degrada, não derruba). O AI Agent roda no worker do outbox;
 > falha de IA não afeta o resto do app.
 

@@ -1,5 +1,10 @@
 # C16 — SLO / SLI (níveis de serviço)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](../README.md).
+
+
 > "Qual nível é aceitável?" — sem isto, olhar gráfico não diz se está ruim.
 > Os alvos abaixo definem os **thresholds dos alertas** (Sentry/Better Stack) e dos
 > checks de [`/api/health`](../../src/app/api/health). Começar conservador e

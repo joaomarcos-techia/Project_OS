@@ -1,0 +1,33 @@
+# Aviso NÃO-bloqueante: sinaliza PRs que mudam arquitetura sem um ADR.
+# Materializa a regra de docs/engineering/decision-guide.md sem falhar o CI
+# (sempre exit 0 — só emite ::warning::). Endurecer para bloqueante é decisão futura.
+name: ADR advisory
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  adr-advisory:
+    name: Aviso — mudança arquitetural sem ADR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verifica presença de ADR para mudanças arquiteturais
+        shell: bash
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          changed="$(git diff --name-only "$base" "$head" || true)"
+          arch="$(printf '%s\n' "$changed" | grep -E '^(src/contexts/|drizzle/migrations/)' || true)"
+          adr="$(printf '%s\n' "$changed" | grep -E '^docs/adr/' || true)"
+          if [ -n "$arch" ] && [ -z "$adr" ]; then
+            echo "::warning title=Mudança arquitetural sem ADR::Este PR toca src/contexts/ ou drizzle/migrations/ sem tocar docs/adr/. Regra: mudança arquitetural precisa de ADR (ver docs/engineering/decision-guide.md). Se a mudança NÃO é arquitetural, ignore este aviso."
+            echo "Arquivos arquiteturais tocados neste PR:"
+            printf '%s\n' "$arch"
+          else
+            echo "OK — nenhuma mudança arquitetural sem ADR detectada."
+          fi

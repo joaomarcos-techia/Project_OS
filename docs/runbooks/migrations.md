@@ -1,5 +1,10 @@
 # Runbook — Migrations (Drizzle + Supabase Postgres)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > Solo operator runbook. Imperativo, comando-primeiro. Se você está cansado às
 > 3h da manhã: leia em ordem, copie os comandos. Não improvise.
 

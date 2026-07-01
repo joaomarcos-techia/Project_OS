@@ -43,7 +43,9 @@ Inventário classificado de **toda** a documentação do repositório, feito na 
 | este arquivo | Auditoria/inventário |
 | [architecture/context-map.md](./architecture/context-map.md) | Mapa dos bounded contexts |
 | [development/setup.md](./development/setup.md), [environment.md](./development/environment.md), [onboarding.md](./development/onboarding.md) | Onboarding de dev |
-| [engineering/git-workflow.md](./engineering/git-workflow.md), [ai-development.md](./engineering/ai-development.md), [decision-guide.md](./engineering/decision-guide.md) | Processo de engenharia |
+| [engineering/git-workflow.md](./engineering/git-workflow.md), [ai-development.md](./engineering/ai-development.md), [decision-guide.md](./engineering/decision-guide.md), [definition-of-done.md](./engineering/definition-of-done.md) | Processo de engenharia + DoD |
+| [adr-conformance.md](./adr-conformance.md) | Conformidade dos 30 ADRs ao template |
+| [../CHANGELOG.md](../CHANGELOG.md) | Changelog (raiz) — mudanças de comportamento visível |
 
 ---
 
@@ -56,6 +58,8 @@ Inventário classificado de **toda** a documentação do repositório, feito na 
 | [remediation/REMEDIACAO_FORENSE_C0_C10.md](./remediation/REMEDIACAO_FORENSE_C0_C10.md) | Remediação | Remediação forense pós-C10 | **Histórico** |
 | [implementation/C13-BILLING-REPORT.md](./implementation/C13-BILLING-REPORT.md) | Relatório | Relatório de fechamento de billing (C13) | **Histórico** |
 | [implementation/relatorio-pendencias-painel.md](./implementation/relatorio-pendencias-painel.md) | Relatório datado | Snapshot de pendências do painel (2026-06-28) | **Histórico** |
+| [testesC15.md](./testesC15.md) | Aceite manual | Testes manuais de C15 (**restaurado** de `88829ce~1`) | **Histórico** |
+| [AUDITORIA_C0_C10_COMPLETA.md](./AUDITORIA_C0_C10_COMPLETA.md) | Auditoria forense | Auditoria C0→C10 (**restaurado** de `88829ce~1`) | **Histórico** |
 
 ---
 
@@ -77,9 +81,9 @@ Vivem em `implementation/` mas são **planos ativos**, não histórico. Cabeçal
 
 | # | Achado | Onde | Severidade | Ação sugerida |
 |---|---|---|---|---|
-| A1 | **Referências quebradas** para arquivos inexistentes: `docs/testesC15.md`, `AUDITORIA_C0_C10_COMPLETA.md`, e `../src/components/shared/app-shell.tsx` (movido/renomeado) | [PROGRESS.md](./PROGRESS.md), [implementation/admin-config-expansion.md](./implementation/admin-config-expansion.md) | Média | Recriar/repontar os alvos ou remover as referências (2º passo) |
+| A1 | **Referências quebradas** para arquivos inexistentes | [PROGRESS.md](./PROGRESS.md), [implementation/admin-config-expansion.md](./implementation/admin-config-expansion.md), ADR-018/021 | Média | **Resolvido (Passo 2):** `testesC15.md` e `AUDITORIA_C0_C10_COMPLETA.md` foram **restaurados** de `88829ce~1` (deletados por engano). `src/components/shared/app-shell.tsx` foi refatorado para o route-group `(app)/(shell)/`; a citação sobrevive só em ADR-018 (append-only) como registro histórico correto — **não** se edita ADR |
 | A2 | **`.env.example` ausente** apesar de `src/lib/env.ts` mandar "See .env.example" no erro | `src/lib/env.ts:276` | Média | **Resolvido nesta leva** — `.env.example` criado a partir do schema |
-| A3 | **CI usa Node 20**, mas `package.json engines` exige `22.x` (commit f17dcb9 migrou p/ 22) | `.github/workflows/ci.yml:27` | Baixa | Alinhar `node-version: 22` no CI (2º passo — fora do escopo doc) |
+| A3 | **CI usava Node 20**, mas `package.json engines` exige `22.x` | `.github/workflows/ci.yml` | Baixa | **Resolvido nesta leva** — `node-version: 22` |
 | A4 | **Sem porta de entrada:** não havia `docs/README.md` nem onboarding de dev | `docs/` | Alta | **Resolvido nesta leva** |
 | A5 | **`README.md` raiz era um stub** ("Project_OS") | raiz | Baixa | **Resolvido nesta leva** |
 | A6 | **Colisão de nome:** `onboarding-spec.md` (feature de produto) vs. onboarding de **dev** | `docs/` | Baixa | Dev onboarding nomeado `development/onboarding.md` com título explícito |

@@ -1,5 +1,10 @@
 # Runbook — Production Rehearsal (ensaio de produção)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASE 13 / GAP 6. **Antes do primeiro cliente pagante.** Percorra o ciclo de
 > vida completo de uma clínica num ambiente production-like, com uma **clínica fake**,
 > simulando ~1 dia de operação. Prova que os contextos funcionam ponta-a-ponta e que

@@ -1,5 +1,10 @@
 # C16 — Inventário & Gap Analysis (FASE 0)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](../README.md).
+
+
 > **Pré-requisito de auditoria da C16.** Este documento é a fonte da verdade do que
 > **já existe** vs. o que **falta** para a camada de Observabilidade, Hardening e
 > Production Readiness. Cada onda posterior (1–4) referencia o mapa Gap → Fase → Onda

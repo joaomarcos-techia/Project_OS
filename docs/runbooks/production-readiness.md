@@ -1,5 +1,10 @@
 # Runbook — Production Readiness (go-live do banco + sistemas externos)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > Checklist completo para deixar o ambiente de **produção** pronto. Faça na ordem.
 > Cada `[ ]` é um passo verificável. Referências a runbooks específicos no fim.
 >

@@ -1,5 +1,10 @@
 # Runbook — Validação C10 (Messaging + Webhook Meta)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 Re-executável contra `qoro-dev`. Pré: `.env.local` com `DATABASE_URL`, `CRYPTO_MASTER_KEY_V1`,
 `CRYPTO_LOOKUP_SALT` (**≥ 16 bytes** — ver nota), Supabase keys.
 

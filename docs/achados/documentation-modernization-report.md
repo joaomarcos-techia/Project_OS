@@ -1,10 +1,10 @@
-# Relatório — Modernização da Documentação (Passo 1: Fundação)
+# Relatório — Modernização da Documentação (Passos 1 e 2)
 
 > **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2026-10-01
 >
 > ↩︎ Volta para o [índice mestre](../README.md).
 
-Relatório da leva de modernização da documentação de **2026-07-01**. Abordagem escolhida: **Preservar + Indexar** (não mover o sistema camada/ADR/runbook existente; adicionar porta de entrada, trilhas e governança).
+Relatório da modernização da documentação de **2026-07-01**. Abordagem escolhida: **Preservar + Indexar** (não mover o sistema camada/ADR/runbook existente; adicionar porta de entrada, trilhas e governança). Executada em duas levas: **Passo 1 (Fundação)** e **Passo 2 (fechamento: dívidas + DoD + conformidade de ADR + changelog + retrofit de frescor)**.
 
 ---
 
@@ -73,26 +73,31 @@ README.md          → reescrito (raiz)
 
 **Alterados (aditivo):** `README.md` (raiz), `VisãoGeral.md`, `CONVENTIONS.md`, `PROGRESS.md`, `adr/README.md`, `runbooks/README.md` (só blocos "Veja também" no fim).
 
-**Removidos:** nenhum. Princípio da leva: preservar. Docs velhos viram `Histórico`, nunca `rm`.
+**Criados (Passo 2):** `engineering/definition-of-done.md`, `adr-conformance.md`, `CHANGELOG.md` (raiz), `.github/workflows/adr-check.yml`.
+
+**Restaurados (Passo 2):** `docs/testesC15.md`, `docs/AUDITORIA_C0_C10_COMPLETA.md` (de `88829ce~1`).
+
+**Alterados (Passo 2, aditivo):** CI para Node 22; cabeçalho de frescor em `CONVENTIONS`, `PROGRESS`, `PlanoAção`, `contracts/*`, `c16/*`, `runbooks/*` e índices.
+
+**Removidos:** nenhum. Princípio da leva: preservar. Docs velhos viram `Histórico`, nunca `rm` — inclusive os 2 restaurados.
 
 ---
 
-## 5. Dívidas restantes
+## 5. Passo 2 — o que foi feito
 
-- **A1** — recriar `docs/testesC15.md` (aceite de C15) ou remover a referência.
-- **A3** — alinhar CI para Node 22 (`.github/workflows/ci.yml`).
-- **Freshness backlog** — cabeçalho de Status/revisão ainda não aplicado a `VisãoGeral`, `CONVENTIONS`, `PROGRESS`, `PlanoAção`, `runbooks/*`, `c16/*`, `contracts/*` (entram conforme forem tocados — ver [documentation-lifecycle.md](../documentation-lifecycle.md) §5).
+- **A1 (resolvido):** `testesC15.md` e `AUDITORIA_C0_C10_COMPLETA.md` **restaurados** de `88829ce~1` (deletados por engano num commit de onboarding). `app-shell.tsx` = referência histórica em ADR-018 append-only (correta para a época; não se edita ADR).
+- **A3 (resolvido):** CI alinhado para Node 22.
+- **DoD completa:** `engineering/definition-of-done.md`.
+- **Conformidade de ADR:** `adr-conformance.md` (30/30 com Context/Decision/Consequences; recomendações para os futuros).
+- **Changelog:** `CHANGELOG.md` na raiz.
+- **Check de CI advisory:** `.github/workflows/adr-check.yml` (aviso não-bloqueante "arch sem ADR").
+- **Retrofit de frescor:** cabeçalho aplicado a `CONVENTIONS`, `PROGRESS`, `PlanoAção`, `contracts/*`, `c16/*`, **todos** os `runbooks/*` e os índices — ver [documentation-lifecycle.md](../documentation-lifecycle.md) §5.
 
----
+## 6. Dívidas restantes (menores)
 
-## 6. Próximas melhorias (Passo 2)
-
-- `engineering/definition-of-done.md` completa (a parte documental já vale).
-- Hub pages de `product/` e `security/` (se o volume justificar).
-- Check de CI: "PR tocou `src/contexts`/`drizzle/migrations` sem ADR/CONVENTIONS" → falha (materializa a regra dura).
-- Auditoria profunda de interligação entre os 30 ADRs.
-- Retrofit do cabeçalho de frescor nos docs canônicos restantes.
-- Migração física para a árvore genérica (`product/`, `security/`, `operations/`, `api/`, `database/`) — **só se** pedido; hoje esses domínios têm dono existente (CONVENTIONS, runbooks, ADRs).
+- **Freshness opcional:** `VisãoGeral.md`, `onboarding-spec.md`, `whatsapp-connection-flow.md`, `secret-rotation.md` (têm cabeçalho próprio) e os arquivos individuais de `audits/`·`remediation/`·`implementation/` — recebem o cabeçalho ao serem tocados.
+- **Check de ADR bloqueante:** hoje é advisory; endurecer para falhar o CI é decisão futura.
+- **Hub pages** de `product/`/`security/` e migração física para a árvore genérica — **só se** pedido; hoje esses domínios têm dono existente (CONVENTIONS, runbooks, ADRs).
 
 ---
 

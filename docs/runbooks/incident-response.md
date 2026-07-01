@@ -1,5 +1,10 @@
 # Runbook — Resposta a Incidentes
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASE 9. Fluxo geral: **detectar → diagnosticar → resolver → comunicar**.
 > Para cenários específicos veja os runbooks dedicados (gemini-down, asaas-webhook-missing, etc.).
 

@@ -1,5 +1,10 @@
 # C5 — Patient Context — Validation Runbook
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 Validates the C5 layer (PlanoAção §5.6 tests + §5.7 checklist). Split into
 **automated** (smoke + static checks) and **manual** (need a running app session
 or external setup: Secret Manager / Storage bucket).

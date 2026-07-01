@@ -1,5 +1,10 @@
 # Runbook — Backup PITR + teste de restore (gap 1.2)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > O backup só vale se o restore funcionar. `pg_dump` (via `db:migrate:prod`) é um
 > snapshot pontual; **PITR** (Point-In-Time Recovery) cobre o intervalo ENTRE
 > dumps. Este runbook garante os dois e força um teste periódico.

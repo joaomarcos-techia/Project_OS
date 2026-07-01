@@ -1,5 +1,10 @@
 # C3 — Runbook de Validação
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > Re-executável após qualquer mudança em `src/contexts/identity/**`,
 > `src/lib/auth/**`, `src/middleware.ts`, ou
 > `drizzle/migrations/0003_*` / `0004_*` / `0005_*`.

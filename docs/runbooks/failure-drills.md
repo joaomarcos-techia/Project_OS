@@ -1,5 +1,10 @@
 # Runbook — Testes de Falha Controlada (FASE 13)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASE 13. Drills para rodar **antes do go-live** e periodicamente (trimestral).
 > Objetivo: provar que detecção/alerta/recuperação funcionam ANTES de um incidente real.
 > Rode em **staging/preview**, nunca a primeira vez em produção.

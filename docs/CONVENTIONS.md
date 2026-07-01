@@ -1,5 +1,10 @@
 # Convenções ClinicaOS
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](./README.md).
+
+
 Este documento é a lei viva do projeto. Edita junto com o PR que muda a convenção. Não decide caso novo aqui — vira ADR primeiro, depois rebaixa o resumo aqui.
 
 ## Naming (congelado em C0)

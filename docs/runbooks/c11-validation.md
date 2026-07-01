@@ -1,5 +1,10 @@
 # Runbook — Validação C11 (AI Agent Base)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 Camada: C11 · Contratos: [ADR-022](../adr/022-ai-agent-foundation.md) ·
 Auditoria: [C11_IMPLEMENTATION_AUDIT.md](../audits/C11_IMPLEMENTATION_AUDIT.md)
 

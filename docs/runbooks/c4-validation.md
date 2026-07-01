@@ -1,5 +1,10 @@
 # C4 — Runbook de Validação
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > Re-executável após qualquer mudança em `src/lib/outbox/**`, `src/lib/audit/**`,
 > `src/lib/idempotency/**`, `src/lib/sanitize/**`, `src/lib/observability/**`,
 > `src/app/api/cron/outbox/**`, `src/app/api/health/outbox/**`, ou

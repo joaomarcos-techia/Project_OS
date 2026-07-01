@@ -1,5 +1,10 @@
 # Architecture Decision Records (ADRs)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](../README.md).
+
+
 > ADRs são append-only. Um ADR aceito nunca é editado — quando a decisão muda,
 > escreva um novo ADR que cite o anterior e marque o antigo como `superseded by`.
 > ADRs contêm apenas princípios e decisões. Narrativa, runbooks operacionais

@@ -1,5 +1,10 @@
 # ClinicaOS — Progresso de Camadas
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](./README.md).
+
+
 Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado conforme cada camada fecha (gate de critério obrigatório passado).
 
 | Camada | Nome | Status | Data fechamento |

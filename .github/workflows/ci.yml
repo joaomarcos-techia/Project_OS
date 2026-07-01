@@ -24,7 +24,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Alinhado ao runtime: package.json engines.node = 22.x (achado A3).
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies

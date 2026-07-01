@@ -76,8 +76,9 @@ ADRs (`docs/adr/`) **não** usam este cabeçalho. Eles são **append-only** e t�
 
 O padrão foi introduzido em 2026-07-01 (modernização da doc, ver [achados/documentation-modernization-report.md](./achados/documentation-modernization-report.md)).
 
-- ✅ **Aplicado já:** todos os docs **novos** desta leva e os índices (`README.md`, `documentation-*`, `development/*`, `architecture/*`, `engineering/*`).
-- 🔁 **Backlog (aditivo, conforme forem tocados):** `VisãoGeral.md`, `CONVENTIONS.md`, `PROGRESS.md`, `PlanoAção.md`, `runbooks/*`, `c16/*`, `contracts/*`. Não há reescrita em massa — o cabeçalho entra no próximo PR que tocar cada arquivo (regra de [Documentação Automática](./engineering/ai-development.md#documentação-automática)).
+- ✅ **Aplicado (Passo 1 — novos docs + índices):** `README.md`, `documentation-*`, `development/*`, `architecture/*`, `engineering/*`.
+- ✅ **Aplicado (Passo 2 — retrofit):** `CONVENTIONS.md`, `PROGRESS.md`, `PlanoAção.md`, `contracts/events/billing.md`, `c16/*`, **todos** os `runbooks/*` (exceto `secret-rotation.md`, que já tinha marca de status própria), os índices `adr/README.md` e `runbooks/README.md`, e os históricos restaurados `testesC15.md` / `AUDITORIA_C0_C10_COMPLETA.md`.
+- 🔁 **Backlog remanescente (aditivo, conforme forem tocados):** `VisãoGeral.md`, `onboarding-spec.md`, `whatsapp-connection-flow.md`, `secret-rotation.md` (já têm cabeçalho/status próprio) e os arquivos individuais de `audits/` · `remediation/` · `implementation/` (cobertos pelo README de cada pasta; recebem o cabeçalho no próximo PR que os tocar — regra de [Documentação Automática](./engineering/ai-development.md#documentação-automática)).
 
 ---
 

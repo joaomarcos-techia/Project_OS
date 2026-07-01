@@ -1,5 +1,10 @@
 # C7 — Clinical Context — Validation Runbook
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 Valida a camada C7 (PlanoAção §7.6 testes + §7.7 checklist). Dividido em
 **automated** (vitest + checks estáticos, rodam no CI) e **manual/integração**
 (precisam de DB `qoro-dev` + sessão da app + bucket de Storage).

@@ -1,5 +1,10 @@
 # Runbook — Disaster Recovery (DR)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASE 9. Recuperação de perda de dados / banco indisponível. Estende
 > [restore-test.md](./restore-test.md) (que cobre o **teste** trimestral de restore).
 

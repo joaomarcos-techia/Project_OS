@@ -1,5 +1,10 @@
 # ClinicaOS v2 — Master Execution Plan
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](./README.md).
+
+
 > **Documento operacional de execução em camadas validáveis.**
 > Não é roadmap de marketing, não é checklist genérico, não é "lista de features".
 > É um sistema de construção incremental anti-hidra, anti-rewrite, anti-overengineering, escrito para um solo founder técnico que terá que manter tudo isso sozinho às 3h da manhã.

@@ -1,5 +1,10 @@
 # C2 — Runbook de Validação
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > Re-executável após qualquer mudança em `src/contexts/tenancy/**`,
 > `src/lib/db/rls.ts`, `src/lib/db/tenant.ts`,
 > `drizzle/migrations/0001_tenancy_foundation.sql`, ou helpers SQL

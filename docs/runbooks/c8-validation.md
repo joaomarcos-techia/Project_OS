@@ -1,5 +1,10 @@
 # C8 — Consultório — Validation Runbook
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 Valida a camada C8 (`/consultorio`; TV `/chamadas` **descopada** — ADR-019).
 Dividido em **automated** (CI: estáticos + vitest + smoke + migration) e
 **manual/integração** (sessão da app + 2 abas/clínicas + Realtime). Mapeia os 15

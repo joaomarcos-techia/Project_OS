@@ -1,5 +1,10 @@
 # C1 — Runbook de Validação
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > Mantido como runbook re-executável — rode após qualquer mudança em
 > `src/lib/db/**`, `scripts/db-*.ts`, `drizzle.config.ts`, `eslint.config.mjs`,
 > ou `package.json` (deps db).

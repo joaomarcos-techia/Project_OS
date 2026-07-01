@@ -34,6 +34,7 @@ Esta é a **porta de entrada** da engenharia do ClinicaOS — a memória externa
 | Branches, commits, PR, CI | [engineering/git-workflow.md](./engineering/git-workflow.md) |
 | "Isto precisa de ADR / migration / evento?" | [engineering/decision-guide.md](./engineering/decision-guide.md) |
 | Trabalhar com Claude Code + Documentação Automática | [engineering/ai-development.md](./engineering/ai-development.md) |
+| Saber quando algo está "pronto" | [engineering/definition-of-done.md](./engineering/definition-of-done.md) |
 
 ### 💻 Desenvolvimento
 | Quero… | Vá para |
@@ -73,6 +74,8 @@ Esta é a **porta de entrada** da engenharia do ClinicaOS — a memória externa
 | Qual doc vence quando dois discordam | [documentation-authority.md](./documentation-authority.md) |
 | Frescor: status, owner, revisão | [documentation-lifecycle.md](./documentation-lifecycle.md) |
 | Inventário classificado de toda a doc | [documentation-audit.md](./documentation-audit.md) |
+| Conformidade dos ADRs ao template | [adr-conformance.md](./adr-conformance.md) |
+| Histórico de mudanças (changelog) | [../CHANGELOG.md](../CHANGELOG.md) |
 | O relatório da modernização | [achados/documentation-modernization-report.md](./achados/documentation-modernization-report.md) |
 
 ---

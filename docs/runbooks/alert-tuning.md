@@ -1,5 +1,10 @@
 # Runbook — Alert Tuning (anti alert-fatigue)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+
+
 > C16 FASE 9 / GAP 2. Como definir alertas que **valem a pena acordar alguém**.
 > Thresholds derivam dos SLOs em [slo.md](../c16/slo.md).
 

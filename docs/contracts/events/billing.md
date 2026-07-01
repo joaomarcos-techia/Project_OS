@@ -1,5 +1,10 @@
 # Contrato de eventos — Billing (C13)
 
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+>
+> ↩︎ Volta para o [índice mestre](../../README.md).
+
+
 Congelado (ADR-025 F7). A **fonte da verdade** são os Zod schemas em
 [src/contexts/billing/events.ts](../../../src/contexts/billing/events.ts), registrados no
 catálogo do outbox. Regras: nomes 3-segmentos `billing.<entity>.<action>`; payload JSON-safe
