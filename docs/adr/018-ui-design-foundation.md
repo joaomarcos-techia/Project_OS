@@ -1,6 +1,9 @@
 # ADR-018 — UI / Design Foundation (quando e como aplicar o Design System)
 
-- Status: accepted
+- Status: accepted — **superseded in part por [ADR-031](031-design-system-v2-rebrand.md)**
+  (a especificação visual do item 2 — paleta azul hue 258 + Geist — foi substituída
+  pelo DS v2: petrol/clay + Hanken Grotesk/Inter/IBM Plex Mono. Os princípios de
+  UX honesta, foundation-first, recriação idiomática e primitivos CVA/cn permanecem.)
 - Camada: Fundação Visual (pré-C8)
 - Refs: VisãoGeral §3.1 (stack shadcn/Tailwind), `docs/ClinicaOS Design System (standalone) (1).html`, ADR-001 (bounded contexts), CONVENTIONS (anti `lib/utils.ts`)
 

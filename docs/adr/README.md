@@ -46,6 +46,7 @@
 | [028](028-white-label-scope-pdf-only.md) | White-label restrito aos PDFs (logo + cor no cabeçalho); sem tema de app (refina ADR-018 §5) | accepted | Fundação Visual |
 | [029](029-observability-stack.md) | Observability stack (Sentry + logger in-house + Better Stack + error envelope + health unificado) | accepted | C16 |
 | [030](030-security-headers-csp.md) | Security headers + CSP faseada (Report-Only primeiro, bloqueante com nonce depois) | accepted | C16 |
+| [031](031-design-system-v2-rebrand.md) | Design System v2: rebrand petrol/clay + governança de UI + estrangulamento do CSS legado (supersede parcial ADR-018) | accepted | Fundação Visual |
 
 ## Como propor um novo ADR
 

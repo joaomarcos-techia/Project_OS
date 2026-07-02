@@ -1062,6 +1062,28 @@ Follow-up do C15 (**NÃO** é a camada C16 do roadmap, que segue pendente). Tran
 
 ---
 
+## Refatoração UI/UX — Design System v2 (em andamento, iniciada 2026-07-02)
+
+Plano em 8 ondas (cada onda = 1 PR): fundação → primitivos → shell/estados →
+dashboard+consultório → pacientes/agenda/caixa → financeiro/config/equipe →
+admin → auth/join+limpeza. Governança permanente em CONVENTIONS §Governança de UI.
+Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
+
+### Onda 0 — Fundação (✅ 2026-07-02) · ADR-031
+
+- **Rebrand DS v2** (`design_system/DSv2.html` = fonte única de UI): petrol (hue 205)
+  substitui azul 258; clay = acento único/IA; neutros quentes (98–108) + `--neutral-150`;
+  Hanken Grotesk + Inter (display) + IBM Plex Mono substituem Geist (dep removida).
+- `globals.css` reescrito como **única origem de tokens** (viz, elevação/z nomeadas,
+  densidade `[data-density]`, component hooks, `--focus-ring`); bloco de tokens duplicado
+  do `ds.css` **removido** (redefinia tudo por cima, incl. `--font-sans:"Geist"`).
+- Dark por duplo seletor `.dark`/`[data-theme='dark']`; ~28 `oklch(... 258)` hardcoded
+  do CSS legado → vars petrol; anti-flash de tema corrigido (lia chave errada
+  `theme` vs `clinicaos-theme` — nunca funcionou).
+- Validação: typecheck ✓ · build ✓ · lint/test/arch ✓ · visual light+dark.
+
+---
+
 ## Veja também
 
 - [README.md](./README.md) — índice mestre da documentação.

@@ -97,6 +97,42 @@ Hoje (C0) só existe `README.md`. Resto entra com a primeira camada do contexto.
 - 🚫 Role check (`gestor`, `owner`, etc.) dentro de RLS policy — ADR-007 D27: RLS isola tenants, RBAC mora em Server Actions via `requireRole(...)`.
 - 🚫 `ENABLE ROW LEVEL SECURITY` sem `FORCE` em tabela tenant-scoped — owner bypassa policies.
 
+## Governança de UI (ADR-031 — vale para TODA mudança de interface, não só a refatoração DS v2)
+
+1. **Design Authority.** `design_system/DSv2.html` é a fonte única da verdade de UI. Nenhuma
+   decisão visual por gosto — sempre pelo DS. Conflito de fato de produto/arquitetura
+   (não-design) → ADRs vencem (`docs/documentation-authority.md`).
+2. **Escada de Minimização de Navegação.** Toda interação nova obedece esta ordem:
+   `Inline → Popover → Dropdown → Dialog → Drawer → Nova aba → Nova página`.
+   Rota nova só quando TODAS as opções acima forem inadequadas — com justificativa escrita
+   em `docs/ui-refactor/ui-inventory.md`.
+3. **"Essa tela deveria existir?"** Pergunta obrigatória antes de tocar qualquer tela —
+   antes de "como melhorar". A resposta pode ser "não" (remover/fundir).
+4. **Justificativa de rota nova.** Quem propõe uma rota escreve: por que inline não resolveu,
+   por que Popover/Dialog/Drawer não resolveram, por que a rota é necessária.
+5. **Zero duplicação.** Antes de escrever QUALQUER componente novo: grep + procurar equivalente
+   (componente, hook, utilitário, card, modal, drawer, tabela, formulário, action, schema,
+   padrão). Se existir: reutilizar ou estender — nunca clonar.
+6. **Complexidade global é exceção.** Antes de criar Provider/Context/hook global, responder
+   por escrito: isso aumenta complexidade? Existe alternativa com composição local/RSC?
+   (Padrão do projeto: RSC + estado local.)
+7. **UI Audit por onda/feature.** Primeira tarefa de qualquer trabalho de UI: para cada tela,
+   responder — existe componente equivalente? padrão visual? fluxo parecido? Drawer/tabela/
+   formulário semelhante? Se sim → reutilizar. Saída registrada no `ui-inventory.md`.
+8. **Checklist de Engenharia de Produto** (responder antes de implementar qualquer tela):
+   - **UX**: exige mesmo uma página? existe forma mais simples? o usuário perde contexto?
+     a ação está perto da informação? reduz cliques? reduz carga cognitiva? segue o DS?
+     é consistente com o resto do produto?
+   - **Engenharia**: já existe componente? hook? utilitário? action? schema? endpoint? padrão?
+   - **Manutenção**: aumenta dívida técnica? aumenta duplicação? introduz padrão novo?
+     precisa ADR? precisa documentação?
+
+Regras de implementação da UI (ADR-018 + ADR-031): tokens SÓ em `src/app/globals.css`
+(nunca redefinir em outro CSS); primitivos em `src/components/ui/` com CVA + `cn`;
+recriar o DS em Tailwind/React idiomático (nunca copiar CSS do protótipo verbatim);
+feedback = toast global (sucesso/erro inesperado) + erro de validação inline no `Field`;
+estados obrigatórios por tela: loading, empty, error, success.
+
 ## Checklist nova tabela (PR template — colar no corpo do PR)
 
 ADR-007 §10 define três categorias. Marque exatamente uma e cumpra o bloco correspondente.
