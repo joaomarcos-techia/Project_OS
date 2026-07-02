@@ -67,13 +67,14 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 ---
 
 ## Resumo (marque conforme fizer)
-- [ ] 1. `SENTRY_AUTH_TOKEN` na Vercel + redeploy
-- [ ] 2. Alerta no Sentry + escalation no Uptime (+ header Bearer nos monitores)
-- [ ] 3. `pnpm restore:test` passou (contagens batem)
-- [ ] 4. Secrets da Action de backup configurados + 1 run verde
-- [x] 5a. Drill 1 (Sentry) — feito ao vivo
-- [x] 5b. Drill 2 (health degraded) — feito ao vivo
+- [x] 1. `SENTRY_AUTH_TOKEN` na Vercel + redeploy — source maps confirmados legíveis (2026-07-02)
+- [~] 2. Alerta no Sentry (Alert Rule → Issues → env=production) + escalation/canal no Uptime — **finalizar**
+- [x] 3. Restore test — restaurado no scratch/dashboard (prod ~vazio → 0 tenant é esperado)
+- [x] 4. Backup diário (Action) verde + secrets configurados (2026-07-02)
+- [x] 5a. Drill 1 (Sentry) — feito ao vivo (event id via /api/health/sentry-test)
+- [x] 5b. Drill 2 (health degraded) — feito ao vivo (Gemini key faltando)
 - [ ] 5c. Drill 5 (audit hash) + Drill 6 (prompt injection)
 - [ ] 6. Production rehearsal
 
-Fechados todos → **C16 oficialmente 100%.**
+**Falta:** finalizar #2 (salvar a Alert Rule com env=production + garantir o canal de
+notificação no Uptime) e fazer #5c/#6 (antes do 1º cliente). O resto está fechado.
