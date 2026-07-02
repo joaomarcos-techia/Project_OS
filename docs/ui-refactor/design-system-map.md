@@ -69,7 +69,9 @@ com binding Tailwind via `@theme inline`. O CSS legado consome as mesmas vars.
 | `stat` | StatCard (unificação) | `stat-card.tsx` | caseiro | 1 | ✅ 2026-07-02 |
 | `crumb` | Breadcrumbs (PageHeader compõe) | `breadcrumbs.tsx` | caseiro | 1 | ✅ 2026-07-02 |
 | `combo` | Combobox | `combobox.tsx` | Popover + listbox caseiro | 4 | pendente |
-| `topbar`, `side-nav`, `nav-group` | Shell novo | `components/painel/*` | caseiro | 2 | pendente |
+| `topbar`, `side-nav`, `nav-group` | Shell novo (`shared/shell-chrome.tsx` + `use-theme.ts`; shells compõem) | `components/painel/painel-shell.tsx`, `components/admin/admin-shell.tsx` | caseiro | 2 | ✅ 2026-07-02 |
+| `sk` (rota) | PageSkeleton (6 variantes p/ loading.tsx) | `ui/page-skeleton.tsx` | caseiro | 2 | ✅ 2026-07-02 |
+| — | RouteError (Sentry + retry) | `shared/route-error.tsx` | caseiro | 2 | ✅ 2026-07-02 |
 | `barchart`, `linechart`, `donut` | Charts CSS (Relatórios) | por rota | caseiro (sem lib) | 5 | pendente |
 | `ai-surface`, `chat`, `agent-mark`, `conf`, `suggest` | Superfícies IA | conforme demanda (admin/conversas-ia) | caseiro | 6 | pendente |
 | `cmdk` | Command palette | — | — | **fora de escopo** (decisão usuário 2026-07-02) | dívida |

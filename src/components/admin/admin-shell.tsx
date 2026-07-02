@@ -1,155 +1,83 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { LogOut, ShieldCheck } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState, type ReactNode } from 'react';
 
-import { Icon, LogoIcon } from '@/components/painel/icons';
+import { LogoIcon } from '@/components/painel/icons';
+import {
+  MobileNavButton,
+  ShellScrim,
+  ShellSidebar,
+  SidebarFootButton,
+  ThemeFootToggle,
+  Wordmark,
+} from '@/components/shared/shell-chrome';
+import { useTheme } from '@/components/shared/use-theme';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { AdminNav } from './admin-nav';
 
 /**
- * Chrome do Platform Admin (C15) — porte do `ClinicaOS - Admin (standalone).html`.
- * Reusa o shell do DS (.app/.sidebar/.topbar/.page do app-shell.css) com a
- * identidade do console: pill "ADMIN" + scope-mini "Plataforma" + selo ink, para
- * o fundador nunca confundir "estou no painel da plataforma" com "estou numa
- * clínica". Toda leitura pesada fica nas páginas; aqui só o chrome + tema.
+ * Chrome do Platform Admin (C15) — DS v2 em Tailwind (ADR-031). Identidade do
+ * console (pill ADMIN + escopo Plataforma + selo ink) para o fundador nunca
+ * confundir "estou na plataforma" com "estou numa clínica".
  */
-function SunIcon({ size = 15 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  );
-}
-function MoonIcon({ size = 15 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-    </svg>
-  );
-}
-function LogoutIcon({ size = 15 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="M16 17l5-5-5-5M21 12H9" />
-    </svg>
-  );
-}
-
 export function AdminShell({ children }: { children: ReactNode }) {
-  const [dark, setDark] = useState(false);
+  const pathname = usePathname();
+  const { dark, toggle } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
 
-  const applyTheme = (d: boolean) => {
-    const el = document.documentElement;
-    el.setAttribute('data-theme', d ? 'dark' : 'light');
-    el.classList.toggle('dark', d);
-  };
-
   useEffect(() => {
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem('clinicaos-theme');
-    } catch {
-      /* ignore */
-    }
-    const isDark = saved === 'dark';
-    applyTheme(isDark);
-    setDark(isDark);
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    setDark((prev) => {
-      const next = !prev;
-      applyTheme(next);
-      try {
-        localStorage.setItem('clinicaos-theme', next ? 'dark' : 'light');
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
-        e.preventDefault();
-        toggleTheme();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [toggleTheme]);
-
-  useEffect(() => {
-    document.body.classList.toggle('nav-open', navOpen);
-  }, [navOpen]);
+    setNavOpen(false);
+  }, [pathname]);
 
   return (
-    <>
-      <button className="menu-btn" aria-label="Abrir navegação" onClick={() => setNavOpen((v) => !v)}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-          <path d="M3 6h18M3 12h18M3 18h18" />
-        </svg>
-      </button>
-      <div className="scrim" onClick={() => setNavOpen(false)} />
+    <TooltipProvider delayDuration={300}>
+      <MobileNavButton onClick={() => setNavOpen((v) => !v)} />
+      <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
-      <div className="app">
-        {/* ============================ SIDEBAR ============================ */}
-        <aside className="sidebar">
-          <div className="brand-row">
-            <LogoIcon size={24} />
-            <span className="wordmark">
-              Clinica<b>OS</b>
+      <div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-w)_1fr]">
+        <ShellSidebar open={navOpen}>
+          <div className="flex items-center justify-between pr-(--sp-5)">
+            <Wordmark logo={<LogoIcon size={24} />} />
+            <span className="rounded-(--r-xs) bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
+              Admin
             </span>
-            <span className="adm-pill">Admin</span>
           </div>
 
-          <div className="scope-mini">
-            <span className="sm-mark">
-              <Icon name="shield" size={16} />
+          {/* Escopo do console — nunca confundir com uma clínica */}
+          <div className="mx-(--sp-3) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-(--r-sm) bg-secondary text-secondary-fg">
+              <ShieldCheck className="size-4" />
             </span>
-            <span className="sm-id">
-              <span className="sm-name">Plataforma</span>
-              <span className="sm-sub">Console multi-tenant</span>
+            <span className="flex min-w-0 flex-col">
+              <span className="text-(length:--fs-sm) leading-tight font-semibold">Plataforma</span>
+              <span className="font-mono text-[10px] text-fg-subtle">Console multi-tenant</span>
             </span>
           </div>
 
           <AdminNav />
 
-          <div className="sidebar-foot">
-            <button className="theme-toggle" aria-label="Alternar tema" onClick={toggleTheme}>
-              <span className="sw">
-                {dark ? <MoonIcon /> : <SunIcon />}
-                <span>{dark ? 'Tema escuro' : 'Tema claro'}</span>
-              </span>
-              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
-                ⌘\
-              </span>
-            </button>
+          <div className="flex flex-col gap-1 border-t border-border p-(--sp-3)">
+            <ThemeFootToggle dark={dark} onToggle={toggle} />
             <form action="/logout" method="post">
-              <button type="submit" className="theme-toggle" aria-label="Sair">
-                <span className="sw">
-                  <LogoutIcon />
-                  <span>Sair</span>
-                </span>
-              </button>
+              <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
             </form>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', padding: '0 2px', lineHeight: 1.5 }}>
+            <span className="px-0.5 font-mono text-[10px] leading-normal text-fg-subtle">
               super_admin — toda ação auditada.
             </span>
           </div>
-        </aside>
+        </ShellSidebar>
 
-        {/* ============================ CONTENT ============================ */}
-        <main className="content">
-          <div className="content-inner">
-            <div className="page">{children}</div>
-          </div>
-        </main>
+        <div className="flex min-w-0 flex-col bg-canvas">
+          <main className="mx-auto w-full max-w-330 flex-1 px-(--sp-8) pt-(--sp-6) pb-(--sp-16) max-md:px-(--sp-4)">
+            {children}
+          </main>
+        </div>
       </div>
-    </>
+      <Toaster />
+    </TooltipProvider>
   );
 }

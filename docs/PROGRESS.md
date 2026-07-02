@@ -1103,6 +1103,23 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
 - Validação: typecheck ✓ · lint ✓ · **496 testes** (14 novos: CVA, toast store,
   use-action-feedback) · arch ✓ · build ✓. Nenhuma tela alterada nesta onda.
 
+### Onda 2 — Shell, navegação e estados de UI (✅ 2026-07-02)
+
+- **Shells reescritos em Tailwind** (DS v2 §side/topbar): peças compartilhadas em
+  `shared/shell-chrome.tsx` + `shared/use-theme.ts` (zero duplicação entre painel
+  e admin); sidebar 256px; mobile drawer sem `body.nav-open`.
+- **UX honesta no topbar**: busca ⌘K fake e sino de notificações sem feature
+  REMOVIDOS; bloco de usuário virou menu real (Segurança da conta + **Sair** —
+  o tenant não tinha logout visível); chevron fake do clinic-switcher removido.
+- **Estados**: 13 `loading.tsx` via `PageSkeleton` (6 variantes); `error.tsx` por
+  segmento (shell/admin) + root com `RouteError` (Sentry+retry); `not-found.tsx`.
+- `Toaster` + `TooltipProvider` montados nos dois shells; `PageHeader` recomposto
+  (Breadcrumbs/`font-display`), prop `breadcrumb` legada preservada.
+- **Desvio documentado**: `app-shell.css` NÃO foi deletado (telas ainda usam
+  `stat-tile/cardblock/listrow/cols-*` — critério grep-zero do plano falha);
+  shells não dependem mais dele; deleção na onda do último consumidor.
+- Validação: typecheck ✓ · lint ✓ · 496 testes ✓ · build ✓ · smoke em `next start`.
+
 ---
 
 ## Veja também

@@ -111,6 +111,20 @@ feita ANTES de criar cada componente (Governança regra 5/7):
 | Combobox | — | **Adiado** para a Onda 4 (primeira tela que precisa: seletor de paciente da Agenda) |
 | Command palette | — | **Fora de escopo** (decisão do founder) |
 
+## Audit Onda 2 (2026-07-02) — shell, navegação e estados
+
+**Fake removido do topbar (UX honesta, regra 3 aplicada a componentes):**
+- Busca ⌘K (decisão do founder — palette é dívida) → campo removido.
+- Sino de notificações (não existe feature de notificações) → removido.
+- Botão de usuário que não abria nada → virou **menu real** (DropdownMenu): Segurança da conta (`/account/security`) + Sair (`POST /logout` — o painel tenant não tinha logout visível!).
+- Chevron do clinic-switcher (troca de clínica não existe) → removido.
+
+**Zero duplicação:** os dois shells compartilham `shared/shell-chrome.tsx` (sidebar frame, nav links, footer, wordmark, mobile drawer) e `shared/use-theme.ts` (tema + ⌘\ + persistência). `RouteError` (Sentry + retry) usado pelos 3 error.tsx. `PageSkeleton` com 6 variantes alimenta os 13 loading.tsx.
+
+**app-shell.css — deleção BLOQUEADA (desvio documentado do plano):** os shells não usam mais nenhuma classe dele, mas telas ainda consomem `stat-tile`, `cardblock`, `listrow(s)`, `cols-2/3`, `page-head/ph-*`, `month`, `subtab(s)`, `toolbar`, `screen`, `stack`, `avatar` etc. O critério do próprio plano (grep zero) falha → arquivo permanece até a onda do último consumidor (prevista: 6/7). Regras de chrome (.app/.sidebar/.mnav/.topbar/.tb-*/.menu-btn/body.nav-open) viram órfãs inofensivas até lá.
+
+**Estados criados:** `loading.tsx` em dashboard, agenda, consultorio, caixa, pacientes, pacientes/[id], financeiro, relatorios, equipe, prontuarios, documentos, admin, admin/clinicas (13); `error.tsx` em `(app)/(shell)` e `(admin)/admin` + root restilizado; `not-found.tsx` root.
+
 ## Dívidas registradas (não entram nesta refatoração)
 
 - Calendário visual da Agenda (React Big Calendar sobre C6).
