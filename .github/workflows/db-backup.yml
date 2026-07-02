@@ -48,8 +48,12 @@ jobs:
           URL="${DATABASE_URL_PROD/:6543\//:5432\/}"
           TS="$(date -u +%Y%m%dT%H%M%SZ)"
           OUT="prod-${TS}.sql"
+          # pg_dump precisa ser >= a versao do servidor (Supabase = PG17). O wrapper
+          # do Ubuntu resolve pra 16 mesmo com o 17 instalado, entao chamamos o binario 17 direto.
+          PGDUMP=/usr/lib/postgresql/17/bin/pg_dump
+          "$PGDUMP" --version
           # Mesmas flags do scripts/db-backup-prod.ts (exclui schemas gerenciados do Supabase).
-          pg_dump --no-owner --no-acl --clean --if-exists \
+          "$PGDUMP" --no-owner --no-acl --clean --if-exists \
             --exclude-schema=auth --exclude-schema=storage --exclude-schema=realtime \
             --exclude-schema=extensions --exclude-schema=graphql --exclude-schema=graphql_public \
             --exclude-schema=vault --exclude-schema=supabase_functions --exclude-schema=_realtime \
