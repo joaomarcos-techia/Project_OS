@@ -31,35 +31,43 @@ com binding Tailwind via `@theme inline`. O CSS legado consome as mesmas vars.
 ### Desvios documentados do DSv2.html
 
 1. **`--text-link` no dark** = `--primary-300` (o DS não sobrepõe; petrol-700 não passa AA sobre `--bg` escuro).
-2. **h1–h4 sem `--font-display`**: o base do DS também não aplica (a voz display é opt-in via `.serif`); componentes que pedirem display usam `font-display` utility.
+2. **h1–h4 sem `--font-display`**: o base do DS também não aplica (a voz display é opt-in via `.serif`); componentes que pedirem display usam `font-display` utility (ex.: valor do StatCard).
 3. **Nomes históricos preservados** (`--primary-*` em vez de `--petrol-*`, `--sh-*`, `--dur-fast/base/slow`, `--bg-subtle`, `--maxw`): zero churn no markup/CSS legado; valores são 1:1 do DS.
 4. **Theming por tenant demonstrado no DSv2.html NÃO é implementado** — ADR-028 (white-label = só cabeçalho de PDF) permanece.
+
+### Decisões de compatibilidade da Onda 1 (API preservada, visual DS v2)
+
+- **Button**: variantes reais do DS são `primary/accent/danger/ghost/soft/subtle` (o plano aproximara "solid/flat" — o HTML venceu). `secondary` (= visual default do DS: surface+borda) e `success` seguem como variantes de compat das telas existentes. Alturas via `--control-h*`; a classe legada `.btn` saiu do componente (os 5 seletores contextuais `.btn` do ds.css — `-actions/.ai-sug-act/.pc-actions/.sm-row/.soap-foot` — deixam de pegar em `<Button>`; telas afetadas migram nas Ondas 3–5).
+- **Badge**: tones históricos mantidos (`gray/blue/green/amber/red/teal/violet`); `teal`/`violet` viram tints de `--viz-8`/`--viz-3` (paleta viz do DS — clay é reservado a IA); novo tone `ai`.
+- **Toast**: store singleton com `useSyncExternalStore` — sem Context (Governança regra 6).
+- **Ícones**: lucide 1.17 usa nomes modernos (`ChartColumn`, `Ellipsis`, `Funnel`, `TriangleAlert`); `painel/icons.tsx` virou mapa de compat.
+- **page-header.tsx** ficou intocado — será recomposto com o shell na Onda 2 (usa classes do app-shell.css que ainda vivem).
 
 ## Componentes DS v2 → React (Ondas 1+)
 
 | DS v2 (classe no bundle) | Componente | Arquivo (`src/components/ui/`) | Radix/caseiro | Onda | Status |
 | --- | --- | --- | --- | --- | --- |
-| `btn` (solid/soft/ghost/flat/danger, sm/lg, group) | Button, ButtonGroup | `button.tsx`, `button-group.tsx` | caseiro (CVA) | 1 | pendente |
-| `field/flabel/fhint/ferror/req`, `input`, `textarea`, `select` | Field, Input, Textarea, Select | existentes (restyle) | caseiro | 1 | pendente |
-| `card` (head/body/foot) | Card | `card.tsx` (restyle) | caseiro | 1 | pendente |
-| `badge`, `pill`, `tag`, `status` | Badge, StatusBadge | existentes (restyle) | caseiro | 1 | pendente |
-| `alert` | Alert | `alert.tsx` (restyle) | caseiro | 1 | pendente |
-| `empty` | EmptyState | `empty-state.tsx` (restyle) | caseiro | 1 | pendente |
-| `sk`, `loading-row` | Skeleton, SkeletonCard, SkeletonTable | `skeleton.tsx` | caseiro | 1 | pendente |
-| `modal`, `scrim` | Dialog | `dialog.tsx` | **Radix Dialog** | 1 | pendente |
-| `drawer` | Drawer | `drawer.tsx` | Radix Dialog (posicionado) | 1 | pendente |
-| — | ConfirmDialog (ações críticas) | `confirm-dialog.tsx` | composição | 1 | pendente |
-| `toast`, `toast-region`, `undo-strip` | Toast, Toaster, useToast | `toast.tsx`, `toaster.tsx`, `use-toast.ts` | caseiro (store singleton) | 1 | pendente |
-| — | useActionFeedback (useActionState → toast) | `use-action-feedback.ts` | caseiro | 1 | pendente |
-| `menu` | DropdownMenu | `dropdown-menu.tsx` | **Radix** | 1 | pendente |
-| `tip` | Tooltip | `tooltip.tsx` | **Radix** | 1 | pendente |
-| `popover` | Popover | `popover.tsx` | **Radix** | 1 | pendente |
-| `switch`, `check` | Switch, Checkbox | `switch.tsx`, `checkbox.tsx` | **Radix** | 1 | pendente |
-| `segmented` | Segmented | `segmented.tsx` | caseiro | 1 | pendente |
-| `tbl` + toolbar/sort/pager/selbar, `filterbar` | Table kit | `table.tsx`, `table-toolbar.tsx`, `table-sort-header.tsx`, `table-pager.tsx`, `table-selection-bar.tsx` | caseiro, RSC-first (sort/pager por URL) | 1 | pendente |
-| `tabs` | Tabs (intra-page) / NavTabs (subrotas) | `tabs.tsx` / `nav-tabs.tsx` | Radix / caseiro | 1 | pendente |
-| `stat` | StatCard (unificação) | `stat-card.tsx` | caseiro | 1 | pendente |
-| `crumb` | Breadcrumbs (PageHeader compõe) | `breadcrumbs.tsx` | caseiro | 1 | pendente |
+| `btn` (solid/soft/ghost/flat/danger, sm/lg, group) | Button, ButtonGroup | `button.tsx`, `button-group.tsx` | caseiro (CVA) | 1 | ✅ 2026-07-02 |
+| `field/flabel/fhint/ferror/req`, `input`, `textarea`, `select` | Field, Input, Textarea, Select | existentes (restyle) | caseiro | 1 | ✅ 2026-07-02 |
+| `card` (head/body/foot) | Card | `card.tsx` (restyle) | caseiro | 1 | ✅ 2026-07-02 |
+| `badge`, `pill`, `tag`, `status` | Badge, StatusBadge | existentes (restyle) | caseiro | 1 | ✅ 2026-07-02 |
+| `alert` | Alert | `alert.tsx` (restyle) | caseiro | 1 | ✅ 2026-07-02 |
+| `empty` | EmptyState | `empty-state.tsx` (restyle) | caseiro | 1 | ✅ 2026-07-02 |
+| `sk`, `loading-row` | Skeleton, SkeletonCard, SkeletonTable | `skeleton.tsx` | caseiro | 1 | ✅ 2026-07-02 |
+| `modal`, `scrim` | Dialog | `dialog.tsx` | **Radix Dialog** | 1 | ✅ 2026-07-02 |
+| `drawer` | Drawer | `drawer.tsx` | Radix Dialog (posicionado) | 1 | ✅ 2026-07-02 |
+| — | ConfirmDialog (ações críticas) | `confirm-dialog.tsx` | composição | 1 | ✅ 2026-07-02 |
+| `toast`, `toast-region`, `undo-strip` | Toast, Toaster, useToast | `toast.tsx`, `toaster.tsx`, `use-toast.ts` | caseiro (store singleton) | 1 | ✅ 2026-07-02 |
+| — | useActionFeedback (useActionState → toast) | `use-action-feedback.ts` | caseiro | 1 | ✅ 2026-07-02 |
+| `menu` | DropdownMenu | `dropdown-menu.tsx` | **Radix** | 1 | ✅ 2026-07-02 |
+| `tip` | Tooltip | `tooltip.tsx` | **Radix** | 1 | ✅ 2026-07-02 |
+| `popover` | Popover | `popover.tsx` | **Radix** | 1 | ✅ 2026-07-02 |
+| `switch`, `check` | Switch, Checkbox | `switch.tsx`, `checkbox.tsx` | **Radix** | 1 | ✅ 2026-07-02 |
+| `segmented` | Segmented | `segmented.tsx` | caseiro | 1 | ✅ 2026-07-02 |
+| `tbl` + toolbar/sort/pager/selbar, `filterbar` | Table kit | `table.tsx`, `table-toolbar.tsx`, `table-sort-header.tsx`, `table-pager.tsx`, `table-selection-bar.tsx` | caseiro, RSC-first (sort/pager por URL) | 1 | ✅ 2026-07-02 |
+| `tabs` | Tabs (intra-page) / NavTabs (subrotas) | `tabs.tsx` / `nav-tabs.tsx` | Radix / caseiro | 1 | ✅ 2026-07-02 |
+| `stat` | StatCard (unificação) | `stat-card.tsx` | caseiro | 1 | ✅ 2026-07-02 |
+| `crumb` | Breadcrumbs (PageHeader compõe) | `breadcrumbs.tsx` | caseiro | 1 | ✅ 2026-07-02 |
 | `combo` | Combobox | `combobox.tsx` | Popover + listbox caseiro | 4 | pendente |
 | `topbar`, `side-nav`, `nav-group` | Shell novo | `components/painel/*` | caseiro | 2 | pendente |
 | `barchart`, `linechart`, `donut` | Charts CSS (Relatórios) | por rota | caseiro (sem lib) | 5 | pendente |

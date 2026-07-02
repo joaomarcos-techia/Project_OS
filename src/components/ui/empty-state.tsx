@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
-/** Empty state — classe do Design System (`ds.css` `.empty` + `.em-ico`). */
+/** Empty state — DS v2 §empty, recriado em Tailwind. API preservada. */
 export function EmptyState({
   icon,
   title,
@@ -17,11 +17,25 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn('empty', className)}>
-      {icon ? <span className="em-ico">{icon}</span> : null}
-      <b>{title}</b>
-      {description ? <p>{description}</p> : null}
-      {action ? <div style={{ marginTop: 'var(--sp-3)' }}>{action}</div> : null}
+    <div
+      className={cn(
+        'flex flex-col items-center gap-1.5 px-(--sp-6) py-(--sp-12) text-center',
+        className,
+      )}
+    >
+      {icon ? (
+        <span
+          aria-hidden="true"
+          className="mb-2.5 grid size-14 place-items-center rounded-(--r-lg) border border-border bg-surface-inset text-fg-subtle [&>svg]:size-6"
+        >
+          {icon}
+        </span>
+      ) : null}
+      <b className="text-(length:--fs-h4) font-semibold">{title}</b>
+      {description ? (
+        <p className="max-w-[38ch] text-(length:--fs-sm) text-fg-muted">{description}</p>
+      ) : null}
+      {action ? <div className="mt-3 flex gap-2.5">{action}</div> : null}
     </div>
   );
 }

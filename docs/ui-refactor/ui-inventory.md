@@ -92,6 +92,25 @@ Onda 0 não toca telas — só o layer de tokens/fontes. Achados e ações:
 - **Dep `geist` removida** — grep zero em `src/` (rotas PDF usam Helvetica embutida do react-pdf; não registram fontes).
 - Dark agora responde a **`.dark` E `[data-theme='dark']`** (dual selector em globals.css) — cobre Tailwind e CSS legado.
 
+## Audit Onda 1 (2026-07-02) — biblioteca de primitivos
+
+Onda 1 não toca telas — só `src/components/ui/` (+ `painel/icons.tsx`). Auditoria de reuso
+feita ANTES de criar cada componente (Governança regra 5/7):
+
+| Componente novo | Equivalente existente? | Ação |
+| --- | --- | --- |
+| Dialog/Drawer/ConfirmDialog | Não (overlays caseiros duplicados em telas) | Criado (Radix) — telas migram nas Ondas 3–6 |
+| Toast/Toaster/useActionFeedback | Não (padrão `msg` local ×54) | Criado (store singleton, sem Context) |
+| Skeleton(+Card/Table) | Classe `.skeleton` no ds.css com 0 usos | Criado em Tailwind; classe morre com o ds.css |
+| Table kit | 6 tabelas à mão `ui-table` | Criado (RSC-first, sort/pager por URL) |
+| Tabs/NavTabs | `.tab-btn` do ds.css usado ad hoc | Criado (Radix intra-page + Link entre subrotas) |
+| DropdownMenu/Tooltip/Popover/Switch/Checkbox/Segmented | Não | Criados (Radix; Segmented caseiro) |
+| StatCard | 2 sistemas (`admin/_components/stat-card.tsx` + `.kpi`) | Criado unificado em `ui/`; os 2 antigos morrem nas Ondas 3/6 |
+| Breadcrumbs | Breadcrumb manual via prop do PageHeader | Criado; PageHeader compõe na Onda 2 |
+| Button/Input/Select/Field/Card/Badge/Alert/EmptyState | Sim — restyle in-place | API 100% preservada (variantes históricas mantidas; testes de telas seguem verdes) |
+| Combobox | — | **Adiado** para a Onda 4 (primeira tela que precisa: seletor de paciente da Agenda) |
+| Command palette | — | **Fora de escopo** (decisão do founder) |
+
 ## Dívidas registradas (não entram nesta refatoração)
 
 - Calendário visual da Agenda (React Big Calendar sobre C6).

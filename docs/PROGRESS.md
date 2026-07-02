@@ -1082,6 +1082,27 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
   `theme` vs `clinicaos-theme` — nunca funcionou).
 - Validação: typecheck ✓ · build ✓ · lint/test/arch ✓ · visual light+dark.
 
+### Onda 1 — Biblioteca de primitivos (✅ 2026-07-02)
+
+- **Radix entra** (pin exato; gatilho do ADR-018 disparado): dialog, dropdown-menu,
+  popover, tooltip, switch, checkbox, tabs. **Sem cmdk** (decisão do founder).
+- `src/components/ui/` ganha: `dialog` + `drawer` (mesmo Radix Dialog posicionado) +
+  `confirm-dialog` (ações críticas), **toast** (`use-toast` store singleton sem Context +
+  `toaster` + `use-action-feedback` que aposenta o padrão `msg` nas ondas seguintes),
+  `skeleton`(+Card/Table), **Table kit** RSC-first (`table`, `table-toolbar`,
+  `table-sort-header` e `table-pager` dirigidos por URL, `table-selection-bar`),
+  `tabs`/`nav-tabs`, `stat-card` unificado, `breadcrumbs`, `switch`, `checkbox`,
+  `segmented`, `button-group`.
+- **Restyle retrocompatível** dos existentes (API/variantes preservadas; testes das
+  telas seguem verdes): button (variantes reais do DS: primary/accent/danger/ghost/
+  soft/subtle + secondary/success compat), input/textarea/select/field/label/date-field,
+  card, badge (tones históricos → paleta DS; teal/violet via viz-8/viz-3), alert,
+  empty-state. Componentes novos NÃO usam classes do ds.css.
+- **Ícones unificados**: `painel/icons.tsx` virou re-export lucide (nomes históricos
+  mapeados); código novo importa lucide direto.
+- Validação: typecheck ✓ · lint ✓ · **496 testes** (14 novos: CVA, toast store,
+  use-action-feedback) · arch ✓ · build ✓. Nenhuma tela alterada nesta onda.
+
 ---
 
 ## Veja também
