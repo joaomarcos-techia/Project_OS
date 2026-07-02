@@ -95,7 +95,9 @@ export function fail(err: unknown): { ok: false; code: string; message: string }
 export function tzOffsetMs(date: Date, tz: string): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
-    hour12: false,
+    // hourCycle:'h23' (não hour12:false): evita o bug do ICU que renderiza
+    // meia-noite como "24" em alguns runtimes (Node/UTC do CI) → offset +21h errado.
+    hourCycle: 'h23',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
