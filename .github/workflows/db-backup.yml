@@ -1,0 +1,72 @@
+name: Daily DB Backup (prod)
+
+# Backup diário do banco de PRODUÇÃO (C16 / DR). Grátis, sem PITR: um pg_dump/dia
+# cifrado (AES-256) guardado como artifact. Atende RPO <= 24h. Para retenção longa,
+# troque o upload por um S3/Storage privado.
+#
+# Secrets necessários (Settings -> Secrets and variables -> Actions):
+#   DATABASE_URL_PROD  -> connection string de prod (com ?sslmode=require)
+#   BACKUP_PASSPHRASE  -> senha forte p/ cifrar o dump (guarde no seu cofre)
+#
+# Restaurar depois: baixe o artifact, `gpg -d prod-*.sql.gpg > dump.sql`, e rode
+# `RESTORE_TARGET_URL=... pnpm restore:test dump.sql`.
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC diário
+  workflow_dispatch: {} # permite disparar manualmente pela aba Actions
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Instalar postgresql-client 17 (PGDG)
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump + cifrar
+        env:
+          DATABASE_URL_PROD: ${{ secrets.DATABASE_URL_PROD }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL_PROD" || { echo "::error::DATABASE_URL_PROD secret ausente"; exit 1; }
+          test -n "$BACKUP_PASSPHRASE" || { echo "::error::BACKUP_PASSPHRASE secret ausente"; exit 1; }
+          # Session Pooler (5432) — Transaction Pooler (6543) pode cair no meio de um dump longo.
+          URL="${DATABASE_URL_PROD/:6543\//:5432\/}"
+          TS="$(date -u +%Y%m%dT%H%M%SZ)"
+          OUT="prod-${TS}.sql"
+          # Mesmas flags do scripts/db-backup-prod.ts (exclui schemas gerenciados do Supabase).
+          pg_dump --no-owner --no-acl --clean --if-exists \
+            --exclude-schema=auth --exclude-schema=storage --exclude-schema=realtime \
+            --exclude-schema=extensions --exclude-schema=graphql --exclude-schema=graphql_public \
+            --exclude-schema=vault --exclude-schema=supabase_functions --exclude-schema=_realtime \
+            --exclude-schema=_analytics --exclude-schema=pgsodium --exclude-schema=pgsodium_masks \
+            --exclude-schema=pgbouncer \
+            --format=plain --file="$OUT" "$URL"
+          test -s "$OUT" || { echo "::error::dump vazio"; exit 1; }
+          echo "dump: $(wc -c < "$OUT") bytes"
+          # Cifra em repouso (o artifact contém PII — nunca em texto claro).
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" -o "${OUT}.gpg" "$OUT"
+          rm -f "$OUT"
+
+      - name: Upload do backup cifrado
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup
+          path: 'prod-*.sql.gpg'
+          retention-days: 30
+          if-no-files-found: error

@@ -28,6 +28,7 @@
     "db:migrate:dev": "tsx scripts/db-migrate-dev.ts",
     "db:migrate:prod": "tsx scripts/db-migrate-prod.ts",
     "db:backup:prod": "tsx scripts/db-backup-prod.ts",
+    "restore:test": "tsx scripts/restore-test.ts",
     "db:studio": "tsx scripts/db-studio.ts",
     "seed:super-admin": "tsx scripts/seed-super-admin.ts",
     "seed:clinic-user": "tsx scripts/seed-clinic-user.ts",
