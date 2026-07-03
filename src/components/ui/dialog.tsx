@@ -42,7 +42,9 @@ export function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          'fixed top-1/2 left-1/2 z-(--z-modal) w-[min(540px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2',
+          // transform (não translate utility): a animação modal-in anima `transform`,
+          // e translate+transform COMPOEM — com utility o modal nascia deslocado e "descia"
+          'fixed top-1/2 left-1/2 z-(--z-modal) w-[min(540px,calc(100vw-32px))] [transform:translate(-50%,-50%)]',
           'overflow-hidden rounded-(--r-xl) border border-border bg-surface shadow-(--elev-modal)',
           'focus:outline-none data-[state=open]:animate-modal-in',
           className,

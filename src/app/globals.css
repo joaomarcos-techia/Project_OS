@@ -451,8 +451,12 @@
   --ease-spring: var(--ease-spring);
 }
 
-/* Animações dos primitivos (DS v2 §modal/drawer/menu/toast/skeleton) */
+/* Animações dos primitivos (DS v2 §modal/drawer/menu/toast/skeleton) +
+   breakpoint do shell (900px — paridade com o app-shell antigo: sidebar
+   fixa acima disso, drawer mobile abaixo) */
 @theme {
+  --breakpoint-nav: 56.25rem;
+
   --animate-overlay-in: overlay-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
   --animate-modal-in: modal-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
   --animate-drawer-in-right: drawer-in-right 280ms cubic-bezier(0.22, 1, 0.36, 1);

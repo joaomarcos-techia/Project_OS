@@ -20,7 +20,7 @@ export function MobileNavButton({ open, onClick }: { open: boolean; onClick: () 
       onClick={onClick}
       className={cn(
         // acima do topbar sticky (z-sticky) para o clique não ser interceptado
-        'fixed top-3.5 left-3.5 z-[450] grid size-9 place-items-center rounded-(--r-md) border border-border bg-surface text-fg-muted shadow-xs lg:hidden',
+        'fixed top-3.5 left-3.5 z-[450] grid size-9 place-items-center rounded-(--r-md) border border-border bg-surface text-fg-muted shadow-xs nav:hidden',
         open && 'hidden',
       )}
     >
@@ -35,7 +35,7 @@ export function ShellScrim({ show, onClick }: { show: boolean; onClick: () => vo
     <div
       aria-hidden="true"
       onClick={onClick}
-      className="fixed inset-0 z-(--z-drawer) bg-[oklch(0.2_0.02_230/0.42)] backdrop-blur-[2px] lg:hidden"
+      className="fixed inset-0 z-(--z-drawer) bg-[oklch(0.2_0.02_230/0.42)] backdrop-blur-[2px] nav:hidden"
     />
   );
 }
@@ -47,8 +47,8 @@ export function ShellSidebar({ open, children }: { open: boolean; children: Reac
       className={cn(
         'fixed inset-y-0 left-0 z-(--z-drawer) flex w-(--sidebar-w) flex-col gap-(--sp-4) overflow-y-auto border-r border-border bg-surface pt-(--sp-5)',
         'transition-transform duration-(--dur-slow) ease-out',
-        'lg:sticky lg:top-0 lg:z-(--z-sticky) lg:h-dvh lg:translate-x-0',
-        open ? 'translate-x-0 shadow-(--elev-modal) lg:shadow-none' : '-translate-x-full',
+        'nav:sticky nav:top-0 nav:z-(--z-sticky) nav:h-dvh nav:translate-x-0',
+        open ? 'translate-x-0 shadow-(--elev-modal) nav:shadow-none' : '-translate-x-full',
       )}
     >
       {children}

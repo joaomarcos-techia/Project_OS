@@ -74,7 +74,7 @@ export function PainelShell({
       <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
       <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
-      <div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-w)_1fr]">
+      <div className="min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
         <ShellSidebar open={navOpen}>
           <Wordmark logo={<LogoIcon size={24} />} />
 
@@ -141,7 +141,7 @@ export function PainelShell({
         <div className="flex min-w-0 flex-col bg-canvas">
           <header
             className={cn(
-              'sticky top-0 z-(--z-sticky) flex items-center gap-(--sp-3) border-b border-border px-(--sp-8) py-2 max-lg:pl-16 max-md:px-(--sp-4) max-md:pl-16',
+              'sticky top-0 z-(--z-sticky) flex items-center gap-(--sp-3) border-b border-border px-(--sp-8) py-2 max-nav:pl-16 max-md:px-(--sp-4) max-md:pl-16',
               'bg-[color-mix(in_oklch,var(--bg)_86%,transparent)] backdrop-blur-[12px] backdrop-saturate-[1.3]',
             )}
           >

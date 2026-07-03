@@ -38,7 +38,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
       <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
-      <div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-w)_1fr]">
+      <div className="min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
         <ShellSidebar open={navOpen}>
           <div className="flex items-center justify-between pr-(--sp-5)">
             <Wordmark logo={<LogoIcon size={24} />} />
