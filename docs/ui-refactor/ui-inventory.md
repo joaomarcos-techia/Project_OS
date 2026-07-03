@@ -156,6 +156,30 @@ CSS legado SEMPRE em `@layer components`; utilities devem vencer o legado por co
 
 **Não-problemas verificados:** lógica de busca em /clinicas NÃO foi alterada (nenhuma action/query tocada); erros `CONNECT_TIMEOUT`/"Failed to fetch" = acesso ao Supabase saturado (memória conhecida do projeto) + builds meus concorrendo com o dev server do founder no mesmo `.next` (não vou mais buildar com o dev aberto).
 
+## Audit Onda 3 (2026-07-02) — Dashboard + Consultório
+
+**Dashboard** (`page.tsx` 428→~230 linhas + `_components/`): `.kpi`/`stat-tile` → `StatCard` (ui);
+painéis → `PanelCard` (Card DS); gráfico → `RevenueChart` (CSS puro, viz-1 + viz-8 p/ hoje);
+atividade → `ActivityFeed`; checklist de ativação em Tailwind. **UX honesta**: breadcrumb
+"Clínica Vida" hardcoded e segmented "Hoje|Semana" fake REMOVIDOS; próximos usam o
+`AppointmentStatusBadge` canônico (matou o mapa de STATUS duplicado). Zero classes legadas.
+
+**Consultório**: cartão de sessão vivo (identidade + `ElapsedChip` "na clínica há X" via
+checkInAt + toolbar EMITIR); ferramentas saíram de painéis inline p/ **Drawer**
+(`prescription-drawer`, `document-drawer` — tipo de receita usa `Segmented`) e a assinatura
+virou **Dialog crítico** (`sign-dialog`); `atendimento-tools.tsx` (634 linhas) DELETADO;
+feedback via toast (padrão `msg`/`saveMsg` eliminado do consultório). **Anti-vazamento**:
+`getBoard` compõe `listPendenciasAbertas` (Financial, best-effort com catch) e Finalizadas
+mostram badge âmbar **"Sem cobrança"**. `.screen`/breadcrumb legado removidos.
+
+**Flash "Você" no header**: comportamento best-effort do `shell-identity` durante stall do
+Supabase (o shell nunca quebra a página) — raiz é infra, não UI; fallback por e-mail exigiria
+expor e-mail no port de auth (fora do escopo da onda; anotado).
+
+**Verificação**: screenshots headless light+dark (fixtures em rota diag dev-only, removida) —
+board com urgência/espera crítica/badge sem-cobrança e gráfico OK; typecheck/lint/496 testes ✓;
+build adiado (dev do founder ativo na 3000).
+
 ## Dívidas registradas (não entram nesta refatoração)
 
 - Calendário visual da Agenda (React Big Calendar sobre C6).

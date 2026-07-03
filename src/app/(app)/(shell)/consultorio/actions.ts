@@ -23,6 +23,7 @@ import type {
   ProntuarioDetail,
   SignProntuarioInput,
 } from '@/contexts/clinical/types';
+import { listPendenciasAbertas } from '@/contexts/financial/queries';
 import { listPatientCards } from '@/contexts/patient/queries';
 import {
   checkInAppointment,
@@ -106,12 +107,15 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
 
   const patientIds = [...new Set(scoped.filter((a) => a.patientId).map((a) => a.patientId!))];
   const chegouIds = scoped.filter((a) => a.status === 'chegou').map((a) => a.id);
-  // leituras independentes em paralelo (1 RTT em vez de 2).
-  const [cards, checkInTimes] = await Promise.all([
+  // leituras independentes em paralelo (1 RTT em vez de 3). Pendências de
+  // cobrança são best-effort: o board (Scheduling) nunca quebra por Financial.
+  const [cards, checkInTimes, pendencias] = await Promise.all([
     listPatientCards(clinicId, patientIds),
     getCheckInTimes(clinicId, chegouIds),
+    listPendenciasAbertas(clinicId).catch(() => []),
   ]);
   const cardMap = new Map(cards.map((c) => [c.id, c]));
+  const semCobranca = new Set(pendencias.map((p) => p.appointmentId).filter(Boolean));
 
   const now = new Date();
   const pick = (statuses: AppointmentStatusDTO[]) =>
@@ -125,7 +129,10 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
     aChegar: pick(['agendado', 'confirmado']),
     salaEspera: pick(['chegou']),
     emAtendimento: pick(['em_atendimento']),
-    finalizadas: pick(['atendido']),
+    finalizadas: pick(['atendido']).map((c) => ({
+      ...c,
+      cobrancaPendente: semCobranca.has(c.appointmentId),
+    })),
     truncated,
   };
 }

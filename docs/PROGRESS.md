@@ -1119,6 +1119,26 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
   `stat-tile/cardblock/listrow/cols-*` — critério grep-zero do plano falha);
   shells não dependem mais dele; deleção na onda do último consumidor.
 - Validação: typecheck ✓ · lint ✓ · 496 testes ✓ · build ✓ · smoke em `next start`.
+- **Hotfixes 2.1–2.3 (QA do founder)**: mobile drawer (z-index), respiro da sidebar,
+  `.input-wrap > input`, tema único + Sair no tenant, pattern /v do telefone,
+  new-clinic-modal → Dialog, e a CAUSA RAIZ: CSS legado unlayered vencia as
+  utilities (`*{margin:0}` matava toda margem; `.grid` legado vencia `nav:hidden`)
+  → os 4 CSS legados agora vivem em `@layer components`. Diagnóstico e prova com
+  Chrome headless + puppeteer (computed styles + screenshots).
+
+### Onda 3 — Dashboard + Consultório (✅ 2026-07-02)
+
+- **Dashboard** decomposto em `_components/` (PanelCard, RevenueChart CSS com
+  paleta viz, ActivityFeed, ActivationChecklist); stat tiles → `StatCard` (ui);
+  fake removido (breadcrumb "Clínica Vida", segmented Hoje|Semana); status via
+  `AppointmentStatusBadge` canônico. Zero classes legadas na rota.
+- **Consultório**: cartão de sessão vivo (tempo na clínica + toolbar EMITIR);
+  prescrição/documento em **Drawer**, assinatura em **Dialog crítico**;
+  `atendimento-tools.tsx` (634 linhas) eliminado; feedback via toast.
+  **Anti-vazamento**: Finalizadas com badge "Sem cobrança" (getBoard compõe
+  pendências do Financial, best-effort).
+- Validação: typecheck/lint/496 testes ✓; screenshots headless light+dark
+  (board + dashboard com fixtures); build adiado (dev do founder ativo).
 
 ---
 

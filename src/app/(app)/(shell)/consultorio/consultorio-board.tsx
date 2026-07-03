@@ -136,22 +136,19 @@ export function ConsultorioBoard({
 
   const badge = CONN_BADGE[conn];
 
-  // Status atual (do board) do appointment selecionado → o painel central recarrega
-  // quando ele muda (ex.: em_atendimento → atendido após Encerrar, ou via Realtime).
-  const selectedStatus =
+  // Card atual (do board) do appointment selecionado → o painel central recarrega
+  // quando o status muda (ex.: em_atendimento → atendido após Encerrar, ou via Realtime).
+  const selectedCard =
     [...board.aChegar, ...board.salaEspera, ...board.emAtendimento, ...board.finalizadas].find(
       (c) => c.appointmentId === selectedAppt,
-    )?.status ?? null;
+    ) ?? null;
+  const selectedStatus = selectedCard?.status ?? null;
   const viewingFinalizada = selectedStatus === 'atendido';
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Operação <span className="sep">›</span> <b>Consultório</b>
-          </>
-        }
+        crumbs={[{ label: 'Operação' }, { label: 'Consultório' }]}
         title="Consultório"
         description="Atenda um turno inteiro sem trocar de tela."
         actions={
@@ -240,6 +237,7 @@ export function ConsultorioBoard({
           <AttendingPanel
             appointmentId={selectedAppt}
             boardStatus={selectedStatus}
+            checkInAt={selectedCard?.checkInAt ?? null}
             busy={busyId === selectedAppt}
             onComplete={onComplete}
             onClose={() => setSelectedAppt(null)}
@@ -269,6 +267,6 @@ export function ConsultorioBoard({
           />
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

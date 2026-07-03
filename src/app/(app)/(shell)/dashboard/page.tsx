@@ -1,134 +1,41 @@
+import {
+  Banknote,
+  CalendarDays,
+  Clock3,
+  RefreshCw,
+  Sparkles,
+  Stethoscope,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import Link from 'next/link';
 
+import { buttonVariants } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatCard } from '@/components/ui/stat-card';
+import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
-import { getCashFlowToday, getClinicTimezone, listCashFlowDaily } from '@/contexts/financial/queries';
-import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
-import { Icon } from '@/components/painel/icons';
+import {
+  getCashFlowToday,
+  getClinicTimezone,
+  listCashFlowDaily,
+} from '@/contexts/financial/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { formatBRL } from '@/lib/format';
 
-import { getActivationChecklist, getDashboard, type ActivationChecklistDTO } from './data';
+import { ActivationChecklist } from './_components/activation-checklist';
+import { ActivityFeed } from './_components/activity-feed';
+import { PanelCard } from './_components/panel-card';
+import { RevenueChart } from './_components/revenue-chart';
+import { getActivationChecklist, getDashboard } from './data';
 
 export const dynamic = 'force-dynamic';
 
-/* ---- stat tile (porte de helpers.stat) ---- */
-function Stat({
-  label,
-  value,
-  hint,
-  ico,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  ico: string;
-  tone?: 'amber' | 'teal' | 'green' | 'red';
-}) {
-  return (
-    <div className="stat-tile">
-      <div className="st-top">
-        <span className="st-l">{label}</span>
-        <span className={`st-ico${tone ? ` ${tone}` : ''}`}>
-          <Icon name={ico} size={16} />
-        </span>
-      </div>
-      <div className="st-v">{value}</div>
-      {hint ? <div className="st-d">{hint}</div> : null}
-    </div>
-  );
-}
-
-/* ---- checklist de ativação (Fase 2) — some quando os passos estão concluídos ---- */
-function ActivationChecklist({ data }: { data: ActivationChecklistDTO }) {
-  if (data.complete) return null;
-  return (
-    <div
-      className="panel"
-      style={{
-        marginBottom: 'var(--sp-4)',
-        borderColor: 'color-mix(in oklch, var(--primary-500) 35%, var(--border))',
-        background: 'color-mix(in oklch, var(--primary-500) 4%, var(--surface))',
-      }}
-    >
-      <h4>
-        Primeiros passos
-        <span style={{ color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-          {data.done}/{data.total} concluídos
-        </span>
-      </h4>
-      <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '2px 0 var(--sp-3)' }}>
-        Falta pouco para sua clínica funcionar 100%.
-      </p>
-      <div className="mini-list">
-        {data.items.map((it) => (
-          <Link
-            key={it.key}
-            href={it.href}
-            className="mini-row"
-            style={{ opacity: it.done ? 0.55 : 1, alignItems: 'center', gap: 12 }}
-          >
-            <span
-              aria-hidden
-              style={{
-                width: 22,
-                height: 22,
-                flex: '0 0 22px',
-                borderRadius: 999,
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: 13,
-                fontWeight: 700,
-                background: it.done ? 'var(--success-500)' : 'transparent',
-                color: it.done ? '#fff' : 'var(--text-3)',
-                border: it.done ? 'none' : '1.5px solid var(--border-strong)',
-              }}
-            >
-              {it.done ? '✓' : ''}
-            </span>
-            <span className="mr-name" style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontWeight: 500, textDecoration: it.done ? 'line-through' : 'none' }}>{it.label}</span>
-              <span className="td-sub" style={{ display: 'block' }}>{it.desc}</span>
-            </span>
-            {!it.done ? <span style={{ color: 'var(--text-3)', fontSize: 18 }}>›</span> : null}
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---- "em breve" dentro de um painel (feature ainda não desenvolvida) ---- */
-function SoonInner({ ico, note }: { ico: string; note: string }) {
-  return (
-    <div className="empty" style={{ padding: 'var(--sp-8) var(--sp-4)' }}>
-      <span className="em-ico">
-        <Icon name={ico} size={22} />
-      </span>
-      <b>Em breve</b>
-      <p>{note}</p>
-    </div>
-  );
-}
-
-const STATUS: Record<AppointmentStatusDTO, { tone: string; label: string }> = {
-  agendado: { tone: 'blue', label: 'Agendado' },
-  confirmado: { tone: 'teal', label: 'Confirmado' },
-  chegou: { tone: 'amber', label: 'Chegou' },
-  em_atendimento: { tone: 'violet', label: 'Em atendimento' },
-  atendido: { tone: 'green', label: 'Atendido' },
-  cancelado: { tone: 'gray', label: 'Cancelado' },
-  faltou: { tone: 'red', label: 'Faltou' },
-};
-
-function hora(iso: string): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-/* ---- gráfico de faturamento (últimos 7 dias) ---- */
+/* ---- série do gráfico (últimos 7 dias, tz da clínica) ---- */
 function ymd(tz: string, offsetDays: number): string {
   const fmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz,
@@ -146,62 +53,8 @@ function weekdayLabel(date: string): string {
     .slice(0, 3);
 }
 
-/* ---- atividade recente (audit) ---- */
-const ACT_VERBS: Record<string, string> = {
-  created: 'criado',
-  updated: 'atualizado',
-  paid: 'pago',
-  cancelled: 'cancelado',
-  estornado: 'estornado',
-  removed: 'removido',
-  set: 'definido',
-  deactivated: 'desativado',
-  signed: 'assinado',
-  completed: 'concluído',
-  deleted: 'excluído',
-  exported: 'exportado',
-  ativo: 'atualizado',
-};
-const ACT_ENTITIES: Record<string, string> = {
-  supplier: 'Fornecedor',
-  lancamento: 'Lançamento',
-  procedure: 'Procedimento',
-  prontuario: 'Prontuário',
-  appointment: 'Atendimento',
-  patient: 'Paciente',
-  doctor_availability: 'Disponibilidade',
-  clinic_holiday: 'Feriado',
-  prescription: 'Prescrição',
-  document: 'Documento',
-  financial: 'Financeiro',
-};
-
-function humanizeAction(action: string): string {
-  const segs = action.split('.');
-  const last = segs[segs.length - 1] ?? action;
-  const verb = ACT_VERBS[last] ?? last;
-  let entity: string | undefined;
-  for (let i = segs.length - 2; i >= 0; i--) {
-    const e = ACT_ENTITIES[segs[i]!];
-    if (e) {
-      entity = e;
-      break;
-    }
-  }
-  entity ??= (segs[0] ?? '').replace(/_/g, ' ');
-  return `${entity} ${verb}`.trim();
-}
-
-function relTime(iso: string): string {
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (min < 1) return 'agora';
-  if (min < 60) return `há ${min} min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `há ${h} h`;
-  const dd = Math.floor(h / 24);
-  if (dd === 1) return 'ontem';
-  if (dd < 7) return `há ${dd} d`;
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+function hora(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 export default async function DashboardPage() {
@@ -209,12 +62,10 @@ export default async function DashboardPage() {
 
   if (!d.hasClinic) {
     return (
-      <div className="screen">
-        <div className="page-head">
-          <h1 className="ph-title">Visão operacional</h1>
-          <p className="ph-desc">Selecione uma clínica para ver o painel operacional.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Visão operacional"
+        description="Selecione uma clínica para ver o painel operacional."
+      />
     );
   }
 
@@ -236,7 +87,6 @@ export default async function DashboardPage() {
     label: weekdayLabel(date),
     recebido: i === dias.length - 1 ? flow.recebidoHoje : (recByDate.get(date) ?? 0),
   }));
-  const chartMax = Math.max(1, ...chart.map((c) => c.recebido));
   const chartTotal = chart.reduce((s, c) => s + c.recebido, 0);
 
   // Atividade recente (audit) — feed sensível, gateado em view:audit (gestor/owner).
@@ -257,172 +107,136 @@ export default async function DashboardPage() {
   }).format(new Date());
 
   return (
-    <div className="screen">
-      <div className="page-head">
-        <div className="ph-crumb">
-          Clínica Vida <span className="sep">›</span> <b>Dashboard</b> <span className="sep">›</span> Hoje · {hoje}
-        </div>
-        <div className="ph-title-row">
-          <div>
-            <h1 className="ph-title">Visão operacional</h1>
-            <p className="ph-desc">
-              O pulso da clínica em tempo real — agenda, atendimento, caixa e inteligência num só lugar.
-            </p>
-          </div>
-          <div className="ph-actions">
-            <div className="seg">
-              <button className="on">Hoje</button>
-              <button>Semana</button>
-            </div>
-            <Link href="/dashboard" className="btn sm secondary">
-              <Icon name="refresh" size={15} />
-              Atualizar
-            </Link>
-          </div>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
+        title="Visão operacional"
+        description="O pulso da clínica em tempo real — agenda, atendimento, caixa e inteligência num só lugar."
+        actions={
+          <Link href="/dashboard" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            <RefreshCw className="size-3.5" />
+            Atualizar
+          </Link>
+        }
+      />
 
       <ActivationChecklist data={checklist} />
 
       {/* ---- stat tiles (dados reais) ---- */}
-      <div className="stat-row five">
-        <Stat label="Consultas hoje" value={String(d.consultasHoje)} hint={`${d.finalizadas} finalizadas`} ico="calendar" />
-        <Stat label="Aguardando" value={String(d.aguardando)} hint="na sala de espera" ico="clock" tone="amber" />
-        <Stat label="Em atendimento" value={String(d.emAtendimento)} hint="agora" ico="stethoscope" tone="teal" />
-        <Stat label="Recebimentos pendentes" value={formatBRL(flow.receber)} hint="a receber em aberto" ico="wallet" tone="red" />
-        <Stat label="Faturado hoje" value={formatBRL(flow.recebidoHoje)} hint="recebido hoje" ico="cash" tone="green" />
+      <div className="grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
+        <StatCard
+          label="Consultas hoje"
+          value={d.consultasHoje}
+          hint={`${d.finalizadas} finalizadas`}
+          icon={<CalendarDays />}
+        />
+        <StatCard
+          label="Aguardando"
+          value={d.aguardando}
+          hint="na sala de espera"
+          icon={<Clock3 />}
+        />
+        <StatCard
+          label="Em atendimento"
+          value={d.emAtendimento}
+          hint="agora"
+          icon={<Stethoscope />}
+        />
+        <StatCard
+          label="A receber"
+          value={formatBRL(flow.receber)}
+          hint="pendências em aberto"
+          icon={<Wallet />}
+        />
+        <StatCard
+          label="Faturado hoje"
+          value={formatBRL(flow.recebidoHoje)}
+          hint="recebido hoje"
+          icon={<Banknote />}
+        />
       </div>
 
-      <div className="cols-3-2" style={{ marginTop: 'var(--sp-4)' }}>
-        <div className="stack">
-          <div className="panel">
-            <h4>
-              Faturamento · últimos 7 dias{' '}
-              <Link href="/financeiro">Financeiro</Link>
-            </h4>
+      <div className="mt-(--sp-4) grid gap-(--sp-4) xl:grid-cols-[3fr_2fr]">
+        <div className="flex flex-col gap-(--sp-4)">
+          <PanelCard
+            title="Faturamento · últimos 7 dias"
+            action={{ label: 'Financeiro', href: '/financeiro' }}
+          >
             {chartTotal === 0 ? (
-              <p
-                style={{
-                  fontSize: 13,
-                  color: 'var(--text-3)',
-                  padding: 'var(--sp-6) 0',
-                  textAlign: 'center',
-                }}
-              >
+              <p className="py-(--sp-6) text-center text-(length:--fs-sm) text-fg-subtle">
                 Sem recebimentos registrados no período.
               </p>
             ) : (
-              <div className="chart">
-                <div className="bars">
-                  {chart.map((c) => (
-                    <div
-                      className="bar-col"
-                      key={c.date}
-                      title={`${c.label}: ${formatBRL(c.recebido)}`}
-                    >
-                      <div
-                        className="bar-v"
-                        style={{ height: `${Math.round((c.recebido / chartMax) * 100)}%` }}
-                      />
-                      <span className="bar-l">{c.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <RevenueChart points={chart} />
             )}
-          </div>
+          </PanelCard>
 
-          <div className="cols-2">
-            <div className="panel">
-              <h4>
-                Próximos na agenda <Link href="/consultorio">Ver consultório</Link>
-              </h4>
+          <div className="grid gap-(--sp-4) md:grid-cols-2">
+            <PanelCard
+              title="Próximos na agenda"
+              action={{ label: 'Ver consultório', href: '/consultorio' }}
+            >
               {d.proximos.length === 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--text-3)', padding: '8px 0' }}>Nada para hoje.</p>
+                <p className="py-2 text-(length:--fs-sm) text-fg-subtle">Nada para hoje.</p>
               ) : (
-                <div className="mini-list">
-                  {d.proximos.map((p) => {
-                    const s = STATUS[p.status];
-                    return (
-                      <div className="mini-row" key={p.appointmentId}>
-                        <span className="mr-time">{hora(p.horario)}</span>
-                        <span className="mr-name" style={{ flex: 1 }}>
-                          {p.nome}
-                        </span>
-                        <span className={`badge ${s.tone}`}>
-                          <span className="bdot" />
-                          {s.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <ul className="flex flex-col">
+                  {d.proximos.map((p) => (
+                    <li
+                      key={p.appointmentId}
+                      className="flex items-center gap-3 border-b border-border py-2 text-(length:--fs-sm) last:border-b-0"
+                    >
+                      <span className="font-mono text-(length:--fs-xs) text-fg-subtle">
+                        {hora(p.horario)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{p.nome}</span>
+                      <AppointmentStatusBadge status={p.status} />
+                    </li>
+                  ))}
+                </ul>
               )}
-            </div>
+            </PanelCard>
 
-            <div className="panel">
-              <h4>Ocupação por profissional</h4>
-              <SoonInner ico="users" note="Ocupação por médico chega com a Agenda." />
-            </div>
+            <PanelCard title="Ocupação por profissional" meta="em breve">
+              <EmptyState
+                className="px-(--sp-4) py-(--sp-8)"
+                icon={<Users />}
+                title="Em breve"
+                description="Ocupação por médico chega com a Agenda."
+              />
+            </PanelCard>
           </div>
         </div>
 
-        <div className="stack">
-          <div
-            className="panel"
-            style={{ borderColor: 'color-mix(in oklch, var(--accent-500) 30%, var(--border))' }}
+        <div className="flex flex-col gap-(--sp-4)">
+          <PanelCard
+            className="border-(--ai-border)"
+            title="Alertas da IA"
+            titleIcon={<Sparkles className="text-(--ai)" />}
+            meta="em breve"
           >
-            <h4>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Icon name="ai" size={15} /> Alertas da IA
-              </span>
-              <span style={{ color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>em breve</span>
-            </h4>
-            <SoonInner ico="ai" note="Alertas (no-show, cobrança ausente, retorno vencido) chegam com o Agente de IA." />
-          </div>
+            <EmptyState
+              className="px-(--sp-4) py-(--sp-8)"
+              icon={<Sparkles />}
+              title="Em breve"
+              description="Alertas (no-show, cobrança ausente, retorno vencido) chegam com o Agente de IA."
+            />
+          </PanelCard>
 
-          <div className="panel">
-            <h4>Atividade recente</h4>
+          <PanelCard title="Atividade recente">
             {!canAudit ? (
-              <p style={{ fontSize: 13, color: 'var(--text-3)', padding: '8px 0' }}>
+              <p className="py-2 text-(length:--fs-sm) text-fg-subtle">
                 A trilha de atividade fica disponível para gestores.
               </p>
             ) : activity.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--text-3)', padding: '8px 0' }}>
+              <p className="py-2 text-(length:--fs-sm) text-fg-subtle">
                 Nenhuma atividade registrada ainda.
               </p>
             ) : (
-              <div className="mini-list">
-                {activity.slice(0, 5).map((a) => {
-                  const who = a.userId ? (actorNames.get(a.userId) ?? 'Sistema') : 'Sistema';
-                  return (
-                    <div className="mini-row" key={a.id}>
-                      <span
-                        className="mr-name"
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {humanizeAction(a.action)}
-                        <span className="td-sub" style={{ marginLeft: 6 }}>
-                          {who}
-                        </span>
-                      </span>
-                      <span className="mr-time" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {relTime(a.createdAt)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <ActivityFeed activity={activity} actorNames={actorNames} />
             )}
-          </div>
+          </PanelCard>
         </div>
       </div>
-    </div>
+    </>
   );
 }
