@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type Editing = { id: string | null } | null;
 
@@ -84,7 +85,7 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
               valorPadrao: valorNum,
               duracaoPadraoMin: duracaoNum,
             },
-            crypto.randomUUID(),
+            uuidv4(),
           );
         } else {
           await createProcedure(
@@ -95,7 +96,7 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
               valorPadrao: valorNum,
               duracaoPadraoMin: duracaoNum,
             },
-            crypto.randomUUID(),
+            uuidv4(),
           );
         }
         setEditing(null);
@@ -111,7 +112,7 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
     if (!confirm(`Desativar "${p.descricao}"? Atendimentos existentes não são afetados.`)) return;
     start(async () => {
       try {
-        await deactivateProcedure(p.id, crypto.randomUUID());
+        await deactivateProcedure(p.id, uuidv4());
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao desativar.');
@@ -122,7 +123,7 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
   function reactivate(p: ProcedureSummary) {
     start(async () => {
       try {
-        await updateProcedure(p.id, { ativo: true }, crypto.randomUUID());
+        await updateProcedure(p.id, { ativo: true }, uuidv4());
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao reativar.');

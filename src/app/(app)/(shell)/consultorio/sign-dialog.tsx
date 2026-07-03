@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 
 import { signConsulta } from './actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 /**
  * Assinatura do prontuário — ação crítica em Dialog de confirmação (ADR-031).
@@ -47,7 +48,7 @@ export function SignDialog({
       const res = await signConsulta(
         prontuarioId,
         { needsReturn, returnDays: needsReturn ? Number(returnDays) : null },
-        crypto.randomUUID(),
+        uuidv4(),
       );
       if (res.ok) {
         toast.success('Prontuário assinado', 'O documento agora é imutável.');

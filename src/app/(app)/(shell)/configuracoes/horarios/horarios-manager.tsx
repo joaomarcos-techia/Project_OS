@@ -18,6 +18,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const WEEKDAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 /** Ordem de exibição: semana útil primeiro. */
@@ -89,12 +90,12 @@ export function HorariosManager({
     run(async () => {
       await setDoctorAvailability(
         { doctorId, weekday: wd, startTime: start, endTime: end },
-        crypto.randomUUID(),
+        uuidv4(),
       );
       if (comPausa) {
         await setDoctorAvailability(
           { doctorId, weekday: wd, startTime: tardeStart, endTime: tardeEnd },
-          crypto.randomUUID(),
+          uuidv4(),
         );
       }
     }, comPausa ? 'Expediente com pausa de almoço adicionado.' : 'Janela adicionada.');
@@ -106,7 +107,7 @@ export function HorariosManager({
       () =>
         createHoliday(
           { date: holidayDate, ...(holidayReason.trim() ? { reason: holidayReason.trim() } : {}) },
-          crypto.randomUUID(),
+          uuidv4(),
         ),
       'Feriado adicionado.',
     );
@@ -168,7 +169,7 @@ export function HorariosManager({
                         type="button"
                         aria-label={`Remover ${WEEKDAYS[w.weekday]} ${hhmm(w.startTime)}`}
                         disabled={busy}
-                        onClick={() => run(() => removeDoctorAvailability(w.id, crypto.randomUUID()))}
+                        onClick={() => run(() => removeDoctorAvailability(w.id, uuidv4()))}
                         className="grid size-5 place-items-center rounded-(--r-xs) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-danger-600"
                       >
                         <X className="size-3" />
@@ -261,7 +262,7 @@ export function HorariosManager({
                   size="sm"
                   variant="ghost"
                   disabled={busy}
-                  onClick={() => run(() => removeHoliday(h.id, crypto.randomUUID()))}
+                  onClick={() => run(() => removeHoliday(h.id, uuidv4()))}
                 >
                   Remover
                 </Button>

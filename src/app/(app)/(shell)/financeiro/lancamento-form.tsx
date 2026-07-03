@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
 import { createLancamentoFormAction, type FormState } from './lancamento-actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const INITIAL: FormState = { error: null };
 
@@ -22,7 +23,7 @@ export function LancamentoForm({
   methods: PaymentMethodDTO[];
 }) {
   const [state, formAction, pending] = useActionState(createLancamentoFormAction, INITIAL);
-  const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
+  const idempotencyKey = useMemo(() => uuidv4(), []);
   const [tipo, setTipo] = useState<'receber' | 'pagar'>('receber');
 
   return (

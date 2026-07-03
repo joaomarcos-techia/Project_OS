@@ -22,6 +22,7 @@ import type { ActionResult, BoardDTO } from './board-types';
 import { CheckinStrip } from './checkin-strip';
 import { FinalizedList } from './finalized-list';
 import { WaitingCard } from './waiting-card';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const CONN_BADGE: Record<RealtimeState, { tone: 'green' | 'amber' | 'gray'; label: string }> = {
   live: { tone: 'green', label: 'Tempo real' },
@@ -121,15 +122,15 @@ export function ConsultorioBoard({
 
   const onCall = (id: string) =>
     void act(id, async () => {
-      const r = await callNextPatient(id, crypto.randomUUID());
+      const r = await callNextPatient(id, uuidv4());
       if (r.ok) setSelectedAppt(id);
       return r;
     });
-  const onAbsent = (id: string) => void act(id, () => markAbsent(id, crypto.randomUUID()));
-  const onCheckIn = (id: string) => void act(id, () => checkInPatient(id, crypto.randomUUID()));
+  const onAbsent = (id: string) => void act(id, () => markAbsent(id, uuidv4()));
+  const onCheckIn = (id: string) => void act(id, () => checkInPatient(id, uuidv4()));
   const onComplete = (id: string) =>
     void act(id, async () => {
-      const r = await completeConsulta(id, crypto.randomUUID());
+      const r = await completeConsulta(id, uuidv4());
       if (r.ok) setSelectedAppt(null); // fecha o painel central; effect re-seleciona o próximo
       return r;
     });

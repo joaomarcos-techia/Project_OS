@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type Kind = 'simples' | 'controle_especial';
 const KIND_LABEL: Record<Kind, string> = {
@@ -95,8 +96,8 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
     };
     start(async () => {
       try {
-        if (editing?.id) await updatePrescriptionTemplate(editing.id, input, crypto.randomUUID());
-        else await createPrescriptionTemplate(input, crypto.randomUUID());
+        if (editing?.id) await updatePrescriptionTemplate(editing.id, input, uuidv4());
+        else await createPrescriptionTemplate(input, uuidv4());
         setEditing(null);
         toast.success('Modelo salvo.');
         router.refresh();
@@ -110,7 +111,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
     if (!confirm(`Excluir o modelo "${t.nome}"?`)) return;
     start(async () => {
       try {
-        await deletePrescriptionTemplate(t.id, crypto.randomUUID());
+        await deletePrescriptionTemplate(t.id, uuidv4());
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao excluir.');
@@ -121,7 +122,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
   function duplicate(t: PrescriptionTemplateSummary) {
     start(async () => {
       try {
-        await duplicatePrescriptionTemplate(t.id, crypto.randomUUID());
+        await duplicatePrescriptionTemplate(t.id, uuidv4());
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao duplicar.');

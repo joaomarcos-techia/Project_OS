@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
 import type { PatientFormState } from './actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const INITIAL: PatientFormState = { error: null };
 
@@ -44,7 +45,7 @@ interface Props {
 
 export function PatientForm({ mode, action, initial, stickyAction = false }: Props) {
   const [state, formAction, pending] = useActionState(action, INITIAL);
-  const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
+  const idempotencyKey = useMemo(() => uuidv4(), []);
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-3.5">

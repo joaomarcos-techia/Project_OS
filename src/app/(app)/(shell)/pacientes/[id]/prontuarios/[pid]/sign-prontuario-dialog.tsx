@@ -22,6 +22,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
 import { signProntuarioForm, type FormState } from '../actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const INITIAL: FormState = { error: null };
 
@@ -44,7 +45,7 @@ export function SignProntuarioDialog({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [state, action, pending] = useActionState(signProntuarioForm, INITIAL);
-  const key = useMemo(() => crypto.randomUUID(), []);
+  const key = useMemo(() => uuidv4(), []);
   const [needsReturn, setNeedsReturn] = useState(false);
 
   return (

@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 
 import { createSupplierAction, setSupplierAtivoAction, updateSupplierAction } from './actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type Draft = { razaoSocial: string; cnpj: string; contato: string; condicaoPagamento: string };
 const EMPTY: Draft = { razaoSocial: '', cnpj: '', contato: '', condicaoPagamento: '' };
@@ -71,8 +72,8 @@ export function FornecedoresView({
     }
     startTransition(async () => {
       const r = editingId
-        ? await updateSupplierAction(editingId, input, crypto.randomUUID())
-        : await createSupplierAction(input, crypto.randomUUID());
+        ? await updateSupplierAction(editingId, input, uuidv4())
+        : await createSupplierAction(input, uuidv4());
       if (!r.ok) {
         setError(r.message);
         return;
@@ -85,7 +86,7 @@ export function FornecedoresView({
 
   const toggle = (s: SupplierSummary) => {
     startTransition(async () => {
-      const r = await setSupplierAtivoAction(s.id, !s.ativo, crypto.randomUUID());
+      const r = await setSupplierAtivoAction(s.id, !s.ativo, uuidv4());
       if (!r.ok) {
         toast.error(r.message);
         return;

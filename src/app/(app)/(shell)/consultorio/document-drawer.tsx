@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 
 import { emitDocument } from './actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const DOC_LABEL: Record<MedicalDocumentType, string> = {
   atestado: 'Atestado',
@@ -100,7 +101,7 @@ export function DocumentDrawer({ patientId }: { patientId: string }) {
       return;
     }
     start(async () => {
-      const res = await emitDocument(input, crypto.randomUUID());
+      const res = await emitDocument(input, uuidv4());
       if (res.ok) {
         toast.success(`${DOC_LABEL[type]} emitido`, 'O PDF abriu em outra aba.');
         window.open(`/documentos/${res.data.id}/pdf`, '_blank', 'noopener');

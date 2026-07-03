@@ -4,6 +4,7 @@ import { useActionState, useMemo } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 import {
   requestLgpdDeleteForm,
@@ -16,8 +17,8 @@ const INITIAL: LgpdFormState = { error: null, message: null };
 export function LgpdActions({ id }: { id: string }) {
   const [exportState, exportAction, exporting] = useActionState(requestLgpdExportForm, INITIAL);
   const [deleteState, deleteAction, deleting] = useActionState(requestLgpdDeleteForm, INITIAL);
-  const exportKey = useMemo(() => crypto.randomUUID(), []);
-  const deleteKey = useMemo(() => crypto.randomUUID(), []);
+  const exportKey = useMemo(() => uuidv4(), []);
+  const deleteKey = useMemo(() => uuidv4(), []);
 
   return (
     <section className="mt-8 border-t border-border pt-4">

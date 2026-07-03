@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 
 import { emitPrescription } from './actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type MedRow = { nome: string; dosagem: string; posologia: string; quantidade: string; via: string };
 const emptyMed = (): MedRow => ({ nome: '', dosagem: '', posologia: '', quantidade: '', via: '' });
@@ -134,7 +135,7 @@ export function PrescriptionDrawer({
             medicamentos,
             observacoes: observacoes.trim() || undefined,
           },
-          crypto.randomUUID(),
+          uuidv4(),
         );
         toast.success(`Modelo "${nome}" salvo.`);
         setSaveOpen(false);
@@ -162,7 +163,7 @@ export function PrescriptionDrawer({
           medicamentos,
           ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
         },
-        crypto.randomUUID(),
+        uuidv4(),
       );
       if (res.ok) {
         toast.success('Prescrição emitida', 'O PDF abriu em outra aba.');

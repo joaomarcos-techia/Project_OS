@@ -98,6 +98,25 @@ const config = [
     },
   },
 
+  // crypto.randomUUID só existe em CONTEXTO SEGURO (https/localhost) — em
+  // client components quebra ao acessar via http://IP (dev na rede, mobile).
+  // Use uuidv4() de @/lib/ui/uuid (fallback getRandomValues). Server code
+  // (actions/route handlers, Node) pode continuar usando crypto.randomUUID.
+  {
+    files: ['src/components/**/*.{ts,tsx}', 'src/app/**/*.tsx'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'crypto',
+          property: 'randomUUID',
+          message:
+            'crypto.randomUUID quebra em contexto não-seguro (http://IP). Use uuidv4() de "@/lib/ui/uuid".',
+        },
+      ],
+    },
+  },
+
   // C1 db guard #1: `postgres` driver may ONLY be imported by:
   //   - src/lib/db/index.ts (canonical pool factory for the app)
   //   - scripts/db-migrate-prod.ts (needs dedicated 1-shot connection against

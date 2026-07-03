@@ -22,6 +22,7 @@ import { formatBRL, formatDatePt } from '@/lib/format';
 
 import { cancelLancamentoAction, confirmPaymentAction, createEstornoAction } from './actions';
 import type { ActionResult } from './caixa-types';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type Tone = NonNullable<Parameters<typeof badgeVariants>[0]>['tone'];
 type PanelMode = 'confirm' | 'cancel' | 'estorno';
@@ -91,15 +92,15 @@ export function CaixaView({
             ? { type: 'comprovante', fileStoragePath: comprovante.trim() }
             : null,
         },
-        crypto.randomUUID(),
+        uuidv4(),
       ),
     );
 
   const onCancel = (item: CaixaItem) =>
-    run(() => cancelLancamentoAction({ lancamentoId: item.id }, crypto.randomUUID()));
+    run(() => cancelLancamentoAction({ lancamentoId: item.id }, uuidv4()));
 
   const onEstorno = (item: CaixaItem, motivo: string) =>
-    run(() => createEstornoAction({ lancamentoId: item.id, motivo }, crypto.randomUUID()));
+    run(() => createEstornoAction({ lancamentoId: item.id, motivo }, uuidv4()));
 
   const openPanel = (id: string, mode: PanelMode) =>
     setPanel((p) => (p?.id === id && p.mode === mode ? null : { id, mode }));
