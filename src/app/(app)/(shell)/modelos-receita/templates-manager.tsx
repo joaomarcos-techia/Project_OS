@@ -11,6 +11,7 @@ import {
 } from '@/contexts/clinical/actions-templates';
 import type { PrescriptionTemplateSummary } from '@/contexts/clinical';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -39,7 +40,6 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
   const [kind, setKind] = useState<Kind>('simples');
   const [meds, setMeds] = useState<Med[]>([{ nome: '' }]);
   const [observacoes, setObservacoes] = useState('');
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, start] = useTransition();
 
   const filtered = useMemo(() => {
@@ -68,7 +68,6 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
     setKind('simples');
     setMeds([{ nome: '' }]);
     setObservacoes('');
-    setMsg(null);
   }
 
   function startEdit(t: PrescriptionTemplateSummary) {
@@ -78,7 +77,6 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
     setKind(t.kind);
     setMeds(t.medicamentos.length ? t.medicamentos.map((m) => ({ ...m })) : [{ nome: '' }]);
     setObservacoes(t.observacoes ?? '');
-    setMsg(null);
   }
 
   function updateMed(i: number, patch: Partial<Med>) {
@@ -86,9 +84,8 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
   }
 
   function save() {
-    setMsg(null);
-    if (!nome.trim()) return setMsg({ ok: false, text: 'Dê um nome ao modelo.' });
-    if (cleaned.length === 0) return setMsg({ ok: false, text: 'Adicione ao menos um medicamento.' });
+    if (!nome.trim()) return toast.error('Dê um nome ao modelo.');
+    if (cleaned.length === 0) return toast.error('Adicione ao menos um medicamento.');
     const input = {
       nome: nome.trim(),
       categoria: categoria.trim() || undefined,
@@ -101,35 +98,33 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
         if (editing?.id) await updatePrescriptionTemplate(editing.id, input, crypto.randomUUID());
         else await createPrescriptionTemplate(input, crypto.randomUUID());
         setEditing(null);
-        setMsg({ ok: true, text: 'Modelo salvo.' });
+        toast.success('Modelo salvo.');
         router.refresh();
       } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro ao salvar.' });
+        toast.error(err instanceof Error ? err.message : 'Erro ao salvar.');
       }
     });
   }
 
   function remove(t: PrescriptionTemplateSummary) {
     if (!confirm(`Excluir o modelo "${t.nome}"?`)) return;
-    setMsg(null);
     start(async () => {
       try {
         await deletePrescriptionTemplate(t.id, crypto.randomUUID());
         router.refresh();
       } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro ao excluir.' });
+        toast.error(err instanceof Error ? err.message : 'Erro ao excluir.');
       }
     });
   }
 
   function duplicate(t: PrescriptionTemplateSummary) {
-    setMsg(null);
     start(async () => {
       try {
         await duplicatePrescriptionTemplate(t.id, crypto.randomUUID());
         router.refresh();
       } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro ao duplicar.' });
+        toast.error(err instanceof Error ? err.message : 'Erro ao duplicar.');
       }
     });
   }
@@ -148,9 +143,6 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
         </Button>
       </div>
 
-      {msg ? (
-        <p className={`text-sm ${msg.ok ? 'text-success-600' : 'text-danger-600'}`}>{msg.text}</p>
-      ) : null}
 
       {editing ? (
         <div className="cardblock wrap-pad flex flex-col gap-3">

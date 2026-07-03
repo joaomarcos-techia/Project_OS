@@ -4,15 +4,31 @@
  * Tenant scope via requireClinicId + RLS; nome do paciente vem do snapshot (R8).
  * Cada item linka para a página de PDF existente (signed URL fresca lá — R4).
  */
+import { Files, Search } from 'lucide-react';
 import Link from 'next/link';
 
 import { listClinicalDocumentFeed } from '@/contexts/clinical/queries';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
-import { Icon } from '@/components/painel/icons';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { fieldControlClassName } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFoot,
+  TableFootInfo,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroll,
+  TableWrap,
+} from '@/components/ui/table';
+import { TableToolbar } from '@/components/ui/table-toolbar';
+import { cn } from '@/lib/ui/cn';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,84 +51,103 @@ export default async function DocumentosPage({
   const filtrando = Boolean(q || kind);
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Clínico <span className="sep">›</span> <b>Documentos</b>
-          </>
-        }
+        crumbs={[{ label: 'Clínico' }, { label: 'Documentos' }]}
         title="Documentos"
         description="Receitas e documentos médicos emitidos na clínica."
       />
 
-      <form className="toolbar">
-        <div className="input-wrap tb-grow" style={{ maxWidth: 360 }}>
-          <Icon name="search" size={16} />
-          <input
-            className="input"
-            name="q"
-            defaultValue={q ?? ''}
-            placeholder="Buscar por paciente…"
-            aria-label="Buscar documentos por nome do paciente"
+      <TableWrap>
+        <TableToolbar>
+          <form className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <span className="relative block min-w-52 flex-1 sm:max-w-90">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-subtle"
+              />
+              <input
+                name="q"
+                defaultValue={q ?? ''}
+                placeholder="Buscar por paciente…"
+                aria-label="Buscar documentos por nome do paciente"
+                className={cn(fieldControlClassName, 'pl-9')}
+              />
+            </span>
+            <Select
+              name="tipo"
+              defaultValue={kind ?? ''}
+              aria-label="Filtrar por tipo de documento"
+              className="max-w-48"
+            >
+              <option value="">Todos os tipos</option>
+              <option value="prescription">Receitas</option>
+              <option value="document">Documentos médicos</option>
+            </Select>
+            <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+              Filtrar
+            </button>
+          </form>
+        </TableToolbar>
+        {items.length === 0 ? (
+          <EmptyState
+            icon={<Files />}
+            title={filtrando ? 'Nenhum documento encontrado' : 'Nenhum documento ainda'}
+            description={
+              filtrando
+                ? 'Ajuste a busca ou o filtro de tipo.'
+                : 'Receitas e documentos emitidos no Consultório aparecem aqui.'
+            }
           />
-        </div>
-        <select
-          className="input"
-          name="tipo"
-          defaultValue={kind ?? ''}
-          aria-label="Filtrar por tipo de documento"
-          style={{ maxWidth: 180 }}
-        >
-          <option value="">Todos os tipos</option>
-          <option value="prescription">Receitas</option>
-          <option value="document">Documentos médicos</option>
-        </select>
-        <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-          Filtrar
-        </button>
-      </form>
-
-      {items.length === 0 ? (
-        <EmptyState
-          icon={<Icon name="docs" size={22} />}
-          title={filtrando ? 'Nenhum documento encontrado' : 'Nenhum documento ainda'}
-          description={
-            filtrando
-              ? 'Ajuste a busca ou o filtro de tipo.'
-              : 'Receitas e documentos emitidos no Consultório aparecem aqui.'
-          }
-        />
-      ) : (
-        <div className="cardblock">
-          <div className="listrows">
-            {items.map((d) => (
-              <div key={`${d.kind}:${d.id}`} className="listrow">
-                <div className="lr-main">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={d.kind === 'prescription' ? 'blue' : 'teal'}>{d.label}</Badge>
-                    <span className="font-medium">{d.patientNome}</span>
-                    <span className="text-sm text-fg-muted">
-                      {new Date(d.createdAt).toLocaleString('pt-BR')}
-                    </span>
-                    {!d.hasPdf ? (
-                      <span className="text-xs text-fg-subtle">PDF pendente</span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="lr-end">
-                  <Link
-                    href={d.pdfHref}
-                    className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-                  >
-                    {d.hasPdf ? 'Abrir' : 'Gerar PDF'}
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <>
+            <TableScroll>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Paciente</TableHead>
+                    <TableHead>Emitido em</TableHead>
+                    <TableHead className="w-28" aria-label="Ações" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((d) => (
+                    <TableRow key={`${d.kind}:${d.id}`}>
+                      <TableCell>
+                        <Badge tone={d.kind === 'prescription' ? 'blue' : 'teal'}>{d.label}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{d.patientNome}</TableCell>
+                      <TableCell className="text-fg-muted">
+                        {new Date(d.createdAt).toLocaleString('pt-BR')}
+                        {!d.hasPdf ? (
+                          <span className="ml-2 text-(length:--fs-xs) text-fg-subtle">
+                            PDF pendente
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          href={d.pdfHref}
+                          className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                        >
+                          {d.hasPdf ? 'Abrir' : 'Gerar PDF'}
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableScroll>
+            <TableFoot>
+              <TableFootInfo>
+                {items.length} documento{items.length === 1 ? '' : 's'}
+                {items.length === 100 ? ' (mostrando os 100 mais recentes)' : ''}
+              </TableFootInfo>
+            </TableFoot>
+          </>
+        )}
+      </TableWrap>
+    </>
   );
 }

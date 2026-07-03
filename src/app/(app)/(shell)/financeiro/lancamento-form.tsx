@@ -10,7 +10,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
-import { createLancamentoFormAction, type FormState } from './actions';
+import { createLancamentoFormAction, type FormState } from './lancamento-actions';
 
 const INITIAL: FormState = { error: null };
 

@@ -33,7 +33,7 @@ export default async function PerfilPage() {
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)) {
     return (
-      <div className="screen">
+      <div>
         <PageHeader breadcrumb={breadcrumb} title="Perfil da clínica" actions={backLink} />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para editar os dados da clínica.
@@ -45,7 +45,7 @@ export default async function PerfilPage() {
   const profile = await getClinicProfile(clinicId);
   if (!profile) {
     return (
-      <div className="screen">
+      <div>
         <PageHeader breadcrumb={breadcrumb} title="Perfil da clínica" actions={backLink} />
         <Alert variant="danger" title="Clínica não encontrada">
           Não foi possível carregar os dados da clínica.
@@ -55,7 +55,7 @@ export default async function PerfilPage() {
   }
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
         breadcrumb={breadcrumb}
         title="Perfil da clínica"

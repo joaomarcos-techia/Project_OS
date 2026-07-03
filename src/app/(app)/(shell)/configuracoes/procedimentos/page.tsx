@@ -29,7 +29,7 @@ export default async function ProcedimentosPage() {
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES)) {
     return (
-      <div className="screen">
+      <div>
         <PageHeader
           breadcrumb={
             <>
@@ -50,7 +50,7 @@ export default async function ProcedimentosPage() {
   const procedures = await listProcedures(clinicId);
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
         breadcrumb={
           <>

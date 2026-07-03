@@ -132,7 +132,7 @@ export function WhatsappConnect({
   };
 
   return (
-    <div className="screen">
+    <div>
       {ready && appId ? (
         <Script
           src="https://connect.facebook.net/en_US/sdk.js"

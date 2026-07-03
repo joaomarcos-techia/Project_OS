@@ -1140,6 +1140,20 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
 - Validação: typecheck/lint/496 testes ✓; screenshots headless light+dark
   (board + dashboard com fixtures); build adiado (dev do founder ativo).
 
+### Onda 4 — Pacientes + Agenda + Caixa (✅ 2026-07-03) · redução de telas
+
+- **3 rotas aposentadas** com redirect em `next.config.ts`: `/pacientes/novo`
+  (→ Drawer `?novo=1`), `/pacientes/[id]/prontuarios` (→ aba do hub) e
+  `.../assinar` (→ Dialog `?assinar=1`). Fluxo clínico: 5 → 3 níveis de página.
+- `/pacientes` com Table kit + busca; `/pacientes/[id]` virou HUB com abas
+  (Dados | Prontuários); assinatura em Dialog crítico com o mesmo action/audit.
+- **Zero duplicação**: `[pid]` reusa os Drawers de prescrição/documento do
+  Consultório — `prescription-form.tsx` + `medical-document-form.tsx` deletados.
+- **Agenda**: "Novo atendimento" em Drawer com `Segmented` + **`Combobox` novo**
+  (ui: busca assíncrona, teclado, ARIA) + toast. Caixa: ajustes cirúrgicos
+  (crumbs, valores em mono/tabular) — testes RBAC preservados.
+- Validação: typecheck/lint/496 testes ✓ · build ✓.
+
 ---
 
 ## Veja também

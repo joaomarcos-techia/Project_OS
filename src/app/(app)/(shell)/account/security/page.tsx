@@ -27,7 +27,7 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
   const forced = params.force === '1';
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
         breadcrumb={
           <>

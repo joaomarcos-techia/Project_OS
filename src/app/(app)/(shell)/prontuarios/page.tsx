@@ -25,7 +25,7 @@ export default async function ProntuariosBrowsePage({
   const patients = await listPatients(clinicId, q ? { search: q, limit: 50 } : { limit: 50 });
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
         breadcrumb={
           <>

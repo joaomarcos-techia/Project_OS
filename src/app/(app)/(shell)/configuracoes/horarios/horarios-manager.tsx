@@ -11,6 +11,7 @@ import {
 } from '@/contexts/scheduling/config-actions';
 import type { DoctorAvailabilityDTO, HolidayDTO } from '@/contexts/scheduling/queries';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
@@ -38,7 +39,6 @@ export function HorariosManager({
   const [end, setEnd] = useState('12:00');
   const [holidayDate, setHolidayDate] = useState('');
   const [holidayReason, setHolidayReason] = useState('');
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, start_] = useTransition();
 
   const windows = useMemo(
@@ -50,21 +50,20 @@ export function HorariosManager({
   );
 
   function run(fn: () => Promise<unknown>, okText?: string) {
-    setMsg(null);
     start_(async () => {
       try {
         await fn();
-        if (okText) setMsg({ ok: true, text: okText });
+        if (okText) toast.success(okText);
         router.refresh();
       } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro.' });
+        toast.error(err instanceof Error ? err.message : 'Erro.');
       }
     });
   }
 
   function addWindow() {
-    if (!doctorId) return setMsg({ ok: false, text: 'Selecione o profissional.' });
-    if (hhmm(end) <= hhmm(start)) return setMsg({ ok: false, text: 'Fim deve ser depois do início.' });
+    if (!doctorId) return toast.error('Selecione o profissional.');
+    if (hhmm(end) <= hhmm(start)) return toast.error('Fim deve ser depois do início.');
     run(
       () =>
         setDoctorAvailability(
@@ -76,7 +75,7 @@ export function HorariosManager({
   }
 
   function addHoliday() {
-    if (!holidayDate) return setMsg({ ok: false, text: 'Informe a data.' });
+    if (!holidayDate) return toast.error('Informe a data.');
     run(
       () =>
         createHoliday(
@@ -97,9 +96,6 @@ export function HorariosManager({
 
   return (
     <div className="stack" style={{ maxWidth: 760 }}>
-      {msg ? (
-        <p className={`text-sm ${msg.ok ? 'text-success-600' : 'text-danger-600'}`}>{msg.text}</p>
-      ) : null}
 
       {/* Disponibilidade por profissional */}
       <div className="cardblock wrap-pad flex flex-col gap-3">

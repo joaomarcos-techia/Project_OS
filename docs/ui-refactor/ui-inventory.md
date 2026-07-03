@@ -180,6 +180,27 @@ expor e-mail no port de auth (fora do escopo da onda; anotado).
 board com urgência/espera crítica/badge sem-cobrança e gráfico OK; typecheck/lint/496 testes ✓;
 build adiado (dev do founder ativo na 3000).
 
+## Audit Onda 4 (2026-07-03) — Pacientes + Agenda + Caixa (redução de telas)
+
+**Rotas aposentadas** (redirects centralizados em `next.config.ts`, justificativas na escada de navegação):
+- `/pacientes/novo` → Drawer `?novo=1` (form já reutilizável; página inteira era só container).
+- `/pacientes/[id]/prontuarios` → aba `?tab=prontuarios` do hub (nível de navegação puro).
+- `/pacientes/[id]/prontuarios/[pid]/assinar` → Dialog `?assinar=1` no editor (contexto do documento preservado; gate sign:prontuario e auditoria na action, inalterados; redirect pós-assinatura vai direto ao hub).
+- Fluxo mais profundo: **5 → 3 níveis de página**.
+
+**Reuso (regra 5):** a página `[pid]` passou a usar os MESMOS `PrescriptionDrawer`/`DocumentDrawer`
+do Consultório — `prescription-form.tsx` (299 linhas) e `medical-document-form.tsx` deletados
+(o import cross-rota segue o precedente do ProntuarioEditor). `Combobox` (ui) nasceu aqui
+(busca assíncrona com debounce/teclado/ARIA) para o seletor de paciente da Agenda.
+
+**Pacientes**: lista com Table kit + toolbar de busca (ícone posicionado, sem `.input-wrap`);
+hub `[id]` com abas server-rendered Dados | Prontuários. **Agenda**: "Novo atendimento" em
+Drawer (pedido do founder) com Segmented (encaixe/agendar), Combobox de paciente, Checkbox,
+toast no sucesso; link "cadastrar novo paciente" aponta pro drawer de pacientes.
+**Caixa**: ajustes cirúrgicos (crumbs, `.screen` fora, valores monetários em mono/tabular) —
+a tela já usava componentes do DS e tem testes RBAC próprios; painéis inline mantidos
+(testados; conversão p/ Dialog reavaliada com o founder no fim).
+
 ## Dívidas registradas (não entram nesta refatoração)
 
 - Calendário visual da Agenda (React Big Calendar sobre C6).

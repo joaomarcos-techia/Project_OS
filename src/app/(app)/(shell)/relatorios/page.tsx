@@ -8,7 +8,10 @@ import Link from 'next/link';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { StatCard } from '@/components/ui/stat-card';
+import { cn } from '@/lib/ui/cn';
 
 import { getRelatorios, PERIODS, resolvePeriod } from './data';
 
@@ -31,84 +34,91 @@ export default async function RelatoriosPage({
   const data = await getRelatorios(clinicId, period.days, { includeFaturamento: canFinancial });
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
+        crumbs={[{ label: 'Gestão' }, { label: 'Relatórios' }]}
         title="Relatórios"
         description={`Período: ${data.fromLabel} – ${data.toLabel} (fuso da clínica).`}
+        actions={
+          <nav
+            aria-label="Período"
+            className="inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-[3px]"
+          >
+            {PERIODS.map((p) => (
+              <Link
+                key={p.key}
+                href={`/relatorios?periodo=${p.key}`}
+                aria-current={p.key === period.key ? 'page' : undefined}
+                className={cn(
+                  'rounded-(--r-sm) px-3 py-1.5 text-(length:--fs-sm) font-medium transition-all duration-(--dur-fast)',
+                  p.key === period.key
+                    ? 'bg-surface text-fg shadow-(--elev-raised)'
+                    : 'text-fg-muted hover:text-fg',
+                )}
+              >
+                {p.label}
+              </Link>
+            ))}
+          </nav>
+        }
       />
 
-      <div className="toolbar" style={{ marginBottom: 'var(--sp-4)' }}>
-        {PERIODS.map((p) => (
-          <Link
-            key={p.key}
-            href={`/relatorios?periodo=${p.key}`}
-            className={`badge ${p.key === period.key ? 'blue' : 'gray'}`}
-          >
-            {p.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Faturamento (gated) */}
+      <div className="grid gap-(--sp-4) sm:grid-cols-2 xl:grid-cols-3">
         {canFinancial ? (
-          <div className="cardblock wrap-pad flex flex-col gap-1">
-            <span className="text-sm text-fg-muted">Faturamento (recebido)</span>
-            <span className="text-2xl font-semibold">{brl(data.faturamento.recebido)}</span>
-            <span className="text-xs text-fg-subtle">
-              Pago: {brl(data.faturamento.pago)} · Saldo: {brl(data.faturamento.saldo)}
-            </span>
-          </div>
+          <StatCard
+            label="Faturamento (recebido)"
+            value={brl(data.faturamento.recebido)}
+            hint={`Pago: ${brl(data.faturamento.pago)} · Saldo: ${brl(data.faturamento.saldo)}`}
+          />
         ) : null}
 
-        {/* No-show */}
-        <div className="cardblock wrap-pad flex flex-col gap-1">
-          <span className="text-sm text-fg-muted">No-show</span>
-          <span className="text-2xl font-semibold">{pct(data.noShow.taxa)}</span>
-          <span className="text-xs text-fg-subtle">
-            {data.noShow.faltou} falta(s) de {data.noShow.atendido + data.noShow.faltou} com desfecho
-          </span>
-        </div>
+        <StatCard
+          label="No-show"
+          value={pct(data.noShow.taxa)}
+          hint={`${data.noShow.faltou} falta(s) de ${data.noShow.atendido + data.noShow.faltou} com desfecho`}
+        />
 
-        {/* Ocupação */}
-        <div className="cardblock wrap-pad flex flex-col gap-2">
-          <span className="text-sm text-fg-muted">Ocupação</span>
-          <span className="text-2xl font-semibold">{pct(data.ocupacao.taxa)}</span>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-subtle">
+        <Card className="flex flex-col gap-2.5 p-(--card-pad)">
+          <span className="font-mono text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+            Ocupação
+          </span>
+          <span className="font-display text-[34px] leading-none font-medium tracking-tight">
+            {pct(data.ocupacao.taxa)}
+          </span>
+          <div className="h-1.75 w-full overflow-hidden rounded-full bg-(--viz-track)">
             <div
-              className="h-full rounded-full bg-primary-600"
+              className="h-full rounded-full bg-primary transition-[width] duration-(--dur-slower) ease-out"
               style={{ width: `${Math.round((data.ocupacao.taxa ?? 0) * 100)}%` }}
             />
           </div>
-          <span className="text-xs text-fg-subtle">
+          <span className="text-(length:--fs-xs) text-fg-subtle">
             {data.ocupacao.taxa == null
               ? 'Sem horários configurados no período.'
               : `${Math.round(data.ocupacao.busyMinutes / 60)}h ocupadas de ${Math.round(
                   (data.ocupacao.busyMinutes + data.ocupacao.freeMinutes) / 60,
                 )}h disponíveis`}
           </span>
-        </div>
+        </Card>
       </div>
 
       {/* Volume de atendimentos */}
-      <div className="cardblock wrap-pad mt-4 flex flex-wrap gap-6">
-        <div className="flex flex-col">
-          <span className="text-xs text-fg-muted">Total no período</span>
-          <span className="text-lg font-semibold">{data.noShow.total}</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-xs text-fg-muted">Atendidos</span>
-          <span className="text-lg font-semibold">{data.noShow.atendido}</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-xs text-fg-muted">Faltas</span>
-          <span className="text-lg font-semibold">{data.noShow.faltou}</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-xs text-fg-muted">Cancelados</span>
-          <span className="text-lg font-semibold">{data.noShow.cancelado}</span>
-        </div>
-      </div>
-    </div>
+      <Card className="mt-(--sp-4) flex flex-wrap gap-8 p-(--card-pad)">
+        {(
+          [
+            ['Total no período', data.noShow.total],
+            ['Atendidos', data.noShow.atendido],
+            ['Faltas', data.noShow.faltou],
+            ['Cancelados', data.noShow.cancelado],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="flex flex-col gap-1">
+            <span className="font-mono text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
+              {label}
+            </span>
+            <span className="font-display text-xl font-medium tabular-nums">{value}</span>
+          </div>
+        ))}
+      </Card>
+    </>
   );
 }

@@ -6,6 +6,19 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, type badgeVariants } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFoot,
+  TableFootInfo,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroll,
+  TableWrap,
+} from '@/components/ui/table';
+import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireUser } from '@/lib/auth/tenant-context';
 
@@ -38,12 +51,12 @@ export default async function EquipePage() {
 
   if (!user.clinicId || !user.permissions.includes(PERMISSIONS.MANAGE_EMPLOYEES)) {
     return (
-      <div className="screen">
+      <>
         <PageHeader title="Equipe & Permissões" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar a equipe.
         </Alert>
-      </div>
+      </>
     );
   }
 
@@ -53,8 +66,9 @@ export default async function EquipePage() {
   for (const e of employees) counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
+        crumbs={[{ label: 'Administração' }, { label: 'Equipe & Permissões' }]}
         title="Equipe & Permissões"
         description="Quem acessa o quê — usuários e funções da sua clínica."
       />
@@ -64,37 +78,36 @@ export default async function EquipePage() {
         credenciais do login (exige novo acesso), então virá com as devidas travas de segurança.
       </Alert>
 
-      {/* Resumo por função (dados reais) */}
-      {employees.length > 0 ? (
-        <div className="toolbar" style={{ marginBottom: 'var(--sp-4)' }}>
-          <span className="td-sub" style={{ marginRight: 4 }}>
-            {employees.length} {employees.length === 1 ? 'pessoa' : 'pessoas'} · {ativos}{' '}
-            {ativos === 1 ? 'ativa' : 'ativas'}
-          </span>
-          {ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) > 0).map((r) => (
-            <Badge key={r} tone={ROLE_META[r].tone}>
-              {ROLE_META[r].label} · {counts.get(r)}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
-
       {employees.length === 0 ? (
         <EmptyState title="Nenhum funcionário cadastrado" description="A equipe aparecerá aqui." />
       ) : (
-        <div className="cardblock">
-          <div className="table-wrap">
-            <table className="ui-table">
-              <thead>
-                <tr>
-                  <th>Usuário</th>
-                  <th>Função</th>
-                  <th>Credencial</th>
-                  <th>2FA</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
+        <TableWrap>
+          <TableToolbar>
+            <span className="text-(length:--fs-xs) text-fg-subtle">
+              {employees.length} {employees.length === 1 ? 'pessoa' : 'pessoas'} · {ativos}{' '}
+              {ativos === 1 ? 'ativa' : 'ativas'}
+            </span>
+            <TableToolbarSpacer />
+            <div className="flex flex-wrap gap-1.5">
+              {ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) > 0).map((r) => (
+                <Badge key={r} tone={ROLE_META[r].tone}>
+                  {ROLE_META[r].label} · {counts.get(r)}
+                </Badge>
+              ))}
+            </div>
+          </TableToolbar>
+          <TableScroll>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuário</TableHead>
+                  <TableHead>Função</TableHead>
+                  <TableHead>Credencial</TableHead>
+                  <TableHead>2FA</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {employees.map((e) => {
                   const meta = ROLE_META[e.role];
                   const credencial =
@@ -102,46 +115,56 @@ export default async function EquipePage() {
                       ? `CRM ${e.crm}${e.crmUf ? `/${e.crmUf}` : ''}`
                       : (e.especialidade ?? null);
                   return (
-                    <tr key={e.id}>
-                      <td>
-                        <span className="td-name">
-                          <span className="avatar sm" data-name={initials(e.nome)} aria-hidden="true" />
-                          {e.nome}
+                    <TableRow key={e.id}>
+                      <TableCell>
+                        <span className="flex items-center gap-2.5">
+                          <span
+                            aria-hidden="true"
+                            className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-semibold text-on-primary"
+                          >
+                            {initials(e.nome)}
+                          </span>
+                          <span className="font-medium">{e.nome}</span>
                         </span>
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         <Badge tone={meta.tone}>{meta.label}</Badge>
                         {e.overridesCount > 0 ? (
-                          <span className="td-sub" style={{ marginLeft: 6 }}>
+                          <span className="ml-1.5 text-(length:--fs-xs) text-fg-subtle">
                             +{e.overridesCount} ajuste{e.overridesCount > 1 ? 's' : ''}
                           </span>
                         ) : null}
-                      </td>
-                      <td className="td-sub">{credencial ?? '—'}</td>
-                      <td>
+                      </TableCell>
+                      <TableCell className="text-fg-muted">{credencial ?? '—'}</TableCell>
+                      <TableCell>
                         {e.mfaEnrolled ? (
                           <Badge tone="green" dot>
                             Ativo
                           </Badge>
                         ) : (
-                          <span className="td-sub">—</span>
+                          <span className="text-fg-subtle">—</span>
                         )}
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         {e.ativo ? (
                           <Badge tone="green">Ativo</Badge>
                         ) : (
                           <Badge tone="gray">Inativo</Badge>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </TableBody>
+            </Table>
+          </TableScroll>
+          <TableFoot>
+            <TableFootInfo>
+              {employees.length} usuário{employees.length === 1 ? '' : 's'} na clínica
+            </TableFootInfo>
+          </TableFoot>
+        </TableWrap>
       )}
-    </div>
+    </>
   );
 }

@@ -35,7 +35,7 @@ export default async function HorariosPage() {
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {
     return (
-      <div className="screen">
+      <div>
         <PageHeader breadcrumb={breadcrumb} title="Horários" actions={backLink} />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar horários de atendimento.
@@ -54,7 +54,7 @@ export default async function HorariosPage() {
   ]);
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
         breadcrumb={breadcrumb}
         title="Horários de atendimento"
