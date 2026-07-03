@@ -166,7 +166,7 @@ h1,h2,h3,h4 { letter-spacing: -0.02em; line-height: 1.12; font-weight: 600; }
 }
 .input-wrap { position: relative; display: flex; align-items: center; }
 .input-wrap svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; }
-.input-wrap .input { padding-left: 36px; }
+.input-wrap .input, .input-wrap > input { padding-left: 36px; }
 
 .badge {
   display: inline-flex; align-items: center; gap: 6px;

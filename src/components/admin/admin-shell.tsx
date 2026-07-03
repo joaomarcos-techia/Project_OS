@@ -35,7 +35,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <MobileNavButton onClick={() => setNavOpen((v) => !v)} />
+      <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
       <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
       <div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-w)_1fr]">
@@ -48,7 +48,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </div>
 
           {/* Escopo do console — nunca confundir com uma clínica */}
-          <div className="mx-(--sp-3) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
+          <div className="mx-(--sp-4) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
             <span className="grid size-8 shrink-0 place-items-center rounded-(--r-sm) bg-secondary text-secondary-fg">
               <ShieldCheck className="size-4" />
             </span>

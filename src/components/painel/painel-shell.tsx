@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, LogOut, Moon, ShieldCheck, Sun } from 'lucide-react';
+import { ChevronDown, LogOut, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -9,6 +9,7 @@ import {
   MobileNavButton,
   ShellScrim,
   ShellSidebar,
+  SidebarFootButton,
   SideNavDisabled,
   SideNavGroupLabel,
   SideNavLink,
@@ -25,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Toaster } from '@/components/ui/toaster';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/ui/cn';
 
 import { Icon, LogoIcon } from './icons';
@@ -70,7 +71,7 @@ export function PainelShell({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <MobileNavButton onClick={() => setNavOpen((v) => !v)} />
+      <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
       <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
       <div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-w)_1fr]">
@@ -78,7 +79,7 @@ export function PainelShell({
           <Wordmark logo={<LogoIcon size={24} />} />
 
           {/* Identidade do tenant — o usuário sempre sabe qual clínica está ativa */}
-          <div className="mx-(--sp-3) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
+          <div className="mx-(--sp-4) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
             <span className="grid size-8 shrink-0 place-items-center rounded-(--r-sm) bg-primary">
               <LogoIcon size={16} strong="#fff" soft="rgba(255,255,255,.55)" />
             </span>
@@ -99,7 +100,7 @@ export function PainelShell({
               const mods = MODULES.filter((m) => m.group === g);
               if (!mods.length) return null;
               return (
-                <div key={g} className="mt-(--sp-4) first:mt-(--sp-2)">
+                <div key={g} className="mt-(--sp-5) first:mt-(--sp-2)">
                   <SideNavGroupLabel>{g}</SideNavGroupLabel>
                   {mods.map((m) =>
                     m.soon || !m.href ? (
@@ -128,6 +129,9 @@ export function PainelShell({
 
           <div className="flex flex-col gap-1 border-t border-border p-(--sp-3)">
             <ThemeFootToggle dark={dark} onToggle={toggle} />
+            <form action="/logout" method="post">
+              <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
+            </form>
             <span className="px-0.5 font-mono text-[10px] leading-normal text-fg-subtle">
               ClinicaOS — operação sem vazamento.
             </span>
@@ -142,20 +146,6 @@ export function PainelShell({
             )}
           >
             <div className="flex-1" />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Alternar tema"
-                  onClick={toggle}
-                  className="grid size-9 place-items-center rounded-(--r-md) text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
-                >
-                  {dark ? <Moon className="size-4.5" /> : <Sun className="size-4.5" />}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Alternar tema (⌘\)</TooltipContent>
-            </Tooltip>
-            <span aria-hidden="true" className="h-5 w-px bg-border" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button

@@ -12,13 +12,17 @@ import { cn } from '@/lib/ui/cn';
  * (Governança de UI regra 5).
  */
 
-export function MobileNavButton({ onClick }: { onClick: () => void }) {
+export function MobileNavButton({ open, onClick }: { open: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       aria-label="Abrir navegação"
       onClick={onClick}
-      className="fixed top-3.5 left-3.5 z-(--z-sticky) grid size-9 place-items-center rounded-(--r-md) border border-border bg-surface text-fg-muted shadow-xs lg:hidden"
+      className={cn(
+        // acima do topbar sticky (z-sticky) para o clique não ser interceptado
+        'fixed top-3.5 left-3.5 z-[450] grid size-9 place-items-center rounded-(--r-md) border border-border bg-surface text-fg-muted shadow-xs lg:hidden',
+        open && 'hidden',
+      )}
     >
       <Menu className="size-5" />
     </button>
@@ -54,15 +58,15 @@ export function ShellSidebar({ open, children }: { open: boolean; children: Reac
 
 export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="mb-1.5 block px-(--sp-3) font-mono text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+    <span className="mb-2 block px-(--sp-3) font-mono text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
       {children}
     </span>
   );
 }
 
 const itemBase = cn(
-  'relative flex items-center gap-2.25 rounded-(--r-sm) px-(--sp-3) py-1.5 text-(length:--fs-sm)',
-  'transition-colors duration-(--dur-fast)',
+  'relative flex items-center gap-2.5 rounded-(--r-md) px-(--sp-3) py-2 text-(length:--fs-sm)',
+  'mb-0.5 transition-colors duration-(--dur-fast)',
 );
 
 export function SideNavLink({

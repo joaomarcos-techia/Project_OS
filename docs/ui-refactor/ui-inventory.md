@@ -125,6 +125,29 @@ feita ANTES de criar cada componente (Governança regra 5/7):
 
 **Estados criados:** `loading.tsx` em dashboard, agenda, consultorio, caixa, pacientes, pacientes/[id], financeiro, relatorios, equipe, prontuarios, documentos, admin, admin/clinicas (13); `error.tsx` em `(app)/(shell)` e `(admin)/admin` + root restilizado; `not-found.tsx` root.
 
+## Feedback do founder pós-Onda 2 (QA manual completo, 2026-07-02)
+
+**Hotfix imediato (Onda 2.1):** mobile drawer não abria (botão do menu ficava sob o
+topbar sticky — z-index; corrigido p/ z-450 + hidden quando aberto); sidebar mais
+respirada (item 8px/gap 10px/r-md, cards de identidade mx-16px, grupos mt-20px);
+`.input-wrap > input` compat (ícone sobre texto em 6 telas de busca); tema duplicado
+(removido do topbar; fica o da sidebar); **Sair na sidebar do tenant**; pattern do
+telefone inválido sob flag /v do Chrome (`\(\)` escapados); new-clinic-modal → Dialog
+novo (centralizado + blur); dashboard: atividade recente limitada a 5 + data sem quebra.
+
+**Incorporado às ondas:**
+- **Onda 3** (dashboard/consultório): melhorar "Em atendimento" e "Finalizadas" (founder pediu sugestões); investigar flash "Você" no header (identidade SSR).
+- **Onda 4** (pacientes/agenda/caixa): "novo atendimento" em Drawer (confirmado); quick-view de paciente em pop-up/drawer a partir da lista (founder prefere pop-up — detalhe completo continua tendo rota p/ deep-link clínico); novo prontuário restyle; contraste do botão em /pacientes; UI geral da /agenda.
+- **Onda 5** (financeiro/config/relatórios): fornecedor e lançamento em Dialog/Drawer (confirmado); **máscaras/validação de campos** (telefone, dinheiro, documento — tratar em cima do Field/Input); visualizador de PDF de /documentos redesenhado; /configuracoes UX melhor (pedido explícito); /relatorios espaçamento.
+- **Onda 6** (admin): paginação "virar página" (TablePager) em convites (**6/página**), /audit e incidentes de /saude; /saude com cards em **lista vertical menor** (sem grade de ícones); /config: espaçamento do header + subtabs sem scroll; espaçamentos gerais das telas admin (na migração p/ Table kit/Card).
+- "Problema de espaçamento" recorrente nas telas: as TELAS ainda são legadas (retematizadas, não migradas) — cada uma é reespaçada na sua onda; reavaliar com o founder onda a onda.
+
+**Escopo NOVO que exige backend (fora da refatoração de UI — planejar à parte):**
+1. **Pausa de almoço nos horários** — modelo de disponibilidade (C6) hoje é 1 intervalo/dia; suportar múltiplos intervalos = migração de schema + actions + UI. 
+2. **Export PDF de relatórios + relatório consolidado de todos os profissionais** — nova geração de PDF + queries agregadas.
+
+**Não-problemas verificados:** lógica de busca em /clinicas NÃO foi alterada (nenhuma action/query tocada); erros `CONNECT_TIMEOUT`/"Failed to fetch" = acesso ao Supabase saturado (memória conhecida do projeto) + builds meus concorrendo com o dev server do founder no mesmo `.next` (não vou mais buildar com o dev aberto).
+
 ## Dívidas registradas (não entram nesta refatoração)
 
 - Calendário visual da Agenda (React Big Calendar sobre C6).

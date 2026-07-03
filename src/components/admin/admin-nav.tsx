@@ -45,7 +45,7 @@ export function AdminNav() {
   return (
     <nav className="flex-1 px-(--sp-3)" aria-label="Navegação do console">
       {GROUPS.map(({ group, items }) => (
-        <div key={group} className="mt-(--sp-4) first:mt-(--sp-2)">
+        <div key={group} className="mt-(--sp-5) first:mt-(--sp-2)">
           <SideNavGroupLabel>{group}</SideNavGroupLabel>
           {items.map(({ href, label, icon }) => (
             <SideNavLink

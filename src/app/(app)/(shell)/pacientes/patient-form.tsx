@@ -81,7 +81,7 @@ export function PatientForm({ mode, action, initial }: Props) {
             type="tel"
             inputMode="tel"
             maxLength={20}
-            pattern="[\d()\-\s+]+"
+            pattern="[\d\(\)\-\s+]+"
             placeholder="(11) 99999-9999"
             defaultValue={initial?.telefone ?? ''}
             disabled={pending}

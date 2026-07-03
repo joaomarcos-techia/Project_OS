@@ -393,17 +393,28 @@ export default async function DashboardPage() {
               </p>
             ) : (
               <div className="mini-list">
-                {activity.map((a) => {
+                {activity.slice(0, 5).map((a) => {
                   const who = a.userId ? (actorNames.get(a.userId) ?? 'Sistema') : 'Sistema';
                   return (
                     <div className="mini-row" key={a.id}>
-                      <span className="mr-name" style={{ flex: 1, minWidth: 0 }}>
+                      <span
+                        className="mr-name"
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {humanizeAction(a.action)}
                         <span className="td-sub" style={{ marginLeft: 6 }}>
                           {who}
                         </span>
                       </span>
-                      <span className="mr-time">{relTime(a.createdAt)}</span>
+                      <span className="mr-time" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {relTime(a.createdAt)}
+                      </span>
                     </div>
                   );
                 })}
