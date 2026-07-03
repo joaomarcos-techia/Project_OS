@@ -1154,6 +1154,25 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
   (crumbs, valores em mono/tabular) — testes RBAC preservados.
 - Validação: typecheck/lint/496 testes ✓ · build ✓.
 
+### Onda 6 — Admin (✅ 2026-07-03)
+
+- Table kit nas tabelas à mão (clinicas ×2, audit, billing, metricas — resta 1
+  em clinicas/[id], deferida); TablePager padrão; **convites 6/página**;
+  /saude em **lista vertical** com dots de status; /config com subtabs sem
+  scroll; stat-card do admin virou adapter do StatCard canônico; charts em
+  Tailwind com paleta viz; zero `.screen` no app.
+
+### Onda 7 — Limpeza + relatório (✅ 2026-07-03)
+
+- Auditoria de deleção do CSS legado: consumidores restantes documentados
+  (join-wizard, whatsapp-connect, admin [id]/config/conversas-ia, managers) —
+  arquivos permanecem em `@layer components` até a migração deles.
+- **Relatório final: [achados/ui-ux-refactor-report.md](./achados/ui-ux-refactor-report.md)**
+  (números antes→depois, telas removidas/unificadas, dívidas com dono).
+- Deferidos documentados: join-wizard (842 linhas, fluxo público de uso único),
+  quick-view de paciente, PDF viewer; backend novo aprovado (pausa de almoço,
+  export PDF de relatórios) = mini-fases futuras com ADR.
+
 ---
 
 ## Veja também
