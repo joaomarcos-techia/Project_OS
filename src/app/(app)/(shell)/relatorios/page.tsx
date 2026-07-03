@@ -4,10 +4,12 @@
  * tenant-scoped; faturamento exige view:financial (gate no loader). Ocupação usa
  * o slot-resolver canônico (ver data.ts), nunca contagem ingênua.
  */
+import { FileDown } from 'lucide-react';
 import Link from 'next/link';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
@@ -40,9 +42,19 @@ export default async function RelatoriosPage({
         title="Relatórios"
         description={`Período: ${data.fromLabel} – ${data.toLabel} (fuso da clínica).`}
         actions={
+          <>
+            <a
+              href={`/relatorios/pdf?periodo=${period.key}`}
+              target="_blank"
+              rel="noopener"
+              className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+            >
+              <FileDown className="size-3.5" />
+              Exportar PDF
+            </a>
           <nav
             aria-label="Período"
-            className="inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-[3px]"
+            className="inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-0.75"
           >
             {PERIODS.map((p) => (
               <Link
@@ -60,6 +72,7 @@ export default async function RelatoriosPage({
               </Link>
             ))}
           </nav>
+          </>
         }
       />
 

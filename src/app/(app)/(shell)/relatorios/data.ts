@@ -1,10 +1,11 @@
 import 'server-only';
 
-import { getFaturamentoPeriodo } from '@/contexts/financial/queries';
+import { getCaixaLancamentos, getFaturamentoPeriodo } from '@/contexts/financial/queries';
 import {
   getAppointmentStats,
   getAvailableSlots,
   getClinicTimezone,
+  listAppointments,
 } from '@/contexts/scheduling/queries';
 
 /**
@@ -115,4 +116,69 @@ export async function getRelatorios(
     fromLabel: fmt(from),
     toLabel: fmt(new Date(to.getTime() - DAY_MS)),
   };
+}
+
+// --- consolidado por profissional (Fase B do plano pausa-almoço/export) -----
+
+export interface DoctorConsolidadoDTO {
+  doctorId: string;
+  nome: string;
+  total: number;
+  atendidos: number;
+  faltas: number;
+  /** soma recebida (valorPago de pago/parcial) dos atendimentos do médico no
+   *  período; null quando o chamador não tem view:financial. */
+  recebido: number | null;
+}
+
+/**
+ * Consolidado por profissional — composição no APP LAYER (sem JOIN
+ * cross-context): Scheduling dá os atendimentos por médico; Financial dá os
+ * recebidos com appointmentId; o app junta appointmentId→doctorId.
+ * Cap de leitura: 500 atendimentos (limite do listAppointments) — suficiente
+ * para o ICP; períodos maiores ficam aproximados e o PDF anota isso.
+ */
+export async function getConsolidadoPorProfissional(
+  clinicId: string,
+  days: number,
+  opts: { includeFaturamento: boolean },
+): Promise<DoctorConsolidadoDTO[]> {
+  const tz = await getClinicTimezone(clinicId);
+  const todayStart = clinicTodayStart(tz);
+  const to = new Date(todayStart.getTime() + DAY_MS);
+  const from = new Date(todayStart.getTime() - (days - 1) * DAY_MS);
+
+  const appts = await listAppointments(clinicId, { from, to, limit: 500 });
+
+  const porMedico = new Map<string, DoctorConsolidadoDTO>();
+  const apptDoctor = new Map<string, string>();
+  for (const a of appts) {
+    apptDoctor.set(a.id, a.doctorId);
+    const row = porMedico.get(a.doctorId) ?? {
+      doctorId: a.doctorId,
+      nome: a.snapshotDoctorNome,
+      total: 0,
+      atendidos: 0,
+      faltas: 0,
+      recebido: opts.includeFaturamento ? 0 : null,
+    };
+    row.total += 1;
+    if (a.status === 'atendido') row.atendidos += 1;
+    if (a.status === 'faltou') row.faltas += 1;
+    porMedico.set(a.doctorId, row);
+  }
+
+  if (opts.includeFaturamento) {
+    const caixa = await getCaixaLancamentos(clinicId, from, to);
+    const recebidos = [...caixa.parciais, ...caixa.pagosHoje];
+    for (const l of recebidos) {
+      if (!l.appointmentId) continue;
+      const docId = apptDoctor.get(l.appointmentId);
+      if (!docId) continue;
+      const row = porMedico.get(docId);
+      if (row && row.recebido != null) row.recebido += l.valorPago;
+    }
+  }
+
+  return [...porMedico.values()].sort((a, b) => b.total - a.total);
 }
