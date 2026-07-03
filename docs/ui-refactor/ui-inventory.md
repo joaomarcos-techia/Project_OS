@@ -146,6 +146,14 @@ novo (centralizado + blur); dashboard: atividade recente limitada a 5 + data sem
 1. **Pausa de almoço nos horários** — modelo de disponibilidade (C6) hoje é 1 intervalo/dia; suportar múltiplos intervalos = migração de schema + actions + UI. 
 2. **Export PDF de relatórios + relatório consolidado de todos os profissionais** — nova geração de PDF + queries agregadas.
 
+**CAUSA RAIZ dos sintomas persistentes (hotfix 2.3, diagnosticado com Chrome headless + computed styles):**
+os 4 CSS legados eram *unlayered* e CSS sem layer vence QUALQUER `@layer` — onde o Tailwind v4
+coloca as utilities. O `* { margin: 0 }` do ds.css matava toda utility de margin do app
+("espaçamento apertado" em todas as telas, cards tocando as bordas) e o `.grid` legado
+(display+gap) vencia o `nav:hidden` do hambúrguer. Correção: ds.css/app-shell.css/admin.css/
+onboarding-flow.css envelopados em `@layer components` (< utilities). **Regra permanente:
+CSS legado SEMPRE em `@layer components`; utilities devem vencer o legado por construção.**
+
 **Não-problemas verificados:** lógica de busca em /clinicas NÃO foi alterada (nenhuma action/query tocada); erros `CONNECT_TIMEOUT`/"Failed to fetch" = acesso ao Supabase saturado (memória conhecida do projeto) + builds meus concorrendo com o dev server do founder no mesmo `.next` (não vou mais buildar com o dev aberto).
 
 ## Dívidas registradas (não entram nesta refatoração)
