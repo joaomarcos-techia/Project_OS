@@ -44,13 +44,9 @@ export default async function AdminDashboardPage() {
   ].filter((s) => s.value > 0);
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
-        breadcrumb={
-          <>
-            Operação <span className="sep">›</span> <b>Visão geral</b>
-          </>
-        }
+        crumbs={[{ label: 'Operação' }, { label: 'Visão geral' }]}
         title="Visão geral"
         description="Saúde do negócio em uma tela — receita, clientes e risco em tempo real."
         actions={

@@ -61,13 +61,9 @@ export default async function ConversasIaPage({ searchParams }: { searchParams: 
   ]);
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
-        breadcrumb={
-          <>
-            Operação <span className="sep">›</span> <b>Conversas IA</b>
-          </>
-        }
+        crumbs={[{ label: 'Operação' }, { label: 'Conversas IA' }]}
         title="Conversas IA"
         description="Mensagens descriptografadas server-side (o navegador nunca recebe ciphertext)."
       />

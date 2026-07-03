@@ -85,7 +85,7 @@ export default async function RelatoriosPage({
           <span className="font-display text-[34px] leading-none font-medium tracking-tight">
             {pct(data.ocupacao.taxa)}
           </span>
-          <div className="h-1.75 w-full overflow-hidden rounded-full bg-(--viz-track)">
+          <div className="h-1.75 w-full overflow-hidden rounded-full bg-viz-track">
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-(--dur-slower) ease-out"
               style={{ width: `${Math.round((data.ocupacao.taxa ?? 0) * 100)}%` }}

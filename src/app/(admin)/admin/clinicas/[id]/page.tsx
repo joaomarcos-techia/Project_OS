@@ -85,7 +85,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
   const priceLabel = c.plan ? formatBRLCents(c.plan.priceCents) : null;
 
   return (
-    <div className="screen">
+    <div>
       <Link href="/admin/clinicas" className="back-link">
         <Icon name="chevR" size={15} />
         <span>Voltar para Clínicas</span>

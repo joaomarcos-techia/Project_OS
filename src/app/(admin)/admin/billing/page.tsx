@@ -1,9 +1,22 @@
+import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
-import { buttonVariants } from '@/components/ui/button';
-import { Icon } from '@/components/painel/icons';
+import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { PanelCard } from '@/components/ui/panel-card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroll,
+  TableWrap,
+} from '@/components/ui/table';
+import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
+import { cn } from '@/lib/ui/cn';
 
 import { Bars, ClinicMark } from '../_components/charts';
 import { StatCard } from '../_components/stat-card';
@@ -29,134 +42,160 @@ export default async function BillingPage() {
   ];
 
   const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
-  const bars = trend.map((t, i) => ({ label: t.label, value: Math.round((t.cents / maxMrr) * 100), on: i === trend.length - 1 }));
+  const bars = trend.map((t, i) => ({
+    label: t.label,
+    value: Math.round((t.cents / maxMrr) * 100),
+    on: i === trend.length - 1,
+  }));
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Operação <span className="sep">›</span> <b>Pagamentos</b>
-          </>
-        }
+        crumbs={[{ label: 'Operação' }, { label: 'Pagamentos' }]}
         title="Pagamentos"
         description="Faturamento consolidado — recebíveis, inadimplência, dunning e reembolsos."
       />
 
-      <div className="stat-row five">
-        <StatCard label="MRR" value={formatBRLCents(o.mrrCents)} delta={`ARR ${formatBRLCents(o.arrCents)}`} icon="cash" tone="green" />
-        <StatCard label="A receber" value={formatBRLCents(sum(o.open))} hint={`${o.open.length} fatura(s)`} icon="clock" />
-        <StatCard label="Em atraso" value={formatBRLCents(sum(o.overdue))} hint={`${o.overdue.length} fatura(s)`} icon="alert" tone="red" />
-        <StatCard label="Dunning ativo" value={o.dunning.length} hint="em cobrança" icon="refresh" tone="amber" />
-        <StatCard label="Reembolsos" value={o.refunds.length} hint="no período" icon="wallet" tone="teal" />
+      <div className="grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
+        <StatCard label="MRR" value={formatBRLCents(o.mrrCents)} hint={`ARR ${formatBRLCents(o.arrCents)}`} />
+        <StatCard label="A receber" value={formatBRLCents(sum(o.open))} hint={`${o.open.length} fatura(s)`} />
+        <StatCard label="Em atraso" value={formatBRLCents(sum(o.overdue))} hint={`${o.overdue.length} fatura(s)`} />
+        <StatCard label="Dunning ativo" value={o.dunning.length} hint="em cobrança" />
+        <StatCard label="Reembolsos" value={o.refunds.length} hint="no período" />
       </div>
 
-      <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
-        <div className="cardblock-head">
-          <h4>Faturas recentes</h4>
-          <span className="sub">abertas e em atraso · via Asaas</span>
-        </div>
+      <TableWrap className="mt-(--sp-4)">
+        <TableToolbar>
+          <h4 className="text-(length:--fs-sm) font-semibold">Faturas recentes</h4>
+          <TableToolbarSpacer />
+          <span className="text-(length:--fs-xs) text-fg-subtle">abertas e em atraso · via Asaas</span>
+        </TableToolbar>
         {invoices.length === 0 ? (
           <p className="px-5 py-4 text-sm text-fg-subtle">Nenhuma fatura em aberto.</p>
         ) : (
-          <div className="table-wrap">
-            <table className="ui-table" style={{ minWidth: 620 }}>
-              <thead>
-                <tr>
-                  <th>Clínica</th>
-                  <th style={{ textAlign: 'right' }}>Valor</th>
-                  <th>Vencimento</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
+          <TableScroll>
+            <Table className="min-w-155">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Clínica</TableHead>
+                  <TableHead numeric>Valor</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-12" aria-label="Abrir" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {invoices.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <span className="td-name">
+                  <TableRow key={r.id}>
+                    <TableCell>
+                      <span className="flex items-center gap-2.5 font-medium">
                         <ClinicMark nome={r.clinicNome} />
-                        <b style={{ fontWeight: 600 }}>{r.clinicNome}</b>
+                        {r.clinicNome}
                       </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>{formatBRLCents(r.amountCents)}</td>
-                    <td className="td-sub">{formatDate(r.dueDate)}</td>
-                    <td>
-                      <Badge tone={r.tone}>{r.st}</Badge>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <Link href={`/admin/clinicas/${r.clinicId}`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-                        <Icon name="chevR" size={16} />
+                    </TableCell>
+                    <TableCell numeric>{formatBRLCents(r.amountCents)}</TableCell>
+                    <TableCell className="text-fg-muted">{formatDate(r.dueDate)}</TableCell>
+                    <TableCell>
+                      <Badge tone={r.tone} dot>
+                        {r.st}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/admin/clinicas/${r.clinicId}`}
+                        aria-label={`Abrir ${r.clinicNome}`}
+                        className="grid size-7 place-items-center rounded-(--r-sm) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg"
+                      >
+                        <ChevronRight className="size-4" />
                       </Link>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableScroll>
         )}
-      </div>
+      </TableWrap>
 
-      <div className="cols-2" style={{ marginTop: 'var(--sp-4)' }}>
-        <div className="cardblock">
-          <div className="cardblock-head">
-            <h4>Dunning ativo</h4>
-            <span className="sub">cobranças em andamento</span>
+      <div className="mt-(--sp-4) grid gap-(--sp-4) lg:grid-cols-2">
+        <Card>
+          <div className="flex items-center justify-between border-b border-border px-(--card-pad) py-3">
+            <h4 className="text-(length:--fs-sm) font-semibold">Dunning ativo</h4>
+            <span className="text-(length:--fs-xs) text-fg-subtle">cobranças em andamento</span>
           </div>
           {o.dunning.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-fg-subtle">Nenhuma clínica em dunning.</p>
+            <p className="px-(--card-pad) py-4 text-sm text-fg-subtle">Nenhuma clínica em dunning.</p>
           ) : (
-            <div className="listrows">
+            <ul className="flex flex-col">
               {o.dunning.map((d) => (
-                <Link key={d.clinicId} href={`/admin/clinicas/${d.clinicId}`} className="listrow">
-                  <ClinicMark nome={d.nome} tint="var(--warning-500)" />
-                  <div className="lr-main">
-                    <b>{d.nome}</b>
-                    <span className="lr-sub">estágio {d.stage} de cobrança</span>
-                  </div>
-                  <div className="lr-end">
-                    <span className={`hc-dot ${d.stage >= 3 ? 'red' : 'amber'}`} />
-                  </div>
-                </Link>
+                <li key={d.clinicId}>
+                  <Link
+                    href={`/admin/clinicas/${d.clinicId}`}
+                    className="flex items-center gap-3 border-b border-border px-(--card-pad) py-3 transition-colors last:border-b-0 hover:bg-surface-hover"
+                  >
+                    <ClinicMark nome={d.nome} tint="var(--warning-500)" />
+                    <div className="min-w-0 flex-1">
+                      <b className="block text-(length:--fs-sm) font-semibold">{d.nome}</b>
+                      <span className="text-(length:--fs-xs) text-fg-subtle">
+                        estágio {d.stage} de cobrança
+                      </span>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'size-1.75 rounded-full',
+                        d.stage >= 3
+                          ? 'bg-danger-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--danger-500)_16%,transparent)]'
+                          : 'bg-warning-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--warning-500)_16%,transparent)]',
+                      )}
+                    />
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
-        </div>
+        </Card>
 
-        <div className="panel">
-          <h4>Receita · últimos 6 meses</h4>
+        <PanelCard title="Receita · últimos 6 meses">
           {bars.some((b) => b.value > 0) ? (
             <Bars data={bars} />
           ) : (
-            <p className="muted" style={{ fontSize: 13, padding: 'var(--sp-6) 0', textAlign: 'center' }}>
+            <p className="py-(--sp-6) text-center text-(length:--fs-sm) text-fg-subtle">
               Sem faturas pagas no período.
             </p>
           )}
-        </div>
+        </PanelCard>
       </div>
 
       {o.refunds.length > 0 ? (
-        <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
-          <div className="cardblock-head">
-            <h4>Reembolsos</h4>
-            <span className="sub">recentes</span>
+        <Card className="mt-(--sp-4)">
+          <div className="flex items-center justify-between border-b border-border px-(--card-pad) py-3">
+            <h4 className="text-(length:--fs-sm) font-semibold">Reembolsos</h4>
+            <span className="text-(length:--fs-xs) text-fg-subtle">recentes</span>
           </div>
-          <div className="listrows">
+          <ul className="flex flex-col">
             {o.refunds.map((r, i) => (
-              <Link key={`${r.clinicId}-${i}`} href={`/admin/clinicas/${r.clinicId}`} className="listrow">
-                <ClinicMark nome={r.nome} />
-                <div className="lr-main">
-                  <b>{r.nome}</b>
-                  <span className="lr-sub">{formatDateTime(r.at)}</span>
-                </div>
-                <div className="lr-end">
-                  <span className="font-medium tabular-nums">{formatBRLCents(r.amountCents)}</span>
-                </div>
-              </Link>
+              <li key={`${r.clinicId}-${i}`}>
+                <Link
+                  href={`/admin/clinicas/${r.clinicId}`}
+                  className="flex items-center gap-3 border-b border-border px-(--card-pad) py-3 transition-colors last:border-b-0 hover:bg-surface-hover"
+                >
+                  <ClinicMark nome={r.nome} />
+                  <div className="min-w-0 flex-1">
+                    <b className="block text-(length:--fs-sm) font-semibold">{r.nome}</b>
+                    <span className="text-(length:--fs-xs) text-fg-subtle">
+                      {formatDateTime(r.at)}
+                    </span>
+                  </div>
+                  <span className="font-mono font-medium tabular-nums">
+                    {formatBRLCents(r.amountCents)}
+                  </span>
+                </Link>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Card>
       ) : null}
-    </div>
+    </>
   );
 }

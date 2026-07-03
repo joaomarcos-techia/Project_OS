@@ -16,14 +16,14 @@ const ICON_COLOR: Record<ToastVariant, string> = {
   success: 'text-success-600 dark:text-success-200',
   error: 'text-danger-600 dark:text-danger-200',
   info: 'text-info-600 dark:text-info-200',
-  ai: 'text-(--ai)',
+  ai: 'text-ai',
 };
 
 const BAR_COLOR: Record<ToastVariant, string> = {
   success: 'bg-success-500',
   error: 'bg-danger-500',
   info: 'bg-info-500',
-  ai: 'bg-(--ai)',
+  ai: 'bg-ai',
 };
 
 /**

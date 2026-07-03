@@ -93,7 +93,7 @@
 .ph-actions { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
 
 /* ---------- Subtabs (mirror of submenu) ---------- */
-.subtabs { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--sp-6); overflow-x: auto; padding-bottom: 0; }
+.subtabs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--sp-6); }
 .subtab { border: 0; background: transparent; padding: 10px 14px; font-size: 13.5px; font-weight: 500; color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; cursor: pointer; transition: color var(--dur-fast), border-color var(--dur-fast); display: inline-flex; align-items: center; gap: 7px; }
 .subtab:hover { color: var(--text); }
 .subtab.active { color: var(--primary-700); border-color: var(--primary-500); }

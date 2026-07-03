@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { PanelCard } from '@/components/ui/panel-card';
 import { StatCard } from '@/components/ui/stat-card';
 import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 import { getProfileNames } from '@/contexts/identity/queries';
@@ -29,7 +30,6 @@ import { formatBRL } from '@/lib/format';
 
 import { ActivationChecklist } from './_components/activation-checklist';
 import { ActivityFeed } from './_components/activity-feed';
-import { PanelCard } from './_components/panel-card';
 import { RevenueChart } from './_components/revenue-chart';
 import { getActivationChecklist, getDashboard } from './data';
 
@@ -209,9 +209,9 @@ export default async function DashboardPage() {
 
         <div className="flex flex-col gap-(--sp-4)">
           <PanelCard
-            className="border-(--ai-border)"
+            className="border-ai-border"
             title="Alertas da IA"
-            titleIcon={<Sparkles className="text-(--ai)" />}
+            titleIcon={<Sparkles className="text-ai" />}
             meta="em breve"
           >
             <EmptyState

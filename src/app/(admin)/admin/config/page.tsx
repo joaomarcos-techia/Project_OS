@@ -99,13 +99,9 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
   ];
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
-        breadcrumb={
-          <>
-            Plataforma <span className="sep">›</span> <b>Configurações</b>
-          </>
-        }
+        crumbs={[{ label: 'Plataforma' }, { label: 'Configurações' }]}
         title="Configurações da plataforma"
         description="Prompt do sistema e templates — versionados em código (somente leitura no MVP)."
       />
