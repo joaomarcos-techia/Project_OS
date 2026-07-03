@@ -106,7 +106,7 @@ export async function signProntuarioForm(_prev: FormState, fd: FormData): Promis
   } catch (err) {
     return { error: messageFrom(err) };
   }
-  redirect(`/pacientes/${patientId}/prontuarios`);
+  redirect(`/pacientes/${patientId}?tab=prontuarios`);
 }
 
 // --- prescrição ------------------------------------------------------------

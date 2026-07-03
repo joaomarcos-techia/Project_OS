@@ -15,8 +15,9 @@ export default async function AgendaPage() {
   const data = await getAgendaData();
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
+        crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
         title="Agenda"
         description="Atendimentos de hoje. Crie um atendimento quando o paciente chegar na clínica."
       />
@@ -25,6 +26,6 @@ export default async function AgendaPage() {
       ) : (
         <EmptyState title="Sem clínica" description="Sua conta não está vinculada a uma clínica." />
       )}
-    </div>
+    </>
   );
 }

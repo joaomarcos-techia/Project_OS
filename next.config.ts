@@ -18,6 +18,29 @@ const nextConfig: NextConfig = {
   // e incompatível com bundling do Next. Externalizar mantém o render server-side
   // (Node runtime) sem inflar o bundle nem quebrar o build.
   serverExternalPackages: ['p-limit', '@react-pdf/renderer'],
+  // ADR-031 (redução de telas): rotas de form/nível de navegação aposentadas —
+  // criação/assinatura viraram Drawer/Dialog com query param deep-linkable.
+  // Redirects centralizados aqui para links salvos não quebrarem.
+  async redirects() {
+    return [
+      { source: '/pacientes/novo', destination: '/pacientes?novo=1', permanent: false },
+      {
+        source: '/pacientes/:id/prontuarios',
+        destination: '/pacientes/:id?tab=prontuarios',
+        permanent: false,
+      },
+      {
+        source: '/pacientes/:id/prontuarios/:pid/assinar',
+        destination: '/pacientes/:id/prontuarios/:pid?assinar=1',
+        permanent: false,
+      },
+      {
+        source: '/financeiro/lancamentos/novo',
+        destination: '/financeiro?novo=1',
+        permanent: false,
+      },
+    ];
+  },
   // C16 (FASE 10) — security headers. CSP em REPORT-ONLY de propósito: NUNCA
   // bloqueia, só reporta violações no console do browser. Promover a bloqueante
   // (com nonce via middleware) só DEPOIS de observar — app clínico não pode

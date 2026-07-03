@@ -1,17 +1,32 @@
 'use client';
 
+import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Combobox, type ComboboxItem } from '@/components/ui/combobox';
+import {
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Segmented } from '@/components/ui/segmented';
 import { Select } from '@/components/ui/select';
 import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 import { Textarea } from '@/components/ui/textarea';
+import { toast } from '@/components/ui/use-toast';
 
 import { buscarPacientes, criarAtendimento, type CriarAtendimentoInput } from './actions';
 import type { AgendaData } from './data';
@@ -33,39 +48,20 @@ export function AgendaView({ data }: { data: AgendaData }) {
   const [open, setOpen] = useState(false);
 
   const [modo, setModo] = useState<Modo>('agora');
-  const [busca, setBusca] = useState('');
-  const [resultados, setResultados] = useState<Array<{ id: string; nome: string }>>([]);
-  const [paciente, setPaciente] = useState<{ id: string; nome: string } | null>(null);
+  const [paciente, setPaciente] = useState<ComboboxItem | null>(null);
   const [procedureId, setProcedureId] = useState('');
   const [doctorId, setDoctorId] = useState(data.selfDoctorId ?? '');
   const [date, setDate] = useState(hojeISODate());
   const [time, setTime] = useState('09:00');
   const [urgencia, setUrgencia] = useState(false);
   const [observacoes, setObservacoes] = useState('');
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [buscando, startBusca] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const [salvando, startSalvar] = useTransition();
 
   const semProcedimentos = data.procedures.length === 0;
 
-  // Busca de paciente com debounce (≥2 letras). Não busca quando já há um selecionado.
-  useEffect(() => {
-    if (paciente) return;
-    const term = busca.trim();
-    if (term.length < 2) {
-      setResultados([]);
-      return;
-    }
-    const handle = setTimeout(() => {
-      startBusca(async () => setResultados(await buscarPacientes(term)));
-    }, 300);
-    return () => clearTimeout(handle);
-  }, [busca, paciente]);
-
   function reset() {
     setModo('agora');
-    setBusca('');
-    setResultados([]);
     setPaciente(null);
     setProcedureId('');
     setDoctorId(data.selfDoctorId ?? '');
@@ -73,16 +69,17 @@ export function AgendaView({ data }: { data: AgendaData }) {
     setTime('09:00');
     setUrgencia(false);
     setObservacoes('');
+    setError(null);
   }
 
   function submit() {
-    setMsg(null);
-    if (!paciente) return setMsg({ ok: false, text: 'Selecione o paciente.' });
-    if (!procedureId) return setMsg({ ok: false, text: 'Selecione o procedimento.' });
+    setError(null);
+    if (!paciente) return setError('Selecione o paciente.');
+    if (!procedureId) return setError('Selecione o procedimento.');
     const docId = data.isDoctor ? (data.selfDoctorId ?? '') : doctorId;
-    if (!docId) return setMsg({ ok: false, text: 'Selecione o profissional.' });
+    if (!docId) return setError('Selecione o profissional.');
     if (modo === 'agendar' && (!date || !time)) {
-      return setMsg({ ok: false, text: 'Informe data e hora.' });
+      return setError('Informe data e hora.');
     }
 
     const base = {
@@ -98,168 +95,150 @@ export function AgendaView({ data }: { data: AgendaData }) {
     startSalvar(async () => {
       const res = await criarAtendimento(input);
       if (res.ok) {
-        setMsg({
-          ok: true,
-          text:
-            res.modo === 'agora'
-              ? `Encaixe criado para ${paciente.nome}. Já está na fila do Consultório.`
-              : `Atendimento agendado para ${paciente.nome} em ${date} ${time}.`,
-        });
+        toast.success(
+          res.modo === 'agora' ? 'Encaixe criado' : 'Atendimento agendado',
+          res.modo === 'agora'
+            ? `${paciente.label} já está na fila do Consultório.`
+            : `${paciente.label} em ${date} às ${time}.`,
+        );
         setOpen(false);
         reset();
         router.refresh();
       } else {
-        setMsg({ ok: false, text: res.message });
+        setError(res.message);
       }
     });
   }
 
   return (
-    <div className="stack" style={{ maxWidth: 820 }}>
+    <div className="flex max-w-205 flex-col gap-(--sp-4)">
       <div className="flex items-center justify-between">
         <span className="text-sm text-fg-muted">Atendimentos de hoje</span>
-        <Button type="button" size="sm" onClick={() => setOpen((v) => !v)}>
-          Novo atendimento
-        </Button>
-      </div>
+        <Drawer
+          open={open}
+          onOpenChange={(v) => {
+            setOpen(v);
+            if (!v) reset();
+          }}
+        >
+          <DrawerTrigger asChild>
+            <Button size="sm">
+              <Plus className="size-3.5" />
+              Novo atendimento
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Novo atendimento</DrawerTitle>
+            </DrawerHeader>
+            <DrawerBody className="flex flex-col gap-4">
+              {error ? <Alert variant="danger">{error}</Alert> : null}
 
-      {msg ? <Alert variant={msg.ok ? 'success' : 'danger'}>{msg.text}</Alert> : null}
+              <Field label="Tipo">
+                <Segmented
+                  aria-label="Tipo de atendimento"
+                  options={[
+                    { value: 'agora', label: 'Encaixe (agora)' },
+                    { value: 'agendar', label: 'Agendar (dia e hora)' },
+                  ]}
+                  value={modo}
+                  onValueChange={setModo}
+                />
+              </Field>
+              <p className="-mt-2 text-(length:--fs-xs) text-fg-muted">
+                {modo === 'agora'
+                  ? 'Paciente chegou agora — entra direto na fila do Consultório.'
+                  : 'Agende para uma data/hora futura. O horário é o da clínica.'}
+              </p>
 
-      {open ? (
-        <div className="cardblock wrap-pad flex flex-col gap-3">
-          <h4 className="text-sm font-semibold">Novo atendimento</h4>
+              <Field label="Paciente">
+                <Combobox
+                  value={paciente}
+                  onSelect={setPaciente}
+                  onSearch={async (term) =>
+                    (await buscarPacientes(term)).map((p) => ({ id: p.id, label: p.nome }))
+                  }
+                  placeholder="Buscar por nome (mín. 2 letras)"
+                  emptyLabel="Nenhum paciente encontrado."
+                />
+                {!paciente ? (
+                  <Link
+                    href="/pacientes?novo=1"
+                    className="mt-1 inline-block text-(length:--fs-xs) text-link underline"
+                  >
+                    Cadastrar novo paciente
+                  </Link>
+                ) : null}
+              </Field>
 
-          {/* modo: encaixe agora vs agendar dia/hora */}
-          <div className="inline-flex w-fit overflow-hidden rounded-md border border-border">
-            <button
-              type="button"
-              onClick={() => setModo('agora')}
-              aria-pressed={modo === 'agora'}
-              className={`px-3 py-1.5 text-sm ${modo === 'agora' ? 'bg-primary-600 text-white' : 'bg-transparent text-fg'}`}
-            >
-              Encaixe (agora)
-            </button>
-            <button
-              type="button"
-              onClick={() => setModo('agendar')}
-              aria-pressed={modo === 'agendar'}
-              className={`px-3 py-1.5 text-sm ${modo === 'agendar' ? 'bg-primary-600 text-white' : 'bg-transparent text-fg'}`}
-            >
-              Agendar (dia e hora)
-            </button>
-          </div>
-          <p className="text-xs text-fg-muted">
-            {modo === 'agora'
-              ? 'Paciente chegou agora — entra direto na fila do Consultório.'
-              : 'Agende para uma data/hora futura. O horário é o da clínica.'}
-          </p>
+              {semProcedimentos ? (
+                <Alert variant="warning">
+                  Nenhum procedimento cadastrado. Cadastre ao menos um (catálogo de procedimentos)
+                  para criar atendimentos.
+                </Alert>
+              ) : (
+                <Field label="Procedimento">
+                  <Select value={procedureId} onChange={(e) => setProcedureId(e.target.value)}>
+                    <option value="">Selecione…</option>
+                    {data.procedures.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.descricao}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
 
-          {/* paciente */}
-          {paciente ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span>
-                Paciente: <b>{paciente.nome}</b>
-              </span>
-              <button type="button" className="text-xs text-primary-600 underline" onClick={() => setPaciente(null)}>
-                trocar
-              </button>
-            </div>
-          ) : (
-            <Field label="Paciente">
-              <Input
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por nome (mín. 2 letras)"
-              />
-              {buscando ? <p className="mt-1 text-xs text-fg-subtle">buscando…</p> : null}
-              {resultados.length > 0 ? (
-                <div className="mt-1 flex flex-col rounded border border-border">
-                  {resultados.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        setPaciente(p);
-                        setResultados([]);
-                        setBusca('');
-                      }}
-                      className="px-3 py-1.5 text-left text-sm hover:bg-surface-subtle"
-                    >
-                      {p.nome}
-                    </button>
-                  ))}
+              {!data.isDoctor ? (
+                <Field label="Profissional">
+                  <Select value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
+                    <option value="">Selecione…</option>
+                    {data.doctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nome}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : null}
+
+              {modo === 'agendar' ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Data">
+                    <Input
+                      type="date"
+                      min={hojeISODate()}
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Hora">
+                    <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                  </Field>
                 </div>
               ) : null}
-              <Link href="/pacientes/novo" className="mt-1 inline-block text-xs text-primary-600 underline">
-                Cadastrar novo paciente
-              </Link>
-            </Field>
-          )}
 
-          {/* procedimento */}
-          {semProcedimentos ? (
-            <Alert variant="warning">
-              Nenhum procedimento cadastrado. Cadastre ao menos um (catálogo de procedimentos) para
-              criar atendimentos.
-            </Alert>
-          ) : (
-            <Field label="Procedimento">
-              <Select value={procedureId} onChange={(e) => setProcedureId(e.target.value)}>
-                <option value="">Selecione…</option>
-                {data.procedures.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.descricao}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          )}
+              <label className="flex cursor-pointer items-center gap-2.5 text-(length:--fs-sm)">
+                <Checkbox checked={urgencia} onCheckedChange={(v) => setUrgencia(v === true)} />
+                Urgência
+              </label>
 
-          {/* profissional */}
-          {!data.isDoctor ? (
-            <Field label="Profissional">
-              <Select value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
-                <option value="">Selecione…</option>
-                {data.doctors.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.nome}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-
-          {/* data/hora (só no modo agendar) */}
-          {modo === 'agendar' ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Field label="Data">
-                <Input type="date" min={hojeISODate()} value={date} onChange={(e) => setDate(e.target.value)} />
+              <Field label="Observações (opcional)">
+                <Textarea
+                  rows={2}
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                />
               </Field>
-              <Field label="Hora">
-                <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-              </Field>
-            </div>
-          ) : null}
-
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={urgencia} onChange={(e) => setUrgencia(e.target.checked)} className="size-4" />
-            Urgência
-          </label>
-
-          <Field label="Observações (opcional)">
-            <Textarea rows={2} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
-          </Field>
-
-          <div className="flex gap-2">
-            <Button type="button" size="sm" loading={salvando} disabled={semProcedimentos} onClick={submit}>
-              {modo === 'agora' ? 'Criar encaixe' : 'Agendar'}
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      ) : null}
+            </DrawerBody>
+            <DrawerFooter>
+              <Button loading={salvando} disabled={semProcedimentos} onClick={submit}>
+                {modo === 'agora' ? 'Criar encaixe' : 'Agendar'}
+              </Button>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      </div>
 
       {data.appointments.length === 0 ? (
         <EmptyState
@@ -267,32 +246,33 @@ export function AgendaView({ data }: { data: AgendaData }) {
           description="Clique em “Novo atendimento” quando um paciente chegar ou para agendar."
         />
       ) : (
-        <div className="cardblock">
-          <div className="listrows">
+        <Card>
+          <ul className="flex flex-col">
             {data.appointments.map((a) => {
               const noConsultorio = a.status === 'chegou' || a.status === 'em_atendimento';
               return (
-                <div key={a.id} className="listrow">
-                  <div className="lr-main">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-sm">{hora(a.horario)}</span>
-                      <span className="font-medium">{a.pacienteNome}</span>
-                      <span className="text-xs text-fg-subtle">{a.medicoNome}</span>
-                      <AppointmentStatusBadge status={a.status} />
-                    </div>
-                  </div>
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-center gap-3 border-b border-border px-(--card-pad) py-3 last:border-b-0"
+                >
+                  <span className="font-mono text-sm">{hora(a.horario)}</span>
+                  <span className="min-w-0 truncate font-medium">{a.pacienteNome}</span>
+                  <span className="text-xs text-fg-subtle">{a.medicoNome}</span>
+                  <AppointmentStatusBadge status={a.status} />
+                  <span className="flex-1" />
                   {noConsultorio ? (
-                    <div className="lr-end">
-                      <Link href="/consultorio" className="text-sm text-primary-600 underline">
-                        Abrir no Consultório
-                      </Link>
-                    </div>
+                    <Link
+                      href="/consultorio"
+                      className="text-(length:--fs-sm) font-medium text-link hover:underline"
+                    >
+                      Abrir no Consultório
+                    </Link>
                   ) : null}
-                </div>
+                </li>
               );
             })}
-          </div>
-        </div>
+          </ul>
+        </Card>
       )}
     </div>
   );

@@ -1,93 +1,132 @@
 /**
  * /pacientes — list + search. Server component. No decryption (5.13): shows
  * nome/email only. Search is by name (ILIKE / trigram). Tenant scope comes from
- * the session via requireClinicId.
+ * the session via requireClinicId. Criação vive num Drawer (?novo=1).
  */
-import { Users } from 'lucide-react';
+import { ChevronRight, Search, Users } from 'lucide-react';
 import Link from 'next/link';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { listPatients } from '@/contexts/patient/queries';
-import { Icon } from '@/components/painel/icons';
-import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { fieldControlClassName } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFoot,
+  TableFootInfo,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroll,
+  TableWrap,
+} from '@/components/ui/table';
+import { TableToolbar } from '@/components/ui/table-toolbar';
+import { cn } from '@/lib/ui/cn';
+
+import { NewPatientDrawer } from './new-patient-drawer';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PacientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; novo?: string }>;
 }) {
   await requireUser();
   const clinicId = await requireClinicId();
-  const { q } = await searchParams;
+  const { q, novo } = await searchParams;
   const patients = await listPatients(clinicId, q ? { search: q, limit: 50 } : { limit: 50 });
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Pacientes <span className="sep">›</span> <b>Lista</b>
-          </>
-        }
+        crumbs={[{ label: 'Clínico' }, { label: 'Pacientes' }]}
         title="Pacientes"
         description="Cadastro e busca de pacientes da clínica."
-        actions={
-          <Link href="/pacientes/novo" className={buttonVariants({ size: 'sm' })}>
-            <Icon name="plus" size={15} />
-            Novo paciente
-          </Link>
-        }
+        actions={<NewPatientDrawer defaultOpen={novo === '1'} />}
       />
 
-      <form className="toolbar">
-        <div className="input-wrap tb-grow" style={{ maxWidth: 360 }}>
-          <Icon name="search" size={16} />
-          <input
-            className="input"
-            name="q"
-            defaultValue={q ?? ''}
-            placeholder="Buscar por nome…"
-            aria-label="Buscar pacientes por nome"
-          />
-        </div>
-      </form>
-
-      {patients.length === 0 ? (
+      {patients.length === 0 && !q ? (
         <EmptyState
           icon={<Users />}
-          title={q ? 'Nenhum paciente encontrado' : 'Nenhum paciente ainda'}
-          description={
-            q ? `Nada para “${q}”. Tente outro nome.` : 'Cadastre o primeiro paciente para começar.'
-          }
-          action={
-            !q ? (
-              <Link href="/pacientes/novo" className={buttonVariants({ size: 'sm' })}>
-                Novo paciente
-              </Link>
-            ) : undefined
-          }
+          title="Nenhum paciente ainda"
+          description="Cadastre o primeiro paciente para começar."
         />
       ) : (
-        <div className="cardblock">
-          <div className="listrows">
-            {patients.map((p) => (
-              <Link key={p.id} href={`/pacientes/${p.id}`} className="listrow">
-                <div className="lr-main">
-                  <b>{p.nome}</b>
-                  <span className="lr-sub">{p.email}</span>
-                </div>
-                <span className="lr-end">
-                  <Icon name="chevR" size={16} className="text-fg-subtle" />
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
+        <TableWrap>
+          <TableToolbar>
+            <form className="min-w-0 flex-1" role="search">
+              <span className="relative block max-w-90">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-subtle"
+                />
+                <input
+                  name="q"
+                  defaultValue={q ?? ''}
+                  placeholder="Buscar por nome…"
+                  aria-label="Buscar pacientes por nome"
+                  className={cn(fieldControlClassName, 'pl-9')}
+                />
+              </span>
+            </form>
+          </TableToolbar>
+          {patients.length === 0 ? (
+            <EmptyState
+              icon={<Search />}
+              title="Nenhum paciente encontrado"
+              description={`Nada para “${q}”. Tente outro nome.`}
+            />
+          ) : (
+            <>
+              <TableScroll>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>E-mail</TableHead>
+                      <TableHead className="w-12" aria-label="Abrir" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {patients.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="p-0">
+                          <Link
+                            href={`/pacientes/${p.id}`}
+                            className="block px-3.5 py-(--cell-py) font-medium text-fg"
+                          >
+                            {p.nome}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-fg-muted">{p.email}</TableCell>
+                        <TableCell>
+                          <Link
+                            href={`/pacientes/${p.id}`}
+                            aria-label={`Abrir ${p.nome}`}
+                            className="grid size-7 place-items-center rounded-(--r-sm) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg"
+                          >
+                            <ChevronRight className="size-4" />
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableScroll>
+              <TableFoot>
+                <TableFootInfo>
+                  {patients.length} paciente{patients.length === 1 ? '' : 's'}
+                  {patients.length === 50 ? ' (mostrando os 50 primeiros — refine a busca)' : ''}
+                </TableFootInfo>
+              </TableFoot>
+            </>
+          )}
+        </TableWrap>
       )}
-    </div>
+    </>
   );
 }

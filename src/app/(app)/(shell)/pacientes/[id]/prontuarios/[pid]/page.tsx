@@ -1,30 +1,37 @@
 /**
- * /pacientes/[id]/prontuarios/[pid] — editor do prontuário (auto-save 10s) +
- * emissão de prescrição/documento. Prontuário assinado abre em somente-leitura.
+ * /pacientes/[id]/prontuarios/[pid] — editor do prontuário (auto-save 10s).
+ * Deep-link clínico/auditável — esta rota PERMANECE (ADR-031). Assinatura em
+ * Dialog (?assinar=1); prescrição/documento reusam os Drawers do Consultório
+ * (zero duplicação). Prontuário assinado abre em somente-leitura.
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
-import { getProntuarioById, listPrescriptionTemplates } from '@/contexts/clinical/queries';
+import { getProntuarioById } from '@/contexts/clinical/queries';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { buttonVariants } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 
-import { MedicalDocumentForm } from './medical-document-form';
-import { PrescriptionForm } from './prescription-form';
+import { DocumentDrawer } from '../../../../consultorio/document-drawer';
+import { PrescriptionDrawer } from '../../../../consultorio/prescription-drawer';
 import { ProntuarioEditor } from './prontuario-editor';
+import { SignProntuarioDialog } from './sign-prontuario-dialog';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProntuarioEditorPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; pid: string }>;
+  searchParams: Promise<{ assinar?: string }>;
 }) {
-  const user = await requireUser();
+  await requireUser();
   const clinicId = await requireClinicId();
   const { id, pid } = await params;
+  const { assinar } = await searchParams;
   const patParsed = z.string().uuid().safeParse(id);
   const pidParsed = z.string().uuid().safeParse(pid);
   if (!patParsed.success || !pidParsed.success) notFound();
@@ -33,32 +40,31 @@ export default async function ProntuarioEditorPage({
   if (!prontuario || prontuario.patientId !== patParsed.data) notFound();
 
   const assinado = prontuario.status === 'assinado';
-  // Modelos de receita do médico logado (Fase 2) — paciente-agnósticos.
-  const templates = await listPrescriptionTemplates(clinicId, user.userId);
+  const vazio = !Object.values(prontuario.content).some(
+    (v) => typeof v === 'string' && v.trim() !== '',
+  );
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            <Link href="/pacientes">Pacientes</Link> <span className="sep">›</span>{' '}
-            <Link href={`/pacientes/${patParsed.data}/prontuarios`}>Prontuários</Link>{' '}
-            <span className="sep">›</span> <b>{assinado ? 'Assinado' : 'Rascunho'}</b>
-          </>
-        }
+        crumbs={[
+          { label: 'Pacientes', href: '/pacientes' },
+          { label: 'Paciente', href: `/pacientes/${patParsed.data}?tab=prontuarios` },
+          { label: assinado ? 'Prontuário assinado' : 'Prontuário (rascunho)' },
+        ]}
         title={`Prontuário ${assinado ? '(assinado)' : '(rascunho)'}`}
         actions={
           <>
-            {prontuario.status === 'rascunho' ? (
-              <Link
-                href={`/pacientes/${patParsed.data}/prontuarios/${prontuario.id}/assinar`}
-                className={buttonVariants({ variant: 'secondary', size: 'sm' })}
-              >
-                Assinar
-              </Link>
+            {!assinado ? (
+              <SignProntuarioDialog
+                patientId={patParsed.data}
+                prontuarioId={prontuario.id}
+                defaultOpen={assinar === '1'}
+                empty={vazio}
+              />
             ) : null}
             <Link
-              href={`/pacientes/${patParsed.data}/prontuarios`}
+              href={`/pacientes/${patParsed.data}?tab=prontuarios`}
               className={buttonVariants({ variant: 'ghost', size: 'sm' })}
             >
               Voltar
@@ -67,25 +73,19 @@ export default async function ProntuarioEditorPage({
         }
       />
 
-      <div className="stack" style={{ maxWidth: 860 }}>
-        <div className="cardblock wrap-pad">
+      <div className="flex max-w-215 flex-col gap-(--sp-4)">
+        <Card className="p-(--card-pad)">
           <ProntuarioEditor prontuario={prontuario} />
-        </div>
+        </Card>
 
-        <div className="cardblock wrap-pad">
-          <h4 className="mb-4 text-sm font-semibold">Prescrição</h4>
-          <PrescriptionForm
-            patientId={patParsed.data}
-            prontuarioId={prontuario.id}
-            templates={templates}
-          />
-        </div>
-
-        <div className="cardblock wrap-pad">
-          <h4 className="mb-4 text-sm font-semibold">Documento médico</h4>
-          <MedicalDocumentForm patientId={patParsed.data} />
-        </div>
+        <Card className="flex flex-wrap items-center gap-2 p-4">
+          <span className="mr-1 font-mono text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
+            Emitir
+          </span>
+          <PrescriptionDrawer patientId={patParsed.data} prontuarioId={prontuario.id} />
+          <DocumentDrawer patientId={patParsed.data} />
+        </Card>
       </div>
-    </div>
+    </>
   );
 }
