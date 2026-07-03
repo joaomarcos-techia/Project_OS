@@ -25,24 +25,35 @@ export function FinalizedList({
     return <p className="px-1 text-sm text-fg-subtle">Nenhuma consulta finalizada hoje.</p>;
   }
   return (
-    <ul className="flex flex-col gap-0.5">
+    <ul className="flex flex-col gap-2">
       {cards.map((c) => (
         <li key={c.appointmentId}>
           <button
             type="button"
             onClick={() => onOpen(c.appointmentId)}
             className={cn(
-              'flex w-full items-center gap-2 rounded-(--r-sm) px-2.5 py-2 text-left text-sm transition-colors hover:bg-surface-hover',
-              selectedId === c.appointmentId && 'bg-surface-inset',
+              'w-full rounded-(--r-md) border border-border bg-surface p-3 text-left shadow-xs transition-colors hover:bg-surface-hover',
+              selectedId === c.appointmentId && 'border-ring bg-surface-inset',
             )}
           >
-            <span className="font-mono text-xs text-fg-subtle">{formatHora(c.horario)}</span>
-            <span className="min-w-0 flex-1 truncate font-medium">{c.pacienteNome}</span>
-            {c.cobrancaPendente ? (
-              <Badge tone="amber" dot>
-                Sem cobrança
-              </Badge>
-            ) : null}
+            <span className="flex items-center gap-2">
+              <span className="font-mono text-xs text-fg-subtle">{formatHora(c.horario)}</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                {c.pacienteNome}
+              </span>
+            </span>
+            <span className="mt-1.5 flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-xs text-fg-subtle">{c.motivo}</span>
+              {c.cobrancaPendente ? (
+                <Badge tone="amber" dot>
+                  Sem cobrança
+                </Badge>
+              ) : (
+                <Badge tone="green" dot>
+                  Faturada
+                </Badge>
+              )}
+            </span>
           </button>
         </li>
       ))}

@@ -22,6 +22,8 @@ const INITIAL: PatientFormState = { error: null };
 interface Props {
   mode: 'create' | 'edit';
   action: (prev: PatientFormState, fd: FormData) => Promise<PatientFormState>;
+  /** true = botão de submit em barra sticky (uso dentro de Drawer). */
+  stickyAction?: boolean;
   initial?: {
     id: string;
     nome: string;
@@ -40,41 +42,43 @@ interface Props {
   };
 }
 
-export function PatientForm({ mode, action, initial }: Props) {
+export function PatientForm({ mode, action, initial, stickyAction = false }: Props) {
   const [state, formAction, pending] = useActionState(action, INITIAL);
   const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-4">
+    <form action={formAction} className="flex max-w-xl flex-col gap-3.5">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {initial?.id ? <input type="hidden" name="id" value={initial.id} /> : null}
 
       {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 
-      <Field label="Nome">
-        <Input
-          name="nome"
-          required
-          maxLength={120}
-          defaultValue={initial?.nome}
-          disabled={pending}
-        />
-      </Field>
+      <div className="grid gap-3.5 sm:grid-cols-2">
+        <Field label="Nome">
+          <Input
+            name="nome"
+            required
+            maxLength={120}
+            defaultValue={initial?.nome}
+            disabled={pending}
+          />
+        </Field>
 
-      <Field label={`CPF${mode === 'edit' ? ' (deixe em branco para manter)' : ''}`}>
-        <Input
-          name="cpf"
-          required={mode === 'create'}
-          inputMode="numeric"
-          maxLength={14}
-          pattern="[\d.\-\s]+"
-          placeholder="000.000.000-00"
-          defaultValue={initial?.cpf}
-          disabled={pending}
-        />
-      </Field>
+        <Field label={`CPF${mode === 'edit' ? ' (em branco = manter)' : ''}`}>
+          <Input
+            name="cpf"
+            required={mode === 'create'}
+            inputMode="numeric"
+            maxLength={14}
+            pattern="[\d.\-\s]+"
+            placeholder="000.000.000-00"
+            defaultValue={initial?.cpf}
+            disabled={pending}
+          />
+        </Field>
+      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3.5 sm:grid-cols-2">
         <Field label="Telefone">
           <Input
             name="telefone"
@@ -100,7 +104,7 @@ export function PatientForm({ mode, action, initial }: Props) {
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3.5 sm:grid-cols-2">
         <Field label="Data de nascimento">
           <DateField
             name="dataNascimento"
@@ -120,7 +124,7 @@ export function PatientForm({ mode, action, initial }: Props) {
         </Field>
       </div>
 
-      <fieldset className="flex flex-col gap-4 rounded-md border border-border p-4">
+      <fieldset className="grid gap-3.5 rounded-(--r-md) border border-border p-4 sm:grid-cols-2">
         <legend className="px-1 text-sm font-medium text-fg-muted">
           Endereço{' '}
           <span className="font-normal text-fg-subtle">
@@ -138,7 +142,7 @@ export function PatientForm({ mode, action, initial }: Props) {
           />
         </Field>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3.5 sm:grid-cols-2">
           <Field label="Complemento">
             <Input
               name="endComplemento"
@@ -182,7 +186,13 @@ export function PatientForm({ mode, action, initial }: Props) {
         </div>
       </fieldset>
 
-      <div className="flex gap-2">
+      <div
+        className={
+          stickyAction
+            ? 'sticky bottom-0 -mx-(--sp-6) -mb-(--sp-6) mt-1 flex gap-2 border-t border-border bg-surface px-(--sp-6) py-3.5'
+            : 'flex gap-2'
+        }
+      >
         <Button type="submit" loading={pending}>
           {mode === 'create' ? 'Criar paciente' : 'Salvar alterações'}
         </Button>

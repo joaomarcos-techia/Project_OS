@@ -19,6 +19,7 @@ export function Combobox({
   onSearch,
   placeholder = 'Buscar…',
   minChars = 2,
+  debounceMs = 200,
   emptyLabel = 'Nada encontrado.',
   disabled = false,
 }: {
@@ -27,6 +28,7 @@ export function Combobox({
   onSearch: (term: string) => Promise<ComboboxItem[]>;
   placeholder?: string;
   minChars?: number;
+  debounceMs?: number;
   emptyLabel?: string;
   disabled?: boolean;
 }) {
@@ -39,24 +41,34 @@ export function Combobox({
   const rootRef = useRef<HTMLDivElement>(null);
   const onSearchRef = useRef(onSearch);
   onSearchRef.current = onSearch;
+  // Cache por termo (sessão do componente): repetir a digitação não re-consulta.
+  const cacheRef = useRef(new Map<string, ComboboxItem[]>());
 
   useEffect(() => {
-    const t = term.trim();
+    const t = term.trim().toLowerCase();
     if (t.length < minChars) {
       setItems([]);
       setOpen(false);
       return;
     }
+    const hit = cacheRef.current.get(t);
+    if (hit) {
+      setItems(hit);
+      setActive(0);
+      setOpen(true);
+      return;
+    }
     const handle = setTimeout(() => {
       startSearch(async () => {
         const res = await onSearchRef.current(t);
+        cacheRef.current.set(t, res);
         setItems(res);
         setActive(0);
         setOpen(true);
       });
-    }, 300);
+    }, debounceMs);
     return () => clearTimeout(handle);
-  }, [term, minChars]);
+  }, [term, minChars, debounceMs]);
 
   // fecha ao clicar fora
   useEffect(() => {

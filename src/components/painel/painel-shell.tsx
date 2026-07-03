@@ -1,7 +1,6 @@
 'use client';
 
-import { ChevronDown, LogOut, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
+import { LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 
@@ -17,17 +16,8 @@ import {
   Wordmark,
 } from '@/components/shared/shell-chrome';
 import { useTheme } from '@/components/shared/use-theme';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { cn } from '@/lib/ui/cn';
 
 import { Icon, LogoIcon } from './icons';
 import { GROUPS, MODULES } from './modules';
@@ -128,6 +118,23 @@ export function PainelShell({
           </nav>
 
           <div className="flex flex-col gap-1 border-t border-border p-(--sp-3)">
+            {/* Identidade do usuário — o topbar foi aposentado (decisão do founder:
+                tudo na sidebar, como no /admin) */}
+            <div className="flex items-center gap-2.5 px-(--sp-3) py-2">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-(length:--fs-2xs) font-semibold text-on-primary">
+                {userInitials}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-(length:--fs-sm) leading-tight font-medium">
+                  {userName}
+                </span>
+                {userRole ? (
+                  <span className="text-(length:--fs-2xs) leading-tight text-fg-subtle">
+                    {userRole}
+                  </span>
+                ) : null}
+              </span>
+            </div>
             <ThemeFootToggle dark={dark} onToggle={toggle} />
             <form action="/logout" method="post">
               <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
@@ -139,57 +146,7 @@ export function PainelShell({
         </ShellSidebar>
 
         <div className="flex min-w-0 flex-col bg-canvas">
-          <header
-            className={cn(
-              'sticky top-0 z-(--z-sticky) flex items-center gap-(--sp-3) border-b border-border px-(--sp-8) py-2 max-nav:pl-16 max-md:px-(--sp-4) max-md:pl-16',
-              'bg-[color-mix(in_oklch,var(--bg)_86%,transparent)] backdrop-blur-[12px] backdrop-saturate-[1.3]',
-            )}
-          >
-            <div className="flex-1" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-2.5 rounded-(--r-md) px-2 py-1.5 transition-colors hover:bg-surface-hover focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
-                >
-                  <span className="grid size-8 place-items-center rounded-full bg-primary text-(length:--fs-xs) font-semibold text-on-primary">
-                    {userInitials}
-                  </span>
-                  <span className="flex flex-col items-start max-md:hidden">
-                    <span className="text-(length:--fs-sm) leading-tight font-medium">
-                      {userName}
-                    </span>
-                    {userRole ? (
-                      <span className="text-(length:--fs-2xs) leading-tight text-fg-subtle">
-                        {userRole}
-                      </span>
-                    ) : null}
-                  </span>
-                  <ChevronDown aria-hidden="true" className="size-3.5 text-fg-subtle max-md:hidden" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Conta</DropdownMenuLabel>
-                <DropdownMenuItem asChild>
-                  <Link href="/account/security">
-                    <ShieldCheck />
-                    Segurança da conta
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <form action="/logout" method="post">
-                  <DropdownMenuItem asChild danger>
-                    <button type="submit" className="w-full">
-                      <LogOut />
-                      Sair
-                    </button>
-                  </DropdownMenuItem>
-                </form>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </header>
-
-          <main className="mx-auto w-full max-w-330 flex-1 px-(--sp-8) pt-(--sp-6) pb-(--sp-16) max-md:px-(--sp-4)">
+          <main className="mx-auto w-full max-w-330 flex-1 px-(--sp-8) pt-(--sp-6) pb-(--sp-16) max-nav:pt-(--sp-12) max-md:px-(--sp-4)">
             {children}
           </main>
         </div>

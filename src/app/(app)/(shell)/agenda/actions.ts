@@ -18,7 +18,7 @@
  */
 import { getPatientSummaryById, listPatients } from '@/contexts/patient/queries';
 import { createAppointment, createWalkInAppointment } from '@/contexts/scheduling/actions';
-import { getClinicTimezone } from '@/contexts/scheduling/queries';
+import { getClinicTimezone, listAppointments } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
@@ -54,6 +54,46 @@ async function scheduledAtIso(clinicId: string, date: string, time: string): Pro
   return zonedWallToUtc(+d[1]!, +d[2]!, +d[3]!, +t[1]!, +t[2]!, tz).toISOString();
 }
 
+/** Janela [00:00, 24:00) do dia-alvo no fuso da clínica, em UTC. */
+function dayBoundsFor(tz: string, ymd: string): { from: Date; to: Date } {
+  const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];
+  const from = zonedWallToUtc(y, m, d, 0, 0, tz);
+  return { from, to: new Date(from.getTime() + 86_400_000) };
+}
+
+function todayYmd(tz: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+/**
+ * Anti-duplicidade (guarda de aplicação): a MESMA paciente com a MESMA médica
+ * não pode ter dois atendimentos ATIVOS no mesmo dia — bloqueia encaixe e
+ * agendamento duplicados. (O EXCLUDE do C6 cobre conflito de horário, não este
+ * caso; corrida residual entre requests simultâneos fica para um índice parcial
+ * de hardening.)
+ */
+async function findDuplicadoNoDia(
+  clinicId: string,
+  input: { patientId: string; doctorId: string },
+  ymd: string,
+): Promise<boolean> {
+  const tz = (await getClinicTimezone(clinicId)) ?? 'America/Sao_Paulo';
+  const { from, to } = dayBoundsFor(tz, ymd);
+  const ativos = await listAppointments(clinicId, {
+    from,
+    to,
+    restrictToDoctorId: input.doctorId,
+    status: ['agendado', 'confirmado', 'chegou', 'em_atendimento'],
+    limit: 200,
+  });
+  return ativos.some((a) => a.patientId === input.patientId);
+}
+
 export async function criarAtendimento(
   input: CriarAtendimentoInput,
 ): Promise<CriarAtendimentoResult> {
@@ -76,6 +116,15 @@ export async function criarAtendimento(
       ...(input.urgencia ? { urgencia: true } : {}),
       ...(input.observacoes?.trim() ? { observacoes: input.observacoes.trim() } : {}),
     };
+
+    const tz = (await getClinicTimezone(clinicId)) ?? 'America/Sao_Paulo';
+    const diaAlvo = input.modo === 'agendar' ? input.date.trim() : todayYmd(tz);
+    if (await findDuplicadoNoDia(clinicId, input, diaAlvo)) {
+      return {
+        ok: false,
+        message: `${pat.nome} já tem um atendimento ativo com este profissional neste dia.`,
+      };
+    }
 
     if (input.modo === 'agendar') {
       const scheduledAt = await scheduledAtIso(clinicId, input.date, input.time);

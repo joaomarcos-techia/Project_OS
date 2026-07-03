@@ -45,7 +45,7 @@ export function NewPatientDrawer({ defaultOpen = false }: { defaultOpen?: boolea
           <DrawerTitle>Novo paciente</DrawerTitle>
         </DrawerHeader>
         <DrawerBody>
-          <PatientForm mode="create" action={createPatientForm} />
+          <PatientForm mode="create" action={createPatientForm} stickyAction />
         </DrawerBody>
       </DrawerContent>
     </Drawer>

@@ -30,20 +30,10 @@ import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime } from '../_lib/format';
 import { clinicRepository } from '../_lib/repositories/clinics.repo';
 import { invitesRepository } from '../_lib/repositories/invites.repo';
+import { InvitesTable } from './invites-table';
 import { NewClinicModal } from './new-clinic-modal';
-import { CancelInviteButton } from './cancel-invite-button';
 
 export const dynamic = 'force-dynamic';
-
-const INVITES_PER_PAGE = 6;
-
-function inviteTone(s: string): 'blue' | 'amber' | 'green' | 'gray' | 'red' {
-  if (s === 'completed') return 'green';
-  if (s === 'started') return 'amber';
-  if (s === 'cancelled') return 'red';
-  if (s === 'expired') return 'gray';
-  return 'blue'; // pending
-}
 
 const CLINIC_STATUSES = [
   'trial',
@@ -55,7 +45,7 @@ const CLINIC_STATUSES = [
 ];
 const BILLING_STATUSES = ['trial', 'active', 'past_due', 'cancelled'];
 
-type SP = { q?: string; status?: string; plan?: string; billing?: string; page?: string; ipage?: string };
+type SP = { q?: string; status?: string; plan?: string; billing?: string; page?: string };
 
 function buildQuery(sp: SP, overrides: { [K in keyof SP]?: string | undefined }): string {
   const params = new URLSearchParams();
@@ -68,7 +58,6 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
   await guardAdminAccess();
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? '1') || 1);
-  const ipage = Math.max(1, Number(sp.ipage ?? '1') || 1);
 
   const [result, plans, invites] = await Promise.all([
     clinicRepository.list({
@@ -84,9 +73,10 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
   ]);
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
-  // Convites: 6 por página ("virar página" — pedido do founder; sem scroll).
-  const invitePages = Math.max(1, Math.ceil(invites.length / INVITES_PER_PAGE));
-  const invitesPage = invites.slice((ipage - 1) * INVITES_PER_PAGE, ipage * INVITES_PER_PAGE);
+  // Datas formatadas no servidor (tz estável) para a tabela client de convites.
+  const inviteDates = Object.fromEntries(
+    invites.map((i) => [i.id, { criado: formatDateTime(i.createdAt), expira: formatDateTime(i.expiresAt) }]),
+  );
 
   return (
     <>
@@ -204,7 +194,7 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
               <TablePager
                 page={page}
                 pageCount={totalPages}
-                hrefFor={(p) => `/admin/clinicas${buildQuery(sp, { page: String(p), ipage: undefined })}`}
+                hrefFor={(p) => `/admin/clinicas${buildQuery(sp, { page: String(p) })}`}
               />
             </TableFoot>
           </>
@@ -212,72 +202,7 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
       </TableWrap>
 
       {/* ======================== CONVITES ======================== */}
-      <TableWrap className="mt-(--sp-5)">
-        <TableToolbar>
-          <h4 className="text-(length:--fs-sm) font-semibold">Convites</h4>
-          <span className="text-(length:--fs-xs) text-fg-subtle">
-            {invites.length} · onboarding via convite mágico
-          </span>
-        </TableToolbar>
-        {invites.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-fg-subtle">
-            Nenhum convite. Use <b>Nova Clínica</b> para gerar um link de onboarding.
-          </p>
-        ) : (
-          <>
-            <TableScroll>
-              <Table className="min-w-180">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Gestor / Clínica</TableHead>
-                    <TableHead>Plano</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Criado</TableHead>
-                    <TableHead>Expira</TableHead>
-                    <TableHead className="w-24" aria-label="Ações" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invitesPage.map((i) => (
-                    <TableRow key={i.id}>
-                      <TableCell className="font-medium">
-                        {i.clinicNome ?? i.email ?? <span className="text-fg-subtle">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        {i.planCode ? (
-                          <Badge tone="blue">{i.planCode}</Badge>
-                        ) : (
-                          <span className="text-fg-subtle">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge tone={inviteTone(i.status)}>{i.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-fg-muted">{formatDateTime(i.createdAt)}</TableCell>
-                      <TableCell className="text-fg-muted">{formatDateTime(i.expiresAt)}</TableCell>
-                      <TableCell>
-                        {i.status === 'pending' || i.status === 'started' ? (
-                          <CancelInviteButton id={i.id} />
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableScroll>
-            <TableFoot>
-              <TableFootInfo>
-                Página {ipage} de {invitePages}
-              </TableFootInfo>
-              <TablePager
-                page={ipage}
-                pageCount={invitePages}
-                hrefFor={(p) => `/admin/clinicas${buildQuery(sp, { ipage: String(p) })}`}
-              />
-            </TableFoot>
-          </>
-        )}
-      </TableWrap>
+      <InvitesTable invites={invites} formatDateTime={inviteDates} />
     </>
   );
 }
