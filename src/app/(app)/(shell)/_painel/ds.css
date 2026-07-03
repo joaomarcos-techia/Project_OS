@@ -1,3 +1,4 @@
+@layer components {
 /* ClinicaOS — CSS legado do DS v1 (componentes), em estrangulamento (ADR-031).
    Tokens vivem SOMENTE em src/app/globals.css — não redefinir tokens aqui. */
 
@@ -1246,3 +1247,4 @@ kbd { font-family: var(--font-mono); font-size: 11px; background: var(--surface-
 .foot-mark { display: flex; align-items: center; gap: 9px; } .foot-mark .logo-md svg { width: 24px; height: 24px; } .foot-mark .wordmark { font-size: 16px; font-weight: 600; } .foot-mark .wordmark b { color: var(--primary-600); }
 .foot p { font-size: 12.5px; color: var(--text-3); max-width: 600px; line-height: 1.5; }
 @media (max-width: 900px) { .motion-grid, .a11y-grid, .wl-split, .wl-preview { grid-template-columns: 1fr; } .dur-row, .ease-row { grid-template-columns: 1fr; } }
+}

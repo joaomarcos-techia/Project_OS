@@ -1,3 +1,4 @@
+@layer components {
 /* =====================================================================
    ClinicaOS — Painel (app shell). Built strictly on DS tokens.
    ===================================================================== */
@@ -255,4 +256,5 @@
   .stat-row, .stat-row.five { grid-template-columns: 1fr; }
   .consult-board { grid-template-columns: 1fr; }
   .tb-user .tu-id { display: none; }
+}
 }

@@ -1,3 +1,4 @@
+@layer components {
 /* =====================================================================
    ClinicaOS — Onboarding / Ativação (wizard público /join)
    Portado do Claude Design (ClinicaOS - Ativacao). Usa os tokens do DS
@@ -198,3 +199,4 @@
 
 /* ---------------- error / invalid ---------------- */
 .flow-invalid { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: var(--sp-5); }
+}
