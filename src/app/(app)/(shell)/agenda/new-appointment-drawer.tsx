@@ -71,7 +71,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setError(null);
     if (!paciente) return setError('Selecione o paciente.');
     if (!procedureId) return setError('Selecione o procedimento.');
-    const docId = data.isDoctor ? (data.selfDoctorId ?? '') : doctorId;
+    const docId = data.isPractitioner ? (data.selfDoctorId ?? '') : doctorId;
     if (!docId) return setError('Selecione o profissional.');
     if (modo === 'agendar' && (!date || !time)) {
       return setError('Informe data e hora.');
@@ -190,7 +190,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
               </Field>
             )}
 
-            {!data.isDoctor ? (
+            {!data.isPractitioner ? (
               <Field label="Profissional">
                 <Select value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
                   <option value="">Selecione…</option>

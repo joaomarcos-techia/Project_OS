@@ -45,11 +45,11 @@ function ColumnTitle({ children, count }: { children: React.ReactNode; count?: n
 
 export function ConsultorioBoard({
   clinicId,
-  isDoctor,
+  isPractitioner,
   initialBoard,
 }: {
   clinicId: string;
-  isDoctor: boolean;
+  isPractitioner: boolean;
   initialBoard: BoardDTO;
 }) {
   const [board, setBoard] = useState<BoardDTO>(initialBoard);
@@ -154,7 +154,7 @@ export function ConsultorioBoard({
         description="Atenda um turno inteiro sem trocar de tela."
         actions={
           <div className="flex items-center gap-2">
-            {!isDoctor && board.doctors.length > 0 ? (
+            {!isPractitioner && board.doctors.length > 0 ? (
               <Select
                 value={selectedDoctorId ?? ''}
                 onChange={(e) => setSelectedDoctorId(e.target.value || null)}

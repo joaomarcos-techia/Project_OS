@@ -16,7 +16,12 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 
+/* eslint-disable boundaries/element-types -- profiles é declarado no schema de identity (Drizzle FK vive onde a tabela é declarada); leitura tenant-scoped via tx (RLS aplica). Mesma exceção de clinical/internal/doctor.ts e tenant-context.ts. */
+import { profiles } from '@/contexts/identity/schema';
+/* eslint-enable boundaries/element-types */
+
 import type { RequestContext } from '@/lib/audit/types';
+import { practitionerSql } from '@/lib/auth/practitioner';
 import type { Tx } from '@/lib/db';
 import { idempotentMutation, type MutationActor } from '@/lib/idempotency/mutation';
 import { publishEvent } from '@/lib/outbox/publish';
@@ -194,11 +199,11 @@ export async function buildSnapshot(
     .limit(1);
   if (!proc) throw new ProcedureNotFoundError(procedureId);
 
-  // F-05 (auditoria 2026-06-10): exige role='doctor', ativo e não soft-deletado.
+  // F-05 (auditoria 2026-06-10): exige practitioner (role='doctor' OU CRM — ADR-032 §2), ativo e não soft-deletado.
   const docRows = await tx.execute<{ nome: string }>(
     sql`SELECT nome FROM profiles
          WHERE id = ${doctorId}
-           AND role = 'doctor'
+           AND ${practitionerSql(profiles.role, profiles.crm)}
            AND ativo = true
            AND deleted_at IS NULL
          LIMIT 1`,

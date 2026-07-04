@@ -1,3 +1,4 @@
+import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -29,7 +30,7 @@ export default async function ConsultorioPage() {
   return (
     <ConsultorioBoard
       clinicId={user.clinicId!}
-      isDoctor={user.role === 'doctor'}
+      isPractitioner={await getCurrentPractitioner()}
       initialBoard={initialBoard}
     />
   );

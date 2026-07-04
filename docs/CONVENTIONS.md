@@ -95,6 +95,7 @@ Hoje (C0) só existe `README.md`. Resto entra com a primeira camada do contexto.
 - 🚫 Tabela tenant-scoped sem RLS — ver template abaixo.
 - 🚫 Policy `USING (true)` ou `FOR ALL TO public` — catastrófico, vaza tudo.
 - 🚫 Role check (`gestor`, `owner`, etc.) dentro de RLS policy — ADR-007 D27: RLS isola tenants, RBAC mora em Server Actions via `requireRole(...)`.
+- 🚫 `role === 'doctor'` como gate de **capacidade clínica** — ADR-032 §2: use `isPractitioner` (`@/lib/auth/practitioner`), `getCurrentPractitioner` (usuário logado) ou `practitionerSql` (raw SQL). O médico-dono é `owner` **com CRM**. `crm` como capacidade **só** dentro do predicado. Arch-test barra reincidência.
 - 🚫 `ENABLE ROW LEVEL SECURITY` sem `FORCE` em tabela tenant-scoped — owner bypassa policies.
 
 ## Governança de UI (ADR-031 — vale para TODA mudança de interface, não só a refatoração DS v2)

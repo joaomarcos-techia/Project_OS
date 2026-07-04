@@ -107,3 +107,18 @@ trava**. Governança por transparência, não por bloqueio rígido.
 ## Amendment (quando implementar)
 As decisões acima são LEI. O enforcement entra junto das features: o `UNIQUE(clinic_id, crm)` num
 `ALTER TABLE` aditivo; a migração `role === 'doctor'` → `isPractitioner` **precede** o onboarding gravar CRM.
+
+### Amendment 2026-07-04 — §2 implementado (Fase 1)
+- **§2 entregue:** predicado canônico em `src/lib/auth/practitioner.ts` (`isPractitioner` + espelho SQL
+  `practitionerSql`, importável por contexts sem furar boundaries — vive em `lib/auth`, re-exportado pela
+  superfície pública de identity, como o `Role`). Resolução do usuário logado (a sessão/JWT não carrega `crm`)
+  em `src/contexts/identity/internal/practitioner.ts` (`getCurrentPractitioner`, request-scoped). Os **8 checks**
+  de capacidade `role === 'doctor'` migraram; um **arch-test** (`no-doctor-capability-check.arch.test.ts`)
+  impede reintrodução.
+- **Acoplamento predicado ↔ `role` é do MVP.** `isPractitioner` ainda depende de `role === 'doctor'`. Quando
+  existir profissional-sem-CRM (psicólogo/nutri) e a coluna `is_practitioner` dedicada, o predicado deixa de
+  depender de `role` — muda num lugar só. Registrado para não virar surpresa.
+- **Consequência do Consultório congelada em [ADR-033](033-consultorio-board-scope-practitioner.md):** o
+  owner-médico é escopado à própria fila (practitioner vê a própria fila), não board global.
+- **Inércia:** nada coleta CRM ainda (Fases 2/3). Para `role === 'doctor'` o predicado é `true` pelo role;
+  para os demais, `crm` é hoje sempre `null` → a migração é **comportamentalmente idêntica** nos dados atuais.

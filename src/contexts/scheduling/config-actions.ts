@@ -9,7 +9,12 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 
+/* eslint-disable boundaries/element-types -- profiles é declarado no schema de identity (Drizzle FK vive onde a tabela é declarada); leitura tenant-scoped via tx (RLS aplica). Mesma exceção de clinical/internal/doctor.ts e tenant-context.ts. */
+import { profiles } from '@/contexts/identity/schema';
+/* eslint-enable boundaries/element-types */
+
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { practitionerSql } from '@/lib/auth/practitioner';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 
@@ -57,11 +62,11 @@ export async function setDoctorAvailability(
         // o UUID de um profile da clínica B criava availability "fantasma" e o
         // EXCLUDE global (doctor_id, weekday, range) passava a rejeitar janelas
         // legítimas da clínica B (interferência cross-tenant). Também exige
-        // role='doctor' + ativo + não soft-deletado (F-05).
+        // practitioner (role='doctor' OU CRM — ADR-032 §2) + ativo + não soft-deletado (F-05).
         const doc = await tx.execute<{ id: string }>(
           sql`SELECT id FROM profiles
                WHERE id = ${data.doctorId}
-                 AND role = 'doctor'
+                 AND ${practitionerSql(profiles.role, profiles.crm)}
                  AND ativo = true
                  AND deleted_at IS NULL
                LIMIT 1`,

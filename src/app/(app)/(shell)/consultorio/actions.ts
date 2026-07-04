@@ -23,6 +23,7 @@ import type {
   ProntuarioDetail,
   SignProntuarioInput,
 } from '@/contexts/clinical/types';
+import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listPendenciasAbertas } from '@/contexts/financial/queries';
 import { listPatientCards } from '@/contexts/patient/queries';
 import {
@@ -77,7 +78,9 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
     return EMPTY_BOARD;
   }
   const clinicId = user.clinicId;
-  const isDoctor = user.role === 'doctor';
+  // ADR-032/033: capacidade clínica = practitioner (owner-médico incluso), não role==='doctor'.
+  // Practitioner vê só a própria fila; front-desk (não-practitioner) vê todas + seletor.
+  const isPractitioner = await getCurrentPractitioner();
 
   const tz = await clinicTimezoneCached(clinicId);
   const { from, to } = clinicDayBounds(tz);
@@ -88,15 +91,15 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
     from,
     to,
     status: STATUS_TODAY,
-    ...(isDoctor ? { restrictToDoctorId: user.userId } : {}),
+    ...(isPractitioner ? { restrictToDoctorId: user.userId } : {}),
     limit: DAY_FETCH_CAP,
   });
   const truncated = dayAppts.length >= DAY_FETCH_CAP;
 
   let doctors: BoardDoctorDTO[] = [];
-  const activeDoctorId: string | null = isDoctor ? user.userId : (input.doctorId ?? null);
+  const activeDoctorId: string | null = isPractitioner ? user.userId : (input.doctorId ?? null);
   let scoped = dayAppts;
-  if (!isDoctor) {
+  if (!isPractitioner) {
     const seen = new Map<string, string>();
     for (const a of dayAppts) if (!seen.has(a.doctorId)) seen.set(a.doctorId, a.snapshotDoctorNome);
     doctors = [...seen]

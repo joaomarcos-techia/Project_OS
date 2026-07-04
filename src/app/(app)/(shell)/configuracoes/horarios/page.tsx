@@ -5,6 +5,7 @@
  */
 import Link from 'next/link';
 
+import { isPractitioner } from '@/contexts/identity';
 import { listEmployees } from '@/contexts/identity/queries';
 import { listDoctorAvailability, listHolidays } from '@/contexts/scheduling/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -46,7 +47,7 @@ export default async function HorariosPage() {
 
   const employees = await listEmployees(clinicId);
   const doctors = employees
-    .filter((e) => e.role === 'doctor' && e.ativo)
+    .filter((e) => isPractitioner(e) && e.ativo)
     .map((e) => ({ id: e.id, nome: e.nome }));
   const [availability, holidays] = await Promise.all([
     listDoctorAvailability(clinicId),
