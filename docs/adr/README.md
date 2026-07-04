@@ -47,6 +47,7 @@
 | [029](029-observability-stack.md) | Observability stack (Sentry + logger in-house + Better Stack + error envelope + health unificado) | accepted | C16 |
 | [030](030-security-headers-csp.md) | Security headers + CSP faseada (Report-Only primeiro, bloqueante com nonce depois) | accepted | C16 |
 | [031](031-design-system-v2-rebrand.md) | Design System v2: rebrand petrol/clay + governança de UI + estrangulamento do CSS legado (supersede parcial ADR-018) | accepted | Fundação Visual |
+| [032](032-mvp-identity-practitioner-model.md) | Modelo de identidade do MVP (colapso User=Employee=Practitioner + predicado `isPractitioner`; canal=email; ciclo de vida + políticas de CRM) | accepted | Identity (C3) |
 
 ## Como propor um novo ADR
 
