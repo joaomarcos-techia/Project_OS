@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 import type { PdfBranding, PdfDoctor } from './types';
 
 const DEFAULT_PRIMARY = '#0F766E';
-const FOOTER_TEXT = 'Gerado por ClinicaOS — qoro.dev';
+const FOOTER_TEXT = 'Gerado por Qoro — qoro.dev';
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n);

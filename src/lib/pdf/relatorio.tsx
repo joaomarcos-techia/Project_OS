@@ -62,8 +62,8 @@ export async function renderRelatorioPDF(input: RelatorioPdfInput): Promise<Buff
   return renderToBuffer(
     <Document
       title={`Relatórios — ${input.clinicName}`}
-      producer="ClinicaOS"
-      creator="ClinicaOS"
+      producer="Qoro"
+      creator="Qoro"
     >
       <Page size="A4" style={s.page}>
         <Text style={s.h1}>Relatórios — {input.clinicName}</Text>
@@ -124,7 +124,7 @@ export async function renderRelatorioPDF(input: RelatorioPdfInput): Promise<Buff
 
         <Text style={s.note}>
           Ocupação usa o resolvedor de agenda canônico (respeita pausas e feriados). Consolidado
-          limitado aos 500 atendimentos mais recentes do período. Gerado pelo ClinicaOS.
+          limitado aos 500 atendimentos mais recentes do período. Gerado pelo Qoro.
         </Text>
       </Page>
     </Document>,

@@ -3,6 +3,7 @@
 import { Suspense, useActionState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+import { Logo } from '@/components/shared/logo';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,10 +43,8 @@ function ResetPasswordForm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <span className="text-lg font-semibold tracking-[-0.02em]">
-            Clinica<b className="font-bold text-primary-600">OS</b>
-          </span>
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <Logo className="h-7 w-auto" />
           <p className="text-sm text-fg-muted">Defina uma nova senha de acesso.</p>
         </div>
 

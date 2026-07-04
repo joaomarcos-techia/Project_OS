@@ -26,7 +26,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ClinicaOS',
+  title: 'Qoro',
   description: 'O sistema operacional anti-vazamento da sua clínica.',
 };
 

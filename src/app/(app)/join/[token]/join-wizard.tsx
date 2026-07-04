@@ -832,7 +832,7 @@ function Done({ email }: { email: string | null }) {
     <div className="wiz-card done">
       <div className="mark">{I.check}</div>
       <h1>Sua clínica está pronta 🎉</h1>
-      <p>Bem-vindo ao ClinicaOS. Seu ambiente foi criado com sucesso.</p>
+      <p>Bem-vindo ao Qoro. Seu ambiente foi criado com sucesso.</p>
       <a className="btn block" href="/dashboard" style={{ marginTop: 'var(--sp-6)' }}>
         Entrar no painel {I.arrowR}
       </a>

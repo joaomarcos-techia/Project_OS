@@ -4,7 +4,6 @@ import { LogOut, ShieldCheck } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { LogoIcon } from '@/components/painel/icons';
 import {
   MobileNavButton,
   ShellScrim,
@@ -41,7 +40,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <div className="min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
         <ShellSidebar open={navOpen}>
           <div className="flex items-center justify-between pr-(--sp-5)">
-            <Wordmark logo={<LogoIcon size={24} />} />
+            <Wordmark />
             <span className="rounded-(--r-xs) bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
               Admin
             </span>

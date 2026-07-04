@@ -29,7 +29,7 @@ import { GROUPS, MODULES } from './modules';
  */
 export function PainelShell({
   children,
-  clinicName = 'ClinicaOS',
+  clinicName = 'Qoro',
   clinicPlan,
   userName = 'Você',
   userRole = '',
@@ -66,7 +66,7 @@ export function PainelShell({
 
       <div className="min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
         <ShellSidebar open={navOpen}>
-          <Wordmark logo={<LogoIcon size={24} />} />
+          <Wordmark />
 
           {/* Identidade do tenant — o usuário sempre sabe qual clínica está ativa */}
           <div className="mx-(--sp-4) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
@@ -140,7 +140,7 @@ export function PainelShell({
               <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
             </form>
             <span className="px-0.5 font-mono text-[10px] leading-normal text-fg-subtle">
-              ClinicaOS — operação sem vazamento.
+              Qoro — operação sem vazamento.
             </span>
           </div>
         </ShellSidebar>

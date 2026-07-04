@@ -6,6 +6,8 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
+import { Logo } from './logo';
+
 /**
  * Peças de chrome compartilhadas pelos shells (painel tenant e admin) —
  * DS v2 §side/side-nav, recriadas em Tailwind. Zero duplicação entre shells
@@ -171,19 +173,11 @@ export function ThemeFootToggle({ dark, onToggle }: { dark: boolean; onToggle: (
   );
 }
 
-/** Wordmark ClinicaOS — DS v2 §wordmark (nome display + selo "OS"). */
-export function Wordmark({ logo }: { logo: ReactNode }) {
+/** Wordmark da marca (Qoro) — logo enviada pelo founder (2026-07-04). */
+export function Wordmark() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 px-(--sp-5)">
-      {logo}
-      <span className="flex items-baseline gap-1.5">
-        <span className="font-display text-[19px] font-semibold tracking-(--tracking-tight)">
-          Clinica
-        </span>
-        <span className="rounded-(--r-xs) bg-primary px-1.25 py-0.5 font-mono text-[11px] font-medium tracking-[0.04em] text-on-primary">
-          OS
-        </span>
-      </span>
+    <Link href="/" aria-label="Qoro — início" className="flex items-center px-(--sp-5)">
+      <Logo className="h-7 w-auto" />
     </Link>
   );
 }

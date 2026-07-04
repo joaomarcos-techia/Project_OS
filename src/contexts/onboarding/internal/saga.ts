@@ -243,7 +243,7 @@ export interface CheckoutArgs {
 export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }> {
   const cycle = a.plan.cycle === 'annual' ? ('YEARLY' as const) : ('MONTHLY' as const);
   const nextDueDate = new Date(Date.now() + a.trialDays * 86_400_000).toISOString().slice(0, 10);
-  const description = `ClinicaOS · plano ${a.plan.code} — ${a.clinic.nome}`;
+  const description = `Qoro · plano ${a.plan.code} — ${a.clinic.nome}`;
   const phone = a.clinic.telefone ?? null;
 
   let customerId: string;
