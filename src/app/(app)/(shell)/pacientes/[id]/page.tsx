@@ -102,7 +102,7 @@ async function DadosTab({
 }) {
   const endereco = await getPrincipalAddress(clinicId, p.id);
   return (
-    <div className="flex max-w-180 flex-col gap-(--sp-4)">
+    <div className="flex flex-col gap-(--sp-4)">
       <Card>
         <div className="border-b border-border px-(--card-pad) py-3.5">
           <h4 className="text-(length:--fs-sm) font-semibold">Dados do paciente</h4>
@@ -163,7 +163,7 @@ async function ProntuariosTab({
 }) {
   const list = await listProntuariosByPatient(clinicId, patientId);
   return (
-    <div className="flex max-w-180 flex-col gap-(--sp-4)">
+    <div className="flex flex-col gap-(--sp-4)">
       <div className="flex justify-end">
         <NovoProntuarioButton patientId={patientId} />
       </div>
