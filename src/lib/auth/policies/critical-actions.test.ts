@@ -19,6 +19,7 @@ const ACTION_FILES = [
   'src/contexts/patient/actions.ts',
   'src/contexts/clinical/actions.ts',
   'src/contexts/messaging/actions.ts',
+  'src/app/(app)/(shell)/equipe/actions.ts',
 ];
 
 function isTopLevelRequireFresh(stmt: ts.Statement): boolean {

@@ -59,6 +59,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // por version rodam via dbAdmin/BYPASSRLS. A saga de provisionamento também.
     'src/contexts/onboarding/internal/invites.ts',
     'src/contexts/onboarding/internal/saga.ts',
+    // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
+    // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
+    'src/contexts/identity/internal/members.ts',
     // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
     // (S5) → escrita do tenant via dbAdmin+audit, colunas fixas + WHERE id=clinicId
     // (do request). Irmão do connection-store de mensageria.

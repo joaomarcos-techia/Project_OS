@@ -121,10 +121,12 @@ export async function provisionTenantFromInviteTx(tx: Tx, args: ProvisionArgs): 
       telefone: args.clinic.telefone ?? null,
       role: 'owner',
       ativo: true,
+      // Owner nasce ACEITO (não é convite pendente — ADR-032 Fase 2, review #1).
+      inviteAcceptedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: profiles.id,
-      set: { clinicId, role: 'owner', nome: args.owner.nome, ativo: true },
+      set: { clinicId, role: 'owner', nome: args.owner.nome, ativo: true, inviteAcceptedAt: new Date() },
     });
 
   // 3. Config de IA da clínica (defaults). 1:1 com a clínica.

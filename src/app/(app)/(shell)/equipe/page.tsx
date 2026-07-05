@@ -1,6 +1,7 @@
 import type { VariantProps } from 'class-variance-authority';
 
-import type { Role } from '@/contexts/identity';
+import { billingApiV1 } from '@/contexts/billing/api';
+import { isPractitioner, type Role } from '@/contexts/identity';
 import { listEmployees } from '@/contexts/identity/queries';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type badgeVariants } from '@/components/ui/badge';
@@ -21,6 +22,8 @@ import {
 import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireUser } from '@/lib/auth/tenant-context';
+
+import { InviteDrawer } from './invite-drawer';
 
 type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>['tone']>;
 
@@ -62,6 +65,8 @@ export default async function EquipePage() {
 
   const employees = await listEmployees(user.clinicId);
   const ativos = employees.filter((e) => e.ativo).length;
+  const limits = await billingApiV1.getPlanLimits(user.clinicId);
+  const seatLimit = limits?.users ?? null;
   const counts = new Map<Role, number>();
   for (const e of employees) counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
 
@@ -73,13 +78,14 @@ export default async function EquipePage() {
         description="Quem acessa o quê — usuários e funções da sua clínica."
       />
 
-      <Alert variant="info" title="Convites e edição de função chegam em seguida" className="mb-5">
-        Esta é a visão da equipe (somente leitura). Alterar a função de um usuário mexe nas
-        credenciais do login (exige novo acesso), então virá com as devidas travas de segurança.
-      </Alert>
-
       {employees.length === 0 ? (
-        <EmptyState title="Nenhum funcionário cadastrado" description="A equipe aparecerá aqui." />
+        <div className="flex flex-col items-center gap-4">
+          <EmptyState
+            title="Nenhum funcionário cadastrado"
+            description="Convide o primeiro para começar."
+          />
+          <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
+        </div>
       ) : (
         <TableWrap>
           <TableToolbar>
@@ -95,6 +101,7 @@ export default async function EquipePage() {
                 </Badge>
               ))}
             </div>
+            <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
           </TableToolbar>
           <TableScroll>
             <Table>
@@ -135,7 +142,13 @@ export default async function EquipePage() {
                           </span>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-fg-muted">{credencial ?? '—'}</TableCell>
+                      <TableCell className="text-fg-muted">
+                        {isPractitioner(e) && e.crm == null ? (
+                          <Badge tone="amber">Médico incompleto</Badge>
+                        ) : (
+                          (credencial ?? '—')
+                        )}
+                      </TableCell>
                       <TableCell>
                         {e.mfaEnrolled ? (
                           <Badge tone="green" dot>
@@ -146,10 +159,12 @@ export default async function EquipePage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {e.ativo ? (
-                          <Badge tone="green">Ativo</Badge>
-                        ) : (
+                        {!e.ativo ? (
                           <Badge tone="gray">Inativo</Badge>
+                        ) : e.pending ? (
+                          <Badge tone="amber">Convite pendente</Badge>
+                        ) : (
+                          <Badge tone="green">Ativo</Badge>
                         )}
                       </TableCell>
                     </TableRow>

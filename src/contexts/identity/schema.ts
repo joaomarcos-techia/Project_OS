@@ -32,6 +32,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -81,6 +82,9 @@ export const profiles = pgTable(
     especialidade: text('especialidade'),
     ativo: boolean('ativo').notNull().default(true),
     mfaEnrolledAt: timestamp('mfa_enrolled_at', { withTimezone: true }),
+    // Convite (ADR-032 Fase 2): NULL = convite pendente; setado no aceite. Estado
+    // FACTUAL — nunca derivar "pendente" de ativo/mfa/último-login (review #1 do founder).
+    inviteAcceptedAt: timestamp('invite_accepted_at', { withTimezone: true }),
     claimsVersion: integer('claims_version').notNull().default(1),
     ...timestampsPattern(),
     deletedAt: deletedAt(),
@@ -88,6 +92,11 @@ export const profiles = pgTable(
   (t) => ({
     clinicIdx: index('profiles_clinic_id_idx').on(t.clinicId),
     roleIdx: index('profiles_role_idx').on(t.role),
+    // ADR-032 §5: unicidade de CRM por clínica. CRM já vem normalizado da app
+    // (normalize-crm.ts) — sem isso o UNIQUE de texto não protege (review #8).
+    clinicCrmUnique: uniqueIndex('profiles_clinic_crm_unique')
+      .on(t.clinicId, t.crm)
+      .where(sql`${t.crm} IS NOT NULL`),
     roleClinicCheck: check(
       'profiles_role_clinic_check',
       sql`(${t.role} = 'super_admin' AND ${t.clinicId} IS NULL) OR (${t.role} <> 'super_admin' AND ${t.clinicId} IS NOT NULL)`,

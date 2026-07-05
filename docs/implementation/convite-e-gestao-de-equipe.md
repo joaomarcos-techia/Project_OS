@@ -1,6 +1,6 @@
 # Spec de Implementação — Convite e gestão de equipe (Identity)
 
-**Status:** proposta (não implementada) · **Camada:** follow-up de C3 (Identity) + toque em C13 (Billing) ·
+**Status:** sub-fase 1 (Convidar) **IMPLEMENTADA** (2026-07-05) · sub-fases 2–3 pendentes · **Camada:** follow-up de C3 (Identity) + toque em C13 (Billing) ·
 **Refs:** ADR-008 (identity patterns — P6/D20/D27/D31/D33/F-14), ADR-010 (SECURITY DEFINER),
 ADR-024 (plano = só limites; `users` é trava dura), ADR-027 (padrão de convite mágico — referência),
 ADR-016 (lifecycle: clínica suspensa não convida), ADR-007 (RLS), ADR-011 (outbox/audit).
@@ -11,6 +11,16 @@ ADR-016 (lifecycle: clínica suspensa não convida), ADR-007 (RLS), ADR-011 (out
 > usuário **dentro** da clínica; o único que existe é o convite mágico que cria o **owner** no
 > onboarding (ADR-027). Esta spec adiciona o convite de funcionário, **diferenciado por quem convida**,
 > sem tocar no modelo de roles.
+
+> **Sub-fase 1 implementada (2026-07-05) — decisões do review do founder:**
+> - **[#1]** Estado do convite é FACTUAL: coluna `profiles.invite_accepted_at` (NULL = pendente; setada no
+>   aceite em `/convite`). **Nunca** derivar "pendente" de `ativo`/`mfa`/último-login.
+> - **[#2]** Convite pendente **OCUPA vaga** — o profile nasce `ativo:true` → conta em `assertUserQuota`.
+> - **[#3]** Reenvio (sub-fase 2) reusa o **mesmo profile** (o Supabase gera um link novo). O modelo já suporta.
+> - **[#4]** Expiração segue o TTL do Supabase Auth; expirado → reenviar (sub-fase 2). Até lá: "Convite pendente".
+> - **[#6]** A compensação (`deleteUser`) é best-effort → **débito**: reconciliação auth↔profile (sub-fase 2).
+> - CRM opcional no convite, **normalizado** (`identity/internal/normalize-crm.ts`) + `UNIQUE(clinic_id, crm)`
+>   (ADR-032 §5, migração `0037`). Badge **"Médico incompleto"** já aparece na Equipe.
 
 > **Princípio que orienta tudo aqui (decisão do founder — 2026-07-03).** Foco em clínica pequena
 > **não** vira redução do `role_enum` (congelado/append-only) nem mudança de `role_permissions`

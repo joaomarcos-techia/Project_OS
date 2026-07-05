@@ -211,6 +211,10 @@ const config = [
       // justificativa dos read-models acima — também na allowlist do arch:db-check.
       'src/contexts/onboarding/internal/invites.ts',
       'src/contexts/onboarding/internal/saga.ts',
+      // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
+      // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
+      // authenticated (D31). Mesma justificativa da saga de onboarding.
+      'src/contexts/identity/internal/members.ts',
       // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
       // (0001/S5) → a escrita do tenant roteia por dbAdmin+audit aqui, com
       // colunas fixas e WHERE id=clinicId (do request). Irmão do connection-store.

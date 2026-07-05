@@ -27,6 +27,7 @@ export const CRITICAL_ACTIONS: readonly string[] = Object.freeze([
   'deletePatient',
   'disconnectMyClinicWhatsapp',
   'editSignedProntuario',
+  'inviteMemberAction',
   'requestLgpdDelete',
   'requestLgpdExport',
   'signProntuario',
