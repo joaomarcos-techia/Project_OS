@@ -29,9 +29,16 @@ export function fail(err: unknown): ActionResult<never> {
       message: 'Você não tem permissão para esta ação.',
     };
   }
+  // Erro NÃO mapeado: antes era engolido sem log (Sentry/Vercel cegos). Loga sempre
+  // (melhoria permanente) + expõe na tela TEMPORARIAMENTE p/ diagnóstico em prod.
+  // TODO(reverter a mensagem DEBUG após diagnosticar a conexão do WhatsApp).
+  console.error(
+    '[whatsapp action] erro não mapeado:',
+    err instanceof Error ? (err.stack ?? err.message) : err,
+  );
   return {
     ok: false,
     code: 'error',
-    message: 'Não foi possível concluir a ação. Tente novamente.',
+    message: `DEBUG ${name || 'Error'}: ${err instanceof Error ? err.message : String(err)}`,
   };
 }
