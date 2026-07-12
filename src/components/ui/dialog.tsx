@@ -23,7 +23,7 @@ export function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       className={cn(
-        'fixed inset-0 z-450 bg-[oklch(0.2_0.02_230/0.42)] backdrop-blur-[2px] data-[state=open]:animate-overlay-in',
+        'fixed inset-0 z-450 bg-[oklch(0.2_0.02_265/0.42)] backdrop-blur-[2px] data-[state=open]:animate-overlay-in',
         className,
       )}
       {...props}

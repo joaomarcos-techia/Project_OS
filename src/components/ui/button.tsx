@@ -23,14 +23,14 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'border-transparent bg-primary text-on-primary shadow-[0_1px_2px_oklch(0.4_0.1_205/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-(--primary-hover) active:bg-(--primary-active)',
+          'border-transparent bg-primary text-on-primary shadow-[0_1px_2px_oklch(0.4_0.1_264/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-(--primary-hover) active:bg-(--primary-active)',
         secondary: 'border-(--field-border) bg-surface text-fg shadow-xs hover:bg-surface-hover',
         subtle: 'border-border bg-surface text-fg shadow-none hover:bg-surface-hover',
         soft: 'border-transparent bg-(--primary-soft) text-(--primary-active) shadow-none hover:bg-[color-mix(in_oklch,var(--primary)_16%,var(--surface))] dark:text-fg',
         ghost:
           'border-transparent bg-transparent text-fg-muted shadow-none hover:bg-surface-hover hover:text-fg',
         accent:
-          'border-transparent bg-accent text-on-accent shadow-[0_1px_2px_oklch(0.5_0.12_45/0.25),inset_0_1px_0_oklch(1_0_0/0.14)] hover:brightness-105',
+          'border-transparent bg-accent text-on-accent shadow-[0_1px_2px_oklch(0.5_0.12_320/0.25),inset_0_1px_0_oklch(1_0_0/0.14)] hover:brightness-105',
         danger:
           'border-transparent bg-danger-600 text-[oklch(0.99_0.01_27)] shadow-[0_1px_2px_oklch(0.5_0.2_27/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-danger-700',
         success:

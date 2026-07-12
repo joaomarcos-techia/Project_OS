@@ -3,6 +3,10 @@
 > Fonte da verdade visual: `design_system/DSv2.html` (ADR-031). Mockups de
 > referência: `design_system/dashboard.html`, `tconsulta.html`,
 > `ClinicaOS - Admin (standalone).html`. Atualizado a cada onda.
+>
+> **Paleta (ADR-035, 2026-07-10):** primária **navy** (hue 264) e acento
+> **orchid** (hue ~320) substituíram petrol/clay — só valores mudaram, nomes de
+> token preservados. Fonte viva: `dsv2/tokens.css` (projeto claude.ai/design).
 
 ## Tokens (Onda 0 — implementado)
 
@@ -11,8 +15,8 @@ com binding Tailwind via `@theme inline`. O CSS legado consome as mesmas vars.
 
 | Grupo | Tokens | Nota de mapeamento |
 | --- | --- | --- |
-| Primária | `--primary-50…950` | Valores **petrol** (hue 205). Nome `primary` mantido (não `petrol`) — utilities `bg-primary-*` existentes continuam válidas. No dark, 500/600 sobem um degrau de luz (petrol-400/500), espelhando o `--primary` semântico do DS. |
-| Accent / IA | `--accent-50…800`, `--ai`, `--ai-soft`, `--ai-border`, `--ai-tint` | Valores **clay** (hue ~45). Nome `accent` mantido (era teal 3 degraus). Todo trabalho de IA é marcado por este tratamento. |
+| Primária | `--primary-50…950` | Valores **navy** (hue 264, ADR-035). Nome `primary` mantido (não `navy`) — utilities `bg-primary-*` existentes continuam válidas. No dark, `--primary` = navy-400 (`--primary-600`/`-500` → navy-400). |
+| Accent / IA | `--accent-50…800`, `--ai`, `--ai-soft`, `--ai-border`, `--ai-tint` | Valores **orchid** (hue ~320, ADR-035; era clay). Nome `accent` mantido. Todo trabalho de IA é marcado por este tratamento. |
 | Neutros | `--neutral-0…950` **+ `--neutral-150`** (degrau novo) | Porcelana/tinta quentes (hue 98–108); substituem os frios hue 258. |
 | Semânticas | `--success/warning/danger/info-{50,100,200,500,600,700}` | Degrau `200` é novo. |
 | Data-viz | `--viz-1…8`, `--viz-grid`, `--viz-track` | Lightness única ~0.63; usados nos Relatórios (Onda 5). |
@@ -30,7 +34,7 @@ com binding Tailwind via `@theme inline`. O CSS legado consome as mesmas vars.
 
 ### Desvios documentados do DSv2.html
 
-1. **`--text-link` no dark** = `--primary-300` (o DS não sobrepõe; petrol-700 não passa AA sobre `--bg` escuro).
+1. **`--text-link` no dark** = `--primary-300` (o DS não sobrepõe; navy-700 não passa AA sobre `--bg` escuro).
 2. **h1–h4 sem `--font-display`**: o base do DS também não aplica (a voz display é opt-in via `.serif`); componentes que pedirem display usam `font-display` utility (ex.: valor do StatCard).
 3. **Nomes históricos preservados** (`--primary-*` em vez de `--petrol-*`, `--sh-*`, `--dur-fast/base/slow`, `--bg-subtle`, `--maxw`): zero churn no markup/CSS legado; valores são 1:1 do DS.
 4. **Theming por tenant demonstrado no DSv2.html NÃO é implementado** — ADR-028 (white-label = só cabeçalho de PDF) permanece.

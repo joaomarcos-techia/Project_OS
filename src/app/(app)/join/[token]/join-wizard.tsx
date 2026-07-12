@@ -169,9 +169,7 @@ export function JoinWizard({
       <header className="wiz-top">
         <div className="brand">
           <Logo size={24} />
-          <span className="wordmark">
-            Clinica<b>OS</b>
-          </span>
+          <span className="wordmark">Qoro</span>
         </div>
         <div className="right">
           <span className="wiz-secure">{I.lock} Ambiente seguro</span>

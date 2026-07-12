@@ -45,7 +45,7 @@ export async function getShellIdentity(): Promise<ShellIdentity> {
       return {
         userName: r?.user_name?.trim() || 'Você',
         userRole: role,
-        clinicName: r?.clinic_name?.trim() || 'ClinicaOS',
+        clinicName: r?.clinic_name?.trim() || 'Qoro',
       };
     });
   } catch {

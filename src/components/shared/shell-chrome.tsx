@@ -37,7 +37,7 @@ export function ShellScrim({ show, onClick }: { show: boolean; onClick: () => vo
     <div
       aria-hidden="true"
       onClick={onClick}
-      className="fixed inset-0 z-(--z-drawer) bg-[oklch(0.2_0.02_230/0.42)] backdrop-blur-[2px] nav:hidden"
+      className="fixed inset-0 z-(--z-drawer) bg-[oklch(0.2_0.02_265/0.42)] backdrop-blur-[2px] nav:hidden"
     />
   );
 }
