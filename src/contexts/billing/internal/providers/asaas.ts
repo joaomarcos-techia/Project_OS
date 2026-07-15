@@ -15,6 +15,7 @@
  *     (ADR-025) corrige divergência;
  *   - métricas estruturadas via metrics.emit.
  */
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertBillingRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -285,13 +286,6 @@ function asStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 export const asaasProvider: PaymentProvider = {
   async createCustomer(input) {
     const body = {
@@ -421,8 +415,8 @@ export const asaasProvider: PaymentProvider = {
   },
 
   validateWebhookToken(token) {
-    if (!token || !env.ASAAS_WEBHOOK_TOKEN) return false;
-    return constantTimeEqual(token, env.ASAAS_WEBHOOK_TOKEN);
+    // `safeEqual` já trata null/undefined e tamanhos diferentes sem lançar.
+    return safeEqual(token, env.ASAAS_WEBHOOK_TOKEN);
   },
 };
 

@@ -5,9 +5,13 @@ import { timingSafeEqual } from 'node:crypto';
 /**
  * Comparação de segredos em TEMPO CONSTANTE, à prova de entrada inválida (V12 —
  * auditoria de segurança). Substitui `===`/`!==` de segredos (Bearer
- * `CRON_SECRET`, `verify_token` do Meta) por uma comparação sem side-channel de
- * timing, consistente com o resto do codebase (webhook Asaas/Meta POST já usam
- * constant-time via `timingSafeEqual`/`constantTimeEqual`).
+ * `CRON_SECRET`, `verify_token` do Meta, token do webhook Asaas) por uma comparação
+ * sem side-channel de timing.
+ *
+ * Ponto ÚNICO de comparação de segredo em `src/` (M1 — auditoria de APIs). O Asaas
+ * tinha uma 2ª implementação à mão (`charCodeAt` XOR, code units UTF-16 em vez de
+ * bytes); foi removida em favor desta. Duas primitivas de cripto para o mesmo fim é
+ * uma para revisar, testar e acertar duas vezes.
  *
  * Contrato (decisão explícita — para ninguém usar `timingSafeEqual` cru):
  *   - NUNCA lança. `crypto.timingSafeEqual` LANÇA quando os buffers têm tamanhos
@@ -21,7 +25,7 @@ import { timingSafeEqual } from 'node:crypto';
  * Nota: a checagem de tamanho antes do `timingSafeEqual` revela o COMPRIMENTO do
  * segredo por timing — trade-off aceito (o comprimento de um segredo de alta
  * entropia não o enfraquece); é o mesmo padrão de `hashesEqual`
- * (crypto/encryption.ts) e `constantTimeEqual` (billing/asaas.ts).
+ * (crypto/encryption.ts).
  */
 export function safeEqual(
   a: string | null | undefined,
