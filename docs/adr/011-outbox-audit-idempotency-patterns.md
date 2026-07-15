@@ -60,7 +60,7 @@ C4 também é o primeiro lugar onde infra cross-cutting (não tenancy, não iden
 
 27. **Event schemas em `events.ts` DEVEM ser JSON-safe**: ESLint barra `z.date()`, `z.bigint()`, `z.nan()`, `new Date()`. Use `z.string().datetime()` para timestamps, `z.string()` para BigInt. Mismatch entre Zod (aceita Date) e assertJsonSafe (rejeita Date) causava runtime explosion silencioso; agora é error de build.
 
-28. **Cron route auth é DUAL-FACTOR**: `Authorization: Bearer ${CRON_SECRET}` + presença do header `x-vercel-cron` (auto-injetado pelo Vercel Edge). Em DEV / smoke pode bypass via `OUTBOX_CRON_ALLOW_NON_VERCEL=true` ou `NODE_ENV !== 'production'`. Em prod, leak do secret sem capacidade de forjar headers Vercel não dá acesso.
+28. **Cron route auth é SINGLE-FACTOR**: `Authorization: Bearer ${CRON_SECRET}` é o único gate, em [cron-auth.ts](../../src/lib/http/cron-auth.ts). A presença do header `x-vercel-cron` é **anomalia observável** (`cron.origin_header_missing`), não controle de acesso. Rotas destrutivas preferem `CRON_SECRET_DESTRUCTIVE` quando definido (V5), reduzindo o blast radius. *(Revisado em 2026-07-15 — ver addendum M2 abaixo.)*
 
 29. **Healthcheck tem DOIS níveis**: `level=monitoring` (Bearer-only, counts agregados sem breakdown por type) e `level=super_admin` (super_admin AAL2, com `failures_by_type` completo). Defense in depth contra information disclosure quando secret vaza. Em dev, ambos os paths são acessíveis.
 
@@ -142,6 +142,44 @@ ESLint allowlist de `dbAdmin` em C4 cobre `src/app/api/cron/**` e `src/app/api/h
 - Particionamento de audit_events exige criação manual de novas partições antes de 2027-04. Healthcheck alerta via `default_partition_rows > 0`. Automation com pg_cron ou Vercel Cron mensal entra em C13 ou C16.
 - Idempotency cleanup é manual (`DELETE FROM idempotency_keys WHERE expires_at < now()` semanal). Volume <1k rows/dia/clínica em MVP — manual basta. Automation em C16.
 - Não há dashboard de outbox. `GET /api/health/outbox` + `metrics.emit` → log pipeline são suficientes. C16 plugará Datadog/Honeycomb sem alterar call sites.
+
+### Addendum — M2 (2026-07-15): cron auth é single-factor, e a doc passa a dizer isso
+
+- Status: accepted · Origem: `docs/achados/auditoria-apis-seguranca.md` (M2, MÉDIA)
+
+A invariante 28 afirmava dual-factor: *"Bearer + presença de `x-vercel-cron`; leak do
+secret sem capacidade de forjar headers Vercel não dá acesso"*. **O código nunca fez
+isso.** `isAuthorized()` verificava o Bearer, emitia uma métrica quando o header
+faltava e **retornava `true` incondicionalmente** — o segundo fator não existia. Uma
+doc que superestima o controle é pior que não ter a doc: planeja-se em cima de uma
+defesa imaginária.
+
+Decidido **assumir o single-factor** em vez de implementar o dual:
+
+1. **A Vercel documenta hoje `x-vercel-cron-schedule`, não `x-vercel-cron`.** Fazer um
+   401 depender de header não-documentado arrisca parar **todos** os crons em silêncio
+   numa renomeação da plataforma — e outbox parado é falha de integridade de eventos.
+   O modo de falha do "hardening" seria pior que o risco mitigado.
+2. **O blast radius já foi tratado por onde importa:** `CRON_SECRET_DESTRUCTIVE` (V5)
+   separa os 3 crons destrutivos dos read-only. Vazar o segredo de monitoring não dá
+   acesso a apagar PII. Isso é segregação real, não presença de header.
+3. **A ausência do header vira sinal, não gate:** `cron.origin_header_missing` em
+   produção. Se um cron começar a ser chamado de fora da Vercel, aparece na métrica.
+4. **401 de cron passa a alarmar:** `cron.unauthorized` (métrica) + `logger.warn`.
+   **Sem `captureException`** — o ADR-029 mantém log fora do Sentry e um 401 é evento
+   de autorização, não exceção; mesmo padrão de `auth.ratelimit.degraded`. A auditoria
+   sugeria Sentry; seguimos a arquitetura da casa.
+5. **Ponto único:** `assertCronAuth(req, { route, destructive })` substitui 13 cópias
+   quase idênticas (−279 linhas). Recebe `Request` puro (nunca `NextRequest`) para
+   permanecer testável sem runtime do Next. Fail-close embutido: `CRON_SECRET` é
+   `optional()` no schema, e `Bearer ${undefined}` interpolava para a string literal
+   "Bearer undefined" — as rotas só escapavam porque chamavam `assertCronRuntimeReady()`
+   antes, o que fazia a segurança depender da memória de quem chama.
+6. **`OUTBOX_CRON_ALLOW_NON_VERCEL` declarado no schema** (`env.ts` + `.env.example`).
+   Era lido por `process.env` cru em 13 rotas, fora da validação — um typo era silencioso.
+
+Consequência: nenhuma mudança de comportamento em runtime (o gate efetivo já era só o
+Bearer). O que muda é a doc parar de mentir, o alarme existir, e o gate ter um dono.
 
 ## Alternatives rejected
 

@@ -15,8 +15,8 @@ import { sql, type SQL } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { safeEqual } from '@/lib/auth/secret-compare';
-import { assertCronRuntimeReady, env } from '@/lib/env';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -25,19 +25,6 @@ export const maxDuration = 60;
 
 const DEFAULT_WINDOW_DAYS = 3;
 const MAX_WINDOW_DAYS = 35;
-
-function isAuthorized(req: Request): boolean {
-  if (!safeEqual(req.headers.get('authorization'), `Bearer ${env.CRON_SECRET}`)) return false;
-  const hasOriginHeader =
-    req.headers.get('x-vercel-cron') !== null ||
-    req.headers.get('x-vercel-cron-schedule') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  if (!hasOriginHeader && !allowNonVercel) {
-    metrics.emit('cron.origin_header_missing', { route: 'metrics-rollup' });
-  }
-  return true;
-}
 
 /**
  * Cada métrica é um SELECT que produz (clinic_id, date, value). O wrapper faz o
@@ -86,10 +73,8 @@ function buildMetrics(windowDays: number): Array<{ name: string; select: SQL }> 
 
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  if (!isAuthorized(req)) {
-    metrics.emit('cron.unauthorized', { route: 'metrics-rollup' });
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const denied = assertCronAuth(req, { route: 'metrics-rollup' });
+  if (denied) return denied;
 
   const url = new URL(req.url);
   const windowDays = Math.min(

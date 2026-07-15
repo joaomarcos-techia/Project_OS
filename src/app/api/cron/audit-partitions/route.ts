@@ -14,8 +14,8 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { safeEqual } from '@/lib/auth/secret-compare';
-import { env, assertCronRuntimeReady } from '@/lib/env';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -28,28 +28,13 @@ export const maxDuration = 60;
 const PARENTS = ['audit_events', 'ai_messages'] as const;
 const MONTHS_AHEAD = 3;
 
-function isAuthorized(req: Request): boolean {
-  const auth = req.headers.get('authorization');
-  if (!safeEqual(auth, `Bearer ${env.CRON_SECRET}`)) return false;
-  const hasOriginHeader =
-    req.headers.get('x-vercel-cron') !== null ||
-    req.headers.get('x-vercel-cron-schedule') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  if (!hasOriginHeader && !allowNonVercel) {
-    metrics.emit('cron.origin_header_missing', { route: 'audit-partitions' });
-  }
-  return true;
-}
-
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  if (!isAuthorized(req)) {
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const denied = assertCronAuth(req, { route: 'audit-partitions' });
+  if (denied) return denied;
   try {
     const now = new Date();
     let ensured = 0;

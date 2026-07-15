@@ -16,8 +16,8 @@
  *   - Scan exclui `anonymized_at IS NOT NULL` (já tratados).
  *   - lgpd_requests vira 'completed' (deleted/anonymized) ou 'failed' (erro).
  *
- * Auth mirrors /api/cron/outbox (Bearer CRON_SECRET + x-vercel-cron, with
- * OUTBOX_CRON_ALLOW_NON_VERCEL / non-prod escape hatch for smoke).
+ * Auth em [cron-auth.ts] — SINGLE-FACTOR (Bearer). Rota DESTRUTIVA: apaga PII, então
+ * prefere `CRON_SECRET_DESTRUCTIVE` quando configurado (V5).
  *
  * LIMIT bounds the batch so a large backlog cannot slam the DB (5.7 checklist).
  *
@@ -35,8 +35,8 @@ import {
 } from '@/contexts/patient/internal/hard-delete';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { safeEqual } from '@/lib/auth/secret-compare';
-import { env, assertCronRuntimeReady } from '@/lib/env';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -46,32 +46,10 @@ export const maxDuration = 60;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 
-function isAuthorized(req: Request): boolean {
-  // Bearer é o gate duro (mecanismo oficial Vercel).
-  // V5 (auditoria de segurança): rota DESTRUTIVA — usa o segredo dedicado quando
-  // configurado (opt-in), senão cai no CRON_SECRET (retrocompat). Reduz o blast
-  // radius de um vazamento do CRON_SECRET (que guarda também rotas read-only).
-  const cronSecret = env.CRON_SECRET_DESTRUCTIVE ?? env.CRON_SECRET;
-  if (!safeEqual(req.headers.get('authorization'), `Bearer ${cronSecret}`)) return false;
-  // F-09: 2º fator de origem NÃO-FATAL (aceita x-vercel-cron OU o documentado
-  // x-vercel-cron-schedule). Ausência em prod → log, não 401 (ver outbox route).
-  const hasOriginHeader =
-    req.headers.get('x-vercel-cron') !== null ||
-    req.headers.get('x-vercel-cron-schedule') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  if (!hasOriginHeader && !allowNonVercel) {
-    metrics.emit('cron.origin_header_missing', { route: 'patient-hard-delete' });
-  }
-  return true;
-}
-
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  if (!isAuthorized(req)) {
-    metrics.emit('cron.unauthorized', { route: 'patient-hard-delete' });
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const denied = assertCronAuth(req, { route: 'patient-hard-delete', destructive: true });
+  if (denied) return denied;
 
   const url = new URL(req.url);
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || DEFAULT_LIMIT, 1), MAX_LIMIT);

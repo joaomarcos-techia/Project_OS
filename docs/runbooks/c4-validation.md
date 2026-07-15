@@ -141,7 +141,7 @@ Cenário que isto previne: dev adiciona `registerEventSchema('clinical.prescript
 | 4.6.22 | Payload size cap | HIGH-07 — > 64KB rejeitado em publishEvent |
 | 4.6.23 | Key collision detection | HIGH-16 — mesma key + payload diferente → OutboxError |
 | 4.6.24 | Advisory lock anti-overlap | HIGH-15 — ticks paralelos coordenados |
-| 4.6.25 | Cron dual-factor | HIGH-08 — x-vercel-cron header + Bearer |
+| 4.6.25 | Cron auth single-factor | HIGH-08/M2 — Bearer é o gate; `x-vercel-cron` não é |
 | 4.6.26 | makeProviderIdempotencyKey | CRITICAL-04 — deterministic dedup key para APIs externas |
 | 4.6.27 | lock_timeout env config | HIGH-05 — env override aplicado |
 | 4.6.28 | validateTtlSeconds (idempotency TTL configurável) | ADR-011 §41 — ttlSeconds entre 60s e 30d |

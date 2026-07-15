@@ -23,8 +23,8 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { safeEqual } from '@/lib/auth/secret-compare';
-import { assertCronRuntimeReady, env } from '@/lib/env';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -35,23 +35,6 @@ const OUTBOX_RETENTION_DAYS = 30;
 const LOGIN_ATTEMPTS_RETENTION_DAYS = 90;
 const BATCH = 5000;
 const MAX_BATCHES_PER_TABLE = 10; // teto: 50k rows/tabela/run
-
-function isAuthorized(req: Request): boolean {
-  // V5 (auditoria de segurança): rota DESTRUTIVA — usa o segredo dedicado quando
-  // configurado (opt-in), senão cai no CRON_SECRET (retrocompat). Reduz o blast
-  // radius de um vazamento do CRON_SECRET (que guarda também rotas read-only).
-  const cronSecret = env.CRON_SECRET_DESTRUCTIVE ?? env.CRON_SECRET;
-  if (!safeEqual(req.headers.get('authorization'), `Bearer ${cronSecret}`)) return false;
-  const hasOriginHeader =
-    req.headers.get('x-vercel-cron') !== null ||
-    req.headers.get('x-vercel-cron-schedule') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  if (!hasOriginHeader && !allowNonVercel) {
-    metrics.emit('cron.origin_header_missing', { route: 'data-retention' });
-  }
-  return true;
-}
 
 async function purgeBatched(makeDelete: () => Promise<number>): Promise<number> {
   let total = 0;
@@ -65,10 +48,8 @@ async function purgeBatched(makeDelete: () => Promise<number>): Promise<number> 
 
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  if (!isAuthorized(req)) {
-    metrics.emit('cron.unauthorized', { route: 'data-retention' });
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const denied = assertCronAuth(req, { route: 'data-retention', destructive: true });
+  if (denied) return denied;
 
   try {
     const outboxPurged = await purgeBatched(async () => {

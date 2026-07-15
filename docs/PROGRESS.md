@@ -417,7 +417,7 @@ Após smoke verde, executei uma revisão hostil/forense da C4 que identificou 4 
 - **HIGH-05** — `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS` env var (default 10s). Era 3s hardcoded, quebrava Server Actions com fn() lento.
 - **HIGH-06** — Pool `dbWorker` separado de `dbAdmin`. dbAdmin (max:1) saturava no smoke. dbWorker max:5 default (`OUTBOX_DB_POOL_SIZE`).
 - **HIGH-07** — CHECK constraints `pg_column_size(payload) <= 65536` em outbox, audit_events.before/after, super_admin_actions.payload. Runtime check em publishEvent throws OutboxError ANTES do INSERT.
-- **HIGH-08** — Cron route dual-factor: Bearer + header `x-vercel-cron` (Vercel injeta). DEV bypass via `OUTBOX_CRON_ALLOW_NON_VERCEL=true`.
+- **HIGH-08** — Cron route auth: Bearer `CRON_SECRET`. ⚠️ **Revisado em 2026-07-15 (M2):** era descrito como "dual-factor: Bearer + `x-vercel-cron`", mas o header nunca foi gate — o código só o logava. Hoje é **single-factor** assumido, em `src/lib/http/cron-auth.ts`; o blast radius é tratado por `CRON_SECRET_DESTRUCTIVE` (V5). Ver addendum M2 no ADR-011.
 - **HIGH-09** — Script `pnpm check:registry` compara catalog vs registry. Em prod fail → previne CRITICAL: handler novo sem import no boot file = eventos failed silenciosamente.
 - **HIGH-10** — ESLint barra `z.date()`/`z.bigint()`/`z.nan()`/`new Date()` em `src/contexts/*/events.ts`. Quebra build de schemas JSON-unsafe.
 - **HIGH-11** — Migration 0010 com GRANTs explícitos (`SELECT,INSERT` a authenticated; `ALL` a service_role). Sem dependência de schema-default GRANT do Supabase.
@@ -448,7 +448,7 @@ Após smoke verde, executei uma revisão hostil/forense da C4 que identificou 4 
 - `src/lib/db/schema/infra/audit.ts` — size CHECKs
 - `src/lib/db/schema/infra/super-admin.ts` — size CHECK
 - `src/lib/sanitize/patterns.ts` — word boundaries
-- `src/app/api/cron/outbox/route.ts` — dual-factor auth
+- `src/app/api/cron/outbox/route.ts` — auth via `src/lib/http/cron-auth.ts` (single-factor; M2)
 - `src/app/api/health/outbox/route.ts` — dois níveis
 - `src/lib/env.ts` — 3 envs novas
 - `eslint.config.mjs` — guard events.ts + guard handlers

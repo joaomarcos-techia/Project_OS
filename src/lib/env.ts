@@ -88,6 +88,19 @@ const EnvSchema = z
     // agendador dessas rotas deve enviar este segredo. Ver docs/achados/
     // auditoria-seguranca-codigo.md (V5) + runbooks/secret-rotation.md.
     CRON_SECRET_DESTRUCTIVE: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
+    // M2 (auditoria de APIs) — silencia a métrica `cron.origin_header_missing`
+    // quando o cron é disparado FORA da Vercel de propósito (smoke local, curl de
+    // runbook). NÃO é controle de auth: o Bearer é o único gate (ver F-09 em
+    // [cron-auth.ts]). Estava sendo lido via `process.env` cru em 13 rotas, fora do
+    // schema — declarado aqui porque toda config do runtime passa por este ponto
+    // único (DoD §3), e um typo silencioso num `process.env` não dá erro.
+    OUTBOX_CRON_ALLOW_NON_VERCEL: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v === 'true'),
+    ),
     // Worker tuning — kept in env so prod can be tweaked without redeploy.
     // Defaults chosen for solo-founder operability (50 events/tick, 5 parallel).
     OUTBOX_BATCH_SIZE: z.preprocess(
