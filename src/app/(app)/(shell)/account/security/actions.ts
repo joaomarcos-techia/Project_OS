@@ -92,8 +92,11 @@ export async function unenrollAction(formData: FormData): Promise<void> {
   if (user.aal !== 'aal2') {
     redirect('/login/mfa');
   }
+  // Param PRÓPRIO — não reusar `unenroll_error`, cuja mensagem manda "conclua a
+  // verificação TOTP". Além de errada aqui, ela é auto-derrotante: o verify consome o
+  // MESMO bucket, então seguir a instrução gasta mais orçamento e repete o erro.
   if (await mfaRateLimited(user.userId)) {
-    redirect('/account/security?unenroll_error=1');
+    redirect('/account/security?rate_limited=1');
   }
   const supabase = await createServerClient();
   try {

@@ -37,6 +37,20 @@ const DateParam = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
  */
 const MAX_EXPORT_MONTHS = 12;
 
+/**
+ * TODA resposta de erro desta rota usa o envelope C16 (`{error, code, message,
+ * trace_id, timestamp}`) — um shape só.
+ *
+ * Deixar o `catch` no envelope e os demais em `{error: '<string>'}` foi um bug real:
+ * o cliente lê `data.error`, que no envelope é o **booleano** `true`; React não
+ * renderiza booleano, então a caixa de erro aparecia VAZIA e a mensagem do 422
+ * ("reduza o intervalo") nunca chegava ao operador. `toErrorResponse` faz duck-type
+ * de `code`+`httpStatus`, então um literal basta — sem classe de erro por caso.
+ */
+function fail(code: string, httpStatus: number, message: string): Response {
+  return toErrorResponse({ code, httpStatus, message });
+}
+
 function monthsBetween(from: Date, to: Date): number {
   const meses =
     (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth());
@@ -51,28 +65,29 @@ export async function POST(
 
   const { id } = await ctx.params;
   if (!z.string().uuid().safeParse(id).success) {
-    return NextResponse.json({ error: 'clinic id inválido' }, { status: 400 });
+    return fail('clinic_id_invalido', 400, 'Clínica inválida.');
   }
 
   const url = new URL(req.url);
   const fromRaw = DateParam.safeParse(url.searchParams.get('from'));
   const toRaw = DateParam.safeParse(url.searchParams.get('to'));
   if (!fromRaw.success || !toRaw.success) {
-    return NextResponse.json({ error: 'from/to devem ser YYYY-MM-DD' }, { status: 400 });
+    return fail('periodo_malformado', 400, 'Datas devem estar no formato AAAA-MM-DD.');
   }
 
   const fromIso = new Date(`${fromRaw.data}T00:00:00.000Z`).toISOString();
   const toIso = new Date(`${toRaw.data}T23:59:59.999Z`).toISOString();
   if (new Date(fromIso) > new Date(toIso)) {
-    return NextResponse.json({ error: 'período invertido' }, { status: 400 });
+    return fail('periodo_invertido', 400, 'A data inicial é posterior à final.');
   }
 
   // B6 — 400 acima é sintaxe (malformado / invertido); daqui para baixo é 422:
   // bem-formado, mas não processável.
   if (monthsBetween(new Date(fromIso), new Date(toIso)) >= MAX_EXPORT_MONTHS) {
-    return NextResponse.json(
-      { error: `Período excede o limite máximo de exportação (${MAX_EXPORT_MONTHS} meses).` },
-      { status: 422 },
+    return fail(
+      'periodo_excede_limite',
+      422,
+      `Período excede o limite máximo de exportação (${MAX_EXPORT_MONTHS} meses).`,
     );
   }
 
@@ -80,12 +95,11 @@ export async function POST(
   // por clínica-alvo. Depois das validações baratas, para não gastar orçamento com
   // request malformado.
   const actor = await requireUser();
-  const rl = await assertPdfExportAllowed(id, actor.userId);
+  // `scope: 'admin'` — balde separado: export de plataforma não consome o orçamento
+  // de PDF da clínica-alvo (senão o super_admin barraria os usuários dela).
+  const rl = await assertPdfExportAllowed(id, actor.userId, 'admin');
   if (!rl.ok) {
-    return NextResponse.json(
-      { error: 'Muitos exports em pouco tempo. Aguarde alguns minutos.' },
-      { status: 429 },
-    );
+    return fail('rate_limited', 429, 'Muitos exports em pouco tempo. Aguarde alguns minutos.');
   }
 
   const rc = buildRequestContext(await headers());

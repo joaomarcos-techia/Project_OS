@@ -14,7 +14,7 @@ import { UnenrollForm } from './unenroll-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: Promise<{ force?: string; unenroll_error?: string }>;
+  searchParams: Promise<{ force?: string; unenroll_error?: string; rate_limited?: string }>;
 }
 
 export default async function AccountSecurityPage({ searchParams }: PageProps) {
@@ -54,6 +54,13 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
           <Alert variant="danger">
             Não foi possível remover o MFA. Conclua a verificação TOTP (sessão completa) e tente
             novamente.
+          </Alert>
+        ) : null}
+
+        {params.rate_limited ? (
+          <Alert variant="danger">
+            Muitas tentativas de segurança em pouco tempo. Aguarde alguns minutos e tente
+            novamente — não é preciso refazer o login.
           </Alert>
         ) : null}
 

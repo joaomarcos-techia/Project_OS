@@ -56,8 +56,13 @@ const denied = () => {
 };
 
 beforeEach(() => {
+  // `clearAllMocks` limpa CHAMADAS, não IMPLEMENTAÇÕES: um `mockImplementation` de um
+  // teste vazaria para os seguintes e mataria o passthrough do `vi.hoisted`, deixando
+  // a suíte dependente de ordem. Restaurar as implementações à mão é o que isola.
   vi.clearAllMocks();
   requireSuperAdmin.mockResolvedValue(undefined);
+  encryptForTenant.mockResolvedValue('CIPHERTEXT');
+  superAdminAction.mockImplementation(async (_opts: unknown, fn: (tx: unknown) => unknown) => fn({}));
 });
 
 describe('gate antes de parse/cripto', () => {

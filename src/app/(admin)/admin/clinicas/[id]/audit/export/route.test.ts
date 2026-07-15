@@ -82,7 +82,7 @@ describe('422 — span acima de 12 meses (B6)', () => {
   it('range de anos → 422 com a mensagem, sem gerar PDF', async () => {
     const res = await post('1970-01-01', '2999-12-31');
     expect(res.status).toBe(422);
-    expect((await res.json()).error).toBe(
+    expect((await res.json()).message).toBe(
       'Período excede o limite máximo de exportação (12 meses).',
     );
     expect(run).not.toHaveBeenCalled(); // não paga o render
@@ -143,8 +143,43 @@ describe('B6 — rate limit', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it('teto é por super_admin e por clínica-alvo', async () => {
+  // `scope: 'admin'` mantém o export de plataforma num balde separado — senão um
+  // super_admin exportando em lote consumiria o orçamento de PDF da clínica-alvo e
+  // barraria os usuários dela de gerar os próprios relatórios.
+  it('teto é por super_admin e por clínica-alvo, em escopo admin', async () => {
     await post('2026-01-01', '2026-02-01');
-    expect(assertPdfExportAllowed).toHaveBeenCalledWith(CLINIC, 'sa-1');
+    expect(assertPdfExportAllowed).toHaveBeenCalledWith(CLINIC, 'sa-1', 'admin');
+  });
+});
+
+/**
+ * Regressão que este bloco existe para travar: o envelope C16 tem `error` BOOLEANO
+ * (`{error: true, code, message, …}`). O form lia `data.error` e punha `true` no
+ * state; React não renderiza booleano → a caixa de erro aparecia VAZIA e a mensagem
+ * do 422 nunca chegava ao operador. Todo erro desta rota usa UM shape só, e a
+ * mensagem útil mora em `message`.
+ */
+describe('shape do erro — um só, e legível pelo cliente', () => {
+  it.each([
+    ['malformado (400)', '01-01-2026', '2026-02-01', 400],
+    ['invertido (400)', '2026-06-01', '2026-01-01', 400],
+    ['span excedido (422)', '1970-01-01', '2999-12-31', 422],
+  ])('%s: envelope com `message` string não-vazia', async (_n, from, to, status) => {
+    const res = await post(from, to);
+    const body = await res.json();
+
+    expect(res.status).toBe(status);
+    expect(body.error).toBe(true); // envelope: booleano, NÃO a mensagem
+    expect(typeof body.message).toBe('string');
+    expect(body.message.length).toBeGreaterThan(0);
+    expect(body).toHaveProperty('code');
+    expect(body).toHaveProperty('trace_id');
+  });
+
+  it('429 também usa o envelope', async () => {
+    assertPdfExportAllowed.mockResolvedValue({ ok: false, reason: 'rate_limited' });
+    const body = await (await post('2026-01-01', '2026-02-01')).json();
+    expect(body.error).toBe(true);
+    expect(body.message).toContain('Muitos exports');
   });
 });

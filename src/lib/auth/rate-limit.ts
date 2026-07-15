@@ -117,8 +117,10 @@ const fallback = {
   resetIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   resetEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
   joinIp: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
-  inviteClinic: new BoundedFallbackLimiter(20, ONE_HOUR_MS),
-  inviteActor: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
+  inviteClinic: new BoundedFallbackLimiter(60, ONE_HOUR_MS),
+  inviteActor: new BoundedFallbackLimiter(30, ONE_HOUR_MS),
+  resendClinic: new BoundedFallbackLimiter(20, ONE_HOUR_MS),
+  resendActor: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   mfaUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
   mfaIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
   pdfUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
@@ -353,35 +355,59 @@ export async function assertJoinAllowed(ip: string): Promise<LimitResult> {
   }
 }
 
+/**
+ * M3 — tetos de convite e reenvio. Ambos PÓS-auth (`requireFreshPermission
+ * (MANAGE_EMPLOYEES)` já passou): o risco não é o anônimo, é o gestor
+ * autorizado-porém-malicioso (ou a conta dele comprometida) em loop. Por ator pega a
+ * conta comprometida; por clínica impede que N gestores somem para o mesmo efeito.
+ *
+ * **Convite e reenvio têm orçamentos SEPARADOS porque têm economias diferentes:**
+ *
+ *   - **Convite já é limitado pela quota do plano** (`assertUserQuota` — ADR-024): não
+ *     dá para convidar além dos seats contratados, e convite que falha não manda
+ *     e-mail. O teto aqui só barra loop patológico. Precisa caber o onboarding real:
+ *     o plano `pro` vende **15 seats** (migration 0026), e o owner é quem convida
+ *     todos — um teto de 10 travaria o cliente no 11º funcionário. 30/1h dá folga.
+ *   - **Reenvio não é limitado por nada.** Cada chamada gera um recovery link REAL no
+ *     Supabase + e-mail, e dá para reenviar ao MESMO endereço infinitas vezes. É o
+ *     vetor caro: sem teto, a marca do cliente vira fonte de spam. 10/1h é de sobra
+ *     para o uso legítimo (reenviar a 1-2 pessoas que não receberam).
+ *
+ * Chave: `redisKey.global('rl','invite','clinic')` + clinicId como identifier — e NÃO
+ * `redisKey.tenant()`. Duas razões: (1) o Upstash monta a chave como
+ * `[prefix, identifier].join(':')` com prefix ESTÁTICO, e `t:{clinicId}` teria de vir
+ * antes dele; (2) a regra de CONVENTIONS protege DADO de tenant (cache/lock) contra
+ * vazamento cross-tenant — um contador cujo próprio identifier é o clinicId não tem o
+ * que vazar, e o clinicId é parâmetro obrigatório aqui, não pode ser esquecido.
+ * F-08: nunca lançam (fail-open + fallback).
+ */
 const lazyInviteLimiters = (() => {
   let cached: { clinic: Ratelimit; actor: Ratelimit } | null = null;
   return () => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: redisKey.global('rl', 'invite', 'clinic'), analytics: false }),
-      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: redisKey.global('rl', 'invite', 'actor'), analytics: false }),
+      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(60, '1 h'), prefix: redisKey.global('rl', 'invite', 'clinic'), analytics: false }),
+      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 h'), prefix: redisKey.global('rl', 'invite', 'actor'), analytics: false }),
     };
     return cached;
   };
 })();
 
-/**
- * M3: rate limit de convite/reenvio, por clínica E por ator. Diferente dos demais,
- * este é PÓS-auth: o gate `requireFreshPermission(MANAGE_EMPLOYEES)` já passou. O
- * risco não é o anônimo — é o gestor autorizado-porém-malicioso (ou a conta dele
- * comprometida) em loop: cada `resendInvite` gera um recovery link REAL no Supabase
- * + e-mail. Sem teto, a marca do cliente vira fonte de spam. Por ator pega a conta
- * comprometida; por clínica impede que N gestores somem para o mesmo efeito.
- *
- * Chave: `redisKey.global('rl','invite','clinic')` + clinicId como identifier —
- * e NÃO `redisKey.tenant()`. Duas razões: (1) o Upstash monta a chave como
- * `[prefix, identifier].join(':')` com prefix ESTÁTICO, e `t:{clinicId}` teria de vir
- * antes dele; (2) a regra de CONVENTIONS protege DADO de tenant (cache/lock) contra
- * vazamento cross-tenant — um contador cujo próprio identifier é o clinicId não tem
- * o que vazar, e o clinicId é parâmetro obrigatório aqui, não pode ser esquecido.
- * Mantém a forma dos outros 5 limiters. F-08: nunca lança (fail-open + fallback).
- */
+const lazyResendLimiters = (() => {
+  let cached: { clinic: Ratelimit; actor: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: redisKey.global('rl', 'resend', 'clinic'), analytics: false }),
+      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: redisKey.global('rl', 'resend', 'actor'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+/** Teto de CONVITE (folgado — a quota do plano é o limite real). Ver o bloco acima. */
 export async function assertInviteAllowed(
   clinicId: string,
   actorUserId: string,
@@ -399,6 +425,28 @@ export async function assertInviteAllowed(
   } catch (err) {
     const clinicOk = fallback.inviteClinic.hit(clinicId);
     const actorOk = fallback.inviteActor.hit(actorUserId);
+    return degraded('invite', err, clinicOk && actorOk);
+  }
+}
+
+/** Teto de REENVIO (apertado — é o caminho caro e sem quota). Ver o bloco acima. */
+export async function assertResendInviteAllowed(
+  clinicId: string,
+  actorUserId: string,
+): Promise<LimitResult> {
+  try {
+    const { clinic, actor } = lazyResendLimiters();
+    const [clinicResult, actorResult] = await Promise.all([
+      clinic.limit(clinicId),
+      actor.limit(actorUserId),
+    ]);
+    if (!clinicResult.success || !actorResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const clinicOk = fallback.resendClinic.hit(clinicId);
+    const actorOk = fallback.resendActor.hit(actorUserId);
     return degraded('invite', err, clinicOk && actorOk);
   }
 }
@@ -460,17 +508,24 @@ const lazyPdfLimiters = (() => {
  * teto um usuário AUTENTICADO degrada a instância só pedindo PDFs em sequência.
  * Não é defesa contra anônimo; é contra o custo desproporcional por request.
  *
+ * `scope` separa os baldes: o export do admin passa a **clínica-alvo** como chave, e
+ * sem separação um super_admin exportando em lote consumiria o orçamento de PDF DA
+ * CLÍNICA — barrando os usuários dela de gerar os próprios relatórios. Atividade de
+ * plataforma não gasta orçamento de tenant.
+ *
  * F-08: nunca lança (fail-open + fallback per-instância).
  */
 export async function assertPdfExportAllowed(
   clinicId: string,
   userId: string,
+  scope: 'tenant' | 'admin' = 'tenant',
 ): Promise<LimitResult> {
+  const clinicKey = scope === 'admin' ? `admin:${clinicId}` : clinicId;
   try {
     const { user, clinic } = lazyPdfLimiters();
     const [userResult, clinicResult] = await Promise.all([
       user.limit(userId),
-      clinic.limit(clinicId),
+      clinic.limit(clinicKey),
     ]);
     if (!userResult.success || !clinicResult.success) {
       return { ok: false, reason: 'rate_limited' };
@@ -478,7 +533,7 @@ export async function assertPdfExportAllowed(
     return { ok: true };
   } catch (err) {
     const userOk = fallback.pdfUser.hit(userId);
-    const clinicOk = fallback.pdfClinic.hit(clinicId);
+    const clinicOk = fallback.pdfClinic.hit(clinicKey);
     return degraded('pdf', err, userOk && clinicOk);
   }
 }

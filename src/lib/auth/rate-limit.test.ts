@@ -7,6 +7,7 @@ import {
   BoundedFallbackLimiter,
   assertInviteAllowed,
   assertMfaAllowed,
+  assertResendInviteAllowed,
   classifyRedisError,
   ipRateLimitKey,
   redisKey,
@@ -226,40 +227,77 @@ describe('M3 — fail-open com Redis indisponível', () => {
     expect(warn).toHaveBeenCalledWith('auth.ratelimit.degraded', expect.objectContaining({ kind: 'mfa' }));
   });
 
-  it('fail-open NÃO é barra-livre: o fallback ainda bloqueia acima do teto do ator (10/1h)', async () => {
+  it('fail-open NÃO é barra-livre: o fallback ainda bloqueia acima do teto do ator (30/1h)', async () => {
     spies();
     const actor = 'actor-teto';
-    // Clínica distinta por chamada isola o teto de clínica (20/1h) — queremos ver o
-    // do ATOR (10/1h) disparar, que é a defesa contra a conta comprometida.
+    // Clínica distinta por chamada isola o teto de clínica (60/1h) — queremos ver o
+    // do ATOR (30/1h) disparar, que é a defesa contra a conta comprometida.
     const results = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 32; i++) {
       results.push(await assertInviteAllowed(`clinic-teto-${i}`, actor));
     }
-    expect(results.slice(0, 10).every((r) => r.ok)).toBe(true);
-    expect(results[10]).toEqual({ ok: false, reason: 'rate_limited' });
-    expect(results[11]).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(results.slice(0, 30).every((r) => r.ok)).toBe(true);
+    expect(results[30]).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(results[31]).toEqual({ ok: false, reason: 'rate_limited' });
   });
 
-  it('o teto de clínica (20/1h) barra N atores somando no mesmo tenant', async () => {
+  // A regressão que este teste existe para travar: o plano `pro` vende 15 seats
+  // (migration 0026) e só owner/gestor têm manage:employees — é UM ator convidando
+  // todos. Um teto de 10 travava o cliente no 11º funcionário do próprio onboarding.
+  it('o onboarding de uma clínica `pro` cheia (15 seats) cabe no teto do ator', async () => {
+    spies();
+    const results = [];
+    for (let i = 0; i < 15; i++) {
+      results.push(await assertInviteAllowed('clinic-pro-onboarding', 'owner-pro'));
+    }
+    expect(results.every((r) => r.ok)).toBe(true);
+  });
+
+  it('o teto de clínica (60/1h) barra N atores somando no mesmo tenant', async () => {
     spies();
     const clinic = 'clinic-teto-somado';
     const results = [];
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < 62; i++) {
       results.push(await assertInviteAllowed(clinic, `actor-distinto-${i}`));
     }
-    expect(results.slice(0, 20).every((r) => r.ok)).toBe(true);
-    expect(results[20]).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(results.slice(0, 60).every((r) => r.ok)).toBe(true);
+    expect(results[60]).toEqual({ ok: false, reason: 'rate_limited' });
   });
 
   it('atores/clínicas distintos não compartilham orçamento', async () => {
     spies();
-    for (let i = 0; i < 10; i++) await assertInviteAllowed('clinic-iso-a', 'actor-iso-a');
+    for (let i = 0; i < 30; i++) await assertInviteAllowed('clinic-iso-a', 'actor-iso-a');
     expect(await assertInviteAllowed('clinic-iso-a', 'actor-iso-a')).toEqual({
       ok: false,
       reason: 'rate_limited',
     });
     // Outro ator, outra clínica → janela própria.
     expect(await assertInviteAllowed('clinic-iso-b', 'actor-iso-b')).toEqual({ ok: true });
+  });
+
+  // Convite e reenvio têm economias diferentes: convite é limitado pela quota do
+  // plano; reenvio não é limitado por nada (dá para reenviar ao mesmo endereço
+  // infinitas vezes, gerando recovery link a cada vez). Orçamentos separados.
+  it('reenvio tem teto próprio e mais apertado (10/1h por ator)', async () => {
+    spies();
+    const results = [];
+    for (let i = 0; i < 12; i++) {
+      results.push(await assertResendInviteAllowed(`clinic-resend-${i}`, 'actor-resend'));
+    }
+    expect(results.slice(0, 10).every((r) => r.ok)).toBe(true);
+    expect(results[10]).toEqual({ ok: false, reason: 'rate_limited' });
+  });
+
+  it('estourar o reenvio NÃO trava o convite (orçamentos separados)', async () => {
+    spies();
+    const actor = 'actor-separado';
+    for (let i = 0; i < 11; i++) await assertResendInviteAllowed('clinic-separado', actor);
+    expect(await assertResendInviteAllowed('clinic-separado', actor)).toEqual({
+      ok: false,
+      reason: 'rate_limited',
+    });
+    // O onboarding segue possível mesmo com o reenvio esgotado.
+    expect(await assertInviteAllowed('clinic-separado', actor)).toEqual({ ok: true });
   });
 
   it('mfa: IP normalizado para /64 — um bloco IPv6 não multiplica o teto', async () => {
@@ -284,6 +322,10 @@ describe('M3 — fail-open com Redis indisponível', () => {
  * achando que é bug, ou assuma semântica de sliding onde não há.
  */
 describe('M3 — fallback é fixed-window (divergência aceita vs. sliding do Upstash)', () => {
+  // `Date.now` mockado sem afterEach vaza para testes não relacionados se uma
+  // assertion lançar antes do restore no fim do corpo.
+  afterEach(() => vi.restoreAllMocks());
+
   it('reseta em bloco na virada da janela (sliding liberaria gradualmente)', () => {
     let now = 1_000_000;
     vi.spyOn(Date, 'now').mockImplementation(() => now);

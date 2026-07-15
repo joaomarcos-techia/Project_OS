@@ -10,7 +10,8 @@
  * Convites `completed` NÃO são tocados: viraram clínica (o dado vive no tenant +
  * auditoria). Idempotente: o filtro exige PII presente, então re-runs não reprocessam.
  *
- * Auth + heartbeat iguais aos demais crons (Bearer CRON_SECRET + header Vercel).
+ * Auth + heartbeat iguais aos demais crons — [cron-auth.ts], single-factor: o Bearer
+ * `CRON_SECRET` é o gate; o header Vercel NÃO é (só anomalia observável).
  */
 import { sql } from 'drizzle-orm';
 

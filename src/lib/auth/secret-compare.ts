@@ -8,10 +8,17 @@ import { timingSafeEqual } from 'node:crypto';
  * `CRON_SECRET`, `verify_token` do Meta, token do webhook Asaas) por uma comparação
  * sem side-channel de timing.
  *
- * Ponto ÚNICO de comparação de segredo em `src/` (M1 — auditoria de APIs). O Asaas
- * tinha uma 2ª implementação à mão (`charCodeAt` XOR, code units UTF-16 em vez de
- * bytes); foi removida em favor desta. Duas primitivas de cripto para o mesmo fim é
- * uma para revisar, testar e acertar duas vezes.
+ * Use ESTE helper para segredo novo (M1 — auditoria de APIs). O Asaas tinha uma 2ª
+ * implementação à mão (`charCodeAt` XOR, comparando code units UTF-16 em vez de
+ * bytes) — removida em favor desta, por ser a única que divergia no comportamento.
+ *
+ * NÃO é o único ponto de comparação constant-time do repo, e a frase honesta importa:
+ * `hashesEqual` (crypto/encryption.ts), o cookie de impersonate
+ * (impersonation/cookie.ts) e o HMAC do Meta (messaging/meta-cloud.ts) fazem o mesmo
+ * `length check + timingSafeEqual` inline. São corretos e equivalentes; não foram
+ * unificados porque este módulo é `server-only` e arrastá-lo para `@/lib/crypto`
+ * (reexportado amplamente) mudaria a fronteira server/client desses módulos —
+ * risco desproporcional ao ganho. Se um deles for tocado por outro motivo, migrar.
  *
  * Contrato (decisão explícita — para ninguém usar `timingSafeEqual` cru):
  *   - NUNCA lança. `crypto.timingSafeEqual` LANÇA quando os buffers têm tamanhos

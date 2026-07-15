@@ -28,11 +28,15 @@ import { listEmployees } from '@/contexts/identity/queries';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { isPractitionerRole } from '@/lib/auth/practitioner';
-import { assertInviteAllowed } from '@/lib/auth/rate-limit';
+import { assertInviteAllowed, assertResendInviteAllowed } from '@/lib/auth/rate-limit';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 
-/** M3 — mensagem única do teto de convites (por clínica e por ator). */
-const RATE_LIMITED = 'Muitos convites em pouco tempo. Aguarde alguns minutos e tente de novo.';
+// M3 — a janela dos dois tetos é de 1 HORA. "Aguarde alguns minutos" mentiria e faria
+// o gestor tentar em loop, queimando o resto do orçamento.
+const INVITE_RATE_LIMITED =
+  'Muitos convites em pouco tempo. Aguarde até uma hora antes de convidar mais.';
+const RESEND_RATE_LIMITED =
+  'Muitos reenvios em pouco tempo. Aguarde até uma hora, ou copie o link do convite existente.';
 
 const InvitableRole = z.enum(['doctor', 'attendant', 'financial']);
 
@@ -77,14 +81,16 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
   const clinicId = await requireClinicId();
   await requireActiveClinic(clinicId); // ADR-016 — clínica suspensa não convida
 
-  // M3: teto ANTES do trabalho caro (query de quota + recovery link + e-mail). O
-  // gate de permissão acima não cobre o gestor autorizado-porém-malicioso.
-  const rl = await assertInviteAllowed(clinicId, user.userId);
-  if (!rl.ok) return { error: RATE_LIMITED };
-
   const parsed = InviteMemberSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
   const d = parsed.data;
+
+  // M3: teto DEPOIS da validação barata e ANTES do trabalho caro (quota + recovery
+  // link + e-mail). O gate de permissão acima não cobre o gestor
+  // autorizado-porém-malicioso. Ordem importa: com o teto antes do Zod, dez typos de
+  // e-mail queimavam o orçamento inteiro sem enviar um convite sequer.
+  const rl = await assertInviteAllowed(clinicId, user.userId);
+  if (!rl.ok) return { error: INVITE_RATE_LIMITED };
 
   // CRM opcional no convite (spec §Edge cases). Captura de credencial por PAPEL
   // via predicado canônico (ADR-032 §2), não o literal `role === 'doctor'`
@@ -143,12 +149,14 @@ export async function resendInviteAction(input: { userId: string }): Promise<Res
   const clinicId = await requireClinicId();
   await requireActiveClinic(clinicId); // ADR-016
 
-  // M3: o resend é o caro — cada chamada gera um recovery link REAL no Supabase.
-  const rl = await assertInviteAllowed(clinicId, user.userId);
-  if (!rl.ok) return { error: RATE_LIMITED };
-
   const parsed = TargetSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+
+  // M3: orçamento PRÓPRIO, apertado — o resend gera um recovery link REAL a cada
+  // chamada e não tem quota de plano por trás (dá para reenviar ao mesmo endereço
+  // infinitas vezes). Separado do convite para não travar o onboarding legítimo.
+  const rl = await assertResendInviteAllowed(clinicId, user.userId);
+  if (!rl.ok) return { error: RESEND_RATE_LIMITED };
 
   try {
     const hdrs = await headers();

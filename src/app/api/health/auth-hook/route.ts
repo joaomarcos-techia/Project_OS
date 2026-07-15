@@ -15,6 +15,10 @@
  * `runbooks/production-readiness.md` §5.2 já especificava "mesmo header Bearer" —
  * o código é que não implementava.
  *
+ * DOIS NÍVEIS (MEDIUM-19, como o /api/health/outbox): `monitoring` (Bearer) recebe só
+ * ok/não-ok — suficiente para o monitor alarmar; `super_admin` (AAL2) recebe o
+ * `payload` do selftest. Secret vazado não vira janela de profiling do banco.
+ *
  * Usa dbAdmin (BYPASSRLS) para invocar auth_hook_selftest sem precisar de
  * JWT. ESLint allowlist (eslint.config.mjs guard #2 ignores) cobre
  * `src/app/api/health/**` em C4 — só roda a RPC de selftest (não expõe RLS bypass).
@@ -29,7 +33,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(req: Request): Promise<Response> {
-  if ((await healthAuthLevel(req)) === 'denied') {
+  const level = await healthAuthLevel(req);
+  if (level === 'denied') {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
   }
 
@@ -43,7 +48,18 @@ export async function GET(req: Request): Promise<Response> {
     if (payload.ok === true) {
       return Response.json({ ok: true, payload }, { status: 200 });
     }
-    return Response.json({ ok: false, payload }, { status: 500 });
+
+    // Dois níveis, igual à rota irmã /api/health/outbox (MEDIUM-19): o `payload` de
+    // falha carrega `error`/`sqlstate` do Postgres, que é diagnóstico interno. Quem
+    // tem só o CRON_SECRET precisa saber SE está quebrado (o status basta para o
+    // monitor alarmar); o detalhe é para super_admin. Assim um secret vazado não
+    // vira janela de profiling do banco — mesmo racional pelo qual o outbox reserva
+    // `failures_by_type` ao super_admin.
+    logger.error('health.auth_hook.selftest_failed', { payload });
+    return Response.json(
+      level === 'super_admin' ? { ok: false, payload } : { ok: false, error: 'selftest_failed' },
+      { status: 500 },
+    );
   } catch (e) {
     // V11 (auditoria de segurança): não devolver `e.message` cru — pode vazar
     // schema/role em mensagens de erro do Postgres. Corpo genérico ao chamador;
