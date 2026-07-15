@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
 import {
   BoundedFallbackLimiter,
+  assertInviteAllowed,
+  assertMfaAllowed,
   classifyRedisError,
   ipRateLimitKey,
   redisKey,
@@ -178,5 +180,154 @@ describe('degraded — emissão de alerta na degradação (R1)', () => {
 
     warn.mockRestore();
     emit.mockRestore();
+  });
+});
+
+/**
+ * M3 (auditoria de APIs) — limiters novos de convite e MFA.
+ *
+ * Estes testes exercitam o caminho REAL de degradação: o vitest não configura
+ * `UPSTASH_REDIS_REST_URL`/`_TOKEN`, então `lazyRedis()` lança e o `assert*` cai no
+ * fallback per-instância. Ou seja, é literalmente o cenário "Redis offline" — sem
+ * mockar o Upstash. É a propriedade mais crítica destes helpers: um outage do Redis
+ * NÃO pode derrubar convite nem login com MFA.
+ */
+describe('M3 — fail-open com Redis indisponível', () => {
+  const spies = () => ({
+    warn: vi.spyOn(logger, 'warn').mockImplementation(() => {}),
+    emit: vi.spyOn(metrics, 'emit').mockImplementation(() => {}),
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('invite: Redis fora → continua funcionando + loga + emite métrica', async () => {
+    const { warn, emit } = spies();
+    const res = await assertInviteAllowed('clinic-failopen-1', 'actor-failopen-1');
+
+    expect(res).toEqual({ ok: true }); // fail-open: o convite não morre com o Redis
+    expect(emit).toHaveBeenCalledWith(
+      'auth.ratelimit.degraded',
+      expect.objectContaining({ kind: 'invite' }),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      'auth.ratelimit.degraded',
+      expect.objectContaining({ kind: 'invite' }),
+    );
+  });
+
+  it('mfa: Redis fora → continua funcionando + loga + emite métrica', async () => {
+    const { warn, emit } = spies();
+    const res = await assertMfaAllowed('user-failopen-1', '203.0.113.9');
+
+    expect(res).toEqual({ ok: true });
+    expect(emit).toHaveBeenCalledWith(
+      'auth.ratelimit.degraded',
+      expect.objectContaining({ kind: 'mfa' }),
+    );
+    expect(warn).toHaveBeenCalledWith('auth.ratelimit.degraded', expect.objectContaining({ kind: 'mfa' }));
+  });
+
+  it('fail-open NÃO é barra-livre: o fallback ainda bloqueia acima do teto do ator (10/1h)', async () => {
+    spies();
+    const actor = 'actor-teto';
+    // Clínica distinta por chamada isola o teto de clínica (20/1h) — queremos ver o
+    // do ATOR (10/1h) disparar, que é a defesa contra a conta comprometida.
+    const results = [];
+    for (let i = 0; i < 12; i++) {
+      results.push(await assertInviteAllowed(`clinic-teto-${i}`, actor));
+    }
+    expect(results.slice(0, 10).every((r) => r.ok)).toBe(true);
+    expect(results[10]).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(results[11]).toEqual({ ok: false, reason: 'rate_limited' });
+  });
+
+  it('o teto de clínica (20/1h) barra N atores somando no mesmo tenant', async () => {
+    spies();
+    const clinic = 'clinic-teto-somado';
+    const results = [];
+    for (let i = 0; i < 22; i++) {
+      results.push(await assertInviteAllowed(clinic, `actor-distinto-${i}`));
+    }
+    expect(results.slice(0, 20).every((r) => r.ok)).toBe(true);
+    expect(results[20]).toEqual({ ok: false, reason: 'rate_limited' });
+  });
+
+  it('atores/clínicas distintos não compartilham orçamento', async () => {
+    spies();
+    for (let i = 0; i < 10; i++) await assertInviteAllowed('clinic-iso-a', 'actor-iso-a');
+    expect(await assertInviteAllowed('clinic-iso-a', 'actor-iso-a')).toEqual({
+      ok: false,
+      reason: 'rate_limited',
+    });
+    // Outro ator, outra clínica → janela própria.
+    expect(await assertInviteAllowed('clinic-iso-b', 'actor-iso-b')).toEqual({ ok: true });
+  });
+
+  it('mfa: IP normalizado para /64 — um bloco IPv6 não multiplica o teto', async () => {
+    spies();
+    // 20/15min por IP. Dois endereços do MESMO /64 devem somar no mesmo balde.
+    const a = '2001:db8:1:2:aaaa::1';
+    const b = '2001:db8:1:2:bbbb::2';
+    expect(ipRateLimitKey(a)).toBe(ipRateLimitKey(b));
+    const results = [];
+    for (let i = 0; i < 21; i++) {
+      results.push(await assertMfaAllowed(`user-ipv6-${i}`, i % 2 === 0 ? a : b));
+    }
+    expect(results[20]).toEqual({ ok: false, reason: 'rate_limited' });
+  });
+});
+
+/**
+ * A divergência sliding (primário) × fixed (fallback) é decisão documentada no
+ * cabeçalho do módulo. O que dá para testar aqui é o NOSSO lado: o fallback é
+ * fixed-window, e a assinatura disso é o reset EM BLOCO na virada da janela — não
+ * a liberação gradual do sliding. Fixar isso evita que alguém "conserte" o fallback
+ * achando que é bug, ou assuma semântica de sliding onde não há.
+ */
+describe('M3 — fallback é fixed-window (divergência aceita vs. sliding do Upstash)', () => {
+  it('reseta em bloco na virada da janela (sliding liberaria gradualmente)', () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const limiter = new BoundedFallbackLimiter(3, 60_000);
+
+    expect(limiter.hit('k')).toBe(true);
+    expect(limiter.hit('k')).toBe(true);
+    expect(limiter.hit('k')).toBe(true);
+    expect(limiter.hit('k')).toBe(false); // teto batido
+
+    now += 30_000; // meio da janela — sliding já teria liberado algo; fixed, não
+    expect(limiter.hit('k')).toBe(false);
+
+    now += 30_001; // janela virou → orçamento inteiro de volta, de uma vez
+    expect(limiter.hit('k')).toBe(true);
+    expect(limiter.hit('k')).toBe(true);
+    expect(limiter.hit('k')).toBe(true);
+    expect(limiter.hit('k')).toBe(false);
+
+    vi.restoreAllMocks();
+  });
+
+  it('a consequência documentada: burst na borda = 2×limite − 1 num intervalo curto', () => {
+    let now = 2_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const limiter = new BoundedFallbackLimiter(3, 60_000);
+
+    // A janela é ancorada no PRIMEIRO hit da chave (resetAt = now + windowMs), não
+    // alinhada ao relógio. Então o pior caso não é 2×limite: o hit que abre a
+    // janela já consome orçamento. O teto real do burst é (limite−1) no fim da
+    // janela 1 + limite no início da janela 2.
+    expect(limiter.hit('burst')).toBe(true); // ancora a janela em t=2_000_000
+
+    now += 59_000; // quase no fim da janela 1
+    let noBurst = 0;
+    for (let i = 0; i < 2; i++) if (limiter.hit('burst')) noBurst++; // limite−1 = 2
+
+    now += 1_001; // janela 1 expirou → janela 2 abre
+    for (let i = 0; i < 3; i++) if (limiter.hit('burst')) noBurst++; // limite = 3
+
+    // 5 = 2×3−1 permitidos em ~1s, com teto nominal de 3/60s. É a divergência que o
+    // cabeçalho do módulo chama de "~2×" e aceita (F-08): vale só em degradação.
+    expect(noBurst).toBe(5);
+    expect(limiter.hit('burst')).toBe(false); // e o teto da janela 2 volta a valer
+    vi.restoreAllMocks();
   });
 });

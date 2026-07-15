@@ -28,7 +28,11 @@ import { listEmployees } from '@/contexts/identity/queries';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { isPractitionerRole } from '@/lib/auth/practitioner';
+import { assertInviteAllowed } from '@/lib/auth/rate-limit';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+
+/** M3 — mensagem única do teto de convites (por clínica e por ator). */
+const RATE_LIMITED = 'Muitos convites em pouco tempo. Aguarde alguns minutos e tente de novo.';
 
 const InvitableRole = z.enum(['doctor', 'attendant', 'financial']);
 
@@ -72,6 +76,11 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
   await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES); // crítica (D20/F-14) — lê do banco
   const clinicId = await requireClinicId();
   await requireActiveClinic(clinicId); // ADR-016 — clínica suspensa não convida
+
+  // M3: teto ANTES do trabalho caro (query de quota + recovery link + e-mail). O
+  // gate de permissão acima não cobre o gestor autorizado-porém-malicioso.
+  const rl = await assertInviteAllowed(clinicId, user.userId);
+  if (!rl.ok) return { error: RATE_LIMITED };
 
   const parsed = InviteMemberSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
@@ -133,6 +142,10 @@ export async function resendInviteAction(input: { userId: string }): Promise<Res
   await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES); // crítica (D20/F-14) — lê do banco
   const clinicId = await requireClinicId();
   await requireActiveClinic(clinicId); // ADR-016
+
+  // M3: o resend é o caro — cada chamada gera um recovery link REAL no Supabase.
+  const rl = await assertInviteAllowed(clinicId, user.userId);
+  if (!rl.ok) return { error: RATE_LIMITED };
 
   const parsed = TargetSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };

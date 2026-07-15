@@ -17,9 +17,12 @@
  * degradação aceita — NÃO equivalente ao Upstash (que é global). Ver ADR-008/F-08.
  *
  * **R7 (auditoria Redis) — semântica na degradação:** o primário é *sliding
- * window* (suave); o fallback é *fixed-window* (`BoundedFallbackLimiter`), que
- * permite até ~2× o limite na virada de janela (burst na borda). Divergência
- * pequena, ativa SÓ em degradação — ciência ao ler as métricas de degradação.
+ * window* (suave); o fallback é *fixed-window* (`BoundedFallbackLimiter`), com a
+ * janela ancorada no PRIMEIRO hit da chave (não alinhada ao relógio). Isso permite
+ * um burst na borda de **2×limite − 1** num intervalo arbitrariamente curto
+ * ((limite−1) no fim da janela 1 + limite no início da janela 2) — medido em
+ * [rate-limit.test.ts]. Divergência pequena, ativa SÓ em degradação — ciência ao
+ * ler as métricas de degradação.
  *
  * **Chaves Redis (R2/R3 da auditoria):** montadas por `redisKey.*` (ponto único,
  * espelhando o papel de `withTenant`/`defaultTenantPolicy` no RLS). Toda chave
@@ -114,6 +117,10 @@ const fallback = {
   resetIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   resetEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
   joinIp: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
+  inviteClinic: new BoundedFallbackLimiter(20, ONE_HOUR_MS),
+  inviteActor: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
+  mfaUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
+  mfaIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
 };
 
 /**
@@ -210,7 +217,7 @@ export function classifyRedisError(err: unknown): DegradedReason {
  * crua, sanitizada nos dois emissores) fica só como diagnóstico, nunca como lógica.
  */
 function degraded(
-  kind: 'login' | 'reset' | 'join',
+  kind: 'login' | 'reset' | 'join' | 'invite' | 'mfa',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -341,6 +348,94 @@ export async function assertJoinAllowed(ip: string): Promise<LimitResult> {
     return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
   } catch (err) {
     return degraded('join', err, fallback.joinIp.hit(ipKey));
+  }
+}
+
+const lazyInviteLimiters = (() => {
+  let cached: { clinic: Ratelimit; actor: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: redisKey.global('rl', 'invite', 'clinic'), analytics: false }),
+      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: redisKey.global('rl', 'invite', 'actor'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * M3: rate limit de convite/reenvio, por clínica E por ator. Diferente dos demais,
+ * este é PÓS-auth: o gate `requireFreshPermission(MANAGE_EMPLOYEES)` já passou. O
+ * risco não é o anônimo — é o gestor autorizado-porém-malicioso (ou a conta dele
+ * comprometida) em loop: cada `resendInvite` gera um recovery link REAL no Supabase
+ * + e-mail. Sem teto, a marca do cliente vira fonte de spam. Por ator pega a conta
+ * comprometida; por clínica impede que N gestores somem para o mesmo efeito.
+ *
+ * Chave: `redisKey.global('rl','invite','clinic')` + clinicId como identifier —
+ * e NÃO `redisKey.tenant()`. Duas razões: (1) o Upstash monta a chave como
+ * `[prefix, identifier].join(':')` com prefix ESTÁTICO, e `t:{clinicId}` teria de vir
+ * antes dele; (2) a regra de CONVENTIONS protege DADO de tenant (cache/lock) contra
+ * vazamento cross-tenant — um contador cujo próprio identifier é o clinicId não tem
+ * o que vazar, e o clinicId é parâmetro obrigatório aqui, não pode ser esquecido.
+ * Mantém a forma dos outros 5 limiters. F-08: nunca lança (fail-open + fallback).
+ */
+export async function assertInviteAllowed(
+  clinicId: string,
+  actorUserId: string,
+): Promise<LimitResult> {
+  try {
+    const { clinic, actor } = lazyInviteLimiters();
+    const [clinicResult, actorResult] = await Promise.all([
+      clinic.limit(clinicId),
+      actor.limit(actorUserId),
+    ]);
+    if (!clinicResult.success || !actorResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const clinicOk = fallback.inviteClinic.hit(clinicId);
+    const actorOk = fallback.inviteActor.hit(actorUserId);
+    return degraded('invite', err, clinicOk && actorOk);
+  }
+}
+
+const lazyMfaLimiters = (() => {
+  let cached: { user: Ratelimit; ip: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      user: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'mfa', 'user'), analytics: false }),
+      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '15 m'), prefix: redisKey.global('rl', 'mfa', 'ip'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * M3: rate limit da superfície MFA (verify no login + enroll/unenroll). Hoje o
+ * brute-force do 2º fator depende SÓ do throttle do GoTrue — defesa de terceiro,
+ * sem visibilidade nossa. 10/15min por usuário deixa folga para quem erra o código
+ * (o TOTP roda a cada 30s) e ainda torna os 10^6 códigos inviáveis. O limite por IP
+ * (20/15min) é mais frouxo de propósito: uma clínica atrás de NAT compartilha IP.
+ *
+ * F-08: nunca lança (fail-open + fallback per-instância).
+ */
+export async function assertMfaAllowed(userId: string, ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const { user, ip: ipLimiter } = lazyMfaLimiters();
+    const [userResult, ipResult] = await Promise.all([user.limit(userId), ipLimiter.limit(ipKey)]);
+    if (!userResult.success || !ipResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const userOk = fallback.mfaUser.hit(userId);
+    const ipOk = fallback.mfaIp.hit(ipKey);
+    return degraded('mfa', err, userOk && ipOk);
   }
 }
 
