@@ -4,10 +4,21 @@
  * Messaging admin Server Actions (C10) — conectar / desconectar / rotacionar o
  * número WhatsApp de uma clínica. SEM UI (onboarding é concern de plataforma;
  * UI fica p/ C15). Cada ação:
- *   - `superAdminAction(...)` encapsula `requireSuperAdmin` (AAL2/MFA) + `dbAdmin`
- *     (cross-tenant) + grava o evento forense em `super_admin_actions` — é a
- *     auditoria de "número conectado/removido/token atualizado" (1ª#9).
- *   - O token é cifrado com `encryptForTenant` ANTES da tx (CPU puro).
+ *   - `requireSuperAdmin()` (AAL2/MFA) PRIMEIRO — antes de parse/cripto.
+ *   - `superAdminAction(...)` re-checa o gate + `dbAdmin` (cross-tenant) + grava o
+ *     evento forense em `super_admin_actions` — é a auditoria de "número
+ *     conectado/removido/token atualizado" (1ª#9).
+ *   - O token é cifrado com `encryptForTenant` ANTES da tx (CPU puro), mas DEPOIS
+ *     do gate.
+ *
+ * B3 (auditoria de APIs) — ordem: o gate morava só dentro de `superAdminAction`, e
+ * o Zod + o `encryptForTenant` (HKDF por tenant) rodavam antes dele. Não era bypass
+ * de privilégio — o 403 vinha do mesmo jeito —, mas o servidor gastava CPU de
+ * derivação de chave a mando de quem ainda não tinha provado nada, e o ZodError
+ * voltava antes do 403, revelando o formato do input a não-autorizado. Estas actions
+ * são cross-tenant por design (recebem `clinicId` de input, diferente do caminho
+ * tenant, onde ele vem de `requireClinicId()`), então a borda tem de ser mais dura.
+ * O gate duplicado é barato: `getCurrentUser` é `cache()`-ado por request.
  *
  * `clinic_whatsapp_numbers` é escrito SÓ por aqui (service_role) — `authenticated`
  * não tem grant de escrita; nem lê `token_encrypted` (column-level grant).
@@ -18,7 +29,12 @@ import { z } from 'zod';
 import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { superAdminAction } from '@/lib/audit/super-admin';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+import {
+  requireClinicId,
+  requireFreshPermission,
+  requireSuperAdmin,
+  requireUser,
+} from '@/lib/auth/tenant-context';
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import { assertWhatsappOnboardingReady } from '@/lib/env';
 import { maskPhone } from '@/lib/format';
@@ -42,11 +58,18 @@ import { clinicWhatsappNumbers } from './schema';
 import { ConnectNumberSchema, type ConnectNumberInput } from './types';
 
 /**
+ * B3: `clinicId` vem de INPUT nestas três (cross-tenant por design), então valida
+ * formato antes de usar — diferente do caminho tenant, onde vem de `requireClinicId()`.
+ */
+const ClinicIdSchema = z.string().uuid('clinicId inválido.');
+
+/**
  * Conecta (ou reconecta) o número de uma clínica. Desativa o número ativo
  * anterior (se houver) e insere o novo como ativo — o partial unique
  * `WHERE active=true` garante 1 número ativo por clínica e permite reconexão.
  */
 export async function connectWhatsappNumber(input: ConnectNumberInput): Promise<{ id: string }> {
+  await requireSuperAdmin(); // B3 — gate ANTES de parse/cripto
   const data = ConnectNumberSchema.parse(input);
   const ctx = await requestContext();
   const tokenEncrypted = await encryptForTenant(data.clinicId, data.token);
@@ -92,8 +115,10 @@ export async function connectWhatsappNumber(input: ConnectNumberInput): Promise<
 
 /** Desconecta o número ativo da clínica (active=false; histórico preservado). */
 export async function disconnectWhatsappNumber(
-  clinicId: string,
+  clinicIdInput: string,
 ): Promise<{ disconnected: boolean }> {
+  await requireSuperAdmin(); // B3 — gate ANTES de qualquer trabalho
+  const clinicId = ClinicIdSchema.parse(clinicIdInput);
   const ctx = await requestContext();
   return superAdminAction(
     {
@@ -117,9 +142,11 @@ export async function disconnectWhatsappNumber(
 
 /** Rotaciona o token do número ativo (bump em token_version — o sender compara). */
 export async function rotateWhatsappToken(
-  clinicId: string,
+  clinicIdInput: string,
   newToken: string,
 ): Promise<{ tokenVersion: number }> {
+  await requireSuperAdmin(); // B3 — gate ANTES de parse/cripto
+  const clinicId = ClinicIdSchema.parse(clinicIdInput);
   const ctx = await requestContext();
   const tokenEncrypted = await encryptForTenant(clinicId, newToken);
   return superAdminAction(
