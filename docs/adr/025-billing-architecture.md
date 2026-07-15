@@ -78,3 +78,54 @@ Checkout Qoro → Billing Context → {BillingCustomer, Subscription, Invoice, U
 - (+) Suporta primeiros clientes e centenas de clínicas sem reescrever billing.
 - (−) Mais tabelas e uma saga de provisioning — custo aceito pela robustez financeira.
 - (−) Supersede os contratos `tenancy.*` antes congelados em §13.18 (decisão explícita do owner).
+
+---
+
+## Addendum — A2 (2026-07-15): o corpo do webhook é notificação, não dado
+
+- Status: accepted · Origem: `docs/achados/auditoria-apis-seguranca.md` (A2, ALTA)
+
+### Contexto
+
+A decisão 9 acima já dizia "webhook nunca é a única verdade", mas o **código não
+implementava isso para a transição**: o `switch` era sobre `body.event` e os valores
+persistidos (`value`, `subscription`) saíam do corpo. Como o Asaas **não assina o
+corpo** — a única prova é o token estático `asaas-access-token` —, quem tivesse o
+token forjaria um `PAYMENT_CONFIRMED` e reabriria uma clínica bloqueada sem pagar
+(`markInvoicePaid` → `setClinicAccess('enabled')`). Agravante: sem `body.id`, a
+chave de dedup era sintetizada como `${event}:${paymentId}:${status}` — escolhível
+pelo atacante **e** causadora de bug real (dois eventos legítimos distintos com a
+mesma tripla colapsavam num só; o 2º sumia como "duplicate").
+
+### Decisão
+
+1. **Verify-then-act.** O corpo fornece apenas identificadores (`body.id`,
+   `payment.id`). Status, valor, vencimento e o vínculo com a subscription vêm de
+   `getPayment()`. O tipo `ParsedWebhook` foi **reduzido a esses ids** — os campos
+   forjáveis não existem mais nele, para que ninguém volte a persistí-los sem querer.
+2. **O status real decide, não o `event`.** `actionFor(status)` usa a mesma tabela
+   de status do `billing-reconcile`, de propósito: webhook e reconciliação precisam
+   concordar. Efeito colateral bom: um `PAYMENT_OVERDUE` que chega depois do
+   pagamento resolve para "paga" — mais correto que o desenho anterior.
+3. **`body.id` obrigatório.** Ausente → 400 + `billing.webhook.unparseable`. Falhar
+   alto é melhor que deduplicar errado: o Asaas re-entrega e o reconcile é backstop.
+4. **A verificação roda FORA da transação.** HTTP dentro da tx prenderia conexão +
+   lock de `processed_webhooks` por até 30s; um Asaas lento esgotaria o pool.
+5. **Orçamento explícito: `attempts: 1`.** O default de 3 tentativas × 10s
+   (`ASAAS_HTTP_TIMEOUT_MS`) + backoff = 30,6s estoura o `maxDuration = 30` da rota.
+   Retentar aqui é redundante — o Asaas re-entrega em ≠2xx e o reconcile cobre.
+6. **Aceite de risco registrado:** o token estático continua sendo o mecanismo de
+   autenticação (o Asaas não oferece HMAC de corpo). Ele deixou de ser suficiente
+   para *dirigir estado* — no máximo permite disparar uma consulta ao Asaas.
+7. **B5:** a resposta 200 é `{ received: true }`; o `clinicId` interno saiu do corpo.
+
+### Consequências
+
+- (+) Elimina a classe "evento forjado dirige estado financeiro/acesso". Um atacante
+  com o token não consegue fazer a API do Asaas mentir.
+- (+) Corrige o bug de dedup que descartava eventos legítimos em silêncio.
+- (−) +1 chamada externa por evento de billing (volume baixo) e +até ~10s de latência
+  no pior caso. O webhook passa a depender da disponibilidade do Asaas: indisponível
+  → 500 → re-entrega do provider → reconcile. Trade-off aceito.
+- **Observabilidade:** `billing.webhook.verify` com `duration_ms` + `outcome`
+  (`ok`/`timeout`/`failure`). Alerta p95 > 5s por 5min em `c16/slo.md` §3.

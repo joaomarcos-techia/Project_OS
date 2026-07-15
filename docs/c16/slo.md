@@ -40,6 +40,22 @@
 - **Nota:** os webhooks já respondem rápido (persistem inbound + enfileiram via outbox);
   o trabalho pesado é assíncrono. O SLO cobre recepção→enqueue, não a entrega final.
 
+#### 3.1 Verificação out-of-band do webhook Asaas (A2 — ADR-025 addendum)
+- **SLI:** duração da chamada `getPayment()` que o webhook faz para confirmar o
+  pagamento no provider antes de qualquer transição.
+- **SLO / alerta:** **p95 > 5s por 5min** → alerta. Teto duro é ~10s
+  (`ASAAS_HTTP_TIMEOUT_MS`, `attempts: 1`); o webhook tem `maxDuration = 30s`, então
+  p95 acima de 5s indica que estamos consumindo o orçamento da invocação e caminhando
+  para timeouts em massa.
+- **Fonte:** `billing.webhook.verify` → `{ duration_ms, outcome: ok|timeout|failure }`.
+  Complementos: `billing.webhook.error` (taxa de 500) e `billing.reconcile.divergence`
+  (o reconcile achou o que o webhook não refletiu — evento perdido OU forjado).
+- **Ação quando dispara:** ver `runbooks/asaas-webhook-missing.md`. Degradação aqui é
+  **fail-safe** (nada é persistido, o Asaas re-entrega, o reconcile diário corrige),
+  então é alerta de investigação, não pager de madrugada.
+- ⚠️ **Threshold definido, disparo NÃO wired** — depende do go-live #2 (canal de
+  alerta), ainda aberto. Ver `docs/achados/auditoria-monitoramento-producao.md`.
+
 ### 4. Confiabilidade da IA (Gemini)
 - **SLI:** taxa de erro = `erros / total` de chamadas ao provider
   ([gemini.ts](../../src/lib/ai/gemini.ts) já classifica `AIProviderError` vs
