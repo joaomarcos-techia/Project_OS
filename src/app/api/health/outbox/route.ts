@@ -22,7 +22,9 @@ import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
 import { healthAuthLevel } from '@/lib/http/health-auth';
+import { toErrorResponse } from '@/lib/http/error-response';
 import { assertCronRuntimeReady } from '@/lib/env';
+import { logger } from '@/lib/observability/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -172,9 +174,11 @@ export async function GET(req: Request): Promise<Response> {
       { status: httpStatus },
     );
   } catch (err) {
-    return Response.json(
-      { ok: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    // B1: envelope genérico + trace_id. O erro cru ia para o corpo — atrás de auth
+    // privilegiada, mas ainda expondo internals do driver/Postgres a quem opera.
+    logger.error('health.outbox.error', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return toErrorResponse(err);
   }
 }

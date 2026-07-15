@@ -121,6 +121,8 @@ const fallback = {
   inviteActor: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   mfaUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
   mfaIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
+  pdfUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
+  pdfClinic: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
 };
 
 /**
@@ -217,7 +219,7 @@ export function classifyRedisError(err: unknown): DegradedReason {
  * crua, sanitizada nos dois emissores) fica só como diagnóstico, nunca como lógica.
  */
 function degraded(
-  kind: 'login' | 'reset' | 'join' | 'invite' | 'mfa',
+  kind: 'login' | 'reset' | 'join' | 'invite' | 'mfa' | 'pdf',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -436,6 +438,48 @@ export async function assertMfaAllowed(userId: string, ip: string): Promise<Limi
     const userOk = fallback.mfaUser.hit(userId);
     const ipOk = fallback.mfaIp.hit(ipKey);
     return degraded('mfa', err, userOk && ipOk);
+  }
+}
+
+const lazyPdfLimiters = (() => {
+  let cached: { user: Ratelimit; clinic: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      user: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'pdf', 'user'), analytics: false }),
+      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '15 m'), prefix: redisKey.global('rl', 'pdf', 'clinic'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * B6: teto das rotas que rendem PDF (`/relatorios/pdf`, export de auditoria do
+ * admin). O render é `@react-pdf` sobre yoga/WASM — caro em CPU e memória, e sem
+ * teto um usuário AUTENTICADO degrada a instância só pedindo PDFs em sequência.
+ * Não é defesa contra anônimo; é contra o custo desproporcional por request.
+ *
+ * F-08: nunca lança (fail-open + fallback per-instância).
+ */
+export async function assertPdfExportAllowed(
+  clinicId: string,
+  userId: string,
+): Promise<LimitResult> {
+  try {
+    const { user, clinic } = lazyPdfLimiters();
+    const [userResult, clinicResult] = await Promise.all([
+      user.limit(userId),
+      clinic.limit(clinicId),
+    ]);
+    if (!userResult.success || !clinicResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const userOk = fallback.pdfUser.hit(userId);
+    const clinicOk = fallback.pdfClinic.hit(clinicId);
+    return degraded('pdf', err, userOk && clinicOk);
   }
 }
 
