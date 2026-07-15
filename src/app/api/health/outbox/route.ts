@@ -18,6 +18,8 @@
  */
 // dbAdmin é permitido aqui via ignores de guard #2 (eslint.config.mjs):
 // healthcheck precisa de queries cross-tenant agregadas.
+import { randomUUID } from 'node:crypto';
+
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
@@ -176,9 +178,13 @@ export async function GET(req: Request): Promise<Response> {
   } catch (err) {
     // B1: envelope genérico + trace_id. O erro cru ia para o corpo — atrás de auth
     // privilegiada, mas ainda expondo internals do driver/Postgres a quem opera.
+    // O MESMO trace_id vai para o log e para a resposta: sem isso, `toErrorResponse`
+    // gera um randomUUID e o id que o operador tem em mãos não acha nada no log.
+    const traceId = randomUUID();
     logger.error('health.outbox.error', {
+      trace_id: traceId,
       message: err instanceof Error ? err.message : String(err),
     });
-    return toErrorResponse(err);
+    return toErrorResponse(err, traceId);
   }
 }

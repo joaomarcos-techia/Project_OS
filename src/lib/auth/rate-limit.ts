@@ -221,7 +221,7 @@ export function classifyRedisError(err: unknown): DegradedReason {
  * crua, sanitizada nos dois emissores) fica só como diagnóstico, nunca como lógica.
  */
 function degraded(
-  kind: 'login' | 'reset' | 'join' | 'invite' | 'mfa' | 'pdf',
+  kind: 'login' | 'reset' | 'join' | 'invite' | 'resend' | 'mfa' | 'pdf',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -447,7 +447,9 @@ export async function assertResendInviteAllowed(
   } catch (err) {
     const clinicOk = fallback.resendClinic.hit(clinicId);
     const actorOk = fallback.resendActor.hit(actorUserId);
-    return degraded('invite', err, clinicOk && actorOk);
+    // `kind: 'resend'`, não 'invite': os orçamentos são separados justamente porque
+    // as economias diferem, e a métrica de degradação tem de dizer QUAL degradou.
+    return degraded('resend', err, clinicOk && actorOk);
   }
 }
 

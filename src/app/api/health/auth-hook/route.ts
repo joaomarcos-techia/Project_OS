@@ -15,9 +15,13 @@
  * `runbooks/production-readiness.md` §5.2 já especificava "mesmo header Bearer" —
  * o código é que não implementava.
  *
- * DOIS NÍVEIS (MEDIUM-19, como o /api/health/outbox): `monitoring` (Bearer) recebe só
- * ok/não-ok — suficiente para o monitor alarmar; `super_admin` (AAL2) recebe o
- * `payload` do selftest. Secret vazado não vira janela de profiling do banco.
+ * DOIS NÍVEIS **no caminho de FALHA** (MEDIUM-19, como o /api/health/outbox): o
+ * `payload` de erro carrega `sqlstate`/mensagem do Postgres, então `monitoring`
+ * (Bearer) recebe só `error: 'selftest_failed'` — suficiente para o monitor alarmar —
+ * e o detalhe fica para `super_admin` (AAL2). Secret vazado não vira janela de
+ * profiling do banco. No caminho de SUCESSO ambos recebem o payload (`claims_keys`,
+ * `elapsed_ms`): é o que `runbooks/c3-validation.md` §4 manda conferir, e não há o
+ * que vazar quando o hook está são.
  *
  * Usa dbAdmin (BYPASSRLS) para invocar auth_hook_selftest sem precisar de
  * JWT. ESLint allowlist (eslint.config.mjs guard #2 ignores) cobre

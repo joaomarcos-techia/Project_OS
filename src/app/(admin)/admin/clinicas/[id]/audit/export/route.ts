@@ -47,8 +47,8 @@ const MAX_EXPORT_MONTHS = 12;
  * ("reduza o intervalo") nunca chegava ao operador. `toErrorResponse` faz duck-type
  * de `code`+`httpStatus`, então um literal basta — sem classe de erro por caso.
  */
-function fail(code: string, httpStatus: number, message: string): Response {
-  return toErrorResponse({ code, httpStatus, message });
+function fail(code: string, httpStatus: number, message: string, traceId: string): Response {
+  return toErrorResponse({ code, httpStatus, message }, traceId);
 }
 
 function monthsBetween(from: Date, to: Date): number {
@@ -63,22 +63,30 @@ export async function POST(
 ): Promise<Response> {
   await guardAdminAccess(); // 404 p/ não-super_admin
 
+  // `rc` no topo (não junto do superAdminAction) para que o `trace_id` do envelope
+  // seja o MESMO `requestId` que vai para os logs. Sem isso, `toErrorResponse` gera
+  // um randomUUID por resposta e o contrato do envelope ("trace_id correlaciona a
+  // resposta a logs/audit/Sentry" — error-response.ts) não se cumpre: o operador
+  // recebe um id do usuário e não acha nada.
+  const rc = buildRequestContext(await headers());
+  const traceId = rc.requestId;
+
   const { id } = await ctx.params;
   if (!z.string().uuid().safeParse(id).success) {
-    return fail('clinic_id_invalido', 400, 'Clínica inválida.');
+    return fail('clinic_id_invalido', 400, 'Clínica inválida.', traceId);
   }
 
   const url = new URL(req.url);
   const fromRaw = DateParam.safeParse(url.searchParams.get('from'));
   const toRaw = DateParam.safeParse(url.searchParams.get('to'));
   if (!fromRaw.success || !toRaw.success) {
-    return fail('periodo_malformado', 400, 'Datas devem estar no formato AAAA-MM-DD.');
+    return fail('periodo_malformado', 400, 'Datas devem estar no formato AAAA-MM-DD.', traceId);
   }
 
   const fromIso = new Date(`${fromRaw.data}T00:00:00.000Z`).toISOString();
   const toIso = new Date(`${toRaw.data}T23:59:59.999Z`).toISOString();
   if (new Date(fromIso) > new Date(toIso)) {
-    return fail('periodo_invertido', 400, 'A data inicial é posterior à final.');
+    return fail('periodo_invertido', 400, 'A data inicial é posterior à final.', traceId);
   }
 
   // B6 — 400 acima é sintaxe (malformado / invertido); daqui para baixo é 422:
@@ -88,6 +96,7 @@ export async function POST(
       'periodo_excede_limite',
       422,
       `Período excede o limite máximo de exportação (${MAX_EXPORT_MONTHS} meses).`,
+      traceId,
     );
   }
 
@@ -99,10 +108,14 @@ export async function POST(
   // de PDF da clínica-alvo (senão o super_admin barraria os usuários dela).
   const rl = await assertPdfExportAllowed(id, actor.userId, 'admin');
   if (!rl.ok) {
-    return fail('rate_limited', 429, 'Muitos exports em pouco tempo. Aguarde alguns minutos.');
+    return fail(
+      'rate_limited',
+      429,
+      'Muitos exports em pouco tempo. Aguarde alguns minutos.',
+      traceId,
+    );
   }
 
-  const rc = buildRequestContext(await headers());
   try {
     const result = await auditExportService.run({ clinicId: id, from: fromIso, to: toIso });
 
@@ -119,10 +132,12 @@ export async function POST(
   } catch (e) {
     // B1: envelope genérico + trace_id; o detalhe só no observability. Domain error
     // (ex.: AuditExportTooLargeError → 422) mantém a própria mensagem, que é UI-safe.
+    // `trace_id` no log E na resposta — é o que torna o par rastreável.
     logger.error('admin.audit_export.error', {
+      trace_id: traceId,
       clinicId: id,
       message: e instanceof Error ? e.message : String(e),
     });
-    return toErrorResponse(e);
+    return toErrorResponse(e, traceId);
   }
 }

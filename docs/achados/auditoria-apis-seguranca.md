@@ -191,8 +191,14 @@ tinha sido sanado pela remediação V11. Sobrava o pior: o path de **falha** dev
 `payload` cru da RPC (`{ok:false, error, sqlstate}`) a qualquer anônimo.
 
 **Implementação:**
-- `src/app/api/health/auth-hook/route.ts` — falha para de devolver `payload` (log +
-  envelope genérico); rota passa a exigir Bearer `CRON_SECRET` **ou** super_admin AAL2.
+- `src/app/api/health/auth-hook/route.ts` — rota passa a exigir Bearer `CRON_SECRET`
+  **ou** super_admin AAL2 (`aede5dd`). O `payload` de falha (com `sqlstate`) saiu do
+  corpo para o nível `monitoring` em `f209527`, na reauditoria: `aede5dd` só adicionou a
+  auth, e o Bearer ainda recebia o diagnóstico — inconsistente com a rota irmã, que
+  reserva `failures_by_type` ao super_admin (MEDIUM-19). Hoje: `monitoring` vê
+  ok/não-ok; `super_admin` vê o payload. **No caminho de sucesso ambos recebem o
+  payload** (`claims_keys`, `elapsed_ms`) — é o que `c3-validation.md` §4 manda
+  conferir, e não há o que vazar com o hook são.
 - `src/lib/http/health-auth.ts` (novo) — `healthAuthLevel()` extraído. `authLevel`
   estava **duplicado** em `health/route.ts` e `health/outbox/route.ts`; o auth-hook
   seria a 3ª cópia. Módulo separado do `cron-auth` de propósito: aqui a resolução de
@@ -563,10 +569,22 @@ da verdade. Seguimos a arquitetura da casa em vez da letra da recomendação.
 
 **Implementação** — no padrão dos 5 limiters existentes (lazy memoizado + `redisKey` +
 fail-open via `degraded()`), sem abstração nova:
-- **`assertInviteAllowed(clinicId, actorUserId)`** — dual: **20/1h por clínica**, **10/1h
-  por ator**. Por ator pega a conta comprometida; por clínica impede N gestores somando
-  para o mesmo efeito. Chamado **antes** do trabalho caro (quota + recovery link +
-  e-mail). Aplicado a `inviteMemberAction` e `resendInviteAction`.
+- **Convite e reenvio têm orçamentos SEPARADOS** — a 1ª versão usou um só, e a
+  reauditoria mostrou que estava errado (ver `f209527`): o teto de 10/1h por ator era
+  **menor que os 15 seats que o plano `pro` vende** (migration 0026), e como só
+  owner/gestor têm `manage:employees`, o owner travava no 11º funcionário do próprio
+  onboarding. A causa foi tratar as duas ações como o mesmo risco, e não são:
+  - **`assertInviteAllowed(clinicId, actorUserId)`** — **30/1h por ator, 60/1h por
+    clínica** (folgado). Convite **já** é limitado pela quota do plano
+    (`assertUserQuota`), e convite que falha não manda e-mail; o teto aqui só barra loop
+    patológico e tem de caber o onboarding real.
+  - **`assertResendInviteAllowed(clinicId, actorUserId)`** — **10/1h por ator, 20/1h por
+    clínica** (apertado). Reenvio não tem quota por trás e dá para repetir ao MESMO
+    endereço infinitas vezes, gerando recovery link a cada chamada. É o vetor caro.
+  - Por ator pega a conta comprometida; por clínica impede N gestores somando. Chamados
+    **depois** do Zod e **antes** do trabalho caro — com o teto antes da validação, dez
+    typos de e-mail queimavam o orçamento inteiro sem enviar um convite (mesma ordem que
+    o handler de export já documentava).
 - **`assertMfaAllowed(userId, ip)`** — **10/15min por usuário** (folga para quem erra o
   código: o TOTP roda a cada 30s, e 10⁶ códigos seguem inviáveis), **20/15min por IP**
   (frouxo de propósito: clínica atrás de NAT compartilha IP). Aplicado ao verify do login
@@ -841,8 +859,18 @@ Mínimo, como a auditoria disse; feito porque era de graça junto do A2.
   **422, não 400** — e a distinção passa a ser aplicada de propósito na rota: **400 =
   malformado** (data fora de `YYYY-MM-DD`, período invertido — seguem 400); **422 =
   bem-formado, não processável**.
-- **Rate-limit nas duas rotas de PDF** — `assertPdfExportAllowed(clinicId, userId)`,
-  10/15min por usuário + 30/15min por clínica; **429** em ambas.
+- **Rate-limit nas duas rotas de PDF** — `assertPdfExportAllowed(clinicId, userId, scope)`,
+  10/15min por usuário + 30/15min por clínica; **429** em ambas. O `scope` (`'tenant'`
+  default | `'admin'`) veio da reauditoria (`f209527`): o export do admin passa a
+  **clínica-alvo** como chave, e sem balde separado um super_admin exportando em lote
+  consumiria o orçamento de PDF DA CLÍNICA, barrando os usuários dela de gerar os
+  próprios relatórios. Atividade de plataforma não gasta orçamento de tenant.
+- **Erro em UM shape só** — todas as respostas de erro da rota (400/422/429/500) usam o
+  envelope C16 com o `trace_id` = `requestId` do request (o mesmo que vai para o log).
+  Também veio da reauditoria: deixar o `catch` no envelope e o resto em
+  `{error: '<string>'}` **quebrou a UI** — `error` no envelope é **booleano**, o form
+  fazia `setError(data.error)` → `setError(true)`, e o React não renderiza booleano: a
+  caixa de erro aparecia **vazia** e a mensagem do 422 nunca chegava ao operador.
 - **N2 (achado novo) — truncagem silenciosa:** o repo corta em `AUDIT_EXPORT_MAX_ROWS`
   (5000); o PDF saía com as primeiras N linhas e o `sha256` ia para `super_admin_actions`
   **como se atestasse o período inteiro**. Um artefato de auditoria incompleto que se
@@ -1105,6 +1133,9 @@ reabrir:
 | `471b8e3` | B1, B6 | envelope de erro; cap do export; **N2** |
 | `acde773` | B2 | check do caixa na porta única; **N3**, **N4** |
 | `2c44398` | B3, B4 | auth antes do trabalho; arch-test enxerga factory |
+| `cf65141` | — | fecha o relatório com evidência por achado |
+| `f209527` | A1, B1, B6, M3 | **reauditoria ciclo 1** — corrige regressões (envelope quebrando a UI; teto de convite < seats do plano; balde de PDF compartilhado; `unenroll_error` enganoso) |
+| `<ciclo 2>` | A1, B1, B6, M3 | **reauditoria ciclo 2** — `kind:'resend'` na métrica; `trace_id` que correlaciona de fato; teste da metade cliente; docblocks corrigidos |
 
 ### Gates (todos verdes no HEAD)
 
@@ -1138,6 +1169,31 @@ ADR-011 (§28 + addendum M2) · ADR-025 (addendum A2) · `VisãoGeral.md` (§4.1
 de rate-limit, §11.1, +1) · `CONVENTIONS.md` (exceção de chave Redis) · `c16/slo.md` (§3.1)
 · `PROGRESS.md` (HIGH-08) · runbooks `asaas-webhook-missing`, `c3-validation`,
 `c4-validation`, `production-readiness` · `c16-inventory` · `.env.example`.
+
+### Reauditoria (2 ciclos) — o que ela pegou
+
+Após a remediação, as APIs foram revarridas por revisores independentes. **Os achados
+originais estavam fechados**, mas a reauditoria encontrou **regressões introduzidas pela
+própria remediação** — todas corrigidas antes do fechamento:
+
+| Ciclo | Achado | Gravidade |
+|---|---|---|
+| 1 | **Envelope quebrava a UI do export.** `error` no envelope é **booleano**; o form fazia `setError(data.error)` → `setError(true)`; React não renderiza booleano → **caixa de erro vazia**. A mensagem do 422 — entregável central do B6 — nunca chegava ao operador. Causa: dois shapes de erro no mesmo handler. | **Alta** — anulava o B6 na prática |
+| 1 | **Teto de convite (10/1h) < seats do plano (15).** Owner travava no 11º funcionário do próprio onboarding. Causa: tratar convite e reenvio como o mesmo risco. | **Alta** — quebrava uso real |
+| 1 | Balde de PDF compartilhado: super_admin exportando consumia o orçamento da clínica-alvo. | Média |
+| 1 | `unenroll_error=1` no rate-limit do MFA dava conselho **auto-derrotante** (mandava verificar TOTP, que gasta o mesmo bucket). | Média |
+| 1 | Mensagem dizia "aguarde alguns minutos" numa janela de 1h. | Baixa |
+| 1 | Teto antes do Zod: dez typos queimavam o orçamento inteiro. | Baixa |
+| 2 | `assertResendInviteAllowed` emitia `degraded('invite')` — a métrica não distinguia qual orçamento degradou, que é exatamente a distinção que a separação existe para criar. | Média |
+| 2 | **A metade cliente da regressão não tinha teste.** Os testes travavam o shape do servidor; reverter uma linha do form reintroduzia o bug com a suíte verde. | Média |
+| 2 | `trace_id` não correlacionava com nada: `toErrorResponse` gerava um `randomUUID` por resposta e o log não o continha. O contrato do envelope não se cumpria. | Média |
+| 2 | Docblocks afirmando mais do que o código entrega (auth-hook "monitoring só vê ok/não-ok" — falso no sucesso; `secret-compare` "ponto único" — falso, sobraram 3 impls). | Baixa |
+
+**Lição registrada:** dos 10 itens, **6 são afirmações que eu escrevi e o código não
+cumpria** — a mesma classe de defeito que os achados M2 e A1 diagnosticaram no código
+alheio. O par "corrige o código, mas o comentário promete demais" é o modo de falha
+recorrente deste trabalho, e o motivo de cada correção crítica ter sido **provada**
+quebrando o código de propósito em vez de deduzida.
 
 ### Pendências operacionais (fora do código)
 
