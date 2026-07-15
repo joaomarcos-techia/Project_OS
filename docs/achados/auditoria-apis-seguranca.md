@@ -1135,19 +1135,19 @@ reabrir:
 | `2c44398` | B3, B4 | auth antes do trabalho; arch-test enxerga factory |
 | `cf65141` | — | fecha o relatório com evidência por achado |
 | `f209527` | A1, B1, B6, M3 | **reauditoria ciclo 1** — corrige regressões (envelope quebrando a UI; teto de convite < seats do plano; balde de PDF compartilhado; `unenroll_error` enganoso) |
-| `<ciclo 2>` | A1, B1, B6, M3 | **reauditoria ciclo 2** — `kind:'resend'` na métrica; `trace_id` que correlaciona de fato; teste da metade cliente; docblocks corrigidos |
+| `7ab8ee5` | A1, B1, B6, M3 | **reauditoria ciclo 2** — `kind:'resend'` na métrica; `trace_id` que correlaciona de fato; teste da metade cliente; docblocks corrigidos |
 
 ### Gates (todos verdes no HEAD)
 
 `typecheck` · `lint` · `arch:check` · `arch:db-check` · `check:migrations` ·
 `check:registry:strict` · `test` · `build` — os mesmos do CI (DoD §1).
-**Testes: 540 → 650 (+110).** Nenhum teste existente foi alterado para passar.
+**Testes: 540 → 669 (+129).** Nenhum teste existente foi alterado para passar.
 
 ### Cobertura nova
 
 | Área | Antes | Depois |
 |---|---|---|
-| Route handlers | **0 testes** no repo | 27 (auth-hook/health, webhook Asaas, export de auditoria) |
+| Route handlers | **0 testes** no repo | 35 (webhook Asaas 16, export de auditoria 19) + 8 de UI do export |
 | `safeEqual` | 0 | 18 |
 | `assertCronAuth` | — | 17 |
 | Rate limit (novos) | 0 | 8 (fail-open real, /64, janela) |

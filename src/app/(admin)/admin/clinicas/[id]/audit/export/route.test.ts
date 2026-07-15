@@ -10,15 +10,25 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { guardAdminAccess, requireUser, assertPdfExportAllowed, run, superAdminAction } = vi.hoisted(
-  () => ({
-    guardAdminAccess: vi.fn(async () => {}),
-    requireUser: vi.fn(async () => ({ userId: 'sa-1' })),
-    assertPdfExportAllowed: vi.fn(async (): Promise<{ ok: boolean; reason?: string }> => ({ ok: true })),
-    run: vi.fn(),
-    superAdminAction: vi.fn(async () => {}),
-  }),
-);
+const {
+  guardAdminAccess,
+  requireUser,
+  assertPdfExportAllowed,
+  run,
+  superAdminAction,
+  logError,
+  logWarn,
+  REQ_ID,
+} = vi.hoisted(() => ({
+  guardAdminAccess: vi.fn(async () => {}),
+  requireUser: vi.fn(async () => ({ userId: 'sa-1' })),
+  assertPdfExportAllowed: vi.fn(async (): Promise<{ ok: boolean; reason?: string }> => ({ ok: true })),
+  run: vi.fn(),
+  superAdminAction: vi.fn(async () => {}),
+  logError: vi.fn(),
+  logWarn: vi.fn(),
+  REQ_ID: 'req-fixo-para-o-trace',
+}));
 
 vi.mock('../../../../_lib/guard', () => ({ guardAdminAccess }));
 // `importOriginal` preserva AuditExportTooLargeError (o teste assere o mapeamento
@@ -39,11 +49,14 @@ vi.mock('@react-pdf/renderer', () => ({
 vi.mock('@/lib/auth/tenant-context', () => ({ requireUser }));
 vi.mock('@/lib/auth/rate-limit', () => ({ assertPdfExportAllowed }));
 vi.mock('@/lib/audit/super-admin', () => ({ superAdminAction }));
-vi.mock('@/lib/audit/request-context', () => ({ buildRequestContext: () => ({}) }));
-vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
-vi.mock('@/lib/observability/logger', () => ({
-  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+// `requestId` FIXO — com `() => ({})` o `rc.requestId` viria undefined e o
+// `toErrorResponse` cairia no randomUUID de fallback, mascarando justamente a
+// propriedade sob teste (o trace_id da resposta ser o do request/log).
+vi.mock('@/lib/audit/request-context', () => ({
+  buildRequestContext: () => ({ ip: null, userAgent: null, requestId: REQ_ID, correlationId: REQ_ID }),
 }));
+vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
+vi.mock('@/lib/observability/logger', () => ({ logger: { warn: logWarn, error: logError, info: vi.fn(), debug: vi.fn() } }));
 
 import { AuditExportTooLargeError } from '../../../../_lib/services/audit-export.service';
 
@@ -181,5 +194,44 @@ describe('shape do erro — um só, e legível pelo cliente', () => {
     const body = await (await post('2026-01-01', '2026-02-01')).json();
     expect(body.error).toBe(true);
     expect(body.message).toContain('Muitos exports');
+  });
+});
+
+/**
+ * O contrato do envelope (error-response.ts) é que o `trace_id` **correlaciona a
+ * resposta ao log**. Sem estes testes, apagar o `traceId` de todos os `fail()` deixa a
+ * suíte verde: `toErrorResponse` gera um randomUUID de fallback e um
+ * `toHaveProperty('trace_id')` passa igual — o operador recebe um id do usuário e não
+ * acha nada no log. É a propriedade inteira do achado.
+ */
+describe('trace_id correlaciona resposta ↔ log', () => {
+  it.each([
+    ['400', '01-01-2026', '2026-02-01'],
+    ['422', '1970-01-01', '2999-12-31'],
+  ])('%s: trace_id do corpo é o requestId do request, não um id novo', async (_n, from, to) => {
+    const body = await (await post(from, to)).json();
+    expect(body.trace_id).toBe(REQ_ID);
+  });
+
+  it('429: idem', async () => {
+    assertPdfExportAllowed.mockResolvedValue({ ok: false, reason: 'rate_limited' });
+    const body = await (await post('2026-01-01', '2026-02-01')).json();
+    expect(body.trace_id).toBe(REQ_ID);
+  });
+
+  it('500: o MESMO trace_id vai para o corpo E para o log — é o par que torna rastreável', async () => {
+    run.mockRejectedValue(new Error('boom'));
+
+    const body = await (await post('2026-01-01', '2026-02-01')).json();
+
+    expect(body.trace_id).toBe(REQ_ID);
+    expect(logError).toHaveBeenCalledWith(
+      'admin.audit_export.error',
+      expect.objectContaining({ trace_id: REQ_ID }),
+    );
+    // O log tem o detalhe; a resposta, não.
+    const logged = logError.mock.calls[0]![1] as { message: string };
+    expect(logged.message).toContain('boom');
+    expect(JSON.stringify(body)).not.toContain('boom');
   });
 });

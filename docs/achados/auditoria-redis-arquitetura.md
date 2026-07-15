@@ -260,7 +260,7 @@ ADR-008 F-08: com N instâncias, o limite efetivo vira ~N× o configurado.
 - **Impacto:** **segurança/multi-tenant** — a barreira contra vazamento cross-tenant no 1º uso de
   Redis por clínica passa a existir **antes** de ser necessária (maior valor preventivo).
   **Manutenção** — ponto único; **complexidade** — mínima (helper inline, sem módulo/ADR novo).
-- **Observações:** `redisKey.tenant()` ainda não tem caller de produção (o rate-limit é pré-auth);
+- **Observações:** `redisKey.tenant()` ainda não tem caller de produção (os limiters por clínica do M3/B6 são pós-auth, mas usam `global` + clinicId como identifier — exceção registrada em CONVENTIONS);
   é o **selo de convenção** (coberto por teste, não código morto) e a única função "forward-looking",
   justificada como a barreira que R2 pede.
 

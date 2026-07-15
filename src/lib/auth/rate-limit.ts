@@ -28,8 +28,16 @@
  * espelhando o papel de `withTenant`/`defaultTenantPolicy` no RLS). Toda chave
  * carrega um discriminador de ambiente (`VERCEL_ENV ?? NODE_ENV`) para que
  * dev/preview/prod nunca colidam mesmo se compartilharem a Upstash DB. Chaves
- * globais/pré-auth (IP, email_hash) usam `redisKey.global`; qualquer uso futuro
- * de dado por clínica DEVE usar `redisKey.tenant(clinicId, …)` — ver CONVENTIONS.
+ * globais/pré-auth (IP, email_hash) usam `redisKey.global`; **dado** por clínica
+ * (cache/lock) DEVE usar `redisKey.tenant(clinicId, …)`.
+ *
+ * **Exceção registrada (M3/B6 — está no CONVENTIONS):** os limiters PÓS-auth escopados
+ * por clínica (invite, resend, pdf) usam `redisKey.global('rl',…,'clinic')` + o
+ * `clinicId` como *identifier* do Upstash — que monta a chave como
+ * `[prefix, identifier]` com prefix ESTÁTICO, onde `t:{clinicId}` não caberia primeiro.
+ * Vale só para CONTADOR de rate-limit: o identifier é o próprio clinicId (não tem o que
+ * vazar) e é parâmetro obrigatório da função (não dá para esquecer). Sem esta nota, o
+ * arquivo aparenta violar a regra que ele mesmo enuncia.
  *
  * Server-only.
  */
@@ -139,14 +147,18 @@ const fallback = {
 const envSegment = env.VERCEL_ENV ?? env.NODE_ENV;
 
 export const redisKey = {
-  /** Chave global / pré-auth (sem dado de tenant). Ex.: `redisKey.global('rl','login','ip')`. */
+  /** Chave sem dado de tenant. Ex.: `redisKey.global('rl','login','ip')`. */
   global(...segments: string[]): string {
     return [envSegment, ...segments].join(':');
   },
   /**
-   * Chave com dado de tenant — o `clinicId` é OBRIGATÓRIO e vem sempre primeiro
-   * (`t:{clinicId}`), para nunca ser esquecido (espelha `withTenant`). Uso futuro
-   * (cache/lock por clínica); hoje o rate-limit é pré-auth e usa só `global`.
+   * Chave com DADO de tenant — o `clinicId` é OBRIGATÓRIO e vem sempre primeiro
+   * (`t:{clinicId}`), para nunca ser esquecido (espelha `withTenant`).
+   *
+   * Ainda sem caller: os limiters por clínica (invite/resend/pdf) são pós-auth mas
+   * usam `global` + clinicId como identifier, pela restrição de prefix estático do
+   * Upstash — ver a exceção no cabeçalho do módulo. Este helper é para o 1º cache ou
+   * lock por clínica, onde há dado de verdade a isolar.
    */
   tenant(clinicId: string, ...segments: string[]): string {
     return [envSegment, `t:${clinicId}`, ...segments].join(':');
