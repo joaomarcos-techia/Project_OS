@@ -50,8 +50,12 @@ ORDEM ESTRITA (G2 do plano):
    - Schema: `public`.
    - Function: `custom_access_token_hook`.
    - Save.
-4. Hit `/api/health/auth-hook` (em dev: `http://localhost:3000/api/health/auth-hook`):
+4. Hit `/api/health/auth-hook` com o Bearer (A1 — a rota exige auth desde 2026-07-15; sem header dá 401):
+   ```bash
+   curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/health/auth-hook
+   ```
    - Esperado: `{ "ok": true, "payload": { "ok": true, "claims_keys": [], "elapsed_ms": <int> } }`.
+   - Alternativa sem o segredo: logado como super_admin com MFA (AAL2), abrir a URL no browser.
 
 ## Passo 2 — Setup de fixtures para testes 3.6.x
 

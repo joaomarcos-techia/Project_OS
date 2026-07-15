@@ -56,7 +56,7 @@ Três instâncias Drizzle fisicamente distintas:
 
 ### 1.7 Health checks
 - [/api/health/outbox](../../src/app/api/health/outbox/route.ts): dois níveis (Bearer `CRON_SECRET` = mínimo; super_admin AAL2 = `failures_by_type`). Alarms: `outbox.failed>0`, `pending_age>300s`, `processing_age>600s`, `idem_orphans>0`, `audit_default_rows>1000`. `?strict=1`/`?alert=1` → 503.
-- `/api/health/auth-hook`: self-test do custom access token hook.
+- [/api/health/auth-hook](../../src/app/api/health/auth-hook/route.ts): self-test do custom access token hook. Mesma auth das irmãs (Bearer `CRON_SECRET` ou super_admin AAL2) desde o A1 da auditoria de APIs — era a única rota de health anônima. Auth das três em [health-auth.ts](../../src/lib/http/health-auth.ts).
 
 ### 1.8 Cron / heartbeats — `vercel.json` (12 jobs)
 

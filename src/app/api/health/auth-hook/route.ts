@@ -4,27 +4,35 @@
  * Healthcheck D11 do custom_access_token_hook. Invoca auth_hook_selftest()
  * (SECURITY DEFINER em 0003) e retorna 200 + {ok:true} OU 500 + erro.
  *
- * Consumido por monitoramento externo (UptimeRobot em C16). Em produção,
- * alarme se 3 hits consecutivos falharem.
+ * Consumido por monitoramento externo (UptimeRobot/Better Stack em C16). Em
+ * produção, alarme se 3 hits consecutivos falharem.
  *
- * NOTA: este endpoint vive em `/api/health/` — não em `/api/admin/` —
- * para ficar acessível sem autenticação. Não vaza dados sensíveis (apenas
- * confirma que a função está executável + lista de keys do payload).
+ * AUTH (A1 — auditoria de APIs): exige Bearer `CRON_SECRET` ou super_admin AAL2,
+ * igual às rotas irmãs `/api/health` e `/api/health/outbox` — era a única de
+ * `/api/health/**` anônima. O `payload` do selftest carrega `error`/`sqlstate` do
+ * Postgres no caminho de falha; sem auth, isso era diagnóstico interno servido à
+ * internet, e cada hit anônimo custava um round-trip na conexão privilegiada.
+ * `runbooks/production-readiness.md` §5.2 já especificava "mesmo header Bearer" —
+ * o código é que não implementava.
  *
  * Usa dbAdmin (BYPASSRLS) para invocar auth_hook_selftest sem precisar de
  * JWT. ESLint allowlist (eslint.config.mjs guard #2 ignores) cobre
- * `src/app/api/health/**` em C4 — endpoint não autenticado, mas só roda RPC
- * selftest (não expõe RLS bypass).
+ * `src/app/api/health/**` em C4 — só roda a RPC de selftest (não expõe RLS bypass).
  */
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { healthAuthLevel } from '@/lib/http/health-auth';
 import { logger } from '@/lib/observability/logger';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
+  if ((await healthAuthLevel(req)) === 'denied') {
+    return Response.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
   try {
     const res = await dbAdmin.execute(sql`SELECT public.auth_hook_selftest() AS r`);
     const rows = (Array.isArray(res) ? res : ((res as { rows?: unknown[] }).rows ?? [])) as Array<{
@@ -37,9 +45,11 @@ export async function GET(): Promise<Response> {
     }
     return Response.json({ ok: false, payload }, { status: 500 });
   } catch (e) {
-    // V11 (auditoria de segurança): endpoint NÃO autenticado — não devolver
-    // `e.message` cru (pode vazar schema/role em mensagens de erro do Postgres).
-    // Corpo genérico ao chamador; detalhe só no observability.
+    // V11 (auditoria de segurança): não devolver `e.message` cru — pode vazar
+    // schema/role em mensagens de erro do Postgres. Corpo genérico ao chamador;
+    // detalhe só no observability. Vale mesmo atrás de auth: o `payload` acima é
+    // diagnóstico estruturado que a RPC devolve de propósito; uma exceção não
+    // capturada é texto de driver, que não tem contrato.
     logger.error('health.auth_hook.error', {
       message: e instanceof Error ? e.message : String(e),
     });
