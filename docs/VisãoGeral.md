@@ -773,7 +773,7 @@ view:consultorio
 |---|---|---|
 | **Solo** | R$ 149 | 1 médico, 1 usuário, 200 agendamentos/mês, 200 conversas IA/mês |
 | **Clínica** | R$ 349 | até 5 usuários, 800 agendamentos/mês, 800 conversas IA/mês |
-| **Pro** | R$ 699 | até 15 usuários, 2500 agendamentos/mês, 2500 conversas IA/mês |
+| **Pro** | R$ 699 | até 10 usuários, 2500 agendamentos/mês, 2500 conversas IA/mês |
 | **Pro+** | sob consulta | ilimitado, SLA dedicado |
 
 <!-- ADR-024 (2026-06-15) — modelo de planos revisado, AUTORIDADE sobre menções
@@ -815,7 +815,7 @@ capacidade (usuários), serviço/SLA e features que só passam a importar com eq
   - Permissões por função (médico, recepção, financeiro) *(escala-natural)*
   - Auditoria de acessos — quem viu/alterou o quê *(escala-natural)*
   - **Suporte prioritário** *(serviço/SLA)*
-- **Pro** (até 15 usuários) — tudo do Clínica, mais:
+- **Pro** (até 10 usuários) — tudo do Clínica, mais:
   - Relatórios consolidados de todos os profissionais *(escopo, não feature nova)*
   - **Gerente de conta dedicado** *(serviço/SLA)*
   - Prioridade no suporte e em novas funcionalidades

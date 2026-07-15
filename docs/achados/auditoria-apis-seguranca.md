@@ -378,12 +378,32 @@ verificação foi além da amostra da auditoria: **todos** os 26 arquivos
 `contexts/**/actions*.ts` + `app/**/actions*.ts` foram varridos — **zero** escopos
 só-por-id restantes. RLS deixa de ser a única barreira nesses caminhos.
 
-**Implementação (longo prazo — ⚠️ diferido a C16):** existe o opt-in
-`DATABASE_URL_RUNTIME` (`db/index.ts`) — quando definido, o pool runtime conecta por um
-role **sem BYPASSRLS**, e um `withTenant` esquecido retorna 0 linhas em vez de vazar
-(fail-close real). É `.optional()`: **por default o pool segue com BYPASSRLS**. Falta
-provisionar o role no Postgres e apontar a env — infra, não código. Segue como dívida
-de C16, agora com o caminho pronto.
+**Implementação (longo prazo — ⚠️ em andamento; dev feito, prod pendente):**
+
+> **Correção de rota (2026-07-15):** a 1ª versão deste bloco dizia "diferido a C16". **A
+> C16 fechou** (implementação em produção desde 2026-07-02; o que resta dela são passos
+> operacionais). Eu li `PROGRESS.md`, que dizia "⏳ pendente", e propaguei o erro — o
+> PROGRESS é que estava desatualizado. "Diferir para C16" era um ponteiro morto. O item
+> agora é o **D1** de [PROGRESS §Dívida técnica pós-C16](../PROGRESS.md), com gatilho
+> explícito (**antes do 1º cliente pagante**) e procedimento em
+> [runbooks/runtime-role-nobypassrls.md](../runbooks/runtime-role-nobypassrls.md).
+
+O opt-in `DATABASE_URL_RUNTIME` (`db/index.ts`) faz o pool runtime conectar por um role
+**sem BYPASSRLS**. Falta provisionar o role — infra, não código.
+
+**Provado no qoro-dev (2026-07-15), não deduzido.** O achado A3 foi reproduzido e a
+correção medida, com 2 clínicas e 4 pacientes reais:
+
+| Cenário | Pacientes visíveis | Veredito |
+|---|---|---|
+| **A.** `postgres` (role do pool hoje, `rolbypassrls=true`) **sem** `withTenant` | **4** | **vaza — enxerga as duas clínicas.** É o A3, reproduzido |
+| **B.** `qoro_runtime` (`NOBYPASSRLS`) **sem** `withTenant` — o mesmo esquecimento | **0** | **fail-close** |
+| **C.** `qoro_runtime` **com** `withTenant` (SET ROLE authenticated + GUC) | 2 | caminho normal intacto — a correção não quebra o app |
+| **D.** contexto da clínica A, buscando pacientes da B | 0 | isolamento cross-tenant preservado |
+
+Role criado no dev **sem senha** de propósito (a senha é do founder, não trafega em
+transcript). Falta: senha + `DATABASE_URL_RUNTIME` + smoke → depois repetir em prod.
+Rollback é remover a env e redeploy — por isso o desenho é opt-in.
 
 **Residual conhecido (aceito, documentado):** caminhos `internal/`/cron escapam da
 varredura de `actions.ts` e escopam por id em pools **BYPASSRLS** —
@@ -1203,5 +1223,25 @@ quebrando o código de propósito em vez de deduzida.
 2. **Alerta p95 do `billing.webhook.verify`** (> 5s por 5min) — threshold definido em
    `c16/slo.md` §3.1, **disparo não wired**: depende do go-live #2 (canal de alerta), que
    segue aberto. Vale para todo o alerting do C16, não é dívida desta remediação.
-3. **A3 longo prazo:** provisionar o role sem BYPASSRLS e apontar `DATABASE_URL_RUNTIME`
-   → fail-close real. Código pronto; falta infra. C16.
+3. **A3 longo prazo (D1):** role `qoro_runtime` **criado e validado no qoro-dev**
+   (2026-07-15) — falta a senha, a env `DATABASE_URL_RUNTIME` e o smoke; depois repetir
+   em prod. Procedimento + prova em
+   [runbooks/runtime-role-nobypassrls.md](../runbooks/runtime-role-nobypassrls.md).
+   Gatilho: **antes do 1º cliente pagante**. Rollback = remover a env.
+
+### Correção de rota sobre "C16" (2026-07-15)
+
+Vários itens deste relatório foram escritos como "diferido para C16". **A C16 já estava
+fechada** — implementação em produção desde 2026-07-02, restando só passos operacionais
+(go-live #2, drills 5/6, rehearsal). Eu tirei o "pendente" de `PROGRESS.md`, que estava
+desatualizado, e propaguei. Onde cada item foi re-endereçado:
+
+| Era | Virou |
+|---|---|
+| A3 longo prazo → "C16" | **D1** em PROGRESS §Dívida pós-C16 + runbook próprio. Gatilho: antes do 1º cliente pagante |
+| B7 (caps de IA) → "C16/ao escalar" | **D2**, gatilho: 1ª instância a mais em produção **ou** gasto de IA perto do orçamento |
+| Alerta p95 do webhook → "go-live #2" | **Continua correto** — go-live #2 é real e está aberto. Virou o sub-item **2.b** do checklist |
+| Header do monitor do auth-hook | Sub-item **2.a** do go-live #2 (que já mandava conferir o header nos monitores de health) |
+
+Também corrigido o ponteiro morto em `src/lib/db/tenant.ts` ("deferred to C16") e o
+status da C16 em `PROGRESS.md`, que era a fonte do erro.

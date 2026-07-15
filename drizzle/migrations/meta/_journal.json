@@ -274,6 +274,13 @@
       "when": 1783300000000,
       "tag": "0038_security_definer_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784131200000,
+      "tag": "0039_plan_pro_seats_10",
+      "breakpoints": true
     }
   ]
 }

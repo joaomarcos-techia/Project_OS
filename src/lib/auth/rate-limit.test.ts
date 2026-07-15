@@ -241,10 +241,11 @@ describe('M3 — fail-open com Redis indisponível', () => {
     expect(results[31]).toEqual({ ok: false, reason: 'rate_limited' });
   });
 
-  // A regressão que este teste existe para travar: o plano `pro` vende 15 seats
-  // (migration 0026) e só owner/gestor têm manage:employees — é UM ator convidando
-  // todos. Um teto de 10 travava o cliente no 11º funcionário do próprio onboarding.
-  it('o onboarding de uma clínica `pro` cheia (15 seats) cabe no teto do ator', async () => {
+  // A regressão que este teste existe para travar: o maior plano vende 10 seats
+  // (`plan_limits`, migration 0039) e só owner/gestor têm manage:employees — é UM ator
+  // convidando todos. A 1ª versão usou 10/1h e travava o cliente no meio do onboarding.
+  // Testa 15 (não 10) de propósito: o teto tem de sobreviver a um aumento de seats.
+  it('o onboarding de uma clínica cheia cabe no teto do ator, com folga', async () => {
     spies();
     const results = [];
     for (let i = 0; i < 15; i++) {

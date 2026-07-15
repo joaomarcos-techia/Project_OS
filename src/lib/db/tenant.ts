@@ -25,8 +25,11 @@
  *     role-switch; it does NOT, by itself, isolate the BYPASSRLS pool role. If
  *     the role-switch ever fails as a HARD error, the transaction aborts
  *     (fail-closed). If it silently no-ops or `withTenant` is bypassed,
- *     isolation is LOST — FORCE does not save it. The structural fail-closed
- *     fix (dedicated non-BYPASSRLS pool role) is deferred to C16.
+ *     isolation is LOST — FORCE does not save it. The structural fail-closed fix
+ *     is a dedicated non-BYPASSRLS pool role: the CODE is ready and opt-in via
+ *     `DATABASE_URL_RUNTIME` ([db/index.ts]); what is missing is provisioning the
+ *     role in Postgres. Tracked in PROGRESS §"Dívida técnica pós-C16" — NOT
+ *     "deferred to C16": C16 shipped, so that pointer was dangling.
  *   - `set_config(..., true)` is the function form of SET LOCAL — accepts a
  *     bind parameter (no string interpolation, no injection risk) and is
  *     scoped to the active transaction.

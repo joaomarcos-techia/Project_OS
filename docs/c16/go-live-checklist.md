@@ -25,6 +25,29 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 - **Better Stack Uptime** → no monitor → On-call / Escalation → canal (e-mail/SMS/Slack). E confirme que os monitores de health têm o header `Authorization: Bearer <CRON_SECRET>` (senão 401).
 **Pronto quando:** um erro forçado te notifica; e derrubar o health (ex.: tirar uma env) dispara o alerta de uptime.
 
+### 2.a ⚠️ AÇÃO NOVA — monitor do `/api/health/auth-hook` (A1, 2026-07-15)
+**Por quê:** essa rota era **anônima no código** até a remediação da auditoria de APIs —
+só a doc a descrevia como autenticada (§5 desta lista, e §5.2 do
+[production-readiness](../runbooks/production-readiness.md)). Se o monitor dela foi criado
+sem o header, ele **passa a receber 401** e vai alarmar falso no próximo deploy.
+**Como:** Better Stack → monitor do auth-hook → Request headers → `Authorization: Bearer <CRON_SECRET>`.
+As rotas irmãs (`/api/health`, `/api/health/outbox`) já exigiam o header — se elas estão
+verdes hoje, é só copiar a mesma config.
+**Pronto quando:** o monitor do auth-hook volta 200 com o header e 401 sem ele.
+
+### 2.b Saved search do `billing.webhook.verify` p95 (A2, 2026-07-15)
+**Por quê:** o webhook do Asaas passou a **verificar o pagamento no provider** antes de
+mudar estado (ADR-025 addendum). Isso põe uma chamada HTTP no caminho do webhook, com
+teto de ~10s dentro de um `maxDuration` de 30s. O threshold está definido em
+[slo.md §3.1](./slo.md); **o disparo depende deste item #2**.
+**Como:** Better Stack → saved search em `kind:"metric" event:"billing.webhook.verify"` →
+alerta quando **p95 de `duration_ms` > 5s por 5min**. Complementos úteis no mesmo canal:
+`billing.webhook.error` (taxa de 500) e `billing.reconcile.divergence` (o reconcile achou
+o que o webhook não refletiu — evento perdido **ou** forjado).
+**Pronto quando:** o alerta dispara num teste forçado. **Severidade: investigação, não
+pager** — a degradação aqui é fail-safe (nada é persistido, o Asaas re-entrega, o
+reconcile diário corrige). Ver `runbooks/asaas-webhook-missing.md`.
+
 ## 3. Restore test (o bloqueador do plano) — agora em 1 comando
 **O que:** provar que o backup **restaura** (backup não-testado = não é backup).
 **Como (grátis, sem PITR):**
@@ -69,6 +92,8 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 ## Resumo (marque conforme fizer)
 - [x] 1. `SENTRY_AUTH_TOKEN` na Vercel + redeploy — source maps confirmados legíveis (2026-07-02)
 - [~] 2. Alerta no Sentry (Alert Rule → Issues → env=production) + escalation/canal no Uptime — **finalizar**
+- [ ] 2.a Header `Authorization: Bearer` no monitor do `/api/health/auth-hook` — **antes do próximo deploy** (a rota virou autenticada; sem o header o monitor alarma falso)
+- [ ] 2.b Saved search do `billing.webhook.verify` p95 > 5s/5min (threshold já em `slo.md` §3.1)
 - [x] 3. Restore test — restaurado no scratch/dashboard (prod ~vazio → 0 tenant é esperado)
 - [x] 4. Backup diário (Action) verde + secrets configurados (2026-07-02)
 - [x] 5a. Drill 1 (Sentry) — feito ao vivo (event id via /api/health/sentry-test)
@@ -76,5 +101,12 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 - [ ] 5c. Drill 5 (audit hash) + Drill 6 (prompt injection)
 - [ ] 6. Production rehearsal
 
-**Falta:** finalizar #2 (salvar a Alert Rule com env=production + garantir o canal de
-notificação no Uptime) e fazer #5c/#6 (antes do 1º cliente). O resto está fechado.
+**Falta:** finalizar #2 (Alert Rule com env=production + canal no Uptime + os dois
+sub-itens 2.a/2.b da auditoria de APIs) e fazer #5c/#6 (antes do 1º cliente). O resto
+está fechado.
+
+> **Nota sobre o 5c (Drill 5 — audit hash):** o export de auditoria mudou na auditoria de
+> APIs (B6). Ao rodar o drill, o comportamento esperado agora é: período > 12 meses → **422**
+> com mensagem; período que estouraria 5000 eventos → **422** (antes saía um PDF truncado
+> em silêncio com o `sha256` atestando o período inteiro). O hash de duas execuções do
+> mesmo período continua tendo de bater.

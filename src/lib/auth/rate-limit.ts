@@ -378,8 +378,9 @@ export async function assertJoinAllowed(ip: string): Promise<LimitResult> {
  *   - **Convite já é limitado pela quota do plano** (`assertUserQuota` — ADR-024): não
  *     dá para convidar além dos seats contratados, e convite que falha não manda
  *     e-mail. O teto aqui só barra loop patológico. Precisa caber o onboarding real:
- *     o plano `pro` vende **15 seats** (migration 0026), e o owner é quem convida
- *     todos — um teto de 10 travaria o cliente no 11º funcionário. 30/1h dá folga.
+ *     o maior plano vende **10 seats** (`plan_limits`, migration 0039), e o owner é
+ *     quem convida todos — a 1ª versão usou 10/1h e travaria o cliente no meio do
+ *     próprio onboarding. 30/1h dá folga mesmo se o teto de seats subir.
  *   - **Reenvio não é limitado por nada.** Cada chamada gera um recovery link REAL no
  *     Supabase + e-mail, e dá para reenviar ao MESMO endereço infinitas vezes. É o
  *     vetor caro: sem teto, a marca do cliente vira fonte de spam. 10/1h é de sobra

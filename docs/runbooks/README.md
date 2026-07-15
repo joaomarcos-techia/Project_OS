@@ -14,6 +14,7 @@ Procedimentos operacionais documentados. Cada camada que adiciona ação operaci
 | [c1-validation.md](./c1-validation.md) | C1 | Validar camada de banco após mudança em db/scripts/drizzle |
 | [migrations.md](./migrations.md) | C1+ | **Procedimento de migration (dev e prod) + rollback + troubleshooting** |
 | [c2-validation.md](./c2-validation.md) | C2 | Validar multi-tenant + RLS (isolamento, FORCE, slugs reservados) |
+| [runtime-role-nobypassrls.md](./runtime-role-nobypassrls.md) | C2+ | **Role runtime sem BYPASSRLS — fail-close real do `withTenant`** (D1 / achado A3 / ADR-007 F-01) |
 | [c3-validation.md](./c3-validation.md) | C3 | Validar Identity/Auth/Custom Claims/RBAC (Hook, drift, MFA, rate limit) |
 | [secret-rotation.md](./secret-rotation.md) | C3+ | Inventário de segredos + ordem/impacto de rotação + GCP Secret Manager |
 | [c4-validation.md](./c4-validation.md) | C4 | Validar Outbox/Audit/Idempotency + operações manuais (replay, retention, circuit) |

@@ -25,7 +25,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | C13 | Tenancy & Billing | ✅ **fechada** | 2026-06-17 (**verificada em prod 2026-06-18** — round-trip de webhook Asaas real; unit 21/21 + smoke-c13 8/8; migration 0026; ADR-024/025; checkout UI + owner-creation são onboarding, fora do escopo) |
 | C14 | Proactive Jobs | ✅ **fechada** | 2026-06-18 (lembrete D-1 + dunning paciente D+3/D+7 + followup; cron determinístico envia, IA interpreta resposta; 388 testes + smoke-c14 8/8; migration 0027; ADR-026; templates Meta = go-live) |
 | C15 | Platform Admin | ✅ **fechada** | 2026-06-20 (painel do fundador `/admin` com 404-absoluto + impersonate auditado + step-up MFA + export PDF; migration 0028; 408 testes; aceite manual em `docs/testesC15.md`) |
-| C16 | Observabilidade & Hardening | ⏳ pendente | — |
+| C16 | Observabilidade & Hardening | ✅ **implementada e em produção** (Sentry + logs estruturados + métricas + `/api/health` + backup diário verde + restore test + drills 1/2 ao vivo). **Faltam passos OPERACIONAIS, não código:** go-live #2 (salvar a Alert Rule + canal de notificação), #5c (drills 5/6) e #6 (production rehearsal) — ver [go-live-checklist](c16/go-live-checklist.md) | 2026-07-02 (implementação) |
 
 ---
 
@@ -1210,6 +1210,48 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 - **Testes 540 → 650.** Primeiros testes de route handler do repo (antes: zero).
 - **Pendências operacionais:** conferir o header no monitor do auth-hook; alerta p95 do
   `billing.webhook.verify` depende do go-live #2 (canal de alerta, aberto).
+
+---
+
+## Dívida técnica pós-C16 (2026-07-15)
+
+> **Por que esta seção existe.** Até aqui, dívida arquitetural era "diferida para C16".
+> A C16 **fechou** (implementação em produção desde 2026-07-02), então esse destino virou
+> um ponteiro morto — e a auditoria de APIs foi escrita apontando para ele. Estes itens
+> agora têm **gatilho explícito e dono**, não uma camada futura.
+
+| # | Item | Estado | Gatilho para fazer |
+|---|---|---|---|
+| **D1** | **Role dedicado sem BYPASSRLS para o pool runtime** (A3 longo prazo). Hoje um `withTenant` esquecido **vaza** em vez de falhar fechado — só o `arch-db-check` (AST, CI) barra. | Código **pronto e opt-in**: `DATABASE_URL_RUNTIME` ([db/index.ts](../src/lib/db/index.ts)). Falta **provisionar o role** no Postgres. Ver "Plano D1" abaixo. | **Antes do 1º cliente pagante.** É o hardening de maior valor da auditoria de APIs e não depende de escala. |
+| **D2** | **Circuit breaker + quota de IA distribuídos** (B7). Hoje per-instância → sob multi-instância o teto efetivo vira ~N×. | Aceito e documentado (ADR-022 §11.17). Impacto é **custo**, não segurança. | **A 1ª instância a mais em produção**, OU o gasto de IA se aproximar do orçamento. O que vier antes. Aí a extração para `src/lib/redis/` (CONVENTIONS §chaves Redis) deixa de ser prematura. |
+| **D3** | Fallback de rate-limit per-instância (~N× durante outage do Upstash) | Aceito (ADR-008 F-08) | Mesmo gatilho do D2 — o Redis já estaria em jogo. |
+| **D4** | Auth-epoch / revogação imediata de sessão (janela de replay de JWT de 15min) | Aceito (ADR-009 D12/D27) | Primeiro incidente de sessão, ou exigência de compliance de cliente. |
+| **D5** | CSP bloqueante com nonce (hoje `Report-Only`) | Aceito (ADR-030) | Quando o relatório de CSP estiver limpo por ~1 semana em produção. |
+| **D6** | Sanear o journal de migrations (snapshots `meta/*.json` com lacunas → `db:generate` inseguro) | Aceito (ADR-020) | Quando uma evolução de schema exigir `db:generate` de verdade. |
+
+### Plano D1 — provisionar o role sem BYPASSRLS
+
+O `withTenant` faz `SET LOCAL ROLE authenticated`, então o role do pool **precisa ser
+membro de `authenticated`** para o switch funcionar. Sem BYPASSRLS, uma query que
+escape do `withTenant` roda sem o GUC `app.current_clinic` e sem claims → a policy
+dual-context resolve falso → **0 linhas** em vez de vazamento.
+
+```sql
+CREATE ROLE qoro_runtime LOGIN PASSWORD '<forte>' NOBYPASSRLS;
+GRANT authenticated TO qoro_runtime;          -- habilita o SET LOCAL ROLE
+GRANT USAGE ON SCHEMA public TO qoro_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO qoro_runtime;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO qoro_runtime;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO qoro_runtime;
+```
+
+Depois: `DATABASE_URL_RUNTIME` = connection string desse role (Vercel, por ambiente).
+`dbAdmin`/`dbWorker` **continuam** no `DATABASE_URL` (BYPASSRLS é necessário para eles).
+
+**Validação obrigatória (é o ponto do exercício):** (1) fluxo tenant normal segue
+funcionando via `withTenant`; (2) uma query **sem** `withTenant` retorna **0 linhas** em
+vez de vazar. Sem o passo (2) provado, o D1 não está feito — só configurado.
 
 ---
 
