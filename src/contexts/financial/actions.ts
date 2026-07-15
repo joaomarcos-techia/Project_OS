@@ -14,13 +14,17 @@
 import { and, eq, sql } from 'drizzle-orm';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import {
+  requireCachedAnyPermission,
+  requireCachedPermission,
+  requireClinicId,
+  requireUser,
+} from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import {
-  FinancialForbiddenError,
   FinancialValidationError,
   LancamentoNotFoundError,
   SupplierNotFoundError,
@@ -42,6 +46,12 @@ import {
   toSupplierSummary,
 } from './queries';
 import { lancamentos, paymentProofs, suppliers } from './schema';
+
+/**
+ * Operar o caixa (confirmar/cancelar pagamento) aceita qualquer um dos dois —
+ * decisão de RBAC do founder. Uma lista só, para os dois call-sites não divergirem.
+ */
+const CAIXA_PERMISSIONS = [PERMISSIONS.OPERATE_CAIXA, PERMISSIONS.MANAGE_FINANCIAL] as const;
 import {
   CancelLancamentoSchema,
   ConfirmPaymentSchema,
@@ -132,10 +142,7 @@ export async function confirmPayment(
   idempotencyKey: string,
 ): Promise<LancamentoSummary> {
   const user = await requireUser();
-  const canOperate =
-    user.permissions.includes(PERMISSIONS.OPERATE_CAIXA) ||
-    user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
-  if (!canOperate) throw new FinancialForbiddenError('Sem permissão para operar o caixa.');
+  await requireCachedAnyPermission(CAIXA_PERMISSIONS);
   const data = ConfirmPaymentSchema.parse(input);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
@@ -228,12 +235,7 @@ export async function cancelLancamento(
   input: CancelLancamentoInput,
   idempotencyKey: string,
 ): Promise<LancamentoSummary> {
-  const user = await requireUser();
-  // operate:caixa cobre confirmar E cancelar pagamento (decisão RBAC do founder).
-  const canOperate =
-    user.permissions.includes(PERMISSIONS.OPERATE_CAIXA) ||
-    user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
-  if (!canOperate) throw new FinancialForbiddenError('Sem permissão para operar o caixa.');
+  await requireCachedAnyPermission(CAIXA_PERMISSIONS); // cobre confirmar E cancelar
   const data = CancelLancamentoSchema.parse(input);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();

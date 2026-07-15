@@ -215,6 +215,29 @@ export async function requireCachedPermission(perm: Permission): Promise<void> {
 }
 
 /**
+ * Como `requireCachedPermission`, mas passa se o usuário tiver QUALQUER UMA das
+ * permissões (OR). Existe porque o caixa aceita dois papéis para a mesma operação
+ * (`OPERATE_CAIXA` OU `MANAGE_FINANCIAL` — decisão de RBAC do founder).
+ *
+ * B2 (auditoria de APIs): esse OR era montado à mão dentro das actions financeiras,
+ * lendo `user.permissions` direto. Parecia equivalente e NÃO era: faltava o bypass
+ * `isSuperAdmin` acima, então um super_admin fora de impersonação era negado nessas
+ * duas actions e aceito em todas as outras. Authz fora da porta única não é só
+ * duplicação — é divergência silenciosa.
+ */
+export async function requireCachedAnyPermission(perms: readonly Permission[]): Promise<void> {
+  const user = await requireUser();
+  if (user.isSuperAdmin) return; // P7 — platform role bypassa RBAC
+  if (!perms.some((p) => user.permissions.includes(p))) {
+    throw new AuthError(
+      `Permissão negada (cached): exige uma de [${perms.join(', ')}].`,
+      'forbidden',
+      403,
+    );
+  }
+}
+
+/**
  * Revalida permission lendo profile + role_permissions + overrides do banco.
  * Garantia forte (D20): nenhuma janela stale. Custo ~5ms (3 queries indexadas).
  *

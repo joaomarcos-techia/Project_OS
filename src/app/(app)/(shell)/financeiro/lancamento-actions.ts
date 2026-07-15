@@ -13,11 +13,23 @@ function str(fd: FormData, k: string): string | undefined {
   return s === '' ? undefined : s;
 }
 
+/**
+ * B2: mapeava `FinancialForbiddenError`, que a porta única nunca lançou — a authz
+ * de `createLancamento` sempre foi `requireCachedPermission` → `AuthError`. Pior: o
+ * fallback devolvia `err.message` de QUALQUER erro, então uma negativa de permissão
+ * exibia "Permissão 'manage:financial' negada (cached). Verifique role/overrides."
+ * ao usuário — e um erro de driver vazaria igual. Só `FinancialValidationError` tem
+ * mensagem escrita para a UI (mesmo critério de [action-result.ts]).
+ */
 function messageFrom(err: unknown): string {
-  const name = err && typeof err === 'object' && 'name' in err ? (err as { name?: string }).name : '';
-  if (name === 'FinancialForbiddenError') return 'Você não tem permissão para criar lançamentos.';
-  if (err instanceof Error) return err.message;
-  return 'Erro inesperado.';
+  if (!(err instanceof Error)) return 'Erro inesperado.';
+  if (err.name === 'AuthError') {
+    const code = (err as { code?: string }).code;
+    if (code === 'unauthenticated') return 'Sua sessão expirou. Entre novamente.';
+    return 'Você não tem permissão para criar lançamentos.';
+  }
+  if (err.name === 'FinancialValidationError') return err.message;
+  return 'Não foi possível criar o lançamento. Tente novamente.';
 }
 
 export async function createLancamentoFormAction(

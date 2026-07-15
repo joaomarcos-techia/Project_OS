@@ -41,12 +41,7 @@ export class SupplierNotFoundError extends Error {
   }
 }
 
-/** Permissão insuficiente para a ação financeira (ex.: caixa sem operate:caixa). */
-export class FinancialForbiddenError extends Error {
-  readonly code = 'financial_forbidden';
-  readonly httpStatus = 403;
-  constructor(message = 'Você não tem permissão para esta ação financeira.') {
-    super(message);
-    this.name = 'FinancialForbiddenError';
-  }
-}
+// `FinancialForbiddenError` foi removido no B2 (auditoria de APIs): authz é da porta
+// única (`tenant-context`), que lança `AuthError`. Um erro de permissão próprio do
+// contexto só existia para servir os checks à mão que o B2 eliminou — mantê-lo
+// convidaria a recriá-los.
