@@ -23,6 +23,7 @@
 // ações tenant (como as de paciente) já passam por requireClinicId, que LANÇA
 // para super_admin — logo um super_admin em aal1 não as alcança.
 export const CRITICAL_ACTIONS: readonly string[] = Object.freeze([
+  'cancelInviteAction',
   'connectMyClinicWhatsapp',
   'deletePatient',
   'disconnectMyClinicWhatsapp',
@@ -30,5 +31,6 @@ export const CRITICAL_ACTIONS: readonly string[] = Object.freeze([
   'inviteMemberAction',
   'requestLgpdDelete',
   'requestLgpdExport',
+  'resendInviteAction',
   'signProntuario',
 ]);

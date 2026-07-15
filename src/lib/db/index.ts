@@ -82,8 +82,13 @@ const globalForDb = globalThis as unknown as {
   __workerClient?: ReturnType<typeof postgres>;
 };
 
+// V1.3 (auditoria de segurança) — fail-closed OPT-IN: o pool RUNTIME conecta por
+// DATABASE_URL_RUNTIME quando definido (role SEM BYPASSRLS → `withTenant` esquecido
+// retorna 0 linhas em vez de vazar). Ausente → DATABASE_URL atual (inalterado).
+// dbAdmin/dbWorker (abaixo) permanecem no DATABASE_URL (BYPASSRLS, necessário).
 const runtimeClient =
-  globalForDb.__runtimeClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 5 });
+  globalForDb.__runtimeClient ??
+  postgres(env.DATABASE_URL_RUNTIME ?? env.DATABASE_URL, { ...sharedOpts, max: 5 });
 // dbAdmin pool max:5 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
 // request do painel faz várias leituras (layout + página + pages com Promise.all),
 // que o Next renderiza concorrentemente. Com max:1 essas leituras serializavam e

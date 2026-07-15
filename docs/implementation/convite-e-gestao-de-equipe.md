@@ -1,9 +1,12 @@
 # Spec de Implementação — Convite e gestão de equipe (Identity)
 
-**Status:** sub-fase 1 (Convidar) **IMPLEMENTADA** (2026-07-05) · sub-fases 2–3 pendentes · **Camada:** follow-up de C3 (Identity) + toque em C13 (Billing) ·
+**Status:** sub-fase 1 (Convidar) **IMPLEMENTADA** (2026-07-05) · sub-fase **2a (reenviar/cancelar convite)
+IMPLEMENTADA** (2026-07-10, [ADR-034](../adr/034-invite-resend-copy-link.md)) · sub-fases 2b (desativar/reativar +
+overrides) e 3 pendentes · **Camada:** follow-up de C3 (Identity) + toque em C13 (Billing) ·
 **Refs:** ADR-008 (identity patterns — P6/D20/D27/D31/D33/F-14), ADR-010 (SECURITY DEFINER),
 ADR-024 (plano = só limites; `users` é trava dura), ADR-027 (padrão de convite mágico — referência),
-ADR-016 (lifecycle: clínica suspensa não convida), ADR-007 (RLS), ADR-011 (outbox/audit).
+ADR-016 (lifecycle: clínica suspensa não convida), ADR-007 (RLS), ADR-011 (outbox/audit),
+ADR-034 (reenvio = link copiável via `recovery`).
 
 > **Contexto.** A tela [Equipe & Permissões](../../src/app/(app)/(shell)/equipe/page.tsx) hoje é
 > **somente leitura** — o próprio código avisa *"Convites e edição de função chegam em seguida"*
@@ -221,6 +224,14 @@ permissões efetivas = *bundle do papel* ∪ *grants* ∖ *denies* já são comp
   `auth.admin.signOut` server-side (P2). Acesso cai no próximo request.
 - **Reativar** = `ativo = true` (não recria auth user). **Reenviar/cancelar convite** = para quem ainda não
   definiu senha.
+
+> **✅ Sub-fase 2a implementada (2026-07-10) — reenviar/cancelar convite pendente.** Reenviar:
+> `generateLink({type:'recovery'})` gera um link novo (mesmo profile/id) que a UI **copia** para o owner entregar
+> (WhatsApp/e-mail) — `invite` erra em user existente e magiclink é login; racional em
+> [ADR-034](../adr/034-invite-resend-copy-link.md). Cancelar: hard delete do profile pendente (cascade
+> `auth.users`) + `deleteUser` best-effort **logado** (débito #6). Ações na linha da Equipe (menu, só p/
+> pendentes). `resendInviteAction`/`cancelInviteAction` são CRITICAL_ACTIONS. **Sem migração.** Falta da 2b:
+> desativar/reativar (agenda futura ADR-032 §4) + overrides curados.
 - Guardas: não mexer em papel ≥ ao seu; **nunca** desativar o **último** `owner` ativo da clínica.
 
 ## Fase 3 — Trocar função (e overrides avançados, se um dia)

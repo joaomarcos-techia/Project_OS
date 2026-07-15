@@ -21,6 +21,21 @@ export class JsonUnsafeError extends Error {
   }
 }
 
+/**
+ * Normaliza um payload para ser JSON-safe na idempotência: remove chaves
+ * `undefined` (que o Zod mantém para campos opcionais em branco).
+ * Determinístico: mesmo input lógico → mesmo hash.
+ *
+ * COMPLEMENTAR a assertJsonSafe (mesmo módulo — mesmo domínio, serialização
+ * para idempotência), NÃO substituta. São papéis distintos e ambos são usados:
+ *   - assertJsonSafe: VALIDA e LANÇA (rejeita undefined/Date/BigInt/NaN/…).
+ *   - jsonSafe:       NORMALIZA (stripper de `undefined`). Não valida.
+ * Não remover uma "porque parece redundante": elas se apoiam mutuamente.
+ */
+export function jsonSafe<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export function assertJsonSafe(value: unknown, path = '$'): void {
   if (value === null) return;
   const t = typeof value;

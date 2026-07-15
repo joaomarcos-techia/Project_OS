@@ -19,6 +19,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Segmented } from '@/components/ui/segmented';
 import { toast } from '@/components/ui/use-toast';
+import { isPractitionerRole } from '@/lib/auth/practitioner';
 import { cn } from '@/lib/ui/cn';
 import { uuidv4 } from '@/lib/ui/uuid';
 
@@ -67,7 +68,7 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
       nome: nome.trim(),
       email: email.trim(),
       idempotencyKey: idemKey,
-      ...(role === 'doctor' ? { crm: crm.trim(), crmUf: crmUf.trim() } : {}),
+      ...(isPractitionerRole(role) ? { crm: crm.trim(), crmUf: crmUf.trim() } : {}),
     };
 
     startSalvar(async () => {
@@ -168,7 +169,7 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
                 />
               </Field>
 
-              {role === 'doctor' ? (
+              {isPractitionerRole(role) ? (
                 <div className="flex gap-3">
                   <Field
                     label="CRM"

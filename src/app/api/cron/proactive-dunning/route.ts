@@ -6,6 +6,7 @@
  * processor. Auth idêntica aos demais crons.
  */
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { isProactiveEnabled } from '@/lib/platform-settings';
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 function isAuthorized(req: Request): boolean {
-  if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
+  if (!safeEqual(req.headers.get('authorization'), `Bearer ${env.CRON_SECRET}`)) return false;
   const hasOriginHeader =
     req.headers.get('x-vercel-cron') !== null || req.headers.get('x-vercel-cron-schedule') !== null;
   const allowNonVercel =

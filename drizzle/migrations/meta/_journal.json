@@ -267,6 +267,13 @@
       "when": 1783272435137,
       "tag": "0037_profiles_invite_and_crm",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1783300000000,
+      "tag": "0038_security_definer_hardening",
+      "breakpoints": true
     }
   ]
 }

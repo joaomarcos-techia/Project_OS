@@ -13,11 +13,12 @@ import { and, eq, sql } from 'drizzle-orm';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { isUniqueViolation } from '@/lib/outbox/errors';
 import type { Tx } from '@/lib/db';
 
 import { ProcedureNotFoundError, SchedulingConflictError } from './errors';
-import { idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
+import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { getProcedure, toProcedureSummary } from './queries';
 import { procedureHistory, procedures, type ProcedureRow } from './schema';
 import {
@@ -41,7 +42,7 @@ export async function createProcedure(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('proc_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('proc_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: 'procedure.created',
           resourceType: 'procedure',
@@ -91,7 +92,7 @@ export async function updateProcedure(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('proc_update', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('proc_update', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: 'procedure.updated',
           resourceType: 'procedure',
@@ -141,7 +142,7 @@ export async function updateProcedure(
         const [row] = await tx
           .update(procedures)
           .set({ ...set, updatedAt: sql`now()` })
-          .where(eq(procedures.id, id))
+          .where(and(eq(procedures.id, id), eq(procedures.clinicId, clinicId)))
           .returning();
         await recordHistory(tx, clinicId, id, user.userId, history);
         return toProcedureSummary(row!);
@@ -170,7 +171,7 @@ export async function deactivateProcedure(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('proc_deactivate', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('proc_deactivate', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: 'procedure.deactivated',
         resourceType: 'procedure',

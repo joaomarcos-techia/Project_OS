@@ -19,6 +19,7 @@
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { logger } from '@/lib/observability/logger';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,12 +37,12 @@ export async function GET(): Promise<Response> {
     }
     return Response.json({ ok: false, payload }, { status: 500 });
   } catch (e) {
-    return Response.json(
-      {
-        ok: false,
-        error: e instanceof Error ? e.message : String(e),
-      },
-      { status: 500 },
-    );
+    // V11 (auditoria de segurança): endpoint NÃO autenticado — não devolver
+    // `e.message` cru (pode vazar schema/role em mensagens de erro do Postgres).
+    // Corpo genérico ao chamador; detalhe só no observability.
+    logger.error('health.auth_hook.error', {
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return Response.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }

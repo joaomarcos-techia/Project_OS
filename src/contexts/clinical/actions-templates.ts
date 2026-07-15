@@ -24,6 +24,7 @@ import {
 } from '@/lib/auth/tenant-context';
 import type { Tx } from '@/lib/db';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { isUniqueViolation } from '@/lib/outbox/errors';
 
 import {
@@ -31,7 +32,7 @@ import {
   PrescriptionTemplateLimitError,
   PrescriptionTemplateNotFoundError,
 } from './errors';
-import { idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
+import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import {
   getPrescriptionTemplateById,
   listPrescriptionTemplates,
@@ -84,7 +85,7 @@ export async function createPrescriptionTemplate(
         idempotency: {
           key: idemKey('create_prescription_template', idempotencyKey),
           payload: jsonSafe(data),
-          ttlSeconds: IDEM_TTL,
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
         },
         audit: {
           action: TEMPLATE_CREATED,
@@ -140,7 +141,7 @@ export async function updatePrescriptionTemplate(
         idempotency: {
           key: idemKey('update_prescription_template', idempotencyKey),
           payload: jsonSafe({ id: tid, ...data }),
-          ttlSeconds: IDEM_TTL,
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
         },
         audit: {
           action: TEMPLATE_UPDATED,
@@ -198,7 +199,7 @@ export async function deletePrescriptionTemplate(
       idempotency: {
         key: idemKey('delete_prescription_template', idempotencyKey),
         payload: jsonSafe({ id: tid }),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: TEMPLATE_DELETED,
@@ -243,7 +244,7 @@ export async function duplicatePrescriptionTemplate(
         idempotency: {
           key: idemKey('duplicate_prescription_template', idempotencyKey),
           payload: jsonSafe({ sourceId: tid }),
-          ttlSeconds: IDEM_TTL,
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
         },
         audit: {
           action: TEMPLATE_CREATED,

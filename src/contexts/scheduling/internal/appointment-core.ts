@@ -24,6 +24,7 @@ import type { RequestContext } from '@/lib/audit/types';
 import { practitionerSql } from '@/lib/auth/practitioner';
 import type { Tx } from '@/lib/db';
 import { idempotentMutation, type MutationActor } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { ProcedureNotFoundError, SchedulingValidationError } from '../errors';
@@ -38,7 +39,7 @@ import {
   type CreateAppointmentInput,
   type RescheduleInput,
 } from '../types';
-import { asConflict, idemKey, IDEM_TTL, jsonSafe } from './action-helpers';
+import { asConflict, idemKey, jsonSafe } from './action-helpers';
 import { logAppointmentStateChange, type AppointmentActor } from './state-log';
 
 /** Build the outbox payload for a transition INTO `target`. */
@@ -108,7 +109,7 @@ export async function applyTransition(tx: Tx, o: TransitionOpts): Promise<Appoin
   const [appt] = await tx
     .select()
     .from(appointments)
-    .where(eq(appointments.id, o.appointmentId))
+    .where(and(eq(appointments.id, o.appointmentId), eq(appointments.clinicId, o.clinicId)))
     .for('update')
     .limit(1);
   if (!appt) throw new SchedulingValidationError(`appointment não encontrado: ${o.appointmentId}`);
@@ -131,7 +132,7 @@ export async function applyTransition(tx: Tx, o: TransitionOpts): Promise<Appoin
   const [updated] = await tx
     .update(appointments)
     .set({ status: o.target, updatedAt: sql`now()` })
-    .where(eq(appointments.id, o.appointmentId))
+    .where(and(eq(appointments.id, o.appointmentId), eq(appointments.clinicId, o.clinicId)))
     .returning();
 
   const { eventType, payload } = transitionPayload(
@@ -274,7 +275,7 @@ export async function createAppointmentCore(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: SCHEDULING_EVENTS.CREATED,
           resourceType: 'appointment',
@@ -359,7 +360,7 @@ export async function transitionCore(
       idempotency: {
         key: idemKey(params.action, idempotencyKey),
         payload: jsonSafe({ id: params.id, reason: params.reason ?? null }),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: params.eventName,
@@ -407,7 +408,7 @@ export async function rescheduleCore(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('reschedule', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('reschedule', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: SCHEDULING_EVENTS.RESCHEDULED,
           resourceType: 'appointment',
@@ -421,7 +422,7 @@ export async function rescheduleCore(
         const [old] = await tx
           .select()
           .from(appointments)
-          .where(eq(appointments.id, id))
+          .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
           .for('update')
           .limit(1);
         if (!old) throw new SchedulingValidationError(`appointment não encontrado: ${id}`);
@@ -442,7 +443,7 @@ export async function rescheduleCore(
         await tx
           .update(appointments)
           .set({ status: 'cancelado', updatedAt: sql`now()` })
-          .where(eq(appointments.id, id));
+          .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
 
         // 2. cria o novo carregando snapshot + valor originais (preserva preço)
         const [created] = await tx

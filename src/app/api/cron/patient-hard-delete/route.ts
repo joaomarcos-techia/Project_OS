@@ -35,6 +35,7 @@ import {
 } from '@/contexts/patient/internal/hard-delete';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { env, assertCronRuntimeReady } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -47,7 +48,11 @@ const MAX_LIMIT = 1000;
 
 function isAuthorized(req: Request): boolean {
   // Bearer é o gate duro (mecanismo oficial Vercel).
-  if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
+  // V5 (auditoria de segurança): rota DESTRUTIVA — usa o segredo dedicado quando
+  // configurado (opt-in), senão cai no CRON_SECRET (retrocompat). Reduz o blast
+  // radius de um vazamento do CRON_SECRET (que guarda também rotas read-only).
+  const cronSecret = env.CRON_SECRET_DESTRUCTIVE ?? env.CRON_SECRET;
+  if (!safeEqual(req.headers.get('authorization'), `Bearer ${cronSecret}`)) return false;
   // F-09: 2º fator de origem NÃO-FATAL (aceita x-vercel-cron OU o documentado
   // x-vercel-cron-schedule). Ausência em prod → log, não 401 (ver outbox route).
   const hasOriginHeader =

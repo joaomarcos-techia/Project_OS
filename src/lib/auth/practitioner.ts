@@ -27,14 +27,29 @@ export interface PractitionerCandidate {
 }
 
 /**
- * ⚠️ REGRA CANÔNICA (ADR-032 §2) em DUAS codificações que DEVEM mudar JUNTAS:
- *    1) isPractitioner()  — TS, para quando você já tem role+crm em mãos.
- *    2) practitionerSql() — SQL, para filtros em raw SQL. MESMA regra, sintaxe Postgres.
- * Mexeu numa, mexe na outra. `practitioner.test.ts` tem o teste de equivalência TS×SQL
- * que quebra se divergirem.
+ * Papel que É practitioner POR SI SÓ, independente de CRM (ADR-032 §2). Hoje só
+ * `doctor`. Extraído num ÚNICO ponto (a superfície `@/lib/auth` já é o home do
+ * `Role`) para: (a) o convite decidir captura de credencial POR PAPEL sem
+ * espalhar o literal `role === 'doctor'` (banido pelo arch-test
+ * no-doctor-capability-check); (b) anti-escalonamento — a decisão é role-only,
+ * então um CRM avulso NUNCA eleva um papel não-clínico a practitioner. É a
+ * cláusula de PAPEL reusada por `isPractitioner` e espelhada por `practitionerSql`.
+ */
+export function isPractitionerRole(role: Role): boolean {
+  return role === 'doctor';
+}
+
+/**
+ * ⚠️ REGRA CANÔNICA (ADR-032 §2) em codificações que DEVEM mudar JUNTAS:
+ *    1) isPractitioner()     — TS, para quando você já tem role+crm em mãos.
+ *    2) isPractitionerRole()  — TS, só a cláusula de PAPEL (acima); `isPractitioner`
+ *                               é DERIVADO dela, então não há divergência possível.
+ *    3) practitionerSql()    — SQL, para filtros em raw SQL. MESMA regra, sintaxe Postgres.
+ * Mexeu numa, mexe nas outras. `practitioner.test.ts` tem o teste de equivalência
+ * TS×SQL que quebra se divergirem.
  */
 export function isPractitioner(p: PractitionerCandidate): boolean {
-  return p.role === 'doctor' || (p.crm != null && p.crm.trim() !== '');
+  return isPractitionerRole(p.role) || (p.crm != null && p.crm.trim() !== '');
 }
 
 /**

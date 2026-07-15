@@ -23,6 +23,7 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -36,7 +37,11 @@ const BATCH = 5000;
 const MAX_BATCHES_PER_TABLE = 10; // teto: 50k rows/tabela/run
 
 function isAuthorized(req: Request): boolean {
-  if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
+  // V5 (auditoria de segurança): rota DESTRUTIVA — usa o segredo dedicado quando
+  // configurado (opt-in), senão cai no CRON_SECRET (retrocompat). Reduz o blast
+  // radius de um vazamento do CRON_SECRET (que guarda também rotas read-only).
+  const cronSecret = env.CRON_SECRET_DESTRUCTIVE ?? env.CRON_SECRET;
+  if (!safeEqual(req.headers.get('authorization'), `Bearer ${cronSecret}`)) return false;
   const hasOriginHeader =
     req.headers.get('x-vercel-cron') !== null ||
     req.headers.get('x-vercel-cron-schedule') !== null;

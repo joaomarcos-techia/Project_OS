@@ -73,7 +73,22 @@
       "PowerShell(pnpm db:generate)",
       "PowerShell(pnpm check:migrations 2>&1)",
       "PowerShell(pnpm arch:db-check 2>&1)",
-      "Bash(pnpm check:registry:strict)"
+      "Bash(pnpm check:registry:strict)",
+      "Bash(pnpm vitest *)",
+      "mcp__plugin_supabase_supabase__get_advisors",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "Skill(security-review)",
+      "Skill(security-review:*)",
+      "Bash(export PYTHONUTF8=1)",
+      "Bash(python - C:/Users/joaom/AppData/Local/Temp/claude/c--dev-ClinicaOS-V2/94bf917d-47b6-4670-948a-29d185ba082b/scratchpad/codeql-results.sarif)",
+      "Skill(code-review)",
+      "Skill(code-review:*)",
+      "Bash(claude plugin *)",
+      "PowerShell(pnpm typecheck)",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "Bash(pnpm audit *)",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{try{const j=JSON.parse\\(s\\);const a=j.advisories||{};const rows=Object.values\\(a\\).map\\(v=>\\({ghsa:\\(v.github_advisory_id||v.url\\),sev:v.severity,mod:v.module_name,vuln:v.vulnerable_versions,patched:v.patched_versions}\\)\\);console.log\\(JSON.stringify\\(rows,null,2\\)\\);console.log\\('meta:',JSON.stringify\\(j.metadata&&j.metadata.vulnerabilities\\)\\);}catch\\(e\\){console.log\\('parse-fail',e.message\\)}}\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@upstash/redis/package.json'\\).version\\)\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",

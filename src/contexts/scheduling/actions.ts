@@ -19,12 +19,13 @@ import { sql } from 'drizzle-orm';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 
 import { SCHEDULING_EVENTS, type CancelReason } from './events';
 import { toAppointmentSummary } from './queries';
 import { appointments } from './schema';
 import { type AppointmentState } from './state-machine';
-import { asConflict, idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
+import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import {
   assertPatientInClinic,
   buildSnapshot,
@@ -103,7 +104,7 @@ export async function createWalkInAppointment(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('walkin', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('walkin', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: SCHEDULING_EVENTS.CREATED,
           resourceType: 'appointment',

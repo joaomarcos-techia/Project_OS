@@ -50,6 +50,7 @@
 | [032](032-mvp-identity-practitioner-model.md) | Modelo de identidade do MVP (colapso User=Employee=Practitioner + predicado `isPractitioner`; canal=email; ciclo de vida + políticas de CRM) | accepted | Identity (C3) |
 | [033](033-consultorio-board-scope-practitioner.md) | Escopo do board do Consultório: practitioner vê a própria fila (refina ADR-032 §2) | accepted | C8 / C19 |
 | [035](035-palette-rebrand-navy-orchid.md) | Rebrand de paleta petrol/clay → navy/orchid (Qoro) + swap do wordmark (supersede parcial ADR-031 §2) | accepted | Fundação Visual |
+| [036](036-asconflict-permanece-no-contexto.md) | `asConflict` permanece em cada contexto (não centralizar em `@/lib`) — preserva boundary `context→lib` ao aplicar o S1 | accepted | Contexts / Boundaries |
 
 ## Como propor um novo ADR
 

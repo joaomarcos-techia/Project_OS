@@ -50,12 +50,11 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set('x-request-id', requestId);
 
-  // Anti-loop: durante ciclo de healing (signOut + redirect), cookie _healed
-  // bloqueia o middleware por 60s para evitar redirect loop. O cookie é
-  // recriado a cada drift detection.
-  if (req.cookies.get(HEALED_COOKIE)) {
-    return res;
-  }
+  // V4 (auditoria de segurança): o early-return por `_healed` foi MOVIDO para
+  // DEPOIS de validar a presença de sessão (getUser abaixo). httpOnly não impede
+  // um cliente de forjar `Cookie: _healed=1` numa request direta (curl/Postman);
+  // confiar nele aqui deixava pular o middleware inteiro. Agora ele só pula o DB
+  // drift-check (não a checagem de auth). Ver nota no ponto de uso, abaixo.
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
@@ -80,6 +79,16 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   if (error || !data.user) {
     // Sem session → login.
     return redirectToLogin(req, null);
+  }
+
+  // Anti-loop / anti-revocation-storm (V4): com a sessão JÁ validada acima,
+  // honramos `_healed` APENAS para pular o DB drift-check (o passo caro + o
+  // único que dispara forceHealAndLogout). Assim o ciclo signOut+redirect não
+  // re-revoga em loop; e um `_healed` forjado NÃO anula mais a checagem de
+  // presença de auth (sessão inválida já caiu no redirect acima). Durante o
+  // heal legítimo os cookies sb- são apagados → getUser falha → redirect /login.
+  if (req.cookies.get(HEALED_COOKIE)) {
+    return res;
   }
 
   // Throttle DB check: se cookie indica check < 60s + jitter atrás, skip query.

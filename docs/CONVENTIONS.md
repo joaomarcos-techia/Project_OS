@@ -97,6 +97,7 @@ Hoje (C0) só existe `README.md`. Resto entra com a primeira camada do contexto.
 - 🚫 Role check (`gestor`, `owner`, etc.) dentro de RLS policy — ADR-007 D27: RLS isola tenants, RBAC mora em Server Actions via `requireRole(...)`.
 - 🚫 `role === 'doctor'` como gate de **capacidade clínica** — ADR-032 §2: use `isPractitioner` (`@/lib/auth/practitioner`), `getCurrentPractitioner` (usuário logado) ou `practitionerSql` (raw SQL). O médico-dono é `owner` **com CRM**. `crm` como capacidade **só** dentro do predicado. Arch-test barra reincidência.
 - 🚫 `ENABLE ROW LEVEL SECURITY` sem `FORCE` em tabela tenant-scoped — owner bypassa policies.
+- 🚫 Chave Redis com dado de tenant sem `redisKey.tenant(clinicId, …)` — o mesmo isolamento por tenant do Postgres (ADR-002/007) vale no Redis: **toda** chave com dado de clínica carrega o `clinicId` (montado por `redisKey.tenant`, que o põe primeiro e nunca deixa esquecer, espelhando `withTenant`). Chaves globais/pré-auth (IP, `email_hash`) usam `redisKey.global(…)`. Ambas carregam um discriminador de ambiente (`VERCEL_ENV ?? NODE_ENV`) para dev/preview/prod nunca colidirem se compartilharem a Upstash DB. Ponto único hoje em [src/lib/auth/rate-limit.ts](../src/lib/auth/rate-limit.ts) (único uso de Redis); extrair para `src/lib/redis/` **quando** surgir o 2º consumidor (cache/lock/pub-sub) — não antes.
 
 ## Governança de UI (ADR-031 — vale para TODA mudança de interface, não só a refatoração DS v2)
 

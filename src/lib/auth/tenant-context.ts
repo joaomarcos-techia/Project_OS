@@ -225,15 +225,34 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
   const user = await requireUser();
   if (user.isSuperAdmin) return;
 
-  // Pega role atual do banco (não confia no JWT).
+  // Pega role + clinic_id atuais do banco (não confia no JWT).
   const profileRow = await dbAdmin
-    .select({ role: profiles.role, ativo: profiles.ativo, deletedAt: profiles.deletedAt })
+    .select({
+      role: profiles.role,
+      ativo: profiles.ativo,
+      deletedAt: profiles.deletedAt,
+      clinicId: profiles.clinicId,
+    })
     .from(profiles)
     .where(eq(profiles.id, user.userId))
     .limit(1);
   const profile = profileRow[0];
   if (!profile || !profile.ativo || profile.deletedAt !== null) {
     throw new AuthError('Profile inativo ou inexistente', 'forbidden', 403);
+  }
+
+  // V7 (auditoria de segurança): "fresh" implica revalidação TOTAL. O clinic_id
+  // efetivo vinha só do JWT (requireClinicId) e NÃO era re-lido, abrindo janela
+  // de drift em reatribuição de clínica — uma ação crítica podia rodar no tenant
+  // errado até o bump de claims_version forçar logout. Comparamos o clinic_id do
+  // banco com o do JWT; divergência → força re-auth. (super_admin/impersonation
+  // já retornaram acima; para eles o clinic_id do profile é null por construção.)
+  if (profile.clinicId !== user.clinicId) {
+    throw new AuthError(
+      'Contexto de clínica divergente na revalidação (fresh check). Reautentique.',
+      'forbidden',
+      403,
+    );
   }
 
   // Override negando? → bloqueia mesmo se role tem.

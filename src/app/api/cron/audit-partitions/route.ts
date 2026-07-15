@@ -14,6 +14,7 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { env, assertCronRuntimeReady } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -29,7 +30,7 @@ const MONTHS_AHEAD = 3;
 
 function isAuthorized(req: Request): boolean {
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${env.CRON_SECRET}`) return false;
+  if (!safeEqual(auth, `Bearer ${env.CRON_SECRET}`)) return false;
   const hasOriginHeader =
     req.headers.get('x-vercel-cron') !== null ||
     req.headers.get('x-vercel-cron-schedule') !== null;

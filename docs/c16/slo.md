@@ -66,6 +66,17 @@
 - **SLO:** todo cron com heartbeat dentro de **2× o intervalo** agendado.
 - **Fonte:** `cron_heartbeats` ([cron-heartbeat](../../src/lib/cron-heartbeat/index.ts)).
 
+### 7. Rate-limit de auth — degradação (segurança)
+- **SLI:** taxa de `auth.ratelimit.degraded` (fail-open do rate-limit de login/reset/join caindo
+  para o limiter local per-instância — ADR-008 F-08). Emitido por
+  [rate-limit.ts](../../src/lib/auth/rate-limit.ts) com `reason_category` (`server`/`network`).
+- **SLO:** **≈ 0** em regime normal (a degradação é excepcional, não crônica). Qualquer
+  degradação **sustentada ou recorrente** deve alertar — é a proteção de brute-force distribuído
+  enfraquecendo em silêncio (auditoria Redis R1).
+- **Fonte / alerta:** `auth.ratelimit.degraded` (log/metric) → thresholds em
+  [alert-tuning.md](../runbooks/alert-tuning.md); cota do Upstash correlacionada no painel do
+  provedor (código não vê o status HTTP).
+
 ---
 
 ## Recuperação (referência — detalhe em `docs/runbooks/disaster-recovery.md`)

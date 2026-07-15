@@ -43,9 +43,9 @@
 
 # 1. Visão Geral do Projeto
 
-## 1.1 O que é o ClinicaOS
+## 1.1 O que é o QORO
 
-ClinicaOS é um **sistema operacional para clínicas pequenas e médias brasileiras** — não é um sistema de gestão clínica genérico. É um produto SaaS multi-tenant que combina **gestão clínica + agente de IA conversacional via WhatsApp + cobrança automatizada + auditoria forense** em um único produto integrado.
+Qoro oferece um **sistema operacional para clínicas pequenas e médias brasileiras** — não é um sistema de gestão clínica genérico. É um produto SaaS multi-tenant que combina **gestão clínica + agente de IA conversacional via WhatsApp + cobrança automatizada + auditoria forense** em um único produto integrado.
 
 O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) sob o domínio principal `qoro.dev`. Todas as clínicas acessam por `app.qoro.dev` (o tenant é resolvido pelo `clinic_id` do JWT). **Não há subdomínio por clínica** (decisão — ver §3.9).
 
@@ -59,7 +59,7 @@ O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) so
 4. **Recepção sobrecarregada** — atendente passa 60% do tempo no WhatsApp respondendo "qual o horário?", "tem vaga sexta?", "quanto custa consulta?" — trabalho que IA resolve por R$ 0,002 por conversa.
 5. **Retornos não agendados** — médico pediu "volta em 3 meses", paciente esqueceu, clínica perdeu a consulta de retorno.
 
-ClinicaOS ataca cada vazamento com **automação operacional + IA + integração financeira**.
+Atacamos cada vazamento com **automação operacional + IA + integração financeira**.
 
 ## 1.3 Posicionamento do produto
 

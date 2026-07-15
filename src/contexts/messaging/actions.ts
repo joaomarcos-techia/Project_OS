@@ -12,12 +12,10 @@
  * `clinic_whatsapp_numbers` é escrito SÓ por aqui (service_role) — `authenticated`
  * não tem grant de escrita; nem lê `token_encrypted` (column-level grant).
  */
-import { headers } from 'next/headers';
-
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { buildRequestContext } from '@/lib/audit/request-context';
+import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { superAdminAction } from '@/lib/audit/super-admin';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
@@ -42,10 +40,6 @@ import {
 } from './internal/meta-onboarding';
 import { clinicWhatsappNumbers } from './schema';
 import { ConnectNumberSchema, type ConnectNumberInput } from './types';
-
-async function requestContext() {
-  return buildRequestContext(await headers());
-}
 
 /**
  * Conecta (ou reconecta) o número de uma clínica. Desativa o número ativo

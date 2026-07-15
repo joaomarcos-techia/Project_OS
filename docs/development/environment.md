@@ -23,7 +23,7 @@
 |---|---|---|
 | **Database (C1)** | `DATABASE_URL`, `DATABASE_URL_PROD` | `DATABASE_URL` no boot; `_PROD` só em scripts prod |
 | **Supabase** | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (ou `_ANON_KEY` legado), `SUPABASE_SECRET_KEY` (ou `_SERVICE_ROLE_KEY` legado) | URL + 1 publishable no boot; secret a partir de C3 |
-| **Runtime** | `NODE_ENV`, `LOG_LEVEL` | Têm default |
+| **Runtime** | `NODE_ENV`, `LOG_LEVEL`, `VERCEL_ENV` | Têm default; `VERCEL_ENV` é auto-injetado pela Vercel |
 | **Operacional** | `SUPABASE_PROJECT_ENV` | Opt-in explícito p/ scripts prod |
 | **C3 — Auth** | `LOGIN_HASH_PEPPER` (≥32), `UPSTASH_REDIS_REST_URL/TOKEN`, `SUPER_ADMIN_EMAIL/PASSWORD` | runtime (login) / setup (seed) |
 | **C4 — Outbox** | `CRON_SECRET` (≥32), `OUTBOX_*` | runtime (cron) / tuning |
@@ -40,6 +40,7 @@
 ## Dev vs Produção
 
 - **Dev:** segredos vivem no `.env.local` (gitignored). `CRYPTO_SECRET_BACKEND=env`. `DATABASE_URL_PROD`, `GCP_*`, `SUPABASE_PROJECT_ENV` ficam **vazios**.
+- **Upstash (rate-limit) — DBs distintas por ambiente (auditoria Redis R3):** dev, preview e prod **devem** apontar para Upstash DBs **separadas** (esta é a defesa primária contra contadores de rate-limit colidindo entre ambientes). Como cinto-e-suspensório, as chaves Redis já carregam um discriminador de ambiente (`VERCEL_ENV ?? NODE_ENV`, montado por `redisKey.*` em [rate-limit.ts](../../src/lib/auth/rate-limit.ts)): `VERCEL_ENV` separa Preview de Production (o `NODE_ENV` não separa — ambos são `production` na Vercel). Ao apontar dois ambientes para a mesma DB por engano, o prefixo evita colisão silenciosa; ainda assim, mantenha as DBs separadas.
 - **Produção:** chaves críticas de crypto vivem no **Google Secret Manager** (`CRYPTO_SECRET_BACKEND=gcp`); `SENTRY_AUTH_TOKEN` em `.env.sentry-build-plugin`; scripts prod exigem `SUPABASE_PROJECT_ENV=prod` explícito.
 - **CI:** injeta valores fake para satisfazer o Zod no `build`/`check:registry` sem conectar a serviços (ver `.github/workflows/ci.yml`).
 

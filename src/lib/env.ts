@@ -20,6 +20,15 @@ const EnvSchema = z
     // --- Database (C1) ---
     DATABASE_URL: z.preprocess(emptyToUndefined, z.string().url()), // C1: required everywhere
     DATABASE_URL_PROD: z.preprocess(emptyToUndefined, z.string().url().optional()), // C1: required only when NODE_ENV=production (see superRefine below)
+    // V1.3 (auditoria de segurança) — OPT-IN fail-closed: quando definido, o pool
+    // RUNTIME (`db`) conecta por este URL, que DEVE autenticar como um role SEM
+    // BYPASSRLS (ver runbook em docs/achados/auditoria-seguranca-codigo.md V1.3).
+    // Assim, um caminho que esqueça `withTenant` retorna 0 linhas (fail-closed) em
+    // vez de vazar cross-tenant. Ausente (default) → cai no DATABASE_URL atual
+    // (comportamento inalterado). `dbAdmin`/`dbWorker` seguem no DATABASE_URL
+    // (BYPASSRLS, necessário para admin/worker). Ativação exige criar o role +
+    // verificar em deploy supervisionado.
+    DATABASE_URL_RUNTIME: z.preprocess(emptyToUndefined, z.string().url().optional()),
 
     // --- Supabase ---
     // Naming: Supabase renamed keys in 2024. Both legacy and new keys still work.
@@ -36,6 +45,15 @@ const EnvSchema = z
     // --- Runtime ---
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'), // C16 wires logger
+    // Auto-injetado pela Vercel (`production`/`preview`/`development`) — distingue
+    // Preview de Production, o que o NODE_ENV NÃO faz (ambos são `production` na
+    // Vercel). Usado como discriminador de ambiente das chaves Redis (rate-limit),
+    // para que dev/preview/prod nunca colidam mesmo se compartilharem a Upstash DB
+    // por erro de config. Opcional: ausente (dev local, CI) → cai no NODE_ENV.
+    VERCEL_ENV: z.preprocess(
+      emptyToUndefined,
+      z.enum(['production', 'preview', 'development']).optional(),
+    ),
 
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
@@ -62,6 +80,14 @@ const EnvSchema = z
     // route handler. Optional at parse time so `next build` works before the
     // secret exists; assertCronRuntimeReady() enforces it on the route handler.
     CRON_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
+    // V5 (auditoria de segurança) — segredo SEPARADO para as rotas de cron
+    // DESTRUTIVAS (patient-hard-delete, data-retention, billing-dunning), para
+    // reduzir o blast radius de um vazamento do CRON_SECRET (que guarda também as
+    // rotas read-only). OPT-IN e retrocompatível: quando ausente, as rotas
+    // destrutivas caem no CRON_SECRET (comportamento atual). Quando definido, o
+    // agendador dessas rotas deve enviar este segredo. Ver docs/achados/
+    // auditoria-seguranca-codigo.md (V5) + runbooks/secret-rotation.md.
+    CRON_SECRET_DESTRUCTIVE: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
     // Worker tuning — kept in env so prod can be tweaked without redeploy.
     // Defaults chosen for solo-founder operability (50 events/tick, 5 parallel).
     OUTBOX_BATCH_SIZE: z.preprocess(

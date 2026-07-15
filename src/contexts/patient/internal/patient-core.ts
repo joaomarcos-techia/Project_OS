@@ -22,6 +22,7 @@ import {
 } from '@/lib/crypto';
 import { withTenant } from '@/lib/db/tenant';
 import { idempotentMutation, type MutationActor } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { isUniqueViolation } from '@/lib/outbox/errors';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -30,7 +31,7 @@ import { PATIENT_EVENTS } from '../events';
 import { getPatientSummaryById, toPatientSummary } from '../queries';
 import { lgpdRequests, patientAddresses, patients } from '../schema';
 import { CreatePatientSchema, type CreatePatientInput, type PatientSummary } from '../types';
-import { idemKey, jsonSafe, PATIENT_IDEM_TTL } from './action-helpers';
+import { idemKey, jsonSafe } from './action-helpers';
 
 /**
  * Cria paciente. Pipeline idêntico ao histórico (C5): Zod → CPF Luhn → cifra/
@@ -80,7 +81,7 @@ export async function createPatientCore(
         idempotency: {
           key: idemKey('create', idempotencyKey),
           payload: jsonSafe(data),
-          ttlSeconds: PATIENT_IDEM_TTL,
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
         },
         audit: {
           action: PATIENT_EVENTS.CREATED,
@@ -157,7 +158,7 @@ export async function createLgpdRequestIntake(
       idempotency: {
         key: idemKey(`lgpd_${type}_intake`, idempotencyKey),
         payload: { patientId, type },
-        ttlSeconds: PATIENT_IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: auditAction,

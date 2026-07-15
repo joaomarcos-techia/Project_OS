@@ -21,6 +21,7 @@ import './handlers';
 import '@/lib/db/schema';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { env, assertCronRuntimeReady } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { runOutboxOnce } from '@/lib/outbox/worker';
@@ -34,7 +35,7 @@ function isAuthorized(req: Request): boolean {
   // 1. Bearer check — o GATE DURO (mecanismo oficial Vercel: CRON_SECRET é
   //    enviado automaticamente como Authorization Bearer).
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${env.CRON_SECRET}`) return false;
+  if (!safeEqual(auth, `Bearer ${env.CRON_SECRET}`)) return false;
 
   // 2. F-09: sinal de origem como 2º fator NÃO-FATAL. A doc atual da Vercel
   //    documenta `x-vercel-cron-schedule` (não `x-vercel-cron`). Aceitamos

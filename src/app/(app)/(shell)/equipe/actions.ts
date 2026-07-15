@@ -11,12 +11,23 @@ import { z } from 'zod';
 import { getShellIdentity } from '@/components/painel/shell-identity';
 import { billingApiV1 } from '@/contexts/billing/api';
 import { requireActiveClinic } from '@/contexts/billing/internal/require-active-clinic';
-import { CrmConflictError, EmailAlreadyMemberError, RoleAssignmentError } from '@/contexts/identity/errors';
-import { inviteClinicMember } from '@/contexts/identity/internal/members';
+import {
+  CrmConflictError,
+  EmailAlreadyMemberError,
+  InviteAlreadyAcceptedError,
+  MemberNotFoundError,
+  RoleAssignmentError,
+} from '@/contexts/identity/errors';
+import {
+  cancelClinicInvite,
+  inviteClinicMember,
+  resendClinicInvite,
+} from '@/contexts/identity/internal/members';
 import { assertCanAssignRole } from '@/contexts/identity/internal/role-matrix';
 import { listEmployees } from '@/contexts/identity/queries';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { isPractitionerRole } from '@/lib/auth/practitioner';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 
 const InvitableRole = z.enum(['doctor', 'attendant', 'financial']);
@@ -42,15 +53,18 @@ const FUNCAO_LABEL: Record<z.infer<typeof InvitableRole>, string> = {
   financial: 'Financeiro',
 };
 
+// TODO(identity): extrair um mapIdentityError() quando esta lista passar de ~5 tipos (review #6).
 function messageFrom(err: unknown): string {
   if (
     err instanceof RoleAssignmentError ||
     err instanceof EmailAlreadyMemberError ||
-    err instanceof CrmConflictError
+    err instanceof CrmConflictError ||
+    err instanceof MemberNotFoundError ||
+    err instanceof InviteAlreadyAcceptedError
   ) {
     return err.message;
   }
-  return 'Não foi possível enviar o convite. Tente novamente.';
+  return 'Não foi possível concluir a ação. Tente novamente.';
 }
 
 export async function inviteMemberAction(input: InviteMemberInput): Promise<InviteMemberResult> {
@@ -63,9 +77,12 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
   const d = parsed.data;
 
-  // CRM opcional no convite (spec §Edge cases). Só médico tem credencial.
-  const crm = d.role === 'doctor' && d.crm ? d.crm : null;
-  const crmUf = d.role === 'doctor' && d.crmUf ? d.crmUf : null;
+  // CRM opcional no convite (spec §Edge cases). Captura de credencial por PAPEL
+  // via predicado canônico (ADR-032 §2), não o literal `role === 'doctor'`
+  // (arch-test no-doctor-capability-check). Role-only = anti-escalonamento: um
+  // CRM avulso não pode elevar um papel não-clínico a practitioner.
+  const crm = isPractitionerRole(d.role) && d.crm ? d.crm : null;
+  const crmUf = isPractitionerRole(d.role) && d.crmUf ? d.crmUf : null;
   if (crm && !crmUf) return { error: 'Informe a UF do CRM.' };
 
   try {
@@ -96,6 +113,70 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
     });
 
     return { ok: true, nome: d.nome };
+  } catch (err) {
+    return { error: messageFrom(err) };
+  }
+}
+
+const TargetSchema = z.object({ userId: z.string().uuid('Convite inválido.') });
+
+export type ResendInviteResult = { ok: true; link: string } | { error: string };
+export type CancelInviteResult = { ok: true } | { error: string };
+
+/**
+ * Reenvia o convite de um funcionário pendente (spec convite §Fase 2 · ADR-034).
+ * Retorna o `link` para a UI copiar — não dependemos de auto-send de e-mail.
+ * A validação (pendente + anti-escalonamento) mora no serviço (uma query só).
+ */
+export async function resendInviteAction(input: { userId: string }): Promise<ResendInviteResult> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES); // crítica (D20/F-14) — lê do banco
+  const clinicId = await requireClinicId();
+  await requireActiveClinic(clinicId); // ADR-016
+
+  const parsed = TargetSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+
+  try {
+    const hdrs = await headers();
+    const origin = hdrs.get('origin') ?? 'http://localhost:3000';
+    const { link } = await resendClinicInvite({
+      clinicId,
+      userId: parsed.data.userId,
+      inviterRole: user.role,
+      redirectOrigin: origin,
+      invitedBy: user.userId,
+      requestContext: buildRequestContext(hdrs),
+    });
+    return { ok: true, link };
+  } catch (err) {
+    return { error: messageFrom(err) };
+  }
+}
+
+/**
+ * Cancela um convite pendente (spec convite §Fase 2, gap #12). Hard delete via
+ * serviço: libera a vaga e o e-mail. Só atinge PENDENTE (aceito = desativar, 2b).
+ */
+export async function cancelInviteAction(input: { userId: string }): Promise<CancelInviteResult> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES); // crítica (D20/F-14) — lê do banco
+  const clinicId = await requireClinicId();
+  await requireActiveClinic(clinicId); // ADR-016
+
+  const parsed = TargetSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+
+  try {
+    const hdrs = await headers();
+    await cancelClinicInvite({
+      clinicId,
+      userId: parsed.data.userId,
+      inviterRole: user.role,
+      invitedBy: user.userId,
+      requestContext: buildRequestContext(hdrs),
+    });
+    return { ok: true };
   } catch (err) {
     return { error: messageFrom(err) };
   }

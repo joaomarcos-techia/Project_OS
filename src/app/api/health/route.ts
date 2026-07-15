@@ -25,6 +25,7 @@ import { sql } from 'drizzle-orm';
 
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { dbAdmin } from '@/lib/db';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 
 export const runtime = 'nodejs';
@@ -43,7 +44,7 @@ async function authLevel(req: Request): Promise<'monitoring' | 'super_admin' | '
   } catch {
     // ignore — cai no bearer
   }
-  if (req.headers.get('authorization') === `Bearer ${env.CRON_SECRET}`) return 'monitoring';
+  if (safeEqual(req.headers.get('authorization'), `Bearer ${env.CRON_SECRET}`)) return 'monitoring';
   return 'denied';
 }
 

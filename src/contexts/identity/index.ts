@@ -21,5 +21,5 @@ export type { Permission, Role } from './types';
 
 // Capacidade clínica (ADR-032 §2). Impl em @/lib/auth/practitioner (context→lib);
 // re-exportado aqui como superfície pública do Identity, como o `Role`.
-export { isPractitioner, practitionerSql } from '@/lib/auth/practitioner';
+export { isPractitioner, isPractitionerRole, practitionerSql } from '@/lib/auth/practitioner';
 export type { PractitionerCandidate } from '@/lib/auth/practitioner';

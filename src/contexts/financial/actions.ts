@@ -11,11 +11,12 @@
  * Estorno é APPEND-ONLY: nunca edita valores do original — cria um lançamento de
  * compensação (status='estornado') e marca o original 'estornado' (só status).
  */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import {
@@ -25,7 +26,7 @@ import {
   SupplierNotFoundError,
 } from './errors';
 import { FINANCIAL_EVENTS } from './events';
-import { idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
+import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import {
   assertLancamentoTransition,
   calcStatusPagamento,
@@ -76,7 +77,7 @@ export async function createLancamento(
       idempotency: {
         key: idemKey('create_lancamento', idempotencyKey),
         payload: jsonSafe(data),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: FINANCIAL_EVENTS.LANCAMENTO_CREATED,
@@ -144,7 +145,7 @@ export async function confirmPayment(
       idempotency: {
         key: idemKey('confirm_payment', idempotencyKey),
         payload: jsonSafe(data),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: FINANCIAL_EVENTS.LANCAMENTO_PAID,
@@ -158,7 +159,7 @@ export async function confirmPayment(
       const [lanc] = await tx
         .select()
         .from(lancamentos)
-        .where(eq(lancamentos.id, data.lancamentoId))
+        .where(and(eq(lancamentos.id, data.lancamentoId), eq(lancamentos.clinicId, clinicId)))
         .for('update')
         .limit(1);
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
@@ -182,10 +183,18 @@ export async function confirmPayment(
           updatedAt: sql`now()`,
           ...(novoStatus === 'pago' ? { paidAt: sql`now()` } : {}),
         })
-        .where(eq(lancamentos.id, data.lancamentoId))
+        .where(and(eq(lancamentos.id, data.lancamentoId), eq(lancamentos.clinicId, clinicId)))
         .returning();
 
       if (data.comprovante) {
+        // ⚠️ V8 (auditoria de segurança — LATENTE, NÃO explorável hoje):
+        // `fileStoragePath` vem do cliente como TEXTO LIVRE (hoje um caminho/URL
+        // digitado no Caixa; NÃO há upload nem endpoint que assine este path).
+        // ANTES de shipar QUALQUER feature que assine/sirva este path (signed URL
+        // via service-role, que IGNORA limites de bucket/RLS), é OBRIGATÓRIO
+        // derivar o path server-side OU validar o prefixo `${clinicId}/` — caso
+        // contrário vira IDOR cross-tenant de arquivos. Ver
+        // docs/achados/auditoria-seguranca-codigo.md (V8).
         await tx.insert(paymentProofs).values({
           clinicId,
           lancamentoId: data.lancamentoId,
@@ -234,7 +243,7 @@ export async function cancelLancamento(
       idempotency: {
         key: idemKey('cancel_lancamento', idempotencyKey),
         payload: jsonSafe(data),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: FINANCIAL_EVENTS.LANCAMENTO_CANCELLED,
@@ -248,7 +257,7 @@ export async function cancelLancamento(
       const [lanc] = await tx
         .select()
         .from(lancamentos)
-        .where(eq(lancamentos.id, data.lancamentoId))
+        .where(and(eq(lancamentos.id, data.lancamentoId), eq(lancamentos.clinicId, clinicId)))
         .for('update')
         .limit(1);
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
@@ -258,7 +267,7 @@ export async function cancelLancamento(
       const [updated] = await tx
         .update(lancamentos)
         .set({ status: 'cancelado', updatedAt: sql`now()` })
-        .where(eq(lancamentos.id, data.lancamentoId))
+        .where(and(eq(lancamentos.id, data.lancamentoId), eq(lancamentos.clinicId, clinicId)))
         .returning();
 
       await publishEvent(tx, {
@@ -294,7 +303,7 @@ export async function createEstorno(
       idempotency: {
         key: idemKey('create_estorno', idempotencyKey),
         payload: jsonSafe(data),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: FINANCIAL_EVENTS.LANCAMENTO_ESTORNADO,
@@ -308,7 +317,7 @@ export async function createEstorno(
       const [orig] = await tx
         .select()
         .from(lancamentos)
-        .where(eq(lancamentos.id, data.lancamentoId))
+        .where(and(eq(lancamentos.id, data.lancamentoId), eq(lancamentos.clinicId, clinicId)))
         .for('update')
         .limit(1);
       if (!orig) throw new LancamentoNotFoundError(data.lancamentoId);
@@ -340,7 +349,7 @@ export async function createEstorno(
       const [updatedOrig] = await tx
         .update(lancamentos)
         .set({ status: 'estornado', updatedAt: sql`now()` })
-        .where(eq(lancamentos.id, orig.id))
+        .where(and(eq(lancamentos.id, orig.id), eq(lancamentos.clinicId, clinicId)))
         .returning();
 
       await publishEvent(tx, {
@@ -388,7 +397,7 @@ export async function createSupplier(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('create_supplier', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('create_supplier', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: { action: 'financial.supplier.created', resourceType: 'supplier', resourceId: null, before: null, requestContext: ctx },
     },
     async (tx) => {
@@ -416,12 +425,12 @@ export async function updateSupplier(
   await requireUser();
   await requireCachedPermission(PERMISSIONS.MANAGE_FINANCIAL);
   const data = CreateSupplierSchema.parse(input);
-  await requireClinicId(); // garante contexto de clínica; RLS scope é resolvido em idempotentMutation
+  const clinicId = await requireClinicId(); // contexto de clínica; RLS resolve em idempotentMutation, clinicId é belt-and-suspenders no WHERE
   const ctx = await requestContext();
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('update_supplier', idempotencyKey), payload: jsonSafe({ id, ...data }), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('update_supplier', idempotencyKey), payload: jsonSafe({ id, ...data }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: { action: 'financial.supplier.updated', resourceType: 'supplier', resourceId: id, before: null, requestContext: ctx },
     },
     async (tx) => {
@@ -434,7 +443,7 @@ export async function updateSupplier(
           condicaoPagamento: data.condicaoPagamento ?? null,
           updatedAt: sql`now()`,
         })
-        .where(eq(suppliers.id, id))
+        .where(and(eq(suppliers.id, id), eq(suppliers.clinicId, clinicId)))
         .returning();
       if (!row) throw new SupplierNotFoundError(id);
       return toSupplierSummary(row);
@@ -450,19 +459,19 @@ export async function setSupplierAtivo(
 ): Promise<SupplierSummary> {
   await requireUser();
   await requireCachedPermission(PERMISSIONS.MANAGE_FINANCIAL);
-  await requireClinicId(); // garante contexto de clínica; RLS scope é resolvido em idempotentMutation
+  const clinicId = await requireClinicId(); // contexto de clínica; RLS resolve em idempotentMutation, clinicId é belt-and-suspenders no WHERE
   const ctx = await requestContext();
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('set_supplier_ativo', idempotencyKey), payload: jsonSafe({ id, ativo }), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('set_supplier_ativo', idempotencyKey), payload: jsonSafe({ id, ativo }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: { action: 'financial.supplier.ativo', resourceType: 'supplier', resourceId: id, before: null, requestContext: ctx },
     },
     async (tx) => {
       const [row] = await tx
         .update(suppliers)
         .set({ ativo, updatedAt: sql`now()` })
-        .where(eq(suppliers.id, id))
+        .where(and(eq(suppliers.id, id), eq(suppliers.clinicId, clinicId)))
         .returning();
       if (!row) throw new SupplierNotFoundError(id);
       return toSupplierSummary(row);

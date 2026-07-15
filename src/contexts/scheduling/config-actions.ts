@@ -17,9 +17,10 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { practitionerSql } from '@/lib/auth/practitioner';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 
 import { SchedulingValidationError } from './errors';
-import { asConflict, idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
+import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { clinicHolidays, doctorAvailability } from './schema';
 import { parseTimeToMinutes } from './slot-resolver';
 import {
@@ -46,7 +47,7 @@ export async function setDoctorAvailability(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('avail_set', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('avail_set', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: 'doctor_availability.set',
           resourceType: 'doctor_availability',
@@ -104,7 +105,7 @@ export async function removeDoctorAvailability(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('avail_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('avail_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: 'doctor_availability.removed',
         resourceType: 'doctor_availability',
@@ -136,7 +137,7 @@ export async function createHoliday(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('holiday_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('holiday_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: 'clinic_holiday.created',
           resourceType: 'clinic_holiday',
@@ -176,7 +177,7 @@ export async function removeHoliday(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('holiday_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('holiday_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: 'clinic_holiday.removed',
         resourceType: 'clinic_holiday',

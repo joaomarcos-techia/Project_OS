@@ -22,6 +22,7 @@ import {
   getCurrentUser,
 } from '@/lib/auth/tenant-context';
 import { dbAdmin } from '@/lib/db';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { env, assertCronRuntimeReady } from '@/lib/env';
 
 export const runtime = 'nodejs';
@@ -71,7 +72,7 @@ async function authLevel(req: Request): Promise<'public' | 'monitoring' | 'super
   }
 
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${env.CRON_SECRET}`) return 'denied';
+  if (!safeEqual(auth, `Bearer ${env.CRON_SECRET}`)) return 'denied';
 
   // F-09: the Bearer CRON_SECRET is the control for this READ-ONLY counts
   // endpoint. Previously it ALSO required the `x-vercel-cron` header in prod —

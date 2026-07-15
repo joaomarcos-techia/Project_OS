@@ -31,6 +31,14 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     getActiveAnnouncement(),
   ]);
 
+  // V9 (auditoria de segurança): backstop de defesa-em-profundidade. O middleware
+  // + `require*` por página são a defesa primária; este guard garante que o shell
+  // NUNCA renderize para um usuário não-autenticado, mesmo que uma request fure o
+  // middleware (ex.: cookie `_healed` forjado / V4) — fail-closed no layout.
+  if (!user) {
+    redirect('/login');
+  }
+
   // C15: super_admin só fica no app tenant DURANTE um impersonate. Sem sessão
   // ativa (nunca iniciou / TTL expirou / revogado), volta pro /admin — em vez de
   // bater em requireClinicId() e quebrar a tela tenant (OR-I10).

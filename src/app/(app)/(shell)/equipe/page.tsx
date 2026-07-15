@@ -24,6 +24,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireUser } from '@/lib/auth/tenant-context';
 
 import { InviteDrawer } from './invite-drawer';
+import { InviteRowActions } from './invite-row-actions';
 
 type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>['tone']>;
 
@@ -112,6 +113,7 @@ export default async function EquipePage() {
                   <TableHead>Credencial</TableHead>
                   <TableHead>2FA</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-0 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -166,6 +168,9 @@ export default async function EquipePage() {
                         ) : (
                           <Badge tone="green">Ativo</Badge>
                         )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {e.pending ? <InviteRowActions userId={e.id} nome={e.nome} /> : null}
                       </TableCell>
                     </TableRow>
                   );

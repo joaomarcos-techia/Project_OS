@@ -22,6 +22,7 @@ import { FINANCIAL_EVENTS, faturamentoPendencias } from '@/contexts/financial';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
@@ -36,7 +37,7 @@ const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
 
 function isAuthorized(req: Request): boolean {
-  if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
+  if (!safeEqual(req.headers.get('authorization'), `Bearer ${env.CRON_SECRET}`)) return false;
   const hasOriginHeader =
     req.headers.get('x-vercel-cron') !== null ||
     req.headers.get('x-vercel-cron-schedule') !== null;

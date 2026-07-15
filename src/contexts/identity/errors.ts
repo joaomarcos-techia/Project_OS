@@ -29,3 +29,23 @@ export class CrmConflictError extends Error {
     this.name = 'CrmConflictError';
   }
 }
+
+/** Alvo (funcionário) não existe na clínica (reenviar/cancelar convite — ADR-032 Fase 2). */
+export class MemberNotFoundError extends Error {
+  readonly code = 'member_not_found';
+  readonly httpStatus = 404;
+  constructor(message = 'Funcionário não encontrado.') {
+    super(message);
+    this.name = 'MemberNotFoundError';
+  }
+}
+
+/** Convite já foi aceito (ou já removido) — não é mais reenviável/cancelável (ADR-032 Fase 2). */
+export class InviteAlreadyAcceptedError extends Error {
+  readonly code = 'invite_already_accepted';
+  readonly httpStatus = 409;
+  constructor(message = 'Este convite já foi aceito.') {
+    super(message);
+    this.name = 'InviteAlreadyAcceptedError';
+  }
+}
