@@ -1,6 +1,6 @@
 # ClinicaOS — Progresso de Camadas
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-15 · **Próxima revisão:** 2027-01-01
 >
 > ↩︎ Volta para o [índice mestre](./README.md).
 
@@ -1172,6 +1172,44 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
 - Deferidos documentados: join-wizard (842 linhas, fluxo público de uso único),
   quick-view de paciente, PDF viewer; backend novo aprovado (pausa de almoço,
   export PDF de relatórios) = mini-fases futuras com ADR.
+
+---
+
+## Remediação da auditoria de APIs (2026-07-15) — Segurança & Arquitetura
+
+A [auditoria de APIs](achados/auditoria-apis-seguranca.md) (3 ALTA + 3 MÉDIA + 7 BAIXA,
+2026-07-12) foi remediada: **todas as ALTA e MÉDIA fechadas**, 6/7 BAIXA implementadas,
+B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
+"🔧 Remediação" do próprio relatório. Commits `5bbbd23` → `2c44398`, um por tema.
+
+- **A1** — `/api/health/auth-hook` era a única rota de health anônima e devolvia
+  `sqlstate` do Postgres a qualquer um. Agora exige Bearer/super_admin — o que a doc
+  (`production-readiness` §5.2) **já mandava**; o código é que divergia.
+- **A2** — o webhook do Asaas decidia transição pelo `body.event` e persistia valores do
+  corpo, mas o Asaas **não assina o corpo**: um `PAYMENT_CONFIRMED` forjado reabria
+  clínica bloqueada sem pagar. Agora **verify-then-act** (o corpo dá só ids;
+  `getPayment()` é a verdade), fora da transação e com orçamento de 1 tentativa — o
+  default de 3×10s estouraria o `maxDuration` de 30s. ADR-025 addendum.
+- **A3** — filtro `clinic_id` defensivo estava **pronto mas não commitado** (86 arquivos
+  na árvore); um `git checkout` o apagaria e nada no CI perceberia. Preservado primeiro.
+  Fail-close real (role sem BYPASSRLS via `DATABASE_URL_RUNTIME`) segue como C16.
+- **M2** — a invariante 28 do ADR-011 afirmava dual-factor; o código **nunca** fez isso
+  (o header `x-vercel-cron` era só logado). Assumido single-factor de propósito — a
+  Vercel documenta `x-vercel-cron-schedule`, e um 401 num header não-documentado pararia
+  todos os crons em silêncio. `assertCronAuth` substitui 13 cópias (−279 linhas).
+- **M3** — rate limit em convite/reenvio (o resend gera recovery link real), MFA e
+  step-save do wizard.
+- **B2** — não era cosmético: o check à mão do caixa não tinha o bypass `isSuperAdmin`,
+  então super_admin fora de impersonação era negado ali e aceito no resto do financeiro.
+- **B4** — as 6 transitions de agenda chamavam `requireFreshPermission` mas eram
+  invisíveis ao arch-test (factory + arquivo fora da lista): estavam certas por acidente.
+- **6 achados novos** encontrados durante a remediação (§0 do relatório), com destaque
+  para `Bearer ${undefined}` → a string `"Bearer undefined"` autenticando quando o
+  segredo não está configurado, e o export de auditoria truncando em silêncio com
+  `sha256` atestando o período inteiro.
+- **Testes 540 → 650.** Primeiros testes de route handler do repo (antes: zero).
+- **Pendências operacionais:** conferir o header no monitor do auth-hook; alerta p95 do
+  `billing.webhook.verify` depende do go-live #2 (canal de alerta, aberto).
 
 ---
 

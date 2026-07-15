@@ -8,6 +8,45 @@
 > oficial (`docs/`, ADRs). Pensando como atacante, engenheiro pré-escala e DevSecOps.
 > **Natureza:** somente leitura. Nenhum código foi alterado.
 > **Data:** 2026-07-12 · **Branch:** `docs/identity-practitioner-model`
+>
+> **🔧 REMEDIADA em 2026-07-15** — ver §0 (placar) e o bloco **Remediação** dentro de
+> cada achado. Rodapé com data/branch/commits/resultado no fim do documento.
+
+---
+
+## 0. Placar da remediação (2026-07-15)
+
+| # | Sev | Status | Essência da correção |
+|---|-----|--------|----------------------|
+| **A1** | ALTA | ✅ Resolvido | Bearer/super_admin exigido (a doc já mandava); `payload` com `sqlstate` fora do corpo |
+| **A2** | ALTA | ✅ Resolvido | Verify-then-act: corpo é notificação, `getPayment()` é a verdade |
+| **A3** | ALTA | ⚠️ Parcial (curto prazo ✅) | Filtro `clinic_id` defensivo em todas as mutations; role sem BYPASSRLS → C16 |
+| **M1** | MÉDIA | ✅ Resolvido | Já estava; fechados os resíduos (teste do helper + 2ª primitiva removida) |
+| **M2** | MÉDIA | ✅ Resolvido | Single-factor assumido formalmente; `assertCronAuth` único; 401 alarmado |
+| **M3** | MÉDIA | ✅ Resolvido | Rate limit em convite/resend, MFA e step-save |
+| **B1** | BAIXA | ✅ Resolvido | `toErrorResponse` nos 2 handlers (o helper tinha zero consumidores) |
+| **B2** | BAIXA | ✅ Resolvido | `requireCachedAnyPermission`; **era bug, não cosmético** (ver bloco) |
+| **B3** | BAIXA | ✅ Resolvido | `requireSuperAdmin()` no topo + UUID validado |
+| **B4** | BAIXA | ✅ Resolvido | Arch-test por varredura + reconhece factory; 6 actions saíram do ponto cego |
+| **B5** | BAIXA | ✅ Resolvido | 200 do webhook vira `{received:true}` |
+| **B6** | BAIXA | ✅ Resolvido | Cap de 12 meses (422) + truncagem explícita + rate-limit de PDF |
+| **B7** | BAIXA | 🚫 Não aplicável | Dívida consciente e documentada (ADR-022 §11.17) — ver justificativa |
+| **Doc** | — | ✅ Resolvido | Escopo de MFA e números de rate-limit corrigidos na VisãoGeral |
+
+**Achados NOVOS encontrados durante a remediação** (não estavam na auditoria):
+
+| # | Onde | Essência |
+|---|------|----------|
+| **N1** | `health-auth.ts` / `cron-auth.ts` | `CRON_SECRET` é `optional()` no schema → `` `Bearer ${undefined}` `` interpolava para a string **"Bearer undefined"**, que autenticava. As rotas escapavam só porque chamavam `assertCronRuntimeReady()` antes — a segurança dependia da memória de quem chama. Fail-close movido para dentro dos helpers; teste trava a regressão. |
+| **N2** | `audit-export.service.tsx` | O export truncava em 5000 linhas **em silêncio** e o `sha256` ia para `super_admin_actions` como se atestasse o período inteiro — atestação enganosa num artefato cujo motivo de existir é prova. |
+| **N3** | `financeiro/lancamento-actions.ts` | `messageFrom` devolvia `err.message` de **qualquer** erro à UI: uma negativa de permissão exibia *"Permissão 'manage:financial' negada (cached). Verifique role/overrides."*; um erro de driver vazaria igual. |
+| **N4** | UI do financeiro | As actions que já usavam a porta única caíam no genérico *"Tente novamente"* ao negar permissão — mensagem errada **e** enganosa (tentar de novo não resolve). O mapeamento por `err.name` só conhecia um erro que a porta única nunca lançou. |
+| **N5** | `smoke-c4.ts` 4.6.25 | O smoke se chamava *"dual-factor … = 401"* e o próprio corpo admitia (`void res1`) que não testava isso — a mentira do M2 propagada para o teste. |
+| **N6** | `rate-limit.ts` (docblock) | O burst do fallback na borda é **2×limite − 1** (a janela é ancorada no 1º hit, e ele consome orçamento), não o "~2×" afirmado. Medido em teste. |
+
+**Método da remediação:** cada correção crítica foi **provada** quebrando o código de
+propósito e verificando o teste ficar vermelho — não deduzida. As evidências estão em
+cada bloco.
 
 ---
 
@@ -145,6 +184,40 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Doc relacionada:** ADR-010 (SECURITY DEFINER), C16 §error-envelope; contradiz o
   princípio de "sem leak" de `error-response.ts:11-14`.
 
+#### 🔧 Remediação — ✅ Resolvido (commit `aede5dd`)
+
+**Estado ao remediar (divergência da auditoria):** o eco de `e.message` no `catch` já
+tinha sido sanado pela remediação V11. Sobrava o pior: o path de **falha** devolvia o
+`payload` cru da RPC (`{ok:false, error, sqlstate}`) a qualquer anônimo.
+
+**Implementação:**
+- `src/app/api/health/auth-hook/route.ts` — falha para de devolver `payload` (log +
+  envelope genérico); rota passa a exigir Bearer `CRON_SECRET` **ou** super_admin AAL2.
+- `src/lib/http/health-auth.ts` (novo) — `healthAuthLevel()` extraído. `authLevel`
+  estava **duplicado** em `health/route.ts` e `health/outbox/route.ts`; o auth-hook
+  seria a 3ª cópia. Módulo separado do `cron-auth` de propósito: aqui a resolução de
+  super_admin lê cookie, e o caminho de cron precisa continuar puro sobre `Request`.
+- Docblock alinhado (afirmava "não vaza dados sensíveis"); runbooks c3-validation e
+  production-readiness atualizados.
+
+**Gate de compatibilidade (executado ANTES de mexer):** consumidores levantados —
+nenhum no código, nenhum em `vercel.json`, nenhum no CI; só o monitor externo. A doc
+**já descrevia a rota como autenticada** (`production-readiness.md` §5: "Todos os
+health endpoints exigem `Authorization: Bearer <CRON_SECRET>`"; §5.2: "mesmo header
+Bearer") — era o código que divergia. A rota irmã `/api/health/outbox` já exige Bearer
+e é monitorada "no mesmo padrão", o que prova que a ferramenta envia header. Ação
+operacional registrada no runbook §5.2: conferir o header no monitor antes do deploy.
+
+**Validação:** `health-auth.test.ts` (10 casos). Evidência do N1: removendo o guard
+`secret &&`, o caso *"Bearer undefined"* falha com `expected 'monitoring' to be
+'denied'` — a autenticação acontecia de fato. typecheck, lint, arch:db-check, test.
+
+**Impacto:** *segurança* — fecha vazamento de `sqlstate`/estado interno a anônimo e
+elimina o oráculo de liveness sobre a conexão privilegiada; fecha o N1, que afetava
+**todas** as rotas de health. *Consistência* — a rota deixa de ser a única anônima de
+`/api/health/**`; auth das três num ponto só. *Manutenção* — 3ª cópia de `authLevel`
+evitada. *Contrato* — a rota passa a exigir auth (mudança deliberada, alinhada à doc).
+
 ---
 
 ### A2 — Webhook Asaas confia em token estático compartilhado, sem assinatura do corpo
@@ -185,6 +258,60 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Doc relacionada:** ADR-025 (billing: "Asaas = fonte do pagamento; ClinicaOS = fonte do
   acesso"; reconciliação diária é a verdade), `docs/contracts/events/billing.md`,
   `docs/runbooks/asaas-webhook-missing.md`.
+
+#### 🔧 Remediação — ✅ Resolvido (commit `0eac706`)
+
+**Solução DIFERENTE da recomendada, com motivo.** A auditoria sugeria (b) "tratar o
+webhook como sinal não autoritativo, reabertura de acesso só na reconciliação". Ao
+implementar, isso se mostrou uma **regressão de produto**: o `billing-reconcile` roda
+1×/dia e só varre invoices `open`/`overdue` — uma clínica que pagasse ficaria bloqueada
+por até 24h. O founder aprovou a alternativa que dá a mesma garantia sem o lockout:
+
+**Verify-then-act.** O corpo do webhook é **notificação, não dado**: dele saem apenas
+`body.id` e `payment.id`. Status, valor, vencimento e o vínculo com a subscription vêm
+de `getPayment()` — quem tem o token não consegue fazer a **API do Asaas** mentir.
+
+**Implementação:**
+- `ParsedWebhook` **reduzido** a `{eventId, event, paymentId}`. Os campos forjáveis não
+  existem mais no tipo — para ninguém voltar a persistí-los sem perceber. O `event`
+  vira rótulo; quem decide é `actionFor(payment.status)`, com a **mesma tabela de
+  status do `billing-reconcile`** (webhook e reconciliação precisam concordar).
+- **`body.id` obrigatório** → 400 + `billing.webhook.unparseable`. Mata a chave
+  sintética, que era escolhível pelo atacante **e** causava bug real: dois eventos
+  legítimos distintos com a mesma tripla `(event, paymentId, status)` colapsavam e o
+  2º sumia como "duplicate".
+- **`subscriptionId` passa a vir do provider** — era o vetor de parear um `paymentId`
+  real com a subscription de **outra** clínica.
+- **`getPayment()` roda FORA da transação.** HTTP dentro da tx prenderia conexão +
+  lock de `processed_webhooks` por até 30s; um Asaas lento esgotaria o pool.
+- **Orçamento explícito (`attempts: 1`).** O default de 3 tentativas × 10s
+  (`ASAAS_HTTP_TIMEOUT_MS`) + backoff = **30,6s**, contra o `maxDuration = 30` da rota
+  — a versão ingênua estouraria a invocação. Retentar aqui é redundante: o Asaas
+  re-entrega em ≠2xx e o reconcile é backstop.
+- **Aceite de risco registrado** (ADR-025 addendum): o token estático segue sendo a
+  autenticação (o Asaas não oferece HMAC de corpo), mas deixou de ser suficiente para
+  *dirigir estado* — no máximo permite disparar uma consulta ao Asaas.
+
+**Validação:** `route.test.ts` (16 casos). **Evidência:** com a decisão dirigida pelo
+corpo (comportamento antigo), o teste do payload forjado falha com *"expected spy to
+not be called at all, but actually been called 1 times"* — o `PAYMENT_CONFIRMED`
+forjado **marcava a fatura como paga de fato**, e `markInvoicePaid` →
+`setClinicAccess('enabled')` reabria a clínica. Não era risco teórico. Cobertos também:
+`getPayment` falhando → 500 sem persistir; concorrência (2 POSTs simultâneos → 1
+transição); `outcome` correto nos 3 caminhos.
+
+**Impacto:** *segurança* — elimina a classe "evento forjado dirige estado
+financeiro/acesso". *Correção* — conserta o dedup que descartava eventos legítimos em
+silêncio. *Performance* — **+1 chamada externa por evento de billing** (volume baixo) e
++até ~10s no pior caso; o webhook passa a depender da disponibilidade do Asaas
+(indisponível → 500 → re-entrega → reconcile). Trade-off aceito e documentado.
+*Observabilidade* — `billing.webhook.verify {duration_ms, outcome}`; alerta p95 > 5s/5min
+em `c16/slo.md` §3.1. ⚠️ **Threshold definido, disparo não wired** (go-live #2 aberto).
+
+**Observação:** a auditoria recomendava também "(d) restringir IP de origem
+(allowlist Asaas)". Não implementado: a Vercel não oferece allowlist de IP por rota no
+plano atual, e o verify-then-act torna o vetor irrelevante — um POST forjado de
+qualquer IP não muda estado.
 
 ---
 
@@ -230,6 +357,44 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Doc relacionada:** ADR-007 §"Correction — Remediation F-01" (linhas ~139-183),
   `docs/CONVENTIONS.md` (threat model + checklist de nova tabela), `docs/runbooks/c2-validation.md`.
 
+#### 🔧 Remediação — ⚠️ Parcialmente resolvido (curto prazo ✅ · commit `5bbbd23`)
+
+**Estado ao remediar (divergência da auditoria):** o filtro defensivo **já existia na
+árvore de trabalho**, mas **não estava commitado** — junto de outros 85 arquivos. Um
+`git checkout` o teria apagado, e **nada no CI perceberia**: o `arch-db-check` verifica
+de onde os pools podem ser importados, não se uma query filtra por tenant. Por isso a
+primeira ação da remediação foi commitá-lo, antes de qualquer código novo.
+
+**Implementação (curto prazo — ✅):** `AND clinic_id = :clinicId` no `where` das 7
+mutations auditadas (`confirmPayment`, `cancelLancamento`, `createEstorno`,
+`updateSupplier`, `setSupplierAtivo`, `updateProntuario`, `signProntuario`). A
+verificação foi além da amostra da auditoria: **todos** os 26 arquivos
+`contexts/**/actions*.ts` + `app/**/actions*.ts` foram varridos — **zero** escopos
+só-por-id restantes. RLS deixa de ser a única barreira nesses caminhos.
+
+**Implementação (longo prazo — ⚠️ diferido a C16):** existe o opt-in
+`DATABASE_URL_RUNTIME` (`db/index.ts`) — quando definido, o pool runtime conecta por um
+role **sem BYPASSRLS**, e um `withTenant` esquecido retorna 0 linhas em vez de vazar
+(fail-close real). É `.optional()`: **por default o pool segue com BYPASSRLS**. Falta
+provisionar o role no Postgres e apontar a env — infra, não código. Segue como dívida
+de C16, agora com o caminho pronto.
+
+**Residual conhecido (aceito, documentado):** caminhos `internal/`/cron escapam da
+varredura de `actions.ts` e escopam por id em pools **BYPASSRLS** —
+`billing/internal/subscriptions.ts`, `billing/internal/provisioning.ts`,
+`patient/internal/hard-delete.ts`, handlers de outbox, `cron/billing-dunning`. Risco
+menor por construção: o id vem de varredura server-side confiável, não de input do
+cliente. Fica registrado para a próxima auditoria não reabrir como novidade.
+
+**Validação:** `arch:db-check` (601 arquivos, 0 findings), typecheck, lint, test, build
+verdes no commit de preservação.
+
+**Impacto:** *segurança* — mutação cross-tenant por UUID conhecido passa a exigir
+**duas** falhas simultâneas (RLS + filtro), não uma. *Escalabilidade* — inalterada (o
+filtro casa com o índice de `clinic_id`). *Observação de processo:* o achado mais
+valioso aqui não foi técnico — foi que a correção existia e estava a um comando de
+sumir sem deixar rastro.
+
 ---
 
 ### M1 — Comparação timing-unsafe de `CRON_SECRET` / `verify_token` (sistêmico)
@@ -259,6 +424,36 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Prioridade:** Média (fix mecânico, remove um anti-padrão sistêmico).
 - **Doc relacionada:** ADR-011 (invariante 28 — auth de cron), padrão constant-time já usado em
   `meta-cloud.ts:184-194` e `asaas.ts`.
+
+#### 🔧 Remediação — ✅ Resolvido (commits `5bbbd23`, `b3ad3b3`)
+
+**Estado ao remediar (divergência da auditoria):** já estava feito. `safeEqual`
+(`node:crypto` `timingSafeEqual`) guardava os **17** checks (15 cron/health + verify
+token do Meta + token do Asaas); zero `===` sobre segredo. Bônus além do pedido:
+`CRON_SECRET_DESTRUCTIVE` separando os 3 crons destrutivos.
+
+**Resíduos fechados:**
+1. **O helper não tinha um teste.** Ele guarda todos os checks de auth do sistema. O
+   contrato que importa é *"NUNCA lança"*: `crypto.timingSafeEqual` cru **lança** com
+   buffers de tamanhos diferentes — se escapasse, um header `Authorization` de tamanho
+   errado viraria 500 em vez de 401 (oráculo de tamanho de segredo + cron derrubado).
+   `secret-compare.test.ts`: 18 casos, incluindo o utf8 (`'é'` vs `'e'`: 1 char, 2 vs 1
+   **byte**) — exatamente o que faz o `timingSafeEqual` cru lançar.
+2. **Segunda implementação de cripto removida.** O Asaas tinha um `constantTimeEqual`
+   à mão (`charCodeAt` XOR, comparando **code units UTF-16** em vez de bytes). Trocado
+   por `safeEqual` → ponto único em `src/`. Comportamento preservado: o schema
+   (`emptyToUndefined` + `min(1)`) garante que `ASAAS_WEBHOOK_TOKEN` nunca é `''`, e a
+   rota segue exigindo o token via `assertBillingWebhookReady()`.
+
+**Validação:** 18 casos novos; typecheck, lint, arch:db-check.
+
+**Impacto:** *segurança* — o helper que decide toda autenticação de máquina passa a ter
+rede. *Manutenção* — duas primitivas de cripto para o mesmo fim era uma para revisar,
+testar e acertar duas vezes.
+
+**Observação — mudança de classificação:** M1 chegou como MÉDIA/aberto e estava
+**resolvido**. O trabalho real foi o oposto do pedido: não aplicar o helper, mas
+**testá-lo** e eliminar seu concorrente.
 
 ---
 
@@ -292,6 +487,47 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Prioridade:** Média.
 - **Doc relacionada:** ADR-011 invariante 28; `docs/runbooks/production-readiness.md`.
 
+#### 🔧 Remediação — ✅ Resolvido (commit `37a1b6d`)
+
+**Decisão do founder: assumir o single-factor**, não implementar o dual. A opção (a) da
+auditoria ("enforçar de fato a origem Vercel") foi **recusada com motivo**: a Vercel
+documenta hoje `x-vercel-cron-schedule`, **não** `x-vercel-cron`; um 401 dependendo de
+header não-documentado pararia **todos** os crons em silêncio numa renomeação da
+plataforma — e outbox parado é falha de integridade de eventos. O modo de falha do
+"hardening" seria pior que o risco mitigado. O item (b) (segredo por classe de rota) **já
+estava feito** (`CRON_SECRET_DESTRUCTIVE`, V5) — que é segregação real, não presença de
+header.
+
+**Implementação:**
+- `src/lib/http/cron-auth.ts` (novo) — `assertCronAuth(req, {route, destructive})`
+  substitui **13 cópias** quase idênticas (**−279/+55 linhas**). Recebe `Request` puro,
+  **nunca `NextRequest`**, para seguir testável com `new Request(url, {headers})` sem
+  runtime do Next.
+- **Fail-close embutido** — fecha o N1 também aqui (ver §0).
+- **401 passa a alarmar:** `cron.unauthorized` (métrica) + `logger.warn`.
+- `OUTBOX_CRON_ALLOW_NON_VERCEL` **declarado no schema** (`env.ts` + `.env.example`):
+  era lido por `process.env` cru nas 13 rotas, **fora da validação** — um typo era
+  silencioso. `CRON_SECRET_DESTRUCTIVE` também faltava no `.env.example` (gap do V5).
+- **A mentira vivia em 4 lugares**, todos corrigidos: ADR-011 §28, `PROGRESS.md`
+  (HIGH-08), `c4-validation.md` e os docblocks de outbox/patient-hard-delete. Addendum
+  no ADR-011 registra a decisão.
+- **N5:** o smoke `4.6.25` se chamava *"dual-factor … = 401"* e o próprio corpo admitia
+  (`void res1`) que não testava isso. Reescrito para a realidade.
+
+**Validação:** `cron-auth.test.ts` (17 casos), incluindo o negativo do V5 — o segredo de
+monitoring **não** abre a rota que apaga PII. typecheck, lint, arch:check, test, build.
+
+**Impacto:** *segurança* — inalterada em runtime (o gate efetivo já era só o Bearer); o
+que muda é a doc parar de mentir e o 401 virar sinal. *Manutenção* — 224 linhas de auth
+duplicada eliminadas; o gate tem dono. *Observabilidade* — 401 de cron alarmável.
+
+**Observação — desvio da recomendação (c):** a auditoria pedia "alertar (**Sentry**) em
+qualquer 401 de cron". Implementado como **métrica + `logger.warn`**, não Sentry: o
+ADR-029 mantém logs fora do Sentry e o próprio codebase já registra essa decisão em
+`rate-limit.ts` (*"SEM captureException… o ADR-029 mantém logs fora do Sentry"*). Um 401
+é evento de autorização, não exceção. Mesmo pipeline stdout → Better Stack, sem 2ª fonte
+da verdade. Seguimos a arquitetura da casa em vez da letra da recomendação.
+
 ---
 
 ### M3 — Faltam rate limits em operações caras/sensíveis (invite/resend, MFA-verify)
@@ -323,6 +559,46 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Prioridade:** Média.
 - **Doc relacionada:** ADR-008 addendum F-08 (rate-limit dual + fallback), `src/lib/auth/rate-limit.ts`.
 
+#### 🔧 Remediação — ✅ Resolvido (commit `b621d4d`)
+
+**Implementação** — no padrão dos 5 limiters existentes (lazy memoizado + `redisKey` +
+fail-open via `degraded()`), sem abstração nova:
+- **`assertInviteAllowed(clinicId, actorUserId)`** — dual: **20/1h por clínica**, **10/1h
+  por ator**. Por ator pega a conta comprometida; por clínica impede N gestores somando
+  para o mesmo efeito. Chamado **antes** do trabalho caro (quota + recovery link +
+  e-mail). Aplicado a `inviteMemberAction` e `resendInviteAction`.
+- **`assertMfaAllowed(userId, ip)`** — **10/15min por usuário** (folga para quem erra o
+  código: o TOTP roda a cada 30s, e 10⁶ códigos seguem inviáveis), **20/15min por IP**
+  (frouxo de propósito: clínica atrás de NAT compartilha IP). Aplicado ao verify do login
+  e ao enroll/unenroll.
+- **`saveStepAction`** → **reusa `assertJoinAllowed`**. Mesmo fluxo, mesmo abuso; um
+  limiter novo só fragmentaria o orçamento.
+- Sem extração para `src/lib/redis/`: segue rate-limit, não um 2º consumidor de Redis
+  (CONVENTIONS linha 100). Exceção de chave registrada lá (o Upstash monta
+  `[prefix, identifier]` com prefix **estático**, então `t:{clinicId}` não cabe primeiro;
+  a regra protege **dado** de tenant, e um contador cujo identifier **é** o clinicId não
+  tem o que vazar).
+
+**Validação (8 casos novos):**
+- **Fail-open REAL, sem mockar o Upstash:** o vitest não configura `UPSTASH_*`, então
+  `lazyRedis()` lança e o `assert*` cai no fallback — é literalmente o cenário "Redis
+  offline". Verificado: continua funcionando → loga → emite métrica.
+- **Fail-open não é barra-livre:** o fallback ainda barra acima do teto (ator e clínica).
+- **IPv6 /64:** dois endereços do mesmo bloco somam no mesmo balde.
+- **Janela deslizante × contador:** o fallback é fixed-window com a janela ancorada no
+  **1º hit**. Medido: o burst na borda é **2×limite − 1** (5 hits em ~1s com teto de
+  3/60s), não o "~2×" que o módulo afirmava (**N6** — doc corrigida para o valor medido).
+
+**Impacto:** *segurança/custo* — fecha o loop de convites (gestor malicioso ou conta
+comprometida gerando spam de recovery-mails na marca do cliente) e dá defesa **própria**
+ao 2º fator, que dependia só do throttle do GoTrue. *Performance* — +1 round-trip ao
+Redis nessas ações (irrelevante no volume delas). *Escalabilidade* — durante outage do
+Upstash o limite efetivo é ~N× (per-instância), degradação já aceita em ADR-008/F-08.
+
+**Observação — cancelInviteAction ficou de fora** (o plano previa incluí-la): é um
+`DELETE`, sem custo externo, e um teto ali atrapalharia limpeza legítima em lote sem
+mitigar abuso real. A auditoria pedia "convite/resend" — foi o que se fez.
+
 ---
 
 ### B1 — Mensagens de erro cruas em outros 500 (atrás de auth)
@@ -339,6 +615,21 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
   detalhe só a logs/Sentry — consistente com os webhooks/crons que já retornam `'internal'`.
 - **Prioridade:** Baixa.
 - **Doc relacionada:** `src/lib/http/error-response.ts`.
+
+#### 🔧 Remediação — ✅ Resolvido (commit `471b8e3`)
+
+**Implementação:** `toErrorResponse()` nos dois handlers; detalhe só no observability
+(`logger.error`). O helper existia, estava testado e tinha **zero consumidores** — dívida
+pura. Domain errors mantêm a própria mensagem (UI-safe) e o próprio status via
+duck-typing `code` + `httpStatus`.
+
+**Validação:** teste assere que um erro contendo `postgres://user:pw@host` produz corpo
+`{error:true, code:'internal', message:'Erro interno.'}` — sem `postgres://`, sem
+`SECRET`.
+
+**Impacto:** *segurança* — para de expor internals de driver/Postgres a operadores.
+*Consistência* — o envelope C16 (`trace_id` correlacionando resposta ↔ log ↔ Sentry) deixa
+de ser teoria e passa a ter consumidores reais.
 
 ---
 
@@ -359,6 +650,48 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
   aceite "qualquer uma de N permissões", se necessário); manter todos os checks na porta única.
 - **Prioridade:** Baixa.
 - **Doc relacionada:** ADR-008 (P-series, porta única), `src/lib/auth/tenant-context.ts:205`.
+
+#### 🔧 Remediação — ✅ Resolvido (commit `acde773`)
+
+**⚠️ MUDANÇA DE CLASSIFICAÇÃO — BAIXA → deveria ser MÉDIA.** A auditoria tratou o B2 como
+higiene ("duplica lógica de authz… risco de drift"). **Não era hipotético: já era bug.**
+O OR à mão lia `user.permissions` direto e **não tinha o branch `isSuperAdmin`** que
+`requireCachedPermission` tem (P7). Efeito: um super_admin **fora de impersonação** era
+**negado** em `confirmPayment`/`cancelLancamento` e **aceito** em todas as outras actions
+financeiras. O drift que a auditoria temia para o futuro já estava em produção.
+
+**Evidência:** removendo o bypass do novo helper, os dois testes de super_admin ficam
+vermelhos com `AuthError: Permissão negada` — comportamento idêntico ao do check à mão.
+
+**Implementação:**
+- `requireCachedAnyPermission(perms)` em `tenant-context.ts` — a variante OR que faltava.
+  `CAIXA_PERMISSIONS` numa constante só, para os dois call-sites não divergirem.
+- **`FinancialForbiddenError` removido:** sem os checks à mão, ninguém mais o lança. Um
+  erro de permissão próprio do contexto só existia para servi-los; mantê-lo convidaria a
+  recriá-los.
+
+**Compatibilidade (o que a troca revelou):** a UI mapeia erro por `err.name`, e a porta
+única lança `AuthError`. Trocar cegamente teria regredido a mensagem. Ao corrigir,
+apareceram **N4** (as actions que **já** usavam a porta única caíam no genérico *"Tente
+novamente"* ao negar permissão — errado **e** enganoso, porque tentar de novo não
+resolve) e **N3** (`lancamento-actions.ts` devolvia `err.message` de **qualquer** erro à
+UI: uma negativa exibia *"Permissão 'manage:financial' negada (cached). Verifique
+role/overrides."*, e um erro de driver vazaria igual). Os três mapeadores agora entendem
+`AuthError` e distinguem 403 de sessão expirada pelo `code`.
+
+**Validação (14 casos):** exercitam a porta única **real** — mockar `tenant-context` não
+serviria, porque o helper chama o `requireUser` **local do módulo**; o seam correto são as
+dependências de `getCurrentUser` (supabase + impersonação), com `resetModules` por teste
+para escapar do `cache()`. Cobrem o bypass, os 403/401 e a **não-regressão**:
+`gestor`/`owner`/`financial`/`attendant` com permissão de caixa continuam passando.
+
+**Impacto:** *segurança/correção* — elimina divergência de authz silenciosa entre actions
+irmãs. *UX* — negativa de permissão passa a dizer a verdade em todo o financeiro.
+*Manutenção* — authz volta 100% para a porta única; invariantes e arch-tests que a
+assumem voltam a valer.
+
+**Observação:** não existe `tenant_admin` neste projeto (roles reais: `gestor`, `doctor`,
+`attendant`, `financial`, `owner`, `super_admin` — `roles.ts:12`).
 
 ---
 
@@ -382,6 +715,24 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Prioridade:** Baixa.
 - **Doc relacionada:** ADR-020 (number-store seam), `src/lib/audit/super-admin.ts`.
 
+#### 🔧 Remediação — ✅ Resolvido (commit `2c44398`)
+
+**Implementação:** `requireSuperAdmin()` no topo das três (antes de parse/cripto) +
+`ClinicIdSchema` (`z.string().uuid()`) em `disconnect`/`rotate` — o `connect` já validava
+via `ConnectNumberSchema`. O gate duplicado (topo + dentro de `superAdminAction`) é
+barato: `getCurrentUser` é `cache()`-ado por request, e manter o de dentro preserva a
+garantia para qualquer outro caller. A cripto continua **fora** da tx (CPU puro antes de
+abrir transação — decisão original preservada), só que agora **depois** do gate.
+
+**Validação (9 casos):** para o não-autorizado, **nada** acontece além do 403 — nem
+`encryptForTenant`, nem `superAdminAction`. Inclui o caso "input inválido **de**
+não-autorizado → `AuthError`, **não** `ZodError`" (sem oráculo de schema antes do 403).
+
+**Impacto:** *segurança* — some a CPU de derivação de chave (HKDF por tenant) alcançável
+por não-autorizado (amplificação de DoS) e o oráculo de formato de input. *Consistência*
+— a borda cross-tenant fica tão dura quanto a tenant, onde `clinicId` vem de
+`requireClinicId()` e nunca de input.
+
 ---
 
 ### B4 — Arch-test de critical-actions tem escopo estreito (blind spot latente)
@@ -403,6 +754,38 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Prioridade:** Baixa (fortalece o CI antes de virar problema).
 - **Doc relacionada:** ADR-008 (D20 fresh-permission), `docs/engineering/definition-of-done.md`.
 
+#### 🔧 Remediação — ✅ Resolvido (commit `2c44398`)
+
+**O furo não era latente — já estava aberto.** As **6** transitions de
+`scheduling/actions.ts` (`confirmAppointment`, `checkInAppointment`, `startAppointment`,
+`completeAppointment`, `cancelAppointment`, `markNoShow`) chamam
+`requireFreshPermission(EDIT_AGENDA)` e são críticas por comportamento, mas eram
+**invisíveis ao gate**: duplamente, por virem de uma factory **e** por viverem num arquivo
+fora da lista. Estavam certas **por acidente** — nada impedia alguém de remover o check
+sem quebrar o CI.
+
+**Implementação (escopo contido, e a contenção é regra):**
+- Descoberta por **varredura** de `actions*.ts` sob `contexts/` e `app/` (era lista fixa
+  de 4).
+- Reconhece as **três formas que existem hoje**: declaração; arrow/function expression;
+  `const X = factory(...)` com a factory no **mesmo arquivo** — **um hop, sem recursão,
+  sem cross-file**. Não é analisador genérico e o docblock diz que não deve virar um: se
+  o diff do teste começar a crescer, o certo é simplificar o código de produção.
+- **Forma desconhecida agora FALHA ALTO**, com mensagem distinta de "não encontrada".
+  Antes as duas viravam o mesmo erro — o que empurra o mantenedor a **remover o nome da
+  lista** (cegando o gate) em vez de consertar o visitor. A mensagem nova pede
+  explicitamente o oposto.
+- `CRITICAL_ACTIONS`: **10 → 16** nomes.
+
+**Validação (18 casos):** **evidência** — removendo o `requireFreshPermission` da factory,
+as 6 transitions ficam vermelhas com *"'cancelAppointment' (factory transitionAction() em
+…/scheduling/actions.ts) não chama requireFreshPermission no nível superior"*. O gate
+agora enxerga o que antes passava batido. Inclui sanity-check da varredura (se ela
+quebrar, os testes passariam vazios) e o controle negativo de código morto.
+
+**Impacto:** *test-coverage/segurança* — 6 ações destrutivas de agenda saem do ponto cego
+do CI. *Manutenção* — action crítica nova em qualquer `actions*.ts` já nasce coberta.
+
 ---
 
 ### B5 — UUID interno (`clinicId`) exposto no corpo 200 do webhook Asaas
@@ -419,6 +802,15 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
   sem o UUID interno.
 - **Prioridade:** Baixa.
 - **Doc relacionada:** ADR-025.
+
+#### 🔧 Remediação — ✅ Resolvido (commit `0eac706`, junto do A2)
+
+**Implementação:** a resposta 200 vira `{received: true}`. O detalhe (`event`,
+`provider_status`, `status` da transição, `clinicId`) foi para a **métrica**, que é
+interna — sem perder observabilidade. Teste assere que o corpo não contém o UUID.
+
+**Impacto:** *segurança* — identificador interno fora da resposta a um chamador externo.
+Mínimo, como a auditoria disse; feito porque era de graça junto do A2.
 
 ---
 
@@ -442,6 +834,38 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
 - **Prioridade:** Baixa.
 - **Doc relacionada:** ADR-028 (white-label PDF), `docs/CONVENTIONS.md` (anti-fullscan super_admin).
 
+#### 🔧 Remediação — ✅ Resolvido (commit `471b8e3`)
+
+**Implementação:**
+- **Cap de 12 meses** no span `from`/`to` (antes só formato e ordem eram validados).
+  **422, não 400** — e a distinção passa a ser aplicada de propósito na rota: **400 =
+  malformado** (data fora de `YYYY-MM-DD`, período invertido — seguem 400); **422 =
+  bem-formado, não processável**.
+- **Rate-limit nas duas rotas de PDF** — `assertPdfExportAllowed(clinicId, userId)`,
+  10/15min por usuário + 30/15min por clínica; **429** em ambas.
+- **N2 (achado novo) — truncagem silenciosa:** o repo corta em `AUDIT_EXPORT_MAX_ROWS`
+  (5000); o PDF saía com as primeiras N linhas e o `sha256` ia para `super_admin_actions`
+  **como se atestasse o período inteiro**. Um artefato de auditoria incompleto que se
+  apresenta como completo é pior que a ausência dele. Agora `AuditExportTooLargeError`
+  (domain error, 422), lançado **no serviço, antes do render/upload** — barrar depois
+  deixaria um PDF órfão no storage a cada tentativa. Como `toErrorResponse` já mapeia
+  domain errors 1:1 pelo `httpStatus`, a rota não precisou saber do caso.
+
+**Validação (11 casos):** fronteira exata do span (11m29d passa, 12m barra), truncagem
+**não gera atestação** (`superAdminAction` não é chamado), o 500 não vaza connection
+string, e o 429 não paga o render.
+
+**Impacto:** *performance/abuso* — some o trabalho ilimitado por request; teto por usuário
+**e** por clínica. *Integridade* — a atestação do export deixa de poder mentir.
+*UX* — o operador recebe instrução acionável ("reduza o intervalo") em vez de um PDF
+silenciosamente errado.
+
+**Observação:** a auditoria sugeria também "empurrar exports grandes para job assíncrono
+(outbox) com entrega por signed URL". **Não implementado** — seria arquitetura nova
+(job + estado + notificação) para um caso que o cap de 12 meses já resolve no uso real
+(export fiscal/LGPD por exercício). Se aparecer demanda real de export plurianual, o job
+assíncrono é o caminho; hoje seria abstração prematura.
+
 ---
 
 ### B7 — Guards de custo/resiliência de IA são "soft caps" per-instância
@@ -462,6 +886,32 @@ Legenda de status: ✅ sólido · ⚠️ achado registrado · 🔵 informativo.
   considerar reserva otimista de orçamento antes da chamada ao LLM.
 - **Prioridade:** Baixa (aceitável no MVP single-worker).
 - **Doc relacionada:** ADR-022 §11.17 (aposta documentada), `src/lib/ai/cost.ts`.
+
+#### 🔧 Remediação — 🚫 Não aplicável / não implementado (decisão consciente)
+
+**Não implementado, com justificativa técnica.** Critério de escopo do trabalho: BAIXAs
+entram só se fizerem sentido arquitetural, reduzirem dívida e **não** introduzirem
+abstração desnecessária. O B7 falha nos três:
+
+1. **Não é bug — é aposta documentada.** O ADR-022 §11.17 já registra que breaker e quota
+   são per-instância e migram para Redis **ao escalar**. A auditoria confirma ("já estão
+   documentados como dívida"). Remediar aqui seria antecipar uma decisão cujo gatilho é
+   escala, não a auditoria.
+2. **O impacto é custo, não segurança.** A própria auditoria classifica: "overshoot
+   moderado do orçamento de IA sob concorrência — custo, não segurança". Não há vetor de
+   tenant, dado ou acesso.
+3. **A correção é infra, não código.** Exige contador atômico distribuído + estado do
+   breaker no Redis (reserva otimista antes da chamada ao LLM). Hoje o único consumidor
+   de Redis é o rate-limit; CONVENTIONS (linha 100) manda extrair `src/lib/redis/`
+   **quando** surgir o 2º consumidor. Fazer isso agora, para um problema de custo que não
+   está doendo, é exatamente a abstração prematura que o projeto evita.
+
+**Gatilho para reabrir:** primeira instância a mais em produção (multi-worker/Vercel
+escalando), **ou** o gasto real de IA se aproximar do orçamento — o que vier antes. Aí a
+extração para `src/lib/redis/` deixa de ser prematura e o B7 vira a 2ª motivação dela.
+
+**Impacto de não implementar:** teto de IA pode ser ultrapassado em ~N× sob
+multi-instância. Aceito e já aceito antes desta auditoria (ADR-022).
 
 ---
 
@@ -542,6 +992,20 @@ priorização:
   (ADR > VisãoGeral); **atualizar a VisãoGeral** para evitar expectativa errada e futuro
   "bug report" fantasma.
 
+  #### 🔧 Remediação — ✅ Resolvido (commit do Marco 4)
+
+  A afirmação vivia em **3** lugares, não 2: linhas **728** (§4.1), **2258** (§11.1) e
+  **2487**. Todas corrigidas para "2FA obrigatório só pro `super_admin`; gestor/financial =
+  opt-in forte (banner não-bloqueante)", com o **porquê** que faltava: sem recovery codes +
+  reset por admin, forçar 2FA tranca o cliente fora da própria clínica (ADR-008 D6).
+  §7.9 ("2FA obrigatório no seu super_admin") já estava correta — não foi tocada.
+
+  **Corrigido junto (fora do escopo da auditoria):** a linha **731** afirmava *"rate limit
+  5 tentativas/15min via Upstash. Após 5, bloqueia 1h"*. O código é **dual** (IP 10/15min +
+  email_hash 5/15min, sliding window) e **não existe bloqueio de 1h** — a janela desliza.
+  Ambos os números e o comportamento estavam errados; a doc agora aponta para
+  `rate-limit.ts` e menciona o fail-open (F-08).
+
 ---
 
 ## 6. Melhorias recomendadas
@@ -614,3 +1078,74 @@ reabrir:
   as migrations linha a linha.
 - Achados com referência de linha refletem o estado do branch `docs/identity-practitioner-model`
   na data acima.
+
+---
+
+## Remediação — registro de fechamento
+
+| Campo | Valor |
+|---|---|
+| **Data** | 2026-07-15 |
+| **Branch** | `docs/identity-practitioner-model` |
+| **Responsável** | João Marcos (founder) · execução: Claude Opus 4.8 |
+| **Commits** | `5bbbd23` (preservação) → `2c44398`. Um por tema, revertíveis isolados. |
+| **Volume** | 118 arquivos, +8.904 / −1.496 |
+| **Resultado** | **Aprovado.** 3/3 ALTA, 3/3 MÉDIA, 6/6 BAIXA implementadas; 1 BAIXA (B7) justificada. 6 achados novos encontrados e corrigidos. |
+
+### Commits
+
+| Commit | Achados | Tema |
+|---|---|---|
+| `5bbbd23` | A3, M1 | **Preservação.** 86 arquivos não-commitados na árvore — a correção do A3 estava a um `git checkout` de sumir sem rastro. |
+| `aede5dd` | A1 | auth-hook exige Bearer; fim do vazamento de `sqlstate`; **N1** |
+| `0eac706` | A2, B5 | webhook Asaas verify-then-act |
+| `b3ad3b3` | M1 | teste do `safeEqual`; 2ª primitiva de cripto removida |
+| `37a1b6d` | M2 | `assertCronAuth`; single-factor assumido; **N5** |
+| `b621d4d` | M3 | rate limits (convite, MFA, step-save); **N6** |
+| `471b8e3` | B1, B6 | envelope de erro; cap do export; **N2** |
+| `acde773` | B2 | check do caixa na porta única; **N3**, **N4** |
+| `2c44398` | B3, B4 | auth antes do trabalho; arch-test enxerga factory |
+
+### Gates (todos verdes no HEAD)
+
+`typecheck` · `lint` · `arch:check` · `arch:db-check` · `check:migrations` ·
+`check:registry:strict` · `test` · `build` — os mesmos do CI (DoD §1).
+**Testes: 540 → 650 (+110).** Nenhum teste existente foi alterado para passar.
+
+### Cobertura nova
+
+| Área | Antes | Depois |
+|---|---|---|
+| Route handlers | **0 testes** no repo | 27 (auth-hook/health, webhook Asaas, export de auditoria) |
+| `safeEqual` | 0 | 18 |
+| `assertCronAuth` | — | 17 |
+| Rate limit (novos) | 0 | 8 (fail-open real, /64, janela) |
+| `requireCachedAnyPermission` | — | 14 |
+| Messaging admin (ordem) | 0 | 9 |
+| `CRITICAL_ACTIONS` | 10 nomes | 16 nomes |
+
+### Mudanças de contrato (deliberadas)
+
+| Rota | Antes | Depois | Justificativa |
+|---|---|---|---|
+| `GET /api/health/auth-hook` | anônima | Bearer `CRON_SECRET` ou super_admin AAL2 | A doc já mandava (`production-readiness` §5/§5.2); consumidores levantados antes; ação de conferência do monitor registrada no runbook |
+| `POST /api/webhooks/asaas` | aceitava corpo sem `body.id` | 400 sem `body.id`; 200 = `{received:true}` | O Asaas sempre envia `evt_…`; a síntese era defesa morta que causava bug de dedup |
+| `POST /admin/.../audit/export` | qualquer intervalo | 422 acima de 12 meses ou se truncaria; 429 sob rate-limit | Trabalho ilimitado por request; atestação enganosa |
+
+### Documentação atualizada
+
+ADR-011 (§28 + addendum M2) · ADR-025 (addendum A2) · `VisãoGeral.md` (§4.1 2FA + números
+de rate-limit, §11.1, +1) · `CONVENTIONS.md` (exceção de chave Redis) · `c16/slo.md` (§3.1)
+· `PROGRESS.md` (HIGH-08) · runbooks `asaas-webhook-missing`, `c3-validation`,
+`c4-validation`, `production-readiness` · `c16-inventory` · `.env.example`.
+
+### Pendências operacionais (fora do código)
+
+1. **Conferir o header `Authorization` no monitor do auth-hook** (Better Stack/UptimeRobot)
+   antes do próximo deploy — a rota era anônima e passa a devolver 401 sem ele.
+   Registrado em `production-readiness.md` §5.2.
+2. **Alerta p95 do `billing.webhook.verify`** (> 5s por 5min) — threshold definido em
+   `c16/slo.md` §3.1, **disparo não wired**: depende do go-live #2 (canal de alerta), que
+   segue aberto. Vale para todo o alerting do C16, não é dívida desta remediação.
+3. **A3 longo prazo:** provisionar o role sem BYPASSRLS e apontar `DATABASE_URL_RUNTIME`
+   → fail-close real. Código pronto; falta infra. C16.
