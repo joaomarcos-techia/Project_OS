@@ -78,7 +78,7 @@ Para zerar dados de dev: `pnpm reset:dev`.
 pnpm dev            # http://localhost:3000
 ```
 
-Rotas principais: `/(app)` = app das clínicas (`app.qoro.dev`), `/(admin)` = painel do fundador (`admin.qoro.dev`). Ver [architecture/context-map.md](../architecture/context-map.md) e VisãoGeral §2.4.
+Rotas principais: `/(app)` = app das clínicas e `/(admin)` = painel do fundador — **os dois em `app.qoro.dev`** (o subdomínio `admin.qoro.dev` nunca foi provisionado; ver [PROGRESS §D7](../PROGRESS.md)). Ver [architecture/context-map.md](../architecture/context-map.md) e VisãoGeral §2.4.
 
 ---
 

@@ -5,7 +5,7 @@
 > ↩︎ Registro histórico — volta para o [índice mestre](./README.md).
 
 
-Roteiro de aceite do painel do fundador (`/admin`, admin.qoro.dev). Marque cada caixa ao confirmar.
+Roteiro de aceite do painel do fundador (`/admin` em `app.qoro.dev` — o subdomínio `admin.qoro.dev` nunca existiu; ver PROGRESS §D7). Marque cada caixa ao confirmar.
 O que já está coberto por testes automáticos (não precisa repetir aqui): typecheck, lint, `arch:db-check`,
 `check:migrations` e 408 testes unitários (guard 404, HMAC do cookie, step-up MFA, hash do export,
 conversão de centavos, arch read-only). Este documento cobre o que **só** dá para validar com o sistema rodando

@@ -187,7 +187,7 @@ A ordem abaixo não é negociável. Ela é o resultado direto das dependências 
 └──────────────────────────────────────────────────────┘
           ↓
 ┌──────────────────────────────────────────────────────┐
-│ C15 Platform Admin (admin.qoro.dev, impersonate)     │
+│ C15 Platform Admin (rotas /admin, impersonate)       │
 └──────────────────────────────────────────────────────┘
           ↓
 ┌──────────────────────────────────────────────────────┐
@@ -4142,7 +4142,11 @@ conectar número, gate §14.7. Runbook: `docs/runbooks/c14-validation.md`.
 
 ---
 
-## CAMADA 15 — Platform Admin (admin.qoro.dev)
+## CAMADA 15 — Platform Admin (rotas `/admin`)
+
+> ⚠️ Esta camada foi planejada para `admin.qoro.dev`, subdomínio que **nunca foi
+> provisionado**. Entregue em `app.qoro.dev/admin`; a separação de host foi adiada com
+> motivo — ver [PROGRESS §D7](./PROGRESS.md).
 
 ### 15.1 🎯 Objetivo
 
@@ -4254,7 +4258,7 @@ async function impersonateClinic(targetClinicId: string, reason: string) {
 ### 15.18 🧊 Contratos Congelados ao fim de C15
 
 **Congelados:**
-- Rotas `admin.qoro.dev/admin/*` restritas a super_admin
+- Rotas `/admin/*` restritas a super_admin (404 absoluto p/ o resto — independe de host)
 - Impersonate flow (audit pesado + banner + TTL 1h)
 - Export PDF audit com hash de integridade
 - Visão Geral + Clínicas + Billing + Conversas IA + Métricas + Audit + Saúde + Config

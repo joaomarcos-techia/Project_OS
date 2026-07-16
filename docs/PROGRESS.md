@@ -945,7 +945,7 @@ A clínica **fala primeiro** no WhatsApp via template Meta. Contratos em
 
 ## C15 — Platform Admin (✅ fechada em 2026-06-20)
 
-Painel do fundador (`/admin`, admin.qoro.dev): **read-only sobre dados de clínica**,
+Painel do fundador (`/admin` em `app.qoro.dev` — o host próprio foi adiado, §D7): **read-only sobre dados de clínica**,
 com impersonate auditado como única forma de mutar. Aceite manual completo em
 [docs/testesC15.md](testesC15.md) (mapa de cobertura do brief no fim do doc).
 
@@ -1228,6 +1228,24 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 | **D4** | Auth-epoch / revogação imediata de sessão (janela de replay de JWT de 15min) | Aceito (ADR-009 D12/D27) | Primeiro incidente de sessão, ou exigência de compliance de cliente. |
 | **D5** | CSP bloqueante com nonce (hoje `Report-Only`) | Aceito (ADR-030) | Quando o relatório de CSP estiver limpo por ~1 semana em produção. |
 | **D6** | Sanear o journal de migrations (snapshots `meta/*.json` com lacunas → `db:generate` inseguro) | Aceito (ADR-020) | Quando uma evolução de schema exigir `db:generate` de verdade. |
+| **D7** | **`admin.qoro.dev` (Control Plane em host próprio)** — planejado desde o PlanoAção, **nunca provisionado**; o subdomínio não resolve. Painel e app dividem `app.qoro.dev`. | **Adiado por decisão do founder (2026-07-16)**, com motivo — ver abaixo. Docs corrigidos para parar de afirmar que existe. | **Só junto com D5 (CSP bloqueante) + cookie escopado por host.** Sozinho é separação cosmética. |
+
+### Por que o D7 foi adiado (e o que o tornaria válido)
+
+Host separado **não protege o painel** — a defesa é `guardAdminAccess()` → super_admin +
+AAL2 → **404 absoluto**, que independe de hostname. O painel não fica mais exposto por
+morar em `app.qoro.dev`.
+
+O ganho real seria **um só**: isolamento de origem. Com a CSP em `Report-Only` (**D5**),
+um XSS no app do tenant roda na **mesma origem** da sessão de super_admin; em origem
+separada, não alcançaria. **Mas isso só vale se o cookie de sessão for escopado por HOST
+e não por domínio** (`.qoro.dev`) — senão os dois hosts compartilham cookie e a separação
+não isola nada.
+
+Ou seja: o benefício depende de duas condições que hoje não existem, e o custo (DNS +
+cert + config + um 2º alvo de deploy) é imediato. Com **um único super_admin** e produto
+pré-produção, adiar é a escolha certa. Reabrir **junto** com o D5 — não antes, e não
+sozinho.
 
 ### Plano D1 — provisionar o role sem BYPASSRLS
 

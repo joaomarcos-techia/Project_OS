@@ -190,7 +190,9 @@ ClinicaOS tem **dois planos arquiteturais lógicos** no mesmo deploy:
 - Configuração de planos, prompts do agente
 - Acesso: apenas `super_admin` (você), todas ações auditadas
 
-🔒 Os dois planos vivem em **subdomínios diferentes** (`app.qoro.dev` vs `admin.qoro.dev`) e em **rotas separadas no Next.js** (`/app/*` vs `/admin/*`), mas compartilham o mesmo deploy e mesmo banco. **Separação é lógica, não física.**
+🔒 Os dois planos vivem em **rotas separadas no Next.js** (`/app/*` vs `/admin/*`), no mesmo deploy e mesmo banco. **Separação é lógica, não física.**
+
+> ⚠️ **Corrigido em 2026-07-16:** este parágrafo dizia que os planos vivem em *subdomínios diferentes* (`admin.qoro.dev`). **Esse subdomínio nunca foi provisionado** — os dois vivem em `app.qoro.dev`. A separação de host foi **adiada com motivo** ([PROGRESS §D7](./PROGRESS.md)): ela não protege o painel (a defesa é `guardAdminAccess()` → super_admin + AAL2 → 404 absoluto, que independe de host) e só passa a valer junto com CSP bloqueante + cookie escopado por host.
 
 📌 **Armadilha futura**: vai dar vontade de criar deploy separado pro Control Plane "por segurança". Não faça. A separação por RLS + rotas dedicadas + role super_admin é suficiente. Deploy separado dobra trabalho de manutenção pra zero ganho real.
 
@@ -505,7 +507,7 @@ Implementações: `MetaCloudProvider`, `ZApiProvider`. Sistema escolhe por `clin
 qoro.dev                        → landing page (Firebase Hosting, intacta)
 *.qoro.dev                      → Vercel (todo o app)
   ├─ app.qoro.dev               → app de TODAS as clínicas (login roteia por clinic_id no JWT)
-  └─ admin.qoro.dev             → dashboard master (você)
+  └─ app.qoro.dev/admin        → dashboard master (você) — host próprio adiado (§D7)
 ```
 <!-- DECISÃO (atual): NÃO há subdomínio por clínica para NINGUÉM. Todas as clínicas
      acessam por app.qoro.dev; o tenant é resolvido pelo clinic_id do JWT, não pelo
@@ -543,7 +545,7 @@ qoro-landing/         ← repo existente, manter intacto (Firebase Hosting)
 qoro/                 ← repo novo do v2
   src/app/
     (app)/            → app.qoro.dev (todas as clínicas; tenant via JWT)
-    (admin)/          → admin.qoro.dev
+    (admin)/          → app.qoro.dev/admin  (host próprio adiado — PROGRESS §D7)
     api/              → API routes
   src/lib/
     db/               → Drizzle schema + migrations + queries
@@ -1261,7 +1263,7 @@ list_slots, schedule_appointment, confirm_appointment, ...
 **Objetivo**: operação interna da Qoro, dashboard master, auditoria.
 
 **Responsabilidades:**
-- Dashboard `admin.qoro.dev` (você)
+- Dashboard `/admin` (você)
 - Listar/gerenciar clínicas
 - Visualizar conversas IA pra debug
 - Métricas globais (MRR, churn, custo Gemini, DAU, agendamentos totais)
@@ -1654,7 +1656,7 @@ Estratégias combinadas:
 2. **Validação semântica server-side**: ex. agendamento pra data passada → rejeita
 3. **Existência de entidades**: tool `schedule_appointment` valida que `doctor_id` existe na clínica
 4. **Fallback explícito**: se LLM responde algo absurdo, sistema reenvia com "Você não pode fazer isso. Responda dentro das opções."
-5. **Auditoria**: toda interação logada, debugável em `admin.qoro.dev`
+5. **Auditoria**: toda interação logada, debugável no painel `/admin`
 
 ## 6.6 Custo e cota
 
@@ -1704,7 +1706,7 @@ Métricas tracked:
 - Latência média
 - Erros/timeouts Gemini
 
-Dashboard em `admin.qoro.dev` mostra tudo.
+Dashboard em `/admin` mostra tudo.
 
 ## 6.9 Riscos da IA e mitigações
 

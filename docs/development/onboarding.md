@@ -54,7 +54,8 @@ Objetivo: sua primeira mudança segura.
 ```
 src/
 ├── app/(app)/       → app das clínicas (app.qoro.dev)
-├── app/(admin)/     → painel do fundador (admin.qoro.dev)
+├── app/(admin)/     → painel do fundador (MESMO host: app.qoro.dev/admin — o
+│                     subdomínio admin.qoro.dev nunca existiu; ver PROGRESS D7)
 ├── app/api/         → route handlers (cron, webhooks, health)
 ├── contexts/        → 8 bounded contexts (identity, tenancy, patient,
 │                       scheduling, clinical, financial, ai-agent, platform-admin)
