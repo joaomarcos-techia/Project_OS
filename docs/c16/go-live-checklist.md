@@ -18,10 +18,19 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 3. Redeploy. Nos logs deve aparecer "Uploading source maps" / "Creating release".
 **Pronto quando:** um erro novo no Sentry mostra `arquivo.ts:linha` em vez de `bundle.js:...`.
 
-## 1.b ⚠️ PRÉ-REQUISITO ESQUECIDO — Log drain do Better Stack (2026-07-16)
-**O que:** os logs/métricas da aplicação (`kind:"log"` / `kind:"metric"`, uma linha JSON
-por evento em stdout) **não chegam ao Better Stack** — o drain nunca foi criado. Sem ele,
-o Live tail está vazio e **não há sobre o que alertar**.
+## 1.b ✅ Log drain do Better Stack — FEITO (2026-07-16)
+**O que era:** os logs/métricas da aplicação (`kind:"log"` / `kind:"metric"`, uma linha
+JSON por evento em stdout) não chegavam ao Better Stack — o drain nunca tinha sido criado.
+Sem ele, o Live tail fica vazio e **não há sobre o que alertar**.
+
+> ✅ **Resolvido.** Drain criado manualmente; confirmado com `message.event:"worker.tick"`
+> (o cron do outbox emite a cada minuto — teste de aceite que não exige gerar tráfego).
+>
+> 🪤 **A pegadinha que custou uma hora:** o Better Stack **aninha** o JSON do app sob
+> `message`. `event:"worker.tick"` retorna **vazio**; o certo é `message.event:"..."`. Uma
+> busca vazia por erro de sintaxe é indistinguível de "drain morto" — e as saved searches
+> do [log-search.md](../runbooks/log-search.md) estavam **todas** sem o prefixo, escritas
+> antes de o drain existir e nunca testadas. Corrigidas.
 
 **Por que estava faltando:** o [log-search.md §FASE 4](../runbooks/log-search.md) descreve
 o setup e o [c16-inventory](./c16-inventory.md) o lista como "config externa", mas esta
@@ -41,7 +50,8 @@ depende deste**. Descoberto quando o founder foi criar a saved search e não ach
    linhas chegam **parseadas** — `kind`, `event`, `level` devem virar campos filtráveis,
    não texto solto. Se vierem como string, o formato do drain não é JSON.
 
-**Pronto quando:** `kind:"metric"` devolve resultado no Live tail. Aí as saved searches do
+**Pronto quando:** `message.event:"worker.tick"` devolve resultado no Live tail (o cron do
+outbox emite a cada minuto — não precisa gerar tráfego). Aí as saved searches do
 [log-search.md](../runbooks/log-search.md) e o item 2.b passam a ser possíveis.
 
 ## 2. Alertas (ser avisado sem ficar olhando)
@@ -73,27 +83,32 @@ teto de ~10s dentro de um `maxDuration` de 30s. **p95** = o valor abaixo do qual
 das medições; se ele passa de 5s, metade do orçamento da invocação já foi — é o aviso
 *antes* dos timeouts em massa. Threshold em [slo.md §3.1](./slo.md).
 
-**Como:** Better Stack → Live tail → filtro → **Save**:
+**Como:** Better Stack → Live tail → filtro → **Save**. ⚠️ O prefixo **`message.`** é
+obrigatório — o Better Stack aninha o JSON do app sob `message`, e sem ele a busca
+retorna vazio (ver [log-search.md](../runbooks/log-search.md)):
 ```
-kind:"metric" AND event:"billing.webhook.verify"
+message.kind:"metric" AND message.event:"billing.webhook.verify"
 ```
-Alerta quando o **p95 de `duration_ms` > 5s por 5min**. Se a UI não calcular percentil
-direto, aproxime por contagem — o efeito prático é o mesmo:
+Alerta quando o **p95 de `message.duration_ms` > 5s por 5min**. Se a UI não calcular
+percentil direto, aproxime por contagem — o efeito prático é o mesmo:
 ```
-kind:"metric" AND event:"billing.webhook.verify" AND duration_ms:>5000
+message.event:"billing.webhook.verify" AND message.duration_ms:>5000
 ```
 → alerta se ocorrer > ~5× em 5min.
 
 **No mesmo canal, valem mais que o p95:**
 ```
-kind:"metric" AND event:"billing.webhook.verify" AND outcome:"failure"
+message.event:"billing.webhook.verify" AND message.outcome:"failure"
 ```
 → o `payment.id` **não existe no Asaas**: webhook forjado, pagamento apagado, ou
 sandbox×prod trocado. **Investigar sempre** — ver `runbooks/asaas-webhook-missing.md`.
 ```
-kind:"metric" AND event:"billing.reconcile.divergence"
+message.event:"billing.reconcile.divergence"
 ```
 → o reconcile achou o que o webhook não refletiu (evento perdido **ou** forjado).
+
+⚠️ **Confirme que a busca retorna linha antes de salvar.** Saved search vazia por erro de
+sintaxe é indistinguível de "está tudo bem".
 
 **Pronto quando:** o alerta dispara num teste forçado. **Severidade: investigação, não
 pager** — a degradação aqui é fail-safe (nada é persistido, o Asaas re-entrega, o
@@ -142,7 +157,7 @@ reconcile diário corrige).
 
 ## Resumo (marque conforme fizer)
 - [x] 1. `SENTRY_AUTH_TOKEN` na Vercel + redeploy — source maps confirmados legíveis (2026-07-02)
-- [ ] **1.b Log drain Better Stack ← FAÇA PRIMEIRO.** Sem ele o Live tail está vazio e o 2.b é impossível. (Exige Vercel Pro.)
+- [x] **1.b Log drain Better Stack** — ✅ ativo (2026-07-16), confirmado com `message.event:"worker.tick"`. ⚠️ **Toda busca exige o prefixo `message.`** (o Better Stack aninha o JSON do app) — sem ele, retorna vazio e parece que o drain está morto.
 - [~] 2. Alerta no Sentry (Alert Rule → Issues → env=production) + escalation/canal no Uptime — **finalizar**
 - [ ] 2.a Header `Authorization: Bearer` no monitor do `/api/health/auth-hook` — **antes do próximo deploy** (a rota virou autenticada; sem o header o monitor alarma falso). Não depende do 1.b.
 - [ ] 2.b Saved search do `billing.webhook.verify` p95 > 5s/5min (threshold já em `slo.md` §3.1) — **depende do 1.b**

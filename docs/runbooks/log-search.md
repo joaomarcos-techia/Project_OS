@@ -22,12 +22,54 @@ Ambos passam por `sanitizeFields` (redige Bearer/JWT/DSN/chaves sensíveis) — 
 um pipeline externo. Cada operação HTTP carrega `request_id`/`correlation_id`
 ([request-context.ts](../../src/lib/audit/request-context.ts)) para correlacionar.
 
+### ⚠️ O prefixo `message.` — leia antes de escrever qualquer busca
+
+O Better Stack **embrulha** a linha do app dentro de um envelope próprio. O que chega é:
+
+```json
+{
+  "dt": "1784176930112",
+  "message": {                        ← o JSON do app fica AQUI DENTRO
+    "ts": "2026-07-16T04:42:10.492Z",
+    "kind": "metric",
+    "event": "worker.tick",
+    "duration_ms": 340
+  },
+  "platform": "Vercel",
+  "vercel": {
+    "environment": "production", "path": "/api/cron/outbox", "level": "info",
+    "deployment_id": "dpl_…", "projectName": "project-os", "executionRegion": "iad1",
+    "request_id": "xndwz-…", "source": "lambda", "type": "stdout"
+  }
+}
+```
+
+**Portanto: `event:"worker.tick"` NÃO ACHA NADA.** O caminho é **`message.event`**.
+
+| Quero | Busca |
+|---|---|
+| Um evento | `message.event:"worker.tick"` |
+| Só métricas | `message.kind:"metric"` |
+| Só logs do `logger` | `message.kind:"log"` |
+| Nível do **nosso** logger | `message.level:"error"` (⚠️ `vercel.level` é a classificação da Vercel para stdout — quase sempre `info`, não é a nossa) |
+| Campo numérico | `message.duration_ms:>5000` |
+| Só produção | `vercel.environment:"production"` |
+| Uma rota | `vercel.path:"/api/cron/outbox"` |
+
+> **Por que este bloco existe:** até 2026-07-16 este runbook listava as saved searches
+> sem o prefixo (`event:"outbox.failed"`). **Nenhuma jamais funcionou** — foram escritas
+> antes de o drain existir e nunca testadas contra ele. Descoberto quando o founder
+> configurou o drain e concluiu, corretamente, que "não aparece nada". Aparecia; a busca
+> é que procurava um campo inexistente.
+
 ## FASE 4 — Better Stack (Vercel Log Drain)
 
-> ⚠️ **Status em 2026-07-16: o drain NÃO está criado** — o Live tail está vazio. Tudo
-> abaixo (saved searches, alerta 2.b do go-live) **depende deste setup**. É o item **1.b**
-> do [go-live-checklist](../c16/go-live-checklist.md). O `logger`/`metrics` já escrevem
-> em stdout há tempos; o que falta é o cano até o Better Stack.
+> ✅ **Drain ATIVO desde 2026-07-16** (opção B, manual). Confirmado com `worker.tick`
+> chegando do `/api/cron/outbox` (deployment `dpl_2hXf1c…`, projeto `project-os`, time
+> `clinic-os-v2-s-projects`). O go-live **1.b** está fechado.
+>
+> Se parecer que "não chega nada", **suspeite da busca antes do drain** — o prefixo
+> `message.` é obrigatório (ver abaixo). Foi o que aconteceu na primeira tentativa.
 
 **Setup (uma vez, no dashboard — não é código):**
 1. Better Stack → **Sources** → **Connect source** → tipo **Vercel** (ou HTTP/Logtail se o tipo Vercel não aparecer). Copie o token/endpoint do drain.
@@ -37,35 +79,45 @@ um pipeline externo. Cada operação HTTP carrega `request_id`/`correlation_id`
 3. Em **Sources** do drain, inclua no mínimo **Function Logs** — é de onde saem `logger`/`metrics`. `Static`/`Edge` sozinhos **não** trazem nada do app.
 4. Gere tráfego e confirme que as linhas chegam **parseadas** (Better Stack reconhece o JSON automaticamente; `kind`, `event`, `level` viram campos filtráveis). Se chegarem como texto solto, o formato do drain não está em JSON.
 
-**Teste de aceite (1 comando):**
+**Teste de aceite — não precisa gerar tráfego.** O cron do outbox roda **a cada minuto**,
+então há ~1.440 linhas/dia sempre chegando. No Live tail:
 
-```powershell
-curl.exe -i https://app.qoro.dev/api/cron/metrics-rollup    # sem Bearer → 401
+```
+message.event:"worker.tick"
 ```
 
-→ Better Stack → Live tail → `event:"cron.unauthorized"` deve aparecer em < 1 min.
-Confirmado respondendo 401 em prod (2026-07-16).
+Resultado esperado (< 1 min): a métrica do worker, no envelope do Better Stack.
+**Confirmado em 2026-07-16.** Um evento pontual (ex.: forçar 401 com
+`curl.exe -i https://app.qoro.dev/api/cron/metrics-rollup`) só aparece se você rodar
+**enquanto** olha — não adianta procurar o de 20 min atrás sem ajustar o time range.
 
-Se **não aparecer**, na ordem: (1) `Sources` sem *Function Logs*; (2) formato ≠ JSON;
-(3) drain apontado para outro projeto. Se aparecer como **texto solto** em vez de campos
-filtráveis, é o formato.
+Se **realmente** não chegar nada: (1) `Sources` sem *Function Logs* — é a causa #1, pois
+`Static`/`Edge`/`Build` não trazem log de function; (2) formato ≠ JSON; (3) drain em
+outro projeto (confira `vercel.projectName` numa linha que chegue).
 
 > O host de prod é **`app.qoro.dev`** (Data Plane). `qoro.dev` é a landing.
 > Ver [context-map.md](../architecture/context-map.md).
 
 **Saved searches obrigatórias** (criar em Better Stack → Live tail → Save):
 
+> Todas com o prefixo **`message.`** — ver o bloco acima. Sem ele, retornam vazio.
+> Acrescente `AND vercel.environment:"production"` se preview/dev poluírem.
+
 | Nome | Filtro | Por quê |
 |---|---|---|
-| Failed Outbox Events | `event:"outbox.failed"` | DLQ tem entradas → handler quebrando |
-| LLM Failures | `event:"ai.provider.error"` OR `event:"ai.cost.unknown_model"` | Gemini indisponível / modelo fora do catálogo |
-| Auth Failures | `event:"cron.unauthorized"` OR `level:"error" event:"auth_*"` | acesso negado / brute force |
-| 5xx Rate | `status:>=500` OR `event:"*.error"` | erros de servidor / crons falhando |
-| Cron errors | `event:"*.error" kind:"metric"` | qualquer cron com catch (retention/dunning/rollup) |
-| **Webhook verify lento** (A2) | `kind:"metric" event:"billing.webhook.verify"` | p95 de `duration_ms` > 5s/5min → caminhando p/ estourar o `maxDuration` de 30s ([slo.md §3.1](../c16/slo.md)) |
-| **Webhook forjado** (A2) | `kind:"metric" event:"billing.webhook.verify" outcome:"failure"` | o `payment.id` **não existe no Asaas**: corpo forjado, pagamento apagado, ou sandbox×prod trocado. **Investigar sempre** ([asaas-webhook-missing.md](./asaas-webhook-missing.md)) |
-| **Divergência do reconcile** (A2) | `kind:"metric" event:"billing.reconcile.divergence"` | o reconcile achou o que o webhook não refletiu — evento perdido **ou** forjado |
-| **Rate-limit degradado** (R1) | `event:"auth.ratelimit.degraded"` | Upstash fora → limite virou fail-open per-instância. Degradação **sustentada** = brute-force distribuído sem defesa ([slo.md §7](../c16/slo.md)) |
+| Failed Outbox Events | `message.event:"outbox.failed"` | DLQ tem entradas → handler quebrando |
+| LLM Failures | `message.event:"ai.provider.error" OR message.event:"ai.cost.unknown_model"` | Gemini indisponível / modelo fora do catálogo |
+| Auth Failures | `message.event:"cron.unauthorized"` | acesso negado a cron / secret errado |
+| Erros da aplicação | `message.kind:"log" AND message.level:"error"` | tudo que o `logger.error` emitiu |
+| Cron errors | `message.kind:"metric" AND message.event:"*.error"` | qualquer cron com catch (retention/dunning/rollup) |
+| **Webhook verify lento** (A2) | `message.kind:"metric" AND message.event:"billing.webhook.verify"` | p95 de `message.duration_ms` > 5s/5min → caminhando p/ estourar o `maxDuration` de 30s ([slo.md §3.1](../c16/slo.md)) |
+| **Webhook forjado** (A2) | `message.event:"billing.webhook.verify" AND message.outcome:"failure"` | o `payment.id` **não existe no Asaas**: corpo forjado, pagamento apagado, ou sandbox×prod trocado. **Investigar sempre** ([asaas-webhook-missing.md](./asaas-webhook-missing.md)) |
+| **Divergência do reconcile** (A2) | `message.event:"billing.reconcile.divergence"` | o reconcile achou o que o webhook não refletiu — evento perdido **ou** forjado |
+| **Rate-limit degradado** (R1) | `message.event:"auth.ratelimit.degraded"` | Upstash fora → limite virou fail-open per-instância. Degradação **sustentada** = brute-force distribuído sem defesa ([slo.md §7](../c16/slo.md)) |
+
+> **Antes de salvar qualquer busca nova: rode e confirme que ela retorna linha.** Uma
+> saved search que devolve vazio por erro de sintaxe é indistinguível de "está tudo bem"
+> — foi assim que as 5 primeiras desta tabela passaram meses erradas.
 
 > Os nomes de evento seguem o catálogo em [observability/README.md](../../src/lib/observability/README.md).
 > Eventos `*.error` são a convenção dos crons (ex.: `retention.error`,
@@ -87,8 +139,9 @@ Monitores (Better Stack Uptime **ou** UptimeRobot), intervalo **5 min**:
 acima do SLO) vira **503** com `?strict=1`, então o monitor alarma sozinho.
 
 ## Validação rápida
-1. Force um erro de cron (ex.: chamar `/api/cron/metrics-rollup` sem o Bearer) → linha
-   `event:"cron.unauthorized"` aparece no Better Stack < 1 min.
+1. Force um erro de cron (`curl.exe -i https://app.qoro.dev/api/cron/metrics-rollup`, sem
+   Bearer → 401) → `message.event:"cron.unauthorized"` aparece no Better Stack < 1 min.
+   **Rode enquanto olha** — evento pontual não aparece se o time range for curto.
 2. Pare o worker (ou encha a fila) e confirme `/api/health?strict=1` → 503 + o monitor
    de uptime dispara.
 

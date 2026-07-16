@@ -56,3 +56,11 @@ Thumbs.db
 static_analysis_*/
 *.sarif
 codeql-db/
+# Vercel CLI (`vercel link`) — .vercel guarda project/org id + o VERCEL_OIDC_TOKEN.
+.vercel
+
+# NÃO adicionar `.env*` aqui: o `vercel link` acrescenta essa linha sozinho e ela é a
+# ÚLTIMA a casar, então anula o `!.env.example` de cima (last-match-wins) e passa a
+# ignorar o template versionado. Hoje o .env.example só escapa por já estar rastreado —
+# num clone novo, sumiria em silêncio. As regras .env / .env.local / .env.*.local
+# acima já cobrem os arquivos reais de segredo.
