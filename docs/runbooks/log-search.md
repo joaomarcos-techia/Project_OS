@@ -24,10 +24,18 @@ um pipeline externo. Cada operação HTTP carrega `request_id`/`correlation_id`
 
 ## FASE 4 — Better Stack (Vercel Log Drain)
 
+> ⚠️ **Status em 2026-07-16: o drain NÃO está criado** — o Live tail está vazio. Tudo
+> abaixo (saved searches, alerta 2.b do go-live) **depende deste setup**. É o item **1.b**
+> do [go-live-checklist](../c16/go-live-checklist.md). O `logger`/`metrics` já escrevem
+> em stdout há tempos; o que falta é o cano até o Better Stack.
+
 **Setup (uma vez, no dashboard — não é código):**
-1. Better Stack → **Sources** → **Connect source** → tipo **Vercel** (ou HTTP/Logtail). Copie o token/endpoint do drain.
-2. Vercel → projeto → **Settings → Log Drains** → **Add** → cole o endpoint do Better Stack → formato **JSON** → salve.
-3. Gere tráfego e confirme que as linhas chegam parseadas (Better Stack reconhece o JSON automaticamente; `kind`, `event`, `level` viram campos filtráveis).
+1. Better Stack → **Sources** → **Connect source** → tipo **Vercel** (ou HTTP/Logtail se o tipo Vercel não aparecer). Copie o token/endpoint do drain.
+2. Vercel → **Settings → Log Drains** → **Add** → cole o endpoint do Better Stack → formato **JSON** → salve.
+   - ⚠️ **Exige plano Vercel Pro.** Menu ausente = plano, não erro de navegação.
+   - ⚠️ A Vercel alterna esse menu entre **Team Settings** e **Project Settings** conforme a versão. Não achou no projeto? Procure no time. **Alternativa mais simples:** o marketplace da Vercel tem integração oficial do Better Stack, que cria o drain sozinho.
+3. Gere tráfego e confirme que as linhas chegam **parseadas** (Better Stack reconhece o JSON automaticamente; `kind`, `event`, `level` viram campos filtráveis). Se chegarem como texto solto, o formato do drain não está em JSON.
+4. **Teste de aceite:** `kind:"metric"` devolve resultado no Live tail.
 
 **Saved searches obrigatórias** (criar em Better Stack → Live tail → Save):
 
@@ -38,6 +46,10 @@ um pipeline externo. Cada operação HTTP carrega `request_id`/`correlation_id`
 | Auth Failures | `event:"cron.unauthorized"` OR `level:"error" event:"auth_*"` | acesso negado / brute force |
 | 5xx Rate | `status:>=500` OR `event:"*.error"` | erros de servidor / crons falhando |
 | Cron errors | `event:"*.error" kind:"metric"` | qualquer cron com catch (retention/dunning/rollup) |
+| **Webhook verify lento** (A2) | `kind:"metric" event:"billing.webhook.verify"` | p95 de `duration_ms` > 5s/5min → caminhando p/ estourar o `maxDuration` de 30s ([slo.md §3.1](../c16/slo.md)) |
+| **Webhook forjado** (A2) | `kind:"metric" event:"billing.webhook.verify" outcome:"failure"` | o `payment.id` **não existe no Asaas**: corpo forjado, pagamento apagado, ou sandbox×prod trocado. **Investigar sempre** ([asaas-webhook-missing.md](./asaas-webhook-missing.md)) |
+| **Divergência do reconcile** (A2) | `kind:"metric" event:"billing.reconcile.divergence"` | o reconcile achou o que o webhook não refletiu — evento perdido **ou** forjado |
+| **Rate-limit degradado** (R1) | `event:"auth.ratelimit.degraded"` | Upstash fora → limite virou fail-open per-instância. Degradação **sustentada** = brute-force distribuído sem defesa ([slo.md §7](../c16/slo.md)) |
 
 > Os nomes de evento seguem o catálogo em [observability/README.md](../../src/lib/observability/README.md).
 > Eventos `*.error` são a convenção dos crons (ex.: `retention.error`,

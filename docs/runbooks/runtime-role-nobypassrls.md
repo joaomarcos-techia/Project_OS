@@ -178,6 +178,15 @@ vazar) — é se os **grants** estão certos e o app não quebrou:
 
 1. Env `DATABASE_URL_RUNTIME` setada → redeploy.
 2. `pnpm smoke:c5` (paciente) + abrir o painel e navegar (agenda, caixa, prontuário).
+
+> 🪤 **Pegadinha (acontece toda vez).** Se você rodou um script de prod antes
+> (`db:backup:prod`), a `SUPABASE_PROJECT_ENV=prod` **fica grudada na sessão do shell** e
+> qualquer comando de dev seguinte morre com *"DATABASE_URL looks like prod"* — mesmo com
+> o `.env.local` intacto e a URL de dev. O guard ([db/index.ts](../../src/lib/db/index.ts))
+> trata a env var como sinal explícito de "estou mexendo com prod". **Correção:**
+> `Remove-Item Env:SUPABASE_PROJECT_ENV; Remove-Item Env:DATABASE_URL_PROD` (ou abra um
+> terminal novo). **Nunca** use `NODE_ENV=production` para silenciar — aí você escreve em
+> prod de verdade.
 3. **Qualquer `permission denied for table X` = grant faltando no Passo 1**, não erro de
    RLS. É o modo de falha esperado se algo der errado — e o rollback é imediato.
 4. Quando prod tiver ≥ 2 clínicas com dado, rodar A/B/C/D lá também.
@@ -192,7 +201,7 @@ Não precisa dropar o role nem mexer em schema. É o motivo de o desenho ser opt
 
 | Ambiente | Dados | Role criado | Senha | `DATABASE_URL_RUNTIME` | Validado |
 |---|---|---|---|---|---|
-| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ 2026-07-15 (sem senha) | ⬜ founder | ⬜ | ✅ **A/B/C/D provados** (Passo 3) |
+| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ 2026-07-15 | ✅ 2026-07-16 | ✅ Vercel | ✅ **A/B/C/D provados** (Passo 3) · ⬜ Passo 4 (smoke:c5 + painel) |
 | **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ 2026-07-15 | ⬜ founder | ⬜ | ⬜ Passo 4 (smoke) — A/C/D são **inconclusivos** sem dado cross-tenant |
 
 **Ordem recomendada:** fechar dev (senha + env + smoke) → observar → repetir em prod.
