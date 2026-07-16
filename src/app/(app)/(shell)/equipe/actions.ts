@@ -12,22 +12,23 @@ import { getShellIdentity } from '@/components/painel/shell-identity';
 import { billingApiV1 } from '@/contexts/billing/api';
 import { requireActiveClinic } from '@/contexts/billing/internal/require-active-clinic';
 import {
-  CrmConflictError,
-  EmailAlreadyMemberError,
-  InviteAlreadyAcceptedError,
-  MemberNotFoundError,
-  RoleAssignmentError,
-} from '@/contexts/identity/errors';
-import {
   cancelClinicInvite,
   inviteClinicMember,
   resendClinicInvite,
 } from '@/contexts/identity/internal/members';
+import {
+  setMemberActive,
+  setMemberOverride,
+  setMemberRole,
+} from '@/contexts/identity/internal/lifecycle';
+import { mapIdentityError } from '@/contexts/identity/internal/map-error';
 import { assertCanAssignRole } from '@/contexts/identity/internal/role-matrix';
 import { listEmployees } from '@/contexts/identity/queries';
+import { schedulingApiV1 } from '@/contexts/scheduling';
 import { buildRequestContext } from '@/lib/audit/request-context';
-import { PERMISSIONS } from '@/lib/auth/permissions';
+import { isPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { isPractitionerRole } from '@/lib/auth/practitioner';
+import { ROLES } from '@/lib/auth/roles';
 import { assertInviteAllowed, assertResendInviteAllowed } from '@/lib/auth/rate-limit';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 
@@ -60,20 +61,6 @@ const FUNCAO_LABEL: Record<z.infer<typeof InvitableRole>, string> = {
   attendant: 'Atendente',
   financial: 'Financeiro',
 };
-
-// TODO(identity): extrair um mapIdentityError() quando esta lista passar de ~5 tipos (review #6).
-function messageFrom(err: unknown): string {
-  if (
-    err instanceof RoleAssignmentError ||
-    err instanceof EmailAlreadyMemberError ||
-    err instanceof CrmConflictError ||
-    err instanceof MemberNotFoundError ||
-    err instanceof InviteAlreadyAcceptedError
-  ) {
-    return err.message;
-  }
-  return 'Não foi possível concluir a ação. Tente novamente.';
-}
 
 export async function inviteMemberAction(input: InviteMemberInput): Promise<InviteMemberResult> {
   const user = await requireUser();
@@ -129,7 +116,7 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
 
     return { ok: true, nome: d.nome };
   } catch (err) {
-    return { error: messageFrom(err) };
+    return { error: mapIdentityError(err) };
   }
 }
 
@@ -171,7 +158,7 @@ export async function resendInviteAction(input: { userId: string }): Promise<Res
     });
     return { ok: true, link };
   } catch (err) {
-    return { error: messageFrom(err) };
+    return { error: mapIdentityError(err) };
   }
 }
 
@@ -199,6 +186,158 @@ export async function cancelInviteAction(input: { userId: string }): Promise<Can
     });
     return { ok: true };
   } catch (err) {
-    return { error: messageFrom(err) };
+    return { error: mapIdentityError(err) };
+  }
+}
+
+// =====================================================================
+// Ciclo de vida de membro ACEITO (I-2) — desativar/reativar, trocar role, override.
+// Toda a escrita mora em Identity (internal/lifecycle); a orquestração
+// cross-context (bloqueio de agenda futura) mora AQUI, o único lugar que pode falar
+// com Identity e Scheduling ao mesmo tempo.
+// =====================================================================
+
+const SetActiveSchema = z.object({
+  userId: z.string().uuid('Membro inválido.'),
+  active: z.boolean(),
+  /** Desativar APESAR de agenda futura/consulta aberta (ADR-032 §4). Auditado. */
+  force: z.boolean().optional().default(false),
+});
+
+export type SetMemberActiveResult =
+  | { ok: true; active: boolean }
+  | { error: string }
+  | { blocked: true; futureCount: number; openCount: number; nextAt: string | null };
+
+/**
+ * Desativa/reativa um membro. Ao DESATIVAR, consulta o Scheduling: se houver agenda
+ * futura ou consulta aberta e não vier `force`, devolve `blocked` (a UI mostra o que
+ * remanejar + oferece "desativar mesmo assim"). Com `force`, a desativação é
+ * registrada como override na auditoria (ADR-032 §4 emendado por ADR-039).
+ *
+ * Enforcement do bloqueio de acesso: `ativo=false` bumpa claims_version → o token
+ * vivo morre no próximo request (epoch, ADR-037) e o refresh cai no deny do hook.
+ */
+export async function setMemberActiveAction(
+  input: z.input<typeof SetActiveSchema>,
+): Promise<SetMemberActiveResult> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES);
+  const clinicId = await requireClinicId();
+  await requireActiveClinic(clinicId);
+
+  const parsed = SetActiveSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+  const { userId, active, force } = parsed.data;
+
+  try {
+    let forcedOverCommitments: { futureCount: number; openCount: number } | null = null;
+
+    // Bloqueio ADR-032 §4 — só ao desativar. Um não-médico nunca é doctorId de
+    // appointment, então a query devolve zero naturalmente (sem special-casing).
+    if (!active) {
+      const c = await schedulingApiV1.doctorActiveCommitments(clinicId, userId);
+      if (c.futureCount + c.openCount > 0) {
+        if (!force) {
+          return {
+            blocked: true,
+            futureCount: c.futureCount,
+            openCount: c.openCount,
+            nextAt: c.nextAt,
+          };
+        }
+        forcedOverCommitments = { futureCount: c.futureCount, openCount: c.openCount };
+      }
+    }
+
+    const hdrs = await headers();
+    await setMemberActive({
+      clinicId,
+      actorUserId: user.userId,
+      targetUserId: userId,
+      active,
+      forcedOverCommitments,
+      requestContext: buildRequestContext(hdrs),
+    });
+    return { ok: true, active };
+  } catch (err) {
+    return { error: mapIdentityError(err) };
+  }
+}
+
+const SetRoleSchema = z.object({
+  userId: z.string().uuid('Membro inválido.'),
+  role: z.enum(ROLES as [string, ...string[]]),
+});
+
+export type SetMemberRoleResult = { ok: true } | { error: string };
+
+/** Troca o role de um membro aceito (anti-escalonamento em assertCanAssignRole). */
+export async function setMemberRoleAction(
+  input: z.input<typeof SetRoleSchema>,
+): Promise<SetMemberRoleResult> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES);
+  const clinicId = await requireClinicId();
+  await requireActiveClinic(clinicId);
+
+  const parsed = SetRoleSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+
+  try {
+    const hdrs = await headers();
+    await setMemberRole({
+      clinicId,
+      actorUserId: user.userId,
+      actorRole: user.role,
+      targetUserId: parsed.data.userId,
+      newRole: parsed.data.role as (typeof ROLES)[number],
+      requestContext: buildRequestContext(hdrs),
+    });
+    return { ok: true };
+  } catch (err) {
+    return { error: mapIdentityError(err) };
+  }
+}
+
+const SetOverrideSchema = z.object({
+  userId: z.string().uuid('Membro inválido.'),
+  permission: z.string().refine(isPermission, 'Permissão inválida.'),
+  // true = concede · false = nega · null = remove (volta ao bundle da role).
+  granted: z.union([z.boolean(), z.null()]),
+});
+
+export type SetMemberOverrideResult = { ok: true } | { error: string };
+
+/**
+ * Concede/nega/remove um override granular. Este é o ÚNICO caminho de escrita em
+ * user_permission_overrides desde o I-13 (o RLS trancou o acesso direto). Requer
+ * manage:employees + o alvo ser mutável; o trigger bumpa claims_version.
+ */
+export async function setMemberOverrideAction(
+  input: z.input<typeof SetOverrideSchema>,
+): Promise<SetMemberOverrideResult> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES);
+  const clinicId = await requireClinicId();
+  await requireActiveClinic(clinicId);
+
+  const parsed = SetOverrideSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+  if (!isPermission(parsed.data.permission)) return { error: 'Permissão inválida.' };
+
+  try {
+    const hdrs = await headers();
+    await setMemberOverride({
+      clinicId,
+      actorUserId: user.userId,
+      targetUserId: parsed.data.userId,
+      permissionCode: parsed.data.permission,
+      granted: parsed.data.granted,
+      requestContext: buildRequestContext(hdrs),
+    });
+    return { ok: true };
+  } catch (err) {
+    return { error: mapIdentityError(err) };
   }
 }

@@ -215,6 +215,11 @@ const config = [
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
       // authenticated (D31). Mesma justificativa da saga de onboarding.
       'src/contexts/identity/internal/members.ts',
+      // I-2 (ADR-039): ciclo de vida de membro aceito (desativar/reativar/trocar role/
+      // override). Escrita ADMINISTRATIVA em profiles/overrides — a autorização já
+      // aconteceu no gate; profiles/overrides não têm UPDATE p/ authenticated (D31 /
+      // I-13). Escopo defensivo por clinic_id (V1.2). Irmão de members.ts.
+      'src/contexts/identity/internal/lifecycle.ts',
       // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
       // (0001/S5) → a escrita do tenant roteia por dbAdmin+audit aqui, com
       // colunas fixas e WHERE id=clinicId (do request). Irmão do connection-store.

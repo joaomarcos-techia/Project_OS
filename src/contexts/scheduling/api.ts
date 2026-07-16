@@ -24,7 +24,9 @@ import { listReminderCandidates, type ReminderCandidate } from './reminder-candi
 import {
   getAppointment,
   getAvailableSlots,
+  getDoctorActiveCommitments,
   listProcedures as listProceduresQuery,
+  type DoctorCommitments,
   type GetAvailableSlotsOpts,
 } from './queries';
 import type {
@@ -50,6 +52,11 @@ export interface SchedulingApiV1 {
    * Read cross-tenant (regra de "quem precisa de lembrete" mora no Scheduling).
    */
   listReminderCandidates(limit?: number): Promise<ReminderCandidate[]>;
+  /**
+   * ADR-032 §4 — compromissos que bloqueiam desligar um médico (agenda futura /
+   * consulta aberta). O Identity/app-layer pergunta; a REGRA do que conta mora aqui.
+   */
+  doctorActiveCommitments(clinicId: string, doctorId: string): Promise<DoctorCommitments>;
   createAppointment(
     input: CreateAppointmentInput,
     idempotencyKey: string,
@@ -106,6 +113,8 @@ export const schedulingApiV1: SchedulingApiV1 = {
   },
   lookupAppointment: (clinicId, id) => getAppointment(clinicId, id),
   listReminderCandidates: (limit) => listReminderCandidates(limit),
+  doctorActiveCommitments: (clinicId, doctorId) =>
+    getDoctorActiveCommitments(clinicId, doctorId),
   createAppointment: (input, idempotencyKey) =>
     createAction({ ...input, createdVia: input.createdVia ?? 'ai_agent' }, idempotencyKey),
   confirmAppointment: (id, idempotencyKey, reason) => confirmAction(id, idempotencyKey, reason),

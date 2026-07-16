@@ -26,3 +26,12 @@ export function assertCanAssignRole(inviter: Role, target: Role): void {
     throw new RoleAssignmentError(`A função '${inviter}' não pode convidar '${target}'.`);
   }
 }
+
+/**
+ * Funções que `actor` pode atribuir — a MESMA fonte de `assertCanAssignRole`, para a
+ * UI oferecer só o que o servidor aceitaria (a autoridade continua no assert). Nunca
+ * inclui owner/super_admin.
+ */
+export function assignableRolesFor(actor: Role): readonly Role[] {
+  return ASSIGNABLE[actor] ?? [];
+}

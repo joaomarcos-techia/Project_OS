@@ -49,3 +49,50 @@ export class InviteAlreadyAcceptedError extends Error {
     this.name = 'InviteAlreadyAcceptedError';
   }
 }
+
+/**
+ * O ator tenta alterar o PRÓPRIO acesso/função (I-2). Bloqueado: ninguém se
+ * desativa, se rebaixa, nem se auto-concede override. Evita o gestor se trancar
+ * para fora e o "auto-promoção acidental".
+ */
+export class SelfMutationError extends Error {
+  readonly code = 'self_mutation_forbidden';
+  readonly httpStatus = 403;
+  constructor(message = 'Você não pode alterar o próprio acesso ou função por aqui.') {
+    super(message);
+    this.name = 'SelfMutationError';
+  }
+}
+
+/**
+ * O alvo é `owner`/`super_admin` (I-2). Owner é único por clínica (ADR-032) e
+ * super_admin é papel de plataforma (P7) — nenhum dos dois é desativável/editável
+ * pelo canal tenant. Protege contra "clínica sem dono".
+ */
+export class ProtectedRoleError extends Error {
+  readonly code = 'protected_role';
+  readonly httpStatus = 403;
+  constructor(message = 'Este papel não pode ser alterado pela gestão da equipe.') {
+    super(message);
+    this.name = 'ProtectedRoleError';
+  }
+}
+
+/**
+ * A desativação foi bloqueada porque o médico tem agenda futura/consulta aberta
+ * (ADR-032 §4). Carrega os números para a UI explicar o que remanejar. Não é
+ * intransponível: a action aceita `force` (override auditado).
+ */
+export class MemberHasActiveCommitmentsError extends Error {
+  readonly code = 'member_has_active_commitments';
+  readonly httpStatus = 409;
+  constructor(
+    readonly futureCount: number,
+    readonly openCount: number,
+    readonly nextAt: string | null,
+    message = 'Este médico tem agenda futura ou consulta aberta.',
+  ) {
+    super(message);
+    this.name = 'MemberHasActiveCommitmentsError';
+  }
+}

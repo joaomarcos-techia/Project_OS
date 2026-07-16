@@ -2,6 +2,7 @@ import type { VariantProps } from 'class-variance-authority';
 
 import { billingApiV1 } from '@/contexts/billing/api';
 import { isPractitioner, type Role } from '@/contexts/identity';
+import { assignableRolesFor } from '@/contexts/identity/internal/role-matrix';
 import { listEmployees } from '@/contexts/identity/queries';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type badgeVariants } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ import { requireUser } from '@/lib/auth/tenant-context';
 
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
+import { MemberRowActions } from './member-row-actions';
 
 type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>['tone']>;
 
@@ -66,6 +68,8 @@ export default async function EquipePage() {
 
   const employees = await listEmployees(user.clinicId);
   const ativos = employees.filter((e) => e.ativo).length;
+  // Funções que ESTE ator pode atribuir (server-side; a UI só oferece o permitido).
+  const assignableRoles = assignableRolesFor(user.role);
   const limits = await billingApiV1.getPlanLimits(user.clinicId);
   const seatLimit = limits?.users ?? null;
   const counts = new Map<Role, number>();
@@ -170,7 +174,20 @@ export default async function EquipePage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {e.pending ? <InviteRowActions userId={e.id} nome={e.nome} /> : null}
+                        {e.pending ? (
+                          <InviteRowActions userId={e.id} nome={e.nome} />
+                        ) : // Membro aceito: gestão de ciclo de vida (I-2). Não para si
+                        // mesmo (self-mutation bloqueado) nem para owner/super_admin
+                        // (papéis protegidos — a action barraria de qualquer forma).
+                        e.id !== user.userId && e.role !== 'owner' && e.role !== 'super_admin' ? (
+                          <MemberRowActions
+                            userId={e.id}
+                            nome={e.nome}
+                            role={e.role}
+                            ativo={e.ativo}
+                            assignableRoles={assignableRoles}
+                          />
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );
