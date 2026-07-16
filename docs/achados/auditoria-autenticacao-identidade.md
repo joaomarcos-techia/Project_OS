@@ -16,6 +16,47 @@
 > **Data:** 2026-07-12 · **Branch:** `docs/identity-practitioner-model` · **Metodologia:**
 > DOCUMENTAÇÃO → FLUXO IDEAL → IMPLEMENTAÇÃO → RISCO · **Natureza:** somente leitura, nenhum código
 > foi alterado.
+>
+> **🔧 REMEDIADA em 2026-07-16** — ver o **Placar** (logo abaixo) e o
+> **[§9 Histórico de Implementação](#9-histórico-de-implementação-2026-07-16)**, com evidência por
+> achado. O corpo do relatório (§0–§8) é **histórico** e foi preservado como escrito.
+
+---
+
+## Placar da remediação (2026-07-16)
+
+| # | Sev | Status | Essência da correção |
+|---|-----|--------|----------------------|
+| **I-1** | MÉDIA | ✅ Resolvido | Bypass de super_admin exige AAL2 nos **4** helpers (`assertPlatformStepUp`) — o invariante implícito virou explícito e testado. ADR-037 |
+| **I-2** | MÉDIA | ✅ Resolvido | `lifecycle.ts`: desativar/reativar/trocar role/override + guard-rails no domínio + UI + bloqueio de agenda com override auditado. ADR-039 |
+| **I-3** | MÉDIA | ✅ Resolvido | Aceite vira **gate**: hook nega claims enquanto `invite_accepted_at IS NULL` (migration 0041). ADR-040 |
+| **I-4** | MÉDIA-ALTA | ✅ Resolvido | **Epoch por request** na porta única — o replay de ≤15min morreu. Fecha a dívida **D4**. ADR-037 |
+| **I-5** | MÉDIA | ✅ Resolvido | ADR-038 formaliza a política de MFA; o "ADR-008 D6" **nunca existiu**. Doc da VisãoGeral **já** fora corrigida em 2026-07-15 |
+| **I-6** | MÉDIA | ✅ Já resolvido (07-14) + reforçado | O fix V7 existia desde 2026-07-14. Agora o check **subiu** do `requireFreshPermission` para o `authenticate()`: valia só p/ CRITICAL_ACTIONS, agora vale p/ **todo request** |
+| **I-7** | MÉDIA | ✅ Resolvido **por remoção** | `_healed` deixou de existir junto com o heal do middleware. Não se assina um cookie que não precisa existir |
+| **I-8** | BAIXA-MÉDIA | ✅ Resolvido | `signOut({scope:'others'})` em reset-password, aceite de convite e enroll de MFA. Determinístico — não depende de config invisível do GoTrue |
+| **I-9** | INFO | ✅ Registrado | Troca de e-mail: não-feito **consciente**, com os requisitos de quando for feito (ADR-039) |
+| **I-10** | BAIXA | ✅ Resolvido | Login lê `ativo`/`deleted_at` → `signOut(local)` + mensagem clara |
+| **I-11a** | BAIXA | ✅ Resolvido | `REVOKE ... FROM anon` (0042) + call-site via `dbAdmin`. **Supersede a decisão da 0038** |
+| **I-11b** | MÉDIA | ✅ Resolvido | Trigger em `role_permissions` (0040) + epoch. O velho **D27** fechou |
+| **I-12** | MÉDIA | ✅ Resolvido | Faltava só o aceite (`assertInviteAcceptAllowed`) — o resto saíra no M3 em 2026-07-15 |
+
+**Achado NOVO encontrado durante a remediação** (não estava em NENHUMA das 4 auditorias):
+
+| # | Onde | Essência |
+|---|------|----------|
+| **I-13** 🔴 | `user_permission_overrides` (RLS + GRANTs) | **Escalonamento de privilégio explorável.** A tabela que define autorização foi classificada como tabela **tenant** e recebeu `defaultTenantPolicy` (`FOR ALL`) — a policy só compara `clinic_id`, nunca QUEM é o ator. Qualquer `authenticated` se auto-concedia qualquer permissão via PostgREST. **Provado em dev** com o JWT de um `attendant`: INSERT aceito → view concede → hook injeta no JWT. Pior: `claims_version` **não bumpava** (o trigger era SECURITY INVOKER e o UPDATE em `profiles` morria na RLS **em silêncio** — o mecanismo de segurança falhava ABERTO). Fechado em 2 camadas (GRANT + policy), cada uma provada isoladamente. **ADR-041** + Passo 0 no checklist de nova tabela. |
+
+### O que a auditoria errou (verificado contra o código/banco, não contra o relatório)
+
+- **I-6 já estava resolvido** desde 2026-07-14 (fix V7). O relatório o listava como aberto.
+- **I-12 estava ~90% resolvido** (M3, 2026-07-15). Faltava só o aceite.
+- **I-7 estava meio-resolvido**: o early-return já saíra de antes do `getUser()` (V4, 07-14).
+- **I-5 (doc)**: a `VisãoGeral` §4.1/§7.9 **já fora corrigida** em 2026-07-15 — o que restava era a
+  referência ao "D6" fantasma.
+- **I-11a**: a recomendação foi **aceita**, mas contra a decisão da migration 0038, que mantivera o
+  grant de propósito. O motivo dela ("o login precisa de anon") não se sustentava: `loginAction` é
+  Server Action (Node) — chamar como `anon` era escolha, não necessidade.
 
 ---
 
@@ -557,3 +598,105 @@ Controles **checados e corretos** — para o próximo revisor não reabrir:
 | I-11 (anon RPC / drift) | V15 / V5 | — | A15/A16 |
 | I-12 (rate-limit) | — | M3 | — |
 | I-1, I-2, I-3, I-8, I-9, I-10 | — | — | — (novos desta auditoria) |
+
+---
+
+## 9. Histórico de Implementação (2026-07-16)
+
+> Remediação completa. Branch `docs/identity-practitioner-model`. Cada achado abaixo tem **evidência**
+> — o que mudou, onde, e como foi provado. Testes: **669 → 756**. Migrations **0040–0042** aplicadas
+> em dev e verificadas via MCP. ⏳ **Prod ainda não migrado** (0037–0042 entram juntas no deploy).
+
+### A jogada central: um fix arquitetural fechou quatro achados
+
+**I-4, I-7, I-11b e (parte de) I-2** não foram corrigidos separadamente. A raiz era uma só: **a
+revogação não morava em lugar nenhum**. O middleware fazia "heal" que a própria ADR-009 D22 declara
+**não ser enforcement** — throttled 60-75s, pulável por um cookie forjável — enquanto a porta única
+(que roda em 100% das Server Actions/Components/Handlers) confiava no JWT sem nunca perguntar ao banco.
+
+O enforcement mudou para a porta única: `authenticate()` relê o profile por PK (memoizado) e compara
+`claims_version` a cada request. Divergiu → sessão morta, fail-closed.
+
+**Não foi preciso construir um "auth-epoch global"** (a dívida D4, aceita desde a ADR-009): o
+`claims_version` **já era** o epoch — monotônico, já no JWT, já com triggers. Faltava (1) alguém
+conferir por request e (2) um trigger em `role_permissions`, a única entrada de permissão que ninguém
+bumpava (o velho D27). O heal inteiro do middleware foi **deletado**: ~150 linhas de remontagem de
+cookie fragmentado, decode manual de JWT e jitter — e o `_healed` sumiu junto (I-7 morreu por
+**remoção**, não por assinatura HMAC).
+
+**Custo:** +1 SELECT por PK indexado, memoizado por request. Para as `CRITICAL_ACTIONS` o custo é
+**zero** — elas já pagavam esse SELECT, que agora é compartilhado (`readAuthoritativeProfile`): o
+fresh-check caiu de 4 para 3 queries. O middleware **perdeu** um fetch ao PostgREST a cada 60s.
+
+### Evidência por achado
+
+| Achado | Onde | Prova |
+|---|---|---|
+| **I-1** | `assertPlatformStepUp` nos 4 early-returns de `isSuperAdmin` | `tenant-context.test.ts`: AAL1 → 403 `MFA_REQUIRED` nos 4; AAL2 → passa (P7 preservado). O comentário do `critical-actions.ts` que descrevia o invariante implícito foi corrigido |
+| **I-2** | `identity/internal/lifecycle.ts` + `equipe/actions.ts` + `member-row-actions.tsx` | 17 testes (guard-rails + auditoria). Em dev: desativar bumpa `claims_version` **e** o hook passa a negar claims |
+| **I-3** | migration 0041 (hook + view) | Em dev: pendente → `app_role` NULL; após aceite → `app_role=doctor`. `test:hook` cenário 6 |
+| **I-4** | `authenticate()` + epoch-check | `tenant-context.test.ts`: JWT v1 × banco v2 → `CLAIMS_OUTDATED`; teste de refresh concorrente |
+| **I-5** | ADR-038 + `mfa-policy.ts` + PROGRESS + VisãoGeral | 3 refs a "ADR-008 D6" → ADR-038; 0 restantes |
+| **I-6** | `authenticate()` (subiu do fresh) | `tenant-context.test.ts`: divergência de `clinic_id` barra até uma ação **não-crítica** |
+| **I-7** | `middleware.ts` (heal deletado) | `middleware.test.ts`: o módulo só exporta `config`+`middleware`; guard de fonte contra reintrodução de `_healed` |
+| **I-8** | reset-password, convite, MFA enroll | Verificado no `.d.ts` do auth-js 2.106.2 que `scope:'others'` existe (não presumido) |
+| **I-10** | `login/actions.ts` | Select passa a trazer `ativo`/`deleted_at`; inativo → `signOut(local)` + mensagem |
+| **I-11a** | migration 0042 + `lib/auth/login-audit.ts` | Em dev: `anon` → `permission denied`; `service_role` registra (linhas +1). `test:auth-e2e` verde |
+| **I-11b** | trigger `role_permissions` (0040) | Em dev: mudar o bundle bumpou `claims_version` de **todos** os profiles da role |
+| **I-12** | `assertInviteAcceptAllowed` | `rate-limit.test.ts`: fail-open com `kind: 'accept'` |
+| **I-13** 🔴 | migration 0040 (GRANT + policy) | Em dev: attendant → `permission denied` em INSERT/UPDATE/DELETE; **e** a policy segura sozinha mesmo com o GRANT restaurado à força (2 camadas provadas isoladamente); SELECT segue OK (a tela Equipe não quebra) |
+
+### Decisões que se desviaram da recomendação (com motivo)
+
+1. **I-2 — o `signOut` do ADR-032 §4 não existe e não é necessário.** O §4 mandava "ativo=false +
+   signOut". Verificado no `.d.ts`: **não há signOut administrativo por userId** no supabase-js
+   2.106.2 (`admin.signOut` exige o JWT do próprio alvo). E o ADR-037 o tornou **redundante**:
+   `ativo=false` bumpa `claims_version` (o token vivo morre no próximo request) e qualquer refresh cai
+   no deny-by-default do hook. Não fingimos a chamada. Registrado no ADR-039.
+2. **I-2 — o bloqueio de agenda NÃO mora no Identity.** `scheduling` já importa `identity/schema`; o
+   inverso seria ciclo (quebraria `arch:check`). A composição mora na **app-layer**, o único lugar
+   autorizado a falar com os dois contextos. Scheduling expõe `doctorActiveCommitments` (é dono da
+   regra do que conta como "agenda futura/consulta aberta").
+3. **I-11a — supersede a 0038.** Ver §0.
+4. **`record_login_attempt` NÃO foi para fila** (avaliado e recusado): o outbox é uma tabela **no
+   mesmo Postgres** — enfileirar não tira o banco do caminho do login, só adia o processamento. E o
+   efeito foi o inverso do temido: a chamada era `supabase.rpc` (HTTP ao PostgREST) e virou `dbAdmin`
+   (conexão direta) → o login ficou **mais rápido**.
+5. **Editor de overrides na UI: não-feito consciente.** A capacidade existe (domínio + action +
+   testes), é auditada, e é o **único** caminho de escrita desde o I-13. Falta a tela de matriz — que
+   o ADR-032 §6 modela como *nudge*. Não é gap de segurança: sem a tela, ninguém escreve override.
+
+### Correções de rota descobertas ao implementar
+
+- **`check:migrations` dava falso positivo** em `REVOKE ... TRUNCATE` (TRUNCATE é comando **e** nome de
+  privilégio). A saída fácil seria marcar a migration como `destructive-approved` — o que silenciaria o
+  gate para um `DROP TABLE` futuro no mesmo arquivo. O guard passou a resolver por statement, com 10
+  testes (incluindo a contraprova de que TRUNCATE-comando **ainda** é pego).
+- **`test-hook` e `smoke-login` hardcodavam "21 permissions"** — envelhecido para 24 (C7/C11). Passaram
+  a comparar com `role_permissions` (fonte da verdade). Era falha pré-existente, não da remediação.
+- **Um teste flaky que eu mesmo introduzi**: comparava `validatedAt` (wall-clock) entre duas chamadas
+  concorrentes — sob `React.cache` real elas compartilham o resultado, mas sob vitest (passthrough)
+  divergem por milissegundo. Corrigido para comparar a **decisão**, não o timestamp. Suíte estável em
+  3 execuções seguidas.
+
+### Limite honesto de cobertura
+
+`React.cache` só memoiza dentro de um request scope do React — **sob vitest é passthrough**. Portanto
+`tenant-context.test.ts` **não consegue** provar "1 leitura por request"; contar leituras ali mediria o
+ambiente de teste, não a produção. O arquivo diz isso explicitamente em vez de fingir cobertura. A
+memoização se verifica no app real (ver "Prova por quebra" no ADR-037). O repo não tem E2E
+(CONVENTIONS: "E2E só em C16 se necessário") e **não introduzimos Playwright** por isto — o caso
+multi-aba virou verificação manual roteirizada no runbook de offboarding.
+
+### Rastreabilidade
+
+| Fase | Commit | Conteúdo |
+|---|---|---|
+| 1 | `0e3b6be` | Epoch/`authenticate()` + AAL2 + middleware enxuto + I-13 + ADR-037 |
+| 2 | `cba6812` | Ciclo de vida + UI + ADR-039 + runbook de offboarding |
+| 3 | `70c2f19` | Aceite como gate + rate-limit + I-8 + ADR-040 |
+| 4 | `c4555af` | I-11a (0042) + I-10 + I-8 (reset/MFA) |
+| 5 | *(este)* | ADR-038, ADR-041, índice de ADRs (+ADR-034, que faltava), CONVENTIONS, PROGRESS (D4 fechado), este histórico |
+
+**ADRs novos:** 037 (sessão server-authoritative), 038 (política de MFA), 039 (ciclo de vida),
+040 (gate do aceite), 041 (tabela de authz não é tabela de tenant).

@@ -727,7 +727,7 @@ view:consultorio
 - `tenancy.clinic.deleted` → hard delete de users daquela clínica
 
 **Regras de negócio:**
-- 🔒 2FA **obrigatório só pro `super_admin`** (ADR-008 D6 — decisão de MVP). `gestor` e `financial` recebem opt-in forte (banner de enrollment não-bloqueante), mas **não** são forçados enquanto não existirem recovery codes + reset por admin: sem rede de resgate, forçar 2FA tranca o cliente fora da própria clínica. Fonte: [mfa-policy.ts](../src/lib/auth/policies/mfa-policy.ts) (`mustHaveMFA`/`mustEnforceAAL2`). *(Corrigido em 2026-07-15 — esta seção afirmava obrigatoriedade pra gestor/financial, contradizendo o código e o ADR.)*
+- 🔒 2FA **obrigatório só pro `super_admin`** (**ADR-038** — decisão de MVP). `gestor` e `financial` recebem opt-in forte (banner de enrollment não-bloqueante), mas **não** são forçados enquanto não existirem recovery codes + reset por admin: sem rede de resgate, forçar 2FA tranca o cliente fora da própria clínica. Fonte: [mfa-policy.ts](../src/lib/auth/policies/mfa-policy.ts) (`mustHaveMFA`/`mustEnforceAAL2`). *(Corrigido em 2026-07-15 — esta seção afirmava obrigatoriedade pra gestor/financial, contradizendo o código e o ADR.)*
 - 🔒 Session expira em 7 dias de inatividade. Refresh automático em uso ativo.
 - 🔒 Auto-heal de claims: se claims do JWT diferem do banco, força re-login.
 - 🔒 Tentativas de login: rate limit **dual** via Upstash (sliding window) — 10/15min por IP **e** 5/15min por `email_hash`; bloqueia se qualquer um estourar. Não há bloqueio de 1h: a janela desliza. Durante outage do Upstash o limite é fail-open com fallback em memória por instância (ADR-008 F-08). Fonte: [rate-limit.ts](../src/lib/auth/rate-limit.ts). *(Corrigido em 2026-07-15 — dizia "5/15min, bloqueia 1h".)*
@@ -2257,7 +2257,7 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 8. **IA NÃO dá conselho clínico** — hardcoded no prompt, validado server-side.
 9. **Encryption at-rest per-tenant** pra dados sensíveis.
 10. **Stateless IA por mensagem** — sem cache global.
-11. **2FA obrigatório pro `super_admin`** (ADR-008 D6); gestor/financial = opt-in forte, não forçado. Ver §4.1.
+11. **2FA obrigatório pro `super_admin`** (**ADR-038**); gestor/financial = opt-in forte, não forçado. Ver §4.1.
 12. **Backups + PITR + cold archive** — defesa em profundidade contra perda.
 13. **Multi-tenant single deploy** — nunca deploy-per-clinic.
 
@@ -2486,7 +2486,7 @@ Template ADR:
 - Idempotency keys obrigatórias
 - Encryption at-rest per-tenant
 - Multi-unidade desde o schema
-- 2FA obrigatório pro `super_admin` (gestor/financial: opt-in forte — ADR-008 D6)
+- 2FA obrigatório pro `super_admin` (gestor/financial: opt-in forte — **ADR-038**)
 
 ✅ **Stack:**
 - Next.js 15+ (App Router) + Supabase + Drizzle + Tailwind/shadcn

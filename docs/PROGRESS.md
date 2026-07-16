@@ -257,9 +257,9 @@ Verificado empiricamente que código backend pode forjar `request.jwt.claims` vi
 - **20 permissions** canônicas. Adicionar exige enum em `permissions.ts` + seed em nova migration + bundle em role_permissions se aplicável + ADR.
 - **JWT claims shape**: `{ clinic_id: string|null, role: Role, permissions: string[], claims_version: number, super_admin?: bool, aal?: 'aal1'|'aal2' }`. `permissions[]` é flat string[], NUNCA objeto (D25).
 - **`super_admin` é role de PLATAFORMA**, não tenant-scoped (P7). Sem clinic_id. NÃO populado em role_permissions.
-- **MFA obrigatório APENAS super_admin no MVP** (D6). gestor/financial recebem opt-in forte. Re-avaliar em C15 com recovery codes.
+- **MFA obrigatório APENAS super_admin no MVP** (**ADR-038**). gestor/financial recebem opt-in forte. Re-avaliar quando existirem recovery codes + reset administrativo. *(Era citado como "ADR-008 D6" aqui e em 5+ docs — mas D6 NUNCA foi escrito no ADR-008: a regra de segurança vivia só nesta linha de prosa. I-5 pegou; ADR-038 formalizou.)*
 - **`requireCachedPermission` (JWT) vs `requireFreshPermission` (DB)** — escolha consciente. ESLint bloqueia `requirePermission`.
-- **Middleware NÃO é enforcement primário** (D22). Toda Server Action revalida via `require*`.
+- **Middleware NÃO é enforcement primário** (ADR-009 D22). Toda Server Action revalida via `require*`. **ADR-037 (2026-07-16) foi além:** o middleware perdeu o drift-check/`_healed`/throttle e virou só refresh de cookie + auth-presence; o ENFORCEMENT de sessão (epoch por request) mora na porta única.
 - **JWT replay window de até 15 minutos** (D12 — Supabase access_token TTL config). Documentado em ADR-009. Solução completa C16.
 - **Hook Complexity Budget** (D21): max 2 queries, 1 agregação, sem loops/CTE recursiva, <20ms p95.
 - **Frozen surface pré-C15** (6 modelos congelados em ADR-008): RBAC, multi-clinic per user, impersonation, scoped permissions, temporary grants, contextual permissions. Mudança exige janela "Pre-C15 RBAC freeze review".
@@ -285,9 +285,9 @@ Verificado empiricamente que código backend pode forjar `request.jwt.claims` vi
 
 - **JWT replay window 15min após logout** (D12 + ADR-009). Solução completa (session_version claim + revocation list) fica para C16.
 - **Auto-heal pode atrasar até 60s** (throttle D5+D28). Caso "admin mudou role agora mesmo" é raro; budget operacional aceito.
-- **Mudanças em role_permissions exigem logout operacional manual** (D27). Auth epoch global fica para C16.
+- ~~**Mudanças em role_permissions exigem logout operacional manual** (ADR-008 D27). Auth epoch global fica para C16.~~ → **RESOLVIDO por ADR-037 (2026-07-16)**: trigger em `role_permissions` bumpa `claims_version` de quem usa a role (migration 0040) + epoch-check por request. Não foi preciso "epoch global": `claims_version` JÁ era o epoch — faltava bumpá-lo aqui.
 - **MFA recovery via guardar QR/secret no enroll** + flag `--reset-mfa` em seed-super-admin. Supabase TOTP não emite backup codes nativos.
-- **MFA obrigatório só super_admin no MVP** (D6). Re-avaliar em C15 com recovery flow.
+- **MFA obrigatório só super_admin no MVP** (**ADR-038**). Re-avaliar com recovery codes + reset administrativo.
 - **`/account/security` espartano** — UX detalhada em C15.
 - **Hook deploy é MANUAL no Dashboard** + ativar TTL 15min. Automação via Management API em C16.
 - **Hook é SPOF** — mitigação parcial via healthcheck + CI smoke. Alarme externo (UptimeRobot) em C16.
@@ -1225,10 +1225,23 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 | **D1** | **Role dedicado sem BYPASSRLS para o pool runtime** (A3 longo prazo). Hoje um `withTenant` esquecido **vaza** em vez de falhar fechado — só o `arch-db-check` (AST, CI) barra. | Código **pronto e opt-in**: `DATABASE_URL_RUNTIME` ([db/index.ts](../src/lib/db/index.ts)). Falta **provisionar o role** no Postgres. Ver "Plano D1" abaixo. | **Antes do 1º cliente pagante.** É o hardening de maior valor da auditoria de APIs e não depende de escala. |
 | **D2** | **Circuit breaker + quota de IA distribuídos** (B7). Hoje per-instância → sob multi-instância o teto efetivo vira ~N×. | Aceito e documentado (ADR-022 §11.17). Impacto é **custo**, não segurança. | **A 1ª instância a mais em produção**, OU o gasto de IA se aproximar do orçamento. O que vier antes. Aí a extração para `src/lib/redis/` (CONVENTIONS §chaves Redis) deixa de ser prematura. |
 | **D3** | Fallback de rate-limit per-instância (~N× durante outage do Upstash) | Aceito (ADR-008 F-08) | Mesmo gatilho do D2 — o Redis já estaria em jogo. |
-| **D4** | Auth-epoch / revogação imediata de sessão (janela de replay de JWT de 15min) | Aceito (ADR-009 D12/D27) | Primeiro incidente de sessão, ou exigência de compliance de cliente. |
+| ~~**D4**~~ | ~~Auth-epoch / revogação imediata de sessão (janela de replay de JWT de 15min)~~ | ✅ **FECHADO 2026-07-16 — [ADR-037](adr/037-server-authoritative-session.md)** (remediação da auditoria de identidade, achado I-4). | — |
 | **D5** | CSP bloqueante com nonce (hoje `Report-Only`) | Aceito (ADR-030) | Quando o relatório de CSP estiver limpo por ~1 semana em produção. |
 | **D6** | Sanear o journal de migrations (snapshots `meta/*.json` com lacunas → `db:generate` inseguro) | Aceito (ADR-020) | Quando uma evolução de schema exigir `db:generate` de verdade. |
 | **D7** | **`admin.qoro.dev` (Control Plane em host próprio)** — planejado desde o PlanoAção, **nunca provisionado**; o subdomínio não resolve. Painel e app dividem `app.qoro.dev`. | **Adiado por decisão do founder (2026-07-16)**, com motivo — ver abaixo. Docs corrigidos para parar de afirmar que existe. | **Só junto com D5 (CSP bloqueante) + cookie escopado por host.** Sozinho é separação cosmética. |
+
+### Por que o D4 fechou sem virar projeto (2026-07-16)
+
+O D4 estava escrito como "auth-epoch global", e o gatilho era "primeiro incidente de sessão ou
+exigência de compliance". A remediação da auditoria de identidade (I-4) mostrou que **não era preciso
+construir um epoch**: o `claims_version` **já era** o epoch — monotônico, já no JWT, já com triggers.
+Faltavam duas coisas pequenas: (1) alguém **conferir** por request (o middleware só fazia heal
+throttled e declaradamente não-enforcement), e (2) um trigger em `role_permissions`, a única entrada
+de permissão que ninguém bumpava (o velho D27).
+
+Fechou junto: **I-4** (replay de 15min), **I-11b/D27** (drift global) e **I-7** (`_healed` forjável —
+morreu por remoção, junto do heal). Custo: +1 SELECT por PK memoizado; o middleware **perdeu** um
+fetch ao PostgREST a cada 60s e ~150 linhas. Ver ADR-037.
 
 ### Por que o D7 foi adiado (e o que o tornaria válido)
 

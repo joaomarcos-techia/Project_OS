@@ -7,6 +7,27 @@
 
 Este documento é a lei viva do projeto. Edita junto com o PR que muda a convenção. Não decide caso novo aqui — vira ADR primeiro, depois rebaixa o resumo aqui.
 
+## Citar decisão de ADR: SEMPRE `ADR-0XX Dnn`, nunca `Dnn` sozinho
+
+Os números "D" são **namespaced por ADR e COLIDEM**. Não existe registro global. Escrever "D22" é
+ambíguo e já custou tempo real de investigação:
+
+| D# | Em ADR-007 (RLS) | Em ADR-008/009 (Identidade) |
+|---|---|---|
+| **D22** | Predicado de policy dual-context | Middleware ≠ enforcement primário |
+| **D27** | RLS ≠ RBAC | `role_permissions` exige logout operacional |
+| **D31** | `clinics` UPDATE é super_admin-only | Self-service via função column-level |
+| **D34** | Policy SELECT-only em `_reserved_slugs` | Budget de JWT: máx. 128 permissions |
+| **D36** | Função nunca é concedida a PUBLIC | *(também usado p/ o deny-by-default do hook)* |
+
+**Regra:** cite sempre com o prefixo do ADR (`ADR-008 D31`). Ao criar um "D" novo, confira se o número
+já existe **no mesmo ADR** — colidir entre ADRs diferentes é aceitável, dentro do mesmo não.
+
+**Corolário (I-5, 2026-07-16):** um "D" citado por vários docs **não prova que ele existe**. O
+"ADR-008 D6" (MFA) era citado por 6+ documentos e **nunca foi escrito** — a regra de segurança vivia
+só numa linha de prosa do PROGRESS. Antes de citar um D, abra o ADR e confirme que o bullet existe.
+Ver [ADR-038](adr/038-mfa-policy.md).
+
 ## Naming (congelado em C0)
 
 | Camada | Convenção | Exemplo |
@@ -142,6 +163,21 @@ ADR-007 §10 define três categorias. Marque exatamente uma e cumpra o bloco cor
 
 ```markdown
 ### Checklist nova tabela — anti-vazamento
+
+**Passo 0 — O conteúdo desta tabela DECIDE autorização?** (ADR-041 — pergunte ANTES de categorizar.)
+- [ ] **NÃO** — é dado de domínio (pacientes, agendamentos, lançamentos). Siga para o Passo 1.
+- [ ] **SIM** — permissões, roles, overrides, flags de acesso. → **read-only para `authenticated`**,
+      mesmo sendo tenant-scoped: `REVOKE INSERT, UPDATE, DELETE ... FROM anon, authenticated` +
+      policy `FOR SELECT` (nunca `FOR ALL`). A escrita mora em `dbAdmin` atrás do gate, auditada.
+      Ainda cumpra o bloco da categoria (A/B) para o resto.
+
+> **Por que o Passo 0 existe (I-13, 2026-07-16):** `user_permission_overrides` foi categorizada como
+> tenant-scoped, cumpriu o Bloco A à risca — e virou um **escalonamento de privilégio**: qualquer
+> `authenticated` gravava a própria permissão via PostgREST, porque a `defaultTenantPolicy` só compara
+> `clinic_id`, nunca QUEM é o ator. O princípio "RLS ≠ RBAC" (ADR-007 D27) vale para tabela de
+> DOMÍNIO, onde toda escrita passa por uma Server Action — a premissa "a app guarda a porta" é FALSA
+> quando o PostgREST expõe escrita direta. Escrever direto em dado de domínio dá dado errado; em dado
+> de authz, dá acesso.
 
 **Passo 1 — Categorizar (ADR-007 §10):** marque UMA opção.
 - [ ] **Tenant-scoped** — possui `clinic_id` FK. Use bloco A.

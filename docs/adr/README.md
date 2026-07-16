@@ -49,8 +49,14 @@
 | [031](031-design-system-v2-rebrand.md) | Design System v2: rebrand petrol/clay + governança de UI + estrangulamento do CSS legado (supersede parcial ADR-018) | accepted | Fundação Visual |
 | [032](032-mvp-identity-practitioner-model.md) | Modelo de identidade do MVP (colapso User=Employee=Practitioner + predicado `isPractitioner`; canal=email; ciclo de vida + políticas de CRM) | accepted | Identity (C3) |
 | [033](033-consultorio-board-scope-practitioner.md) | Escopo do board do Consultório: practitioner vê a própria fila (refina ADR-032 §2) | accepted | C8 / C19 |
+| [034](034-invite-resend-copy-link.md) | Reenvio de convite copia o link (sem auto-send) — o owner entrega por WhatsApp/e-mail | accepted | Identity (C3) |
 | [035](035-palette-rebrand-navy-orchid.md) | Rebrand de paleta petrol/clay → navy/orchid (Qoro) + swap do wordmark (supersede parcial ADR-031 §2) | accepted | Fundação Visual |
 | [036](036-asconflict-permanece-no-contexto.md) | `asConflict` permanece em cada contexto (não centralizar em `@/lib`) — preserva boundary `context→lib` ao aplicar o S1 | accepted | Contexts / Boundaries |
+| [037](037-server-authoritative-session.md) | Sessão server-authoritative por request (auth epoch na porta única; mata replay de JWT + drift global; middleware perde o heal) — supersede parcial ADR-009 D12/D22/D28 | accepted | Identity (C3) |
+| [038](038-mfa-policy.md) | Política de MFA: obrigatório só para `super_admin` (formaliza o "ADR-008 D6" que nunca foi escrito) | accepted | Identity (C3) |
+| [039](039-member-lifecycle.md) | Ciclo de vida de membro (desativar/reativar/trocar role/override) + bloqueio de agenda com override auditado — emenda ADR-032 §4 | accepted | Identity (C3) |
+| [040](040-invite-acceptance-gate.md) | Aceite do convite como gate de sessão (hook nega claims enquanto pendente) | accepted | Identity (C3) |
+| [041](041-authz-tables-are-not-tenant-tables.md) | Tabela de autorização não é tabela de tenant: read-only para `authenticated` (fecha escalonamento por override — I-13) — delimita ADR-007 D27 | accepted | RLS / Identity |
 
 ## Como propor um novo ADR
 
