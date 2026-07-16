@@ -91,7 +91,9 @@
       "Bash(node -e \"console.log\\(require\\('./node_modules/@upstash/redis/package.json'\\).version\\)\")",
       "Bash(cp \"src/app/\\(admin\\)/admin/clinicas/[id]/export-form.tsx\" /tmp/ef.bak)",
       "Bash(python -c ' *)",
-      "Bash(pnpm db:backup:prod)"
+      "Bash(pnpm db:backup:prod)",
+      "Bash(node -e \"const p=require\\('./package.json'\\);Object.entries\\(p.scripts\\).filter\\(\\([k]\\)=>/db:|test|arch|check|seed|smoke/.test\\(k\\)\\).forEach\\(\\([k,v]\\)=>console.log\\(k.padEnd\\(24\\),'=',v\\)\\)\")",
+      "Bash(grep -n \"403,$\\\\|401,$\\\\|500,$\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",

@@ -7,20 +7,36 @@
  *
  * Princípios canônicos (ADR-008 + plano C3 v6):
  *   - P1: banco é fonte de verdade. JWT é cache (P2).
- *   - P5: claims drift mitigation, não auto-heal.
  *   - D20: requireCachedPermission (JWT) vs requireFreshPermission (DB).
- *   - D22: middleware NÃO é enforcement primário. Toda action revalida AQUI.
  *
- * Helpers:
- *   - getCurrentUser(): user atual ou null (não throw).
- *   - requireUser(): throw 401.
- *   - requireClinicId(): throw 403 se super_admin (precisa contexto explícito).
- *   - requireRole(allowed): throw 403.
- *   - requireCachedPermission(perm): throw 403 (lê JWT — D33).
- *   - requireFreshPermission(perm): throw 403 (revalida no banco — D20).
- *   - requireSuperAdmin(): throw se não super_admin OU se aal !== 'aal2' (D6).
+ * ===================================================================
+ * ADR-037 — SESSÃO SERVER-AUTHORITATIVE POR REQUEST (2026-07-16)
+ * ===================================================================
+ * Este arquivo deixou de ser só "autorização" e passou a ser também o ponto de
+ * ENFORCEMENT da sessão. `authenticate()` relê o profile do banco a CADA request
+ * e compara `claims_version` do JWT com o do banco. Divergiu → sessão morta.
  *
- * NUNCA usar supabase.auth.getSession() — sempre getUser() (validação server-side).
+ * O que isso substitui: antes a revogação dependia do middleware (throttled 60-75s,
+ * cookie `_healed` forjável, e declaradamente "não-enforcement" — ADR-009 D22).
+ * Um access token sobrevivia a logout/desativação por até 15min (ADR-009 D12).
+ * Agora não sobrevive a um request.
+ *
+ * ⚠️ INVARIANTE QUE SUSTENTA TUDO: `claims_version` bate ⟹ as claims do JWT são
+ * atuais. Isso só é verdade porque TODA entrada de `effective_permissions_v` bumpa
+ * a versão: role/clinic_id/ativo (trigger BEFORE UPDATE em profiles), overrides
+ * (trigger) e role_permissions (trigger da 0040). Se alguém adicionar uma nova
+ * fonte de permissão SEM bumpar `claims_version`, este gate passa a aprovar claims
+ * velhas em silêncio. Ao mexer em permissão, mexa no bump.
+ *
+ * ⚠️ `signOut` NÃO mata o access token. `signOut({scope:'global'})` e
+ * `auth.admin.signOut()` revogam REFRESH tokens; o access token JWT continua
+ * criptograficamente válido até expirar. Quem mata a sessão em curso é o
+ * epoch-check daqui — nada mais. Não remova este check achando que o signOut cobre.
+ *
+ * Custo: 1 SELECT por PK, memoizado por request (`React.cache`). O
+ * `requireFreshPermission` compartilha a MESMA leitura — ele já a fazia.
+ *
+ * NUNCA usar supabase.auth.getSession() — sempre getClaims()/getUser().
  *
  * O placeholder `auditableAction` foi REMOVIDO em C4. Substituído por:
  *   - idempotentMutation()  → default para Server Actions mutativas (C5+).
@@ -52,11 +68,42 @@ import { createServerClient } from './supabase-server';
 
 export type { Role } from './roles';
 
+/**
+ * Motivo canônico de uma negativa de identidade. União ÚNICA com DOIS produtores,
+ * de propósito: dá uma taxonomia só para log/Sentry/auditoria sem colapsar as
+ * camadas.
+ *
+ *   - SESSÃO (`authenticate`): quem é você e a sessão vale?
+ *   - POLÍTICA (`require*`): você pode ISTO?
+ *
+ * `MFA_REQUIRED` mora do lado de POLÍTICA e NÃO no `IdentityResult`: `authenticate()`
+ * não sabe o que a ação exige — quem sabe é `requireSuperAdmin`. Colocá-lo no
+ * resultado da autenticação faria a autenticação conhecer as regras de autorização
+ * (inversão de dependência).
+ */
+export type AuthDenialReason =
+  // --- sessão (produzido por authenticate) ---
+  /** Sem JWT, JWT inválido, ou JWT válido cujas claims o Hook recusou por inconsistência. */
+  | 'TOKEN_INVALID'
+  /** JWT válido, mas não existe profile para o `sub`. */
+  | 'NO_PROFILE'
+  /** JWT desatualizado: claims_version do token ≠ do banco. É o fim do replay de 15min. */
+  | 'CLAIMS_OUTDATED'
+  | 'USER_DISABLED'
+  | 'USER_DELETED'
+  // --- política (produzido pelos require*) ---
+  | 'MFA_REQUIRED'
+  | 'ROLE_DENIED'
+  | 'PERMISSION_DENIED'
+  | 'CLINIC_CONTEXT_REQUIRED';
+
 export class AuthError extends Error {
   constructor(
     message: string,
     public readonly code: 'unauthenticated' | 'forbidden' | 'config',
     public readonly httpStatus: 401 | 403 | 500,
+    /** Motivo estruturado — o log diz `403 CLAIMS_OUTDATED`, não um 401 mudo. */
+    public readonly reason: AuthDenialReason,
   ) {
     super(message);
     this.name = 'AuthError';
@@ -86,41 +133,96 @@ export interface CurrentUser {
       startedAt: string;
     };
   };
+  /**
+   * ISO — quando esta identidade foi revalidada contra o banco (ADR-037). É sempre
+   * "neste request": não existe identidade não-validada depois de `authenticate()`.
+   * Serve para debug/telemetria responder "de quando é esta decisão?" sem adivinhar.
+   */
+  validatedAt: string;
 }
 
+/** Resultado da autenticação: ou uma identidade validada, ou o MOTIVO da recusa. */
+export type IdentityResult =
+  | { ok: true; identity: CurrentUser }
+  | { ok: false; reason: AuthDenialReason };
+
 /**
- * Retorna o user atual ou null. NÃO throws. Wrapper sobre supabase.auth.getUser()
- * + parsing das custom claims injetadas pelo Hook (0003).
+ * Leitura AUTORITATIVA do profile — a fonte de verdade (P1) contra a qual o JWT
+ * (cache, P2) é conferido.
  *
- * Token sem claims (Hook deny-by-default, D36) → retorna null (chamador trata
- * como sem autorização). Middleware vai redirecionar /login.
+ * `cache()` por request: `authenticate()` e `requireFreshPermission` compartilham
+ * esta leitura. O fresh-check já fazia exatamente este SELECT, então o
+ * epoch-check por request NÃO adicionou query nenhuma às ações críticas — só às
+ * demais, e uma só (PK indexada, memoizada).
  */
+const readAuthoritativeProfile = cache(async (userId: string) => {
+  const rows = await dbAdmin
+    .select({
+      role: profiles.role,
+      ativo: profiles.ativo,
+      deletedAt: profiles.deletedAt,
+      clinicId: profiles.clinicId,
+      claimsVersion: profiles.claimsVersion,
+    })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+  return rows[0] ?? null;
+});
+
 /**
- * Memoizado por request (React.cache): require* chamam isto N vezes por render/
- * action — sem cache, cada chamada refaz getClaims() (round-trip ao Auth) +
- * resolveImpersonation() (round-trip ao banco durante impersonate). Em páginas
- * tenant isso virava 20+ round-trips sequenciais (12–27s contra banco remoto).
- * O cache é request-scoped: revogação de impersonate/sessão vale no próximo request.
+ * AUTENTICAÇÃO — parse do JWT → validação → leitura autoritativa → epoch → overlay.
+ * Devolve a identidade OU o motivo da recusa. Não throws.
+ *
+ * Memoizado por request (React.cache): os `require*` chamam isto N vezes por
+ * render/action — sem cache, cada chamada refaria getClaims() + o SELECT +
+ * resolveImpersonation(). Em páginas tenant isso virava 20+ round-trips
+ * sequenciais (12–27s contra banco remoto). O cache é request-scoped: uma
+ * revogação vale a partir do PRÓXIMO request, nunca depois de 15min (ADR-037).
  */
-export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+export const authenticate = cache(async (): Promise<IdentityResult> => {
   const supabase = await createServerClient();
   // F-17: getClaims() é o caminho recomendado pelo Supabase — verifica o JWT
   // (JWKS local para signing keys assimétricas; round-trip ao Auth server para
   // chaves simétricas, como getUser) E retorna o payload decodado, incluindo as
   // custom claims injetadas pelo Hook (app_role/clinic_id/permissions/...).
-  // Substitui getUser()+getSession()+decode manual — sem mais eslint-disable de
-  // getSession, sem decode base64 caseiro. (auth-js 2.106.2 expõe getClaims.)
   const { data, error } = await supabase.auth.getClaims();
-  if (error || !data?.claims) return null;
+  if (error || !data?.claims) return { ok: false, reason: 'TOKEN_INVALID' };
 
   const raw = data.claims as Record<string, unknown>;
   const userId = typeof raw.sub === 'string' ? raw.sub : null;
-  if (!userId) return null;
+  if (!userId) return { ok: false, reason: 'TOKEN_INVALID' };
 
   const claims = parseClaims(raw);
-  if (!claims) return null;
 
-  const base: CurrentUser = {
+  // O Hook é deny-by-default (D36): quando o profile está inativo/deletado/
+  // inconsistente ele devolve o token SEM as claims da app. Antes isso virava um
+  // `null` mudo e o usuário via "login" sem saber por quê. Como o JWT é válido e
+  // temos o `sub`, damos um motivo de verdade — a autoridade continua no banco.
+  if (!claims) return { ok: false, reason: await explainMissingClaims(userId) };
+
+  const profile = await readAuthoritativeProfile(userId);
+  if (!profile) return { ok: false, reason: 'NO_PROFILE' };
+  if (profile.deletedAt !== null) return { ok: false, reason: 'USER_DELETED' };
+  if (!profile.ativo) return { ok: false, reason: 'USER_DISABLED' };
+
+  // ADR-037 — O EPOCH-CHECK. Fim do replay de access-token (I-4) e do drift
+  // global de role_permissions (I-11b, com o trigger da 0040).
+  if (profile.claimsVersion !== claims.claims_version) {
+    return { ok: false, reason: 'CLAIMS_OUTDATED' };
+  }
+
+  // Defesa em profundidade contra o invariante quebrar em silêncio: se a versão
+  // bate mas role/clinic_id divergem, algum bump foi PERDIDO (trigger novo sem
+  // bump, escrita fora do caminho). Fail-closed: melhor deslogar do que autorizar
+  // por uma claim que ninguém garante mais. Comparado contra as CLAIMS, não contra
+  // o `clinicId` efetivo — que o overlay de impersonate reescreve logo abaixo.
+  const claimClinicId = claims.clinic_id;
+  if (profile.role !== claims.app_role || (profile.clinicId ?? null) !== claimClinicId) {
+    return { ok: false, reason: 'CLAIMS_OUTDATED' };
+  }
+
+  const identity: CurrentUser = {
     userId,
     clinicId: claims.clinic_id,
     // JWT claim é 'app_role' (PostgREST reserva 'role'); domain expõe como 'role'.
@@ -129,14 +231,20 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     claimsVersion: claims.claims_version,
     isSuperAdmin: claims.super_admin === true || claims.app_role === 'super_admin',
     aal: claims.aal ?? null,
+    validatedAt: new Date().toISOString(),
   };
 
   // C15 — overlay de impersonate. Só consulta a sessão (1 PK lookup) quando há
   // cookie E o user é super_admin AAL2; usuários normais não pagam nada.
   // Toda a lógica de cookie/HMAC/sessão vive em @/lib/impersonation (review #2).
-  const imp = await resolveImpersonation(base);
+  //
+  // ADR-037 — semântica sob epoch (não-óbvia, testada): o epoch confere o profile
+  // do PRÓPRIO super_admin. Mudar o role do owner alvo NÃO derruba a impersonação
+  // — e está certo: a sessão está atada a super_admin+clínica, não ao alvo.
+  // Desativar o super_admin, esse sim, mata tudo acima (ativo=false).
+  const imp = await resolveImpersonation(identity);
   if (imp) {
-    base.session = { impersonation: imp };
+    identity.session = { impersonation: imp };
     // Identidade EFETIVA durante o impersonate: o fundador opera a clínica como
     // operador pleno. clinic_id efetivo + permissões plenas — o super_admin já
     // bypassa RBAC no servidor (requireCachedPermission/requireFreshPermission/
@@ -144,18 +252,76 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     // user.clinicId / user.permissions direto) renderizar corretamente.
     // `role`/`isSuperAdmin` PERMANECEM: RLS usa is_super_admin() do JWT e a
     // auditoria atribui ao super_admin. O estado fica explícito em session.
-    base.clinicId = imp.clinicId;
-    base.permissions = ALL_PERMISSIONS;
+    identity.clinicId = imp.clinicId;
+    identity.permissions = ALL_PERMISSIONS;
   }
-  return base;
+  return { ok: true, identity };
 });
 
+/** Por que o Hook não injetou claims? A resposta está no banco, não no token. */
+async function explainMissingClaims(userId: string): Promise<AuthDenialReason> {
+  const profile = await readAuthoritativeProfile(userId);
+  if (!profile) return 'NO_PROFILE';
+  if (profile.deletedAt !== null) return 'USER_DELETED';
+  if (!profile.ativo) return 'USER_DISABLED';
+  // Profile são e mesmo assim sem claims = inconsistência que o D36 recusou
+  // (ex.: role×clinic_id incoerentes). Não inventamos um motivo bonito para isso.
+  return 'TOKEN_INVALID';
+}
+
+/**
+ * User atual ou null. NÃO throws. Contrato PRESERVADO (ADR-037 não quebrou
+ * chamador nenhum): quem só quer saber "tem alguém logado?" continua aqui;
+ * quem precisa do MOTIVO chama `authenticate()`.
+ */
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const result = await authenticate();
+  return result.ok ? result.identity : null;
+}
+
+/** Motivos de sessão → 401 (não é "proibido", é "não é mais você"). */
+const AUTH_ERROR_MESSAGE: Record<string, string> = {
+  TOKEN_INVALID: 'Autenticação necessária',
+  NO_PROFILE: 'Profile inexistente. Contate o administrador.',
+  CLAIMS_OUTDATED: 'Sua sessão está desatualizada. Entre novamente.',
+  USER_DISABLED: 'Acesso desativado. Contate o administrador da clínica.',
+  USER_DELETED: 'Conta removida.',
+};
+
 export async function requireUser(): Promise<CurrentUser> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new AuthError('Autenticação necessária', 'unauthenticated', 401);
+  const result = await authenticate();
+  if (!result.ok) {
+    throw new AuthError(
+      AUTH_ERROR_MESSAGE[result.reason] ?? 'Autenticação necessária',
+      'unauthenticated',
+      401,
+      result.reason,
+    );
   }
-  return user;
+  return result.identity;
+}
+
+/**
+ * I-1 — super_admin bypassa RBAC (P7), mas o bypass agora EXIGE AAL2.
+ *
+ * Antes, os early-returns `if (user.isSuperAdmin) return` não olhavam `aal`, e a
+ * segurança repousava num invariante implícito e não testado ("toda ação alcançável
+ * por super_admin também chama requireClinicId ou requireSuperAdmin"). Invariante
+ * implícito é uma regressão esperando alguém escrever a próxima action. Agora o
+ * bypass é fail-closed no próprio ponto de bypass.
+ *
+ * Super_admin em AAL1 (pós-senha, pré-TOTP) continua alcançando /login/mfa e
+ * /account/security — essas rotas usam `requireUser`, não os gates de RBAC.
+ */
+function assertPlatformStepUp(user: CurrentUser): void {
+  if (user.aal !== 'aal2') {
+    throw new AuthError(
+      'super_admin precisa de MFA (AAL2) para usar o bypass de RBAC. Reautentique com TOTP.',
+      'forbidden',
+      403,
+      'MFA_REQUIRED',
+    );
+  }
 }
 
 /**
@@ -175,6 +341,7 @@ export async function requireClinicId(): Promise<string> {
       'Super_admin precisa selecionar clínica antes desta ação',
       'forbidden',
       403,
+      'CLINIC_CONTEXT_REQUIRED',
     );
   }
   return effective;
@@ -185,31 +352,43 @@ export async function requireRole(allowed: readonly Role[]): Promise<Role> {
   // P7: super_admin bypassa RBAC (consistente com requireCachedPermission/
   // requireFreshPermission). Durante impersonate isto permite operar telas tenant
   // gateadas por role; fora dele, super_admin não tem clínica e cai em requireClinicId.
-  if (user.isSuperAdmin) return user.role;
+  if (user.isSuperAdmin) {
+    assertPlatformStepUp(user); // I-1
+    return user.role;
+  }
   if (!allowed.includes(user.role)) {
     throw new AuthError(
       `Role '${user.role}' não autorizada. Esperado uma de: ${allowed.join(', ')}`,
       'forbidden',
       403,
+      'ROLE_DENIED',
     );
   }
   return user.role;
 }
 
 /**
- * Lê permission do JWT cache (snapshot eventualmente consistente — P2/D13).
- * Stale window: até 60s (middleware throttle) + access_token_ttl (15min D12).
+ * Lê permission do JWT (P2/D13).
  *
- * Para ações destrutivas/irreversíveis use requireFreshPermission (D20).
+ * ADR-037 mudou o que "cached" significa: NÃO existe mais janela stale. O JWT só
+ * chega aqui depois de `authenticate()` conferir `claims_version` contra o banco
+ * NESTE request — ou seja, as permissões do token são comprovadamente atuais.
+ * A diferença para `requireFreshPermission` deixou de ser frescor e passou a ser
+ * defesa em profundidade (D20): o fresh reconfere overrides/bundle linha a linha,
+ * cobrindo até um bump perdido.
  */
 export async function requireCachedPermission(perm: Permission): Promise<void> {
   const user = await requireUser();
-  if (user.isSuperAdmin) return; // P7 — platform role bypassa RBAC
+  if (user.isSuperAdmin) {
+    assertPlatformStepUp(user); // I-1
+    return; // P7 — platform role bypassa RBAC
+  }
   if (!user.permissions.includes(perm)) {
     throw new AuthError(
       `Permissão '${perm}' negada (cached). Verifique role/overrides.`,
       'forbidden',
       403,
+      'PERMISSION_DENIED',
     );
   }
 }
@@ -227,12 +406,16 @@ export async function requireCachedPermission(perm: Permission): Promise<void> {
  */
 export async function requireCachedAnyPermission(perms: readonly Permission[]): Promise<void> {
   const user = await requireUser();
-  if (user.isSuperAdmin) return; // P7 — platform role bypassa RBAC
+  if (user.isSuperAdmin) {
+    assertPlatformStepUp(user); // I-1
+    return; // P7 — platform role bypassa RBAC
+  }
   if (!perms.some((p) => user.permissions.includes(p))) {
     throw new AuthError(
       `Permissão negada (cached): exige uma de [${perms.join(', ')}].`,
       'forbidden',
       403,
+      'PERMISSION_DENIED',
     );
   }
 }
@@ -246,37 +429,33 @@ export async function requireCachedAnyPermission(perms: readonly Permission[]): 
  */
 export async function requireFreshPermission(perm: Permission): Promise<void> {
   const user = await requireUser();
-  if (user.isSuperAdmin) return;
-
-  // Pega role + clinic_id atuais do banco (não confia no JWT).
-  const profileRow = await dbAdmin
-    .select({
-      role: profiles.role,
-      ativo: profiles.ativo,
-      deletedAt: profiles.deletedAt,
-      clinicId: profiles.clinicId,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, user.userId))
-    .limit(1);
-  const profile = profileRow[0];
-  if (!profile || !profile.ativo || profile.deletedAt !== null) {
-    throw new AuthError('Profile inativo ou inexistente', 'forbidden', 403);
+  if (user.isSuperAdmin) {
+    assertPlatformStepUp(user); // I-1
+    return;
   }
 
-  // V7 (auditoria de segurança): "fresh" implica revalidação TOTAL. O clinic_id
-  // efetivo vinha só do JWT (requireClinicId) e NÃO era re-lido, abrindo janela
-  // de drift em reatribuição de clínica — uma ação crítica podia rodar no tenant
-  // errado até o bump de claims_version forçar logout. Comparamos o clinic_id do
-  // banco com o do JWT; divergência → força re-auth. (super_admin/impersonation
-  // já retornaram acima; para eles o clinic_id do profile é null por construção.)
-  if (profile.clinicId !== user.clinicId) {
-    throw new AuthError(
-      'Contexto de clínica divergente na revalidação (fresh check). Reautentique.',
-      'forbidden',
-      403,
-    );
+  // MESMA leitura autoritativa que `authenticate()` já fez neste request
+  // (memoizada) — então o epoch-check do ADR-037 saiu DE GRAÇA para as ações
+  // críticas, que já pagavam este SELECT.
+  //
+  // O que este bloco NÃO refaz mais, e por quê: `ativo`, `deleted_at` e a
+  // comparação de `clinic_id` (o fix V7 / achado I-6, 2026-07-14) eram feitos
+  // AQUI. Agora `authenticate()` os faz — contra a mesma linha, no mesmo request,
+  // ANTES de qualquer autorização. Repetir a comparação seria código inalcançável
+  // se fingindo de camada de defesa. E o resultado é ESTRITAMENTE mais forte que
+  // antes: o V7 só protegia as CRITICAL_ACTIONS; agora vale para TODO request.
+  // O contrato está travado em `tenant-context.test.ts`.
+  const profile = await readAuthoritativeProfile(user.userId);
+  if (!profile) {
+    // Narrowing de tipo. Se isto disparar, `authenticate()` foi contornado —
+    // ele já teria devolvido NO_PROFILE e o requireUser acima teria lançado.
+    throw new AuthError('Profile inexistente', 'forbidden', 403, 'NO_PROFILE');
   }
+
+  // O que o fresh AINDA acrescenta (D20): relê overrides e bundle linha a linha,
+  // em vez de confiar no array `permissions` do JWT. Cobre o caso de um bump de
+  // claims_version PERDIDO no caminho das permissões — o único furo que o
+  // epoch-check não veria, porque a versão bateria.
 
   // Override negando? → bloqueia mesmo se role tem.
   const denyRow = await dbAdmin
@@ -295,6 +474,7 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
       `Permissão '${perm}' negada por override (fresh check).`,
       'forbidden',
       403,
+      'PERMISSION_DENIED',
     );
   }
 
@@ -328,6 +508,7 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
       `Permissão '${perm}' negada (fresh check). Role '${profile.role}' não tem bundle e não há override granted.`,
       'forbidden',
       403,
+      'PERMISSION_DENIED',
     );
   }
 
@@ -343,25 +524,21 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
       `Permissão '${perm}' não existe no catálogo (defesa fresh).`,
       'forbidden',
       403,
+      'PERMISSION_DENIED',
     );
   }
 }
 
 /**
- * Super_admin EXIGE AAL2 (D6). Bloqueia se MFA não foi verificado.
+ * Super_admin EXIGE AAL2 (ADR-038 — a política de MFA, antes citada como um
+ * "ADR-008 D6" que nunca existiu como decisão escrita).
  */
 export async function requireSuperAdmin(): Promise<void> {
   const user = await requireUser();
   if (!user.isSuperAdmin) {
-    throw new AuthError('Requer super_admin', 'forbidden', 403);
+    throw new AuthError('Requer super_admin', 'forbidden', 403, 'ROLE_DENIED');
   }
-  if (user.aal !== 'aal2') {
-    throw new AuthError(
-      'super_admin precisa de MFA (AAL2). Reautentique com TOTP.',
-      'forbidden',
-      403,
-    );
-  }
+  assertPlatformStepUp(user);
 }
 
 // auditableAction REMOVIDO em C4. Use idempotentMutation / auditedMutation / superAdminAction.

@@ -1,9 +1,15 @@
 /**
  * POST /logout
  *
- * signOut({scope:'global'}) revoga refresh token server-side (D24). access
- * token permanece válido até expirar (max 15min com D12 — TTL config Supabase).
- * Documentado como gap conhecido em ADR-009 + runbook c3-validation.
+ * `signOut({scope:'global'})` revoga o REFRESH token server-side (D24).
+ *
+ * ⚠️ Ele NÃO mata o access token — o JWT já emitido continua criptograficamente
+ * válido até expirar. Isso não é mais um gap (era o I-4 / ADR-009 D12: até 15min de
+ * replay pós-logout): quem encerra a sessão em curso é o epoch-check por request na
+ * porta única (ADR-037), que compara `claims_version` com o banco. O signOut aqui
+ * fecha o outro lado — impede que o refresh token gere um token novo.
+ *
+ * Os dois são necessários e nenhum substitui o outro.
  */
 import { redirect } from 'next/navigation';
 

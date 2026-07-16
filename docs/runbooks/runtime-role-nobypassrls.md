@@ -199,10 +199,20 @@ Não precisa dropar o role nem mexer em schema. É o motivo de o desenho ser opt
 
 ## Estado
 
-| Ambiente | Dados | Role criado | Senha | `DATABASE_URL_RUNTIME` | Validado |
-|---|---|---|---|---|---|
-| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ 2026-07-15 | ✅ 2026-07-16 | ✅ Vercel | ✅ **A/B/C/D provados** (Passo 3) · ⬜ Passo 4 (smoke:c5 + painel) |
-| **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ 2026-07-15 | ⬜ founder | ⬜ | ⬜ Passo 4 (smoke) — A/C/D são **inconclusivos** sem dado cross-tenant |
+**Provisionamento: ✅ COMPLETO nos dois ambientes (2026-07-16).** Verificado no banco, não
+presumido: role sem BYPASSRLS, com senha, membro de `authenticated`, 396 grants (98
+tabelas × 4 ops) e `ALTER DEFAULT PRIVILEGES` ativo (`qoro_runtime=arwd` em tabelas
+futuras, `rU` em sequences) — este último é o passo esquecível: sem ele, a próxima
+migration cria tabela inacessível ao runtime e o app quebra só naquele caminho.
+
+| Ambiente | Dados | Role + senha + grants | `DATABASE_URL_RUNTIME` | Validado |
+|---|---|---|---|---|
+| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ | ✅ Vercel | ✅ **A/B/C/D provados** (Passo 3) · ⬜ Passo 4 (smoke:c5 + painel) |
+| **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ | ✅ Vercel | ⬜ Passo 4 (smoke após o deploy) — A/C/D são **inconclusivos** sem dado cross-tenant |
+
+> **Não falta SQL.** O que resta é observar o app rodando com a env ativa (Passo 4). Se
+> algo der errado, o sintoma é `permission denied for table X` (grant faltando), e o
+> rollback é remover a env e redeployar.
 
 **Ordem recomendada:** fechar dev (senha + env + smoke) → observar → repetir em prod.
 Não há pressa de agenda, mas o gatilho é **antes do 1º cliente pagante**: depois, um

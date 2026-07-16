@@ -1,45 +1,78 @@
 /**
- * Regressão F-06 (auditoria forense 2026-06-10).
+ * Middleware — o que sobrou depois do ADR-037.
  *
- * O heal do middleware deletava cookies com `endsWith('-auth-token')` — que NÃO
- * casa os fragmentos `...-auth-token.0`, `.1` criados pelo @supabase/ssr quando
- * a sessão serializada passa de ~3180 bytes (gestor/owner com 21 permissions).
- * Resultado: usuário com drift era "deslogado" mas mantinha access+refresh
- * token válidos nos fragmentos.
+ * O teste anterior congelava `isSupabaseAuthCookie` (F-06: o heal precisava apagar
+ * TODOS os fragmentos do cookie `sb-…-auth-token`). Esse predicado e o heal inteiro
+ * foram DELETADOS: a revogação virou responsabilidade da porta única, que confere o
+ * epoch por request. Não sobrou nada para o predicado guardar — teste de código
+ * morto é dívida, não cobertura.
  *
- * `isSupabaseAuthCookie` é o predicado usado pelo heal; este teste congela o
- * formato (base + sufixo `.N` opcional) que `getAccessTokenFromCookies`, no
- * mesmo arquivo, já reconhecia ao REMONTAR a sessão — as duas pontas precisam
- * casar o mesmo universo de cookies.
+ * O que passa a ser testado é o `matcher`, que é a única regra de verdade que
+ * sobrou aqui — e a que JÁ quebrou produção: incluir `api/webhooks` fazia o
+ * middleware de sessão responder 307 → /login para o webhook do Asaas/Meta, que
+ * não tem sessão nenhuma.
  */
 import { describe, expect, it } from 'vitest';
 
-import { isSupabaseAuthCookie } from './middleware';
+import { config } from './middleware';
 
-describe('isSupabaseAuthCookie (F-06 — heal deve apagar TODOS os fragmentos)', () => {
-  it('casa o cookie de sessão inteiro', () => {
-    expect(isSupabaseAuthCookie('sb-abcdefgh-auth-token')).toBe(true);
+/** Reproduz o casamento que o Next faz com `config.matcher`. */
+function runsMiddlewareOn(pathname: string): boolean {
+  return config.matcher.some((pattern) => new RegExp(`^${pattern}$`).test(pathname));
+}
+
+describe('matcher — rotas que NÃO podem passar pelo middleware de sessão', () => {
+  it.each([
+    ['/api/webhooks/asaas', 'webhook: autentica por assinatura do provider, não tem sessão'],
+    ['/api/webhooks/meta', 'idem'],
+    ['/api/cron/outbox', 'cron: autentica por Bearer CRON_SECRET'],
+    ['/api/health', 'healthcheck: precisa responder sem sessão'],
+    ['/login', 'senão o redirect para /login vira loop'],
+    ['/forgot-password', 'fluxo de recuperação é pré-sessão'],
+    ['/reset-password', 'idem'],
+    ['/convite', 'aceite de convite: sessão sem claims (Hook deny-by-default)'],
+    ['/join/abc123', 'onboarding público: não há sessão até o owner existir'],
+    ['/auth/callback', 'troca de code por sessão'],
+    ['/account/security', 'super_admin em AAL1 precisa chegar aqui para cadastrar o TOTP'],
+    ['/monitoring', 'tunnelRoute do Sentry — interceptar quebra o report do client'],
+    ['/favicon.ico', 'estático'],
+    ['/_next/static/chunk.js', 'estático'],
+  ])('%s é excluída (%s)', (path) => {
+    expect(runsMiddlewareOn(path)).toBe(false);
+  });
+});
+
+describe('matcher — rotas que PRECISAM do refresh de sessão', () => {
+  it.each([
+    ['/dashboard'],
+    ['/pacientes'],
+    ['/pacientes/123/prontuarios/456'],
+    ['/equipe'],
+    ['/admin'],
+    ['/admin/clinicas'],
+    ['/'],
+  ])('%s passa pelo middleware', (path) => {
+    expect(runsMiddlewareOn(path)).toBe(true);
   });
 
-  it('casa fragmentos .0, .1 e índices multi-dígito', () => {
-    expect(isSupabaseAuthCookie('sb-abcdefgh-auth-token.0')).toBe(true);
-    expect(isSupabaseAuthCookie('sb-abcdefgh-auth-token.1')).toBe(true);
-    expect(isSupabaseAuthCookie('sb-abcdefgh-auth-token.12')).toBe(true);
+  it('/api que não é cron/webhook/health continua passando', () => {
+    // Não é descuido: essas rotas TÊM sessão e dependem do refresh de cookie.
+    expect(runsMiddlewareOn('/api/admin/algo')).toBe(true);
+  });
+});
+
+describe('ADR-037 — o heal saiu de vez', () => {
+  it('o módulo não exporta mais nada do heal (_healed / drift / cookie predicate)', async () => {
+    const mod = await import('./middleware');
+    expect(Object.keys(mod).sort()).toEqual(['config', 'middleware']);
   });
 
-  it('NÃO casa cookies sb- que não são a sessão', () => {
-    expect(isSupabaseAuthCookie('sb-abcdefgh-auth-token-code-verifier')).toBe(false);
-    expect(isSupabaseAuthCookie('sb-abcdefgh-refresh')).toBe(false);
-  });
-
-  it('NÃO casa cookies de outras origens', () => {
-    expect(isSupabaseAuthCookie('_healed')).toBe(false);
-    expect(isSupabaseAuthCookie('_claim_check_at')).toBe(false);
-    expect(isSupabaseAuthCookie('auth-token')).toBe(false); // sem prefixo sb-
-  });
-
-  it('NÃO casa sufixo malformado', () => {
-    expect(isSupabaseAuthCookie('sb-x-auth-token.')).toBe(false);
-    expect(isSupabaseAuthCookie('sb-x-auth-token.x')).toBe(false);
+  it('o código-fonte não menciona mais os cookies do heal', async () => {
+    // Guarda contra reintrodução silenciosa: se alguém trouxer `_healed` de volta,
+    // traz junto a superfície forjável que o I-7 descreve.
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./middleware.ts', import.meta.url), 'utf8');
+    const code = src.slice(src.indexOf('import {')); // ignora o docblock, que EXPLICA o histórico
+    expect(code).not.toMatch(/_healed|_claim_check_at|claims_version/);
   });
 });

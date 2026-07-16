@@ -281,6 +281,13 @@
       "when": 1784131200000,
       "tag": "0039_plan_pro_seats_10",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784217600000,
+      "tag": "0040_auth_epoch_and_overrides_lockdown",
+      "breakpoints": true
     }
   ]
 }
