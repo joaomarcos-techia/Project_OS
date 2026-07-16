@@ -20,8 +20,14 @@ não o banco.
 ```sql
 SELECT rolname, rolbypassrls FROM pg_roles WHERE rolname = 'postgres';
 -- postgres | true
-SELECT count(*) FROM patients;   -- como postgres, sem withTenant → 4 (as DUAS clínicas)
+
+-- como postgres, sem withTenant:
+SELECT count(*) AS pacientes, count(DISTINCT clinic_id) AS clinicas FROM patients;
+-- 4 | 2   ← enxerga as DUAS clínicas. É o vazamento.
 ```
+
+> O `count(DISTINCT clinic_id)` é o que prova o cross-tenant; `count(*)` sozinho não diz
+> de quantas clínicas os dados são.
 
 ## A correção
 
@@ -74,42 +80,107 @@ comando.** As migrations rodam como `postgres`, então rode os dois `ALTER` **co
 
 ## Passo 3 — validação (**obrigatória**)
 
-Sem estes 4 cenários provados, o D1 está **configurado, não feito**. Rode contra o
-ambiente-alvo. Para testar sem a connection string, `postgres` precisa poder assumir o
-role: `GRANT qoro_runtime TO postgres;` (o `postgres` criou o role, então tem ADMIN OPTION).
+> ⚠️ **ONDE validar: no ambiente que TEM dado cross-tenant — hoje só o `qoro-dev`**
+> (2 clínicas / 4 pacientes). O `qoro-prod` tem **1 clínica e 0 pacientes**: lá os testes
+> A/C/D devolvem `0` por **falta de dado**, não por segurança — e um `0` vazio *parece*
+> aprovação. Não há o que vazar num banco sem dado. Em prod, a validação é o **Passo 4**
+> (o app continuar funcionando), não estes SELECTs.
+
+Cada bloco é **auto-contido**: escolhe sozinho uma clínica que tenha pacientes e imprime
+um **veredito**. Nada de `<placeholder>` — a policy compara **texto**
+(`(clinic_id)::text = current_setting(...)`, sem cast p/ uuid), então um placeholder
+esquecido **não dá erro**: compara com o literal, não bate, e devolve `0` em silêncio,
+que é exatamente o valor de "passou". Foi assim que a 1ª versão deste runbook enganou.
+
+Para testar sem a connection string, `postgres` precisa poder assumir o role:
+`GRANT qoro_runtime TO postgres;` (quem criou o role tem ADMIN OPTION).
 
 ```sql
--- A) o bug de hoje (role do pool atual): DEVE vazar
-SELECT count(*) FROM patients;                       -- > 0, e de mais de uma clínica
+-- A) O BUG DE HOJE (role do pool atual). DEVE dizer "VAZA".
+--    `count(*)` sozinho não prova nada: o que importa é count(DISTINCT clinic_id) > 1.
+SELECT current_user::text AS role_efetivo,
+       count(*) AS pacientes_visiveis,
+       count(DISTINCT clinic_id) AS clinicas_visiveis,
+       CASE
+         WHEN count(*) = 0 THEN 'INCONCLUSIVO: sem pacientes neste ambiente'
+         WHEN count(DISTINCT clinic_id) > 1 THEN 'VAZA: enxerga ' || count(DISTINCT clinic_id) || ' clinicas sem withTenant'
+         ELSE 'INCONCLUSIVO: so 1 clinica com dados — nao da para provar cross-tenant'
+       END AS veredito
+  FROM patients;
+```
 
--- B) fail-close: o mesmo esquecimento no role novo
+```sql
+-- B) FAIL-CLOSE: o mesmo esquecimento, no role novo. DEVE ser 0.
 BEGIN;
-  SET LOCAL ROLE qoro_runtime;
-  SELECT count(*) FROM patients;                     -- DEVE ser 0
-COMMIT;
-
--- C) o caminho normal NÃO pode quebrar (é o que o withTenant faz)
-BEGIN;
-  SET LOCAL ROLE qoro_runtime;
-  SET LOCAL ROLE authenticated;
-  SELECT set_config('app.current_clinic', '<uuid-de-uma-clinica>', true);
-  SELECT count(*) FROM patients;                     -- DEVE ser > 0
-COMMIT;
-
--- D) isolamento cross-tenant preservado
-BEGIN;
-  SET LOCAL ROLE qoro_runtime;
-  SET LOCAL ROLE authenticated;
-  SELECT set_config('app.current_clinic', '<uuid-clinica-A>', true);
-  SELECT count(*) FILTER (WHERE clinic_id <> '<uuid-clinica-A>') FROM patients;  -- DEVE ser 0
+SET LOCAL ROLE qoro_runtime;
+SELECT current_user::text AS role_efetivo,
+       count(*) AS pacientes_visiveis,
+       CASE WHEN count(*) = 0 THEN 'FAIL-CLOSE: 0 linhas, nao vaza' ELSE 'AINDA VAZA' END AS veredito
+  FROM patients;
 COMMIT;
 ```
 
-**Resultado no qoro-dev (2026-07-15):** A = 4 (vazou, as 2 clínicas) · B = **0**
-(fail-close) · C = 2 (caminho normal intacto) · D = 0 de outra clínica (isolado).
+```sql
+-- C) O CAMINHO NORMAL não pode quebrar (é o que o withTenant faz). DEVE ser > 0.
+--    O set_config roda ANTES do SET ROLE, como postgres — por isso enxerga `clinics`
+--    para escolher a clínica sozinho.
+BEGIN;
+SELECT set_config('app.current_clinic',
+                  (SELECT c.id::text FROM clinics c JOIN patients p ON p.clinic_id = c.id
+                    GROUP BY c.id ORDER BY count(*) DESC LIMIT 1),
+                  true) AS clinica_escolhida;
+SET LOCAL ROLE qoro_runtime;
+SET LOCAL ROLE authenticated;
+SELECT current_user::text AS role_efetivo,
+       count(*) AS pacientes_visiveis,
+       CASE WHEN count(*) > 0 THEN 'OK: caminho normal (withTenant) funciona'
+            ELSE 'FALHOU: withTenant nao devolve nada — grant ou GUC errado' END AS veredito
+  FROM patients;
+COMMIT;
+```
 
-Depois do deploy com a env: rodar `pnpm smoke:c5` (paciente) e abrir o painel — qualquer
-`permission denied for table X` significa **grant faltando** no passo 1, não erro de RLS.
+```sql
+-- D) ISOLAMENTO cross-tenant. Só é conclusivo se HAVIA dado de outra clínica para vazar
+--    — senão o "0" é vacuidade, não isolamento.
+BEGIN;
+SELECT set_config('app.current_clinic',
+                  (SELECT c.id::text FROM clinics c JOIN patients p ON p.clinic_id = c.id
+                    GROUP BY c.id ORDER BY count(*) DESC LIMIT 1),
+                  true);
+SELECT set_config('app.total_outras', (SELECT count(*)::text FROM patients
+   WHERE clinic_id::text <> current_setting('app.current_clinic', true)), true) AS existiam_para_vazar;
+SET LOCAL ROLE qoro_runtime;
+SET LOCAL ROLE authenticated;
+SELECT current_setting('app.total_outras', true)::int AS pacientes_de_outra_clinica_no_banco,
+       count(*) FILTER (WHERE clinic_id::text <> current_setting('app.current_clinic', true)) AS vazaram,
+       CASE
+         WHEN current_setting('app.total_outras', true)::int = 0 THEN 'INCONCLUSIVO: nao havia dado de outra clinica'
+         WHEN count(*) FILTER (WHERE clinic_id::text <> current_setting('app.current_clinic', true)) = 0
+              THEN 'OK: isolado (havia ' || current_setting('app.total_outras', true) || ' para vazar e nao vazou)'
+         ELSE 'VAZOU CROSS-TENANT' END AS veredito
+  FROM patients;
+COMMIT;
+```
+
+**Resultado no qoro-dev (2026-07-15) — 2 clínicas / 4 pacientes:**
+
+| | Veredito |
+|---|---|
+| **A** | `VAZA: enxerga 2 clinicas sem withTenant` (4 pacientes) — o A3 reproduzido |
+| **B** | `FAIL-CLOSE: 0 linhas, nao vaza` — o mesmo esquecimento, contido |
+| **C** | `OK: caminho normal (withTenant) funciona` (2 pacientes) |
+| **D** | `OK: isolado (havia 2 para vazar e nao vazou)` |
+
+## Passo 4 — validação em produção (é outra coisa)
+
+Com prod sem dado cross-tenant, o que se valida lá **não é o vazamento** (não há o que
+vazar) — é se os **grants** estão certos e o app não quebrou:
+
+1. Env `DATABASE_URL_RUNTIME` setada → redeploy.
+2. `pnpm smoke:c5` (paciente) + abrir o painel e navegar (agenda, caixa, prontuário).
+3. **Qualquer `permission denied for table X` = grant faltando no Passo 1**, não erro de
+   RLS. É o modo de falha esperado se algo der errado — e o rollback é imediato.
+4. Quando prod tiver ≥ 2 clínicas com dado, rodar A/B/C/D lá também.
 
 ## Rollback
 
@@ -119,11 +190,12 @@ Não precisa dropar o role nem mexer em schema. É o motivo de o desenho ser opt
 
 ## Estado
 
-| Ambiente | Role criado | Senha | `DATABASE_URL_RUNTIME` | Validado |
-|---|---|---|---|---|
-| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | ✅ 2026-07-15 (sem senha) | ⬜ pendente (founder) | ⬜ pendente | ✅ A/B/C/D provados via `SET ROLE` |
-| **qoro-prod** (`shlcbxawrxuaebazuiue`) | ⬜ | ⬜ | ⬜ | ⬜ |
+| Ambiente | Dados | Role criado | Senha | `DATABASE_URL_RUNTIME` | Validado |
+|---|---|---|---|---|---|
+| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ 2026-07-15 (sem senha) | ⬜ founder | ⬜ | ✅ **A/B/C/D provados** (Passo 3) |
+| **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ 2026-07-15 | ⬜ founder | ⬜ | ⬜ Passo 4 (smoke) — A/C/D são **inconclusivos** sem dado cross-tenant |
 
 **Ordem recomendada:** fechar dev (senha + env + smoke) → observar → repetir em prod.
 Não há pressa de agenda, mas o gatilho é **antes do 1º cliente pagante**: depois, um
-`withTenant` esquecido custa dado de cliente real.
+`withTenant` esquecido custa dado de cliente real — e é justamente quando prod passa a
+ter dado cross-tenant de verdade, tornando o A/B/C/D conclusivo lá.
