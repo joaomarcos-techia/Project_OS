@@ -65,12 +65,24 @@ O profile **continua** nascendo `ativo=true` (a quota de assentos conta pendente
 - Como sair: reverter a 0041 (CREATE OR REPLACE do hook/view sem a condição) + remover o rate-limit.
   A coluna e o DEFAULT são aditivos e inofensivos.
 
-### A verificar no dashboard Supabase (config, não código)
+### TTL e single-use do link (config do GoTrue, não código)
 
-O TTL e o single-use do link de recovery/convite são **configuração do GoTrue**, não versionáveis no
-repo. **Pendência operacional:** confirmar no dashboard (Auth → Email → *Email OTP Expiration* /
-*Mailer* / *Secure email change*) que o link tem TTL curto e é single-use. Registrar o valor achado
-aqui quando verificado. Não presumimos o valor.
+**Single-use: ✅ CONFIRMADO empiricamente em 2026-07-16** (dev) — não presumido, testado. Gerado um
+link `recovery` (o mesmo tipo que o resend usa, ADR-034) e consumido duas vezes com o mesmo
+`token_hash`:
+
+- 1º uso → sessão criada.
+- 2º uso → **rejeitado**: `Email link is invalid or has expired`.
+
+Ou seja: um link já aberto por outra pessoa **não** serve para o convidado — e vice-versa. Combinado
+com o `signOut({scope:'others'})` do aceite, um link vazado que alguém abriu antes fica inútil assim
+que o titular legítimo define a senha.
+
+**TTL: ⏳ pendência operacional.** É valor de config do GoTrue, só legível no dashboard: **Auth →
+Sign In / Providers → Email → _Email OTP Expiration_** (`mailer_otp_exp`, em segundos; o default do
+Supabase é `86400` = 24h). Registrar o valor achado aqui quando verificado. **Não presumimos o valor.**
+Considerar reduzir para ~1h: o convite é entregue por WhatsApp e aberto na hora; 24h é janela de sobra
+para um link vazado ser aproveitado.
 
 ## Alternatives
 
