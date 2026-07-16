@@ -34,8 +34,24 @@ um pipeline externo. Cada operação HTTP carrega `request_id`/`correlation_id`
 2. Vercel → **Settings → Log Drains** → **Add** → cole o endpoint do Better Stack → formato **JSON** → salve.
    - ⚠️ **Exige plano Vercel Pro.** Menu ausente = plano, não erro de navegação.
    - ⚠️ A Vercel alterna esse menu entre **Team Settings** e **Project Settings** conforme a versão. Não achou no projeto? Procure no time. **Alternativa mais simples:** o marketplace da Vercel tem integração oficial do Better Stack, que cria o drain sozinho.
-3. Gere tráfego e confirme que as linhas chegam **parseadas** (Better Stack reconhece o JSON automaticamente; `kind`, `event`, `level` viram campos filtráveis). Se chegarem como texto solto, o formato do drain não está em JSON.
-4. **Teste de aceite:** `kind:"metric"` devolve resultado no Live tail.
+3. Em **Sources** do drain, inclua no mínimo **Function Logs** — é de onde saem `logger`/`metrics`. `Static`/`Edge` sozinhos **não** trazem nada do app.
+4. Gere tráfego e confirme que as linhas chegam **parseadas** (Better Stack reconhece o JSON automaticamente; `kind`, `event`, `level` viram campos filtráveis). Se chegarem como texto solto, o formato do drain não está em JSON.
+
+**Teste de aceite (1 comando):**
+
+```powershell
+curl.exe -i https://app.qoro.dev/api/cron/metrics-rollup    # sem Bearer → 401
+```
+
+→ Better Stack → Live tail → `event:"cron.unauthorized"` deve aparecer em < 1 min.
+Confirmado respondendo 401 em prod (2026-07-16).
+
+Se **não aparecer**, na ordem: (1) `Sources` sem *Function Logs*; (2) formato ≠ JSON;
+(3) drain apontado para outro projeto. Se aparecer como **texto solto** em vez de campos
+filtráveis, é o formato.
+
+> O host de prod é **`app.qoro.dev`** (Data Plane). `qoro.dev` é a landing.
+> Ver [context-map.md](../architecture/context-map.md).
 
 **Saved searches obrigatórias** (criar em Better Stack → Live tail → Save):
 
@@ -61,8 +77,9 @@ Monitores (Better Stack Uptime **ou** UptimeRobot), intervalo **5 min**:
 
 | Monitor | URL | Espera | Notas |
 |---|---|---|---|
-| App | `https://<app>/` | HTTP 200 | página pública / login |
-| Health | `https://<app>/api/health?strict=1` | HTTP 200 | **inclua header** `Authorization: Bearer <CRON_SECRET>` — o endpoint exige (não é público). `?strict=1` → 503 quando degradado |
+| App | `https://app.qoro.dev/` | HTTP 200/307 | 307 = redirect p/ login, é o esperado sem sessão |
+| Health | `https://app.qoro.dev/api/health?strict=1` | HTTP 200 | **inclua header** `Authorization: Bearer <CRON_SECRET>` — o endpoint exige (não é público). `?strict=1` → 503 quando degradado |
+| Auth Hook | `https://app.qoro.dev/api/health/auth-hook` | HTTP 200 | **mesmo header Bearer** (A1 — a rota deixou de ser anônima em 2026-07-15; sem o header dá 401). Sem o hook, ninguém loga |
 | Landing | `https://qoro.dev` | HTTP 200 | site de marketing |
 
 `/api/health` agrega db/gemini/meta/asaas/outbox + SLIs de fila
