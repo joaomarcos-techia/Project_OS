@@ -76,6 +76,14 @@ export async function verifyEnrollAction(
   if (error) {
     return { ...prev, error: error.message };
   }
+
+  // I-8: acabou de adicionar um 2º fator. As OUTRAS sessões foram estabelecidas
+  // SEM ele — revoga-as (mantém esta). Elas re-logam e agora enfrentam o MFA.
+  // Determinístico, não depende de config do GoTrue. Best-effort.
+  await supabase.auth.signOut({ scope: 'others' }).catch(() => {
+    /* não-fatal — o enroll está concluído */
+  });
+
   revalidatePath('/account/security');
   return { ...INITIAL_ENROLL, step: 'done' };
 }

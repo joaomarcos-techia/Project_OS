@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { hashEmail } from '@/lib/auth/email-hash';
+import { recordLoginAttempt } from '@/lib/auth/login-audit';
 import { assertLoginAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
 import { getAal } from '@/lib/auth/mfa';
@@ -38,28 +39,40 @@ export async function loginAction(
   const emailHash = hashEmail(email);
   const limit = await assertLoginAllowed(ip, emailHash);
   if (!limit.ok) {
-    await recordAttempt(emailHash, ip, false);
+    await recordLoginAttempt(emailHash, ip, false);
     return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
   }
 
   const supabase = await createServerClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.user) {
-    await recordAttempt(emailHash, ip, false);
+    await recordLoginAttempt(emailHash, ip, false);
     return { error: 'Email ou senha inválidos.' };
   }
-  await recordAttempt(emailHash, ip, true);
+  await recordLoginAttempt(emailHash, ip, true);
 
   // Lê profile via Supabase client (respeita RLS: profiles_self_select cobre).
   const { data: profileRows, error: profileErr } = await supabase
     .from('profiles')
-    .select('role, mfa_enrolled_at')
+    .select('role, mfa_enrolled_at, ativo, deleted_at')
     .eq('id', data.user.id)
     .limit(1);
-  const profile = profileRows?.[0] as { role?: string; mfa_enrolled_at?: string | null } | undefined;
+  const profile = profileRows?.[0] as
+    | { role?: string; mfa_enrolled_at?: string | null; ativo?: boolean; deleted_at?: string | null }
+    | undefined;
   if (profileErr || !profile || !profile.role || !isRole(profile.role)) {
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Profile inválido. Contate o administrador.' };
+  }
+
+  // I-10: profile desativado/deletado NÃO deve "logar e cair num estado inerte".
+  // O deny real vem do hook (token sem claims), mas signInWithPassword sucede e a
+  // action redirecionaria — criando "logado mas nada funciona" + um
+  // record_login_attempt success=true para um desativado. Fecha aqui com mensagem
+  // clara. Não fere anti-enumeração: a senha JÁ foi provada correta.
+  if (profile.ativo === false || profile.deleted_at != null) {
+    await supabase.auth.signOut({ scope: 'local' });
+    return { error: 'Acesso desativado. Contate o administrador da clínica.' };
   }
 
   const aal = await getAal(supabase);
@@ -69,23 +82,4 @@ export async function loginAction(
     aal,
   });
   redirect(route);
-}
-
-async function recordAttempt(
-  emailHash: string,
-  ip: string,
-  success: boolean,
-): Promise<void> {
-  // Chama RPC via Supabase client (anon/authenticated tem GRANT EXECUTE).
-  // Falha de auditoria NÃO bloqueia o fluxo de login.
-  try {
-    const supabase = await createServerClient();
-    await supabase.rpc('record_login_attempt', {
-      p_email_hash: emailHash,
-      p_ip: ip,
-      p_success: success,
-    });
-  } catch {
-    // ignore — auditoria best-effort
-  }
 }

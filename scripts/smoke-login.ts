@@ -103,18 +103,28 @@ if (signInErr || !signIn.session) {
 }
 const originalRefreshToken = signIn.session.refresh_token;
 const claims1 = decodeJwtClaims(signIn.session.access_token);
+
+// Tamanho do bundle NÃO hardcoded (era `=== 21`, envelheceu p/ 24 quando C7/C11
+// somaram permissions). Compara com a FONTE DA VERDADE (role_permissions).
+const bundleRes = await dbAdmin.execute(
+  sql`SELECT count(*)::int AS n FROM public.role_permissions WHERE role = 'gestor'`,
+);
+const bundleRows = (
+  Array.isArray(bundleRes) ? bundleRes : ((bundleRes as { rows?: unknown[] }).rows ?? [])
+) as Array<{ n: number }>;
+const gestorBundleSize = bundleRows[0]?.n ?? 0;
+
 check(
   '1.1) signInWithPassword retorna session',
   !!signIn.session.access_token,
 );
 check(
-  '1.2) JWT contém claims customizadas (clinic_id, app_role, permissions, claims_version)',
+  `1.2) JWT contém claims customizadas (clinic_id, app_role, permissions=${gestorBundleSize}, claims_version)`,
   !!claims1 &&
     claims1.clinic_id === SMOKE_CLINIC_ID &&
     claims1.app_role === 'gestor' &&
     Array.isArray(claims1.permissions) &&
-    // F-07: gestor bundle agora tem 21 permissions (export:patient adicionada).
-    claims1.permissions.length === 21 &&
+    claims1.permissions.length === gestorBundleSize &&
     typeof claims1.claims_version === 'number',
   claims1,
 );
@@ -139,7 +149,7 @@ check(
     claims2.clinic_id === SMOKE_CLINIC_ID &&
     claims2.app_role === 'gestor' &&
     Array.isArray(claims2.permissions) &&
-    claims2.permissions.length === 21,
+    claims2.permissions.length === gestorBundleSize,
   claims2,
 );
 

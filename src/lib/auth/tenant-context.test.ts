@@ -381,8 +381,17 @@ describe('concorrência', () => {
     db.profile = profile();
     const { authenticate } = await subject();
     const [a, b] = await Promise.all([authenticate(), authenticate()]);
-    expect(a).toEqual(b);
-    expect(a).toMatchObject({ ok: true });
+    // Compara a DECISÃO, não o `validatedAt` (wall-clock): sob React.cache real as
+    // duas chamadas partilham 1 resultado; sob vitest (passthrough) cada uma gera
+    // seu próprio timestamp — asserir toEqual incluindo validatedAt seria confiar
+    // numa memoização que o ambiente de teste não tem (ver o aviso deste describe).
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    if (a.ok && b.ok) {
+      expect(a.identity.userId).toBe(b.identity.userId);
+      expect(a.identity.role).toBe(b.identity.role);
+      expect(a.identity.claimsVersion).toBe(b.identity.claimsVersion);
+    }
   });
 
   it('duas chamadas concorrentes com o banco já negando: NENHUMA passa', async () => {

@@ -220,6 +220,10 @@ const config = [
       // aconteceu no gate; profiles/overrides não têm UPDATE p/ authenticated (D31 /
       // I-13). Escopo defensivo por clinic_id (V1.2). Irmão de members.ts.
       'src/contexts/identity/internal/lifecycle.ts',
+      // I-11a (0042): auditoria de login roda por service_role (dbAdmin), não mais por
+      // anon via PostgREST. record_login_attempt é SECURITY DEFINER (D9); dbAdmin tem
+      // EXECUTE. Ponto ÚNICO e privilegiado — best-effort, nunca bloqueia o login.
+      'src/lib/auth/login-audit.ts',
       // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
       // (0001/S5) → a escrita do tenant roteia por dbAdmin+audit aqui, com
       // colunas fixas e WHERE id=clinicId (do request). Irmão do connection-store.

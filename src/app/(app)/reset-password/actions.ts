@@ -46,5 +46,14 @@ export async function resetPasswordAction(
     logger.warn('reset_password.update_failed', { message: error.message });
     return { error: 'Não foi possível redefinir a senha. Tente novamente.' };
   }
+
+  // I-8: quem redefine a senha geralmente está RECUPERANDO uma conta comprometida.
+  // Revoga as OUTRAS sessões (mantém esta) — determinístico, não depende de config
+  // invisível do GoTrue. Sem isto, o atacante com refresh token ativo continuaria
+  // dentro mesmo depois da vítima trocar a senha. Best-effort: não trava o reset.
+  await supabase.auth.signOut({ scope: 'others' }).catch(() => {
+    /* não-fatal — o redirect segue; sessões restantes caem no epoch se drift */
+  });
+
   redirect('/login?reason=password_updated');
 }
