@@ -84,7 +84,10 @@ export const profiles = pgTable(
     mfaEnrolledAt: timestamp('mfa_enrolled_at', { withTimezone: true }),
     // Convite (ADR-032 Fase 2): NULL = convite pendente; setado no aceite. Estado
     // FACTUAL — nunca derivar "pendente" de ativo/mfa/último-login (review #1 do founder).
-    inviteAcceptedAt: timestamp('invite_accepted_at', { withTimezone: true }),
+    // DEFAULT now() (0041 / I-3): "criação confiável = aceito". A fronteira do gate é
+    // members.ts (fluxo de convite) setar NULL EXPLICITAMENTE; todo o resto (seeds,
+    // saga, super_admin) nasce aceito. Ver 0041_invite_acceptance_gate.sql.
+    inviteAcceptedAt: timestamp('invite_accepted_at', { withTimezone: true }).default(sql`now()`),
     claimsVersion: integer('claims_version').notNull().default(1),
     ...timestampsPattern(),
     deletedAt: deletedAt(),

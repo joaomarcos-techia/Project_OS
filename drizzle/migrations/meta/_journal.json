@@ -288,6 +288,13 @@
       "when": 1784217600000,
       "tag": "0040_auth_epoch_and_overrides_lockdown",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1784217700000,
+      "tag": "0041_invite_acceptance_gate",
+      "breakpoints": true
     }
   ]
 }

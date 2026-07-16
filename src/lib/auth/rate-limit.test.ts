@@ -5,6 +5,7 @@ import { metrics } from '@/lib/observability/metrics';
 
 import {
   BoundedFallbackLimiter,
+  assertInviteAcceptAllowed,
   assertInviteAllowed,
   assertMfaAllowed,
   assertResendInviteAllowed,
@@ -225,6 +226,21 @@ describe('M3 — fail-open com Redis indisponível', () => {
       expect.objectContaining({ kind: 'mfa' }),
     );
     expect(warn).toHaveBeenCalledWith('auth.ratelimit.degraded', expect.objectContaining({ kind: 'mfa' }));
+  });
+
+  it('accept (I-12): Redis fora → aceite não morre, loga com kind=accept', async () => {
+    const { warn, emit } = spies();
+    const res = await assertInviteAcceptAllowed('198.51.100.7');
+
+    expect(res).toEqual({ ok: true }); // fail-open: o aceite do convite não trava com o Redis fora
+    expect(emit).toHaveBeenCalledWith(
+      'auth.ratelimit.degraded',
+      expect.objectContaining({ kind: 'accept' }),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      'auth.ratelimit.degraded',
+      expect.objectContaining({ kind: 'accept' }),
+    );
   });
 
   it('fail-open NÃO é barra-livre: o fallback ainda bloqueia acima do teto do ator (30/1h)', async () => {

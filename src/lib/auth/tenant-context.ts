@@ -91,6 +91,8 @@ export type AuthDenialReason =
   | 'CLAIMS_OUTDATED'
   | 'USER_DISABLED'
   | 'USER_DELETED'
+  /** Convite ainda não aceito (invite_accepted_at IS NULL) — a sessão só define a senha (I-3). */
+  | 'INVITE_PENDING'
   // --- política (produzido pelos require*) ---
   | 'MFA_REQUIRED'
   | 'ROLE_DENIED'
@@ -163,6 +165,7 @@ const readAuthoritativeProfile = cache(async (userId: string) => {
       deletedAt: profiles.deletedAt,
       clinicId: profiles.clinicId,
       claimsVersion: profiles.claimsVersion,
+      inviteAcceptedAt: profiles.inviteAcceptedAt,
     })
     .from(profiles)
     .where(eq(profiles.id, userId))
@@ -264,6 +267,10 @@ async function explainMissingClaims(userId: string): Promise<AuthDenialReason> {
   if (!profile) return 'NO_PROFILE';
   if (profile.deletedAt !== null) return 'USER_DELETED';
   if (!profile.ativo) return 'USER_DISABLED';
+  // I-3: convite ainda não aceito. O usuário TEM sessão (magic-link) mas o hook nega
+  // claims — a sessão só serve para /convite definir a senha. Motivo explícito para
+  // telemetria e para a UX não dizer "sessão inválida" a quem acabou de clicar o link.
+  if (profile.inviteAcceptedAt === null) return 'INVITE_PENDING';
   // Profile são e mesmo assim sem claims = inconsistência que o D36 recusou
   // (ex.: role×clinic_id incoerentes). Não inventamos um motivo bonito para isso.
   return 'TOKEN_INVALID';
@@ -286,6 +293,7 @@ const AUTH_ERROR_MESSAGE: Record<string, string> = {
   CLAIMS_OUTDATED: 'Sua sessão está desatualizada. Entre novamente.',
   USER_DISABLED: 'Acesso desativado. Contate o administrador da clínica.',
   USER_DELETED: 'Conta removida.',
+  INVITE_PENDING: 'Defina sua senha para concluir o convite.',
 };
 
 export async function requireUser(): Promise<CurrentUser> {

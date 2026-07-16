@@ -89,6 +89,7 @@ type ProfileOpts = {
   deletedAt?: Date | null;
   clinicId?: string | null;
   claimsVersion?: number;
+  inviteAcceptedAt?: Date | null;
 };
 
 /** A linha autoritativa do banco (o que `readAuthoritativeProfile` devolve). */
@@ -100,6 +101,7 @@ function profile(o: ProfileOpts = {}) {
       deletedAt: o.deletedAt ?? null,
       clinicId: o.clinicId === undefined ? CLINIC : o.clinicId,
       claimsVersion: o.claimsVersion ?? 1,
+      inviteAcceptedAt: o.inviteAcceptedAt === undefined ? new Date() : o.inviteAcceptedAt,
     },
   ];
 }
@@ -179,6 +181,25 @@ describe('estado do profile manda sobre o token', () => {
 
   it('sem sessão → TOKEN_INVALID', async () => {
     getClaims.mockResolvedValue({ data: null, error: new Error('no session') });
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'TOKEN_INVALID' });
+  });
+});
+
+describe('I-3: convite pendente', () => {
+  it('hook nega claims (sem app_role) + profile pendente → INVITE_PENDING, não TOKEN_INVALID', async () => {
+    // O hook devolveu o token SEM as claims da app (deny-by-default por
+    // invite_accepted_at IS NULL). getClaims traz só o `sub`; parseClaims falha; o
+    // authenticate consulta o banco para dar o motivo REAL.
+    getClaims.mockResolvedValue({ data: { claims: { sub: USER } }, error: null });
+    db.profile = profile({ inviteAcceptedAt: null });
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'INVITE_PENDING' });
+  });
+
+  it('profile aceito mas hook não injetou claims (inconsistência) → TOKEN_INVALID', async () => {
+    getClaims.mockResolvedValue({ data: { claims: { sub: USER } }, error: null });
+    db.profile = profile({ inviteAcceptedAt: new Date() });
     const { authenticate } = await subject();
     await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'TOKEN_INVALID' });
   });

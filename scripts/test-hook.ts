@@ -126,16 +126,38 @@ check(
   r2.claims,
 );
 
-// Cenário 3: gestor válido → claims com clinic + permissions
+// Cenário 3: gestor válido → claims com clinic + permissions.
+// O tamanho do bundle NÃO é hardcoded (era `=== 21`, envelheceu quando C7/C11
+// adicionaram permissions — o gestor tem tudo via CROSS JOIN, 0003). Compara com a
+// FONTE DA VERDADE (role_permissions) para nunca mais divergir.
+const bundleRes = await dbAdmin.execute(
+  sql`SELECT count(*)::int AS bundle_size FROM public.role_permissions WHERE role = 'gestor'`,
+);
+const bundleRows = (
+  Array.isArray(bundleRes) ? bundleRes : ((bundleRes as { rows?: unknown[] }).rows ?? [])
+) as Array<{ bundle_size: number }>;
+const gestorBundleSize = bundleRows[0]?.bundle_size ?? 0;
 const r3 = await runHook(FIXTURE_USER_GESTOR);
 check(
-  // F-07: bundle gestor agora tem 21 permissions (export:patient).
-  '3) gestor: app_role=gestor, clinic_id setado, permissions array com 21 itens (bundle gestor)',
+  `3) gestor: app_role=gestor, clinic_id setado, permissions = bundle real (${gestorBundleSize} itens)`,
   r3.claims?.app_role === 'gestor' &&
     r3.claims?.clinic_id === FIXTURE_CLINIC &&
     Array.isArray(r3.claims?.permissions) &&
-    r3.claims.permissions.length === 21,
+    r3.claims.permissions.length === gestorBundleSize,
   r3.claims,
+);
+
+// Cenário 6 (I-3): convite pendente → deny defensivo (sem claims). Espelha o gate de
+// aceite (0041): mesmo com profile ativo/não-deletado, invite_accepted_at IS NULL
+// não recebe claims. Reusa o fixture do gestor (agora aceito) zerando o campo.
+await dbAdmin.execute(
+  sql`UPDATE public.profiles SET invite_accepted_at = NULL WHERE id = ${FIXTURE_USER_GESTOR}::uuid`,
+);
+const r6 = await runHook(FIXTURE_USER_GESTOR);
+check(
+  '6) convite pendente (invite_accepted_at IS NULL): deny defensivo (sem claims)',
+  !r6.claims?.app_role && !r6.claims?.clinic_id,
+  r6.claims,
 );
 
 // Cenário 4: profile inativo → sem claims (D36)
@@ -173,5 +195,5 @@ await dbAdmin.execute(sql`
 `);
 await dbAdmin.execute(sql`DELETE FROM public.clinics WHERE id = ${FIXTURE_CLINIC}::uuid`);
 
-console.log(`\n${failed === 0 ? '✅ test-hook: all 5 scenarios passed' : `❌ test-hook: ${failed} scenario(s) failed`}`);
+console.log(`\n${failed === 0 ? '✅ test-hook: all 6 scenarios passed' : `❌ test-hook: ${failed} scenario(s) failed`}`);
 process.exit(failed === 0 ? 0 : 1);

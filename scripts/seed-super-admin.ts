@@ -72,14 +72,19 @@ if (existing) {
 }
 
 // 2. UPSERT profile
+// invite_accepted_at = now(): o super_admin NÃO passa por convite (ele É semeado).
+// Sem isto, o gate de aceite do convite (0041 / I-3) trataria o super_admin como
+// "pendente" e o hook negaria as claims — lockout do painel. "Semeado = aceito",
+// espelho de "owner nasce aceito" na saga de onboarding.
 await dbAdmin.execute(sql`
-  INSERT INTO public.profiles (id, clinic_id, nome, role, ativo)
-  VALUES (${userId}::uuid, NULL, 'Super Admin', 'super_admin', true)
+  INSERT INTO public.profiles (id, clinic_id, nome, role, ativo, invite_accepted_at)
+  VALUES (${userId}::uuid, NULL, 'Super Admin', 'super_admin', true, now())
   ON CONFLICT (id) DO UPDATE SET
     role = 'super_admin',
     clinic_id = NULL,
     ativo = true,
     deleted_at = NULL,
+    invite_accepted_at = COALESCE(public.profiles.invite_accepted_at, now()),
     updated_at = now()
 `);
 console.log('[seed-super-admin] profile upserted.');

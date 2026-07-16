@@ -125,6 +125,7 @@ const fallback = {
   resetIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   resetEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
   joinIp: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
+  acceptIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
   inviteClinic: new BoundedFallbackLimiter(60, ONE_HOUR_MS),
   inviteActor: new BoundedFallbackLimiter(30, ONE_HOUR_MS),
   resendClinic: new BoundedFallbackLimiter(20, ONE_HOUR_MS),
@@ -233,7 +234,7 @@ export function classifyRedisError(err: unknown): DegradedReason {
  * crua, sanitizada nos dois emissores) fica só como diagnóstico, nunca como lógica.
  */
 function degraded(
-  kind: 'login' | 'reset' | 'join' | 'invite' | 'resend' | 'mfa' | 'pdf',
+  kind: 'login' | 'reset' | 'join' | 'accept' | 'invite' | 'resend' | 'mfa' | 'pdf',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -364,6 +365,37 @@ export async function assertJoinAllowed(ip: string): Promise<LimitResult> {
     return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
   } catch (err) {
     return degraded('join', err, fallback.joinIp.hit(ipKey));
+  }
+}
+
+const lazyAcceptLimiter = (() => {
+  let cached: Ratelimit | null = null;
+  return () => {
+    if (cached) return cached;
+    cached = new Ratelimit({
+      redis: lazyRedis(),
+      limiter: Ratelimit.slidingWindow(20, '15 m'),
+      prefix: redisKey.global('rl', 'accept', 'ip'),
+      analytics: false,
+    });
+    return cached;
+  };
+})();
+
+/**
+ * Rate limit do aceite de convite (/convite) — por IP (20/15min). I-3/I-12: o link
+ * de convite é uma credencial bearer distribuída out-of-band (WhatsApp, ADR-034);
+ * sem teto, o aceite (que DEFINE a senha do assento) amplia o vetor de takeover por
+ * link vazado. Anônimo por natureza (a sessão vem do magic-link, não há user_id
+ * confiável ainda), então a chave é o IP. F-08: nunca lança (fail-open + fallback).
+ */
+export async function assertInviteAcceptAllowed(ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const r = await lazyAcceptLimiter().limit(ipKey);
+    return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  } catch (err) {
+    return degraded('accept', err, fallback.acceptIp.hit(ipKey));
   }
 }
 
