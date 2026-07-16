@@ -119,6 +119,47 @@ outro projeto (confira `vercel.projectName` numa linha que chegue).
 > saved search que devolve vazio por erro de sintaxe é indistinguível de "está tudo bem"
 > — foi assim que as 5 primeiras desta tabela passaram meses erradas.
 
+### 🪤 Comparação NUMÉRICA não funciona na busca simples — use SQL
+
+`message.duration_ms:>5000` **parece** funcionar e **nunca dispara**. O Better Stack
+traduz para uma comparação de **texto**:
+
+```sql
+JSONExtractCaseInsensitive(raw, 'message', 'duration_ms', 'Nullable(String)')  -- String!
+...
+toString(`message.duration_ms`) ILIKE ('%>5000%')     -- procura o TEXTO ">5000"
+```
+
+Nenhuma linha contém a string `">5000"` → **zero resultados, para sempre**. Verificado em
+2026-07-16 decodificando a URL do chart. Igualdade de texto (`message.event:"..."`)
+funciona; **`>` `<` `>=` em campo numérico, não.**
+
+**Para threshold numérico, edite o SQL do chart** (Explore logs → o editor SQL):
+
+```sql
+WITH
+  JSONExtractCaseInsensitive(raw, 'message', 'event', 'Nullable(String)')        AS "message.event",
+  JSONExtractCaseInsensitive(raw, 'message', 'duration_ms', 'Nullable(Float64)') AS "message.duration_ms"
+SELECT
+  {{time}} as time,
+  count(*) as value
+FROM {{__source_where}} AND
+  toString(`message.event`) = 'billing.webhook.verify' AND
+  `message.duration_ms` > 5000 AND
+  dt BETWEEN {{start_time}} AND {{end_time}}
+GROUP BY time
+```
+
+O que muda: **`Nullable(Float64)`** (não `String`), comparação `> 5000` de verdade, e `=`
+exato no evento em vez de `ILIKE '%...%'`.
+
+**No alerta, use threshold ABSOLUTO, não relativo.** A URL do builder carrega
+`alert_type=relative` por default → é o "increases by 10%", que com baseline zero **nunca
+dispara**. Troque para o modo de valor absoluto ("is above N").
+
+> **Regra que sai disto:** alerta cuja condição você não viu retornar linha **não é
+> alerta**. Force o evento e veja disparar — senão você instalou silêncio.
+
 > Os nomes de evento seguem o catálogo em [observability/README.md](../../src/lib/observability/README.md).
 > Eventos `*.error` são a convenção dos crons (ex.: `retention.error`,
 > `observability.metrics_rollup.error`, `billing.dunning.error`).

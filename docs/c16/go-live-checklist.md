@@ -89,12 +89,12 @@ retorna vazio (ver [log-search.md](../runbooks/log-search.md)):
 ```
 message.kind:"metric" AND message.event:"billing.webhook.verify"
 ```
-Alerta quando o **p95 de `message.duration_ms` > 5s por 5min**. Se a UI não calcular
-percentil direto, aproxime por contagem — o efeito prático é o mesmo:
-```
-message.event:"billing.webhook.verify" AND message.duration_ms:>5000
-```
-→ alerta se ocorrer > ~5× em 5min.
+⚠️ **`message.duration_ms:>5000` na busca simples NÃO FUNCIONA** — o Better Stack lê o
+`>5000` como TEXTO (`ILIKE '%>5000%'`) e a query retorna zero para sempre. Para threshold
+numérico, edite o **SQL do chart** com `Nullable(Float64)` + `> 5000` de verdade — SQL
+pronto em [log-search.md](../runbooks/log-search.md#-comparação-numérica-não-funciona-na-busca-simples--use-sql).
+E no alerta use **threshold ABSOLUTO** ("is above N"): o builder abre em `alert_type=relative`
+("increases by 10%"), que com baseline zero nunca dispara.
 
 **No mesmo canal, valem mais que o p95:**
 ```
