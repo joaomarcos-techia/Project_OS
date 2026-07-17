@@ -10,12 +10,57 @@
 
 ---
 
+## 🔴 INCIDENTE (2026-07-17) — o D1 derrubou produção no deploy. LEIA ISTO PRIMEIRO.
+
+**Sintoma:** após o deploy do `main`, "Algo deu errado" em **todas** as áreas logadas.
+**Rollback aplicado:** remover `DATABASE_URL_RUNTIME` da Vercel + redeploy.
+
+**Causa raiz: a connection string do `qoro_runtime` NUNCA foi testada — em nenhum ambiente.**
+
+Toda a validação do [Passo 3](#passo-3--validação-obrigatória) usa `SET LOCAL ROLE qoro_runtime`,
+sob o título literal *"Para testar **sem a connection string**"*. Isso prova os **grants** (e eles
+estão certos), mas **nunca prova que dá para LOGAR como aquele role**. São duas coisas diferentes:
+
+| O que o A/B/C/D provou | O que ele NÃO provou |
+|---|---|
+| O role tem os grants certos | A senha está correta |
+| A RLS resolve fail-close sem `withTenant` | O formato do usuário no pooler está certo |
+| O `SET LOCAL ROLE authenticated` funciona | O Supavisor **aceita** este role |
+
+A env ficou **2 dias na Vercel sendo ignorada** (o `main` não lia `DATABASE_URL_RUNTIME`), então o
+deploy foi a **primeira vez na vida** que alguém tentou usar aquela string. Ela falha.
+
+**Evidência de onde falha (2026-07-17):**
+- `pg_stat_activity`: **zero** conexões de `qoro_runtime` (só `postgres`, `authenticator`).
+- `pg_roles`: o role está íntegro — `rolcanlogin=true`, sem expiração, sem limite, com senha.
+- Logs do Postgres: **nenhum** `password authentication failed`, nenhum `permission denied`.
+
+Nenhum erro de autenticação no Postgres + zero conexões = **a conexão não chega ao Postgres**. Ela
+morre antes, no **pooler (Supavisor)**. Suspeitos, nesta ordem:
+
+1. **Formato do usuário.** No pooler o usuário precisa ser `qoro_runtime.<project-ref>` (ex.:
+   `qoro_runtime.shlcbxawrxuaebazuiue`), não `qoro_runtime` puro. É o erro mais provável e o mais
+   silencioso — o Supavisor não consegue nem identificar o tenant.
+2. **Senha** com typo / caractere que precisa de URL-encode (`@`, `:`, `/`, `#` na senha quebram a URI).
+3. **Supavisor não aceitar role customizado** no modo transaction (6543). Se for isto, o caminho é o
+   Session Pooler (5432) ou a conexão direta — e a decisão precisa de ADR.
+
+**Antes de reativar, PROVE a string** (ver [Passo 2b](#passo-2b--provar-a-connection-string-obrigatório)).
+Fazer isso em **dev primeiro**. Este incidente é a razão do Passo 2b existir.
+
+---
+
 ## ⚡ Situação (2026-07-16) — leia antes de executar qualquer passo
+
+> ⚠️ **DESATUALIZADO PELO INCIDENTE ACIMA.** Este bloco dizia "falta só o deploy" — o deploy
+> aconteceu e **derrubou produção**. Os Passos 1 e 2 estão feitos, mas o **Passo 2b (provar a
+> string) nunca foi**, e é ele que faltava. Mantido abaixo como registro do que se acreditava.
 
 **Os Passos 1 e 2 já foram feitos nos DOIS ambientes.** Não refaça. Verificado no banco e
 na Vercel — ver [§Estado](#estado) e [§Como conferir sem adivinhar](#como-conferir-o-estado-sem-adivinhar).
 
-**Falta uma coisa só: o deploy da branch `docs/identity-practitioner-model` → `main`.**
+~~**Falta uma coisa só: o deploy da branch `docs/identity-practitioner-model` → `main`.**~~
+→ **Falta o [Passo 2b](#passo-2b--provar-a-connection-string-obrigatório): provar que a string conecta.**
 
 O D1 está **provisionado mas INERTE em produção**: o `main` **não lê**
 `DATABASE_URL_RUNTIME` (nem `db/index.ts`, nem `env.ts`) — o código que consome a env vive
@@ -150,6 +195,36 @@ comando.** As migrations rodam como `postgres`, então rode os dois `ALTER` **co
 2. Monte a URL no mesmo formato do `DATABASE_URL`, trocando só o usuário:
    `postgresql://qoro_runtime.<project-ref>:<senha>@<host-do-pooler>:6543/postgres?sslmode=require`
 3. Vercel → Environment Variables → `DATABASE_URL_RUNTIME` (por ambiente) → redeploy.
+
+## Passo 2b — PROVAR a connection string (obrigatório) · ⬜ **nunca foi feito**
+
+> 🔴 **Este passo nasceu do incidente de 2026-07-17.** Sem ele, o Passo 3 dá a impressão de
+> validação completa e não é: ele testa o role por `SET ROLE`, jamais por **login**. A string ficou
+> 2 dias configurada e só falhou quando o deploy a usou pela primeira vez — em produção.
+
+**Regra: a string só está validada quando algo CONECTOU com ela.** `SET ROLE` não vale.
+
+Em **dev primeiro** (`.env.local`), sem tocar na Vercel:
+
+```powershell
+# Cole a string do qoro_runtime de DEV e prove que ela conecta e enxerga o schema.
+$env:DATABASE_URL_RUNTIME = 'postgresql://qoro_runtime.pqhkirrszzpwezdaqrai:<senha>@<host-pooler>:6543/postgres?sslmode=require'
+pnpm tsx -e "import postgres from 'postgres'; const sql = postgres(process.env.DATABASE_URL_RUNTIME, { ssl: 'require', prepare: false, max: 1 }); const r = await sql\`select current_user, (select count(*) from public.clinics) as clinics\`; console.log('CONECTOU:', r[0]); await sql.end();"
+Remove-Item Env:DATABASE_URL_RUNTIME
+```
+
+| Saída | Significado |
+|---|---|
+| `CONECTOU: { current_user: 'qoro_runtime', clinics: N }` | ✅ a string presta — pode ir para a Vercel |
+| `password authentication failed` | senha errada, ou caractere especial precisa de URL-encode |
+| `Tenant or user not found` / timeout no handshake | ⚠️ **formato do usuário** — falta o `.<project-ref>` |
+| `permission denied for table clinics` | conectou! é grant faltando (Passo 1), não a string |
+
+Depois, o mesmo com a string de **prod**, antes de pôr na Vercel. Conectar de fora contra prod para
+um `select 1` é seguro e é a única prova que vale.
+
+> **Por que dev primeiro:** se a string de dev conecta e a de prod não, o problema é a string; se
+> nenhuma conecta, o problema é o formato/pooler — e você descobre isso sem derrubar produção.
 
 ## Passo 3 — validação (**obrigatória**)
 
@@ -311,8 +386,8 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 
 | Ambiente | Dados | Role + senha + grants | `DATABASE_URL_RUNTIME` | Validado |
 |---|---|---|---|---|
-| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ | ✅ Vercel | ✅ **A/B/C/D provados** (Passo 3) · ⬜ Passo 4 (smoke:c5 + painel) |
-| **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ | ✅ Vercel | ⬜ Passo 4 (smoke após o deploy) — A/C/D são **inconclusivos** sem dado cross-tenant |
+| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ (grants) · ⬜ string não testada | ✅ Vercel | ✅ A/B/C/D via `SET ROLE` (Passo 3) · ⬜ **Passo 2b** |
+| **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ (grants) · 🔴 **string NÃO conecta** | ⛔ **removida no rollback de 2026-07-17** | ⬜ Passo 2b **primeiro** |
 
 > **Não falta SQL nem env.** `DATABASE_URL_RUNTIME` está na Vercel (Production + Preview)
 > desde 2026-07-15. O que resta é observar o app rodando (Passo 4).
@@ -326,9 +401,11 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 
 **O que falta, em ordem:**
 
-1. **Deploy da branch `docs/identity-practitioner-model` → `main`.** É o que ativa o D1
-   (e leva a remediação inteira das auditorias de APIs e identidade). Nada mais é
-   necessário: infra e env já estão prontas nos dois ambientes.
+0. 🔴 **[Passo 2b](#passo-2b--provar-a-connection-string-obrigatório) — provar que a
+   connection string CONECTA** (em dev, depois em prod). É o passo que faltava e que causou o
+   incidente de 2026-07-17. `SET ROLE` não prova login.
+1. ~~**Deploy da branch → `main`**~~ ✅ feito em 2026-07-17 (`71aa3f1`) — mas o D1 foi
+   **revertido** (env removida da Vercel) porque a string não conecta. Reativar só depois do 2b.
 2. **Passo 4** — logar em prod **como o owner (`teste@gmail.com`), não como super_admin** e
    navegar agenda/pacientes/caixa/prontuário. `permission denied for table X` = grant
    faltando (não RLS). Rollback = remover a env + redeploy.

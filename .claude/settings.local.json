@@ -94,7 +94,10 @@
       "Bash(pnpm db:backup:prod)",
       "Bash(node -e \"const p=require\\('./package.json'\\);Object.entries\\(p.scripts\\).filter\\(\\([k]\\)=>/db:|test|arch|check|seed|smoke/.test\\(k\\)\\).forEach\\(\\([k,v]\\)=>console.log\\(k.padEnd\\(24\\),'=',v\\)\\)\")",
       "Bash(grep -n \"403,$\\\\|401,$\\\\|500,$\")",
-      "Bash(timeout 60 pnpm dlx vercel env ls)"
+      "Bash(timeout 60 pnpm dlx vercel env ls)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "mcp__plugin_supabase_supabase__get_logs"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",
