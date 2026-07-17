@@ -1,12 +1,34 @@
 # Runbook — Role runtime sem BYPASSRLS (fail-close real do `withTenant`)
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-15 · **Próxima revisão:** 2027-01-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-16 · **Próxima revisão:** 2027-01-01
 >
 > ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
 
 > **D1** do [PROGRESS §Dívida técnica pós-C16](../PROGRESS.md). Origem: achado **A3** da
 > [auditoria de APIs](../achados/auditoria-apis-seguranca.md) e a Correção **F-01** do
 > [ADR-007](../adr/007-rls-implementation-patterns.md).
+
+---
+
+## ⚡ Situação (2026-07-16) — leia antes de executar qualquer passo
+
+**Os Passos 1 e 2 já foram feitos nos DOIS ambientes.** Não refaça. Verificado no banco e
+na Vercel — ver [§Estado](#estado) e [§Como conferir sem adivinhar](#como-conferir-o-estado-sem-adivinhar).
+
+**Falta uma coisa só: o deploy da branch `docs/identity-practitioner-model` → `main`.**
+
+O D1 está **provisionado mas INERTE em produção**: o `main` **não lê**
+`DATABASE_URL_RUNTIME` (nem `db/index.ts`, nem `env.ts`) — o código que consome a env vive
+na branch. Prod tem a env configurada e a ignora; o pool segue no `DATABASE_URL`, com
+BYPASSRLS. **No deploy o fail-close liga sozinho**, sem passo manual — e só então o
+[Passo 4](#passo-4--validação-em-produção-é-outra-coisa) faz sentido.
+
+> Este runbook foi escrito com os passos na ordem de execução, o que faz uma leitura
+> top-down **parecer** que nada está feito. É a armadilha que a memória deste repo chama
+> de "doc afirma o que não existe" — aqui, ao contrário: a doc esconde o que **já** existe.
+> Daí este bloco no topo.
+
+---
 
 ## O problema, em uma frase
 
@@ -43,9 +65,56 @@ dual-context resolve falso → **0 linhas**. O código já suporta: `DATABASE_UR
 O role tem **senha** (não pode ir para um `.sql` versionado) e é **por ambiente**. É
 provisionamento de infra, não schema. Por isso vive aqui.
 
-## Passo 1 — criar o role (por ambiente)
+## Como conferir o estado (sem adivinhar)
 
-Já aplicado em **qoro-dev** (2026-07-15), **sem senha** de propósito. Para prod, o mesmo:
+**Rode isto ANTES de executar qualquer passo.** Um `SELECT` responde se o Passo 1 está
+feito — não precisa lembrar, nem perguntar, nem presumir:
+
+```sql
+SELECT
+  (SELECT count(*) FROM pg_roles  WHERE rolname='qoro_runtime')                 AS role_existe,
+  (SELECT rolbypassrls FROM pg_roles WHERE rolname='qoro_runtime')              AS tem_bypassrls,   -- DEVE ser false
+  (SELECT rolpassword IS NOT NULL FROM pg_authid WHERE rolname='qoro_runtime')  AS tem_senha,
+  pg_has_role('qoro_runtime','authenticated','MEMBER')                          AS pode_set_role_authenticated,
+  (SELECT count(*) FROM information_schema.role_table_grants
+    WHERE grantee='qoro_runtime' AND table_schema='public')                     AS tabelas_com_grant,
+  (SELECT count(*) FROM information_schema.tables
+    WHERE table_schema='public' AND table_type='BASE TABLE')                    AS tabelas_no_schema;
+
+-- Tabelas FUTURAS herdam grant? (o ALTER DEFAULT PRIVILEGES — o passo esquecível)
+SELECT pg_get_userbyid(defaclrole) AS criado_por, defaclobjtype AS tipo, defaclacl::text AS privs
+  FROM pg_default_acl
+ WHERE defaclnamespace = 'public'::regnamespace
+   AND array_to_string(defaclacl, ',') ILIKE '%qoro_runtime%';
+```
+
+**Resultado em prod (2026-07-16) — tudo verde:**
+
+```
+role_existe: 1 · tem_bypassrls: false · tem_senha: true
+pode_set_role_authenticated: true · tabelas_com_grant: 396 · tabelas_no_schema: 98
+default_acl: qoro_runtime=arwd (tabelas 'r') · qoro_runtime=rU (sequences 'S')
+```
+
+`396 = 98 tabelas × 4 ops` (SELECT/INSERT/UPDATE/DELETE). Se esse número for **menor que
+4× as tabelas**, algum grant faltou.
+
+E a env, sem abrir o dashboard:
+
+```powershell
+pnpm dlx vercel env ls        # DATABASE_URL_RUNTIME → Production, Preview (desde 2026-07-15)
+```
+
+> **Por que esta seção existe:** eu (Claude) repeti "falta o D1 em prod" por várias
+> mensagens **sem nunca ter rodado estas queries**. Estava tudo feito havia um dia. É a
+> mesma falha que este repo cataloga — afirmar sem verificar — só que ao contrário:
+> cobrando trabalho já entregue. Um `SELECT` teria evitado.
+
+## Passo 1 — criar o role (por ambiente) · ✅ FEITO em dev e prod
+
+> ✅ **Já aplicado em `qoro-dev` e `qoro-prod`** (2026-07-15/16). Confira com a query
+> acima antes de rodar de novo. O SQL fica aqui para o **próximo ambiente** (preview
+> dedicado, restore-test) e para auditoria do que foi feito.
 
 ```sql
 CREATE ROLE qoro_runtime LOGIN NOBYPASSRLS;
@@ -70,7 +139,11 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 comando.** As migrations rodam como `postgres`, então rode os dois `ALTER` **como
 `postgres`** — que é o caso ao usar o SQL Editor do dashboard ou o MCP.
 
-## Passo 2 — senha + connection string
+## Passo 2 — senha + connection string · ✅ FEITO em dev e prod
+
+> ✅ **Senha definida e `DATABASE_URL_RUNTIME` na Vercel** (Production + Preview, desde
+> 2026-07-15). Confira com `pnpm dlx vercel env ls`. Instruções mantidas para o próximo
+> ambiente.
 
 1. Supabase Dashboard → SQL Editor: `ALTER ROLE qoro_runtime PASSWORD '<senha forte>';`
    (gere no gerenciador de senhas; **não** cole em chat/PR/issue).
@@ -171,12 +244,14 @@ COMMIT;
 | **C** | `OK: caminho normal (withTenant) funciona` (2 pacientes) |
 | **D** | `OK: isolado (havia 2 para vazar e nao vazou)` |
 
-## Passo 4 — validação em produção (é outra coisa)
+## Passo 4 — validação em produção (é outra coisa) · ⬜ **o único que falta**
 
 Com prod sem dado cross-tenant, o que se valida lá **não é o vazamento** (não há o que
-vazar) — é se os **grants** estão certos e o app não quebrou:
+vazar) — é se os **grants** estão certos e o app não quebrou. **Não é configuração; é
+observação.**
 
-1. Env `DATABASE_URL_RUNTIME` setada → redeploy.
+1. ~~Env `DATABASE_URL_RUNTIME` setada~~ ✅ feito. **O gatilho é o deploy da branch →
+   `main`**: até lá o `main` não lê a env e o D1 fica inerte (ver o bloco no topo).
 2. `pnpm smoke:c5` (paciente) + abrir o painel e navegar (agenda, caixa, prontuário).
 
 > 🪤 **Pegadinha (acontece toda vez).** Se você rodou um script de prod antes
@@ -220,7 +295,16 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 > colateral bom: no deploy, o fail-close **liga sozinho**, sem passo manual. Efeito
 > colateral a lembrar: **o Passo 4 só faz sentido depois do deploy**.
 
-**Ordem recomendada:** fechar dev (senha + env + smoke) → observar → repetir em prod.
-Não há pressa de agenda, mas o gatilho é **antes do 1º cliente pagante**: depois, um
-`withTenant` esquecido custa dado de cliente real — e é justamente quando prod passa a
-ter dado cross-tenant de verdade, tornando o A/B/C/D conclusivo lá.
+**O que falta, em ordem:**
+
+1. **Deploy da branch `docs/identity-practitioner-model` → `main`.** É o que ativa o D1
+   (e leva a remediação inteira da auditoria de APIs). Nada mais é necessário: infra e
+   env já estão prontas nos dois ambientes.
+2. **Passo 4** — `pnpm smoke:c5` + navegar no painel, com olho em `permission denied for
+   table X` (= grant faltando, não RLS). Rollback = remover a env + redeploy.
+3. **Quando prod tiver ≥ 2 clínicas com dado**, rodar A/B/C/D lá — só então eles são
+   conclusivos.
+
+O gatilho continua sendo **antes do 1º cliente pagante**: depois, um `withTenant`
+esquecido custa dado de cliente real — e é justamente quando prod passa a ter dado
+cross-tenant de verdade.
