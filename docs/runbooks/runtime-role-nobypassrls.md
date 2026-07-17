@@ -36,17 +36,33 @@ deploy foi a **primeira vez na vida** que alguém tentou usar aquela string. Ela
 - Logs do Postgres: **nenhum** `password authentication failed`, nenhum `permission denied`.
 
 Nenhum erro de autenticação no Postgres + zero conexões = **a conexão não chega ao Postgres**. Ela
-morre antes, no **pooler (Supavisor)**. Suspeitos, nesta ordem:
+morre antes, no **pooler (Supavisor)**.
 
-1. **Formato do usuário.** No pooler o usuário precisa ser `qoro_runtime.<project-ref>` (ex.:
-   `qoro_runtime.shlcbxawrxuaebazuiue`), não `qoro_runtime` puro. É o erro mais provável e o mais
-   silencioso — o Supavisor não consegue nem identificar o tenant.
-2. **Senha** com typo / caractere que precisa de URL-encode (`@`, `:`, `/`, `#` na senha quebram a URI).
-3. **Supavisor não aceitar role customizado** no modo transaction (6543). Se for isto, o caminho é o
-   Session Pooler (5432) ou a conexão direta — e a decisão precisa de ADR.
+### ✅ Diagnóstico FECHADO por experimento (2026-07-17, em dev)
 
-**Antes de reativar, PROVE a string** (ver [Passo 2b](#passo-2b--provar-a-connection-string-obrigatório)).
-Fazer isso em **dev primeiro**. Este incidente é a razão do Passo 2b existir.
+Senha de teste posta no `qoro_runtime` de dev, três strings testadas por **conexão real**:
+
+| Caso | Resultado |
+|---|---|
+| `qoro_runtime.<ref>` @ pooler **:6543** (transaction) | ✅ **conecta** — `current_user=qoro_runtime` |
+| `qoro_runtime` **sem** `.<ref>` @ :6543 | ❌ `(ENOIDENTIFIER) no tenant identifier provided (external_id or sni_hostname required)` |
+| `qoro_runtime.<ref>` @ pooler **:5432** (session) | ✅ conecta |
+
+**Conclusões, todas medidas:**
+
+1. **O Supavisor ACEITA role customizado em transaction mode.** A hipótese 3 está morta — não
+   precisa de session pooler, não precisa de ADR, não precisa mudar nada no desenho.
+2. **A causa é o FORMATO DO USUÁRIO.** Sem o `.<project-ref>` o pooler não identifica o tenant e
+   recusa **antes** do Postgres — que é exatamente a assinatura vista em prod (zero conexões, zero
+   erro de auth no PG). Sobra a senha como 2º suspeito (typo / falta de URL-encode).
+3. **O D1 FUNCIONA.** Provado pela conexão real, não por `SET ROLE`:
+   - **sem `withTenant`** → `pacientes=0` ✅ **fail-close, não vaza**
+   - **com `withTenant`** → `visíveis=2, de_outra_clínica=0` ✅ **app funciona E isolado**
+     (havia 2 pacientes de outra clínica ali para vazar — e não vazaram)
+
+**O desenho está certo; a string estava errada.** Para reativar: corrigir a string de prod para
+`qoro_runtime.shlcbxawrxuaebazuiue:<senha>@<host-pooler>:6543/postgres?sslmode=require`, provar com o
+[Passo 2b](#passo-2b--provar-a-connection-string-obrigatório), e só então pôr na Vercel.
 
 ---
 
