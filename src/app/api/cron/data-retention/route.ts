@@ -23,7 +23,8 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady, env } from '@/lib/env';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -34,19 +35,6 @@ const OUTBOX_RETENTION_DAYS = 30;
 const LOGIN_ATTEMPTS_RETENTION_DAYS = 90;
 const BATCH = 5000;
 const MAX_BATCHES_PER_TABLE = 10; // teto: 50k rows/tabela/run
-
-function isAuthorized(req: Request): boolean {
-  if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
-  const hasOriginHeader =
-    req.headers.get('x-vercel-cron') !== null ||
-    req.headers.get('x-vercel-cron-schedule') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  if (!hasOriginHeader && !allowNonVercel) {
-    metrics.emit('cron.origin_header_missing', { route: 'data-retention' });
-  }
-  return true;
-}
 
 async function purgeBatched(makeDelete: () => Promise<number>): Promise<number> {
   let total = 0;
@@ -60,10 +48,8 @@ async function purgeBatched(makeDelete: () => Promise<number>): Promise<number> 
 
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  if (!isAuthorized(req)) {
-    metrics.emit('cron.unauthorized', { route: 'data-retention' });
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const denied = assertCronAuth(req, { route: 'data-retention', destructive: true });
+  if (denied) return denied;
 
   try {
     const outboxPurged = await purgeBatched(async () => {

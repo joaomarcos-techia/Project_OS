@@ -27,6 +27,8 @@ export type EmployeeSummary = {
   crm: string | null;
   crmUf: string | null;
   ativo: boolean;
+  /** Convite ainda não aceito (invite_accepted_at IS NULL) — estado FACTUAL (ADR-032 Fase 2). */
+  pending: boolean;
   mfaEnrolled: boolean;
   /** Quantos grants/denies granulares este usuário tem (user_permission_overrides). */
   overridesCount: number;
@@ -44,6 +46,7 @@ export async function listEmployees(clinicId: string): Promise<EmployeeSummary[]
         crm: profiles.crm,
         crmUf: profiles.crmUf,
         ativo: profiles.ativo,
+        inviteAcceptedAt: profiles.inviteAcceptedAt,
         mfaEnrolledAt: profiles.mfaEnrolledAt,
       })
       .from(profiles)
@@ -66,6 +69,7 @@ export async function listEmployees(clinicId: string): Promise<EmployeeSummary[]
       crm: r.crm,
       crmUf: r.crmUf,
       ativo: r.ativo,
+      pending: r.inviteAcceptedAt == null,
       mfaEnrolled: r.mfaEnrolledAt != null,
       overridesCount: countById.get(r.id) ?? 0,
     }));

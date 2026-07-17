@@ -18,12 +18,101 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 3. Redeploy. Nos logs deve aparecer "Uploading source maps" / "Creating release".
 **Pronto quando:** um erro novo no Sentry mostra `arquivo.ts:linha` em vez de `bundle.js:...`.
 
+## 1.b ✅ Log drain do Better Stack — FEITO (2026-07-16)
+**O que era:** os logs/métricas da aplicação (`kind:"log"` / `kind:"metric"`, uma linha
+JSON por evento em stdout) não chegavam ao Better Stack — o drain nunca tinha sido criado.
+Sem ele, o Live tail fica vazio e **não há sobre o que alertar**.
+
+> ✅ **Resolvido.** Drain criado manualmente; confirmado com `message.event:"worker.tick"`
+> (o cron do outbox emite a cada minuto — teste de aceite que não exige gerar tráfego).
+>
+> 🪤 **A pegadinha que custou uma hora:** o Better Stack **aninha** o JSON do app sob
+> `message`. `event:"worker.tick"` retorna **vazio**; o certo é `message.event:"..."`. Uma
+> busca vazia por erro de sintaxe é indistinguível de "drain morto" — e as saved searches
+> do [log-search.md](../runbooks/log-search.md) estavam **todas** sem o prefixo, escritas
+> antes de o drain existir e nunca testadas. Corrigidas.
+
+**Por que estava faltando:** o [log-search.md §FASE 4](../runbooks/log-search.md) descreve
+o setup e o [c16-inventory](./c16-inventory.md) o lista como "config externa", mas esta
+lista pulava direto para o item 2 (alertas). Alerta sem log é impossível — **o item 2.b
+depende deste**. Descoberto quando o founder foi criar a saved search e não achou log nenhum.
+
+**Como:**
+1. **Better Stack** → **Sources** → **Connect source** → tipo **Vercel** (ou HTTP/Logtail
+   se o tipo Vercel não aparecer). Copie o **endpoint/token** do drain.
+2. **Vercel** → **Settings → Log Drains** → **Add** → cole o endpoint → formato **JSON**.
+   - ⚠️ **Log Drains exige plano Vercel Pro.** Se o menu não existir, é o plano.
+   - ⚠️ A Vercel move esse menu entre **Team Settings** e **Project Settings** conforme a
+     versão. Se não estiver no projeto, procure no time. Alternativa mais simples: o
+     **marketplace da Vercel** tem integração oficial do Better Stack, que cria o drain
+     sozinho — prefira, se disponível.
+3. Gere tráfego (abra o app, force um erro de cron) e confirme no **Live tail** que as
+   linhas chegam **parseadas** — `kind`, `event`, `level` devem virar campos filtráveis,
+   não texto solto. Se vierem como string, o formato do drain não é JSON.
+
+**Pronto quando:** `message.event:"worker.tick"` devolve resultado no Live tail (o cron do
+outbox emite a cada minuto — não precisa gerar tráfego). Aí as saved searches do
+[log-search.md](../runbooks/log-search.md) e o item 2.b passam a ser possíveis.
+
 ## 2. Alertas (ser avisado sem ficar olhando)
 **O que:** faltam as regras de alerta (o monitoramento existe; a notificação não).
+**Depende de:** 1.b (log drain) para tudo que é baseado em log/métrica — o Sentry e o
+Uptime **não** dependem (o Sentry tem SDK próprio; o Uptime só bate na URL).
 **Como:**
 - **Sentry** → Alerts → Create Alert → *Issues* → "new issue em `production`" e/ou ">N eventos/1h" → ação e-mail/Slack. (Regra: janela+threshold, nunca evento isolado — [alert-tuning.md](../runbooks/alert-tuning.md).)
 - **Better Stack Uptime** → no monitor → On-call / Escalation → canal (e-mail/SMS/Slack). E confirme que os monitores de health têm o header `Authorization: Bearer <CRON_SECRET>` (senão 401).
 **Pronto quando:** um erro forçado te notifica; e derrubar o health (ex.: tirar uma env) dispara o alerta de uptime.
+
+### 2.a ⚠️ AÇÃO NOVA — monitor do `/api/health/auth-hook` (A1, 2026-07-15)
+**Por quê:** essa rota era **anônima no código** até a remediação da auditoria de APIs —
+só a doc a descrevia como autenticada (§5 desta lista, e §5.2 do
+[production-readiness](../runbooks/production-readiness.md)). Se o monitor dela foi criado
+sem o header, ele **passa a receber 401** e vai alarmar falso no próximo deploy.
+**Como:** Better Stack → monitor do auth-hook → Request headers → `Authorization: Bearer <CRON_SECRET>`.
+As rotas irmãs (`/api/health`, `/api/health/outbox`) já exigiam o header — se elas estão
+verdes hoje, é só copiar a mesma config.
+**Pronto quando:** o monitor do auth-hook volta 200 com o header e 401 sem ele.
+
+### 2.b Saved search do `billing.webhook.verify` p95 (A2, 2026-07-15)
+**⛔ Bloqueado pelo item 1.b** — é log/métrica, não exceção: vive no **Better Stack**, não
+no Sentry (o ADR-029 mantém log fora do Sentry). Sem o drain, não há o que buscar.
+
+**Por quê:** o webhook do Asaas passou a **verificar o pagamento no provider** antes de
+mudar estado (ADR-025 addendum). Isso põe uma chamada HTTP no caminho do webhook, com
+teto de ~10s dentro de um `maxDuration` de 30s. **p95** = o valor abaixo do qual estão 95%
+das medições; se ele passa de 5s, metade do orçamento da invocação já foi — é o aviso
+*antes* dos timeouts em massa. Threshold em [slo.md §3.1](./slo.md).
+
+**Como:** Better Stack → Live tail → filtro → **Save**. ⚠️ O prefixo **`message.`** é
+obrigatório — o Better Stack aninha o JSON do app sob `message`, e sem ele a busca
+retorna vazio (ver [log-search.md](../runbooks/log-search.md)):
+```
+message.kind:"metric" AND message.event:"billing.webhook.verify"
+```
+⚠️ **`message.duration_ms:>5000` na busca simples NÃO FUNCIONA** — o Better Stack lê o
+`>5000` como TEXTO (`ILIKE '%>5000%'`) e a query retorna zero para sempre. Para threshold
+numérico, edite o **SQL do chart** com `Nullable(Float64)` + `> 5000` de verdade — SQL
+pronto em [log-search.md](../runbooks/log-search.md#-comparação-numérica-não-funciona-na-busca-simples--use-sql).
+E no alerta use **threshold ABSOLUTO** ("is above N"): o builder abre em `alert_type=relative`
+("increases by 10%"), que com baseline zero nunca dispara.
+
+**No mesmo canal, valem mais que o p95:**
+```
+message.event:"billing.webhook.verify" AND message.outcome:"failure"
+```
+→ o `payment.id` **não existe no Asaas**: webhook forjado, pagamento apagado, ou
+sandbox×prod trocado. **Investigar sempre** — ver `runbooks/asaas-webhook-missing.md`.
+```
+message.event:"billing.reconcile.divergence"
+```
+→ o reconcile achou o que o webhook não refletiu (evento perdido **ou** forjado).
+
+⚠️ **Confirme que a busca retorna linha antes de salvar.** Saved search vazia por erro de
+sintaxe é indistinguível de "está tudo bem".
+
+**Pronto quando:** o alerta dispara num teste forçado. **Severidade: investigação, não
+pager** — a degradação aqui é fail-safe (nada é persistido, o Asaas re-entrega, o
+reconcile diário corrige).
 
 ## 3. Restore test (o bloqueador do plano) — agora em 1 comando
 **O que:** provar que o backup **restaura** (backup não-testado = não é backup).
@@ -68,7 +157,10 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 
 ## Resumo (marque conforme fizer)
 - [x] 1. `SENTRY_AUTH_TOKEN` na Vercel + redeploy — source maps confirmados legíveis (2026-07-02)
+- [x] **1.b Log drain Better Stack** — ✅ ativo (2026-07-16), confirmado com `message.event:"worker.tick"`. ⚠️ **Toda busca exige o prefixo `message.`** (o Better Stack aninha o JSON do app) — sem ele, retorna vazio e parece que o drain está morto.
 - [~] 2. Alerta no Sentry (Alert Rule → Issues → env=production) + escalation/canal no Uptime — **finalizar**
+- [ ] 2.a Header `Authorization: Bearer` no monitor do `/api/health/auth-hook` — **antes do próximo deploy** (a rota virou autenticada; sem o header o monitor alarma falso). Não depende do 1.b.
+- [ ] 2.b Saved search do `billing.webhook.verify` p95 > 5s/5min (threshold já em `slo.md` §3.1) — **depende do 1.b**
 - [x] 3. Restore test — restaurado no scratch/dashboard (prod ~vazio → 0 tenant é esperado)
 - [x] 4. Backup diário (Action) verde + secrets configurados (2026-07-02)
 - [x] 5a. Drill 1 (Sentry) — feito ao vivo (event id via /api/health/sentry-test)
@@ -76,5 +168,12 @@ A **implementação** da C16 está pronta e em produção. Faltam **passos opera
 - [ ] 5c. Drill 5 (audit hash) + Drill 6 (prompt injection)
 - [ ] 6. Production rehearsal
 
-**Falta:** finalizar #2 (salvar a Alert Rule com env=production + garantir o canal de
-notificação no Uptime) e fazer #5c/#6 (antes do 1º cliente). O resto está fechado.
+**Falta:** finalizar #2 (Alert Rule com env=production + canal no Uptime + os dois
+sub-itens 2.a/2.b da auditoria de APIs) e fazer #5c/#6 (antes do 1º cliente). O resto
+está fechado.
+
+> **Nota sobre o 5c (Drill 5 — audit hash):** o export de auditoria mudou na auditoria de
+> APIs (B6). Ao rodar o drill, o comportamento esperado agora é: período > 12 meses → **422**
+> com mensagem; período que estouraria 5000 eventos → **422** (antes saía um PDF truncado
+> em silêncio com o `sha256` atestando o período inteiro). O hash de duas execuções do
+> mesmo período continua tendo de bater.

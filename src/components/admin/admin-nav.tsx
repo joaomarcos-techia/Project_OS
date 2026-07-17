@@ -1,15 +1,14 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { Icon } from '@/components/painel/icons';
+import { SideNavGroupLabel, SideNavLink } from '@/components/shared/shell-chrome';
 
 type NavItem = { href: string; label: string; icon: string };
 type NavGroup = { group: string; items: readonly NavItem[] };
 
-/** Navegação do console — espelha EXATAMENTE as rotas do brief (nada além),
- *  agrupadas como no shell do DS (`.mnav`/`.mnav-group-label`/`.mnav-item`). */
+/** Navegação do console — espelha EXATAMENTE as rotas existentes (nada além). */
 const GROUPS: readonly NavGroup[] = [
   {
     group: 'Operação',
@@ -44,26 +43,19 @@ function isActive(pathname: string, href: string): boolean {
 export function AdminNav() {
   const pathname = usePathname();
   return (
-    <nav className="mnav" aria-label="Navegação do console">
+    <nav className="flex-1 px-(--sp-3)" aria-label="Navegação do console">
       {GROUPS.map(({ group, items }) => (
-        <div key={group}>
-          <span className="mnav-group-label">{group}</span>
-          {items.map(({ href, label, icon }) => {
-            const active = isActive(pathname, href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? 'page' : undefined}
-                className={`mnav-item${active ? ' active' : ''}`}
-              >
-                <span className="mi-ico">
-                  <Icon name={icon} size={18} />
-                </span>
-                <span className="mi-label">{label}</span>
-              </Link>
-            );
-          })}
+        <div key={group} className="mt-(--sp-5) first:mt-(--sp-2)">
+          <SideNavGroupLabel>{group}</SideNavGroupLabel>
+          {items.map(({ href, label, icon }) => (
+            <SideNavLink
+              key={href}
+              href={href}
+              active={isActive(pathname, href)}
+              icon={<Icon name={icon} />}
+              label={label}
+            />
+          ))}
         </div>
       ))}
     </nav>

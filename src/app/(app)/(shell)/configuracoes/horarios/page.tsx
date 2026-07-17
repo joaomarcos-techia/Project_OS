@@ -5,6 +5,7 @@
  */
 import Link from 'next/link';
 
+import { isPractitioner } from '@/contexts/identity';
 import { listEmployees } from '@/contexts/identity/queries';
 import { listDoctorAvailability, listHolidays } from '@/contexts/scheduling/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -35,7 +36,7 @@ export default async function HorariosPage() {
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {
     return (
-      <div className="screen">
+      <div>
         <PageHeader breadcrumb={breadcrumb} title="Horários" actions={backLink} />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar horários de atendimento.
@@ -46,7 +47,7 @@ export default async function HorariosPage() {
 
   const employees = await listEmployees(clinicId);
   const doctors = employees
-    .filter((e) => e.role === 'doctor' && e.ativo)
+    .filter((e) => isPractitioner(e) && e.ativo)
     .map((e) => ({ id: e.id, nome: e.nome }));
   const [availability, holidays] = await Promise.all([
     listDoctorAvailability(clinicId),
@@ -54,7 +55,7 @@ export default async function HorariosPage() {
   ]);
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
         breadcrumb={breadcrumb}
         title="Horários de atendimento"

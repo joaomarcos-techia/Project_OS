@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { LogoIcon } from '@/components/painel/icons';
+import { Logo } from '@/components/shared/logo';
 import { loginAction, type LoginActionState } from './actions';
 
 const INITIAL: LoginActionState = { error: null };
@@ -47,11 +47,8 @@ function LoginScreen() {
     <main className="grid min-h-screen bg-surface lg:grid-cols-2">
       {/* ============================ FORM (esquerda) ============================ */}
       <div className="flex flex-col px-6 py-8 sm:px-10 lg:px-16">
-        <div className="flex items-center gap-2.5">
-          <LogoIcon size={28} />
-          <span className="text-lg font-semibold tracking-[-0.02em]">
-            Clinica<b className="font-bold text-primary-600">OS</b>
-          </span>
+        <div className="flex items-center">
+          <Logo className="h-7 w-auto" />
         </div>
 
         <div className="flex flex-1 items-center justify-center py-10">
@@ -122,7 +119,7 @@ function LoginScreen() {
         </div>
 
         <div className="flex items-center justify-between text-xs text-fg-subtle">
-          <span>© {new Date().getFullYear()} ClinicaOS</span>
+          <span>© {new Date().getFullYear()} Qoro</span>
           <span className="font-mono">Operação sem vazamento</span>
         </div>
       </div>

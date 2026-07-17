@@ -45,11 +45,26 @@ const looksLikeProd = (url: string): boolean => {
 };
 
 if (env.NODE_ENV !== 'production' && looksLikeProd(env.DATABASE_URL)) {
+  // Diz QUAL das duas condições disparou. Elas têm causas e correções opostas, e a
+  // mensagem genérica anterior sugeria as duas coisas erradas para o caso comum:
+  // `SUPABASE_PROJECT_ENV=prod` GRUDA na sessão do shell depois de um script de prod
+  // (db:backup:prod etc.) e envenena todo comando de dev seguinte no mesmo terminal —
+  // com o .env.local intacto e a URL de dev. Mandar "conserte o .env.local" manda
+  // procurar no lugar errado; "set NODE_ENV=production" faria escrever em prod DE
+  // VERDADE, que é o oposto do que o guard existe para impedir.
+  const porEnvVar = process.env.SUPABASE_PROJECT_ENV === 'prod';
   throw new Error(
-    '[db] FATAL: NODE_ENV is not production but DATABASE_URL looks like prod ' +
-      '(hostname contains prod/production OR SUPABASE_PROJECT_ENV=prod). ' +
-      'This guard prevents localhost from writing to prod by accident. ' +
-      'Fix .env.local or set NODE_ENV=production if you really mean it.',
+    '[db] FATAL: NODE_ENV não é production, mas o DATABASE_URL parece de prod. ' +
+      'Este guard impede o localhost de escrever em prod por acidente.\n' +
+      (porEnvVar
+        ? '  CAUSA: SUPABASE_PROJECT_ENV=prod está setada nesta sessão do shell.\n' +
+          '  Se você acabou de rodar um script de prod (ex.: db:backup:prod), é resíduo dele.\n' +
+          '  CORREÇÃO (PowerShell):  Remove-Item Env:SUPABASE_PROJECT_ENV; Remove-Item Env:DATABASE_URL_PROD\n' +
+          '  (bash/zsh):             unset SUPABASE_PROJECT_ENV DATABASE_URL_PROD\n' +
+          '  Ou simplesmente abra um terminal novo. O .env.local NÃO é o problema aqui.'
+        : '  CAUSA: o hostname do DATABASE_URL contém "prod"/"production".\n' +
+          '  CORREÇÃO: aponte o DATABASE_URL do .env.local para o projeto de DEV.') +
+      '\n  NÃO use NODE_ENV=production para silenciar isto: aí você escreve em prod de verdade.',
   );
 }
 
@@ -82,8 +97,13 @@ const globalForDb = globalThis as unknown as {
   __workerClient?: ReturnType<typeof postgres>;
 };
 
+// V1.3 (auditoria de segurança) — fail-closed OPT-IN: o pool RUNTIME conecta por
+// DATABASE_URL_RUNTIME quando definido (role SEM BYPASSRLS → `withTenant` esquecido
+// retorna 0 linhas em vez de vazar). Ausente → DATABASE_URL atual (inalterado).
+// dbAdmin/dbWorker (abaixo) permanecem no DATABASE_URL (BYPASSRLS, necessário).
 const runtimeClient =
-  globalForDb.__runtimeClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 5 });
+  globalForDb.__runtimeClient ??
+  postgres(env.DATABASE_URL_RUNTIME ?? env.DATABASE_URL, { ...sharedOpts, max: 5 });
 // dbAdmin pool max:5 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
 // request do painel faz várias leituras (layout + página + pages com Promise.all),
 // que o Next renderiza concorrentemente. Com max:1 essas leituras serializavam e

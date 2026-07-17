@@ -5,12 +5,13 @@ import { useActionState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 
 import { createProntuarioForm, type FormState } from './actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const INITIAL: FormState = { error: null };
 
 export function NovoProntuarioButton({ patientId }: { patientId: string }) {
   const [state, action, pending] = useActionState(createProntuarioForm, INITIAL);
-  const key = useMemo(() => crypto.randomUUID(), []);
+  const key = useMemo(() => uuidv4(), []);
   return (
     <form action={action}>
       <input type="hidden" name="patientId" value={patientId} />

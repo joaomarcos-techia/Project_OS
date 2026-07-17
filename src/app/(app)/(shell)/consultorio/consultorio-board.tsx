@@ -22,6 +22,7 @@ import type { ActionResult, BoardDTO } from './board-types';
 import { CheckinStrip } from './checkin-strip';
 import { FinalizedList } from './finalized-list';
 import { WaitingCard } from './waiting-card';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const CONN_BADGE: Record<RealtimeState, { tone: 'green' | 'amber' | 'gray'; label: string }> = {
   live: { tone: 'green', label: 'Tempo real' },
@@ -44,11 +45,11 @@ function ColumnTitle({ children, count }: { children: React.ReactNode; count?: n
 
 export function ConsultorioBoard({
   clinicId,
-  isDoctor,
+  isPractitioner,
   initialBoard,
 }: {
   clinicId: string;
-  isDoctor: boolean;
+  isPractitioner: boolean;
   initialBoard: BoardDTO;
 }) {
   const [board, setBoard] = useState<BoardDTO>(initialBoard);
@@ -121,42 +122,39 @@ export function ConsultorioBoard({
 
   const onCall = (id: string) =>
     void act(id, async () => {
-      const r = await callNextPatient(id, crypto.randomUUID());
+      const r = await callNextPatient(id, uuidv4());
       if (r.ok) setSelectedAppt(id);
       return r;
     });
-  const onAbsent = (id: string) => void act(id, () => markAbsent(id, crypto.randomUUID()));
-  const onCheckIn = (id: string) => void act(id, () => checkInPatient(id, crypto.randomUUID()));
+  const onAbsent = (id: string) => void act(id, () => markAbsent(id, uuidv4()));
+  const onCheckIn = (id: string) => void act(id, () => checkInPatient(id, uuidv4()));
   const onComplete = (id: string) =>
     void act(id, async () => {
-      const r = await completeConsulta(id, crypto.randomUUID());
+      const r = await completeConsulta(id, uuidv4());
       if (r.ok) setSelectedAppt(null); // fecha o painel central; effect re-seleciona o próximo
       return r;
     });
 
   const badge = CONN_BADGE[conn];
 
-  // Status atual (do board) do appointment selecionado → o painel central recarrega
-  // quando ele muda (ex.: em_atendimento → atendido após Encerrar, ou via Realtime).
-  const selectedStatus =
+  // Card atual (do board) do appointment selecionado → o painel central recarrega
+  // quando o status muda (ex.: em_atendimento → atendido após Encerrar, ou via Realtime).
+  const selectedCard =
     [...board.aChegar, ...board.salaEspera, ...board.emAtendimento, ...board.finalizadas].find(
       (c) => c.appointmentId === selectedAppt,
-    )?.status ?? null;
+    ) ?? null;
+  const selectedStatus = selectedCard?.status ?? null;
   const viewingFinalizada = selectedStatus === 'atendido';
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Operação <span className="sep">›</span> <b>Consultório</b>
-          </>
-        }
+        crumbs={[{ label: 'Operação' }, { label: 'Consultório' }]}
         title="Consultório"
         description="Atenda um turno inteiro sem trocar de tela."
         actions={
           <div className="flex items-center gap-2">
-            {!isDoctor && board.doctors.length > 0 ? (
+            {!isPractitioner && board.doctors.length > 0 ? (
               <Select
                 value={selectedDoctorId ?? ''}
                 onChange={(e) => setSelectedDoctorId(e.target.value || null)}
@@ -240,6 +238,7 @@ export function ConsultorioBoard({
           <AttendingPanel
             appointmentId={selectedAppt}
             boardStatus={selectedStatus}
+            checkInAt={selectedCard?.checkInAt ?? null}
             busy={busyId === selectedAppt}
             onComplete={onComplete}
             onClose={() => setSelectedAppt(null)}
@@ -269,6 +268,6 @@ export function ConsultorioBoard({
           />
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

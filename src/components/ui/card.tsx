@@ -2,36 +2,42 @@ import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
-/** Card — DS §base (`.card`: surface + border + r-lg + sombra sutil). */
+/** Card — DS v2 §card (`--card-bg/border/radius` + elevação card). */
 export function Card({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
-      className={cn('rounded-lg border border-border bg-surface shadow-xs', className)}
+      className={cn(
+        'rounded-(--card-radius) border border-(--card-border) bg-(--card-bg) shadow-sm',
+        className,
+      )}
       {...props}
     />
   );
 }
 
 export function CardHeader({ className, ...props }: ComponentProps<'div'>) {
-  return <div className={cn('flex flex-col gap-1 p-5 pb-0', className)} {...props} />;
+  return <div className={cn('flex flex-col gap-1 p-(--card-pad) pb-0', className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: ComponentProps<'h3'>) {
-  return <h3 className={cn('text-base font-semibold', className)} {...props} />;
+  return <h3 className={cn('text-(length:--fs-h4) font-semibold', className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: ComponentProps<'p'>) {
-  return <p className={cn('text-sm text-fg-muted', className)} {...props} />;
+  return <p className={cn('text-(length:--fs-sm) text-fg-muted', className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: ComponentProps<'div'>) {
-  return <div className={cn('p-5', className)} {...props} />;
+  return <div className={cn('p-(--card-pad)', className)} {...props} />;
 }
 
 export function CardFooter({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
-      className={cn('flex items-center gap-3 border-t border-border p-5', className)}
+      className={cn(
+        'flex items-center justify-end gap-2.5 rounded-b-(--card-radius) border-t border-border bg-surface-2 px-(--card-pad) py-4',
+        className,
+      )}
       {...props}
     />
   );

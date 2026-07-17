@@ -59,6 +59,15 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // por version rodam via dbAdmin/BYPASSRLS. A saga de provisionamento também.
     'src/contexts/onboarding/internal/invites.ts',
     'src/contexts/onboarding/internal/saga.ts',
+    // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
+    // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
+    'src/contexts/identity/internal/members.ts',
+    // I-2 (ADR-039): ciclo de vida (desativar/reativar/trocar role/override) — escrita
+    // administrativa em profiles/overrides via dbAdmin, escopo defensivo por clinic_id.
+    'src/contexts/identity/internal/lifecycle.ts',
+    // I-11a (0042): auditoria de login via service_role (record_login_attempt SECURITY
+    // DEFINER, D9) em vez de anon via PostgREST. Best-effort, nunca bloqueia o login.
+    'src/lib/auth/login-audit.ts',
     // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
     // (S5) → escrita do tenant via dbAdmin+audit, colunas fixas + WHERE id=clinicId
     // (do request). Irmão do connection-store de mensageria.

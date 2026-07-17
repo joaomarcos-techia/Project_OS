@@ -17,7 +17,7 @@ export default async function ModelosReceitaPage() {
   const templates = await listPrescriptionTemplates(clinicId, user.userId);
 
   return (
-    <div className="screen">
+    <div>
       <PageHeader
         title="Modelos de receita"
         description="Gabaritos reutilizáveis de prescrição. Aplique-os no editor antes de emitir — modelos nunca emitem sozinhos."

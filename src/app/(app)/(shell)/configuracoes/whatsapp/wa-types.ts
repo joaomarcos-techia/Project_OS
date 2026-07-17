@@ -29,9 +29,12 @@ export function fail(err: unknown): ActionResult<never> {
       message: 'Você não tem permissão para esta ação.',
     };
   }
-  // Erro NÃO mapeado: antes era engolido sem log (Sentry/Vercel cegos). Loga sempre
-  // (melhoria permanente) + expõe na tela TEMPORARIAMENTE p/ diagnóstico em prod.
-  // TODO(reverter a mensagem DEBUG após diagnosticar a conexão do WhatsApp).
+  // Erro NÃO mapeado: antes era engolido sem log nenhum (Sentry/Vercel cegos). O log
+  // fica — é melhoria permanente e é ELE que torna a exposição na tela desnecessária:
+  // o stack chega ao Sentry e ao Better Stack (`message.level:"error"`), que é onde se
+  // diagnostica. A mensagem ao usuário volta a ser genérica (V11 da auditoria de
+  // segurança: erro cru não vaza para a tela). O `DEBUG <name>: <message>` era
+  // declaradamente temporário ("reverter após identificar a causa raiz", 80904fe).
   console.error(
     '[whatsapp action] erro não mapeado:',
     err instanceof Error ? (err.stack ?? err.message) : err,
@@ -39,6 +42,6 @@ export function fail(err: unknown): ActionResult<never> {
   return {
     ok: false,
     code: 'error',
-    message: `DEBUG ${name || 'Error'}: ${err instanceof Error ? err.message : String(err)}`,
+    message: 'Não foi possível concluir a ação. Tente novamente.',
   };
 }

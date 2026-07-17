@@ -56,6 +56,12 @@ export async function saveStepAction(_prev: JoinStepState, formData: FormData): 
   const next = NEXT[step];
   if (!next) return { error: 'Passo inválido.' };
 
+  // M3: `resolveOpenInvite` é a superfície de sondagem de token do wizard, e era a
+  // única do /join sem teto (o checkout já tinha). Reusa o MESMO limiter do join —
+  // é o mesmo fluxo e o mesmo abuso; um limiter novo só fragmentaria o orçamento.
+  const rl = await assertJoinAllowed(getClientIp(await headers()));
+  if (!rl.ok) return { error: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.' };
+
   const invite = await resolveOpenInvite(token);
   if (!invite) return { error: 'Convite inválido ou expirado.' };
   const current = parseStepState(invite.stepState);

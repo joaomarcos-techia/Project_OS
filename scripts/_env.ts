@@ -40,12 +40,22 @@ export function looksLikeProd(url: string): boolean {
  * Throws with a clear message if any guard fails.
  */
 export function assertProdContext(): { databaseUrl: string } {
+  // As duas envs vivem na SESSÃO do shell, nunca no .env.local (que é da máquina de dev
+  // e vaza para todo script). Por isso o guard ensina o comando: sem isso, a mensagem
+  // diz o QUE falta mas não o COMO, e o operador perde tempo no meio de um incidente.
+  const howTo =
+    '\n  PowerShell:  $env:SUPABASE_PROJECT_ENV = \'prod\'; $env:DATABASE_URL_PROD = \'postgresql://...?sslmode=require\'' +
+    '\n  bash/zsh:    SUPABASE_PROJECT_ENV=prod DATABASE_URL_PROD=\'postgresql://...?sslmode=require\' pnpm <script>' +
+    '\n  A URI está em: Supabase → Project Settings → Database → Connection string.' +
+    '\n  Feche o terminal (ou Remove-Item Env:DATABASE_URL_PROD) depois — ela tem a senha de prod.';
+
   const projectEnv = process.env.SUPABASE_PROJECT_ENV;
   if (projectEnv !== 'prod') {
     throw new Error(
       '[guard] SUPABASE_PROJECT_ENV must be set to "prod" before running a prod script. ' +
         'This is the EXPLICIT opt-in — heuristics alone are not enough. ' +
-        `Got: ${projectEnv ?? '(unset)'}.`,
+        `Got: ${projectEnv ?? '(unset)'}.` +
+        howTo,
     );
   }
 
@@ -53,7 +63,8 @@ export function assertProdContext(): { databaseUrl: string } {
   if (!url) {
     throw new Error(
       '[guard] DATABASE_URL_PROD is required for prod scripts and is unset. ' +
-        'Add it to your shell session (NOT to .env.local on dev machines).',
+        'Add it to your shell session (NOT to .env.local on dev machines).' +
+        howTo,
     );
   }
 

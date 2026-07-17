@@ -77,12 +77,19 @@ Nomes exatos e payloads dos eventos: VisãoGeral §4 por contexto + [contracts/e
 
 ---
 
-## Planos arquiteturais (mesmo deploy)
+## Planos arquiteturais (mesmo deploy, **mesmo host**)
 
-- **Data Plane** (`app.qoro.dev`, rotas `(app)/`) — operação das clínicas.
-- **Control Plane** (`admin.qoro.dev`, rotas `(admin)/`) — operação da Qoro (Platform Admin).
+- **Data Plane** (rotas `(app)/`) — operação das clínicas.
+- **Control Plane** (rotas `(admin)/`) — operação da Qoro (Platform Admin).
 
 Separação é **lógica** (RLS + rotas + role `super_admin`), não física. Ver VisãoGeral §2.4 e [ADR-008](../adr/008-identity-patterns.md).
+
+> ⚠️ **Ambos vivem em `app.qoro.dev` (2026-07-16).** Este documento dizia
+> `admin.qoro.dev` para o Control Plane — **esse subdomínio nunca foi provisionado e não
+> resolve**. Decisão do founder: adiado, e o registro está em
+> [PROGRESS §Dívida pós-C16 — D7](../PROGRESS.md). O painel **não fica mais exposto por
+> isso**: a defesa é `guardAdminAccess()` → super_admin + AAL2 → **404 absoluto**, que não
+> depende de hostname.
 
 ---
 

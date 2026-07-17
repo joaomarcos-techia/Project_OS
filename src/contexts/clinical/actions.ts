@@ -28,6 +28,7 @@ import {
 } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { CLINICAL_EVENTS } from './events';
@@ -37,7 +38,7 @@ import {
   ProntuarioImutavelError,
   ProntuarioNotFoundError,
 } from './errors';
-import { idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
+import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { assertDoctorHasCrm, resolveDoctorSnapshot } from './internal/doctor';
 import { resolvePatientNome } from './internal/patient-ref';
 import { ensureMedicalDocumentPdf, ensurePrescriptionPdf } from './internal/pdf-pipeline';
@@ -88,7 +89,7 @@ export async function createProntuario(
       idempotency: {
         key: idemKey('create_prontuario', idempotencyKey),
         payload: jsonSafe(data),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: CLINICAL_EVENTS.PRONTUARIO_CREATED,
@@ -165,7 +166,7 @@ export async function updateProntuario(
     const [row] = await tx
       .select()
       .from(prontuarios)
-      .where(eq(prontuarios.id, pid))
+      .where(and(eq(prontuarios.id, pid), eq(prontuarios.clinicId, clinicId)))
       .for('update')
       .limit(1);
     if (!row) throw new ProntuarioNotFoundError(pid);
@@ -176,7 +177,7 @@ export async function updateProntuario(
     const [updated] = await tx
       .update(prontuarios)
       .set({ content, rowVersion: row.rowVersion + 1, updatedAt: sql`now()` })
-      .where(eq(prontuarios.id, pid))
+      .where(and(eq(prontuarios.id, pid), eq(prontuarios.clinicId, clinicId)))
       .returning({ rowVersion: prontuarios.rowVersion });
     return { rowVersion: updated!.rowVersion };
   });
@@ -204,7 +205,7 @@ export async function signProntuario(
       idempotency: {
         key: idemKey('sign_prontuario', idempotencyKey),
         payload: jsonSafe({ id: pid, ...data }),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: CLINICAL_EVENTS.PRONTUARIO_SIGNED,
@@ -218,7 +219,7 @@ export async function signProntuario(
       const [row] = await tx
         .select()
         .from(prontuarios)
-        .where(eq(prontuarios.id, pid))
+        .where(and(eq(prontuarios.id, pid), eq(prontuarios.clinicId, clinicId)))
         .for('update')
         .limit(1);
       if (!row) throw new ProntuarioNotFoundError(pid);
@@ -249,7 +250,7 @@ export async function signProntuario(
           rowVersion: row.rowVersion + 1,
           updatedAt: sql`now()`,
         })
-        .where(eq(prontuarios.id, pid))
+        .where(and(eq(prontuarios.id, pid), eq(prontuarios.clinicId, clinicId)))
         .returning();
 
       await publishEvent(tx, {
@@ -295,7 +296,7 @@ export async function editSignedProntuario(
       idempotency: {
         key: idemKey('edit_signed_prontuario', idempotencyKey),
         payload: jsonSafe({ id: pid, ...data }),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: EDIT_SIGNED_ACTION,
@@ -309,7 +310,7 @@ export async function editSignedProntuario(
       const [row] = await tx
         .select()
         .from(prontuarios)
-        .where(eq(prontuarios.id, pid))
+        .where(and(eq(prontuarios.id, pid), eq(prontuarios.clinicId, clinicId)))
         .for('update')
         .limit(1);
       if (!row) throw new ProntuarioNotFoundError(pid);
@@ -339,7 +340,7 @@ export async function editSignedProntuario(
           rowVersion: row.rowVersion + 1,
           updatedAt: sql`now()`,
         })
-        .where(eq(prontuarios.id, pid))
+        .where(and(eq(prontuarios.id, pid), eq(prontuarios.clinicId, clinicId)))
         .returning();
       await tx.execute(sql`SELECT set_config('app.allow_signed_edit', 'off', true)`);
 
@@ -375,7 +376,7 @@ export async function createPrescription(
       idempotency: {
         key: idemKey('create_prescription', idempotencyKey),
         payload: jsonSafe(data),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: CLINICAL_EVENTS.PRESCRIPTION_CREATED,
@@ -451,7 +452,7 @@ export async function createMedicalDocument(
       idempotency: {
         key: idemKey('create_medical_document', idempotencyKey),
         payload: jsonSafe(data),
-        ttlSeconds: IDEM_TTL,
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
       },
       audit: {
         action: CLINICAL_EVENTS.DOCUMENT_GENERATED,

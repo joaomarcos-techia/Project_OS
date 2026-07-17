@@ -35,6 +35,13 @@ interface SessionInfo {
   phoneId?: string | undefined;
 }
 
+// V13 (auditoria de segurança): allowlist EXATA de origens do postMessage. O
+// `endsWith('facebook.com')` anterior era burlável (ex.: `https://evil-facebook.com`
+// satisfaz `endsWith`), pois falta a fronteira de subdomínio. Match exato é a
+// prática correta de postMessage. (O servidor já revalida os hints contra o
+// token OAuth — isto é defesa adicional na fronteira do cliente.)
+const ALLOWED_FB_ORIGINS = new Set(['https://www.facebook.com', 'https://web.facebook.com']);
+
 export function WhatsappConnect({
   status,
   appId,
@@ -58,7 +65,7 @@ export function WhatsappConnect({
   // servidor revalida com o token (anti-sequestro), então isto é só sugestão.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      if (typeof event.data !== 'string' || !event.origin.endsWith('facebook.com')) return;
+      if (typeof event.data !== 'string' || !ALLOWED_FB_ORIGINS.has(event.origin)) return;
       try {
         const parsed = JSON.parse(event.data) as {
           type?: string;
@@ -132,7 +139,7 @@ export function WhatsappConnect({
   };
 
   return (
-    <div className="screen">
+    <div>
       {ready && appId ? (
         <Script
           src="https://connect.facebook.net/en_US/sdk.js"

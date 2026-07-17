@@ -27,7 +27,30 @@ import {
 } from '@/lib/storage/admin-exports';
 
 import type { AuditEntryDTO, AuditExportResultDTO } from '../dto';
-import { auditRepository } from '../repositories/audit.repo';
+import { AUDIT_EXPORT_MAX_ROWS, auditRepository } from '../repositories/audit.repo';
+
+/**
+ * B6 — o período rende mais eventos do que o export consegue atestar.
+ *
+ * O repositório corta em `AUDIT_EXPORT_MAX_ROWS`. Antes, o corte era SILENCIOSO: o
+ * PDF saía com as primeiras N linhas e o `sha256` — que existe para ser prova — ia
+ * para `super_admin_actions` como se atestasse o período inteiro. Um artefato de
+ * auditoria incompleto que se apresenta como completo é pior que a ausência dele.
+ *
+ * `code` + `httpStatus` seguem o padrão de domain error do repo, então
+ * `toErrorResponse` mapeia 1:1 (envelope + 422) sem o caller precisar saber.
+ */
+export class AuditExportTooLargeError extends Error {
+  readonly code = 'audit_export_too_large';
+  readonly httpStatus = 422;
+  constructor(readonly rowCount: number) {
+    super(
+      `Período gera ${rowCount}+ eventos e o export sairia incompleto ` +
+        `(teto de ${AUDIT_EXPORT_MAX_ROWS}). Reduza o intervalo e exporte em partes.`,
+    );
+    this.name = 'AuditExportTooLargeError';
+  }
+}
 
 const t = StyleSheet.create({
   meta: { fontSize: 9, color: '#4b5563', marginBottom: 2 },
@@ -106,6 +129,10 @@ export class AuditExportService {
     const clinicNome = clinic?.nome ?? clinicId;
 
     const rows = await auditRepository.findByClinicRange(clinicId, from, to);
+
+    // B6: falha ANTES do render/upload — barrar depois deixaria um PDF órfão no
+    // storage a cada tentativa (o artefato é gerado antes de qualquer validação).
+    if (rows.length >= AUDIT_EXPORT_MAX_ROWS) throw new AuditExportTooLargeError(rows.length);
 
     // SHA256 sobre o conteúdo canônico (não sobre o arquivo) — evita auto-ref.
     const canonical = stringify({ clinicId, from, to, rows }) ?? '';

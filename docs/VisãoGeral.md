@@ -43,9 +43,9 @@
 
 # 1. Visão Geral do Projeto
 
-## 1.1 O que é o ClinicaOS
+## 1.1 O que é o QORO
 
-ClinicaOS é um **sistema operacional para clínicas pequenas e médias brasileiras** — não é um sistema de gestão clínica genérico. É um produto SaaS multi-tenant que combina **gestão clínica + agente de IA conversacional via WhatsApp + cobrança automatizada + auditoria forense** em um único produto integrado.
+Qoro oferece um **sistema operacional para clínicas pequenas e médias brasileiras** — não é um sistema de gestão clínica genérico. É um produto SaaS multi-tenant que combina **gestão clínica + agente de IA conversacional via WhatsApp + cobrança automatizada + auditoria forense** em um único produto integrado.
 
 O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) sob o domínio principal `qoro.dev`. Todas as clínicas acessam por `app.qoro.dev` (o tenant é resolvido pelo `clinic_id` do JWT). **Não há subdomínio por clínica** (decisão — ver §3.9).
 
@@ -59,7 +59,7 @@ O sistema é vendido **white-label leve** (logo, cor primária, nome em PDFs) so
 4. **Recepção sobrecarregada** — atendente passa 60% do tempo no WhatsApp respondendo "qual o horário?", "tem vaga sexta?", "quanto custa consulta?" — trabalho que IA resolve por R$ 0,002 por conversa.
 5. **Retornos não agendados** — médico pediu "volta em 3 meses", paciente esqueceu, clínica perdeu a consulta de retorno.
 
-ClinicaOS ataca cada vazamento com **automação operacional + IA + integração financeira**.
+Atacamos cada vazamento com **automação operacional + IA + integração financeira**.
 
 ## 1.3 Posicionamento do produto
 
@@ -190,7 +190,9 @@ ClinicaOS tem **dois planos arquiteturais lógicos** no mesmo deploy:
 - Configuração de planos, prompts do agente
 - Acesso: apenas `super_admin` (você), todas ações auditadas
 
-🔒 Os dois planos vivem em **subdomínios diferentes** (`app.qoro.dev` vs `admin.qoro.dev`) e em **rotas separadas no Next.js** (`/app/*` vs `/admin/*`), mas compartilham o mesmo deploy e mesmo banco. **Separação é lógica, não física.**
+🔒 Os dois planos vivem em **rotas separadas no Next.js** (`/app/*` vs `/admin/*`), no mesmo deploy e mesmo banco. **Separação é lógica, não física.**
+
+> ⚠️ **Corrigido em 2026-07-16:** este parágrafo dizia que os planos vivem em *subdomínios diferentes* (`admin.qoro.dev`). **Esse subdomínio nunca foi provisionado** — os dois vivem em `app.qoro.dev`. A separação de host foi **adiada com motivo** ([PROGRESS §D7](./PROGRESS.md)): ela não protege o painel (a defesa é `guardAdminAccess()` → super_admin + AAL2 → 404 absoluto, que independe de host) e só passa a valer junto com CSP bloqueante + cookie escopado por host.
 
 📌 **Armadilha futura**: vai dar vontade de criar deploy separado pro Control Plane "por segurança". Não faça. A separação por RLS + rotas dedicadas + role super_admin é suficiente. Deploy separado dobra trabalho de manutenção pra zero ganho real.
 
@@ -505,7 +507,7 @@ Implementações: `MetaCloudProvider`, `ZApiProvider`. Sistema escolhe por `clin
 qoro.dev                        → landing page (Firebase Hosting, intacta)
 *.qoro.dev                      → Vercel (todo o app)
   ├─ app.qoro.dev               → app de TODAS as clínicas (login roteia por clinic_id no JWT)
-  └─ admin.qoro.dev             → dashboard master (você)
+  └─ app.qoro.dev/admin        → dashboard master (você) — host próprio adiado (§D7)
 ```
 <!-- DECISÃO (atual): NÃO há subdomínio por clínica para NINGUÉM. Todas as clínicas
      acessam por app.qoro.dev; o tenant é resolvido pelo clinic_id do JWT, não pelo
@@ -543,7 +545,7 @@ qoro-landing/         ← repo existente, manter intacto (Firebase Hosting)
 qoro/                 ← repo novo do v2
   src/app/
     (app)/            → app.qoro.dev (todas as clínicas; tenant via JWT)
-    (admin)/          → admin.qoro.dev
+    (admin)/          → app.qoro.dev/admin  (host próprio adiado — PROGRESS §D7)
     api/              → API routes
   src/lib/
     db/               → Drizzle schema + migrations + queries
@@ -725,10 +727,10 @@ view:consultorio
 - `tenancy.clinic.deleted` → hard delete de users daquela clínica
 
 **Regras de negócio:**
-- 🔒 2FA obrigatório pra roles `gestor` e `financial`. Opcional pros demais.
+- 🔒 2FA **obrigatório só pro `super_admin`** (**ADR-038** — decisão de MVP). `gestor` e `financial` recebem opt-in forte (banner de enrollment não-bloqueante), mas **não** são forçados enquanto não existirem recovery codes + reset por admin: sem rede de resgate, forçar 2FA tranca o cliente fora da própria clínica. Fonte: [mfa-policy.ts](../src/lib/auth/policies/mfa-policy.ts) (`mustHaveMFA`/`mustEnforceAAL2`). *(Corrigido em 2026-07-15 — esta seção afirmava obrigatoriedade pra gestor/financial, contradizendo o código e o ADR.)*
 - 🔒 Session expira em 7 dias de inatividade. Refresh automático em uso ativo.
 - 🔒 Auto-heal de claims: se claims do JWT diferem do banco, força re-login.
-- 🔒 Tentativas de login: rate limit 5 tentativas/15min via Upstash. Após 5, bloqueia 1h.
+- 🔒 Tentativas de login: rate limit **dual** via Upstash (sliding window) — 10/15min por IP **e** 5/15min por `email_hash`; bloqueia se qualquer um estourar. Não há bloqueio de 1h: a janela desliza. Durante outage do Upstash o limite é fail-open com fallback em memória por instância (ADR-008 F-08). Fonte: [rate-limit.ts](../src/lib/auth/rate-limit.ts). *(Corrigido em 2026-07-15 — dizia "5/15min, bloqueia 1h".)*
 
 **Edge cases:**
 - Usuário deletado mas com session ativa → invalidar via lookup em `users.deleted_at`
@@ -773,7 +775,7 @@ view:consultorio
 |---|---|---|
 | **Solo** | R$ 149 | 1 médico, 1 usuário, 200 agendamentos/mês, 200 conversas IA/mês |
 | **Clínica** | R$ 349 | até 5 usuários, 800 agendamentos/mês, 800 conversas IA/mês |
-| **Pro** | R$ 699 | até 15 usuários, 2500 agendamentos/mês, 2500 conversas IA/mês |
+| **Pro** | R$ 699 | até 10 usuários, 2500 agendamentos/mês, 2500 conversas IA/mês |
 | **Pro+** | sob consulta | ilimitado, SLA dedicado |
 
 <!-- ADR-024 (2026-06-15) — modelo de planos revisado, AUTORIDADE sobre menções
@@ -815,7 +817,7 @@ capacidade (usuários), serviço/SLA e features que só passam a importar com eq
   - Permissões por função (médico, recepção, financeiro) *(escala-natural)*
   - Auditoria de acessos — quem viu/alterou o quê *(escala-natural)*
   - **Suporte prioritário** *(serviço/SLA)*
-- **Pro** (até 15 usuários) — tudo do Clínica, mais:
+- **Pro** (até 10 usuários) — tudo do Clínica, mais:
   - Relatórios consolidados de todos os profissionais *(escopo, não feature nova)*
   - **Gerente de conta dedicado** *(serviço/SLA)*
   - Prioridade no suporte e em novas funcionalidades
@@ -1261,7 +1263,7 @@ list_slots, schedule_appointment, confirm_appointment, ...
 **Objetivo**: operação interna da Qoro, dashboard master, auditoria.
 
 **Responsabilidades:**
-- Dashboard `admin.qoro.dev` (você)
+- Dashboard `/admin` (você)
 - Listar/gerenciar clínicas
 - Visualizar conversas IA pra debug
 - Métricas globais (MRR, churn, custo Gemini, DAU, agendamentos totais)
@@ -1654,7 +1656,7 @@ Estratégias combinadas:
 2. **Validação semântica server-side**: ex. agendamento pra data passada → rejeita
 3. **Existência de entidades**: tool `schedule_appointment` valida que `doctor_id` existe na clínica
 4. **Fallback explícito**: se LLM responde algo absurdo, sistema reenvia com "Você não pode fazer isso. Responda dentro das opções."
-5. **Auditoria**: toda interação logada, debugável em `admin.qoro.dev`
+5. **Auditoria**: toda interação logada, debugável no painel `/admin`
 
 ## 6.6 Custo e cota
 
@@ -1704,7 +1706,7 @@ Métricas tracked:
 - Latência média
 - Erros/timeouts Gemini
 
-Dashboard em `admin.qoro.dev` mostra tudo.
+Dashboard em `/admin` mostra tudo.
 
 ## 6.9 Riscos da IA e mitigações
 
@@ -2255,7 +2257,7 @@ CREATE INDEX ai_conversations_clinic_phone ON ai_conversations (clinic_id, patie
 8. **IA NÃO dá conselho clínico** — hardcoded no prompt, validado server-side.
 9. **Encryption at-rest per-tenant** pra dados sensíveis.
 10. **Stateless IA por mensagem** — sem cache global.
-11. **2FA obrigatório pra gestor e financial.**
+11. **2FA obrigatório pro `super_admin`** (**ADR-038**); gestor/financial = opt-in forte, não forçado. Ver §4.1.
 12. **Backups + PITR + cold archive** — defesa em profundidade contra perda.
 13. **Multi-tenant single deploy** — nunca deploy-per-clinic.
 
@@ -2484,7 +2486,7 @@ Template ADR:
 - Idempotency keys obrigatórias
 - Encryption at-rest per-tenant
 - Multi-unidade desde o schema
-- 2FA obrigatório pra gestor e financial
+- 2FA obrigatório pro `super_admin` (gestor/financial: opt-in forte — **ADR-038**)
 
 ✅ **Stack:**
 - Next.js 15+ (App Router) + Supabase + Drizzle + Tailwind/shadcn

@@ -28,6 +28,9 @@ export interface BoardCardDTO {
   urgencia: boolean;
   /** instante do check-in (ISO) — base do "tempo aguardando". */
   checkInAt: string | null;
+  /** true se a consulta finalizou SEM cobrança registrada (pendência aberta no
+   *  Financial) — o board destaca o vazamento. Best-effort: ausente = não sabemos. */
+  cobrancaPendente?: boolean;
 }
 
 export interface BoardDoctorDTO {

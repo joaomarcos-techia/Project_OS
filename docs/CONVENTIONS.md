@@ -7,6 +7,27 @@
 
 Este documento é a lei viva do projeto. Edita junto com o PR que muda a convenção. Não decide caso novo aqui — vira ADR primeiro, depois rebaixa o resumo aqui.
 
+## Citar decisão de ADR: SEMPRE `ADR-0XX Dnn`, nunca `Dnn` sozinho
+
+Os números "D" são **namespaced por ADR e COLIDEM**. Não existe registro global. Escrever "D22" é
+ambíguo e já custou tempo real de investigação:
+
+| D# | Em ADR-007 (RLS) | Em ADR-008/009 (Identidade) |
+|---|---|---|
+| **D22** | Predicado de policy dual-context | Middleware ≠ enforcement primário |
+| **D27** | RLS ≠ RBAC | `role_permissions` exige logout operacional |
+| **D31** | `clinics` UPDATE é super_admin-only | Self-service via função column-level |
+| **D34** | Policy SELECT-only em `_reserved_slugs` | Budget de JWT: máx. 128 permissions |
+| **D36** | Função nunca é concedida a PUBLIC | *(também usado p/ o deny-by-default do hook)* |
+
+**Regra:** cite sempre com o prefixo do ADR (`ADR-008 D31`). Ao criar um "D" novo, confira se o número
+já existe **no mesmo ADR** — colidir entre ADRs diferentes é aceitável, dentro do mesmo não.
+
+**Corolário (I-5, 2026-07-16):** um "D" citado por vários docs **não prova que ele existe**. O
+"ADR-008 D6" (MFA) era citado por 6+ documentos e **nunca foi escrito** — a regra de segurança vivia
+só numa linha de prosa do PROGRESS. Antes de citar um D, abra o ADR e confirme que o bullet existe.
+Ver [ADR-038](adr/038-mfa-policy.md).
+
 ## Naming (congelado em C0)
 
 | Camada | Convenção | Exemplo |
@@ -95,7 +116,46 @@ Hoje (C0) só existe `README.md`. Resto entra com a primeira camada do contexto.
 - 🚫 Tabela tenant-scoped sem RLS — ver template abaixo.
 - 🚫 Policy `USING (true)` ou `FOR ALL TO public` — catastrófico, vaza tudo.
 - 🚫 Role check (`gestor`, `owner`, etc.) dentro de RLS policy — ADR-007 D27: RLS isola tenants, RBAC mora em Server Actions via `requireRole(...)`.
+- 🚫 `role === 'doctor'` como gate de **capacidade clínica** — ADR-032 §2: use `isPractitioner` (`@/lib/auth/practitioner`), `getCurrentPractitioner` (usuário logado) ou `practitionerSql` (raw SQL). O médico-dono é `owner` **com CRM**. `crm` como capacidade **só** dentro do predicado. Arch-test barra reincidência.
 - 🚫 `ENABLE ROW LEVEL SECURITY` sem `FORCE` em tabela tenant-scoped — owner bypassa policies.
+- 🚫 Chave Redis com dado de tenant sem `redisKey.tenant(clinicId, …)` — o mesmo isolamento por tenant do Postgres (ADR-002/007) vale no Redis: **toda** chave com dado de clínica carrega o `clinicId` (montado por `redisKey.tenant`, que o põe primeiro e nunca deixa esquecer, espelhando `withTenant`). Chaves globais/pré-auth (IP, `email_hash`) usam `redisKey.global(…)`. Ambas carregam um discriminador de ambiente (`VERCEL_ENV ?? NODE_ENV`) para dev/preview/prod nunca colidirem se compartilharem a Upstash DB. Ponto único hoje em [src/lib/auth/rate-limit.ts](../src/lib/auth/rate-limit.ts) (único uso de Redis); extrair para `src/lib/redis/` **quando** surgir o 2º consumidor (cache/lock/pub-sub) — não antes.
+  - **Exceção registrada (M3/B6):** limiters de rate-limit escopados por clínica usam `redisKey.global('rl',…,'clinic')` + `clinicId` como *identifier* do Upstash — hoje `rl:invite:clinic`, `rl:resend:clinic` e `rl:pdf:clinic` (este com prefixo `admin:` no identifier quando a chamada é de plataforma, para não gastar o orçamento do tenant). Motivo: o `@upstash/ratelimit` monta a chave como `[prefix, identifier].join(':')` com **prefix estático**, e `t:{clinicId}` teria de vir antes dele. A regra protege **dado** de tenant (cache/lock) contra vazamento cross-tenant; um contador cujo próprio identifier é o `clinicId` não tem o que vazar, e o `clinicId` é parâmetro obrigatório dessas funções — não dá para esquecer. **A exceção vale só para contador de rate-limit**: cache/lock por clínica continuam obrigados a `redisKey.tenant`.
+
+## Governança de UI (ADR-031 — vale para TODA mudança de interface, não só a refatoração DS v2)
+
+1. **Design Authority.** `design_system/DSv2.html` é a fonte única da verdade de UI. Nenhuma
+   decisão visual por gosto — sempre pelo DS. Conflito de fato de produto/arquitetura
+   (não-design) → ADRs vencem (`docs/documentation-authority.md`).
+2. **Escada de Minimização de Navegação.** Toda interação nova obedece esta ordem:
+   `Inline → Popover → Dropdown → Dialog → Drawer → Nova aba → Nova página`.
+   Rota nova só quando TODAS as opções acima forem inadequadas — com justificativa escrita
+   em `docs/ui-refactor/ui-inventory.md`.
+3. **"Essa tela deveria existir?"** Pergunta obrigatória antes de tocar qualquer tela —
+   antes de "como melhorar". A resposta pode ser "não" (remover/fundir).
+4. **Justificativa de rota nova.** Quem propõe uma rota escreve: por que inline não resolveu,
+   por que Popover/Dialog/Drawer não resolveram, por que a rota é necessária.
+5. **Zero duplicação.** Antes de escrever QUALQUER componente novo: grep + procurar equivalente
+   (componente, hook, utilitário, card, modal, drawer, tabela, formulário, action, schema,
+   padrão). Se existir: reutilizar ou estender — nunca clonar.
+6. **Complexidade global é exceção.** Antes de criar Provider/Context/hook global, responder
+   por escrito: isso aumenta complexidade? Existe alternativa com composição local/RSC?
+   (Padrão do projeto: RSC + estado local.)
+7. **UI Audit por onda/feature.** Primeira tarefa de qualquer trabalho de UI: para cada tela,
+   responder — existe componente equivalente? padrão visual? fluxo parecido? Drawer/tabela/
+   formulário semelhante? Se sim → reutilizar. Saída registrada no `ui-inventory.md`.
+8. **Checklist de Engenharia de Produto** (responder antes de implementar qualquer tela):
+   - **UX**: exige mesmo uma página? existe forma mais simples? o usuário perde contexto?
+     a ação está perto da informação? reduz cliques? reduz carga cognitiva? segue o DS?
+     é consistente com o resto do produto?
+   - **Engenharia**: já existe componente? hook? utilitário? action? schema? endpoint? padrão?
+   - **Manutenção**: aumenta dívida técnica? aumenta duplicação? introduz padrão novo?
+     precisa ADR? precisa documentação?
+
+Regras de implementação da UI (ADR-018 + ADR-031): tokens SÓ em `src/app/globals.css`
+(nunca redefinir em outro CSS); primitivos em `src/components/ui/` com CVA + `cn`;
+recriar o DS em Tailwind/React idiomático (nunca copiar CSS do protótipo verbatim);
+feedback = toast global (sucesso/erro inesperado) + erro de validação inline no `Field`;
+estados obrigatórios por tela: loading, empty, error, success.
 
 ## Checklist nova tabela (PR template — colar no corpo do PR)
 
@@ -103,6 +163,21 @@ ADR-007 §10 define três categorias. Marque exatamente uma e cumpra o bloco cor
 
 ```markdown
 ### Checklist nova tabela — anti-vazamento
+
+**Passo 0 — O conteúdo desta tabela DECIDE autorização?** (ADR-041 — pergunte ANTES de categorizar.)
+- [ ] **NÃO** — é dado de domínio (pacientes, agendamentos, lançamentos). Siga para o Passo 1.
+- [ ] **SIM** — permissões, roles, overrides, flags de acesso. → **read-only para `authenticated`**,
+      mesmo sendo tenant-scoped: `REVOKE INSERT, UPDATE, DELETE ... FROM anon, authenticated` +
+      policy `FOR SELECT` (nunca `FOR ALL`). A escrita mora em `dbAdmin` atrás do gate, auditada.
+      Ainda cumpra o bloco da categoria (A/B) para o resto.
+
+> **Por que o Passo 0 existe (I-13, 2026-07-16):** `user_permission_overrides` foi categorizada como
+> tenant-scoped, cumpriu o Bloco A à risca — e virou um **escalonamento de privilégio**: qualquer
+> `authenticated` gravava a própria permissão via PostgREST, porque a `defaultTenantPolicy` só compara
+> `clinic_id`, nunca QUEM é o ator. O princípio "RLS ≠ RBAC" (ADR-007 D27) vale para tabela de
+> DOMÍNIO, onde toda escrita passa por uma Server Action — a premissa "a app guarda a porta" é FALSA
+> quando o PostgREST expõe escrita direta. Escrever direto em dado de domínio dá dado errado; em dado
+> de authz, dá acesso.
 
 **Passo 1 — Categorizar (ADR-007 §10):** marque UMA opção.
 - [ ] **Tenant-scoped** — possui `clinic_id` FK. Use bloco A.

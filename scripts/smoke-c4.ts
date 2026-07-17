@@ -1045,37 +1045,30 @@ async function functional(): Promise<void> {
     void bSkipped;
   });
 
-  // ---- 4.6.25 cron: x-vercel-cron header é exigido em prod ----
-  await tryStep('4.6.25 Cron: dual-factor — Bearer OK + sem x-vercel-cron em prod = 401', async () => {
-    // Em dev (NODE_ENV != production), OUTBOX_CRON_ALLOW_NON_VERCEL fica true por
-    // default e o smoke passa sem header. Em prod, o header é obrigatório.
-    // Verificamos via override: OUTBOX_CRON_ALLOW_NON_VERCEL=false force a checagem.
-    const original = process.env.OUTBOX_CRON_ALLOW_NON_VERCEL;
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL = 'false';
-    try {
-      const secret = process.env.CRON_SECRET!;
-      const mod = await import('@/app/api/cron/outbox/route');
-      const reqNoHeader = new Request('http://localhost/api/cron/outbox', {
-        headers: { authorization: `Bearer ${secret}` },
-      });
-      const res1 = await mod.GET(reqNoHeader);
-      // Em DEV mesmo com override, NODE_ENV != production faz o env check passar.
-      // O teste real disso só seria em prod. Aqui validamos que o handler trata
-      // x-vercel-cron header explicitamente quando override OFF e env=prod.
-      // Em smoke local, este teste valida apenas o caminho com header presente.
-      const reqWithHeader = new Request('http://localhost/api/cron/outbox', {
-        headers: { authorization: `Bearer ${secret}`, 'x-vercel-cron': '1' },
-      });
-      const res2 = await mod.GET(reqWithHeader);
-      // Header presente → sempre passa (mesmo em prod). Validamos isso.
-      if (res2.status !== 200) throw new Error(`with vercel header: status=${res2.status}`);
-      // Em dev, o req sem header também passa (allowNonVercel fallback NODE_ENV).
-      // Documentamos: este teste real só rejeita em PROD.
-      void res1;
-    } finally {
-      if (original === undefined) delete process.env.OUTBOX_CRON_ALLOW_NON_VERCEL;
-      else process.env.OUTBOX_CRON_ALLOW_NON_VERCEL = original;
-    }
+  // ---- 4.6.25 cron: auth é single-factor (Bearer) ----
+  await tryStep('4.6.25 Cron: Bearer é o gate; x-vercel-cron NÃO é (M2)', async () => {
+    // Este passo afirmava testar "dual-factor: sem x-vercel-cron em prod = 401" —
+    // um comportamento que o código NUNCA teve (o header só era logado). O próprio
+    // corpo admitia (`void res1`) que não verificava nada disso. M2 (auditoria de
+    // APIs) assumiu formalmente o single-factor; o passo agora testa a realidade.
+    const secret = process.env.CRON_SECRET!;
+    const mod = await import('@/app/api/cron/outbox/route');
+    const call = (headers: Record<string, string>) =>
+      mod.GET(new Request('http://localhost/api/cron/outbox', { headers }));
+
+    const semBearer = await call({});
+    if (semBearer.status !== 401) throw new Error(`sem bearer: status=${semBearer.status}`);
+
+    const bearerErrado = await call({ authorization: 'Bearer ' + 'x'.repeat(secret.length) });
+    if (bearerErrado.status !== 401) throw new Error(`bearer errado: status=${bearerErrado.status}`);
+
+    // Bearer válido passa COM ou SEM o header de origem — o header é anomalia
+    // observável (`cron.origin_header_missing`), não gate. Ver F-09 em cron-auth.ts.
+    const semHeader = await call({ authorization: `Bearer ${secret}` });
+    if (semHeader.status !== 200) throw new Error(`bearer ok, sem header: status=${semHeader.status}`);
+
+    const comHeader = await call({ authorization: `Bearer ${secret}`, 'x-vercel-cron': '1' });
+    if (comHeader.status !== 200) throw new Error(`bearer ok, com header: status=${comHeader.status}`);
   });
 
   // ---- 4.6.26 makeProviderIdempotencyKey: deterministic, format-correct ----

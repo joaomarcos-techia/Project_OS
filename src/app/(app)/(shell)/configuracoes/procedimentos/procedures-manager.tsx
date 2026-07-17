@@ -10,8 +10,10 @@ import {
 } from '@/contexts/scheduling/catalog-actions';
 import type { ProcedureSummary } from '@/contexts/scheduling/types';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type Editing = { id: string | null } | null;
 
@@ -28,7 +30,6 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
   const [categoria, setCategoria] = useState('');
   const [valor, setValor] = useState('');
   const [duracao, setDuracao] = useState('30');
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, start] = useTransition();
 
   const filtered = useMemo(() => {
@@ -51,7 +52,6 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
     setCategoria('');
     setValor('');
     setDuracao('30');
-    setMsg(null);
   }
 
   function startEdit(p: ProcedureSummary) {
@@ -61,18 +61,16 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
     setCategoria(p.categoria ?? '');
     setValor(String(p.valorPadrao));
     setDuracao(String(p.duracaoPadraoMin));
-    setMsg(null);
   }
 
   function save() {
-    setMsg(null);
     const valorNum = Number(valor.replace(',', '.'));
     const duracaoNum = Number(duracao);
-    if (!codigo.trim()) return setMsg({ ok: false, text: 'Informe o código.' });
-    if (!descricao.trim()) return setMsg({ ok: false, text: 'Informe a descrição.' });
-    if (!Number.isFinite(valorNum) || valorNum < 0) return setMsg({ ok: false, text: 'Valor inválido.' });
+    if (!codigo.trim()) return toast.error('Informe o código.');
+    if (!descricao.trim()) return toast.error('Informe a descrição.');
+    if (!Number.isFinite(valorNum) || valorNum < 0) return toast.error('Valor inválido.');
     if (!Number.isInteger(duracaoNum) || duracaoNum < 1) {
-      return setMsg({ ok: false, text: 'Duração inválida (minutos).' });
+      return toast.error('Duração inválida (minutos).');
     }
 
     start(async () => {
@@ -87,7 +85,7 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
               valorPadrao: valorNum,
               duracaoPadraoMin: duracaoNum,
             },
-            crypto.randomUUID(),
+            uuidv4(),
           );
         } else {
           await createProcedure(
@@ -98,39 +96,37 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
               valorPadrao: valorNum,
               duracaoPadraoMin: duracaoNum,
             },
-            crypto.randomUUID(),
+            uuidv4(),
           );
         }
         setEditing(null);
-        setMsg({ ok: true, text: 'Procedimento salvo.' });
+        toast.success('Procedimento salvo.');
         router.refresh();
       } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro ao salvar.' });
+        toast.error(err instanceof Error ? err.message : 'Erro ao salvar.');
       }
     });
   }
 
   function deactivate(p: ProcedureSummary) {
     if (!confirm(`Desativar "${p.descricao}"? Atendimentos existentes não são afetados.`)) return;
-    setMsg(null);
     start(async () => {
       try {
-        await deactivateProcedure(p.id, crypto.randomUUID());
+        await deactivateProcedure(p.id, uuidv4());
         router.refresh();
       } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro ao desativar.' });
+        toast.error(err instanceof Error ? err.message : 'Erro ao desativar.');
       }
     });
   }
 
   function reactivate(p: ProcedureSummary) {
-    setMsg(null);
     start(async () => {
       try {
-        await updateProcedure(p.id, { ativo: true }, crypto.randomUUID());
+        await updateProcedure(p.id, { ativo: true }, uuidv4());
         router.refresh();
       } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Erro ao reativar.' });
+        toast.error(err instanceof Error ? err.message : 'Erro ao reativar.');
       }
     });
   }
@@ -158,9 +154,6 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
         </Button>
       </div>
 
-      {msg ? (
-        <p className={`text-sm ${msg.ok ? 'text-success-600' : 'text-danger-600'}`}>{msg.text}</p>
-      ) : null}
 
       {editing ? (
         <div className="cardblock wrap-pad flex flex-col gap-3">

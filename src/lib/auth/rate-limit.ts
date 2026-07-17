@@ -8,12 +8,36 @@
  *
  * F-08 — DISPONIBILIDADE (fail-open + fallback local): se o Upstash estiver
  * inacessível, NÃO derrubamos o login (que ainda exige senha + MFA). Emitimos
- * `auth.ratelimit.degraded` e caímos para um limiter IN-MEMORY POR INSTÂNCIA.
+ * `auth.ratelimit.degraded` (métrica + `logger.warn`, com `reason_category`) e
+ * caímos para um limiter IN-MEMORY POR INSTÂNCIA.
  *
  * **Limitação documentada (ADR):** o fallback in-memory é per-instância. Com N
  * instâncias o limite efetivo é ~N× o configurado e um atacante pode distribuir
  * requisições para multiplicá-lo. É proteção PARCIAL durante outage do Upstash,
  * degradação aceita — NÃO equivalente ao Upstash (que é global). Ver ADR-008/F-08.
+ *
+ * **R7 (auditoria Redis) — semântica na degradação:** o primário é *sliding
+ * window* (suave); o fallback é *fixed-window* (`BoundedFallbackLimiter`), com a
+ * janela ancorada no PRIMEIRO hit da chave (não alinhada ao relógio). Isso permite
+ * um burst na borda de **2×limite − 1** num intervalo arbitrariamente curto
+ * ((limite−1) no fim da janela 1 + limite no início da janela 2) — medido em
+ * [rate-limit.test.ts]. Divergência pequena, ativa SÓ em degradação — ciência ao
+ * ler as métricas de degradação.
+ *
+ * **Chaves Redis (R2/R3 da auditoria):** montadas por `redisKey.*` (ponto único,
+ * espelhando o papel de `withTenant`/`defaultTenantPolicy` no RLS). Toda chave
+ * carrega um discriminador de ambiente (`VERCEL_ENV ?? NODE_ENV`) para que
+ * dev/preview/prod nunca colidam mesmo se compartilharem a Upstash DB. Chaves
+ * globais/pré-auth (IP, email_hash) usam `redisKey.global`; **dado** por clínica
+ * (cache/lock) DEVE usar `redisKey.tenant(clinicId, …)`.
+ *
+ * **Exceção registrada (M3/B6 — está no CONVENTIONS):** os limiters PÓS-auth escopados
+ * por clínica (invite, resend, pdf) usam `redisKey.global('rl',…,'clinic')` + o
+ * `clinicId` como *identifier* do Upstash — que monta a chave como
+ * `[prefix, identifier]` com prefix ESTÁTICO, onde `t:{clinicId}` não caberia primeiro.
+ * Vale só para CONTADOR de rate-limit: o identifier é o próprio clinicId (não tem o que
+ * vazar) e é parâmetro obrigatório da função (não dá para esquecer). Sem esta nota, o
+ * arquivo aparenta violar a regra que ele mesmo enuncia.
  *
  * Server-only.
  */
@@ -23,6 +47,7 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
 import { env } from '@/lib/env';
+import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
 type LimitResult = { ok: true } | { ok: false; reason: 'rate_limited' };
@@ -100,24 +125,127 @@ const fallback = {
   resetIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   resetEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
   joinIp: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
+  acceptIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
+  inviteClinic: new BoundedFallbackLimiter(60, ONE_HOUR_MS),
+  inviteActor: new BoundedFallbackLimiter(30, ONE_HOUR_MS),
+  resendClinic: new BoundedFallbackLimiter(20, ONE_HOUR_MS),
+  resendActor: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
+  mfaUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
+  mfaIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
+  pdfUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
+  pdfClinic: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
 };
 
+/**
+ * Convenção de chaves Redis (R2/R3 da auditoria) — ponto ÚNICO de montagem.
+ *
+ * `envSegment` = discriminador de ambiente. `VERCEL_ENV` (auto-injetado pela
+ * Vercel: production/preview/development) distingue Preview de Production; cai
+ * no `NODE_ENV` fora da Vercel (dev local, CI). Assim dev/preview/prod nunca
+ * colidem no Redis mesmo se apontarem para a mesma Upstash DB por engano — a
+ * separação de DBs continua sendo a defesa primária; isto é cinto-e-suspensório.
+ */
+const envSegment = env.VERCEL_ENV ?? env.NODE_ENV;
+
+export const redisKey = {
+  /** Chave sem dado de tenant. Ex.: `redisKey.global('rl','login','ip')`. */
+  global(...segments: string[]): string {
+    return [envSegment, ...segments].join(':');
+  },
+  /**
+   * Chave com DADO de tenant — o `clinicId` é OBRIGATÓRIO e vem sempre primeiro
+   * (`t:{clinicId}`), para nunca ser esquecido (espelha `withTenant`).
+   *
+   * Ainda sem caller: os limiters por clínica (invite/resend/pdf) são pós-auth mas
+   * usam `global` + clinicId como identifier, pela restrição de prefix estático do
+   * Upstash — ver a exceção no cabeçalho do módulo. Este helper é para o 1º cache ou
+   * lock por clínica, onde há dado de verdade a isolar.
+   */
+  tenant(clinicId: string, ...segments: string[]): string {
+    return [envSegment, `t:${clinicId}`, ...segments].join(':');
+  },
+};
+
+/**
+ * Normaliza um IP para a chave de rate-limit (R4).
+ *   - IPv4 → inalterado.
+ *   - IPv6 → prefixo /64 (primeiros 4 hextets). Um /64 é a menor alocação típica
+ *     por cliente; sem isto, um atacante com um bloco /64 controla 2^64 endereços
+ *     e o limite por-IP vira inócuo.
+ *
+ * SÓ para a chave — `getClientIp` continua devolvendo o IP completo, que alimenta
+ * o audit trail `login_attempts` (forense precisa do IP inteiro).
+ */
+export function ipRateLimitKey(ip: string): string {
+  if (!ip.includes(':')) return ip; // IPv4 (ou vazio) — sem normalização
+  const hextets = expandIpv6(ip);
+  if (!hextets) return ip; // não parseável → fallback seguro (chave original)
+  return hextets.slice(0, 4).join(':') + '::/64';
+}
+
+/**
+ * Expande um IPv6 para 8 hextets, tratando corretamente a compressão `::`
+ * (onde split ingênuo por `:` quebra). Retorna null se não for IPv6 válido.
+ */
+function expandIpv6(ip: string): string[] | null {
+  let addr = ip;
+  const zone = addr.indexOf('%'); // remove zona (%eth0), se houver
+  if (zone !== -1) addr = addr.slice(0, zone);
+
+  const parts = addr.split('::');
+  if (parts.length > 2) return null; // `::` só pode aparecer 1×
+  const head = parts[0] ? parts[0].split(':') : [];
+  const tail = parts.length === 2 && parts[1] ? parts[1].split(':') : [];
+
+  if (parts.length === 1) {
+    return head.length === 8 ? head : null; // sem `::` → exige 8 hextets
+  }
+  const missing = 8 - head.length - tail.length;
+  if (missing < 0) return null;
+  return [...head, ...Array<string>(missing).fill('0'), ...tail];
+}
+
+/**
+ * Classifica o erro do Upstash em categorias ESTRUTURADAS (nunca por parsing de
+ * mensagem — R1 da auditoria). Realidade do `@upstash/redis` v1.38:
+ *   - Resposta de erro do endpoint (inclui 429/cota) → `UpstashError`
+ *     (`err.name === 'UpstashError'`), MAS o status HTTP é DESCARTADO pela lib —
+ *     não dá p/ isolar cota de outros erros de servidor sem parsear string.
+ *   - Falha de transporte (fetch falhou, timeout/`AbortError`, retries esgotados)
+ *     → `Error`/`TypeError` comum, NÃO `UpstashError`.
+ * Daí a divisão honesta `network | server | other` (não `quota`): operadores
+ * correlacionam um pico de `server` com o painel de cota do Upstash (a
+ * recomendação de ops do R1 já pede monitorar a cota).
+ */
+export type DegradedReason = 'network' | 'server' | 'other';
+
+export function classifyRedisError(err: unknown): DegradedReason {
+  if (!(err instanceof Error)) return 'other';
+  // `.name` é propriedade oficial e estável que a lib seta explicitamente.
+  if (err.name === 'UpstashError' || err.name === 'UpstashJSONParseError') return 'server';
+  return 'network'; // AbortError (timeout), TypeError('fetch failed'), retries esgotados
+}
+
+/**
+ * Ponto ÚNICO de emissão da degradação (R1): métrica agregável (SLI) + `logger.warn`
+ * (linha de nível apropriado para a saved-search de alerta do Better Stack, no
+ * MESMO pipeline stdout — sem 2ª fonte da verdade). SEM `captureException`: o
+ * fail-open é by-design e o ADR-029 mantém logs fora do Sentry. `reason` (mensagem
+ * crua, sanitizada nos dois emissores) fica só como diagnóstico, nunca como lógica.
+ */
 function degraded(
-  kind: 'login' | 'reset',
-  ipLimiter: BoundedFallbackLimiter,
-  emailLimiter: BoundedFallbackLimiter,
-  ip: string,
-  emailHash: string,
+  kind: 'login' | 'reset' | 'join' | 'accept' | 'invite' | 'resend' | 'mfa' | 'pdf',
   err: unknown,
+  fallbackAllowed: boolean,
 ): LimitResult {
-  metrics.emit('auth.ratelimit.degraded', {
+  const fields = {
     kind,
+    reason_category: classifyRedisError(err),
     reason: err instanceof Error ? err.message : String(err),
-  });
-  // Fail-open com proteção PARCIAL (per-instância).
-  const ipOk = ipLimiter.hit(ip);
-  const emailOk = emailLimiter.hit(emailHash);
-  return ipOk && emailOk ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  };
+  metrics.emit('auth.ratelimit.degraded', fields);
+  logger.warn('auth.ratelimit.degraded', fields);
+  return fallbackAllowed ? { ok: true } : { ok: false, reason: 'rate_limited' };
 }
 
 const lazyRedis = (() => {
@@ -144,8 +272,8 @@ const lazyLoginLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: 'rl:login:ip', analytics: false }),
-      email: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '15 m'), prefix: 'rl:login:email', analytics: false }),
+      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'login', 'ip'), analytics: false }),
+      email: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '15 m'), prefix: redisKey.global('rl', 'login', 'email'), analytics: false }),
     };
     return cached;
   };
@@ -157,8 +285,8 @@ const lazyResetLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: 'rl:reset:ip', analytics: false }),
-      email: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, '1 h'), prefix: 'rl:reset:email', analytics: false }),
+      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: redisKey.global('rl', 'reset', 'ip'), analytics: false }),
+      email: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, '1 h'), prefix: redisKey.global('rl', 'reset', 'email'), analytics: false }),
     };
     return cached;
   };
@@ -169,10 +297,11 @@ const lazyResetLimiters = (() => {
  * F-08: nunca lança — falha do Upstash → degradado (fail-open + fallback local).
  */
 export async function assertLoginAllowed(ip: string, emailHash: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
   try {
     const { ip: ipLimiter, email: emailLimiter } = lazyLoginLimiters();
     const [ipResult, emailResult] = await Promise.all([
-      ipLimiter.limit(ip),
+      ipLimiter.limit(ipKey),
       emailLimiter.limit(emailHash),
     ]);
     if (!ipResult.success || !emailResult.success) {
@@ -180,7 +309,9 @@ export async function assertLoginAllowed(ip: string, emailHash: string): Promise
     }
     return { ok: true };
   } catch (err) {
-    return degraded('login', fallback.loginIp, fallback.loginEmail, ip, emailHash, err);
+    const ipOk = fallback.loginIp.hit(ipKey);
+    const emailOk = fallback.loginEmail.hit(emailHash);
+    return degraded('login', err, ipOk && emailOk);
   }
 }
 
@@ -190,10 +321,11 @@ export async function assertLoginAllowed(ip: string, emailHash: string): Promise
  * de reset é REALMENTE disparado. F-08: nunca lança (fail-open + fallback).
  */
 export async function assertPasswordResetAllowed(ip: string, emailHash: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
   try {
     const { ip: ipLimiter, email: emailLimiter } = lazyResetLimiters();
     const [ipResult, emailResult] = await Promise.all([
-      ipLimiter.limit(ip),
+      ipLimiter.limit(ipKey),
       emailLimiter.limit(emailHash),
     ]);
     if (!ipResult.success || !emailResult.success) {
@@ -201,7 +333,9 @@ export async function assertPasswordResetAllowed(ip: string, emailHash: string):
     }
     return { ok: true };
   } catch (err) {
-    return degraded('reset', fallback.resetIp, fallback.resetEmail, ip, emailHash, err);
+    const ipOk = fallback.resetIp.hit(ipKey);
+    const emailOk = fallback.resetEmail.hit(emailHash);
+    return degraded('reset', err, ipOk && emailOk);
   }
 }
 
@@ -212,7 +346,7 @@ const lazyJoinLimiter = (() => {
     cached = new Ratelimit({
       redis: lazyRedis(),
       limiter: Ratelimit.slidingWindow(30, '15 m'),
-      prefix: 'rl:join:ip',
+      prefix: redisKey.global('rl', 'join', 'ip'),
       analytics: false,
     });
     return cached;
@@ -225,21 +359,241 @@ const lazyJoinLimiter = (() => {
  * profundidade. F-08: nunca lança (fail-open + fallback per-instância).
  */
 export async function assertJoinAllowed(ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
   try {
-    const r = await lazyJoinLimiter().limit(ip);
+    const r = await lazyJoinLimiter().limit(ipKey);
     return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
   } catch (err) {
-    metrics.emit('auth.ratelimit.degraded', {
-      kind: 'join',
-      reason: err instanceof Error ? err.message : String(err),
+    return degraded('join', err, fallback.joinIp.hit(ipKey));
+  }
+}
+
+const lazyAcceptLimiter = (() => {
+  let cached: Ratelimit | null = null;
+  return () => {
+    if (cached) return cached;
+    cached = new Ratelimit({
+      redis: lazyRedis(),
+      limiter: Ratelimit.slidingWindow(20, '15 m'),
+      prefix: redisKey.global('rl', 'accept', 'ip'),
+      analytics: false,
     });
-    return fallback.joinIp.hit(ip) ? { ok: true } : { ok: false, reason: 'rate_limited' };
+    return cached;
+  };
+})();
+
+/**
+ * Rate limit do aceite de convite (/convite) — por IP (20/15min). I-3/I-12: o link
+ * de convite é uma credencial bearer distribuída out-of-band (WhatsApp, ADR-034);
+ * sem teto, o aceite (que DEFINE a senha do assento) amplia o vetor de takeover por
+ * link vazado. Anônimo por natureza (a sessão vem do magic-link, não há user_id
+ * confiável ainda), então a chave é o IP. F-08: nunca lança (fail-open + fallback).
+ */
+export async function assertInviteAcceptAllowed(ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const r = await lazyAcceptLimiter().limit(ipKey);
+    return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  } catch (err) {
+    return degraded('accept', err, fallback.acceptIp.hit(ipKey));
   }
 }
 
 /**
- * Extrai IP do client a partir de headers Vercel. `x-forwarded-for[0]` é o
- * client real (Vercel garante). Fallback para '0.0.0.0' se ausente.
+ * M3 — tetos de convite e reenvio. Ambos PÓS-auth (`requireFreshPermission
+ * (MANAGE_EMPLOYEES)` já passou): o risco não é o anônimo, é o gestor
+ * autorizado-porém-malicioso (ou a conta dele comprometida) em loop. Por ator pega a
+ * conta comprometida; por clínica impede que N gestores somem para o mesmo efeito.
+ *
+ * **Convite e reenvio têm orçamentos SEPARADOS porque têm economias diferentes:**
+ *
+ *   - **Convite já é limitado pela quota do plano** (`assertUserQuota` — ADR-024): não
+ *     dá para convidar além dos seats contratados, e convite que falha não manda
+ *     e-mail. O teto aqui só barra loop patológico. Precisa caber o onboarding real:
+ *     o maior plano vende **10 seats** (`plan_limits`, migration 0039), e o owner é
+ *     quem convida todos — a 1ª versão usou 10/1h e travaria o cliente no meio do
+ *     próprio onboarding. 30/1h dá folga mesmo se o teto de seats subir.
+ *   - **Reenvio não é limitado por nada.** Cada chamada gera um recovery link REAL no
+ *     Supabase + e-mail, e dá para reenviar ao MESMO endereço infinitas vezes. É o
+ *     vetor caro: sem teto, a marca do cliente vira fonte de spam. 10/1h é de sobra
+ *     para o uso legítimo (reenviar a 1-2 pessoas que não receberam).
+ *
+ * Chave: `redisKey.global('rl','invite','clinic')` + clinicId como identifier — e NÃO
+ * `redisKey.tenant()`. Duas razões: (1) o Upstash monta a chave como
+ * `[prefix, identifier].join(':')` com prefix ESTÁTICO, e `t:{clinicId}` teria de vir
+ * antes dele; (2) a regra de CONVENTIONS protege DADO de tenant (cache/lock) contra
+ * vazamento cross-tenant — um contador cujo próprio identifier é o clinicId não tem o
+ * que vazar, e o clinicId é parâmetro obrigatório aqui, não pode ser esquecido.
+ * F-08: nunca lançam (fail-open + fallback).
+ */
+const lazyInviteLimiters = (() => {
+  let cached: { clinic: Ratelimit; actor: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(60, '1 h'), prefix: redisKey.global('rl', 'invite', 'clinic'), analytics: false }),
+      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 h'), prefix: redisKey.global('rl', 'invite', 'actor'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+const lazyResendLimiters = (() => {
+  let cached: { clinic: Ratelimit; actor: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: redisKey.global('rl', 'resend', 'clinic'), analytics: false }),
+      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: redisKey.global('rl', 'resend', 'actor'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+/** Teto de CONVITE (folgado — a quota do plano é o limite real). Ver o bloco acima. */
+export async function assertInviteAllowed(
+  clinicId: string,
+  actorUserId: string,
+): Promise<LimitResult> {
+  try {
+    const { clinic, actor } = lazyInviteLimiters();
+    const [clinicResult, actorResult] = await Promise.all([
+      clinic.limit(clinicId),
+      actor.limit(actorUserId),
+    ]);
+    if (!clinicResult.success || !actorResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const clinicOk = fallback.inviteClinic.hit(clinicId);
+    const actorOk = fallback.inviteActor.hit(actorUserId);
+    return degraded('invite', err, clinicOk && actorOk);
+  }
+}
+
+/** Teto de REENVIO (apertado — é o caminho caro e sem quota). Ver o bloco acima. */
+export async function assertResendInviteAllowed(
+  clinicId: string,
+  actorUserId: string,
+): Promise<LimitResult> {
+  try {
+    const { clinic, actor } = lazyResendLimiters();
+    const [clinicResult, actorResult] = await Promise.all([
+      clinic.limit(clinicId),
+      actor.limit(actorUserId),
+    ]);
+    if (!clinicResult.success || !actorResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const clinicOk = fallback.resendClinic.hit(clinicId);
+    const actorOk = fallback.resendActor.hit(actorUserId);
+    // `kind: 'resend'`, não 'invite': os orçamentos são separados justamente porque
+    // as economias diferem, e a métrica de degradação tem de dizer QUAL degradou.
+    return degraded('resend', err, clinicOk && actorOk);
+  }
+}
+
+const lazyMfaLimiters = (() => {
+  let cached: { user: Ratelimit; ip: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      user: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'mfa', 'user'), analytics: false }),
+      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '15 m'), prefix: redisKey.global('rl', 'mfa', 'ip'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * M3: rate limit da superfície MFA (verify no login + enroll/unenroll). Hoje o
+ * brute-force do 2º fator depende SÓ do throttle do GoTrue — defesa de terceiro,
+ * sem visibilidade nossa. 10/15min por usuário deixa folga para quem erra o código
+ * (o TOTP roda a cada 30s) e ainda torna os 10^6 códigos inviáveis. O limite por IP
+ * (20/15min) é mais frouxo de propósito: uma clínica atrás de NAT compartilha IP.
+ *
+ * F-08: nunca lança (fail-open + fallback per-instância).
+ */
+export async function assertMfaAllowed(userId: string, ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const { user, ip: ipLimiter } = lazyMfaLimiters();
+    const [userResult, ipResult] = await Promise.all([user.limit(userId), ipLimiter.limit(ipKey)]);
+    if (!userResult.success || !ipResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const userOk = fallback.mfaUser.hit(userId);
+    const ipOk = fallback.mfaIp.hit(ipKey);
+    return degraded('mfa', err, userOk && ipOk);
+  }
+}
+
+const lazyPdfLimiters = (() => {
+  let cached: { user: Ratelimit; clinic: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      user: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'pdf', 'user'), analytics: false }),
+      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '15 m'), prefix: redisKey.global('rl', 'pdf', 'clinic'), analytics: false }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * B6: teto das rotas que rendem PDF (`/relatorios/pdf`, export de auditoria do
+ * admin). O render é `@react-pdf` sobre yoga/WASM — caro em CPU e memória, e sem
+ * teto um usuário AUTENTICADO degrada a instância só pedindo PDFs em sequência.
+ * Não é defesa contra anônimo; é contra o custo desproporcional por request.
+ *
+ * `scope` separa os baldes: o export do admin passa a **clínica-alvo** como chave, e
+ * sem separação um super_admin exportando em lote consumiria o orçamento de PDF DA
+ * CLÍNICA — barrando os usuários dela de gerar os próprios relatórios. Atividade de
+ * plataforma não gasta orçamento de tenant.
+ *
+ * F-08: nunca lança (fail-open + fallback per-instância).
+ */
+export async function assertPdfExportAllowed(
+  clinicId: string,
+  userId: string,
+  scope: 'tenant' | 'admin' = 'tenant',
+): Promise<LimitResult> {
+  const clinicKey = scope === 'admin' ? `admin:${clinicId}` : clinicId;
+  try {
+    const { user, clinic } = lazyPdfLimiters();
+    const [userResult, clinicResult] = await Promise.all([
+      user.limit(userId),
+      clinic.limit(clinicKey),
+    ]);
+    if (!userResult.success || !clinicResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const userOk = fallback.pdfUser.hit(userId);
+    const clinicOk = fallback.pdfClinic.hit(clinicKey);
+    return degraded('pdf', err, userOk && clinicOk);
+  }
+}
+
+/**
+ * Extrai o IP do client a partir de headers Vercel. Devolve o IP COMPLETO (o
+ * caller usa também no audit trail `login_attempts` — a normalização /64 para
+ * chave de rate-limit vive em `ipRateLimitKey`, não aqui).
+ *
+ * **Premissa "atrás do Vercel" (R4):** `x-forwarded-for[0]` é confiável porque a
+ * plataforma sobrescreve o XFF com o IP real do client. Fora do Vercel / atrás de
+ * outro proxy o XFF é SPOOFÁVEL — ao migrar de infra, derivar o client IP de um
+ * header confiável da própria borda, NUNCA do XFF cru. Fallback '0.0.0.0'.
  */
 export function getClientIp(headers: Headers): string {
   const xff = headers.get('x-forwarded-for');
@@ -251,3 +605,6 @@ export function getClientIp(headers: Headers): string {
   if (real) return real.trim();
   return '0.0.0.0';
 }
+
+/** Test-only — expõe o ponto privado de emissão de degradação (padrão do repo). */
+export const __testing__ = { degraded, envSegment };

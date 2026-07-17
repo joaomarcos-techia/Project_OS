@@ -32,6 +32,23 @@ const DESTRUCTIVE: ReadonlyArray<{ kind: string; re: RegExp }> = [
   { kind: 'TRUNCATE', re: /\btruncate\b/i },
 ];
 
+/**
+ * `TRUNCATE` é AMBÍGUO em SQL: é um COMANDO (`TRUNCATE tabela` — apaga dados) e
+ * também o nome de um PRIVILÉGIO (`REVOKE ... TRUNCATE ... FROM role` — que é o
+ * OPOSTO de apagar: endurece a permissão).
+ *
+ * Sem distinguir os dois, o gate dá falso positivo justamente nas migrations que
+ * ENDURECEM permissões (0040), e a única saída seria marcar o arquivo inteiro com
+ * `destructive-approved` — o que silenciaria o gate para um `DROP TABLE` futuro no
+ * MESMO arquivo. Um falso positivo que ensina a desligar o alarme é pior do que
+ * não ter alarme.
+ *
+ * Regra: dentro de um statement GRANT/REVOKE, `TRUNCATE` é privilégio, não comando.
+ * `DROP *` segue valendo em qualquer contexto (não há privilégio chamado "DROP").
+ */
+const PRIVILEGE_STATEMENT = /^\s*(grant|revoke)\b/i;
+const TRUNCATE_KIND = 'TRUNCATE';
+
 export interface Finding {
   file: string;
   line: number;
@@ -43,6 +60,40 @@ export interface Finding {
 function stripComment(line: string): string {
   const i = line.indexOf('--');
   return i === -1 ? line : line.slice(0, i);
+}
+
+/**
+ * Varre UM arquivo SQL. Statement a statement (não linha a linha), porque saber se
+ * um `TRUNCATE` é comando ou privilégio exige o começo do statement — que pode
+ * estar numa linha anterior (`REVOKE ...\n  ON tabela FROM role;`).
+ *
+ * Exportada para teste (`src/lib/db/migration-safety.test.ts`).
+ */
+export function scanSql(file: string, raw: string): Finding[] {
+  const findings: Finding[] = [];
+  const originalLines = raw.split(/\r?\n/);
+  // Tira comentários preservando as quebras de linha, para a contagem não deslizar.
+  const code = originalLines.map(stripComment).join('\n');
+
+  let cursor = 0;
+  for (const statement of code.split(';')) {
+    const isPrivilegeStatement = PRIVILEGE_STATEMENT.test(statement);
+    for (const d of DESTRUCTIVE) {
+      const match = d.re.exec(statement);
+      if (!match) continue;
+      // Dentro de GRANT/REVOKE, TRUNCATE é o nome do privilégio — não apaga nada.
+      if (d.kind === TRUNCATE_KIND && isPrivilegeStatement) continue;
+      const line = code.slice(0, cursor + match.index).split('\n').length;
+      findings.push({
+        file,
+        line,
+        kind: d.kind,
+        text: (originalLines[line - 1] ?? '').trim().slice(0, 120),
+      });
+    }
+    cursor += statement.length + 1; // +1 = o ';' consumido pelo split
+  }
+  return findings;
 }
 
 export function scanMigrations(): { findings: Finding[]; approved: string[] } {
@@ -58,14 +109,7 @@ export function scanMigrations(): { findings: Finding[]; approved: string[] } {
       approved.push(file);
       continue; // arquivo explicitamente aprovado — não reporta
     }
-    raw.split(/\r?\n/).forEach((line, idx) => {
-      const code = stripComment(line);
-      for (const d of DESTRUCTIVE) {
-        if (d.re.test(code)) {
-          findings.push({ file, line: idx + 1, kind: d.kind, text: line.trim().slice(0, 120) });
-        }
-      }
-    });
+    findings.push(...scanSql(file, raw));
   }
   return { findings, approved };
 }

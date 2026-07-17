@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import { fieldControlClassName } from './input';
 
 /**
  * Campo de data BR — exibe/aceita **dd/mm/aaaa** (com máscara), independente do
@@ -69,7 +70,7 @@ export function DateField({
         disabled={disabled}
         id={id}
         aria-label={ariaLabel}
-        className={cn(className ?? 'input')}
+        className={cn(fieldControlClassName, className)}
         style={style}
       />
       {/* Valor real enviado no form: ISO (vazio se incompleto/ inválido). */}

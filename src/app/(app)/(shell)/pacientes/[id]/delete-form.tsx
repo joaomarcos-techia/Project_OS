@@ -5,12 +5,13 @@ import { useActionState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 
 import { deletePatientForm, type PatientFormState } from '../actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 const INITIAL: PatientFormState = { error: null };
 
 export function DeletePatientForm({ id }: { id: string }) {
   const [state, formAction, pending] = useActionState(deletePatientForm, INITIAL);
-  const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
+  const idempotencyKey = useMemo(() => uuidv4(), []);
   return (
     <form action={formAction} className="mt-2">
       <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">Excluir (operacional)</h2>

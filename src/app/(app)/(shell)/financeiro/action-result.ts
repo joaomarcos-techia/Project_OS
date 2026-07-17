@@ -13,12 +13,22 @@ export function ok<T>(data: T): ActionResult<T> {
 const MSG: Record<string, string> = {
   SupplierNotFoundError: 'Fornecedor não encontrado.',
   LancamentoNotFoundError: 'Lançamento não encontrado.',
-  FinancialForbiddenError: 'Você não tem permissão para esta ação.',
   IdempotencyInFlightError: 'Processando — tente de novo em instantes.',
   IdempotencyConflictError: 'Requisição duplicada detectada.',
 };
 
+/** B2 — a porta única lança `AuthError`; ver o WHY em [caixa-types.ts]. */
+function authMessage(err: unknown): string | null {
+  if (!(err instanceof Error) || err.name !== 'AuthError') return null;
+  const code = (err as { code?: string }).code;
+  if (code === 'forbidden') return 'Você não tem permissão para esta ação.';
+  if (code === 'unauthenticated') return 'Sua sessão expirou. Entre novamente.';
+  return null;
+}
+
 export function fail(err: unknown): ActionResult<never> {
+  const auth = authMessage(err);
+  if (auth) return { ok: false, message: auth };
   const name = err instanceof Error ? err.name : '';
   if (name === 'FinancialValidationError' && err instanceof Error) {
     return { ok: false, message: err.message };

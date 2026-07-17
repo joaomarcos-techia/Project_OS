@@ -1,6 +1,6 @@
 # Documentação do ClinicaOS — Índice Mestre
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2026-10-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-13 · **Próxima revisão:** 2026-10-01
 
 Esta é a **porta de entrada** da engenharia do ClinicaOS — a memória externa do projeto. Se você é novo, comece em [Começe aqui](#começe-aqui). Se procura algo específico, use o [mapa por intenção](#mapa-por-intenção).
 
@@ -68,6 +68,23 @@ Esta é a **porta de entrada** da engenharia do ClinicaOS — a memória externa
 | Security headers / CSP | [adr/030-security-headers-csp.md](./adr/030-security-headers-csp.md) |
 | Incidente de dados (72h) | [runbooks/lgpd-breach-72h.md](./runbooks/lgpd-breach-72h.md) |
 
+### 🔍 Auditorias & achados (`achados/`)
+
+Auditorias especializadas do código/segurança/arquitetura (2026-07). Cada uma é auto-contida, cita
+`arquivo:linha` e cruza-referencia as irmãs — leia o **Resumo Executivo** de cada uma primeiro.
+
+| Auditoria | Data | Escopo |
+|---|---|---|
+| [Segurança de código](./achados/auditoria-seguranca-codigo.md) | 2026-07-12 | Resistência a ataques, brechas de authz, exposição de dados (lente de ataque) |
+| [APIs / autorização](./achados/auditoria-apis-seguranca.md) | 2026-07-12 | Superfície de API — route handlers, webhooks, crons, Server Actions |
+| [Autenticação / identidade](./achados/auditoria-autenticacao-identidade.md) | 2026-07-12 | Camada de identidade ponta a ponta — auth, sessão, tokens/claims |
+| [Banco de dados](./achados/auditoria-banco-dados.md) | 2026-07-12 | Schema, RLS `FORCE`, isolamento dual-context, índices |
+| [Redis / arquitetura](./achados/auditoria-redis-arquitetura.md) | 2026-07-13 | Todo o uso de Redis (rate-limit, quota, breaker) e implicações de escala |
+| [Simplificação de código](./achados/auditoria-simplificacao-codigo.md) | 2026-07-13 | Complexidade acidental, duplicação, abstrações — *report-only* |
+
+Outros relatórios em `achados/`: [refatoração UI/UX](./achados/ui-ux-refactor-report.md) · o
+[relatório da modernização da doc](./achados/documentation-modernization-report.md) (ver Governança, abaixo).
+
 ### 📚 Governança da documentação
 | Quero… | Vá para |
 |---|---|
@@ -118,5 +135,5 @@ docs/
 ├── contracts/     → contratos de eventos
 ├── implementation/→ planos de follow-up + relatórios (README desambigua)
 ├── audits/ · remediation/ → registro histórico
-└── achados/       → relatório da modernização
+└── achados/       → auditorias de código/segurança/arquitetura + relatórios (modernização, UI/UX)
 ```

@@ -5,6 +5,8 @@ import {
   getCashFlowToday,
   getClinicTimezone,
   listLancamentos,
+  listPaymentMethods,
+  listSuppliers,
 } from '@/contexts/financial/queries';
 import type {
   LancamentoStatus,
@@ -14,14 +16,30 @@ import type {
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Field } from '@/components/ui/field';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
+import { StatCard } from '@/components/ui/stat-card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableCellStack,
+  TableFoot,
+  TableFootInfo,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroll,
+  TableWrap,
+} from '@/components/ui/table';
+import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
 import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { formatBRL, formatDatePt } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
+
+import { NewLancamentoDrawer } from './new-lancamento-drawer';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,147 +62,170 @@ const isTipo = (v: string | undefined): v is LancamentoTipo => v === 'receber' |
 const isStatus = (v: string | undefined): v is LancamentoStatus =>
   v === 'pendente' || v === 'parcial' || v === 'pago' || v === 'cancelado' || v === 'estornado';
 
-function StatTile({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="stat-tile">
-      <div className="st-top">
-        <span className="st-l">{label}</span>
-      </div>
-      <div className={cn('st-v tabular-nums', tone)}>{value}</div>
-    </div>
-  );
-}
-
 export default async function FinanceiroPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tipo?: string; status?: string }>;
+  searchParams: Promise<{ tipo?: string; status?: string; novo?: string }>;
 }) {
   const user = await requireUser();
   await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {
     return (
-      <div className="screen">
+      <>
         <PageHeader title="Financeiro" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para o financeiro.
         </Alert>
-      </div>
+      </>
     );
   }
 
   const clinicId = user.clinicId;
   const canManage = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
-  const { tipo, status } = await searchParams;
+  const { tipo, status, novo } = await searchParams;
   const tz = await getClinicTimezone(clinicId);
   const { from, to } = clinicDayBounds(tz);
 
-  const [flow, lancamentos] = await Promise.all([
+  const [flow, lancamentos, suppliers, methods] = await Promise.all([
     getCashFlowToday(clinicId, from, to),
     listLancamentos(clinicId, {
       ...(isTipo(tipo) ? { tipo } : {}),
       ...(isStatus(status) ? { status } : {}),
       limit: 50,
     }),
+    canManage ? listSuppliers(clinicId, { onlyActive: true }) : Promise.resolve([]),
+    canManage ? listPaymentMethods(clinicId) : Promise.resolve([]),
   ]);
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Gestão <span className="sep">›</span> <b>Financeiro</b>
-          </>
-        }
+        crumbs={[{ label: 'Gestão' }, { label: 'Financeiro' }]}
         title="Financeiro"
         description="Visão geral do caixa e dos lançamentos da clínica."
         actions={
           <>
             <Link
               href="/financeiro/fornecedores"
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+              className={buttonVariants({ variant: 'secondary', size: 'sm' })}
             >
               Fornecedores
             </Link>
             {canManage ? (
-              <Link
-                href="/financeiro/lancamentos/novo"
-                className={buttonVariants({ variant: 'primary', size: 'sm' })}
-              >
-                Novo lançamento
-              </Link>
+              <NewLancamentoDrawer
+                suppliers={suppliers}
+                methods={methods}
+                defaultOpen={novo === '1'}
+              />
             ) : null}
           </>
         }
       />
 
-      <div className="stat-row five" style={{ marginBottom: 'var(--sp-4)' }}>
-        <StatTile label="A receber" value={formatBRL(flow.receber)} tone="text-warning-600" />
-        <StatTile label="A pagar" value={formatBRL(flow.pagar)} tone="text-warning-600" />
-        <StatTile label="Recebido hoje" value={formatBRL(flow.recebidoHoje)} tone="text-success-600" />
-        <StatTile label="Pago hoje" value={formatBRL(flow.pagoHoje)} />
-        <StatTile
+      <div className="mb-(--sp-4) grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
+        <StatCard label="A receber" value={formatBRL(flow.receber)} />
+        <StatCard label="A pagar" value={formatBRL(flow.pagar)} />
+        <StatCard label="Recebido hoje" value={formatBRL(flow.recebidoHoje)} />
+        <StatCard label="Pago hoje" value={formatBRL(flow.pagoHoje)} />
+        <StatCard
           label="Saldo hoje"
-          value={formatBRL(flow.saldoHoje)}
-          tone={flow.saldoHoje >= 0 ? 'text-success-600' : 'text-danger-600'}
+          value={
+            <span className={flow.saldoHoje >= 0 ? 'text-success-600' : 'text-danger-600'}>
+              {formatBRL(flow.saldoHoje)}
+            </span>
+          }
         />
       </div>
 
-      <form className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="Tipo">
-          <Select name="tipo" defaultValue={tipo ?? ''} className="min-w-40">
-            <option value="">Todos</option>
-            <option value="receber">A receber</option>
-            <option value="pagar">A pagar</option>
-          </Select>
-        </Field>
-        <Field label="Status">
-          <Select name="status" defaultValue={status ?? ''} className="min-w-40">
-            <option value="">Todos</option>
-            <option value="pendente">Pendente</option>
-            <option value="parcial">Parcial</option>
-            <option value="pago">Pago</option>
-            <option value="cancelado">Cancelado</option>
-            <option value="estornado">Estornado</option>
-          </Select>
-        </Field>
-        <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-          Filtrar
-        </button>
-      </form>
-
-      {lancamentos.length === 0 ? (
-        <EmptyState title="Nenhum lançamento" description="Ajuste os filtros ou crie um lançamento." />
-      ) : (
-        <div className="cardblock">
-          <div className="listrows">
-            {lancamentos.map((l: LancamentoSummary) => (
-              <div key={l.id} className="listrow">
-                <div className="lr-main">
-                  <b>{l.descricao}</b>
-                  <span className="lr-sub">
-                    {l.tipo === 'receber' ? 'A receber' : 'A pagar'} · venc.{' '}
-                    {formatDatePt(l.dueDate)} · {formatDatePt(l.createdAt)}
-                  </span>
-                </div>
-                <div className="lr-end">
-                  <span
-                    className={cn(
-                      'tabular-nums',
-                      l.tipo === 'receber' ? 'text-success-700' : 'text-danger-700',
-                    )}
-                  >
-                    {l.tipo === 'receber' ? '+' : '−'}
-                    {formatBRL(l.valor)}
-                  </span>
-                  <Badge tone={STATUS_TONE[l.status]}>{STATUS_LABEL[l.status]}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      <TableWrap>
+        <TableToolbar>
+          <form className="flex flex-wrap items-center gap-2">
+            <Select
+              name="tipo"
+              defaultValue={tipo ?? ''}
+              aria-label="Filtrar por tipo"
+              className="min-w-36"
+            >
+              <option value="">Todos os tipos</option>
+              <option value="receber">A receber</option>
+              <option value="pagar">A pagar</option>
+            </Select>
+            <Select
+              name="status"
+              defaultValue={status ?? ''}
+              aria-label="Filtrar por status"
+              className="min-w-36"
+            >
+              <option value="">Todos os status</option>
+              <option value="pendente">Pendente</option>
+              <option value="parcial">Parcial</option>
+              <option value="pago">Pago</option>
+              <option value="cancelado">Cancelado</option>
+              <option value="estornado">Estornado</option>
+            </Select>
+            <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+              Filtrar
+            </button>
+          </form>
+          <TableToolbarSpacer />
+        </TableToolbar>
+        {lancamentos.length === 0 ? (
+          <EmptyState
+            title="Nenhum lançamento"
+            description="Ajuste os filtros ou crie um lançamento."
+          />
+        ) : (
+          <>
+            <TableScroll>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead numeric>Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lancamentos.map((l: LancamentoSummary) => (
+                    <TableRow key={l.id}>
+                      <TableCell>
+                        <TableCellStack
+                          main={l.descricao}
+                          sub={`${l.tipo === 'receber' ? 'A receber' : 'A pagar'} · criado ${formatDatePt(l.createdAt)}`}
+                        />
+                      </TableCell>
+                      <TableCell className="text-fg-muted">{formatDatePt(l.dueDate)}</TableCell>
+                      <TableCell>
+                        <Badge tone={STATUS_TONE[l.status]} dot>
+                          {STATUS_LABEL[l.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell
+                        numeric
+                        className={cn(
+                          'font-medium',
+                          l.tipo === 'receber' ? 'text-success-700' : 'text-danger-700',
+                        )}
+                      >
+                        {l.tipo === 'receber' ? '+' : '−'}
+                        {formatBRL(l.valor)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableScroll>
+            <TableFoot>
+              <TableFootInfo>
+                {lancamentos.length} lançamento{lancamentos.length === 1 ? '' : 's'}
+                {lancamentos.length === 50 ? ' (mostrando os 50 mais recentes)' : ''}
+              </TableFootInfo>
+            </TableFoot>
+          </>
+        )}
+      </TableWrap>
+    </>
   );
 }

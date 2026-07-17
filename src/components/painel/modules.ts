@@ -22,7 +22,6 @@ export const MODULES: NavModule[] = [
   { id: 'agenda', icon: 'calendar', label: 'Agenda', group: 'Operação', href: '/agenda' },
   { id: 'consultorio', icon: 'stethoscope', label: 'Consultório', group: 'Operação', href: '/consultorio' },
   { id: 'pacientes', icon: 'users', label: 'Pacientes', group: 'Clínico', href: '/pacientes' },
-  { id: 'prontuario', icon: 'record', label: 'Prontuário', group: 'Clínico', href: '/prontuarios' },
   { id: 'documentos', icon: 'docs', label: 'Documentos', group: 'Clínico', href: '/documentos' },
   { id: 'financeiro', icon: 'wallet', label: 'Financeiro', group: 'Gestão', href: '/financeiro' },
   { id: 'caixa', icon: 'cash', label: 'Caixa', group: 'Gestão', href: '/caixa' },

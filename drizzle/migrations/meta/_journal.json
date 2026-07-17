@@ -260,6 +260,55 @@
       "when": 1782702410125,
       "tag": "0036_system_metrics_daily",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1783272435137,
+      "tag": "0037_profiles_invite_and_crm",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1783300000000,
+      "tag": "0038_security_definer_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784131200000,
+      "tag": "0039_plan_pro_seats_10",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784217600000,
+      "tag": "0040_auth_epoch_and_overrides_lockdown",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1784217700000,
+      "tag": "0041_invite_acceptance_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1784217800000,
+      "tag": "0042_revoke_login_attempt_anon",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1784217900000,
+      "tag": "0043_revoke_bump_overrides_trigger_fn",
+      "breakpoints": true
     }
   ]
 }

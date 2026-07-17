@@ -6,6 +6,7 @@ import { useRef, useState, useTransition, type ChangeEvent } from 'react';
 import { updateClinicProfile, uploadClinicLogo } from '@/contexts/tenancy/actions';
 import type { ClinicProfile } from '@/contexts/tenancy/types';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB (espelha CLINIC_LOGO_MAX_BYTES)
@@ -21,7 +22,6 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
   const [cnpj, setCnpj] = useState(initial.cnpj ?? '');
   const [cnes, setCnes] = useState(initial.cnes ?? '');
   const [logoUrl, setLogoUrl] = useState(initial.logoUrl ?? '');
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, startSave] = useTransition();
   const [uploading, startUpload] = useTransition();
 
@@ -29,12 +29,11 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
     const file = e.target.files?.[0];
     e.target.value = ''; // permite re-selecionar o mesmo arquivo
     if (!file) return;
-    setMsg(null);
     if (!ACCEPT.split(',').includes(file.type)) {
-      return setMsg({ ok: false, text: 'Formato inválido. Use PNG, JPG ou WEBP.' });
+      return toast.error('Formato inválido. Use PNG, JPG ou WEBP.');
     }
     if (file.size > MAX_LOGO_BYTES) {
-      return setMsg({ ok: false, text: `Imagem muito grande (máx. ${MAX_LOGO_LABEL}).` });
+      return toast.error(`Imagem muito grande (máx. ${MAX_LOGO_LABEL}).`);
     }
     const fd = new FormData();
     fd.append('file', file);
@@ -42,16 +41,15 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
       const res = await uploadClinicLogo(fd);
       if (res.ok) {
         setLogoUrl(res.url);
-        setMsg({ ok: true, text: 'Logo enviado. Clique em “Salvar perfil” para aplicar.' });
+        toast.success('Logo enviado. Clique em “Salvar perfil” para aplicar.');
       } else {
-        setMsg({ ok: false, text: res.message });
+        toast.error(res.message);
       }
     });
   }
 
   function save() {
-    setMsg(null);
-    if (!nome.trim()) return setMsg({ ok: false, text: 'Informe o nome da clínica.' });
+    if (!nome.trim()) return toast.error('Informe o nome da clínica.');
     startSave(async () => {
       const res = await updateClinicProfile({
         nome: nome.trim(),
@@ -62,19 +60,16 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
         logoUrl: logoUrl.trim(),
       });
       if (res.ok) {
-        setMsg({ ok: true, text: 'Perfil salvo.' });
+        toast.success('Perfil salvo.');
         router.refresh();
       } else {
-        setMsg({ ok: false, text: res.message });
+        toast.error(res.message);
       }
     });
   }
 
   return (
     <div className="stack" style={{ maxWidth: 560 }}>
-      {msg ? (
-        <p className={`text-sm ${msg.ok ? 'text-success-600' : 'text-danger-600'}`}>{msg.text}</p>
-      ) : null}
 
       {/* Dados do documento */}
       <div className="cardblock wrap-pad flex flex-col gap-3">

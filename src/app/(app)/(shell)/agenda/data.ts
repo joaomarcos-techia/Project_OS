@@ -2,6 +2,8 @@ import 'server-only';
 
 import { sql } from 'drizzle-orm';
 
+import { practitionerSql, profiles } from '@/contexts/identity';
+import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listPatientCards } from '@/contexts/patient/queries';
 import { getClinicTimezone, listAppointments, listProcedures } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
@@ -30,7 +32,7 @@ export interface DoctorOption {
 }
 export interface AgendaData {
   hasClinic: boolean;
-  isDoctor: boolean;
+  isPractitioner: boolean;
   selfDoctorId: string | null;
   appointments: AgendaAppt[];
   procedures: ProcedureOption[];
@@ -74,7 +76,7 @@ function clinicDayBounds(tz: string): { from: Date; to: Date } {
 
 const EMPTY: AgendaData = {
   hasClinic: false,
-  isDoctor: false,
+  isPractitioner: false,
   selfDoctorId: null,
   appointments: [],
   procedures: [],
@@ -85,7 +87,7 @@ export async function getAgendaData(): Promise<AgendaData> {
   const user = await requireUser();
   if (!user.clinicId) return EMPTY;
   const clinicId = user.clinicId;
-  const isDoctor = user.role === 'doctor';
+  const isPractitioner = await getCurrentPractitioner();
 
   const tz = (await getClinicTimezone(clinicId)) ?? DEFAULT_TZ;
   const { from, to } = clinicDayBounds(tz);
@@ -103,7 +105,7 @@ export async function getAgendaData(): Promise<AgendaData> {
   const docRows = (await withTenant(clinicId, (tx) =>
     tx.execute(
       sql`SELECT id::text AS id, nome FROM profiles
-          WHERE role = 'doctor' AND ativo = true AND deleted_at IS NULL
+          WHERE ${practitionerSql(profiles.role, profiles.crm)} AND ativo = true AND deleted_at IS NULL
           ORDER BY nome`,
     ),
   )) as unknown as Array<{ id: string; nome: string }>;
@@ -119,8 +121,8 @@ export async function getAgendaData(): Promise<AgendaData> {
 
   return {
     hasClinic: true,
-    isDoctor,
-    selfDoctorId: isDoctor ? user.userId : null,
+    isPractitioner,
+    selfDoctorId: isPractitioner ? user.userId : null,
     appointments,
     procedures,
     doctors,

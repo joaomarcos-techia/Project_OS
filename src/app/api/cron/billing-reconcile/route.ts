@@ -11,7 +11,8 @@ import { and, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady, env } from '@/lib/env';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
@@ -24,25 +25,10 @@ export const maxDuration = 60;
 
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 
-function isAuthorized(req: Request): boolean {
-  if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
-  const hasOriginHeader =
-    req.headers.get('x-vercel-cron') !== null ||
-    req.headers.get('x-vercel-cron-schedule') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  if (!hasOriginHeader && !allowNonVercel) {
-    metrics.emit('cron.origin_header_missing', { route: 'billing-reconcile' });
-  }
-  return true;
-}
-
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  if (!isAuthorized(req)) {
-    metrics.emit('cron.unauthorized', { route: 'billing-reconcile' });
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const denied = assertCronAuth(req, { route: 'billing-reconcile' });
+  if (denied) return denied;
 
   const [run] = await dbAdmin
     .insert(billingReconciliationRuns)
@@ -86,6 +72,14 @@ export async function GET(req: Request): Promise<Response> {
       .set({ finishedAt: sql`now()`, foundDivergences: found, fixedCount: fixed })
       .where(sql`id = ${run!.id}`);
 
+    if (found > 0) {
+      // V3 (auditoria de segurança): o webhook do Asaas é sinal rápido NÃO-
+      // autoritativo (sem HMAC de corpo — só token estático). Divergência aqui =
+      // o Asaas confirma um pagamento que o webhook NÃO refletiu → evento
+      // perdido OU forjado/adulterado. Alarme dedicado para o monitoramento
+      // (C16) reagir; a reconciliação diária permanece a fonte da verdade.
+      metrics.emit('billing.reconcile.divergence', { found, fixed, runId: run!.id });
+    }
     metrics.emit('billing.reconcile.run', { scanned: 0, found, fixed });
     await recordHeartbeat('billing-reconcile', 'success', { found, fixed });
     return Response.json({ ok: true, found, fixed }, { status: 200 });

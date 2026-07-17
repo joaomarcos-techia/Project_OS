@@ -98,6 +98,25 @@ const config = [
     },
   },
 
+  // crypto.randomUUID só existe em CONTEXTO SEGURO (https/localhost) — em
+  // client components quebra ao acessar via http://IP (dev na rede, mobile).
+  // Use uuidv4() de @/lib/ui/uuid (fallback getRandomValues). Server code
+  // (actions/route handlers, Node) pode continuar usando crypto.randomUUID.
+  {
+    files: ['src/components/**/*.{ts,tsx}', 'src/app/**/*.tsx'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'crypto',
+          property: 'randomUUID',
+          message:
+            'crypto.randomUUID quebra em contexto não-seguro (http://IP). Use uuidv4() de "@/lib/ui/uuid".',
+        },
+      ],
+    },
+  },
+
   // C1 db guard #1: `postgres` driver may ONLY be imported by:
   //   - src/lib/db/index.ts (canonical pool factory for the app)
   //   - scripts/db-migrate-prod.ts (needs dedicated 1-shot connection against
@@ -192,6 +211,19 @@ const config = [
       // justificativa dos read-models acima — também na allowlist do arch:db-check.
       'src/contexts/onboarding/internal/invites.ts',
       'src/contexts/onboarding/internal/saga.ts',
+      // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
+      // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
+      // authenticated (D31). Mesma justificativa da saga de onboarding.
+      'src/contexts/identity/internal/members.ts',
+      // I-2 (ADR-039): ciclo de vida de membro aceito (desativar/reativar/trocar role/
+      // override). Escrita ADMINISTRATIVA em profiles/overrides — a autorização já
+      // aconteceu no gate; profiles/overrides não têm UPDATE p/ authenticated (D31 /
+      // I-13). Escopo defensivo por clinic_id (V1.2). Irmão de members.ts.
+      'src/contexts/identity/internal/lifecycle.ts',
+      // I-11a (0042): auditoria de login roda por service_role (dbAdmin), não mais por
+      // anon via PostgREST. record_login_attempt é SECURITY DEFINER (D9); dbAdmin tem
+      // EXECUTE. Ponto ÚNICO e privilegiado — best-effort, nunca bloqueia o login.
+      'src/lib/auth/login-audit.ts',
       // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
       // (0001/S5) → a escrita do tenant roteia por dbAdmin+audit aqui, com
       // colunas fixas e WHERE id=clinicId (do request). Irmão do connection-store.

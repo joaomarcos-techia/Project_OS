@@ -22,6 +22,7 @@ import { formatBRL, formatDatePt } from '@/lib/format';
 
 import { cancelLancamentoAction, confirmPaymentAction, createEstornoAction } from './actions';
 import type { ActionResult } from './caixa-types';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type Tone = NonNullable<Parameters<typeof badgeVariants>[0]>['tone'];
 type PanelMode = 'confirm' | 'cancel' | 'estorno';
@@ -91,15 +92,15 @@ export function CaixaView({
             ? { type: 'comprovante', fileStoragePath: comprovante.trim() }
             : null,
         },
-        crypto.randomUUID(),
+        uuidv4(),
       ),
     );
 
   const onCancel = (item: CaixaItem) =>
-    run(() => cancelLancamentoAction({ lancamentoId: item.id }, crypto.randomUUID()));
+    run(() => cancelLancamentoAction({ lancamentoId: item.id }, uuidv4()));
 
   const onEstorno = (item: CaixaItem, motivo: string) =>
-    run(() => createEstornoAction({ lancamentoId: item.id, motivo }, crypto.randomUUID()));
+    run(() => createEstornoAction({ lancamentoId: item.id, motivo }, uuidv4()));
 
   const openPanel = (id: string, mode: PanelMode) =>
     setPanel((p) => (p?.id === id && p.mode === mode ? null : { id, mode }));
@@ -126,24 +127,24 @@ export function CaixaView({
   );
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Gestão <span className="sep">›</span> <b>Caixa</b>
-          </>
-        }
+        crumbs={[{ label: 'Gestão' }, { label: 'Caixa' }]}
         title="Caixa"
         description="Recebimentos do dia — confirme pagamentos e acompanhe pendências."
         actions={
           <div className="flex gap-4 text-right">
             <div>
-              <div className="font-mono text-[10.5px] uppercase tracking-wide text-fg-subtle">A receber</div>
-              <div className="font-semibold text-warning-600">{formatBRL(totalPendente)}</div>
+              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">A receber</div>
+              <div className="font-mono font-semibold tabular-nums text-warning-600">
+                {formatBRL(totalPendente)}
+              </div>
             </div>
             <div>
-              <div className="font-mono text-[10.5px] uppercase tracking-wide text-fg-subtle">Recebido hoje</div>
-              <div className="font-semibold text-success-600">{formatBRL(totalRecebidoHoje)}</div>
+              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">Recebido hoje</div>
+              <div className="font-mono font-semibold tabular-nums text-success-600">
+                {formatBRL(totalRecebidoHoje)}
+              </div>
             </div>
           </div>
         }
@@ -192,7 +193,7 @@ export function CaixaView({
           )}
         </Section>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -259,7 +260,7 @@ function ItemCard({
             </div>
           </div>
           <div className="shrink-0 text-right">
-            <div className="font-semibold tabular-nums">{formatBRL(item.valor)}</div>
+            <div className="font-mono font-semibold tabular-nums">{formatBRL(item.valor)}</div>
             {item.status === 'parcial' ? (
               <div className="text-xs text-fg-muted tabular-nums">
                 Pago {formatBRL(item.valorPago)} · Falta {formatBRL(saldo(item))}

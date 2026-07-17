@@ -1,17 +1,30 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
 
 import type { SupplierSummary } from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { toast } from '@/components/ui/use-toast';
 
 import { createSupplierAction, setSupplierAtivoAction, updateSupplierAction } from './actions';
+import { uuidv4 } from '@/lib/ui/uuid';
 
 type Draft = { razaoSocial: string; cnpj: string; contato: string; condicaoPagamento: string };
 const EMPTY: Draft = { razaoSocial: '', cnpj: '', contato: '', condicaoPagamento: '' };
@@ -26,7 +39,7 @@ export function FornecedoresView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null); // null = nenhum form; '' = criar
+  const [editingId, setEditingId] = useState<string | null>(null); // null = fechado; '' = criar
   const [draft, setDraft] = useState<Draft>(EMPTY);
 
   const openCreate = () => {
@@ -58,47 +71,54 @@ export function FornecedoresView({
       return;
     }
     startTransition(async () => {
-      const r =
-        editingId
-          ? await updateSupplierAction(editingId, input, crypto.randomUUID())
-          : await createSupplierAction(input, crypto.randomUUID());
+      const r = editingId
+        ? await updateSupplierAction(editingId, input, uuidv4())
+        : await createSupplierAction(input, uuidv4());
       if (!r.ok) {
         setError(r.message);
         return;
       }
+      toast.success(editingId ? 'Fornecedor atualizado' : 'Fornecedor criado');
       setEditingId(null);
       router.refresh();
     });
   };
 
   const toggle = (s: SupplierSummary) => {
-    setError(null);
     startTransition(async () => {
-      const r = await setSupplierAtivoAction(s.id, !s.ativo, crypto.randomUUID());
+      const r = await setSupplierAtivoAction(s.id, !s.ativo, uuidv4());
       if (!r.ok) {
-        setError(r.message);
+        toast.error(r.message);
         return;
       }
+      toast.success(s.ativo ? 'Fornecedor desativado' : 'Fornecedor ativado');
       router.refresh();
     });
   };
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? <Alert variant="danger">{error}</Alert> : null}
-
-      {canManage && editingId === null ? (
+      {canManage ? (
         <div>
           <Button size="sm" onClick={openCreate}>
+            <Plus className="size-3.5" />
             Novo fornecedor
           </Button>
         </div>
       ) : null}
 
-      {editingId !== null ? (
-        <div className="cardblock wrap-pad">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Razão social" className="sm:col-span-2">
+      <Dialog open={editingId !== null} onOpenChange={(v) => !v && setEditingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Editar fornecedor' : 'Novo fornecedor'}</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="grid gap-3 sm:grid-cols-2">
+            {error ? (
+              <Alert variant="danger" className="sm:col-span-2">
+                {error}
+              </Alert>
+            ) : null}
+            <Field label="Razão social" required className="sm:col-span-2">
               <Input
                 value={draft.razaoSocial}
                 onChange={(e) => setDraft((d) => ({ ...d, razaoSocial: e.target.value }))}
@@ -106,7 +126,13 @@ export function FornecedoresView({
               />
             </Field>
             <Field label="CNPJ">
-              <Input value={draft.cnpj} onChange={(e) => setDraft((d) => ({ ...d, cnpj: e.target.value }))} maxLength={18} />
+              <Input
+                value={draft.cnpj}
+                onChange={(e) => setDraft((d) => ({ ...d, cnpj: e.target.value }))}
+                maxLength={18}
+                inputMode="numeric"
+                placeholder="00.000.000/0001-00"
+              />
             </Field>
             <Field label="Contato">
               <Input
@@ -123,36 +149,44 @@ export function FornecedoresView({
                 placeholder="Ex.: 30 dias, à vista…"
               />
             </Field>
-            <div className="flex gap-2 sm:col-span-2">
-              <Button size="sm" variant="success" loading={pending} onClick={submit}>
-                {editingId ? 'Salvar' : 'Criar'}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} disabled={pending}>
+          </DialogBody>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary" type="button" disabled={pending}>
                 Cancelar
               </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </DialogClose>
+            <Button loading={pending} onClick={submit}>
+              {editingId ? 'Salvar' : 'Criar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {suppliers.length === 0 ? (
-        <EmptyState title="Nenhum fornecedor" description="Cadastre fornecedores para lançar contas a pagar." />
+        <EmptyState
+          title="Nenhum fornecedor"
+          description="Cadastre fornecedores para lançar contas a pagar."
+        />
       ) : (
-        <div className="cardblock">
-          <div className="listrows">
+        <Card>
+          <ul className="flex flex-col">
             {suppliers.map((s) => (
-              <div key={s.id} className="listrow">
-                <div className="lr-main">
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center gap-3 border-b border-border px-(--card-pad) py-3 last:border-b-0"
+              >
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <b className="truncate">{s.razaoSocial}</b>
+                    <b className="truncate text-(length:--fs-sm)">{s.razaoSocial}</b>
                     {!s.ativo ? <Badge tone="gray">Inativo</Badge> : null}
                   </div>
-                  <span className="lr-sub truncate">
+                  <span className="block truncate text-(length:--fs-xs) text-fg-subtle">
                     {[s.cnpj, s.contato, s.condicaoPagamento].filter(Boolean).join(' · ') || '—'}
                   </span>
                 </div>
                 {canManage ? (
-                  <div className="lr-end">
+                  <div className="flex gap-1.5">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(s)} disabled={pending}>
                       Editar
                     </Button>
@@ -161,10 +195,10 @@ export function FornecedoresView({
                     </Button>
                   </div>
                 ) : null}
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Card>
       )}
     </div>
   );

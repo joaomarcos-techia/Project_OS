@@ -334,6 +334,46 @@ export async function getAppointmentStats(
   });
 }
 
+/**
+ * Compromissos que BLOQUEIAM a desativação de um médico (ADR-032 §4 — "agenda
+ * futura ou consulta aberta"). Contrato cross-context exposto via `schedulingApiV1`
+ * para o Identity/app-layer decidir o offboarding — Scheduling é dono da regra do
+ * que conta como "agenda futura/consulta aberta", ninguém lê `appointments` de fora.
+ *
+ *   - agenda futura  = agendado/confirmado com `scheduled_at >= agora`
+ *   - consulta aberta = chegou/em_atendimento (independe da data — está acontecendo)
+ *
+ * `nextAt` é o proximo compromisso (para a UI dizer "remaneje X a partir de tal dia").
+ */
+export interface DoctorCommitments {
+  futureCount: number;
+  openCount: number;
+  nextAt: string | null;
+}
+
+export async function getDoctorActiveCommitments(
+  clinicId: string,
+  doctorId: string,
+): Promise<DoctorCommitments> {
+  return withTenant(clinicId, async (tx) => {
+    const [r] = await tx
+      .select({
+        futureCount: sql<number>`coalesce(sum(case when ${appointments.status} in ('agendado','confirmado') and ${appointments.scheduledAt} >= now() then 1 else 0 end), 0)::int`,
+        openCount: sql<number>`coalesce(sum(case when ${appointments.status} in ('chegou','em_atendimento') then 1 else 0 end), 0)::int`,
+        nextAt: sql<
+          string | null
+        >`min(case when ${appointments.status} in ('agendado','confirmado') and ${appointments.scheduledAt} >= now() then ${appointments.scheduledAt} end)`,
+      })
+      .from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), eq(appointments.doctorId, doctorId)));
+    return {
+      futureCount: r?.futureCount ?? 0,
+      openCount: r?.openCount ?? 0,
+      nextAt: toIso(r?.nextAt ?? null),
+    };
+  });
+}
+
 // --- slot resolver (tz-aware wrapper) --------------------------------------
 
 export interface GetAvailableSlotsOpts {

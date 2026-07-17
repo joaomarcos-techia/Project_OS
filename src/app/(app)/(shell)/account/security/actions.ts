@@ -1,11 +1,21 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { enrollTotp, listFactors, unenrollTotp, verifyTotpEnroll } from '@/lib/auth/mfa';
+import { assertMfaAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { requireUser } from '@/lib/auth/tenant-context';
+
+/** M3 — teto da superfície MFA (enroll/verify/unenroll). Ver [rate-limit.ts]. */
+async function mfaRateLimited(userId: string): Promise<boolean> {
+  const rl = await assertMfaAllowed(userId, getClientIp(await headers()));
+  return !rl.ok;
+}
+
+const RATE_LIMITED = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
 
 export type EnrollResultState = {
   step: 'idle' | 'enrolling' | 'verifying' | 'done';
@@ -24,7 +34,8 @@ const INITIAL_ENROLL: EnrollResultState = {
 };
 
 export async function startEnrollAction(): Promise<EnrollResultState> {
-  await requireUser();
+  const user = await requireUser();
+  if (await mfaRateLimited(user.userId)) return { ...INITIAL_ENROLL, error: RATE_LIMITED };
   const supabase = await createServerClient();
   try {
     const enroll = await enrollTotp(supabase);
@@ -52,7 +63,8 @@ export async function verifyEnrollAction(
   if (!factorId || !/^\d{6}$/.test(code)) {
     return { ...prev, error: 'Código de 6 dígitos obrigatório.' };
   }
-  await requireUser();
+  const user = await requireUser();
+  if (await mfaRateLimited(user.userId)) return { ...prev, error: RATE_LIMITED };
   const supabase = await createServerClient();
   try {
     await verifyTotpEnroll(supabase, factorId, code);
@@ -64,6 +76,14 @@ export async function verifyEnrollAction(
   if (error) {
     return { ...prev, error: error.message };
   }
+
+  // I-8: acabou de adicionar um 2º fator. As OUTRAS sessões foram estabelecidas
+  // SEM ele — revoga-as (mantém esta). Elas re-logam e agora enfrentam o MFA.
+  // Determinístico, não depende de config do GoTrue. Best-effort.
+  await supabase.auth.signOut({ scope: 'others' }).catch(() => {
+    /* não-fatal — o enroll está concluído */
+  });
+
   revalidatePath('/account/security');
   return { ...INITIAL_ENROLL, step: 'done' };
 }
@@ -79,6 +99,12 @@ export async function unenrollAction(formData: FormData): Promise<void> {
   // fail-closed (token antigo sem claim → trata como não-AAL2).
   if (user.aal !== 'aal2') {
     redirect('/login/mfa');
+  }
+  // Param PRÓPRIO — não reusar `unenroll_error`, cuja mensagem manda "conclua a
+  // verificação TOTP". Além de errada aqui, ela é auto-derrotante: o verify consome o
+  // MESMO bucket, então seguir a instrução gasta mais orçamento e repete o erro.
+  if (await mfaRateLimited(user.userId)) {
+    redirect('/account/security?rate_limited=1');
   }
   const supabase = await createServerClient();
   try {

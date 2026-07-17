@@ -23,12 +23,12 @@ export default async function CaixaPage() {
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {
     return (
-      <div className="screen">
+      <>
         <PageHeader title="Caixa" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para o caixa.
         </Alert>
-      </div>
+      </>
     );
   }
 

@@ -17,17 +17,35 @@
 // pelo arch-test AST em src/lib/auth/policies/critical-actions.test.ts (pega
 // código morto, ao contrário de grep textual). Ordem alfabética para review.
 //
-// Invariante de super_admin (F-14): o short-circuit `if (user.isSuperAdmin) return`
-// em requireCachedPermission/requireFreshPermission NÃO checa aal2. Toda AÇÃO
-// SENSÍVEL de super_admin DEVE passar por requireSuperAdmin (que exige aal2);
-// ações tenant (como as de paciente) já passam por requireClinicId, que LANÇA
-// para super_admin — logo um super_admin em aal1 não as alcança.
+// Invariante de super_admin: ATUALIZADO pelo I-1 (ADR-037, 2026-07-16). O
+// short-circuit `if (user.isSuperAdmin) return` em requireRole/requireCached*/
+// requireFreshPermission AGORA chama assertPlatformStepUp → exige aal2 (era um
+// invariante implícito e não testado). Um super_admin em aal1 é BARRADO nos quatro
+// helpers, não só em requireSuperAdmin. Coberto por tenant-context.test.ts.
+//
+// B4 (auditoria de APIs): as 6 transitions de agendamento entraram aqui. Elas já
+// chamavam requireFreshPermission(EDIT_AGENDA), mas eram invisíveis ao gate de CI —
+// o arch-test só varria 4 arquivos fixos (scheduling não estava) e só reconhecia
+// `function` declarada (elas vêm de uma factory). Estavam certas por acidente:
+// nada impedia alguém de remover o check sem quebrar o CI.
 export const CRITICAL_ACTIONS: readonly string[] = Object.freeze([
+  'cancelAppointment',
+  'cancelInviteAction',
+  'checkInAppointment',
+  'completeAppointment',
+  'confirmAppointment',
   'connectMyClinicWhatsapp',
   'deletePatient',
   'disconnectMyClinicWhatsapp',
   'editSignedProntuario',
+  'inviteMemberAction',
+  'markNoShow',
   'requestLgpdDelete',
   'requestLgpdExport',
+  'resendInviteAction',
+  'setMemberActiveAction',
+  'setMemberOverrideAction',
+  'setMemberRoleAction',
   'signProntuario',
+  'startAppointment',
 ]);

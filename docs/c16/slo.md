@@ -40,6 +40,22 @@
 - **Nota:** os webhooks já respondem rápido (persistem inbound + enfileiram via outbox);
   o trabalho pesado é assíncrono. O SLO cobre recepção→enqueue, não a entrega final.
 
+#### 3.1 Verificação out-of-band do webhook Asaas (A2 — ADR-025 addendum)
+- **SLI:** duração da chamada `getPayment()` que o webhook faz para confirmar o
+  pagamento no provider antes de qualquer transição.
+- **SLO / alerta:** **p95 > 5s por 5min** → alerta. Teto duro é ~10s
+  (`ASAAS_HTTP_TIMEOUT_MS`, `attempts: 1`); o webhook tem `maxDuration = 30s`, então
+  p95 acima de 5s indica que estamos consumindo o orçamento da invocação e caminhando
+  para timeouts em massa.
+- **Fonte:** `billing.webhook.verify` → `{ duration_ms, outcome: ok|timeout|failure }`.
+  Complementos: `billing.webhook.error` (taxa de 500) e `billing.reconcile.divergence`
+  (o reconcile achou o que o webhook não refletiu — evento perdido OU forjado).
+- **Ação quando dispara:** ver `runbooks/asaas-webhook-missing.md`. Degradação aqui é
+  **fail-safe** (nada é persistido, o Asaas re-entrega, o reconcile diário corrige),
+  então é alerta de investigação, não pager de madrugada.
+- ⚠️ **Threshold definido, disparo NÃO wired** — depende do go-live #2 (canal de
+  alerta), ainda aberto. Ver `docs/achados/auditoria-monitoramento-producao.md`.
+
 ### 4. Confiabilidade da IA (Gemini)
 - **SLI:** taxa de erro = `erros / total` de chamadas ao provider
   ([gemini.ts](../../src/lib/ai/gemini.ts) já classifica `AIProviderError` vs
@@ -65,6 +81,17 @@
 - **SLI:** atraso do `last_run_at` vs. SLA esperado por job (`cron_heartbeats`).
 - **SLO:** todo cron com heartbeat dentro de **2× o intervalo** agendado.
 - **Fonte:** `cron_heartbeats` ([cron-heartbeat](../../src/lib/cron-heartbeat/index.ts)).
+
+### 7. Rate-limit de auth — degradação (segurança)
+- **SLI:** taxa de `auth.ratelimit.degraded` (fail-open do rate-limit de login/reset/join caindo
+  para o limiter local per-instância — ADR-008 F-08). Emitido por
+  [rate-limit.ts](../../src/lib/auth/rate-limit.ts) com `reason_category` (`server`/`network`).
+- **SLO:** **≈ 0** em regime normal (a degradação é excepcional, não crônica). Qualquer
+  degradação **sustentada ou recorrente** deve alertar — é a proteção de brute-force distribuído
+  enfraquecendo em silêncio (auditoria Redis R1).
+- **Fonte / alerta:** `auth.ratelimit.degraded` (log/metric) → thresholds em
+  [alert-tuning.md](../runbooks/alert-tuning.md); cota do Upstash correlacionada no painel do
+  provedor (código não vê o status HTTP).
 
 ---
 

@@ -36,6 +36,7 @@ import {
 } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { isUniqueViolation } from '@/lib/outbox/errors';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -206,7 +207,7 @@ export async function updatePatient(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('update', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: 604_800 },
+        idempotency: { key: idemKey('update', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: PATIENT_EVENTS.UPDATED,
           resourceType: 'patient',
@@ -223,7 +224,7 @@ export async function updatePatient(
           const [row] = await tx
             .update(patients)
             .set(set)
-            .where(and(eq(patients.id, id), isNull(patients.deletedAt)))
+            .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId), isNull(patients.deletedAt)))
             .returning();
           if (!row) throw new PatientNotFoundError(id);
           summary = toPatientSummary(row);
@@ -233,7 +234,7 @@ export async function updatePatient(
           const upd = await tx
             .update(patientAddresses)
             .set({ ...addrEnc, updatedAt: sql`now()` })
-            .where(and(eq(patientAddresses.patientId, id), eq(patientAddresses.principal, true)))
+            .where(and(eq(patientAddresses.patientId, id), eq(patientAddresses.clinicId, clinicId), eq(patientAddresses.principal, true)))
             .returning({ id: patientAddresses.id });
           if (upd.length === 0) {
             await tx
@@ -274,7 +275,7 @@ export async function deletePatient(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('delete', idempotencyKey), payload: { id }, ttlSeconds: 604_800 },
+      idempotency: { key: idemKey('delete', idempotencyKey), payload: { id }, ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: PATIENT_EVENTS.DELETED,
         resourceType: 'patient',
@@ -287,7 +288,7 @@ export async function deletePatient(
       const [row] = await tx
         .update(patients)
         .set({ deletedAt: sql`now()` })
-        .where(and(eq(patients.id, id), isNull(patients.deletedAt)))
+        .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId), isNull(patients.deletedAt)))
         .returning({ telefoneHash: patients.telefoneHash, email: patients.email });
       // Suppress contacts so a deleted patient can never be messaged (5.6.5).
       if (row) {
@@ -322,7 +323,7 @@ export async function recordConsent(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('consent_grant', idempotencyKey), payload: { patientId, data }, ttlSeconds: 604_800 },
+      idempotency: { key: idemKey('consent_grant', idempotencyKey), payload: { patientId, data }, ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: PATIENT_EVENTS.CONSENT_GRANTED,
         resourceType: 'patient',
@@ -335,7 +336,7 @@ export async function recordConsent(
       const aggRows = await tx
         .select({ maxVersao: sql<number>`coalesce(max(${patientConsents.versao}), 0)` })
         .from(patientConsents)
-        .where(eq(patientConsents.patientId, patientId));
+        .where(and(eq(patientConsents.patientId, patientId), eq(patientConsents.clinicId, clinicId)));
       const versao = Number(aggRows[0]?.maxVersao ?? 0) + 1;
       await tx.insert(patientConsents).values({
         patientId,
@@ -382,7 +383,7 @@ export async function revokeConsent(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('consent_revoke', idempotencyKey), payload: { patientId, consentType }, ttlSeconds: 604_800 },
+      idempotency: { key: idemKey('consent_revoke', idempotencyKey), payload: { patientId, consentType }, ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: PATIENT_EVENTS.CONSENT_REVOKED,
         resourceType: 'patient',
@@ -396,14 +397,20 @@ export async function revokeConsent(
       const [latest] = await tx
         .select({ id: patientConsents.id })
         .from(patientConsents)
-        .where(and(eq(patientConsents.patientId, patientId), isNull(patientConsents.revokedAt)))
+        .where(
+          and(
+            eq(patientConsents.patientId, patientId),
+            eq(patientConsents.clinicId, clinicId),
+            isNull(patientConsents.revokedAt),
+          ),
+        )
         .orderBy(sql`${patientConsents.versao} desc`)
         .limit(1);
       if (latest) {
         await tx
           .update(patientConsents)
           .set({ revokedAt: sql`now()` })
-          .where(eq(patientConsents.id, latest.id));
+          .where(and(eq(patientConsents.id, latest.id), eq(patientConsents.clinicId, clinicId)));
       }
       await publishEvent(tx, {
         clinicId,
@@ -432,7 +439,7 @@ export async function addToSuppressionList(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('suppress', idempotencyKey), payload: { patientId, ch, reason }, ttlSeconds: 604_800 },
+      idempotency: { key: idemKey('suppress', idempotencyKey), payload: { patientId, ch, reason }, ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: PATIENT_EVENTS.SUPPRESSION_ADDED,
         resourceType: 'patient',
@@ -445,7 +452,7 @@ export async function addToSuppressionList(
       const [p] = await tx
         .select({ telefoneHash: patients.telefoneHash, email: patients.email })
         .from(patients)
-        .where(eq(patients.id, patientId))
+        .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
         .limit(1);
       if (!p) throw new PatientNotFoundError(patientId);
       const contactHash = await contactHashFor(ch, p.telefoneHash, p.email);
@@ -482,7 +489,7 @@ export async function requestLgpdExport(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('lgpd_export', idempotencyKey), payload: { patientId }, ttlSeconds: 604_800 },
+      idempotency: { key: idemKey('lgpd_export', idempotencyKey), payload: { patientId }, ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: PATIENT_EVENTS.LGPD_EXPORT_REQUESTED,
         resourceType: 'lgpd_request',
@@ -523,7 +530,7 @@ export async function requestLgpdDelete(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('lgpd_delete', idempotencyKey), payload: { patientId }, ttlSeconds: 604_800 },
+      idempotency: { key: idemKey('lgpd_delete', idempotencyKey), payload: { patientId }, ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: PATIENT_EVENTS.LGPD_DELETE_REQUESTED,
         resourceType: 'lgpd_request',
@@ -536,7 +543,7 @@ export async function requestLgpdDelete(
       const [row] = await tx
         .update(patients)
         .set({ deletedAt: sql`now()` })
-        .where(and(eq(patients.id, patientId), isNull(patients.deletedAt)))
+        .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId), isNull(patients.deletedAt)))
         .returning({ telefoneHash: patients.telefoneHash, email: patients.email });
       if (row) {
         await suppressAllChannels(tx, clinicId, row.telefoneHash, row.email, 'lgpd_delete');

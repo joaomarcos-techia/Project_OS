@@ -1,9 +1,11 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { getAal, challengeAndVerify, listFactors } from '@/lib/auth/mfa';
 import { postLoginRedirect } from '@/lib/auth/policies';
+import { assertMfaAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { isRole } from '@/lib/auth/roles';
 import { createServerClient } from '@/lib/auth/supabase-server';
 
@@ -20,6 +22,14 @@ export async function verifyMfaAction(
     return { error: 'Código deve ter 6 dígitos.' };
   }
   const supabase = await createServerClient();
+
+  // M3: brute-force do 2º fator dependia SÓ do throttle do GoTrue. O usuário já
+  // está em AAL1 aqui (passou a senha), então há userId para limitar.
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) return { error: 'Sessão expirada. Faça login novamente.' };
+  const rl = await assertMfaAllowed(authData.user.id, getClientIp(await headers()));
+  if (!rl.ok) return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
+
   const factors = await listFactors(supabase);
   const verified = factors.find((f) => f.status === 'verified');
   if (!verified) {

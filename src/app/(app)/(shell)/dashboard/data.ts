@@ -2,6 +2,7 @@ import 'server-only';
 
 import { sql } from 'drizzle-orm';
 
+import { practitionerSql, profiles } from '@/contexts/identity';
 import { listPatientCards } from '@/contexts/patient/queries';
 import { getClinicTimezone, listAppointments } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
@@ -133,7 +134,7 @@ export interface ActivationChecklistDTO {
 export async function getActivationChecklist(clinicId: string): Promise<ActivationChecklistDTO> {
   const rows = (await withTenant(clinicId, (tx) =>
     tx.execute(sql`SELECT
-        EXISTS(SELECT 1 FROM profiles WHERE role = 'doctor') AS has_doctor,
+        EXISTS(SELECT 1 FROM profiles WHERE ${practitionerSql(profiles.role, profiles.crm)}) AS has_doctor,
         EXISTS(SELECT 1 FROM doctor_availability) AS has_hours,
         EXISTS(SELECT 1 FROM patients) AS has_patient,
         EXISTS(SELECT 1 FROM clinic_whatsapp_numbers WHERE active = true AND connection_status = 'connected') AS has_whatsapp`),

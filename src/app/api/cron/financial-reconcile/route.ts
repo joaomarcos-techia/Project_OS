@@ -22,7 +22,8 @@ import { FINANCIAL_EVENTS, faturamentoPendencias } from '@/contexts/financial';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
-import { assertCronRuntimeReady, env } from '@/lib/env';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -35,25 +36,10 @@ const MAX_LIMIT = 1000;
 const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
 
-function isAuthorized(req: Request): boolean {
-  if (req.headers.get('authorization') !== `Bearer ${env.CRON_SECRET}`) return false;
-  const hasOriginHeader =
-    req.headers.get('x-vercel-cron') !== null ||
-    req.headers.get('x-vercel-cron-schedule') !== null;
-  const allowNonVercel =
-    process.env.OUTBOX_CRON_ALLOW_NON_VERCEL === 'true' || env.NODE_ENV !== 'production';
-  if (!hasOriginHeader && !allowNonVercel) {
-    metrics.emit('cron.origin_header_missing', { route: 'financial-reconcile' });
-  }
-  return true;
-}
-
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  if (!isAuthorized(req)) {
-    metrics.emit('cron.unauthorized', { route: 'financial-reconcile' });
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const denied = assertCronAuth(req, { route: 'financial-reconcile' });
+  if (denied) return denied;
 
   const url = new URL(req.url);
   const limit = Math.min(

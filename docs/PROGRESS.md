@@ -1,6 +1,6 @@
 # ClinicaOS — Progresso de Camadas
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-15 · **Próxima revisão:** 2027-01-01
 >
 > ↩︎ Volta para o [índice mestre](./README.md).
 
@@ -25,7 +25,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 | C13 | Tenancy & Billing | ✅ **fechada** | 2026-06-17 (**verificada em prod 2026-06-18** — round-trip de webhook Asaas real; unit 21/21 + smoke-c13 8/8; migration 0026; ADR-024/025; checkout UI + owner-creation são onboarding, fora do escopo) |
 | C14 | Proactive Jobs | ✅ **fechada** | 2026-06-18 (lembrete D-1 + dunning paciente D+3/D+7 + followup; cron determinístico envia, IA interpreta resposta; 388 testes + smoke-c14 8/8; migration 0027; ADR-026; templates Meta = go-live) |
 | C15 | Platform Admin | ✅ **fechada** | 2026-06-20 (painel do fundador `/admin` com 404-absoluto + impersonate auditado + step-up MFA + export PDF; migration 0028; 408 testes; aceite manual em `docs/testesC15.md`) |
-| C16 | Observabilidade & Hardening | ⏳ pendente | — |
+| C16 | Observabilidade & Hardening | ✅ **implementada e em produção** (Sentry + logs estruturados + métricas + `/api/health` + backup diário verde + restore test + drills 1/2 ao vivo). **Faltam passos OPERACIONAIS, não código:** go-live #2 (salvar a Alert Rule + canal de notificação), #5c (drills 5/6) e #6 (production rehearsal) — ver [go-live-checklist](c16/go-live-checklist.md) | 2026-07-02 (implementação) |
 
 ---
 
@@ -257,9 +257,9 @@ Verificado empiricamente que código backend pode forjar `request.jwt.claims` vi
 - **20 permissions** canônicas. Adicionar exige enum em `permissions.ts` + seed em nova migration + bundle em role_permissions se aplicável + ADR.
 - **JWT claims shape**: `{ clinic_id: string|null, role: Role, permissions: string[], claims_version: number, super_admin?: bool, aal?: 'aal1'|'aal2' }`. `permissions[]` é flat string[], NUNCA objeto (D25).
 - **`super_admin` é role de PLATAFORMA**, não tenant-scoped (P7). Sem clinic_id. NÃO populado em role_permissions.
-- **MFA obrigatório APENAS super_admin no MVP** (D6). gestor/financial recebem opt-in forte. Re-avaliar em C15 com recovery codes.
+- **MFA obrigatório APENAS super_admin no MVP** (**ADR-038**). gestor/financial recebem opt-in forte. Re-avaliar quando existirem recovery codes + reset administrativo. *(Era citado como "ADR-008 D6" aqui e em 5+ docs — mas D6 NUNCA foi escrito no ADR-008: a regra de segurança vivia só nesta linha de prosa. I-5 pegou; ADR-038 formalizou.)*
 - **`requireCachedPermission` (JWT) vs `requireFreshPermission` (DB)** — escolha consciente. ESLint bloqueia `requirePermission`.
-- **Middleware NÃO é enforcement primário** (D22). Toda Server Action revalida via `require*`.
+- **Middleware NÃO é enforcement primário** (ADR-009 D22). Toda Server Action revalida via `require*`. **ADR-037 (2026-07-16) foi além:** o middleware perdeu o drift-check/`_healed`/throttle e virou só refresh de cookie + auth-presence; o ENFORCEMENT de sessão (epoch por request) mora na porta única.
 - **JWT replay window de até 15 minutos** (D12 — Supabase access_token TTL config). Documentado em ADR-009. Solução completa C16.
 - **Hook Complexity Budget** (D21): max 2 queries, 1 agregação, sem loops/CTE recursiva, <20ms p95.
 - **Frozen surface pré-C15** (6 modelos congelados em ADR-008): RBAC, multi-clinic per user, impersonation, scoped permissions, temporary grants, contextual permissions. Mudança exige janela "Pre-C15 RBAC freeze review".
@@ -285,9 +285,9 @@ Verificado empiricamente que código backend pode forjar `request.jwt.claims` vi
 
 - **JWT replay window 15min após logout** (D12 + ADR-009). Solução completa (session_version claim + revocation list) fica para C16.
 - **Auto-heal pode atrasar até 60s** (throttle D5+D28). Caso "admin mudou role agora mesmo" é raro; budget operacional aceito.
-- **Mudanças em role_permissions exigem logout operacional manual** (D27). Auth epoch global fica para C16.
+- ~~**Mudanças em role_permissions exigem logout operacional manual** (ADR-008 D27). Auth epoch global fica para C16.~~ → **RESOLVIDO por ADR-037 (2026-07-16)**: trigger em `role_permissions` bumpa `claims_version` de quem usa a role (migration 0040) + epoch-check por request. Não foi preciso "epoch global": `claims_version` JÁ era o epoch — faltava bumpá-lo aqui.
 - **MFA recovery via guardar QR/secret no enroll** + flag `--reset-mfa` em seed-super-admin. Supabase TOTP não emite backup codes nativos.
-- **MFA obrigatório só super_admin no MVP** (D6). Re-avaliar em C15 com recovery flow.
+- **MFA obrigatório só super_admin no MVP** (**ADR-038**). Re-avaliar com recovery codes + reset administrativo.
 - **`/account/security` espartano** — UX detalhada em C15.
 - **Hook deploy é MANUAL no Dashboard** + ativar TTL 15min. Automação via Management API em C16.
 - **Hook é SPOF** — mitigação parcial via healthcheck + CI smoke. Alarme externo (UptimeRobot) em C16.
@@ -417,7 +417,7 @@ Após smoke verde, executei uma revisão hostil/forense da C4 que identificou 4 
 - **HIGH-05** — `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS` env var (default 10s). Era 3s hardcoded, quebrava Server Actions com fn() lento.
 - **HIGH-06** — Pool `dbWorker` separado de `dbAdmin`. dbAdmin (max:1) saturava no smoke. dbWorker max:5 default (`OUTBOX_DB_POOL_SIZE`).
 - **HIGH-07** — CHECK constraints `pg_column_size(payload) <= 65536` em outbox, audit_events.before/after, super_admin_actions.payload. Runtime check em publishEvent throws OutboxError ANTES do INSERT.
-- **HIGH-08** — Cron route dual-factor: Bearer + header `x-vercel-cron` (Vercel injeta). DEV bypass via `OUTBOX_CRON_ALLOW_NON_VERCEL=true`.
+- **HIGH-08** — Cron route auth: Bearer `CRON_SECRET`. ⚠️ **Revisado em 2026-07-15 (M2):** era descrito como "dual-factor: Bearer + `x-vercel-cron`", mas o header nunca foi gate — o código só o logava. Hoje é **single-factor** assumido, em `src/lib/http/cron-auth.ts`; o blast radius é tratado por `CRON_SECRET_DESTRUCTIVE` (V5). Ver addendum M2 no ADR-011.
 - **HIGH-09** — Script `pnpm check:registry` compara catalog vs registry. Em prod fail → previne CRITICAL: handler novo sem import no boot file = eventos failed silenciosamente.
 - **HIGH-10** — ESLint barra `z.date()`/`z.bigint()`/`z.nan()`/`new Date()` em `src/contexts/*/events.ts`. Quebra build de schemas JSON-unsafe.
 - **HIGH-11** — Migration 0010 com GRANTs explícitos (`SELECT,INSERT` a authenticated; `ALL` a service_role). Sem dependência de schema-default GRANT do Supabase.
@@ -448,7 +448,7 @@ Após smoke verde, executei uma revisão hostil/forense da C4 que identificou 4 
 - `src/lib/db/schema/infra/audit.ts` — size CHECKs
 - `src/lib/db/schema/infra/super-admin.ts` — size CHECK
 - `src/lib/sanitize/patterns.ts` — word boundaries
-- `src/app/api/cron/outbox/route.ts` — dual-factor auth
+- `src/app/api/cron/outbox/route.ts` — auth via `src/lib/http/cron-auth.ts` (single-factor; M2)
 - `src/app/api/health/outbox/route.ts` — dois níveis
 - `src/lib/env.ts` — 3 envs novas
 - `eslint.config.mjs` — guard events.ts + guard handlers
@@ -945,7 +945,7 @@ A clínica **fala primeiro** no WhatsApp via template Meta. Contratos em
 
 ## C15 — Platform Admin (✅ fechada em 2026-06-20)
 
-Painel do fundador (`/admin`, admin.qoro.dev): **read-only sobre dados de clínica**,
+Painel do fundador (`/admin` em `app.qoro.dev` — o host próprio foi adiado, §D7): **read-only sobre dados de clínica**,
 com impersonate auditado como única forma de mutar. Aceite manual completo em
 [docs/testesC15.md](testesC15.md) (mapa de cobertura do brief no fim do doc).
 
@@ -1059,6 +1059,229 @@ Follow-up do C15 (**NÃO** é a camada C16 do roadmap, que segue pendente). Tran
 ### Pendente (vai pro C16 real)
 - `cron_heartbeats` só popula em prod (Vercel) — em dev os crons não rodam.
 - `scripts/create-clinic.ts` / botão "Criar clínica" = onboarding interino (spec separada).
+
+---
+
+## Refatoração UI/UX — Design System v2 (em andamento, iniciada 2026-07-02)
+
+Plano em 8 ondas (cada onda = 1 PR): fundação → primitivos → shell/estados →
+dashboard+consultório → pacientes/agenda/caixa → financeiro/config/equipe →
+admin → auth/join+limpeza. Governança permanente em CONVENTIONS §Governança de UI.
+Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
+
+### Onda 0 — Fundação (✅ 2026-07-02) · ADR-031
+
+- **Rebrand DS v2** (`design_system/DSv2.html` = fonte única de UI): petrol (hue 205)
+  substitui azul 258; clay = acento único/IA; neutros quentes (98–108) + `--neutral-150`;
+  Hanken Grotesk + Inter (display) + IBM Plex Mono substituem Geist (dep removida).
+- `globals.css` reescrito como **única origem de tokens** (viz, elevação/z nomeadas,
+  densidade `[data-density]`, component hooks, `--focus-ring`); bloco de tokens duplicado
+  do `ds.css` **removido** (redefinia tudo por cima, incl. `--font-sans:"Geist"`).
+- Dark por duplo seletor `.dark`/`[data-theme='dark']`; ~28 `oklch(... 258)` hardcoded
+  do CSS legado → vars petrol; anti-flash de tema corrigido (lia chave errada
+  `theme` vs `clinicaos-theme` — nunca funcionou).
+- Validação: typecheck ✓ · build ✓ · lint/test/arch ✓ · visual light+dark.
+
+### Onda 1 — Biblioteca de primitivos (✅ 2026-07-02)
+
+- **Radix entra** (pin exato; gatilho do ADR-018 disparado): dialog, dropdown-menu,
+  popover, tooltip, switch, checkbox, tabs. **Sem cmdk** (decisão do founder).
+- `src/components/ui/` ganha: `dialog` + `drawer` (mesmo Radix Dialog posicionado) +
+  `confirm-dialog` (ações críticas), **toast** (`use-toast` store singleton sem Context +
+  `toaster` + `use-action-feedback` que aposenta o padrão `msg` nas ondas seguintes),
+  `skeleton`(+Card/Table), **Table kit** RSC-first (`table`, `table-toolbar`,
+  `table-sort-header` e `table-pager` dirigidos por URL, `table-selection-bar`),
+  `tabs`/`nav-tabs`, `stat-card` unificado, `breadcrumbs`, `switch`, `checkbox`,
+  `segmented`, `button-group`.
+- **Restyle retrocompatível** dos existentes (API/variantes preservadas; testes das
+  telas seguem verdes): button (variantes reais do DS: primary/accent/danger/ghost/
+  soft/subtle + secondary/success compat), input/textarea/select/field/label/date-field,
+  card, badge (tones históricos → paleta DS; teal/violet via viz-8/viz-3), alert,
+  empty-state. Componentes novos NÃO usam classes do ds.css.
+- **Ícones unificados**: `painel/icons.tsx` virou re-export lucide (nomes históricos
+  mapeados); código novo importa lucide direto.
+- Validação: typecheck ✓ · lint ✓ · **496 testes** (14 novos: CVA, toast store,
+  use-action-feedback) · arch ✓ · build ✓. Nenhuma tela alterada nesta onda.
+
+### Onda 2 — Shell, navegação e estados de UI (✅ 2026-07-02)
+
+- **Shells reescritos em Tailwind** (DS v2 §side/topbar): peças compartilhadas em
+  `shared/shell-chrome.tsx` + `shared/use-theme.ts` (zero duplicação entre painel
+  e admin); sidebar 256px; mobile drawer sem `body.nav-open`.
+- **UX honesta no topbar**: busca ⌘K fake e sino de notificações sem feature
+  REMOVIDOS; bloco de usuário virou menu real (Segurança da conta + **Sair** —
+  o tenant não tinha logout visível); chevron fake do clinic-switcher removido.
+- **Estados**: 13 `loading.tsx` via `PageSkeleton` (6 variantes); `error.tsx` por
+  segmento (shell/admin) + root com `RouteError` (Sentry+retry); `not-found.tsx`.
+- `Toaster` + `TooltipProvider` montados nos dois shells; `PageHeader` recomposto
+  (Breadcrumbs/`font-display`), prop `breadcrumb` legada preservada.
+- **Desvio documentado**: `app-shell.css` NÃO foi deletado (telas ainda usam
+  `stat-tile/cardblock/listrow/cols-*` — critério grep-zero do plano falha);
+  shells não dependem mais dele; deleção na onda do último consumidor.
+- Validação: typecheck ✓ · lint ✓ · 496 testes ✓ · build ✓ · smoke em `next start`.
+- **Hotfixes 2.1–2.3 (QA do founder)**: mobile drawer (z-index), respiro da sidebar,
+  `.input-wrap > input`, tema único + Sair no tenant, pattern /v do telefone,
+  new-clinic-modal → Dialog, e a CAUSA RAIZ: CSS legado unlayered vencia as
+  utilities (`*{margin:0}` matava toda margem; `.grid` legado vencia `nav:hidden`)
+  → os 4 CSS legados agora vivem em `@layer components`. Diagnóstico e prova com
+  Chrome headless + puppeteer (computed styles + screenshots).
+
+### Onda 3 — Dashboard + Consultório (✅ 2026-07-02)
+
+- **Dashboard** decomposto em `_components/` (PanelCard, RevenueChart CSS com
+  paleta viz, ActivityFeed, ActivationChecklist); stat tiles → `StatCard` (ui);
+  fake removido (breadcrumb "Clínica Vida", segmented Hoje|Semana); status via
+  `AppointmentStatusBadge` canônico. Zero classes legadas na rota.
+- **Consultório**: cartão de sessão vivo (tempo na clínica + toolbar EMITIR);
+  prescrição/documento em **Drawer**, assinatura em **Dialog crítico**;
+  `atendimento-tools.tsx` (634 linhas) eliminado; feedback via toast.
+  **Anti-vazamento**: Finalizadas com badge "Sem cobrança" (getBoard compõe
+  pendências do Financial, best-effort).
+- Validação: typecheck/lint/496 testes ✓; screenshots headless light+dark
+  (board + dashboard com fixtures); build adiado (dev do founder ativo).
+
+### Onda 4 — Pacientes + Agenda + Caixa (✅ 2026-07-03) · redução de telas
+
+- **3 rotas aposentadas** com redirect em `next.config.ts`: `/pacientes/novo`
+  (→ Drawer `?novo=1`), `/pacientes/[id]/prontuarios` (→ aba do hub) e
+  `.../assinar` (→ Dialog `?assinar=1`). Fluxo clínico: 5 → 3 níveis de página.
+- `/pacientes` com Table kit + busca; `/pacientes/[id]` virou HUB com abas
+  (Dados | Prontuários); assinatura em Dialog crítico com o mesmo action/audit.
+- **Zero duplicação**: `[pid]` reusa os Drawers de prescrição/documento do
+  Consultório — `prescription-form.tsx` + `medical-document-form.tsx` deletados.
+- **Agenda**: "Novo atendimento" em Drawer com `Segmented` + **`Combobox` novo**
+  (ui: busca assíncrona, teclado, ARIA) + toast. Caixa: ajustes cirúrgicos
+  (crumbs, valores em mono/tabular) — testes RBAC preservados.
+- Validação: typecheck/lint/496 testes ✓ · build ✓.
+
+### Onda 6 — Admin (✅ 2026-07-03)
+
+- Table kit nas tabelas à mão (clinicas ×2, audit, billing, metricas — resta 1
+  em clinicas/[id], deferida); TablePager padrão; **convites 6/página**;
+  /saude em **lista vertical** com dots de status; /config com subtabs sem
+  scroll; stat-card do admin virou adapter do StatCard canônico; charts em
+  Tailwind com paleta viz; zero `.screen` no app.
+
+### Onda 7 — Limpeza + relatório (✅ 2026-07-03)
+
+- Auditoria de deleção do CSS legado: consumidores restantes documentados
+  (join-wizard, whatsapp-connect, admin [id]/config/conversas-ia, managers) —
+  arquivos permanecem em `@layer components` até a migração deles.
+- **Relatório final: [achados/ui-ux-refactor-report.md](./achados/ui-ux-refactor-report.md)**
+  (números antes→depois, telas removidas/unificadas, dívidas com dono).
+- Deferidos documentados: join-wizard (842 linhas, fluxo público de uso único),
+  quick-view de paciente, PDF viewer; backend novo aprovado (pausa de almoço,
+  export PDF de relatórios) = mini-fases futuras com ADR.
+
+---
+
+## Remediação da auditoria de APIs (2026-07-15) — Segurança & Arquitetura
+
+A [auditoria de APIs](achados/auditoria-apis-seguranca.md) (3 ALTA + 3 MÉDIA + 7 BAIXA,
+2026-07-12) foi remediada: **todas as ALTA e MÉDIA fechadas**, 6/7 BAIXA implementadas,
+B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
+"🔧 Remediação" do próprio relatório. Commits `5bbbd23` → `2c44398`, um por tema.
+
+- **A1** — `/api/health/auth-hook` era a única rota de health anônima e devolvia
+  `sqlstate` do Postgres a qualquer um. Agora exige Bearer/super_admin — o que a doc
+  (`production-readiness` §5.2) **já mandava**; o código é que divergia.
+- **A2** — o webhook do Asaas decidia transição pelo `body.event` e persistia valores do
+  corpo, mas o Asaas **não assina o corpo**: um `PAYMENT_CONFIRMED` forjado reabria
+  clínica bloqueada sem pagar. Agora **verify-then-act** (o corpo dá só ids;
+  `getPayment()` é a verdade), fora da transação e com orçamento de 1 tentativa — o
+  default de 3×10s estouraria o `maxDuration` de 30s. ADR-025 addendum.
+- **A3** — filtro `clinic_id` defensivo estava **pronto mas não commitado** (86 arquivos
+  na árvore); um `git checkout` o apagaria e nada no CI perceberia. Preservado primeiro.
+  Fail-close real (role sem BYPASSRLS via `DATABASE_URL_RUNTIME`) segue como C16.
+- **M2** — a invariante 28 do ADR-011 afirmava dual-factor; o código **nunca** fez isso
+  (o header `x-vercel-cron` era só logado). Assumido single-factor de propósito — a
+  Vercel documenta `x-vercel-cron-schedule`, e um 401 num header não-documentado pararia
+  todos os crons em silêncio. `assertCronAuth` substitui 13 cópias (−279 linhas).
+- **M3** — rate limit em convite/reenvio (o resend gera recovery link real), MFA e
+  step-save do wizard.
+- **B2** — não era cosmético: o check à mão do caixa não tinha o bypass `isSuperAdmin`,
+  então super_admin fora de impersonação era negado ali e aceito no resto do financeiro.
+- **B4** — as 6 transitions de agenda chamavam `requireFreshPermission` mas eram
+  invisíveis ao arch-test (factory + arquivo fora da lista): estavam certas por acidente.
+- **6 achados novos** encontrados durante a remediação (§0 do relatório), com destaque
+  para `Bearer ${undefined}` → a string `"Bearer undefined"` autenticando quando o
+  segredo não está configurado, e o export de auditoria truncando em silêncio com
+  `sha256` atestando o período inteiro.
+- **Testes 540 → 650.** Primeiros testes de route handler do repo (antes: zero).
+- **Pendências operacionais:** conferir o header no monitor do auth-hook; alerta p95 do
+  `billing.webhook.verify` depende do go-live #2 (canal de alerta, aberto).
+
+---
+
+## Dívida técnica pós-C16 (2026-07-15)
+
+> **Por que esta seção existe.** Até aqui, dívida arquitetural era "diferida para C16".
+> A C16 **fechou** (implementação em produção desde 2026-07-02), então esse destino virou
+> um ponteiro morto — e a auditoria de APIs foi escrita apontando para ele. Estes itens
+> agora têm **gatilho explícito e dono**, não uma camada futura.
+
+| # | Item | Estado | Gatilho para fazer |
+|---|---|---|---|
+| **D1** | **Role dedicado sem BYPASSRLS para o pool runtime** (A3 longo prazo). | ✅ **Provisionado nos DOIS ambientes** (2026-07-15/16) — role `qoro_runtime` sem BYPASSRLS, senha, `GRANT authenticated`, 396 grants (98 tabelas × 4) e `ALTER DEFAULT PRIVILEGES`; `DATABASE_URL_RUNTIME` na Vercel (Production + Preview). Fail-close **provado em dev** (A/B/C/D). ⚠️ **INERTE em prod até o deploy**: o `main` não lê a env (o código vive na branch `docs/identity-practitioner-model`) — no deploy liga sozinho. Verificar com a query em [runtime-role-nobypassrls.md](runbooks/runtime-role-nobypassrls.md#como-conferir-o-estado-sem-adivinhar), **não pela memória**. | **Deploy da branch → `main`** (nada de infra falta). Depois: Passo 4 (`smoke:c5` + navegar o painel). |
+| **D2** | **Circuit breaker + quota de IA distribuídos** (B7). Hoje per-instância → sob multi-instância o teto efetivo vira ~N×. | Aceito e documentado (ADR-022 §11.17). Impacto é **custo**, não segurança. | **A 1ª instância a mais em produção**, OU o gasto de IA se aproximar do orçamento. O que vier antes. Aí a extração para `src/lib/redis/` (CONVENTIONS §chaves Redis) deixa de ser prematura. |
+| **D3** | Fallback de rate-limit per-instância (~N× durante outage do Upstash) | Aceito (ADR-008 F-08) | Mesmo gatilho do D2 — o Redis já estaria em jogo. |
+| ~~**D4**~~ | ~~Auth-epoch / revogação imediata de sessão (janela de replay de JWT de 15min)~~ | ✅ **FECHADO 2026-07-16 — [ADR-037](adr/037-server-authoritative-session.md)** (remediação da auditoria de identidade, achado I-4). | — |
+| **D5** | CSP bloqueante com nonce (hoje `Report-Only`) | Aceito (ADR-030) | Quando o relatório de CSP estiver limpo por ~1 semana em produção. |
+| **D6** | Sanear o journal de migrations (snapshots `meta/*.json` com lacunas → `db:generate` inseguro) | Aceito (ADR-020) | Quando uma evolução de schema exigir `db:generate` de verdade. |
+| **D7** | **`admin.qoro.dev` (Control Plane em host próprio)** — planejado desde o PlanoAção, **nunca provisionado**; o subdomínio não resolve. Painel e app dividem `app.qoro.dev`. | **Adiado por decisão do founder (2026-07-16)**, com motivo — ver abaixo. Docs corrigidos para parar de afirmar que existe. | **Só junto com D5 (CSP bloqueante) + cookie escopado por host.** Sozinho é separação cosmética. |
+| **D8** 🔴 | **Preview da Vercel lê e escreve no banco de PRODUÇÃO.** `DATABASE_URL`/`DATABASE_URL_RUNTIME`/`NEXT_PUBLIC_SUPABASE_URL` têm **uma entrada só** cobrindo `Production, Preview` → mesmo valor nos dois. Qualquer branch num preview toca dado real, sem os guards do `db:migrate:prod`. E o preview nem funciona direito: faltam `LOGIN_HASH_PEPPER`/`SUPABASE_SECRET_KEY`/`CRYPTO_*`/`CRON_SECRET` (só existem em Production). | 🔴 **ABERTO** (descoberto 2026-07-17). Drift de config, sem ADR — herança de quando só havia um banco. Hoje latente: prod tem 2 perfis do founder e 0 pacientes. Correção documentada passo a passo. | **Antes do 1º cliente** — mesmo gatilho do D1. Depois, um preview quebrado custa dado de paciente real. Ver [achado](achados/preview-aponta-para-prod.md). |
+
+### Por que o D4 fechou sem virar projeto (2026-07-16)
+
+O D4 estava escrito como "auth-epoch global", e o gatilho era "primeiro incidente de sessão ou
+exigência de compliance". A remediação da auditoria de identidade (I-4) mostrou que **não era preciso
+construir um epoch**: o `claims_version` **já era** o epoch — monotônico, já no JWT, já com triggers.
+Faltavam duas coisas pequenas: (1) alguém **conferir** por request (o middleware só fazia heal
+throttled e declaradamente não-enforcement), e (2) um trigger em `role_permissions`, a única entrada
+de permissão que ninguém bumpava (o velho D27).
+
+Fechou junto: **I-4** (replay de 15min), **I-11b/D27** (drift global) e **I-7** (`_healed` forjável —
+morreu por remoção, junto do heal). Custo: +1 SELECT por PK memoizado; o middleware **perdeu** um
+fetch ao PostgREST a cada 60s e ~150 linhas. Ver ADR-037.
+
+### Por que o D7 foi adiado (e o que o tornaria válido)
+
+Host separado **não protege o painel** — a defesa é `guardAdminAccess()` → super_admin +
+AAL2 → **404 absoluto**, que independe de hostname. O painel não fica mais exposto por
+morar em `app.qoro.dev`.
+
+O ganho real seria **um só**: isolamento de origem. Com a CSP em `Report-Only` (**D5**),
+um XSS no app do tenant roda na **mesma origem** da sessão de super_admin; em origem
+separada, não alcançaria. **Mas isso só vale se o cookie de sessão for escopado por HOST
+e não por domínio** (`.qoro.dev`) — senão os dois hosts compartilham cookie e a separação
+não isola nada.
+
+Ou seja: o benefício depende de duas condições que hoje não existem, e o custo (DNS +
+cert + config + um 2º alvo de deploy) é imediato. Com **um único super_admin** e produto
+pré-produção, adiar é a escolha certa. Reabrir **junto** com o D5 — não antes, e não
+sozinho.
+
+### D1 — provisionado; o que falta é o deploy
+
+> ⚠️ Esta seção **duplicava** o SQL do runbook e envelheceu: lia como "a fazer" quando já
+> estava feito. A autoridade é o runbook — ele tem os passos, o estado datado e, acima de
+> tudo, **a query que responde o estado sem ninguém precisar lembrar**.
+>
+> 👉 [`runbooks/runtime-role-nobypassrls.md`](runbooks/runtime-role-nobypassrls.md)
+
+**Estado (verificado no banco em 2026-07-16, não presumido):** role `qoro_runtime` existe nos
+dois ambientes, `rolbypassrls = false`, com senha, membro de `authenticated`, **396 grants**
+(98 tabelas × 4 ops) e `ALTER DEFAULT PRIVILEGES` ativo. `DATABASE_URL_RUNTIME` na Vercel
+(Production + Preview) desde 2026-07-15. Fail-close **provado em dev** (A/B/C/D do Passo 3):
+sem `withTenant` → 0 linhas, em vez das 2 clínicas que o `postgres` enxerga.
+
+**Falta só o deploy da branch → `main`**, que liga o fail-close sozinho (o `main` ainda não lê
+a env). Depois, o Passo 4: `smoke:c5` + navegar o painel, de olho em `permission denied for
+table X` (= grant faltando, não RLS).
+
+> 🪤 **A armadilha desta linha, duas vezes:** o D1 foi cobrado como pendente em duas sessões
+> por quem (eu, Claude) **citou o runbook sem abrir**. Um `SELECT` responde em 2 segundos.
+> Antes de dizer que falta, rode a query do runbook. Ver [[doc-afirma-o-que-nao-existe]].
 
 ---
 

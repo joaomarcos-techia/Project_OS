@@ -1,3 +1,4 @@
+@layer components {
 /* =====================================================================
    ClinicaOS — Platform Admin extras (C-UI). Extraído 1:1 do
    `design_system/ClinicaOS - Admin (standalone).html` (bloco de chrome do
@@ -265,3 +266,4 @@
 .export-row .field .input { width: 150px; }
 .export-note { display: flex; align-items: flex-start; gap: 7px; margin-top: var(--sp-4); font-size: 12px; color: var(--text-3); line-height: 1.5; }
 .export-note svg { color: var(--success-600); flex-shrink: 0; margin-top: 1px; }
+}

@@ -15,6 +15,7 @@
  *     (ADR-025) corrige divergência;
  *   - métricas estruturadas via metrics.emit.
  */
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertBillingRuntimeReady, env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -148,8 +149,12 @@ async function request(
   method: 'GET' | 'POST' | 'DELETE',
   path: string,
   body?: unknown,
+  opts?: { attempts?: number },
 ): Promise<unknown> {
-  const maxAttempts = method === 'GET' ? 3 : 1;
+  // GET re-tenta por default (idempotente). `opts.attempts` permite ao caller
+  // apertar o orçamento: o webhook verifica o pagamento DENTRO da janela de 30s
+  // da invocação, e 3 × ASAAS_HTTP_TIMEOUT_MS (10s) + backoff estoura o limite.
+  const maxAttempts = opts?.attempts ?? (method === 'GET' ? 3 : 1);
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -223,6 +228,14 @@ export interface ProviderPayment {
   value: number;
   dueDate: string;
   invoiceUrl: string | null;
+  /**
+   * A2: origem CONFIÁVEL do vínculo pagamento→subscription. É o que resolve a
+   * clínica (`ensureInvoiceForPayment` casa por `asaas_subscription_id`), então
+   * não pode vir do corpo do webhook: com o token, um atacante parearia um
+   * `paymentId` real com a subscription de OUTRA clínica.
+   */
+  subscriptionId: string | null;
+  billingType: string | null;
 }
 
 export interface ProviderSubscription {
@@ -231,18 +244,20 @@ export interface ProviderSubscription {
   value: number;
 }
 
-/** Evento de webhook Asaas normalizado (sem wire format cru). */
+/**
+ * Evento de webhook Asaas normalizado (sem wire format cru).
+ *
+ * A2 — este tipo carrega SÓ o que é seguro usar vindo do corpo: identificadores
+ * para dedup e para consultar o provider. O Asaas não assina o corpo (só um token
+ * estático compartilhado), então quem tiver o token forja qualquer campo. Status,
+ * valor, vencimento e o vínculo com a subscription vêm de `getPayment()` — não
+ * daqui. Os campos ausentes são ausentes DE PROPÓSITO: se o tipo os expusesse,
+ * alguém acabaria persistindo dado forjável sem perceber.
+ */
 export interface ParsedWebhook {
-  eventId: string; // chave de dedup
-  event: string; // PAYMENT_RECEIVED|PAYMENT_OVERDUE|PAYMENT_REFUNDED|...
+  eventId: string; // chave de dedup — sempre do provider (`body.id`)
+  event: string; // rótulo da notificação; NÃO decide transição (o status real decide)
   paymentId: string | null;
-  subscriptionId: string | null;
-  value: number | null;
-  status: string | null;
-  dueDate: string | null;
-  paymentDate: string | null;
-  billingType: string | null;
-  invoiceUrl: string | null;
 }
 
 export interface PaymentProvider {
@@ -256,7 +271,9 @@ export interface PaymentProvider {
   cancelSubscription(asaasSubscriptionId: string): Promise<void>;
   generateInvoice(input: GenerateInvoiceInput): Promise<ProviderPayment>;
   getSubscription(asaasSubscriptionId: string): Promise<ProviderSubscription>;
-  getPayment(asaasPaymentId: string): Promise<ProviderPayment>;
+  /** `attempts` aperta o orçamento de retry (webhook usa 1 — ver [asaas/route.ts]). */
+  getPayment(asaasPaymentId: string, opts?: { attempts?: number }): Promise<ProviderPayment>;
+  /** Lança se o corpo não trouxer `body.id` (chave de dedup do provider). */
   parseWebhook(raw: string): ParsedWebhook;
   /** Valida o header `asaas-access-token` em constant-time. */
   validateWebhookToken(token: string | null): boolean;
@@ -267,13 +284,6 @@ function asNum(v: unknown): number {
 }
 function asStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 export const asaasProvider: PaymentProvider = {
@@ -356,6 +366,8 @@ export const asaasProvider: PaymentProvider = {
       value: asNum(r.value),
       dueDate: asStr(r.dueDate) ?? input.dueDate,
       invoiceUrl: asStr(r.invoiceUrl),
+      subscriptionId: asStr(r.subscription),
+      billingType: asStr(r.billingType),
     };
   },
 
@@ -368,14 +380,16 @@ export const asaasProvider: PaymentProvider = {
     };
   },
 
-  async getPayment(id) {
-    const r = (await request('GET', `/payments/${id}`)) as Record<string, unknown>;
+  async getPayment(id, opts) {
+    const r = (await request('GET', `/payments/${id}`, undefined, opts)) as Record<string, unknown>;
     return {
       paymentId: String(r.id),
       status: asStr(r.status) ?? 'UNKNOWN',
       value: asNum(r.value),
       dueDate: asStr(r.dueDate) ?? '',
       invoiceUrl: asStr(r.invoiceUrl),
+      subscriptionId: asStr(r.subscription),
+      billingType: asStr(r.billingType),
     };
   },
 
@@ -383,27 +397,26 @@ export const asaasProvider: PaymentProvider = {
     const body = JSON.parse(raw) as Record<string, unknown>;
     const payment = (body.payment ?? {}) as Record<string, unknown>;
     const event = String(body.event ?? '');
-    const paymentId = asStr(payment.id);
-    // Asaas nem sempre manda um event id; compõe uma chave estável de dedup.
-    const eventId =
-      asStr(body.id) ?? `${event}:${paymentId ?? 'na'}:${asStr(payment.status) ?? 'na'}`;
-    return {
-      eventId,
-      event,
-      paymentId,
-      subscriptionId: asStr(payment.subscription),
-      value: payment.value === undefined ? null : asNum(payment.value),
-      status: asStr(payment.status),
-      dueDate: asStr(payment.dueDate),
-      paymentDate: asStr(payment.paymentDate) ?? asStr(payment.clientPaymentDate),
-      billingType: asStr(payment.billingType),
-      invoiceUrl: asStr(payment.invoiceUrl),
-    };
+    // A2: `body.id` (evt_...) é OBRIGATÓRIO. Antes, na ausência dele, a chave de
+    // dedup era sintetizada como `${event}:${paymentId}:${status}` — o que (a) é
+    // escolhível por quem tem o token, permitindo pré-ocupar um slot de dedup, e
+    // (b) colapsava eventos legítimos DISTINTOS que compartilhassem a tripla (um
+    // 2º PAYMENT_OVERDUE do mesmo pagamento sumia como "duplicate"). Sem id, é
+    // melhor falhar alto: o Asaas re-tenta e o billing-reconcile é o backstop.
+    const eventId = asStr(body.id);
+    if (!eventId) {
+      throw new BillingProviderError(
+        '[billing] webhook sem body.id (chave de dedup)',
+        'webhook_missing_event_id',
+        400,
+      );
+    }
+    return { eventId, event, paymentId: asStr(payment.id) };
   },
 
   validateWebhookToken(token) {
-    if (!token || !env.ASAAS_WEBHOOK_TOKEN) return false;
-    return constantTimeEqual(token, env.ASAAS_WEBHOOK_TOKEN);
+    // `safeEqual` já trata null/undefined e tamanhos diferentes sem lançar.
+    return safeEqual(token, env.ASAAS_WEBHOOK_TOKEN);
   },
 };
 

@@ -12,17 +12,21 @@
  *      Para dashboard operacional / debug ad-hoc. Validação via
  *      requireSuperAdmin que já verifica MFA.
  *
- * Bearer + Vercel header check (mesma defesa do cron route — HIGH-08).
+ * Auth em [health-auth.ts]. Só Bearer/super_admin — sem o header `x-vercel-cron`
+ * do caminho de cron: este endpoint existe para monitor externo, que não tem como
+ * enviá-lo (F-09).
  */
 // dbAdmin é permitido aqui via ignores de guard #2 (eslint.config.mjs):
 // healthcheck precisa de queries cross-tenant agregadas.
+import { randomUUID } from 'node:crypto';
+
 import { sql } from 'drizzle-orm';
 
-import {
-  getCurrentUser,
-} from '@/lib/auth/tenant-context';
 import { dbAdmin } from '@/lib/db';
-import { env, assertCronRuntimeReady } from '@/lib/env';
+import { healthAuthLevel } from '@/lib/http/health-auth';
+import { toErrorResponse } from '@/lib/http/error-response';
+import { assertCronRuntimeReady } from '@/lib/env';
+import { logger } from '@/lib/observability/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,30 +64,9 @@ type IdempotencyRow = {
   in_flight_orphans_1h: number;
 };
 
-async function authLevel(req: Request): Promise<'public' | 'monitoring' | 'super_admin' | 'denied'> {
-  // super_admin path via cookies → privileged.
-  // Try super_admin first because if they're logged in, give them full detail.
-  try {
-    const user = await getCurrentUser();
-    if (user?.isSuperAdmin && user.aal === 'aal2') return 'super_admin';
-  } catch {
-    // ignore, fall through to bearer check
-  }
-
-  const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${env.CRON_SECRET}`) return 'denied';
-
-  // F-09: the Bearer CRON_SECRET is the control for this READ-ONLY counts
-  // endpoint. Previously it ALSO required the `x-vercel-cron` header in prod —
-  // but this endpoint is meant for external monitors (UptimeRobot), which cannot
-  // send a Vercel-injected header, so that check was self-defeating AND relied on
-  // an undocumented header. Bearer alone → monitoring level.
-  return 'monitoring';
-}
-
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  const level = await authLevel(req);
+  const level = await healthAuthLevel(req);
   if (level === 'denied') {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
   }
@@ -193,9 +176,15 @@ export async function GET(req: Request): Promise<Response> {
       { status: httpStatus },
     );
   } catch (err) {
-    return Response.json(
-      { ok: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    // B1: envelope genérico + trace_id. O erro cru ia para o corpo — atrás de auth
+    // privilegiada, mas ainda expondo internals do driver/Postgres a quem opera.
+    // O MESMO trace_id vai para o log e para a resposta: sem isso, `toErrorResponse`
+    // gera um randomUUID e o id que o operador tem em mãos não acha nada no log.
+    const traceId = randomUUID();
+    logger.error('health.outbox.error', {
+      trace_id: traceId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return toErrorResponse(err, traceId);
   }
 }

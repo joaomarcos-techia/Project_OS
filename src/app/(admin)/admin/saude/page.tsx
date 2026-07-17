@@ -1,6 +1,10 @@
-import { PageHeader } from '@/components/ui/page-header';
+import { Banknote, Bot, CircleCheck, MessageCircle, Database, TriangleAlert } from 'lucide-react';
+import type { ComponentType } from 'react';
+
 import { Badge } from '@/components/ui/badge';
-import { Icon } from '@/components/painel/icons';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { cn } from '@/lib/ui/cn';
 
 import type { HealthStatus } from '../_lib/dto';
 import { guardAdminAccess } from '../_lib/guard';
@@ -22,18 +26,29 @@ const PROVIDER_DESC: Record<string, string> = {
   meta: 'Mensageria e webhooks',
   asaas: 'Cobrança, Pix e boletos',
 };
-const PROVIDER_ICON: Record<string, string> = {
-  supabase: 'box',
-  gemini: 'ai',
-  meta: 'chat',
-  asaas: 'cash',
+const PROVIDER_ICON: Record<string, ComponentType<{ className?: string }>> = {
+  supabase: Database,
+  gemini: Bot,
+  meta: MessageCircle,
+  asaas: Banknote,
 };
 const STATUS_LABEL: Record<HealthStatus, string> = {
   ok: 'Operacional',
   degraded: 'Degradado',
   down: 'Indisponível',
 };
-const TONE: Record<HealthStatus, 'green' | 'amber' | 'red'> = { ok: 'green', degraded: 'amber', down: 'red' };
+const TONE: Record<HealthStatus, 'green' | 'amber' | 'red'> = {
+  ok: 'green',
+  degraded: 'amber',
+  down: 'red',
+};
+/** Ponto de status com halo — DS v2 §status. */
+const DOT: Record<HealthStatus, string> = {
+  ok: 'bg-success-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--success-500)_16%,transparent)]',
+  degraded:
+    'bg-warning-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--warning-500)_16%,transparent)]',
+  down: 'bg-danger-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--danger-500)_16%,transparent)]',
+};
 
 export default async function SaudePage() {
   await guardAdminAccess();
@@ -47,91 +62,127 @@ export default async function SaudePage() {
   const incidents = reports.filter((r) => r.status !== 'ok');
 
   return (
-    <div className="screen">
+    <>
       <PageHeader
-        breadcrumb={
-          <>
-            Plataforma <span className="sep">›</span> <b>Saúde</b>
-          </>
-        }
+        crumbs={[{ label: 'Plataforma' }, { label: 'Saúde' }]}
         title="Saúde da plataforma"
         description="Status em tempo real das integrações críticas e da infraestrutura."
       />
 
-      <div className={`health-banner ${TONE[worst]}`}>
-        <Icon name={worst === 'ok' ? 'check' : 'alert'} size={18} sw={2} />
-        <div>
-          <b>{worst === 'ok' ? 'Tudo operacional' : worst === 'degraded' ? 'Degradação parcial' : 'Incidente em andamento'}</b>
-          <span>
+      {/* Banner de estado geral */}
+      <div
+        className={cn(
+          'flex items-start gap-3 rounded-(--r-md) border px-4 py-3.5',
+          worst === 'ok' &&
+            'border-[color-mix(in_oklch,var(--success-500)_26%,transparent)] bg-success-50 dark:bg-[color-mix(in_oklch,var(--success-500)_14%,transparent)]',
+          worst === 'degraded' &&
+            'border-[color-mix(in_oklch,var(--warning-500)_32%,transparent)] bg-warning-50 dark:bg-[color-mix(in_oklch,var(--warning-500)_16%,transparent)]',
+          worst === 'down' &&
+            'border-[color-mix(in_oklch,var(--danger-500)_26%,transparent)] bg-danger-50 dark:bg-[color-mix(in_oklch,var(--danger-500)_14%,transparent)]',
+        )}
+      >
+        {worst === 'ok' ? (
+          <CircleCheck aria-hidden="true" className="mt-px size-5 text-success-600" />
+        ) : (
+          <TriangleAlert
+            aria-hidden="true"
+            className={cn('mt-px size-5', worst === 'down' ? 'text-danger-600' : 'text-warning-700')}
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <b className="text-(length:--fs-sm) font-semibold">
+            {worst === 'ok'
+              ? 'Tudo operacional'
+              : worst === 'degraded'
+                ? 'Degradação parcial'
+                : 'Incidente em andamento'}
+          </b>
+          <span className="block text-(length:--fs-sm) text-fg-muted">
             {worst === 'ok'
               ? `${reports.length} serviços monitorados, todos saudáveis.`
-              : `${incidents.length} serviço(s) com atenção · ${incidents.map((i) => PROVIDER_LABEL[i.provider] ?? i.provider).join(', ')}.`}
+              : `${incidents.length} serviço(s) com atenção · ${incidents
+                  .map((i) => PROVIDER_LABEL[i.provider] ?? i.provider)
+                  .join(', ')}.`}
           </span>
         </div>
-        <span className="mono">atualizado agora</span>
+        <span className="font-mono text-(length:--fs-2xs) text-fg-subtle">atualizado agora</span>
       </div>
 
-      <div className="health-grid" style={{ marginTop: 'var(--sp-4)' }}>
-        {reports.map((r) => (
-          <div key={r.provider} className="health-card">
-            <div className="hc-top">
-              <span
-                className={`st-ico ${TONE[r.status]}`}
-                style={{ width: 36, height: 36, borderRadius: 9 }}
+      {/* Serviços — lista vertical compacta (pedido do founder: sem grade de ícones) */}
+      <Card className="mt-(--sp-4)">
+        <ul className="flex flex-col">
+          {reports.map((r) => {
+            const IconCmp = PROVIDER_ICON[r.provider] ?? Database;
+            return (
+              <li
+                key={r.provider}
+                className="flex flex-wrap items-center gap-3 border-b border-border px-(--card-pad) py-3 last:border-b-0"
               >
-                <Icon name={PROVIDER_ICON[r.provider] ?? 'monitor'} size={18} />
-              </span>
-              <div className="hc-id">
-                <b>{PROVIDER_LABEL[r.provider] ?? r.provider}</b>
-                <span>{PROVIDER_DESC[r.provider] ?? r.reason}</span>
-              </div>
-              <span className={`hc-dot ${TONE[r.status]}`} />
-            </div>
-            <div className={`hc-status ${TONE[r.status]}`}>{STATUS_LABEL[r.status]}</div>
-            <div className="hc-stats">
-              <div>
-                <span className="hc-k">Latência</span>
-                <b>{r.latencyMs != null ? `${r.latencyMs} ms` : '—'}</b>
-              </div>
-              <div>
-                <span className="hc-k">Último sucesso</span>
-                <b>{formatDateTime(r.lastSuccessAt)}</b>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
-        <div className="cardblock-head">
-          <h4>Incidentes ativos</h4>
-          <span className="sub">serviços com atenção</span>
-        </div>
-        {incidents.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-fg-subtle">Nenhum incidente — todos os serviços operacionais. 🎉</p>
-        ) : (
-          <div className="listrows">
-            {incidents.map((r) => (
-              <div key={r.provider} className="listrow">
-                <span className={`hc-dot ${TONE[r.status]}`} style={{ margin: '0 4px' }} />
-                <div className="lr-main">
-                  <b>{PROVIDER_LABEL[r.provider] ?? r.provider}</b>
-                  <span className="lr-sub" style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}>
-                    {r.reason}
+                <span
+                  aria-hidden="true"
+                  className={cn('size-1.75 shrink-0 rounded-full', DOT[r.status])}
+                />
+                <IconCmp className="size-4 shrink-0 text-fg-subtle" />
+                <div className="min-w-0 flex-1">
+                  <b className="block text-(length:--fs-sm) leading-tight font-semibold">
+                    {PROVIDER_LABEL[r.provider] ?? r.provider}
+                  </b>
+                  <span className="block truncate text-(length:--fs-xs) text-fg-subtle">
+                    {PROVIDER_DESC[r.provider] ?? r.reason}
                   </span>
                 </div>
-                <div className="lr-end">
-                  <Badge tone={TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                <span className="font-mono text-(length:--fs-xs) text-fg-muted">
+                  {r.latencyMs != null ? `${r.latencyMs} ms` : '—'}
+                </span>
+                <span className="hidden font-mono text-(length:--fs-2xs) text-fg-subtle sm:block">
+                  ok {formatDateTime(r.lastSuccessAt)}
+                </span>
+                <Badge tone={TONE[r.status]} dot>
+                  {STATUS_LABEL[r.status]}
+                </Badge>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+
+      {/* Incidentes ativos */}
+      <Card className="mt-(--sp-4)">
+        <div className="flex items-center justify-between border-b border-border px-(--card-pad) py-3">
+          <h4 className="text-(length:--fs-sm) font-semibold">Incidentes ativos</h4>
+          <span className="text-(length:--fs-xs) text-fg-subtle">serviços com atenção</span>
+        </div>
+        {incidents.length === 0 ? (
+          <p className="px-(--card-pad) py-4 text-sm text-fg-subtle">
+            Nenhum incidente — todos os serviços operacionais. 🎉
+          </p>
+        ) : (
+          <ul className="flex flex-col">
+            {incidents.map((r) => (
+              <li
+                key={r.provider}
+                className="flex items-center gap-3 border-b border-border px-(--card-pad) py-3 last:border-b-0"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn('size-1.75 shrink-0 rounded-full', DOT[r.status])}
+                />
+                <div className="min-w-0 flex-1">
+                  <b className="block text-(length:--fs-sm) font-semibold">
+                    {PROVIDER_LABEL[r.provider] ?? r.provider}
+                  </b>
+                  <span className="block text-(length:--fs-xs) text-fg-muted">{r.reason}</span>
                 </div>
-              </div>
+                <Badge tone={TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </div>
+      </Card>
 
       <p className="mt-4 text-xs text-fg-subtle">
         Verde = operacional · Amarelo = degradado/indeterminado · Vermelho = indisponível.
       </p>
-    </div>
+    </>
   );
 }

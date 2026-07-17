@@ -23,8 +23,8 @@
 // dbAdmin permitido aqui via guard #2 (eslint.config.mjs): healthcheck cross-tenant.
 import { sql } from 'drizzle-orm';
 
-import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { dbAdmin } from '@/lib/db';
+import { healthAuthLevel } from '@/lib/http/health-auth';
 import { assertCronRuntimeReady, env } from '@/lib/env';
 
 export const runtime = 'nodejs';
@@ -34,18 +34,6 @@ export const dynamic = 'force-dynamic';
 const PENDING_STUCK_S = 300;
 
 type CheckStatus = 'ok' | 'degraded' | 'down';
-
-async function authLevel(req: Request): Promise<'monitoring' | 'super_admin' | 'denied'> {
-  // super_admin primeiro: se logado, devolve detalhe completo.
-  try {
-    const user = await getCurrentUser();
-    if (user?.isSuperAdmin && user.aal === 'aal2') return 'super_admin';
-  } catch {
-    // ignore — cai no bearer
-  }
-  if (req.headers.get('authorization') === `Bearer ${env.CRON_SECRET}`) return 'monitoring';
-  return 'denied';
-}
 
 /** `db` é a única dependência cuja falha é DOWN (resto degrada). */
 async function checkDb(): Promise<CheckStatus> {
@@ -71,7 +59,7 @@ function aggregate(checks: Record<string, CheckStatus>): CheckStatus {
 
 export async function GET(req: Request): Promise<Response> {
   assertCronRuntimeReady();
-  const level = await authLevel(req);
+  const level = await healthAuthLevel(req);
   if (level === 'denied') {
     return Response.json({ error: 'unauthorized' }, { status: 401 });
   }

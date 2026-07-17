@@ -9,12 +9,18 @@
  */
 import { and, eq, sql } from 'drizzle-orm';
 
+/* eslint-disable boundaries/element-types -- profiles é declarado no schema de identity (Drizzle FK vive onde a tabela é declarada); leitura tenant-scoped via tx (RLS aplica). Mesma exceção de clinical/internal/doctor.ts e tenant-context.ts. */
+import { profiles } from '@/contexts/identity/schema';
+/* eslint-enable boundaries/element-types */
+
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { practitionerSql } from '@/lib/auth/practitioner';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
+import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 
 import { SchedulingValidationError } from './errors';
-import { asConflict, idemKey, IDEM_TTL, jsonSafe, requestContext } from './internal/action-helpers';
+import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { clinicHolidays, doctorAvailability } from './schema';
 import { parseTimeToMinutes } from './slot-resolver';
 import {
@@ -41,7 +47,7 @@ export async function setDoctorAvailability(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('avail_set', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('avail_set', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: 'doctor_availability.set',
           resourceType: 'doctor_availability',
@@ -57,11 +63,11 @@ export async function setDoctorAvailability(
         // o UUID de um profile da clínica B criava availability "fantasma" e o
         // EXCLUDE global (doctor_id, weekday, range) passava a rejeitar janelas
         // legítimas da clínica B (interferência cross-tenant). Também exige
-        // role='doctor' + ativo + não soft-deletado (F-05).
+        // practitioner (role='doctor' OU CRM — ADR-032 §2) + ativo + não soft-deletado (F-05).
         const doc = await tx.execute<{ id: string }>(
           sql`SELECT id FROM profiles
                WHERE id = ${data.doctorId}
-                 AND role = 'doctor'
+                 AND ${practitionerSql(profiles.role, profiles.crm)}
                  AND ativo = true
                  AND deleted_at IS NULL
                LIMIT 1`,
@@ -99,7 +105,7 @@ export async function removeDoctorAvailability(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('avail_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('avail_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: 'doctor_availability.removed',
         resourceType: 'doctor_availability',
@@ -131,7 +137,7 @@ export async function createHoliday(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('holiday_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: IDEM_TTL },
+        idempotency: { key: idemKey('holiday_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
         audit: {
           action: 'clinic_holiday.created',
           resourceType: 'clinic_holiday',
@@ -171,7 +177,7 @@ export async function removeHoliday(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('holiday_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: IDEM_TTL },
+      idempotency: { key: idemKey('holiday_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
       audit: {
         action: 'clinic_holiday.removed',
         resourceType: 'clinic_holiday',

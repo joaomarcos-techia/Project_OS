@@ -25,14 +25,14 @@ const ROLE_LABEL: Record<string, string> = {
   super_admin: 'Administrador',
 };
 
-const NEUTRAL: ShellIdentity = { userName: 'Você', userRole: '', clinicName: 'ClinicaOS' };
+const NEUTRAL: ShellIdentity = { userName: 'Você', userRole: '', clinicName: 'Qoro' };
 
 export async function getShellIdentity(): Promise<ShellIdentity> {
   try {
     const user = await getCurrentUser();
     if (!user) return NEUTRAL;
     const role = ROLE_LABEL[user.role] ?? user.role;
-    if (!user.clinicId) return { userName: 'Você', userRole: role, clinicName: 'ClinicaOS' };
+    if (!user.clinicId) return { userName: 'Você', userRole: role, clinicName: 'Qoro' };
 
     return await withTenant(user.clinicId, async (tx) => {
       const rows = (await tx.execute(sql`
@@ -45,7 +45,7 @@ export async function getShellIdentity(): Promise<ShellIdentity> {
       return {
         userName: r?.user_name?.trim() || 'Você',
         userRole: role,
-        clinicName: r?.clinic_name?.trim() || 'ClinicaOS',
+        clinicName: r?.clinic_name?.trim() || 'Qoro',
       };
     });
   } catch {

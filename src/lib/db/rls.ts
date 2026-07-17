@@ -3,10 +3,14 @@
  * tenant-scoped tables. ADR-007 freezes the patterns; this file freezes the
  * SQL text. Changing a helper changes every migration that calls it in C3+.
  *
- * Frozen contracts (see docs/adr/007-rls-implementation-patterns.md):
- *   - FORCE ROW LEVEL SECURITY is the PRINCIPAL defense (D24). It is the
- *     invariant that survives any Supabase / pooler / role change.
- *   - SET LOCAL ROLE authenticated (in withTenant) is HARDENING only.
+ * Frozen contracts (see docs/adr/007-rls-implementation-patterns.md, incl.
+ * **Correction F-01** which supersedes the older "FORCE-principal"/D24 framing):
+ *   - `SET LOCAL ROLE authenticated` (in withTenant) is the PRINCIPAL runtime
+ *     defense: the `db` pool connects with a BYPASSRLS role, so the role-switch
+ *     is what makes policies + FORCE actually evaluate for tenant requests.
+ *   - FORCE ROW LEVEL SECURITY is defense-in-depth — it subjects a non-bypass
+ *     owner/role to policies, but does NOT by itself stop the BYPASSRLS pool
+ *     role (see connection-origin-guard.ts). Both layers together are the goal.
  *   - Policies always check `current_setting('app.current_clinic')` OR
  *     `current_clinic_id()` (dual-context, D22).
  *   - Policies never enforce RBAC ("which role can edit"). RBAC lives in

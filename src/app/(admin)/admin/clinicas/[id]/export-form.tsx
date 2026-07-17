@@ -72,7 +72,10 @@ export function ExportAuditForm({ clinicId }: { clinicId: string }) {
         { method: 'POST' },
       );
       const data = await res.json();
-      if (!res.ok) setError(data.error ?? 'Falha ao exportar');
+      // Envelope C16: `{error: true, code, message, trace_id}` — `error` é BOOLEANO.
+      // Ler `data.error` aqui punha `true` no state e o React não renderiza booleano:
+      // a caixa vermelha aparecia vazia. A mensagem útil está em `message`.
+      if (!res.ok) setError(typeof data?.message === 'string' ? data.message : 'Falha ao exportar');
       else setResult(data as ExportResult);
     } catch {
       setError('Falha de rede');

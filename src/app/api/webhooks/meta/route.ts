@@ -12,6 +12,7 @@
  * A rota NÃO importa `dbAdmin` — usa o seam `@/lib/messaging` (que o encapsula)
  * + a persistência do contexto (withTenant). Sem alteração no eslint.
  */
+import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertMessagingRuntimeReady, env } from '@/lib/env';
 import {
   getMessagingProvider,
@@ -85,7 +86,7 @@ export async function GET(req: Request): Promise<Response> {
     mode === 'subscribe' &&
     challenge !== null &&
     Boolean(env.META_WEBHOOK_VERIFY_TOKEN) &&
-    token === env.META_WEBHOOK_VERIFY_TOKEN
+    safeEqual(token, env.META_WEBHOOK_VERIFY_TOKEN)
   ) {
     return new Response(challenge, { status: 200, headers: { 'content-type': 'text/plain' } });
   }

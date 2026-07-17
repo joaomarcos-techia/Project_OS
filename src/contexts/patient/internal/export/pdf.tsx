@@ -50,7 +50,7 @@ export async function renderExportPdf(doc: ExportDocument): Promise<Buffer> {
   return renderToBuffer(
     <Document>
       <Page size="A4" style={styles.page} wrap>
-        <Text style={styles.title}>ClinicaOS — Exportação de Dados Pessoais (LGPD Art. 18)</Text>
+        <Text style={styles.title}>Qoro — Exportação de Dados Pessoais (LGPD Art. 18)</Text>
         <Text style={styles.meta}>Solicitação: {doc.requestId}</Text>
         <Text style={styles.meta}>Paciente: {doc.patientId}</Text>
         <Text style={styles.meta}>Gerado em: {doc.exportedAt}</Text>

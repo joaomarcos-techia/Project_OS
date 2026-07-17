@@ -258,7 +258,7 @@ export async function renderReceituarioControleEspecialPDF(
         />
         <View style={s.cut} />
         <Via data={data} branding={branding} doctor={doctor} viaLabel="2ª via – Paciente" />
-        <Text style={s.genBy}>Gerado por ClinicaOS — qoro.dev</Text>
+        <Text style={s.genBy}>Gerado por Qoro — qoro.dev</Text>
       </Page>
     </Document>,
   );

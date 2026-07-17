@@ -169,9 +169,7 @@ export function JoinWizard({
       <header className="wiz-top">
         <div className="brand">
           <Logo size={24} />
-          <span className="wordmark">
-            Clinica<b>OS</b>
-          </span>
+          <span className="wordmark">Qoro</span>
         </div>
         <div className="right">
           <span className="wiz-secure">{I.lock} Ambiente seguro</span>
@@ -832,7 +830,7 @@ function Done({ email }: { email: string | null }) {
     <div className="wiz-card done">
       <div className="mark">{I.check}</div>
       <h1>Sua clínica está pronta 🎉</h1>
-      <p>Bem-vindo ao ClinicaOS. Seu ambiente foi criado com sucesso.</p>
+      <p>Bem-vindo ao Qoro. Seu ambiente foi criado com sucesso.</p>
       <a className="btn block" href="/dashboard" style={{ marginTop: 'var(--sp-6)' }}>
         Entrar no painel {I.arrowR}
       </a>

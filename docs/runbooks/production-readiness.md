@@ -72,7 +72,7 @@ Configuração de cada um: §3 (Supabase), §4 (env/secrets), §5 (Vercel/cron),
 ### 2.3 Ativar o Auth Hook (MANUAL no Dashboard — sem isso, login não injeta claims)
 - [ ] Dashboard → **Authentication** → **Sessions** → **Access Token TTL = 900** (15 min). *(Default é 3600; 900 reduz a janela de replay pós-logout — D12.)*
 - [ ] Dashboard → **Authentication** → **Hooks** → **Custom Access Token** → habilitar, Function = **`custom_access_token_hook`** (criada pelas migrations 0003/0004/0006).
-- [ ] Validar: `GET https://<prod>/api/health/auth-hook` → deve confirmar o hook OK.
+- [ ] Validar: `GET https://<prod>/api/health/auth-hook` com `Authorization: Bearer <CRON_SECRET>` → deve confirmar o hook OK. *(Sem o header: 401 — é esperado, ver §5.)*
 
 ### 2.4 MFA + super_admin
 - [ ] Dashboard → Authentication → garantir **MFA (TOTP) habilitado** (super_admin exige AAL2).
@@ -162,6 +162,7 @@ Todos os health endpoints exigem `Authorization: Bearer <CRON_SECRET>` (por isso
 ### 5.2 Auth Hook (sem ele, ninguém loga)
 - **URL:** `https://<prod>/api/health/auth-hook` (mesmo header Bearer).
 - [ ] Monitor com o mesmo padrão; alerta se ≠ 200.
+- [ ] **Ação após o A1 (auditoria de APIs, 2026-07-15):** esta rota era anônima no código até então — só a doc a descrevia como autenticada. Se o monitor foi criado sem o header, ele passa a receber **401**. **Conferir no Better Stack/UptimeRobot que o monitor do auth-hook carrega `Authorization: Bearer <CRON_SECRET>`** antes do próximo deploy.
 
 ### 5.3 Crons rodando
 - [ ] Vercel → Cron Jobs → conferir execuções verdes. Opcional: ping de dead-man-switch (Healthchecks.io) no fim do cron de outbox.
@@ -226,7 +227,7 @@ curl -H "Authorization: Bearer SEU_CRON_SECRET" "http://localhost:3000/api/healt
 - [ ] Criar 1 clínica + 1 usuário de clínica (via seed ou SQL) e fazer login como ele.
 - [ ] Criar 1 paciente → confirmar que `cpf_encrypted` no banco NÃO contém o CPF em claro (criptografia ativa).
 - [ ] `GET /api/health/outbox?strict=1` (com Bearer) → 200, `degraded:false`.
-- [ ] `GET /api/health/auth-hook` → OK.
+- [ ] `GET /api/health/auth-hook` (com Bearer) → OK.
 - [ ] RLS: logado na clínica A, não enxergar dados da B.
 
 ---
