@@ -1222,7 +1222,7 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 
 | # | Item | Estado | Gatilho para fazer |
 |---|---|---|---|
-| **D1** | **Role dedicado sem BYPASSRLS para o pool runtime** (A3 longo prazo). | ✅ **Provisionado nos DOIS ambientes** (2026-07-15/16) — role `qoro_runtime` sem BYPASSRLS, senha, `GRANT authenticated`, 396 grants (98 tabelas × 4) e `ALTER DEFAULT PRIVILEGES`; `DATABASE_URL_RUNTIME` na Vercel (Production + Preview). Fail-close **provado em dev** (A/B/C/D). ⚠️ **INERTE em prod até o deploy**: o `main` não lê a env (o código vive na branch `docs/identity-practitioner-model`) — no deploy liga sozinho. Verificar com a query em [runtime-role-nobypassrls.md](runbooks/runtime-role-nobypassrls.md#como-conferir-o-estado-sem-adivinhar), **não pela memória**. | **Deploy da branch → `main`** (nada de infra falta). Depois: Passo 4 (`smoke:c5` + navegar o painel). |
+| ~~**D1**~~ | ~~Role dedicado sem BYPASSRLS para o pool runtime (A3)~~ | ✅ **ATIVO EM PRODUÇÃO 2026-07-17.** `qoro_runtime` conectando; fail-close ligado (um `withTenant` esquecido → 0 linhas). Provado por conexão real em dev: sem `withTenant` → 0; com → 2 visíveis, 0 de outra clínica. O deploy quebrou por **connection string** (host de pooler de outra região — Supavisor é regional: dev=us-west-1, prod=us-east-1 — e depois senha); nunca pelo desenho. Ver [runbook](runbooks/runtime-role-nobypassrls.md). | — |
 | **D2** | **Circuit breaker + quota de IA distribuídos** (B7). Hoje per-instância → sob multi-instância o teto efetivo vira ~N×. | Aceito e documentado (ADR-022 §11.17). Impacto é **custo**, não segurança. | **A 1ª instância a mais em produção**, OU o gasto de IA se aproximar do orçamento. O que vier antes. Aí a extração para `src/lib/redis/` (CONVENTIONS §chaves Redis) deixa de ser prematura. |
 | **D3** | Fallback de rate-limit per-instância (~N× durante outage do Upstash) | Aceito (ADR-008 F-08) | Mesmo gatilho do D2 — o Redis já estaria em jogo. |
 | ~~**D4**~~ | ~~Auth-epoch / revogação imediata de sessão (janela de replay de JWT de 15min)~~ | ✅ **FECHADO 2026-07-16 — [ADR-037](adr/037-server-authoritative-session.md)** (remediação da auditoria de identidade, achado I-4). | — |
@@ -1261,7 +1261,7 @@ cert + config + um 2º alvo de deploy) é imediato. Com **um único super_admin*
 pré-produção, adiar é a escolha certa. Reabrir **junto** com o D5 — não antes, e não
 sozinho.
 
-### D1 — provisionado; o que falta é o deploy
+### D1 — FECHADO (2026-07-17)
 
 > ⚠️ Esta seção **duplicava** o SQL do runbook e envelheceu: lia como "a fazer" quando já
 > estava feito. A autoridade é o runbook — ele tem os passos, o estado datado e, acima de
@@ -1275,13 +1275,19 @@ dois ambientes, `rolbypassrls = false`, com senha, membro de `authenticated`, **
 (Production + Preview) desde 2026-07-15. Fail-close **provado em dev** (A/B/C/D do Passo 3):
 sem `withTenant` → 0 linhas, em vez das 2 clínicas que o `postgres` enxerga.
 
-**Falta só o deploy da branch → `main`**, que liga o fail-close sozinho (o `main` ainda não lê
-a env). Depois, o Passo 4: `smoke:c5` + navegar o painel, de olho em `permission denied for
-table X` (= grant faltando, não RLS).
+**Deploy feito (`71aa3f1`) e D1 ativo.** O deploy derrubou prod por ~1h — **não pelo desenho**,
+mas pela connection string: (1) host de pooler de **outra região** (o Supavisor é regional; dev é
+`us-west-1`, prod é `us-east-1`) → `tenant/user not found`; (2) senha divergente → `password
+authentication failed`. Corrigidos, o app subiu e navegou normal.
 
-> 🪤 **A armadilha desta linha, duas vezes:** o D1 foi cobrado como pendente em duas sessões
-> por quem (eu, Claude) **citou o runbook sem abrir**. Um `SELECT` responde em 2 segundos.
-> Antes de dizer que falta, rode a query do runbook. Ver [[doc-afirma-o-que-nao-existe]].
+> 🪤 **Duas armadilhas registradas nesta linha:**
+> 1. O D1 foi **cobrado como pendente** em duas sessões por quem (eu, Claude) citou o runbook
+>    **sem abrir**. Um `SELECT` responde em 2 segundos.
+> 2. A validação A/B/C/D usava `SET ROLE` — provava **grants**, nunca **login**. A env ficou 2 dias
+>    marcada "✅ feito" sem nunca ter sido exercitada. **Config não-exercitada é config não-validada.**
+>    Daí o **Passo 2b** (provar a string com um `select 1`) ser obrigatório no próximo ambiente.
+>
+> Ver [[doc-afirma-o-que-nao-existe]].
 
 ---
 
