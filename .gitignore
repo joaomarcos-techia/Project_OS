@@ -56,6 +56,14 @@ Thumbs.db
 static_analysis_*/
 *.sarif
 codeql-db/
+# Claude Code — config LOCAL da máquina (o sufixo `.local` é literalmente isso).
+# Acumula a allowlist de permissões conforme o dev vai aprovando comandos, e junto
+# vêm caminhos absolutos da máquina (Downloads, OneDrive) + `additionalDirectories`
+# apontando para fora do repo. Versionar isso distribui as permissões de UM dev para
+# todo mundo que clonar — inclusive escapes tipo `python -` (executa stdin arbitrário).
+# `.claude/settings.json` (sem o `.local`) CONTINUA versionado: é a config de equipe.
+.claude/settings.local.json
+
 # Vercel CLI (`vercel link`) — .vercel guarda project/org id + o VERCEL_OIDC_TOKEN.
 .vercel
 
