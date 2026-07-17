@@ -250,21 +250,50 @@ Com prod sem dado cross-tenant, o que se valida lá **não é o vazamento** (nã
 vazar) — é se os **grants** estão certos e o app não quebrou. **Não é configuração; é
 observação.**
 
+> ⚠️ **`pnpm smoke:c5` NÃO valida prod — não rode contra prod.** A 1ª versão deste passo
+> mandava rodá-lo aqui; está errado por dois motivos:
+> 1. O próprio script proíbe: *"Roda via tsx contra qoro-dev (DATABASE_URL do .env.local).
+>    **NUNCA contra prod**"* ([smoke-c5.ts:15](../../scripts/smoke-c5.ts#L15)) — ele cria e
+>    apaga paciente de teste; em prod isso é dado real.
+> 2. Ainda que rodasse, **não provaria nada**: um script no seu laptop usa o pool do
+>    `.env.local`. Quem lê `DATABASE_URL_RUNTIME` é o **deploy na Vercel**. O D1 é uma env
+>    da Vercel — só o app implantado o exercita.
+>
+> **A validação de prod é USAR O APP implantado.** Não há atalho de terminal.
+
 1. ~~Env `DATABASE_URL_RUNTIME` setada~~ ✅ feito. **O gatilho é o deploy da branch →
    `main`**: até lá o `main` não lê a env e o D1 fica inerte (ver o bloco no topo).
-2. `pnpm smoke:c5` (paciente) + abrir o painel e navegar (agenda, caixa, prontuário).
+2. **Logue como o `owner`, não como super_admin.**
 
-> 🪤 **Pegadinha (acontece toda vez).** Se você rodou um script de prod antes
-> (`db:backup:prod`), a `SUPABASE_PROJECT_ENV=prod` **fica grudada na sessão do shell** e
-> qualquer comando de dev seguinte morre com *"DATABASE_URL looks like prod"* — mesmo com
-> o `.env.local` intacto e a URL de dev. O guard ([db/index.ts](../../src/lib/db/index.ts))
-> trata a env var como sinal explícito de "estou mexendo com prod". **Correção:**
-> `Remove-Item Env:SUPABASE_PROJECT_ENV; Remove-Item Env:DATABASE_URL_PROD` (ou abra um
-> terminal novo). **Nunca** use `NODE_ENV=production` para silenciar — aí você escreve em
-> prod de verdade.
-3. **Qualquer `permission denied for table X` = grant faltando no Passo 1**, não erro de
-   RLS. É o modo de falha esperado se algo der errado — e o rollback é imediato.
-4. Quando prod tiver ≥ 2 clínicas com dado, rodar A/B/C/D lá também.
+   | Perfil em prod | E-mail | Serve? |
+   |---|---|---|
+   | **owner** — "Owner Teste" (Clínica Teste) | `teste@gmail.com` | ✅ **é este** |
+   | super_admin | `joaomarcosrodduarte@gmail.com` | ❌ |
+
+   **Por quê:** o super_admin tem `clinic_id = null` e só alcança o `/admin`, que roda em
+   **`dbAdmin`** — pool com BYPASSRLS, que o D1 **não toca**. Logar como super_admin
+   passaria **mesmo com o D1 quebrado** — é um teste que não pode falhar, logo não é teste.
+   Quem exercita o `withTenant` (o que o D1 muda) é o owner.
+
+3. Navegue os caminhos tenant: **agenda, pacientes, caixa, prontuário**. É isso — cada tela
+   dessas é uma query via `withTenant` com o role novo.
+
+4. **O que procurar, e onde.** O modo de falha esperado é **`permission denied for table X`**
+   = **grant faltando no Passo 1**, NÃO erro de RLS. (RLS mal configurado devolve *0 linhas*;
+   grant faltando devolve *erro*. Sintomas opostos — não confunda.)
+
+   | Onde | O quê |
+   |---|---|
+   | **A própria tela** | Grant faltando vira 500 na navegação. Você vê na hora — é o sinal mais rápido. |
+   | **Sentry** | A exceção com `trace_id` (ADR-029). |
+   | **Better Stack** | `message.level:"error"` — ⚠️ **com o prefixo `message.`**. Sem ele a busca volta vazia e *parece* que não há erro. Ver [log-search.md](./log-search.md). |
+
+5. **Quando prod tiver ≥ 2 clínicas com dado**, rodar A/B/C/D lá também — só então eles são
+   conclusivos (hoje, sem dado cross-tenant, o `0` deles é vacuidade, não isolamento).
+
+**Rollback (se aparecer `permission denied`):** remova a env `DATABASE_URL_RUNTIME` da Vercel
+e redeploy — o pool volta ao `DATABASE_URL` na hora. Depois conserte o grant que faltou e
+tente de novo.
 
 ## Rollback
 
@@ -298,10 +327,11 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 **O que falta, em ordem:**
 
 1. **Deploy da branch `docs/identity-practitioner-model` → `main`.** É o que ativa o D1
-   (e leva a remediação inteira da auditoria de APIs). Nada mais é necessário: infra e
-   env já estão prontas nos dois ambientes.
-2. **Passo 4** — `pnpm smoke:c5` + navegar no painel, com olho em `permission denied for
-   table X` (= grant faltando, não RLS). Rollback = remover a env + redeploy.
+   (e leva a remediação inteira das auditorias de APIs e identidade). Nada mais é
+   necessário: infra e env já estão prontas nos dois ambientes.
+2. **Passo 4** — logar em prod **como o owner (`teste@gmail.com`), não como super_admin** e
+   navegar agenda/pacientes/caixa/prontuário. `permission denied for table X` = grant
+   faltando (não RLS). Rollback = remover a env + redeploy.
 3. **Quando prod tiver ≥ 2 clínicas com dado**, rodar A/B/C/D lá — só então eles são
    conclusivos.
 
