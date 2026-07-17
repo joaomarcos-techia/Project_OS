@@ -1222,7 +1222,7 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 
 | # | Item | Estado | Gatilho para fazer |
 |---|---|---|---|
-| **D1** | **Role dedicado sem BYPASSRLS para o pool runtime** (A3 longo prazo). Hoje um `withTenant` esquecido **vaza** em vez de falhar fechado — só o `arch-db-check` (AST, CI) barra. | Código **pronto e opt-in**: `DATABASE_URL_RUNTIME` ([db/index.ts](../src/lib/db/index.ts)). Falta **provisionar o role** no Postgres. Ver "Plano D1" abaixo. | **Antes do 1º cliente pagante.** É o hardening de maior valor da auditoria de APIs e não depende de escala. |
+| **D1** | **Role dedicado sem BYPASSRLS para o pool runtime** (A3 longo prazo). | ✅ **Provisionado nos DOIS ambientes** (2026-07-15/16) — role `qoro_runtime` sem BYPASSRLS, senha, `GRANT authenticated`, 396 grants (98 tabelas × 4) e `ALTER DEFAULT PRIVILEGES`; `DATABASE_URL_RUNTIME` na Vercel (Production + Preview). Fail-close **provado em dev** (A/B/C/D). ⚠️ **INERTE em prod até o deploy**: o `main` não lê a env (o código vive na branch `docs/identity-practitioner-model`) — no deploy liga sozinho. Verificar com a query em [runtime-role-nobypassrls.md](runbooks/runtime-role-nobypassrls.md#como-conferir-o-estado-sem-adivinhar), **não pela memória**. | **Deploy da branch → `main`** (nada de infra falta). Depois: Passo 4 (`smoke:c5` + navegar o painel). |
 | **D2** | **Circuit breaker + quota de IA distribuídos** (B7). Hoje per-instância → sob multi-instância o teto efetivo vira ~N×. | Aceito e documentado (ADR-022 §11.17). Impacto é **custo**, não segurança. | **A 1ª instância a mais em produção**, OU o gasto de IA se aproximar do orçamento. O que vier antes. Aí a extração para `src/lib/redis/` (CONVENTIONS §chaves Redis) deixa de ser prematura. |
 | **D3** | Fallback de rate-limit per-instância (~N× durante outage do Upstash) | Aceito (ADR-008 F-08) | Mesmo gatilho do D2 — o Redis já estaria em jogo. |
 | ~~**D4**~~ | ~~Auth-epoch / revogação imediata de sessão (janela de replay de JWT de 15min)~~ | ✅ **FECHADO 2026-07-16 — [ADR-037](adr/037-server-authoritative-session.md)** (remediação da auditoria de identidade, achado I-4). | — |
@@ -1260,29 +1260,27 @@ cert + config + um 2º alvo de deploy) é imediato. Com **um único super_admin*
 pré-produção, adiar é a escolha certa. Reabrir **junto** com o D5 — não antes, e não
 sozinho.
 
-### Plano D1 — provisionar o role sem BYPASSRLS
+### D1 — provisionado; o que falta é o deploy
 
-O `withTenant` faz `SET LOCAL ROLE authenticated`, então o role do pool **precisa ser
-membro de `authenticated`** para o switch funcionar. Sem BYPASSRLS, uma query que
-escape do `withTenant` roda sem o GUC `app.current_clinic` e sem claims → a policy
-dual-context resolve falso → **0 linhas** em vez de vazamento.
+> ⚠️ Esta seção **duplicava** o SQL do runbook e envelheceu: lia como "a fazer" quando já
+> estava feito. A autoridade é o runbook — ele tem os passos, o estado datado e, acima de
+> tudo, **a query que responde o estado sem ninguém precisar lembrar**.
+>
+> 👉 [`runbooks/runtime-role-nobypassrls.md`](runbooks/runtime-role-nobypassrls.md)
 
-```sql
-CREATE ROLE qoro_runtime LOGIN PASSWORD '<forte>' NOBYPASSRLS;
-GRANT authenticated TO qoro_runtime;          -- habilita o SET LOCAL ROLE
-GRANT USAGE ON SCHEMA public TO qoro_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO qoro_runtime;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO qoro_runtime;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO qoro_runtime;
-```
+**Estado (verificado no banco em 2026-07-16, não presumido):** role `qoro_runtime` existe nos
+dois ambientes, `rolbypassrls = false`, com senha, membro de `authenticated`, **396 grants**
+(98 tabelas × 4 ops) e `ALTER DEFAULT PRIVILEGES` ativo. `DATABASE_URL_RUNTIME` na Vercel
+(Production + Preview) desde 2026-07-15. Fail-close **provado em dev** (A/B/C/D do Passo 3):
+sem `withTenant` → 0 linhas, em vez das 2 clínicas que o `postgres` enxerga.
 
-Depois: `DATABASE_URL_RUNTIME` = connection string desse role (Vercel, por ambiente).
-`dbAdmin`/`dbWorker` **continuam** no `DATABASE_URL` (BYPASSRLS é necessário para eles).
+**Falta só o deploy da branch → `main`**, que liga o fail-close sozinho (o `main` ainda não lê
+a env). Depois, o Passo 4: `smoke:c5` + navegar o painel, de olho em `permission denied for
+table X` (= grant faltando, não RLS).
 
-**Validação obrigatória (é o ponto do exercício):** (1) fluxo tenant normal segue
-funcionando via `withTenant`; (2) uma query **sem** `withTenant` retorna **0 linhas** em
-vez de vazar. Sem o passo (2) provado, o D1 não está feito — só configurado.
+> 🪤 **A armadilha desta linha, duas vezes:** o D1 foi cobrado como pendente em duas sessões
+> por quem (eu, Claude) **citou o runbook sem abrir**. Um `SELECT` responde em 2 segundos.
+> Antes de dizer que falta, rode a query do runbook. Ver [[doc-afirma-o-que-nao-existe]].
 
 ---
 
