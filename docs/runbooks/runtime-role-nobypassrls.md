@@ -10,10 +10,33 @@
 
 ---
 
-## 🔴 INCIDENTE (2026-07-17) — o D1 derrubou produção no deploy. LEIA ISTO PRIMEIRO.
+## ✅ D1 ATIVO EM PRODUÇÃO (2026-07-17) — resolvido
+
+`qoro_runtime` conectando em prod (3 conexões ativas); login e navegação OK. **O fail-close está
+ligado**: a partir daqui, um `withTenant` esquecido devolve 0 linhas em vez de vazar.
+
+**A causa do incidente foi a connection string — em DOIS erros encadeados, nesta ordem:**
+
+| # | Erro do Postgres/pooler | O que estava errado |
+|---|---|---|
+| 1 | `(ENOTFOUND) tenant/user qoro_runtime.<ref> not found` | **host do pooler de outra região.** O Supavisor é **regional**: `qoro-dev` é `us-west-1`, `qoro-prod` é **`us-east-1`**. Um pooler só conhece os tenants da própria região — daí "tenant not found" e não "senha errada". |
+| 2 | `password authentication failed for user "qoro_runtime"` (28P01) | senha divergente. Resolvida com `ALTER ROLE qoro_runtime PASSWORD '<nova>'` (só alfanumérico — evita URL-encode). |
+
+**A regra que teria evitado tudo, e que o Passo 2 já dizia:** *monte a URL a partir da `DATABASE_URL`
+que FUNCIONA, trocando só o usuário.* Não monte a partir de exemplo em documento/chat — a região do
+host é invisível a olho nu e é o erro mais silencioso.
+
+> **Diagnóstico por escada** (foi o que fechou o caso): o erro **muda** conforme você acerta as
+> camadas. `tenant not found` → host errado. `password failed` → host certo, senha errada.
+> `permission denied for table X` → conectou, é grant. `0 linhas` → funcionando (é o fail-close).
+> Cada mensagem é um degrau, não um beco.
+
+---
+
+## 🔴 O INCIDENTE (2026-07-17) — histórico, mantido como lição
 
 **Sintoma:** após o deploy do `main`, "Algo deu errado" em **todas** as áreas logadas.
-**Rollback aplicado:** remover `DATABASE_URL_RUNTIME` da Vercel + redeploy.
+**Rollback disponível:** remover `DATABASE_URL_RUNTIME` da Vercel + redeploy (1 min, sem migração).
 
 **Causa raiz: a connection string do `qoro_runtime` NUNCA foi testada — em nenhum ambiente.**
 
@@ -66,37 +89,21 @@ Senha de teste posta no `qoro_runtime` de dev, três strings testadas por **cone
 
 ---
 
-## ⚡ Situação (2026-07-16) — leia antes de executar qualquer passo
-
-> ⚠️ **DESATUALIZADO PELO INCIDENTE ACIMA.** Este bloco dizia "falta só o deploy" — o deploy
-> aconteceu e **derrubou produção**. Os Passos 1 e 2 estão feitos, mas o **Passo 2b (provar a
-> string) nunca foi**, e é ele que faltava. Mantido abaixo como registro do que se acreditava.
-
-**Os Passos 1 e 2 já foram feitos nos DOIS ambientes.** Não refaça. Verificado no banco e
-na Vercel — ver [§Estado](#estado) e [§Como conferir sem adivinhar](#como-conferir-o-estado-sem-adivinhar).
-
-~~**Falta uma coisa só: o deploy da branch `docs/identity-practitioner-model` → `main`.**~~
-→ **Falta o [Passo 2b](#passo-2b--provar-a-connection-string-obrigatório): provar que a string conecta.**
-
-O D1 está **provisionado mas INERTE em produção**: o `main` **não lê**
-`DATABASE_URL_RUNTIME` (nem `db/index.ts`, nem `env.ts`) — o código que consome a env vive
-na branch. Prod tem a env configurada e a ignora; o pool segue no `DATABASE_URL`, com
-BYPASSRLS. **No deploy o fail-close liga sozinho**, sem passo manual — e só então o
-[Passo 4](#passo-4--validação-em-produção-é-outra-coisa) faz sentido.
-
-> Este runbook foi escrito com os passos na ordem de execução, o que faz uma leitura
-> top-down **parecer** que nada está feito. É a armadilha que a memória deste repo chama
-> de "doc afirma o que não existe" — aqui, ao contrário: a doc esconde o que **já** existe.
-> Daí este bloco no topo.
-
----
-
 ## O problema, em uma frase
 
-O pool `db` conecta como `postgres`, que tem **`rolbypassrls = true`**. Se um caminho
-tenant esquecer o `withTenant`, a query roda com BYPASSRLS e **vaza cross-tenant** — não
-falha fechado. Hoje o único obstáculo é *tooling* (`arch-db-check` AST no CI + ESLint),
-não o banco.
+> ✅ **RESOLVIDO em 2026-07-17** — o texto abaixo descreve o problema que ESTE runbook fechou.
+> Mantido porque explica *por que* o `qoro_runtime` existe.
+
+O pool `db` conectava como `postgres`, que tem **`rolbypassrls = true`**. Se um caminho tenant
+esquecesse o `withTenant`, a query rodava com BYPASSRLS e **vazava cross-tenant** — não falhava
+fechado. O único obstáculo era *tooling* (`arch-db-check` AST no CI + ESLint), não o banco.
+
+**Nota de precisão (a pergunta certa do founder, 2026-07-17):** o `withTenant` **é** acoplado às
+queries — o `db` só pode ser importado por `src/lib/db/tenant.ts` (allowlist do `arch-db-check`),
+então não dá para "esquecer" sem quebrar o CI. O ganho do D1 não é substituir isso: é ser a camada
+**atrás** dele. Uma varredura de AST pega os padrões que conhece, nos arquivos que varre, quando o CI
+roda; o banco vale sempre. E **`dbAdmin` continua com BYPASSRLS por design** — lá a defesa é o filtro
+`eq(clinicId)` explícito (V1.2), não o D1.
 
 **Confirmado empiricamente no qoro-dev (2026-07-15):**
 
@@ -212,11 +219,14 @@ comando.** As migrations rodam como `postgres`, então rode os dois `ALTER` **co
    `postgresql://qoro_runtime.<project-ref>:<senha>@<host-do-pooler>:6543/postgres?sslmode=require`
 3. Vercel → Environment Variables → `DATABASE_URL_RUNTIME` (por ambiente) → redeploy.
 
-## Passo 2b — PROVAR a connection string (obrigatório) · ⬜ **nunca foi feito**
+## Passo 2b — PROVAR a connection string (obrigatório) · ✅ feito em dev e prod (2026-07-17)
 
 > 🔴 **Este passo nasceu do incidente de 2026-07-17.** Sem ele, o Passo 3 dá a impressão de
 > validação completa e não é: ele testa o role por `SET ROLE`, jamais por **login**. A string ficou
 > 2 dias configurada e só falhou quando o deploy a usou pela primeira vez — em produção.
+>
+> **Ao criar o próximo ambiente, este passo NÃO é opcional.** Ele custa 30 segundos e teria evitado
+> o outage inteiro.
 
 **Regra: a string só está validada quando algo CONECTOU com ela.** `SET ROLE` não vale.
 
@@ -335,7 +345,7 @@ COMMIT;
 | **C** | `OK: caminho normal (withTenant) funciona` (2 pacientes) |
 | **D** | `OK: isolado (havia 2 para vazar e nao vazou)` |
 
-## Passo 4 — validação em produção (é outra coisa) · ⬜ **o único que falta**
+## Passo 4 — validação em produção (é outra coisa) · ✅ FEITO (2026-07-17)
 
 Com prod sem dado cross-tenant, o que se valida lá **não é o vazamento** (não há o que
 vazar) — é se os **grants** estão certos e o app não quebrou. **Não é configuração; é
@@ -402,8 +412,8 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 
 | Ambiente | Dados | Role + senha + grants | `DATABASE_URL_RUNTIME` | Validado |
 |---|---|---|---|---|
-| **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ (grants) · ⬜ string não testada | ✅ Vercel | ✅ A/B/C/D via `SET ROLE` (Passo 3) · ⬜ **Passo 2b** |
-| **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ (grants) · 🔴 **string NÃO conecta** | ⛔ **removida no rollback de 2026-07-17** | ⬜ Passo 2b **primeiro** |
+| **qoro-dev** (`pqhkirrszzpwezdaqrai`, **us-west-1**) | 2 clínicas / 4 pacientes | ✅ grants · ✅ string provada (Passo 2b) | ✅ Vercel | ✅ **A/B/C/D por conexão REAL**: sem `withTenant` → 0; com → 2 visíveis, 0 de outra clínica |
+| **qoro-prod** (`shlcbxawrxuaebazuiue`, **us-east-1**) | 1 clínica / **0 pacientes** | ✅ grants · ✅ **string provada** | ✅ **ATIVA** (2026-07-17) | ✅ Passo 4 — logou e navegou OK; `qoro_runtime` com 3 conexões |
 
 > **Não falta SQL nem env.** `DATABASE_URL_RUNTIME` está na Vercel (Production + Preview)
 > desde 2026-07-15. O que resta é observar o app rodando (Passo 4).
@@ -415,18 +425,14 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 > colateral bom: no deploy, o fail-close **liga sozinho**, sem passo manual. Efeito
 > colateral a lembrar: **o Passo 4 só faz sentido depois do deploy**.
 
-**O que falta, em ordem:**
+**O que falta:**
 
-0. 🔴 **[Passo 2b](#passo-2b--provar-a-connection-string-obrigatório) — provar que a
-   connection string CONECTA** (em dev, depois em prod). É o passo que faltava e que causou o
-   incidente de 2026-07-17. `SET ROLE` não prova login.
-1. ~~**Deploy da branch → `main`**~~ ✅ feito em 2026-07-17 (`71aa3f1`) — mas o D1 foi
-   **revertido** (env removida da Vercel) porque a string não conecta. Reativar só depois do 2b.
-2. **Passo 4** — logar em prod **como o owner (`teste@gmail.com`), não como super_admin** e
-   navegar agenda/pacientes/caixa/prontuário. `permission denied for table X` = grant
-   faltando (não RLS). Rollback = remover a env + redeploy.
-3. **Quando prod tiver ≥ 2 clínicas com dado**, rodar A/B/C/D lá — só então eles são
-   conclusivos.
+1. ~~Passos 1, 2, 2b, 3, 4~~ ✅ **TODOS FEITOS** (2026-07-17). O D1 está ativo em produção.
+2. **Quando prod tiver ≥ 2 clínicas com dado**, rodar A/B/C/D lá — só então eles são
+   conclusivos *em prod* (hoje o `0` de prod é falta de dado, não isolamento; o isolamento
+   está provado em **dev**, que tem dado cross-tenant de verdade).
+3. **Ao criar o próximo ambiente** (preview dedicado — ver [D8](../achados/preview-aponta-para-prod.md)),
+   repetir Passos 1 → 2 → **2b** → 3. O 2b não é opcional.
 
 O gatilho continua sendo **antes do 1º cliente pagante**: depois, um `withTenant`
 esquecido custa dado de cliente real — e é justamente quando prod passa a ter dado

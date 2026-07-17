@@ -97,7 +97,9 @@
       "Bash(timeout 60 pnpm dlx vercel env ls)",
       "Bash(git merge *)",
       "Bash(git stash *)",
-      "mcp__plugin_supabase_supabase__get_logs"
+      "mcp__plugin_supabase_supabase__get_logs",
+      "mcp__plugin_supabase_supabase__get_project",
+      "Bash(python -)"
     ],
     "additionalDirectories": [
       "C:\\Users\\joaom\\OneDrive\\Área de Trabalho\\ClinicaOS_V2\\Documentação",
