@@ -1,16 +1,15 @@
 /**
  * GET /api/cron/data-retention — F-09 (auditoria forense 2026-06-10).
  *
- * Purge mensal (vercel.json crons[]: `0 5 1 * *`) das duas tabelas que cresciam
- * SEM teto:
- *   - `outbox` em estado TERMINAL benigno (`processed`/`skipped`) há > 30 dias.
- *     Estados `pending`/`processing`/`failed` NUNCA são tocados (failed é DLQ —
- *     replay manual via runbook c4-validation). Dedup de publishEvent
- *     (UNIQUE(event_type, idempotency_key)) perde linhas com >30d, o que é
- *     seguro: handlers são idempotentes por contrato (ADR-011) e as chaves de
- *     produtor derivam de mutações cujas idempotency_keys expiram antes.
- *   - `login_attempts` com > 90 dias (rate-limit usa janela de 15 min; o resto
- *     é forense de curto prazo — agregados ficam nos logs estruturados).
+ * Purge mensal (vercel.json crons[]: `0 5 1 * *`) de TODA tabela declarada em
+ * `RETENTION_POLICIES` (src/lib/db/retention-policy.ts) — que é a fonte única.
+ *
+ * Mudou em 2026-07-17 (auditoria de banco, A2/A5): antes esta rota tinha as
+ * janelas hardcoded e cobria 3 tabelas. A retenção da IA existia só como
+ * comentário no schema ("purge por retention job") e nada a aplicava; as 3
+ * tabelas raw de mensageria — as de maior taxa de inserção do sistema — não
+ * tinham retenção nenhuma. Agora a lista mora no registro e esta rota só a
+ * executa: acrescentar tabela é uma linha lá, não código aqui.
  *
  * Projeção da auditoria: 1.000 clínicas × ~50 eventos/dia ≈ 18M rows/ano sem
  * retenção — degradava backups, vacuum e o count(*) do healthcheck.
@@ -19,10 +18,9 @@
  * maxDuration; o que sobrar sai no próximo run. Mesma auth das demais rotas
  * cron (Bearer CRON_SECRET + header Vercel não-fatal).
  */
-import { sql } from 'drizzle-orm';
-
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
+import { buildPurgeStatement, RETENTION_POLICIES } from '@/lib/db/retention-policy';
 import { assertCronRuntimeReady } from '@/lib/env';
 import { assertCronAuth } from '@/lib/http/cron-auth';
 import { metrics } from '@/lib/observability/metrics';
@@ -31,8 +29,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const OUTBOX_RETENTION_DAYS = 30;
-const LOGIN_ATTEMPTS_RETENTION_DAYS = 90;
 const BATCH = 5000;
 const MAX_BATCHES_PER_TABLE = 10; // teto: 50k rows/tabela/run
 
@@ -52,65 +48,23 @@ export async function GET(req: Request): Promise<Response> {
   if (denied) return denied;
 
   try {
-    const outboxPurged = await purgeBatched(async () => {
-      const rows = (await dbAdmin.execute(
-        sql`WITH del AS (
-              SELECT id FROM outbox
-               WHERE status IN ('processed', 'skipped')
-                 AND coalesce(processed_at, created_at)
-                     < now() - make_interval(days => ${OUTBOX_RETENTION_DAYS})
-               LIMIT ${BATCH}
-            )
-            DELETE FROM outbox o USING del WHERE o.id = del.id
-            RETURNING o.id`,
-      )) as unknown as Array<{ id: string }>;
-      return rows.length;
-    });
+    const purged: Record<string, number> = {};
 
-    const loginAttemptsPurged = await purgeBatched(async () => {
-      const rows = (await dbAdmin.execute(
-        sql`WITH del AS (
-              SELECT id FROM login_attempts
-               WHERE attempted_at
-                     < now() - make_interval(days => ${LOGIN_ATTEMPTS_RETENTION_DAYS})
-               LIMIT ${BATCH}
-            )
-            DELETE FROM login_attempts l USING del WHERE l.id = del.id
-            RETURNING l.id`,
-      )) as unknown as Array<{ id: string }>;
-      return rows.length;
-    });
+    // A ordem do registro é significativa: ai_conversations vem antes de
+    // ai_messages porque a FK é CASCADE — apagar a conversa já leva as mensagens,
+    // e o purge seguinte só cata as vencidas de conversa ainda ativa.
+    for (const policy of RETENTION_POLICIES) {
+      purged[policy.table] = await purgeBatched(async () => {
+        const rows = (await dbAdmin.execute(
+          buildPurgeStatement(policy, BATCH),
+        )) as unknown as unknown[];
+        return rows.length;
+      });
+    }
 
-    // C16: idempotency_keys EXPIRADAS (expires_at < now). O healthcheck conta
-    // `expired`/`in_flight_orphans_1h` mas nada apagava — a tabela crescia sem
-    // teto. TTL já passou (default 24h, min 60s) → seguro deletar mesmo orphans.
-    const idempotencyPurged = await purgeBatched(async () => {
-      const rows = (await dbAdmin.execute(
-        sql`WITH del AS (
-              SELECT key FROM idempotency_keys
-               WHERE expires_at < now()
-               LIMIT ${BATCH}
-            )
-            DELETE FROM idempotency_keys k USING del WHERE k.key = del.key
-            RETURNING k.key`,
-      )) as unknown as Array<{ key: string }>;
-      return rows.length;
-    });
-
-    metrics.emit('retention.run', {
-      outboxPurged,
-      loginAttemptsPurged,
-      idempotencyPurged,
-    });
-    await recordHeartbeat('data-retention', 'success', {
-      outboxPurged,
-      loginAttemptsPurged,
-      idempotencyPurged,
-    });
-    return Response.json(
-      { ok: true, outboxPurged, loginAttemptsPurged, idempotencyPurged },
-      { status: 200 },
-    );
+    metrics.emit('retention.run', purged);
+    await recordHeartbeat('data-retention', 'success', purged);
+    return Response.json({ ok: true, purged }, { status: 200 });
   } catch (err) {
     metrics.emit('retention.error', { error: err });
     return Response.json({ ok: false, error: 'internal' }, { status: 500 });

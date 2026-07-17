@@ -14,14 +14,22 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
-
-const PARTITIONED = ['audit_events', 'ai_messages'] as const;
+import { contiguousMonthsAhead, PARTITIONED_PARENTS } from '@/lib/db/retention-policy';
 
 export interface PartitionInfoDTO {
   parent: string;
   count: number;
-  latest: string | null; // 'YYYY-MM' da última partição mensal
-  monthsAhead: number; // meses de cobertura à frente do mês atual
+  latest: string | null; // 'YYYY-MM' da última partição mensal (informativo)
+  /**
+   * Meses de cobertura CONTÍGUA a partir do mês atual — para na 1ª lacuna.
+   *
+   * Era `max(partição) - mês atual`, o que é CEGO A LACUNAS (achado N2 da
+   * auditoria de banco): com partições até 2027-05, buraco até 2028-04 e uma
+   * solta em 2028-05, o painel dizia "22 meses, saudável" enquanto o próximo mês
+   * sem partição estava a 11. O monitor era enganado pelo exato modo de falha que
+   * existe para detectar. `latest` continua exposto, mas NÃO é a medida de saúde.
+   */
+  monthsAhead: number;
   defaultCount: number; // linhas na partição default (>0 = alerta)
 }
 
@@ -31,20 +39,10 @@ export interface RetentionDTO {
   proactiveByStatus: { status: string; n: number }[];
 }
 
-function monthsAhead(latestYm: string | null): number {
-  if (!latestYm) return 0;
-  const m = /^(\d{4})-(\d{2})$/.exec(latestYm);
-  if (!m) return 0;
-  const latest = Number(m[1]) * 12 + (Number(m[2]) - 1);
-  const now = new Date();
-  const cur = now.getUTCFullYear() * 12 + now.getUTCMonth();
-  return Math.max(0, latest - cur);
-}
-
 export class AdminRetentionRepository {
   async get(): Promise<RetentionDTO> {
     const partitions: PartitionInfoDTO[] = [];
-    for (const parent of PARTITIONED) {
+    for (const parent of PARTITIONED_PARENTS) {
       const children = (await dbAdmin.execute(
         sql`SELECT c.relname AS name
               FROM pg_inherits i
@@ -69,7 +67,7 @@ export class AdminRetentionRepository {
         parent,
         count: months.length,
         latest,
-        monthsAhead: monthsAhead(latest),
+        monthsAhead: contiguousMonthsAhead(months),
         defaultCount: Number(defaultRows[0]?.n ?? 0),
       });
     }

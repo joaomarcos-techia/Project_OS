@@ -1,23 +1,33 @@
 # Runbook — Provisioning + retenção das partições de `audit_events` (gap 4.6)
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-17 · **Próxima revisão:** 2027-01-01
 >
 > ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
 
 
-`audit_events` é particionada por mês (RANGE em `created_at`). A migration 0009
-criou partições estáticas até **2027-04** + uma `audit_events_default` (catch-all).
-Sem manutenção, depois de 2027-04 todas as linhas caem na `default` (perde
-partition pruning e incha). E o audit cresce para sempre se nunca houver retenção.
+`audit_events` e `ai_messages` são particionadas por mês (RANGE em `created_at`).
+As migrations 0009/0024 criaram partições estáticas + uma `<parent>_default`
+(catch-all). Sem manutenção, quando as estáticas acabam, tudo cai na `default`
+(perde partition pruning e incha).
 
 ## Provisioning (automático)
 
 - **Cron mensal** `/api/cron/audit-partitions` (vercel.json, `0 4 1 * *`) cria o
-  mês atual + próximos 3, idempotente. Nenhuma ação necessária.
+  mês atual + próximos 3 para **cada** pai em `PARTITIONED_PARENTS`
+  (`src/lib/db/retention-policy.ts` — fonte única), idempotente.
 - **Manual** (ou se o cron falhar): `pnpm audit:partitions`
   (cria mês atual + `AUDIT_MONTHS_AHEAD`, default 6).
-- **Monitor:** `/api/health/outbox` expõe `audit.default_partition_rows`. Se for
-  `> 0`, o provisioning está atrasado (linhas caindo na default) → rode o comando.
+- **Monitor (2 caminhos):**
+  - `/api/health/outbox` expõe `audit.default_partition_rows`.
+  - O próprio cron mede a saúde de cada pai a cada run e, se `defaultCount > 0` ou
+    a **cobertura contígua < 1 mês**, emite `cron.audit_partitions.degraded`
+    (`metrics.emit` + `logger.error`, ADR-043). **Alerta = saved-search no Better
+    Stack**, com o prefixo `message.`:
+    `message.event:"cron.audit_partitions.degraded"` (sem o prefixo volta vazio).
+- **⚠️ Cobertura é CONTÍGUA, não `max(partição)`** (achado N2): uma partição solta
+  lá na frente NÃO cobre a lacuna antes dela. `monthsAhead` conta meses
+  consecutivos a partir do mês atual e para na 1ª lacuna. `0` = o mês corrente já
+  está caindo na default.
 
 ## Remediação — partição do mês atual faltando (default já tem linhas)
 
@@ -45,6 +55,13 @@ COMMIT;
 Como `audit_events` está sob FORCE RLS sem policy de DELETE, rode via uma conexão
 BYPASSRLS (a mesma do `db:migrate:prod`). Em geral isso NÃO acontece em prod (0009
 provisiona até 2027-04 e o cron mantém à frente) — é só rede de segurança.
+
+> **Exercitado em 2026-07-17 (dev):** este exato procedimento foi rodado para
+> remediar 9 linhas presas em `audit_events_default` (mês 2026-05, cuja partição
+> tinha sido dropada — o cenário de falha do A7 já consumado em dev). Resultado:
+> default 9→0, `audit_events_2026_05` recriada com as 9, total preservado. A
+> partição recriada nasceu já sob RLS (event trigger) e deny-all (0 policies), e
+> com o ACL do ADR-042 (`authenticated` sem `anon`). O procedimento está validado.
 
 ## Retenção (operador — NUNCA automática)
 

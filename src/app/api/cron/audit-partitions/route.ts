@@ -1,12 +1,23 @@
 /**
  * GET /api/cron/audit-partitions
  *
- * Vercel Cron mensal (vercel.json). Provisiona as partições mensais de
- * `audit_events` à frente (mês atual + próximos N), idempotente, para que
- * nenhuma linha caia na `audit_events_default` quando as partições estáticas de
- * 0009 (até 2027-04) acabarem (gap 4.6). NÃO faz retenção/DETACH (isso é
- * operador-run via `pnpm audit:partitions --retain N` — dado forense não é
- * apagado por cron).
+ * Vercel Cron mensal (vercel.json). Provisiona as partições mensais à frente
+ * (mês atual + próximos N), idempotente, para que nenhuma linha caia na
+ * `<parent>_default` quando as partições estáticas acabarem (gap 4.6). NÃO faz
+ * retenção/DETACH (isso é operador-run via `pnpm audit:partitions --retain N` —
+ * dado forense não é apagado por cron).
+ *
+ * ALERTA ATIVO (A7, 2026-07-17): o provisionamento é 100% dependente deste cron
+ * — `pg_cron`/`pg_partman` não estão instalados. Se ele falhar em silêncio, as
+ * escritas caem na `_default` e o benefício da partição some sem ninguém notar.
+ * A auditoria de banco encontrou o cenário JÁ CONSUMADO em dev: 9 linhas presas
+ * na `audit_events_default` de um mês cuja partição foi dropada. Antes existia
+ * só o painel admin, que dependia de alguém olhar. Agora cada run emite o estado
+ * e, quando ele é ruim, uma linha `error` estruturada.
+ *
+ * O sinal vai por `metrics.emit` + `logger` no stdout — MESMO pipeline do resto
+ * (ADR-029 mantém log fora do Sentry; um cron degradado não é exceção). O alerta
+ * é uma saved-search no Better Stack; ver runbooks/audit-retention.md.
  *
  * Auth: Bearer CRON_SECRET (mesma defesa do /api/cron/outbox — HIGH-08).
  */
@@ -14,19 +25,19 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
+import { contiguousMonthsAhead, PARTITIONED_PARENTS } from '@/lib/db/retention-policy';
 import { assertCronRuntimeReady } from '@/lib/env';
 import { assertCronAuth } from '@/lib/http/cron-auth';
+import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// C11: ai_messages é a 2ª tabela particionada por mês (mesmo padrão de
-// audit_events/0009 — partições estáticas até 2027-05 na migration 0024,
-// default catch-all como rede de segurança).
-const PARENTS = ['audit_events', 'ai_messages'] as const;
 const MONTHS_AHEAD = 3;
+/** Abaixo disto, o mês seguinte corre risco de cair na default. */
+const MIN_CONTIGUOUS_MONTHS = 1;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -39,7 +50,7 @@ export async function GET(req: Request): Promise<Response> {
     const now = new Date();
     let ensured = 0;
     const needsRemediation: string[] = [];
-    for (const parent of PARENTS) {
+    for (const parent of PARTITIONED_PARENTS) {
       for (let i = 0; i <= MONTHS_AHEAD; i++) {
         const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
         const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i + 1, 1));
@@ -63,9 +74,59 @@ export async function GET(req: Request): Promise<Response> {
         }
       }
     }
-    metrics.emit('cron.audit_partitions.ensured', { ensured, needs_remediation: needsRemediation.length });
-    await recordHeartbeat('audit-partitions', 'success', { ensured, needsRemediation: needsRemediation.length });
-    return Response.json({ ok: true, ensured, needs_remediation: needsRemediation }, { status: 200 });
+    // A7 — o cron não pode só CRIAR e ir embora: ele é o único provisionador, e
+    // "falhou em silêncio" era o cenário sem detecção. Cada run reporta a saúde
+    // real de cada pai; se estiver ruim, sai uma linha `error` para a
+    // saved-search do Better Stack alertar.
+    const health = [];
+    for (const parent of PARTITIONED_PARENTS) {
+      const months = (await dbAdmin.execute(
+        sql`SELECT c.relname AS name FROM pg_inherits i
+              JOIN pg_class c ON c.oid = i.inhrelid
+             WHERE i.inhparent = ${parent}::regclass`,
+      )) as unknown as Array<{ name: string }>;
+      const ym = months
+        .map((m) => /_(\d{4})_(\d{2})$/.exec(m.name))
+        .filter((m): m is RegExpExecArray => m !== null)
+        .map((m) => `${m[1]}-${m[2]}`);
+
+      const defaultRows = (await dbAdmin.execute(
+        sql.raw(`SELECT count(*)::int AS n FROM ${parent}_default`),
+      )) as unknown as Array<{ n: number }>;
+
+      // Contíguo a partir do mês atual — NÃO max(partição). Uma partição solta
+      // lá na frente não cobre a lacuna antes dela (achado N2: o dev reportava
+      // "22 meses saudáveis" com o próximo buraco a 11).
+      const monthsAhead = contiguousMonthsAhead(ym, now);
+      const defaultCount = Number(defaultRows[0]?.n ?? 0);
+      health.push({ parent, monthsAhead, defaultCount });
+
+      if (defaultCount > 0 || monthsAhead < MIN_CONTIGUOUS_MONTHS) {
+        const fields = {
+          parent,
+          monthsAhead,
+          defaultCount,
+          reason: defaultCount > 0 ? 'default_partition_not_empty' : 'coverage_gap_ahead',
+        };
+        metrics.emit('cron.audit_partitions.degraded', fields);
+        logger.error('cron.audit_partitions.degraded', fields);
+      }
+    }
+
+    metrics.emit('cron.audit_partitions.ensured', {
+      ensured,
+      needs_remediation: needsRemediation.length,
+      health,
+    });
+    await recordHeartbeat('audit-partitions', 'success', {
+      ensured,
+      needsRemediation: needsRemediation.length,
+      health,
+    });
+    return Response.json(
+      { ok: true, ensured, needs_remediation: needsRemediation, health },
+      { status: 200 },
+    );
   } catch (err) {
     metrics.emit('cron.audit_partitions.error', { error: err });
     return Response.json({ ok: false, error: 'internal' }, { status: 500 });

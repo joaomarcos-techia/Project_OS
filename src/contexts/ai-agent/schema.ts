@@ -94,7 +94,10 @@ export const aiConversations = pgTable(
     // NUNCA plaintext. NULL = sem coleta em andamento. (sem coluna context_drift:
     // intent-flip gera falso-positivo; handoff é por fallback/estagnação — R2.)
     collectedDataEncrypted: text('collected_data_encrypted'),
-    // Memória 30d hot (§11.12) — purge por retention job (C16).
+    // Memória 30d hot (§11.12). Purgada de verdade pelo cron data-retention via
+    // RETENTION_POLICIES (src/lib/db/retention-policy.ts, ADR-043) — até
+    // 2026-07-17 este comentário era ficção: nenhum job lia expires_at (achado
+    // A5). CASCATEIA para ai_messages pela FK conversation_id.
     expiresAt: timestamp('expires_at', { withTimezone: true })
       .notNull()
       .default(sql`now() + interval '30 days'`),
@@ -146,6 +149,9 @@ export const aiMessages = pgTable(
     // R7: trace de IA — correlaciona métricas/failures/out-row do mesmo turno.
     aiRequestId: uuid('ai_request_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    // Memória 30d hot. Purgada pelo cron data-retention (RETENTION_POLICIES,
+    // ADR-043/A5). A idColumn inclui created_at (partition key) — apagar por id
+    // só varreria todas as partições.
     expiresAt: timestamp('expires_at', { withTimezone: true })
       .notNull()
       .default(sql`now() + interval '30 days'`),
