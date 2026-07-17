@@ -188,7 +188,8 @@ ADR-007 §10 define três categorias. Marque exatamente uma e cumpra o bloco cor
 - [ ] Schema usa `tenantIdRef()` de `@/contexts/tenancy` (FK + ON DELETE CASCADE)
 - [ ] Coluna `clinic_id` declarada como `NOT NULL`
 - [ ] Índice B-tree em `clinic_id` via `index(...)` no Drizzle (D9 — Postgres não cria auto)
-- [ ] Helper `defaultTenantPolicy('<table>')` invocado; SQL contém fingerprint `GENERATED_BY: defaultTenantPolicy(v1)`
+- [ ] Helper `defaultTenantPolicy('<table>')` invocado; SQL contém fingerprint `GENERATED_BY: defaultTenantPolicy(v2)`
+- [ ] Toda FK cuja tabela-pai é apagada em operação real de produto tem índice **liderado pela coluna da FK** (ADR-042). O composto `(clinic_id, fk_id)` **não serve**: a checagem de integridade do Postgres é `WHERE fk_id = $1`, sem `clinic_id`. Catálogo que nunca se apaga e filha de tamanho limitado ficam de fora — índice sem necessidade também é dívida.
 - [ ] `ENABLE` + `FORCE` ROW LEVEL SECURITY na MESMA migration do `CREATE TABLE`
 - [ ] Trigger `set_updated_at` vinculado (se tabela tem `updated_at`)
 - [ ] **NÃO** há check de role funcional na policy (D27 — RBAC mora no app)
@@ -273,6 +274,39 @@ export const myTable = pgTable(
 );
 ```
 
+### Regras duras de migration
+
+**1. NUNCA use `BEGIN;`/`COMMIT;` dentro de uma migration.** O instinto de "deixar a
+atomicidade explícita" é razoável e está **errado** aqui: o runner já envolve **todas as
+migrations pendentes numa única transação** — `drizzle-kit migrate` delega ao migrator do
+drizzle-orm, que faz `session.transaction(async tx => ...)`
+(`node_modules/drizzle-orm/pg-core/dialect.cjs:62`). Um `COMMIT;` no arquivo encerraria a
+transação **externa**: tudo depois dele rodaria em autocommit e uma falha posterior
+deixaria o banco meio migrado — com o bookkeeping do `__drizzle_migrations` já gravado.
+A garantia real é mais forte do que a que o `BEGIN/COMMIT` daria. Se falhar, nada é
+aplicado.
+
+**2. Pré-condição de migration é `RAISE EXCEPTION`, não passo de checklist.** Um checklist
+é uma sugestão; um guard no SQL é uma garantia — ninguém consegue rodar fora de ordem.
+Se a migration N só é válida depois de um backfill/script, o guard mora **nela**:
+
+```sql
+DO $$
+DECLARE n bigint;
+BEGIN
+  SELECT count(*) INTO n FROM t WHERE col IS NOT NULL AND col_nova IS NULL;
+  IF n > 0 THEN
+    RAISE EXCEPTION 'abort: % linhas sem backfill. Rode scripts/<script>.ts antes.', n;
+  END IF;
+END $$;--> statement-breakpoint
+```
+
+Cuidado com nullability: o par tem que ser `origem IS NOT NULL AND destino IS NULL` para
+não abortar por linhas legitimamente vazias.
+
+**3. Migration aplicada em QUALQUER ambiente (inclusive seu dev) nunca é editada.** Erro
+= migration corretiva nova. Ver [runbooks/migrations.md](runbooks/migrations.md).
+
 ### Template — migration tenant-scoped (SQL custom append à migration gerada por drizzle-kit)
 
 ```sql
@@ -285,21 +319,27 @@ CREATE TRIGGER trg_my_table_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
 
 -- RLS via helper
--- GENERATED_BY: defaultTenantPolicy(v1)
+-- GENERATED_BY: defaultTenantPolicy(v2)
 ALTER TABLE my_table ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE my_table FORCE  ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE POLICY my_table_tenant_access ON my_table FOR ALL
   USING (
-    clinic_id::text = current_setting('app.current_clinic', true)
-    OR clinic_id::text = current_clinic_id()
-    OR is_super_admin()
+    clinic_id::text = (select current_setting('app.current_clinic', true))
+    OR clinic_id::text = (select current_clinic_id())
+    OR (select is_super_admin())
   )
   WITH CHECK (
-    clinic_id::text = current_setting('app.current_clinic', true)
-    OR clinic_id::text = current_clinic_id()
-    OR is_super_admin()
+    clinic_id::text = (select current_setting('app.current_clinic', true))
+    OR clinic_id::text = (select current_clinic_id())
+    OR (select is_super_admin())
   );
 ```
+
+> ⚠️ **Os `(select ...)` NÃO são decoração** (ADR-042 / A14). Eles fazem o planner
+> hoistar os helpers para um **InitPlan** — avaliados 1× por query em vez de **1× por
+> linha varrida**. Sem eles, toda query tenant re-executa 2–3 funções de auth por linha.
+> Copie do helper (`pnpm tsx -e "..."`), não da memória. Só vale para função `STABLE`;
+> nunca envolva uma `VOLATILE` assim.
 
 ### Template — migration de função custom (invariante #11)
 
@@ -307,10 +347,24 @@ CREATE POLICY my_table_tenant_access ON my_table FOR ALL
 CREATE OR REPLACE FUNCTION public.my_helper(...) RETURNS ... AS $$ ... $$ LANGUAGE sql STABLE;
 --> statement-breakpoint
 
--- OBRIGATÓRIO: revogar PUBLIC + grant explícito
+-- OBRIGATÓRIO: revogar PUBLIC + grant EXPLÍCITO e MÍNIMO.
 REVOKE EXECUTE ON FUNCTION public.my_helper(...) FROM PUBLIC;--> statement-breakpoint
-GRANT  EXECUTE ON FUNCTION public.my_helper(...) TO anon, authenticated, service_role;
+-- Escolha UMA das linhas abaixo — não conceda "para todo mundo por via das dúvidas":
+GRANT EXECUTE ON FUNCTION public.my_helper(...) TO service_role;   -- só workers/admin
+-- GRANT EXECUTE ON FUNCTION public.my_helper(...) TO authenticated; -- só se a app CHAMAR (via withTenant/RPC)
+-- GRANT EXECUTE ON FUNCTION public.my_helper(...) TO anon;          -- só se for RPC pré-auth de propósito (raríssimo)
 ```
+
+> **Desde o ADR-042 o default do banco é fail-closed**: `ALTER DEFAULT PRIVILEGES ...
+> REVOKE EXECUTE ON FUNCTIONS FROM anon, authenticated` faz **função nova nascer sem
+> EXECUTE**. Antes, o default do Supabase expunha toda função nova como
+> `/rest/v1/rpc/<fn>` — foi o que gerou os achados A15/V15 e o defeito que a 0043
+> precisou corrigir. Agora expor uma RPC é uma **decisão explícita**, e esquecer o GRANT
+> falha alto (a função não é chamável) em vez de falhar aberto (a função vira endpoint).
+>
+> **Função de TRIGGER não leva GRANT nenhum**: o Postgres só checa `EXECUTE` na criação
+> do trigger, não a cada disparo — a 0038 provou isso empiricamente ao revogar
+> `block_signed_prontuario_update` sem quebrar nada.
 
 ### Template — query segura (C3+ Server Action / Worker)
 

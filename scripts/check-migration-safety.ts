@@ -47,6 +47,20 @@ const DESTRUCTIVE: ReadonlyArray<{ kind: string; re: RegExp }> = [
  * `DROP *` segue valendo em qualquer contexto (não há privilégio chamado "DROP").
  */
 const PRIVILEGE_STATEMENT = /^\s*(grant|revoke)\b/i;
+
+/**
+ * `ALTER DEFAULT PRIVILEGES ... REVOKE TRUNCATE ... ON TABLES FROM anon` é o MESMO
+ * caso do REVOKE direto — TRUNCATE é o privilégio —, mas o statement começa com
+ * ALTER, então PRIVILEGE_STATEMENT não o reconhece.
+ *
+ * Isso importa porque `ALTER DEFAULT PRIVILEGES` é justamente o mecanismo que fecha
+ * a CAUSA do achado A13 (o default ACL do Supabase concede TRUNCATE a anon em toda
+ * tabela NOVA; um REVOKE simples só limpa as que já existem). Sem esta linha o gate
+ * dá falso positivo exatamente na migration que endurece as permissões de todas as
+ * tabelas futuras — e a única saída seria `destructive-approved`, silenciando o gate
+ * para o arquivo inteiro. Mesmo raciocínio que motivou PRIVILEGE_STATEMENT.
+ */
+const DEFAULT_PRIVILEGE_STATEMENT = /^\s*alter\s+default\s+privileges\b/i;
 const TRUNCATE_KIND = 'TRUNCATE';
 
 export interface Finding {
@@ -77,7 +91,8 @@ export function scanSql(file: string, raw: string): Finding[] {
 
   let cursor = 0;
   for (const statement of code.split(';')) {
-    const isPrivilegeStatement = PRIVILEGE_STATEMENT.test(statement);
+    const isPrivilegeStatement =
+      PRIVILEGE_STATEMENT.test(statement) || DEFAULT_PRIVILEGE_STATEMENT.test(statement);
     for (const d of DESTRUCTIVE) {
       const match = d.re.exec(statement);
       if (!match) continue;

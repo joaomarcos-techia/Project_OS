@@ -42,6 +42,40 @@ describe('scanSql — TRUNCATE: privilégio vs comando', () => {
   it('resolve o contexto quando o REVOKE quebra em várias linhas', () => {
     expect(kinds('REVOKE\n  TRUNCATE\n  ON public.t\n  FROM anon;')).toEqual([]);
   });
+
+  // A13: o statement começa com ALTER, não com REVOKE — mas TRUNCATE segue sendo
+  // privilégio. É o mecanismo que fecha a CAUSA do default ACL do Supabase.
+  it('NÃO acusa TRUNCATE em ALTER DEFAULT PRIVILEGES ... REVOKE (o caso do A13)', () => {
+    expect(
+      kinds(
+        'ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public\n' +
+          '  REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM anon, authenticated;',
+      ),
+    ).toEqual([]);
+  });
+
+  it('NÃO acusa TRUNCATE em ALTER DEFAULT PRIVILEGES ... GRANT', () => {
+    expect(
+      kinds(
+        'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT TRUNCATE ON TABLES TO service_role;',
+      ),
+    ).toEqual([]);
+  });
+
+  it('o afrouxamento do ALTER DEFAULT PRIVILEGES não cega o TRUNCATE-comando seguinte', () => {
+    expect(
+      kinds(
+        'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE ON TABLES FROM anon;\n' +
+          'TRUNCATE TABLE public.patients;',
+      ),
+    ).toEqual(['TRUNCATE']);
+  });
+
+  it('ALTER DEFAULT PRIVILEGES não isenta DROP (não existe privilégio DROP)', () => {
+    expect(
+      kinds('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;\nDROP TABLE public.t;'),
+    ).toEqual(['DROP TABLE']);
+  });
 });
 
 describe('scanSql — DROP', () => {

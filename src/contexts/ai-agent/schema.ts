@@ -159,6 +159,12 @@ export const aiMessages = pgTable(
       t.createdAt,
     ),
     eventDirIdx: index('ai_messages_event_dir_idx').on(t.eventId, t.direction),
+    // A6: FK conversation_id -> ai_conversations é CASCADE, e a checagem de RI é
+    // `WHERE conversation_id = $1` — o composto acima lidera por clinic_id e não a
+    // serve. Sem este índice, a purga de retenção (expires_at < now()) faz UM seq
+    // scan da tabela particionada inteira POR conversa apagada: o job de limpeza
+    // vira O(n²) justamente na maior tabela do contexto.
+    conversationFkIdx: index('ai_messages_conversation_id_idx').on(t.conversationId),
   }),
 );
 

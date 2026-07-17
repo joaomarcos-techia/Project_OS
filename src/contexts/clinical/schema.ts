@@ -104,6 +104,15 @@ export const prontuarios = pgTable(
   (t) => ({
     clinicIdx: index('prontuarios_clinic_id_idx').on(t.clinicId),
     clinicPatientIdx: index('prontuarios_clinic_patient_idx').on(t.clinicId, t.patientId),
+    // A6: índices de FK LIDERADOS pela coluna da FK. O composto acima NÃO serve à
+    // checagem de integridade: o Postgres a faz como `WHERE <fkcol> = $1` (sem
+    // clinic_id), então um índice liderado por clinic_id é inútil ali.
+    //   - patient_id  → RESTRICT no hard-delete LGPD (ADR-017/021)
+    //   - doctor_id   → RESTRICT no offboarding de membro (ADR-039) + "meus prontuários"
+    //   - signed_by   → RESTRICT no offboarding de membro
+    patientFkIdx: index('prontuarios_patient_id_idx').on(t.patientId),
+    doctorFkIdx: index('prontuarios_doctor_id_idx').on(t.doctorId),
+    signedByFkIdx: index('prontuarios_signed_by_idx').on(t.signedBy),
     // R9: 1 prontuário por consulta (idempotência do handler appointment.started).
     appointmentUniq: uniqueIndex('prontuarios_appointment_uniq')
       .on(t.appointmentId)
@@ -197,6 +206,9 @@ export const prescriptions = pgTable(
     clinicIdx: index('prescriptions_clinic_id_idx').on(t.clinicId),
     clinicPatientIdx: index('prescriptions_clinic_patient_idx').on(t.clinicId, t.patientId),
     prontuarioIdx: index('prescriptions_prontuario_id_idx').on(t.prontuarioId),
+    // A6 — FK liderada (RESTRICT no hard-delete LGPD / offboarding de membro).
+    patientFkIdx: index('prescriptions_patient_id_idx').on(t.patientId),
+    doctorFkIdx: index('prescriptions_doctor_id_idx').on(t.doctorId),
   }),
 );
 
@@ -228,6 +240,9 @@ export const medicalDocuments = pgTable(
   (t) => ({
     clinicIdx: index('medical_documents_clinic_id_idx').on(t.clinicId),
     clinicPatientIdx: index('medical_documents_clinic_patient_idx').on(t.clinicId, t.patientId),
+    // A6 — FK liderada (RESTRICT no hard-delete LGPD / offboarding de membro).
+    patientFkIdx: index('medical_documents_patient_id_idx').on(t.patientId),
+    doctorFkIdx: index('medical_documents_doctor_id_idx').on(t.doctorId),
   }),
 );
 

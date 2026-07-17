@@ -165,6 +165,9 @@ export const checkoutSessions = pgTable('checkout_sessions', {
 }, (t) => ({
   idemUniq: unique('checkout_sessions_idem_uniq').on(t.idempotencyKey),
   statusIdx: index('checkout_sessions_status_idx').on(t.status),
+  // A6/N1: FK clinic_id é SET NULL no offboarding; a tabela cresce com o volume de
+  // tentativas de signup (lead pré-clínica), não com o nº de clínicas.
+  clinicIdx: index('checkout_sessions_clinic_id_idx').on(t.clinicId),
 }));
 export type CheckoutSessionRow = typeof checkoutSessions.$inferSelect;
 
@@ -191,7 +194,12 @@ export const processedWebhooks = pgTable('processed_webhooks', {
   clinicId: uuid('clinic_id'),
   eventType: text('event_type').notNull(),
   processedAt: timestamp('processed_at', { withTimezone: true }).notNull().default(sql`now()`),
-});
+}, (t) => ({
+  // A6/N1: a FK clinic_id é SET NULL no offboarding de clínica, e esta tabela
+  // cresce com o VOLUME de webhooks (não com o nº de clínicas) — sem índice, o
+  // offboarding faz seq scan de tudo que o Asaas já mandou.
+  clinicIdx: index('processed_webhooks_clinic_id_idx').on(t.clinicId),
+}));
 export type ProcessedWebhookRow = typeof processedWebhooks.$inferSelect;
 
 // Auditoria das execuções de reconciliação (F8).

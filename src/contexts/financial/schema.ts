@@ -148,6 +148,13 @@ export const lancamentos = pgTable(
     clinicDueIdx: index('lancamentos_clinic_due_idx').on(t.clinicId, t.dueDate),
     clinicPatientIdx: index('lancamentos_clinic_patient_idx').on(t.clinicId, t.patientId),
     reversesIdx: index('lancamentos_reverses_idx').on(t.reversesLancamentoId),
+    // A6 — FKs LIDERADAS (a checagem de RI é `WHERE <fkcol> = $1`, sem clinic_id):
+    //   - supplier_id → SET NULL ao excluir fornecedor (+ caixa "por fornecedor")
+    //   - patient_id  → SET NULL no hard-delete LGPD (ADR-021)
+    //   - unit_id     → SET NULL ao excluir unidade
+    supplierFkIdx: index('lancamentos_supplier_id_idx').on(t.supplierId),
+    patientFkIdx: index('lancamentos_patient_id_idx').on(t.patientId),
+    unitFkIdx: index('lancamentos_unit_id_idx').on(t.unitId),
     // 1 atendimento = 1 lançamento automático.
     appointmentUniq: uniqueIndex('lancamentos_appointment_uniq')
       .on(t.appointmentId)

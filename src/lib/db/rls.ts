@@ -55,7 +55,7 @@ export function normalizeAndAssertIdent(
  * policies. Versioned so the template can evolve without losing
  * traceability. Bump when the policy text changes.
  */
-const FINGERPRINT = '-- GENERATED_BY: defaultTenantPolicy(v1)';
+const FINGERPRINT = '-- GENERATED_BY: defaultTenantPolicy(v2)';
 
 export interface DefaultTenantPolicyOptions {
   /** default: `<table>_tenant_access` */
@@ -65,6 +65,18 @@ export interface DefaultTenantPolicyOptions {
 }
 
 /**
+ * v2 (A14): each auth helper is wrapped in a scalar subquery so Postgres hoists
+ * it into an InitPlan and evaluates it ONCE per query instead of ONCE PER ROW
+ * scanned. Without the wrap, a 200k-row tenant scan re-executes
+ * current_clinic_id()/is_super_admin() 200k times — the `auth_rls_initplan`
+ * advisor fired on 65 policies. Safe because all three are STABLE (migration
+ * 0001) — a STABLE function is fixed for the duration of the statement, which
+ * is exactly what lets the planner cache it. Never wrap a VOLATILE function
+ * this way: the InitPlan would freeze a value that is supposed to change.
+ *
+ * The wrap does NOT change semantics: `SET LOCAL` inside withTenant is applied
+ * before the query runs, so the InitPlan reads the same GUC it always did.
+ *
  * Emits SQL that:
  *   1. Enables RLS on `table`
  *   2. Forces RLS (so the table owner is subject to policies too)
@@ -87,15 +99,23 @@ ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ${table} FORCE  ROW LEVEL SECURITY;
 CREATE POLICY ${policy} ON ${table} FOR ALL
   USING (
-    ${col}::text = current_setting('app.current_clinic', true)
-    OR ${col}::text = current_clinic_id()
-    OR is_super_admin()
+${tenantPredicate(col)}
   )
   WITH CHECK (
-    ${col}::text = current_setting('app.current_clinic', true)
-    OR ${col}::text = current_clinic_id()
-    OR is_super_admin()
+${tenantPredicate(col)}
   );`;
+}
+
+/**
+ * The dual-context predicate (ADR-007 D22), shared by USING and WITH CHECK so
+ * the two can never drift apart. `col` must already be sanitized.
+ */
+function tenantPredicate(col: string): string {
+  return (
+    `    ${col}::text = (select current_setting('app.current_clinic', true))\n` +
+    `    OR ${col}::text = (select current_clinic_id())\n` +
+    `    OR (select is_super_admin())`
+  );
 }
 
 /**

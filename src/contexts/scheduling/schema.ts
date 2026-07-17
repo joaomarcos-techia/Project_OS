@@ -127,6 +127,10 @@ export const procedureHistory = pgTable(
     changedAt: timestamp('changed_at', { withTimezone: true }).notNull().default(sql`now()`),
   },
   (t) => ({
+    // D9 (A6/N1): sem este índice, o predicado do RLS (`clinic_id = ...`) varre a
+    // tabela inteira em TODA query tenant, e o CASCADE do offboarding de clínica
+    // faz seq scan. O composto abaixo não serve: não lidera por clinic_id.
+    clinicIdx: index('procedure_history_clinic_id_idx').on(t.clinicId),
     procedureChangedIdx: index('procedure_history_procedure_changed_idx').on(
       t.procedureId,
       t.changedAt,
@@ -261,6 +265,18 @@ export const appointments = pgTable(
       .where(sql`slot_occupies_instant`),
     clinicPatientIdx: index('appointments_clinic_patient_idx').on(t.clinicId, t.patientId),
     clinicStatusIdx: index('appointments_clinic_status_idx').on(t.clinicId, t.status),
+    // A6 — FKs LIDERADAS pela coluna da FK (a checagem de RI é `WHERE <fkcol> = $1`,
+    // sem clinic_id, então os compostos acima não a servem):
+    //   - patient_id   → SET NULL no hard-delete LGPD (ADR-021)
+    //   - procedure_id → RESTRICT ao excluir procedimento do catálogo da clínica
+    //   - unit_id      → SET NULL ao excluir uma unidade
+    //   - rescheduled_from_appointment_id → SET NULL (auto-referência)
+    patientFkIdx: index('appointments_patient_id_idx').on(t.patientId),
+    procedureFkIdx: index('appointments_procedure_id_idx').on(t.procedureId),
+    unitFkIdx: index('appointments_unit_id_idx').on(t.unitId),
+    rescheduledFromFkIdx: index('appointments_rescheduled_from_idx').on(
+      t.rescheduledFromAppointmentId,
+    ),
     durationChk: check(
       'appointments_duration_chk',
       sql`${t.durationMin} > 0 AND ${t.durationMin} <= 480`,
@@ -304,6 +320,9 @@ export const appointmentStateLog = pgTable(
     correlationId: uuid('correlation_id'), // M20 — tracing cross-context
   },
   (t) => ({
+    // D9 (A6/N1): idem procedure_history — RLS filtra clinic_id e o composto
+    // abaixo lidera por appointment_id, então não cobre.
+    clinicIdx: index('appointment_state_log_clinic_id_idx').on(t.clinicId),
     appointmentTransitionedIdx: index('appointment_state_log_appt_transitioned_idx').on(
       t.appointmentId,
       t.transitionedAt,

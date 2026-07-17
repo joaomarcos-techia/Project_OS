@@ -57,6 +57,7 @@
 | [039](039-member-lifecycle.md) | Ciclo de vida de membro (desativar/reativar/trocar role/override) + bloqueio de agenda com override auditado — emenda ADR-032 §4 | accepted | Identity (C3) |
 | [040](040-invite-acceptance-gate.md) | Aceite do convite como gate de sessão (hook nega claims enquanto pendente) | accepted | Identity (C3) |
 | [041](041-authz-tables-are-not-tenant-tables.md) | Tabela de autorização não é tabela de tenant: read-only para `authenticated` (fecha escalonamento por override — I-13) — delimita ADR-007 D27 | accepted | RLS / Identity |
+| [042](042-rls-initplan-and-public-least-privilege.md) | Policy v2 (helpers de auth em subquery escalar → InitPlan) + least-privilege do `public` atacando o DEFAULT ACL, não só os grants de hoje (A13/A14/A15/N1) — emenda ADR-007 (texto) e ADR-010 (vira default) | accepted | RLS / Grants |
 
 ## Como propor um novo ADR
 

@@ -44,7 +44,7 @@ describe('rls — normalizeAndAssertIdent (D23 + D30)', () => {
 describe('rls — defaultTenantPolicy (D2 + D5 + D22 + D27 + D28 + D33)', () => {
   it('emits the GENERATED_BY fingerprint as first line', () => {
     const sql = defaultTenantPolicy('clinic_units');
-    expect(sql.startsWith('-- GENERATED_BY: defaultTenantPolicy(v1)')).toBe(true);
+    expect(sql.startsWith('-- GENERATED_BY: defaultTenantPolicy(v2)')).toBe(true);
   });
 
   it('ENABLE + FORCE RLS on the target table (D5)', () => {
@@ -58,6 +58,27 @@ describe('rls — defaultTenantPolicy (D2 + D5 + D22 + D27 + D28 + D33)', () => 
     expect(sql).toContain("current_setting('app.current_clinic', true)");
     expect(sql).toContain('current_clinic_id()');
     expect(sql).toContain('is_super_admin()');
+  });
+
+  // A14: the auth helpers must sit inside a scalar subquery so the planner
+  // hoists them into an InitPlan (evaluated once per query, not once per row).
+  // These assertions are the regression guard — dropping the `(select ...)`
+  // silently reintroduces per-row evaluation on every tenant table at once.
+  it('wraps every auth helper in a scalar subquery (A14 — initplan)', () => {
+    const sql = defaultTenantPolicy('clinic_units');
+    expect(sql).toContain("(select current_setting('app.current_clinic', true))");
+    expect(sql).toContain('(select current_clinic_id())');
+    expect(sql).toContain('(select is_super_admin())');
+  });
+
+  it('leaves NO bare (unwrapped) auth helper call behind (A14)', () => {
+    const sql = defaultTenantPolicy('clinic_units');
+    // Every occurrence must be immediately preceded by `(select `.
+    for (const helper of ["current_setting('app.current_clinic', true)", 'current_clinic_id()', 'is_super_admin()']) {
+      const total = sql.split(helper).length - 1;
+      const wrapped = sql.split(`(select ${helper})`).length - 1;
+      expect({ helper, total, wrapped }).toEqual({ helper, total: wrapped, wrapped });
+    }
   });
 
   it('mirrors USING in WITH CHECK (writes share isolation predicate)', () => {
@@ -89,7 +110,7 @@ describe('rls — defaultTenantPolicy (D2 + D5 + D22 + D27 + D28 + D33)', () => 
 
   it('respects custom tenantColumn (used by clinics where the column is `id`)', () => {
     const sql = defaultTenantPolicy('clinics', { tenantColumn: 'id' });
-    expect(sql).toContain('id::text = current_setting');
+    expect(sql).toContain('id::text = (select current_setting');
     expect(sql).not.toMatch(/clinic_id::text/);
   });
 
