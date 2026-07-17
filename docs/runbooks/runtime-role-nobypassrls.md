@@ -210,9 +210,15 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 | **qoro-dev** (`pqhkirrszzpwezdaqrai`) | 2 clínicas / 4 pacientes | ✅ | ✅ Vercel | ✅ **A/B/C/D provados** (Passo 3) · ⬜ Passo 4 (smoke:c5 + painel) |
 | **qoro-prod** (`shlcbxawrxuaebazuiue`) | 1 clínica / **0 pacientes** | ✅ | ✅ Vercel | ⬜ Passo 4 (smoke após o deploy) — A/C/D são **inconclusivos** sem dado cross-tenant |
 
-> **Não falta SQL.** O que resta é observar o app rodando com a env ativa (Passo 4). Se
-> algo der errado, o sintoma é `permission denied for table X` (grant faltando), e o
-> rollback é remover a env e redeployar.
+> **Não falta SQL nem env.** `DATABASE_URL_RUNTIME` está na Vercel (Production + Preview)
+> desde 2026-07-15. O que resta é observar o app rodando (Passo 4).
+>
+> ⚠️ **O D1 está INERTE em produção até o deploy desta branch.** O `main` **não lê**
+> `DATABASE_URL_RUNTIME` (nem em `db/index.ts`, nem em `env.ts`) — o código que a
+> consome vive na branch `docs/identity-practitioner-model`. Prod está com a env
+> configurada e **ignorando-a**: o pool segue no `DATABASE_URL` (BYPASSRLS). Efeito
+> colateral bom: no deploy, o fail-close **liga sozinho**, sem passo manual. Efeito
+> colateral a lembrar: **o Passo 4 só faz sentido depois do deploy**.
 
 **Ordem recomendada:** fechar dev (senha + env + smoke) → observar → repetir em prod.
 Não há pressa de agenda, mas o gatilho é **antes do 1º cliente pagante**: depois, um
