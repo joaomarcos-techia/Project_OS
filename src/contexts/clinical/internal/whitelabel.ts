@@ -6,6 +6,7 @@
  */
 import { eq } from 'drizzle-orm';
 
+import { decryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 /* eslint-disable boundaries/element-types -- clinics é declarado no schema de tenancy (mesma exceção de tenantIdRef); leitura tenant-scoped via tx (RLS aplica). */
 import { clinics } from '@/contexts/tenancy';
@@ -29,7 +30,7 @@ export async function loadClinicBranding(tx: Tx, clinicId: string): Promise<Clin
       primaryColor: clinics.primaryColor,
       endereco: clinics.endereco,
       telefone: clinics.telefone,
-      cnpj: clinics.cnpj,
+      cnpjEncrypted: clinics.cnpjEncrypted,
       cnes: clinics.cnes,
     })
     .from(clinics)
@@ -41,7 +42,8 @@ export async function loadClinicBranding(tx: Tx, clinicId: string): Promise<Clin
     primaryColor: row?.primaryColor ?? null,
     endereco: row?.endereco ?? null,
     telefone: row?.telefone ?? null,
-    cnpj: row?.cnpj ?? null,
+    // A8: decifra o CNPJ para o cabeçalho do PDF (salt = clinicId).
+    cnpj: row?.cnpjEncrypted ? await decryptForTenant(clinicId, row.cnpjEncrypted) : null,
     cnes: row?.cnes ?? null,
   };
 }

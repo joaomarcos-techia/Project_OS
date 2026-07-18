@@ -16,10 +16,13 @@
  */
 import 'server-only';
 
+import { randomUUID } from 'node:crypto';
+
 import { and, eq, sql } from 'drizzle-orm';
 
 import { dbAdmin, type Tx } from '@/lib/db';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
+import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { publishEvent } from '@/lib/outbox/publish';
 
 /* eslint-disable boundaries/element-types -- saga de provisionamento: onboarding
@@ -99,17 +102,19 @@ export interface ProvisionArgs {
  */
 export async function provisionTenantFromInviteTx(tx: Tx, args: ProvisionArgs): Promise<{ clinicId: string }> {
   // 1. Clínica — nasce `trial` de ACESSO (datas de trial vivem na subscription).
-  const [clinic] = await tx
-    .insert(clinics)
-    .values({
-      slug: args.clinic.slug,
-      nome: args.clinic.nome,
-      cnpj: args.clinic.cnpj ?? null,
-      endereco: args.clinic.endereco ?? null,
-      status: 'trial',
-    })
-    .returning({ id: clinics.id });
-  const clinicId = clinic!.id;
+  // A8: id gerado na app para poder cifrar o CNPJ com ele (salt HKDF = id) ANTES
+  // do insert — a alternativa (insert→returning→update) faria 2 idas ao banco.
+  const clinicId = randomUUID();
+  const cnpjRaw = args.clinic.cnpj?.trim() || null;
+  await tx.insert(clinics).values({
+    id: clinicId,
+    slug: args.clinic.slug,
+    nome: args.clinic.nome,
+    cnpjEncrypted: cnpjRaw ? await encryptForTenant(clinicId, cnpjRaw) : null,
+    cnpjHash: cnpjRaw ? await hashForLookup(cnpjRaw) : null,
+    endereco: args.clinic.endereco ?? null,
+    status: 'trial',
+  });
 
   // 2. Owner profile (id = auth.users.id criado antes da tx). Idempotente em retry.
   await tx
@@ -139,7 +144,10 @@ export async function provisionTenantFromInviteTx(tx: Tx, args: ProvisionArgs): 
       clinicId,
       name: args.customer.name,
       email: args.customer.email,
-      document: args.customer.document ?? null,
+      // A8: CPF/CNPJ do cliente cifrado per-tenant (write-only — sem read-site).
+      documentEncrypted: args.customer.document
+        ? await encryptForTenant(clinicId, args.customer.document)
+        : null,
       phone: args.customer.phone ?? null,
       asaasCustomerId: args.asaasCustomerId,
     })

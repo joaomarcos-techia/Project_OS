@@ -126,6 +126,58 @@ linha com o `clinicId` dela, `--dry-run`, idempotente. **Liga
 `app.allow_signed_edit='on'`** — a trigger de imutabilidade bloqueia UPDATE de
 prontuário assinado independente de role (é trigger, não RLS; `dbAdmin` não ajuda).
 
+## A8 — PII de negócio (CNPJ da clínica + document do cliente)
+
+Mesmo mecanismo, no PR4. `clinics.cnpj` e `billing_customers.document` (CPF/CNPJ
+fiscal) eram PII em claro. Agora `cnpj_encrypted`/`document_encrypted`, salt HKDF =
+id da clínica. Sem branded type (diferente do conteúdo clínico): o modo de falha de
+um decrypt esquecido aqui é **visível** (CNPJ errado no PDF/admin), não silencioso —
+segue o padrão de `patients.cpf_encrypted`.
+
+- `clinics.cnpj`: 5 read-sites religados p/ decifrar (PDF `whitelabel.ts`, perfil
+  `tenancy/queries.ts`, admin `clinics.repo.ts`; a saga/profile cifram na escrita; o
+  audit de perfil guarda o ciphertext). `id` gerado na app antes do insert (o salt é
+  o próprio id).
+- `billing_customers.document`: **write-only** (zero read-site) — só cifra na escrita.
+- `checkout_sessions.document`: **não tocado** — coluna morta (o único escritor,
+  `provisionTenant`, não é chamado por ninguém). Vale um issue de limpeza.
+
+### A11 (UNIQUE no CNPJ) — ADIADO, com motivo concreto
+
+O achado A11 quer `UNIQUE(cnpj)` contra cadastro duplicado. **Adiado até C13**
+(normalização de CNPJ), decisão do founder:
+
+1. **Sem normalização o UNIQUE é proteção falsa.** `clinics.cnpj` não é normalizado
+   ("validation only in C13"). `hash("12.345.678/0001-99") ≠ hash("12345678000199")`
+   → duas grafias do MESMO CNPJ geram hashes diferentes e ambas passam. A própria
+   auditoria condiciona a UNIQUE a "após normalizar".
+2. **O salt do HMAC é global** (ADR-012 F-16) → a unicidade seria **global da
+   plataforma** ("um CNPJ = uma clínica em todo o SaaS"), o que colide em
+   re-assinatura pós-cancelamento e exigiria a saga devolver `asConflict`.
+
+A coluna `cnpj_hash` é **adicionada e populada** (`hashForLookup`, não nasce morta) —
+quando C13 normalizar, um migration recomputa o hash sobre o valor normalizado e
+adiciona `UNIQUE(cnpj_hash) WHERE cnpj_hash IS NOT NULL`. **Gatilho:** C13
+(normalização/validação de CNPJ).
+
+## Sequência de deploy das migrations (clínico e PII)
+
+Ambas em 2 fases (aditiva → backfill → destrutiva), e a regra vale para prod:
+
+1. Aplicar a migration **aditiva** (0046 clínico / 0048 PII) junto com o deploy do
+   código que escreve/lê cifrado.
+2. Rodar o **backfill** (`pnpm db:encrypt-clinical` / `pnpm db:encrypt-business-pii`).
+3. Aplicar a migration **destrutiva** (0047 / 0049).
+
+⚠️ Se a aditiva e a destrutiva estiverem **ambas pendentes**, o `db:migrate` roda as
+duas juntas (transação única) e PULA a janela de backfill. Isso é **seguro** porque o
+guard `RAISE EXCEPTION` da destrutiva aborta o lote se achar dado não-migrado —
+"não migrou" nunca "migrou pela metade". Só é um problema quando há dado a
+backfillar: aí aplique a aditiva, faça o backfill, e **só então** aplique a
+destrutiva (commits/janelas separados). Prod está vazio → as duas juntas dropam
+limpo. (Observado em dev: 0048+0049 rodaram juntas, dev sem CNPJ → guard passou,
+coluna dropada, 0 perda.)
+
 ## Escopo cortado, com motivo
 
 - **`prescription_templates.medicamentos` — NÃO cifrar.** É **paciente-agnóstico**

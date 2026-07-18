@@ -41,7 +41,14 @@ export const clinics = pgTable(
     id: uuidPk(),
     slug: text('slug').notNull(),
     nome: text('nome').notNull(),
-    cnpj: text('cnpj'),                     // nullable: validation only in C13
+    // A8/ADR-044: CNPJ (PII fiscal do dono) cifrado per-tenant — salt HKDF = o
+    // próprio id da clínica. Padrão de `patients.cpf_encrypted` (text puro; o
+    // modo de falha de um decrypt esquecido é CNPJ visível-errado no PDF/admin,
+    // não silencioso). `cnpj_hash` fica PREPARADA para o UNIQUE do A11, adiado
+    // até existir normalização de CNPJ (C13): sem normalizar, o hash não dedupe
+    // formatações diferentes. Ver ADR-044 e o achado A11.
+    cnpjEncrypted: text('cnpj_encrypted'),  // nullable: validation only in C13
+    cnpjHash: text('cnpj_hash'),            // preparada p/ UNIQUE(A11) quando C13 normalizar
     cnes: text('cnes'),                     // nullable: not all clinic types have CNES
     // C7 (white-label leve nos PDFs): cabeçalho de prescrições/documentos médicos.
     // Aditivo/nullable — clínica sem branding cai num default no render (não quebra).

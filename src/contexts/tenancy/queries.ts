@@ -2,6 +2,7 @@ import 'server-only';
 
 import { eq } from 'drizzle-orm';
 
+import { decryptForTenant } from '@/lib/crypto';
 import { withTenant } from '@/lib/db/tenant';
 
 import { clinics } from './schema';
@@ -19,7 +20,7 @@ export async function getClinicProfile(clinicId: string): Promise<ClinicProfile 
         nome: clinics.nome,
         endereco: clinics.endereco,
         telefone: clinics.telefone,
-        cnpj: clinics.cnpj,
+        cnpjEncrypted: clinics.cnpjEncrypted,
         cnes: clinics.cnes,
         logoUrl: clinics.logoUrl,
       })
@@ -31,7 +32,8 @@ export async function getClinicProfile(clinicId: string): Promise<ClinicProfile 
           nome: r.nome,
           endereco: r.endereco ?? null,
           telefone: r.telefone ?? null,
-          cnpj: r.cnpj ?? null,
+          // A8: decifra p/ o form de perfil (salt = clinicId).
+          cnpj: r.cnpjEncrypted ? await decryptForTenant(clinicId, r.cnpjEncrypted) : null,
           cnes: r.cnes ?? null,
           logoUrl: r.logoUrl ?? null,
         }

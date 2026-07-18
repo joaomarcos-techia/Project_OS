@@ -337,6 +337,20 @@
       "when": 1784293569483,
       "tag": "0047_clinical_content_encrypt_drop",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1784293570483,
+      "tag": "0048_business_pii_encrypt_add",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1784293571483,
+      "tag": "0049_business_pii_encrypt_drop",
+      "breakpoints": true
     }
   ]
 }

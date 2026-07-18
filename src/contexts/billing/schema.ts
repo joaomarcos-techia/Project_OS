@@ -220,7 +220,10 @@ export const billingCustomers = pgTable('billing_customers', {
   id: uuidPk(),
   clinicId: tenantIdRef(),
   name: text('name').notNull(),
-  document: text('document'),
+  // A8/ADR-044: CPF/CNPJ do cliente Asaas cifrado per-tenant. É WRITE-ONLY (zero
+  // SELECT em src/) — o Asaas recebe o cpfCnpj do form transitório, não daqui —,
+  // então basta cifrar na escrita; nenhum read-site a decifra.
+  documentEncrypted: text('document_encrypted'),
   email: text('email').notNull(),
   phone: text('phone'),
   asaasCustomerId: text('asaas_customer_id'),

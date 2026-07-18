@@ -12,6 +12,7 @@
  */
 import { eq, sql } from 'drizzle-orm';
 
+import { encryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -74,7 +75,8 @@ export async function provisionTenant(tx: Tx, input: ProvisionInput): Promise<{ 
       clinicId,
       name: input.customerName,
       email: input.email,
-      document: input.document ?? null,
+      // A8: document cifrado per-tenant (mesmo padrão da saga).
+      documentEncrypted: input.document ? await encryptForTenant(clinicId, input.document) : null,
       phone: input.phone ?? null,
       asaasCustomerId: input.asaasCustomerId ?? null,
     })

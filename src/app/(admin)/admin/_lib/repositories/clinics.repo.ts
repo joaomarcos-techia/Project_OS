@@ -19,6 +19,7 @@ import {
 import { profiles } from '@/contexts/identity/schema';
 import { clinicWhatsappNumbers } from '@/contexts/messaging/schema';
 import { clinics } from '@/contexts/tenancy/schema';
+import { decryptForTenant } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 import { auditEvents } from '@/lib/db/schema/infra/audit';
 
@@ -145,7 +146,7 @@ export class ClinicRepository {
         nome: clinics.nome,
         slug: clinics.slug,
         status: clinics.status,
-        cnpj: clinics.cnpj,
+        cnpjEncrypted: clinics.cnpjEncrypted,
         timezone: clinics.timezone,
         createdAt: clinics.createdAt,
       })
@@ -153,6 +154,9 @@ export class ClinicRepository {
       .where(and(eq(clinics.id, clinicId), isNull(clinics.deletedAt)))
       .limit(1);
     if (!c) return null;
+
+    // A8: decifra o CNPJ para o painel admin (salt = id da própria clínica).
+    const cnpj = c.cnpjEncrypted ? await decryptForTenant(c.id, c.cnpjEncrypted) : null;
 
     // Plano + preço vigente da assinatura.
     const [sub] = await dbAdmin
@@ -269,7 +273,7 @@ export class ClinicRepository {
         nome: c.nome,
         slug: c.slug,
         status: c.status,
-        cnpj: c.cnpj ?? null,
+        cnpj,
         timezone: c.timezone,
         createdAt: iso(c.createdAt)!,
       },

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
+import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 
 import { clinics } from '../schema';
@@ -33,22 +34,27 @@ export async function updateClinicProfileCore(
     const t = v?.trim();
     return t ? t : null;
   };
+  // A8: CNPJ cifrado + hash. O salt HKDF é o próprio clinicId (que vem do request).
+  const cnpjRaw = norm(data.cnpj);
   const after = {
     nome: data.nome.trim(),
     endereco: norm(data.endereco),
     telefone: norm(data.telefone),
-    cnpj: norm(data.cnpj),
+    cnpjEncrypted: cnpjRaw ? await encryptForTenant(clinicId, cnpjRaw) : null,
+    cnpjHash: cnpjRaw ? await hashForLookup(cnpjRaw) : null,
     cnes: norm(data.cnes),
     logoUrl: norm(data.logoUrl),
   };
 
   await dbAdmin.transaction(async (tx) => {
+    // `before`/`after` do audit carregam o CIPHERTEXT (cnpj_encrypted) — nunca o
+    // CNPJ em claro. Sem decrypt aqui: consistente e não reintroduz vazamento.
     const [before] = await tx
       .select({
         nome: clinics.nome,
         endereco: clinics.endereco,
         telefone: clinics.telefone,
-        cnpj: clinics.cnpj,
+        cnpjEncrypted: clinics.cnpjEncrypted,
         cnes: clinics.cnes,
         logoUrl: clinics.logoUrl,
       })
