@@ -12,8 +12,11 @@
  * A rota NÃO importa `dbAdmin` — usa o seam `@/lib/messaging` (que o encapsula)
  * + a persistência do contexto (withTenant). Sem alteração no eslint.
  */
+import { buildRequestContext } from '@/lib/audit/request-context';
 import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertMessagingRuntimeReady, env } from '@/lib/env';
+import { captureBackgroundError } from '@/lib/observability/capture';
+import { runWithContext } from '@/lib/observability/context';
 import {
   getMessagingProvider,
   quarantineOrphan,
@@ -59,7 +62,10 @@ function groupByPhoneId(
   messages: ParsedInboundMessage[],
   statuses: ParsedStatusEvent[],
 ): Map<string, { messages: ParsedInboundMessage[]; statuses: ParsedStatusEvent[] }> {
-  const map = new Map<string, { messages: ParsedInboundMessage[]; statuses: ParsedStatusEvent[] }>();
+  const map = new Map<
+    string,
+    { messages: ParsedInboundMessage[]; statuses: ParsedStatusEvent[] }
+  >();
   const ensure = (phoneId: string) => {
     let g = map.get(phoneId);
     if (!g) {
@@ -93,7 +99,21 @@ export async function GET(req: Request): Promise<Response> {
   return new Response('forbidden', { status: 403 });
 }
 
+const FLOW = 'messaging.webhook';
+
+/**
+ * Abre o escopo de correlação e delega (mesmo padrão do webhook Asaas).
+ *
+ * NÃO fixa `clinicId`: um único webhook da Meta pode trazer mensagens de VÁRIAS
+ * clínicas (agrupadas por `phone_id` logo abaixo), então não existe um clinicId
+ * do request. Carimbar um seria mentira em toda linha de log do lote.
+ */
 export async function POST(req: Request): Promise<Response> {
+  const { requestId } = buildRequestContext(req.headers);
+  return runWithContext({ requestId, flow: FLOW }, () => handleWebhook(req));
+}
+
+async function handleWebhook(req: Request): Promise<Response> {
   assertMessagingRuntimeReady();
 
   // 0. size guard.
@@ -111,7 +131,9 @@ export async function POST(req: Request): Promise<Response> {
   const provider = getMessagingProvider(PROVIDER);
 
   // 1. assinatura ANTES de tudo.
-  if (!provider.validateSignature(raw, req.headers.get('x-hub-signature-256'), env.META_APP_SECRET!)) {
+  if (
+    !provider.validateSignature(raw, req.headers.get('x-hub-signature-256'), env.META_APP_SECRET!)
+  ) {
     metrics.emit('messaging.webhook.invalid_signature', {});
     return new Response('invalid signature', { status: 401 });
   }
@@ -137,6 +159,9 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     // Persistência/publishEvent falhou → rollback já ocorreu na tx. 500 faz a
     // Meta re-tentar (nunca há inbound salvo sem evento — garantia transacional).
+    // C3: o Sentry é o único caminho do stack — sem ele, uma falha de ingestão
+    // de mensagem só deixava `{name,message}` no stdout.
+    captureBackgroundError(err, { flow: FLOW });
     metrics.emit('messaging.webhook.error', { error: err });
     return new Response('internal error', { status: 500 });
   }
