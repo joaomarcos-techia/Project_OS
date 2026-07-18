@@ -17,8 +17,7 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -29,12 +28,9 @@ const INVITE_RETENTION_DAYS = 30;
 const BATCH = 1000;
 const MAX_BATCHES = 10; // teto: 10k convites/run; o resto sai no próximo run.
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'invites-cleanup' });
-  if (denied) return denied;
-
-  try {
+export const GET = withCron(
+  { job: 'invites-cleanup', route: 'invites-cleanup', errorEvent: 'invites_cleanup.error' },
+  async () => {
     let anonymized = 0;
     for (let i = 0; i < MAX_BATCHES; i++) {
       const rows = (await dbAdmin.execute(
@@ -61,8 +57,5 @@ export async function GET(req: Request): Promise<Response> {
     metrics.emit('invites_cleanup.run', { anonymized });
     await recordHeartbeat('invites-cleanup', 'success', { anonymized });
     return Response.json({ ok: true, anonymized }, { status: 200 });
-  } catch (err) {
-    metrics.emit('invites_cleanup.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

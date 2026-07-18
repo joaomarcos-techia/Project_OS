@@ -6,8 +6,7 @@
  * Vercel não-fatal).
  */
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 import { isProactiveEnabled } from '@/lib/platform-settings';
 
@@ -18,25 +17,28 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'proactive-reminders' });
-  if (denied) return denied;
+export const GET = withCron(
+  {
+    job: 'proactive-reminders',
+    route: 'proactive-reminders',
+    errorEvent: 'proactive.reminders.error',
+  },
+  async () => {
+    // Kill-switch global (platform_settings): pula ANTES de varrer a agenda.
+    // O desfecho `skipped` continua sendo do handler — só ele sabe distinguir
+    // "não havia o que fazer" de "falhou".
+    if (!(await isProactiveEnabled())) {
+      metrics.emit('proactive.reminders.skipped_disabled', {});
+      await recordHeartbeat('proactive-reminders', 'skipped', { reason: 'disabled' });
+      return Response.json({ ok: true, skipped: 'disabled' }, { status: 200 });
+    }
 
-  // Kill-switch global (platform_settings): pula ANTES de varrer a agenda.
-  if (!(await isProactiveEnabled())) {
-    metrics.emit('proactive.reminders.skipped_disabled', {});
-    await recordHeartbeat('proactive-reminders', 'skipped', { reason: 'disabled' });
-    return Response.json({ ok: true, skipped: 'disabled' }, { status: 200 });
-  }
-
-  try {
     const enq = await enqueueRemindersDue();
     const batch = await processProactiveBatch('reminder');
-    await recordHeartbeat('proactive-reminders', 'success', { enqueued: enq.enqueued, sent: batch.sent });
+    await recordHeartbeat('proactive-reminders', 'success', {
+      enqueued: enq.enqueued,
+      sent: batch.sent,
+    });
     return Response.json({ ok: true, enqueued: enq.enqueued, ...batch }, { status: 200 });
-  } catch (err) {
-    metrics.emit('proactive.reminders.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

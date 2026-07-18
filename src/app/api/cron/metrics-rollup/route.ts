@@ -15,8 +15,7 @@ import { sql, type SQL } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -71,18 +70,19 @@ function buildMetrics(windowDays: number): Array<{ name: string; select: SQL }> 
   ];
 }
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'metrics-rollup' });
-  if (denied) return denied;
+export const GET = withCron(
+  {
+    job: 'metrics-rollup',
+    route: 'metrics-rollup',
+    errorEvent: 'observability.metrics_rollup.error',
+  },
+  async (req) => {
+    const url = new URL(req.url);
+    const windowDays = Math.min(
+      Math.max(Number(url.searchParams.get('days')) || DEFAULT_WINDOW_DAYS, 1),
+      MAX_WINDOW_DAYS,
+    );
 
-  const url = new URL(req.url);
-  const windowDays = Math.min(
-    Math.max(Number(url.searchParams.get('days')) || DEFAULT_WINDOW_DAYS, 1),
-    MAX_WINDOW_DAYS,
-  );
-
-  try {
     const byMetric: Record<string, number> = {};
     for (const m of buildMetrics(windowDays)) {
       const rows = (await dbAdmin.execute(
@@ -100,11 +100,5 @@ export async function GET(req: Request): Promise<Response> {
     metrics.emit('observability.metrics_rollup.run', { windowDays, byMetric });
     await recordHeartbeat('metrics-rollup', 'success', { windowDays, byMetric });
     return Response.json({ ok: true, windowDays, byMetric }, { status: 200 });
-  } catch (err) {
-    metrics.emit('observability.metrics_rollup.error', { error: err });
-    await recordHeartbeat('metrics-rollup', 'error', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);
