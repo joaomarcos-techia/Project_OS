@@ -1179,9 +1179,13 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
 
 A [auditoria de banco](achados/auditoria-banco-dados.md) (16 achados A1–A16) foi
 remediada: **todos os acionáveis fechados** na causa-raiz ou aceitos por decisão em
-ADR. Placar por achado + evidência na **§8** do próprio relatório. Aplicado e
-verificado em **dev**; **prod é janela manual** (checklist na §8). Migrations
-0044–0050; ADRs novos 042/043/044. Commits `3b4fc93` → `ad9d59b` (4 PRs por risco).
+ADR. Placar por achado + evidência na **§8**; aplicação em prod na **§9**.
+**✅ ATIVO EM PRODUÇÃO 2026-07-18** — migrations 0044–0050 aplicadas na janela
+manual, provado por catálogo (initplan 0, `anon` 0 privilégios, colunas em claro
+dropadas, DML intacto) **e por dois testes funcionais que catálogo não pega**:
+login de super_admin OK e **cadastro de paciente real OK** (este último exercita o
+`encryptForTenant` — antes dele o caminho de cripto nunca tinha rodado em prod).
+ADRs novos 042/043/044. Commits `3b4fc93` → `9832b91`.
 
 - **A14** (o maior ROI): predicado do RLS envolvido em subquery escalar → InitPlan.
   Advisor `auth_rls_initplan` **57 → 0**. A auditoria leu até 0037; hoje 0050.

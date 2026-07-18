@@ -41,7 +41,23 @@
 
 - **Dev:** segredos vivem no `.env.local` (gitignored). `CRYPTO_SECRET_BACKEND=env`. `DATABASE_URL_PROD`, `GCP_*`, `SUPABASE_PROJECT_ENV` ficam **vazios**.
 - **Upstash (rate-limit) — DBs distintas por ambiente (auditoria Redis R3):** dev, preview e prod **devem** apontar para Upstash DBs **separadas** (esta é a defesa primária contra contadores de rate-limit colidindo entre ambientes). Como cinto-e-suspensório, as chaves Redis já carregam um discriminador de ambiente (`VERCEL_ENV ?? NODE_ENV`, montado por `redisKey.*` em [rate-limit.ts](../../src/lib/auth/rate-limit.ts)): `VERCEL_ENV` separa Preview de Production (o `NODE_ENV` não separa — ambos são `production` na Vercel). Ao apontar dois ambientes para a mesma DB por engano, o prefixo evita colisão silenciosa; ainda assim, mantenha as DBs separadas.
-- **Produção:** chaves críticas de crypto vivem no **Google Secret Manager** (`CRYPTO_SECRET_BACKEND=gcp`); `SENTRY_AUTH_TOKEN` em `.env.sentry-build-plugin`; scripts prod exigem `SUPABASE_PROJECT_ENV=prod` explícito.
+- **Produção (real, verificado em 2026-07-18):** as chaves de crypto vivem nas **env vars da Vercel**, com **`CRYPTO_SECRET_BACKEND=env`** setado explicitamente em Production — `CRYPTO_MASTER_KEY_V1` e `CRYPTO_LOOKUP_SALT` lá. **Google Secret Manager NÃO é usado.** `SENTRY_AUTH_TOKEN` em `.env.sentry-build-plugin`; scripts prod exigem `SUPABASE_PROJECT_ENV=prod` explícito.
+
+  > ⚠️ **Por que o `CRYPTO_SECRET_BACKEND=env` é obrigatório e não opcional:** o
+  > seletor é `env.CRYPTO_SECRET_BACKEND ?? (NODE_ENV === 'production' ? 'gcp' : 'env')`
+  > ([env.ts:345](../../src/lib/env.ts#L345)). Na Vercel `NODE_ENV=production`, então
+  > **sem essa variável o default vira `gcp`** e o app ignora a chave da Vercel,
+  > estourando no primeiro cadastro que cifra (paciente/prontuário). Esta doc
+  > afirmava "Produção usa Google Secret Manager" até 2026-07-18 — era ponteiro
+  > para infra que nunca existiu (mesma classe do "validation only in C13").
+  >
+  > 🔑 **BACKUP DA CHAVE:** a env var da Vercel é hoje a **única cópia** do
+  > `CRYPTO_MASTER_KEY_V1`. Desde o ADR-044 ela protege o **prontuário**, não só o
+  > CPF — perder essa chave é perder o registro médico de forma irreversível
+  > (nenhum backup do Postgres recupera, o dado está cifrado). Guarde o valor fora
+  > da Vercel (cofre de senhas), e trate rotação como operação planejada
+  > (`CRYPTO_MASTER_KEY_V2` + `MASTER_KEY_VERSION=2`; o byte de versão no envelope
+  > mantém o dado antigo legível).
 - **CI:** injeta valores fake para satisfazer o Zod no `build`/`check:registry` sem conectar a serviços (ver `.github/workflows/ci.yml`).
 
 ## Segredos — onde vivem e rotação
