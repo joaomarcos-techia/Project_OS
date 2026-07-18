@@ -67,40 +67,43 @@ psql "$DATABASE_URL" -c "SELECT version, applied_at FROM _schema_version ORDER B
 - [ ] `pg_dump` instalado localmente (`pg_dump --version` funciona)
 - [ ] Estou em `main`, branch limpa, em sync com origin
 
-**Checklist linha por linha** (não pule):
-
-```bash
 # 1. Sync local.
-git checkout main && git pull origin main
+git checkout main
+git pull origin main
 pnpm install --frozen-lockfile
 
-# 2. Setar contexto de prod APENAS para este shell (NUNCA salvar em .env.local
-#    em máquinas que rodam dev). Use export inline ou shell session só prod.
-export SUPABASE_PROJECT_ENV=prod
-export DATABASE_URL_PROD="postgres://...@<prod-host>...?sslmode=require"
+# 2. Definir contexto de produção APENAS para esta sessão do PowerShell.
+# NUNCA salvar em .env.local em máquinas usadas para desenvolvimento.
+$env:SUPABASE_PROJECT_ENV = "prod"
+$env:DATABASE_URL_PROD = "postgres://...@<prod-host>...?sslmode=require"
 
-# 3. Smoke test da chave — backup manual primeiro:
+# 3. Smoke test / backup manual antes da migration.
 pnpm db:backup:prod
-# Espera-se: backups/manual-<timestamp>.sql com tamanho > 0.
 
-# 4. APLICAR — esta é a operação real:
+# Esperado:
+# backups/manual-<timestamp>.sql
+# O arquivo deve existir e ter tamanho > 0.
+
+# 4. APLICAR MIGRATIONS — operação real.
 pnpm db:migrate:prod
-# O script:
-#   - verifica MIGRATION_FAILED.md ausente
-#   - faz pg_dump pre-migration -> backups/prod-pre-migration-<ts>.sql
-#   - adquire pg_advisory_lock(4242)
-#   - aplica via drizzle-kit
-#   - libera o lock
-#   - registra em backups/migrations.log
 
-# 5. Verificar:
-psql "$DATABASE_URL_PROD" -c "SELECT version, applied_at FROM _schema_version ORDER BY applied_at DESC LIMIT 5"
+# O script deve:
+# - abortar se MIGRATION_FAILED.md existir;
+# - executar pg_dump pré-migration;
+# - salvar em:
+#   backups/prod-pre-migration-<timestamp>.sql
+# - adquirir pg_advisory_lock(4242);
+# - aplicar as migrations via drizzle-kit;
+# - liberar o advisory lock mesmo em caso de erro;
+# - registrar a execução em:
+#   backups/migrations.log
 
-# 6. Limpar o shell (importante!):
-unset SUPABASE_PROJECT_ENV
-unset DATABASE_URL_PROD
-```
+# 5. Verificar migrations aplicadas.
+psql $env:DATABASE_URL_PROD -c "SELECT version, applied_at FROM _schema_version ORDER BY applied_at DESC LIMIT 5"
 
+# 6. Limpar o contexto da sessão.
+Remove-Item Env:SUPABASE_PROJECT_ENV -ErrorAction SilentlyContinue
+Remove-Item Env:DATABASE_URL_PROD -ErrorAction SilentlyContinue
 ## Como reverter (rollback)
 
 Cenário: migration aplicou mas quebrou produção. Dump pre-migration existe.

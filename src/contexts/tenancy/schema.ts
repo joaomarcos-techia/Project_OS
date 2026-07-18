@@ -44,11 +44,21 @@ export const clinics = pgTable(
     // A8/ADR-044: CNPJ (PII fiscal do dono) cifrado per-tenant — salt HKDF = o
     // próprio id da clínica. Padrão de `patients.cpf_encrypted` (text puro; o
     // modo de falha de um decrypt esquecido é CNPJ visível-errado no PDF/admin,
-    // não silencioso). `cnpj_hash` fica PREPARADA para o UNIQUE do A11, adiado
-    // até existir normalização de CNPJ (C13): sem normalizar, o hash não dedupe
-    // formatações diferentes. Ver ADR-044 e o achado A11.
-    cnpjEncrypted: text('cnpj_encrypted'),  // nullable: validation only in C13
-    cnpjHash: text('cnpj_hash'),            // preparada p/ UNIQUE(A11) quando C13 normalizar
+    // não silencioso).
+    //
+    // ⚠️ O CNPJ **NÃO é validado nem normalizado** em lugar nenhum. O comentário
+    // antigo aqui dizia "validation only in C13" — ponteiro MORTO: o C13 fechou
+    // em 2026-06-17 sem entregar isso (mesmo modo de falha que o ADR-011/cron e o
+    // "ADR-008 D6" já produziram). Não repita a promessa por camada.
+    //
+    // `cnpj_hash` é populada (hashForLookup) e fica pronta para o UNIQUE do A11.
+    // O UNIQUE está ADIADO porque, SEM normalizar, "12.345.678/0001-99" e
+    // "12345678000199" geram hashes diferentes → a constraint não dedupe nada e
+    // dá falsa sensação de proteção. Gatilho real: **antes do 1º cliente pagante
+    // via onboarding self-serve** (é quando duplicata de cadastro passa a ser
+    // possível) — e o pré-requisito é normalizar na escrita. Ver ADR-044 §A11.
+    cnpjEncrypted: text('cnpj_encrypted'),  // nullable
+    cnpjHash: text('cnpj_hash'),            // populada; UNIQUE(A11) pendente de normalização
     cnes: text('cnes'),                     // nullable: not all clinic types have CNES
     // C7 (white-label leve nos PDFs): cabeçalho de prescrições/documentos médicos.
     // Aditivo/nullable — clínica sem branding cai num default no render (não quebra).

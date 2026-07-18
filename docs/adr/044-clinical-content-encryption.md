@@ -144,21 +144,35 @@ segue o padrão de `patients.cpf_encrypted`.
 
 ### A11 (UNIQUE no CNPJ) — ADIADO, com motivo concreto
 
-O achado A11 quer `UNIQUE(cnpj)` contra cadastro duplicado. **Adiado até C13**
-(normalização de CNPJ), decisão do founder:
+O achado A11 quer `UNIQUE(cnpj)` contra cadastro duplicado. **Adiado**, decisão do
+founder:
 
-1. **Sem normalização o UNIQUE é proteção falsa.** `clinics.cnpj` não é normalizado
-   ("validation only in C13"). `hash("12.345.678/0001-99") ≠ hash("12345678000199")`
-   → duas grafias do MESMO CNPJ geram hashes diferentes e ambas passam. A própria
-   auditoria condiciona a UNIQUE a "após normalizar".
+1. **Sem normalização o UNIQUE é proteção falsa.**
+   `hash("12.345.678/0001-99") ≠ hash("12345678000199")` → duas grafias do MESMO
+   CNPJ geram hashes diferentes e **ambas passam** pela constraint. A própria
+   auditoria condiciona a UNIQUE a "após normalizar o CNPJ".
 2. **O salt do HMAC é global** (ADR-012 F-16) → a unicidade seria **global da
    plataforma** ("um CNPJ = uma clínica em todo o SaaS"), o que colide em
    re-assinatura pós-cancelamento e exigiria a saga devolver `asConflict`.
 
-A coluna `cnpj_hash` é **adicionada e populada** (`hashForLookup`, não nasce morta) —
-quando C13 normalizar, um migration recomputa o hash sobre o valor normalizado e
-adiciona `UNIQUE(cnpj_hash) WHERE cnpj_hash IS NOT NULL`. **Gatilho:** C13
-(normalização/validação de CNPJ).
+> ⚠️ **Correção (2026-07-18):** a 1ª versão deste ADR e o comentário do schema
+> diziam "adiado **até C13**" / "validation only in C13". **Ponteiro morto** — o C13
+> (Tenancy & Billing) fechou em **2026-06-17** e não entregou validação/normalização
+> de CNPJ. É o mesmo modo de falha já registrado no projeto (doc apontando para algo
+> que não existe: o cron dual-factor do ADR-011, o "ADR-008 D6" que nunca foi
+> escrito). A migration `0048` carrega a menção antiga no comentário e **não foi
+> editada** — migration aplicada é imutável; este ADR e o schema são a autoridade.
+
+**Estado real:** o CNPJ **não é validado nem normalizado em lugar nenhum** do
+código. `cnpj_hash` é adicionada e **populada** (`hashForLookup`, não nasce morta),
+pronta para o índice.
+
+**Gatilho real (não é camada):** **antes do 1º cliente pagante via onboarding
+self-serve** — é quando cadastro duplicado passa a ser possível (hoje: 1 clínica
+seed, só o founder). Mesmo portão do D1/D8. **Pré-requisito:** normalizar o CNPJ na
+escrita (strip de máscara) e recomputar o hash existente; só então
+`CREATE UNIQUE INDEX ... ON clinics (cnpj_hash) WHERE cnpj_hash IS NOT NULL` +
+capturar a violação na saga como `asConflict` (ADR-036), não 500.
 
 ## Sequência de deploy das migrations (clínico e PII)
 

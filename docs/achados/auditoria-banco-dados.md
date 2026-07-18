@@ -16,7 +16,7 @@
 > | A6 FK sem índice | MÉDIA | ✅ Índices liderados nos deletes reais; catálogos deixados de fora, justificado |
 > | A7 partição depende de cron | MÉDIA | ✅ Alerta ativo + monitor por contiguidade; 9 órfãs do dev remediadas |
 > | A8 PII de negócio em claro | MÉDIA | ✅ `clinics.cnpj` + `billing_customers.document` cifrados |
-> | A11 CNPJ sem UNIQUE | BAIXA | 🟡 `cnpj_hash` preparada; UNIQUE adiado até C13 (normalização) |
+> | A11 CNPJ sem UNIQUE | BAIXA | 🟡 `cnpj_hash` populada; UNIQUE adiado — falta **normalizar** CNPJ (gatilho: 1º cliente self-serve) |
 > | A13 grants amplos `anon` | MÉDIA | ✅ Causa-raiz (default ACL) fechada, não só as 87 tabelas |
 > | A14 initplan | MÉDIA | ✅ 57→**0** no advisor (65 policies + `profiles_self_select`) |
 > | A15 resíduo RPC | MÉDIA | ✅ `record_login_attempt` revogada de `authenticated` |
@@ -962,9 +962,15 @@ cifrados. `checkout_sessions.document` **não tocado** (coluna morta).
 (`getClinicProfile` decifra; ciphertext não contém o valor).
 
 ### A11 — UNIQUE do CNPJ (PR4 · 🟡 parcial, adiado)
-`cnpj_hash` adicionada e populada (não nasce morta). O **UNIQUE fica para C13**: sem
+`cnpj_hash` adicionada e populada (não nasce morta). O **UNIQUE fica adiado**: sem
 normalização de CNPJ o hash não dedupe formatações diferentes (proteção falsa), e o
 salt HMAC global tornaria a unicidade global de plataforma. Decisão do founder.
+
+> **Correção 2026-07-18:** a 1ª redação dizia "adiado até **C13**". Ponteiro morto —
+> o C13 fechou em 2026-06-17 sem entregar a normalização (o comentário
+> `validation only in C13` no schema era promessa não cumprida). **Gatilho real:**
+> antes do 1º cliente pagante via onboarding self-serve; **pré-requisito:**
+> normalizar o CNPJ na escrita. Ver ADR-044 §A11.
 
 ### Aceitos por decisão (sem código)
 - **A4** (1 user = 1 clínica): a auditoria manda não agir; ADR-032 registra.
