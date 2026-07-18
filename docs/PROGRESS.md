@@ -1210,8 +1210,14 @@ ADRs novos 042/043/044. Commits `3b4fc93` → `9832b91`.
 0044; journal contíguo (51/51). Ressalva honesta: 0046/0047 e 0048/0049 foram
 escritas à mão (o TUI de rename-detection do drizzle-kit não roda non-TTY), então o
 snapshot mais recente segue no 0044 — um `db:generate` futuro reconcilia (dívida D6
-residual, menor). **D8** (preview→prod): o founder reconfigurou para dev; **falta
-exercer** (abrir um preview e confirmar que vê o dado de dev, não prod).
+residual, menor).
+
+**D8 fechada e EXERCITADA (2026-07-18):** Preview → `qoro-dev`, Production →
+`qoro-prod` (env vars separadas). Provado pelo dado, não pela config: prod mostra
+**1 clínica**, preview mostra **4** (o conteúdo do dev). No caminho, o preview
+quebrava o login com `LOGIN_HASH_PEPPER ausente` — a Vercel captura env **no
+build**, e a branch fora buildada antes da separação; **redeploy** resolveu. Regra
+que vale para toda env nova: alterá-la não afeta deployments existentes.
 
 ## Remediação da auditoria de APIs (2026-07-15) — Segurança & Arquitetura
 
@@ -1267,7 +1273,7 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 | **D5** | CSP bloqueante com nonce (hoje `Report-Only`) | Aceito (ADR-030) | Quando o relatório de CSP estiver limpo por ~1 semana em produção. |
 | ~~**D6**~~ | ~~Sanear o journal de migrations (snapshots `meta/*.json` com lacunas → `db:generate` inseguro)~~ | ✅ **FECHADO 2026-07-17** (remediação da auditoria de banco, PR1). O gatilho disparou: a 0044 precisou de `db:generate` de verdade (índices de FK). Só o **último** snapshot importa para o diff, e o 0037 ainda casava com o `schema.ts` porque 0038–0043 são DDL/grant puros, sem delta de objeto. O `db:generate` rodou e o diff veio quase limpo: só **1** statement inesperado, `ALTER TABLE profiles ALTER COLUMN invite_accepted_at SET DEFAULT now()` — que a **0041 já tinha aplicado** (o banco já estava assim); reapareceu só porque a 0041 foi escrita à mão e não gerou snapshot. Idempotente, mantido na 0044 com comentário. O `0044_snapshot.json` fecha a lacuna: **daqui pra frente a cadeia é contígua**. | — |
 | **D7** | **`admin.qoro.dev` (Control Plane em host próprio)** — planejado desde o PlanoAção, **nunca provisionado**; o subdomínio não resolve. Painel e app dividem `app.qoro.dev`. | **Adiado por decisão do founder (2026-07-16)**, com motivo — ver abaixo. Docs corrigidos para parar de afirmar que existe. | **Só junto com D5 (CSP bloqueante) + cookie escopado por host.** Sozinho é separação cosmética. |
-| **D8** 🟡 | **Preview da Vercel lê e escreve no banco de PRODUÇÃO.** `DATABASE_URL`/`DATABASE_URL_RUNTIME`/`NEXT_PUBLIC_SUPABASE_URL` têm **uma entrada só** cobrindo `Production, Preview` → mesmo valor nos dois. Qualquer branch num preview toca dado real, sem os guards do `db:migrate:prod`. E o preview nem funciona direito: faltam `LOGIN_HASH_PEPPER`/`SUPABASE_SECRET_KEY`/`CRYPTO_*`/`CRON_SECRET` (só existem em Production). | 🟡 **CORRIGIDO PELO FOUNDER 2026-07-17 — falta EXERCITAR.** O founder reconfigurou a Vercel: o preview passa a apontar para o **dev**. ⚠️ **Não verificado por ninguém ainda**: a config foi declarada, não exercida — e este projeto já pagou por essa exata distinção (o D1 ficou 2 dias marcado "✅ feito" com a env nunca exercitada; ver "Duas armadilhas" abaixo). **Prova pendente:** abrir um preview de branch e confirmar, pelo dado que ele enxerga, que é o `pqhkirrszzpwezdaqrai` (dev) e não o `shlcbxawrxuaebazuiue` (prod) — ex.: o preview tem que ver 2 clínicas / 4 pacientes, não 1 clínica / 0 pacientes. Enquanto isso não for feito, trate como aberto. | **Fechar o item = rodar a prova acima**, não reconfigurar. Ver [achado](achados/preview-aponta-para-prod.md). |
+| ~~**D8**~~ | ~~**Preview da Vercel lê e escreve no banco de PRODUÇÃO.** `DATABASE_URL`/`DATABASE_URL_RUNTIME`/`NEXT_PUBLIC_SUPABASE_URL` tinham **uma entrada só** cobrindo `Production, Preview` → mesmo valor nos dois.~~ | ✅ **FECHADA E EXERCITADA 2026-07-18.** Env vars separadas: Preview → `qoro-dev`, Production → `qoro-prod`. **Provado pelo DADO, não pela config:** prod mostra **1 clínica**, preview mostra **4** (conteúdo do dev). Se ainda apontasse para prod, os dois mostrariam o mesmo. No caminho apareceu o efeito colateral previsto no achado — o preview quebrava o login com `LOGIN_HASH_PEPPER ausente`: a Vercel captura env **no build**, e a branch fora buildada ANTES da separação; **redeploy** resolveu. Regra que fica: alterar env var não afeta deployment já existente. | — |
 
 ### Por que o D4 fechou sem virar projeto (2026-07-16)
 
