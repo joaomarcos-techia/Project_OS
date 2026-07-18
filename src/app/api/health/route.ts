@@ -5,17 +5,25 @@
  * dashboards. Complementa (não substitui) /api/health/outbox (detalhe operacional)
  * e /api/health/auth-hook (self-test do Auth Hook).
  *
- *   { status: 'ok'|'degraded'|'down', checks: { db, gemini, meta, asaas, outbox } }
+ *   { status: 'ok'|'degraded'|'down', checks: { db, gemini, meta, asaas, redis, outbox } }
  *
  * Semântica (slo.md):
  *   - DOWN     → banco indisponível (única dependência cuja falha derruba tudo).
- *   - DEGRADED → dependência externa mal-configurada OU outbox acima do SLO
- *                (oldest_pending_age_s > 300s).
+ *   - DEGRADED → dependência externa mal-configurada OU INALCANÇÁVEL, ou outbox
+ *                acima do SLO (oldest_pending_age_s > 300s).
  *   - OK       → tudo dentro do alvo.
  *
- * Checks externos são LEVES (validação de config/token, não chamadas caras) para
- * não martelar/custear provedores a cada poll de 5min. `?strict=1`/`?alert=1` →
- * 503 quando não-ok (monitores que só checam status code).
+ * DOIS NÍVEIS de check externo (C2 — corrigido em 2026-07-18):
+ *   - RASO (default): presença de env, zero rede. Poll barato.
+ *   - PROFUNDO (`?deep=1`, e implícito em `?strict=1`/`?alert=1`):
+ *     alcançabilidade real com timeout curto + cache de 60s ([health-probes.ts]).
+ *
+ * Antes, TODOS os checks externos eram presença de env: um provedor fora do ar
+ * com a key configurada reportava `ok`, e o uptime monitor ficava verde durante
+ * um apagão do WhatsApp. Como o monitor usa `?strict=1`, é ele quem paga o probe
+ * real — e era exatamente ele que precisava enxergar.
+ *
+ * `?strict=1`/`?alert=1` → 503 quando não-ok (monitores que só checam status code).
  *
  * Auth idêntica ao /api/health/outbox (MEDIUM-19): Bearer CRON_SECRET = monitoring;
  * super_admin AAL2 = detalhe extra. Sem credencial → 401 (evita profiling público).
@@ -24,16 +32,15 @@
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { assertCronRuntimeReady } from '@/lib/env';
 import { healthAuthLevel } from '@/lib/http/health-auth';
-import { assertCronRuntimeReady, env } from '@/lib/env';
+import { checkExternals, type CheckStatus } from '@/lib/http/health-probes';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // SLO de fila (slo.md / GAP 3): pending mais antigo acima disso → degraded.
 const PENDING_STUCK_S = 300;
-
-type CheckStatus = 'ok' | 'degraded' | 'down';
 
 /** `db` é a única dependência cuja falha é DOWN (resto degrada). */
 async function checkDb(): Promise<CheckStatus> {
@@ -43,11 +50,6 @@ async function checkDb(): Promise<CheckStatus> {
   } catch {
     return 'down';
   }
-}
-
-/** Check leve de config: provedor configurado → ok; ausente → degraded. */
-function checkConfig(present: boolean): CheckStatus {
-  return present ? 'ok' : 'degraded';
 }
 
 function aggregate(checks: Record<string, CheckStatus>): CheckStatus {
@@ -66,6 +68,10 @@ export async function GET(req: Request): Promise<Response> {
 
   const qp = new URL(req.url).searchParams;
   const strict = qp.get('strict') === '1' || qp.get('alert') === '1';
+  // C2: `strict` IMPLICA `deep`. O monitor externo usa `?strict=1`, então é ele
+  // quem paga o probe real — e é justamente ele que precisava enxergar o outage.
+  // O poll manual/barato sem query continua raso.
+  const deep = strict || qp.get('deep') === '1';
 
   const db = await checkDb();
 
@@ -92,11 +98,15 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
-  const checks: Record<'db' | 'gemini' | 'meta' | 'asaas' | 'outbox', CheckStatus> = {
+  const ext = await checkExternals(deep);
+  const checks: Record<'db' | 'gemini' | 'meta' | 'asaas' | 'redis' | 'outbox', CheckStatus> = {
     db,
-    gemini: checkConfig(Boolean(env.GEMINI_API_KEY)),
-    meta: checkConfig(Boolean(env.META_APP_SECRET)),
-    asaas: checkConfig(Boolean(env.ASAAS_API_KEY)),
+    gemini: ext.gemini,
+    meta: ext.meta,
+    asaas: ext.asaas,
+    // M3: torna visível o fail-open do rate-limit — sob outage do Upstash o
+    // sistema segue servindo sem proteção de brute-force, hoje em silêncio.
+    redis: ext.redis,
     outbox,
   };
 
