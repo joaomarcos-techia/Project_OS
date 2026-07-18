@@ -8,6 +8,7 @@ import { idempotencyKeys } from '@/lib/db/schema/infra/idempotency';
 import { withTenant } from '@/lib/db/tenant';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { runWithContext } from '@/lib/observability/context';
 import { isLockTimeout } from '@/lib/outbox/errors';
 import { capJsonSize } from '@/lib/sanitize/cap';
 
@@ -98,16 +99,64 @@ export interface MutationActor {
   userId: string | null;
 }
 
+/**
+ * N9 — tipos de recurso cujo `result` carrega CONTEÚDO CLÍNICO e que, portanto,
+ * não podem ir cru para `audit_events.after` nem para a resposta idempotente.
+ * Manter em sincronia com as colunas cifradas do ADR-044.
+ */
+export type ClinicalResourceType =
+  | 'prontuario'
+  | 'prontuario_version'
+  | 'prescription'
+  | 'medical_document';
+
+/**
+ * O guard do N9: `resourceType` clínico ⇒ `project` OBRIGATÓRIO.
+ *
+ * `R extends string` faz o TS inferir o LITERAL do call-site (`'prontuario'`),
+ * não `string` — é o que permite a condicional decidir. Um call-site que passe
+ * um `resourceType: string` dinâmico cai no ramo opcional; isso é aceito de
+ * propósito (não existe hoje, e forçar o contrário exigiria proibir string
+ * dinâmica em toda a base por causa de 4 tipos).
+ */
+type ProjectRequirement<T, R extends string> = R extends ClinicalResourceType
+  ? {
+      /** Obrigatório para recurso clínico — ver [ADR-044 §5] e o docblock abaixo. */
+      project: (result: T) => T;
+    }
+  : { project?: (result: T) => T };
+
+export type IdempotentMutationOpts<T, R extends string> = {
+  idempotency: {
+    key: string;
+    payload: unknown;
+    /**
+     * Override do TTL para esta chamada específica. Default 24h.
+     * Use 7 dias (604_800) para mutações críticas que podem ter retry tardio
+     * (cliente mobile offline > 24h). Veja validateTtlSeconds para limites.
+     */
+    ttlSeconds?: number;
+  };
+  audit: {
+    action: string;
+    resourceType: R;
+    resourceId: string | null;
+    before: unknown;
+    requestContext: RequestContext;
+  };
+  /** C12: ator de sistema explícito (pula auth do request). Veja MutationActor. */
+  actor?: MutationActor;
+} & ProjectRequirement<T, R>;
+
+export async function idempotentMutation<T, R extends string>(
+  opts: IdempotentMutationOpts<T, R>,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T>;
 export async function idempotentMutation<T>(
   opts: {
     idempotency: {
       key: string;
       payload: unknown;
-      /**
-       * Override do TTL para esta chamada específica. Default 24h.
-       * Use 7 dias (604_800) para mutações críticas que podem ter retry tardio
-       * (cliente mobile offline > 24h). Veja validateTtlSeconds para limites.
-       */
       ttlSeconds?: number;
     };
     audit: {
@@ -164,107 +213,117 @@ export async function idempotentMutation<T>(
   const hash = payloadHash(opts.idempotency.payload);
 
   let auditEventId: string | undefined;
-  const finalResult = await withTenant(clinicId, async (tx) => {
-    // HIGH-05: lock_timeout configurável via env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS.
-    // Default 10s (era 3s; quebrava Server Actions com fn() de 4-5s em rede lenta).
-    // Aplica a TODO lock pegado nesta TX, incluindo unique constraint do INSERT.
-    // Caller que ultrapassa este timeout recebe IdempotencyInFlightError e
-    // deve usar two-step pattern (Server Action síncrona enfileira evento;
-    // handler async processa).
-    const lockTimeoutMs = env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS;
-    // `SET LOCAL lock_timeout = $1` é SQL inválido — SET não aceita bind param
-    // (Postgres: "syntax error at or near $1"). Usa-se a forma-função set_config
-    // (is_local=true == SET LOCAL), que aceita parâmetro — mesmo padrão de
-    // withTenant (src/lib/db/tenant.ts). lockTimeoutMs é inteiro validado em env.
-    await tx.execute(sql`SELECT set_config('lock_timeout', ${`${lockTimeoutMs}ms`}, true)`);
+  // A2 — correlação AMBIENTE. Este wrapper está por baixo de TODA mutação de
+  // agenda, prontuário e paciente, mas seus 6 `idempotency.*` emitiam só
+  // `{ key }`: investigar "por que a clínica X teve conflitos" exigia decodificar
+  // a key ou cruzar com a auditoria à mão. clinicId/userId/requestId já estavam
+  // em escopo — só não chegavam ao stream. Abrindo o escopo aqui, os emits (e
+  // qualquer emit aninhado do handler) herdam sem tocar em nenhum call-site.
+  const finalResult = await runWithContext(
+    { requestId: opts.audit.requestContext.requestId, clinicId, ...(userId ? { userId } : {}) },
+    () =>
+      withTenant(clinicId, async (tx) => {
+        // HIGH-05: lock_timeout configurável via env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS.
+        // Default 10s (era 3s; quebrava Server Actions com fn() de 4-5s em rede lenta).
+        // Aplica a TODO lock pegado nesta TX, incluindo unique constraint do INSERT.
+        // Caller que ultrapassa este timeout recebe IdempotencyInFlightError e
+        // deve usar two-step pattern (Server Action síncrona enfileira evento;
+        // handler async processa).
+        const lockTimeoutMs = env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS;
+        // `SET LOCAL lock_timeout = $1` é SQL inválido — SET não aceita bind param
+        // (Postgres: "syntax error at or near $1"). Usa-se a forma-função set_config
+        // (is_local=true == SET LOCAL), que aceita parâmetro — mesmo padrão de
+        // withTenant (src/lib/db/tenant.ts). lockTimeoutMs é inteiro validado em env.
+        await tx.execute(sql`SELECT set_config('lock_timeout', ${`${lockTimeoutMs}ms`}, true)`);
 
-    // 1. Reserve idempotency key atomically WITHIN business TX.
-    // expires_at = now() + ttlSeconds (override do default 24h da schema)
-    let inserted: { key: string }[];
-    try {
-      inserted = await tx
-        .insert(idempotencyKeys)
-        .values({
-          key: opts.idempotency.key,
+        // 1. Reserve idempotency key atomically WITHIN business TX.
+        // expires_at = now() + ttlSeconds (override do default 24h da schema)
+        let inserted: { key: string }[];
+        try {
+          inserted = await tx
+            .insert(idempotencyKeys)
+            .values({
+              key: opts.idempotency.key,
+              clinicId,
+              userId,
+              payloadHash: hash,
+              response: null,
+              statusCode: null,
+              expiresAt: sql`now() + (${ttlSeconds}::int * interval '1 second')`,
+            })
+            .onConflictDoNothing()
+            .returning({ key: idempotencyKeys.key });
+        } catch (err) {
+          if (isLockTimeout(err)) {
+            metrics.emit('idempotency.lock_timeout', { key: opts.idempotency.key });
+            throw new IdempotencyInFlightError(opts.idempotency.key);
+          }
+          throw err;
+        }
+
+        if (inserted.length === 0) {
+          const [row] = await tx
+            .select()
+            .from(idempotencyKeys)
+            .where(eq(idempotencyKeys.key, opts.idempotency.key))
+            .limit(1);
+          if (!row) {
+            // ON CONFLICT DO NOTHING did nothing, yet SELECT finds nothing —
+            // means the conflicting row is in another uncommitted TX (READ COMMITTED).
+            metrics.emit('idempotency.in_flight', { key: opts.idempotency.key });
+            throw new IdempotencyInFlightError(opts.idempotency.key);
+          }
+          if (row.payloadHash !== hash) {
+            metrics.emit('idempotency.conflict', { key: opts.idempotency.key });
+            throw new IdempotencyConflictError(opts.idempotency.key);
+          }
+          if (row.response === null) {
+            metrics.emit('idempotency.in_flight', { key: opts.idempotency.key });
+            throw new IdempotencyInFlightError(opts.idempotency.key);
+          }
+          metrics.emit('idempotency.hit', { key: opts.idempotency.key });
+          return row.response as T;
+        }
+
+        // 2. Business mutation in the SAME tx.
+        const result = await fn(tx);
+
+        // A1: o que é PERSISTIDO (audit.after + resposta idempotente) passa pela
+        // projeção; o que é RETORNADO ao caller continua sendo o `result` completo.
+        // `before` já vem projetado do caller. Default identity → zero churn nos
+        // ~30 call-sites que não têm dado sensível no retorno.
+        const persisted = opts.project ? opts.project(result) : result;
+
+        // 3. Audit in the SAME tx. logAudit applies sanitizePayload internally.
+        // auditEventId é hoistado p/ a auditoria EXTRA do impersonate (pós-commit).
+        auditEventId = await logAudit(tx, {
           clinicId,
           userId,
-          payloadHash: hash,
-          response: null,
-          statusCode: null,
-          expiresAt: sql`now() + (${ttlSeconds}::int * interval '1 second')`,
-        })
-        .onConflictDoNothing()
-        .returning({ key: idempotencyKeys.key });
-    } catch (err) {
-      if (isLockTimeout(err)) {
-        metrics.emit('idempotency.lock_timeout', { key: opts.idempotency.key });
-        throw new IdempotencyInFlightError(opts.idempotency.key);
-      }
-      throw err;
-    }
+          action: opts.audit.action,
+          resourceType: opts.audit.resourceType,
+          resourceId: opts.audit.resourceId,
+          before: opts.audit.before,
+          after: persisted,
+          requestContext: opts.audit.requestContext,
+        });
 
-    if (inserted.length === 0) {
-      const [row] = await tx
-        .select()
-        .from(idempotencyKeys)
-        .where(eq(idempotencyKeys.key, opts.idempotency.key))
-        .limit(1);
-      if (!row) {
-        // ON CONFLICT DO NOTHING did nothing, yet SELECT finds nothing —
-        // means the conflicting row is in another uncommitted TX (READ COMMITTED).
-        metrics.emit('idempotency.in_flight', { key: opts.idempotency.key });
-        throw new IdempotencyInFlightError(opts.idempotency.key);
-      }
-      if (row.payloadHash !== hash) {
-        metrics.emit('idempotency.conflict', { key: opts.idempotency.key });
-        throw new IdempotencyConflictError(opts.idempotency.key);
-      }
-      if (row.response === null) {
-        metrics.emit('idempotency.in_flight', { key: opts.idempotency.key });
-        throw new IdempotencyInFlightError(opts.idempotency.key);
-      }
-      metrics.emit('idempotency.hit', { key: opts.idempotency.key });
-      return row.response as T;
-    }
+        // 4. Finalize idempotency response in the SAME tx. capJsonSize replaces
+        //    oversized results (>64KB) with an envelope referencing the original.
+        //    Guarda a forma PROJETADA — um replay (cache-hit) devolve exatamente o
+        //    que o caller receberia após re-ler, sem plaintext em repouso.
+        const stored = capJsonSize(persisted);
+        await tx
+          .update(idempotencyKeys)
+          .set({ response: stored as never, statusCode: 200 })
+          .where(eq(idempotencyKeys.key, opts.idempotency.key));
 
-    // 2. Business mutation in the SAME tx.
-    const result = await fn(tx);
-
-    // A1: o que é PERSISTIDO (audit.after + resposta idempotente) passa pela
-    // projeção; o que é RETORNADO ao caller continua sendo o `result` completo.
-    // `before` já vem projetado do caller. Default identity → zero churn nos
-    // ~30 call-sites que não têm dado sensível no retorno.
-    const persisted = opts.project ? opts.project(result) : result;
-
-    // 3. Audit in the SAME tx. logAudit applies sanitizePayload internally.
-    // auditEventId é hoistado p/ a auditoria EXTRA do impersonate (pós-commit).
-    auditEventId = await logAudit(tx, {
-      clinicId,
-      userId,
-      action: opts.audit.action,
-      resourceType: opts.audit.resourceType,
-      resourceId: opts.audit.resourceId,
-      before: opts.audit.before,
-      after: persisted,
-      requestContext: opts.audit.requestContext,
-    });
-
-    // 4. Finalize idempotency response in the SAME tx. capJsonSize replaces
-    //    oversized results (>64KB) with an envelope referencing the original.
-    //    Guarda a forma PROJETADA — um replay (cache-hit) devolve exatamente o
-    //    que o caller receberia após re-ler, sem plaintext em repouso.
-    const stored = capJsonSize(persisted);
-    await tx
-      .update(idempotencyKeys)
-      .set({ response: stored as never, statusCode: 200 })
-      .where(eq(idempotencyKeys.key, opts.idempotency.key));
-
-    metrics.emit('idempotency.completed', {
-      key: opts.idempotency.key,
-      action: opts.audit.action,
-    });
-    return result;
-  });
+        metrics.emit('idempotency.completed', {
+          key: opts.idempotency.key,
+          action: opts.audit.action,
+        });
+        return result;
+      }),
+  );
 
   // C15 — auditoria EXTRA do impersonate: APÓS o commit, via dbAdmin
   // (super_admin_actions só aceita service_role). auditEventId só fica definido
