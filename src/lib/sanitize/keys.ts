@@ -66,4 +66,25 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'patientphonehash',
   'prompt_snapshot_encrypted',
   'promptsnapshotencrypted',
+  // A1 / ADR-044 — CONTEÚDO CLÍNICO EM CLARO. Esta lista tinha
+  // `content_encrypted` mas não o `content` puro, e foi por isso que a
+  // auditoria de banco mediu 32 audit_events guardando o SOAP legível: o valor
+  // decifrado (ou nunca cifrado) não casa com nenhum regex de credencial.
+  //
+  // A defesa primária é o seam `project` do idempotentMutation (redige antes do
+  // disco). Isto é a rede embaixo, para o caminho novo que ninguém previu.
+  // Deliberadamente NÃO inclui `descricao` (campo de negócio benigno em
+  // financeiro) — redigir demais cega o diagnóstico operacional.
+  'content',
+  'nota',
+  'notas',
+  'soap',
+  'subjetivo',
+  'objetivo',
+  'avaliacao',
+  'conduta',
+  'observacoes',
+  'medicamentos',
+  'diagnostico',
+  'alergias',
 ]);

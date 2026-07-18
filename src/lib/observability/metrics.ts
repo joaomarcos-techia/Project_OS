@@ -1,3 +1,4 @@
+import { contextFields } from './context';
 import { sanitizeFields } from './sanitize-fields';
 
 /**
@@ -18,11 +19,14 @@ type Metric = Record<string, unknown>;
 
 export const metrics = {
   emit(event: string, fields: Metric = {}): void {
+    // Correlação ambiente ANTES dos campos: o call-site explícito sempre vence
+    // (A2/A3). Sem escopo, `contextFields()` é `{}` e a linha sai idêntica à de
+    // hoje — a correlação é ADITIVA, nunca substitutiva.
     const line = JSON.stringify({
       ts: new Date().toISOString(),
       kind: 'metric',
       event,
-      ...sanitizeFields(fields),
+      ...sanitizeFields({ ...contextFields(), ...fields }),
     });
     process.stdout.write(line + '\n');
   },

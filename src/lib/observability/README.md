@@ -2,6 +2,22 @@
 
 Structured logging for production debugging. MVP scope: one function, `metrics.emit(event, fields)`, that writes a JSON line to stdout.
 
+## Primitivas (ADR-045)
+
+| Módulo | Papel |
+|---|---|
+| `context.ts` | Correlação **ambiente** (AsyncLocalStorage). A fronteira abre um escopo com `runWithContext`; todo `metrics.emit`/`logger` dentro dele herda `request_id`/`clinicId`/`userId`/`flow` sem que o call-site mude. |
+| `capture.ts` | `captureBackgroundError` — leva exceções de background ao Sentry **com stack** (o stream de métricas descarta stack por design). |
+| `sanitize-fields.ts` | 2ª camada de redação (denylist) compartilhada por logs e métricas. |
+| `sentry-scrub.ts` | `beforeSend` do Sentry. **Leia os limites no docblock** — não cobre `tags`. |
+
+**Duas invariantes que não se negocia:**
+
+1. **`ObsContext` e o `ctx` do `capture` são allowlists TIPADAS FECHADAS.** Conteúdo clínico não compila. A sanitização do repo é *denylist* e não segura prosa clínica — foi assim que 32 `audit_events` guardaram SOAP em claro (A1/ADR-044). Guard enforçado por `@ts-expect-error` nos testes: afrouxar o tipo quebra o `typecheck` no CI.
+2. **`captureBackgroundError` nunca faz throw.** Telemetria não altera o fluxo de quem chama.
+
+Contexto só funciona em runtime **Node** (Edge não suporta `AsyncLocalStorage`); o middleware apenas carimba `x-request-id` no header.
+
 ## Catalog of events emitted in C4
 
 | Event | Source | Fields |
