@@ -24,6 +24,7 @@
     "bump-role-claims": "tsx scripts/bump-role-claims.ts",
     "audit:partitions": "tsx scripts/audit-partition-maintenance.ts",
     "db:generate": "cross-env NODE_ENV=development drizzle-kit generate --config=drizzle.config.ts",
+    "db:encrypt-clinical": "tsx --conditions=react-server scripts/encrypt-clinical-content.ts",
     "gen:receituario": "tsx --tsconfig tsconfig.scripts.json scripts/gen-receituario-example.ts",
     "db:migrate:dev": "tsx scripts/db-migrate-dev.ts",
     "db:migrate:prod": "tsx scripts/db-migrate-prod.ts",

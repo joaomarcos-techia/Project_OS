@@ -29,6 +29,8 @@ import { runOutboxOnce } from '@/lib/outbox/worker';
 import { patients } from '@/contexts/patient/schema';
 import { appointments, procedures } from '@/contexts/scheduling/schema';
 import { prontuarioVersions, prontuarios } from '@/contexts/clinical/schema';
+import { decryptJson, encryptJson } from '@/contexts/clinical/internal/content-crypto';
+import type { ProntuarioContent } from '@/contexts/clinical/types';
 
 // Catálogo (todos os event schemas) + registro do handler de Clinical p/ o worker.
 import '@/lib/db/schema';
@@ -129,7 +131,7 @@ async function createSignedProntuario(): Promise<string> {
         patientId,
         doctorId,
         status: 'rascunho',
-        content: { queixa_principal: 'dor', conduta: 'repouso' },
+        contentEncrypted: await encryptJson<ProntuarioContent>(CLINIC_A, { queixa_principal: 'dor', conduta: 'repouso' }),
         createdBy: doctorId,
       })
       .returning({ id: prontuarios.id });
@@ -281,10 +283,11 @@ async function main(): Promise<void> {
   // --- #5 / R2: imutabilidade pós-assinatura --------------------------------
   await tryStep('#5 — UPDATE direto de prontuário assinado é bloqueado pela trigger', async () => {
     const pid = await createSignedProntuario();
+    const hack = await encryptJson<ProntuarioContent>(CLINIC_A, { conduta: 'hack' });
     await expectThrows(
       () =>
         withTenant(CLINIC_A, (tx) =>
-          tx.update(prontuarios).set({ content: { conduta: 'hack' } }).where(eq(prontuarios.id, pid)),
+          tx.update(prontuarios).set({ contentEncrypted: hack }).where(eq(prontuarios.id, pid)),
         ),
       /imutável/,
     );
@@ -293,14 +296,16 @@ async function main(): Promise<void> {
   await tryStep('R2 — bypass altera só content; signed_at permanece imutável', async () => {
     const pid = await createSignedProntuario();
     // content-only com bypass: passa
+    const corrigido = await encryptJson<ProntuarioContent>(CLINIC_A, { conduta: 'corrigido' });
     await withTenant(CLINIC_A, async (tx) => {
       await tx.execute(sql`SELECT set_config('app.allow_signed_edit','on', true)`);
-      await tx.update(prontuarios).set({ content: { conduta: 'corrigido' } }).where(eq(prontuarios.id, pid));
+      await tx.update(prontuarios).set({ contentEncrypted: corrigido }).where(eq(prontuarios.id, pid));
     });
     const after = await withTenant(CLINIC_A, (tx) =>
-      tx.select({ content: prontuarios.content }).from(prontuarios).where(eq(prontuarios.id, pid)),
+      tx.select({ ce: prontuarios.contentEncrypted, cid: prontuarios.clinicId }).from(prontuarios).where(eq(prontuarios.id, pid)),
     );
-    assert((after[0]?.content as { conduta?: string })?.conduta === 'corrigido', 'content não foi corrigido com bypass');
+    const dec = await decryptJson<ProntuarioContent>(CLINIC_A, after[0]!.cid, after[0]!.ce);
+    assert(dec.conduta === 'corrigido', 'content não foi corrigido com bypass');
     // signed_at com bypass: bloqueado
     await expectThrows(
       () =>
@@ -321,14 +326,18 @@ async function main(): Promise<void> {
         clinicId: CLINIC_A,
         prontuarioId: pid,
         version: row!.version,
-        content: row!.content,
+        contentEncrypted: row!.contentEncrypted, // cópia verbatim do ciphertext
         editedBy: doctorId,
         reason: 'smoke correção',
       });
       await tx.execute(sql`SELECT set_config('app.allow_signed_edit','on', true)`);
       await tx
         .update(prontuarios)
-        .set({ content: { conduta: 'v2' }, version: row!.version + 1, rowVersion: row!.rowVersion + 1 })
+        .set({
+          contentEncrypted: await encryptJson<ProntuarioContent>(CLINIC_A, { conduta: 'v2' }),
+          version: row!.version + 1,
+          rowVersion: row!.rowVersion + 1,
+        })
         .where(eq(prontuarios.id, pid));
     });
     const cur = await withTenant(CLINIC_A, (tx) =>

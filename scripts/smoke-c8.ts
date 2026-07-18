@@ -35,6 +35,7 @@ import { publishEvent } from '@/lib/outbox/publish';
 import { patients } from '@/contexts/patient/schema';
 import { appointments, procedures } from '@/contexts/scheduling/schema';
 import { prontuarios } from '@/contexts/clinical/schema';
+import { encryptJson } from '@/contexts/clinical/internal/content-crypto';
 
 // Catálogo (todos os event schemas) — publishEvent valida o payload contra ele.
 import '@/lib/db/schema';
@@ -239,6 +240,7 @@ async function main(): Promise<void> {
   // --- D3: prontuário síncrono idempotente (UNIQUE appointment_id) ----------
   await tryStep('D3 — UNIQUE(appointment_id): 2º insert direto barra (23505)', async () => {
     const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(9), status: 'em_atendimento', patientId });
+    const emptyCe = await encryptJson(CLINIC_A, {});
     await withTenant(CLINIC_A, (tx) =>
       tx.insert(prontuarios).values({
         clinicId: CLINIC_A,
@@ -246,7 +248,7 @@ async function main(): Promise<void> {
         doctorId,
         appointmentId: id,
         status: 'rascunho',
-        content: {},
+        contentEncrypted: emptyCe,
         createdBy: doctorId,
       }),
     );
@@ -258,7 +260,7 @@ async function main(): Promise<void> {
           doctorId,
           appointmentId: id,
           status: 'rascunho',
-          content: {},
+          contentEncrypted: emptyCe,
           createdBy: doctorId,
         }),
       );
@@ -274,6 +276,7 @@ async function main(): Promise<void> {
   // clientes é impossível aqui: só um vence a transição de início — vide #13/#14.)
   await tryStep('D3 — onConflictDoNothing repetido → exatamente 1 prontuário (idempotente)', async () => {
     const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(10), status: 'em_atendimento', patientId });
+    const emptyCe = await encryptJson(CLINIC_A, {});
     const ins = () =>
       withTenant(CLINIC_A, (tx) =>
         tx
@@ -284,7 +287,7 @@ async function main(): Promise<void> {
             doctorId,
             appointmentId: id,
             status: 'rascunho',
-            content: {},
+            contentEncrypted: emptyCe,
             createdBy: doctorId,
           })
           // mesma forma do handler real: predicate do índice parcial

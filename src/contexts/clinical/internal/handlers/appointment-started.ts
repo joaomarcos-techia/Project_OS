@@ -14,6 +14,8 @@ import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
 import { registerHandler } from '@/lib/outbox/registry';
 
+import { encryptJson } from '../content-crypto';
+
 /* eslint-disable boundaries/element-types -- evento + tipo são o contrato PÚBLICO do Scheduling (mesma exceção do handler scheduling/patient-deleted que consome patient.core.deleted). */
 import { SCHEDULING_EVENTS, type AppointmentStartedPayload } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
@@ -38,7 +40,7 @@ async function createDraftProntuario(ctx: {
       doctorId: payload.doctorId,
       appointmentId: payload.appointmentId,
       status: 'rascunho',
-      content: {},
+      contentEncrypted: await encryptJson(clinicId, {}),
       createdBy: payload.doctorId,
     })
     .onConflictDoNothing({

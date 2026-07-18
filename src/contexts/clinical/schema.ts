@@ -6,7 +6,14 @@
  * `defaultTenantPolicy(v1)` (ENABLE + FORCE) na migration 0017.
  *
  * Decisões frozen (PlanoAção §7 + review do arquiteto):
- *   - content é jsonb (NUNCA text) — perde estrutura SOAP (Regra 2).
+ *   - CONTEÚDO CLÍNICO É CIFRADO (A1 / ADR-044): content/medicamentos/observacoes
+ *     ficam em colunas `*_encrypted text` cifradas per-tenant (ADR-012). A Regra 2
+ *     ("SOAP são campos nomeados, não blob") NÃO se dilui: ela é garantida pelo
+ *     `ProntuarioContentSchema.strict()` que roda ANTES de cifrar (actions.ts) +
+ *     o tipo `Encrypted<ProntuarioContent>` na coluna. O texto era jsonb em claro
+ *     — a categoria de maior sensibilidade da LGPD (Art. 11) estava desprotegida
+ *     enquanto o CPF já era cifrado. Nenhum índice/query olha DENTRO do conteúdo
+ *     (busca é por `snapshot_patient_nome` em claro), então cifrar não quebra nada.
  *   - R1: `rowVersion` = concorrência (autosave, bump a cada UPDATE);
  *     `version` = revisão JURÍDICA (só editSignedProntuario incrementa).
  *     prontuario_versions.version = revisão jurídica arquivada.
@@ -42,6 +49,8 @@ import {
 // eslint-disable-next-line boundaries/element-types -- D35: tenantIdRef (FK + ON DELETE CASCADE para clinics) vive no schema de tenancy por design (mesma exceção de identity/scheduling).
 import { tenantIdRef } from '@/contexts/tenancy';
 import { timestampsPattern, uuidPk } from '@/lib/db/types';
+
+import type { Encrypted } from '@/lib/crypto/brand';
 
 import type {
   Medicamento,
@@ -79,7 +88,10 @@ export const prontuarios = pgTable(
     appointmentId: uuid('appointment_id'), // FK appointments SET NULL (migration)
 
     status: prontuarioStatus('status').notNull().default('rascunho'),
-    content: jsonb('content').notNull().default(sql`'{}'::jsonb`).$type<ProntuarioContent>(),
+    // A1/ADR-044: SOAP cifrado per-tenant. `Encrypted<ProntuarioContent>` obriga
+    // decifrar (via clinical/internal/content-crypto) antes de usar — o compilador
+    // pega quem esquecer. Era `jsonb content` em claro.
+    contentEncrypted: text('content_encrypted').notNull().$type<Encrypted<ProntuarioContent>>(),
 
     // R1: dois contadores com papéis distintos.
     rowVersion: integer('row_version').notNull().default(1), // optimistic lock (autosave)
@@ -138,7 +150,10 @@ export const prontuarioVersions = pgTable(
       .notNull()
       .references(() => prontuarios.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(), // revisão jurídica arquivada
-    content: jsonb('content').notNull().$type<ProntuarioContent>(),
+    // A1/ADR-044: cópia CIFRADA do content arquivado. editSignedProntuario copia
+    // o ciphertext verbatim (mesmo clinicId) — sem round-trip, preserva os bytes
+    // exatos da trilha jurídica.
+    contentEncrypted: text('content_encrypted').notNull().$type<Encrypted<ProntuarioContent>>(),
     editedBy: uuid('edited_by').notNull(),
     reason: text('reason').notNull(),
     editedAt: timestamp('edited_at', { withTimezone: true })
@@ -175,11 +190,11 @@ export const prescriptions = pgTable(
     // dispara o template de 2 vias + snapshots de endereço/emitente abaixo.
     kind: prescriptionKind('kind').notNull().default('simples'),
 
-    medicamentos: jsonb('medicamentos')
-      .notNull()
-      .default(sql`'[]'::jsonb`)
-      .$type<Medicamento[]>(),
-    observacoes: text('observacoes'),
+    // A1/ADR-044: lista de medicamentos + observações cifradas per-tenant.
+    // observacoes_encrypted é NULLABLE (o original também era) — só é cifrada
+    // quando existe (ver decryptJson tolerante a null no queries.ts).
+    medicamentosEncrypted: text('medicamentos_encrypted').notNull().$type<Encrypted<Medicamento[]>>(),
+    observacoesEncrypted: text('observacoes_encrypted').$type<Encrypted<string>>(),
     pdfStoragePath: text('pdf_storage_path'),
 
     // R8: snapshot do paciente + médico congelado na emissão (documento legal
@@ -224,8 +239,9 @@ export const medicalDocuments = pgTable(
     clinicId: tenantIdRef(),
     patientId: uuid('patient_id').notNull(), // FK patients RESTRICT (migration)
     doctorId: uuid('doctor_id').notNull(), // FK profiles RESTRICT (migration)
-    type: medicalDocumentType('type').notNull(),
-    content: jsonb('content').notNull().default(sql`'{}'::jsonb`).$type<MedicalDocumentContent>(),
+    type: medicalDocumentType('type').notNull(), // fica em CLARO — discrimina o render do PDF
+    // A1/ADR-044: conteúdo do documento (atestado/exame/etc.) cifrado per-tenant.
+    contentEncrypted: text('content_encrypted').notNull().$type<Encrypted<MedicalDocumentContent>>(),
     pdfStoragePath: text('pdf_storage_path'),
 
     snapshotPatientNome: text('snapshot_patient_nome').notNull(),
@@ -252,7 +268,10 @@ export type MedicalDocumentInsert = typeof medicalDocuments.$inferInsert;
 // --- prescription_templates (Fase 2 — modelos de receita) ------------------
 //
 // Gabaritos reutilizáveis de prescrição POR MÉDICO (não é documento legal: sem
-// snapshot, sem PDF, sem cifra — é conteúdo do usuário). RLS defaultTenantPolicy
+// snapshot, sem PDF, sem cifra — é conteúdo do usuário). A cifra clínica (A1/
+// ADR-044) deixou `medicamentos` aqui EM CLARO de propósito: é paciente-agnóstico
+// (sem titular de dado — LGPD Art. 11 não se aplica) e é LISTAGEM (até 200/médico),
+// então cifrar violaria "listagens não decifram". RLS defaultTenantPolicy
 // + FORCE (migration). Isolamento por médico via `doctor_id` no WHERE das queries.
 // Aplicar um modelo é client-side (preenche o form) — NUNCA emite sozinho.
 //

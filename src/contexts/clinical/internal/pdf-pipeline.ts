@@ -38,7 +38,10 @@ import type {
   DeclaracaoContent,
   EncaminhamentoContent,
   ExameContent,
+  Medicamento,
+  MedicalDocumentContent,
 } from '../types';
+import { decryptJson } from './content-crypto';
 import { loadClinicBranding } from './whitelabel';
 
 function rowDoctor(row: {
@@ -71,6 +74,17 @@ export async function ensurePrescriptionPdf(
   });
   if (loaded.row.pdfStoragePath && !force) return; // idempotente: já gerado
 
+  // A1: o PDF precisa do conteúdo em CLARO — decifra aqui (o row veio de SELECT
+  // cru, fora das projeções). 1 decrypt por PDF é aceitável (não é listagem).
+  const medicamentos = await decryptJson<Medicamento[]>(
+    clinicId,
+    loaded.row.clinicId,
+    loaded.row.medicamentosEncrypted,
+  );
+  const observacoes = loaded.row.observacoesEncrypted
+    ? await decryptJson<string>(clinicId, loaded.row.clinicId, loaded.row.observacoesEncrypted)
+    : null;
+
   // Branch por kind. Controle especial usa template de 2 vias + identificação do
   // emitente/endereço do paciente do SNAPSHOT (G1 — validade documental imutável).
   // Demais campos do pipeline (path/bucket/upload/evento/idempotência) são idênticos.
@@ -84,8 +98,8 @@ export async function ensurePrescriptionPdf(
             emitenteNome: loaded.row.snapshotEmitenteNome ?? loaded.branding.nome,
             emitenteEndereco: loaded.row.snapshotEmitenteEndereco,
             emitenteTelefone: loaded.row.snapshotEmitenteTelefone,
-            medicamentos: loaded.row.medicamentos ?? [],
-            observacoes: loaded.row.observacoes,
+            medicamentos,
+            observacoes,
             issuedAt,
           },
           loaded.branding,
@@ -94,8 +108,8 @@ export async function ensurePrescriptionPdf(
       : await renderPrescriptionPDF(
           {
             patientNome: loaded.row.snapshotPatientNome,
-            medicamentos: loaded.row.medicamentos ?? [],
-            observacoes: loaded.row.observacoes,
+            medicamentos,
+            observacoes,
             issuedAt,
           },
           loaded.branding,
@@ -134,6 +148,7 @@ export async function ensurePrescriptionPdf(
 
 function renderMedicalDocument(
   row: MedicalDocumentRow,
+  content: MedicalDocumentContent,
   branding: PdfBranding,
   doctor: PdfDoctor,
 ): Promise<Buffer> {
@@ -141,7 +156,7 @@ function renderMedicalDocument(
   const patientNome = row.snapshotPatientNome;
   switch (row.type) {
     case 'atestado': {
-      const c = row.content as AtestadoContent;
+      const c = content as AtestadoContent;
       return renderAtestadoPDF(
         { patientNome, descricao: c.descricao, cid: c.cid ?? null, dias: c.dias ?? null, issuedAt },
         branding,
@@ -149,7 +164,7 @@ function renderMedicalDocument(
       );
     }
     case 'declaracao': {
-      const c = row.content as DeclaracaoContent;
+      const c = content as DeclaracaoContent;
       return renderDeclaracaoPDF(
         { patientNome, texto: c.texto, periodo: c.periodo ?? null, issuedAt },
         branding,
@@ -157,7 +172,7 @@ function renderMedicalDocument(
       );
     }
     case 'exame': {
-      const c = row.content as ExameContent;
+      const c = content as ExameContent;
       return renderExamePDF(
         { patientNome, exames: c.exames, indicacaoClinica: c.indicacaoClinica ?? null, issuedAt },
         branding,
@@ -165,7 +180,7 @@ function renderMedicalDocument(
       );
     }
     case 'encaminhamento': {
-      const c = row.content as EncaminhamentoContent;
+      const c = content as EncaminhamentoContent;
       return renderEncaminhamentoPDF(
         { patientNome, especialidade: c.especialidade, motivo: c.motivo, issuedAt },
         branding,
@@ -197,7 +212,13 @@ export async function ensureMedicalDocumentPdf(
   });
   if (loaded.row.pdfStoragePath && !force) return;
 
-  const pdf = await renderMedicalDocument(loaded.row, loaded.branding, rowDoctor(loaded.row));
+  // A1: decifra o conteúdo do documento para o render (row de SELECT cru).
+  const content = await decryptJson<MedicalDocumentContent>(
+    clinicId,
+    loaded.row.clinicId,
+    loaded.row.contentEncrypted,
+  );
+  const pdf = await renderMedicalDocument(loaded.row, content, loaded.branding, rowDoctor(loaded.row));
   const path = `${clinicId}/documents/${loaded.row.type}/${id}.pdf`;
   await uploadStorageFile(CLINICAL_PDF_BUCKET, path, pdf);
 

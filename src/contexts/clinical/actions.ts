@@ -39,6 +39,7 @@ import {
   ProntuarioNotFoundError,
 } from './errors';
 import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
+import { decryptJson, encryptJson } from './internal/content-crypto';
 import { assertDoctorHasCrm, resolveDoctorSnapshot } from './internal/doctor';
 import { resolvePatientNome } from './internal/patient-ref';
 import { ensureMedicalDocumentPdf, ensurePrescriptionPdf } from './internal/pdf-pipeline';
@@ -71,6 +72,14 @@ function isContentEmpty(c: ProntuarioContent | null | undefined): boolean {
     (v) => v == null || (typeof v === 'string' && v.trim() === ''),
   );
 }
+
+/**
+ * A1: remove o SOAP do DTO antes de ele ser PERSISTIDO no audit/idempotência.
+ * O caller usa em `audit.before` e em `project` (after + resposta). O valor
+ * RETORNADO ao usuário continua completo — só o que vai pra disco é redigido.
+ * Mantém o tipo `ProntuarioDetail` (o cache-hit continua type-honest).
+ */
+const redactProntuario = (d: ProntuarioDetail): ProntuarioDetail => ({ ...d, content: {} });
 
 // --- createProntuario ------------------------------------------------------
 
@@ -113,7 +122,7 @@ export async function createProntuario(
             ),
           )
           .limit(1);
-        if (existing) return toProntuarioDetail(existing);
+        if (existing) return toProntuarioDetail(clinicId, existing);
       }
 
       const [row] = await tx
@@ -124,7 +133,7 @@ export async function createProntuario(
           doctorId: user.userId,
           appointmentId: data.appointmentId ?? null,
           status: 'rascunho',
-          content: data.content ?? {},
+          contentEncrypted: await encryptJson(clinicId, data.content ?? {}),
           createdBy: user.userId,
         })
         .returning();
@@ -144,7 +153,7 @@ export async function createProntuario(
         correlationId: ctx.correlationId ?? null,
       });
 
-      return toProntuarioDetail(row!);
+      return toProntuarioDetail(clinicId, row!);
     },
   );
 }
@@ -176,7 +185,11 @@ export async function updateProntuario(
 
     const [updated] = await tx
       .update(prontuarios)
-      .set({ content, rowVersion: row.rowVersion + 1, updatedAt: sql`now()` })
+      .set({
+        contentEncrypted: await encryptJson(clinicId, content),
+        rowVersion: row.rowVersion + 1,
+        updatedAt: sql`now()`,
+      })
       .where(and(eq(prontuarios.id, pid), eq(prontuarios.clinicId, clinicId)))
       .returning({ rowVersion: prontuarios.rowVersion });
     return { rowVersion: updated!.rowVersion };
@@ -211,9 +224,10 @@ export async function signProntuario(
         action: CLINICAL_EVENTS.PRONTUARIO_SIGNED,
         resourceType: 'prontuario',
         resourceId: pid,
-        before,
+        before: redactProntuario(before),
         requestContext: ctx,
       },
+      project: redactProntuario,
     },
     async (tx) => {
       const [row] = await tx
@@ -226,7 +240,15 @@ export async function signProntuario(
       if (row.status === 'assinado') {
         throw new ClinicalValidationError('Prontuário já está assinado.');
       }
-      if (isContentEmpty(row.content)) {
+      // I1 (A1): sem decifrar, `isContentEmpty` receberia o base64 do ciphertext,
+      // `Object.values` de uma string NUNCA seria vazio, e a regra "não assinar
+      // prontuário vazio" morreria em silêncio. O branded type força o decrypt.
+      const content = await decryptJson<ProntuarioContent>(
+        clinicId,
+        row.clinicId,
+        row.contentEncrypted,
+      );
+      if (isContentEmpty(content)) {
         throw new ClinicalValidationError('Não é possível assinar um prontuário vazio.');
       }
 
@@ -270,7 +292,7 @@ export async function signProntuario(
         correlationId: ctx.correlationId ?? null,
       });
 
-      return toProntuarioDetail(updated!);
+      return toProntuarioDetail(clinicId, updated!);
     },
   );
 }
@@ -302,9 +324,10 @@ export async function editSignedProntuario(
         action: EDIT_SIGNED_ACTION,
         resourceType: 'prontuario',
         resourceId: pid,
-        before,
+        before: redactProntuario(before),
         requestContext: ctx,
       },
+      project: redactProntuario,
     },
     async (tx) => {
       const [row] = await tx
@@ -320,12 +343,14 @@ export async function editSignedProntuario(
         );
       }
 
-      // Regra 5: arquiva a revisão jurídica ATUAL antes de sobrescrever.
+      // Regra 5: arquiva a revisão jurídica ATUAL antes de sobrescrever. §5.4:
+      // copia o CIPHERTEXT verbatim (mesmo clinicId) — sem round-trip, preserva
+      // os bytes exatos da trilha jurídica. Encrypted<T> → Encrypted<T>.
       await tx.insert(prontuarioVersions).values({
         clinicId,
         prontuarioId: pid,
         version: row.version,
-        content: row.content,
+        contentEncrypted: row.contentEncrypted,
         editedBy: user.userId,
         reason: data.reason,
       });
@@ -335,7 +360,7 @@ export async function editSignedProntuario(
       const [updated] = await tx
         .update(prontuarios)
         .set({
-          content: data.content,
+          contentEncrypted: await encryptJson(clinicId, data.content),
           version: row.version + 1,
           rowVersion: row.rowVersion + 1,
           updatedAt: sql`now()`,
@@ -344,7 +369,7 @@ export async function editSignedProntuario(
         .returning();
       await tx.execute(sql`SELECT set_config('app.allow_signed_edit', 'off', true)`);
 
-      return toProntuarioDetail(updated!);
+      return toProntuarioDetail(clinicId, updated!);
     },
   );
 }
@@ -401,8 +426,10 @@ export async function createPrescription(
           patientId: data.patientId,
           doctorId: user.userId,
           kind: data.kind,
-          medicamentos: data.medicamentos,
-          observacoes: data.observacoes ?? null,
+          medicamentosEncrypted: await encryptJson(clinicId, data.medicamentos),
+          observacoesEncrypted: data.observacoes
+            ? await encryptJson(clinicId, data.observacoes)
+            : null,
           snapshotPatientNome: patientNome,
           snapshotDoctorNome: doctor.nome,
           snapshotDoctorCrm: doctor.crm,
@@ -474,7 +501,7 @@ export async function createMedicalDocument(
           patientId: data.patientId,
           doctorId: user.userId,
           type: data.type,
-          content: data.content,
+          contentEncrypted: await encryptJson(clinicId, data.content),
           snapshotPatientNome: patientNome,
           snapshotDoctorNome: doctor.nome,
           snapshotDoctorCrm: doctor.crm,

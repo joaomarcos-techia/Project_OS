@@ -117,6 +117,29 @@ export async function idempotentMutation<T>(
       before: unknown;
       requestContext: RequestContext;
     };
+    /**
+     * Projeta o `result` ANTES de persisti-lo no audit (`after`) e na resposta
+     * idempotente. Default: identidade.
+     *
+     * POR QUE (auditoria de banco, A1): `logAudit` grava `after: result` e
+     * `capJsonSize(result)` grava a resposta. Se `result` for um DTO com dado
+     * sensível — o `content` (SOAP) do prontuário, os `medicamentos` da
+     * prescrição —, esse dado vaza EM CLARO para `audit_events` e
+     * `idempotency_keys`, DOIS lugares que a cifra da coluna (PR3) NÃO alcança.
+     * Medido em dev: 32 audit_events já carregam a chave `content`. Sem este
+     * seam, cifrar a coluna entregaria um `pg_dump` ainda legível.
+     *
+     * Contrato: `project` devolve o MESMO tipo T, apenas com os campos sensíveis
+     * esvaziados (`{ ...d, content: {} }`), não um tipo diferente — assim o
+     * cache-hit (que retorna a resposta armazenada) continua type-honest, e os
+     * call-sites clínicos já só usam `id`/metadados do retorno (o conteúdo é
+     * re-lido do banco pela projeção que decifra). O `before` do audit é
+     * projetado pelo próprio caller (ele o fornece).
+     *
+     * Já é o 2º uso do padrão: hard-delete.ts:88-92 é a limpeza pós-fato que
+     * existe PORQUE este seam não existia.
+     */
+    project?: (result: T) => T;
     /** C12: ator de sistema explícito (pula auth do request). Veja MutationActor. */
     actor?: MutationActor;
   },
@@ -207,6 +230,12 @@ export async function idempotentMutation<T>(
     // 2. Business mutation in the SAME tx.
     const result = await fn(tx);
 
+    // A1: o que é PERSISTIDO (audit.after + resposta idempotente) passa pela
+    // projeção; o que é RETORNADO ao caller continua sendo o `result` completo.
+    // `before` já vem projetado do caller. Default identity → zero churn nos
+    // ~30 call-sites que não têm dado sensível no retorno.
+    const persisted = opts.project ? opts.project(result) : result;
+
     // 3. Audit in the SAME tx. logAudit applies sanitizePayload internally.
     // auditEventId é hoistado p/ a auditoria EXTRA do impersonate (pós-commit).
     auditEventId = await logAudit(tx, {
@@ -216,13 +245,15 @@ export async function idempotentMutation<T>(
       resourceType: opts.audit.resourceType,
       resourceId: opts.audit.resourceId,
       before: opts.audit.before,
-      after: result,
+      after: persisted,
       requestContext: opts.audit.requestContext,
     });
 
     // 4. Finalize idempotency response in the SAME tx. capJsonSize replaces
     //    oversized results (>64KB) with an envelope referencing the original.
-    const stored = capJsonSize(result);
+    //    Guarda a forma PROJETADA — um replay (cache-hit) devolve exatamente o
+    //    que o caller receberia após re-ler, sem plaintext em repouso.
+    const stored = capJsonSize(persisted);
     await tx
       .update(idempotencyKeys)
       .set({ response: stored as never, statusCode: 200 })

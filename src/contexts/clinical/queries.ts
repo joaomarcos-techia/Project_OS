@@ -11,6 +11,7 @@ import { and, asc, desc, eq, ilike, type SQL } from 'drizzle-orm';
 import { withTenant } from '@/lib/db/tenant';
 
 import { ProntuarioNotFoundError } from './errors';
+import { decryptJson } from './internal/content-crypto';
 import {
   medicalDocuments,
   prescriptions,
@@ -22,9 +23,12 @@ import {
   type ProntuarioRow,
 } from './schema';
 import type {
+  Medicamento,
+  MedicalDocumentContent,
   MedicalDocumentSummary,
   PrescriptionSummary,
   PrescriptionTemplateSummary,
+  ProntuarioContent,
   ProntuarioDetail,
   ProntuarioStatus,
   ProntuarioSummary,
@@ -54,10 +58,17 @@ export function toProntuarioSummary(row: ProntuarioRow): ProntuarioSummary {
   };
 }
 
-export function toProntuarioDetail(row: ProntuarioRow): ProntuarioDetail {
+// A1/ADR-044: as 3 projeções que expõem conteúdo clínico DECIFRAM (async +
+// clinicId). São o PONTO ÚNICO de decrypt clínico — espelha patient/queries.ts.
+// `toProntuarioSummary` fica SÍNCRONA e sem decrypt: é ela que alimenta listagem
+// e o audit/idempotência (contrato ADR-012 §6: listagens não decifram).
+export async function toProntuarioDetail(
+  clinicId: string,
+  row: ProntuarioRow,
+): Promise<ProntuarioDetail> {
   return {
     ...toProntuarioSummary(row),
-    content: row.content ?? {},
+    content: await decryptJson<ProntuarioContent>(clinicId, row.clinicId, row.contentEncrypted),
     signedDoctorNome: row.signedDoctorNome ?? null,
     signedDoctorCrm: row.signedDoctorCrm ?? null,
     signedDoctorCrmUf: row.signedDoctorCrmUf ?? null,
@@ -65,7 +76,10 @@ export function toProntuarioDetail(row: ProntuarioRow): ProntuarioDetail {
   };
 }
 
-export function toPrescriptionSummary(row: PrescriptionRow): PrescriptionSummary {
+export async function toPrescriptionSummary(
+  clinicId: string,
+  row: PrescriptionRow,
+): Promise<PrescriptionSummary> {
   return {
     id: row.id,
     clinicId: row.clinicId,
@@ -73,8 +87,14 @@ export function toPrescriptionSummary(row: PrescriptionRow): PrescriptionSummary
     patientId: row.patientId,
     doctorId: row.doctorId,
     kind: row.kind,
-    medicamentos: row.medicamentos ?? [],
-    observacoes: row.observacoes ?? null,
+    medicamentos: await decryptJson<Medicamento[]>(
+      clinicId,
+      row.clinicId,
+      row.medicamentosEncrypted,
+    ),
+    observacoes: row.observacoesEncrypted
+      ? await decryptJson<string>(clinicId, row.clinicId, row.observacoesEncrypted)
+      : null,
     pdfStoragePath: row.pdfStoragePath ?? null,
     snapshotPatientNome: row.snapshotPatientNome,
     snapshotDoctorNome: row.snapshotDoctorNome,
@@ -85,14 +105,21 @@ export function toPrescriptionSummary(row: PrescriptionRow): PrescriptionSummary
   };
 }
 
-export function toMedicalDocumentSummary(row: MedicalDocumentRow): MedicalDocumentSummary {
+export async function toMedicalDocumentSummary(
+  clinicId: string,
+  row: MedicalDocumentRow,
+): Promise<MedicalDocumentSummary> {
   return {
     id: row.id,
     clinicId: row.clinicId,
     patientId: row.patientId,
     doctorId: row.doctorId,
     type: row.type,
-    content: row.content,
+    content: await decryptJson<MedicalDocumentContent>(
+      clinicId,
+      row.clinicId,
+      row.contentEncrypted,
+    ),
     pdfStoragePath: row.pdfStoragePath ?? null,
     snapshotPatientNome: row.snapshotPatientNome,
     snapshotDoctorNome: row.snapshotDoctorNome,
@@ -142,7 +169,7 @@ export async function getProntuarioById(
 ): Promise<ProntuarioDetail | null> {
   return withTenant(clinicId, async (tx) => {
     const [row] = await tx.select().from(prontuarios).where(eq(prontuarios.id, id)).limit(1);
-    return row ? toProntuarioDetail(row) : null;
+    return row ? toProntuarioDetail(clinicId, row) : null;
   });
 }
 
@@ -161,7 +188,7 @@ export async function getPrescriptionById(
 ): Promise<PrescriptionSummary | null> {
   return withTenant(clinicId, async (tx) => {
     const [row] = await tx.select().from(prescriptions).where(eq(prescriptions.id, id)).limit(1);
-    return row ? toPrescriptionSummary(row) : null;
+    return row ? toPrescriptionSummary(clinicId, row) : null;
   });
 }
 
@@ -171,7 +198,7 @@ export async function getMedicalDocumentById(
 ): Promise<MedicalDocumentSummary | null> {
   return withTenant(clinicId, async (tx) => {
     const [row] = await tx.select().from(medicalDocuments).where(eq(medicalDocuments.id, id)).limit(1);
-    return row ? toMedicalDocumentSummary(row) : null;
+    return row ? toMedicalDocumentSummary(clinicId, row) : null;
   });
 }
 
@@ -354,6 +381,6 @@ export async function getProntuarioByAppointment(
       .from(prontuarios)
       .where(and(eq(prontuarios.clinicId, clinicId), eq(prontuarios.appointmentId, appointmentId)))
       .limit(1);
-    return row ? toProntuarioDetail(row) : null;
+    return row ? toProntuarioDetail(clinicId, row) : null;
   });
 }

@@ -45,6 +45,22 @@ fora do escopo de C5.
 - **Deixar implícito (não documentar)**: repõe exatamente o risco de hidra que a
   revisão hostil existe para evitar.
 
+## Addendum (2026-07-17, ADR-044) — cifra de `patient_clinical_data` adiada
+
+A cifra do conteúdo clínico (ADR-044 / achado A1) cobriu prontuário, prescrição e
+documento médico, mas **deixou `patient_clinical_data` em claro, de propósito**:
+
+1. A tabela **não tem escritor** — zero INSERT/UPDATE em todo `src/`; `alergias` é
+   sempre `[]`. Cifrar 0 linhas sem produtor é trabalho especulativo.
+2. `alergias` é lida em **lote** por `listPatientCards` (leftJoin), cujo comentário
+   diz explicitamente "NÃO decripta". Cifrar quebraria essa listagem — a mesma
+   violação de "listagens não decifram" que barrou `prescription_templates`.
+
+**Gatilho:** quando C7 assumir a escrita de `patient_clinical_data`, cifrar os
+campos sensíveis (`alergias`, `medicamentosEmUso`, `doencasCronicas`) no mesmo
+esquema do ADR-044 — e então `listPatientCards` precisará de decrypt em lote **ou**
+o card para de exibir alergias. Decisão de produto no momento.
+
 ## References
 - PlanoAção §5.2, §5.18 ("Schema de `patient_clinical_data` (jsonb evolui)")
-- [ADR-001](001-bounded-contexts.md), [ADR-012](012-encryption-strategy.md)
+- [ADR-001](001-bounded-contexts.md), [ADR-012](012-encryption-strategy.md), [ADR-044](044-clinical-content-encryption.md)
