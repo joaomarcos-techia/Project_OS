@@ -1175,6 +1175,40 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
 
 ---
 
+## Remediação da auditoria de Banco de Dados (2026-07-17) — Segurança, Performance & Dados
+
+A [auditoria de banco](achados/auditoria-banco-dados.md) (16 achados A1–A16) foi
+remediada: **todos os acionáveis fechados** na causa-raiz ou aceitos por decisão em
+ADR. Placar por achado + evidência na **§8** do próprio relatório. Aplicado e
+verificado em **dev**; **prod é janela manual** (checklist na §8). Migrations
+0044–0050; ADRs novos 042/043/044. Commits `3b4fc93` → `ad9d59b` (4 PRs por risco).
+
+- **A14** (o maior ROI): predicado do RLS envolvido em subquery escalar → InitPlan.
+  Advisor `auth_rls_initplan` **57 → 0**. A auditoria leu até 0037; hoje 0050.
+- **A13**: a recomendação (`REVOKE` das tabelas de hoje) foi para a **causa-raiz** —
+  `ALTER DEFAULT PRIVILEGES` —, senão a próxima tabela nasce exposta. `anon` 618→0
+  privilégios; `authenticated` mantém o DML (é a role do `withTenant`). Corrigi de
+  quebra um falso positivo do gate `check:migrations` em `ALTER DEFAULT PRIVILEGES`.
+- **A2**: **contrariei a recomendação literal** (particionar) com motivo medido —
+  particionar quebra a `UNIQUE(clinic_id, idempotency_key)` do `outbound_messages` e
+  um retry viraria **mensagem duplicada ao paciente**. Fechado com retenção (ADR-043).
+- **A1** (maior risco): cifra do conteúdo clínico. Descobri que cifrar a coluna
+  **não bastava** — o prontuário vazava em claro para `audit_events`/`idempotency`
+  (32 registros); fechado com o seam `project` + branded type `Encrypted<T>`.
+- **Dois defeitos que nenhuma das 5 auditorias viu:** **N1** (`appointment_state_log`
+  e `procedure_history` tenant com RLS e sem índice em `clinic_id` — seq scan em toda
+  query) e **N2** (o monitor de partição calculava cobertura por `max()`, cego a
+  lacunas — reportava "22 meses saudáveis" com o próximo buraco a 11).
+- **Verify-then-act:** A3/A15/A16 já estavam fechados (D1 em prod + 0038); só o
+  resíduo `record_login_attempt` restava. `leaked_password_protection` já ligado.
+
+**D6 fechada:** o gatilho ("evolução que exija `db:generate` de verdade") disparou na
+0044; journal contíguo (51/51). Ressalva honesta: 0046/0047 e 0048/0049 foram
+escritas à mão (o TUI de rename-detection do drizzle-kit não roda non-TTY), então o
+snapshot mais recente segue no 0044 — um `db:generate` futuro reconcilia (dívida D6
+residual, menor). **D8** (preview→prod): o founder reconfigurou para dev; **falta
+exercer** (abrir um preview e confirmar que vê o dado de dev, não prod).
+
 ## Remediação da auditoria de APIs (2026-07-15) — Segurança & Arquitetura
 
 A [auditoria de APIs](achados/auditoria-apis-seguranca.md) (3 ALTA + 3 MÉDIA + 7 BAIXA,

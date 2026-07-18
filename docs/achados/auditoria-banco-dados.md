@@ -1,5 +1,33 @@
 # Auditoria de Banco de Dados — ClinicaOS_V2 / Qoro
 
+> ## ✅ REMEDIAÇÃO CONCLUÍDA — 2026-07-17
+>
+> Todos os achados acionáveis foram fechados (resolvidos na causa-raiz ou aceitos
+> por decisão documentada em ADR). Aplicado e **verificado em dev** (qoro-dev);
+> **prod pendente da janela manual** do founder (checklist em cada PR). Detalhe por
+> achado na **[§8 — Remediação](#8-remediação-2026-07-17)**. Resumo:
+>
+> | Achado | Sev. | Estado |
+> |---|---|---|
+> | A1 conteúdo clínico em claro | ALTA | ✅ Cifrado (ADR-044) — `content`/`medicamentos`/`observacoes` dropados |
+> | A2 mensageria sem teto | ALTA | ✅ Retenção 90/180d (ADR-043) — particionar quebraria exactly-once |
+> | A3 bypass service_role | ALTA | ✅ Já fechado (D1/`qoro_runtime` em prod 2026-07-17) |
+> | A5 retenção IA não aplicada | MÉDIA | ✅ Purga real de `ai_*` vencidas |
+> | A6 FK sem índice | MÉDIA | ✅ Índices liderados nos deletes reais; catálogos deixados de fora, justificado |
+> | A7 partição depende de cron | MÉDIA | ✅ Alerta ativo + monitor por contiguidade; 9 órfãs do dev remediadas |
+> | A8 PII de negócio em claro | MÉDIA | ✅ `clinics.cnpj` + `billing_customers.document` cifrados |
+> | A11 CNPJ sem UNIQUE | BAIXA | 🟡 `cnpj_hash` preparada; UNIQUE adiado até C13 (normalização) |
+> | A13 grants amplos `anon` | MÉDIA | ✅ Causa-raiz (default ACL) fechada, não só as 87 tabelas |
+> | A14 initplan | MÉDIA | ✅ 57→**0** no advisor (65 policies + `profiles_self_select`) |
+> | A15 resíduo RPC | MÉDIA | ✅ `record_login_attempt` revogada de `authenticated` |
+> | A16 search_path | BAIXA | ✅ Já fechado (0038) |
+> | **N1** tenant sem índice em `clinic_id` (novo) | — | ✅ `appointment_state_log`/`procedure_history` indexadas |
+> | **N2** monitor de partição cego a lacunas (novo) | — | ✅ cálculo por contiguidade |
+> | A4/A9/A10/A12 | BAIXA | ⚪ Aceitos como limites conhecidos (a auditoria manda não agir) |
+>
+> **Migrations:** 0044–0050. **ADRs novos:** 042, 043, 044. **Dívida:** D6 fechada
+> (journal contíguo 51/51); D8 (preview→prod) corrigida pelo founder, falta exercer.
+
 - **Data:** 2026-07-12
 - **Escopo:** modelo de dados, schema, isolamento multi-tenant, segurança (RLS,
   grants, funções), integridade, performance/escala, histórico/auditoria,
@@ -838,3 +866,140 @@ mínimo, os itens estruturais (A2, A6, A7), a decisão de proteção de dado sen
 (A1) e o hardening de defesa-em-profundidade (A13) — **antes** de entrar dado real
 de paciente e volume de escala. Não há incêndio a apagar; há terreno a preparar, e a
 janela para prepará-lo barato é agora.
+
+---
+
+## 8. Remediação (2026-07-17)
+
+Executada por 5 commits (uma branch, logicamente 4 PRs por perfil de risco + 1
+follow-up). Cada mudança foi aplicada e **verificada em dev**; **prod é janela
+manual** (checklist em `runbooks/migrations.md`, resumo no fim desta seção).
+
+### Reconciliação — o que a auditoria não sabia (leu até 0037; hoje 0050)
+
+A auditoria é de 2026-07-12 e leu migrations `0000–0037`. Antes de agir, a
+verificação ao vivo (MCP `get_advisors` + catálogo em dev **e** prod) mostrou que
+parte já estava fechada:
+
+- **A3** (bypass `service_role`): fechado pelo D1 — `qoro_runtime` NOBYPASSRLS
+  **ativo em prod desde 2026-07-17**. Um `withTenant` esquecido retorna 0 linhas.
+- **A15/A16** (funções): a **0038** já revogou `EXECUTE` das funções de
+  trigger/event e fixou `search_path`. Restou só `record_login_attempt` executável
+  por `authenticated` (fechado agora na 0045).
+- **`leaked_password_protection`**: já **ligado** em prod (sumiu do advisor).
+
+### A14 — RLS InitPlan (PR1 · 0045 + 0050)
+Predicado do `defaultTenantPolicy` envolvido em subquery escalar (`(select
+current_clinic_id())` etc.) — o `FINGERPRINT` foi para `v2` e a 0045 re-emitiu as
+65 policies materializadas (46 canônicas pela saída do helper + 19 manuais). A 0050
+fechou o resíduo `profiles_self_select` (`auth.uid()`).
+**Evidência:** advisor `auth_rls_initplan` **57 → 0**; `EXPLAIN` de `SELECT FROM
+patients` mostra `(InitPlan 1..3).col1` no Filter; assinatura de shape das 75
+policies **idêntica** antes/depois (só o predicado mudou).
+
+### A13 — least-privilege do `public` (PR1 · 0045)
+A recomendação da auditoria (`REVOKE` das tabelas de hoje) foi ampliada para a
+**causa-raiz**: `ALTER DEFAULT PRIVILEGES FOR ROLE postgres ... REVOKE` — senão a
+próxima tabela nasce exposta de novo. Escopo **medido**: `anon` não usa a Data API
+(só 2 leituras PostgREST, pós-signIn como `authenticated`) → `REVOKE ALL`;
+`authenticated` mantém o DML (é a role do `withTenant`), perde só
+TRUNCATE/REFERENCES/TRIGGER.
+**Evidência:** `anon` 618 → **0** privilégios de tabela; default ACL sem `anon`;
+DML de `authenticated` intacto (364); login real via GoTrue emite claims; `anon`
+lendo `profiles` era `200` vazio (RLS) e agora `401 42501` (privilégio) — 2 camadas.
+
+### A6 + N1 — índices de FK (PR1 · 0044)
+Regra: FK cujo pai é apagado em operação real (hard-delete LGPD, offboarding de
+membro, exclusão de procedimento/fornecedor/unidade, purga de retenção) ganha
+índice **liderado pela coluna da FK** (o composto `(clinic_id, x)` não serve à
+checagem de RI). **N1** (novo): `appointment_state_log` e `procedure_history` eram
+tenant com policy RLS e **zero índice em `clinic_id`** — seq scan em toda query.
+Catálogos que o produto nunca apaga e filhas pequenas ficaram **de fora, por
+decisão** (índice sem uso também é dívida).
+**Evidência:** advisor `unindexed_foreign_keys` 48 → 16 (as 16 são as deixadas de
+fora deliberadamente).
+
+### A2 — retenção da mensageria, NÃO particionamento (PR2 · ADR-043)
+Particionar as 3 raw quebraria as UNIQUE de exactly-once — em `outbound_messages`,
+incluir `created_at` na `UNIQUE(clinic_id, idempotency_key)` faz um retry virar
+**segunda mensagem enviada ao paciente**. A causa-raiz (crescimento sem teto) foi
+fechada com retenção em lote (inbound/status 90d, outbound 180d — prova de envio).
+
+### A5 — retenção da IA (PR2)
+`ai_conversations`/`ai_messages` vencidas passam a ser purgadas de verdade (era só
+comentário de schema). `ai_conversations` primeiro: a FK CASCADE leva as mensagens.
+**Evidência (A2+A5):** cron real rodado em dev com dado de teste vencido — purgou
+inbound/outbound/status/ai_conversations; ai_messages caiu por CASCADE; a linha
+fresca **não** foi tocada.
+
+### A7 + N2 — partições (PR2)
+Alerta ativo (`cron.audit_partitions.degraded` via `metrics`+`logger`, pipeline
+stdout do ADR-029) quando `defaultCount>0` ou cobertura contígua abaixo de 1 mês.
+**N2** (novo): o monitor calculava cobertura por `max(partição)`, **cego a
+lacunas** — o dev reportava "22 meses saudáveis" com o próximo buraco a 11.
+Corrigido para contiguidade. As **9 linhas órfãs** do dev foram remediadas pelo
+procedimento do runbook (mover→criar partição→devolver, atômico).
+**Evidência:** cron real → `monthsAhead=11` (não 22); alerta forçado disparou 2
+linhas no stdout; default 9 → 0.
+
+### A1 — cifra do conteúdo clínico (PR3 · ADR-044 · 0046+0047)
+`content`/`medicamentos`/`observacoes` cifrados per-tenant (mesmo mecanismo do
+ADR-012). **Bloqueante descoberto e provado:** o conteúdo vazava em claro para
+`audit_events` (32 registros com a chave `content`) e `idempotency_keys` — cifrar a
+coluna sozinha deixaria o `pg_dump` legível. Fechado com o seam `project` em
+`idempotentMutation`. Enforcement por **branded type** `Encrypted<T>` (call-site sem
+decrypt não compila — pegou o `isContentEmpty` que assinaria prontuário "vazio" em
+silêncio). Templates **não** cifrados (paciente-agnóstico + listagem);
+`patient_clinical_data` **adiado** (ADR-013 — sem escritor).
+**Evidência:** 32 audit com content → **0** com texto clínico legível; backfill
+12/12+7/7+2/2, 0 NULL; colunas em claro dropadas; smoke-c7 (8/8) e smoke-c8 (9/9)
+verdes com cifra; round-trip de decrypt OK.
+
+### A8 — PII de negócio (PR4 · ADR-044 · 0048+0049)
+`clinics.cnpj` (5 read-sites religados) + `billing_customers.document` (write-only)
+cifrados. `checkout_sessions.document` **não tocado** (coluna morta).
+**Evidência:** colunas em claro dropadas; round-trip pela via real
+(`getClinicProfile` decifra; ciphertext não contém o valor).
+
+### A11 — UNIQUE do CNPJ (PR4 · 🟡 parcial, adiado)
+`cnpj_hash` adicionada e populada (não nasce morta). O **UNIQUE fica para C13**: sem
+normalização de CNPJ o hash não dedupe formatações diferentes (proteção falsa), e o
+salt HMAC global tornaria a unicidade global de plataforma. Decisão do founder.
+
+### Aceitos por decisão (sem código)
+- **A4** (1 user = 1 clínica): a auditoria manda não agir; ADR-032 registra.
+- **A9** (`*_by` sem FK), **A10** (pgEnum append-only), **A12** (jsonb estrutural):
+  tradeoffs conscientes; a auditoria recomenda manter.
+
+### Gates (todos os PRs)
+`lint`, `typecheck`, `test` (669 → **786**), `build`, `check:migrations`
+(+ correção de um falso positivo do gate em `ALTER DEFAULT PRIVILEGES`),
+`arch:db-check`. Advisor de perf: `auth_rls_initplan` 57→0, `unindexed_foreign_keys`
+48→16 (deliberadas).
+
+### Checklist de PROD (janela manual do founder)
+
+> Ordem geral (`runbooks/migrations.md:63-102`): `git pull` → `pnpm install
+> --frozen-lockfile` → exportar `SUPABASE_PROJECT_ENV=prod` + `DATABASE_URL_PROD`
+> **só neste shell** → **`pnpm db:backup:prod`** → aplicar → conferir
+> `_schema_version` → **`unset`**.
+>
+> ⚠️ **Verificar o backup da master key (GCP Secret Manager) ANTES** — a cifra
+> clínica amplia o raio de perda de chave (perder = perder o prontuário).
+
+1. **0044+0045+0050** (PR1, DDL puro reversível): `pnpm db:migrate:prod`. Verificar
+   por catálogo: `auth_rls_initplan`=0, `anon` sem privilégio de tabela, DML de
+   `authenticated` intacto. **Logar no app e navegar** (as 65 policies foram
+   re-emitidas — é a mudança com maior chance de quebrar acesso).
+2. **PR2** (só código, sem migration): deploy. Rodar `/api/cron/data-retention` e
+   `/api/cron/audit-partitions` uma vez e conferir o `health`.
+3. **0046 → backfill → 0047** (PR3, cifra clínica): aplicar 0046 **com o deploy do
+   código**; rodar `pnpm db:encrypt-clinical`; conferir `content_encrypted IS NULL`
+   = 0; **só então** aplicar 0047. Prod tem 0 prontuários → backfill é no-op e as
+   duas podem ir juntas (o guard protege). E2E de UI: criar → **tentar assinar vazio
+   (deve BLOQUEAR)** → assinar → editar → PDF (receita simples + controle especial)
+   → 4 documentos → buscar por nome em `/documentos` → export LGPD. `pg_dump | grep`
+   de um termo clínico → vazio.
+4. **0048 → backfill → 0049** (PR4, PII): igual, com `pnpm db:encrypt-business-pii`.
+   Prod tem 1 clínica seed (CNPJ provavelmente NULL) → no-op. Conferir PDF de
+   controle especial + painel admin exibindo o CNPJ.
