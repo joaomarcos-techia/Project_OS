@@ -14,6 +14,15 @@ Sentry.init({
   enabled: Boolean(dsn),
   environment: process.env.NODE_ENV,
   tracesSampleRate: 0.1,
+  // B1 — Web Vitals (LCP/INP/CLS) por rota. `browserTracingIntegration` os
+  // coleta junto com o trace de navegação; sem ela, "o sistema está lento" de
+  // uma clínica não tinha COMO ser respondido — não dava para separar rede do
+  // cliente, bundle e backend, e a conversa virava opinião.
+  //
+  // Custo zero de decisão LGPD: web vitals são NÚMEROS de performance por rota,
+  // não conteúdo de tela. Session Replay continua DESLIGADO — é ele que grava
+  // pixels de prontuário, e essa decisão não muda aqui.
+  integrations: [Sentry.browserTracingIntegration()],
   // LGPD: sem PII e sem Session Replay (não gravar telas com dados de paciente).
   // Reavaliar replay só com masking explícito revisado.
   sendDefaultPii: false,
