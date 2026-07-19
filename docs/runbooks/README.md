@@ -25,6 +25,7 @@ Procedimentos operacionais documentados. Cada camada que adiciona ação operaci
 | [log-search.md](./log-search.md) | C16 | Better Stack (Vercel log drain + saved searches) e uptime monitors |
 | [incident-response.md](./incident-response.md) | C16 | **Fluxo geral de incidente: detectar → diagnosticar → resolver → comunicar** |
 | [disaster-recovery.md](./disaster-recovery.md) | C16 | DR: banco indisponível / perda parcial / restore — **RPO ≤ 24h, RTO ≤ 4h** |
+| [alerting-setup.md](./alerting-setup.md) | C16 | **Ligar o alerting (go-live #2) — monitores, regras e o TESTE DE DISPARO** (C1) |
 | [alert-tuning.md](./alert-tuning.md) | C16 | Política anti alert-fatigue (janela+threshold, burn-rate, severidade) |
 | [gemini-down.md](./gemini-down.md) | C16 | IA (Gemini) indisponível — degradação, circuit, rotação de key |
 | [meta-template-rejected.md](./meta-template-rejected.md) | C16 | Template WhatsApp rejeitado/pausado — jobs proativos |

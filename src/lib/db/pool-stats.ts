@@ -23,6 +23,7 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { metrics } from '@/lib/observability/metrics';
 
 export interface ConnectionStats {
   total: number;
@@ -65,6 +66,12 @@ export async function getConnectionStats(): Promise<ConnectionStats | null> {
         // deveria ser 0, mas um gauge que lança NaN no health é pior que um 0.
         saturation_pct: r.max_connections > 0 ? Math.round((r.total / r.max_connections) * 100) : 0,
       };
+      // Emite só na medição FRESCA (nunca no cache hit): o valor exposto no
+      // corpo do health serve ao poll pontual, mas o alerta e a tendência
+      // precisam de série temporal no drain. Sem isto, `db.pool.saturation`
+      // seria um evento que a saved-search cita e ninguém emite — exatamente o
+      // achado N1 que este trabalho fechou.
+      metrics.emit('db.pool.saturation', value as unknown as Record<string, unknown>);
     }
   } catch {
     // Sem permissão / catálogo indisponível → o health segue respondendo.

@@ -158,7 +158,11 @@ reconcile diário corrige).
 ## Resumo (marque conforme fizer)
 - [x] 1. `SENTRY_AUTH_TOKEN` na Vercel + redeploy — source maps confirmados legíveis (2026-07-02)
 - [x] **1.b Log drain Better Stack** — ✅ ativo (2026-07-16), confirmado com `message.event:"worker.tick"`. ⚠️ **Toda busca exige o prefixo `message.`** (o Better Stack aninha o JSON do app) — sem ele, retorna vazio e parece que o drain está morto.
-- [~] 2. Alerta no Sentry (Alert Rule → Issues → env=production) + escalation/canal no Uptime — **finalizar**
+- [~] 2. Alerta no Sentry + escalation/canal no Uptime — **finalizar**. Desde 2026-07-18 a
+  definição é CÓDIGO: [`infra/observability/`](../../infra/observability/README.md)
+  (Terraform das regras + spec dos monitores). Passo a passo **com teste de disparo**:
+  [alerting-setup.md](../runbooks/alerting-setup.md). Falta só o que não pode ser
+  versionado: autenticar as contas e apontar o canal pessoal.
 - [ ] 2.a Header `Authorization: Bearer` no monitor do `/api/health/auth-hook` — **antes do próximo deploy** (a rota virou autenticada; sem o header o monitor alarma falso). Não depende do 1.b.
 - [ ] 2.b Saved search do `billing.webhook.verify` p95 > 5s/5min (threshold já em `slo.md` §3.1) — **depende do 1.b**
 - [x] 3. Restore test — restaurado no scratch/dashboard (prod ~vazio → 0 tenant é esperado)

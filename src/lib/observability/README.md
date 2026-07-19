@@ -38,6 +38,22 @@ Contexto só funciona em runtime **Node** (Edge não suporta `AsyncLocalStorage`
 | `audit.written` | logAudit | action, resourceType |
 | `super_admin.action` | superAdminAction | action, targetClinicId |
 
+## Eventos acrescentados na remediação de monitoramento (2026-07-18)
+
+| Event | Source | Achado |
+|---|---|---|
+| `cron.heartbeat.write_failed` | `recordHeartbeat` catch | M2 — o sinal de liveness falhava em silêncio |
+| `auth.login.failed` | `login/actions.ts` | A1 — brute-force era invisível |
+| `auth.mfa.failed` | `login/mfa/actions.ts` | A1 |
+| `auth.ratelimit.tripped` | `rate-limit` (login/mfa) | A1/M3 — só havia `degraded` (fail-open) |
+| `auth.session.revoked` | `authenticate()` (`tenant-context.ts`) | A1/N3 — sítio corrigido (ADR-037 tirou do middleware) |
+| `checkout.activation_failed` | `join/[token]/actions.ts` | M1 — era `console.error` |
+| `db.pool.saturation` | `pool-stats.ts` | A4/E4 — golden signal ausente |
+| `ai.provider.error` | `gemini.ts` | N1 — a saved-search citava; nada emitia |
+| `cron.audit_partitions.degraded` | `audit-partitions` (auditoria de banco) | A7/N8 — **não vai ao Sentry** (ADR-043 §4) |
+
+⚠️ Mudança de payload: `retention.run` foi de 3 para **8 chaves** (ADR-043).
+
 ## Why structured (JSON) not free-form
 
 - One field shape across all events → filterable in any log pipeline.

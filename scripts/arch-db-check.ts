@@ -53,6 +53,12 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // shell tenant. Leitura/escrita via dbAdmin/BYPASSRLS (tabelas sem clinic_id).
     'src/lib/platform-settings/index.ts',
     'src/lib/cron-heartbeat/index.ts',
+    // A4/E4 (ADR-045): gauge de saturação de conexões. Lê `pg_stat_activity`
+    // (pg_catalog, sem dado de tenant) e PRECISA do role `postgres`: como
+    // qoro_runtime (NOBYPASSRLS, sem pg_monitor) o catálogo devolve
+    // `state`/`query` NULOS para sessões de outros roles — justamente as que
+    // interessam observar. Read-only, cacheado, nunca lança.
+    'src/lib/db/pool-stats.ts',
     'src/lib/platform-announcements/index.ts',
     // Onboarding (convite mágico): clinic_invites é global-protected (pré-clínica,
     // sem clinic_id). Resolução de token (rota pública /join) e transições guardadas

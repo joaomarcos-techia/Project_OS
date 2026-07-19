@@ -12,8 +12,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { execute } = vi.hoisted(() => ({ execute: vi.fn() }));
+const { execute, emit } = vi.hoisted(() => ({ execute: vi.fn(), emit: vi.fn() }));
 vi.mock('@/lib/db', () => ({ dbAdmin: { execute } }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
 
 async function freshModule() {
   vi.resetModules();
@@ -60,6 +61,23 @@ describe('getConnectionStats', () => {
     await getConnectionStats();
 
     expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('emite `db.pool.saturation` na medição fresca — mas NÃO no cache hit', async () => {
+    execute.mockResolvedValue([
+      { total: 30, active: 12, idle: 18, waiting: 0, max_connections: 60 },
+    ]);
+    const { getConnectionStats } = await freshModule();
+
+    await getConnectionStats();
+    await getConnectionStats(); // cache
+
+    // Série temporal no drain sem inflar volume: 1 emit por medição real.
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith(
+      'db.pool.saturation',
+      expect.objectContaining({ saturation_pct: 50 }),
+    );
   });
 
   it('NUNCA lança — o health não pode quebrar por causa de um gauge', async () => {
