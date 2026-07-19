@@ -35,8 +35,7 @@ import {
 } from '@/contexts/patient/internal/hard-delete';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -46,15 +45,20 @@ export const maxDuration = 60;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'patient-hard-delete', destructive: true });
-  if (denied) return denied;
+export const GET = withCron(
+  {
+    job: 'patient-hard-delete',
+    route: 'patient-hard-delete',
+    errorEvent: 'patient.hard_delete.error',
+    destructive: true,
+  },
+  async (req) => {
+    const url = new URL(req.url);
+    const limit = Math.min(
+      Math.max(Number(url.searchParams.get('limit')) || DEFAULT_LIMIT, 1),
+      MAX_LIMIT,
+    );
 
-  const url = new URL(req.url);
-  const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || DEFAULT_LIMIT, 1), MAX_LIMIT);
-
-  try {
     // 1. Cross-tenant scan: expired soft-deletes (oldest first), excluindo os
     //    já anonimizados (F-02 — senão o job re-tenta os mesmos ids p/ sempre).
     const rows = (await dbAdmin.execute(
@@ -67,7 +71,11 @@ export async function GET(req: Request): Promise<Response> {
     )) as unknown as Array<{ id: string; clinic_id: string }>;
 
     if (rows.length === 0) {
-      await recordHeartbeat('patient-hard-delete', 'success', { deleted: 0, anonymized: 0, failed: 0 });
+      await recordHeartbeat('patient-hard-delete', 'success', {
+        deleted: 0,
+        anonymized: 0,
+        failed: 0,
+      });
       return Response.json(
         { ok: true, deleted: 0, anonymized: 0, failed: 0, clinics: 0 },
         { status: 200 },
@@ -84,7 +92,10 @@ export async function GET(req: Request): Promise<Response> {
 
     // 3. Anonymize PII in retained audit_events + cached idempotency responses
     //    (service layer; append-only RLS). Idempotente — roda antes do DELETE.
-    await anonymizePatientAuditTrail(dbAdmin, rows.map((r) => r.id));
+    await anonymizePatientAuditTrail(
+      dbAdmin,
+      rows.map((r) => r.id),
+    );
 
     // 4. Per-clinic, per-patient processing (RLS-scoped). F-02: uma clínica que
     //    falhe catastroficamente não aborta as seguintes.
@@ -118,8 +129,5 @@ export async function GET(req: Request): Promise<Response> {
       { ok: true, deleted, anonymized, failed, clinics: byClinic.size },
       { status: 200 },
     );
-  } catch (err) {
-    metrics.emit('patient.hard_delete.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

@@ -31,11 +31,29 @@ MASTER_KEY_VERSION=1
 > The `smoke:c5` script injects its OWN test provider, so it does NOT need these.
 > The running app (UI + Server Actions) DOES.
 
-### 0.2 Production secrets (Google Secret Manager)
-In prod set `CRYPTO_SECRET_BACKEND=gcp`, `GCP_PROJECT_ID`,
-`GCP_SECRET_MASTER_KEY_NAME`, `GCP_SECRET_LOOKUP_SALT_NAME`, and install the
-optional dep: `pnpm add @google-cloud/secret-manager`. Master key versions are
-GCP secret versions (1, 2, …). NEVER put the master key in `.env` in prod (§5.7).
+### 0.2 Production secrets (Vercel env vars) — CORRIGIDO 2026-07-18
+
+**O que realmente roda em produção:** `CRYPTO_SECRET_BACKEND=env` setado em
+Production na Vercel, com `CRYPTO_MASTER_KEY_V1` e `CRYPTO_LOOKUP_SALT` nas env
+vars. **Google Secret Manager não é usado.** Verificado em 2026-07-18 cadastrando
+um paciente real em prod (o cripto só é exercitado quando algo é cifrado — login
+não prova, ele usa `LOGIN_HASH_PEPPER`).
+
+⚠️ O `CRYPTO_SECRET_BACKEND=env` é **obrigatório**: na Vercel `NODE_ENV=production`,
+e o default nesse caso é `gcp` ([env.ts:345](../../src/lib/env.ts#L345)) — sem a
+variável, o app ignora a chave da Vercel e estoura no primeiro cadastro.
+
+🔑 A env var da Vercel é a **única cópia** da master key. Desde o ADR-044 ela
+protege o prontuário; perder = perder o registro médico (backup do Postgres não
+recupera, o dado está cifrado). Guarde o valor num cofre fora da Vercel.
+
+<details><summary>Alternativa não adotada: Google Secret Manager</summary>
+
+O código suporta (`GcpSecretManagerProvider`): `CRYPTO_SECRET_BACKEND=gcp`,
+`GCP_PROJECT_ID`, `GCP_SECRET_MASTER_KEY_NAME`, `GCP_SECRET_LOOKUP_SALT_NAME` +
+`pnpm add @google-cloud/secret-manager`. **Não é o setup deste projeto** — esta
+seção afirmava que era, e estava errada desde sempre.
+</details>
 
 ### 0.3 Supabase Storage bucket (LGPD export)
 Create a **private** bucket named `lgpd-exports` (no public access). Downloads

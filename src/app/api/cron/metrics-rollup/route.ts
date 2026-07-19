@@ -15,8 +15,7 @@ import { sql, type SQL } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -68,21 +67,57 @@ function buildMetrics(windowDays: number): Array<{ name: string; select: SQL }> 
                     FROM cash_flow_daily
                    WHERE date >= (${since})::date`,
     },
+    // ─── SLIs do slo.md (achado N2) ──────────────────────────────────────────
+    // Até aqui o rollup só escrevia métricas de NEGÓCIO, mas o slo.md declarava
+    // `system_metrics_daily` como fonte dos SLIs. O SLO não era avaliável pela
+    // fonte que ele mesmo citava — política sem medida.
+    {
+      // SLO nº4: taxa de erro do provider de IA < 2% / 28 dias.
+      // Denominador = mensagens do dia; numerador = dead-letter (ai_agent_failures).
+      // `0` quando não houve tráfego: NULL viraria "sem dado" e o alerta não
+      // distinguiria "sem uso" de "sem medição".
+      name: 'ia_error_rate',
+      select: sql`SELECT m.clinic_id,
+                         m.date,
+                         CASE WHEN m.total = 0 THEN 0
+                              ELSE round((coalesce(f.fails, 0)::numeric / m.total) * 100, 4)
+                         END AS value
+                    FROM (SELECT clinic_id, created_at::date AS date, count(*)::numeric AS total
+                            FROM ai_messages
+                           WHERE created_at >= ${since}
+                           GROUP BY clinic_id, created_at::date) m
+                    LEFT JOIN (SELECT clinic_id, created_at::date AS date, count(*)::numeric AS fails
+                                 FROM ai_agent_failures
+                                WHERE created_at >= ${since}
+                                GROUP BY clinic_id, created_at::date) f
+                      ON f.clinic_id = m.clinic_id AND f.date = m.date`,
+    },
+    {
+      // SLO nº5: `outbox_failed_rate ≈ 0` (qualquer failed é DLQ → investigar).
+      // Snapshot diário do terminal `failed` — o gauge instantâneo vive no
+      // /api/health/outbox; aqui fica a série histórica que o SLO de 28d exige.
+      name: 'outbox_failed',
+      select: sql`SELECT clinic_id, created_at::date AS date, count(*)::numeric AS value
+                    FROM outbox
+                   WHERE status = 'failed' AND created_at >= ${since}
+                   GROUP BY clinic_id, created_at::date`,
+    },
   ];
 }
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'metrics-rollup' });
-  if (denied) return denied;
+export const GET = withCron(
+  {
+    job: 'metrics-rollup',
+    route: 'metrics-rollup',
+    errorEvent: 'observability.metrics_rollup.error',
+  },
+  async (req) => {
+    const url = new URL(req.url);
+    const windowDays = Math.min(
+      Math.max(Number(url.searchParams.get('days')) || DEFAULT_WINDOW_DAYS, 1),
+      MAX_WINDOW_DAYS,
+    );
 
-  const url = new URL(req.url);
-  const windowDays = Math.min(
-    Math.max(Number(url.searchParams.get('days')) || DEFAULT_WINDOW_DAYS, 1),
-    MAX_WINDOW_DAYS,
-  );
-
-  try {
     const byMetric: Record<string, number> = {};
     for (const m of buildMetrics(windowDays)) {
       const rows = (await dbAdmin.execute(
@@ -100,11 +135,5 @@ export async function GET(req: Request): Promise<Response> {
     metrics.emit('observability.metrics_rollup.run', { windowDays, byMetric });
     await recordHeartbeat('metrics-rollup', 'success', { windowDays, byMetric });
     return Response.json({ ok: true, windowDays, byMetric }, { status: 200 });
-  } catch (err) {
-    metrics.emit('observability.metrics_rollup.error', { error: err });
-    await recordHeartbeat('metrics-rollup', 'error', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

@@ -3,9 +3,10 @@
 > ## ✅ REMEDIAÇÃO CONCLUÍDA — 2026-07-17
 >
 > Todos os achados acionáveis foram fechados (resolvidos na causa-raiz ou aceitos
-> por decisão documentada em ADR). Aplicado e **verificado em dev** (qoro-dev);
-> **prod pendente da janela manual** do founder (checklist em cada PR). Detalhe por
-> achado na **[§8 — Remediação](#8-remediação-2026-07-17)**. Resumo:
+> por decisão documentada em ADR). **Aplicado e verificado em dev E EM PRODUÇÃO**
+> (migrations 0044–0050 em prod na janela manual de **2026-07-18**; provas de
+> catálogo abaixo). Detalhe por achado na
+> **[§8 — Remediação](#8-remediação-2026-07-17)**. Resumo:
 >
 > | Achado | Sev. | Estado |
 > |---|---|---|
@@ -990,8 +991,12 @@ salt HMAC global tornaria a unicidade global de plataforma. Decisão do founder.
 > **só neste shell** → **`pnpm db:backup:prod`** → aplicar → conferir
 > `_schema_version` → **`unset`**.
 >
-> ⚠️ **Verificar o backup da master key (GCP Secret Manager) ANTES** — a cifra
-> clínica amplia o raio de perda de chave (perder = perder o prontuário).
+> 🔑 **Verificar o backup da master key ANTES.** Ela vive nas **env vars da Vercel**
+> (`CRYPTO_MASTER_KEY_V1`, com `CRYPTO_SECRET_BACKEND=env`) — **não** no Google
+> Secret Manager, apesar do que a doc de ambiente afirmava até 2026-07-18. A cifra
+> clínica amplia o raio: perder a chave passa a significar perder o **prontuário**,
+> e nenhum backup do Postgres recupera (o dado está cifrado). Garanta uma cópia
+> fora da Vercel.
 
 1. **0044+0045+0050** (PR1, DDL puro reversível): `pnpm db:migrate:prod`. Verificar
    por catálogo: `auth_rls_initplan`=0, `anon` sem privilégio de tabela, DML de
@@ -1009,3 +1014,50 @@ salt HMAC global tornaria a unicidade global de plataforma. Decisão do founder.
 4. **0048 → backfill → 0049** (PR4, PII): igual, com `pnpm db:encrypt-business-pii`.
    Prod tem 1 clínica seed (CNPJ provavelmente NULL) → no-op. Conferir PDF de
    controle especial + painel admin exibindo o CNPJ.
+
+---
+
+## 9. Aplicação em PRODUÇÃO — 2026-07-18 (concluída)
+
+Migrations `0044`–`0050` aplicadas em **qoro-prod** na janela manual do founder
+(`db:backup:prod` → `db:migrate:prod` → verificação → `unset`). Backup
+pré-migration: `backups/prod-pre-migration-2026-07-18T15-16-44.sql`.
+
+`_schema_version` (prod) passou a conter: `db-audit-rls-v2-least-privilege`,
+`clinical-content-encrypt-add`, `clinical-content-encrypt-drop`,
+`business-pii-encrypt-add`, `business-pii-encrypt-drop`,
+`profiles-self-select-initplan`.
+
+### Provas de catálogo em PROD (pós-aplicação)
+
+| Prova | Antes | Prod agora |
+|---|---|---|
+| A14 — policies com helper de auth sem InitPlan | 57 (advisor) | **0** |
+| A13 — privilégios de tabela de `anon` | 618 | **0** |
+| A13 — default ACL do `public` com `anon` | `anon=arwdDxtm` | **ausente** |
+| DML de `authenticated` (o `withTenant` depende) | — | **360, intacto** |
+| A1 — colunas clínicas em claro | 5 | **nenhuma** |
+| A8 — PII de negócio em claro | 2 | **nenhuma** |
+| Policies totais (shape preservado) | 75 | **75** |
+| Índices novos A6/N1 | — | **5/5** |
+
+### Provas funcionais (o que catálogo não pega)
+
+- **Login de super_admin em prod: OK.** É a prova que importa para a reescrita das
+  65 policies de RLS — nenhum gate detectaria uma policy que bloqueia acesso.
+- **Cadastro de paciente real em prod: OK.** Exercita `encryptForTenant` de ponta a
+  ponta e prova que o backend de cripto está resolvido (`CRYPTO_SECRET_BACKEND=env`
+  + chave nas env vars da Vercel). Login **não** provaria isso — ele usa
+  `LOGIN_HASH_PEPPER`, caminho diferente. Antes deste teste o caminho de cripto
+  **nunca tinha rodado em produção** (0 pacientes), o que o tornava o maior risco
+  latente do PR3.
+
+### Divergência de doc corrigida junto
+
+A doc de ambiente e o runbook C5 afirmavam que produção usava **Google Secret
+Manager**. **Não usa** — as chaves vivem nas env vars da Vercel com
+`CRYPTO_SECRET_BACKEND=env`. Era ponteiro para infra inexistente (mesma classe do
+"validation only in C13" e do cron dual-factor do ADR-011). Corrigido em
+`development/environment.md` e `runbooks/c5-validation.md`, com o alerta de que a
+env var da Vercel é hoje a **única cópia** de uma chave que agora protege o
+prontuário.

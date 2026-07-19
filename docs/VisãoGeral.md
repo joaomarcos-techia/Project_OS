@@ -343,7 +343,7 @@ ClinicaOS é desenhado pra **extensão sem modificação**:
 | **Rate Limiting** | Upstash Redis | latest |
 | **Secrets** | Supabase Vault + Google Secret Manager (chaves críticas) | latest |
 | **Email transacional** | Resend (cadastro, recuperação senha, faturas) | latest |
-| **Logging** | Pino (structured) | latest |
+| **Logging** | in-house estruturado (ADR-029 — **sem Pino**) | — |
 | **Error Tracking** | Sentry | latest |
 | **Logs centralizados** | Better Stack ou Axiom | latest |
 | **PDF Generation** | @react-pdf/renderer | latest |
@@ -610,7 +610,7 @@ qoro/                 ← repo novo do v2
 | Camada | Ferramenta | O que captura |
 |---|---|---|
 | Erros aplicação | Sentry | Stack traces, contexto de usuário, source maps |
-| Logs estruturados | Better Stack ou Axiom | Logs Pino centralizados |
+| Logs estruturados | Better Stack (drain ativo) | Logs JSON in-house centralizados |
 | Métricas custom | Postgres + dashboard interno | MRR, conversas IA, custo Gemini |
 | Uptime check | Better Stack uptime monitor | Health do app + WhatsApp |
 | Performance | Vercel Analytics | TTFB, LCP, Core Web Vitals |

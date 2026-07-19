@@ -16,9 +16,7 @@ import './handlers';
 import '@/lib/db/schema';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
-import { metrics } from '@/lib/observability/metrics';
+import { withCron } from '@/lib/http/cron';
 import { runOutboxOnce } from '@/lib/outbox/worker';
 
 export const runtime = 'nodejs';
@@ -26,21 +24,15 @@ export const dynamic = 'force-dynamic';
 // Vercel Pro plan caps at 60s per cron invocation.
 export const maxDuration = 60;
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-
-  const denied = assertCronAuth(req, { route: 'outbox' });
-  if (denied) return denied;
-
-  try {
+// `errorEvent: 'worker.error'` foge do padrão `<domínio>.error` das outras
+// rotas, e é DE PROPÓSITO: é o nome que as saved searches e o runbook já usam
+// para "a fila parou". Renomear para `cron.outbox.error` deixaria o alerta mais
+// bonito e cego.
+export const GET = withCron(
+  { job: 'outbox', route: 'outbox', errorEvent: 'worker.error' },
+  async () => {
     const summary = await runOutboxOnce();
     await recordHeartbeat('outbox', 'success', summary);
     return Response.json({ ok: true, ...summary }, { status: 200 });
-  } catch (err) {
-    metrics.emit('worker.error', { error: err });
-    return Response.json(
-      { ok: false, error: 'internal' },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

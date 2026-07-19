@@ -1,5 +1,6 @@
 import { env } from '@/lib/env';
 
+import { contextFields } from './context';
 import { sanitizeFields, type Fields } from './sanitize-fields';
 
 /**
@@ -25,12 +26,14 @@ export function createLogger(minLevel: LogLevel): Logger {
 
   function emit(level: LogLevel, event: string, fields: Fields = {}): void {
     if (ORDER[level] < threshold) return;
+    // Mesma regra do metrics.emit: correlação ambiente primeiro, call-site
+    // vence, e sem escopo a linha é idêntica à de hoje.
     const line = JSON.stringify({
       ts: new Date().toISOString(),
       kind: 'log',
       level,
       event,
-      ...sanitizeFields(fields),
+      ...sanitizeFields({ ...contextFields(), ...fields }),
     });
     process.stdout.write(line + '\n');
   }

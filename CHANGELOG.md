@@ -15,6 +15,30 @@ detalhado, camada a camada (contratos congelados, defesas validadas, débitos), 
 ## [Unreleased]
 
 ### Adicionado
+- **Observabilidade Enterprise (remediação das auditorias de monitoramento, ADR-045).**
+  Exceções de background (13 crons, 2 webhooks, worker) agora chegam ao **Sentry com
+  stack** — antes o `catch → metrics → 500` sem rethrow deixava só `{name, message}` no
+  stdout. `withCron` centraliza auth/correlação/erro/heartbeat das 13 rotas. Correlação
+  **ambiente** (`request_id`/`clinicId`/`userId`) em todas as métricas e logs.
+  `/api/health` passa a checar **alcançabilidade real** das dependências externas
+  (`?deep=1`), incluindo Redis — antes só verificava se a env existia, e ficava verde
+  durante um apagão de provedor. Telemetria de segurança nova (`auth.login.failed`,
+  `auth.mfa.failed`, `auth.ratelimit.tripped`, `auth.session.revoked`), saturação de
+  conexões (`db.pool.saturation`), SLIs reais no rollup diário, MTTD/MTTR no `slo.md`,
+  runbooks `redis-down` e `alerting-setup`, alerting como código em `infra/observability/`
+  e o gate de CI `check:observability` (docs ⇔ `vercel.json` ⇔ eventos emitidos).
+
+### Corrigido
+- **Vazamento latente de conteúdo clínico** (`createProntuario`): o caminho de criação não
+  passava pelo seam `project`, e `toProntuarioDetail` devolve o SOAP **decifrado**, que o
+  `logAudit` gravava em `audit_events.after`. Mesma classe do A1 (ADR-044), numa rota que
+  seguia aberta. Encontrado pelo novo guard de compilação, não por revisão.
+- **Documentação operacional dessincronizada** (lida durante incidente): `production-readiness`
+  dizia 6 crons e `c16-inventory` dizia 12, contra **13** no manifesto; refs a "Pino" (o
+  ADR-029 o rejeitou); rota de drill removida ainda citada; `c16-inventory §6` listava como
+  "a construir" 15 itens já em produção; e a saved search de LLM alertava sobre
+  `ai.provider.error`, que **nenhum código emitia** — busca vazia é indistinguível de
+  "está tudo bem".
 - **Documentação como sistema de conhecimento** (modernização, Passo 1+2): índice mestre
   (`docs/README.md`), governança (`documentation-authority`/`lifecycle`/`audit`), onboarding
   de dev (`development/*` + `.env.example`), `architecture/context-map`, processo de

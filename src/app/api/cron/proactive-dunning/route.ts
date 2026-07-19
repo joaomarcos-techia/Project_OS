@@ -6,8 +6,7 @@
  * processor. Auth idêntica aos demais crons.
  */
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 import { isProactiveEnabled } from '@/lib/platform-settings';
 
@@ -18,25 +17,22 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'proactive-dunning' });
-  if (denied) return denied;
+export const GET = withCron(
+  { job: 'proactive-dunning', route: 'proactive-dunning', errorEvent: 'proactive.dunning.error' },
+  async () => {
+    // Kill-switch global (platform_settings): pula ANTES de varrer recebíveis.
+    if (!(await isProactiveEnabled())) {
+      metrics.emit('proactive.dunning.skipped_disabled', {});
+      await recordHeartbeat('proactive-dunning', 'skipped', { reason: 'disabled' });
+      return Response.json({ ok: true, skipped: 'disabled' }, { status: 200 });
+    }
 
-  // Kill-switch global (platform_settings): pula ANTES de varrer recebíveis.
-  if (!(await isProactiveEnabled())) {
-    metrics.emit('proactive.dunning.skipped_disabled', {});
-    await recordHeartbeat('proactive-dunning', 'skipped', { reason: 'disabled' });
-    return Response.json({ ok: true, skipped: 'disabled' }, { status: 200 });
-  }
-
-  try {
     const enq = await enqueueDunningDue();
     const batch = await processProactiveBatch('dunning');
-    await recordHeartbeat('proactive-dunning', 'success', { enqueued: enq.enqueued, sent: batch.sent });
+    await recordHeartbeat('proactive-dunning', 'success', {
+      enqueued: enq.enqueued,
+      sent: batch.sent,
+    });
     return Response.json({ ok: true, enqueued: enq.enqueued, ...batch }, { status: 200 });
-  } catch (err) {
-    metrics.emit('proactive.dunning.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

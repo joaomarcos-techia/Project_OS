@@ -64,6 +64,8 @@ import { resolveImpersonation } from '@/lib/impersonation';
 import { parseClaims } from './claims';
 import { ALL_PERMISSIONS, type Permission } from './permissions';
 import { type Role } from './roles';
+import { metrics } from '@/lib/observability/metrics';
+
 import { createServerClient } from './supabase-server';
 
 export type { Role } from './roles';
@@ -212,6 +214,13 @@ export const authenticate = cache(async (): Promise<IdentityResult> => {
   // ADR-037 — O EPOCH-CHECK. Fim do replay de access-token (I-4) e do drift
   // global de role_permissions (I-11b, com o trigger da 0040).
   if (profile.claimsVersion !== claims.claims_version) {
+    // A1 (sítio corrigido): a auditoria de monitoramento pedia
+    // `auth.claims.drift_logout` no MIDDLEWARE, mas o ADR-037 DELETOU o
+    // drift-check de lá — o enforcement mora aqui agora. Sem este sinal, um
+    // deploy que derruba as sessões de uma clínica inteira aparece só como
+    // "fui deslogado" no suporte, sem como confirmar a hipótese nem medir o
+    // alcance. `reason` separa epoch de divergência de claim (abaixo).
+    metrics.emit('auth.session.revoked', { reason: 'epoch_mismatch' });
     return { ok: false, reason: 'CLAIMS_OUTDATED' };
   }
 
@@ -222,6 +231,10 @@ export const authenticate = cache(async (): Promise<IdentityResult> => {
   // o `clinicId` efetivo — que o overlay de impersonate reescreve logo abaixo.
   const claimClinicId = claims.clinic_id;
   if (profile.role !== claims.app_role || (profile.clinicId ?? null) !== claimClinicId) {
+    // Distinto do epoch acima DE PROPÓSITO: este ramo significa BUMP PERDIDO —
+    // a versão bateu mas a claim divergiu. É anomalia de invariante, não
+    // rotação normal de sessão, e merece investigação própria.
+    metrics.emit('auth.session.revoked', { reason: 'claim_divergence' });
     return { ok: false, reason: 'CLAIMS_OUTDATED' };
   }
 
@@ -504,12 +517,7 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
   const rolePermRow = await dbAdmin
     .select({ role: rolePermissions.role })
     .from(rolePermissions)
-    .where(
-      and(
-        eq(rolePermissions.role, profile.role),
-        eq(rolePermissions.permissionCode, perm),
-      ),
-    )
+    .where(and(eq(rolePermissions.role, profile.role), eq(rolePermissions.permissionCode, perm)))
     .limit(1);
   if (rolePermRow.length === 0) {
     throw new AuthError(

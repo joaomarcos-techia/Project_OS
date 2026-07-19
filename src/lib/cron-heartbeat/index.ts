@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
 import { cronHeartbeats } from '@/lib/db/schema/infra/cron-heartbeats';
+import { metrics } from '@/lib/observability/metrics';
 
 export async function recordHeartbeat(
   job: string,
@@ -25,9 +26,24 @@ export async function recordHeartbeat(
       .values({ job, lastRunAt: sql`now()`, lastStatus: status, detail: detail ?? null })
       .onConflictDoUpdate({
         target: cronHeartbeats.job,
-        set: { lastRunAt: sql`now()`, lastStatus: status, detail: detail ?? null, updatedAt: sql`now()` },
+        set: {
+          lastRunAt: sql`now()`,
+          lastStatus: status,
+          detail: detail ?? null,
+          updatedAt: sql`now()`,
+        },
       });
-  } catch {
-    // best-effort — heartbeat nunca quebra a operação do cron.
+  } catch (err) {
+    // M2 — continua BEST-EFFORT (heartbeat jamais derruba o cron), mas deixa
+    // rastro. Antes este catch era vazio, e isso cegava justamente o mecanismo
+    // criado para detectar falha silenciosa: o SLO nº6 mede liveness por
+    // `last_run_at`, então uma escrita perdida faz um cron que RODOU parecer
+    // atrasado (ou um travado parecer saudável). Sem `detail` no sinal — ele
+    // varia por job e não acrescenta nada ao diagnóstico desta falha.
+    metrics.emit('cron.heartbeat.write_failed', {
+      job,
+      status,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

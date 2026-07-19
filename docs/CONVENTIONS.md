@@ -90,7 +90,7 @@ Hoje (C0) só existe `README.md`. Resto entra com a primeira camada do contexto.
 | Encryption per-tenant (dados de paciente) | C5 | KMS key por clínica |
 | Server Actions error handling | C5+ | Padrão `Result<T> = {ok,data} \| {ok:false,code,message}` |
 | Erros tipados (AppError hierarchy) | quando 2º consumidor real aparecer (PlanoAção 1.4) | Hierarquia de classes |
-| Logger estruturado (Pino + correlation) | C16 | Structured JSON logs com `req_id`, `clinic_id`, `user_id` |
+| Logger estruturado (in-house, SEM Pino) | C16 | JSON em stdout via [logger.ts]; `request_id`/`clinic_id`/`user_id` vêm do contexto AMBIENTE (ADR-045), não do call-site |
 
 ## Comentários e documentação no código
 

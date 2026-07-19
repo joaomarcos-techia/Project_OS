@@ -21,6 +21,8 @@ import {
 } from '@/contexts/onboarding';
 import { assertJoinAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { createServerClient } from '@/lib/auth/supabase-server';
+import { captureBackgroundError } from '@/lib/observability/capture';
+import { logger } from '@/lib/observability/logger';
 
 export type JoinStepState = { error: string | null; ok?: boolean };
 
@@ -50,7 +52,10 @@ const OwnerStep = z.object({
 });
 const PlanStep = z.object({ planId: z.string().uuid() });
 
-export async function saveStepAction(_prev: JoinStepState, formData: FormData): Promise<JoinStepState> {
+export async function saveStepAction(
+  _prev: JoinStepState,
+  formData: FormData,
+): Promise<JoinStepState> {
   const token = String(formData.get('token') ?? '');
   const step = String(formData.get('step') ?? '');
   const next = NEXT[step];
@@ -88,7 +93,11 @@ export async function saveStepAction(_prev: JoinStepState, formData: FormData): 
   } else if (step === 'owner') {
     const p = OwnerStep.safeParse(Object.fromEntries(formData));
     if (!p.success) return { error: 'Verifique nome e e-mail do gestor.' };
-    merged = advanceStep({ ...current, owner: { nome: p.data.nome, email: p.data.email } }, 'owner', next);
+    merged = advanceStep(
+      { ...current, owner: { nome: p.data.nome, email: p.data.email } },
+      'owner',
+      next,
+    );
   } else if (step === 'plan') {
     const p = PlanStep.safeParse(Object.fromEntries(formData));
     if (!p.success) return { error: 'Selecione um plano.' };
@@ -98,7 +107,9 @@ export async function saveStepAction(_prev: JoinStepState, formData: FormData): 
   const valid = stepStateSchema.safeParse(merged);
   if (!valid.success) return { error: 'Dados inválidos.' };
 
-  const updated = await guardedUpdateInvite(invite.id, invite.version, { stepState: valid.data as never });
+  const updated = await guardedUpdateInvite(invite.id, invite.version, {
+    stepState: valid.data as never,
+  });
   if (!updated) return { error: 'O convite foi alterado em outra aba. Recarregue a página.' };
   return { error: null, ok: true };
 }
@@ -116,14 +127,18 @@ const onlyDigits = (v: FormDataEntryValue | null) => String(v ?? '').replace(/\D
  * persistido) → saga (clínica trial + owner + ai_config) com compensação. Idempotência
  * natural: o convite vira `completed` (guarded por version) — re-submeter dá inválido.
  */
-export async function submitCheckoutAction(_prev: CheckoutState, formData: FormData): Promise<CheckoutState> {
+export async function submitCheckoutAction(
+  _prev: CheckoutState,
+  formData: FormData,
+): Promise<CheckoutState> {
   const ip = getClientIp(await headers());
   const rl = await assertJoinAllowed(ip);
   if (!rl.ok) return { error: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.' };
 
   const token = String(formData.get('token') ?? '');
   const invite = await resolveOpenInvite(token);
-  if (!invite || invite.status !== 'started') return { error: 'Convite inválido, expirado ou já ativado.' };
+  if (!invite || invite.status !== 'started')
+    return { error: 'Convite inválido, expirado ou já ativado.' };
 
   const st = parseStepState(invite.stepState);
   if (!st.clinic?.nome || !st.clinic.slug || !st.owner?.nome || !st.owner.email || !st.planId) {
@@ -138,7 +153,9 @@ export async function submitCheckoutAction(_prev: CheckoutState, formData: FormD
   const cep = onlyDigits(formData.get('cep'));
   const addressNumber = String(formData.get('addressNumber') ?? '').trim();
   const password = String(formData.get('password') ?? '');
-  const exp = String(formData.get('cardExpiry') ?? '').trim().match(/^(\d{2})\s*\/\s*(\d{2}|\d{4})$/);
+  const exp = String(formData.get('cardExpiry') ?? '')
+    .trim()
+    .match(/^(\d{2})\s*\/\s*(\d{2}|\d{4})$/);
 
   if (
     cardNumber.length < 13 ||
@@ -171,7 +188,13 @@ export async function submitCheckoutAction(_prev: CheckoutState, formData: FormD
       },
       owner: { nome: st.owner.nome, email: st.owner.email },
       password,
-      card: { number: cardNumber, holderName: cardName, expiryMonth: exp[1]!, expiryYear, ccv: cvv },
+      card: {
+        number: cardNumber,
+        holderName: cardName,
+        expiryMonth: exp[1]!,
+        expiryYear,
+        ccv: cvv,
+      },
       holder: { cpfCnpj, postalCode: cep, addressNumber },
       plan,
       trialDays: TRIAL_DAYS,
@@ -184,16 +207,29 @@ export async function submitCheckoutAction(_prev: CheckoutState, formData: FormD
         return { error: `${e.message} Nenhuma cobrança foi feita.`, cardError: true };
       }
       if (e.code === 'provider_unreachable') {
-        return { error: 'O provedor de pagamento (Asaas) está indisponível agora. Tente de novo em instantes.' };
+        return {
+          error:
+            'O provedor de pagamento (Asaas) está indisponível agora. Tente de novo em instantes.',
+        };
       }
       if (e.code === 'invite_version_conflict') return { error: 'Este convite já foi ativado.' };
       if (e.code === 'owner_create_failed') {
-        return { error: 'Não foi possível criar seu acesso (e-mail já em uso?). Use outro e-mail ou fale com o suporte.' };
+        return {
+          error:
+            'Não foi possível criar seu acesso (e-mail já em uso?). Use outro e-mail ou fale com o suporte.',
+        };
       }
     }
-    // Erro inesperado (DB/slug/código): loga no servidor p/ diagnóstico (sem dado de cartão).
-    console.error('[checkout] ativação falhou:', e);
-    return { error: 'Falha ao ativar. Nenhuma cobrança foi confirmada — tente de novo em instantes.' };
+    // M1 — era `console.error`: texto solto no stdout, fora do pipeline
+    // sanitizado, fora do Sentry e fora da busca do Better Stack. E é um dos
+    // caminhos mais caros do produto: o cliente PAGOU e não tem acesso; hoje
+    // isso só aparecia quando ele abria suporte. Agora é evento estruturado +
+    // exceção com stack no Sentry.
+    captureBackgroundError(e, { flow: 'checkout.activation' });
+    logger.error('checkout.activation_failed', { error: e });
+    return {
+      error: 'Falha ao ativar. Nenhuma cobrança foi confirmada — tente de novo em instantes.',
+    };
   }
 
   // Auto-login do owner — "entra na hora" (decisão de produto). Define os cookies

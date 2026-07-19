@@ -26,8 +26,7 @@ import { sql } from 'drizzle-orm';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { contiguousMonthsAhead, PARTITIONED_PARENTS } from '@/lib/db/retention-policy';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -42,11 +41,17 @@ const MIN_CONTIGUOUS_MONTHS = 1;
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'audit-partitions' });
-  if (denied) return denied;
-  try {
+// ⛔ `cron.audit_partitions.degraded` (emitido no loop de health abaixo) NÃO vai
+// ao Sentry — ADR-043 §4: o sinal vive no pipeline stdout (metrics + logger) e o
+// alarme é saved-search no Better Stack. Levá-lo ao Sentry criaria uma 2ª fonte
+// da verdade. O withCron só captura a EXCEÇÃO que escapa do handler.
+export const GET = withCron(
+  {
+    job: 'audit-partitions',
+    route: 'audit-partitions',
+    errorEvent: 'cron.audit_partitions.error',
+  },
+  async () => {
     const now = new Date();
     let ensured = 0;
     const needsRemediation: string[] = [];
@@ -127,8 +132,5 @@ export async function GET(req: Request): Promise<Response> {
       { ok: true, ensured, needs_remediation: needsRemediation, health },
       { status: 200 },
     );
-  } catch (err) {
-    metrics.emit('cron.audit_partitions.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

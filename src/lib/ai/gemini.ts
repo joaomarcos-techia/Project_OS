@@ -19,6 +19,7 @@
 import 'server-only';
 
 import { assertAiRuntimeReady, env } from '@/lib/env';
+import { metrics } from '@/lib/observability/metrics';
 
 import {
   AIProviderError,
@@ -121,6 +122,13 @@ export class GeminiProvider implements AIProvider {
       });
     } catch (err) {
       // Timeout/abort/reset — indeterminado (nunca vimos resposta).
+      // N1: `ai.provider.error` é o sinal EM TEMPO REAL do SLO nº4. A saved
+      // search do log-search.md já alertava sobre ele — mas NADA o emitia, então
+      // a busca voltava vazia para sempre e isso é indistinguível de "está tudo
+      // bem". O `ia_error_rate` do rollup é a fonte formal (diária); este é o
+      // que dá para reagir hoje. Só a CLASSE do erro, nunca o corpo (ecoaria o
+      // prompt, que pode conter dado de paciente).
+      metrics.emit('ai.provider.error', { kind: 'unreachable', timeout_ms: timeoutMs });
       throw new AIProviderUnreachableError(
         `[ai] Gemini unreachable (timeout ${timeoutMs}ms ou rede)`,
         { cause: err },
@@ -129,6 +137,7 @@ export class GeminiProvider implements AIProvider {
 
     if (!res.ok) {
       // Corpo de erro NÃO propaga inteiro (pode ecoar o prompt) — só status.
+      metrics.emit('ai.provider.error', { kind: 'http', status: res.status });
       throw new AIProviderError(
         `[ai] Gemini HTTP ${res.status}`,
         res.status >= 500 ? 'gemini_server_error' : 'gemini_request_error',

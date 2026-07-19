@@ -4284,7 +4284,7 @@ Sem essa camada, você opera no escuro. Com ela, você sabe quando algo está qu
 
 **Sentry** configurado client + server, source maps uploadados, alertas pra você por email + WhatsApp em erros críticos.
 
-**Better Stack / Axiom** logs estruturados Pino, retenção 30d, query saved searches:
+**Better Stack** logs estruturados in-house (sem Pino — ADR-029), retenção 30d, query saved searches:
 - Failed outbox events
 - LLM errors / timeouts
 - Auth failures

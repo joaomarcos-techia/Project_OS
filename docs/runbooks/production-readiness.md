@@ -117,13 +117,25 @@ Fonte da verdade: [src/lib/env.ts](../../src/lib/env.ts). Gere segredos **novos*
 > reconcile frequente dependiam de agendador externo invisível ao repo.
 
 - [ ] Deploy do branch para `main` (produção).
-- [ ] Confirmar que os 6 crons de [vercel.json](../../vercel.json) estão ativos (Vercel → Project → Settings → Cron Jobs):
+- [ ] Confirmar que os 13 crons de [vercel.json](../../vercel.json) estão ativos (Vercel → Project → Settings → Cron Jobs):
   - `/api/cron/outbox` — `* * * * *` (motor event-driven; F-01).
   - `/api/cron/patient-hard-delete` — `0 3 * * *` (LGPD hard-delete/anonimização após 30d — ADR-021).
-  - `/api/cron/audit-partitions` — `0 4 1 * *` (provisiona partições do audit).
+  - `/api/cron/audit-partitions` — `0 4 1 * *` (provisiona partições + alerta de contiguidade — ADR-043).
   - `/api/cron/cash-flow-rollup` — `30 3 * * *` (agregado diário do caixa).
+  - `/api/cron/metrics-rollup` — `0 5 * * *` (SLIs diários em `system_metrics_daily`).
   - `/api/cron/financial-reconcile` — `*/15 * * * *` (safety-net R4 ≈15min; F-03).
-  - `/api/cron/data-retention` — `0 5 1 * *` (purge outbox terminal >30d + login_attempts >90d; F-09).
+  - `/api/cron/data-retention` — `0 5 1 * *` (purge do registro `RETENTION_POLICIES` — ADR-043).
+  - `/api/cron/invites-cleanup` — `0 6 * * *` (anonimiza convites não concluídos >30d).
+  - `/api/cron/billing-dunning` — `0 8 * * *` (estágios de inadimplência).
+  - `/api/cron/billing-reconcile` — `0 9 * * *` (backstop do webhook Asaas).
+  - `/api/cron/proactive-reminders` — `*/15 11-23 * * *` (lembrete D-1).
+  - `/api/cron/proactive-dunning` — `*/15 11-23 * * *` (cobrança D+3/D+7).
+  - `/api/cron/proactive-followup` — `*/15 11-23 * * *` (retorno pós-consulta).
+
+> ⚠️ Esta lista estava **incompleta** até 2026-07-18 (achado M5): faltavam sete
+> entradas. Runbook é o que se lê DURANTE incidente — um cron ausente da lista
+> faz o operador procurar o problema no sistema errado. Agora o gate
+> `pnpm check:observability` reprova o merge se ela divergir do `vercel.json`.
 - [ ] Os crons usam o `CRON_SECRET` automaticamente (Vercel injeta o Bearer).
 - [ ] **Verificar o plano Vercel = Pro.** Crons de alta frequência (1min/15min)
   exigem Pro; no Hobby o deploy com este `crons[]` é rejeitado. (Item 7 do
@@ -239,7 +251,7 @@ fechando os itens 1–8 do INSUFFICIENT_EVIDENCE §12 da auditoria 2026-06-10:
 
 | # | Item (auditoria §12) | Confirmação |
 |---|---|---|
-| 1 | Agendador do outbox/reconcile | cron-job.org DESATIVADO; agendamento 100% via vercel.json — 6/6 crons ativos no painel, worker processou replay em ≤15s |
+| 1 | Agendador do outbox/reconcile | cron-job.org DESATIVADO; agendamento 100% via vercel.json — 13/13 crons ativos no painel, worker processou replay em ≤15s |
 | 2 | Allowlist de redirect URLs | configurada (Site URL + `/reset-password`) |
 | 3 | TTL access token 15 min | configurado (JWT expiry = 900s) |
 | 4 | AAL2 p/ unenroll MFA | **CONFIRMADO** (teste manual em prod 2026-06-11): GoTrue recusa unenroll de factor verificado em sessão AAL1. A recusa aflorava como 500; `unenrollAction` ganhou guard explícito de AAL2 (redirect a /login/mfa) + erro elegante (R-04 fechado com defense-in-depth) |

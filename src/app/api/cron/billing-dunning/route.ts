@@ -11,8 +11,7 @@ import { eq, sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -25,13 +24,16 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'billing-dunning', destructive: true });
-  if (denied) return denied;
+export const GET = withCron(
+  {
+    job: 'billing-dunning',
+    route: 'billing-dunning',
+    errorEvent: 'billing.dunning.error',
+    destructive: true,
+  },
+  async () => {
+    const now = new Date();
 
-  const now = new Date();
-  try {
     // Invoice overdue mais antiga por clínica + estágio atual da subscription.
     const rows = (await dbAdmin.execute(
       sql`SELECT i.clinic_id::text AS clinic_id,
@@ -95,8 +97,5 @@ export async function GET(req: Request): Promise<Response> {
     metrics.emit('billing.dunning.run', { scanned: rows.length, advanced });
     await recordHeartbeat('billing-dunning', 'success', { scanned: rows.length, advanced });
     return Response.json({ ok: true, scanned: rows.length, advanced }, { status: 200 });
-  } catch (err) {
-    metrics.emit('billing.dunning.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

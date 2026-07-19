@@ -114,6 +114,27 @@ outro projeto (confira `vercel.projectName` numa linha que chegue).
 | **Webhook forjado** (A2) | `message.event:"billing.webhook.verify" AND message.outcome:"failure"` | o `payment.id` **não existe no Asaas**: corpo forjado, pagamento apagado, ou sandbox×prod trocado. **Investigar sempre** ([asaas-webhook-missing.md](./asaas-webhook-missing.md)) |
 | **Divergência do reconcile** (A2) | `message.event:"billing.reconcile.divergence"` | o reconcile achou o que o webhook não refletiu — evento perdido **ou** forjado |
 | **Rate-limit degradado** (R1) | `message.event:"auth.ratelimit.degraded"` | Upstash fora → limite virou fail-open per-instância. Degradação **sustentada** = brute-force distribuído sem defesa ([slo.md §7](../c16/slo.md)) |
+| **Partição em risco** (A7/N8) | `message.event:"cron.audit_partitions.degraded"` | ⚠️ **QUALQUER ocorrência alerta** — ver nota abaixo. `reason`: `coverage_gap_ahead` (o mês que vem cai na default) ou `default_partition_not_empty` (já caiu) |
+| **Brute-force de login** (A1) | `message.event:"auth.login.failed"` | > 20 / 5min = ataque. Não existia até 2026-07-18: falha de login era invisível fora da tabela `login_attempts` |
+| **Rate-limit BLOQUEOU** (A1/M3) | `message.event:"auth.ratelimit.tripped"` | o limiter barrou de verdade (≠ `degraded`, que é o fail-open). Pico = alguém insistindo |
+| **Sessão revogada em massa** (A1) | `message.event:"auth.session.revoked"` | pico após deploy = um bump de claims derrubou uma clínica inteira. `reason:"claim_divergence"` é **invariante quebrada** — investigar sempre |
+| **Heartbeat perdido** (M2) | `message.event:"cron.heartbeat.write_failed"` | o sinal de liveness falhou ao gravar → o painel de jobs pode estar mentindo nos dois sentidos |
+| **Saturação de conexões** (A4/E4) | `message.event:"db.pool.saturation"` ou o campo `db_pool` em `/api/health/outbox` | > 80% precede o "infinite loading" |
+
+> ⚠️ **`cron.audit_partitions.degraded` é a exceção à regra de janela+threshold.**
+> O `alert-tuning.md` manda alertar sobre violação sustentada, nunca sobre evento
+> isolado — mas este cron roda **uma vez por mês** (`0 4 1 * *`). Ele tem UMA
+> chance de falar por mês; exigir "N ocorrências em X minutos" garante que o
+> alerta nunca dispara. Regra correta: **qualquer ocorrência → investigar**.
+>
+> E ele **não** cobre o cron que simplesmente não rodou: se `audit-partitions`
+> deixar de executar, não emite `.degraded` — não emite nada — e a partição vence
+> em silêncio. Para isso o sinal é **ausência de heartbeat** (`cron_heartbeats.
+> last_run_at` vs SLA do job, SLO nº6), monitorado no painel de jobs, não por
+> saved-search.
+>
+> Note também que a busca genérica `message.event:"*.error"` **NÃO** casa com
+> `.degraded` — foi por isso que este sinal ficou órfão desde que foi criado.
 
 > **Antes de salvar qualquer busca nova: rode e confirme que ela retorna linha.** Uma
 > saved search que devolve vazio por erro de sintaxe é indistinguível de "está tudo bem"

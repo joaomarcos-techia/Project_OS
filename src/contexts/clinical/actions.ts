@@ -68,9 +68,7 @@ const EDIT_SIGNED_ACTION = 'clinical.prontuario.edited_signed';
 
 function isContentEmpty(c: ProntuarioContent | null | undefined): boolean {
   if (!c) return true;
-  return Object.values(c).every(
-    (v) => v == null || (typeof v === 'string' && v.trim() === ''),
-  );
+  return Object.values(c).every((v) => v == null || (typeof v === 'string' && v.trim() === ''));
 }
 
 /**
@@ -107,6 +105,13 @@ export async function createProntuario(
         before: null,
         requestContext: ctx,
       },
+      // A1 (achado do guard N9, 2026-07-18): ESTE CAMINHO VAZAVA. A remediação
+      // da auditoria de banco aplicou o seam em signProntuario/editSigned, mas
+      // não aqui — e `toProntuarioDetail` devolve `content` DECIFRADO, que o
+      // logAudit gravava em `audit_events.after` em claro. Mesmo vazamento do
+      // A1, no caminho de criação. O usuário continua recebendo o detalhe
+      // completo; só o disco é redigido.
+      project: redactProntuario,
     },
     async (tx) => {
       // Ponto 2 / R9: 1 consulta = 1 prontuário. Se já existe para o appointment,
@@ -410,6 +415,12 @@ export async function createPrescription(
         before: null,
         requestContext: ctx,
       },
+      // Identidade DELIBERADA: esta mutação devolve só `{ id }` — os
+      // `medicamentos` nunca entram no result, então não há o que redigir. O
+      // guard N9 cobra a decisão explícita justamente para que ela seja pensada
+      // (o default identidade antigo era silencioso). Se um dia este retorno
+      // passar a carregar conteúdo, troque por um redator de verdade.
+      project: (d: { id: string }) => d,
     },
     async (tx) => {
       const doctor = await resolveDoctorSnapshot(tx, user.userId);
@@ -488,6 +499,9 @@ export async function createMedicalDocument(
         before: null,
         requestContext: ctx,
       },
+      // Identidade deliberada, mesmo racional do createPrescription: o result é
+      // só `{ id }`; o `content` do documento não trafega de volta.
+      project: (d: { id: string }) => d,
     },
     async (tx) => {
       const doctor = await resolveDoctorSnapshot(tx, user.userId);

@@ -35,6 +35,15 @@ Adotar uma stack de observabilidade em camadas, reusando o que já existe:
 
 ## Consequences
 
+> ⚠️ **Addendum 2026-07-18 — [ADR-045](./045-observability-execution-boundary.md).**
+> A correlação prometida abaixo ("do alerta ao `trace_id` à linha do log em um
+> salto") **não se sustentava na prática**: o `request_id` chegava à auditoria mas
+> não ao stream de métricas, e o `scrubEvent` apaga os headers do evento Sentry.
+> A ADR-045 corrige com contexto AMBIENTE (AsyncLocalStorage) + tag `request_id`
+> no `captureException`. Corrige também a lacuna de que exceção de BACKGROUND
+> nunca chegava ao Sentry — o que não contradiz a decisão de manter *logs* fora
+> do Sentry: exceção não é log.
+
 - Toda exceção tem destino (Sentry) e todo log é pesquisável (Better Stack) com o mesmo
   `request_id`. MTTR cai: do alerta ao `trace_id` à linha do log em um salto.
 - `metrics.emit` e `logger` compartilham `sanitize-fields.ts` — uma fonte de redação de PII.

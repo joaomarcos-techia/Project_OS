@@ -21,8 +21,7 @@
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { buildPurgeStatement, RETENTION_POLICIES } from '@/lib/db/retention-policy';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -42,12 +41,14 @@ async function purgeBatched(makeDelete: () => Promise<number>): Promise<number> 
   return total;
 }
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'data-retention', destructive: true });
-  if (denied) return denied;
-
-  try {
+export const GET = withCron(
+  {
+    job: 'data-retention',
+    route: 'data-retention',
+    errorEvent: 'retention.error',
+    destructive: true,
+  },
+  async () => {
     const purged: Record<string, number> = {};
 
     // A ordem do registro é significativa: ai_conversations vem antes de
@@ -65,8 +66,5 @@ export async function GET(req: Request): Promise<Response> {
     metrics.emit('retention.run', purged);
     await recordHeartbeat('data-retention', 'success', purged);
     return Response.json({ ok: true, purged }, { status: 200 });
-  } catch (err) {
-    metrics.emit('retention.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

@@ -1,8 +1,23 @@
 # Achado — Preview da Vercel lê e escreve no banco de PRODUÇÃO
 
-> **Status:** 🔴 ABERTO · **Severidade:** ALTA (hoje latente) · **Owner:** João Marcos (Qoro)
+> **Status:** ✅ **RESOLVIDO E EXERCITADO (2026-07-18)** · **Severidade:** era ALTA
+> (latente) · **Owner:** João Marcos (Qoro)
 > **Descoberto:** 2026-07-17, durante a remediação da auditoria de identidade.
-> **Gatilho para corrigir:** **antes do 1º cliente** — mesmo do D1.
+>
+> **Correção:** o founder separou as env vars — Preview aponta para **qoro-dev**,
+> Production para **qoro-prod** (entradas distintas, não mais a linha compartilhada
+> `Production, Preview`).
+>
+> **PROVA (o que fecha o item — config declarada ≠ config validada):** abrindo a
+> aplicação em produção vê-se **1 clínica**; abrindo um deploy de **preview** vê-se
+> **4 clínicas** — exatamente o conteúdo do `qoro-dev`. Se ainda apontasse para
+> prod, os dois mostrariam o mesmo número.
+>
+> **Efeito colateral resolvido no caminho:** o preview quebrava no login com
+> `LOGIN_HASH_PEPPER ausente no env`. Causa: a Vercel captura env vars **no
+> build**, e a branch de preview tinha sido buildada ANTES da separação. Resolveu
+> com **redeploy** da branch. Vale para qualquer env nova: alterar a variável não
+> afeta deployments já existentes.
 >
 > ↩︎ [índice mestre](../README.md) · registrado como **D8** no
 > [PROGRESS §Dívida técnica pós-C16](../PROGRESS.md)

@@ -16,8 +16,7 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -27,18 +26,19 @@ export const maxDuration = 60;
 const DEFAULT_WINDOW_DAYS = 3;
 const MAX_WINDOW_DAYS = 35;
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'cash-flow-rollup' });
-  if (denied) return denied;
+export const GET = withCron(
+  {
+    job: 'cash-flow-rollup',
+    route: 'cash-flow-rollup',
+    errorEvent: 'financial.cash_flow_rollup.error',
+  },
+  async (req) => {
+    const url = new URL(req.url);
+    const windowDays = Math.min(
+      Math.max(Number(url.searchParams.get('days')) || DEFAULT_WINDOW_DAYS, 1),
+      MAX_WINDOW_DAYS,
+    );
 
-  const url = new URL(req.url);
-  const windowDays = Math.min(
-    Math.max(Number(url.searchParams.get('days')) || DEFAULT_WINDOW_DAYS, 1),
-    MAX_WINDOW_DAYS,
-  );
-
-  try {
     const result = (await dbAdmin.execute(
       sql`INSERT INTO cash_flow_daily (clinic_id, date, total_recebido, total_pago, saldo, updated_at)
           SELECT clinic_id,
@@ -62,8 +62,5 @@ export async function GET(req: Request): Promise<Response> {
     metrics.emit('financial.cash_flow_rollup.run', { rows: result.length, windowDays });
     await recordHeartbeat('cash-flow-rollup', 'success', { rows: result.length, windowDays });
     return Response.json({ ok: true, rows: result.length, windowDays }, { status: 200 });
-  } catch (err) {
-    metrics.emit('financial.cash_flow_rollup.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

@@ -34,7 +34,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 ### O que foi entregue
 
 - Next.js 15.5.18 + React 19.2.6 + TypeScript 5.9 strict (4 flags: `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `exactOptionalPropertyTypes`)
-- Tailwind 4 + Pino-ready logging path (sem implementação ainda — C16)
+- Tailwind 4 + logging estruturado in-house (ADR-029 rejeitou Pino; correlação ambiente na ADR-045)
 - 8 bounded contexts em `src/contexts/` com `index.ts` placeholder + README — isolamento físico estabelecido
 - 7 subpastas em `src/lib/` (db, auth, outbox, audit, messaging, ai, pdf) com README explicando qual camada preenche
 - Validação de env via Zod ([src/lib/env.ts](../src/lib/env.ts)) importada em [next.config.ts](../next.config.ts) — build falha cedo se env inválido; suporta naming legacy E nova do Supabase (anon/service_role ↔ publishable/secret)
@@ -1179,9 +1179,13 @@ Checklist mestre: [ui-refactor/ui-inventory.md](./ui-refactor/ui-inventory.md).
 
 A [auditoria de banco](achados/auditoria-banco-dados.md) (16 achados A1–A16) foi
 remediada: **todos os acionáveis fechados** na causa-raiz ou aceitos por decisão em
-ADR. Placar por achado + evidência na **§8** do próprio relatório. Aplicado e
-verificado em **dev**; **prod é janela manual** (checklist na §8). Migrations
-0044–0050; ADRs novos 042/043/044. Commits `3b4fc93` → `ad9d59b` (4 PRs por risco).
+ADR. Placar por achado + evidência na **§8**; aplicação em prod na **§9**.
+**✅ ATIVO EM PRODUÇÃO 2026-07-18** — migrations 0044–0050 aplicadas na janela
+manual, provado por catálogo (initplan 0, `anon` 0 privilégios, colunas em claro
+dropadas, DML intacto) **e por dois testes funcionais que catálogo não pega**:
+login de super_admin OK e **cadastro de paciente real OK** (este último exercita o
+`encryptForTenant` — antes dele o caminho de cripto nunca tinha rodado em prod).
+ADRs novos 042/043/044. Commits `3b4fc93` → `9832b91`.
 
 - **A14** (o maior ROI): predicado do RLS envolvido em subquery escalar → InitPlan.
   Advisor `auth_rls_initplan` **57 → 0**. A auditoria leu até 0037; hoje 0050.
@@ -1206,8 +1210,14 @@ verificado em **dev**; **prod é janela manual** (checklist na §8). Migrations
 0044; journal contíguo (51/51). Ressalva honesta: 0046/0047 e 0048/0049 foram
 escritas à mão (o TUI de rename-detection do drizzle-kit não roda non-TTY), então o
 snapshot mais recente segue no 0044 — um `db:generate` futuro reconcilia (dívida D6
-residual, menor). **D8** (preview→prod): o founder reconfigurou para dev; **falta
-exercer** (abrir um preview e confirmar que vê o dado de dev, não prod).
+residual, menor).
+
+**D8 fechada e EXERCITADA (2026-07-18):** Preview → `qoro-dev`, Production →
+`qoro-prod` (env vars separadas). Provado pelo dado, não pela config: prod mostra
+**1 clínica**, preview mostra **4** (o conteúdo do dev). No caminho, o preview
+quebrava o login com `LOGIN_HASH_PEPPER ausente` — a Vercel captura env **no
+build**, e a branch fora buildada antes da separação; **redeploy** resolveu. Regra
+que vale para toda env nova: alterá-la não afeta deployments existentes.
 
 ## Remediação da auditoria de APIs (2026-07-15) — Segurança & Arquitetura
 
@@ -1247,6 +1257,45 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 
 ---
 
+## Remediação da auditoria de Monitoramento (2026-07-18) — Observabilidade & Operação
+
+Fecha as duas auditorias de monitoramento. Detalhe arquitetural em
+[ADR-045](./adr/045-observability-execution-boundary.md).
+
+| Achado | O que era | Estado |
+|---|---|---|
+| **C1** alerting não wired | regras só em dashboard, não auditáveis | ⚠️ **definição virou código** (`infra/observability/`) + runbook com teste de disparo; falta o wiring de conta/canal (go-live #2) |
+| **C2** health cego a outage externo | `checkConfig(env.X)` — provedor caído com key válida reportava `ok` | ✅ alcançabilidade real em `?deep=1` (implícito em `?strict=1`) |
+| **C3** background sem Sentry, sem stack | 13 crons + 2 webhooks + worker: `catch → metrics → 500` sem rethrow | ✅ `withCron` + `captureBackgroundError` |
+| **A1** auth sem telemetria | login/MFA/revogação invisíveis | ✅ 4 eventos novos (sítio do `session.revoked` corrigido — ADR-037 tirou do middleware) |
+| **A2/A3** correlação | `idempotency.*` só com `{key}`; sem ponte Sentry↔log | ✅ contexto AMBIENTE (ALS) + tag `request_id` |
+| **A4/E4** sem tempo real | zero sinal de latência/saturação | ✅ `db.pool.saturation` + Sentry Performance (RED/USE adiado, ver abaixo) |
+| **M1** `console.*` | falha de checkout em texto solto | ✅ `logger.error` + Sentry |
+| **M2** swallows | heartbeat falhava em silêncio | ✅ `cron.heartbeat.write_failed` |
+| **M3** Redis/rate-limit | fail-open invisível | ✅ Redis no health + `auth.ratelimit.tripped` + `redis-down.md` |
+| **M4** MTTR/DR | sem MTTD/MTTR; PITR indefinido | ✅ definidos; **PITR decidido como NÃO adotar** (RPO ≤ 24h) |
+| **M5** drift de docs | 6/12 crons vs 13; "Pino"; rota removida | ✅ reconciliado + **gate `check:observability`** impede recorrência |
+| **B1** sem web-vitals | "o sistema está lento" sem dados | ✅ `browserTracingIntegration` (replay segue OFF) |
+
+**Achados NOVOS encontrados na remediação** (não estavam nas auditorias): N1
+saved-search fantasma · N2 SLO apontando para fonte inexistente · N3 alvo do A1
+obsoleto pós-ADR-037 · N4 inventário FASE-0 congelado · N5 `reason_category`
+incompleto · N6 `sentry-scrub` afirmando proteção que não dava · N7 health
+defasado do monitor de partição · N8 alerta A7 órfão · **N9 seam `project`
+opcional — cujo guard achou um vazamento latente de SOAP no `createProntuario`**.
+
+### Dívida de ESCALA aceita (com gatilho, não "algum dia")
+
+| # | Item | Por que NÃO agora | Gatilho para revisitar |
+|---|---|---|---|
+| **E1** | Fila outbox global (sem fairness por tenant) | ⛔ **Particionar por tenant está PROIBIDO**: a UNIQUE é `(event_type, idempotency_key)` **sem `clinic_id`** — forçar a partition key ali quebraria o dedup da outbox inteira, o mesmo raciocínio que barrou `outbound_messages` (ADR-043). E a outbox já está contida por retenção de 30d | `pg_stat_user_tables` mostrar bloat real. Caminho correto: mover dedup/idempotência para tabela própria com TTL e **só então** particionar — nunca forçar a chave na UNIQUE |
+| **E2** | Custo/cardinalidade de log | volume atual é irrelevante (1 clínica) | ingestão do Better Stack virar linha de custo perceptível → sampling dos eventos de alto volume |
+| **E3** | `count(*)` do health na outbox | retenção de 30d impede crescimento sem teto; **índice sem necessidade também é dívida** (ADR-042) | medir com `pg_stat_user_tables` e só então índice parcial |
+| **E5** | Rate-limit de Meta/Gemini não monitorado | volume longe de qualquer tier | aproximar-se do tier de mensageria da Meta |
+| — | **OpenTelemetry / dashboard RED-USE** | desproporcional ao estágio; o Sentry v10 já traz OTel embutido e as primitivas da ADR-045 não impedem adotá-lo depois | tráfego que torne a amostragem de 10% insuficiente, ou 2ª pessoa no time de operação |
+
+---
+
 ## Dívida técnica pós-C16 (2026-07-15)
 
 > **Por que esta seção existe.** Até aqui, dívida arquitetural era "diferida para C16".
@@ -1263,7 +1312,7 @@ B7 justificado tecnicamente. Placar por achado + evidência no §0 e nos blocos
 | **D5** | CSP bloqueante com nonce (hoje `Report-Only`) | Aceito (ADR-030) | Quando o relatório de CSP estiver limpo por ~1 semana em produção. |
 | ~~**D6**~~ | ~~Sanear o journal de migrations (snapshots `meta/*.json` com lacunas → `db:generate` inseguro)~~ | ✅ **FECHADO 2026-07-17** (remediação da auditoria de banco, PR1). O gatilho disparou: a 0044 precisou de `db:generate` de verdade (índices de FK). Só o **último** snapshot importa para o diff, e o 0037 ainda casava com o `schema.ts` porque 0038–0043 são DDL/grant puros, sem delta de objeto. O `db:generate` rodou e o diff veio quase limpo: só **1** statement inesperado, `ALTER TABLE profiles ALTER COLUMN invite_accepted_at SET DEFAULT now()` — que a **0041 já tinha aplicado** (o banco já estava assim); reapareceu só porque a 0041 foi escrita à mão e não gerou snapshot. Idempotente, mantido na 0044 com comentário. O `0044_snapshot.json` fecha a lacuna: **daqui pra frente a cadeia é contígua**. | — |
 | **D7** | **`admin.qoro.dev` (Control Plane em host próprio)** — planejado desde o PlanoAção, **nunca provisionado**; o subdomínio não resolve. Painel e app dividem `app.qoro.dev`. | **Adiado por decisão do founder (2026-07-16)**, com motivo — ver abaixo. Docs corrigidos para parar de afirmar que existe. | **Só junto com D5 (CSP bloqueante) + cookie escopado por host.** Sozinho é separação cosmética. |
-| **D8** 🟡 | **Preview da Vercel lê e escreve no banco de PRODUÇÃO.** `DATABASE_URL`/`DATABASE_URL_RUNTIME`/`NEXT_PUBLIC_SUPABASE_URL` têm **uma entrada só** cobrindo `Production, Preview` → mesmo valor nos dois. Qualquer branch num preview toca dado real, sem os guards do `db:migrate:prod`. E o preview nem funciona direito: faltam `LOGIN_HASH_PEPPER`/`SUPABASE_SECRET_KEY`/`CRYPTO_*`/`CRON_SECRET` (só existem em Production). | 🟡 **CORRIGIDO PELO FOUNDER 2026-07-17 — falta EXERCITAR.** O founder reconfigurou a Vercel: o preview passa a apontar para o **dev**. ⚠️ **Não verificado por ninguém ainda**: a config foi declarada, não exercida — e este projeto já pagou por essa exata distinção (o D1 ficou 2 dias marcado "✅ feito" com a env nunca exercitada; ver "Duas armadilhas" abaixo). **Prova pendente:** abrir um preview de branch e confirmar, pelo dado que ele enxerga, que é o `pqhkirrszzpwezdaqrai` (dev) e não o `shlcbxawrxuaebazuiue` (prod) — ex.: o preview tem que ver 2 clínicas / 4 pacientes, não 1 clínica / 0 pacientes. Enquanto isso não for feito, trate como aberto. | **Fechar o item = rodar a prova acima**, não reconfigurar. Ver [achado](achados/preview-aponta-para-prod.md). |
+| ~~**D8**~~ | ~~**Preview da Vercel lê e escreve no banco de PRODUÇÃO.** `DATABASE_URL`/`DATABASE_URL_RUNTIME`/`NEXT_PUBLIC_SUPABASE_URL` tinham **uma entrada só** cobrindo `Production, Preview` → mesmo valor nos dois.~~ | ✅ **FECHADA E EXERCITADA 2026-07-18.** Env vars separadas: Preview → `qoro-dev`, Production → `qoro-prod`. **Provado pelo DADO, não pela config:** prod mostra **1 clínica**, preview mostra **4** (conteúdo do dev). Se ainda apontasse para prod, os dois mostrariam o mesmo. No caminho apareceu o efeito colateral previsto no achado — o preview quebrava o login com `LOGIN_HASH_PEPPER ausente`: a Vercel captura env **no build**, e a branch fora buildada ANTES da separação; **redeploy** resolveu. Regra que fica: alterar env var não afeta deployment já existente. | — |
 
 ### Por que o D4 fechou sem virar projeto (2026-07-16)
 

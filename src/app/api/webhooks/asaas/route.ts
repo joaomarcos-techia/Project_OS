@@ -27,8 +27,11 @@
  */
 import { eq } from 'drizzle-orm';
 
+import { buildRequestContext } from '@/lib/audit/request-context';
 import { dbAdmin } from '@/lib/db';
 import { assertBillingWebhookReady } from '@/lib/env';
+import { captureBackgroundError } from '@/lib/observability/capture';
+import { runWithContext } from '@/lib/observability/context';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider, type ProviderPayment } from '@/contexts/billing/internal/providers/asaas';
@@ -52,13 +55,30 @@ const MAX_WEBHOOK_BYTES = 1_000_000;
  * outro. O `event` do corpo é só rótulo — quem decide é o status real.
  */
 function actionFor(status: string): 'paid' | 'overdue' | 'refunded' | null {
-  if (status === 'RECEIVED' || status === 'CONFIRMED' || status === 'RECEIVED_IN_CASH') return 'paid';
+  if (status === 'RECEIVED' || status === 'CONFIRMED' || status === 'RECEIVED_IN_CASH')
+    return 'paid';
   if (status === 'OVERDUE') return 'overdue';
   if (status === 'REFUNDED') return 'refunded';
   return null; // PENDING e afins: materializa a invoice, sem transição.
 }
 
+const FLOW = 'billing.webhook';
+
+/**
+ * Abre o escopo de correlação e delega. O corpo fica em `handleWebhook` para
+ * este wrapper não custar uma reindentação inteira de uma rota de pagamento.
+ *
+ * NÃO fixa `clinicId` no contexto: ele só é resolvido DENTRO da transação (via
+ * `ensureInvoiceForPayment`), e um webhook pode ser de uma clínica que ainda não
+ * conhecemos. Correlacionar pelo `request_id` é honesto; carimbar um clinicId
+ * adivinhado não seria.
+ */
 export async function POST(req: Request): Promise<Response> {
+  const { requestId } = buildRequestContext(req.headers);
+  return runWithContext({ requestId, flow: FLOW }, () => handleWebhook(req));
+}
+
+async function handleWebhook(req: Request): Promise<Response> {
   assertBillingWebhookReady();
 
   // 0. size guard.
@@ -178,6 +198,12 @@ export async function POST(req: Request): Promise<Response> {
     });
     return Response.json({ received: true }, { status: 200 });
   } catch (err) {
+    // C3: o Sentry é o ÚNICO caminho do stack aqui — o stream de métricas reduz
+    // Error a {name,message} por design. Sem isto, diagnosticar um
+    // PAYMENT_RECEIVED que quebrou exigia reproduzir local com um payload que os
+    // logs redigiram. O `event` não vai na tag (ctx é allowlist fechada): ele já
+    // está na métrica abaixo, e o `request_id` une as duas pontas.
+    captureBackgroundError(err, { flow: FLOW });
     metrics.emit('billing.webhook.error', { event: parsed.event, error: err });
     return new Response('internal error', { status: 500 });
   }

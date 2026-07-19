@@ -23,9 +23,12 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
-import { healthAuthLevel } from '@/lib/http/health-auth';
-import { toErrorResponse } from '@/lib/http/error-response';
+import { contiguousMonthsAhead, PARTITIONED_PARENTS } from '@/lib/db/retention-policy';
+import { getConnectionStats } from '@/lib/db/pool-stats';
+import { normalizeAndAssertIdent } from '@/lib/db/rls';
 import { assertCronRuntimeReady } from '@/lib/env';
+import { toErrorResponse } from '@/lib/http/error-response';
+import { healthAuthLevel } from '@/lib/http/health-auth';
 import { logger } from '@/lib/observability/logger';
 
 export const runtime = 'nodejs';
@@ -34,7 +37,21 @@ export const dynamic = 'force-dynamic';
 // Limiares de degradação (gap 4.2). Conservadores: o worker roda a cada 1min.
 const PENDING_STUCK_S = 300; // pending parado > 5min → worker provavelmente caído
 const PROCESSING_STUCK_S = 600; // processing > 10min → handler travado / janitor não reclamou
-const AUDIT_DEFAULT_MAX = 1000; // linhas na default acima disso → provisioning realmente quebrado
+// N7 (2026-07-18) — era 1000. QUALQUER linha na partição default já é perda de
+// pruning: a linha existe fora da partição correta e as queries por período
+// deixam de podá-la. O cron `audit-partitions` alarma em `> 0` desde a auditoria
+// de banco (A7); manter 1000 aqui deixava o monitor EXTERNO — o único que
+// acorda alguém — mais surdo que o job. As 9 órfãs achadas em dev não teriam
+// disparado este check.
+const AUDIT_DEFAULT_MAX = 0;
+/** Abaixo disto, o mês seguinte corre risco de cair na default (espelha o cron). */
+const MIN_CONTIGUOUS_MONTHS = 1;
+/**
+ * A4/E4 — saturação de conexões acima disto alarma. 80% é o ponto onde ainda
+ * dá para agir; acima disso o sintoma vira o "infinite loading" que já
+ * conhecemos, e aí não é mais alerta, é incidente.
+ */
+const POOL_SATURATION_MAX_PCT = 80;
 
 type OutboxCounts = {
   pending: number;
@@ -93,9 +110,38 @@ export async function GET(req: Request): Promise<Response> {
       FROM outbox
     `);
 
-    const auditRes = await dbAdmin.execute<AuditRow>(sql`
-      SELECT count(*)::int AS default_count FROM audit_events_default
-    `);
+    // N7 — antes isto era um `count(*) FROM audit_events_default` HARDCODED, o
+    // que deixava `ai_messages_default` invisível ao monitor externo mesmo
+    // depois de a auditoria de banco tornar `PARTITIONED_PARENTS` a fonte única.
+    // Agora itera o registro: pai novo entra aqui de graça.
+    //
+    // E expõe o indicador ANTECEDENTE (`months_ahead`), não só o atrasado
+    // (`default_rows`). `default_rows > 0` é dano JÁ consumado; contiguidade é o
+    // aviso de que a próxima virada de mês vai cair na default. Reusa
+    // `contiguousMonthsAhead` — NUNCA reimplementar por `max()`, que é cego a
+    // lacunas por construção (foi o bug N2: "22 meses saudáveis" com buraco no 11).
+    const partitions: Array<{ parent: string; default_rows: number; months_ahead: number }> = [];
+    for (const parent of PARTITIONED_PARENTS) {
+      const safeParent = normalizeAndAssertIdent('table', parent);
+      const defRes = await dbAdmin.execute<AuditRow>(
+        sql.raw(`SELECT count(*)::int AS default_count FROM "${safeParent}_default"`),
+      );
+      const childRes = await dbAdmin.execute<{ name: string }>(sql`
+        SELECT c.relname AS name
+          FROM pg_inherits i
+          JOIN pg_class c ON c.oid = i.inhrelid
+         WHERE i.inhparent = ${parent}::regclass
+      `);
+      const months = childRes
+        .map((r) => /_(\d{4})_(\d{2})$/.exec(r.name))
+        .filter((m): m is RegExpExecArray => m !== null)
+        .map((m) => `${m[1]}-${m[2]}`);
+      partitions.push({
+        parent,
+        default_rows: defRes[0]?.default_count ?? 0,
+        months_ahead: contiguousMonthsAhead(months),
+      });
+    }
 
     const idemRes = await dbAdmin.execute<IdempotencyRow>(sql`
       SELECT
@@ -108,20 +154,46 @@ export async function GET(req: Request): Promise<Response> {
     `);
 
     const outbox = outboxRes[0] ?? {
-      pending: 0, processing: 0, failed: 0, skipped: 0,
-      oldest_pending_age_s: 0, oldest_processing_age_s: 0, oldest_failed_age_s: 0,
+      pending: 0,
+      processing: 0,
+      failed: 0,
+      skipped: 0,
+      oldest_pending_age_s: 0,
+      oldest_processing_age_s: 0,
+      oldest_failed_age_s: 0,
     };
     const idempotency = idemRes[0] ?? { in_flight: 0, expired: 0, in_flight_orphans_1h: 0 };
-    const defaultPartitionRows = auditRes[0]?.default_count ?? 0;
+    const pool = await getConnectionStats();
+    // Compat: o campo `audit.default_partition_rows` do corpo é contrato com
+    // monitores/runbooks existentes — segue sendo o do audit_events.
+    const defaultPartitionRows =
+      partitions.find((p) => p.parent === 'audit_events')?.default_rows ?? 0;
 
     // Gap 4.2: condições operacionais que merecem alerta. `degraded` + `alarms`
     // são aditivos (ok continua true = endpoint respondeu); `?strict=1` vira 503.
     const alarms: string[] = [];
     if (outbox.failed > 0) alarms.push(`outbox_failed=${outbox.failed}`);
-    if (outbox.oldest_pending_age_s > PENDING_STUCK_S) alarms.push(`pending_age=${outbox.oldest_pending_age_s}s`);
-    if (outbox.oldest_processing_age_s > PROCESSING_STUCK_S) alarms.push(`processing_age=${outbox.oldest_processing_age_s}s`);
-    if (idempotency.in_flight_orphans_1h > 0) alarms.push(`idem_orphans=${idempotency.in_flight_orphans_1h}`);
-    if (defaultPartitionRows > AUDIT_DEFAULT_MAX) alarms.push(`audit_default_rows=${defaultPartitionRows}`);
+    if (outbox.oldest_pending_age_s > PENDING_STUCK_S)
+      alarms.push(`pending_age=${outbox.oldest_pending_age_s}s`);
+    if (outbox.oldest_processing_age_s > PROCESSING_STUCK_S)
+      alarms.push(`processing_age=${outbox.oldest_processing_age_s}s`);
+    if (idempotency.in_flight_orphans_1h > 0)
+      alarms.push(`idem_orphans=${idempotency.in_flight_orphans_1h}`);
+    // A4/E4 — saturação de conexões. `pool === null` (sem permissão no catálogo)
+    // NÃO alarma: ausência de medida não é evidência de problema, e um health
+    // que grita por não conseguir medir vira alert fatigue.
+    if (pool && pool.saturation_pct > POOL_SATURATION_MAX_PCT) {
+      alarms.push(`db_pool_saturation=${pool.saturation_pct}%`);
+    }
+    // N7 — por PAI (não só audit_events), e com o indicador antecedente junto.
+    for (const p of partitions) {
+      if (p.default_rows > AUDIT_DEFAULT_MAX) {
+        alarms.push(`${p.parent}_default_rows=${p.default_rows}`);
+      }
+      if (p.months_ahead < MIN_CONTIGUOUS_MONTHS) {
+        alarms.push(`${p.parent}_months_ahead=${p.months_ahead}`);
+      }
+    }
     // `skipped` NÃO alarma: muitos eventos são legitimamente "producer ahead of
     // consumer" (ex.: scheduling.appointment.cancelled sem handler até C9). Fica
     // visível no corpo (outbox.skipped) p/ inspeção, mas não dispara degraded/503.
@@ -134,6 +206,11 @@ export async function GET(req: Request): Promise<Response> {
       alarms,
       outbox,
       audit: { default_partition_rows: defaultPartitionRows },
+      // N7: estado por pai particionado, com o indicador ANTECEDENTE. Nível
+      // `monitoring` de propósito — é o operador externo que precisa dele.
+      partitions,
+      /** A4/E4 — golden signal de SATURAÇÃO. `null` = não foi possível medir. */
+      db_pool: pool,
       idempotency,
       ts: new Date().toISOString(),
     };

@@ -60,6 +60,7 @@
 | [042](042-rls-initplan-and-public-least-privilege.md) | Policy v2 (helpers de auth em subquery escalar → InitPlan) + least-privilege do `public` atacando o DEFAULT ACL, não só os grants de hoje (A13/A14/A15/N1) — emenda ADR-007 (texto) e ADR-010 (vira default) | accepted | RLS / Grants |
 | [043](043-messaging-retention-not-partitioning.md) | Retenção (não particionamento) contém a mensageria raw: particionar quebraria as UNIQUE de exactly-once (envio duplicado ao paciente). Registro único de retenção + monitor de partições por contiguidade (A2/A5/A7/N2) | accepted | Messaging / Retenção |
 | [044](044-clinical-content-encryption.md) | Cifra do conteúdo clínico (estende ADR-012 ao registro médico): colunas `*_encrypted`, branded type `Encrypted<T>`, seam `project` para não vazar em audit/idempotência (A1). Adia `patient_clinical_data`, não cifra templates | accepted | Clinical / Crypto |
+| [045](045-observability-execution-boundary.md) | Fronteira de observabilidade: `withCron` centraliza os 13 crons, contexto AMBIENTE (AsyncLocalStorage) correlaciona os ~150 emits sem tocá-los, e `captureBackgroundError` leva a exceção de background ao Sentry COM stack (C3/A2/A3/M2). Allowlist tipada fechada no contexto — denylist não segura prosa clínica | accepted | Observabilidade |
 
 ## Como propor um novo ADR
 

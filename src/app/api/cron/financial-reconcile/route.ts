@@ -22,8 +22,7 @@ import { FINANCIAL_EVENTS, faturamentoPendencias } from '@/contexts/financial';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
-import { assertCronRuntimeReady } from '@/lib/env';
-import { assertCronAuth } from '@/lib/http/cron-auth';
+import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -36,18 +35,19 @@ const MAX_LIMIT = 1000;
 const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
 
-export async function GET(req: Request): Promise<Response> {
-  assertCronRuntimeReady();
-  const denied = assertCronAuth(req, { route: 'financial-reconcile' });
-  if (denied) return denied;
+export const GET = withCron(
+  {
+    job: 'financial-reconcile',
+    route: 'financial-reconcile',
+    errorEvent: 'financial.reconcile.error',
+  },
+  async (req) => {
+    const url = new URL(req.url);
+    const limit = Math.min(
+      Math.max(Number(url.searchParams.get('limit')) || DEFAULT_LIMIT, 1),
+      MAX_LIMIT,
+    );
 
-  const url = new URL(req.url);
-  const limit = Math.min(
-    Math.max(Number(url.searchParams.get('limit')) || DEFAULT_LIMIT, 1),
-    MAX_LIMIT,
-  );
-
-  try {
     // Atendimentos atendidos, fora da janela de carência, sem lançamento e ainda
     // não sinalizados como pendentes.
     const rows = (await dbAdmin.execute(
@@ -102,7 +102,12 @@ export async function GET(req: Request): Promise<Response> {
           await publishEvent(tx, {
             clinicId,
             eventType: FINANCIAL_EVENTS.FATURAMENTO_PENDENTE,
-            payload: { appointmentId: appt.id, clinicId, motivo: MOTIVO, valor: Number(appt.valor) },
+            payload: {
+              appointmentId: appt.id,
+              clinicId,
+              motivo: MOTIVO,
+              valor: Number(appt.valor),
+            },
             idempotencyKey: `reconcile:${appt.id}:${period}`,
           });
           opened++;
@@ -114,8 +119,5 @@ export async function GET(req: Request): Promise<Response> {
     metrics.emit('financial.reconcile.run', { opened, clinics: byClinic.size });
     await recordHeartbeat('financial-reconcile', 'success', { opened, clinics: byClinic.size });
     return Response.json({ ok: true, opened, clinics: byClinic.size }, { status: 200 });
-  } catch (err) {
-    metrics.emit('financial.reconcile.error', { error: err });
-    return Response.json({ ok: false, error: 'internal' }, { status: 500 });
-  }
-}
+  },
+);

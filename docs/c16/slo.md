@@ -31,8 +31,12 @@
 ### 2. Latência de API
 - **SLI:** tempo de resposta server-side das rotas `/api/**`.
 - **SLO:** **P95 < 500ms** (P99 < 1s como guard-rail secundário).
-- **Fonte:** `webhook_processing_p95`/latência agregada em `system_metrics_daily` (FASE 7)
-  e Sentry performance (se habilitado).
+- **Fonte:** **Sentry Performance** (traces a 0.1) + os `duration_ms` no log drain.
+- ⚠️ **Corrigido em 2026-07-18 (achado N2).** Este item dizia que a fonte era
+  `webhook_processing_p95` em `system_metrics_daily`. Essa coluna **nunca existiu** e não
+  poderia existir: durações de request não são persistidas em tabela nenhuma — vivem no
+  stdout (→ Better Stack) e no Sentry. Um SLO apontando para uma fonte inexistente é pior
+  que um SLO ausente: dá a impressão de estar medido.
 
 ### 3. Processamento de webhook
 - **SLI:** tempo entre receber o webhook (Meta/Asaas) e persistir/enfileirar o efeito.
@@ -85,7 +89,14 @@
 ### 7. Rate-limit de auth — degradação (segurança)
 - **SLI:** taxa de `auth.ratelimit.degraded` (fail-open do rate-limit de login/reset/join caindo
   para o limiter local per-instância — ADR-008 F-08). Emitido por
-  [rate-limit.ts](../../src/lib/auth/rate-limit.ts) com `reason_category` (`server`/`network`).
+  [rate-limit.ts](../../src/lib/auth/rate-limit.ts) com `reason_category`
+  (`server` | `network` | `other`). ⚠️ `other` existe no código (`classifyRedisError`) e
+  estava faltando aqui (achado N5) — uma saved-search que filtrasse só `server`/`network`
+  perderia essa fatia em silêncio.
+- **Sinais irmãos (2026-07-18):** `auth.ratelimit.tripped` (`route: login|mfa`) = o limiter
+  BLOQUEOU de verdade — é o sinal de brute-force, e não existia; e `redis` no
+  [`/api/health?deep=1`](../../src/app/api/health/route.ts), que torna o outage do Upstash
+  visível em vez de silencioso. Runbook: [redis-down.md](../runbooks/redis-down.md).
 - **SLO:** **≈ 0** em regime normal (a degradação é excepcional, não crônica). Qualquer
   degradação **sustentada ou recorrente** deve alertar — é a proteção de brute-force distribuído
   enfraquecendo em silêncio (auditoria Redis R1).
@@ -95,9 +106,40 @@
 
 ---
 
+### 8. Saturação de conexões (A4/E4 — 2026-07-18)
+- **SLI:** `total / max_connections` do Postgres, de `pg_stat_activity`
+  ([pool-stats.ts](../../src/lib/db/pool-stats.ts)).
+- **SLO:** **< 80%**. Acima disso alarma em `/api/health/outbox` (`db_pool_saturation`).
+- **Por quê:** era a golden signal ausente (*saturation*), e o gargalo nº1 provável em
+  escala. Sem ela, a degradação chega como o "infinite loading" que já conhecemos —
+  sintoma para o usuário, não sinal para o operador.
+
+---
+
+## Tempos de resposta a incidente (M4 — definidos em 2026-07-18)
+
+Faltavam. Sem alvo de tempo, "detectamos e resolvemos" não é avaliável.
+
+| Métrica | Alvo | O que mede |
+|---|---|---|
+| **MTTD** (detecção) | **< 5 min** para SEV1, **< 30 min** para SEV2 | Do início da falha ao alerta chegar no canal. É o que o go-live #2 destrava — sem canal, MTTD é "até alguém reclamar". |
+| **MTTR** (recuperação) | **< 1h** para SEV1, **< 4h** para SEV2 | Do alerta ao serviço restaurado. Alinhado ao RTO ≤ 4h. |
+
+Medição: manual por incidente (registrar no post-mortem — [incident-response.md](../runbooks/incident-response.md) §4).
+Sem histórico ainda; reavaliar após os primeiros incidentes reais.
+
+---
+
 ## Recuperação (referência — detalhe em `docs/runbooks/disaster-recovery.md`)
 - **RPO alvo ≤ 24h** (perda máxima de dados aceitável).
 - **RTO alvo ≤ 4h** (tempo máximo até restaurar o serviço).
+
+> **PITR: decidido NÃO adotar** (registrado em 2026-07-18). A auditoria de monitoramento
+> recomendava "ligar PITR no 1º cliente pagante" (M4), mas essa recomendação assumia um RPO
+> menor que o nosso. Com **RPO ≤ 24h**, o backup diário (Action `db-backup.yml`, ou Supabase
+> Pro) já atende — PITR (~US$100/mês) compra RPO de minutos, que o negócio não exige hoje.
+> Gatilho para reavaliar: o RPO alvo cair abaixo de 24h. Ver
+> [go-live-checklist §4](./go-live-checklist.md).
 
 ---
 

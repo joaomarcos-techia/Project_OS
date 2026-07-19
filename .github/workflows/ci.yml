@@ -62,6 +62,13 @@ jobs:
       - name: Migration safety gate (anti-destructive)
         run: pnpm check:migrations
 
+      # M5/N1 — a doc operacional é a fonte de verdade DURANTE incidente, e
+      # nenhum gate a conferia contra o código. Resultado: runbook dizendo "6
+      # crons" com 13 no manifesto, e uma saved-search alertando sobre um evento
+      # que nada emitia (busca vazia é indistinguível de "está tudo bem").
+      - name: Observability drift gate (docs ⇔ vercel.json ⇔ eventos)
+        run: pnpm check:observability
+
       - name: Handler registry gate (catalog ⇔ registry)
         run: pnpm check:registry:strict
         env:
