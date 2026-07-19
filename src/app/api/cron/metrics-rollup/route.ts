@@ -67,6 +67,41 @@ function buildMetrics(windowDays: number): Array<{ name: string; select: SQL }> 
                     FROM cash_flow_daily
                    WHERE date >= (${since})::date`,
     },
+    // ─── SLIs do slo.md (achado N2) ──────────────────────────────────────────
+    // Até aqui o rollup só escrevia métricas de NEGÓCIO, mas o slo.md declarava
+    // `system_metrics_daily` como fonte dos SLIs. O SLO não era avaliável pela
+    // fonte que ele mesmo citava — política sem medida.
+    {
+      // SLO nº4: taxa de erro do provider de IA < 2% / 28 dias.
+      // Denominador = mensagens do dia; numerador = dead-letter (ai_agent_failures).
+      // `0` quando não houve tráfego: NULL viraria "sem dado" e o alerta não
+      // distinguiria "sem uso" de "sem medição".
+      name: 'ia_error_rate',
+      select: sql`SELECT m.clinic_id,
+                         m.date,
+                         CASE WHEN m.total = 0 THEN 0
+                              ELSE round((coalesce(f.fails, 0)::numeric / m.total) * 100, 4)
+                         END AS value
+                    FROM (SELECT clinic_id, created_at::date AS date, count(*)::numeric AS total
+                            FROM ai_messages
+                           WHERE created_at >= ${since}
+                           GROUP BY clinic_id, created_at::date) m
+                    LEFT JOIN (SELECT clinic_id, created_at::date AS date, count(*)::numeric AS fails
+                                 FROM ai_agent_failures
+                                WHERE created_at >= ${since}
+                                GROUP BY clinic_id, created_at::date) f
+                      ON f.clinic_id = m.clinic_id AND f.date = m.date`,
+    },
+    {
+      // SLO nº5: `outbox_failed_rate ≈ 0` (qualquer failed é DLQ → investigar).
+      // Snapshot diário do terminal `failed` — o gauge instantâneo vive no
+      // /api/health/outbox; aqui fica a série histórica que o SLO de 28d exige.
+      name: 'outbox_failed',
+      select: sql`SELECT clinic_id, created_at::date AS date, count(*)::numeric AS value
+                    FROM outbox
+                   WHERE status = 'failed' AND created_at >= ${since}
+                   GROUP BY clinic_id, created_at::date`,
+    },
   ];
 }
 

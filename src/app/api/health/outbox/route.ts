@@ -24,6 +24,7 @@ import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
 import { contiguousMonthsAhead, PARTITIONED_PARENTS } from '@/lib/db/retention-policy';
+import { getConnectionStats } from '@/lib/db/pool-stats';
 import { normalizeAndAssertIdent } from '@/lib/db/rls';
 import { assertCronRuntimeReady } from '@/lib/env';
 import { toErrorResponse } from '@/lib/http/error-response';
@@ -45,6 +46,12 @@ const PROCESSING_STUCK_S = 600; // processing > 10min → handler travado / jani
 const AUDIT_DEFAULT_MAX = 0;
 /** Abaixo disto, o mês seguinte corre risco de cair na default (espelha o cron). */
 const MIN_CONTIGUOUS_MONTHS = 1;
+/**
+ * A4/E4 — saturação de conexões acima disto alarma. 80% é o ponto onde ainda
+ * dá para agir; acima disso o sintoma vira o "infinite loading" que já
+ * conhecemos, e aí não é mais alerta, é incidente.
+ */
+const POOL_SATURATION_MAX_PCT = 80;
 
 type OutboxCounts = {
   pending: number;
@@ -156,6 +163,7 @@ export async function GET(req: Request): Promise<Response> {
       oldest_failed_age_s: 0,
     };
     const idempotency = idemRes[0] ?? { in_flight: 0, expired: 0, in_flight_orphans_1h: 0 };
+    const pool = await getConnectionStats();
     // Compat: o campo `audit.default_partition_rows` do corpo é contrato com
     // monitores/runbooks existentes — segue sendo o do audit_events.
     const defaultPartitionRows =
@@ -171,6 +179,12 @@ export async function GET(req: Request): Promise<Response> {
       alarms.push(`processing_age=${outbox.oldest_processing_age_s}s`);
     if (idempotency.in_flight_orphans_1h > 0)
       alarms.push(`idem_orphans=${idempotency.in_flight_orphans_1h}`);
+    // A4/E4 — saturação de conexões. `pool === null` (sem permissão no catálogo)
+    // NÃO alarma: ausência de medida não é evidência de problema, e um health
+    // que grita por não conseguir medir vira alert fatigue.
+    if (pool && pool.saturation_pct > POOL_SATURATION_MAX_PCT) {
+      alarms.push(`db_pool_saturation=${pool.saturation_pct}%`);
+    }
     // N7 — por PAI (não só audit_events), e com o indicador antecedente junto.
     for (const p of partitions) {
       if (p.default_rows > AUDIT_DEFAULT_MAX) {
@@ -195,6 +209,8 @@ export async function GET(req: Request): Promise<Response> {
       // N7: estado por pai particionado, com o indicador ANTECEDENTE. Nível
       // `monitoring` de propósito — é o operador externo que precisa dele.
       partitions,
+      /** A4/E4 — golden signal de SATURAÇÃO. `null` = não foi possível medir. */
+      db_pool: pool,
       idempotency,
       ts: new Date().toISOString(),
     };
