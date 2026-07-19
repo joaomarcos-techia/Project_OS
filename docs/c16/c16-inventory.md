@@ -58,7 +58,7 @@ Três instâncias Drizzle fisicamente distintas:
 - [/api/health/outbox](../../src/app/api/health/outbox/route.ts): dois níveis (Bearer `CRON_SECRET` = mínimo; super_admin AAL2 = `failures_by_type`). Alarms: `outbox.failed>0`, `pending_age>300s`, `processing_age>600s`, `idem_orphans>0`, `audit_default_rows>1000`. `?strict=1`/`?alert=1` → 503.
 - [/api/health/auth-hook](../../src/app/api/health/auth-hook/route.ts): self-test do custom access token hook. Mesma auth das irmãs (Bearer `CRON_SECRET` ou super_admin AAL2) desde o A1 da auditoria de APIs — era a única rota de health anônima. Auth das três em [health-auth.ts](../../src/lib/http/health-auth.ts).
 
-### 1.8 Cron / heartbeats — `vercel.json` (12 jobs)
+### 1.8 Cron / heartbeats — `vercel.json` (13 jobs)
 
 | Rota | Schedule | Função |
 |---|---|---|
@@ -66,6 +66,7 @@ Três instâncias Drizzle fisicamente distintas:
 | `/api/cron/patient-hard-delete` | `0 3 * * *` | hard-delete LGPD pós 30d + anonimização |
 | `/api/cron/audit-partitions` | `0 4 1 * *` | provisiona partições (3 meses à frente) |
 | `/api/cron/cash-flow-rollup` | `30 3 * * *` | agregados diários de caixa |
+| `/api/cron/metrics-rollup` | `0 5 * * *` | SLIs diários em `system_metrics_daily` (incl. `ia_error_rate`) |
 | `/api/cron/financial-reconcile` | `*/15 * * * *` | fecha gaps de faturamento (R4) |
 | `/api/cron/data-retention` | `0 5 1 * *` | purga outbox terminal >30d + login_attempts >90d |
 | `/api/cron/invites-cleanup` | `0 6 * * *` | anonimiza convites >30d |
@@ -75,7 +76,9 @@ Três instâncias Drizzle fisicamente distintas:
 | `/api/cron/proactive-dunning` | `*/15 11-23 * * *` | cobranças proativas D+3/D+7 |
 | `/api/cron/proactive-followup` | `*/15 11-23 * * *` | follow-up clínico |
 
-- Auth: `Bearer CRON_SECRET` + header Vercel (não-fatal). Todos chamam `recordHeartbeat(job, status, detail)` → `cron_heartbeats` (`src/lib/cron-heartbeat/index.ts`, best-effort).
+- Auth + erro + correlação centralizados em [`withCron`](../../src/lib/http/cron.ts) (ADR-045): as 13 rotas repetiam o mesmo esqueleto à mão e todas esqueciam a mesma coisa — a exceção nunca chegava ao Sentry.
+- `recordHeartbeat(job, status, detail)` → `cron_heartbeats` (best-effort, mas a falha de escrita agora emite `cron.heartbeat.write_failed` — antes era engolida, cegando o próprio SLO de liveness).
+- ⚠️ Esta tabela omitia `metrics-rollup` até 2026-07-18 (achado M5). O gate `pnpm check:observability` agora reprova o merge se ela divergir do `vercel.json`.
 
 ### 1.9 Segurança / multi-tenant
 - RLS FORCE + dual-context (`current_setting` / `auth.jwt`) — ADR-002/007; `defaultTenantPolicy` em [rls.ts](../../src/lib/db/rls.ts).
@@ -101,7 +104,7 @@ Três instâncias Drizzle fisicamente distintas:
 | Rotas API | `src/app/api/**` | retorno ad-hoc (`{ok:false,error:'internal'}`); **sem envelope** |
 | Webhook Meta | [/api/webhooks/meta](../../src/app/api/webhooks/meta/route.ts) | HMAC + size guard; `metrics.emit` parcial |
 | Webhook Asaas | [/api/webhooks/asaas](../../src/app/api/webhooks/asaas/route.ts) | token + `processed_webhooks` dedup |
-| Crons (12) | `src/app/api/cron/**` | `recordHeartbeat` + `metrics.emit`; sem Sentry |
+| Crons (13) | `src/app/api/cron/**` | `withCron`: auth + correlação + `recordHeartbeat` + `metrics.emit` + **Sentry na exceção** (ADR-045) |
 | Outbox worker | `src/lib/outbox/worker.ts` | rico em `metrics.emit`; sem Sentry/trace |
 | Chamadas externas | Gemini / Meta / Asaas / Storage | timeout + classificação de erro; sem captura central |
 | Render React / rotas | `src/app/**` | **sem `error.tsx`/`global-error.tsx`** |
@@ -141,24 +144,36 @@ Três instâncias Drizzle fisicamente distintas:
 
 ---
 
-## 6. Gaps REAIS da C16
+## 6. Gaps da C16 — estado real
 
-1. Sentry — não instalado.
-2. Logger — `LOG_LEVEL` reservado, não cabeado ([env.ts:38](../../src/lib/env.ts#L38)).
-3. Error envelope `{error,code,message,trace_id,timestamp}` — ausente.
-4. Error boundaries (`error.tsx`/`global-error.tsx`) — ausentes.
-5. `/api/health` unificado (db+gemini+meta+asaas) — ausente.
-6. `system_metrics_daily` + rollup diário — ausente.
-7. Cleanup de `idempotency_keys` expiradas — ausente em `data-retention`.
-8. Security headers (CSP/HSTS) — ausentes em [next.config.ts](../../next.config.ts).
-9. Runbooks de incidente — faltam 7.
-10. Log drain + uptime — config externa (Better Stack / UptimeRobot).
-11. `archive-old-messages` (`ai_messages` >30d → Storage) — gap menor.
-12. **SLO/SLI** sem alvos formais (GAP 1) → `slo.md`.
-13. **Anti alert-fatigue** (GAP 2) → `docs/runbooks/alert-tuning.md`.
-14. **SLIs de fila explícitos** (GAP 3): `outbox_depth`/`outbox_oldest_age`/`outbox_failed_rate`.
-15. **DR sem RTO/RPO** (GAP 5): RPO ≤ 24h, RTO ≤ 4h.
-16. **Production rehearsal** (GAP 6): ciclo completo com clínica fake.
+> ⚠️ **Reconciliado em 2026-07-18 (achado N4).** Esta seção era um retrato
+> congelado do levantamento de **2026-06-28** e nunca foi atualizada: listava
+> como "gaps a construir" 15 itens que já estavam **em produção**. Quem lesse
+> concluiria que a C16 não existe — e o `PROGRESS.md` afirmava o oposto na mesma
+> semana. Inventário que não envelhece junto com o código é pior que ausência de
+> inventário: ele mente com autoridade.
+
+| # | Item | Estado |
+|---|---|---|
+| 1 | Sentry | ✅ em produção (`instrumentation.ts` + `sentry.*.config.ts`) |
+| 2 | Logger cabeado por `LOG_LEVEL` | ✅ [logger.ts](../../src/lib/observability/logger.ts) |
+| 3 | Error envelope `{error,code,message,trace_id,timestamp}` | ✅ [error-response.ts](../../src/lib/http/error-response.ts) |
+| 4 | Error boundaries | ✅ `global-error.tsx` + `route-error.tsx` |
+| 5 | `/api/health` unificado | ✅ — e desde 2026-07-18 com **alcançabilidade real** (`?deep=1`), não só presença de env (C2) |
+| 6 | `system_metrics_daily` + rollup | ✅ — e agora escreve os **SLIs** que o `slo.md` cita, não só métricas de negócio (N2) |
+| 7 | Cleanup de `idempotency_keys` | ✅ via `RETENTION_POLICIES` (ADR-043) |
+| 8 | Security headers (CSP/HSTS) | ✅ `next.config.ts` (ADR-030; CSP em Report-Only por ora) |
+| 9 | Runbooks de incidente | ✅ 30+ runbooks, incl. `redis-down.md` (M3) |
+| 10 | Log drain + uptime | ⚠️ drain **ativo** (2026-07-16); **alerta/canal ainda aberto** — go-live #2 |
+| 11 | `archive-old-messages` | ✅ resolvido por retenção, não arquivamento (ADR-043) |
+| 12 | SLO/SLI formais | ✅ [slo.md](./slo.md) — 8 SLOs + MTTD/MTTR |
+| 13 | Anti alert-fatigue | ✅ [alert-tuning.md](../runbooks/alert-tuning.md) |
+| 14 | SLIs de fila | ✅ `/api/health/outbox` + `outbox_failed` no rollup |
+| 15 | DR com RTO/RPO | ✅ RPO ≤ 24h / RTO ≤ 4h; PITR decidido como **não adotar** |
+| 16 | Production rehearsal | ⏳ pendente (go-live #6) |
+
+**O que resta de verdade:** o item 10 (canal de alerta — go-live #2) e o 16
+(rehearsal). Tudo mais está no código.
 
 ---
 

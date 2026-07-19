@@ -163,7 +163,7 @@ reconcile diário corrige).
 - [ ] 2.b Saved search do `billing.webhook.verify` p95 > 5s/5min (threshold já em `slo.md` §3.1) — **depende do 1.b**
 - [x] 3. Restore test — restaurado no scratch/dashboard (prod ~vazio → 0 tenant é esperado)
 - [x] 4. Backup diário (Action) verde + secrets configurados (2026-07-02)
-- [x] 5a. Drill 1 (Sentry) — feito ao vivo (event id via /api/health/sentry-test)
+- [x] 5a. Drill 1 (Sentry) — feito ao vivo. ⚠️ A rota `/api/health/sentry-test` usada na época **não existe mais** (removida); para repetir o drill, force um erro num webhook/cron — desde a ADR-045 a exceção de background chega ao Sentry com stack.
 - [x] 5b. Drill 2 (health degraded) — feito ao vivo (Gemini key faltando)
 - [ ] 5c. Drill 5 (audit hash) + Drill 6 (prompt injection)
 - [ ] 6. Production rehearsal

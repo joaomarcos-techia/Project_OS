@@ -34,7 +34,7 @@ Status oficial de cada camada do `Documentação/PlanoAção.md`. Atualizado con
 ### O que foi entregue
 
 - Next.js 15.5.18 + React 19.2.6 + TypeScript 5.9 strict (4 flags: `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `exactOptionalPropertyTypes`)
-- Tailwind 4 + Pino-ready logging path (sem implementação ainda — C16)
+- Tailwind 4 + logging estruturado in-house (ADR-029 rejeitou Pino; correlação ambiente na ADR-045)
 - 8 bounded contexts em `src/contexts/` com `index.ts` placeholder + README — isolamento físico estabelecido
 - 7 subpastas em `src/lib/` (db, auth, outbox, audit, messaging, ai, pdf) com README explicando qual camada preenche
 - Validação de env via Zod ([src/lib/env.ts](../src/lib/env.ts)) importada em [next.config.ts](../next.config.ts) — build falha cedo se env inválido; suporta naming legacy E nova do Supabase (anon/service_role ↔ publishable/secret)

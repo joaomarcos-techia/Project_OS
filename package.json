@@ -21,6 +21,7 @@
     "arch:check": "madge --circular --extensions ts,tsx src",
     "arch:db-check": "tsx scripts/arch-db-check.ts",
     "check:migrations": "tsx scripts/check-migration-safety.ts",
+    "check:observability": "tsx scripts/check-observability-drift.ts",
     "bump-role-claims": "tsx scripts/bump-role-claims.ts",
     "audit:partitions": "tsx scripts/audit-partition-maintenance.ts",
     "db:generate": "cross-env NODE_ENV=development drizzle-kit generate --config=drizzle.config.ts",
