@@ -29,6 +29,7 @@ Procedimentos operacionais documentados. Cada camada que adiciona ação operaci
 | [gemini-down.md](./gemini-down.md) | C16 | IA (Gemini) indisponível — degradação, circuit, rotação de key |
 | [meta-template-rejected.md](./meta-template-rejected.md) | C16 | Template WhatsApp rejeitado/pausado — jobs proativos |
 | [asaas-webhook-missing.md](./asaas-webhook-missing.md) | C16 | Webhook Asaas perdido / pagamento divergente — reconcile |
+| [redis-down.md](./redis-down.md) | C16 | **Upstash indisponível — o rate-limit é fail-open, logo a falha é silenciosa** (M3) |
 | [super-admin-locked.md](./super-admin-locked.md) | C16 | Super-admin sem acesso (MFA/senha) — recuperação |
 | [lgpd-breach-72h.md](./lgpd-breach-72h.md) | C16 | Incidente de dados pessoais — conter, investigar, comunicar (72h) |
 | [failure-drills.md](./failure-drills.md) | C16 | Testes de falha controlada (Sentry, IA down, restore, audit hash, prompt injection) |

@@ -85,7 +85,14 @@
 ### 7. Rate-limit de auth — degradação (segurança)
 - **SLI:** taxa de `auth.ratelimit.degraded` (fail-open do rate-limit de login/reset/join caindo
   para o limiter local per-instância — ADR-008 F-08). Emitido por
-  [rate-limit.ts](../../src/lib/auth/rate-limit.ts) com `reason_category` (`server`/`network`).
+  [rate-limit.ts](../../src/lib/auth/rate-limit.ts) com `reason_category`
+  (`server` | `network` | `other`). ⚠️ `other` existe no código (`classifyRedisError`) e
+  estava faltando aqui (achado N5) — uma saved-search que filtrasse só `server`/`network`
+  perderia essa fatia em silêncio.
+- **Sinais irmãos (2026-07-18):** `auth.ratelimit.tripped` (`route: login|mfa`) = o limiter
+  BLOQUEOU de verdade — é o sinal de brute-force, e não existia; e `redis` no
+  [`/api/health?deep=1`](../../src/app/api/health/route.ts), que torna o outage do Upstash
+  visível em vez de silencioso. Runbook: [redis-down.md](../runbooks/redis-down.md).
 - **SLO:** **≈ 0** em regime normal (a degradação é excepcional, não crônica). Qualquer
   degradação **sustentada ou recorrente** deve alertar — é a proteção de brute-force distribuído
   enfraquecendo em silêncio (auditoria Redis R1).

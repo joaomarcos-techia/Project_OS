@@ -11,6 +11,7 @@ import { assertLoginAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
 import { getAal } from '@/lib/auth/mfa';
 import { isRole } from '@/lib/auth/roles';
+import { metrics } from '@/lib/observability/metrics';
 
 const LoginSchema = z.object({
   email: z.string().email().max(254),
@@ -40,6 +41,11 @@ export async function loginAction(
   const limit = await assertLoginAllowed(ip, emailHash);
   if (!limit.ok) {
     await recordLoginAttempt(emailHash, ip, false);
+    // A1/M3: até aqui um bloqueio de rate-limit era INVISÍVEL fora da tabela
+    // login_attempts — não dava para alertar sobre brute-force nem medir. Sem
+    // PII: nem e-mail, nem hash, nem IP (o hash ainda é pseudônimo de pessoa; a
+    // contagem é o que importa para o alerta).
+    metrics.emit('auth.ratelimit.tripped', { route: 'login' });
     return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
   }
 
@@ -47,6 +53,9 @@ export async function loginAction(
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.user) {
     await recordLoginAttempt(emailHash, ip, false);
+    // A1: alimenta a saved-search de brute-force (> N/5min). `reason` distingue
+    // credencial inválida de bloqueio — são incidentes diferentes.
+    metrics.emit('auth.login.failed', { reason: 'invalid_credentials' });
     return { error: 'Email ou senha inválidos.' };
   }
   await recordLoginAttempt(emailHash, ip, true);
@@ -58,7 +67,12 @@ export async function loginAction(
     .eq('id', data.user.id)
     .limit(1);
   const profile = profileRows?.[0] as
-    | { role?: string; mfa_enrolled_at?: string | null; ativo?: boolean; deleted_at?: string | null }
+    | {
+        role?: string;
+        mfa_enrolled_at?: string | null;
+        ativo?: boolean;
+        deleted_at?: string | null;
+      }
     | undefined;
   if (profileErr || !profile || !profile.role || !isRole(profile.role)) {
     await supabase.auth.signOut({ scope: 'local' });

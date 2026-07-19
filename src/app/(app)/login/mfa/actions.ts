@@ -8,6 +8,7 @@ import { postLoginRedirect } from '@/lib/auth/policies';
 import { assertMfaAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { isRole } from '@/lib/auth/roles';
 import { createServerClient } from '@/lib/auth/supabase-server';
+import { metrics } from '@/lib/observability/metrics';
 
 export type MfaActionState = {
   error: string | null;
@@ -28,7 +29,10 @@ export async function verifyMfaAction(
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return { error: 'Sessão expirada. Faça login novamente.' };
   const rl = await assertMfaAllowed(authData.user.id, getClientIp(await headers()));
-  if (!rl.ok) return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
+  if (!rl.ok) {
+    metrics.emit('auth.ratelimit.tripped', { route: 'mfa' });
+    return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
+  }
 
   const factors = await listFactors(supabase);
   const verified = factors.find((f) => f.status === 'verified');
@@ -38,6 +42,11 @@ export async function verifyMfaAction(
   try {
     await challengeAndVerify(supabase, verified.id, code);
   } catch (e) {
+    // A1: um enxame de MFA falho era invisível — nem métrica, nem log. Só o
+    // MOTIVO, nunca o código nem o userId (o volume é o sinal de ataque).
+    metrics.emit('auth.mfa.failed', {
+      reason: e instanceof Error ? e.name : 'unknown',
+    });
     return { error: e instanceof Error ? e.message : 'Código inválido.' };
   }
 
