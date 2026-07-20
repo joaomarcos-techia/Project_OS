@@ -118,6 +118,14 @@ export async function GET(req: Request): Promise<Response> {
     checks,
     ts: new Date().toISOString(),
   };
+  // POR QUE no nível `monitoring` (e não só super_admin): este corpo é o que o
+  // operador lê às 3h com o pager tocando. Sem o motivo, `asaas: degraded` não
+  // distingue "Asaas caiu" de "nossa key está errada" — dois incidentes com
+  // runbooks opostos. O reason é de baixa cardinalidade e não vaza credencial
+  // (é `http_401`/`timeout`/`not_configured`, nunca a chave ou a URL).
+  if (deep && Object.keys(ext.reasons).length > 0) {
+    body.reasons = ext.reasons;
+  }
   // super_admin: SLIs de fila nomeados (outbox_depth/outbox_oldest_age) p/ debug.
   if (level === 'super_admin') {
     body.sli = {

@@ -24,11 +24,14 @@ const envMock = vi.hoisted(() => ({
   } as Record<string, string | undefined>,
 }));
 
+const { emit } = vi.hoisted(() => ({ emit: vi.fn() }));
+
 vi.mock('@/lib/env', () => ({
   get env() {
     return envMock.value;
   },
 }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
 
 async function freshModule() {
   vi.resetModules();
@@ -37,6 +40,7 @@ async function freshModule() {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  emit.mockReset();
   envMock.value = {
     GEMINI_API_KEY: 'g-key',
     META_APP_SECRET: 'm-secret',
@@ -56,7 +60,7 @@ describe('checkExternals — raso (poll barato)', () => {
     const out = await checkExternals(false);
 
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(out).toEqual({ gemini: 'ok', meta: 'ok', asaas: 'ok', redis: 'ok' });
+    expect(out).toEqual({ gemini: 'ok', meta: 'ok', asaas: 'ok', redis: 'ok', reasons: {} });
   });
 
   it('env ausente continua sendo degraded', async () => {
@@ -77,7 +81,51 @@ describe('checkExternals — profundo (o que o monitor usa)', () => {
       meta: 'ok',
       asaas: 'ok',
       redis: 'ok',
+      reasons: {},
     });
+  });
+
+  // ─── Diagnóstico (incidente 2026-07-20) ────────────────────────────────────
+  // O probe engolia a causa e devolvia só `degraded`. Resultado real em prod:
+  // `asaas: degraded`, nada no Sentry, e nenhuma forma de saber se era timeout,
+  // 401 ou env ausente. Era um swallow silencioso — a mesma classe do M2 que
+  // esta remediação fechou.
+
+  it('reporta o MOTIVO de cada degradação (era o buraco do incidente)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 401 }));
+    const { checkExternals } = await freshModule();
+
+    const out = await checkExternals(true);
+    expect(out.asaas).toBe('degraded');
+    expect(out.reasons.asaas).toBe('http_401');
+  });
+
+  it('distingue timeout de erro de rede', async () => {
+    const timeout = Object.assign(new Error('timed out'), { name: 'TimeoutError' });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(timeout);
+    const { checkExternals } = await freshModule();
+
+    expect((await checkExternals(true)).reasons.asaas).toBe('timeout');
+  });
+
+  it('env ausente reporta `not_configured`, não um falso problema de rede', async () => {
+    envMock.value.ASAAS_API_KEY = undefined;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    const { checkExternals } = await freshModule();
+
+    expect((await checkExternals(true)).reasons.asaas).toBe('not_configured');
+  });
+
+  it('emite métrica por provedor degradado — o sinal que faltava', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 401 }));
+    const { checkExternals } = await freshModule();
+
+    await checkExternals(true);
+
+    expect(emit).toHaveBeenCalledWith(
+      'health.external.degraded',
+      expect.objectContaining({ provider: 'asaas', reason: 'http_401' }),
+    );
   });
 
   it('PROVEDOR FORA DO AR com key válida → degraded (o falso "ok" do C2)', async () => {
@@ -89,6 +137,13 @@ describe('checkExternals — profundo (o que o monitor usa)', () => {
       meta: 'degraded',
       asaas: 'degraded',
       redis: 'degraded',
+      // `network` (não `timeout`): o mock rejeita com Error comum, não TimeoutError.
+      reasons: {
+        gemini: 'network',
+        meta: 'network',
+        asaas: 'network',
+        redis: 'network',
+      },
     });
   });
 

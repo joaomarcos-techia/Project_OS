@@ -22,6 +22,7 @@
 import 'server-only';
 
 import { env } from '@/lib/env';
+import { metrics } from '@/lib/observability/metrics';
 
 export type CheckStatus = 'ok' | 'degraded' | 'down';
 
@@ -30,7 +31,20 @@ export interface ExternalChecks {
   meta: CheckStatus;
   asaas: CheckStatus;
   redis: CheckStatus;
+  /**
+   * Por que cada provedor não está `ok`. Vazio quando tudo certo.
+   *
+   * POR QUE existe (incidente 2026-07-20): a 1ª versão deste módulo devolvia só
+   * `degraded` e engolia a causa no catch. Em produção isso rendeu
+   * `asaas: degraded` sem NADA no Sentry e sem forma de distinguir timeout,
+   * 401 ou env ausente — um swallow silencioso, a mesma classe do achado M2 que
+   * esta própria remediação fechou. "O quê" sem "por quê" não é observabilidade.
+   */
+  reasons: Record<string, string>;
 }
+
+/** Causa legível e de baixa cardinalidade (vira label de métrica). */
+type Reason = string;
 
 /** Curto de propósito: o health tem de responder rápido mesmo com provedor lento. */
 const PING_TIMEOUT_MS = 2_000;
@@ -39,34 +53,50 @@ const CACHE_TTL_MS = 60_000;
 
 let cache: { at: number; value: ExternalChecks } | null = null;
 
-const present = (v: string | undefined): CheckStatus => (v ? 'ok' : 'degraded');
+const present = (v: string | undefined): Outcome =>
+  v ? { status: 'ok' } : { status: 'degraded', reason: 'not_configured' };
+
+interface Outcome {
+  status: CheckStatus;
+  reason?: Reason;
+}
 
 /**
  * Um probe HTTP genérico. `accept` decide o que conta como saudável — difere por
  * provedor: a raiz da Graph API responde 4xx sem token e ainda assim PROVA
  * alcançabilidade, enquanto um 401 do Asaas significa credencial inválida.
+ *
+ * Sempre devolve a CAUSA junto do status. `http_<código>` distingue "credencial
+ * recusada" (401/403) de "provedor doente" (5xx) — incidentes com runbooks
+ * completamente diferentes, que a versão anterior colapsava em `degraded`.
  */
-async function probe(url: string, accept: (res: Response) => boolean, init?: RequestInit) {
+async function probe(
+  url: string,
+  accept: (res: Response) => boolean,
+  init?: RequestInit,
+): Promise<Outcome> {
   try {
     const res = await fetch(url, { ...init, signal: AbortSignal.timeout(PING_TIMEOUT_MS) });
-    return accept(res) ? 'ok' : 'degraded';
-  } catch {
-    // timeout, DNS, TLS, rede — indistinguíveis do ponto de vista do operador:
-    // a dependência não está utilizável agora.
-    return 'degraded';
+    return accept(res) ? { status: 'ok' } : { status: 'degraded', reason: `http_${res.status}` };
+  } catch (err) {
+    // `AbortSignal.timeout` lança TimeoutError; o resto é DNS/TLS/conexão.
+    // Separar os dois importa: timeout costuma ser saturação/latência do
+    // provedor; `network` costuma ser DNS ou saída bloqueada.
+    const reason = err instanceof Error && err.name === 'TimeoutError' ? 'timeout' : 'network';
+    return { status: 'degraded', reason };
   }
 }
 
-async function pingGemini(): Promise<CheckStatus> {
-  if (!env.GEMINI_API_KEY) return 'degraded';
+async function pingGemini(): Promise<Outcome> {
+  if (!env.GEMINI_API_KEY) return present(undefined);
   return probe(
     `https://generativelanguage.googleapis.com/v1beta/models?key=${env.GEMINI_API_KEY}`,
     (res) => res.ok,
   );
 }
 
-async function pingMeta(): Promise<CheckStatus> {
-  if (!env.META_APP_SECRET) return 'degraded';
+async function pingMeta(): Promise<Outcome> {
+  if (!env.META_APP_SECRET) return present(undefined);
   // Raiz da Graph API: qualquer resposta < 500 prova que o provedor está de pé.
   // NÃO manda token — este probe checa alcançabilidade, não credencial (o token
   // é per-clínica e vive cifrado no banco; testá-lo aqui seria outro problema).
@@ -76,31 +106,45 @@ async function pingMeta(): Promise<CheckStatus> {
   );
 }
 
-async function pingAsaas(): Promise<CheckStatus> {
-  if (!env.ASAAS_API_KEY) return 'degraded';
+async function pingAsaas(): Promise<Outcome> {
+  if (!env.ASAAS_API_KEY) return present(undefined);
+  // `/myAccount` responde 401 sem credencial válida e 2xx com — verificado
+  // contra a API real (a auditoria sugeriu este caminho SEM confirmá-lo).
+  // Diferente do Meta, aqui o 2xx é exigido de propósito: uma key de billing
+  // recusada é degradação real, não só "provedor no ar". O `reason` diz qual
+  // dos dois é — sem ele, `sandbox×prod trocado` fica indistinguível de outage.
   return probe(`${env.ASAAS_BASE_URL}/myAccount`, (res) => res.ok, {
     headers: { access_token: env.ASAAS_API_KEY },
   });
 }
 
-async function pingRedis(): Promise<CheckStatus> {
+async function pingRedis(): Promise<Outcome> {
   // M3: o rate-limit é fail-open — sob outage do Upstash o sistema segue
   // servindo SEM proteção de brute-force e ninguém fica sabendo. Este check é o
   // que torna essa degradação visível.
-  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) return 'degraded';
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) return present(undefined);
   return probe(`${env.UPSTASH_REDIS_REST_URL}/ping`, (res) => res.ok, {
     headers: { authorization: `Bearer ${env.UPSTASH_REDIS_REST_TOKEN}` },
   });
 }
 
+function assemble(entries: Array<[string, Outcome]>): ExternalChecks {
+  const reasons: Record<string, string> = {};
+  for (const [name, o] of entries) {
+    if (o.reason) reasons[name] = o.reason;
+  }
+  const byName = Object.fromEntries(entries.map(([n, o]) => [n, o.status]));
+  return { ...(byName as unknown as ExternalChecks), reasons };
+}
+
 export async function checkExternals(deep: boolean): Promise<ExternalChecks> {
   if (!deep) {
-    return {
-      gemini: present(env.GEMINI_API_KEY),
-      meta: present(env.META_APP_SECRET),
-      asaas: present(env.ASAAS_API_KEY),
-      redis: present(env.UPSTASH_REDIS_REST_URL),
-    };
+    return assemble([
+      ['gemini', present(env.GEMINI_API_KEY)],
+      ['meta', present(env.META_APP_SECRET)],
+      ['asaas', present(env.ASAAS_API_KEY)],
+      ['redis', present(env.UPSTASH_REDIS_REST_URL)],
+    ]);
   }
 
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.value;
@@ -111,7 +155,23 @@ export async function checkExternals(deep: boolean): Promise<ExternalChecks> {
     pingAsaas(),
     pingRedis(),
   ]);
-  const value = { gemini, meta, asaas, redis };
+  const entries: Array<[string, Outcome]> = [
+    ['gemini', gemini],
+    ['meta', meta],
+    ['asaas', asaas],
+    ['redis', redis],
+  ];
+
+  // Emite SÓ na medição fresca (o cache hit não re-emite) e SÓ para quem está
+  // degradado. Sem isto, o operador vê `degraded` no corpo do health e não tem
+  // série temporal nenhuma para responder "desde quando?" nem "é intermitente?".
+  for (const [provider, o] of entries) {
+    if (o.status !== 'ok') {
+      metrics.emit('health.external.degraded', { provider, reason: o.reason ?? 'unknown' });
+    }
+  }
+
+  const value = assemble(entries);
   cache = { at: Date.now(), value };
   return value;
 }
