@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { annualRefundCents, annualSavingsCents } from './annual-prepay';
 import { accessForStage, daysOverdue, dunningStageForDays, evaluateDunning } from './dunning';
-import { accessModeToClinicStatus, isLoginBlocked, isWriteBlocked } from './access';
+import { accessModeToClinicStatus, isWriteBlocked } from './access';
 import { proRataCents, toCents, toReais, toReaisString } from './money';
 import { enforce, ledgerKeyFor, metricForQuotaType } from './quota-policy';
 import { canTransitionBilling, canTransitionInvoice } from './state-machine';
@@ -95,14 +95,20 @@ describe('access mapping (billing→access; ADR-016)', () => {
     expect(accessModeToClinicStatus('readonly')).toBe('suspended_readonly');
     expect(accessModeToClinicStatus('blocked')).toBe('suspended');
   });
-  it('readonly bloqueia escrita mas não login; suspended bloqueia ambos', () => {
+  // ADR-046: inadimplência bloqueia ESCRITA, nunca login/leitura. O prontuário é
+  // registro médico-legal (CFM 1.821/2007 — ADR-017); trancar o profissional fora
+  // dele por disputa comercial põe o produto entre ele e uma obrigação legal.
+  // O `isLoginBlocked` que este teste cobria foi removido junto com a emenda.
+  it('todo status de inadimplência bloqueia escrita', () => {
     expect(isWriteBlocked('suspended_readonly')).toBe(true);
-    expect(isLoginBlocked('suspended_readonly')).toBe(false);
     expect(isWriteBlocked('suspended')).toBe(true);
-    expect(isLoginBlocked('suspended')).toBe(true);
     expect(isWriteBlocked('pending_payment')).toBe(true);
-    expect(isLoginBlocked('pending_payment')).toBe(true);
+    expect(isWriteBlocked('cancelled')).toBe(true);
+  });
+
+  it('status saudável não bloqueia escrita', () => {
     expect(isWriteBlocked('active')).toBe(false);
+    expect(isWriteBlocked('trial')).toBe(false);
   });
 });
 

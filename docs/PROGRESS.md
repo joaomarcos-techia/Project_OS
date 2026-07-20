@@ -887,8 +887,11 @@ Relatório completo: [docs/implementation/C13-BILLING-REPORT.md](implementation/
 - **UI `/checkout`** não construída (backend `provisionTenant` pronto/testado).
 - **Owner-creation (Identity)**: evento + seam + allowlist prontos; criação de
   auth-user (Supabase admin) é integração de onboarding.
-- **Login gate em middleware**: predicado `isLoginBlocked` pronto, falta plugar
-  (`pending_payment`/`suspended`/`cancelled` → não loga, exceto owner).
+- **Login gate em middleware**: ❌ **CANCELADO (ADR-046, 2026-07-20)** — não haverá gate de
+  login. O predicado `isLoginBlocked` foi REMOVIDO. Inadimplência bloqueia só ESCRITA: o
+  prontuário é registro médico-legal com guarda de 20 anos (CFM 1.821/2007 — ADR-017), e
+  trancar o profissional fora dele por disputa comercial põe o produto entre ele e uma
+  obrigação legal dele.
   `requireActiveClinic` (bloqueio de ESCRITA) já implementado/testado; falta o
   rollout nas mutations dos demais contextos.
 - **PROIBIDO e não introduzido (verificado)**: overage/pay-as-you-go, feature-flags

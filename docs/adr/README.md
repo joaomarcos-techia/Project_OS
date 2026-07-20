@@ -61,6 +61,7 @@
 | [043](043-messaging-retention-not-partitioning.md) | Retenção (não particionamento) contém a mensageria raw: particionar quebraria as UNIQUE de exactly-once (envio duplicado ao paciente). Registro único de retenção + monitor de partições por contiguidade (A2/A5/A7/N2) | accepted | Messaging / Retenção |
 | [044](044-clinical-content-encryption.md) | Cifra do conteúdo clínico (estende ADR-012 ao registro médico): colunas `*_encrypted`, branded type `Encrypted<T>`, seam `project` para não vazar em audit/idempotência (A1). Adia `patient_clinical_data`, não cifra templates | accepted | Clinical / Crypto |
 | [045](045-observability-execution-boundary.md) | Fronteira de observabilidade: `withCron` centraliza os 13 crons, contexto AMBIENTE (AsyncLocalStorage) correlaciona os ~150 emits sem tocá-los, e `captureBackgroundError` leva a exceção de background ao Sentry COM stack (C3/A2/A3/M2). Allowlist tipada fechada no contexto — denylist não segura prosa clínica | accepted | Observabilidade |
+| [046](046-no-login-gate-clinical-record-access.md) | Inadimplência NÃO bloqueia login nem leitura — só ESCRITA. Emenda o ADR-016 (revoga o invariante 3 e a coluna `login` da tabela congelada): o prontuário é registro médico-legal com guarda de 20 anos (CFM 1.821/2007, ADR-017). `isLoginBlocked` removido — nunca foi plugado | accepted | Billing / Compliance |
 
 ## Como propor um novo ADR
 

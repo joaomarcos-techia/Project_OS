@@ -15,6 +15,11 @@ Congela-se a semântica AGORA (base), sem código de enforcement.
 
 ## Decision
 
+> ⚠️ **Emenda 2026-07-20 — [ADR-046](./046-no-login-gate-clinical-record-access.md).**
+> A coluna **login** desta tabela e o **invariante 3** foram REVOGADOS: inadimplência nunca
+> bloqueia login nem leitura. O restante (enforcement app-layer de ESCRITA, worker
+> status-agnóstico, RLS sem status) permanece em vigor.
+
 **Semântica de cada `status` (congelada):**
 
 | status | login | leitura | mutações de negócio | outbox/worker |
@@ -22,7 +27,7 @@ Congela-se a semântica AGORA (base), sem código de enforcement.
 | `trial` | sim | sim | sim | normal |
 | `active` | sim | sim | sim | normal |
 | `suspended_readonly` | sim | sim | **bloqueadas** (grace de billing: vê os dados, não cria) | drena normal |
-| `suspended` | **não** (exceto owner, para regularizar) | — | não | drena in-flight; sem novos writes |
+| `suspended` | ~~**não** (exceto owner)~~ → **sim** (ADR-046) | ~~—~~ → **sim** | não | drena in-flight; sem novos writes |
 | `cancelled` | não | — | não | drena in-flight; depois retenção LGPD → hard-delete (C15) |
 
 `deleted_at`: marca soft-delete; hard-delete cascade é super_admin (C15+).
@@ -36,8 +41,11 @@ Congela-se a semântica AGORA (base), sem código de enforcement.
    **continuam processando** — não se perde uma reconciliação financeira porque o
    billing venceu. Cancelar obrigações futuras é decisão de DOMÍNIO (handlers),
    não um gate do worker.
-3. **Gate de login** (`suspended`/`cancelled` → não loga) vive na camada de
-   auth/middleware, não na RLS.
+3. ~~**Gate de login** (`suspended`/`cancelled` → não loga) vive na camada de
+   auth/middleware, não na RLS.~~ **REVOGADO pelo [ADR-046](./046-no-login-gate-clinical-record-access.md)
+   (2026-07-20):** não há gate de login. Inadimplência bloqueia apenas ESCRITA — acesso de
+   LEITURA ao prontuário é obrigação legal do profissional (CFM 1.821/2007, ADR-017). O
+   predicado `isLoginBlocked`, previsto aqui, nunca foi plugado e foi REMOVIDO do código.
 
 **Timeline de enforcement:** contrato congelado agora; `requireActiveClinic()` +
 gate de login + transições de `status` são implementados em **C13** (billing),

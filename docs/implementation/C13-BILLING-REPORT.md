@@ -106,9 +106,11 @@ authenticated (só service_role). Validado por `arch:db-check` (0 findings) + sm
   falta o entrypoint allowlisted (rota/admin) + página. Onboarding guiado é spec separada.
 - **Owner-creation (Identity)**: evento + seam + allowlist prontos; criação de auth-user (Supabase
   admin) é integração de onboarding.
-- **Login gate em middleware**: predicado `isLoginBlocked` pronto; falta plugar no middleware
-  (`pending_payment`/`suspended`/`cancelled` → não loga, exceto owner). `requireActiveClinic`
-  (bloqueio de ESCRITA) já implementado e testado.
+- **Login gate em middleware**: ❌ **CANCELADO (ADR-046)** — decisão revista em 2026-07-20: não
+  haverá gate de login, e o predicado `isLoginBlocked` foi removido do código. O enforcement de
+  billing é exclusivamente sobre ESCRITA (`requireActiveClinic`, já implementado e testado).
+  Motivo: acesso de LEITURA ao prontuário é obrigação legal do profissional (CFM 1.821/2007 —
+  ADR-017).
 - **Rollout de `requireActiveClinic`** nas mutations dos demais contextos (wired em billing).
 - **IA quota** deduplicada por `conversationId` (não telefone+24h) — limitação do payload do evento.
 
