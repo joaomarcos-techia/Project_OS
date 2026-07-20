@@ -1299,6 +1299,98 @@ opcional — cujo guard achou um vazamento latente de SOAP no `createProntuario`
 
 ---
 
+## Conversas IA — painel + intervenção humana (✅ 2026-07-20, ADR-047)
+
+### Por que
+
+Desde a C11 o agente sabia escalar (`status='handoff'` + `ai_handoff_queue`) e **parava
+de responder** — mas não havia nenhuma superfície tenant onde alguém assumisse. Só
+existia o viewer read-only de super-admin (`/admin/conversas-ia`, `dbAdmin`). O handoff
+era um beco sem saída: o agente calava, o paciente esperava, ninguém via. O módulo do
+painel era placeholder (`soon: true`).
+
+### O que entrou
+
+- **`/conversas` + `/conversas/[id]`** (Server Components, `(app)/(shell)`): fila com
+  `handoff` **primeiro** (`ORDER BY (status='handoff') DESC, last_message_at DESC, id DESC`
+  — tie-breaker por `id` para a paginação por offset não repetir/pular linha), busca por
+  paciente (ILIKE) ou telefone (por **hash**, já que a coluna é cifrada), filtro de status,
+  `TablePager`. Thread decifrada no servidor, três autores distintos (paciente / agente /
+  humano) + metadados operacionais do turno.
+- **Migration 0051** (aditiva): permissions `view:conversations` / `manage:conversations`
+  (`owner`/`gestor`/`attendant` → ambas; `doctor` → só view) e coluna
+  `ai_messages.sent_by_user_id` → FK `profiles(id) ON DELETE RESTRICT`.
+  `claims_version` bumpa **sozinho** pelo trigger da 0040 (ADR-037) — sem bump manual.
+- **Janela de 24h da Meta — primeira implementação.** Existia só em prosa
+  (`VisãoGeral.md:434`); nenhum código jamais olhou o relógio (o agente sempre mandou
+  texto livre, os proactive-jobs sempre template). `isWindowOpen` + `canReplyManually`
+  puros e testados; fronteiras fechadas (sem inbound; exatamente 24h).
+- **Resposta manual via outbox**: `ai_agent.manual_reply.requested` (payload só ids) +
+  handler que chama `sendText` **fora de TX**. A action persiste mensagem e publica evento
+  na **mesma TX**.
+- `escalateToHuman` **reusado** (não reimplementado); `returnToAgent` novo, resolvendo a
+  linha da fila.
+
+### Invariantes (todas revalidadas no servidor, sob `SELECT ... FOR UPDATE`)
+
+| # | Regra | Por que |
+|---|---|---|
+| 1 | responder exige `status='handoff'` | em `active` o agente responde ao próximo inbound e o paciente recebe **duas** respostas da clínica |
+| 2 | janela de 24h aberta | fora dela a Meta rejeita texto livre — e a rejeição chega **depois**, com o operador já achando que respondeu |
+| 3 | envio só pelo outbox | enviar na action ou segura a TX no round-trip externo, ou abre janela de "persistida e nunca enviada" |
+
+A UI desabilita campo/botão, mas **é só UX**. Entre o render e o clique outro operador
+pode ter devolvido a conversa ao agente — por isso o relê sob lock.
+
+### `ai_messages` persistida ≠ entregue
+
+`ai_messages` = intenção registrada; `outbound_messages` = estado do envio. A thread
+mostra *Enviando… / Entregue / Falha* derivado de `outbound_messages` pela chave `K`
+(mesma para `event_id`, outbox e `sendText`), em vez de afirmar "enviada" após o clique.
+Falsa confirmação faria o operador acreditar que o paciente foi respondido.
+
+### Validação
+
+- **`pnpm smoke:conversas` — 23/23** contra `qoro-dev` (não mocka DB): RLS cross-tenant
+  (listar/thread/mensagens/mutação), cifra per-tenant + falha cross-tenant, privacidade do
+  DTO (sem telefone em claro, sem CPF de `collected_data`, sem prompt snapshot),
+  `direction='out'` + `sent_by_user_id`, selo de entrega nos 3 estados, idempotência da
+  fila, **corrida** (devolvida ao agente entre carregar e enviar → bloqueia) e a invariante
+  de `started_at`.
+- 22 testes unitários novos (`meta-window`, `reply-policy`) cobrindo a matriz 4 status × 4
+  posições da janela, incluindo a fronteira exata de 24h.
+
+### 🪤 Duas armadilhas que o próprio trabalho produziu
+
+1. **A poda de partição é uma dependência, não uma garantia.** Toda leitura de thread usa
+   `created_at >= conversation.started_at` (senão o planner varre as 13 partições).
+   Isso só é correto porque `started_at` é imutável — verificado: nada no código o
+   atualiza, e conversa "reaberta" é linha nova. A primeira versão do smoke backdateava a
+   **mensagem** sem backdatear a **conversa** e o teste 6.2 pegou: a mensagem sumia da
+   thread. Estado que produção não gera, mas prova que a invariante é load-bearing. Um
+   backfill/import futuro que a viole **esconde histórico em silêncio** — guardado pela
+   asserção 6.1.
+2. **`REFERENCES "auth"."users"` com aspas escapa de grep ingênuo.** O levantamento
+   concluiu "zero FK para auth.users nas 50 migrations" e o ADR quase foi escrito com essa
+   afirmação — o smoke quebrou com `profiles_id_auth_users_id_fk` na cara. A FK está na
+   0003, escrita com schema entre aspas. Corolário: os comentários
+   `// FK auth.users via migration` em `financial`/`scheduling`/`clinical` schema.ts
+   continuam **falsos** para as colunas `created_by` (essas de fato não têm FK nenhuma) —
+   duas afirmações opostas, ambas erradas, no mesmo repositório.
+   Ver [[doc-afirma-o-que-nao-existe]].
+
+### Débito / não incluído
+
+- **Fora da janela de 24h não há saída pelo painel** — campo bloqueado + explicação. Não
+  existe fluxo de template arbitrário por clínica (proactive-jobs usam templates fixos);
+  construí-lo é escopo próprio (catálogo por clínica, binding de variáveis, aprovação Meta).
+- `returnToAgent` recusa com `ActiveConversationConflictError` quando já existe outra
+  conversa **ativa** no mesmo contato (duas ativas tornariam `findOrCreateConversation`
+  ambíguo). Antes o `23505` cru vazava para a tela.
+- Sem realtime: a thread é `force-dynamic`, atualiza no reload. Suficiente para 1 clínica.
+
+---
+
 ## Dívida técnica pós-C16 (2026-07-15)
 
 > **Por que esta seção existe.** Até aqui, dívida arquitetural era "diferida para C16".

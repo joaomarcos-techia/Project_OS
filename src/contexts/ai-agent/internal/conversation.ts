@@ -19,6 +19,7 @@ import { metrics } from '@/lib/observability/metrics';
 import { patients } from '@/contexts/patient';
 /* eslint-enable boundaries/element-types */
 
+import { ActiveConversationConflictError } from '../errors';
 import { MAX_FALLBACKS } from '../limits';
 import { aiConversations, aiHandoffQueue, aiMessages, type AiMessageRow } from '../schema';
 import {
@@ -289,6 +290,103 @@ export async function escalateToHuman(
     .set({ status: 'handoff' })
     .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)));
   metrics.emit('ai_agent.handoff.created', { clinicId, conversationId, reason });
+}
+
+/**
+ * ADR-047 — devolve a conversa ao agente: handoff -> active.
+ *
+ * RESOLVE a linha da fila (resolved_at) junto, e isso NÃO é cosmético: o dedup
+ * de `escalateToHuman` é `ON CONFLICT (conversation_id) WHERE resolved_at IS
+ * NULL`. Uma linha aberta esquecida faz TODA escalação futura desta conversa
+ * cair no DO NOTHING — o status vira 'handoff' mas a conversa nunca reaparece
+ * na fila. Fechar aqui é o que mantém o ciclo assumir/devolver repetível.
+ *
+ * Retorna false quando a conversa não estava em 'handoff' (transição inválida
+ * ou já devolvida por outro operador) — o caller decide se isso é erro.
+ */
+export async function returnToAgent(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+): Promise<boolean> {
+  let row: { id: string } | undefined;
+  try {
+    [row] = await tx
+      .update(aiConversations)
+      .set({ status: 'active' })
+      .where(
+        and(
+          eq(aiConversations.id, conversationId),
+          eq(aiConversations.clinicId, clinicId),
+          eq(aiConversations.status, 'handoff'),
+        ),
+      )
+      .returning({ id: aiConversations.id });
+  } catch (err) {
+    // 23505 na unique parcial `(clinic_id, patient_phone_hash) WHERE
+    // status='active'`: já existe OUTRA conversa ativa com o mesmo contato.
+    // Devolver esta criaria duas ativas para um telefone só, e
+    // findOrCreateConversation não saberia qual usar no próximo inbound.
+    // Recusa explícita > erro de driver vazando para a tela.
+    if ((err as { code?: string }).code === '23505') {
+      metrics.emit('ai_agent.handoff.return_conflict', { clinicId, conversationId });
+      throw new ActiveConversationConflictError(conversationId);
+    }
+    throw err;
+  }
+
+  if (!row) return false;
+
+  await tx
+    .update(aiHandoffQueue)
+    .set({ resolvedAt: sql`now()` })
+    .where(
+      and(
+        eq(aiHandoffQueue.clinicId, clinicId),
+        eq(aiHandoffQueue.conversationId, conversationId),
+        sql`${aiHandoffQueue.resolvedAt} IS NULL`,
+      ),
+    );
+
+  metrics.emit('ai_agent.handoff.returned', { clinicId, conversationId });
+  return true;
+}
+
+export interface ManualMessageArgs {
+  clinicId: string;
+  conversationId: string;
+  /** Chave do turno manual: também é a idempotencyKey do outbox e do envio. */
+  eventId: string;
+  text: string;
+  /** profiles.id do humano que redigiu. NUNCA null aqui (null = agente). */
+  sentByUserId: string;
+}
+
+/**
+ * ADR-047 — persiste a resposta escrita por um HUMANO pelo painel.
+ *
+ * Irmão de `appendOutboundMessage`, com três diferenças que importam:
+ *   - `sentByUserId` preenchido → é isto (e não `model IS NULL`) que distingue
+ *     humano de agente; o agente grava model=null em vários fallbacks.
+ *   - sem tokens/custo/prompt: não houve LLM neste turno.
+ *   - sem `metrics.emit('ai_agent.cost')`: custo zero não é evento de custo.
+ *
+ * A linha existir NÃO significa entrega no WhatsApp — o envio é assíncrono via
+ * outbox e o estado real vive em outbound_messages (ADR-047 §"não mentir").
+ */
+export async function appendManualMessage(tx: Tx, args: ManualMessageArgs): Promise<void> {
+  await tx.insert(aiMessages).values({
+    clinicId: args.clinicId,
+    conversationId: args.conversationId,
+    direction: 'out',
+    contentEncrypted: await encryptForTenant(args.clinicId, args.text),
+    eventId: args.eventId,
+    sentByUserId: args.sentByUserId,
+  });
+  await tx
+    .update(aiConversations)
+    .set({ lastMessageAt: sql`now()` })
+    .where(and(eq(aiConversations.id, args.conversationId), eq(aiConversations.clinicId, args.clinicId)));
 }
 
 /**

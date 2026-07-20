@@ -27,6 +27,7 @@ import {
   requireUser,
 } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
+import { assertClinicCanWriteTx } from '@/lib/tenant-access';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
@@ -177,6 +178,13 @@ export async function updateProntuario(
   const clinicId = await requireClinicId();
 
   return withTenant(clinicId, async (tx) => {
+    // ADR-046: o auto-save é a ÚNICA escrita de negócio que não passa pelo
+    // `idempotentMutation` (por design — alta frequência, sem audit). Logo o
+    // gate do chokepoint não a cobre; sem esta linha, uma clínica suspensa
+    // seguiria escrevendo prontuário pelo caminho MAIS usado da tela.
+    // Dentro da tx que já está aberta — sem transação extra.
+    await assertClinicCanWriteTx(tx, clinicId);
+
     const [row] = await tx
       .select()
       .from(prontuarios)

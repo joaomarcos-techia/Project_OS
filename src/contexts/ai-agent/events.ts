@@ -2,9 +2,12 @@
  * AI Agent context events (C11). Producer-side schema registrado no catálogo do
  * outbox no module load (importado por ./schema, re-exportado pelo barrel).
  *
- * ÚNICO evento: `ai_agent.conversation.completed` — emitido ao fim de cada
- * TURNO de conversa (inbound processado → resposta enviada/fallback). Sem
- * handler até C14/C15 (producer ahead — allowlisted no check-handler-registry).
+ * Eventos:
+ *   - `ai_agent.conversation.completed` — fim de cada TURNO de conversa (inbound
+ *     processado → resposta enviada/fallback). Consumido pelo metering do
+ *     Billing (C13).
+ *   - `ai_agent.manual_reply.requested` (ADR-047) — humano respondeu pelo painel;
+ *     o handler faz o envio ao WhatsApp fora da TX.
  *
  * Payload rule (5.9): NUNCA conteúdo/plaintext — só ids + enum de outcome +
  * contadores. JSON-safe (sem Date/BigInt).
@@ -15,6 +18,7 @@ import { registerEventSchema } from '@/lib/outbox/catalog';
 
 export const AI_AGENT_EVENTS = {
   CONVERSATION_COMPLETED: 'ai_agent.conversation.completed',
+  MANUAL_REPLY_REQUESTED: 'ai_agent.manual_reply.requested',
 } as const;
 
 const uuid = z.string().uuid();
@@ -46,3 +50,24 @@ export const ConversationCompletedSchema = z.object({
 export type ConversationCompletedPayload = z.infer<typeof ConversationCompletedSchema>;
 
 registerEventSchema(AI_AGENT_EVENTS.CONVERSATION_COMPLETED, ConversationCompletedSchema);
+
+/**
+ * ADR-047 — um humano respondeu pelo painel; falta ENVIAR ao WhatsApp.
+ *
+ * A mensagem já está cifrada em `ai_messages` (mesma TX que publicou este
+ * evento). O payload carrega só ids: o texto da resposta é conteúdo clínico e
+ * o outbox é lido em plaintext no banco (payload jsonb) — regra 5.9. O handler
+ * relê e decifra a mensagem por `messageEventId`.
+ *
+ * `messageEventId` é a MESMA chave usada como idempotencyKey do outbox e do
+ * envio (outbound_messages), fechando a cadeia de dedup ponta a ponta.
+ */
+export const ManualReplyRequestedSchema = z.object({
+  clinicId: uuid,
+  conversationId: uuid,
+  messageEventId: uuid,
+  sentByUserId: uuid,
+});
+export type ManualReplyRequestedPayload = z.infer<typeof ManualReplyRequestedSchema>;
+
+registerEventSchema(AI_AGENT_EVENTS.MANUAL_REPLY_REQUESTED, ManualReplyRequestedSchema);

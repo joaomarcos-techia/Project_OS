@@ -8,6 +8,7 @@ import { idempotencyKeys } from '@/lib/db/schema/infra/idempotency';
 import { withTenant } from '@/lib/db/tenant';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { assertClinicCanWriteTx, shouldEnforceWriteGate } from '@/lib/tenant-access';
 import { runWithContext } from '@/lib/observability/context';
 import { isLockTimeout } from '@/lib/outbox/errors';
 import { capJsonSize } from '@/lib/sanitize/cap';
@@ -235,6 +236,29 @@ export async function idempotentMutation<T>(
         // (is_local=true == SET LOCAL), que aceita parâmetro — mesmo padrão de
         // withTenant (src/lib/db/tenant.ts). lockTimeoutMs é inteiro validado em env.
         await tx.execute(sql`SELECT set_config('lock_timeout', ${`${lockTimeoutMs}ms`}, true)`);
+
+        // 0. GATE DE BILLING (ADR-046). Antes de reservar a chave e antes de
+        // qualquer escrita: clínica com escrita suspensa não muta.
+        //
+        // POR QUE AQUI e não espalhado nas Server Actions: `requireActiveClinic`
+        // existia desde a C13 e era chamado em SETE lugares, TODOS em
+        // `equipe/actions.ts` — uma clínica `suspended` seguia criando paciente,
+        // agendando e escrevendo prontuário. Espalhar a chamada é garantir que a
+        // próxima mutação esqueça; no chokepoint, mutação nova nasce protegida
+        // (mesmo raciocínio do withCron, ADR-045).
+        //
+        // Roda DENTRO da tx que já está aberta (`assertClinicCanWriteTx`), não
+        // via `requireActiveClinic`: este é o caminho mais quente do app e uma
+        // 2ª transação por mutação seria custo de conexão puro.
+        if (
+          shouldEnforceWriteGate({
+            resourceType: opts.audit.resourceType,
+            actor: opts.actor,
+            impersonating: impersonation !== undefined,
+          })
+        ) {
+          await assertClinicCanWriteTx(tx, clinicId);
+        }
 
         // 1. Reserve idempotency key atomically WITHIN business TX.
         // expires_at = now() + ttlSeconds (override do default 24h da schema)

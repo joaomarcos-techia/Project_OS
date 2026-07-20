@@ -53,6 +53,10 @@ import '@/contexts/ai-agent/internal/handlers/inbound-received';
 import '@/contexts/billing/internal/handlers/appointment-created';
 import '@/contexts/billing/internal/handlers/conversation-completed';
 
+// ADR-047 — AI Agent: resposta manual do painel → envia ao WhatsApp fora da TX
+// (a Server Action persistiu a mensagem + publicou o evento atomicamente).
+import '@/contexts/ai-agent/internal/handlers/manual-reply-requested';
+
 // C14 — Proactive Jobs: prontuário assinado com needs_return → agenda followup.
 // (reminder/dunning NÃO são handlers — são cron-scan dos read-models das origens.)
 import '@/contexts/ai-agent/proactive-jobs/internal/handlers/prontuario-signed';

@@ -25,7 +25,7 @@ export const MODULES: NavModule[] = [
   { id: 'documentos', icon: 'docs', label: 'Documentos', group: 'Clínico', href: '/documentos' },
   { id: 'financeiro', icon: 'wallet', label: 'Financeiro', group: 'Gestão', href: '/financeiro' },
   { id: 'caixa', icon: 'cash', label: 'Caixa', group: 'Gestão', href: '/caixa' },
-  { id: 'conversas', icon: 'chat', label: 'Conversas IA', group: 'Gestão', soon: true, badge: '4' },
+  { id: 'conversas', icon: 'chat', label: 'Conversas IA', group: 'Gestão', href: '/conversas' },
   { id: 'relatorios', icon: 'chart', label: 'Relatórios', group: 'Gestão', href: '/relatorios' },
   { id: 'equipe', icon: 'shield', label: 'Equipe & Permissões', group: 'Administração', href: '/equipe' },
   { id: 'config', icon: 'gear', label: 'Configurações', group: 'Administração', href: '/configuracoes' },

@@ -69,6 +69,7 @@
     "ai:live-check": "tsx --conditions=react-server scripts/gemini-live-check.ts",
     "ai:adversarial": "tsx --conditions=react-server scripts/ai-adversarial-check.ts",
     "smoke:remediation": "tsx --conditions=react-server scripts/smoke-remediation.ts",
+    "smoke:conversas": "tsx --conditions=react-server scripts/smoke-conversas.ts",
     "wa:connect": "tsx --conditions=react-server scripts/whatsapp-connect.ts",
     "check:registry": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts",
     "check:registry:strict": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts --strict",

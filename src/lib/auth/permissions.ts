@@ -24,7 +24,7 @@ export const PERMISSIONS = {
   DELETE_PATIENT: 'delete:patient',
   // F-07: permissão dedicada para o export LGPD (egresso de PII completo). Antes
   // o export exigia apenas view:patient (least-privilege violado). Seed +
-  // bundles (owner, gestor) em migration 0013. Catálogo passa a 21 permissions.
+  // bundles (owner, gestor) em migration 0013 (o catálogo tinha 21 à época).
   EXPORT_PATIENT: 'export:patient',
   VIEW_PRONTUARIO: 'view:prontuario',
   CREATE_PRONTUARIO: 'create:prontuario',
@@ -44,6 +44,13 @@ export const PERMISSIONS = {
   MANAGE_SETTINGS: 'manage:settings',
   MANAGE_AGENT: 'manage:agent',
   VIEW_CONSULTORIO: 'view:consultorio',
+  // ADR-047: painel de Conversas IA. VIEW lê a fila e a thread decifrada;
+  // MANAGE assume a conversa, responde manualmente e devolve ao agente.
+  // Separadas porque ler o histórico (contexto clínico antes da consulta) é
+  // menos sensível que falar COM o paciente em nome da clínica. Seed + bundles
+  // (owner/gestor/attendant → ambas; doctor → só view) em migration 0051.
+  VIEW_CONVERSATIONS: 'view:conversations',
+  MANAGE_CONVERSATIONS: 'manage:conversations',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

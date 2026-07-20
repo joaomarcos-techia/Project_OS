@@ -62,6 +62,7 @@
 | [044](044-clinical-content-encryption.md) | Cifra do conteúdo clínico (estende ADR-012 ao registro médico): colunas `*_encrypted`, branded type `Encrypted<T>`, seam `project` para não vazar em audit/idempotência (A1). Adia `patient_clinical_data`, não cifra templates | accepted | Clinical / Crypto |
 | [045](045-observability-execution-boundary.md) | Fronteira de observabilidade: `withCron` centraliza os 13 crons, contexto AMBIENTE (AsyncLocalStorage) correlaciona os ~150 emits sem tocá-los, e `captureBackgroundError` leva a exceção de background ao Sentry COM stack (C3/A2/A3/M2). Allowlist tipada fechada no contexto — denylist não segura prosa clínica | accepted | Observabilidade |
 | [046](046-no-login-gate-clinical-record-access.md) | Inadimplência NÃO bloqueia login nem leitura — só ESCRITA. Emenda o ADR-016 (revoga o invariante 3 e a coluna `login` da tabela congelada): o prontuário é registro médico-legal com guarda de 20 anos (CFM 1.821/2007, ADR-017). `isLoginBlocked` removido — nunca foi plugado | accepted | Billing / Compliance |
+| [047](047-ai-conversations-human-handoff.md) | Painel `/conversas` + intervenção humana. `handoff` é pré-condição para resposta manual (mata a corrida agente × humano); primeira implementação da janela de 24h da Meta (fronteiras fechadas: sem inbound e exatamente 24h); envio via outbox, nunca direto da action; `ai_messages` persistida ≠ entregue (selo vem de `outbound_messages`); autoria por `sent_by_user_id` → `profiles` RESTRICT | proposed | AI Agent / Messaging |
 
 ## Como propor um novo ADR
 

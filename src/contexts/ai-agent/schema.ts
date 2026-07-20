@@ -148,6 +148,12 @@ export const aiMessages = pgTable(
     promptSnapshotEncrypted: text('prompt_snapshot_encrypted'),
     // R7: trace de IA — correlaciona métricas/failures/out-row do mesmo turno.
     aiRequestId: uuid('ai_request_id'),
+    // ADR-047: quem escreveu esta mensagem. NULL = agente; preenchido = humano
+    // respondendo pelo painel. NÃO derivar autoria de `model IS NULL` — o agente
+    // também grava model=null nos fallbacks (pré-filtro clínico, quota, kill-switch).
+    // FK -> profiles(id) ON DELETE RESTRICT na migration 0051 (Drizzle não emite
+    // FK em tabela particionada — mesmo motivo de clinic_id/conversation_id).
+    sentByUserId: uuid('sent_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
     // Memória 30d hot. Purgada pelo cron data-retention (RETENTION_POLICIES,
     // ADR-043/A5). A idColumn inclui created_at (partition key) — apagar por id

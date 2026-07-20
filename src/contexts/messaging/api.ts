@@ -14,13 +14,13 @@
  * - sendText gerencia as PRÓPRIAS TXs (3-fase do sender — reserve/send/finalize)
  *   e NUNCA deve ser chamado segurando uma TX aberta.
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { decryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 
 import { sendOutbound } from './internal/sender';
-import { inboundMessagesRaw } from './schema';
+import { inboundMessagesRaw, outboundMessages } from './schema';
 import type { OutboundResult, SendOutboundInput } from './types';
 
 export interface InboundForAgent {
@@ -38,6 +38,17 @@ export interface InboundForAgent {
   processedAt: Date | null;
 }
 
+/**
+ * ADR-047 — estado REAL do envio, por idempotencyKey. Existe porque persistir a
+ * mensagem no histórico não prova entrega: quem sabe se o WhatsApp aceitou é
+ * `outbound_messages`, e o painel precisa disso para não dizer "enviada" a uma
+ * mensagem ainda na fila (ou que falhou).
+ *
+ * Chave ausente do mapa = ainda não houve tentativa de envio (evento no outbox,
+ * worker ainda não rodou) — o caller trata como 'pending'.
+ */
+export type OutboundDeliveryStatus = 'pending' | 'accepted' | 'failed' | 'unknown';
+
 export interface MessagingApiV1 {
   getInboundForAgent(
     tx: Tx,
@@ -45,6 +56,11 @@ export interface MessagingApiV1 {
     inboundMessageId: string,
   ): Promise<InboundForAgent | null>;
   markInboundProcessed(tx: Tx, clinicId: string, inboundMessageId: string): Promise<void>;
+  getOutboundStatuses(
+    tx: Tx,
+    clinicId: string,
+    idempotencyKeys: readonly string[],
+  ): Promise<Map<string, OutboundDeliveryStatus>>;
   sendText(input: SendOutboundInput): Promise<OutboundResult>;
 }
 
@@ -86,8 +102,27 @@ async function markInboundProcessed(
     );
 }
 
+async function getOutboundStatuses(
+  tx: Tx,
+  clinicId: string,
+  idempotencyKeys: readonly string[],
+): Promise<Map<string, OutboundDeliveryStatus>> {
+  if (idempotencyKeys.length === 0) return new Map();
+  const rows = await tx
+    .select({ key: outboundMessages.idempotencyKey, status: outboundMessages.status })
+    .from(outboundMessages)
+    .where(
+      and(
+        eq(outboundMessages.clinicId, clinicId),
+        inArray(outboundMessages.idempotencyKey, [...idempotencyKeys]),
+      ),
+    );
+  return new Map(rows.map((r) => [r.key, r.status]));
+}
+
 export const messagingApiV1: MessagingApiV1 = {
   getInboundForAgent,
   markInboundProcessed,
+  getOutboundStatuses,
   sendText: (input) => sendOutbound(input),
 };

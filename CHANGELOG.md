@@ -15,6 +15,28 @@ detalhado, camada a camada (contratos congelados, defesas validadas, débitos), 
 ## [Unreleased]
 
 ### Adicionado
+- **Tela "Conversas IA" (`/conversas`) — intervenção humana no agente (ADR-047).**
+  Fecha um beco sem saída: desde a C11 o agente escalava para humano (`status='handoff'`)
+  e **parava de responder**, mas não havia nenhuma tela onde alguém assumisse — a conversa
+  morria em silêncio. Agora a clínica lista a fila (conversas em `handoff` **primeiro**),
+  busca por paciente ou telefone, abre a thread decifrada, **assume**, **responde pelo
+  painel** e **devolve ao agente**. Duas permissions novas (`view:conversations`,
+  `manage:conversations`; migration 0051) — `owner`/`gestor`/`attendant` recebem as duas,
+  `doctor` só leitura.
+  Três invariantes, todas revalidadas no servidor sob `SELECT ... FOR UPDATE` (a UI só
+  desabilita o campo — não é autoridade): **(1)** responder exige `status='handoff'`,
+  senão o agente responderia ao próximo inbound em paralelo com o humano e o paciente
+  receberia duas respostas; **(2)** primeira implementação da **janela de 24h da Meta**
+  — a regra existia só em prosa e nada nunca olhou o relógio; fora dela o texto livre é
+  bloqueado com explicação (sem inbound algum e exatamente 24h contam como fechada);
+  **(3)** o envio vai pelo **outbox** (evento `ai_agent.manual_reply.requested` +
+  handler), nunca direto da Server Action.
+  A mensagem manual é cifrada per-tenant, persistida em `ai_messages` com
+  `direction='out'` e a coluna nova `sent_by_user_id` (autoria — `model IS NULL` não
+  servia, o agente também grava `null` em fallbacks). **Persistir não é entregar**: a
+  thread mostra *Enviando… / Entregue / Falha* a partir de `outbound_messages`, em vez de
+  afirmar "enviada" logo após o clique. CPF, telefone em claro e prompt snapshot não
+  cruzam para o browser nem para a auditoria.
 - **Observabilidade Enterprise (remediação das auditorias de monitoramento, ADR-045).**
   Exceções de background (13 crons, 2 webhooks, worker) agora chegam ao **Sentry com
   stack** — antes o `catch → metrics → 500` sem rethrow deixava só `{name, message}` no
