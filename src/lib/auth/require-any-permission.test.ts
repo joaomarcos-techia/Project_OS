@@ -74,9 +74,16 @@ function claims(
   return { data: { claims: c }, error: null };
 }
 
-/** Reimporta o módulo para escapar da memoização do `cache()` entre testes. */
+/**
+ * React.cache() é PASSTHROUGH sob vitest (node puro, sem request scope do React):
+ * `requireCachedAnyPermission` recomputa a cada chamada lendo o mock atual. O
+ * `vi.resetModules()` + reimport que estava aqui "para escapar da memoização"
+ * era desnecessário E era a fonte de flakiness — sob carga de CPU (suíte cheia
+ * em paralelo) o resetModules corria com o import() dinâmico e este teste
+ * piscava (verde isolado, falho na suíte). O estado que muda entre testes é o
+ * mock (resetado no beforeEach), não o módulo.
+ */
 async function subject() {
-  vi.resetModules();
   const mod = await import('./tenant-context');
   return mod.requireCachedAnyPermission;
 }

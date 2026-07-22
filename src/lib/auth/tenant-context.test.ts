@@ -107,7 +107,15 @@ function profile(o: ProfileOpts = {}) {
 }
 
 async function subject() {
-  vi.resetModules();
+  // Antes: `vi.resetModules()` + reimport a cada teste, "para escapar da
+  // memoização do cache()". Isso era desnecessário E era a fonte da flakiness:
+  // `resetModules` + import() dinâmico corre com o scheduler sob carga de CPU
+  // (suíte cheia em paralelo), e os testes de auth piscavam (0–3 falhas por
+  // rodada, verde isolado). React.cache() só memoiza dentro de um request scope
+  // do React; sob vitest (node puro, sem dispatcher) ele é PASSTHROUGH —
+  // `authenticate()` recomputa a cada chamada lendo o mock atual. Logo o módulo
+  // pode ser reusado; o estado que muda entre testes é o mock, resetado no
+  // beforeEach. Ver o comentário gêmeo em require-any-permission.test.ts.
   return import('./tenant-context');
 }
 
