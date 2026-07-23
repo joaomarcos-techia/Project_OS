@@ -10,6 +10,15 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['node_modules', '.next', 'dist'],
+    // Alguns testes de auth (tenant-context/require-any-permission) fazem
+    // `vi.resetModules()` + re-import do grafo inteiro por teste (o `authenticate`
+    // é cache()-ado — precisa reimportar p/ zerar a memoização). Sob execução
+    // paralela, essa recompilação de módulos disputa CPU e estourava o default de
+    // 5s de forma FLAKY (passavam isolados em 1s, falhavam por timeout na suíte
+    // cheia). Não é hang — é reimport lento sob carga; 30s dá folga sem mascarar
+    // travas reais (a suíte inteira roda em ~30s).
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     // Baseline env so that src/lib/env.ts (which validates at module load)
     // can be imported by test files. Individual tests override these via
     // `__internal.loadEnv(asEnv(...))`. These values are intentionally
