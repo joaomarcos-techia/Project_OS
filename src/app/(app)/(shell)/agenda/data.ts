@@ -10,6 +10,8 @@ import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 import { requireUser } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
 
+import { type AgendaView, normalizeDateParam, rangeFor } from './range';
+
 /**
  * Dados da Agenda (v1 — walk-in). Lista os atendimentos de HOJE (fuso da clínica)
  * + insumos do formulário "Novo atendimento" (procedimentos ativos + médicos).
@@ -37,42 +39,13 @@ export interface AgendaData {
   appointments: AgendaAppt[];
   procedures: ProcedureOption[];
   doctors: DoctorOption[];
+  /** Fuso da clínica + faixa atual (item 12 — Mês/Semana/Dia). */
+  tz: string;
+  view: AgendaView;
+  ymd: string;
 }
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
-
-function tzOffsetMs(date: Date, tz: string): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    // hourCycle:'h23' (não hour12:false): evita o bug do ICU que renderiza meia-noite como "24".
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const map: Record<string, number> = {};
-  for (const p of dtf.formatToParts(date)) if (p.type !== 'literal') map[p.type] = Number(p.value);
-  const asUtc = Date.UTC(map.year!, map.month! - 1, map.day!, map.hour!, map.minute!, map.second!);
-  return asUtc - date.getTime();
-}
-
-/** Janela [00:00, 24:00) de hoje no fuso da clínica, em instantes UTC. */
-function clinicDayBounds(tz: string): { from: Date; to: Date } {
-  const now = new Date();
-  const ymd = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now);
-  const [y, m, d] = ymd.split('-').map(Number);
-  const utcGuess = Date.UTC(y!, m! - 1, d!, 0, 0, 0);
-  const from = new Date(utcGuess - tzOffsetMs(new Date(utcGuess), tz));
-  return { from, to: new Date(from.getTime() + 24 * 60 * 60 * 1000) };
-}
 
 const EMPTY: AgendaData = {
   hasClinic: false,
@@ -81,17 +54,29 @@ const EMPTY: AgendaData = {
   appointments: [],
   procedures: [],
   doctors: [],
+  tz: DEFAULT_TZ,
+  view: 'day',
+  ymd: '',
 };
 
-export async function getAgendaData(): Promise<AgendaData> {
+export interface AgendaQuery {
+  view: AgendaView;
+  /** Data de referência 'YYYY-MM-DD' (ou 'YYYY-MM'); default = hoje. */
+  date?: string | undefined;
+}
+
+export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promise<AgendaData> {
   const user = await requireUser();
   if (!user.clinicId) return EMPTY;
   const clinicId = user.clinicId;
   const isPractitioner = await getCurrentPractitioner();
 
   const tz = (await getClinicTimezone(clinicId)) ?? DEFAULT_TZ;
-  const { from, to } = clinicDayBounds(tz);
-  const appts = await listAppointments(clinicId, { from, to, limit: 200 });
+  const ymd = normalizeDateParam(query.date, tz);
+  // Mês pode ter muitos atendimentos; teto generoso p/ clínica pequena.
+  const limit = query.view === 'month' ? 1000 : 300;
+  const { from, to } = rangeFor(query.view, ymd, tz);
+  const appts = await listAppointments(clinicId, { from, to, limit });
 
   const ids = [...new Set(appts.filter((a) => a.patientId).map((a) => a.patientId!))];
   const cards = await listPatientCards(clinicId, ids);
@@ -126,5 +111,8 @@ export async function getAgendaData(): Promise<AgendaData> {
     appointments,
     procedures,
     doctors,
+    tz,
+    view: query.view,
+    ymd,
   };
 }

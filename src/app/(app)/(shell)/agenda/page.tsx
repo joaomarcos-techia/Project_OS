@@ -1,26 +1,26 @@
 /**
- * /agenda — v1 walk-in: lista os atendimentos de hoje + "Novo atendimento" em
- * Drawer (default: agendar). O calendário completo é evolução futura sobre o
- * mesmo backend C6 (createAppointment/slots).
+ * /agenda — visões Mês / Semana / Dia (item 12). Navegação por URL
+ * (`?view=&date=`); o servidor resolve a faixa (range.ts) e busca os
+ * atendimentos. "Novo atendimento" segue o fluxo walk-in do C6.
  */
-import Link from 'next/link';
-
-import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
-import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 
+import { AgendaCalendar, AgendaNav } from './agenda-calendar';
 import { getAgendaData } from './data';
 import { NewAppointmentDrawer } from './new-appointment-drawer';
+import { isAgendaView } from './range';
 
 export const dynamic = 'force-dynamic';
 
-function hora(iso: string): string {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-export default async function AgendaPage() {
-  const data = await getAgendaData();
+export default async function AgendaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; date?: string }>;
+}) {
+  const sp = await searchParams;
+  const view = isAgendaView(sp.view) ? sp.view : 'day';
+  const data = await getAgendaData({ view, ...(sp.date ? { date: sp.date } : {}) });
 
   if (!data.hasClinic) {
     return (
@@ -36,44 +36,12 @@ export default async function AgendaPage() {
       <PageHeader
         crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
         title="Agenda"
-        description="Atendimentos de hoje. Crie um atendimento quando o paciente chegar na clínica."
+        description="Veja os atendimentos por mês, semana ou dia."
         actions={<NewAppointmentDrawer data={data} />}
       />
 
-      {data.appointments.length === 0 ? (
-        <EmptyState
-          title="Nenhum atendimento hoje"
-          description="Clique em “Novo atendimento” quando um paciente chegar ou para agendar."
-        />
-      ) : (
-        <Card>
-          <ul className="flex flex-col">
-            {data.appointments.map((a) => {
-              const noConsultorio = a.status === 'chegou' || a.status === 'em_atendimento';
-              return (
-                <li
-                  key={a.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-border px-(--card-pad) py-3 last:border-b-0"
-                >
-                  <span className="font-mono text-sm">{hora(a.horario)}</span>
-                  <span className="min-w-0 truncate font-medium">{a.pacienteNome}</span>
-                  <span className="text-xs text-fg-subtle">{a.medicoNome}</span>
-                  <AppointmentStatusBadge status={a.status} />
-                  <span className="flex-1" />
-                  {noConsultorio ? (
-                    <Link
-                      href="/consultorio"
-                      className="text-(length:--fs-sm) font-medium text-link hover:underline"
-                    >
-                      Abrir no Consultório
-                    </Link>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      )}
+      <AgendaNav data={data} />
+      <AgendaCalendar data={data} />
     </>
   );
 }
