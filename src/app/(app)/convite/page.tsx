@@ -25,24 +25,44 @@ export default function ConvitePage() {
 }
 
 type Meta = { clinica?: string; funcao?: string; convidado_por?: string; nome?: string };
+type Phase = 'checking' | 'ready' | 'invalid';
 
 function ConviteForm() {
   const params = useSearchParams();
-  const code = params.get('code');
   const [state, formAction, pending] = useActionState(acceptInviteAction, INITIAL);
   const [meta, setMeta] = useState<Meta | null>(null);
+  const [phase, setPhase] = useState<Phase>('checking');
 
   useEffect(() => {
-    // O link do convite traz `?code=...` (PKCE) — troca por session antes do
-    // updateUser (client-side; o cookie é lido pela action server-side). Depois lê
-    // o user_metadata do convite (clínica/função/quem convidou) para o contexto.
+    // Caminho OFICIAL: o link chega já autenticado por `/auth/confirm` (verifyOtp
+    // server-side) — aqui só confirmamos a sessão. FALLBACK legado (removível
+    // quando os templates migrarem): `token_hash` → verifyOtp, hash implícito
+    // (auto-detect), `?code` (PKCE — só funciona no mesmo navegador que iniciou).
     const sb = createBrowserClient();
+    let active = true;
     void (async () => {
-      if (code) await sb.auth.exchangeCodeForSession(code);
+      const tokenHash = params.get('token_hash');
+      const type = params.get('type');
+      if (tokenHash && type === 'invite') {
+        await sb.auth.verifyOtp({ token_hash: tokenHash, type: 'invite' }).catch(() => {});
+      } else {
+        const code = params.get('code');
+        if (code) await sb.auth.exchangeCodeForSession(code).catch(() => {});
+      }
+      // getUser() valida a sessão contra o servidor (ADR-008 — não confiar no cookie).
       const { data } = await sb.auth.getUser();
-      setMeta((data.user?.user_metadata ?? {}) as Meta);
+      if (!active) return;
+      if (data.user) {
+        setMeta((data.user.user_metadata ?? {}) as Meta);
+        setPhase('ready');
+      } else {
+        setPhase('invalid');
+      }
     })();
-  }, [code]);
+    return () => {
+      active = false;
+    };
+  }, [params]);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
@@ -59,7 +79,14 @@ function ConviteForm() {
         <Card>
           <CardContent className="flex flex-col gap-4">
             <h1 className="text-base font-semibold">Criar senha de acesso</h1>
-            <form action={formAction} className="flex flex-col gap-4">
+            {phase === 'checking' ? (
+              <p className="text-sm text-fg-muted">Validando o convite…</p>
+            ) : phase === 'invalid' ? (
+              <Alert variant="danger" title="Convite inválido ou expirado">
+                Abra o link do convite novamente ou peça um novo ao administrador da clínica.
+              </Alert>
+            ) : (
+              <form action={formAction} className="flex flex-col gap-4">
               <Field label="Senha (mín 8 caracteres)" htmlFor="password">
                 <Input
                   id="password"
@@ -88,7 +115,8 @@ function ConviteForm() {
               <Button type="submit" loading={pending} className="w-full">
                 Criar senha e entrar
               </Button>
-            </form>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>

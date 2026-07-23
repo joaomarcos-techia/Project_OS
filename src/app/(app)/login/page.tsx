@@ -100,15 +100,6 @@ function LoginScreen() {
                 </div>
               </Field>
 
-              <div className="flex items-center justify-end">
-                <a
-                  href="/forgot-password"
-                  className="text-sm font-medium text-primary-600 hover:text-primary-700"
-                >
-                  Esqueci minha senha
-                </a>
-              </div>
-
               {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 
               <Button type="submit" loading={pending} className="w-full">

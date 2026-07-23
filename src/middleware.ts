@@ -46,7 +46,7 @@ export const config = {
   // exclusão, o middleware de sessão intercepta o túnel e redireciona p/ /login,
   // quebrando o report de erros do client (aviso explícito da doc do Sentry).
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks|login|forgot-password|reset-password|convite|auth/callback|account/security|join).*)',
+    '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks|login|reset-password|convite|auth/callback|auth/confirm|auth/auth-error|account/security|join).*)',
   ],
 };
 

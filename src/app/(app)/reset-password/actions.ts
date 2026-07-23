@@ -29,7 +29,7 @@ export async function resetPasswordAction(
   const { data: userData } = await supabase.auth.getUser();
   const email = userData.user?.email;
   if (!email) {
-    return { error: 'Link de redefinição inválido ou expirado. Solicite um novo.' };
+    return { error: 'Link de redefinição inválido ou expirado. Peça um novo ao administrador.' };
   }
 
   // Mesma defesa do login/forgot (F-06/F-08): IP + email_hash, fail-open se o
