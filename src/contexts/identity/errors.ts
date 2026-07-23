@@ -20,6 +20,20 @@ export class EmailAlreadyMemberError extends Error {
   }
 }
 
+/**
+ * Teto de usuários do plano atingido, detectado ATOMICAMENTE sob advisory lock
+ * (a checagem barata do action pode ter passado numa corrida). `limit` é o teto
+ * do plano vigente. O caller mapeia para o CTA de upgrade.
+ */
+export class UserQuotaExceededError extends Error {
+  readonly code = 'user_quota_exceeded';
+  readonly httpStatus = 409;
+  constructor(public readonly limit: number) {
+    super(`Limite de ${limit} usuário(s) do plano atingido.`);
+    this.name = 'UserQuotaExceededError';
+  }
+}
+
 /** CRM já cadastrado nesta clínica (UNIQUE(clinic_id, crm) — ADR-032 §5). */
 export class CrmConflictError extends Error {
   readonly code = 'crm_conflict';

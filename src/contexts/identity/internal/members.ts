@@ -15,7 +15,7 @@
  */
 import 'server-only';
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
@@ -32,6 +32,7 @@ import {
   EmailAlreadyMemberError,
   InviteAlreadyAcceptedError,
   MemberNotFoundError,
+  UserQuotaExceededError,
 } from '../errors';
 import { profiles } from '../schema';
 import { normalizeCrm, normalizeCrmUf } from './normalize-crm';
@@ -53,6 +54,13 @@ export interface InviteClinicMemberArgs {
   invitedBy: string;
   requestContext: RequestContext;
   idempotencyKey: string;
+  /**
+   * Teto de usuários do plano vigente (do action, via billingApiV1). O VALOR não
+   * corre (plano é estável); o que precisa ser atômico é a CONTAGEM vs o teto —
+   * feita aqui dentro da tx sob advisory lock. `Number.MAX_SAFE_INTEGER` = sem
+   * plano/sem teto.
+   */
+  seatLimit: number;
 }
 
 export interface InviteClinicMemberResult {
@@ -114,6 +122,23 @@ export async function inviteClinicMember(
   // 2. Profile + auditoria + finalização da chave numa micro-tx (dbAdmin).
   try {
     await dbAdmin.transaction(async (tx) => {
+      // QUOTA ATÔMICA: serializa por clínica (advisory lock xact-scoped) e conta
+      // os ativos DENTRO da tx. Sem isto, dois convites concorrentes leem 9/10 e
+      // ambos passam a checagem barata do action → 11 usuários. `id <> userId`
+      // exclui o próprio upsert (re-convite não conta duas vezes). Se não há teto
+      // (MAX_SAFE_INTEGER), pula.
+      if (args.seatLimit < Number.MAX_SAFE_INTEGER) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${args.clinicId}))`);
+        const rows = (await tx.execute(
+          sql`SELECT count(*)::int AS n FROM profiles
+              WHERE clinic_id = ${args.clinicId}::uuid AND ativo = true
+                AND deleted_at IS NULL AND id <> ${userId}::uuid`,
+        )) as unknown as Array<{ n: number }>;
+        if ((rows[0]?.n ?? 0) >= args.seatLimit) {
+          throw new UserQuotaExceededError(args.seatLimit);
+        }
+      }
+
       await tx
         .insert(profiles)
         .values({

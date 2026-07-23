@@ -21,6 +21,7 @@ import {
   setMemberOverride,
   setMemberRole,
 } from '@/contexts/identity/internal/lifecycle';
+import { UserQuotaExceededError } from '@/contexts/identity/errors';
 import { mapIdentityError } from '@/contexts/identity/internal/map-error';
 import { assertCanAssignRole } from '@/contexts/identity/internal/role-matrix';
 import { listEmployees } from '@/contexts/identity/queries';
@@ -90,6 +91,8 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
   try {
     assertCanAssignRole(user.role, d.role); // matriz + anti-escalonamento (server-side)
 
+    // Checagem BARATA (UX rápido) — a AUTORIDADE anti-corrida é o advisory lock
+    // dentro de inviteClinicMember (conta+cria na mesma tx serializada por clínica).
     const ativos = (await listEmployees(clinicId)).filter((e) => e.ativo).length;
     const quota = await billingApiV1.assertUserQuota(clinicId, ativos); // ADR-024 — pendente conta
     if (!quota.allowed) return { upgrade: true, limit: quota.limit };
@@ -112,10 +115,13 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
       invitedBy: user.userId,
       requestContext: buildRequestContext(hdrs),
       idempotencyKey: d.idempotencyKey,
+      seatLimit: quota.limit,
     });
 
     return { ok: true, nome: d.nome };
   } catch (err) {
+    // Corrida perdeu para outro convite concorrente: o teto estourou dentro da tx.
+    if (err instanceof UserQuotaExceededError) return { upgrade: true, limit: err.limit };
     return { error: mapIdentityError(err) };
   }
 }
