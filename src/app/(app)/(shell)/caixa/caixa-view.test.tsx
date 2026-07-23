@@ -53,6 +53,7 @@ const base = {
   pendentes: [] as CaixaItem[],
   parciais: [] as CaixaItem[],
   pagosHoje: [] as CaixaItem[],
+  aPagar: [] as CaixaItem[],
   pendencias: [] as FaturamentoPendenciaDTO[],
   methods: METHODS,
   canOperate: true,
@@ -102,5 +103,24 @@ describe('CaixaView — RBAC e UI', () => {
     unmount();
     render(<CaixaView {...base} pendencias={[]} />);
     expect(screen.queryByText(/Existem atendimentos não faturados/i)).toBeNull();
+  });
+
+  it('mostra a seção "A pagar" com contas a pagar (read-only, item 16)', () => {
+    const conta = item({
+      id: 'pg1',
+      tipo: 'pagar',
+      descricao: 'Aluguel da sala',
+      valor: 1200,
+      valorPago: 0,
+      patientId: null,
+      supplierId: 's1',
+      appointmentId: null,
+      pacienteNome: null,
+    });
+    render(<CaixaView {...base} aPagar={[conta]} />);
+    // "A pagar" aparece 2×: total no header + título da seção.
+    expect(screen.getAllByText('A pagar').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Aluguel da sala')).toBeTruthy();
+    expect(screen.queryByText('Nada a pagar')).toBeNull();
   });
 });

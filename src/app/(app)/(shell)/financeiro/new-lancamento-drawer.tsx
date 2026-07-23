@@ -1,7 +1,6 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import type { PaymentMethodDTO, SupplierSummary } from '@/contexts/financial/types';
@@ -30,12 +29,17 @@ export function NewLancamentoDrawer({
   methods: PaymentMethodDTO[];
   defaultOpen?: boolean;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
 
+  // Sincroniza a URL SEM re-navegar. `router.replace('/financeiro?novo=1')`
+  // disparava o RSC force-dynamic e rebuscava a lista inteira de lançamentos só
+  // para abrir um drawer (lentidão — item 15). `history.replaceState` mantém o
+  // deep-link (`defaultOpen` no 1º load) e o back/forward sem refetch.
   const onOpenChange = (v: boolean) => {
     setOpen(v);
-    router.replace(v ? '/financeiro?novo=1' : '/financeiro', { scroll: false });
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', v ? '/financeiro?novo=1' : '/financeiro');
+    }
   };
 
   return (

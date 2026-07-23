@@ -19,24 +19,35 @@ import { JoinWizard } from './join-wizard';
 
 export const dynamic = 'force-dynamic';
 
+// Telas terminais usando o MESMO design do wizard (.wiz/.wiz-card/.btn) — antes
+// eram Tailwind cru, destoando do fluxo (item 5 do lote).
 function InvalidJoin({ reason }: { reason: string }) {
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-lg font-semibold text-fg">Convite indisponível</h1>
-      <p className="mt-2 text-sm text-fg-muted">{reason}</p>
-      <p className="mt-4 text-xs text-fg-subtle">Peça um novo link ao administrador da plataforma.</p>
+    <div className="wiz scene-anim">
+      <div className="wiz-main">
+        <div className="wiz-card done">
+          <h1>Convite indisponível</h1>
+          <p>{reason}</p>
+          <p className="foot-secure">Peça um novo link ao administrador da plataforma.</p>
+        </div>
+      </div>
     </div>
   );
 }
 
 function AlreadyActivated() {
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-lg font-semibold text-fg">Clínica já ativada 🎉</h1>
-      <p className="mt-2 text-sm text-fg-muted">Este convite já foi concluído. Sua clínica está pronta.</p>
-      <a href="/dashboard" className="mt-5 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white">
-        Entrar no painel
-      </a>
+    <div className="wiz scene-anim">
+      <div className="wiz-main">
+        <div className="wiz-card done">
+          <div className="mark">🎉</div>
+          <h1>Clínica já ativada</h1>
+          <p>Este convite já foi concluído. Sua clínica está pronta.</p>
+          <a className="btn block" href="/dashboard" style={{ marginTop: 'var(--sp-6)' }}>
+            Entrar no painel
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

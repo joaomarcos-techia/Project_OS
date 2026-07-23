@@ -159,9 +159,9 @@ export function ConsultorioBoard({
                 value={selectedDoctorId ?? ''}
                 onChange={(e) => setSelectedDoctorId(e.target.value || null)}
                 className="min-w-48"
-                aria-label="Filtrar por médico"
+                aria-label="Selecionar médico"
               >
-                <option value="">Todos os médicos</option>
+                {/* Item 13: sem "Todos os médicos" — o board é sempre de UM médico. */}
                 {board.doctors.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.nome}

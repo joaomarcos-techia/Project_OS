@@ -48,6 +48,7 @@ export function CaixaView({
   pendentes,
   parciais,
   pagosHoje,
+  aPagar,
   pendencias,
   methods,
   canOperate,
@@ -56,6 +57,7 @@ export function CaixaView({
   pendentes: CaixaItem[];
   parciais: CaixaItem[];
   pagosHoje: CaixaItem[];
+  aPagar: CaixaItem[];
   pendencias: FaturamentoPendenciaDTO[];
   methods: PaymentMethodDTO[];
   canOperate: boolean;
@@ -108,6 +110,7 @@ export function CaixaView({
 
   const totalPendente = [...pendentes, ...parciais].reduce((s, i) => s + saldo(i), 0);
   const totalRecebidoHoje = pagosHoje.reduce((s, i) => s + i.valorPago, 0);
+  const totalAPagar = aPagar.reduce((s, i) => s + saldo(i), 0);
 
   const renderItem = (i: CaixaItem, opts: { canOperate: boolean; canManage: boolean }) => (
     <ItemCard
@@ -144,6 +147,12 @@ export function CaixaView({
               <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">Recebido hoje</div>
               <div className="font-mono font-semibold tabular-nums text-success-600">
                 {formatBRL(totalRecebidoHoje)}
+              </div>
+            </div>
+            <div>
+              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">A pagar</div>
+              <div className="font-mono font-semibold tabular-nums text-danger-600">
+                {formatBRL(totalAPagar)}
               </div>
             </div>
           </div>
@@ -192,8 +201,35 @@ export function CaixaView({
             pagosHoje.map((i) => renderItem(i, { canOperate: false, canManage }))
           )}
         </Section>
+
+        {/* A pagar: visibilidade read-only (a baixa mora em /financeiro — item 16). */}
+        <Section title="A pagar" count={aPagar.length}>
+          {aPagar.length === 0 ? (
+            <EmptyState title="Nada a pagar" description="Contas a pagar em aberto aparecem aqui." />
+          ) : (
+            aPagar.map((i) => <PayableRow key={i.id} item={i} />)
+          )}
+        </Section>
       </div>
     </>
+  );
+}
+
+/** Linha read-only de conta a pagar (sem ações — o pagamento é em /financeiro). */
+function PayableRow({ item }: { item: CaixaItem }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-inset/40 p-3">
+      <div className="min-w-0">
+        <div className="truncate font-medium">{item.descricao}</div>
+        <div className="text-xs text-fg-subtle">
+          Venc. {formatDatePt(item.dueDate)}
+          {item.status === 'parcial' ? ` · pago ${formatBRL(item.valorPago)}` : ''}
+        </div>
+      </div>
+      <div className="shrink-0 font-mono font-semibold tabular-nums text-danger-600">
+        {formatBRL(saldo(item))}
+      </div>
+    </div>
   );
 }
 

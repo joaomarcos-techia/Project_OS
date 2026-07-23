@@ -97,7 +97,7 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
   const truncated = dayAppts.length >= DAY_FETCH_CAP;
 
   let doctors: BoardDoctorDTO[] = [];
-  const activeDoctorId: string | null = isPractitioner ? user.userId : (input.doctorId ?? null);
+  let activeDoctorId: string | null = isPractitioner ? user.userId : (input.doctorId ?? null);
   let scoped = dayAppts;
   if (!isPractitioner) {
     const seen = new Map<string, string>();
@@ -105,6 +105,10 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
     doctors = [...seen]
       .map(([id, nome]) => ({ id, nome }))
       .sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'));
+    // Item 13: NUNCA "visão geral" (todos os médicos misturados) — o card não
+    // mostra a qual médico o paciente pertence. Sem seleção → default ao 1º
+    // médico do dia. O board é sempre a fila de UM médico.
+    if (!activeDoctorId) activeDoctorId = doctors[0]?.id ?? null;
     if (activeDoctorId) scoped = dayAppts.filter((a) => a.doctorId === activeDoctorId);
   }
 

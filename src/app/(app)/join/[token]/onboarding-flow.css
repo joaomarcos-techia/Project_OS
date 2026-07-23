@@ -63,6 +63,10 @@
 .wiz-back:hover { color: var(--text); }
 .wiz-back svg { width: 15px; height: 15px; }
 .btn.block { width: 100%; padding: 13px; font-size: 15px; justify-content: center; }
+/* Ícones inline dos botões (I.arrowR/I.lock) vêm SEM width/height — sem esta
+   regra o SVG assume o tamanho de replaced-element e estoura o botão
+   ("Começar"/"Ativar" quebrados). Escopado ao wizard. */
+.wiz .btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
 
 /* ---------------- welcome ---------------- */
 .welcome { text-align: center; max-width: 440px; margin: 0 auto; }

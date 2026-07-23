@@ -151,6 +151,27 @@ export async function getCaixaLancamentos(
   });
 }
 
+/**
+ * Contas A PAGAR em aberto (visibilidade no Caixa — antes só mostrava a receber).
+ * Read-only: a baixa de pagáveis mora em /financeiro; aqui é só panorama. Não
+ * altera nenhuma soma de "a receber" (aditivo).
+ */
+export async function getCaixaPagaveis(clinicId: string): Promise<LancamentoSummary[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(lancamentos)
+      .where(
+        and(
+          eq(lancamentos.tipo, 'pagar'),
+          inArray(lancamentos.status, ['pendente', 'parcial']),
+        ),
+      )
+      .orderBy(lancamentos.dueDate, lancamentos.createdAt);
+    return rows.map(toLancamentoSummary);
+  });
+}
+
 export async function getLancamento(
   clinicId: string,
   id: string,

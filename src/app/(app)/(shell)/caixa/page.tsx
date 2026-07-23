@@ -2,6 +2,7 @@ import { listPatientCards } from '@/contexts/patient/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import {
   getCaixaLancamentos,
+  getCaixaPagaveis,
   getClinicTimezone,
   listPaymentMethods,
   listPendenciasAbertas,
@@ -36,15 +37,16 @@ export default async function CaixaPage() {
   const tz = await getClinicTimezone(clinicId);
   const { from, to } = clinicDayBounds(tz);
 
-  const [lancs, pendencias, methods] = await Promise.all([
+  const [lancs, pagaveis, pendencias, methods] = await Promise.all([
     getCaixaLancamentos(clinicId, from, to),
+    getCaixaPagaveis(clinicId),
     listPendenciasAbertas(clinicId),
     listPaymentMethods(clinicId),
   ]);
 
   // Caixa patient-first: resolve nomes via contexto patient (camada page — sem
   // JOIN cross-context; igual ao consultório).
-  const all = [...lancs.pendentes, ...lancs.parciais, ...lancs.pagosHoje];
+  const all = [...lancs.pendentes, ...lancs.parciais, ...lancs.pagosHoje, ...pagaveis];
   const patientIds = [...new Set(all.filter((l) => l.patientId).map((l) => l.patientId!))];
   const cards = await listPatientCards(clinicId, patientIds);
   const nameById = new Map(cards.map((c) => [c.id, c.nome]));
@@ -63,6 +65,7 @@ export default async function CaixaPage() {
       pendentes={lancs.pendentes.map(enrich)}
       parciais={lancs.parciais.map(enrich)}
       pagosHoje={lancs.pagosHoje.map(enrich)}
+      aPagar={pagaveis.map(enrich)}
       pendencias={pendencias}
       methods={methods}
       canOperate={canOperate}

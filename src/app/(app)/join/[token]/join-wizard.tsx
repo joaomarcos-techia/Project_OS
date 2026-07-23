@@ -12,6 +12,7 @@
 import { useActionState, useEffect, useRef, useState } from 'react';
 
 import type { OnboardingPlan, OnboardingStep, StepState } from '@/contexts/onboarding';
+import { maskCep, maskCnpj, maskCpfCnpj, maskPhoneBR } from '@/lib/masks';
 
 import { saveStepAction, submitCheckoutAction, type CheckoutState, type JoinStepState } from './actions';
 
@@ -104,7 +105,7 @@ function Logo({ size = 24 }: { size?: number }) {
 const fmtBRL = (cents: number | null) =>
   cents == null ? 'Sob consulta' : `R$ ${(cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
-/* ---------- máscaras do checkout (cosmético; a action sempre tira não-dígitos) ---------- */
+/* ---------- máscaras do cartão (as de doc/cep/telefone vêm de @/lib/masks) ---------- */
 const onlyD = (v: string) => v.replace(/\D/g, '');
 const maskCard = (v: string) =>
   onlyD(v).slice(0, 19).replace(/(\d{4})(?=\d)/g, '$1 ');
@@ -113,25 +114,7 @@ const maskExpiry = (v: string) => {
   return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
 };
 const maskCvv = (v: string) => onlyD(v).slice(0, 4);
-const maskCep = (v: string) => {
-  const d = onlyD(v).slice(0, 8);
-  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
-};
 const maskNum = (v: string) => onlyD(v).slice(0, 10);
-const maskDoc = (v: string) => {
-  const d = onlyD(v).slice(0, 14);
-  if (d.length <= 11) {
-    return d
-      .replace(/^(\d{3})(\d)/, '$1.$2')
-      .replace(/^(\d{3}\.\d{3})(\d)/, '$1.$2')
-      .replace(/^(\d{3}\.\d{3}\.\d{3})(\d)/, '$1-$2');
-  }
-  return d
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2}\.\d{3})(\d)/, '$1.$2')
-    .replace(/^(\d{2}\.\d{3}\.\d{3})(\d)/, '$1/$2')
-    .replace(/^(\d{2}\.\d{3}\.\d{3}\/\d{4})(\d)/, '$1-$2');
-};
 
 /** Senha forte sugerida (cliente). Alfabeto sem caracteres ambíguos. */
 function genPassword(len = 12): string {
@@ -167,10 +150,7 @@ export function JoinWizard({
   return (
     <div className="wiz scene-anim">
       <header className="wiz-top">
-        <div className="brand">
-          <Logo size={24} />
-          <span className="wordmark">Qoro</span>
-        </div>
+        {/* Marca removida do fluxo de convite (decisão do founder). */}
         <div className="right">
           <span className="wiz-secure">{I.lock} Ambiente seguro</span>
         </div>
@@ -325,6 +305,8 @@ function StepClinic({
   onDone: () => void;
 }) {
   const { state, action, pending } = useStepAction(onDone);
+  const [cnpj, setCnpj] = useState(maskCnpj(defaults?.cnpj ?? ''));
+  const [telefone, setTelefone] = useState(maskPhoneBR(defaults?.telefone ?? ''));
   return (
     <form action={action} className="wiz-card">
       <input type="hidden" name="token" value={token} />
@@ -352,13 +334,29 @@ function StepClinic({
         <div className="form-row">
           <div className="field">
             <label>CNPJ</label>
-            <input name="cnpj" className="input" maxLength={20} defaultValue={defaults?.cnpj ?? ''} placeholder="00.000.000/0001-00" inputMode="numeric" />
+            <input
+              name="cnpj"
+              className="input"
+              maxLength={18}
+              value={cnpj}
+              onChange={(e) => setCnpj(maskCnpj(e.target.value))}
+              placeholder="00.000.000/0001-00"
+              inputMode="numeric"
+            />
           </div>
           <div className="field">
             <label>Telefone</label>
             <div className="input-wrap">
               {I.phone}
-              <input name="telefone" className="input" maxLength={20} defaultValue={defaults?.telefone ?? ''} placeholder="(11) 90000-0000" inputMode="tel" />
+              <input
+                name="telefone"
+                className="input"
+                maxLength={16}
+                value={telefone}
+                onChange={(e) => setTelefone(maskPhoneBR(e.target.value))}
+                placeholder="(11) 90000-0000"
+                inputMode="tel"
+              />
             </div>
           </div>
         </div>
@@ -578,7 +576,7 @@ function StepCheckout({
   // Senha vive só no cliente; em retomada (outra aba/sessão) o estado some → pede de novo.
   const needsPassword = !ownerPassword;
   const mt = { marginTop: 'var(--sp-5)' };
-  const [doc, setDoc] = useState(maskDoc(defaultCnpj));
+  const [doc, setDoc] = useState(maskCpfCnpj(defaultCnpj));
   const [cep, setCep] = useState('');
   const [num, setNum] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -617,7 +615,7 @@ function StepCheckout({
                 <input
                   name="cpfCnpj"
                   value={doc}
-                  onChange={(e) => setDoc(maskDoc(e.target.value))}
+                  onChange={(e) => setDoc(maskCpfCnpj(e.target.value))}
                   required
                   inputMode="numeric"
                   maxLength={18}
