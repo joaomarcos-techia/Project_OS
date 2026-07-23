@@ -21,6 +21,12 @@ export const idemKey = makeIdemKey('scheduling', (m) => new SchedulingValidation
 /** Map UNIQUE (23505) / EXCLUDE (23P01) violations to a clean conflict error. */
 export function asConflict(err: unknown): never {
   if (isUniqueViolation(err) || isExclusionViolation(err)) {
+    // Distingue o conflito do PACIENTE (mesma pessoa em 2 lugares) do conflito do
+    // MÉDICO (agenda cheia) pelo nome da constraint (0053 vs doctor_slot_uniq).
+    const constraint = (err as { constraint?: string }).constraint ?? '';
+    if (constraint.includes('patient_slot')) {
+      throw new SchedulingConflictError('este paciente já tem um atendimento neste horário');
+    }
     throw new SchedulingConflictError('horário ocupado para este médico');
   }
   throw err;

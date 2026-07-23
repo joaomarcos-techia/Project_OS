@@ -70,6 +70,7 @@ export async function setDoctorAvailability(
                  AND ${practitionerSql(profiles.role, profiles.crm)}
                  AND ativo = true
                  AND deleted_at IS NULL
+                 AND invite_accepted_at IS NOT NULL
                LIMIT 1`,
         );
         if (!doc[0]) {

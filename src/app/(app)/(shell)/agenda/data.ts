@@ -91,6 +91,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     tx.execute(
       sql`SELECT id::text AS id, nome FROM profiles
           WHERE ${practitionerSql(profiles.role, profiles.crm)} AND ativo = true AND deleted_at IS NULL
+            AND invite_accepted_at IS NOT NULL
           ORDER BY nome`,
     ),
   )) as unknown as Array<{ id: string; nome: string }>;

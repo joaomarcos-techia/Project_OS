@@ -201,12 +201,16 @@ export async function buildSnapshot(
   if (!proc) throw new ProcedureNotFoundError(procedureId);
 
   // F-05 (auditoria 2026-06-10): exige practitioner (role='doctor' OU CRM — ADR-032 §2), ativo e não soft-deletado.
+  // + invite_accepted_at IS NOT NULL: um convite PENDENTE (nunca aceito) não é um
+  // médico agendável — senão dá pra marcar com quem ainda não entrou no sistema
+  // (bug reportado: convite antigo virava "médico" e o agente de IA agendaria nele).
   const docRows = await tx.execute<{ nome: string }>(
     sql`SELECT nome FROM profiles
          WHERE id = ${doctorId}
            AND ${practitionerSql(profiles.role, profiles.crm)}
            AND ativo = true
            AND deleted_at IS NULL
+           AND invite_accepted_at IS NOT NULL
          LIMIT 1`,
   );
   const doctorNome = docRows[0]?.nome;

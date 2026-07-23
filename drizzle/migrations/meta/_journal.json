@@ -372,6 +372,13 @@
       "when": 1784293574483,
       "tag": "0052_pro_seat_limit_10",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1784293575483,
+      "tag": "0053_appointment_patient_slot_uniq",
+      "breakpoints": true
     }
   ]
 }
