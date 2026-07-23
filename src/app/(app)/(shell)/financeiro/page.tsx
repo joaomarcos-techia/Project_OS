@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { clinicDayBounds } from '@/contexts/financial/logic';
+import { clinicMonthBounds } from '@/contexts/financial/logic';
 import {
   getCashFlowToday,
   getClinicTimezone,
@@ -85,7 +85,9 @@ export default async function FinanceiroPage({
   const canManage = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
   const { tipo, status, novo } = await searchParams;
   const tz = await getClinicTimezone(clinicId);
-  const { from, to } = clinicDayBounds(tz);
+  // Cards de fluxo = MÊS corrente (não o dia): recebido/pago/saldo do mês. Os
+  // totais "a receber/a pagar" já são o aberto geral (independem da janela).
+  const { from, to } = clinicMonthBounds(tz);
 
   const [flow, lancamentos, suppliers, methods] = await Promise.all([
     getCashFlowToday(clinicId, from, to),
@@ -126,10 +128,10 @@ export default async function FinanceiroPage({
       <div className="mb-(--sp-4) grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
         <StatCard label="A receber" value={formatBRL(flow.receber)} />
         <StatCard label="A pagar" value={formatBRL(flow.pagar)} />
-        <StatCard label="Recebido hoje" value={formatBRL(flow.recebidoHoje)} />
-        <StatCard label="Pago hoje" value={formatBRL(flow.pagoHoje)} />
+        <StatCard label="Recebido no mês" value={formatBRL(flow.recebidoHoje)} />
+        <StatCard label="Pago no mês" value={formatBRL(flow.pagoHoje)} />
         <StatCard
-          label="Saldo hoje"
+          label="Saldo do mês"
           value={
             <span className={flow.saldoHoje >= 0 ? 'text-success-600' : 'text-danger-600'}>
               {formatBRL(flow.saldoHoje)}

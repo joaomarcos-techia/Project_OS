@@ -121,3 +121,14 @@ export function clinicDayBounds(tz: string, now: Date = new Date()): { from: Dat
   const from = new Date(localMidnight - off);
   return { from, to: new Date(from.getTime() + 86_400_000) };
 }
+
+/** Janela [1º do mês 00:00, 1º do mês seguinte 00:00) no fuso da clínica (UTC). */
+export function clinicMonthBounds(tz: string, now: Date = new Date()): { from: Date; to: Date } {
+  const off = tzOffsetMs(tz, now);
+  const localNow = new Date(now.getTime() + off);
+  const y = localNow.getUTCFullYear();
+  const m = localNow.getUTCMonth();
+  const from = new Date(Date.UTC(y, m, 1) - off);
+  const to = new Date(Date.UTC(m === 11 ? y + 1 : y, m === 11 ? 0 : m + 1, 1) - off);
+  return { from, to };
+}
