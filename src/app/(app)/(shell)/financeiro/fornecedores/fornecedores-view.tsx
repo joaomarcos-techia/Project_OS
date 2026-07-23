@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
 
 import { createSupplierAction, setSupplierAtivoAction, updateSupplierAction } from './actions';
+import { maskCnpj, maskPhoneBR } from '@/lib/masks';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 type Draft = { razaoSocial: string; cnpj: string; contato: string; condicaoPagamento: string };
@@ -51,8 +52,8 @@ export function FornecedoresView({
     setEditingId(s.id);
     setDraft({
       razaoSocial: s.razaoSocial,
-      cnpj: s.cnpj ?? '',
-      contato: s.contato ?? '',
+      cnpj: maskCnpj(s.cnpj ?? ''),
+      contato: maskPhoneBR(s.contato ?? ''),
       condicaoPagamento: s.condicaoPagamento ?? '',
     });
     setError(null);
@@ -128,17 +129,20 @@ export function FornecedoresView({
             <Field label="CNPJ">
               <Input
                 value={draft.cnpj}
-                onChange={(e) => setDraft((d) => ({ ...d, cnpj: e.target.value }))}
+                onChange={(e) => setDraft((d) => ({ ...d, cnpj: maskCnpj(e.target.value) }))}
                 maxLength={18}
                 inputMode="numeric"
                 placeholder="00.000.000/0001-00"
               />
             </Field>
-            <Field label="Contato">
+            <Field label="Telefone">
               <Input
                 value={draft.contato}
-                onChange={(e) => setDraft((d) => ({ ...d, contato: e.target.value }))}
-                maxLength={160}
+                onChange={(e) => setDraft((d) => ({ ...d, contato: maskPhoneBR(e.target.value) }))}
+                type="tel"
+                inputMode="tel"
+                maxLength={16}
+                placeholder="(11) 99999-9999"
               />
             </Field>
             <Field label="Condição de pagamento" className="sm:col-span-2">

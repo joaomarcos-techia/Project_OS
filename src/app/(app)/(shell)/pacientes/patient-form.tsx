@@ -6,7 +6,7 @@
  * sent in plaintext over the (TLS) action call and encrypted server-side — the
  * UI never sees ciphertext.
  */
-import { useActionState, useMemo } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
 import type { PatientFormState } from './actions';
+import { maskCpf, maskPhoneBR } from '@/lib/masks';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 const INITIAL: PatientFormState = { error: null };
@@ -46,6 +47,9 @@ interface Props {
 export function PatientForm({ mode, action, initial, stickyAction = false }: Props) {
   const [state, formAction, pending] = useActionState(action, INITIAL);
   const idempotencyKey = useMemo(() => uuidv4(), []);
+  // Máscaras UX (o servidor re-normaliza no submit — @/lib/masks docstring).
+  const [cpf, setCpf] = useState(() => maskCpf(initial?.cpf ?? ''));
+  const [telefone, setTelefone] = useState(() => maskPhoneBR(initial?.telefone ?? ''));
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-3.5">
@@ -71,9 +75,9 @@ export function PatientForm({ mode, action, initial, stickyAction = false }: Pro
             required={mode === 'create'}
             inputMode="numeric"
             maxLength={14}
-            pattern="[\d.\-\s]+"
             placeholder="000.000.000-00"
-            defaultValue={initial?.cpf}
+            value={cpf}
+            onChange={(e) => setCpf(maskCpf(e.target.value))}
             disabled={pending}
           />
         </Field>
@@ -85,10 +89,10 @@ export function PatientForm({ mode, action, initial, stickyAction = false }: Pro
             name="telefone"
             type="tel"
             inputMode="tel"
-            maxLength={20}
-            pattern="[\d\(\)\-\s+]+"
+            maxLength={16}
             placeholder="(11) 99999-9999"
-            defaultValue={initial?.telefone ?? ''}
+            value={telefone}
+            onChange={(e) => setTelefone(maskPhoneBR(e.target.value))}
             disabled={pending}
           />
         </Field>

@@ -8,6 +8,7 @@ import type { ClinicProfile } from '@/contexts/tenancy/types';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
+import { maskCnpj, maskPhoneBR } from '@/lib/masks';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB (espelha CLINIC_LOGO_MAX_BYTES)
 const MAX_LOGO_LABEL = '5 MB';
@@ -18,10 +19,15 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [nome, setNome] = useState(initial.nome);
   const [endereco, setEndereco] = useState(initial.endereco ?? '');
-  const [telefone, setTelefone] = useState(initial.telefone ?? '');
-  const [cnpj, setCnpj] = useState(initial.cnpj ?? '');
+  const [telefone, setTelefone] = useState(maskPhoneBR(initial.telefone ?? ''));
+  const [cnpj, setCnpj] = useState(maskCnpj(initial.cnpj ?? ''));
   const [cnes, setCnes] = useState(initial.cnes ?? '');
   const [logoUrl, setLogoUrl] = useState(initial.logoUrl ?? '');
+  // Preview local (blob) enquanto o upload sobe — a URL remota do Supabase demora
+  // a carregar (item 20). `logoUrl` é o que PERSISTE no save; `previewUrl` é só
+  // visual e nunca é gravado. O que a img mostra = previewUrl ?? logoUrl.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const shownLogo = previewUrl ?? logoUrl;
   const [saving, startSave] = useTransition();
   const [uploading, startUpload] = useTransition();
 
@@ -35,14 +41,19 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
     if (file.size > MAX_LOGO_BYTES) {
       return toast.error(`Imagem muito grande (máx. ${MAX_LOGO_LABEL}).`);
     }
+    const preview = URL.createObjectURL(file);
+    setPreviewUrl(preview); // aparece INSTANTÂNEO, sem esperar rede
     const fd = new FormData();
     fd.append('file', file);
     startUpload(async () => {
       const res = await uploadClinicLogo(fd);
+      URL.revokeObjectURL(preview);
+      setPreviewUrl(null);
       if (res.ok) {
         setLogoUrl(res.url);
         toast.success('Logo enviado. Clique em “Salvar perfil” para aplicar.');
       } else {
+        // Falha NÃO apaga a logo existente — logoUrl fica intacto.
         toast.error(res.message);
       }
     });
@@ -85,11 +96,22 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-fg-muted">Telefone</span>
-            <Input value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={40} />
+            <Input
+              value={telefone}
+              onChange={(e) => setTelefone(maskPhoneBR(e.target.value))}
+              type="tel"
+              inputMode="tel"
+              maxLength={16}
+            />
           </label>
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-fg-muted">CNPJ</span>
-            <Input value={cnpj} onChange={(e) => setCnpj(e.target.value)} maxLength={20} />
+            <Input
+              value={cnpj}
+              onChange={(e) => setCnpj(maskCnpj(e.target.value))}
+              inputMode="numeric"
+              maxLength={18}
+            />
           </label>
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-fg-muted">CNES</span>
@@ -103,9 +125,9 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
         <h4 className="text-sm font-semibold">Logo no receituário</h4>
         <div className="flex items-center gap-3">
           <div className="flex size-16 items-center justify-center overflow-hidden rounded border border-border bg-surface-subtle">
-            {logoUrl ? (
+            {shownLogo ? (
               // eslint-disable-next-line @next/next/no-img-element -- preview simples de asset remoto (Supabase); next/image exigiria allowlist de domínio.
-              <img src={logoUrl} alt="Logo da clínica" className="max-h-full max-w-full object-contain" />
+              <img src={shownLogo} alt="Logo da clínica" className="max-h-full max-w-full object-contain" />
             ) : (
               <span className="text-xs text-fg-subtle">sem logo</span>
             )}
