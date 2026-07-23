@@ -32,6 +32,7 @@ function ConviteForm() {
   const [state, formAction, pending] = useActionState(acceptInviteAction, INITIAL);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [phase, setPhase] = useState<Phase>('checking');
+  const [pw, setPw] = useState('');
 
   useEffect(() => {
     // Caminho OFICIAL: o link chega já autenticado por `/auth/confirm` (verifyOtp
@@ -87,7 +88,7 @@ function ConviteForm() {
               </Alert>
             ) : (
               <form action={formAction} className="flex flex-col gap-4">
-              <Field label="Senha (mín 8 caracteres)" htmlFor="password">
+              <Field label="Senha" htmlFor="password">
                 <Input
                   id="password"
                   name="password"
@@ -97,8 +98,23 @@ function ConviteForm() {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   disabled={pending}
+                  value={pw}
+                  onChange={(e) => setPw(e.target.value)}
+                  aria-describedby="pw-reqs"
                 />
               </Field>
+              <ul id="pw-reqs" className="-mt-1 flex flex-col gap-0.5 text-(length:--fs-xs)">
+                {[
+                  ['Mínimo de 8 caracteres', pw.length >= 8],
+                  ['Ao menos uma letra', /[a-zA-Z]/.test(pw)],
+                  ['Ao menos um número', /\d/.test(pw)],
+                  ['Ao menos um símbolo', /[^a-zA-Z0-9]/.test(pw)],
+                ].map(([label, ok]) => (
+                  <li key={label as string} className={ok ? 'text-success-600' : 'text-fg-subtle'}>
+                    {ok ? '✓' : '○'} {label}
+                  </li>
+                ))}
+              </ul>
               <Field label="Confirmar senha" htmlFor="confirm">
                 <Input
                   id="confirm"

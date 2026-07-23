@@ -11,7 +11,13 @@ import { logger } from '@/lib/observability/logger';
 
 const Schema = z
   .object({
-    password: z.string().min(8, 'A senha deve ter ao menos 8 caracteres.').max(256),
+    password: z
+      .string()
+      .min(8, 'A senha deve ter ao menos 8 caracteres.')
+      .max(256)
+      .regex(/[a-zA-Z]/, 'A senha deve conter ao menos uma letra.')
+      .regex(/\d/, 'A senha deve conter ao menos um número.')
+      .regex(/[^a-zA-Z0-9]/, 'A senha deve conter ao menos um símbolo.'),
     confirm: z.string(),
   })
   .refine((d) => d.password === d.confirm, { message: 'As senhas não conferem.', path: ['confirm'] });
