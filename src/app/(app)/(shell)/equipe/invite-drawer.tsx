@@ -130,7 +130,8 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
               {error ? <Alert variant="danger">{error}</Alert> : null}
               {upgrade != null ? (
                 <Alert variant="warning" title="Limite do plano atingido">
-                  Seu plano permite {upgrade} usuários. Faça upgrade para adicionar mais.
+                  Seu plano permite {upgrade} usuário{upgrade === 1 ? '' : 's'}. Você atingiu o limite —
+                  remova ou desative um usuário para adicionar outro.
                 </Alert>
               ) : null}
 

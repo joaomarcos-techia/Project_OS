@@ -202,34 +202,17 @@ export function CaixaView({
           )}
         </Section>
 
-        {/* A pagar: visibilidade read-only (a baixa mora em /financeiro — item 16). */}
+        {/* A pagar: acionável (mesmo ItemCard — confirmPayment serve pagável) para
+            dar baixa direto no caixa, tanto vencido quanto a vencer (item P2.3). */}
         <Section title="A pagar" count={aPagar.length}>
           {aPagar.length === 0 ? (
             <EmptyState title="Nada a pagar" description="Contas a pagar em aberto aparecem aqui." />
           ) : (
-            aPagar.map((i) => <PayableRow key={i.id} item={i} />)
+            aPagar.map((i) => renderItem(i, { canOperate, canManage: false }))
           )}
         </Section>
       </div>
     </>
-  );
-}
-
-/** Linha read-only de conta a pagar (sem ações — o pagamento é em /financeiro). */
-function PayableRow({ item }: { item: CaixaItem }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-inset/40 p-3">
-      <div className="min-w-0">
-        <div className="truncate font-medium">{item.descricao}</div>
-        <div className="text-xs text-fg-subtle">
-          Venc. {formatDatePt(item.dueDate)}
-          {item.status === 'parcial' ? ` · pago ${formatBRL(item.valorPago)}` : ''}
-        </div>
-      </div>
-      <div className="shrink-0 font-mono font-semibold tabular-nums text-danger-600">
-        {formatBRL(saldo(item))}
-      </div>
-    </div>
   );
 }
 
@@ -284,11 +267,13 @@ function ItemCard({
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-4">
-          {/* patient-first */}
+          {/* Recebível = paciente-first; pagável = descrição (fornecedor). */}
           <div className="min-w-0">
-            <div className="truncate font-medium">{item.pacienteNome ?? 'Walk-in'}</div>
+            <div className="truncate font-medium">
+              {item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Walk-in')}
+            </div>
             <div className="truncate text-sm text-fg-muted">
-              {item.snapshotProcedureName ?? item.descricao}
+              {item.tipo === 'pagar' ? 'Conta a pagar' : (item.snapshotProcedureName ?? item.descricao)}
             </div>
             <div className="mt-0.5 truncate text-xs text-fg-subtle">
               {item.snapshotDoctorNome ? `${item.snapshotDoctorNome} · ` : ''}
@@ -340,7 +325,9 @@ function ItemCard({
 
         {panelMode === 'cancel' ? (
           <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-inset/40 p-3 text-sm">
-            <span>Cancelar este recebimento? Esta ação não pode ser desfeita.</span>
+            <span>
+              Cancelar {item.tipo === 'pagar' ? 'esta conta' : 'este recebimento'}? Esta ação não pode ser desfeita.
+            </span>
             <Button size="sm" variant="danger" loading={pending} onClick={() => onCancel(item)}>
               Sim, cancelar
             </Button>

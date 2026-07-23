@@ -13,6 +13,8 @@ import { maskCnpj, maskPhoneBR } from '@/lib/masks';
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB (espelha CLINIC_LOGO_MAX_BYTES)
 const MAX_LOGO_LABEL = '5 MB';
 const ACCEPT = 'image/png,image/jpeg,image/webp';
+// Requisito de dimensão: uma logo minúscula fica pixelada/quebrada no receituário.
+const MIN_LOGO_PX = 64;
 
 export function PerfilForm({ initial }: { initial: ClinicProfile }) {
   const router = useRouter();
@@ -41,22 +43,41 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
     if (file.size > MAX_LOGO_BYTES) {
       return toast.error(`Imagem muito grande (máx. ${MAX_LOGO_LABEL}).`);
     }
+    // Valida a DIMENSÃO antes de subir (o servidor já valida tipo+tamanho; a
+    // dimensão só dá pra checar no cliente carregando a imagem). Só sobe se passar.
     const preview = URL.createObjectURL(file);
-    setPreviewUrl(preview); // aparece INSTANTÂNEO, sem esperar rede
-    const fd = new FormData();
-    fd.append('file', file);
-    startUpload(async () => {
-      const res = await uploadClinicLogo(fd);
-      URL.revokeObjectURL(preview);
-      setPreviewUrl(null);
-      if (res.ok) {
-        setLogoUrl(res.url);
-        toast.success('Logo enviado. Clique em “Salvar perfil” para aplicar.');
-      } else {
-        // Falha NÃO apaga a logo existente — logoUrl fica intacto.
-        toast.error(res.message);
+    const img = new window.Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (w < MIN_LOGO_PX || h < MIN_LOGO_PX) {
+        URL.revokeObjectURL(preview);
+        toast.error(
+          `Imagem pequena demais (${w}×${h}px). Use uma logo de ao menos ${MIN_LOGO_PX}×${MIN_LOGO_PX}px.`,
+        );
+        return;
       }
-    });
+      setPreviewUrl(preview); // válida → preview instantâneo + sobe
+      const fd = new FormData();
+      fd.append('file', file);
+      startUpload(async () => {
+        const res = await uploadClinicLogo(fd);
+        URL.revokeObjectURL(preview);
+        setPreviewUrl(null);
+        if (res.ok) {
+          setLogoUrl(res.url);
+          toast.success('Logo enviado. Clique em “Salvar perfil” para aplicar.');
+        } else {
+          // Falha NÃO apaga a logo existente — logoUrl fica intacto.
+          toast.error(res.message);
+        }
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(preview);
+      toast.error('Não foi possível ler a imagem. Envie um PNG, JPG ou WEBP válido.');
+    };
+    img.src = preview;
   }
 
   function save() {
@@ -150,7 +171,9 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
                 </Button>
               ) : null}
             </div>
-            <span className="text-xs text-fg-subtle">PNG, JPG ou WEBP, até {MAX_LOGO_LABEL}.</span>
+            <span className="text-xs text-fg-subtle">
+              PNG, JPG ou WEBP · mín. {MIN_LOGO_PX}×{MIN_LOGO_PX}px · até {MAX_LOGO_LABEL}.
+            </span>
           </div>
         </div>
       </div>

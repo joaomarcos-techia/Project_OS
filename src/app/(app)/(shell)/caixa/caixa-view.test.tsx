@@ -105,22 +105,25 @@ describe('CaixaView — RBAC e UI', () => {
     expect(screen.queryByText(/Existem atendimentos não faturados/i)).toBeNull();
   });
 
-  it('mostra a seção "A pagar" com contas a pagar (read-only, item 16)', () => {
+  it('mostra a seção "A pagar" com conta acionável (botão pagar — item P2.3)', () => {
     const conta = item({
       id: 'pg1',
       tipo: 'pagar',
       descricao: 'Aluguel da sala',
       valor: 1200,
       valorPago: 0,
+      status: 'pendente',
       patientId: null,
       supplierId: 's1',
       appointmentId: null,
       pacienteNome: null,
     });
-    render(<CaixaView {...base} aPagar={[conta]} />);
+    render(<CaixaView {...base} canOperate={true} aPagar={[conta]} />);
     // "A pagar" aparece 2×: total no header + título da seção.
     expect(screen.getAllByText('A pagar').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Aluguel da sala')).toBeTruthy();
+    // acionável: mostra o botão de dar baixa (mesmo ItemCard dos recebíveis).
+    expect(screen.getAllByText('Confirmar pagamento').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Nada a pagar')).toBeNull();
   });
 });

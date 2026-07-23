@@ -63,10 +63,12 @@
 .wiz-back:hover { color: var(--text); }
 .wiz-back svg { width: 15px; height: 15px; }
 .btn.block { width: 100%; padding: 13px; font-size: 15px; justify-content: center; }
-/* Ícones inline dos botões (I.arrowR/I.lock) vêm SEM width/height — sem esta
-   regra o SVG assume o tamanho de replaced-element e estoura o botão
-   ("Começar"/"Ativar" quebrados). Escopado ao wizard. */
-.wiz .btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+/* Botões do wizard: texto + ícone (I.arrowR/I.lock) numa linha só, centrados.
+   O reset do Tailwind põe `svg { display:block }`, o que jogava o ícone p/ a
+   linha de baixo ("Começar"/"Ativar" quebrados na foto). Força-se flex-row +
+   svg inline, dimensionado (os ícones vêm sem width/height). Escopado ao wizard. */
+.wiz .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: nowrap; }
+.wiz .btn svg { width: 18px; height: 18px; flex: 0 0 auto; display: inline-block; }
 
 /* ---------------- welcome ---------------- */
 .welcome { text-align: center; max-width: 440px; margin: 0 auto; }
