@@ -21,13 +21,9 @@ import './_env';
 
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
-import {
-  aiConversations,
-  aiHandoffQueue,
-  aiMessages,
-} from '@/contexts/ai-agent/schema';
+import { aiConversations, aiMessages } from '@/contexts/ai-agent/schema';
 import {
   appendManualMessage,
   escalateToHuman,
@@ -390,7 +386,7 @@ async function main(): Promise<void> {
     }
     assert(caught !== undefined, 'devolver deveria ter falhado (duas ativas no mesmo contato)');
     assert(
-      caught instanceof Error && caught.name === 'ActiveConversationConflictError',
+      caught instanceof ActiveConversationConflictError,
       `erro não tipado vazou para o caller: ${(caught as Error)?.name}`,
     );
   });

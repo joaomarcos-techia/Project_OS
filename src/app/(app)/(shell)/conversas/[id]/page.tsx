@@ -16,13 +16,14 @@ import { z } from 'zod';
 import { getConversationThread } from '@/contexts/ai-agent/queries';
 import type { AIConversationStatus, AIThreadMessage } from '@/contexts/ai-agent/types';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
 import { cn } from '@/lib/ui/cn';
 
 import { ConversaActions } from './_components/conversa-actions';
+import { ConversasNoAccess } from '../_components/no-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,7 @@ export default async function ConversaThreadPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireUser();
-  await requireCachedPermission(PERMISSIONS.VIEW_CONVERSATIONS);
+  if (!user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS)) return <ConversasNoAccess />;
   const clinicId = await requireClinicId();
 
   const { id } = await params;

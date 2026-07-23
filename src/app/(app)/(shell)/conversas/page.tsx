@@ -14,7 +14,7 @@ import Link from 'next/link';
 import { listConversations } from '@/contexts/ai-agent/queries';
 import type { AIConversationStatus } from '@/contexts/ai-agent/types';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -36,6 +36,8 @@ import {
 import { TablePager } from '@/components/ui/table-pager';
 import { TableToolbar } from '@/components/ui/table-toolbar';
 import { cn } from '@/lib/ui/cn';
+
+import { ConversasNoAccess } from './_components/no-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +70,9 @@ function qstring(sp: SP, extra: { [K in keyof SP]?: string | undefined }): strin
 
 export default async function ConversasPage({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requireUser();
-  await requireCachedPermission(PERMISSIONS.VIEW_CONVERSATIONS);
+  // Render amigável (não throw): o menu mostra o módulo a todos, então quem não
+  // tem a permission chegaria aqui e tomaria um 500 (ADR-047).
+  if (!user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS)) return <ConversasNoAccess />;
   const clinicId = await requireClinicId();
 
   const sp = await searchParams;

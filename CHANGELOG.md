@@ -14,7 +14,37 @@ detalhado, camada a camada (contratos congelados, defesas validadas, débitos), 
 
 ## [Unreleased]
 
+### Corrigido (lote de teste em produção — 2026-07-22)
+- **Convite e redefinição de senha voltam a funcionar (itens 11/21).** Os links de
+  e-mail (convite de equipe, recuperação de senha) davam "sessão inválida" /
+  redirecionavam pro login: o cliente fazia `exchangeCodeForSession(?code)`, que
+  exige um code-verifier PKCE que **não existe** para link gerado no servidor. Novo
+  route **`/auth/confirm`** faz `verifyOtp(token_hash)` no servidor (padrão SSR),
+  sanitiza `next` (anti open-redirect) e limpa sessão prévia antes de trocar. As
+  páginas `/convite` e `/reset-password` ganharam fallback resiliente. **Requer** os
+  templates de e-mail do Supabase apontando para `/auth/confirm?token_hash=…`.
+- **Plano Pro = 10 usuários** (era 15 por engano no seed). Migration de dados
+  versionada `0052`. O teto agora é **atômico** no convite (advisory lock por
+  clínica) — dois convites simultâneos não furam o limite.
+- **`/conversas` não quebra mais para super_admin** (render amigável antes do
+  `requireClinicId`, na lista e na thread).
+- **Máscaras CPF/CNPJ/telefone** ao digitar em Paciente, Fornecedor (campo "Contato"
+  virou "Telefone"), Perfil e no wizard de convite (`src/lib/masks.ts`). O agente de
+  IA já normalizava igual (mesmo `createPatientCore`).
+- **Caixa** agora mostra **"A pagar"** (visibilidade read-only) além de "A receber".
+- **Consultório** sempre exige um médico selecionado (sem "visão geral" — o card não
+  mostra o médico); default = 1º médico do dia.
+- **Financeiro:** abrir "Novo lançamento" não rebusca mais a lista inteira (drawer via
+  `history.replaceState`).
+- **Wizard de convite:** botões "Começar"/"Ativar" corrigidos (ícones dimensionados),
+  marca "Qoro" removida do topo, telas "já ativada"/"inválido" no design do wizard.
+- **Logo do receituário** aparece instantâneo no upload (preview local); falha de
+  upload não apaga a logo existente.
+
 ### Adicionado
+- **Agenda: visões Mês / Semana / Dia** com navegação (item 12). Calendário do mês
+  com os atendimentos, semana (seg→dom) e dia; cancelados aparecem esmaecidos.
+  Navegação por URL (`?view=&date=`), fuso da clínica.
 - **Tela "Conversas IA" (`/conversas`) — intervenção humana no agente (ADR-047).**
   Fecha um beco sem saída: desde a C11 o agente escalava para humano (`status='handoff'`)
   e **parava de responder**, mas não havia nenhuma tela onde alguém assumisse — a conversa
