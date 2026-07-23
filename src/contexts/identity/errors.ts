@@ -34,6 +34,22 @@ export class UserQuotaExceededError extends Error {
   }
 }
 
+/**
+ * Não dá para cancelar/deletar o convite: há registros vinculados (ex.: um
+ * agendamento foi criado com este "médico"). FK 23503 no hard-delete do profile.
+ * Antes esse caso vazava o "Não foi possível concluir a ação" genérico.
+ */
+export class InviteHasLinkedRecordsError extends Error {
+  readonly code = 'invite_has_linked_records';
+  readonly httpStatus = 409;
+  constructor(
+    message = 'Este convite tem agendamentos vinculados. Cancele os agendamentos antes de cancelar o convite.',
+  ) {
+    super(message);
+    this.name = 'InviteHasLinkedRecordsError';
+  }
+}
+
 /** CRM já cadastrado nesta clínica (UNIQUE(clinic_id, crm) — ADR-032 §5). */
 export class CrmConflictError extends Error {
   readonly code = 'crm_conflict';

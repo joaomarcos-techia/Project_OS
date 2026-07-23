@@ -13,6 +13,7 @@ import {
   CrmConflictError,
   EmailAlreadyMemberError,
   InviteAlreadyAcceptedError,
+  InviteHasLinkedRecordsError,
   MemberHasActiveCommitmentsError,
   MemberNotFoundError,
   ProtectedRoleError,
@@ -30,6 +31,7 @@ const KNOWN_ERRORS = [
   SelfMutationError,
   ProtectedRoleError,
   MemberHasActiveCommitmentsError,
+  InviteHasLinkedRecordsError,
 ] as const;
 
 export function mapIdentityError(err: unknown): string {

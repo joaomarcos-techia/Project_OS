@@ -31,6 +31,7 @@ import {
   CrmConflictError,
   EmailAlreadyMemberError,
   InviteAlreadyAcceptedError,
+  InviteHasLinkedRecordsError,
   MemberNotFoundError,
   UserQuotaExceededError,
 } from '../errors';
@@ -305,17 +306,26 @@ export async function cancelClinicInvite(args: CancelClinicInviteArgs): Promise<
   await dbAdmin.transaction(async (tx) => {
     // Delete condicionado a PENDENTE + clínica, atômico. RETURNING dá o role para o
     // guard + auditoria; se o guard barrar, a tx faz rollback (delete desfeito).
-    const [deleted] = await tx
-      .delete(profiles)
-      .where(
-        and(
-          eq(profiles.id, args.userId),
-          eq(profiles.clinicId, args.clinicId),
-          isNull(profiles.inviteAcceptedAt),
-          isNull(profiles.deletedAt),
-        ),
-      )
-      .returning({ role: profiles.role });
+    let deleted: { role: Role } | undefined;
+    try {
+      [deleted] = await tx
+        .delete(profiles)
+        .where(
+          and(
+            eq(profiles.id, args.userId),
+            eq(profiles.clinicId, args.clinicId),
+            isNull(profiles.inviteAcceptedAt),
+            isNull(profiles.deletedAt),
+          ),
+        )
+        .returning({ role: profiles.role });
+    } catch (err) {
+      // 23503: o profile (pendente) tem registros dependentes — tipicamente um
+      // agendamento criado com ele por engano (bug do filtro de médico, já
+      // corrigido). Mensagem clara em vez do genérico "tente novamente".
+      if ((err as { code?: string }).code === '23503') throw new InviteHasLinkedRecordsError();
+      throw err;
+    }
     if (!deleted) throw new InviteAlreadyAcceptedError(); // não é pendente / não é da clínica
 
     assertCanAssignRole(args.inviterRole, deleted.role); // rollback se barrar
