@@ -103,7 +103,7 @@ const globalForDb = globalThis as unknown as {
 // dbAdmin/dbWorker (abaixo) permanecem no DATABASE_URL (BYPASSRLS, necessário).
 const runtimeClient =
   globalForDb.__runtimeClient ??
-  postgres(env.DATABASE_URL_RUNTIME ?? env.DATABASE_URL, { ...sharedOpts, max: 5 });
+  postgres(env.DATABASE_URL_RUNTIME ?? env.DATABASE_URL, { ...sharedOpts, max: 2 });
 // dbAdmin pool max:5 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
 // request do painel faz várias leituras (layout + página + pages com Promise.all),
 // que o Next renderiza concorrentemente. Com max:1 essas leituras serializavam e
@@ -111,10 +111,10 @@ const runtimeClient =
 // (cron/health/webhooks também usam dbAdmin e se beneficiam). HIGH-06: o worker tem
 // pool próprio (dbWorker, OUTBOX_DB_POOL_SIZE). Mesma URL (service_role bypassa RLS).
 const adminClient =
-  globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 5 });
+  globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 2 });
 const workerClient =
   globalForDb.__workerClient ??
-  postgres(env.DATABASE_URL, { ...sharedOpts, max: env.OUTBOX_DB_POOL_SIZE });
+  postgres(env.DATABASE_URL, { ...sharedOpts, max: 1 });
 
 if (env.NODE_ENV !== 'production') {
   globalForDb.__runtimeClient = runtimeClient;
