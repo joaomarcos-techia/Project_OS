@@ -1,132 +1,69 @@
 /**
- * Middleware — refresh de sessão + presença de auth. NADA de autorização.
+ * Middleware — presença de auth + x-request-id. NADA de rede, NADA de autorização.
  *
  * ===================================================================
  * ADR-037 — o que este arquivo DEIXOU de fazer (2026-07-16)
  * ===================================================================
  * Até aqui o middleware era o "heal layer": comparava `claims_version` do JWT com
- * o banco (fetch ao PostgREST), com throttle de ~60-75s (cookie `_claim_check_at`)
- * e anti-loop por cookie `_healed`. Três problemas, todos estruturais:
+ * o banco. Isso foi deletado — o enforcement mora na porta única (`authenticate()`
+ * em @/lib/auth/tenant-context), que confere o epoch contra o banco a CADA request.
  *
- *   1. Era declaradamente NÃO-enforcement (ADR-009 D22) — então a revogação real
- *      não acontecia em lugar nenhum, e o access token sobrevivia até 15min (I-4).
- *   2. O `_healed` era forjável: `httpOnly` impede o JS de LER o cookie, não impede
- *      um cliente de ENVIAR `Cookie: _healed=1` num curl. Quem forjasse pulava o
- *      drift-check indefinidamente (I-7).
- *   3. Throttle + jitter + fetch + remontagem de cookie fragmentado + decode
- *      manual de JWT: ~150 linhas de máquina para uma garantia que não existia.
+ * ===================================================================
+ * 2026-07-25 — por que o `getUser()` saiu daqui
+ * ===================================================================
+ * O middleware roda no EDGE runtime. `supabase.auth.getUser()` faz um round-trip de
+ * REDE ao Auth server (diferente de `getClaims()`, que valida o JWT localmente).
+ * Observado em Preview: esse fetch PENDURA no Edge (não no Node — /api/health e
+ * /login, serverless, funcionam), segurando a resposta até o limite de 300s da
+ * função e derrubando TODA rota autenticada ("loading infinito" em /admin; log
+ * source=edge-middleware). Timeout no nível do middleware (Promise.race) fazia o
+ * middleware DECIDIR em 3s, mas a promise de rede abandonada continuava pendente e
+ * a invocação Edge não finalizava a resposta (status 0).
  *
- * Agora o enforcement mora na porta única (`authenticate()` em
- * @/lib/auth/tenant-context), que confere o epoch contra o banco a CADA request.
- * Tudo acima foi DELETADO — não assinamos um cookie que não precisa existir.
- * Um `_healed` forjado hoje não tem para onde ir: não há código que o leia.
+ * Como o ADR-037 já tirou do middleware qualquer papel de enforcement, a chamada de
+ * rede aqui era só (a) refresh de cookie de sessão e (b) redirect rápido de UX. Sem
+ * ela:
+ *   - (a) refresh de sessão: NÃO acontece mais aqui. `authenticate()` valida o
+ *     access token via getClaims a cada request; quando ele expira, o usuário
+ *     reautentica. Reintroduzir refresh sem pendurar o Edge é trabalho à parte —
+ *     candidato natural é rodar o middleware no runtime NODE (onde getUser não
+ *     pendura) OU um refresh client-side. Ver follow-up.
+ *   - (b) redirect de UX: preservado com um check SÍNCRONO de presença do cookie de
+ *     sessão (sem rede). Quem não tem cookie nenhum vai pro /login na hora; quem tem
+ *     passa e a porta única decide (inclusive nega token expirado/inválido).
  *
- * O que sobrou, e por quê:
- *   - `getUser()`: NÃO é decoração. É ele que RENOVA os cookies de sessão via
- *     @supabase/ssr. Server Component não pode escrever cookie, então sem esta
- *     chamada aqui a sessão morre a cada 15min. Ele também dá o redirect rápido
- *     de quem não tem sessão (UX — o gate negaria de qualquer jeito).
- *   - `x-request-id`: correlação de logger/Sentry/audit (C16 1.1).
- *
- * Continua valendo (ADR-009 D22, agora por escolha e não por limitação): middleware
- * é UX. Toda decisão de autorização acontece nos `require*` da porta única.
+ * `x-request-id`: correlação de logger/Sentry/audit (C16 1.1) — mantido.
  */
-import { createServerClient, type CookieMethodsServer } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export const config = {
-  // Rotas excluídas: assets estáticos, healthchecks, CRON (auto-autenticadas via
-  // Bearer CRON_SECRET) e WEBHOOKS (auto-autenticados pelo token/assinatura do
-  // provider — Asaas/Meta). Essas rotas NÃO têm sessão Supabase; passar pelo
-  // middleware de sessão as redirecionava para /login (307) e quebrava o webhook
-  // em prod. Também: fluxos auth não-autenticados + /account/security (pré-MFA) +
-  // /join (onboarding público via convite mágico — sem sessão até o owner ser criado;
-  // a "auth" é o token validado server-side + rate-limit).
-  // `monitoring` é o tunnelRoute do Sentry (next.config withSentryConfig). Sem a
-  // exclusão, o middleware de sessão intercepta o túnel e redireciona p/ /login,
-  // quebrando o report de erros do client (aviso explícito da doc do Sentry).
+  // Rotas excluídas: assets estáticos, healthchecks, CRON (Bearer CRON_SECRET) e
+  // WEBHOOKS (token/assinatura do provider), + fluxos auth não-autenticados +
+  // /account/security (pré-MFA) + /join (onboarding público) + `monitoring`
+  // (tunnelRoute do Sentry). Essas rotas não têm sessão Supabase.
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks|login|reset-password|convite|auth/callback|auth/confirm|auth/auth-error|account/security|join).*)',
   ],
 };
 
-export async function middleware(req: NextRequest): Promise<NextResponse> {
-  // C16 (1.1): carimba x-request-id na request encaminhada E na resposta, para que
-  // logger/Sentry/audit (buildRequestContext) correlacionem pelo mesmo handle.
-  // `crypto` global existe no Edge runtime — não importar node:crypto aqui.
+export function middleware(req: NextRequest): NextResponse {
+  // C16 (1.1): carimba x-request-id na request encaminhada E na resposta.
+  // `crypto` global existe no Edge runtime.
   const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID();
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-request-id', requestId);
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set('x-request-id', requestId);
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    // Sem env, não conseguimos validar — passar adiante (build/dev sem secrets).
-    // Seguro: sem enforcement aqui, quem decide é a porta única (ADR-037).
-    return res;
-  }
+  // Presença de sessão — SÍNCRONO, sem rede (o @supabase/ssr guarda o token em
+  // `sb-<ref>-auth-token`, possivelmente fragmentado em `.0/.1`). Isto é só UX; a
+  // validação real (assinatura, expiração, epoch) é da porta única no servidor.
+  const hasSessionCookie = req.cookies
+    .getAll()
+    .some((c) => c.name.startsWith('sb-') && c.name.includes('-auth-token'));
 
-  const adapter: CookieMethodsServer = {
-    getAll: () => req.cookies.getAll().map((c) => ({ name: c.name, value: c.value })),
-    setAll: (items) => {
-      for (const { name, value, options } of items) {
-        res.cookies.set({ name, value, ...options });
-      }
-    },
-  };
-  const supabase = createServerClient(url, key, {
-    cookies: adapter,
-    // `getUser()` faz um round-trip de REDE ao Auth server (diferente de getClaims,
-    // que valida o JWT localmente). No Edge runtime esse fetch não tem timeout por
-    // padrão: quando o Auth demora/pendura, o middleware — que roda em TODA rota
-    // autenticada — segura a request até o limite de 300s da Vercel. Foi essa a
-    // causa do "loading infinito" em /admin (log: source=edge-middleware, timeout
-    // 300s). Abortamos o fetch em 3s; a proteção não some, ela vira fail-open logo
-    // abaixo. (O host/credencial vêm de env já validado; 3s é folga enorme para um
-    // /auth/v1/user que responde em <1s quando saudável.)
-    global: {
-      fetch: (input, init) =>
-        fetch(input, { ...init, signal: AbortSignal.timeout(3_000) }),
-    },
-  });
-
-  // Renova a sessão (escreve os cookies novos via `setAll`) e diz se há alguém.
-  // O middleware é UX-only (ADR-037): o enforcement mora na porta única
-  // (`authenticate()` via getClaims, local e independente deste fetch).
-  //
-  // `getUser()` faz um round-trip de REDE ao Auth server. No Edge runtime da Vercel
-  // observamos esse fetch PENDURAR até o limite de 300s da função — derrubando TODA
-  // rota autenticada (log: source=edge-middleware). Não confiamos no AbortSignal
-  // passado ao cliente (o @supabase/ssr pode não usar o nosso `fetch`): cortamos no
-  // NÍVEL DO MIDDLEWARE com Promise.race, que garante retorno em ≤3s haja o que
-  // houver com o getUser. Em timeout OU erro de rede → FAIL-OPEN: segue e deixa a
-  // porta única decidir. Nunca penduramos a request nem jogamos uma sessão válida
-  // num loop de /login por causa de um soluço de rede no Auth.
-  const TIMED_OUT = Symbol('mw-getuser-timeout');
-  const outcome = await Promise.race([
-    supabase.auth
-      .getUser()
-      .then((r) => r)
-      .catch(() => 'network-error' as const),
-    new Promise<typeof TIMED_OUT>((resolve) => setTimeout(() => resolve(TIMED_OUT), 3_000)),
-  ]);
-
-  // Timeout ou falha de rede: fail-open. A sessão pode não ter sido renovada neste
-  // request, mas `authenticate()` (getClaims local) segue barrando quem não tem
-  // sessão válida — fail-closed de verdade continua garantido.
-  if (outcome === TIMED_OUT || outcome === 'network-error') {
-    return res;
-  }
-
-  // Resposta AUTORITATIVA do Auth. Só aqui redirecionamos: ausência REAL de sessão,
-  // não um soluço de rede.
-  if (outcome.error || !outcome.data.user) {
-    const target = new URL('/login', req.url);
-    return NextResponse.redirect(target, { headers: res.headers });
+  if (!hasSessionCookie) {
+    return NextResponse.redirect(new URL('/login', req.url), { headers: res.headers });
   }
 
   return res;
