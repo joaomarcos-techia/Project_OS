@@ -437,3 +437,63 @@ migration cria tabela inacessível ao runtime e o app quebra só naquele caminho
 O gatilho continua sendo **antes do 1º cliente pagante**: depois, um `withTenant`
 esquecido custa dado de cliente real — e é justamente quando prod passa a ter dado
 cross-tenant de verdade.
+
+## Timeouts (pooler vs. direto) — `statement_timeout` / `lock_timeout`
+
+**O bug (achado, comprovado empíricamente):** `src/lib/db/index.ts` passa
+`connection: { statement_timeout: 30_000, lock_timeout: 15_000 }` ao postgres.js.
+Contra o **Transaction Pooler (Supavisor, :6543)** — que é o que os pools `db`,
+`dbAdmin` e `dbWorker` usam — esses parâmetros de **startup de sessão NÃO são
+propagados** ao backend. Prova (conectando pelo :6543):
+
+```
+SHOW statement_timeout;  -- 2min   (NÃO 30s)
+SHOW lock_timeout;       -- 0      (NÃO 15s)
+```
+
+Resultado: a proteção "fail-fast em 30s" que o comentário do código promete
+**não existia** no runtime pooled — o "loading infinito" podia rodar até o limite
+da plataforma.
+
+**A correção (migration `0071_runtime_role_timeouts`):** fixa o GUC a nível de
+ROLE, que o Supavisor/Postgres aplica no **login do backend** (o caminho correto
+para pooler de transação):
+
+```sql
+ALTER ROLE qoro_runtime SET statement_timeout = '30s';
+ALTER ROLE qoro_runtime SET lock_timeout      = '15s';
+```
+
+Persiste sob o `SET LOCAL ROLE authenticated` do `withTenant`: config de role é
+carregada no login da role autenticada (`qoro_runtime`); `SET ROLE` não recarrega
+GUCs, então o cap sobrevive à troca de role dentro da transação.
+
+**Por que SÓ `qoro_runtime`:** a role `postgres` (usada por `dbAdmin`,
+`dbWorker`, runtime de dev, **`drizzle-kit migrate`** e **todos os crons**) NÃO
+recebe cap — um `statement_timeout=30s`/`lock_timeout=15s` nela mataria migrations
+com backfill/CREATE INDEX/lock e scans de cron legítimos. (Backups `pg_dump` são
+imunes: o próprio pg_dump emite `SET statement_timeout=0`.) Fail-fast em
+dbAdmin/dbWorker, se um dia necessário, é per-transação (`SET LOCAL`) no wrapper —
+nunca a nível da role `postgres`.
+
+**`connection.*` em `index.ts` foi mantido** (não removido): vale como defesa para
+conexões **diretas / Session Pooler (:5432)**, onde parâmetros de startup são
+honrados — caso alguém aponte `DATABASE_URL` para 5432. Os scripts
+`db:migrate`/`db:backup` (que usam :5432) abrem clients próprios e não herdam
+`sharedOpts`.
+
+### Validação obrigatória (não presumir — provar via pooler)
+
+A migration só afeta **conexões novas**; as já abertas mantêm o valor antigo até
+reciclar (`max_lifetime` 30min / `idle_timeout` 20s). Abra uma sessão nova como
+`qoro_runtime.<ref>` no **:6543** e confirme:
+
+```sql
+SHOW statement_timeout;  -- esperado: 30s
+SHOW lock_timeout;       -- esperado: 15s
+```
+
+Se voltar `2min`/`0`, a migration não pegou nesse ambiente (role ausente → veja o
+NOTICE `[0071] role qoro_runtime ausente` no log da migration) ou a role usada
+pelo pool não é `qoro_runtime` (dev sem `DATABASE_URL_RUNTIME` → runtime é
+`postgres`, que não recebe cap de propósito).

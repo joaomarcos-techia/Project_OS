@@ -81,12 +81,21 @@ const sharedOpts = {
   idle_timeout: 20, // seconds — drop idle sockets fast (lambda cold-restart safety)
   connect_timeout: 10, // seconds — fail fast on bad URL/network
   max_lifetime: 60 * 30, // 30 min — recycle long-lived sockets
-  // Fail-fast por STATEMENT (GUC por conexão). Sem isto, uma query que trava
-  // (lock, agregação patológica, Supabase saturado) segura o render até o undici
-  // matar a resposta em ~300s — o "loading infinito". 30s é folga enorme p/ OLTP;
-  // qualquer statement que passe disso é bug e deve estourar com erro claro, não
-  // pendurar a request. (Não cobre socket morto/Supabase inalcançável — isso é
-  // connect_timeout + max_lifetime + restart; ver runbook.)
+  // Fail-fast por STATEMENT. ⚠️ ATENÇÃO ao que isto NÃO faz: `connection.*` são
+  // parâmetros de STARTUP da sessão postgres.js. O **Transaction Pooler do
+  // Supabase (Supavisor, :6543)** — que é o que os três pools abaixo usam via
+  // DATABASE_URL/DATABASE_URL_RUNTIME — NÃO os propaga ao backend. Comprovado:
+  // `SHOW statement_timeout` volta `2min`, `SHOW lock_timeout` volta `0`. Ou
+  // seja: no runtime pooled este bloco é INERTE. O fail-fast REAL do pool
+  // runtime (`qoro_runtime`) vive a nível de ROLE na migration 0071
+  // (`ALTER ROLE ... SET`), que o Postgres aplica no login do backend e
+  // sobrevive ao `SET LOCAL ROLE authenticated` do withTenant.
+  //
+  // Mantido mesmo assim como defesa para conexões DIRETAS / Session Pooler
+  // (:5432), onde parâmetros de startup VALEM — caso alguém aponte DATABASE_URL
+  // para 5432. (Os scripts db:migrate/db:backup abrem clients próprios e não
+  // herdam sharedOpts.) 30s é folga enorme p/ OLTP. Ver
+  // docs/runbooks/runtime-role-nobypassrls.md §"Timeouts (pooler vs direto)".
   connection: { statement_timeout: 30_000, lock_timeout: 15_000 },
 };
 
