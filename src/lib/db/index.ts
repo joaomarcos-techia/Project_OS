@@ -120,14 +120,19 @@ const globalForDb = globalThis as unknown as {
 const runtimeClient =
   globalForDb.__runtimeClient ??
   postgres(env.DATABASE_URL_RUNTIME ?? env.DATABASE_URL, { ...sharedOpts, max: 2 });
-// dbAdmin pool max:2 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
-// request do painel faz várias leituras (layout + página + pages com Promise.all),
-// que o Next renderiza concorrentemente. Com max:1 essas leituras serializavam e
-// uma query mais cara virava "loading infinito". O limite 2 reduz multiplicação
-// serverless sem voltar à serialização total. O worker tem pool próprio com duas
-// conexões: lock-holder + trabalho. Mesma URL (service_role bypassa RLS).
+// dbAdmin pool max:8 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
+// request do painel faz várias leituras (layout + página com Promise.all). O
+// dashboard dispara ~9 queries concorrentes (getDashboard=3, list=3, +3); com max:2
+// as DUAS últimas (getStatusBreakdown, list) FAMINTAVAM por conexão e estouravam o
+// timeout de 8s da página — "loading infinito"/dados parciais, PROVADO pelo log
+// `admin.dash.timeout` (2026-07-25). Não é especulação: é o dado de observabilidade
+// que o comentário antigo pedia. max:8 cabe o fan-out sem serializar. Admin é
+// super_admin-only (concorrência baixa) e o Supavisor (Transaction Pooler)
+// multiplexa em poucas conexões de backend, então não pressiona max_connections=60.
+// O worker tem pool próprio (2: lock-holder + trabalho). Mesma URL (service_role
+// bypassa RLS).
 const adminClient =
-  globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 2 });
+  globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 8 });
 const workerClient =
   globalForDb.__workerClient ??
   postgres(env.DATABASE_URL, { ...sharedOpts, max: DB_WORKER_POOL_SIZE });
