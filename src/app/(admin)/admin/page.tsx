@@ -20,41 +20,58 @@ const RISK_LABEL: Record<string, string> = {
   pending_payment: 'Aguardando pagamento',
 };
 
-// DIAGNÓSTICO TEMP (2026-07-25): /admin pendura enquanto config/saude carregam.
-// Cronometra cada query do Promise.all — a que NÃO logar `admin.dash.q` é a que
-// pendura. Remover depois de diagnosticar.
-function timed<T>(name: string, p: Promise<T>): Promise<T> {
-  const t0 = Date.now();
-  return p.then(
-    (r) => {
-      console.warn(JSON.stringify({ kind: 'admin.dash.q', name, ms: Date.now() - t0, ok: true }));
-      return r;
-    },
-    (e) => {
-      console.error(
-        JSON.stringify({ kind: 'admin.dash.q', name, ms: Date.now() - t0, ok: false, err: String(e).slice(0, 160) }),
-      );
-      throw e;
-    },
-  );
+// Resiliência (2026-07-25): o pool do `dbAdmin` (max:2) + o Transaction Pooler do
+// Supabase às vezes estolam sob latência cross-region, e o `statement_timeout` do
+// app NÃO é aplicado pelo pooler nem cobre o role do `dbAdmin` — então uma query
+// estolada pendurava a página INTEIRA ("loading infinito"). Cada leitura tem
+// timeout + fallback: o dashboard SEMPRE renderiza (com dado parcial no pior caso)
+// em vez de pendurar. O timeout registra `admin.dash.timeout` p/ observabilidade.
+function withTimeout<T>(name: string, p: Promise<T>, fallback: T, ms = 8000): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => {
+      console.error(JSON.stringify({ kind: 'admin.dash.timeout', name, ms }));
+      resolve(fallback);
+    }, ms);
+    p.then(
+      (r) => {
+        clearTimeout(timer);
+        resolve(r);
+      },
+      (e) => {
+        clearTimeout(timer);
+        console.error(JSON.stringify({ kind: 'admin.dash.err', name, err: String(e).slice(0, 160) }));
+        resolve(fallback);
+      },
+    );
+  });
 }
 
 export default async function AdminDashboardPage() {
   await guardAdminAccess();
-  console.warn(JSON.stringify({ kind: 'admin.dash.start' }));
   const [m, trend, breakdown, recent, atRisk] = await Promise.all([
-    timed('getDashboard', adminMetricsRepository.getDashboard()),
-    timed('getMrrTrend', adminMetricsRepository.getMrrTrend(6)).catch(() => []),
-    timed('getStatusBreakdown', adminMetricsRepository.getStatusBreakdown()).catch(() => ({
+    withTimeout('getDashboard', adminMetricsRepository.getDashboard(), {
+      mrrCents: 0,
+      arrCents: 0,
+      churnRatePct: 0,
+      monthlyGrowthPct: 0,
+      clinics: { active: 0, atRisk: 0, new: 0, cancelled: 0 },
+      generatedAt: new Date().toISOString(),
+    }),
+    withTimeout('getMrrTrend', adminMetricsRepository.getMrrTrend(6), []),
+    withTimeout('getStatusBreakdown', adminMetricsRepository.getStatusBreakdown(), {
       active: 0,
       trial: 0,
       atRisk: 0,
       cancelled: 0,
-    })),
-    timed('list', clinicRepository.list({ pageSize: 4 })),
-    timed('listAtRisk', clinicRepository.listAtRisk(4)).catch(() => []),
+    }),
+    withTimeout('list', clinicRepository.list({ pageSize: 4 }), {
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 4,
+    }),
+    withTimeout('listAtRisk', clinicRepository.listAtRisk(4), []),
   ]);
-  console.warn(JSON.stringify({ kind: 'admin.dash.done' }));
 
   const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
   const bars = trend.map((t, i) => ({
