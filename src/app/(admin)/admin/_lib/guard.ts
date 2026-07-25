@@ -20,12 +20,23 @@ import 'server-only';
 
 import { notFound } from 'next/navigation';
 
-import { requireSuperAdmin } from '@/lib/auth/tenant-context';
+import { AuthError, requireSuperAdmin } from '@/lib/auth/tenant-context';
 
 export async function guardAdminAccess(): Promise<void> {
   try {
     await requireSuperAdmin();
-  } catch {
+  } catch (e) {
+    // DIAGNÓSTICO TEMP (2026-07-25): super_admin caindo em 404 no preview após 1
+    // render OK. Logamos o MOTIVO estruturado antes do notFound para saber se é
+    // MFA_REQUIRED (perda de aal2 no refresh), CLAIMS_OUTDATED (epoch), ROLE_DENIED
+    // ou sessão inválida. Remover depois de diagnosticar.
+    const reason =
+      e instanceof AuthError
+        ? `${e.reason} (${e.code}/${e.httpStatus})`
+        : e instanceof Error
+          ? e.message
+          : String(e);
+    console.error(JSON.stringify({ kind: 'admin.guard.denied', reason }));
     notFound();
   }
 }
