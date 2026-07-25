@@ -27,7 +27,7 @@ function timed<T>(name: string, p: Promise<T>): Promise<T> {
   const t0 = Date.now();
   return p.then(
     (r) => {
-      console.log(JSON.stringify({ kind: 'admin.dash.q', name, ms: Date.now() - t0, ok: true }));
+      console.warn(JSON.stringify({ kind: 'admin.dash.q', name, ms: Date.now() - t0, ok: true }));
       return r;
     },
     (e) => {
@@ -41,7 +41,7 @@ function timed<T>(name: string, p: Promise<T>): Promise<T> {
 
 export default async function AdminDashboardPage() {
   await guardAdminAccess();
-  console.log(JSON.stringify({ kind: 'admin.dash.start' }));
+  console.warn(JSON.stringify({ kind: 'admin.dash.start' }));
   const [m, trend, breakdown, recent, atRisk] = await Promise.all([
     timed('getDashboard', adminMetricsRepository.getDashboard()),
     timed('getMrrTrend', adminMetricsRepository.getMrrTrend(6)).catch(() => []),
@@ -54,7 +54,7 @@ export default async function AdminDashboardPage() {
     timed('list', clinicRepository.list({ pageSize: 4 })),
     timed('listAtRisk', clinicRepository.listAtRisk(4)).catch(() => []),
   ]);
-  console.log(JSON.stringify({ kind: 'admin.dash.done' }));
+  console.warn(JSON.stringify({ kind: 'admin.dash.done' }));
 
   const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
   const bars = trend.map((t, i) => ({
