@@ -96,24 +96,35 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   // Renova a sessão (escreve os cookies novos via `setAll`) e diz se há alguém.
   // O middleware é UX-only (ADR-037): o enforcement mora na porta única
-  // (`authenticate()` via getClaims, local e independente deste fetch). Por isso,
-  // se `getUser()` não responder a tempo (AbortError) ou falhar por REDE, o certo é
-  // FAIL-OPEN: seguir e deixar a página decidir — nunca pendurar 300s nem jogar uma
-  // sessão válida num loop de /login por causa de um soluço de rede no Auth.
-  let user = null;
-  try {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    user = data.user;
-  } catch {
-    // Auth inalcançável/lento neste request: passa adiante. `authenticate()` no
-    // servidor ainda barra quem não tiver sessão válida (fail-closed de verdade).
+  // (`authenticate()` via getClaims, local e independente deste fetch).
+  //
+  // `getUser()` faz um round-trip de REDE ao Auth server. No Edge runtime da Vercel
+  // observamos esse fetch PENDURAR até o limite de 300s da função — derrubando TODA
+  // rota autenticada (log: source=edge-middleware). Não confiamos no AbortSignal
+  // passado ao cliente (o @supabase/ssr pode não usar o nosso `fetch`): cortamos no
+  // NÍVEL DO MIDDLEWARE com Promise.race, que garante retorno em ≤3s haja o que
+  // houver com o getUser. Em timeout OU erro de rede → FAIL-OPEN: segue e deixa a
+  // porta única decidir. Nunca penduramos a request nem jogamos uma sessão válida
+  // num loop de /login por causa de um soluço de rede no Auth.
+  const TIMED_OUT = Symbol('mw-getuser-timeout');
+  const outcome = await Promise.race([
+    supabase.auth
+      .getUser()
+      .then((r) => r)
+      .catch(() => 'network-error' as const),
+    new Promise<typeof TIMED_OUT>((resolve) => setTimeout(() => resolve(TIMED_OUT), 3_000)),
+  ]);
+
+  // Timeout ou falha de rede: fail-open. A sessão pode não ter sido renovada neste
+  // request, mas `authenticate()` (getClaims local) segue barrando quem não tem
+  // sessão válida — fail-closed de verdade continua garantido.
+  if (outcome === TIMED_OUT || outcome === 'network-error') {
     return res;
   }
 
-  // Resposta AUTORITATIVA "não há sessão" (não foi timeout/erro de rede): redirect
-  // rápido de UX. O gate negaria de qualquer forma.
-  if (!user) {
+  // Resposta AUTORITATIVA do Auth. Só aqui redirecionamos: ausência REAL de sessão,
+  // não um soluço de rede.
+  if (outcome.error || !outcome.data.user) {
     const target = new URL('/login', req.url);
     return NextResponse.redirect(target, { headers: res.headers });
   }
