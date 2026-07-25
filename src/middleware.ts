@@ -78,11 +78,42 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
       }
     },
   };
-  const supabase = createServerClient(url, key, { cookies: adapter });
+  const supabase = createServerClient(url, key, {
+    cookies: adapter,
+    // `getUser()` faz um round-trip de REDE ao Auth server (diferente de getClaims,
+    // que valida o JWT localmente). No Edge runtime esse fetch não tem timeout por
+    // padrão: quando o Auth demora/pendura, o middleware — que roda em TODA rota
+    // autenticada — segura a request até o limite de 300s da Vercel. Foi essa a
+    // causa do "loading infinito" em /admin (log: source=edge-middleware, timeout
+    // 300s). Abortamos o fetch em 3s; a proteção não some, ela vira fail-open logo
+    // abaixo. (O host/credencial vêm de env já validado; 3s é folga enorme para um
+    // /auth/v1/user que responde em <1s quando saudável.)
+    global: {
+      fetch: (input, init) =>
+        fetch(input, { ...init, signal: AbortSignal.timeout(3_000) }),
+    },
+  });
 
   // Renova a sessão (escreve os cookies novos via `setAll`) e diz se há alguém.
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
+  // O middleware é UX-only (ADR-037): o enforcement mora na porta única
+  // (`authenticate()` via getClaims, local e independente deste fetch). Por isso,
+  // se `getUser()` não responder a tempo (AbortError) ou falhar por REDE, o certo é
+  // FAIL-OPEN: seguir e deixar a página decidir — nunca pendurar 300s nem jogar uma
+  // sessão válida num loop de /login por causa de um soluço de rede no Auth.
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    user = data.user;
+  } catch {
+    // Auth inalcançável/lento neste request: passa adiante. `authenticate()` no
+    // servidor ainda barra quem não tiver sessão válida (fail-closed de verdade).
+    return res;
+  }
+
+  // Resposta AUTORITATIVA "não há sessão" (não foi timeout/erro de rede): redirect
+  // rápido de UX. O gate negaria de qualquer forma.
+  if (!user) {
     const target = new URL('/login', req.url);
     return NextResponse.redirect(target, { headers: res.headers });
   }
