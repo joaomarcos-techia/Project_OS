@@ -57,6 +57,11 @@ function WaitingCardImpl({
         <Badge tone={WAIT_BADGE[tone]} dot>
           {formatWait(mins)} aguardando
         </Badge>
+        {card.queuePosition != null ? (
+          <span className="ml-2 text-xs text-fg-muted">
+            {card.queuePosition}º na fila · previsão inicial de {card.estimatedWaitMinutes ?? 0} min
+          </span>
+        ) : null}
       </div>
 
       {card.alergias.length > 0 ? (

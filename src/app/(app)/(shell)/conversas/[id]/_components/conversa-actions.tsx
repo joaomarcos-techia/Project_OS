@@ -13,6 +13,7 @@
  */
 import { useActionState, useEffect, useId, useRef, useState } from 'react';
 
+import type { AIHandoffState } from '@/contexts/ai-agent/types';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,6 +22,7 @@ import { uuidv4 } from '@/lib/ui/uuid';
 
 import {
   assumirConversaAction,
+  definirPrioridadeAction,
   devolverAoAgenteAction,
   responderAction,
   type ConversaActionState,
@@ -33,6 +35,9 @@ type Props = {
   windowClosesAt: string | null;
   lastInboundAt: string | null;
   canManage: boolean;
+  handoff: AIHandoffState | null;
+  currentUserId: string;
+  assignedToName: string | null;
 };
 
 const newKey = uuidv4;
@@ -44,6 +49,9 @@ export function ConversaActions({
   windowClosesAt,
   lastInboundAt,
   canManage,
+  handoff,
+  currentUserId,
+  assignedToName,
 }: Props) {
   if (!canManage) return null;
   const terminal = status === 'closed' || status === 'abandoned';
@@ -55,19 +63,35 @@ export function ConversaActions({
       </Alert>
     );
   }
-  return status === 'handoff' ? (
-    <HandoffPanel
+  if (status === 'handoff' && handoff?.assignedToUserId === currentUserId) {
+    return (
+      <HandoffPanel
+        conversationId={conversationId}
+        windowOpen={windowOpen}
+        windowClosesAt={windowClosesAt}
+        lastInboundAt={lastInboundAt}
+        handoff={handoff}
+      />
+    );
+  }
+  return (
+    <AssumePanel
       conversationId={conversationId}
-      windowOpen={windowOpen}
-      windowClosesAt={windowClosesAt}
-      lastInboundAt={lastInboundAt}
+      handoff={status === 'handoff' ? handoff : null}
+      assignedToName={assignedToName}
     />
-  ) : (
-    <AssumePanel conversationId={conversationId} />
   );
 }
 
-function AssumePanel({ conversationId }: { conversationId: string }) {
+function AssumePanel({
+  conversationId,
+  handoff,
+  assignedToName,
+}: {
+  conversationId: string;
+  handoff: AIHandoffState | null;
+  assignedToName: string | null;
+}) {
   const [state, action, pending] = useActionState<ConversaActionState, FormData>(
     assumirConversaAction,
     null,
@@ -76,7 +100,11 @@ function AssumePanel({ conversationId }: { conversationId: string }) {
     s === null
       ? null
       : s.ok
-        ? { type: 'success', title: 'Conversa assumida', description: 'O agente parou de responder.' }
+        ? {
+            type: 'success',
+            title: 'Conversa assumida',
+            description: 'O agente parou de responder.',
+          }
         : { type: 'error', title: 'Não foi possível assumir', description: s.message },
   );
 
@@ -86,12 +114,28 @@ function AssumePanel({ conversationId }: { conversationId: string }) {
     <form action={action} className="flex flex-col gap-(--sp-3)">
       <input type="hidden" name="conversationId" value={conversationId} />
       <input type="hidden" name="idempotencyKey" value={key} />
-      <Alert variant="info" title="O agente está respondendo">
-        Para responder pelo painel, assuma a conversa primeiro. Enquanto o agente estiver ativo,
-        ele responderia junto e o paciente receberia duas respostas.
-      </Alert>
+      {handoff ? (
+        <Alert
+          variant={handoff.overdue ? 'danger' : 'warning'}
+          title={handoff.overdue ? 'SLA vencido' : 'Aguardando responsável'}
+        >
+          {assignedToName
+            ? `Atendimento atribuído a ${assignedToName}. Assumir agora transfere formalmente a responsabilidade para você.`
+            : 'Nenhum membro assumiu formalmente este atendimento.'}{' '}
+          Prazo: {new Date(handoff.dueAt).toLocaleString('pt-BR')}.
+        </Alert>
+      ) : (
+        <Alert variant="info" title="O agente está respondendo">
+          Para responder pelo painel, assuma a conversa primeiro. Enquanto o agente estiver ativo,
+          ele responderia junto e o paciente receberia duas respostas.
+        </Alert>
+      )}
       <Button type="submit" disabled={pending} className="self-start">
-        {pending ? 'Assumindo…' : 'Assumir conversa'}
+        {pending
+          ? 'Assumindo…'
+          : handoff?.assignedToUserId
+            ? 'Reatribuir para mim'
+            : 'Assumir atendimento'}
       </Button>
     </form>
   );
@@ -102,11 +146,13 @@ function HandoffPanel({
   windowOpen,
   windowClosesAt,
   lastInboundAt,
+  handoff,
 }: {
   conversationId: string;
   windowOpen: boolean;
   windowClosesAt: string | null;
   lastInboundAt: string | null;
+  handoff: AIHandoffState;
 }) {
   const [replyState, replyAction, replying] = useActionState<ConversaActionState, FormData>(
     responderAction,
@@ -116,6 +162,10 @@ function HandoffPanel({
     devolverAoAgenteAction,
     null,
   );
+  const [priorityState, priorityAction, prioritizing] = useActionState<
+    ConversaActionState,
+    FormData
+  >(definirPrioridadeAction, null);
   const textId = useId();
   const [text, setText] = useState('');
 
@@ -133,6 +183,13 @@ function HandoffPanel({
         ? { type: 'success', title: 'Conversa devolvida ao agente' }
         : { type: 'error', title: 'Não foi possível devolver', description: s.message },
   );
+  useActionFeedback(priorityState, (s) =>
+    s === null
+      ? null
+      : s.ok
+        ? { type: 'success', title: 'Prioridade atualizada' }
+        : { type: 'error', title: 'Não foi possível priorizar', description: s.message },
+  );
 
   // Limpa o campo só quando o envio deu certo — em erro o texto continua ali
   // para o operador não reescrever.
@@ -142,9 +199,37 @@ function HandoffPanel({
 
   const replyKey = useIdempotencyKey(replyState?.ok === true);
   const returnKey = useIdempotencyKey(returnState?.ok === true);
+  const priorityKey = useIdempotencyKey(priorityState?.ok === true);
 
   return (
     <div className="flex flex-col gap-(--sp-4)">
+      <Alert
+        variant={handoff.overdue ? 'danger' : handoff.priority === 'urgent' ? 'warning' : 'info'}
+        title={handoff.overdue ? 'SLA vencido' : 'Atendimento sob sua responsabilidade'}
+      >
+        Prazo: {new Date(handoff.dueAt).toLocaleString('pt-BR')} · prioridade{' '}
+        {handoff.priority === 'urgent' ? 'urgente' : 'normal'}.
+      </Alert>
+
+      <form action={priorityAction} className="flex flex-wrap items-end gap-2">
+        <input type="hidden" name="conversationId" value={conversationId} />
+        <input type="hidden" name="idempotencyKey" value={priorityKey} />
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Prioridade
+          <select
+            name="priority"
+            defaultValue={handoff.priority}
+            disabled={prioritizing}
+            className="h-9 rounded-(--r-sm) border border-border bg-surface px-3 text-sm"
+          >
+            <option value="normal">Normal</option>
+            <option value="urgent">Urgente</option>
+          </select>
+        </label>
+        <Button type="submit" variant="secondary" size="sm" disabled={prioritizing}>
+          Atualizar
+        </Button>
+      </form>
       {windowOpen ? null : (
         <Alert variant="warning" title="Janela de 24h da Meta expirada">
           {lastInboundAt
@@ -169,7 +254,9 @@ function HandoffPanel({
           disabled={!windowOpen || replying}
           maxLength={4000}
           placeholder={
-            windowOpen ? 'Escreva a resposta ao paciente…' : 'Envio bloqueado: janela de 24h expirada'
+            windowOpen
+              ? 'Escreva a resposta ao paciente…'
+              : 'Envio bloqueado: janela de 24h expirada'
           }
           aria-describedby={windowOpen && windowClosesAt ? `${textId}-hint` : undefined}
         />

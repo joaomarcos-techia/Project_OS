@@ -3,9 +3,8 @@
  * genérico + quota.ts). Aqui: (1) como derivar a chave de dedup por dimensão,
  * (2) o efeito por dimensão (ADR-024).
  *
- * ADR-024:
- *   - agendamento: NUNCA bloqueia (anti-produto); no máximo avisa (nearLimit).
- *   - conversa_ia: bloqueia ao estourar o teto generoso (degrada p/ atendente).
+ * Regra comercial atual:
+ *   - agendamento e conversa_ia: apenas métricas, sem limite de plano.
  *   - usuários: trava dura (assertUserQuota, no convite) — fora deste módulo.
  */
 export type QuotaType = 'agendamento' | 'conversa_ia';
@@ -54,10 +53,10 @@ export interface QuotaDecision {
 
 /** Efeito por dimensão (ADR-024). count = uso atual; limit = teto do plano. */
 export function enforce(t: QuotaType, count: number, limit: number): QuotaDecision {
-  const remaining = Math.max(0, limit - count);
-  const nearLimit = limit > 0 && count >= Math.floor(limit * 0.9);
-  if (t === 'agendamento') {
-    return { allowed: true, remaining, nearLimit }; // nunca bloqueia
-  }
-  return { allowed: count < limit, remaining, nearLimit };
+  // Agendamentos e mensagens de IA são apenas métricas. A única trava
+  // comercial é `users`, aplicada por `assertUserQuota` no convite.
+  void t;
+  void count;
+  void limit;
+  return { allowed: true, remaining: Number.MAX_SAFE_INTEGER, nearLimit: false };
 }

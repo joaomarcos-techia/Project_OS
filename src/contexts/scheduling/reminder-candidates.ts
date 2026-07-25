@@ -36,18 +36,26 @@ export interface ReminderCandidate {
 /** Consultas ativas cuja data local é amanhã (limite p/ bound do scan). */
 export async function listReminderCandidates(limit = 500): Promise<ReminderCandidate[]> {
   const rows = (await dbAdmin.execute(
-    sql`SELECT a.clinic_id::text                         AS clinic_id,
+    sql`WITH ranked AS (
+        SELECT a.clinic_id::text                         AS clinic_id,
                a.id::text                                AS appointment_id,
                a.patient_id::text                        AS patient_id,
                a.scheduled_at                            AS scheduled_at,
                a.snapshot_doctor_nome                    AS doctor_nome,
-               c.timezone                                AS timezone
+               c.timezone                                AS timezone,
+               row_number() OVER (
+                 PARTITION BY a.clinic_id ORDER BY a.scheduled_at, a.id
+               )                                         AS clinic_rank
           FROM appointments a
           JOIN clinics c ON c.id = a.clinic_id
          WHERE a.patient_id IS NOT NULL
            AND a.status IN ('agendado', 'confirmado')
            AND (a.scheduled_at AT TIME ZONE c.timezone)::date
                = ((now() AT TIME ZONE c.timezone)::date + 1)
+        )
+        SELECT clinic_id, appointment_id, patient_id, scheduled_at, doctor_nome, timezone
+          FROM ranked
+         ORDER BY clinic_rank, scheduled_at, clinic_id, appointment_id
          LIMIT ${limit}`,
   )) as unknown as Array<{
     clinic_id: string;

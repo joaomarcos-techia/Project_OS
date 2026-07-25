@@ -9,7 +9,7 @@
  * compartilhado — tudo deriva do tx tenant-scoped. Duas clínicas/dois pacientes
  * são 100% isolados por RLS + chave AES per-tenant.
  */
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
@@ -35,6 +35,8 @@ export interface ActiveConversation {
   id: string;
   patientId: string | null;
   patientNome: string | null;
+  /** Mais de um paciente ativo compartilha o telefone; nunca escolher um deles. */
+  identityAmbiguous: boolean;
   status: 'active' | 'handoff' | 'closed' | 'abandoned';
   fallbackCount: number;
   /** last_message_at ANTES deste turno (null se recém-criada) — p/ stale reset C12. */
@@ -55,11 +57,19 @@ export async function findOrCreateConversation(
   phoneEncrypted: string,
 ): Promise<ActiveConversation> {
   // Paciente cadastrado com este telefone? (leitura por hash, sem JOIN)
-  const [patient] = await tx
+  const patientMatches = await tx
     .select({ id: patients.id, nome: patients.nome })
     .from(patients)
-    .where(and(eq(patients.clinicId, clinicId), eq(patients.telefoneHash, phoneHash)))
-    .limit(1);
+    .where(
+      and(
+        eq(patients.clinicId, clinicId),
+        eq(patients.telefoneHash, phoneHash),
+        isNull(patients.deletedAt),
+      ),
+    )
+    .limit(2);
+  const identity = resolvePhoneIdentity(patientMatches);
+  const patient = identity.patient;
 
   // Conversa não-encerrada mais recente do contato (active OU handoff).
   const [existing] = await tx
@@ -80,14 +90,15 @@ export async function findOrCreateConversation(
       .update(aiConversations)
       .set({
         lastMessageAt: sql`now()`,
-        // Backfill do patient_id se o paciente foi cadastrado depois da 1ª mensagem.
-        ...(existing.patientId === null && patient ? { patientId: patient.id } : {}),
+        // Um match único é seguro; zero/múltiplos removem associação stale.
+        patientId: patient?.id ?? null,
       })
       .where(eq(aiConversations.id, existing.id));
     return {
       id: existing.id,
-      patientId: existing.patientId ?? patient?.id ?? null,
+      patientId: patient?.id ?? null,
       patientNome: patient?.nome ?? null,
+      identityAmbiguous: identity.ambiguous,
       status: existing.status,
       fallbackCount: existing.fallbackCount,
       lastMessageAt: existing.lastMessageAt as Date,
@@ -113,6 +124,7 @@ export async function findOrCreateConversation(
       id: created.id,
       patientId: created.patientId,
       patientNome: patient?.nome ?? null,
+      identityAmbiguous: identity.ambiguous,
       status: created.status,
       fallbackCount: created.fallbackCount,
       lastMessageAt: null,
@@ -136,10 +148,19 @@ export async function findOrCreateConversation(
     id: raced.id,
     patientId: raced.patientId,
     patientNome: patient?.nome ?? null,
+    identityAmbiguous: identity.ambiguous,
     status: raced.status,
     fallbackCount: raced.fallbackCount,
     lastMessageAt: null,
   };
+}
+
+export function resolvePhoneIdentity<T extends { id: string; nome: string }>(matches: T[]): {
+  patient: T | null;
+  ambiguous: boolean;
+} {
+  if (matches.length === 1) return { patient: matches[0]!, ambiguous: false };
+  return { patient: null, ambiguous: matches.length > 1 };
 }
 
 // --- mensagens ------------------------------------------------------------------

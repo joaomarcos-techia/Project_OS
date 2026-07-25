@@ -119,6 +119,7 @@ export interface CurrentUser {
   clinicId: string | null;
   role: Role;
   permissions: readonly string[];
+  granularPermissionsEnabled: boolean;
   claimsVersion: number;
   isSuperAdmin: boolean;
   aal: 'aal1' | 'aal2' | null;
@@ -244,6 +245,7 @@ export const authenticate = cache(async (): Promise<IdentityResult> => {
     // JWT claim é 'app_role' (PostgREST reserva 'role'); domain expõe como 'role'.
     role: claims.app_role,
     permissions: claims.permissions,
+    granularPermissionsEnabled: claims.granular_permissions_enabled ?? true,
     claimsVersion: claims.claims_version,
     isSuperAdmin: claims.super_admin === true || claims.app_role === 'super_admin',
     aal: claims.aal ?? null,
@@ -478,8 +480,13 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
   // claims_version PERDIDO no caminho das permissões — o único furo que o
   // epoch-check não veria, porque a versão bateria.
 
-  // Override negando? → bloqueia mesmo se role tem.
-  const denyRow = await dbAdmin
+  // Overrides individuais só entram na decisão quando o plano habilita o
+  // recurso. Em downgrade, a view do hook já remove os overrides das novas
+  // claims; este check protege também as ações críticas que fazem revalidação
+  // direta no banco.
+  if (user.granularPermissionsEnabled) {
+    // Override negando? → bloqueia mesmo se role tem.
+    const denyRow = await dbAdmin
     .select({ id: userPermissionOverrides.id })
     .from(userPermissionOverrides)
     .where(
@@ -490,17 +497,17 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
       ),
     )
     .limit(1);
-  if (denyRow.length > 0) {
-    throw new AuthError(
-      `Permissão '${perm}' negada por override (fresh check).`,
-      'forbidden',
-      403,
-      'PERMISSION_DENIED',
-    );
-  }
+    if (denyRow.length > 0) {
+      throw new AuthError(
+        `Permissão '${perm}' negada por override (fresh check).`,
+        'forbidden',
+        403,
+        'PERMISSION_DENIED',
+      );
+    }
 
   // Override concedendo? → permite mesmo se role não tem.
-  const grantRow = await dbAdmin
+    const grantRow = await dbAdmin
     .select({ id: userPermissionOverrides.id })
     .from(userPermissionOverrides)
     .where(
@@ -511,7 +518,8 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
       ),
     )
     .limit(1);
-  if (grantRow.length > 0) return;
+    if (grantRow.length > 0) return;
+  }
 
   // Permissão via role bundle?
   const rolePermRow = await dbAdmin

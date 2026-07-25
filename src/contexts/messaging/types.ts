@@ -24,13 +24,21 @@ export interface SendOutboundInput {
   /** UUID — validado na borda (evita NULL != NULL no dedup, 2ª#7). */
   idempotencyKey: string;
   body: OutboundBody;
+  /** Finalidade usada para aplicar supressão granular; ausente = transacional. */
+  purpose?: 'billing' | 'reminder' | 'followup' | 'marketing';
 }
 
 export type OutboundSendStatus = 'accepted' | 'failed' | 'unknown';
+export type OutboundMessageStatus =
+  | 'pending'
+  | OutboundSendStatus
+  | 'sent'
+  | 'delivered'
+  | 'read';
 
 export interface OutboundResult {
   id: string;
-  status: 'pending' | OutboundSendStatus;
+  status: OutboundMessageStatus;
   providerMessageId: string | null;
   deduped: boolean;
 }

@@ -27,6 +27,7 @@ const DEFAULT_TZ = 'America/Sao_Paulo';
 /** Janela de envio permitida (hora local da clínica): [8, 20). */
 export const SEND_WINDOW_START_HOUR = 8;
 export const SEND_WINDOW_END_HOUR = 20;
+export const PROACTIVE_LEASE_SECONDS = 5 * 60;
 
 /** Forma enxuta usada pelo processor (só o necessário p/ enviar + finalizar). */
 export interface ClaimedJob {
@@ -36,6 +37,7 @@ export interface ClaimedJob {
   payload: unknown;
   /** attempts JÁ incrementado (= tentativa em curso). */
   attempts: number;
+  leaseToken: string;
 }
 
 /** Timezone da clínica via tx já aberta (handler). Single-table read da fundação. */
@@ -81,31 +83,51 @@ export async function enqueue(clinicId: string, values: ProactiveJobInsert): Pro
  */
 export async function claimDue(type: ProactiveJobType, limit: number): Promise<ClaimedJob[]> {
   const rows = (await dbAdmin.execute(
-    sql`WITH due AS (
-          SELECT j.id
+    sql`WITH ranked AS MATERIALIZED (
+          SELECT j.id,
+                 j.clinic_id,
+                 j.scheduled_for,
+                 row_number() OVER (
+                   PARTITION BY j.clinic_id ORDER BY j.scheduled_for, j.created_at, j.id
+                 ) AS clinic_rank
             FROM ai_proactive_jobs j
             JOIN clinics c ON c.id = j.clinic_id
            WHERE j.type = ${type}
-             AND j.status = 'pending'
              AND j.scheduled_for <= now()
+             AND (
+               j.status = 'pending'
+               OR (j.status = 'processing' AND j.lease_expires_at <= now())
+             )
              AND extract(hour FROM (now() AT TIME ZONE c.timezone)) >= ${SEND_WINDOW_START_HOUR}
              AND extract(hour FROM (now() AT TIME ZONE c.timezone)) <  ${SEND_WINDOW_END_HOUR}
-           ORDER BY j.scheduled_for
+        ), due AS (
+          SELECT j.id
+            FROM ranked r
+            JOIN ai_proactive_jobs j ON j.id = r.id
+           WHERE j.status = 'pending'
+              OR (j.status = 'processing' AND j.lease_expires_at <= now())
+           ORDER BY r.clinic_rank, r.scheduled_for, r.clinic_id, j.id
            LIMIT ${limit}
            FOR UPDATE OF j SKIP LOCKED
         )
         UPDATE ai_proactive_jobs j
-           SET attempts = j.attempts + 1, last_attempt_at = now()
+           SET attempts = j.attempts + 1,
+               last_attempt_at = now(),
+               status = 'processing',
+               processing_started_at = now(),
+               lease_expires_at = now() + make_interval(secs => ${PROACTIVE_LEASE_SECONDS}),
+               lease_token = gen_random_uuid()::text
           FROM due
          WHERE j.id = due.id
         RETURNING j.id::text AS id, j.clinic_id::text AS clinic_id, j.type AS type,
-                  j.payload AS payload, j.attempts AS attempts`,
+                  j.payload AS payload, j.attempts AS attempts, j.lease_token AS lease_token`,
   )) as unknown as Array<{
     id: string;
     clinic_id: string;
     type: ProactiveJobType;
     payload: unknown;
     attempts: number;
+    lease_token: string;
   }>;
 
   return rows.map((r) => ({
@@ -114,34 +136,52 @@ export async function claimDue(type: ProactiveJobType, limit: number): Promise<C
     type: r.type,
     payload: r.payload,
     attempts: r.attempts,
+    leaseToken: r.lease_token,
   }));
 }
 
-async function update(clinicId: string, jobId: string, patch: Partial<ProactiveJobRow>): Promise<void> {
+async function finalizeClaim(
+  clinicId: string,
+  jobId: string,
+  leaseToken: string,
+  patch: Partial<ProactiveJobRow>,
+): Promise<void> {
   await withTenant(clinicId, async (tx) => {
     await tx
       .update(aiProactiveJobs)
-      .set(patch)
-      .where(and(eq(aiProactiveJobs.id, jobId), eq(aiProactiveJobs.clinicId, clinicId)));
+      .set({
+        ...patch,
+        processingStartedAt: null,
+        leaseExpiresAt: null,
+        leaseToken: null,
+      })
+      .where(
+        and(
+          eq(aiProactiveJobs.id, jobId),
+          eq(aiProactiveJobs.clinicId, clinicId),
+          eq(aiProactiveJobs.status, 'processing'),
+          eq(aiProactiveJobs.leaseToken, leaseToken),
+        ),
+      );
   });
 }
 
 /** Enviado com sucesso (attempts já contabilizado na claimDue). */
-export function finalizeSent(clinicId: string, jobId: string): Promise<void> {
-  return update(clinicId, jobId, { status: 'sent', sentAt: new Date() });
+export function finalizeSent(clinicId: string, jobId: string, leaseToken: string): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, { status: 'sent', sentAt: new Date() });
 }
 
 /** Falha transitória → volta a pending com backoff (attempts já incrementado). */
-export function finalizeRetry(clinicId: string, jobId: string, nextAt: Date, reason: string): Promise<void> {
-  return update(clinicId, jobId, { status: 'pending', scheduledFor: nextAt, failedReason: reason });
+export function finalizeRetry(clinicId: string, jobId: string, leaseToken: string, nextAt: Date, reason: string): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, { status: 'pending', scheduledFor: nextAt, failedReason: reason });
 }
 
 /** Falha definitiva (estourou MAX_ATTEMPTS ou erro não-retryável). */
-export function finalizeFailed(clinicId: string, jobId: string, reason: string): Promise<void> {
-  return update(clinicId, jobId, { status: 'failed', failedReason: reason });
+export function finalizeFailed(clinicId: string, jobId: string, leaseToken: string, reason: string): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, { status: 'failed', failedReason: reason });
 }
 
 /** Bloqueado por política/guard (suppression, consent, já pago, cancelado). */
-export function cancel(clinicId: string, jobId: string, reason: string): Promise<void> {
-  return update(clinicId, jobId, { status: 'cancelled', lastAttemptAt: new Date(), failedReason: reason });
+export function cancel(clinicId: string, jobId: string, leaseToken: string, reason: string): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, { status: 'cancelled', lastAttemptAt: new Date(), failedReason: reason });
 }

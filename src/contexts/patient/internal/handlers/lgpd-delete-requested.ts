@@ -15,12 +15,21 @@ import { hashForLookup, normalizeEmail } from '@/lib/crypto';
 import { registerHandler } from '@/lib/outbox/registry';
 
 import { PATIENT_EVENTS, type LgpdDeleteRequestedPayload } from '../../events';
-import { patients, suppressionList } from '../../schema';
+import { lgpdRequests, patients, suppressionList } from '../../schema';
 
 registerHandler<LgpdDeleteRequestedPayload>(
   PATIENT_EVENTS.LGPD_DELETE_REQUESTED,
   async ({ tx, clinicId, payload }) => {
-    const { patientId } = payload;
+    const { patientId, requestId } = payload;
+
+    await tx
+      .update(lgpdRequests)
+      .set({
+        status: 'processing',
+        startedAt: sql`coalesce(started_at, now())`,
+        statusReason: 'soft_deleted_waiting_retention',
+      })
+      .where(eq(lgpdRequests.id, requestId));
 
     const [row] = await tx
       .update(patients)

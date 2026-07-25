@@ -1,11 +1,11 @@
 import 'server-only';
 
-import { getCaixaLancamentos, getFaturamentoPeriodo } from '@/contexts/financial/queries';
+import { getFaturamentoPeriodo, getRecebimentosByAppointment } from '@/contexts/financial/queries';
 import {
   getAppointmentStats,
+  getAppointmentStatsByDoctor,
   getAvailableSlots,
   getClinicTimezone,
-  listAppointments,
 } from '@/contexts/scheduling/queries';
 
 /**
@@ -35,7 +35,13 @@ export function resolvePeriod(raw: string | undefined): { key: PeriodKey; days: 
 
 export interface RelatoriosDTO {
   faturamento: { recebido: number; pago: number; saldo: number };
-  noShow: { faltou: number; atendido: number; cancelado: number; total: number; taxa: number | null };
+  noShow: {
+    faltou: number;
+    atendido: number;
+    cancelado: number;
+    total: number;
+    taxa: number | null;
+  };
   ocupacao: { busyMinutes: number; freeMinutes: number; taxa: number | null };
   fromLabel: string;
   toLabel: string;
@@ -133,10 +139,8 @@ export interface DoctorConsolidadoDTO {
 
 /**
  * Consolidado por profissional — composição no APP LAYER (sem JOIN
- * cross-context): Scheduling dá os atendimentos por médico; Financial dá os
- * recebidos com appointmentId; o app junta appointmentId→doctorId.
- * Cap de leitura: 500 atendimentos (limite do listAppointments) — suficiente
- * para o ICP; períodos maiores ficam aproximados e o PDF anota isso.
+ * cross-context): Scheduling agrega atendimentos por médico; Financial agrega
+ * os recebimentos por appointmentId; o app faz apenas a associação dos DTOs.
  */
 export async function getConsolidadoPorProfissional(
   clinicId: string,
@@ -148,35 +152,42 @@ export async function getConsolidadoPorProfissional(
   const to = new Date(todayStart.getTime() + DAY_MS);
   const from = new Date(todayStart.getTime() - (days - 1) * DAY_MS);
 
-  const appts = await listAppointments(clinicId, { from, to, limit: 500 });
-
-  const porMedico = new Map<string, DoctorConsolidadoDTO>();
-  const apptDoctor = new Map<string, string>();
-  for (const a of appts) {
-    apptDoctor.set(a.id, a.doctorId);
-    const row = porMedico.get(a.doctorId) ?? {
-      doctorId: a.doctorId,
-      nome: a.snapshotDoctorNome,
-      total: 0,
-      atendidos: 0,
-      faltas: 0,
-      recebido: opts.includeFaturamento ? 0 : null,
-    };
-    row.total += 1;
-    if (a.status === 'atendido') row.atendidos += 1;
-    if (a.status === 'faltou') row.faltas += 1;
-    porMedico.set(a.doctorId, row);
-  }
+  const stats = await getAppointmentStatsByDoctor(clinicId, from, to);
+  const porMedico = new Map(
+    stats.map((row) => [
+      row.doctorId,
+      {
+        doctorId: row.doctorId,
+        nome: row.nome,
+        total: row.total,
+        atendidos: row.atendidos,
+        faltas: row.faltas,
+        recebido: opts.includeFaturamento ? 0 : null,
+      } satisfies DoctorConsolidadoDTO,
+    ]),
+  );
 
   if (opts.includeFaturamento) {
-    const caixa = await getCaixaLancamentos(clinicId, from, to);
-    const recebidos = [...caixa.parciais, ...caixa.pagosHoje];
-    for (const l of recebidos) {
-      if (!l.appointmentId) continue;
-      const docId = apptDoctor.get(l.appointmentId);
-      if (!docId) continue;
-      const row = porMedico.get(docId);
-      if (row && row.recebido != null) row.recebido += l.valorPago;
+    const apptDoctor = new Map<string, string>();
+    for (const row of stats) {
+      for (const appointmentId of row.appointmentIds) {
+        apptDoctor.set(appointmentId, row.doctorId);
+      }
+    }
+
+    const appointmentIds = [...apptDoctor.keys()];
+    const batchSize = 1_000;
+    for (let start = 0; start < appointmentIds.length; start += batchSize) {
+      const recebimentos = await getRecebimentosByAppointment(
+        clinicId,
+        appointmentIds.slice(start, start + batchSize),
+      );
+      for (const recebimento of recebimentos) {
+        const doctorId = apptDoctor.get(recebimento.appointmentId);
+        if (!doctorId) continue;
+        const row = porMedico.get(doctorId);
+        if (row?.recebido != null) row.recebido += recebimento.recebido;
+      }
     }
   }
 

@@ -34,10 +34,19 @@ export type ToolContext = {
   // cadastrado). verifiedPhone = número do inbound (E.164 normalizado).
   patientId: string | null;
   patientNome: string | null;
+  identityAmbiguous: boolean;
   verifiedPhone: string;
+  // Texto ORIGINAL do turno. Gates server-side (ex.: confirmação explícita)
+  // nunca confiam em um argumento que o próprio LLM poderia fabricar.
+  currentMessage: string;
+  // Configuração autoritativa usada pelas tools, não apenas pelo prompt.
+  canScheduleAnonymous: boolean;
+  maxDaysAhead: number;
   // Opt-in da clínica para divulgar VALORES de cobranças (list_pending_payments).
   canDisclosePayments: boolean;
 };
+
+export type ToolEffect = 'read' | 'mutation';
 
 export type Tool<
   In extends z.ZodTypeAny = z.ZodTypeAny,
@@ -45,6 +54,8 @@ export type Tool<
 > = {
   name: string;
   description: string;
+  /** Default `read`; mutações são limitadas a uma por turno no servidor. */
+  effect?: ToolEffect;
   inputSchema: In;
   outputSchema: Out;
   handler: (input: z.infer<In>, ctx: ToolContext) => Promise<z.infer<Out>>;
@@ -57,6 +68,16 @@ export type ToolExecutionResult =
       kind: 'unknown_tool' | 'invalid_input' | 'invalid_output' | 'handler_error';
       error: string;
       /** Paths das issues Zod (sem valores — seguro p/ failures/metrics). */
+      issuePaths?: string[];
+    };
+
+export type ToolBatchPreflightResult =
+  | { ok: true }
+  | {
+      ok: false;
+      kind: 'unknown_tool' | 'invalid_input' | 'multiple_mutations';
+      error: string;
+      toolName?: string;
       issuePaths?: string[];
     };
 
@@ -136,6 +157,70 @@ function zodObjectToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
 
 function issuePaths(error: z.ZodError): string[] {
   return error.issues.map((i) => i.path.join('.') || '(root)').slice(0, 10);
+}
+
+/**
+ * Valida o lote inteiro ANTES de qualquer handler executar. Além de enforçar
+ * uma mutação por turno, impede o caso "mutação válida seguida de tool
+ * inválida", no qual a primeira ação já teria sido persistida.
+ */
+export function preflightToolCalls(
+  calls: ToolCall[],
+  ctx: ToolContext,
+): ToolBatchPreflightResult {
+  const mutations: string[] = [];
+
+  for (const call of calls) {
+    const tool = getTool(call.name);
+    if (!tool) {
+      metrics.emit('ai_agent.tool.unknown', {
+        clinicId: ctx.clinicId,
+        toolName: call.name,
+        aiRequestId: ctx.aiRequestId,
+      });
+      return {
+        ok: false,
+        kind: 'unknown_tool',
+        toolName: call.name,
+        error: `tool desconhecida: ${call.name}`,
+      };
+    }
+
+    const parsedInput = tool.inputSchema.safeParse(call.args);
+    if (!parsedInput.success) {
+      const paths = issuePaths(parsedInput.error);
+      metrics.emit('ai_agent.tool.invalid', {
+        clinicId: ctx.clinicId,
+        toolName: call.name,
+        aiRequestId: ctx.aiRequestId,
+        issues: paths,
+      });
+      return {
+        ok: false,
+        kind: 'invalid_input',
+        toolName: call.name,
+        error: `input inválido para ${call.name}`,
+        issuePaths: paths,
+      };
+    }
+
+    if (tool.effect === 'mutation') mutations.push(call.name);
+  }
+
+  if (mutations.length > 1) {
+    metrics.emit('ai_agent.tool.multiple_mutations_rejected', {
+      clinicId: ctx.clinicId,
+      aiRequestId: ctx.aiRequestId,
+      toolNames: mutations,
+    });
+    return {
+      ok: false,
+      kind: 'multiple_mutations',
+      error: 'mais de uma mutação no mesmo turno',
+    };
+  }
+
+  return { ok: true };
 }
 
 /**

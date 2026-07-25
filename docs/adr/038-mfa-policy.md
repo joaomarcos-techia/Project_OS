@@ -1,5 +1,9 @@
 # ADR-038 — Política de MFA (o "D6" que nunca foi escrito)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> `login/mfa/actions.ts` + AAL2 em `tenant-context`.
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-07-16
 **Camada:** C3 (Identidade)

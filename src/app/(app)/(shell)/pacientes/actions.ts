@@ -10,15 +10,28 @@
  * react-hook-form — consistency with the codebase (ADR-012 note).
  */
 import { redirect } from 'next/navigation';
+import { z } from 'zod';
 
 import {
   createPatient,
   deletePatient,
+  linkPatientRelationship,
+  mergePatients,
   requestLgpdDelete,
   requestLgpdExport,
+  recordPatientDeath,
   updatePatient,
+  unlinkPatientRelationship,
 } from '@/contexts/patient/actions';
-import { CreatePatientSchema, UpdatePatientSchema } from '@/contexts/patient/types';
+import { listPatients } from '@/contexts/patient/queries';
+import {
+  CreatePatientSchema,
+  LinkPatientRelationshipSchema,
+  MergePatientsSchema,
+  UpdatePatientSchema,
+} from '@/contexts/patient/types';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 
 export type PatientFormState = { error: string | null };
 export type LgpdFormState = { error: string | null; message: string | null };
@@ -75,6 +88,15 @@ export async function createPatientForm(
     dataNascimento: str(fd, 'dataNascimento'),
     sexo: str(fd, 'sexo'),
     endereco: addressFrom(fd),
+    guardian: str(fd, 'guardianPatientId')
+      ? {
+          responsiblePatientId: str(fd, 'guardianPatientId'),
+          relationshipType: str(fd, 'guardianRelationshipType') ?? 'responsavel',
+          legalGuardian: fd.get('guardianLegal') === 'on',
+          financialResponsible: fd.get('guardianFinancial') === 'on',
+          canManageAppointments: fd.get('guardianScheduling') === 'on',
+        }
+      : undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
 
@@ -127,6 +149,98 @@ export async function deletePatientForm(
     return { error: messageFrom(err) };
   }
   redirect('/pacientes');
+}
+
+export async function linkPatientRelationshipForm(
+  _prev: PatientFormState,
+  fd: FormData,
+): Promise<PatientFormState> {
+  const key = str(fd, 'idempotencyKey') ?? '';
+  const parsed = LinkPatientRelationshipSchema.safeParse({
+    responsiblePatientId: str(fd, 'responsiblePatientId'),
+    dependentPatientId: str(fd, 'dependentPatientId'),
+    relationshipType: str(fd, 'relationshipType'),
+    legalGuardian: fd.get('legalGuardian') === 'on',
+    financialResponsible: fd.get('financialResponsible') === 'on',
+    canManageAppointments: fd.get('canManageAppointments') === 'on',
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+  try {
+    await linkPatientRelationship(parsed.data, key);
+  } catch (err) {
+    return { error: messageFrom(err) };
+  }
+  redirect(`/pacientes/${parsed.data.dependentPatientId}`);
+}
+
+export async function unlinkPatientRelationshipForm(
+  _prev: PatientFormState,
+  fd: FormData,
+): Promise<PatientFormState> {
+  const relationshipId = str(fd, 'relationshipId');
+  const patientId = str(fd, 'patientId');
+  const key = str(fd, 'idempotencyKey') ?? '';
+  if (!relationshipId || !patientId) return { error: 'Vínculo inválido.' };
+  try {
+    await unlinkPatientRelationship(relationshipId, key);
+  } catch (err) {
+    return { error: messageFrom(err) };
+  }
+  redirect(`/pacientes/${patientId}`);
+}
+
+export async function mergePatientsForm(
+  _prev: PatientFormState,
+  fd: FormData,
+): Promise<PatientFormState> {
+  const key = str(fd, 'idempotencyKey') ?? '';
+  const parsed = MergePatientsSchema.safeParse({
+    sourcePatientId: str(fd, 'sourcePatientId'),
+    targetPatientId: str(fd, 'targetPatientId'),
+    reason: str(fd, 'reason'),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
+  try {
+    await mergePatients(parsed.data, key);
+  } catch (err) {
+    return { error: messageFrom(err) };
+  }
+  redirect(`/pacientes/${parsed.data.targetPatientId}`);
+}
+
+export async function buscarPacientesRelacionamento(
+  term: string,
+  excludedPatientId: string,
+): Promise<Array<{ id: string; label: string }>> {
+  await requireUser();
+  await requireCachedPermission(PERMISSIONS.VIEW_PATIENT);
+  const clinicId = await requireClinicId();
+  const excluded = z.string().uuid().safeParse(excludedPatientId);
+  const normalized = term.trim();
+  if (!excluded.success || normalized.length < 2) return [];
+  const patients = await listPatients(clinicId, { search: normalized, limit: 10 });
+  return patients
+    .filter((patient) => patient.id !== excluded.data)
+    .map((patient) => ({ id: patient.id, label: patient.nome }));
+}
+
+export async function recordPatientDeathForm(
+  _prev: PatientFormState,
+  fd: FormData,
+): Promise<PatientFormState> {
+  const id = str(fd, 'id');
+  const key = str(fd, 'idempotencyKey') ?? '';
+  const deceasedAt = str(fd, 'deceasedAt');
+  const reason = str(fd, 'reason');
+  if (!id || !deceasedAt || !reason) {
+    return { error: 'Data e motivo do falecimento sao obrigatorios.' };
+  }
+  try {
+    await recordPatientDeath(id, { deceasedAt, reason }, key);
+  } catch (err) {
+    return { error: messageFrom(err) };
+  }
+  redirect(`/pacientes/${id}`);
 }
 
 export async function requestLgpdExportForm(

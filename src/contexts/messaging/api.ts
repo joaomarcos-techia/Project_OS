@@ -47,7 +47,14 @@ export interface InboundForAgent {
  * Chave ausente do mapa = ainda não houve tentativa de envio (evento no outbox,
  * worker ainda não rodou) — o caller trata como 'pending'.
  */
-export type OutboundDeliveryStatus = 'pending' | 'accepted' | 'failed' | 'unknown';
+export type OutboundDeliveryStatus =
+  | 'pending'
+  | 'accepted'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed'
+  | 'unknown';
 
 export interface MessagingApiV1 {
   getInboundForAgent(

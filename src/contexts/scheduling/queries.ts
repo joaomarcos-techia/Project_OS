@@ -12,7 +12,7 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, gte, inArray, lte, lt, type SQL, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, lt, ne, type SQL, sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
@@ -21,8 +21,12 @@ import {
   appointments,
   appointmentStateLog,
   clinicHolidays,
+  doctorAbsences,
   doctorAvailability,
   procedures,
+  schedulableResources,
+  waitingQueueEntries,
+  waitlistEntries,
   type AppointmentRow,
   type ProcedureRow,
 } from './schema';
@@ -36,7 +40,15 @@ import {
   type LocalBusy,
   type LocalHoliday,
 } from './slot-resolver';
-import type { AppointmentStatusDTO, AppointmentSummary, ProcedureSummary, Slot } from './types';
+import type {
+  AppointmentStatusDTO,
+  AppointmentSummary,
+  DoctorAbsenceDTO,
+  ProcedureSummary,
+  SchedulableResourceDTO,
+  Slot,
+  WaitlistEntryDTO,
+} from './types';
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
 const DEFAULT_SLOT_MINUTES = 30;
@@ -73,6 +85,8 @@ export function toAppointmentSummary(row: AppointmentRow): AppointmentSummary {
     faturamentoPendente: row.faturamentoPendente,
     observacoes: row.observacoes ?? null,
     rescheduledFromAppointmentId: row.rescheduledFromAppointmentId ?? null,
+    recurrenceSeriesId: row.recurrenceSeriesId ?? null,
+    recurrenceOccurrence: row.recurrenceOccurrence ?? null,
     createdBy: row.createdBy ?? null,
     createdAt: toIso(row.createdAt)!,
     updatedAt: toIso(row.updatedAt)!,
@@ -149,6 +163,103 @@ export async function listAppointments(
       .limit(limit)
       .offset(offset);
     return rows.map(toAppointmentSummary);
+  });
+}
+
+export interface ListDoctorAbsencesOpts {
+  doctorId?: string;
+  from?: Date;
+  to?: Date;
+  limit?: number;
+}
+
+/** Ausências que intersectam o período informado, ordenadas pelo início. */
+export async function listDoctorAbsences(
+  clinicId: string,
+  opts: ListDoctorAbsencesOpts = {},
+): Promise<DoctorAbsenceDTO[]> {
+  const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500);
+  const conds: SQL[] = [eq(doctorAbsences.clinicId, clinicId)];
+  if (opts.doctorId) conds.push(eq(doctorAbsences.doctorId, opts.doctorId));
+  if (opts.from) conds.push(gte(doctorAbsences.endsAt, opts.from));
+  if (opts.to) conds.push(lt(doctorAbsences.startsAt, opts.to));
+
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(doctorAbsences)
+      .where(and(...conds))
+      .orderBy(asc(doctorAbsences.startsAt))
+      .limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      doctorId: row.doctorId,
+      startsAt: toIso(row.startsAt)!,
+      endsAt: toIso(row.endsAt)!,
+      reason: row.reason,
+      strategy: row.strategy,
+      replacementDoctorId: row.replacementDoctorId ?? null,
+      affectedAppointments: row.affectedAppointments,
+      createdAt: toIso(row.createdAt)!,
+    }));
+  });
+}
+
+/**
+ * Consultas futuras que o próprio paciente pode confirmar pelo agente.
+ * O filtro vive no Scheduling para que a IA não replique a máquina de estados.
+ */
+export async function listUpcomingPatientAppointments(
+  clinicId: string,
+  patientId: string,
+  limit = 10,
+): Promise<AppointmentSummary[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 20);
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.patientId, patientId),
+          inArray(appointments.status, ['agendado', 'confirmado']),
+          gte(appointments.scheduledAt, new Date()),
+        ),
+      )
+      .orderBy(asc(appointments.scheduledAt))
+      .limit(safeLimit);
+    return rows.map(toAppointmentSummary);
+  });
+}
+
+export async function hasSubsequentCompletedAppointment(
+  clinicId: string,
+  input: {
+    patientId: string;
+    after: Date;
+    excludeAppointmentId?: string | null;
+    procedureId?: string | null;
+    doctorId?: string | null;
+  },
+): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const conditions: SQL[] = [
+      eq(appointments.clinicId, clinicId),
+      eq(appointments.patientId, input.patientId),
+      eq(appointments.status, 'atendido'),
+      gte(appointments.scheduledAt, input.after),
+    ];
+    if (input.excludeAppointmentId)
+      conditions.push(ne(appointments.id, input.excludeAppointmentId));
+    if (input.procedureId) conditions.push(eq(appointments.procedureId, input.procedureId));
+    else if (input.doctorId) conditions.push(eq(appointments.doctorId, input.doctorId));
+    const [row] = await tx
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(and(...conditions))
+      .limit(1);
+    return Boolean(row);
   });
 }
 
@@ -278,6 +389,104 @@ export async function listHolidays(clinicId: string): Promise<HolidayDTO[]> {
   });
 }
 
+export interface WaitingQueueInfo {
+  appointmentId: string;
+  priority: 'urgent' | 'normal';
+  status: 'waiting' | 'in_service' | 'completed' | 'cancelled';
+  queuedAt: string;
+  estimatedWaitMinutesAtEntry: number;
+}
+
+export async function getWaitingQueueEntries(
+  clinicId: string,
+  appointmentIds: readonly string[],
+): Promise<WaitingQueueInfo[]> {
+  if (appointmentIds.length === 0) return [];
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        appointmentId: waitingQueueEntries.appointmentId,
+        priority: waitingQueueEntries.priority,
+        status: waitingQueueEntries.status,
+        queuedAt: waitingQueueEntries.queuedAt,
+        estimatedWaitMinutesAtEntry: waitingQueueEntries.estimatedWaitMinutesAtEntry,
+      })
+      .from(waitingQueueEntries)
+      .where(
+        and(
+          eq(waitingQueueEntries.clinicId, clinicId),
+          inArray(waitingQueueEntries.appointmentId, [...appointmentIds]),
+        ),
+      )
+      .orderBy(
+        sql`case when ${waitingQueueEntries.status} = 'in_service' then 0 else 1 end`,
+        sql`case when ${waitingQueueEntries.priority} = 'urgent' then 0 else 1 end`,
+        asc(waitingQueueEntries.queuedAt),
+      );
+    return rows.map((row) => ({
+      ...row,
+      queuedAt: row.queuedAt.toISOString(),
+    }));
+  });
+}
+
+export async function listWaitlistEntries(
+  clinicId: string,
+  includeClosed = false,
+): Promise<WaitlistEntryDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const conditions: SQL[] = [eq(waitlistEntries.clinicId, clinicId)];
+    if (!includeClosed) conditions.push(inArray(waitlistEntries.status, ['waiting', 'offered']));
+    const rows = await tx
+      .select()
+      .from(waitlistEntries)
+      .where(and(...conditions))
+      .orderBy(
+        sql`case when ${waitlistEntries.priority} = 'urgent' then 0 else 1 end`,
+        asc(waitlistEntries.createdAt),
+      );
+    return rows.map((row) => ({
+      id: row.id,
+      patientId: row.patientId,
+      doctorId: row.doctorId ?? null,
+      procedureId: row.procedureId,
+      priority: row.priority,
+      status: row.status,
+      preferredFrom: row.preferredFrom?.toISOString() ?? null,
+      preferredUntil: row.preferredUntil?.toISOString() ?? null,
+      offeredAppointmentId: row.offeredAppointmentId ?? null,
+      bookedAppointmentId: row.bookedAppointmentId ?? null,
+      notes: row.notes ?? null,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  });
+}
+
+export async function listSchedulableResources(
+  clinicId: string,
+  onlyActive = true,
+): Promise<SchedulableResourceDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(schedulableResources)
+      .where(
+        and(
+          eq(schedulableResources.clinicId, clinicId),
+          ...(onlyActive ? [eq(schedulableResources.active, true)] : []),
+        ),
+      )
+      .orderBy(asc(schedulableResources.type), asc(schedulableResources.name));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      unitId: row.unitId ?? null,
+      active: row.active,
+    }));
+  });
+}
+
 // --- relatórios (agregados de período) -------------------------------------
 
 export interface AppointmentStats {
@@ -289,6 +498,15 @@ export interface AppointmentStats {
   confirmado: number;
   /** Soma da duração (min) dos atendimentos que ocupam instante — base da ocupação. */
   busyMinutes: number;
+}
+
+export interface AppointmentStatsByDoctor {
+  doctorId: string;
+  nome: string;
+  total: number;
+  atendidos: number;
+  faltas: number;
+  appointmentIds: string[];
 }
 
 /**
@@ -331,6 +549,47 @@ export async function getAppointmentStats(
       confirmado: r?.confirmado ?? 0,
       busyMinutes: r?.busyMinutes ?? 0,
     };
+  });
+}
+
+/**
+ * Consolidado por profissional no período. A agregação acontece no banco e
+ * inclui todos os atendimentos; `appointmentIds` é o seam necessário para a
+ * camada de relatórios associar recebimentos sem JOIN entre contextos.
+ */
+export async function getAppointmentStatsByDoctor(
+  clinicId: string,
+  from: Date,
+  to: Date,
+): Promise<AppointmentStatsByDoctor[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        doctorId: appointments.doctorId,
+        nome: sql<string>`(array_agg(${appointments.snapshotDoctorNome} order by ${appointments.scheduledAt} desc))[1]`,
+        total: sql<number>`count(*)::int`,
+        atendidos: sql<number>`coalesce(sum(case when ${appointments.status} = 'atendido' then 1 else 0 end), 0)::int`,
+        faltas: sql<number>`coalesce(sum(case when ${appointments.status} = 'faltou' then 1 else 0 end), 0)::int`,
+        appointmentIds: sql<string[]>`array_agg(${appointments.id})`,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          gte(appointments.scheduledAt, from),
+          lt(appointments.scheduledAt, to),
+        ),
+      )
+      .groupBy(appointments.doctorId);
+
+    return rows.map((row) => ({
+      doctorId: row.doctorId,
+      nome: row.nome,
+      total: row.total,
+      atendidos: row.atendidos,
+      faltas: row.faltas,
+      appointmentIds: row.appointmentIds,
+    }));
   });
 }
 
@@ -475,7 +734,14 @@ export async function getAvailableSlots(opts: GetAvailableSlotsOpts): Promise<Sl
 
     return localSlots.map((s): Slot => {
       const [y, m, d] = s.date.split('-').map(Number);
-      const startAt = zonedWallToUtc(y!, m!, d!, Math.floor(s.startMin / 60), s.startMin % 60, timeZone);
+      const startAt = zonedWallToUtc(
+        y!,
+        m!,
+        d!,
+        Math.floor(s.startMin / 60),
+        s.startMin % 60,
+        timeZone,
+      );
       const endAt = zonedWallToUtc(y!, m!, d!, Math.floor(s.endMin / 60), s.endMin % 60, timeZone);
       return {
         doctorId: s.doctorId,

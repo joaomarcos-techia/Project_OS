@@ -16,8 +16,16 @@
  * As permissões finais (requireFreshPermission edit:agenda) e o anti-conflito
  * (EXCLUDE) são reaplicados dentro de createAppointment/createWalkInAppointment.
  */
+import { revalidatePath } from 'next/cache';
+
 import { getPatientSummaryById, listPatients } from '@/contexts/patient/queries';
-import { createAppointment, createWalkInAppointment } from '@/contexts/scheduling/actions';
+import {
+  createAppointment,
+  createDoctorAbsence,
+  createRecurringAppointments,
+  createWalkInAppointment,
+  recoverAppointment,
+} from '@/contexts/scheduling/actions';
 import { getClinicTimezone, listAppointments } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -29,17 +37,32 @@ export type CriarAtendimentoInput = {
   doctorId: string;
   urgencia?: boolean;
   observacoes?: string;
-} & ({ modo: 'agora' } | { modo: 'agendar'; date: string; time: string });
+  resourceIds?: string[];
+} & (
+  | { modo: 'agora' }
+  | {
+      modo: 'agendar';
+      date: string;
+      time: string;
+      recurrence?: { intervalWeeks: number; occurrences: number };
+    }
+);
 
 export type CriarAtendimentoResult =
-  | { ok: true; id: string; modo: 'agora' | 'agendar' }
+  | { ok: true; id: string; modo: 'agora' | 'agendar'; createdCount: number }
   | { ok: false; message: string };
+
+export type AgendaOperationState =
+  | { ok: true; message: string }
+  | { ok: false; message: string }
+  | null;
 
 function messageFrom(err: unknown): string {
   if (err && typeof err === 'object' && 'name' in err) {
     const name = (err as { name?: string }).name;
     if (name === 'AuthError') return 'Sem permissão para criar atendimento.';
-    if (name === 'SchedulingConflictError') return 'Já existe um atendimento nesse horário para este profissional.';
+    if (name === 'SchedulingConflictError')
+      return 'Já existe um atendimento nesse horário para este profissional.';
   }
   if (err instanceof Error) return err.message;
   return 'Erro ao criar atendimento.';
@@ -113,6 +136,7 @@ export async function criarAtendimento(
       doctorId: input.doctorId,
       patientId: input.patientId,
       procedureId: input.procedureId,
+      resourceIds: input.resourceIds ?? [],
       ...(input.urgencia ? { urgencia: true } : {}),
       ...(input.observacoes?.trim() ? { observacoes: input.observacoes.trim() } : {}),
     };
@@ -128,11 +152,28 @@ export async function criarAtendimento(
 
     if (input.modo === 'agendar') {
       const scheduledAt = await scheduledAtIso(clinicId, input.date, input.time);
+      if (input.recurrence) {
+        const series = await createRecurringAppointments(
+          {
+            ...common,
+            firstScheduledAt: scheduledAt,
+            intervalWeeks: input.recurrence.intervalWeeks,
+            occurrences: input.recurrence.occurrences,
+          },
+          key,
+        );
+        return {
+          ok: true,
+          id: series.appointments[0]!.id,
+          modo: 'agendar',
+          createdCount: series.appointments.length,
+        };
+      }
       const r = await createAppointment({ ...common, scheduledAt }, key);
-      return { ok: true, id: r.id, modo: 'agendar' };
+      return { ok: true, id: r.id, modo: 'agendar', createdCount: 1 };
     }
     const r = await createWalkInAppointment(common, key);
-    return { ok: true, id: r.id, modo: 'agora' };
+    return { ok: true, id: r.id, modo: 'agora', createdCount: 1 };
   } catch (err) {
     return { ok: false, message: messageFrom(err) };
   }
@@ -147,4 +188,70 @@ export async function buscarPacientes(term: string): Promise<Array<{ id: string;
   if (t.length < 2) return [];
   const rows = await listPatients(clinicId, { search: t, limit: 10 });
   return rows.map((p) => ({ id: p.id, nome: p.nome }));
+}
+
+export async function corrigirAtendimentoAction(
+  _previous: AgendaOperationState,
+  formData: FormData,
+): Promise<AgendaOperationState> {
+  const appointmentId = String(formData.get('appointmentId') ?? '');
+  const newDoctorId = String(formData.get('newDoctorId') ?? '').trim();
+  try {
+    await recoverAppointment(
+      {
+        appointmentId,
+        kind: String(formData.get('kind') ?? '') as
+          | 'interrupt'
+          | 'exceptional_cancel'
+          | 'reopen'
+          | 'transfer',
+        reason: String(formData.get('reason') ?? ''),
+        ...(newDoctorId ? { newDoctorId } : {}),
+      },
+      String(formData.get('idempotencyKey') ?? ''),
+    );
+    revalidatePath('/agenda');
+    return { ok: true, message: 'Correção registrada na trilha do atendimento.' };
+  } catch (error) {
+    return { ok: false, message: messageFrom(error) };
+  }
+}
+
+function localDateTimeToIso(clinicId: string, value: FormDataEntryValue | null): Promise<string> {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(String(value ?? '').trim());
+  if (!match) throw new Error('Informe data e hora válidas.');
+  return scheduledAtIso(clinicId, match[1]!, match[2]!);
+}
+
+export async function criarAusenciaMedicaAction(
+  _previous: AgendaOperationState,
+  formData: FormData,
+): Promise<AgendaOperationState> {
+  try {
+    await requireUser();
+    await requireCachedPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    const clinicId = await requireClinicId();
+    const startsAt = await localDateTimeToIso(clinicId, formData.get('startsAt'));
+    const endsAt = await localDateTimeToIso(clinicId, formData.get('endsAt'));
+    const replacementDoctorId = String(formData.get('replacementDoctorId') ?? '').trim();
+    const result = await createDoctorAbsence(
+      {
+        doctorId: String(formData.get('doctorId') ?? ''),
+        startsAt,
+        endsAt,
+        reason: String(formData.get('reason') ?? ''),
+        strategy: String(formData.get('strategy') ?? '') as 'cancel' | 'transfer',
+        ...(replacementDoctorId ? { replacementDoctorId } : {}),
+      },
+      String(formData.get('idempotencyKey') ?? ''),
+    );
+    revalidatePath('/agenda');
+    revalidatePath('/agenda/ausencias');
+    return {
+      ok: true,
+      message: `${result.affected} atendimento(s) reorganizado(s): ${result.cancelled} cancelado(s) e ${result.transferred} transferido(s).`,
+    };
+  } catch (error) {
+    return { ok: false, message: messageFrom(error) };
+  }
 }

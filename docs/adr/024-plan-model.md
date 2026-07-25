@@ -1,5 +1,9 @@
 # ADR-024 — Modelo de planos: só limites, sem overage, sem feature-gating (base; enforcement em C13)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> Sem overage (`billing/schema.ts`) e sem feature-gating. O plano `Pro+` citado em docs antigos **não existe** no código.
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: contrato congelado agora / enforcement em C13 (billing)
 - Refs: ADR-004 (Meta Cloud API), ADR-016 (ciclo de vida de clínica), VisãoGeral §4.2 / §9, PlanoAção C13

@@ -1,10 +1,18 @@
 /**
- * Financial internal API (C12) — superfície versionada (M14) para o AI Agent.
- * NÃO HTTP. SOMENTE LEITURA: a IA nunca cria/edita/gera cobrança (par.12 —
- * proibido). Thin wrapper sobre a query; sem lógica de negócio (REGRA 3).
+ * Financial internal API (C12) — superfície versionada (M14) para o AI Agent
+ * e para os jobs internos de cobrança. NÃO HTTP. A IA só consulta pendências;
+ * as mutações expostas aqui pertencem ao fluxo operacional do job e são
+ * executadas com contexto explícito da clínica. Thin wrapper, sem regra de
+ * negócio (REGRA 3).
  */
 import { getLancamento, listPendingByPatient } from './queries';
-import { listDunningCandidates, type DunningCandidate } from './dunning-candidates';
+import {
+  listDunningCandidates,
+  listOpenCollectionCaseClinicIds,
+  type DunningCandidate,
+} from './dunning-candidates';
+import type { ManualCollectionStage } from './dunning-policy';
+import { resolveSettledCollectionCases, upsertCollectionCase } from './internal/collection-cases';
 import type { LancamentoSummary } from './types';
 
 export interface FinancialApiV1 {
@@ -13,10 +21,16 @@ export interface FinancialApiV1 {
   getLancamento(clinicId: string, id: string): Promise<LancamentoSummary | null>;
   /** C14 — recebíveis cobráveis e vencidos (cross-tenant; regra mora no Financial). */
   listDunningCandidates(limit?: number): Promise<DunningCandidate[]>;
+  upsertCollectionCase(candidate: DunningCandidate, stage: ManualCollectionStage): Promise<void>;
+  listOpenCollectionCaseClinicIds(): Promise<string[]>;
+  resolveSettledCollectionCases(clinicId: string): Promise<number>;
 }
 
 export const financialApiV1: FinancialApiV1 = {
   listPendingByPatient: (clinicId, patientId) => listPendingByPatient(clinicId, patientId),
   getLancamento: (clinicId, id) => getLancamento(clinicId, id),
   listDunningCandidates: (limit) => listDunningCandidates(limit),
+  upsertCollectionCase: (candidate, stage) => upsertCollectionCase(candidate, stage),
+  listOpenCollectionCaseClinicIds: () => listOpenCollectionCaseClinicIds(),
+  resolveSettledCollectionCases: (clinicId) => resolveSettledCollectionCases(clinicId),
 };

@@ -5,11 +5,11 @@
  */
 import { z } from 'zod';
 
-import { agentIdemKey } from '@/lib/agent/actor';
 /* eslint-disable boundaries/element-types -- schedulingApiV1 é a API interna pública (M14). */
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
+import { assertAgentSchedulePolicy, proposePendingAction } from '../internal/pending-action';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
@@ -21,14 +21,18 @@ const InputSchema = z.object({
 });
 
 const OutputSchema = z.object({
-  appointment_id: z.string(),
-  status: z.string(),
-  scheduled_at: z.string(),
+  pending_action_id: z.string().uuid(),
+  action: z.literal('reschedule_appointment'),
+  summary: z.string(),
+  expires_at: z.string().datetime(),
+  requires_confirmation: z.literal(true),
 });
 
 registerTool({
   name: 'reschedule_appointment',
-  description: 'Reagenda uma consulta do paciente para um novo horário (confirme antes).',
+  effect: 'mutation',
+  description:
+    'Prepara o reagendamento e devolve um resumo. A consulta só será alterada após uma nova confirmação explícita.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
@@ -36,13 +40,28 @@ registerTool({
     if (!appt || !ctx.patientId || appt.patientId !== ctx.patientId) {
       throw new Error('consulta não pertence ao paciente verificado');
     }
-    const idemKey = agentIdemKey(ctx.conversationId, 'reschedule_appointment', input);
-    const created = await schedulingApiV1.rescheduleAsAgent(
-      { clinicId: ctx.clinicId, eventId: ctx.eventId, aiRequestId: ctx.aiRequestId },
-      input.appointment_id,
-      { newScheduledAt: input.new_scheduled_at },
-      idemKey,
-    );
-    return { appointment_id: created.id, status: created.status, scheduled_at: created.scheduledAt };
+    assertAgentSchedulePolicy({
+      scheduledAt: input.new_scheduled_at,
+      now: new Date(),
+      maxDaysAhead: ctx.maxDaysAhead,
+    });
+    const pending = await proposePendingAction(ctx.tx, {
+      clinicId: ctx.clinicId,
+      conversationId: ctx.conversationId,
+      eventId: ctx.eventId,
+      payload: {
+        type: 'reschedule_appointment',
+        appointmentId: input.appointment_id,
+        newScheduledAt: input.new_scheduled_at,
+      },
+      summary: `Reagendar consulta de ${appt.scheduledAt} para ${input.new_scheduled_at}`,
+    });
+    return {
+      pending_action_id: pending.id,
+      action: pending.action,
+      summary: pending.summary,
+      expires_at: pending.expiresAt,
+      requires_confirmation: true as const,
+    };
   },
 });

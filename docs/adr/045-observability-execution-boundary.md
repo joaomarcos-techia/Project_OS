@@ -1,5 +1,8 @@
 # ADR-045 — Fronteira de observabilidade: withCron + contexto ambiente + captura de background
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-07-18
 **Estende:** [ADR-029](./029-observability-stack.md) (stack de observabilidade)

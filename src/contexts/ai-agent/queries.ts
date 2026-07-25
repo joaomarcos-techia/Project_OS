@@ -12,7 +12,7 @@
  */
 import 'server-only';
 
-import { and, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 
 /* eslint-disable boundaries/element-types -- messagingApiV1 é a superfície PÚBLICA do Messaging (mesma exceção já usada em internal/handlers/inbound-received.ts). Só o estado de entrega, sem tocar o schema do outro contexto. */
 import { messagingApiV1 } from '@/contexts/messaging';
@@ -29,7 +29,7 @@ import { patients } from '@/contexts/patient';
 /* eslint-enable boundaries/element-types */
 
 import { isWindowOpen, windowClosesAt } from './internal/meta-window';
-import { aiConversations, aiMessages } from './schema';
+import { aiConversations, aiHandoffQueue, aiMessages } from './schema';
 import type {
   AIConversationListItem,
   AIConversationListResult,
@@ -64,6 +64,7 @@ export interface ListConversationsOpts {
   status?: AIConversationStatus | undefined;
   search?: string | undefined;
   page?: number | undefined;
+  overdueOnly?: boolean | undefined;
 }
 
 /**
@@ -81,10 +82,17 @@ export async function listConversations(
 
   const term = opts.search?.trim().slice(0, 64) ?? '';
   const handoffFirst = sql`(${aiConversations.status} = 'handoff') DESC`;
+  const overdueFirst = sql`(${aiHandoffQueue.dueAt} < now() AND ${aiHandoffQueue.resolvedAt} IS NULL) DESC`;
+  const urgentFirst = sql`(${aiHandoffQueue.priority} = 'urgent') DESC`;
 
   return withTenant(clinicId, async (tx) => {
     const conds: SQL[] = [eq(aiConversations.clinicId, clinicId)];
     if (opts.status) conds.push(eq(aiConversations.status, opts.status));
+    if (opts.overdueOnly) {
+      conds.push(eq(aiConversations.status, 'handoff'));
+      conds.push(sql`${aiHandoffQueue.dueAt} < now()`);
+      conds.push(isNull(aiHandoffQueue.resolvedAt));
+    }
 
     if (term && looksLikePhone(term)) {
       // Telefone é cifrado: não dá para ILIKE. A busca é por hash determinístico
@@ -99,7 +107,12 @@ export async function listConversations(
       // Nenhum paciente casa o termo → vazio determinístico. Sem o `false` o
       // filtro seria ignorado e a busca devolveria a lista inteira.
       conds.push(
-        matched.length ? inArray(aiConversations.patientId, matched.map((r) => r.id)) : sql`false`,
+        matched.length
+          ? inArray(
+              aiConversations.patientId,
+              matched.map((r) => r.id),
+            )
+          : sql`false`,
       );
     }
 
@@ -115,13 +128,42 @@ export async function listConversations(
           intentAtual: aiConversations.intentAtual,
           startedAt: aiConversations.startedAt,
           lastMessageAt: aiConversations.lastMessageAt,
+          assignedToUserId: aiHandoffQueue.assignedTo,
+          handoffPriority: aiHandoffQueue.priority,
+          handoffDueAt: aiHandoffQueue.dueAt,
         })
         .from(aiConversations)
+        .leftJoin(
+          aiHandoffQueue,
+          and(
+            eq(aiHandoffQueue.clinicId, clinicId),
+            eq(aiHandoffQueue.conversationId, aiConversations.id),
+            isNull(aiHandoffQueue.resolvedAt),
+          ),
+        )
         .where(where)
-        .orderBy(handoffFirst, desc(aiConversations.lastMessageAt), desc(aiConversations.id))
+        .orderBy(
+          handoffFirst,
+          overdueFirst,
+          urgentFirst,
+          aiHandoffQueue.dueAt,
+          desc(aiConversations.lastMessageAt),
+          desc(aiConversations.id),
+        )
         .limit(PAGE_SIZE)
         .offset(offset),
-      tx.select({ total: sql<number>`count(*)::int` }).from(aiConversations).where(where),
+      tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(aiConversations)
+        .leftJoin(
+          aiHandoffQueue,
+          and(
+            eq(aiHandoffQueue.clinicId, clinicId),
+            eq(aiHandoffQueue.conversationId, aiConversations.id),
+            isNull(aiHandoffQueue.resolvedAt),
+          ),
+        )
+        .where(where),
     ]);
 
     const items = await Promise.all(
@@ -134,11 +176,22 @@ export async function listConversations(
           id: r.id,
           patientDisplayName: nome,
           // Telefone só aparece quando não há nome, e SEMPRE mascarado.
-          maskedPhone: nome ? null : maskPhone(await decryptForTenant(clinicId, r.patientPhoneEncrypted)),
+          maskedPhone: nome
+            ? null
+            : maskPhone(await decryptForTenant(clinicId, r.patientPhoneEncrypted)),
           lastMessagePreview: lastText,
           status: r.status,
           lastMessageAt: toIso(r.lastMessageAt)!,
           intentAtual: r.intentAtual,
+          handoff:
+            r.status === 'handoff' && r.handoffDueAt && r.handoffPriority
+              ? {
+                  assignedToUserId: r.assignedToUserId ?? null,
+                  priority: r.handoffPriority,
+                  dueAt: toIso(r.handoffDueAt)!,
+                  overdue: r.handoffDueAt.getTime() < Date.now(),
+                }
+              : null,
         };
       }),
     );
@@ -154,11 +207,7 @@ export async function listConversations(
   });
 }
 
-async function patientNome(
-  tx: Tx,
-  clinicId: string,
-  patientId: string,
-): Promise<string | null> {
+async function patientNome(tx: Tx, clinicId: string, patientId: string): Promise<string | null> {
   const [row] = await tx
     .select({ nome: patients.nome })
     .from(patients)
@@ -197,7 +246,11 @@ async function lastMessagePreview(
  * futuro inserir mensagem anterior ao started_at, esta poda ESCONDE histórico
  * silenciosamente. O smoke tem uma asserção guardando essa invariante.
  */
-function partitionScopedConversation(clinicId: string, conversationId: string, startedAt: Date): SQL {
+function partitionScopedConversation(
+  clinicId: string,
+  conversationId: string,
+  startedAt: Date,
+): SQL {
   return and(
     eq(aiMessages.clinicId, clinicId),
     eq(aiMessages.conversationId, conversationId),
@@ -249,6 +302,25 @@ export async function getConversationThread(
       .orderBy(aiMessages.createdAt)
       .limit(MAX_THREAD_MESSAGES);
 
+    const [handoffRow] =
+      conv.status === 'handoff'
+        ? await tx
+            .select({
+              assignedToUserId: aiHandoffQueue.assignedTo,
+              priority: aiHandoffQueue.priority,
+              dueAt: aiHandoffQueue.dueAt,
+            })
+            .from(aiHandoffQueue)
+            .where(
+              and(
+                eq(aiHandoffQueue.clinicId, clinicId),
+                eq(aiHandoffQueue.conversationId, conversationId),
+                isNull(aiHandoffQueue.resolvedAt),
+              ),
+            )
+            .limit(1)
+        : [];
+
     // Estado de entrega só das mensagens humanas — as do agente já foram
     // enviadas de forma síncrona no próprio turno.
     const manualKeys = rows.filter((r) => r.sentByUserId && r.eventId).map((r) => r.eventId!);
@@ -279,8 +351,7 @@ export async function getConversationThread(
       }),
     );
 
-    const lastInboundAt =
-      [...rows].reverse().find((r) => r.direction === 'in')?.createdAt ?? null;
+    const lastInboundAt = [...rows].reverse().find((r) => r.direction === 'in')?.createdAt ?? null;
     const now = new Date();
     const nome = conv.patientId ? await patientNome(tx, clinicId, conv.patientId) : null;
 
@@ -300,6 +371,14 @@ export async function getConversationThread(
       startedAt: toIso(conv.startedAt)!,
       lastMessageAt: toIso(conv.lastMessageAt)!,
       messages,
+      handoff: handoffRow
+        ? {
+            assignedToUserId: handoffRow.assignedToUserId ?? null,
+            priority: handoffRow.priority,
+            dueAt: toIso(handoffRow.dueAt)!,
+            overdue: handoffRow.dueAt.getTime() < now.getTime(),
+          }
+        : null,
       window: {
         open: isWindowOpen(lastInboundAt, now),
         lastInboundAt: toIso(lastInboundAt),
@@ -314,7 +393,9 @@ export async function getConversationThread(
  * provider sem resposta conclusiva — tratado como pendente, não como entregue.
  */
 function toDelivery(status: string | undefined): AIMessageDelivery {
-  if (status === 'accepted') return 'sent';
+  if (status === 'accepted' || status === 'sent') return 'sent';
+  if (status === 'delivered') return 'delivered';
+  if (status === 'read') return 'read';
   if (status === 'failed') return 'failed';
   return 'pending';
 }

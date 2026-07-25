@@ -379,6 +379,125 @@
       "when": 1784293575483,
       "tag": "0053_appointment_patient_slot_uniq",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1784293576483,
+      "tag": "0054_solo_seat_limit_1",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1784293577483,
+      "tag": "0055_granular_permissions_plan_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1784293578483,
+      "tag": "0056_ai_pending_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1784293579483,
+      "tag": "0057_financial_payment_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1784293580483,
+      "tag": "0058_financial_collection_cases",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1784293581483,
+      "tag": "0059_appointment_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1784293582483,
+      "tag": "0060_doctor_absences",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1784293583483,
+      "tag": "0061_schedulable_resources",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1784293584483,
+      "tag": "0062_waiting_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1784293585483,
+      "tag": "0063_waitlist_recurrence",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1784293586483,
+      "tag": "0064_outbound_delivery_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1784293587483,
+      "tag": "0065_granular_consent_decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1784293588483,
+      "tag": "0066_lgpd_operational_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1784293589483,
+      "tag": "0067_appointment_import_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1784293590483,
+      "tag": "0068_proactive_job_leases",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1784293591483,
+      "tag": "0069_patient_relationships_merge",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1784293592483,
+      "tag": "0070_handoff_sla_assignment",
+      "breakpoints": true
     }
   ]
 }

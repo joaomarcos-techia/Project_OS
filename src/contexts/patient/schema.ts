@@ -55,12 +55,45 @@ export const patientAddressTipo = pgEnum('patient_address_tipo', [
   'alternativo',
 ]);
 export const suppressionChannel = pgEnum('suppression_channel', ['whatsapp', 'email', 'sms']);
+export const consentPurpose = pgEnum('consent_purpose', [
+  'dados_saude',
+  'compartilhamento',
+  'cobranca_whatsapp',
+  'marketing',
+  'pesquisa',
+]);
+export const suppressionPurpose = pgEnum('suppression_purpose', [
+  'all',
+  'billing',
+  'reminder',
+  'followup',
+  'marketing',
+]);
 export const lgpdRequestType = pgEnum('lgpd_request_type', ['export', 'delete']);
 export const lgpdRequestStatus = pgEnum('lgpd_request_status', [
   'pending',
   'processing',
   'completed',
   'failed',
+]);
+export const lgpdHistoryAction = pgEnum('lgpd_history_action', [
+  'created',
+  'assigned',
+  'status_changed',
+  'notified',
+]);
+export const lgpdNotificationChannel = pgEnum('lgpd_notification_channel', [
+  'email',
+  'whatsapp',
+  'phone',
+  'in_person',
+]);
+export const patientRelationshipType = pgEnum('patient_relationship_type', [
+  'mae',
+  'pai',
+  'tutor_legal',
+  'responsavel',
+  'outro',
 ]);
 
 // --- patients --------------------------------------------------------------
@@ -91,6 +124,9 @@ export const patients = pgTable(
     // de deletado. O scan do cron exclui anonimizados (senão re-tenta para
     // sempre). NULL = paciente normal. Aditivo/nullable — backward compatible.
     anonymizedAt: timestamp('anonymized_at', { withTimezone: true }),
+    mergedIntoPatientId: uuid('merged_into_patient_id'),
+    mergedAt: timestamp('merged_at', { withTimezone: true }),
+    mergedBy: uuid('merged_by'),
     ...timestampsPattern(),
     deletedAt: deletedAt(),
   },
@@ -132,14 +168,117 @@ export const patientConsents = pgTable(
     marketing: boolean('marketing').notNull().default(false),
     pesquisa: boolean('pesquisa').notNull().default(false),
     versao: integer('versao').notNull(),
-    dataAceite: timestamp('data_aceite', { withTimezone: true }).notNull().default(sql`now()`),
+    dataAceite: timestamp('data_aceite', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('patient_consents_clinic_id_idx').on(t.clinicId),
     patientIdx: index('patient_consents_patient_id_idx').on(t.patientId),
     versaoChk: check('patient_consents_versao_chk', sql`${t.versao} > 0`),
+  }),
+);
+
+// --- patient_relationships ------------------------------------------------
+
+export const patientRelationships = pgTable(
+  'patient_relationships',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    responsiblePatientId: uuid('responsible_patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    dependentPatientId: uuid('dependent_patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    relationshipType: patientRelationshipType('relationship_type').notNull(),
+    legalGuardian: boolean('legal_guardian').notNull().default(false),
+    financialResponsible: boolean('financial_responsible').notNull().default(false),
+    canManageAppointments: boolean('can_manage_appointments').notNull().default(false),
+    createdBy: uuid('created_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    relationshipUniq: unique('patient_relationships_pair_uniq').on(
+      t.responsiblePatientId,
+      t.dependentPatientId,
+    ),
+    responsibleIdx: index('patient_relationships_responsible_idx').on(t.responsiblePatientId),
+    dependentIdx: index('patient_relationships_dependent_idx').on(t.dependentPatientId),
+    noSelfRelationship: check(
+      'patient_relationships_no_self_chk',
+      sql`${t.responsiblePatientId} <> ${t.dependentPatientId}`,
+    ),
+  }),
+);
+
+// --- patient_merges -------------------------------------------------------
+
+export const patientMerges = pgTable(
+  'patient_merges',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    sourcePatientId: uuid('source_patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    targetPatientId: uuid('target_patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    mergedBy: uuid('merged_by').notNull(),
+    transferCounts: jsonb('transfer_counts')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    sourceUniq: unique('patient_merges_source_uniq').on(t.sourcePatientId),
+    clinicIdx: index('patient_merges_clinic_id_idx').on(t.clinicId),
+    targetIdx: index('patient_merges_target_idx').on(t.targetPatientId),
+    noSelfMerge: check(
+      'patient_merges_no_self_chk',
+      sql`${t.sourcePatientId} <> ${t.targetPatientId}`,
+    ),
+  }),
+);
+
+export const patientConsentDecisions = pgTable(
+  'patient_consent_decisions',
+  {
+    id: uuidPk(),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patients.id, { onDelete: 'cascade' }),
+    clinicId: tenantIdRef(),
+    purpose: consentPurpose('purpose').notNull(),
+    channel: suppressionChannel('channel'),
+    granted: boolean('granted').notNull(),
+    version: integer('version').notNull(),
+    recordedBy: uuid('recorded_by'),
+    recordedAt: timestamp('recorded_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    clinicIdx: index('patient_consent_decisions_clinic_id_idx').on(t.clinicId),
+    patientPurposeIdx: index('patient_consent_decisions_patient_purpose_idx').on(
+      t.patientId,
+      t.purpose,
+      t.channel,
+      t.version,
+    ),
+    versionUniq: unique('patient_consent_decisions_version_uniq')
+      .on(t.patientId, t.purpose, t.channel, t.version)
+      .nullsNotDistinct(),
+    versionChk: check('patient_consent_decisions_version_chk', sql`${t.version} > 0`),
   }),
 );
 
@@ -153,9 +292,15 @@ export const patientClinicalData = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: 'cascade' }),
     clinicId: tenantIdRef(),
-    alergias: jsonb('alergias').notNull().default(sql`'[]'::jsonb`),
-    medicamentosEmUso: jsonb('medicamentos_em_uso').notNull().default(sql`'[]'::jsonb`),
-    doencasCronicas: jsonb('doencas_cronicas').notNull().default(sql`'[]'::jsonb`),
+    alergias: jsonb('alergias')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    medicamentosEmUso: jsonb('medicamentos_em_uso')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    doencasCronicas: jsonb('doencas_cronicas')
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     tipoSanguineo: text('tipo_sanguineo'),
     observacoes: text('observacoes'),
     ...timestampsPattern(),
@@ -208,7 +353,9 @@ export const patientEmergencyContacts = pgTable(
     nome: text('nome').notNull(),
     telefoneEncrypted: text('telefone_encrypted').notNull(),
     relacao: text('relacao').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('patient_emergency_contacts_clinic_id_idx').on(t.clinicId),
@@ -226,15 +373,19 @@ export const suppressionList = pgTable(
     // HMAC of the normalized phone (whatsapp/sms) or email (email channel).
     contactHash: text('contact_hash').notNull(),
     channel: suppressionChannel('channel').notNull(),
+    purpose: suppressionPurpose('purpose').notNull().default('all'),
     reason: text('reason').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('suppression_list_clinic_id_idx').on(t.clinicId),
-    contactChannelUniq: unique('suppression_list_contact_channel_uniq').on(
+    contactChannelUniq: unique('suppression_list_contact_channel_purpose_uniq').on(
       t.clinicId,
       t.contactHash,
       t.channel,
+      t.purpose,
     ),
   }),
 );
@@ -250,7 +401,18 @@ export const lgpdRequests = pgTable(
     patientId: uuid('patient_id').notNull(),
     type: lgpdRequestType('type').notNull(),
     status: lgpdRequestStatus('status').notNull().default('pending'),
-    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().default(sql`now()`),
+    requestedAt: timestamp('requested_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    dueAt: timestamp('due_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '15 days'`),
+    assignedToUserId: uuid('assigned_to_user_id'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    statusReason: text('status_reason'),
+    requesterNotifiedAt: timestamp('requester_notified_at', { withTimezone: true }),
+    requesterNotificationChannel: lgpdNotificationChannel('requester_notification_channel'),
+    lastUpdatedByUserId: uuid('last_updated_by_user_id'),
     fulfilledAt: timestamp('fulfilled_at', { withTimezone: true }),
     fulfilledByUserId: uuid('fulfilled_by_user_id'),
     exportSignedUrl: text('export_signed_url'),
@@ -261,6 +423,32 @@ export const lgpdRequests = pgTable(
     clinicIdx: index('lgpd_requests_clinic_id_idx').on(t.clinicId),
     patientIdx: index('lgpd_requests_patient_id_idx').on(t.patientId),
     statusIdx: index('lgpd_requests_status_idx').on(t.status),
+    dueIdx: index('lgpd_requests_due_idx').on(t.clinicId, t.dueAt),
+  }),
+);
+
+export const lgpdRequestHistory = pgTable(
+  'lgpd_request_history',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => lgpdRequests.id, { onDelete: 'cascade' }),
+    action: lgpdHistoryAction('action').notNull(),
+    fromStatus: lgpdRequestStatus('from_status'),
+    toStatus: lgpdRequestStatus('to_status'),
+    assignedToUserId: uuid('assigned_to_user_id'),
+    notificationChannel: lgpdNotificationChannel('notification_channel'),
+    note: text('note'),
+    changedByUserId: uuid('changed_by_user_id'),
+    changedAt: timestamp('changed_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    clinicIdx: index('lgpd_request_history_clinic_id_idx').on(t.clinicId),
+    requestIdx: index('lgpd_request_history_request_idx').on(t.requestId, t.changedAt),
   }),
 );
 
@@ -269,8 +457,12 @@ export const lgpdRequests = pgTable(
 export type PatientRow = typeof patients.$inferSelect;
 export type PatientInsert = typeof patients.$inferInsert;
 export type PatientConsentRow = typeof patientConsents.$inferSelect;
+export type PatientConsentDecisionRow = typeof patientConsentDecisions.$inferSelect;
 export type PatientClinicalDataRow = typeof patientClinicalData.$inferSelect;
 export type PatientAddressRow = typeof patientAddresses.$inferSelect;
 export type PatientEmergencyContactRow = typeof patientEmergencyContacts.$inferSelect;
+export type PatientRelationshipRow = typeof patientRelationships.$inferSelect;
+export type PatientMergeRow = typeof patientMerges.$inferSelect;
 export type SuppressionListRow = typeof suppressionList.$inferSelect;
 export type LgpdRequestRow = typeof lgpdRequests.$inferSelect;
+export type LgpdRequestHistoryRow = typeof lgpdRequestHistory.$inferSelect;

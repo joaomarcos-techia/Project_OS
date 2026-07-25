@@ -8,11 +8,12 @@
  * esperando um humano; enterrá-la sob conversas ativas é o mesmo que não ter a
  * tela.
  */
-import { MessagesSquare, Search } from 'lucide-react';
+import { AlertTriangle, MessagesSquare, Search } from 'lucide-react';
 import Link from 'next/link';
 
 import { listConversations } from '@/contexts/ai-agent/queries';
 import type { AIConversationStatus } from '@/contexts/ai-agent/types';
+import { getProfileNames } from '@/contexts/identity/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { Badge } from '@/components/ui/badge';
@@ -41,7 +42,7 @@ import { ConversasNoAccess } from './_components/no-access';
 
 export const dynamic = 'force-dynamic';
 
-type SP = { q?: string; status?: string; page?: string };
+type SP = { q?: string; status?: string; sla?: string; page?: string };
 
 const STATUS_TONE: Record<AIConversationStatus, 'amber' | 'green' | 'gray'> = {
   handoff: 'amber',
@@ -79,17 +80,23 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
   const status = isStatus(sp.status) ? sp.status : undefined;
   const page = Math.max(1, Number(sp.page ?? '1') || 1);
   const q = sp.q?.trim() || undefined;
+  const overdueOnly = sp.sla === 'overdue';
 
   const result = await listConversations(clinicId, {
     ...(status ? { status } : {}),
     ...(q ? { search: q } : {}),
+    ...(overdueOnly ? { overdueOnly: true } : {}),
     page,
   });
 
-  const filtrando = Boolean(q || status);
+  const filtrando = Boolean(q || status || overdueOnly);
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const aguardando = result.items.filter((c) => c.status === 'handoff').length;
   const podeAtuar = user.permissions.includes(PERMISSIONS.MANAGE_CONVERSATIONS);
+  const assigneeNames = await getProfileNames(
+    clinicId,
+    result.items.flatMap((item) => item.handoff?.assignedToUserId ?? []),
+  );
 
   return (
     <>
@@ -131,6 +138,10 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
               <option value="closed">Encerradas</option>
               <option value="abandoned">Abandonadas</option>
             </Select>
+            <Select name="sla" defaultValue={overdueOnly ? 'overdue' : ''} aria-label="Filtrar por SLA">
+              <option value="">Todos os prazos</option>
+              <option value="overdue">SLA vencido</option>
+            </Select>
             <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
               Filtrar
             </button>
@@ -156,6 +167,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                     <TableHead>Paciente</TableHead>
                     <TableHead>Última mensagem</TableHead>
                     <TableHead className="w-44">Status</TableHead>
+                    <TableHead className="w-52">Atendimento</TableHead>
                     <TableHead className="w-40">Atualizada</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -182,6 +194,31 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                         <Badge tone={STATUS_TONE[c.status]} dot>
                           {STATUS_LABEL[c.status]}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {c.handoff ? (
+                          <div className="flex flex-col gap-0.5 text-xs">
+                            <span className={c.handoff.overdue ? 'font-semibold text-danger-700' : 'text-fg-muted'}>
+                              {c.handoff.overdue ? (
+                                <AlertTriangle className="mr-1 inline size-3.5" />
+                              ) : null}
+                              {c.handoff.overdue
+                                ? 'SLA vencido'
+                                : `Até ${new Date(c.handoff.dueAt).toLocaleTimeString('pt-BR', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}`}
+                            </span>
+                            <span className="text-fg-subtle">
+                              {c.handoff.assignedToUserId
+                                ? assigneeNames.get(c.handoff.assignedToUserId) ?? 'Responsável atribuído'
+                                : 'Sem responsável'}
+                              {c.handoff.priority === 'urgent' ? ' · urgente' : ''}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-fg-subtle">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-fg-muted">
                         {new Date(c.lastMessageAt).toLocaleString('pt-BR')}

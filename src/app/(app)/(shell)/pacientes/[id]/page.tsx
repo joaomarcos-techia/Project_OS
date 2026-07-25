@@ -6,12 +6,16 @@
  */
 import { FileText } from 'lucide-react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { listProntuariosByPatient } from '@/contexts/clinical/queries';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
-import { getPatientWithDecryptedFields, getPrincipalAddress } from '@/contexts/patient/queries';
+import {
+  getPatientWithDecryptedFields,
+  getPrincipalAddress,
+  listPatientRelationships,
+} from '@/contexts/patient/queries';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -23,6 +27,8 @@ import { updatePatientForm } from '../actions';
 import { PatientForm } from '../patient-form';
 import { DeletePatientForm } from './delete-form';
 import { LgpdActions } from './lgpd-actions';
+import { PatientDeathForm } from './patient-death-form';
+import { PatientRelationshipsCard } from './patient-relationships-card';
 import { NovoProntuarioButton } from './prontuarios/novo-prontuario-button';
 
 export const dynamic = 'force-dynamic';
@@ -38,14 +44,19 @@ function HubTabs({ patientId, active }: { patientId: string; active: Tab }) {
       className={cn(
         'relative px-3.5 py-2.5 text-(length:--fs-sm) font-medium transition-colors duration-(--dur-fast)',
         'after:absolute after:right-2 after:-bottom-px after:left-2 after:h-0.5 after:bg-primary after:transition-opacity',
-        active === t ? 'text-primary after:opacity-100' : 'text-fg-muted after:opacity-0 hover:text-fg',
+        active === t
+          ? 'text-primary after:opacity-100'
+          : 'text-fg-muted after:opacity-0 hover:text-fg',
       )}
     >
       {label}
     </Link>
   );
   return (
-    <nav className="mb-(--sp-5) flex gap-0.5 border-b border-border" aria-label="Seções do paciente">
+    <nav
+      className="mb-(--sp-5) flex gap-0.5 border-b border-border"
+      aria-label="Seções do paciente"
+    >
       {tab('dados', 'Dados')}
       {tab('prontuarios', 'Prontuários')}
     </nav>
@@ -69,7 +80,9 @@ export default async function PacienteDetailPage({
   const parsedId = z.string().uuid().safeParse(id);
   if (!parsedId.success) notFound();
   const p = await getPatientWithDecryptedFields(clinicId, parsedId.data);
-  if (!p || p.deletedAt) notFound();
+  if (!p) notFound();
+  if (p.mergedIntoPatientId) redirect(`/pacientes/${p.mergedIntoPatientId}`);
+  if (p.deletedAt) notFound();
 
   const tab: Tab = rawTab === 'prontuarios' ? 'prontuarios' : 'dados';
 
@@ -85,10 +98,19 @@ export default async function PacienteDetailPage({
         }
       />
 
+      {p.obitoEm ? (
+        <div className="mb-4 rounded-(--card-radius) border border-danger-200 bg-danger-50 p-3 text-sm text-danger-800">
+          Falecimento registrado em {new Date(`${p.obitoEm}T12:00:00`).toLocaleDateString('pt-BR')}.
+          Operacoes futuras estao bloqueadas.
+        </div>
+      ) : null}
+
       <HubTabs patientId={p.id} active={tab} />
 
       {tab === 'dados' ? <DadosTab clinicId={clinicId} patient={p} /> : null}
-      {tab === 'prontuarios' ? <ProntuariosTab clinicId={clinicId} patientId={p.id} /> : null}
+      {tab === 'prontuarios' ? (
+        <ProntuariosTab clinicId={clinicId} patientId={p.id} deceased={p.obitoEm != null} />
+      ) : null}
     </>
   );
 }
@@ -100,7 +122,10 @@ async function DadosTab({
   clinicId: string;
   patient: NonNullable<Awaited<ReturnType<typeof getPatientWithDecryptedFields>>>;
 }) {
-  const endereco = await getPrincipalAddress(clinicId, p.id);
+  const [endereco, relationships] = await Promise.all([
+    getPrincipalAddress(clinicId, p.id),
+    listPatientRelationships(clinicId, p.id),
+  ]);
   return (
     <div className="flex flex-col gap-(--sp-4)">
       <Card>
@@ -146,8 +171,11 @@ async function DadosTab({
         />
       </Card>
 
+      <PatientRelationshipsCard patientId={p.id} relationships={relationships} />
+
       <Card className="p-(--card-pad)">
         <DeletePatientForm id={p.id} />
+        {p.obitoEm ? null : <PatientDeathForm id={p.id} />}
         <LgpdActions id={p.id} />
       </Card>
     </div>
@@ -157,16 +185,20 @@ async function DadosTab({
 async function ProntuariosTab({
   clinicId,
   patientId,
+  deceased,
 }: {
   clinicId: string;
   patientId: string;
+  deceased: boolean;
 }) {
   const list = await listProntuariosByPatient(clinicId, patientId);
   return (
     <div className="flex flex-col gap-(--sp-4)">
-      <div className="flex justify-end">
-        <NovoProntuarioButton patientId={patientId} />
-      </div>
+      {deceased ? null : (
+        <div className="flex justify-end">
+          <NovoProntuarioButton patientId={patientId} />
+        </div>
+      )}
       {list.length === 0 ? (
         <EmptyState
           icon={<FileText />}

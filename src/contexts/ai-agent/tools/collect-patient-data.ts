@@ -39,6 +39,7 @@ const FIELD_LABEL: Record<string, string> = {
 
 registerTool({
   name: 'collect_patient_data',
+  effect: 'mutation',
   description:
     'Registra dados de cadastro de paciente novo (nome, cpf, motivo). O telefone é o do contato. Chame com confirmed="true" quando o paciente confirmar o resumo.',
   inputSchema: InputSchema,

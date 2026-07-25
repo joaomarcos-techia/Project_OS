@@ -1,5 +1,9 @@
 # ADR-044 — Cifra do conteúdo clínico (estende o ADR-012 ao registro médico)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> `clinical/internal/content-crypto.ts` em prod; escopo exato a confirmar (Onda 3).
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-07-17
 **Camada:** C7 (Clinical) + C5 (Crypto)

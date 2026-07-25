@@ -1,5 +1,8 @@
 # ADR-043 — Retenção (não particionamento) contém a mensageria raw
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-07-17
 **Camada:** C10/C11 (messaging) + C16 (retenção)

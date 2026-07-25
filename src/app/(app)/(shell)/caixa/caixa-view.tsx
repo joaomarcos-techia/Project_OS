@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 
 import type {
   CaixaItem,
+  CollectionCaseDTO,
   FaturamentoPendenciaDTO,
   LancamentoStatus,
   PaymentMethodDTO,
+  PaymentTransactionSummary,
 } from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type badgeVariants } from '@/components/ui/badge';
@@ -50,18 +52,22 @@ export function CaixaView({
   pagosHoje,
   aPagar,
   pendencias,
+  collectionCases,
   methods,
   canOperate,
-  canManage,
+  paymentTransactions,
+  canRefund,
 }: {
   pendentes: CaixaItem[];
   parciais: CaixaItem[];
   pagosHoje: CaixaItem[];
   aPagar: CaixaItem[];
   pendencias: FaturamentoPendenciaDTO[];
+  collectionCases: CollectionCaseDTO[];
   methods: PaymentMethodDTO[];
+  paymentTransactions: PaymentTransactionSummary[];
   canOperate: boolean;
-  canManage: boolean;
+  canRefund: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -101,8 +107,10 @@ export function CaixaView({
   const onCancel = (item: CaixaItem) =>
     run(() => cancelLancamentoAction({ lancamentoId: item.id }, uuidv4()));
 
-  const onEstorno = (item: CaixaItem, motivo: string) =>
-    run(() => createEstornoAction({ lancamentoId: item.id, motivo }, uuidv4()));
+  const onEstorno = (
+    item: CaixaItem,
+    input: Omit<Parameters<typeof createEstornoAction>[0], 'lancamentoId'>,
+  ) => run(() => createEstornoAction({ lancamentoId: item.id, ...input }, uuidv4()));
 
   const openPanel = (id: string, mode: PanelMode) =>
     setPanel((p) => (p?.id === id && p.mode === mode ? null : { id, mode }));
@@ -112,14 +120,15 @@ export function CaixaView({
   const totalRecebidoHoje = pagosHoje.reduce((s, i) => s + i.valorPago, 0);
   const totalAPagar = aPagar.reduce((s, i) => s + saldo(i), 0);
 
-  const renderItem = (i: CaixaItem, opts: { canOperate: boolean; canManage: boolean }) => (
+  const renderItem = (i: CaixaItem, opts: { canOperate: boolean; canRefund: boolean }) => (
     <ItemCard
       key={i.id}
       item={i}
       canOperate={opts.canOperate}
-      canManage={opts.canManage}
+      canRefund={opts.canRefund}
       pending={pending}
       methods={methods}
+      paymentTransactions={paymentTransactions.filter((t) => t.lancamentoId === i.id)}
       panelMode={panel?.id === i.id ? panel.mode : null}
       onOpenPanel={(mode) => openPanel(i.id, mode)}
       onClosePanel={closePanel}
@@ -173,6 +182,19 @@ export function CaixaView({
         </Alert>
       ) : null}
 
+      {collectionCases.length > 0 ? (
+        <Alert variant="warning" title="Cobranças aguardando revisão humana" className="mb-5">
+          <ul className="list-disc pl-5 text-[12.5px]">
+            {collectionCases.slice(0, 10).map((collectionCase) => (
+              <li key={collectionCase.id}>
+                Lançamento #{collectionCase.lancamentoId.slice(0, 8)} · {collectionCase.daysOverdue} dias
+                em atraso · saldo {formatBRL(collectionCase.residualAmount)}
+              </li>
+            ))}
+          </ul>
+        </Alert>
+      ) : null}
+
       {error ? (
         <Alert variant="danger" className="mb-5">
           {error}
@@ -184,13 +206,13 @@ export function CaixaView({
           {pendentes.length === 0 ? (
             <EmptyState title="Nada pendente" description="Nenhum recebimento em aberto." />
           ) : (
-            pendentes.map((i) => renderItem(i, { canOperate, canManage: false }))
+            pendentes.map((i) => renderItem(i, { canOperate, canRefund: false }))
           )}
         </Section>
 
         {parciais.length > 0 ? (
           <Section title="Pagamento parcial" count={parciais.length}>
-            {parciais.map((i) => renderItem(i, { canOperate, canManage: false }))}
+            {parciais.map((i) => renderItem(i, { canOperate, canRefund: false }))}
           </Section>
         ) : null}
 
@@ -198,7 +220,7 @@ export function CaixaView({
           {pagosHoje.length === 0 ? (
             <EmptyState title="Nenhum recebimento hoje" description="Os pagamentos confirmados hoje aparecem aqui." />
           ) : (
-            pagosHoje.map((i) => renderItem(i, { canOperate: false, canManage }))
+            pagosHoje.map((i) => renderItem(i, { canOperate: false, canRefund }))
           )}
         </Section>
 
@@ -208,7 +230,7 @@ export function CaixaView({
           {aPagar.length === 0 ? (
             <EmptyState title="Nada a pagar" description="Contas a pagar em aberto aparecem aqui." />
           ) : (
-            aPagar.map((i) => renderItem(i, { canOperate, canManage: false }))
+            aPagar.map((i) => renderItem(i, { canOperate, canRefund: false }))
           )}
         </Section>
       </div>
@@ -241,9 +263,10 @@ function Section({
 function ItemCard({
   item,
   canOperate,
-  canManage,
+  canRefund,
   pending,
   methods,
+  paymentTransactions,
   panelMode,
   onOpenPanel,
   onClosePanel,
@@ -253,16 +276,29 @@ function ItemCard({
 }: {
   item: CaixaItem;
   canOperate: boolean;
-  canManage: boolean;
+  canRefund: boolean;
   pending: boolean;
   methods: PaymentMethodDTO[];
+  paymentTransactions: PaymentTransactionSummary[];
   panelMode: PanelMode | null;
   onOpenPanel: (mode: PanelMode) => void;
   onClosePanel: () => void;
   onConfirm: (item: CaixaItem, valorPago: number, method: string, comprovante: string) => void;
   onCancel: (item: CaixaItem) => void;
-  onEstorno: (item: CaixaItem, motivo: string) => void;
+  onEstorno: (
+    item: CaixaItem,
+    input: {
+      paymentId: string;
+      valor: number;
+      paymentMethod: string;
+      motivo: string;
+      comprovante: { type: 'comprovante'; fileStoragePath: string } | null;
+    },
+  ) => void;
 }) {
+  const refundablePayments = paymentTransactions.filter(
+    (transaction) => transaction.kind === 'payment' && transaction.refundableAmount > 0,
+  );
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
@@ -304,9 +340,9 @@ function ItemCard({
               </Button>
             </>
           ) : null}
-          {canManage && item.status === 'pago' ? (
+          {canRefund && refundablePayments.length > 0 ? (
             <Button size="sm" variant="secondary" onClick={() => onOpenPanel('estorno')} disabled={pending}>
-              Estornar
+              Reembolsar
             </Button>
           ) : null}
           {item.paymentMethod && item.status === 'pago' ? (
@@ -339,9 +375,11 @@ function ItemCard({
 
         {panelMode === 'estorno' ? (
           <EstornoPanel
+            payments={refundablePayments}
+            methods={methods}
             pending={pending}
             onClose={onClosePanel}
-            onSubmit={(motivo) => onEstorno(item, motivo)}
+            onSubmit={(input) => onEstorno(item, input)}
           />
         ) : null}
       </CardContent>
@@ -378,7 +416,11 @@ function ConfirmForm({
           ))}
         </Select>
       </Field>
-      <Field label="Valor recebido" htmlFor={`v-${item.id}`} hint={`Saldo: ${formatBRL(saldo(item))}`}>
+      <Field
+        label={item.tipo === 'pagar' ? 'Valor pago' : 'Valor recebido'}
+        htmlFor={`v-${item.id}`}
+        hint={`Saldo: ${formatBRL(saldo(item))}`}
+      >
         <Input
           id={`v-${item.id}`}
           inputMode="decimal"
@@ -397,7 +439,7 @@ function ConfirmForm({
           disabled={!valid || pending}
           onClick={() => onSubmit(Math.round(valorNum * 100) / 100, method, comprovante)}
         >
-          Receber {formatBRL(valorNum || 0)}
+          {item.tipo === 'pagar' ? 'Pagar' : 'Receber'} {formatBRL(valorNum || 0)}
         </Button>
       </div>
     </div>
@@ -405,19 +447,84 @@ function ConfirmForm({
 }
 
 function EstornoPanel({
+  payments,
+  methods,
   pending,
   onClose,
   onSubmit,
 }: {
+  payments: PaymentTransactionSummary[];
+  methods: PaymentMethodDTO[];
   pending: boolean;
   onClose: () => void;
-  onSubmit: (motivo: string) => void;
+  onSubmit: (input: {
+    paymentId: string;
+    valor: number;
+    paymentMethod: string;
+    motivo: string;
+    comprovante: { type: 'comprovante'; fileStoragePath: string } | null;
+  }) => void;
 }) {
+  const [paymentId, setPaymentId] = useState(payments[0]?.id ?? '');
+  const selected = payments.find((payment) => payment.id === paymentId);
+  const [valor, setValor] = useState(String((selected?.refundableAmount ?? 0).toFixed(2)));
+  const [method, setMethod] = useState(methods[0]?.code ?? '');
   const [motivo, setMotivo] = useState('');
-  const valid = motivo.trim().length > 0;
+  const [comprovante, setComprovante] = useState('');
+  const valorNum = Number(valor.replace(',', '.'));
+  const valid =
+    Boolean(selected) &&
+    Boolean(method) &&
+    motivo.trim().length > 0 &&
+    valorNum > 0 &&
+    valorNum <= (selected?.refundableAmount ?? 0) + 1e-9;
+
+  const changePayment = (id: string) => {
+    setPaymentId(id);
+    const payment = payments.find((candidate) => candidate.id === id);
+    setValor(String((payment?.refundableAmount ?? 0).toFixed(2)));
+  };
+
   return (
-    <div className="rounded-md border border-border bg-surface-inset/40 p-3">
-      <Field label="Motivo do estorno (registro contábil)" htmlFor="estorno-motivo">
+    <div className="grid gap-3 rounded-md border border-border bg-surface-inset/40 p-3 sm:grid-cols-2">
+      <Field label="Pagamento original" htmlFor="refund-payment">
+        <Select id="refund-payment" value={paymentId} onChange={(e) => changePayment(e.target.value)}>
+          {payments.map((payment) => (
+            <option key={payment.id} value={payment.id}>
+              {formatBRL(payment.refundableAmount)} disponível - {payment.paymentMethod ?? 'método legado'}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field
+        label="Valor a reembolsar"
+        htmlFor="refund-value"
+        hint={`Disponível: ${formatBRL(selected?.refundableAmount ?? 0)}`}
+      >
+        <Input
+          id="refund-value"
+          inputMode="decimal"
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+        />
+      </Field>
+      <Field label="Forma do reembolso" htmlFor="refund-method">
+        <Select id="refund-method" value={method} onChange={(e) => setMethod(e.target.value)}>
+          {methods.map((paymentMethod) => (
+            <option key={paymentMethod.code} value={paymentMethod.code}>
+              {paymentMethod.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Comprovante (caminho/URL - opcional)" htmlFor="refund-proof">
+        <Input
+          id="refund-proof"
+          value={comprovante}
+          onChange={(e) => setComprovante(e.target.value)}
+        />
+      </Field>
+      <Field label="Motivo do reembolso" htmlFor="estorno-motivo" className="sm:col-span-2">
         <Input
           id="estorno-motivo"
           value={motivo}
@@ -426,15 +533,25 @@ function EstornoPanel({
           onChange={(e) => setMotivo(e.target.value)}
         />
       </Field>
-      <div className="mt-2 flex gap-2">
+      <div className="flex gap-2 sm:col-span-2">
         <Button
           size="sm"
           variant="secondary"
           loading={pending}
           disabled={!valid || pending}
-          onClick={() => onSubmit(motivo.trim())}
+          onClick={() =>
+            onSubmit({
+              paymentId,
+              valor: Math.round(valorNum * 100) / 100,
+              paymentMethod: method,
+              motivo: motivo.trim(),
+              comprovante: comprovante.trim()
+                ? { type: 'comprovante', fileStoragePath: comprovante.trim() }
+                : null,
+            })
+          }
         >
-          Confirmar estorno
+          Confirmar reembolso
         </Button>
         <Button size="sm" variant="ghost" onClick={onClose} disabled={pending}>
           Voltar

@@ -60,11 +60,7 @@ export interface RelatorioPdfInput {
 export async function renderRelatorioPDF(input: RelatorioPdfInput): Promise<Buffer> {
   const { kpis } = input;
   return renderToBuffer(
-    <Document
-      title={`Relatórios — ${input.clinicName}`}
-      producer="Qoro"
-      creator="Qoro"
-    >
+    <Document title={`Relatórios — ${input.clinicName}`} producer="Qoro" creator="Qoro">
       <Page size="A4" style={s.page}>
         <Text style={s.h1}>Relatórios — {input.clinicName}</Text>
         <Text style={s.sub}>
@@ -102,9 +98,7 @@ export async function renderRelatorioPDF(input: RelatorioPdfInput): Promise<Buff
           <Text style={[s.cNum, s.thText]}>Atendimentos</Text>
           <Text style={[s.cNum, s.thText]}>Atendidos</Text>
           <Text style={[s.cNum, s.thText]}>Faltas</Text>
-          {input.includeFaturamento ? (
-            <Text style={[s.cNum, s.thText]}>Recebido</Text>
-          ) : null}
+          {input.includeFaturamento ? <Text style={[s.cNum, s.thText]}>Recebido</Text> : null}
         </View>
         {input.porProfissional.length === 0 ? (
           <Text style={s.note}>Sem atendimentos no período.</Text>
@@ -123,8 +117,8 @@ export async function renderRelatorioPDF(input: RelatorioPdfInput): Promise<Buff
         )}
 
         <Text style={s.note}>
-          Ocupação usa o resolvedor de agenda canônico (respeita pausas e feriados). Consolidado
-          limitado aos 500 atendimentos mais recentes do período. Gerado pelo Qoro.
+          Ocupação usa o resolvedor de agenda canônico (respeita pausas e feriados). Gerado pelo
+          Qoro.
         </Text>
       </Page>
     </Document>,

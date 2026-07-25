@@ -4,10 +4,16 @@ import {
   getCaixaLancamentos,
   getCaixaPagaveis,
   getClinicTimezone,
+  listOpenCollectionCases,
+  listPaymentTransactionsForLancamentos,
   listPaymentMethods,
   listPendenciasAbertas,
 } from '@/contexts/financial/queries';
-import type { CaixaItem, LancamentoSummary } from '@/contexts/financial/types';
+import type {
+  CaixaItem,
+  LancamentoSummary,
+  PaymentTransactionSummary,
+} from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -37,16 +43,22 @@ export default async function CaixaPage() {
   const tz = await getClinicTimezone(clinicId);
   const { from, to } = clinicDayBounds(tz);
 
-  const [lancs, pagaveis, pendencias, methods] = await Promise.all([
+  const [lancs, pagaveis, pendencias, methods, collectionCases] = await Promise.all([
     getCaixaLancamentos(clinicId, from, to),
     getCaixaPagaveis(clinicId),
     listPendenciasAbertas(clinicId),
     listPaymentMethods(clinicId),
+    listOpenCollectionCases(clinicId),
   ]);
 
   // Caixa patient-first: resolve nomes via contexto patient (camada page — sem
   // JOIN cross-context; igual ao consultório).
   const all = [...lancs.pendentes, ...lancs.parciais, ...lancs.pagosHoje, ...pagaveis];
+  const paymentTransactions: PaymentTransactionSummary[] =
+    await listPaymentTransactionsForLancamentos(
+      clinicId,
+      all.map((l) => l.id),
+    );
   const patientIds = [...new Set(all.filter((l) => l.patientId).map((l) => l.patientId!))];
   const cards = await listPatientCards(clinicId, patientIds);
   const nameById = new Map(cards.map((c) => [c.id, c.nome]));
@@ -58,7 +70,7 @@ export default async function CaixaPage() {
   const canOperate =
     user.permissions.includes(PERMISSIONS.OPERATE_CAIXA) ||
     user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
-  const canManage = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
+  const canRefund = user.permissions.includes(PERMISSIONS.REFUND_FINANCIAL);
 
   return (
     <CaixaView
@@ -67,9 +79,11 @@ export default async function CaixaPage() {
       pagosHoje={lancs.pagosHoje.map(enrich)}
       aPagar={pagaveis.map(enrich)}
       pendencias={pendencias}
+      collectionCases={collectionCases}
       methods={methods}
+      paymentTransactions={paymentTransactions}
       canOperate={canOperate}
-      canManage={canManage}
+      canRefund={canRefund}
     />
   );
 }

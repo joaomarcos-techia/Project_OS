@@ -1,5 +1,9 @@
 # ADR-031 — Design System v2: rebrand petrol/clay + governança de UI + estrangulamento do CSS legado
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE (paleta superseded por ADR-035) · Implementação: IMPLEMENTED
+> petrol/clay → navy/orchid via ADR-035.
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: Fundação Visual (refatoração UI/UX pós-C15)
 - Refs: ADR-018 (supersede parcial — especificação visual), ADR-028 (reafirmado),

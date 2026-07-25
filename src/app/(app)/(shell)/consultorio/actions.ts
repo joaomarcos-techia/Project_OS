@@ -36,6 +36,7 @@ import {
   getAppointmentOrThrow,
   getCheckInTimes,
   getClinicTimezone,
+  getWaitingQueueEntries,
   listAppointments,
 } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
@@ -116,25 +117,49 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
   const chegouIds = scoped.filter((a) => a.status === 'chegou').map((a) => a.id);
   // leituras independentes em paralelo (1 RTT em vez de 3). Pendências de
   // cobrança são best-effort: o board (Scheduling) nunca quebra por Financial.
-  const [cards, checkInTimes, pendencias] = await Promise.all([
+  const [cards, checkInTimes, pendencias, queueEntries] = await Promise.all([
     listPatientCards(clinicId, patientIds),
     getCheckInTimes(clinicId, chegouIds),
     listPendenciasAbertas(clinicId).catch(() => []),
+    getWaitingQueueEntries(clinicId, chegouIds),
   ]);
   const cardMap = new Map(cards.map((c) => [c.id, c]));
   const semCobranca = new Set(pendencias.map((p) => p.appointmentId).filter(Boolean));
+  const queueMap = new Map(queueEntries.map((entry, index) => [entry.appointmentId, { ...entry, position: index + 1 }]));
 
   const now = new Date();
   const pick = (statuses: AppointmentStatusDTO[]) =>
     pickByStatus(scoped, statuses).map((a) =>
       buildCard(a, a.patientId ? cardMap.get(a.patientId) : undefined, checkInTimes[a.id] ?? null, now),
     );
+  const waiting = pickByStatus(scoped, ['chegou'])
+    .slice()
+    .sort((left, right) => {
+      const leftPosition = queueMap.get(left.id)?.position ?? Number.MAX_SAFE_INTEGER;
+      const rightPosition = queueMap.get(right.id)?.position ?? Number.MAX_SAFE_INTEGER;
+      return leftPosition - rightPosition;
+    })
+    .map((appointment) => {
+      const queue = queueMap.get(appointment.id);
+      return buildCard(
+        appointment,
+        appointment.patientId ? cardMap.get(appointment.patientId) : undefined,
+        checkInTimes[appointment.id] ?? null,
+        now,
+        queue
+          ? {
+              position: queue.position,
+              estimatedWaitMinutes: queue.estimatedWaitMinutesAtEntry,
+            }
+          : undefined,
+      );
+    });
 
   return {
     activeDoctorId,
     doctors,
     aChegar: pick(['agendado', 'confirmado']),
-    salaEspera: pick(['chegou']),
+    salaEspera: waiting,
     emAtendimento: pick(['em_atendimento']),
     finalizadas: pick(['atendido']).map((c) => ({
       ...c,

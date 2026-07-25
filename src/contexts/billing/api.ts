@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
-import { subscriptions, type SubscriptionRow } from './schema';
+import { plans, subscriptions, type SubscriptionRow } from './schema';
 import { currentPeriod, getPlanLimits, readUsage, type PlanLimits } from './internal/quota';
 import { enforce, type QuotaType } from './internal/quota-policy';
 
@@ -29,13 +29,17 @@ export interface UserQuotaResult {
   limit: number;
 }
 
+export type PlanCode = 'solo' | 'clinica' | 'pro';
+
 export interface BillingApiV1 {
   getPlanLimits(clinicId: string): Promise<PlanLimits | null>;
   getSubscription(clinicId: string): Promise<SubscriptionRow | null>;
-  /** Gate síncrono de cota (não bloqueia agendamento; bloqueia IA no teto). */
+  /** Gate síncrono de cota; agendamento e IA são apenas métricas. */
   checkAndIncrementQuota(clinicId: string, type: QuotaType): Promise<QuotaCheckResult>;
   /** Trava dura de usuários (ADR-024) — chamada no convite. */
   assertUserQuota(clinicId: string, activeUsers: number): Promise<UserQuotaResult>;
+  /** Permissões granulares são recurso dos planos Clínica e Pro. */
+  hasGranularPermissions(clinicId: string): Promise<boolean>;
 }
 
 async function getPlanLimitsApi(clinicId: string): Promise<PlanLimits | null> {
@@ -74,9 +78,22 @@ async function assertUserQuota(clinicId: string, activeUsers: number): Promise<U
   return { allowed: activeUsers < limit, limit };
 }
 
+async function hasGranularPermissions(clinicId: string): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ code: plans.code })
+      .from(subscriptions)
+      .innerJoin(plans, eq(plans.id, subscriptions.planId))
+      .where(eq(subscriptions.clinicId, clinicId))
+      .limit(1);
+    return row?.code === 'clinica' || row?.code === 'pro';
+  });
+}
+
 export const billingApiV1: BillingApiV1 = {
   getPlanLimits: getPlanLimitsApi,
   getSubscription: getSubscriptionApi,
   checkAndIncrementQuota,
   assertUserQuota,
+  hasGranularPermissions,
 };

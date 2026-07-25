@@ -1,5 +1,8 @@
 # ADR-025 — Arquitetura de Billing: Asaas é adapter, não o centro
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C13 (Billing Context)
 - Refs: ADR-001 (bounded contexts), ADR-003/011 (outbox/audit/idempotência), ADR-007 (RLS),

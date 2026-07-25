@@ -7,6 +7,7 @@ import { z } from 'zod';
 export type LancamentoTipo = 'receber' | 'pagar';
 export type LancamentoStatus = 'pendente' | 'parcial' | 'pago' | 'cancelado' | 'estornado';
 export type LancamentoCreatedVia = 'auto' | 'manual' | 'estorno';
+export type PaymentTransactionKind = 'payment' | 'refund';
 
 // --- projeções (read-side) -------------------------------------------------
 
@@ -76,6 +77,30 @@ export interface PaymentMethodDTO {
   label: string;
 }
 
+export interface PaymentTransactionSummary {
+  id: string;
+  clinicId: string;
+  lancamentoId: string;
+  kind: PaymentTransactionKind;
+  amount: number;
+  paymentMethod: string | null;
+  occurredAt: string;
+  originalPaymentId: string | null;
+  reason: string | null;
+  createdBy: string | null;
+  /** Disponivel apenas para pagamentos; zero para reembolsos. */
+  refundableAmount: number;
+}
+
+export interface CollectionCaseDTO {
+  id: string;
+  lancamentoId: string;
+  stage: 'd15_review' | 'd30_manual';
+  daysOverdue: number;
+  residualAmount: number;
+  createdAt: string;
+}
+
 // --- input schemas (write-side) --------------------------------------------
 
 const money = z
@@ -123,7 +148,17 @@ export type CancelLancamentoInput = z.infer<typeof CancelLancamentoSchema>;
 
 export const CreateEstornoSchema = z.object({
   lancamentoId: uuid,
+  paymentId: uuid,
+  valor: money,
+  paymentMethod: z.string().min(1).max(40),
   motivo: z.string().trim().min(1, 'motivo do estorno obrigatório').max(200),
+  comprovante: z
+    .object({
+      type: z.enum(['comprovante', 'nota_fiscal', 'outro']),
+      fileStoragePath: z.string().min(1).max(512),
+    })
+    .nullable()
+    .optional(),
 });
 export type CreateEstornoInput = z.infer<typeof CreateEstornoSchema>;
 

@@ -1,5 +1,8 @@
 # ADR-023 — AI Agent Intents Core (C12): ator de sistema, intents e memória
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C12 — AI Agent Intents Core
 - Refs: PlanoAção §12, ADR-022 (C11, fundação — estendida aqui), ADR-007 (RLS),

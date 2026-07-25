@@ -12,11 +12,12 @@ import { eq, sql } from 'drizzle-orm';
 import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
 
-import { BILLING_EVENTS } from '../events';
+import { BILLING_EVENTS, type SubscriptionActivatedPayload } from '../events';
 import {
   billingEvents,
   invoices,
   paymentAttempts,
+  plans,
   subscriptionHistory,
   subscriptions,
   type InvoiceRow,
@@ -24,6 +25,13 @@ import {
 import { type AccessMode, accessModeToClinicStatus } from './access';
 import { toCents, toReais, toReaisString } from './money';
 import { canTransitionBilling, canTransitionInvoice, type BillingStatus } from './state-machine';
+
+type PlanCode = SubscriptionActivatedPayload['planCode'];
+
+function toPlanCode(code: string): PlanCode {
+  if (code === 'solo' || code === 'clinica' || code === 'pro') return code;
+  throw new Error(`[billing] plano não suportado na ativação: ${code}`);
+}
 
 /** Timeline append-only da conta (G1) — legível, sem consumidores. */
 export async function recordBillingEvent(
@@ -75,7 +83,7 @@ export async function setBillingStatus(
   idemSuffix: string,
 ): Promise<boolean> {
   const [sub] = await tx
-    .select({ id: subscriptions.id, status: subscriptions.billingStatus, planId: subscriptions.planId })
+    .select({ id: subscriptions.id, status: subscriptions.billingStatus })
     .from(subscriptions)
     .where(eq(subscriptions.clinicId, clinicId))
     .limit(1);
@@ -116,8 +124,13 @@ export async function activateSubscription(
   idemSuffix: string,
 ): Promise<void> {
   const [sub] = await tx
-    .select({ id: subscriptions.id, status: subscriptions.billingStatus, planId: subscriptions.planId })
+    .select({
+      id: subscriptions.id,
+      status: subscriptions.billingStatus,
+      planCode: plans.code,
+    })
     .from(subscriptions)
+    .innerJoin(plans, eq(plans.id, subscriptions.planId))
     .where(eq(subscriptions.clinicId, clinicId))
     .limit(1);
   if (!sub) return;
@@ -127,7 +140,7 @@ export async function activateSubscription(
   await publishEvent(tx, {
     clinicId,
     eventType: BILLING_EVENTS.SUBSCRIPTION_ACTIVATED,
-    payload: { clinicId, subscriptionId: sub.id, planCode: 'solo' as const },
+    payload: { clinicId, subscriptionId: sub.id, planCode: toPlanCode(sub.planCode) },
     idempotencyKey: `sub-activated:${idemSuffix}`,
   });
 }
@@ -290,3 +303,6 @@ export async function markInvoiceRefunded(
   });
   await recordBillingEvent(tx, clinicId, 'invoice.refunded', { invoiceId: invoice.id });
 }
+
+/** Test-only: mantém a validação do contrato do evento sem mockar o banco. */
+export const __testing__ = { toPlanCode };

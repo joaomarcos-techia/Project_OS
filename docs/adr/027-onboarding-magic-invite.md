@@ -1,5 +1,8 @@
 # ADR-027 — Onboarding de clínicas via convite mágico
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 Status: Accepted · 2026-06-23
 Relacionados: [016 (clinic lifecycle)](016-clinic-lifecycle.md), [024 (plan model)](024-plan-model.md), [025 (billing architecture)](025-billing-architecture.md), [007 (RLS)](007-rls-implementation-patterns.md)
 
@@ -13,8 +16,8 @@ backend; nenhuma senha por link; nenhum cartão salvo.
 
 ### Decisões congeladas
 1. **Trial-imediato** (alinha ADR-016; NÃO usar `pending_payment` como estado de clínica):
-   checkout → Asaas cria assinatura (cartão, `nextDueDate = hoje+7d`) → clínica nasce
-   **`trial`** → owner entra **na hora** (auto-login) → no D+7 o webhook C13 confirma
+   checkout → Asaas cria assinatura (cartão, `nextDueDate = hoje+14d`) → clínica nasce
+   **`trial`** → owner entra **na hora** (auto-login) → no D+14 o webhook C13 confirma
    (trial→active) ou a cobrança falha → dunning → suspende. **Billing controla pagamento;
    Tenant controla acesso.** Datas de trial vivem na **subscription** (`trial_ends_at`),
    nunca no tenant.
@@ -22,7 +25,7 @@ backend; nenhuma senha por link; nenhum cartão salvo.
    o cartão vai do browser → `submitCheckoutAction` (HTTPS) → backend chama o Asaas com a
    chave secreta e guarda **só o token/subscription**. O cartão **nunca é persistido nem
    logado** (transita só em memória na request — PCI SAQ A-EP).
-3. **Trial de 7 dias.**
+3. **Trial de 14 dias.**
 
 ## Decisão
 
@@ -43,7 +46,7 @@ Admin (/admin/clinicas)        → createClinicInviteAction (superAdminAction, a
        clínica trial + owner profile + ai_config + billing_customer + subscription trial +
        convite `completed` guarded por version + eventos billing) · auto-login do owner
   → processing → done → /dashboard (já logado)
-D+7: Asaas cobra → webhook C13 (reusado): PAYMENT_RECEIVED → trial→active;
+D+14: Asaas cobra → webhook C13 (reusado): PAYMENT_RECEIVED → trial→active;
        falha → PAYMENT_OVERDUE → dunning/suspende.
 ```
 

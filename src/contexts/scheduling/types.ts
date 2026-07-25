@@ -8,7 +8,7 @@
  */
 import { z } from 'zod';
 
-import { createdViaEnum } from './events';
+import type { CreatedVia } from './events';
 import type { APPOINTMENT_STATES } from './state-machine';
 
 // --- shared field schemas --------------------------------------------------
@@ -80,26 +80,27 @@ export type CreateHolidayInput = z.infer<typeof CreateHolidaySchema>;
 
 // --- appointments ----------------------------------------------------------
 
-export const CreateAppointmentSchema = z
-  .object({
-    doctorId: uuid,
-    patientId: uuid.nullable().optional(),
-    procedureId: uuid,
-    unitId: uuid.nullable().optional(),
-    scheduledAt: z.string().datetime({ offset: true }),
-    valorAjustado: z.boolean().optional(),
-    valor: ValorSchema.optional(),
-    valorAjusteMotivo: MotivoSchema.optional(),
-    urgencia: z.boolean().optional(),
-    observacoes: ObservacoesSchema.optional(),
-    createdVia: createdViaEnum.optional(),
-    // permite import de histórico (datas no passado). Default false.
-    isHistoricalImport: z.boolean().optional(),
-  })
-  .refine((v) => !v.valorAjustado || (v.valor != null && v.valorAjusteMotivo != null), {
+const CreateAppointmentFieldsSchema = z.object({
+  doctorId: uuid,
+  patientId: uuid.nullable().optional(),
+  procedureId: uuid,
+  unitId: uuid.nullable().optional(),
+  resourceIds: z.array(uuid).max(20).optional(),
+  scheduledAt: z.string().datetime({ offset: true }),
+  valorAjustado: z.boolean().optional(),
+  valor: ValorSchema.optional(),
+  valorAjusteMotivo: MotivoSchema.optional(),
+  urgencia: z.boolean().optional(),
+  observacoes: ObservacoesSchema.optional(),
+});
+
+export const CreateAppointmentSchema = CreateAppointmentFieldsSchema.refine(
+  (v) => !v.valorAjustado || (v.valor != null && v.valorAjusteMotivo != null),
+  {
     message: 'valor_ajustado=true exige valor E motivo',
     path: ['valorAjusteMotivo'],
-  });
+  },
+);
 export type CreateAppointmentInput = z.infer<typeof CreateAppointmentSchema>;
 
 export const CreateWalkInSchema = z.object({
@@ -107,11 +108,88 @@ export const CreateWalkInSchema = z.object({
   patientId: uuid.nullable().optional(),
   procedureId: uuid,
   unitId: uuid.nullable().optional(),
+  resourceIds: z.array(uuid).max(20).optional(),
   urgencia: z.boolean().optional(),
   observacoes: ObservacoesSchema.optional(),
-  createdVia: createdViaEnum.optional(),
 });
 export type CreateWalkInInput = z.infer<typeof CreateWalkInSchema>;
+
+const HistoricalAppointmentItemSchema = CreateAppointmentFieldsSchema.omit({
+  resourceIds: true,
+})
+  .extend({
+    historicalStatus: z.enum(['atendido', 'cancelado', 'faltou']),
+    externalReference: z.string().trim().min(1).max(160).optional(),
+  })
+  .refine((v) => !v.valorAjustado || (v.valor != null && v.valorAjusteMotivo != null), {
+    message: 'valor_ajustado=true exige valor E motivo',
+    path: ['valorAjusteMotivo'],
+  });
+
+export const HistoricalAppointmentImportSchema = z.object({
+  source: z.string().trim().min(2).max(160),
+  justification: z.string().trim().min(5).max(1000),
+  items: z.array(HistoricalAppointmentItemSchema).min(1).max(500),
+});
+export type HistoricalAppointmentImportInput = z.infer<typeof HistoricalAppointmentImportSchema>;
+export interface HistoricalAppointmentImportResult {
+  batchId: string;
+  importedAppointments: number;
+  appointmentIds: string[];
+}
+
+export const CreateRecurringAppointmentsSchema = z.object({
+  doctorId: uuid,
+  patientId: uuid.nullable().optional(),
+  procedureId: uuid,
+  unitId: uuid.nullable().optional(),
+  resourceIds: z.array(uuid).max(20).optional(),
+  firstScheduledAt: z.string().datetime({ offset: true }),
+  intervalWeeks: z.number().int().min(1).max(52),
+  occurrences: z.number().int().min(2).max(104),
+  urgencia: z.boolean().optional(),
+  observacoes: ObservacoesSchema.optional(),
+});
+export type CreateRecurringAppointmentsInput = z.infer<typeof CreateRecurringAppointmentsSchema>;
+
+export const CreateWaitlistEntrySchema = z
+  .object({
+    patientId: uuid,
+    procedureId: uuid,
+    doctorId: uuid.nullable().optional(),
+    priority: z.enum(['urgent', 'normal']).optional(),
+    preferredFrom: z.string().datetime({ offset: true }).optional(),
+    preferredUntil: z.string().datetime({ offset: true }).optional(),
+    notes: ObservacoesSchema.optional(),
+  })
+  .refine(
+    (value) =>
+      !value.preferredFrom ||
+      !value.preferredUntil ||
+      new Date(value.preferredUntil) >= new Date(value.preferredFrom),
+    { path: ['preferredUntil'], message: 'fim da preferência deve ser posterior ao início' },
+  );
+export type CreateWaitlistEntryInput = z.infer<typeof CreateWaitlistEntrySchema>;
+
+export interface WaitlistEntryDTO {
+  id: string;
+  patientId: string;
+  doctorId: string | null;
+  procedureId: string;
+  priority: 'urgent' | 'normal';
+  status: 'waiting' | 'offered' | 'booked' | 'cancelled';
+  preferredFrom: string | null;
+  preferredUntil: string | null;
+  offeredAppointmentId: string | null;
+  bookedAppointmentId: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface RecurrenceSeriesResult {
+  seriesId: string;
+  appointments: AppointmentSummary[];
+}
 
 export const RescheduleSchema = z.object({
   newScheduledAt: z.string().datetime({ offset: true }),
@@ -120,6 +198,95 @@ export const RescheduleSchema = z.object({
 export type RescheduleInput = z.infer<typeof RescheduleSchema>;
 
 export const ReasonSchema = MotivoSchema.optional();
+
+export const RecoverAppointmentSchema = z
+  .object({
+    appointmentId: z.string().uuid(),
+    kind: z.enum(['interrupt', 'exceptional_cancel', 'reopen', 'transfer']),
+    reason: MotivoSchema,
+    newDoctorId: z.string().uuid().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === 'transfer' && !value.newDoctorId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['newDoctorId'],
+        message: 'novo profissional obrigatorio para transferencia',
+      });
+    }
+    if (value.kind !== 'transfer' && value.newDoctorId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['newDoctorId'],
+        message: 'novo profissional permitido apenas em transferencia',
+      });
+    }
+  });
+export type RecoverAppointmentInput = z.infer<typeof RecoverAppointmentSchema>;
+
+export const CreateDoctorAbsenceSchema = z
+  .object({
+    doctorId: z.string().uuid(),
+    startsAt: z.string().datetime({ offset: true }),
+    endsAt: z.string().datetime({ offset: true }),
+    reason: MotivoSchema,
+    strategy: z.enum(['cancel', 'transfer']),
+    replacementDoctorId: z.string().uuid().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (new Date(value.endsAt).getTime() <= new Date(value.startsAt).getTime()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endsAt'], message: 'periodo invalido' });
+    }
+    if (value.strategy === 'transfer' && !value.replacementDoctorId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['replacementDoctorId'],
+        message: 'profissional substituto obrigatorio',
+      });
+    }
+    if (value.strategy === 'cancel' && value.replacementDoctorId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['replacementDoctorId'],
+        message: 'substituto permitido apenas na transferencia',
+      });
+    }
+  });
+export type CreateDoctorAbsenceInput = z.infer<typeof CreateDoctorAbsenceSchema>;
+
+export interface DoctorAbsenceResult {
+  id: string;
+  affected: number;
+  cancelled: number;
+  transferred: number;
+}
+
+export interface DoctorAbsenceDTO {
+  id: string;
+  doctorId: string;
+  startsAt: string;
+  endsAt: string;
+  reason: string;
+  strategy: 'cancel' | 'transfer';
+  replacementDoctorId: string | null;
+  affectedAppointments: number;
+  createdAt: string;
+}
+
+export const CreateSchedulableResourceSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  type: z.enum(['room', 'equipment', 'other']),
+  unitId: uuid.nullable().optional(),
+});
+export type CreateSchedulableResourceInput = z.infer<typeof CreateSchedulableResourceSchema>;
+
+export interface SchedulableResourceDTO {
+  id: string;
+  name: string;
+  type: 'room' | 'equipment' | 'other';
+  unitId: string | null;
+  active: boolean;
+}
 
 // --- DTOs ------------------------------------------------------------------
 
@@ -147,11 +314,13 @@ export interface AppointmentSummary {
   snapshotDoctorNome: string;
   snapshotDoctorCrm: string | null;
   snapshotDoctorEspecialidade: string | null;
-  createdVia: z.infer<typeof createdViaEnum>;
+  createdVia: CreatedVia;
   urgencia: boolean;
   faturamentoPendente: boolean;
   observacoes: string | null;
   rescheduledFromAppointmentId: string | null;
+  recurrenceSeriesId: string | null;
+  recurrenceOccurrence: number | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

@@ -19,7 +19,15 @@ export function evaluateProactivePolicy(
   contact: ProactiveContact | null,
 ): ProactivePolicyResult {
   if (!contact || !contact.phone) return { allowed: false, reason: 'no_contact' };
-  if (contact.suppressedWhatsapp) return { allowed: false, reason: 'suppressed' };
+  if (contact.deceased) return { allowed: false, reason: 'deceased' };
+  const purpose = type === 'dunning' ? 'billing' : type;
+  if (
+    contact.suppressedWhatsapp ||
+    contact.suppressedWhatsappPurposes.includes('all') ||
+    contact.suppressedWhatsappPurposes.includes(purpose)
+  ) {
+    return { allowed: false, reason: 'suppressed' };
+  }
   if (type === 'dunning' && (!contact.cobrancaWhatsapp || contact.consentRevoked)) {
     return { allowed: false, reason: 'no_consent' };
   }

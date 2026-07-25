@@ -1,5 +1,8 @@
 # ADR-036 — `asConflict` permanece em cada contexto (não centralizar em `@/lib`)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted · **Date:** 2026-07-14 (owner aprovou ao aplicar o S1 da auditoria de simplificação)
 **Camada:** Contexts (scheduling / clinical) · Boundaries (`eslint-plugin-boundaries`).
 **Refs:** [auditoria-simplificacao-codigo.md](../achados/auditoria-simplificacao-codigo.md) §S1 ·

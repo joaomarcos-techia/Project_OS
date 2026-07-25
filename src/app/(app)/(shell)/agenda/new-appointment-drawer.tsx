@@ -50,6 +50,10 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const [time, setTime] = useState('09:00');
   const [urgencia, setUrgencia] = useState(false);
   const [observacoes, setObservacoes] = useState('');
+  const [resourceIds, setResourceIds] = useState<string[]>([]);
+  const [recurring, setRecurring] = useState(false);
+  const [intervalWeeks, setIntervalWeeks] = useState('1');
+  const [occurrences, setOccurrences] = useState('4');
   const [error, setError] = useState<string | null>(null);
   const [salvando, startSalvar] = useTransition();
 
@@ -64,6 +68,10 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setTime('09:00');
     setUrgencia(false);
     setObservacoes('');
+    setResourceIds([]);
+    setRecurring(false);
+    setIntervalWeeks('1');
+    setOccurrences('4');
     setError(null);
   }
 
@@ -83,9 +91,26 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
       doctorId: docId,
       urgencia,
       observacoes,
+      resourceIds,
     };
+    const interval = Number(intervalWeeks);
+    const count = Number(occurrences);
+    if (modo === 'agendar' && recurring && (!Number.isInteger(interval) || interval < 1)) {
+      return setError('Informe um intervalo semanal válido.');
+    }
+    if (modo === 'agendar' && recurring && (!Number.isInteger(count) || count < 2)) {
+      return setError('A recorrência precisa de ao menos duas consultas.');
+    }
     const input: CriarAtendimentoInput =
-      modo === 'agendar' ? { ...base, modo: 'agendar', date, time } : { ...base, modo: 'agora' };
+      modo === 'agendar'
+        ? {
+            ...base,
+            modo: 'agendar',
+            date,
+            time,
+            ...(recurring ? { recurrence: { intervalWeeks: interval, occurrences: count } } : {}),
+          }
+        : { ...base, modo: 'agora' };
 
     startSalvar(async () => {
       const res = await criarAtendimento(input);
@@ -94,7 +119,9 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
           res.modo === 'agora' ? 'Encaixe criado' : 'Atendimento agendado',
           res.modo === 'agora'
             ? `${paciente.label} já está na fila do Consultório.`
-            : `${paciente.label} em ${date} às ${time}.`,
+            : res.createdCount > 1
+              ? `${res.createdCount} consultas semanais criadas para ${paciente.label}.`
+              : `${paciente.label} em ${date} às ${time}.`,
         );
         setOpen(false);
         reset();
@@ -204,19 +231,72 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
             ) : null}
 
             {modo === 'agendar' ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Data">
-                  <Input
-                    type="date"
-                    min={hojeISODate()}
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
+              <div className="flex flex-col gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Data">
+                    <Input
+                      type="date"
+                      min={hojeISODate()}
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Hora">
+                    <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                  </Field>
+                </div>
+                <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+                  <Checkbox
+                    checked={recurring}
+                    onCheckedChange={(value) => setRecurring(value === true)}
                   />
-                </Field>
-                <Field label="Hora">
-                  <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-                </Field>
+                  Repetir semanalmente
+                </label>
+                {recurring ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Intervalo (semanas)">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={52}
+                        value={intervalWeeks}
+                        onChange={(event) => setIntervalWeeks(event.target.value)}
+                      />
+                    </Field>
+                    <Field label="Quantidade de consultas">
+                      <Input
+                        type="number"
+                        min={2}
+                        max={104}
+                        value={occurrences}
+                        onChange={(event) => setOccurrences(event.target.value)}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
               </div>
+            ) : null}
+
+            {data.resources.length > 0 ? (
+              <Field label="Salas e equipamentos (opcional)">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {data.resources.map((resource) => (
+                    <label key={resource.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={resourceIds.includes(resource.id)}
+                        onCheckedChange={(checked) =>
+                          setResourceIds((current) =>
+                            checked === true
+                              ? [...new Set([...current, resource.id])]
+                              : current.filter((id) => id !== resource.id),
+                          )
+                        }
+                      />
+                      {resource.name}
+                    </label>
+                  ))}
+                </div>
+              </Field>
             ) : null}
 
             <label className="flex cursor-pointer items-center gap-2.5 text-(length:--fs-sm)">

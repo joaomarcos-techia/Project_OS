@@ -1,5 +1,8 @@
 # ADR-012 — Encryption Strategy (per-tenant AES-256-GCM + lookup HMAC)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C5
 - Refs: ADR-002 (RLS), ADR-007 (RLS patterns), ADR-011 (outbox/audit), PlanoAção §5

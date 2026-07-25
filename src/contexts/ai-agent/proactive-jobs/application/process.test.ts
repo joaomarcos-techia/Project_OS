@@ -27,10 +27,17 @@ vi.mock('@/contexts/messaging', () => ({
 }));
 vi.mock('@/contexts/patient', () => ({ patientApiV1: { getProactiveContact: vi.fn() } }));
 vi.mock('@/contexts/financial', () => ({ financialApiV1: { getLancamento: vi.fn() } }));
-vi.mock('@/contexts/scheduling', () => ({ schedulingApiV1: { lookupAppointment: vi.fn() } }));
+vi.mock('@/contexts/clinical', () => ({ clinicalApiV1: { getFollowupState: vi.fn() } }));
+vi.mock('@/contexts/scheduling', () => ({
+  schedulingApiV1: {
+    lookupAppointment: vi.fn(),
+    hasSubsequentCompletedAppointment: vi.fn(),
+  },
+}));
 
 /* eslint-disable boundaries/element-types -- imports dos módulos mockados (vi.mock) p/ asserção. */
 import { financialApiV1 } from '@/contexts/financial';
+import { clinicalApiV1 } from '@/contexts/clinical';
 import { messagingApiV1 } from '@/contexts/messaging';
 import { patientApiV1 } from '@/contexts/patient';
 import { schedulingApiV1 } from '@/contexts/scheduling';
@@ -43,15 +50,18 @@ const U = '11111111-1111-1111-1111-111111111111';
 const okContact = {
   nome: 'Maria',
   phone: '5511999990000',
+  deceased: false,
   cobrancaWhatsapp: true,
   consentRevoked: false,
   suppressedWhatsapp: false,
+  suppressedWhatsappPurposes: [],
 };
 const reminderPayload = { patientId: U, appointmentId: U, scheduledAt: '2026-06-19T12:00:00Z', doctorNome: 'Dr X' };
 const dunningPayload = { patientId: U, lancamentoId: U, stage: 3, valor: 200, dueDate: '2026-06-10', procedureNome: 'Consulta' };
+const followupPayload = { patientId: U, prontuarioId: U, doctorNome: 'Dr X', returnDate: '2026-09-10' };
 
 function claim(job: Record<string, unknown>): void {
-  vi.mocked(repo.claimDue).mockResolvedValue([job as never]);
+  vi.mocked(repo.claimDue).mockResolvedValue([{ leaseToken: 'lease-1', ...job } as never]);
 }
 
 beforeEach(() => {
@@ -60,6 +70,16 @@ beforeEach(() => {
   vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue(okContact);
   vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'confirmado' } as never);
   vi.mocked(financialApiV1.getLancamento).mockResolvedValue({ status: 'pendente' } as never);
+  vi.mocked(clinicalApiV1.getFollowupState).mockResolvedValue({
+    prontuarioId: U,
+    patientId: U,
+    doctorId: U,
+    appointmentId: U,
+    status: 'assinado',
+    needsReturn: true,
+    signedAt: new Date('2026-06-10T12:00:00Z'),
+  });
+  vi.mocked(schedulingApiV1.hasSubsequentCompletedAppointment).mockResolvedValue(false);
 });
 
 describe('processProactiveBatch (C14 §14.6)', () => {
@@ -69,7 +89,10 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
     const s = await processProactiveBatch('reminder');
     expect(s.sent).toBe(1);
-    expect(repo.finalizeSent).toHaveBeenCalledWith('c1', 'j1');
+    expect(repo.finalizeSent).toHaveBeenCalledWith('c1', 'j1', 'lease-1');
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'reminder' }),
+    );
   });
 
   it('T2a: telefone em suppression → cancelled(suppressed), não envia', async () => {
@@ -78,7 +101,7 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
     const s = await processProactiveBatch('reminder');
     expect(s.cancelled).toBe(1);
-    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'suppressed');
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'suppressed');
     expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 
@@ -88,7 +111,7 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
     const s = await processProactiveBatch('dunning');
     expect(s.cancelled).toBe(1);
-    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'no_consent');
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'no_consent');
   });
 
   it('T5: dunning cujo lançamento já foi pago → cancelled(already_paid), não envia', async () => {
@@ -97,9 +120,27 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
     const s = await processProactiveBatch('dunning');
     expect(s.cancelled).toBe(1);
-    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'already_paid');
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'already_paid');
     expect(patientApiV1.getProactiveContact).not.toHaveBeenCalled();
     expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('mantem cobranca de lancamento parcial pelo saldo residual', async () => {
+    claim({ id: 'j1', clinicId: 'c1', type: 'dunning', payload: dunningPayload, attempts: 1 });
+    vi.mocked(financialApiV1.getLancamento).mockResolvedValue({ status: 'parcial' } as never);
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const s = await processProactiveBatch('dunning');
+    expect(s.sent).toBe(1);
+    expect(repo.cancel).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'billing' }),
+    );
   });
 
   it('T6a: falha Meta na 1ª tentativa → retry com backoff (+30s)', async () => {
@@ -110,7 +151,8 @@ describe('processProactiveBatch (C14 §14.6)', () => {
     const s = await processProactiveBatch('reminder');
     expect(s.retried).toBe(1);
     expect(repo.finalizeRetry).toHaveBeenCalledTimes(1);
-    const [, , nextAt, reason] = vi.mocked(repo.finalizeRetry).mock.calls[0]!;
+    const [, , leaseToken, nextAt, reason] = vi.mocked(repo.finalizeRetry).mock.calls[0]!;
+    expect(leaseToken).toBe('lease-1');
     expect(reason).toBe('meta_failed');
     expect((nextAt as Date).getTime()).toBeGreaterThanOrEqual(before + 30_000 - 1000);
   });
@@ -121,7 +163,40 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
     const s = await processProactiveBatch('reminder');
     expect(s.failed).toBe(1);
-    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'meta_failed');
+    expect(repo.finalizeFailed).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'meta_failed');
     expect(repo.finalizeRetry).not.toHaveBeenCalled();
+  });
+
+  it('cancela follow-up quando o retorno clínico deixou de ser necessário', async () => {
+    claim({ id: 'j1', clinicId: 'c1', type: 'followup', payload: followupPayload, attempts: 1 });
+    vi.mocked(clinicalApiV1.getFollowupState).mockResolvedValue({
+      prontuarioId: U,
+      patientId: U,
+      doctorId: U,
+      appointmentId: U,
+      status: 'assinado',
+      needsReturn: false,
+      signedAt: new Date('2026-06-10T12:00:00Z'),
+    });
+
+    const summary = await processProactiveBatch('followup');
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'return_no_longer_needed');
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('cancela follow-up quando já houve consulta posterior equivalente', async () => {
+    claim({ id: 'j1', clinicId: 'c1', type: 'followup', payload: followupPayload, attempts: 1 });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ procedureId: U } as never);
+    vi.mocked(schedulingApiV1.hasSubsequentCompletedAppointment).mockResolvedValue(true);
+
+    const summary = await processProactiveBatch('followup');
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'return_already_completed');
+    expect(schedulingApiV1.hasSubsequentCompletedAppointment).toHaveBeenCalledWith(
+      'c1',
+      expect.objectContaining({ patientId: U, procedureId: U }),
+    );
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
   });
 });

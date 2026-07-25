@@ -61,3 +61,17 @@ export class ConversationValidationError extends Error {
     this.name = 'ConversationValidationError';
   }
 }
+
+export class ConversationAssignmentRequiredError extends Error {
+  constructor() {
+    super('Assuma formalmente a conversa antes de responder ou devolvê-la ao agente.');
+    this.name = 'ConversationAssignmentRequiredError';
+  }
+}
+
+export class ManualMessageNotRetryableError extends Error {
+  constructor() {
+    super('Somente mensagens manuais com falha confirmada podem ser reenviadas.');
+    this.name = 'ManualMessageNotRetryableError';
+  }
+}

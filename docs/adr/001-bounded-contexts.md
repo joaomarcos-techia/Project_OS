@@ -1,5 +1,8 @@
 # ADR-001 — Bounded Contexts isolados via DDD
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-05-25
 

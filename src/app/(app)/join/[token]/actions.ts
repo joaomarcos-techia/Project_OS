@@ -16,6 +16,7 @@ import {
   resolveCheckoutPlan,
   resolveOpenInvite,
   runCheckout,
+  QORO_TRIAL_DAYS,
   stepStateSchema,
   type OnboardingStep,
 } from '@/contexts/onboarding';
@@ -118,7 +119,6 @@ export async function saveStepAction(
 
 export type CheckoutState = { error: string | null; ok?: boolean; cardError?: boolean };
 
-const TRIAL_DAYS = 7; // decisão do produto (ADR-027): trial de 7 dias na assinatura.
 const onlyDigits = (v: FormDataEntryValue | null) => String(v ?? '').replace(/\D/g, '');
 
 /**
@@ -197,7 +197,7 @@ export async function submitCheckoutAction(
       },
       holder: { cpfCnpj, postalCode: cep, addressNumber },
       plan,
-      trialDays: TRIAL_DAYS,
+      trialDays: QORO_TRIAL_DAYS,
       remoteIp: ip,
     });
   } catch (e) {

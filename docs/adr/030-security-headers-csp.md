@@ -1,5 +1,9 @@
 # ADR-030 — Security headers + CSP faseada (Report-Only primeiro)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: PARTIALLY_IMPLEMENTED
+> Security headers sim; **CSP bloqueante diferida** — nenhuma string CSP em `src/` (verificar `next.config`, Onda 3).
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-06-29
 

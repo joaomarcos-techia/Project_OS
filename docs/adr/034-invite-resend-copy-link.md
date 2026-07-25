@@ -1,5 +1,8 @@
 # ADR-034 — Reenvio de convite: link copiável via `recovery`, não e-mail automático
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted · **Date:** 2026-07-10 (founder aprovou no planejamento da sub-fase 2a)
 **Camada:** Identity (C3) · implementa a sub-fase 2a de [convite-e-gestao-de-equipe.md](../implementation/convite-e-gestao-de-equipe.md).
 **Refs:** [ADR-032](032-mvp-identity-practitioner-model.md) §3 (canal = e-mail no MVP), ADR-008 (identity patterns),

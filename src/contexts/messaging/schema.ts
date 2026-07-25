@@ -58,6 +58,9 @@ export const whatsappConnectionStatus = pgEnum('whatsapp_connection_status', [
 export const outboundStatus = pgEnum('outbound_status', [
   'pending',
   'accepted',
+  'sent',
+  'delivered',
+  'read',
   'failed',
   'unknown',
 ]);
@@ -151,6 +154,10 @@ export const outboundMessages = pgTable(
     providerResponse: jsonb('provider_response'),
     status: outboundStatus('status').notNull().default('pending'),
     sentAt: timestamp('sent_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    statusUpdatedAt: timestamp('status_updated_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   },
   (t) => ({

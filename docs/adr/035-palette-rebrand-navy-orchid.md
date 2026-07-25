@@ -1,5 +1,9 @@
 # ADR-035 — Rebrand de paleta: petrol/clay → navy/orchid (Qoro) + swap do wordmark
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> **Supersedes** a paleta do ADR-031.
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: Fundação Visual (identidade Qoro)
 - Refs: **supersede parcial do ADR-031 §2** (paleta); ADR-028 (reafirmado);

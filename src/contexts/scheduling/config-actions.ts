@@ -21,14 +21,104 @@ import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 
 import { SchedulingValidationError } from './errors';
 import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
-import { clinicHolidays, doctorAvailability } from './schema';
+import { assertUnitInClinic } from './internal/tenant-references';
+import { clinicHolidays, doctorAvailability, schedulableResources } from './schema';
 import { parseTimeToMinutes } from './slot-resolver';
 import {
   CreateHolidaySchema,
+  CreateSchedulableResourceSchema,
   SetAvailabilitySchema,
   type CreateHolidayInput,
+  type CreateSchedulableResourceInput,
+  type SchedulableResourceDTO,
   type SetAvailabilityInput,
 } from './types';
+
+export async function createSchedulableResource(
+  input: CreateSchedulableResourceInput,
+  idempotencyKey: string,
+): Promise<SchedulableResourceDTO> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+  const data = CreateSchedulableResourceSchema.parse(input);
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+
+  return idempotentMutation(
+    {
+      idempotency: {
+        key: idemKey('resource_create', idempotencyKey),
+        payload: jsonSafe(data),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'scheduling.resource.created',
+        resourceType: 'schedulable_resource',
+        resourceId: null,
+        before: null,
+        requestContext: ctx,
+      },
+    },
+    async (tx) => {
+      await assertUnitInClinic(tx, clinicId, data.unitId);
+      const [row] = await tx
+        .insert(schedulableResources)
+        .values({
+          clinicId,
+          unitId: data.unitId ?? null,
+          name: data.name,
+          type: data.type,
+          createdBy: user.userId,
+        })
+        .returning();
+      return {
+        id: row!.id,
+        name: row!.name,
+        type: row!.type,
+        unitId: row!.unitId ?? null,
+        active: row!.active,
+      };
+    },
+  );
+}
+
+export async function setSchedulableResourceActive(
+  id: string,
+  active: boolean,
+  idempotencyKey: string,
+): Promise<{ id: string; active: boolean }> {
+  await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+  return idempotentMutation(
+    {
+      idempotency: {
+        key: idemKey('resource_active', idempotencyKey),
+        payload: jsonSafe({ id, active }),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'scheduling.resource.active_changed',
+        resourceType: 'schedulable_resource',
+        resourceId: id,
+        before: null,
+        requestContext: ctx,
+      },
+    },
+    async (tx) => {
+      const [row] = await tx
+        .update(schedulableResources)
+        .set({ active, updatedAt: sql`now()` })
+        .where(
+          and(eq(schedulableResources.id, id), eq(schedulableResources.clinicId, clinicId)),
+        )
+        .returning({ id: schedulableResources.id, active: schedulableResources.active });
+      if (!row) throw new SchedulingValidationError('recurso nao encontrado');
+      return row;
+    },
+  );
+}
 
 export async function setDoctorAvailability(
   input: SetAvailabilityInput,
@@ -57,6 +147,7 @@ export async function setDoctorAvailability(
         },
       },
       async (tx) => {
+        await assertUnitInClinic(tx, clinicId, data.unitId);
         // F-04/F-05 (auditoria 2026-06-10): valida vínculo doctor↔clínica DENTRO
         // do tx tenant-scoped (mesmo padrão do buildSnapshot) — RLS faz o
         // cross-tenant retornar 0 linhas. Sem isto, um gestor da clínica A com
@@ -67,6 +158,7 @@ export async function setDoctorAvailability(
         const doc = await tx.execute<{ id: string }>(
           sql`SELECT id FROM profiles
                WHERE id = ${data.doctorId}
+                 AND clinic_id = ${clinicId}
                  AND ${practitionerSql(profiles.role, profiles.crm)}
                  AND ativo = true
                  AND deleted_at IS NULL
@@ -148,6 +240,7 @@ export async function createHoliday(
         },
       },
       async (tx) => {
+        await assertUnitInClinic(tx, clinicId, data.unitId);
         const [row] = await tx
           .insert(clinicHolidays)
           .values({

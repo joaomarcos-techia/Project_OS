@@ -63,6 +63,13 @@ export const appointmentCreatedVia = pgEnum('appointment_created_via', [
   'ai_agent',
   'walkin',
   'super_admin',
+  'import',
+]);
+
+export const appointmentImportStatus = pgEnum('appointment_import_status', [
+  'processing',
+  'completed',
+  'failed',
 ]);
 
 export const appointmentActorType = pgEnum('appointment_actor_type', [
@@ -70,6 +77,46 @@ export const appointmentActorType = pgEnum('appointment_actor_type', [
   'ai_agent',
   'worker',
   'system',
+]);
+
+export const appointmentRecoveryKind = pgEnum('appointment_recovery_kind', [
+  'interrupt',
+  'exceptional_cancel',
+  'reopen',
+  'transfer',
+]);
+
+export const doctorAbsenceStrategy = pgEnum('doctor_absence_strategy', [
+  'cancel',
+  'transfer',
+]);
+
+export const schedulableResourceType = pgEnum('schedulable_resource_type', [
+  'room',
+  'equipment',
+  'other',
+]);
+
+export const waitingQueuePriority = pgEnum('waiting_queue_priority', ['urgent', 'normal']);
+
+export const waitingQueueStatus = pgEnum('waiting_queue_status', [
+  'waiting',
+  'in_service',
+  'completed',
+  'cancelled',
+]);
+
+export const recurrenceSeriesStatus = pgEnum('recurrence_series_status', [
+  'active',
+  'cancelled',
+  'completed',
+]);
+
+export const waitlistStatus = pgEnum('waitlist_status', [
+  'waiting',
+  'offered',
+  'booked',
+  'cancelled',
 ]);
 
 export const procedureChangedField = pgEnum('procedure_changed_field', [
@@ -174,6 +221,40 @@ export const doctorAvailability = pgTable(
 export type DoctorAvailabilityRow = typeof doctorAvailability.$inferSelect;
 export type DoctorAvailabilityInsert = typeof doctorAvailability.$inferInsert;
 
+// --- doctor_absences (periodos e estrategia de reorganizacao) -------------
+
+export const doctorAbsences = pgTable(
+  'doctor_absences',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    doctorId: uuid('doctor_id').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    reason: text('reason').notNull(),
+    strategy: doctorAbsenceStrategy('strategy').notNull(),
+    replacementDoctorId: uuid('replacement_doctor_id'),
+    affectedAppointments: integer('affected_appointments').notNull().default(0),
+    createdBy: uuid('created_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicDoctorPeriodIdx: index('doctor_absences_clinic_doctor_period_idx').on(
+      t.clinicId,
+      t.doctorId,
+      t.startsAt,
+    ),
+    periodChk: check('doctor_absences_period_chk', sql`${t.endsAt} > ${t.startsAt}`),
+    strategyChk: check(
+      'doctor_absences_strategy_chk',
+      sql`(${t.strategy} = 'cancel' AND ${t.replacementDoctorId} IS NULL)
+          OR (${t.strategy} = 'transfer' AND ${t.replacementDoctorId} IS NOT NULL AND ${t.replacementDoctorId} <> ${t.doctorId})`,
+    ),
+  }),
+);
+
+export type DoctorAbsenceRow = typeof doctorAbsences.$inferSelect;
+
 // --- clinic_holidays (dia inteiro ou janela parcial) -----------------------
 
 export const clinicHolidays = pgTable(
@@ -202,6 +283,97 @@ export const clinicHolidays = pgTable(
 
 export type ClinicHolidayRow = typeof clinicHolidays.$inferSelect;
 export type ClinicHolidayInsert = typeof clinicHolidays.$inferInsert;
+
+// --- schedulable_resources (salas/equipamentos/outros) --------------------
+
+export const schedulableResources = pgTable(
+  'schedulable_resources',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    unitId: uuid('unit_id'),
+    name: text('name').notNull(),
+    type: schedulableResourceType('type').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdBy: uuid('created_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicActiveIdx: index('schedulable_resources_clinic_active_idx').on(
+      t.clinicId,
+      t.active,
+    ),
+    clinicNameUniq: uniqueIndex('schedulable_resources_clinic_name_uniq').on(
+      t.clinicId,
+      t.name,
+    ),
+  }),
+);
+
+export type SchedulableResourceRow = typeof schedulableResources.$inferSelect;
+
+// --- recurrence_series (regra semanal e cancelamento em serie) -----------
+
+export const recurrenceSeries = pgTable(
+  'recurrence_series',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    unitId: uuid('unit_id'),
+    doctorId: uuid('doctor_id').notNull(),
+    patientId: uuid('patient_id'),
+    procedureId: uuid('procedure_id')
+      .notNull()
+      .references(() => procedures.id, { onDelete: 'restrict' }),
+    intervalWeeks: integer('interval_weeks').notNull(),
+    occurrences: integer('occurrences').notNull(),
+    status: recurrenceSeriesStatus('status').notNull().default('active'),
+    createdBy: uuid('created_by'),
+    cancelledBy: uuid('cancelled_by'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelReason: text('cancel_reason'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicStatusIdx: index('recurrence_series_clinic_status_idx').on(t.clinicId, t.status),
+    patientIdx: index('recurrence_series_patient_id_idx').on(t.patientId),
+    doctorIdx: index('recurrence_series_doctor_id_idx').on(t.doctorId),
+    intervalChk: check('recurrence_series_interval_chk', sql`${t.intervalWeeks} > 0`),
+    occurrencesChk: check('recurrence_series_occurrences_chk', sql`${t.occurrences} > 1`),
+  }),
+);
+
+export type RecurrenceSeriesRow = typeof recurrenceSeries.$inferSelect;
+
+// --- appointment_import_batches -----------------------------------------
+
+export const appointmentImportBatches = pgTable(
+  'appointment_import_batches',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    source: text('source').notNull(),
+    justification: text('justification').notNull(),
+    status: appointmentImportStatus('status').notNull().default('processing'),
+    totalItems: integer('total_items').notNull(),
+    importedItems: integer('imported_items').notNull().default(0),
+    createdBy: uuid('created_by'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicCreatedIdx: index('appointment_import_batches_clinic_created_idx').on(
+      t.clinicId,
+      t.createdAt,
+    ),
+    totalChk: check(
+      'appointment_import_batches_total_chk',
+      sql`${t.totalItems} > 0 AND ${t.importedItems} >= 0 AND ${t.importedItems} <= ${t.totalItems}`,
+    ),
+  }),
+);
+
+export type AppointmentImportBatchRow = typeof appointmentImportBatches.$inferSelect;
 
 // --- appointments ----------------------------------------------------------
 
@@ -244,6 +416,14 @@ export const appointments = pgTable(
       (): AnyPgColumn => appointments.id,
       { onDelete: 'set null' },
     ),
+    recurrenceSeriesId: uuid('recurrence_series_id').references(() => recurrenceSeries.id, {
+      onDelete: 'restrict',
+    }),
+    recurrenceOccurrence: integer('recurrence_occurrence'),
+    importBatchId: uuid('import_batch_id').references(() => appointmentImportBatches.id, {
+      onDelete: 'restrict',
+    }),
+    importSourceReference: text('import_source_reference'),
     // --- colunas derivadas (M13): tornam UNIQUE/EXCLUDE declarativos ---
     slotOccupiesInstant: boolean('slot_occupies_instant').generatedAlwaysAs(
       sql`status <> 'cancelado' AND status <> 'faltou'`,
@@ -277,6 +457,12 @@ export const appointments = pgTable(
     rescheduledFromFkIdx: index('appointments_rescheduled_from_idx').on(
       t.rescheduledFromAppointmentId,
     ),
+    recurrenceOccurrenceUniq: uniqueIndex('appointments_recurrence_occurrence_uniq')
+      .on(t.recurrenceSeriesId, t.recurrenceOccurrence)
+      .where(sql`${t.recurrenceSeriesId} IS NOT NULL`),
+    importReferenceUniq: uniqueIndex('appointments_import_reference_uniq')
+      .on(t.importBatchId, t.importSourceReference)
+      .where(sql`${t.importSourceReference} IS NOT NULL`),
     durationChk: check(
       'appointments_duration_chk',
       sql`${t.durationMin} > 0 AND ${t.durationMin} <= 480`,
@@ -296,6 +482,132 @@ export const appointments = pgTable(
 
 export type AppointmentRow = typeof appointments.$inferSelect;
 export type AppointmentInsert = typeof appointments.$inferInsert;
+
+// --- appointment_resource_reservations ------------------------------------
+
+export const appointmentResourceReservations = pgTable(
+  'appointment_resource_reservations',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    appointmentId: uuid('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    resourceId: uuid('resource_id')
+      .notNull()
+      .references(() => schedulableResources.id, { onDelete: 'restrict' }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (t) => ({
+    appointmentResourceUniq: uniqueIndex('appointment_resource_reservations_uniq').on(
+      t.appointmentId,
+      t.resourceId,
+    ),
+    clinicPeriodIdx: index('appointment_resource_reservations_clinic_period_idx').on(
+      t.clinicId,
+      t.startsAt,
+    ),
+    resourceIdx: index('appointment_resource_reservations_resource_idx').on(t.resourceId),
+    periodChk: check(
+      'appointment_resource_reservations_period_chk',
+      sql`${t.endsAt} > ${t.startsAt}`,
+    ),
+  }),
+);
+
+export type AppointmentResourceReservationRow =
+  typeof appointmentResourceReservations.$inferSelect;
+
+// --- waiting_queue_entries (fila explícita do consultório) ----------------
+
+export const waitingQueueEntries = pgTable(
+  'waiting_queue_entries',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    appointmentId: uuid('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    doctorId: uuid('doctor_id').notNull(),
+    priority: waitingQueuePriority('priority').notNull().default('normal'),
+    status: waitingQueueStatus('status').notNull().default('waiting'),
+    estimatedWaitMinutesAtEntry: integer('estimated_wait_minutes_at_entry').notNull().default(0),
+    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().default(sql`now()`),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    createdBy: uuid('created_by'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    appointmentUniq: uniqueIndex('waiting_queue_entries_appointment_uniq').on(t.appointmentId),
+    clinicDoctorQueueIdx: index('waiting_queue_entries_clinic_doctor_queue_idx').on(
+      t.clinicId,
+      t.doctorId,
+      t.status,
+      t.priority,
+      t.queuedAt,
+    ),
+    estimateChk: check(
+      'waiting_queue_entries_estimate_chk',
+      sql`${t.estimatedWaitMinutesAtEntry} >= 0`,
+    ),
+  }),
+);
+
+export type WaitingQueueEntryRow = typeof waitingQueueEntries.$inferSelect;
+
+// --- waitlist_entries (oportunidades liberadas por cancelamento) ----------
+
+export const waitlistEntries = pgTable(
+  'waitlist_entries',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    patientId: uuid('patient_id').notNull(),
+    doctorId: uuid('doctor_id'),
+    procedureId: uuid('procedure_id')
+      .notNull()
+      .references(() => procedures.id, { onDelete: 'restrict' }),
+    priority: waitingQueuePriority('priority').notNull().default('normal'),
+    status: waitlistStatus('status').notNull().default('waiting'),
+    preferredFrom: timestamp('preferred_from', { withTimezone: true }),
+    preferredUntil: timestamp('preferred_until', { withTimezone: true }),
+    offeredAppointmentId: uuid('offered_appointment_id').references(() => appointments.id, {
+      onDelete: 'set null',
+    }),
+    offeredAt: timestamp('offered_at', { withTimezone: true }),
+    bookedAppointmentId: uuid('booked_appointment_id').references(() => appointments.id, {
+      onDelete: 'set null',
+    }),
+    notes: text('notes'),
+    createdBy: uuid('created_by'),
+    cancelledBy: uuid('cancelled_by'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicStatusPriorityIdx: index('waitlist_entries_clinic_status_priority_idx').on(
+      t.clinicId,
+      t.status,
+      t.priority,
+      t.createdAt,
+    ),
+    patientIdx: index('waitlist_entries_patient_id_idx').on(t.patientId),
+    doctorIdx: index('waitlist_entries_doctor_id_idx').on(t.doctorId),
+    offeredAppointmentIdx: index('waitlist_entries_offered_appointment_idx').on(
+      t.offeredAppointmentId,
+    ),
+    preferredPeriodChk: check(
+      'waitlist_entries_preferred_period_chk',
+      sql`${t.preferredUntil} IS NULL OR ${t.preferredFrom} IS NULL OR ${t.preferredUntil} >= ${t.preferredFrom}`,
+    ),
+  }),
+);
+
+export type WaitlistEntryRow = typeof waitlistEntries.$inferSelect;
 
 // --- appointment_state_log -------------------------------------------------
 
@@ -332,3 +644,40 @@ export const appointmentStateLog = pgTable(
 
 export type AppointmentStateLogRow = typeof appointmentStateLog.$inferSelect;
 export type AppointmentStateLogInsert = typeof appointmentStateLog.$inferInsert;
+
+// --- appointment_corrections (trilha excepcional, sempre com motivo) ------
+
+export const appointmentCorrections = pgTable(
+  'appointment_corrections',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    appointmentId: uuid('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    kind: appointmentRecoveryKind('kind').notNull(),
+    fromStatus: appointmentStatus('from_status').notNull(),
+    toStatus: appointmentStatus('to_status').notNull(),
+    oldDoctorId: uuid('old_doctor_id').notNull(),
+    newDoctorId: uuid('new_doctor_id'),
+    reason: text('reason').notNull(),
+    correctedBy: uuid('corrected_by'),
+    doctorAbsenceId: uuid('doctor_absence_id').references(() => doctorAbsences.id, {
+      onDelete: 'restrict',
+    }),
+    correctedAt: timestamp('corrected_at', { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (t) => ({
+    clinicIdx: index('appointment_corrections_clinic_id_idx').on(t.clinicId),
+    appointmentIdx: index('appointment_corrections_appointment_idx').on(
+      t.appointmentId,
+      t.correctedAt,
+    ),
+    doctorAbsenceIdx: index('appointment_corrections_doctor_absence_idx').on(
+      t.doctorAbsenceId,
+    ),
+    reasonChk: check('appointment_corrections_reason_chk', sql`length(trim(${t.reason})) > 0`),
+  }),
+);
+
+export type AppointmentCorrectionRow = typeof appointmentCorrections.$inferSelect;

@@ -13,7 +13,7 @@ import { sql } from 'drizzle-orm';
 import { dbAdmin } from '@/lib/db';
 
 const PLANS = [
-  { code: 'solo', name: 'Solo', monthly: '149.00', annual: '1519.80', users: 2, ag: 200, ia: 200 },
+  { code: 'solo', name: 'Solo', monthly: '149.00', annual: '1519.80', users: 1, ag: 200, ia: 200 },
   { code: 'clinica', name: 'Clínica', monthly: '349.00', annual: '3559.80', users: 5, ag: 800, ia: 800 },
   { code: 'pro', name: 'Pro', monthly: '699.00', annual: '7129.80', users: 10, ag: 2500, ia: 2500 },
 ] as const;

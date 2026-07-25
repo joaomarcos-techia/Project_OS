@@ -11,7 +11,7 @@
  */
 import 'server-only';
 
-import { and, desc, eq, ilike, inArray, isNull, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -21,12 +21,22 @@ import {
   patientAddresses,
   patientClinicalData,
   patientConsents,
+  patientConsentDecisions,
   patientEmergencyContacts,
+  patientRelationships,
   patients,
+  lgpdRequestHistory,
+  lgpdRequests,
   suppressionList,
   type PatientRow,
 } from './schema';
-import type { DecryptedPatient, PatientSummary, ProactiveContact } from './types';
+import type {
+  DecryptedPatient,
+  PatientRelationshipDTO,
+  PatientSummary,
+  ProactiveContact,
+} from './types';
+import { isLgpdRequestOverdue } from './lgpd-policy';
 
 /**
  * The single soft-delete guard. Every active-patient read composes this into
@@ -49,6 +59,7 @@ export function toPatientSummary(row: PatientRow): PatientSummary {
     dataNascimento: row.dataNascimento ?? null,
     sexo: row.sexo ?? null,
     obitoEm: row.obitoEm ?? null,
+    mergedIntoPatientId: row.mergedIntoPatientId ?? null,
     createdAt: toIso(row.createdAt)!,
     updatedAt: toIso(row.updatedAt)!,
     deletedAt: toIso(row.deletedAt),
@@ -121,10 +132,7 @@ export interface PatientCard {
   sexo: 'M' | 'F' | 'O' | 'N' | null;
 }
 
-export async function listPatientCards(
-  clinicId: string,
-  ids: string[],
-): Promise<PatientCard[]> {
+export async function listPatientCards(clinicId: string, ids: string[]): Promise<PatientCard[]> {
   if (ids.length === 0) return [];
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
@@ -171,12 +179,67 @@ export async function findPatientByPhone(
 ): Promise<PatientSummary | null> {
   const telefoneHash = await hashForLookup(normalizePhone(phone));
   return withTenant(clinicId, async (tx) => {
-    const [row] = await tx
+    const rows = await tx
       .select()
       .from(patients)
       .where(and(eq(patients.telefoneHash, telefoneHash), patientsActiveFilter()))
+      .limit(2);
+    // Telefone compartilhado não identifica uma pessoa de forma inequívoca.
+    return rows.length === 1 ? toPatientSummary(rows[0]!) : null;
+  });
+}
+
+export async function hasLegalGuardian(clinicId: string, patientId: string): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ id: patientRelationships.id })
+      .from(patientRelationships)
+      .where(
+        and(
+          eq(patientRelationships.clinicId, clinicId),
+          eq(patientRelationships.dependentPatientId, patientId),
+          eq(patientRelationships.legalGuardian, true),
+        ),
+      )
       .limit(1);
-    return row ? toPatientSummary(row) : null;
+    return row != null;
+  });
+}
+
+export async function listPatientRelationships(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientRelationshipDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(patientRelationships)
+      .where(
+        and(
+          eq(patientRelationships.clinicId, clinicId),
+          sql`(${patientRelationships.responsiblePatientId} = ${patientId} OR ${patientRelationships.dependentPatientId} = ${patientId})`,
+        ),
+      );
+    const patientIds = [
+      ...new Set(rows.flatMap((row) => [row.responsiblePatientId, row.dependentPatientId])),
+    ];
+    if (patientIds.length === 0) return [];
+    const names = await tx
+      .select({ id: patients.id, nome: patients.nome })
+      .from(patients)
+      .where(and(eq(patients.clinicId, clinicId), inArray(patients.id, patientIds)));
+    const nameById = new Map(names.map((row) => [row.id, row.nome]));
+    return rows.map((row) => ({
+      id: row.id,
+      responsiblePatientId: row.responsiblePatientId,
+      responsibleName: nameById.get(row.responsiblePatientId) ?? 'Cadastro indisponível',
+      dependentPatientId: row.dependentPatientId,
+      dependentName: nameById.get(row.dependentPatientId) ?? 'Cadastro indisponível',
+      relationshipType: row.relationshipType,
+      legalGuardian: row.legalGuardian,
+      financialResponsible: row.financialResponsible,
+      canManageAppointments: row.canManageAppointments,
+    }));
   });
 }
 
@@ -202,7 +265,22 @@ export async function getProactiveContact(
       ? await decryptForTenant(clinicId, row.telefoneEncrypted)
       : null;
 
-    // Consentimento mais recente (versao DESC) decide o opt-in vigente.
+    // Decisão append-only mais recente por finalidade/canal decide o opt-in.
+    const [billingDecision] = await tx
+      .select({ granted: patientConsentDecisions.granted })
+      .from(patientConsentDecisions)
+      .where(
+        and(
+          eq(patientConsentDecisions.patientId, patientId),
+          eq(patientConsentDecisions.clinicId, clinicId),
+          eq(patientConsentDecisions.purpose, 'cobranca_whatsapp'),
+          eq(patientConsentDecisions.channel, 'whatsapp'),
+        ),
+      )
+      .orderBy(desc(patientConsentDecisions.version))
+      .limit(1);
+
+    // Fallback somente para registros anteriores à migration granular.
     const [consent] = await tx
       .select({
         cobrancaWhatsapp: patientConsents.cobrancaWhatsapp,
@@ -215,9 +293,10 @@ export async function getProactiveContact(
 
     // suppression_list.contact_hash é o MESMO HMAC de patients.telefone_hash.
     let suppressedWhatsapp = false;
+    let suppressedWhatsappPurposes: ProactiveContact['suppressedWhatsappPurposes'] = [];
     if (row.telefoneHash) {
-      const [supp] = await tx
-        .select({ id: suppressionList.id })
+      const supp = await tx
+        .select({ id: suppressionList.id, purpose: suppressionList.purpose })
         .from(suppressionList)
         .where(
           and(
@@ -225,17 +304,19 @@ export async function getProactiveContact(
             eq(suppressionList.contactHash, row.telefoneHash),
             eq(suppressionList.channel, 'whatsapp'),
           ),
-        )
-        .limit(1);
-      suppressedWhatsapp = Boolean(supp);
+        );
+      suppressedWhatsappPurposes = supp.map((item) => item.purpose);
+      suppressedWhatsapp = suppressedWhatsappPurposes.includes('all');
     }
 
     return {
       nome: row.nome,
       phone,
-      cobrancaWhatsapp: consent?.cobrancaWhatsapp ?? false,
-      consentRevoked: consent?.revokedAt != null,
+      deceased: row.obitoEm != null,
+      cobrancaWhatsapp: billingDecision?.granted ?? consent?.cobrancaWhatsapp ?? false,
+      consentRevoked: billingDecision ? !billingDecision.granted : consent?.revokedAt != null,
       suppressedWhatsapp,
+      suppressedWhatsappPurposes,
     };
   });
 }
@@ -252,6 +333,94 @@ export function pickPrincipalAddress<T extends { principal: boolean; updatedAt: 
     rows.find((a) => a.principal) ??
     [...rows].sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0))[0]!
   );
+}
+
+export interface LgpdRequestDTO {
+  id: string;
+  patientId: string;
+  patientName: string | null;
+  type: 'export' | 'delete';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  requestedAt: string;
+  dueAt: string;
+  assignedToUserId: string | null;
+  statusReason: string | null;
+  requesterNotifiedAt: string | null;
+  requesterNotificationChannel: 'email' | 'whatsapp' | 'phone' | 'in_person' | null;
+  exportSignedUrl: string | null;
+  exportSignedUrlExpiresAt: string | null;
+  overdue: boolean;
+}
+
+export async function listLgpdRequests(clinicId: string): Promise<LgpdRequestDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({ request: lgpdRequests, patientName: patients.nome })
+      .from(lgpdRequests)
+      .leftJoin(
+        patients,
+        and(eq(patients.id, lgpdRequests.patientId), eq(patients.clinicId, clinicId)),
+      )
+      .where(eq(lgpdRequests.clinicId, clinicId))
+      .orderBy(desc(lgpdRequests.requestedAt));
+
+    return rows.map(({ request, patientName }) => ({
+      id: request.id,
+      patientId: request.patientId,
+      patientName,
+      type: request.type,
+      status: request.status,
+      requestedAt: request.requestedAt.toISOString(),
+      dueAt: request.dueAt.toISOString(),
+      assignedToUserId: request.assignedToUserId ?? null,
+      statusReason: request.statusReason ?? null,
+      requesterNotifiedAt: request.requesterNotifiedAt?.toISOString() ?? null,
+      requesterNotificationChannel: request.requesterNotificationChannel ?? null,
+      exportSignedUrl: request.exportSignedUrl ?? null,
+      exportSignedUrlExpiresAt: request.exportSignedUrlExpiresAt?.toISOString() ?? null,
+      overdue: isLgpdRequestOverdue({
+        status: request.status,
+        dueAt: request.dueAt,
+        requesterNotifiedAt: request.requesterNotifiedAt ?? null,
+      }),
+    }));
+  });
+}
+
+export interface LgpdRequestHistoryDTO {
+  id: string;
+  requestId: string;
+  action: 'created' | 'assigned' | 'status_changed' | 'notified';
+  fromStatus: 'pending' | 'processing' | 'completed' | 'failed' | null;
+  toStatus: 'pending' | 'processing' | 'completed' | 'failed' | null;
+  note: string | null;
+  changedByUserId: string | null;
+  changedAt: string;
+}
+
+export async function listLgpdRequestHistory(
+  clinicId: string,
+  requestId: string,
+): Promise<LgpdRequestHistoryDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(lgpdRequestHistory)
+      .where(
+        and(eq(lgpdRequestHistory.clinicId, clinicId), eq(lgpdRequestHistory.requestId, requestId)),
+      )
+      .orderBy(desc(lgpdRequestHistory.changedAt));
+    return rows.map((row) => ({
+      id: row.id,
+      requestId: row.requestId,
+      action: row.action,
+      fromStatus: row.fromStatus ?? null,
+      toStatus: row.toStatus ?? null,
+      note: row.note ?? null,
+      changedByUserId: row.changedByUserId ?? null,
+      changedAt: row.changedAt.toISOString(),
+    }));
+  });
 }
 
 /**

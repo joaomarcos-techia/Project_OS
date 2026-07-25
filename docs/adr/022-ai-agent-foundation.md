@@ -1,5 +1,8 @@
 # ADR-022 — Fundação do AI Agent (C11): provider, saga, guards e orçamentos
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C11 — AI Agent Base (Gemini + Tools + Validação)
 - Refs: PlanoAção §11, VisãoGeral §6/§8.2, ADR-003/011 (outbox), ADR-012

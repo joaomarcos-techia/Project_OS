@@ -9,7 +9,7 @@
  * Acima disso, o read-model deve anti-join os já-enfileirados — débito p/ escala.
  */
 /* eslint-disable boundaries/element-types -- APIs internas PÚBLICAS (M14): os contextos-fonte são donos da regra de "candidatos"; C14 só orquestra. */
-import { financialApiV1 } from '@/contexts/financial';
+import { financialApiV1, routeDunning } from '@/contexts/financial';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 import { metrics } from '@/lib/observability/metrics';
@@ -58,17 +58,25 @@ export async function enqueueRemindersDue(limit = 500): Promise<EnqueueSummary> 
 }
 
 export async function enqueueDunningDue(limit = 500): Promise<EnqueueSummary> {
+  const collectionClinicIds = await financialApiV1.listOpenCollectionCaseClinicIds();
+  for (const clinicId of collectionClinicIds) {
+    await financialApiV1.resolveSettledCollectionCases(clinicId);
+  }
   const cands = await financialApiV1.listDunningCandidates(limit);
   const now = new Date();
   let enqueued = 0;
 
   for (const c of cands) {
-    const scheduledFor = clinicLocalToUtc(c.timezone, localDateYMD(c.timezone, now), DUNNING_HOUR);
-    const stages: Array<3 | 7> = [];
-    if (c.daysOverdue >= 3) stages.push(3);
-    if (c.daysOverdue >= 7) stages.push(7);
+    const route = routeDunning(c.daysOverdue);
+    if (route.mode === 'manual') {
+      await financialApiV1.upsertCollectionCase(c, route.stage);
+      continue;
+    }
+    if (route.mode === 'none') continue;
 
-    for (const stage of stages) {
+    const scheduledFor = clinicLocalToUtc(c.timezone, localDateYMD(c.timezone, now), DUNNING_HOUR);
+
+    for (const stage of route.stages) {
       const payload: DunningPayload = {
         patientId: c.patientId,
         lancamentoId: c.lancamentoId,

@@ -1,5 +1,8 @@
 # ADR-014 — Scheduling Core (C6): contratos congelados
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C6 (Scheduling Core)
 - Refs: VisãoGeral §4.4, PlanoAção §CAMADA 6, ADR-007 (RLS), ADR-011 (outbox/audit/idempotency)

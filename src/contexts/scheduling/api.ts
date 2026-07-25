@@ -25,6 +25,8 @@ import {
   getAppointment,
   getAvailableSlots,
   getDoctorActiveCommitments,
+  hasSubsequentCompletedAppointment,
+  listUpcomingPatientAppointments,
   listProcedures as listProceduresQuery,
   type DoctorCommitments,
   type GetAvailableSlotsOpts,
@@ -47,6 +49,11 @@ export interface SchedulingApiV1 {
    */
   listProcedures(clinicId: string, opts?: { limit?: number }): Promise<ProcedureSummary[]>;
   lookupAppointment(clinicId: string, id: string): Promise<AppointmentSummary | null>;
+  listPatientAppointments(
+    clinicId: string,
+    patientId: string,
+    limit?: number,
+  ): Promise<AppointmentSummary[]>;
   /**
    * C14 — consultas ativas cuja data local é amanhã (candidatas a lembrete D-1).
    * Read cross-tenant (regra de "quem precisa de lembrete" mora no Scheduling).
@@ -57,6 +64,16 @@ export interface SchedulingApiV1 {
    * consulta aberta). O Identity/app-layer pergunta; a REGRA do que conta mora aqui.
    */
   doctorActiveCommitments(clinicId: string, doctorId: string): Promise<DoctorCommitments>;
+  hasSubsequentCompletedAppointment(
+    clinicId: string,
+    input: {
+      patientId: string;
+      after: Date;
+      excludeAppointmentId?: string | null;
+      procedureId?: string | null;
+      doctorId?: string | null;
+    },
+  ): Promise<boolean>;
   createAppointment(
     input: CreateAppointmentInput,
     idempotencyKey: string,
@@ -112,11 +129,15 @@ export const schedulingApiV1: SchedulingApiV1 = {
     return rows.slice(0, opts?.limit ?? 20);
   },
   lookupAppointment: (clinicId, id) => getAppointment(clinicId, id),
+  listPatientAppointments: (clinicId, patientId, limit) =>
+    listUpcomingPatientAppointments(clinicId, patientId, limit),
   listReminderCandidates: (limit) => listReminderCandidates(limit),
   doctorActiveCommitments: (clinicId, doctorId) =>
     getDoctorActiveCommitments(clinicId, doctorId),
+  hasSubsequentCompletedAppointment: (clinicId, input) =>
+    hasSubsequentCompletedAppointment(clinicId, input),
   createAppointment: (input, idempotencyKey) =>
-    createAction({ ...input, createdVia: input.createdVia ?? 'ai_agent' }, idempotencyKey),
+    createAction(input, idempotencyKey),
   confirmAppointment: (id, idempotencyKey, reason) => confirmAction(id, idempotencyKey, reason),
   cancelAppointment: (id, idempotencyKey, reason) => cancelAction(id, idempotencyKey, reason),
   rescheduleAppointment: (id, input, idempotencyKey) =>
@@ -127,7 +148,7 @@ export const schedulingApiV1: SchedulingApiV1 = {
       agentMutationActor(ctx),
       'ai_agent',
       agentRequestContext(ctx),
-      { ...input, createdVia: input.createdVia ?? 'ai_agent' },
+      input,
       idempotencyKey,
     ),
   confirmAsAgent: (ctx, appointmentId, idempotencyKey, reason) =>

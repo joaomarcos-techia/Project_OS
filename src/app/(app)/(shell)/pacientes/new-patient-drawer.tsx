@@ -22,7 +22,13 @@ import { PatientForm } from './patient-form';
  * foi aposentada). Deep-linkable: /pacientes?novo=1 abre o drawer.
  * No sucesso a action redireciona para /pacientes/[id] (drawer some junto).
  */
-export function NewPatientDrawer({ defaultOpen = false }: { defaultOpen?: boolean }) {
+export function NewPatientDrawer({
+  defaultOpen = false,
+  guardianCandidates = [],
+}: {
+  defaultOpen?: boolean;
+  guardianCandidates?: Array<{ id: string; nome: string }>;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
 
@@ -45,7 +51,12 @@ export function NewPatientDrawer({ defaultOpen = false }: { defaultOpen?: boolea
           <DrawerTitle>Novo paciente</DrawerTitle>
         </DrawerHeader>
         <DrawerBody>
-          <PatientForm mode="create" action={createPatientForm} stickyAction />
+          <PatientForm
+            mode="create"
+            action={createPatientForm}
+            stickyAction
+            guardianCandidates={guardianCandidates}
+          />
         </DrawerBody>
       </DrawerContent>
     </Drawer>

@@ -30,6 +30,8 @@ import { publishEvent } from '@/lib/outbox/publish';
 
 import { MESSAGING_EVENTS } from '../events';
 import { inboundMessagesRaw, providerStatusEventsRaw } from '../schema';
+import { normalizeProviderDeliveryStatus } from './delivery-status';
+import { applyProviderDeliveryStatus } from './status-reconciler';
 
 /** Epoch-seconds string → Date (ou null se inválido → coluna usa default now()). */
 function epochToDate(ts: string): Date | null {
@@ -151,12 +153,22 @@ export async function persistStatusEvents(
 
   await withTenant(clinicId, async (tx) => {
     for (const row of rows) {
-      await tx
+      const [inserted] = await tx
         .insert(providerStatusEventsRaw)
         .values(row)
         .onConflictDoNothing({
           target: [providerStatusEventsRaw.provider, providerStatusEventsRaw.payloadHash],
+        })
+        .returning({ id: providerStatusEventsRaw.id });
+      const normalized = normalizeProviderDeliveryStatus(row.statusText);
+      if (inserted && normalized && row.providerMessageId) {
+        await applyProviderDeliveryStatus(tx, {
+          clinicId,
+          providerMessageId: row.providerMessageId,
+          status: normalized,
+          sourceId: inserted.id,
         });
+      }
     }
   });
   metrics.emit('messaging.status.received', { clinicId, provider, count: statuses.length });

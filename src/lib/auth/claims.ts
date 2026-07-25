@@ -30,6 +30,10 @@ export const ClaimsSchema = z.object({
   permissions: z.array(z.string()).max(128), // D34 cap defensivo (Hook RAISE acima disso)
   claims_version: z.number().int().nonnegative(),
   super_admin: z.boolean().optional(),
+  // Tokens emitted before migration 0055 omit this claim. They are invalidated
+  // when the migration bumps claims_version; accepting the legacy shape keeps
+  // backward compatibility during the deploy window.
+  granular_permissions_enabled: z.boolean().optional(),
   aal: z.enum(['aal1', 'aal2']).optional(),
 });
 

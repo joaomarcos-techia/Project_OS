@@ -15,6 +15,7 @@ import 'server-only';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
+import { isPermission, type Permission } from '@/lib/auth/permissions';
 
 import { profiles, userPermissionOverrides } from './schema';
 import type { Role } from './types';
@@ -32,6 +33,7 @@ export type EmployeeSummary = {
   mfaEnrolled: boolean;
   /** Quantos grants/denies granulares este usuário tem (user_permission_overrides). */
   overridesCount: number;
+  overrides: Array<{ permission: Permission; granted: boolean }>;
 };
 
 /** Lista os funcionários (profiles não-deletados) da clínica, ordenados por nome. */
@@ -54,12 +56,23 @@ export async function listEmployees(clinicId: string): Promise<EmployeeSummary[]
       .orderBy(asc(profiles.nome));
 
     const ovr = await tx
-      .select({ userId: userPermissionOverrides.userId })
+      .select({
+        userId: userPermissionOverrides.userId,
+        permissionCode: userPermissionOverrides.permissionCode,
+        granted: userPermissionOverrides.granted,
+      })
       .from(userPermissionOverrides)
       .where(eq(userPermissionOverrides.clinicId, clinicId));
 
     const countById = new Map<string, number>();
-    for (const o of ovr) countById.set(o.userId, (countById.get(o.userId) ?? 0) + 1);
+    const overridesById = new Map<string, Array<{ permission: Permission; granted: boolean }>>();
+    for (const o of ovr) {
+      countById.set(o.userId, (countById.get(o.userId) ?? 0) + 1);
+      if (!isPermission(o.permissionCode)) continue;
+      const list = overridesById.get(o.userId) ?? [];
+      list.push({ permission: o.permissionCode, granted: o.granted });
+      overridesById.set(o.userId, list);
+    }
 
     return rows.map((r) => ({
       id: r.id,
@@ -72,6 +85,7 @@ export async function listEmployees(clinicId: string): Promise<EmployeeSummary[]
       pending: r.inviteAcceptedAt == null,
       mfaEnrolled: r.mfaEnrolledAt != null,
       overridesCount: countById.get(r.id) ?? 0,
+      overrides: overridesById.get(r.id) ?? [],
     }));
   });
 }

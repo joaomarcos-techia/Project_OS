@@ -1,5 +1,8 @@
 # ADR-013 — patient_clinical_data permanece em C5, mas C7 é o futuro owner
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C5 (com obrigação futura em C7)
 - Refs: ADR-001 (bounded contexts), PlanoAção §5.2, §5.18

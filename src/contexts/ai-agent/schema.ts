@@ -56,6 +56,13 @@ export const aiConversationStatus = pgEnum('ai_conversation_status', [
 
 export const aiMessageDirection = pgEnum('ai_message_direction', ['in', 'out']);
 
+export const aiPendingActionStatus = pgEnum('ai_pending_action_status', [
+  'pending',
+  'executed',
+  'expired',
+  'superseded',
+]);
+
 // Estágio onde a falha ocorreu no turno (dead letter G7).
 export const aiFailureStage = pgEnum('ai_failure_stage', [
   'provider',
@@ -65,6 +72,7 @@ export const aiFailureStage = pgEnum('ai_failure_stage', [
   'guard',
   'send',
 ]);
+export const aiHandoffPriority = pgEnum('ai_handoff_priority', ['normal', 'urgent']);
 
 // --- ai_conversations ---------------------------------------------------------
 
@@ -80,7 +88,9 @@ export const aiConversations = pgTable(
     // Telefone de RESPOSTA cifrado per-tenant (VisãoGeral §6) — único lugar de
     // onde o agente recupera o número para sendText.
     patientPhoneEncrypted: text('patient_phone_encrypted').notNull(),
-    startedAt: timestamp('started_at', { withTimezone: true }).notNull().default(sql`now()`),
+    startedAt: timestamp('started_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true })
       .notNull()
       .default(sql`now()`),
@@ -111,10 +121,7 @@ export const aiConversations = pgTable(
       .on(t.clinicId, t.patientPhoneHash)
       .where(sql`status = 'active'`),
     // Lookup geral por contato (VisãoGeral §8.2).
-    clinicPhoneIdx: index('ai_conversations_clinic_phone_idx').on(
-      t.clinicId,
-      t.patientPhoneHash,
-    ),
+    clinicPhoneIdx: index('ai_conversations_clinic_phone_idx').on(t.clinicId, t.patientPhoneHash),
   }),
 );
 
@@ -154,7 +161,9 @@ export const aiMessages = pgTable(
     // FK -> profiles(id) ON DELETE RESTRICT na migration 0051 (Drizzle não emite
     // FK em tabela particionada — mesmo motivo de clinic_id/conversation_id).
     sentByUserId: uuid('sent_by_user_id'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
     // Memória 30d hot. Purgada pelo cron data-retention (RETENTION_POLICIES,
     // ADR-043/A5). A idColumn inclui created_at (partition key) — apagar por id
     // só varreria todas as partições.
@@ -208,6 +217,35 @@ export const aiClinicConfig = pgTable(
   }),
 );
 
+// --- ai_pending_actions -------------------------------------------------------
+
+export const aiPendingActions = pgTable(
+  'ai_pending_actions',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => aiConversations.id, { onDelete: 'cascade' }),
+    actionName: text('action_name').notNull(),
+    payloadEncrypted: text('payload_encrypted').notNull(),
+    summary: text('summary').notNull(),
+    sourceEventId: uuid('source_event_id').notNull(),
+    confirmationEventId: uuid('confirmation_event_id'),
+    status: aiPendingActionStatus('status').notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    executedAt: timestamp('executed_at', { withTimezone: true }),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    clinicIdx: index('ai_pending_actions_clinic_id_idx').on(t.clinicId),
+    onePendingPerConversation: uniqueIndex('ai_pending_actions_conversation_pending_uniq')
+      .on(t.conversationId)
+      .where(sql`status = 'pending'`),
+    expiryIdx: index('ai_pending_actions_expiry_idx').on(t.status, t.expiresAt),
+  }),
+);
+
 // --- ai_handoff_queue -----------------------------------------------------------
 
 export const aiHandoffQueue = pgTable(
@@ -221,6 +259,11 @@ export const aiHandoffQueue = pgTable(
     reason: text('reason').notNull(),
     // Atendente (profiles.user_id) — SEM FK cross-context (identity).
     assignedTo: uuid('assigned_to'),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }),
+    priority: aiHandoffPriority('priority').notNull().default('normal'),
+    dueAt: timestamp('due_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now() + interval '30 minutes'`),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     ...timestampsPattern(),
   },
@@ -232,6 +275,9 @@ export const aiHandoffQueue = pgTable(
       .where(sql`resolved_at IS NULL`),
     openIdx: index('ai_handoff_queue_clinic_open_idx')
       .on(t.clinicId)
+      .where(sql`resolved_at IS NULL`),
+    openDueIdx: index('ai_handoff_queue_open_due_idx')
+      .on(t.clinicId, t.dueAt)
       .where(sql`resolved_at IS NULL`),
   }),
 );
@@ -254,7 +300,9 @@ export const aiAgentFailures = pgTable(
     toolName: text('tool_name'),
     // SÓ escrito via sanitizeAiFailurePayload (R8 — whitelist; nunca PII/conteúdo).
     payload: jsonb('payload'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('ai_agent_failures_clinic_id_idx').on(t.clinicId),
@@ -267,5 +315,6 @@ export const aiAgentFailures = pgTable(
 export type AiConversationRow = typeof aiConversations.$inferSelect;
 export type AiMessageRow = typeof aiMessages.$inferSelect;
 export type AiClinicConfigRow = typeof aiClinicConfig.$inferSelect;
+export type AiPendingActionRow = typeof aiPendingActions.$inferSelect;
 export type AiHandoffQueueRow = typeof aiHandoffQueue.$inferSelect;
 export type AiAgentFailureRow = typeof aiAgentFailures.$inferSelect;

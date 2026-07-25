@@ -2,7 +2,7 @@
  * /configuracoes — visão geral do hub. As seções são as SUBROTAS reais (nada de
  * link morto / mock — ADR-018); navegação principal fica nas tabs do layout.
  */
-import { Building2, Clock3, MessageCircle, Pill, ShieldCheck } from 'lucide-react';
+import { Boxes, Building2, Clock3, FileLock2, MessageCircle, Pill, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import type { ComponentType } from 'react';
 
@@ -34,10 +34,22 @@ const SECTIONS: Section[] = [
     href: '/configuracoes/horarios',
   },
   {
+    icon: FileLock2,
+    title: 'Solicitacoes LGPD',
+    description: 'Fila com responsavel, prazo, historico e comunicacao ao titular.',
+    href: '/configuracoes/lgpd',
+  },
+  {
     icon: Pill,
     title: 'Procedimentos',
     description: 'Catálogo com preço e duração — base da Agenda e do faturamento.',
     href: '/configuracoes/procedimentos',
+  },
+  {
+    icon: Boxes,
+    title: 'Salas e equipamentos',
+    description: 'Recursos compartilhados que não podem ser reservados em horários sobrepostos.',
+    href: '/configuracoes/recursos',
   },
   {
     icon: MessageCircle,

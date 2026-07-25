@@ -45,8 +45,10 @@ export type LancamentoCreatedPayload = z.infer<typeof LancamentoCreatedSchema>;
 // --- lancamento.paid -------------------------------------------------------
 export const LancamentoPaidSchema = z.object({
   lancamentoId: uuid,
+  transactionId: uuid,
   clinicId: uuid,
   valor: z.number().nonnegative(),
+  amount: z.number().positive(),
   valorPago: z.number().nonnegative(),
   status: statusEnum,
   paymentMethod: z.string().nullable(),
@@ -64,9 +66,11 @@ export type LancamentoCancelledPayload = z.infer<typeof LancamentoCancelledSchem
 // --- lancamento.estornado (append-only; lineage explícito) -----------------
 export const LancamentoEstornadoSchema = z.object({
   originalId: uuid,
-  estornoId: uuid,
+  paymentTransactionId: uuid,
+  refundTransactionId: uuid,
   clinicId: uuid,
-  valor: z.number().nonnegative(),
+  valor: z.number().positive(),
+  paymentMethod: z.string(),
   motivo: z.string(),
 });
 export type LancamentoEstornadoPayload = z.infer<typeof LancamentoEstornadoSchema>;

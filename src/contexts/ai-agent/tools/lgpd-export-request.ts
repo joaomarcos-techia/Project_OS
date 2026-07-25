@@ -20,6 +20,7 @@ const OutputSchema = z.object({ requested: z.boolean(), handoff: z.boolean() });
 
 registerTool({
   name: 'lgpd_export_request',
+  effect: 'mutation',
   description: 'Registra um pedido de exportação de dados (LGPD). Não exporta na hora.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,

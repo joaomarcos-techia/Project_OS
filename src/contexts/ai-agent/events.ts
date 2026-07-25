@@ -29,7 +29,8 @@ const uuid = z.string().uuid();
  *  - fallback       — falha de provider/tool/rounds → resposta operacional
  *  - handoff        — tool request_human_handoff ou MAX_FALLBACKS atingido
  *  - suppressed     — destinatário em suppression_list (sem envio)
- *  - quota_blocked  — orçamento mensal da clínica estourado (sem LLM)
+ *  - quota_blocked  — reservado para compatibilidade histórica; não é gerado
+ *                     pela política comercial atual
  *  - prefiltered    — pré-filtro clínico respondeu o fallback seguro (sem LLM)
  */
 export const ConversationCompletedSchema = z.object({

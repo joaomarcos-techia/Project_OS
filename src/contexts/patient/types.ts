@@ -19,8 +19,49 @@ export const ConsentTypeSchema = z.enum([
   'pesquisa',
 ]);
 
+export const RecordPatientDeathSchema = z.object({
+  deceasedAt: z.string().date(),
+  reason: z.string().trim().min(3).max(500),
+});
+export const LgpdRequestIdSchema = z.string().uuid();
+export const LgpdOperationalReasonSchema = z.string().trim().min(3).max(500);
+export const LgpdNotificationChannelSchema = z.enum(['email', 'whatsapp', 'phone', 'in_person']);
+export type LgpdNotificationChannel = z.infer<typeof LgpdNotificationChannelSchema>;
+
 export type Channel = z.infer<typeof ChannelSchema>;
 export type ConsentType = z.infer<typeof ConsentTypeSchema>;
+export type RecordPatientDeathInput = z.infer<typeof RecordPatientDeathSchema>;
+
+export const PatientRelationshipTypeSchema = z.enum([
+  'mae',
+  'pai',
+  'tutor_legal',
+  'responsavel',
+  'outro',
+]);
+export const PatientGuardianInputSchema = z.object({
+  responsiblePatientId: z.string().uuid(),
+  relationshipType: PatientRelationshipTypeSchema,
+  legalGuardian: z.boolean(),
+  financialResponsible: z.boolean(),
+  canManageAppointments: z.boolean(),
+});
+export const LinkPatientRelationshipSchema = PatientGuardianInputSchema.extend({
+  dependentPatientId: z.string().uuid(),
+});
+export const MergePatientsSchema = z
+  .object({
+    sourcePatientId: z.string().uuid(),
+    targetPatientId: z.string().uuid(),
+    reason: z.string().trim().min(10).max(500),
+  })
+  .refine((value) => value.sourcePatientId !== value.targetPatientId, {
+    message: 'Os cadastros de origem e destino devem ser diferentes.',
+  });
+export type PatientRelationshipType = z.infer<typeof PatientRelationshipTypeSchema>;
+export type PatientGuardianInput = z.infer<typeof PatientGuardianInputSchema>;
+export type LinkPatientRelationshipInput = z.infer<typeof LinkPatientRelationshipSchema>;
+export type MergePatientsInput = z.infer<typeof MergePatientsSchema>;
 
 // Validação de entrada — o BACKEND é a fonte da verdade (o frontend é só UX).
 // Limites de tamanho + classes de caractere rejeitam input gigante/inválido em
@@ -69,6 +110,7 @@ export const CreatePatientSchema = z.object({
   dataNascimento: z.string().date().optional(),
   sexo: SexoSchema.optional(),
   endereco: PatientAddressInputSchema.optional(),
+  guardian: PatientGuardianInputSchema.optional(),
 });
 export type CreatePatientInput = z.infer<typeof CreatePatientSchema>;
 
@@ -102,6 +144,7 @@ export interface PatientSummary {
   dataNascimento: string | null;
   sexo: 'M' | 'F' | 'O' | 'N' | null;
   obitoEm: string | null;
+  mergedIntoPatientId: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -122,10 +165,26 @@ export interface ProactiveContact {
   nome: string;
   /** Telefone decifrado (dígitos) ou null se o paciente não tem telefone. */
   phone: string | null;
+  /** Paciente falecido nunca recebe comunicacao proativa. */
+  deceased: boolean;
   /** Opt-in vigente p/ cobrança via WhatsApp (LGPD — dunning exige). */
   cobrancaWhatsapp: boolean;
   /** Consentimento mais recente revogado. */
   consentRevoked: boolean;
   /** Telefone na suppression_list (canal whatsapp). */
   suppressedWhatsapp: boolean;
+  /** Supressões específicas; `all` bloqueia qualquer finalidade. */
+  suppressedWhatsappPurposes: Array<'all' | 'billing' | 'reminder' | 'followup' | 'marketing'>;
+}
+
+export interface PatientRelationshipDTO {
+  id: string;
+  responsiblePatientId: string;
+  responsibleName: string;
+  dependentPatientId: string;
+  dependentName: string;
+  relationshipType: PatientRelationshipType;
+  legalGuardian: boolean;
+  financialResponsible: boolean;
+  canManageAppointments: boolean;
 }

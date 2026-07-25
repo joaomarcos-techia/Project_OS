@@ -25,6 +25,7 @@ const OutputSchema = z.object({
 
 registerTool({
   name: 'request_human_handoff',
+  effect: 'mutation',
   description:
     'Encaminha a conversa para um atendente humano. Use quando o paciente pedir para falar com uma pessoa, quando o assunto fugir do operacional ou quando você não conseguir resolver.',
   inputSchema: InputSchema,

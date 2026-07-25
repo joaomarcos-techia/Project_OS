@@ -18,6 +18,15 @@ export class LancamentoNotFoundError extends Error {
   }
 }
 
+export class PaymentTransactionNotFoundError extends Error {
+  readonly code = 'payment_transaction_not_found';
+  readonly httpStatus = 404;
+  constructor(id: string) {
+    super(`transacao de pagamento nao encontrada: ${id}`);
+    this.name = 'PaymentTransactionNotFoundError';
+  }
+}
+
 /**
  * Transição de status inválida (state machine) OU ação não permitida no estado
  * atual (ex.: cancelar/estornar um lançamento já pago/cancelado). Mapeado p/ 409.

@@ -129,15 +129,15 @@ describe('state machine (monotônica; webhook fora de ordem)', () => {
 });
 
 describe('quota policy (ADR-024)', () => {
-  it('agendamento NUNCA bloqueia, só avisa', () => {
+  it('agendamento não possui limite comercial', () => {
     const d = enforce('agendamento', 200, 200);
     expect(d.allowed).toBe(true);
-    expect(d.remaining).toBe(0);
-    expect(d.nearLimit).toBe(true);
+    expect(d.remaining).toBe(Number.MAX_SAFE_INTEGER);
+    expect(d.nearLimit).toBe(false);
   });
-  it('conversa_ia bloqueia ao estourar teto', () => {
+  it('conversa_ia não possui limite comercial', () => {
     expect(enforce('conversa_ia', 199, 200).allowed).toBe(true);
-    expect(enforce('conversa_ia', 200, 200).allowed).toBe(false);
+    expect(enforce('conversa_ia', 200, 200).allowed).toBe(true);
   });
   it('métrica por dimensão', () => {
     expect(metricForQuotaType('agendamento')).toBe('agendamentos');

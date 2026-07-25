@@ -58,6 +58,13 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain('Maria (cadastrado)');
     expect(prompt).not.toContain('{clinic_name}'); // sem placeholder sobrando
   });
+
+  it('documenta o fluxo server-side em dois turnos para ações de agenda', () => {
+    const prompt = buildSystemPrompt(makeCtx());
+    expect(prompt).toContain('confirm_pending_action');
+    expect(prompt).toContain('duas mensagens');
+    expect(prompt).toContain('Nunca use confirm_pending_action na mesma mensagem');
+  });
 });
 
 describe('truncamento determinístico (G2)', () => {

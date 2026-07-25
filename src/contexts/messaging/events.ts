@@ -19,6 +19,7 @@ import { registerEventSchema } from '@/lib/outbox/catalog';
 
 export const MESSAGING_EVENTS = {
   INBOUND_RECEIVED: 'messaging.inbound.received',
+  OUTBOUND_STATUS_UPDATED: 'messaging.outbound.status_updated',
 } as const;
 
 const uuid = z.string().uuid();
@@ -35,4 +36,13 @@ export const InboundReceivedSchema = z.object({
 });
 export type InboundReceivedPayload = z.infer<typeof InboundReceivedSchema>;
 
+export const OutboundStatusUpdatedSchema = z.object({
+  clinicId: uuid,
+  outboundMessageId: uuid,
+  providerMessageId: z.string(),
+  status: z.enum(['sent', 'delivered', 'read', 'failed']),
+});
+export type OutboundStatusUpdatedPayload = z.infer<typeof OutboundStatusUpdatedSchema>;
+
 registerEventSchema(MESSAGING_EVENTS.INBOUND_RECEIVED, InboundReceivedSchema);
+registerEventSchema(MESSAGING_EVENTS.OUTBOUND_STATUS_UPDATED, OutboundStatusUpdatedSchema);

@@ -56,6 +56,17 @@ registerHandler<LgpdExportRequestedPayload>(
   async ({ tx, clinicId, payload }) => {
     const { requestId, patientId } = payload;
 
+    const [current] = await tx
+      .select({ status: lgpdRequests.status })
+      .from(lgpdRequests)
+      .where(and(eq(lgpdRequests.id, requestId), eq(lgpdRequests.clinicId, clinicId)))
+      .limit(1);
+    if (!current || current.status === 'completed') return;
+    await tx
+      .update(lgpdRequests)
+      .set({ status: 'processing', startedAt: sql`coalesce(started_at, now())` })
+      .where(and(eq(lgpdRequests.id, requestId), eq(lgpdRequests.clinicId, clinicId)));
+
     // 1. Assemble every registered export section within the same RLS tx.
     const sections: Record<string, unknown> = {};
     for (const [key, collect] of getExportCollectors()) {
@@ -90,6 +101,7 @@ registerHandler<LgpdExportRequestedPayload>(
       .set({
         status: 'completed',
         fulfilledAt: sql`now()`,
+        statusReason: 'export_ready',
         exportSignedUrl: signedUrl,
         exportSignedUrlExpiresAt: sql`now() + interval '24 hours'`,
       })

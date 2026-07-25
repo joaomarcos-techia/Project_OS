@@ -1,5 +1,8 @@
 # ADR-021 — Anonimização LGPD quando o hard-delete é bloqueado por retenção clínica
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: remediação forense pós-C10 (F-02 da auditoria 2026-06-10)
 - Refs: ADR-017 (retenção CFM vs hard-delete LGPD), ADR-012 (encryption), ADR-013, C5 §5.6.5

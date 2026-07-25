@@ -1,15 +1,35 @@
 # Architecture Decision Records (ADRs)
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-23
 >
 > ↩︎ Volta para o [índice mestre](../README.md).
 
+> **ADRs carregam carimbo de status (política de 2026-07-23).** Cada ADR tem, logo abaixo do título, um
+> bloco `> **Verificação (data)**` com **Decisão** (ACTIVE/SUPERSEDED/HISTORICAL) e **Implementação**
+> (IMPLEMENTED/PARTIALLY/NOT/UNKNOWN/NEEDS_USER_CONFIRMATION) vs. código. **A prosa da decisão
+> (Context/Decision/Consequences) continua imutável** — só o carimbo é adicionado/atualizado. Quando a
+> decisão muda, um novo ADR cita o anterior (cadeia bidirecional: antigo `SUPERSEDED · Successor`, novo
+> `Supersedes`). Narrativa e histórico vivem em `../history/`; runbooks em `../operations/`.
 
-> ADRs são append-only. Um ADR aceito nunca é editado — quando a decisão muda,
-> escreva um novo ADR que cite o anterior e marque o antigo como `superseded by`.
-> ADRs contêm apenas princípios e decisões. Narrativa, runbooks operacionais
-> e contexto histórico vivem em `docs/PlanoAção.md`, `docs/runbooks/` e
-> `docs/PROGRESS.md`.
+## Status de implementação (2026-07-23)
+
+**Padrão:** os 47 ADRs (001–047) estão `Decisão: ACTIVE · Implementação: IMPLEMENTED` — sistema em
+produção (C0–C16 fechadas); confirmação por domínio na Onda 3 da reestruturação. **Exceções:**
+
+| ADR | Decisão | Implementação | Nota |
+|---|---|---|---|
+| 004 | ACTIVE | **PARTIALLY** | Meta em prod; **fallback Z-API sem adapter** (só a abstração) |
+| 018 | ACTIVE (superseded em parte por 031) | IMPLEMENTED | UI foundation → DS v2 |
+| 030 | ACTIVE | **PARTIALLY** | headers sim; **CSP bloqueante diferida** (sem CSP em `src/`) |
+| 031 | ACTIVE (paleta superseded por 035) | IMPLEMENTED | — |
+| 035 | ACTIVE | IMPLEMENTED | **supersedes** a paleta do 031 |
+| 047 | ACTIVE (de facto) | IMPLEMENTED | texto diz `proposed`, mas **em prod desde 2026-07-20** |
+
+**Cadeia de supersessão/emenda:** 018 →(parcial) 031 →(paleta) 035 · 009 →(parcial) 037 · 007+010
+→(emenda) 042 · 007 →(delimita) 041 · 016 →(emenda) 046 · 032 →(refina/emenda) 033 e 039 · 018 →(refina) 028.
+
+_Substitui `adr-conformance.md`: os 47 ADRs têm as 3 seções essenciais (Context/Decision/Consequences);
+ADRs futuros devem incluir também **Alternatives** + **References**._
 
 ## Índice
 
@@ -62,7 +82,7 @@
 | [044](044-clinical-content-encryption.md) | Cifra do conteúdo clínico (estende ADR-012 ao registro médico): colunas `*_encrypted`, branded type `Encrypted<T>`, seam `project` para não vazar em audit/idempotência (A1). Adia `patient_clinical_data`, não cifra templates | accepted | Clinical / Crypto |
 | [045](045-observability-execution-boundary.md) | Fronteira de observabilidade: `withCron` centraliza os 13 crons, contexto AMBIENTE (AsyncLocalStorage) correlaciona os ~150 emits sem tocá-los, e `captureBackgroundError` leva a exceção de background ao Sentry COM stack (C3/A2/A3/M2). Allowlist tipada fechada no contexto — denylist não segura prosa clínica | accepted | Observabilidade |
 | [046](046-no-login-gate-clinical-record-access.md) | Inadimplência NÃO bloqueia login nem leitura — só ESCRITA. Emenda o ADR-016 (revoga o invariante 3 e a coluna `login` da tabela congelada): o prontuário é registro médico-legal com guarda de 20 anos (CFM 1.821/2007, ADR-017). `isLoginBlocked` removido — nunca foi plugado | accepted | Billing / Compliance |
-| [047](047-ai-conversations-human-handoff.md) | Painel `/conversas` + intervenção humana. `handoff` é pré-condição para resposta manual (mata a corrida agente × humano); primeira implementação da janela de 24h da Meta (fronteiras fechadas: sem inbound e exatamente 24h); envio via outbox, nunca direto da action; `ai_messages` persistida ≠ entregue (selo vem de `outbound_messages`); autoria por `sent_by_user_id` → `profiles` RESTRICT | proposed | AI Agent / Messaging |
+| [047](047-ai-conversations-human-handoff.md) | Painel `/conversas` + intervenção humana. `handoff` é pré-condição para resposta manual (mata a corrida agente × humano); primeira implementação da janela de 24h da Meta (fronteiras fechadas: sem inbound e exatamente 24h); envio via outbox, nunca direto da action; `ai_messages` persistida ≠ entregue (selo vem de `outbound_messages`); autoria por `sent_by_user_id` → `profiles` RESTRICT | proposed → **em prod** | AI Agent / Messaging |
 
 ## Como propor um novo ADR
 
@@ -84,6 +104,6 @@
 ## Veja também
 
 - [../README.md](../README.md) — índice mestre da documentação.
-- [../documentation-authority.md](../documentation-authority.md) — ADRs são a **autoridade máxima** entre as famílias de doc.
+- [../governance/authority.md](../governance/authority.md) — como código e ADR se relacionam (divergência se classifica).
 - [../engineering/decision-guide.md](../engineering/decision-guide.md) — quando uma mudança exige abrir um ADR.
 - [../architecture/context-map.md](../architecture/context-map.md) — o mapa que ADR-001 estabelece.

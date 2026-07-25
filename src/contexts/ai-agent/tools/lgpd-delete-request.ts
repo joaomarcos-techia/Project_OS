@@ -21,6 +21,7 @@ const OutputSchema = z.object({ requested: z.boolean(), handoff: z.boolean() });
 
 registerTool({
   name: 'lgpd_delete_request',
+  effect: 'mutation',
   description: 'Registra um pedido de exclusão de dados (LGPD). Não exclui na hora.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,

@@ -29,8 +29,9 @@ import { publishEvent } from '@/lib/outbox/publish';
 import { PatientConflictError, PatientNotFoundError, PatientValidationError } from '../errors';
 import { PATIENT_EVENTS } from '../events';
 import { getPatientSummaryById, toPatientSummary } from '../queries';
-import { lgpdRequests, patientAddresses, patients } from '../schema';
+import { lgpdRequests, patientAddresses, patientRelationships, patients } from '../schema';
 import { CreatePatientSchema, type CreatePatientInput, type PatientSummary } from '../types';
+import { currentIsoDate, isMinorOnDate } from '../minor-policy';
 import { idemKey, jsonSafe } from './action-helpers';
 
 /**
@@ -47,6 +48,16 @@ export async function createPatientCore(
 ): Promise<PatientSummary> {
   const { clinicId } = actor;
   const data = CreatePatientSchema.parse(input);
+
+  if (
+    data.dataNascimento &&
+    isMinorOnDate(data.dataNascimento, currentIsoDate()) &&
+    !data.guardian?.legalGuardian
+  ) {
+    throw new PatientValidationError(
+      'Paciente menor de idade exige a indicação de um responsável legal.',
+    );
+  }
 
   const cpfNorm = normalizeCpf(data.cpf);
   if (!validateCpf(cpfNorm)) throw new PatientValidationError('CPF inválido');
@@ -113,6 +124,32 @@ export async function createPatientCore(
             .insert(patientAddresses)
             .values({ patientId: row!.id, clinicId, ...addr, principal: true });
         }
+        if (data.guardian) {
+          const [responsible] = await tx
+            .select({ id: patients.id })
+            .from(patients)
+            .where(
+              and(
+                eq(patients.id, data.guardian.responsiblePatientId),
+                eq(patients.clinicId, clinicId),
+                isNull(patients.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!responsible) {
+            throw new PatientValidationError('Responsável não encontrado nesta clínica.');
+          }
+          await tx.insert(patientRelationships).values({
+            clinicId,
+            responsiblePatientId: responsible.id,
+            dependentPatientId: row!.id,
+            relationshipType: data.guardian.relationshipType,
+            legalGuardian: data.guardian.legalGuardian,
+            financialResponsible: data.guardian.financialResponsible,
+            canManageAppointments: data.guardian.canManageAppointments,
+            createdBy: actor.userId,
+          });
+        }
         await publishEvent(tx, {
           clinicId,
           eventType: PATIENT_EVENTS.CREATED,
@@ -149,9 +186,7 @@ export async function createLgpdRequestIntake(
 ): Promise<{ requestId: string }> {
   const { clinicId } = actor;
   const auditAction =
-    type === 'export'
-      ? PATIENT_EVENTS.LGPD_EXPORT_REQUESTED
-      : PATIENT_EVENTS.LGPD_DELETE_REQUESTED;
+    type === 'export' ? PATIENT_EVENTS.LGPD_EXPORT_REQUESTED : PATIENT_EVENTS.LGPD_DELETE_REQUESTED;
 
   return idempotentMutation(
     {

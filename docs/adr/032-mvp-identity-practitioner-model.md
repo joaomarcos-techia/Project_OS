@@ -1,5 +1,8 @@
 # ADR-032 — Modelo de identidade do MVP: colapso User=Employee=Practitioner + predicado `isPractitioner`
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - **Status:** accepted · **Data:** 2026-07-04 (founder decidiu os 4 itens — ver "Decisões")
 - **Camada:** Identity (C3) — base para os specs `convite-e-gestao-de-equipe.md` e `onboarding-owner-atende-branch.md`
 - **Refs:** ADR-008 (identity patterns — P6 capacidade vs escopo), ADR-013 (ownership de dado clínico),

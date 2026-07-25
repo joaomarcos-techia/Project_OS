@@ -17,6 +17,8 @@ export default function ConfiguracoesLayout({ children }: { children: ReactNode 
           { label: 'Perfil da clínica', href: '/configuracoes/perfil' },
           { label: 'Horários', href: '/configuracoes/horarios' },
           { label: 'Procedimentos', href: '/configuracoes/procedimentos' },
+          { label: 'Salas e equipamentos', href: '/configuracoes/recursos' },
+          { label: 'LGPD', href: '/configuracoes/lgpd' },
           { label: 'WhatsApp', href: '/configuracoes/whatsapp' },
           { label: 'Segurança da conta', href: '/account/security' },
         ]}

@@ -33,3 +33,4 @@ export {
   type StepState,
 } from './internal/step-state';
 export type { ClinicInviteRow, ClinicInviteInsert } from './schema';
+export { QORO_TRIAL_DAYS } from './trial';

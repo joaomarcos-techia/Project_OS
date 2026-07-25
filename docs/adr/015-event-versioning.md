@@ -1,5 +1,8 @@
 # ADR-015 — Versionamento de eventos do outbox
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C4+ (cross-cutting; congela contrato antes de C7/C9/C11)
 - Refs: ADR-003 (outbox), ADR-011 (outbox/audit/idempotency), gap 4.3

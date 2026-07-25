@@ -186,6 +186,7 @@ export function buildCard(
   patient: CardPatient | undefined,
   checkInAt: string | null,
   now: Date = new Date(),
+  queue?: { position: number; estimatedWaitMinutes: number },
 ): BoardCardDTO {
   return {
     appointmentId: a.id,
@@ -199,6 +200,9 @@ export function buildCard(
     status: a.status,
     urgencia: a.urgencia,
     checkInAt,
+    ...(queue
+      ? { queuePosition: queue.position, estimatedWaitMinutes: queue.estimatedWaitMinutes }
+      : {}),
   };
 }
 

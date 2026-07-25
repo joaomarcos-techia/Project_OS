@@ -1,5 +1,8 @@
 # ADR-018 — UI / Design Foundation (quando e como aplicar o Design System)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE (superseded em parte por ADR-031) · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted — **superseded in part por [ADR-031](031-design-system-v2-rebrand.md)**
   (a especificação visual do item 2 — paleta azul hue 258 + Geist — foi substituída
   pelo DS v2: petrol/clay + Hanken Grotesk/Inter/IBM Plex Mono. Os princípios de

@@ -11,6 +11,7 @@ import type { Tx } from '@/lib/db';
 import {
   __testing__,
   listToolDeclarations,
+  preflightToolCalls,
   registerTool,
   validateAndExecute,
   type ToolContext,
@@ -24,7 +25,11 @@ const ctx: ToolContext = {
   aiRequestId: '44444444-4444-4444-4444-444444444444',
   patientId: null,
   patientNome: null,
+  identityAmbiguous: false,
   verifiedPhone: '+5511999990000',
+  currentMessage: 'mensagem de teste',
+  canScheduleAnonymous: false,
+  maxDaysAhead: 30,
   canDisclosePayments: false,
 };
 
@@ -95,6 +100,73 @@ describe('whitelist enforcement (G9 — security event)', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.kind).toBe('unknown_tool');
+    expect(state.calls).toBe(0);
+  });
+});
+
+describe('preflightToolCalls — uma mutação por turno', () => {
+  function registerBatchTool(name: string, effect: 'read' | 'mutation', state: { calls: number }) {
+    registerTool({
+      name,
+      effect,
+      description: name,
+      inputSchema: z.object({ value: z.string() }).strict(),
+      outputSchema: z.object({ ok: z.boolean() }),
+      handler: async () => {
+        state.calls += 1;
+        return { ok: true };
+      },
+    });
+  }
+
+  it('rejeita duas mutações antes de executar qualquer handler', async () => {
+    const state = { calls: 0 };
+    registerBatchTool('mutation_a', 'mutation', state);
+    registerBatchTool('mutation_b', 'mutation', state);
+
+    const calls = [
+      { name: 'mutation_a', args: { value: 'a' } },
+      { name: 'mutation_b', args: { value: 'b' } },
+    ];
+    expect(preflightToolCalls(calls, ctx)).toMatchObject({
+      ok: false,
+      kind: 'multiple_mutations',
+    });
+    expect(state.calls).toBe(0);
+  });
+
+  it('permite leituras combinadas com uma única mutação', () => {
+    const state = { calls: 0 };
+    registerBatchTool('read_a', 'read', state);
+    registerBatchTool('mutation_a', 'mutation', state);
+    registerBatchTool('read_b', 'read', state);
+
+    expect(
+      preflightToolCalls(
+        [
+          { name: 'read_a', args: { value: 'a' } },
+          { name: 'mutation_a', args: { value: 'b' } },
+          { name: 'read_b', args: { value: 'c' } },
+        ],
+        ctx,
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  it('rejeita lote com chamada inválida antes da mutação', () => {
+    const state = { calls: 0 };
+    registerBatchTool('mutation_a', 'mutation', state);
+    registerBatchTool('read_a', 'read', state);
+
+    expect(
+      preflightToolCalls(
+        [
+          { name: 'mutation_a', args: { value: 'a' } },
+          { name: 'read_a', args: { value: 123 } },
+        ],
+        ctx,
+      ),
+    ).toMatchObject({ ok: false, kind: 'invalid_input', toolName: 'read_a' });
     expect(state.calls).toBe(0);
   });
 });

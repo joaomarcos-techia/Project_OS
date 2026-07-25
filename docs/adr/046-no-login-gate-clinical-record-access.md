@@ -1,5 +1,8 @@
 # ADR-046 — Inadimplência não bloqueia login: acesso de LEITURA ao prontuário é obrigação legal
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-07-20
 **Emenda a:** [ADR-016](./016-clinic-lifecycle.md) (ciclo de vida da clínica)

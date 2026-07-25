@@ -10,6 +10,7 @@ import { useActionState, useMemo, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DateField } from '@/components/ui/date-field';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,7 @@ interface Props {
   action: (prev: PatientFormState, fd: FormData) => Promise<PatientFormState>;
   /** true = botão de submit em barra sticky (uso dentro de Drawer). */
   stickyAction?: boolean;
+  guardianCandidates?: Array<{ id: string; nome: string }>;
   initial?: {
     id: string;
     nome: string;
@@ -44,7 +46,13 @@ interface Props {
   };
 }
 
-export function PatientForm({ mode, action, initial, stickyAction = false }: Props) {
+export function PatientForm({
+  mode,
+  action,
+  initial,
+  stickyAction = false,
+  guardianCandidates = [],
+}: Props) {
   const [state, formAction, pending] = useActionState(action, INITIAL);
   const idempotencyKey = useMemo(() => uuidv4(), []);
   // Máscaras UX (o servidor re-normaliza no submit — @/lib/masks docstring).
@@ -82,6 +90,50 @@ export function PatientForm({ mode, action, initial, stickyAction = false }: Pro
           />
         </Field>
       </div>
+
+      {mode === 'create' ? (
+        <fieldset className="grid gap-3.5 rounded-(--r-md) border border-border p-4">
+          <legend className="px-1 text-sm font-medium text-fg-muted">
+            Responsável do menor{' '}
+            <span className="font-normal text-fg-subtle">(quando aplicável)</span>
+          </legend>
+          <div className="grid gap-3.5 sm:grid-cols-2">
+            <Field
+              label="Paciente responsável"
+              hint="Obrigatório quando a data de nascimento indicar menos de 18 anos."
+            >
+              <Select name="guardianPatientId" disabled={pending}>
+                <option value="">Selecione…</option>
+                {guardianCandidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.nome}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Vínculo">
+              <Select name="guardianRelationshipType" defaultValue="responsavel" disabled={pending}>
+                <option value="mae">Mãe</option>
+                <option value="pai">Pai</option>
+                <option value="tutor_legal">Tutor legal</option>
+                <option value="responsavel">Responsável</option>
+                <option value="outro">Outro</option>
+              </Select>
+            </Field>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-fg-muted">
+            <label className="flex items-center gap-2">
+              <Checkbox name="guardianLegal" defaultChecked /> Responsável legal
+            </label>
+            <label className="flex items-center gap-2">
+              <Checkbox name="guardianFinancial" /> Responsável financeiro
+            </label>
+            <label className="flex items-center gap-2">
+              <Checkbox name="guardianScheduling" defaultChecked /> Pode gerir agendamentos
+            </label>
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="grid gap-3.5 sm:grid-cols-2">
         <Field label="Telefone">

@@ -68,7 +68,6 @@ import {
   OPERATIONAL_FALLBACK,
   PROMPT_HASH,
   PROMPT_VERSION,
-  QUOTA_FALLBACK,
   truncateInbound,
 } from '../../prompts/system';
 import {
@@ -77,7 +76,11 @@ import {
   isMedicalQuestion,
 } from '../../guards/semantic-guard';
 import { aiAgentFailures, aiConversations } from '../../schema';
-import { listToolDeclarations, validateAndExecute } from '../../tools/registry';
+import {
+  listToolDeclarations,
+  preflightToolCalls,
+  validateAndExecute,
+} from '../../tools/registry';
 // Side-effect: registram as tools no registry (whitelist G9). 3 da C11 + 10 da C12.
 import '../../tools/provide-clinic-info';
 import '../../tools/provide-procedure-price';
@@ -85,8 +88,10 @@ import '../../tools/request-human-handoff';
 import '../../tools/list-slots';
 import '../../tools/schedule-appointment';
 import '../../tools/confirm-appointment';
+import '../../tools/list-my-appointments';
 import '../../tools/cancel-appointment';
 import '../../tools/reschedule-appointment';
+import '../../tools/confirm-pending-action';
 import '../../tools/list-pending-payments';
 import '../../tools/lgpd-export-request';
 import '../../tools/lgpd-delete-request';
@@ -106,7 +111,6 @@ import {
 } from '../conversation';
 import type { ActiveConversation } from '../conversation';
 import { buildContext } from '../context-builder';
-import { checkQuota } from '../quota';
 import { sanitizeAiFailurePayload } from '../sanitize';
 
 // Teto por statement nas fases de DB (mesmo racional do financial handler:
@@ -332,6 +336,46 @@ async function processInbound(ctx: {
     }
   }
 
+  if (conversation.identityAmbiguous && !replayedOut) {
+    const responseText =
+      'Encontrei mais de um cadastro associado a este telefone. Para proteger os dados dos pacientes, encaminhei a conversa para um atendente confirmar sobre quem você deseja falar.';
+    await phase(clinicId, async (tx) => {
+      await escalateToHuman(tx, clinicId, conversation.id, 'shared_phone_identity_ambiguous');
+      await appendOutboundMessage(tx, {
+        clinicId,
+        conversationId: conversation.id,
+        eventId,
+        aiRequestId,
+        text: responseText,
+        toolCalls: [],
+        tokensInput: 0,
+        tokensOutput: 0,
+        costUsd: 0,
+        model: null,
+        promptVersion: PROMPT_VERSION,
+        promptHash: PROMPT_HASH,
+      });
+    });
+    let ambiguousOutcome: TurnOutcome = 'handoff';
+    try {
+      await messagingApiV1.sendText({
+        clinicId,
+        toNumber: fromNumber,
+        idempotencyKey: eventId,
+        body: { kind: 'text', text: responseText },
+      });
+    } catch (err) {
+      if (err instanceof SuppressedRecipientError) ambiguousOutcome = 'suppressed';
+      else throw err;
+    }
+    await finalizeTurn(clinicId, conversation.id, inbound.id, eventId, {
+      outcome: ambiguousOutcome,
+      toolCallCount: 0,
+      costUsd: 0,
+    });
+    return;
+  }
+
   // Conversa em handoff: humano está atendendo — o agente registra o inbound
   // mas NÃO responde por cima.
   if (conversation.status === 'handoff' && !replayedOut) {
@@ -365,11 +409,6 @@ async function processInbound(ctx: {
       matched: injection.matched,
     });
   }
-  const quota =
-    replayedOut || !preFilter.safe
-      ? null
-      : await phase(clinicId, (tx) => checkQuota(tx, clinicId));
-
   if (replayedOut) {
     // Re-entrada pós-FASE D: replay determinístico — NÃO re-chama o LLM.
     responseText = await decryptForTenant(clinicId, replayedOut.contentEncrypted);
@@ -389,9 +428,6 @@ async function processInbound(ctx: {
       aiRequestId,
       matched: preFilter.matched,
     });
-  } else if (quota?.blocked) {
-    responseText = QUOTA_FALLBACK;
-    outcome = 'quota_blocked';
   } else if ((await getAiAgentMode()) === 'fallback_only') {
     // Kill-switch global (platform_settings): agente em degradação MANUAL.
     // Responde o fallback operacional SEM chamar o Gemini (custo zero) e reusa o
@@ -462,6 +498,37 @@ async function processInbound(ctx: {
       toolCallCount += calls.length;
       toolCallsRecord = calls.map((c) => ({ name: c.name }));
 
+      const preflight = preflightToolCalls(calls, {
+        tx: ctx.tx,
+        clinicId,
+        conversationId: conversation.id,
+        eventId,
+        aiRequestId,
+        patientId: conversation.patientId,
+        patientNome: conversation.patientNome,
+        identityAmbiguous: conversation.identityAmbiguous,
+        verifiedPhone: fromNumber,
+        currentMessage: text,
+        canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
+        maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
+        canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
+      });
+      if (!preflight.ok) {
+        await recordFailure({
+          clinicId,
+          conversationId: conversation.id,
+          eventId,
+          aiRequestId,
+          stage: preflight.kind === 'unknown_tool' ? 'tool_unknown' : 'tool_invalid',
+          error: new Error(preflight.error),
+          toolName: preflight.toolName,
+          issuePaths: preflight.issuePaths,
+          model: model ?? undefined,
+        });
+        fallback = true;
+        break;
+      }
+
       const roundResults = await phase(clinicId, async (tx) => {
         const acc: ToolResult[] = [];
         for (const call of calls) {
@@ -474,7 +541,11 @@ async function processInbound(ctx: {
             // C12 — identidade verificada por telefone (anti-spoofing).
             patientId: conversation.patientId,
             patientNome: conversation.patientNome,
+            identityAmbiguous: conversation.identityAmbiguous,
             verifiedPhone: fromNumber,
+            currentMessage: text,
+            canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
+            maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
             canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
           });
           if (!exec.ok) {

@@ -21,7 +21,7 @@
  */
 import 'server-only';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { decryptForTenant, encryptForTenant, hashForLookup, normalizePhone } from '@/lib/crypto';
@@ -38,7 +38,7 @@ import {
 import { metrics } from '@/lib/observability/metrics';
 
 /* eslint-disable boundaries/element-types -- suppressionList é superfície PÚBLICA do Patient (re-exportada em @/contexts/patient/index); o contrato C10 permite Patient via API pública. */
-import { suppressionList } from '@/contexts/patient';
+import { patients, suppressionList } from '@/contexts/patient';
 /* eslint-enable boundaries/element-types */
 
 import {
@@ -47,6 +47,7 @@ import {
   SuppressedRecipientError,
 } from '../errors';
 import { outboundMessages } from '../schema';
+import { reconcileStoredProviderStatuses } from './status-reconciler';
 import type { OutboundResult, OutboundSendStatus, SendOutboundInput } from '../types';
 
 const uuidSchema = z.string().uuid();
@@ -103,6 +104,20 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
 
   // (a) reserve — suppression + pending row, atômico.
   const reserve = await withTenant(input.clinicId, async (tx) => {
+    const [deceased] = await tx
+      .select({ id: patients.id })
+      .from(patients)
+      .where(
+        and(
+          eq(patients.clinicId, input.clinicId),
+          eq(patients.telefoneHash, toNumberHash),
+          isNotNull(patients.obitoEm),
+          isNull(patients.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (deceased) return { kind: 'suppressed' as const };
+
     const [supp] = await tx
       .select({ id: suppressionList.id })
       .from(suppressionList)
@@ -111,6 +126,12 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
           eq(suppressionList.clinicId, input.clinicId),
           eq(suppressionList.contactHash, toNumberHash),
           eq(suppressionList.channel, 'whatsapp'),
+          input.purpose
+            ? or(
+                eq(suppressionList.purpose, 'all'),
+                eq(suppressionList.purpose, input.purpose),
+              )
+            : eq(suppressionList.purpose, 'all'),
         ),
       )
       .limit(1);
@@ -197,6 +218,9 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
         ...(finalStatus === 'accepted' ? { sentAt: sql`now()` } : {}),
       })
       .where(eq(outboundMessages.id, outboundId));
+    if (providerMessageId) {
+      await reconcileStoredProviderStatuses(tx, input.clinicId, providerMessageId);
+    }
   });
 
   metrics.emit(`messaging.outbound.${finalStatus}`, { clinicId: input.clinicId });

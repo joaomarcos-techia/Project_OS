@@ -1,5 +1,8 @@
 # ADR-042 — Policy v2 (InitPlan) + least-privilege do schema `public`
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** accepted
 **Date:** 2026-07-17
 **Camada:** C2/C3 (RLS + grants)

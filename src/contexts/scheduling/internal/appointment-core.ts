@@ -14,7 +14,7 @@
  * os helpers privados (transitionPayload/applyTransition/buildSnapshot/
  * publishCreated) migraram para cá para serem compartilhados.
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 /* eslint-disable boundaries/element-types -- profiles é declarado no schema de identity (Drizzle FK vive onde a tabela é declarada); leitura tenant-scoped via tx (RLS aplica). Mesma exceção de clinical/internal/doctor.ts e tenant-context.ts. */
 import { profiles } from '@/contexts/identity/schema';
@@ -28,9 +28,15 @@ import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { ProcedureNotFoundError, SchedulingValidationError } from '../errors';
-import { SCHEDULING_EVENTS, type CancelReason } from '../events';
+import { SCHEDULING_EVENTS, type CancelReason, type CreatedVia } from '../events';
 import { getAppointmentOrThrow, toAppointmentSummary } from '../queries';
-import { appointments, procedures, type AppointmentRow } from '../schema';
+import {
+  appointmentResourceReservations,
+  appointments,
+  procedures,
+  schedulableResources,
+  type AppointmentRow,
+} from '../schema';
 import { assertTransition, TRANSITION_EVENT, type AppointmentState } from '../state-machine';
 import {
   CreateAppointmentSchema,
@@ -40,7 +46,10 @@ import {
   type RescheduleInput,
 } from '../types';
 import { asConflict, idemKey, jsonSafe } from './action-helpers';
+import { assertUnitInClinic } from './tenant-references';
 import { logAppointmentStateChange, type AppointmentActor } from './state-log';
+import { syncWaitingQueueStatus } from './waiting-queue-store';
+import { offerWaitlistForCancelledAppointment } from './waitlist-store';
 
 /** Build the outbox payload for a transition INTO `target`. */
 function transitionPayload(
@@ -92,6 +101,59 @@ function transitionPayload(
   }
 }
 
+export async function reserveAppointmentResources(
+  tx: Tx,
+  appointment: AppointmentRow,
+  resourceIds: readonly string[],
+): Promise<void> {
+  const uniqueIds = [...new Set(resourceIds)];
+  if (uniqueIds.length === 0) return;
+  const rows = await tx
+    .select({ id: schedulableResources.id, unitId: schedulableResources.unitId })
+    .from(schedulableResources)
+    .where(
+      and(
+        eq(schedulableResources.clinicId, appointment.clinicId),
+        eq(schedulableResources.active, true),
+        inArray(schedulableResources.id, uniqueIds),
+      ),
+    );
+  if (rows.length !== uniqueIds.length) {
+    throw new SchedulingValidationError('recurso invalido ou inativo para esta clinica');
+  }
+  if (rows.some((row) => row.unitId && row.unitId !== appointment.unitId)) {
+    throw new SchedulingValidationError('recurso pertence a outra unidade');
+  }
+  const startsAt = appointment.scheduledAt as Date;
+  const endsAt = new Date(startsAt.getTime() + appointment.durationMin * 60_000);
+  await tx.insert(appointmentResourceReservations).values(
+    uniqueIds.map((resourceId) => ({
+      clinicId: appointment.clinicId,
+      appointmentId: appointment.id,
+      resourceId,
+      startsAt,
+      endsAt,
+    })),
+  );
+}
+
+export async function setAppointmentResourceReservationsActive(
+  tx: Tx,
+  appointmentId: string,
+  clinicId: string,
+  active: boolean,
+): Promise<void> {
+  await tx
+    .update(appointmentResourceReservations)
+    .set({ active })
+    .where(
+      and(
+        eq(appointmentResourceReservations.appointmentId, appointmentId),
+        eq(appointmentResourceReservations.clinicId, clinicId),
+      ),
+    );
+}
+
 export interface TransitionOpts {
   clinicId: string;
   appointmentId: string;
@@ -135,6 +197,17 @@ export async function applyTransition(tx: Tx, o: TransitionOpts): Promise<Appoin
     .where(and(eq(appointments.id, o.appointmentId), eq(appointments.clinicId, o.clinicId)))
     .returning();
 
+  if (o.target === 'cancelado' || o.target === 'faltou') {
+    await setAppointmentResourceReservationsActive(tx, o.appointmentId, o.clinicId, false);
+  }
+  await syncWaitingQueueStatus(tx, appt, o.target, o.transitionedBy);
+  if (o.target === 'cancelado') {
+    await offerWaitlistForCancelledAppointment(tx, appt, {
+      idempotencyKey: o.clientKey,
+      correlationId: o.correlationId,
+    });
+  }
+
   const { eventType, payload } = transitionPayload(
     o.target,
     appt,
@@ -172,6 +245,7 @@ export async function assertPatientInClinic(
          WHERE id = ${patientId}
            AND clinic_id = ${clinicId}
            AND deleted_at IS NULL
+           AND obito_em IS NULL
          LIMIT 1`,
   );
   if (!rows[0]) throw new SchedulingValidationError('paciente inválido para esta clínica');
@@ -184,6 +258,26 @@ interface Snapshot {
   valorPadrao: string; // numeric string
   duracaoMin: number;
   doctorNome: string;
+}
+
+export async function assertActiveDoctorInClinic(
+  tx: Tx,
+  clinicId: string,
+  doctorId: string,
+): Promise<string> {
+  const docRows = await tx.execute<{ nome: string }>(
+    sql`SELECT nome FROM profiles
+         WHERE id = ${doctorId}
+           AND clinic_id = ${clinicId}
+           AND ${practitionerSql(profiles.role, profiles.crm)}
+           AND ativo = true
+           AND deleted_at IS NULL
+           AND invite_accepted_at IS NOT NULL
+         LIMIT 1`,
+  );
+  const doctorNome = docRows[0]?.nome;
+  if (!doctorNome) throw new SchedulingValidationError('médico inválido para esta clínica');
+  return doctorNome;
 }
 
 /** Reads procedure (ativo) + doctor name; builds the immutable snapshot. */
@@ -204,17 +298,7 @@ export async function buildSnapshot(
   // + invite_accepted_at IS NOT NULL: um convite PENDENTE (nunca aceito) não é um
   // médico agendável — senão dá pra marcar com quem ainda não entrou no sistema
   // (bug reportado: convite antigo virava "médico" e o agente de IA agendaria nele).
-  const docRows = await tx.execute<{ nome: string }>(
-    sql`SELECT nome FROM profiles
-         WHERE id = ${doctorId}
-           AND ${practitionerSql(profiles.role, profiles.crm)}
-           AND ativo = true
-           AND deleted_at IS NULL
-           AND invite_accepted_at IS NOT NULL
-         LIMIT 1`,
-  );
-  const doctorNome = docRows[0]?.nome;
-  if (!doctorNome) throw new SchedulingValidationError('médico inválido para esta clínica');
+  const doctorNome = await assertActiveDoctorInClinic(tx, clinicId, doctorId);
 
   return {
     nome: proc.descricao,
@@ -258,6 +342,78 @@ export async function publishCreated(
   });
 }
 
+export async function insertScheduledAppointment(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    userId: string | null;
+    actorType: AppointmentActor;
+    correlationId: string | null;
+    idempotencyKey: string;
+    data: CreateAppointmentInput;
+    scheduledAt: Date;
+    recurrence?: { seriesId: string; occurrence: number };
+    provenance?: {
+      createdVia: CreatedVia;
+      initialStatus?: 'agendado' | 'atendido' | 'cancelado' | 'faltou';
+      importBatchId?: string;
+      importSourceReference?: string;
+    };
+  },
+): Promise<AppointmentSummary> {
+  const { clinicId, userId, actorType, correlationId, idempotencyKey, data, scheduledAt } = input;
+  if (data.patientId) await assertPatientInClinic(tx, clinicId, data.patientId);
+  await assertUnitInClinic(tx, clinicId, data.unitId);
+  const snap = await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
+  const valor = data.valorAjustado ? data.valor!.toFixed(2) : snap.valorPadrao;
+
+  const [row] = await tx
+    .insert(appointments)
+    .values({
+      clinicId,
+      unitId: data.unitId ?? null,
+      doctorId: data.doctorId,
+      patientId: data.patientId ?? null,
+      procedureId: data.procedureId,
+      scheduledAt,
+      durationMin: snap.duracaoMin,
+      status: input.provenance?.initialStatus ?? 'agendado',
+      valor,
+      valorAjustado: data.valorAjustado ?? false,
+      valorAjusteMotivo: data.valorAjustado ? (data.valorAjusteMotivo ?? null) : null,
+      snapshotProcedureName: snap.nome,
+      snapshotProcedureCodigo: snap.codigo,
+      snapshotProcedureCategoria: snap.categoria,
+      snapshotProcedureValor: snap.valorPadrao,
+      snapshotProcedureDuracaoMin: snap.duracaoMin,
+      snapshotDoctorNome: snap.doctorNome,
+      createdVia:
+        input.provenance?.createdVia ?? (actorType === 'ai_agent' ? 'ai_agent' : 'attendant'),
+      urgencia: data.urgencia ?? false,
+      observacoes: data.observacoes ?? null,
+      recurrenceSeriesId: input.recurrence?.seriesId ?? null,
+      recurrenceOccurrence: input.recurrence?.occurrence ?? null,
+      importBatchId: input.provenance?.importBatchId ?? null,
+      importSourceReference: input.provenance?.importSourceReference ?? null,
+      createdBy: userId,
+    })
+    .returning();
+
+  await logAppointmentStateChange(tx, {
+    clinicId,
+    appointmentId: row!.id,
+    fromStatus: null,
+    toStatus: row!.status,
+    transitionedBy: userId,
+    actorType,
+    sourceIdempotencyKey: idempotencyKey,
+    correlationId,
+  });
+  await reserveAppointmentResources(tx, row!, data.resourceIds ?? []);
+  await publishCreated(tx, row!, idempotencyKey, correlationId);
+  return toAppointmentSummary(row!);
+}
+
 // --- CORES (ator injetado) --------------------------------------------------
 
 /** createAppointment core: validação + idempotência + snapshot + evento. */
@@ -272,7 +428,7 @@ export async function createAppointmentCore(
   const data = CreateAppointmentSchema.parse(input);
 
   const scheduledAt = new Date(data.scheduledAt);
-  if (!data.isHistoricalImport && scheduledAt.getTime() < Date.now()) {
+  if (scheduledAt.getTime() < Date.now()) {
     throw new SchedulingValidationError('não é permitido agendar no passado');
   }
 
@@ -289,52 +445,16 @@ export async function createAppointmentCore(
         },
         actor,
       },
-      async (tx) => {
-        if (data.patientId) await assertPatientInClinic(tx, clinicId, data.patientId);
-        const snap = await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
-        const valor = data.valorAjustado ? data.valor!.toFixed(2) : snap.valorPadrao;
-
-        const [row] = await tx
-          .insert(appointments)
-          .values({
-            clinicId,
-            unitId: data.unitId ?? null,
-            doctorId: data.doctorId,
-            patientId: data.patientId ?? null,
-            procedureId: data.procedureId,
-            scheduledAt,
-            durationMin: snap.duracaoMin,
-            status: 'agendado',
-            valor,
-            valorAjustado: data.valorAjustado ?? false,
-            valorAjusteMotivo: data.valorAjustado ? (data.valorAjusteMotivo ?? null) : null,
-            snapshotProcedureName: snap.nome,
-            snapshotProcedureCodigo: snap.codigo,
-            snapshotProcedureCategoria: snap.categoria,
-            snapshotProcedureValor: snap.valorPadrao,
-            snapshotProcedureDuracaoMin: snap.duracaoMin,
-            snapshotDoctorNome: snap.doctorNome,
-            createdVia: data.createdVia ?? 'attendant',
-            urgencia: data.urgencia ?? false,
-            observacoes: data.observacoes ?? null,
-            createdBy: userId,
-          })
-          .returning();
-
-        await logAppointmentStateChange(tx, {
+      (tx) =>
+        insertScheduledAppointment(tx, {
           clinicId,
-          appointmentId: row!.id,
-          fromStatus: null,
-          toStatus: 'agendado',
-          transitionedBy: userId,
+          userId,
           actorType,
-          sourceIdempotencyKey: idempotencyKey,
           correlationId: requestContext.correlationId ?? null,
-        });
-
-        await publishCreated(tx, row!, idempotencyKey, requestContext.correlationId ?? null);
-        return toAppointmentSummary(row!);
-      },
+          idempotencyKey,
+          data,
+          scheduledAt,
+        }),
     );
   } catch (err) {
     return asConflict(err);
@@ -432,6 +552,17 @@ export async function rescheduleCore(
         if (!old) throw new SchedulingValidationError(`appointment não encontrado: ${id}`);
         assertTransition(old.status as AppointmentState, 'cancelado');
 
+        const oldReservations = await tx
+          .select({ resourceId: appointmentResourceReservations.resourceId })
+          .from(appointmentResourceReservations)
+          .where(
+            and(
+              eq(appointmentResourceReservations.appointmentId, old.id),
+              eq(appointmentResourceReservations.clinicId, clinicId),
+              eq(appointmentResourceReservations.active, true),
+            ),
+          );
+
         // 1. cancela o original
         await logAppointmentStateChange(tx, {
           clinicId,
@@ -448,6 +579,7 @@ export async function rescheduleCore(
           .update(appointments)
           .set({ status: 'cancelado', updatedAt: sql`now()` })
           .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
+        await setAppointmentResourceReservationsActive(tx, old.id, clinicId, false);
 
         // 2. cria o novo carregando snapshot + valor originais (preserva preço)
         const [created] = await tx
@@ -472,7 +604,7 @@ export async function rescheduleCore(
             snapshotDoctorNome: old.snapshotDoctorNome,
             snapshotDoctorCrm: old.snapshotDoctorCrm,
             snapshotDoctorEspecialidade: old.snapshotDoctorEspecialidade,
-            createdVia: old.createdVia,
+            createdVia: actorType === 'ai_agent' ? 'ai_agent' : 'attendant',
             urgencia: old.urgencia,
             observacoes: old.observacoes,
             createdBy: userId,
@@ -491,6 +623,12 @@ export async function rescheduleCore(
           sourceIdempotencyKey: idempotencyKey,
           correlationId,
         });
+
+        await reserveAppointmentResources(
+          tx,
+          created!,
+          oldReservations.map((reservation) => reservation.resourceId),
+        );
 
         await publishEvent(tx, {
           clinicId,

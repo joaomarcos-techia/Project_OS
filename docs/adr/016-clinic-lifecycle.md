@@ -1,5 +1,8 @@
 # ADR-016 — Semântica do ciclo de vida de clínica (base; enforcement em C13)
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C2 (contrato) / enforcement em C13 (billing) + C15 (admin)
 - Refs: ADR-007 (RLS = isolamento, não authz), gap 2.5

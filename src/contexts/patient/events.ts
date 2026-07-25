@@ -18,6 +18,10 @@ export const PATIENT_EVENTS = {
   CREATED: 'patient.core.created',
   UPDATED: 'patient.core.updated',
   DELETED: 'patient.core.deleted',
+  DECEASED: 'patient.core.deceased',
+  MERGED: 'patient.core.merged',
+  RELATIONSHIP_LINKED: 'patient.relationship.linked',
+  RELATIONSHIP_UNLINKED: 'patient.relationship.unlinked',
   CONSENT_GRANTED: 'patient.consent.granted',
   CONSENT_REVOKED: 'patient.consent.revoked',
   SUPPRESSION_ADDED: 'patient.suppression.added',
@@ -51,6 +55,29 @@ export const PatientDeletedSchema = z.object({
   soft: z.boolean(),
 });
 export type PatientDeletedPayload = z.infer<typeof PatientDeletedSchema>;
+
+export const PatientDeceasedSchema = z.object({
+  patientId: uuid,
+  clinicId: uuid,
+  deceasedAt: z.string().date(),
+});
+export type PatientDeceasedPayload = z.infer<typeof PatientDeceasedSchema>;
+
+export const PatientMergedSchema = z.object({
+  clinicId: uuid,
+  sourcePatientId: uuid,
+  targetPatientId: uuid,
+  mergeId: uuid,
+});
+export type PatientMergedPayload = z.infer<typeof PatientMergedSchema>;
+
+export const PatientRelationshipChangedSchema = z.object({
+  clinicId: uuid,
+  relationshipId: uuid,
+  responsiblePatientId: uuid,
+  dependentPatientId: uuid,
+});
+export type PatientRelationshipChangedPayload = z.infer<typeof PatientRelationshipChangedSchema>;
 
 export const ConsentGrantedSchema = z.object({
   patientId: uuid,
@@ -102,6 +129,10 @@ export type LgpdDeleteRequestedPayload = z.infer<typeof LgpdDeleteRequestedSchem
 registerEventSchema(PATIENT_EVENTS.CREATED, PatientCreatedSchema);
 registerEventSchema(PATIENT_EVENTS.UPDATED, PatientUpdatedSchema);
 registerEventSchema(PATIENT_EVENTS.DELETED, PatientDeletedSchema);
+registerEventSchema(PATIENT_EVENTS.DECEASED, PatientDeceasedSchema);
+registerEventSchema(PATIENT_EVENTS.MERGED, PatientMergedSchema);
+registerEventSchema(PATIENT_EVENTS.RELATIONSHIP_LINKED, PatientRelationshipChangedSchema);
+registerEventSchema(PATIENT_EVENTS.RELATIONSHIP_UNLINKED, PatientRelationshipChangedSchema);
 registerEventSchema(PATIENT_EVENTS.CONSENT_GRANTED, ConsentGrantedSchema);
 registerEventSchema(PATIENT_EVENTS.CONSENT_REVOKED, ConsentRevokedSchema);
 registerEventSchema(PATIENT_EVENTS.SUPPRESSION_ADDED, SuppressionAddedSchema);

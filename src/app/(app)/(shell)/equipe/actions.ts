@@ -318,15 +318,21 @@ export type SetMemberOverrideResult = { ok: true } | { error: string };
 /**
  * Concede/nega/remove um override granular. Este é o ÚNICO caminho de escrita em
  * user_permission_overrides desde o I-13 (o RLS trancou o acesso direto). Requer
- * manage:employees + o alvo ser mutável; o trigger bumpa claims_version.
+ * manage:permissions + o alvo ser mutável; o trigger bumpa claims_version.
  */
 export async function setMemberOverrideAction(
   input: z.input<typeof SetOverrideSchema>,
 ): Promise<SetMemberOverrideResult> {
   const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES);
+  await requireFreshPermission(PERMISSIONS.MANAGE_PERMISSIONS);
   const clinicId = await requireClinicId();
   await requireActiveClinic(clinicId);
+
+  // Overrides por usuário são um recurso comercial dos planos Clínica e Pro.
+  // O gate fica no servidor para não depender da visibilidade da UI.
+  if (!(await billingApiV1.hasGranularPermissions(clinicId))) {
+    return { error: 'Permissões granulares estão disponíveis nos planos Clínica e Pro.' };
+  }
 
   const parsed = SetOverrideSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };

@@ -14,6 +14,7 @@
 export const PERMISSIONS = {
   VIEW_AGENDA: 'view:agenda',
   EDIT_AGENDA: 'edit:agenda',
+  IMPORT_AGENDA: 'import:agenda',
   // C6: catálogo de procedimentos (preço/duração) e janelas de disponibilidade.
   // Granulares (decisão founder): seed + bundles em migration 0018.
   MANAGE_PROCEDURES: 'manage:procedures',
@@ -37,6 +38,9 @@ export const PERMISSIONS = {
   // atendente operar o caixa sem ganhar manage:financial (lançamento manual,
   // fornecedores, estorno). Seed + bundles em migration 0020.
   OPERATE_CAIXA: 'operate:caixa',
+  // Reembolso movimenta dinheiro e exige autorizacao explicita. O owner recebe
+  // por padrao; nos planos com permissoes granulares pode delegar individualmente.
+  REFUND_FINANCIAL: 'refund:financial',
   VIEW_AUDIT: 'view:audit',
   EXPORT_AUDIT: 'export:audit',
   MANAGE_EMPLOYEES: 'manage:employees',

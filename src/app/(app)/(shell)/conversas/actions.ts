@@ -11,7 +11,9 @@ import { revalidatePath } from 'next/cache';
 
 import {
   assumirConversa,
+  definirPrioridadeHandoff,
   devolverAoAgente,
+  reenviarMensagemManual,
   responderManualmente,
 } from '@/contexts/ai-agent/actions';
 
@@ -27,6 +29,10 @@ const MSG: Record<string, string> = {
   MetaWindowClosedError:
     'A janela de 24h da Meta expirou. Só é possível enviar texto livre até 24h após a última mensagem do paciente.',
   ConversationValidationError: 'Dados inválidos.',
+  ConversationAssignmentRequiredError:
+    'Assuma formalmente esta conversa antes de responder ou devolvê-la ao agente.',
+  ManualMessageNotRetryableError:
+    'Esta mensagem não está mais marcada como falha ou não pode ser reenviada.',
   IdempotencyInFlightError: 'Processando — tente de novo em instantes.',
   IdempotencyConflictError: 'Requisição duplicada detectada.',
 };
@@ -34,7 +40,8 @@ const MSG: Record<string, string> = {
 function fail(err: unknown): { ok: false; message: string } {
   if (err instanceof Error && err.name === 'AuthError') {
     const code = (err as { code?: string }).code;
-    if (code === 'forbidden') return { ok: false, message: 'Você não tem permissão para esta ação.' };
+    if (code === 'forbidden')
+      return { ok: false, message: 'Você não tem permissão para esta ação.' };
     if (code === 'unauthenticated')
       return { ok: false, message: 'Sua sessão expirou. Entre novamente.' };
   }
@@ -43,6 +50,22 @@ function fail(err: unknown): { ok: false; message: string } {
   }
   const name = err instanceof Error ? err.name : '';
   return { ok: false, message: MSG[name] ?? 'Não foi possível concluir a ação. Tente novamente.' };
+}
+
+export async function definirPrioridadeAction(
+  _prev: ConversaActionState,
+  formData: FormData,
+): Promise<ConversaActionState> {
+  const id = String(formData.get('conversationId') ?? '');
+  const priority = String(formData.get('priority') ?? '') as 'normal' | 'urgent';
+  try {
+    await definirPrioridadeHandoff(id, priority, String(formData.get('idempotencyKey') ?? ''));
+    revalidatePath(`/conversas/${id}`);
+    revalidatePath('/conversas');
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
 }
 
 export async function assumirConversaAction(
@@ -84,6 +107,26 @@ export async function responderAction(
       String(formData.get('idempotencyKey') ?? ''),
     );
     revalidatePath(`/conversas/${id}`);
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function reenviarMensagemAction(
+  _prev: ConversaActionState,
+  formData: FormData,
+): Promise<ConversaActionState> {
+  const conversationId = String(formData.get('conversationId') ?? '');
+  try {
+    await reenviarMensagemManual(
+      {
+        conversationId,
+        messageId: String(formData.get('messageId') ?? ''),
+      },
+      String(formData.get('idempotencyKey') ?? ''),
+    );
+    revalidatePath(`/conversas/${conversationId}`);
     return { ok: true };
   } catch (err) {
     return fail(err);

@@ -87,6 +87,14 @@ export interface ConversationSummary {
 // por spread de row.
 
 export type AIConversationStatus = 'active' | 'handoff' | 'closed' | 'abandoned';
+export type AIHandoffPriority = 'normal' | 'urgent';
+
+export interface AIHandoffState {
+  assignedToUserId: string | null;
+  priority: AIHandoffPriority;
+  dueAt: string;
+  overdue: boolean;
+}
 
 export interface AIConversationListItem {
   id: string;
@@ -99,6 +107,7 @@ export interface AIConversationListItem {
   status: AIConversationStatus;
   lastMessageAt: string;
   intentAtual: string | null;
+  handoff: AIHandoffState | null;
 }
 
 export interface AIConversationListResult {
@@ -119,7 +128,7 @@ export type AIMessageAuthor = 'patient' | 'agent' | 'human';
  * agente (o agente envia de forma síncrona no próprio turno). Deriva de
  * outbound_messages — persistir em ai_messages NÃO significa entregue.
  */
-export type AIMessageDelivery = 'pending' | 'sent' | 'failed';
+export type AIMessageDelivery = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 /** Metadados operacionais do turno do agente. NUNCA inclui prompt snapshot. */
 export interface AIMessageAgentMeta {
@@ -150,6 +159,7 @@ export interface AIConversationThread {
   startedAt: string;
   lastMessageAt: string;
   messages: AIThreadMessage[];
+  handoff: AIHandoffState | null;
   /** Janela de 24h da Meta, calculada no servidor no momento da leitura. */
   window: { open: boolean; lastInboundAt: string | null; closesAt: string | null };
 }

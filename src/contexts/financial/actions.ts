@@ -25,27 +25,28 @@ import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import {
-  FinancialValidationError,
   LancamentoNotFoundError,
+  PaymentTransactionNotFoundError,
   SupplierNotFoundError,
 } from './errors';
 import { FINANCIAL_EVENTS } from './events';
 import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
+import { assertFinancialReferencesInClinic } from './internal/tenant-references';
+import { assertPaymentFitsBalance, assertRefundFitsPayment } from './internal/payment-ledger';
 import {
   assertLancamentoTransition,
   calcStatusPagamento,
   clinicDayBounds,
-  estornoDescricao,
-  estornoTipoOposto,
   round2,
 } from './logic';
 import {
   getCashFlowToday,
   getClinicTimezone,
   toLancamentoSummary,
+  toPaymentTransactionSummary,
   toSupplierSummary,
 } from './queries';
-import { lancamentos, paymentProofs, suppliers } from './schema';
+import { lancamentos, paymentProofs, paymentTransactions, suppliers } from './schema';
 
 /**
  * Operar o caixa (confirmar/cancelar pagamento) aceita qualquer um dos dois —
@@ -65,6 +66,7 @@ import {
   type CreateLancamentoInput,
   type CreateSupplierInput,
   type LancamentoSummary,
+  type PaymentTransactionSummary,
   type SupplierSummary,
 } from './types';
 
@@ -98,6 +100,11 @@ export async function createLancamento(
       },
     },
     async (tx) => {
+      await assertFinancialReferencesInClinic(tx, clinicId, {
+        patientId: data.patientId,
+        supplierId: data.supplierId,
+        unitId: data.unitId,
+      });
       const [row] = await tx
         .insert(lancamentos)
         .values({
@@ -172,10 +179,11 @@ export async function confirmPayment(
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
 
       const valorTotal = Number(lanc.valor);
-      const novoPago = round2(Number(lanc.valorPago) + data.valorPago);
-      if (novoPago > valorTotal + 1e-9) {
-        throw new FinancialValidationError('Valor pago excede o valor do lançamento.');
-      }
+      const novoPago = assertPaymentFitsBalance(
+        valorTotal,
+        Number(lanc.valorPago),
+        data.valorPago,
+      );
       const novoStatus = calcStatusPagamento(valorTotal, novoPago);
       // Sob concorrência, o perdedor lê o lançamento já 'pago' → transição
       // 'pago'→'pago' é inválida → LancamentoStateError (409). Apenas um vence.
@@ -193,6 +201,18 @@ export async function confirmPayment(
         .where(and(eq(lancamentos.id, data.lancamentoId), eq(lancamentos.clinicId, clinicId)))
         .returning();
 
+      const [payment] = await tx
+        .insert(paymentTransactions)
+        .values({
+          clinicId,
+          lancamentoId: data.lancamentoId,
+          kind: 'payment',
+          amount: money(data.valorPago),
+          paymentMethod: data.paymentMethod,
+          createdBy: user.userId,
+        })
+        .returning();
+
       if (data.comprovante) {
         // ⚠️ V8 (auditoria de segurança — LATENTE, NÃO explorável hoje):
         // `fileStoragePath` vem do cliente como TEXTO LIVRE (hoje um caminho/URL
@@ -205,6 +225,7 @@ export async function confirmPayment(
         await tx.insert(paymentProofs).values({
           clinicId,
           lancamentoId: data.lancamentoId,
+          transactionId: payment!.id,
           type: data.comprovante.type,
           fileStoragePath: data.comprovante.fileStoragePath,
           uploadedBy: user.userId,
@@ -216,8 +237,10 @@ export async function confirmPayment(
         eventType: FINANCIAL_EVENTS.LANCAMENTO_PAID,
         payload: {
           lancamentoId: data.lancamentoId,
+          transactionId: payment!.id,
           clinicId,
           valor: valorTotal,
+          amount: round2(data.valorPago),
           valorPago: novoPago,
           status: novoStatus,
           paymentMethod: data.paymentMethod,
@@ -287,7 +310,7 @@ export async function cancelLancamento(
 
 export interface EstornoResult {
   original: LancamentoSummary;
-  estorno: LancamentoSummary;
+  refund: PaymentTransactionSummary;
 }
 
 export async function createEstorno(
@@ -295,7 +318,7 @@ export async function createEstorno(
   idempotencyKey: string,
 ): Promise<EstornoResult> {
   const user = await requireUser();
-  await requireCachedPermission(PERMISSIONS.MANAGE_FINANCIAL);
+  await requireCachedPermission(PERMISSIONS.REFUND_FINANCIAL);
   const data = CreateEstornoSchema.parse(input);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
@@ -323,52 +346,75 @@ export async function createEstorno(
         .for('update')
         .limit(1);
       if (!orig) throw new LancamentoNotFoundError(data.lancamentoId);
-      // pendente/parcial/pago → estornado. Já cancelado/estornado = inválido.
-      assertLancamentoTransition(orig.status, 'estornado');
+      const [payment] = await tx
+        .select()
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.id, data.paymentId),
+            eq(paymentTransactions.clinicId, clinicId),
+            eq(paymentTransactions.lancamentoId, orig.id),
+            eq(paymentTransactions.kind, 'payment'),
+          ),
+        )
+        .for('update')
+        .limit(1);
+      if (!payment) throw new PaymentTransactionNotFoundError(data.paymentId);
 
-      // Lançamento de compensação (append-only). status='estornado' (NÃO 'pago')
-      // para não virar uma 2ª linha "pago" no Caixa; appointment_id=null preserva
-      // o UNIQUE do original.
-      const [estorno] = await tx
-        .insert(lancamentos)
+      const [refundTotals] = await tx
+        .select({ total: sql<string>`coalesce(sum(${paymentTransactions.amount}), 0)` })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.clinicId, clinicId),
+            eq(paymentTransactions.originalPaymentId, payment.id),
+            eq(paymentTransactions.kind, 'refund'),
+          ),
+        );
+      assertRefundFitsPayment(Number(payment.amount), Number(refundTotals?.total ?? 0), data.valor);
+
+      const [refund] = await tx
+        .insert(paymentTransactions)
         .values({
           clinicId,
-          unitId: orig.unitId,
-          tipo: estornoTipoOposto(orig.tipo),
-          descricao: estornoDescricao(orig.descricao),
-          valor: orig.valor,
-          valorPago: '0',
-          status: 'estornado',
-          patientId: orig.patientId,
-          supplierId: orig.supplierId,
-          appointmentId: null,
-          createdVia: 'estorno',
-          reversesLancamentoId: orig.id,
+          lancamentoId: orig.id,
+          kind: 'refund',
+          amount: money(data.valor),
+          paymentMethod: data.paymentMethod,
+          originalPaymentId: payment.id,
+          reason: data.motivo,
           createdBy: user.userId,
         })
         .returning();
 
-      const [updatedOrig] = await tx
-        .update(lancamentos)
-        .set({ status: 'estornado', updatedAt: sql`now()` })
-        .where(and(eq(lancamentos.id, orig.id), eq(lancamentos.clinicId, clinicId)))
-        .returning();
+      if (data.comprovante) {
+        await tx.insert(paymentProofs).values({
+          clinicId,
+          lancamentoId: orig.id,
+          transactionId: refund!.id,
+          type: data.comprovante.type,
+          fileStoragePath: data.comprovante.fileStoragePath,
+          uploadedBy: user.userId,
+        });
+      }
 
       await publishEvent(tx, {
         clinicId,
         eventType: FINANCIAL_EVENTS.LANCAMENTO_ESTORNADO,
         payload: {
           originalId: orig.id,
-          estornoId: estorno!.id,
+          paymentTransactionId: payment.id,
+          refundTransactionId: refund!.id,
           clinicId,
-          valor: Number(orig.valor),
+          valor: round2(data.valor),
+          paymentMethod: data.paymentMethod,
           motivo: data.motivo,
         },
         idempotencyKey: `${idempotencyKey}:estornado`,
       });
       return {
-        original: toLancamentoSummary(updatedOrig!),
-        estorno: toLancamentoSummary(estorno!),
+        original: toLancamentoSummary(orig),
+        refund: toPaymentTransactionSummary(refund!, 0),
       };
     },
   );

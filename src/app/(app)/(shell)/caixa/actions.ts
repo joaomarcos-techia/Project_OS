@@ -47,7 +47,7 @@ export async function createEstornoAction(
 ): Promise<ActionResult<{ originalId: string; estornoId: string }>> {
   try {
     const r = await createEstorno(input, idempotencyKey);
-    return ok({ originalId: r.original.id, estornoId: r.estorno.id });
+    return ok({ originalId: r.original.id, estornoId: r.refund.id });
   } catch (err) {
     return fail(err);
   }

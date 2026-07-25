@@ -24,15 +24,16 @@ import { publishEvent } from '@/lib/outbox/publish';
 import { registerHandler } from '@/lib/outbox/registry';
 
 import { SCHEDULING_EVENTS } from '../../events';
-import { appointments } from '../../schema';
+import { appointments, waitlistEntries } from '../../schema';
 import { logAppointmentStateChange } from '../state-log';
 
 // Event name = contrato público do Patient (ver src/contexts/patient/events.ts).
 const PATIENT_CORE_DELETED = 'patient.core.deleted';
+const PATIENT_CORE_DECEASED = 'patient.core.deceased';
 
 const CANCELLABLE = ['agendado', 'confirmado', 'chegou'] as const;
 
-interface PatientDeletedPayload {
+interface PatientLifecyclePayload {
   patientId: string;
   clinicId: string;
 }
@@ -40,9 +41,9 @@ interface PatientDeletedPayload {
 async function cancelFutureForPatient(ctx: {
   tx: Tx;
   clinicId: string;
-  payload: PatientDeletedPayload;
+  payload: PatientLifecyclePayload;
   eventId: string;
-}): Promise<void> {
+}, reason: 'patient_deleted' | 'patient_deceased'): Promise<void> {
   const { tx, clinicId, eventId } = ctx;
   const { patientId } = ctx.payload;
   const now = new Date();
@@ -67,7 +68,7 @@ async function cancelFutureForPatient(ctx: {
       toStatus: 'cancelado',
       transitionedBy: null,
       actorType: 'worker',
-      reason: 'patient_deleted',
+      reason,
       sourceEventId: eventId,
       correlationId: eventId,
     });
@@ -83,13 +84,24 @@ async function cancelFutureForPatient(ctx: {
         clinicId,
         fromStatus: appt.status,
         toStatus: 'cancelado',
-        cancelReason: 'patient_deleted' as const,
-        reason: 'patient_deleted',
+        cancelReason: reason,
+        reason,
       },
-      idempotencyKey: `patient-deleted:${eventId}:${appt.id}`,
+      idempotencyKey: `${reason}:${eventId}:${appt.id}`,
       correlationId: eventId,
     });
   }
+
+  await tx
+    .update(waitlistEntries)
+    .set({ status: 'cancelled', updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(waitlistEntries.clinicId, clinicId),
+        eq(waitlistEntries.patientId, patientId),
+        inArray(waitlistEntries.status, ['waiting', 'offered']),
+      ),
+    );
 
   // R6: appointments em curso não podem ser cancelados — registra e segue.
   const inProgress = await tx
@@ -104,7 +116,7 @@ async function cancelFutureForPatient(ctx: {
       ),
     );
   if (inProgress.length > 0) {
-    metrics.emit('scheduling.patient_deleted.in_progress_skipped', {
+    metrics.emit(`scheduling.${reason}.in_progress_skipped`, {
       clinicId,
       patientId,
       count: inProgress.length,
@@ -112,4 +124,9 @@ async function cancelFutureForPatient(ctx: {
   }
 }
 
-registerHandler<PatientDeletedPayload>(PATIENT_CORE_DELETED, cancelFutureForPatient);
+registerHandler<PatientLifecyclePayload>(PATIENT_CORE_DELETED, (ctx) =>
+  cancelFutureForPatient(ctx, 'patient_deleted'),
+);
+registerHandler<PatientLifecyclePayload>(PATIENT_CORE_DECEASED, (ctx) =>
+  cancelFutureForPatient(ctx, 'patient_deceased'),
+);

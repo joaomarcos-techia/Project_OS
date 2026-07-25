@@ -1,5 +1,8 @@
 # ADR-017 — Retenção de prontuário (CFM) vs hard-delete LGPD do paciente
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C7 (Clinical)
 - Refs: ADR-013 (clinical-data ownership), PlanoAção §7.9/§7.10, C5 (patient hard-delete)

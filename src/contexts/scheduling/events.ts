@@ -28,12 +28,24 @@ export const SCHEDULING_EVENTS = {
   CANCELLED: 'scheduling.appointment.cancelled',
   NO_SHOW: 'scheduling.appointment.no_show',
   RESCHEDULED: 'scheduling.appointment.rescheduled',
+  CORRECTED: 'scheduling.appointment.corrected',
+  DOCTOR_ABSENCE_CREATED: 'scheduling.doctor_absence.created',
+  WAITLIST_OFFERED: 'scheduling.waitlist.offered',
+  RECURRENCE_CREATED: 'scheduling.recurrence.created',
+  RECURRENCE_CANCELLED: 'scheduling.recurrence.cancelled',
+  IMPORT_COMPLETED: 'scheduling.import.completed',
 } as const;
 
 const uuid = z.string().uuid();
 const statusEnum = z.enum(APPOINTMENT_STATES);
-export const createdViaEnum = z.enum(['attendant', 'ai_agent', 'walkin', 'super_admin']);
-export const cancelReasonEnum = z.enum(['user', 'patient_deleted', 'reschedule']);
+export const createdViaEnum = z.enum(['attendant', 'ai_agent', 'walkin', 'super_admin', 'import']);
+export const cancelReasonEnum = z.enum([
+  'user',
+  'patient_deleted',
+  'patient_deceased',
+  'reschedule',
+  'doctor_absence',
+]);
 export type CreatedVia = z.infer<typeof createdViaEnum>;
 export type CancelReason = z.infer<typeof cancelReasonEnum>;
 
@@ -132,6 +144,65 @@ export const AppointmentRescheduledSchema = z.object({
 });
 export type AppointmentRescheduledPayload = z.infer<typeof AppointmentRescheduledSchema>;
 
+export const AppointmentCorrectedSchema = z.object({
+  appointmentId: uuid,
+  clinicId: uuid,
+  kind: z.enum(['interrupt', 'exceptional_cancel', 'reopen', 'transfer']),
+  fromStatus: statusEnum,
+  toStatus: statusEnum,
+  oldDoctorId: uuid,
+  newDoctorId: uuid.nullable(),
+  reason: z.string().min(1),
+});
+export type AppointmentCorrectedPayload = z.infer<typeof AppointmentCorrectedSchema>;
+
+export const DoctorAbsenceCreatedSchema = z.object({
+  absenceId: uuid,
+  clinicId: uuid,
+  doctorId: uuid,
+  replacementDoctorId: uuid.nullable(),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  strategy: z.enum(['cancel', 'transfer']),
+  affectedAppointments: z.number().int().nonnegative(),
+});
+export type DoctorAbsenceCreatedPayload = z.infer<typeof DoctorAbsenceCreatedSchema>;
+
+export const WaitlistOfferedSchema = z.object({
+  waitlistEntryId: uuid,
+  clinicId: uuid,
+  patientId: uuid,
+  releasedAppointmentId: uuid,
+  doctorId: uuid,
+  procedureId: uuid,
+  scheduledAt: z.string().datetime(),
+});
+export type WaitlistOfferedPayload = z.infer<typeof WaitlistOfferedSchema>;
+
+export const RecurrenceCreatedSchema = z.object({
+  seriesId: uuid,
+  clinicId: uuid,
+  appointmentIds: z.array(uuid).min(2),
+  intervalWeeks: z.number().int().positive(),
+});
+export type RecurrenceCreatedPayload = z.infer<typeof RecurrenceCreatedSchema>;
+
+export const RecurrenceCancelledSchema = z.object({
+  seriesId: uuid,
+  clinicId: uuid,
+  cancelledAppointments: z.number().int().nonnegative(),
+  reason: z.string().min(1),
+});
+export type RecurrenceCancelledPayload = z.infer<typeof RecurrenceCancelledSchema>;
+
+export const AppointmentImportCompletedSchema = z.object({
+  batchId: uuid,
+  clinicId: uuid,
+  source: z.string().min(1),
+  importedAppointments: z.number().int().positive(),
+});
+export type AppointmentImportCompletedPayload = z.infer<typeof AppointmentImportCompletedSchema>;
+
 registerEventSchema(SCHEDULING_EVENTS.CREATED, AppointmentCreatedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CONFIRMED, AppointmentConfirmedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CHECKED_IN, AppointmentCheckedInSchema);
@@ -140,3 +211,9 @@ registerEventSchema(SCHEDULING_EVENTS.COMPLETED, AppointmentCompletedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CANCELLED, AppointmentCancelledSchema);
 registerEventSchema(SCHEDULING_EVENTS.NO_SHOW, AppointmentNoShowSchema);
 registerEventSchema(SCHEDULING_EVENTS.RESCHEDULED, AppointmentRescheduledSchema);
+registerEventSchema(SCHEDULING_EVENTS.CORRECTED, AppointmentCorrectedSchema);
+registerEventSchema(SCHEDULING_EVENTS.DOCTOR_ABSENCE_CREATED, DoctorAbsenceCreatedSchema);
+registerEventSchema(SCHEDULING_EVENTS.WAITLIST_OFFERED, WaitlistOfferedSchema);
+registerEventSchema(SCHEDULING_EVENTS.RECURRENCE_CREATED, RecurrenceCreatedSchema);
+registerEventSchema(SCHEDULING_EVENTS.RECURRENCE_CANCELLED, RecurrenceCancelledSchema);
+registerEventSchema(SCHEDULING_EVENTS.IMPORT_COMPLETED, AppointmentImportCompletedSchema);

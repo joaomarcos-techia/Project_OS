@@ -1,5 +1,8 @@
 # ADR-026 — Proactive Jobs (C14): proativo determinístico + reativo via IA
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 - Status: accepted
 - Camada: C14 — Proactive Jobs (lembrete D-1, dunning paciente, followup)
 - Refs: PlanoAção §14, ADR-020 (messaging/Meta), ADR-022/023 (AI Agent C11/C12),

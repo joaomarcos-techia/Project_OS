@@ -16,6 +16,7 @@
  */
 /* eslint-disable boundaries/element-types -- APIs internas PÚBLICAS (M14) dos contextos-fonte: C14 é transporte e lê estado via os seams versionados (mesma exceção das tools do AI Agent). */
 import { financialApiV1 } from '@/contexts/financial';
+import { clinicalApiV1 } from '@/contexts/clinical';
 import {
   NumberNotConnectedError,
   SuppressedRecipientError,
@@ -28,7 +29,12 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 import { metrics } from '@/lib/observability/metrics';
 import { BACKOFF_FAIL, backoffDelayMs } from '@/lib/outbox/backoff';
 
-import { PROACTIVE_PAYLOAD_SCHEMAS, type DunningPayload, type ReminderPayload } from '../domain/types';
+import {
+  PROACTIVE_PAYLOAD_SCHEMAS,
+  type DunningPayload,
+  type FollowupPayload,
+  type ReminderPayload,
+} from '../domain/types';
 import * as repo from '../infra/repository';
 import type { ClaimedJob } from '../infra/repository';
 import { TemplateNotConfiguredError, buildProactiveTemplate } from '../infra/templates';
@@ -50,14 +56,14 @@ type Outcome = 'sent' | 'cancelled' | 'retried' | 'failed';
 const ACTIVE_APPT = new Set(['agendado', 'confirmado']);
 
 async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promise<Outcome> {
-  const { id, clinicId, type } = job;
+  const { id, clinicId, type, leaseToken } = job;
   const log = { clinicId, jobId: id, type };
   metrics.emit('proactive.job.processing', log);
 
   // 1. payload válido?
   const parsed = PROACTIVE_PAYLOAD_SCHEMAS[type].safeParse(job.payload);
   if (!parsed.success) {
-    await repo.finalizeFailed(clinicId, id, 'invalid_payload');
+    await repo.finalizeFailed(clinicId, id, leaseToken, 'invalid_payload');
     metrics.emit('proactive.job.failed', { ...log, reason: 'invalid_payload' });
     return 'failed';
   }
@@ -67,7 +73,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   // 2. guard de send-time (estado fresco).
   const guard = await sendTimeGuard(type, clinicId, payload);
   if (guard) {
-    await repo.cancel(clinicId, id, guard);
+    await repo.cancel(clinicId, id, leaseToken, guard);
     metrics.emit('proactive.job.cancelled', { ...log, reason: guard });
     return 'cancelled';
   }
@@ -76,7 +82,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   const contact = await patientApiV1.getProactiveContact(clinicId, patientId);
   const policy = evaluateProactivePolicy(type, contact);
   if (!policy.allowed) {
-    await repo.cancel(clinicId, id, policy.reason ?? 'blocked');
+    await repo.cancel(clinicId, id, leaseToken, policy.reason ?? 'blocked');
     metrics.emit('proactive.job.cancelled', { ...log, reason: policy.reason });
     return 'cancelled';
   }
@@ -91,7 +97,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
     body = { kind: 'template', templateName: t.templateName, languageCode: t.languageCode, variables: t.variables };
   } catch (err) {
     if (err instanceof TemplateNotConfiguredError) {
-      await repo.finalizeFailed(clinicId, id, 'template_not_configured');
+      await repo.finalizeFailed(clinicId, id, leaseToken, 'template_not_configured');
       metrics.emit('proactive.job.failed', { ...log, reason: 'template_not_configured' });
       return 'failed';
     }
@@ -99,9 +105,20 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   }
 
   try {
-    const res = await messagingApiV1.sendText({ clinicId, toNumber: phone!, idempotencyKey: id, body });
-    if (res.status === 'accepted') {
-      await repo.finalizeSent(clinicId, id);
+    const res = await messagingApiV1.sendText({
+      clinicId,
+      toNumber: phone!,
+      idempotencyKey: id,
+      body,
+      purpose: type === 'dunning' ? 'billing' : type,
+    });
+    if (
+      res.status === 'accepted' ||
+      res.status === 'sent' ||
+      res.status === 'delivered' ||
+      res.status === 'read'
+    ) {
+      await repo.finalizeSent(clinicId, id, leaseToken);
       metrics.emit('proactive.job.sent', log);
       return 'sent';
     }
@@ -109,12 +126,12 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
     return finalizeBackoff(job, `meta_${res.status}`, log);
   } catch (err) {
     if (err instanceof SuppressedRecipientError) {
-      await repo.cancel(clinicId, id, 'suppressed');
+      await repo.cancel(clinicId, id, leaseToken, 'suppressed');
       metrics.emit('proactive.job.cancelled', { ...log, reason: 'suppressed' });
       return 'cancelled';
     }
     if (err instanceof NumberNotConnectedError) {
-      await repo.finalizeFailed(clinicId, id, 'number_not_connected');
+      await repo.finalizeFailed(clinicId, id, leaseToken, 'number_not_connected');
       metrics.emit('proactive.job.failed', { ...log, reason: 'number_not_connected' });
       return 'failed';
     }
@@ -136,10 +153,31 @@ async function sendTimeGuard(
   if (type === 'dunning') {
     const lanc = await financialApiV1.getLancamento(clinicId, (payload as DunningPayload).lancamentoId);
     if (!lanc) return 'lancamento_missing';
-    if (lanc.status !== 'pendente') return lanc.status === 'pago' ? 'already_paid' : 'lancamento_not_pending';
+    if (lanc.status !== 'pendente' && lanc.status !== 'parcial') {
+      return lanc.status === 'pago' ? 'already_paid' : 'lancamento_not_pending';
+    }
     return null;
   }
-  return null; // followup: sem guard forte no MVP.
+  if (type === 'followup') {
+    const followup = payload as FollowupPayload;
+    const state = await clinicalApiV1.getFollowupState(clinicId, followup.prontuarioId);
+    if (!state || state.status !== 'assinado' || !state.signedAt) return 'followup_context_missing';
+    if (!state.needsReturn) return 'return_no_longer_needed';
+    if (state.patientId !== followup.patientId) return 'followup_patient_mismatch';
+
+    const original = state.appointmentId
+      ? await schedulingApiV1.lookupAppointment(clinicId, state.appointmentId)
+      : null;
+    const alreadyReturned = await schedulingApiV1.hasSubsequentCompletedAppointment(clinicId, {
+      patientId: state.patientId,
+      after: state.signedAt,
+      excludeAppointmentId: state.appointmentId,
+      procedureId: original?.procedureId ?? null,
+      doctorId: state.doctorId,
+    });
+    return alreadyReturned ? 'return_already_completed' : null;
+  }
+  return null;
 }
 
 async function finalizeBackoff(
@@ -150,11 +188,17 @@ async function finalizeBackoff(
   // job.attempts já é a tentativa em curso; a PRÓXIMA é attempts+1.
   const delay = backoffDelayMs(job.attempts + 1);
   if (delay === BACKOFF_FAIL) {
-    await repo.finalizeFailed(job.clinicId, job.id, reason);
+    await repo.finalizeFailed(job.clinicId, job.id, job.leaseToken, reason);
     metrics.emit('proactive.job.failed', { ...log, reason });
     return 'failed';
   }
-  await repo.finalizeRetry(job.clinicId, job.id, new Date(Date.now() + delay), reason);
+  await repo.finalizeRetry(
+    job.clinicId,
+    job.id,
+    job.leaseToken,
+    new Date(Date.now() + delay),
+    reason,
+  );
   metrics.emit('proactive.job.retried', { ...log, reason, delayMs: delay });
   return 'retried';
 }

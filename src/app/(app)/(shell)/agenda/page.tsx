@@ -5,6 +5,8 @@
  */
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { buttonVariants } from '@/components/ui/button';
+import Link from 'next/link';
 
 import { AgendaCalendar, AgendaNav } from './agenda-calendar';
 import { getAgendaData } from './data';
@@ -37,7 +39,31 @@ export default async function AgendaPage({
         crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
         title="Agenda"
         description="Veja os atendimentos por mês, semana ou dia."
-        actions={<NewAppointmentDrawer data={data} />}
+        actions={
+          <>
+            <Link
+              href="/agenda/importar"
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            >
+              Importar historico
+            </Link>
+            <Link
+              href="/agenda/lista-espera"
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            >
+              Lista de espera
+            </Link>
+            {data.canManageAvailability ? (
+              <Link
+                href="/agenda/ausencias"
+                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+              >
+                Ausencias medicas
+              </Link>
+            ) : null}
+            {data.canEditAgenda ? <NewAppointmentDrawer data={data} /> : null}
+          </>
+        }
       />
 
       <AgendaNav data={data} />

@@ -2,7 +2,7 @@
  * Componentes compartilhados dos PDFs (C7) — white-label leve.
  *
  * Cabeçalho: logo + nome + endereço + CNPJ + CNES (faixa na cor primária).
- * Rodapé FIXO em toda página: "Gerado por ClinicaOS — qoro.dev".
+ * Rodapé FIXO em toda página: "Gerado por Qoro — qoro.dev".
  * Bloco de assinatura: nome do médico + CRM/UF (obrigatório) + espaço físico.
  */
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';

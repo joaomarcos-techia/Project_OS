@@ -58,4 +58,4 @@ export type {
 
 // API interna versionada — consumida por Identity (trava de usuários) e telas.
 export { billingApiV1, type BillingApiV1 } from './api';
-export type { QuotaType, QuotaCheckResult, UserQuotaResult } from './api';
+export type { PlanCode, QuotaType, QuotaCheckResult, UserQuotaResult } from './api';

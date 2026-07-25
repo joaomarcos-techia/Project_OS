@@ -9,18 +9,29 @@ export {
   paymentMethods,
   suppliers,
   lancamentos,
+  paymentTransactions,
   paymentProofs,
+  collectionCases,
   faturamentoPendencias,
   cashFlowDaily,
   lancamentoTipo,
   lancamentoStatus,
   lancamentoCreatedVia,
   paymentProofType,
+  paymentTransactionKind,
   pendenciaStatus,
+  collectionCaseStage,
+  collectionCaseStatus,
 } from './schema';
 
 export { financialApiV1, type FinancialApiV1 } from './api';
 export type { DunningCandidate } from './dunning-candidates';
+export { routeDunning } from './dunning-policy';
+export type {
+  AutomaticDunningStage,
+  DunningRoute,
+  ManualCollectionStage,
+} from './dunning-policy';
 export { FINANCIAL_EVENTS } from './events';
 export type {
   LancamentoCreatedPayload,
@@ -41,4 +52,7 @@ export type {
   CashFlowDTO,
   SupplierSummary,
   PaymentMethodDTO,
+  PaymentTransactionKind,
+  PaymentTransactionSummary,
+  CollectionCaseDTO,
 } from './types';

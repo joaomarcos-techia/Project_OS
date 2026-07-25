@@ -15,14 +15,17 @@ import { z } from 'zod';
 
 import { getConversationThread } from '@/contexts/ai-agent/queries';
 import type { AIConversationStatus, AIThreadMessage } from '@/contexts/ai-agent/types';
+import { getProfileNames } from '@/contexts/identity/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { Badge } from '@/components/ui/badge';
+import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
 import { cn } from '@/lib/ui/cn';
 
 import { ConversaActions } from './_components/conversa-actions';
+import { RetryMessageButton } from './_components/retry-message-button';
 import { ConversasNoAccess } from '../_components/no-access';
 
 export const dynamic = 'force-dynamic';
@@ -49,15 +52,13 @@ const AUTHOR_LABEL: Record<AIThreadMessage['author'], string> = {
 
 const DELIVERY_LABEL = {
   pending: 'Enviando…',
-  sent: 'Entregue ao WhatsApp',
+  sent: 'Enviada ao WhatsApp',
+  delivered: 'Entregue',
+  read: 'Lida',
   failed: 'Falha no envio',
 } as const;
 
-export default async function ConversaThreadPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function ConversaThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   if (!user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS)) return <ConversasNoAccess />;
   const clinicId = await requireClinicId();
@@ -71,6 +72,21 @@ export default async function ConversaThreadPage({
 
   const titulo = thread.patientDisplayName ?? thread.maskedPhone ?? 'Contato desconhecido';
   const canManage = user.permissions.includes(PERMISSIONS.MANAGE_CONVERSATIONS);
+  const assigneeNames = await getProfileNames(
+    clinicId,
+    thread.handoff?.assignedToUserId ? [thread.handoff.assignedToUserId] : [],
+  );
+  const assignedToName = thread.handoff?.assignedToUserId
+    ? (assigneeNames.get(thread.handoff.assignedToUserId) ?? 'Membro da equipe')
+    : null;
+  const failedDeliveries = thread.messages.filter(
+    (message) => message.delivery === 'failed',
+  ).length;
+  const canRetryFailedMessages =
+    canManage &&
+    thread.status === 'handoff' &&
+    thread.handoff?.assignedToUserId === user.userId &&
+    thread.window.open;
 
   return (
     <>
@@ -92,6 +108,13 @@ export default async function ConversaThreadPage({
       />
 
       <div className="flex flex-col gap-(--sp-5)">
+        {failedDeliveries > 0 ? (
+          <Alert variant="danger" title="Falha de entrega no WhatsApp">
+            {failedDeliveries} mensagem{failedDeliveries === 1 ? '' : 'ns'} não foi
+            {failedDeliveries === 1 ? '' : 'ram'} entregue{failedDeliveries === 1 ? '' : 's'}. Use o
+            reenvio ao lado da mensagem após confirmar que o número e a conexão estão corretos.
+          </Alert>
+        ) : null}
         <PanelCard
           title="Histórico"
           meta={`${thread.messages.length} mensagem${thread.messages.length === 1 ? '' : 's'}`}
@@ -100,13 +123,17 @@ export default async function ConversaThreadPage({
             {thread.messages.map((m) => (
               <li
                 key={m.id}
-                className={cn('flex flex-col gap-1', m.direction === 'in' ? 'items-start' : 'items-end')}
+                className={cn(
+                  'flex flex-col gap-1',
+                  m.direction === 'in' ? 'items-start' : 'items-end',
+                )}
               >
                 <div
                   className={cn(
                     'max-w-[min(42rem,85%)] rounded-(--r-md) px-3.5 py-2.5 text-(length:--fs-sm) whitespace-pre-wrap',
                     m.author === 'patient' && 'bg-surface-inset text-fg',
-                    m.author === 'agent' && 'bg-info-50 text-fg dark:bg-[color-mix(in_oklch,var(--info-500)_14%,transparent)]',
+                    m.author === 'agent' &&
+                      'bg-info-50 text-fg dark:bg-[color-mix(in_oklch,var(--info-500)_14%,transparent)]',
                     m.author === 'human' && 'bg-primary text-on-primary',
                   )}
                 >
@@ -127,6 +154,9 @@ export default async function ConversaThreadPage({
                     </>
                   ) : null}
                 </div>
+                {m.delivery === 'failed' && canRetryFailedMessages ? (
+                  <RetryMessageButton conversationId={thread.id} messageId={m.id} />
+                ) : null}
                 {m.meta ? <AgentMeta meta={m.meta} /> : null}
               </li>
             ))}
@@ -144,6 +174,9 @@ export default async function ConversaThreadPage({
             windowClosesAt={thread.window.closesAt}
             lastInboundAt={thread.window.lastInboundAt}
             canManage={canManage}
+            handoff={thread.handoff}
+            currentUserId={user.userId}
+            assignedToName={assignedToName}
           />
         </PanelCard>
       </div>
@@ -165,7 +198,5 @@ function AgentMeta({ meta }: { meta: NonNullable<AIThreadMessage['meta']> }) {
   const tools = Array.isArray(meta.toolCalls) ? meta.toolCalls.length : 0;
   if (tools > 0) parts.push(`${tools} tool call${tools === 1 ? '' : 's'}`);
   if (parts.length === 0) return null;
-  return (
-    <p className="text-(length:--fs-xs) text-fg-subtle tabular-nums">{parts.join(' · ')}</p>
-  );
+  return <p className="text-(length:--fs-xs) text-fg-subtle tabular-nums">{parts.join(' · ')}</p>;
 }

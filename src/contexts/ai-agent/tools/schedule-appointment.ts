@@ -10,11 +10,11 @@
  */
 import { z } from 'zod';
 
-import { agentIdemKey } from '@/lib/agent/actor';
-/* eslint-disable boundaries/element-types -- schedulingApiV1 é a API interna pública (M14). */
-import { schedulingApiV1 } from '@/contexts/scheduling';
-/* eslint-enable boundaries/element-types */
-
+import {
+  assertAgentSchedulePolicy,
+  assertAgentSchedulingIdentity,
+  proposePendingAction,
+} from '../internal/pending-action';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
@@ -24,32 +24,50 @@ const InputSchema = z.object({
 });
 
 const OutputSchema = z.object({
-  appointment_id: z.string(),
-  status: z.string(),
-  scheduled_at: z.string(),
+  pending_action_id: z.string().uuid(),
+  action: z.literal('schedule_appointment'),
+  summary: z.string(),
+  expires_at: z.string().datetime(),
+  requires_confirmation: z.literal(true),
 });
 
 registerTool({
   name: 'schedule_appointment',
+  effect: 'mutation',
   description:
-    'Agenda uma consulta para o paciente já identificado. Confirme o horário com o paciente ANTES de chamar.',
+    'Prepara um agendamento e devolve o resumo que deve ser confirmado em uma nova mensagem. Não cria a consulta imediatamente.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
-    if (!ctx.patientId) {
-      throw new Error('paciente não identificado: cadastre/identifique antes de agendar');
-    }
-    const idemKey = agentIdemKey(ctx.conversationId, 'schedule_appointment', input);
-    const appt = await schedulingApiV1.scheduleAsAgent(
-      { clinicId: ctx.clinicId, eventId: ctx.eventId, aiRequestId: ctx.aiRequestId },
-      {
+    assertAgentSchedulingIdentity({
+      patientId: ctx.patientId,
+      identityAmbiguous: ctx.identityAmbiguous,
+      canScheduleAnonymous: ctx.canScheduleAnonymous,
+    });
+    assertAgentSchedulePolicy({
+      scheduledAt: input.scheduled_at,
+      now: new Date(),
+      maxDaysAhead: ctx.maxDaysAhead,
+    });
+    const pending = await proposePendingAction(ctx.tx, {
+      clinicId: ctx.clinicId,
+      conversationId: ctx.conversationId,
+      eventId: ctx.eventId,
+      payload: {
+        type: 'schedule_appointment',
+        patientId: ctx.patientId,
         doctorId: input.doctor_id,
         procedureId: input.procedure_id,
-        patientId: ctx.patientId,
         scheduledAt: input.scheduled_at,
       },
-      idemKey,
-    );
-    return { appointment_id: appt.id, status: appt.status, scheduled_at: appt.scheduledAt };
+      summary: `Agendar consulta para ${input.scheduled_at}`,
+    });
+    return {
+      pending_action_id: pending.id,
+      action: pending.action,
+      summary: pending.summary,
+      expires_at: pending.expiresAt,
+      requires_confirmation: true as const,
+    };
   },
 });

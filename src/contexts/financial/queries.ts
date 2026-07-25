@@ -13,21 +13,26 @@ import { withTenant } from '@/lib/db/tenant';
 
 import {
   cashFlowDaily,
+  collectionCases,
   faturamentoPendencias,
   lancamentos,
   paymentMethods,
+  paymentTransactions,
   suppliers,
   type LancamentoRow,
+  type PaymentTransactionRow,
   type SupplierRow,
 } from './schema';
 import type {
   CashFlowDTO,
+  CollectionCaseDTO,
   FaturamentoPendenciaDTO,
   LancamentoCreatedVia,
   LancamentoStatus,
   LancamentoSummary,
   LancamentoTipo,
   PaymentMethodDTO,
+  PaymentTransactionSummary,
   SupplierSummary,
 } from './types';
 
@@ -35,6 +40,7 @@ const toIso = (v: Date | string | null | undefined): string | null =>
   v == null ? null : v instanceof Date ? v.toISOString() : v;
 
 const num = (v: string | number | null | undefined): number => (v == null ? 0 : Number(v));
+const roundMoney = (v: number): number => Math.round((v + Number.EPSILON) * 100) / 100;
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
 
@@ -74,6 +80,62 @@ export function toLancamentoSummary(row: LancamentoRow): LancamentoSummary {
     snapshotDoctorNome: row.snapshotDoctorNome ?? null,
     createdAt: toIso(row.createdAt)!,
   };
+}
+
+export function toPaymentTransactionSummary(
+  row: PaymentTransactionRow,
+  refundable: number,
+): PaymentTransactionSummary {
+  return {
+    id: row.id,
+    clinicId: row.clinicId,
+    lancamentoId: row.lancamentoId,
+    kind: row.kind,
+    amount: num(row.amount),
+    paymentMethod: row.paymentMethod ?? null,
+    occurredAt: toIso(row.occurredAt)!,
+    originalPaymentId: row.originalPaymentId ?? null,
+    reason: row.reason ?? null,
+    createdBy: row.createdBy ?? null,
+    refundableAmount: refundable,
+  };
+}
+
+export async function listPaymentTransactionsForLancamentos(
+  clinicId: string,
+  lancamentoIds: readonly string[],
+): Promise<PaymentTransactionSummary[]> {
+  if (lancamentoIds.length === 0) return [];
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(paymentTransactions)
+      .where(
+        and(
+          eq(paymentTransactions.clinicId, clinicId),
+          inArray(paymentTransactions.lancamentoId, [...lancamentoIds]),
+        ),
+      )
+      .orderBy(desc(paymentTransactions.occurredAt));
+
+    const refundedByPayment = new Map<string, number>();
+    for (const row of rows) {
+      if (row.kind === 'refund' && row.originalPaymentId) {
+        refundedByPayment.set(
+          row.originalPaymentId,
+          num(refundedByPayment.get(row.originalPaymentId)) + num(row.amount),
+        );
+      }
+    }
+    return rows.map((row) =>
+      toPaymentTransactionSummary(
+        row,
+        row.kind === 'payment'
+          ? Math.max(0, roundMoney(num(row.amount) - num(refundedByPayment.get(row.id))))
+          : 0,
+      ),
+    );
+  });
 }
 
 /**
@@ -162,10 +224,7 @@ export async function getCaixaPagaveis(clinicId: string): Promise<LancamentoSumm
       .select()
       .from(lancamentos)
       .where(
-        and(
-          eq(lancamentos.tipo, 'pagar'),
-          inArray(lancamentos.status, ['pendente', 'parcial']),
-        ),
+        and(eq(lancamentos.tipo, 'pagar'), inArray(lancamentos.status, ['pendente', 'parcial'])),
       )
       .orderBy(lancamentos.dueDate, lancamentos.createdAt);
     return rows.map(toLancamentoSummary);
@@ -212,6 +271,25 @@ export async function countPendenciasAbertas(clinicId: string): Promise<number> 
   });
 }
 
+export async function listOpenCollectionCases(clinicId: string): Promise<CollectionCaseDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(collectionCases)
+      .where(and(eq(collectionCases.clinicId, clinicId), eq(collectionCases.status, 'open')))
+      .orderBy(desc(collectionCases.daysOverdue))
+      .limit(100);
+    return rows.map((row) => ({
+      id: row.id,
+      lancamentoId: row.lancamentoId,
+      stage: row.stage,
+      daysOverdue: row.daysOverdue,
+      residualAmount: num(row.residualAmount),
+      createdAt: toIso(row.createdAt)!,
+    }));
+  });
+}
+
 // --- fluxo de caixa (ao vivo) ----------------------------------------------
 
 /**
@@ -236,15 +314,22 @@ export async function getCashFlowToday(
 
     const [liquidado] = await tx
       .select({
-        recebidoHoje: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'receber' then ${lancamentos.valorPago} else 0 end), 0)`,
-        pagoHoje: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'pagar' then ${lancamentos.valorPago} else 0 end), 0)`,
+        recebidoHoje: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
+        pagoHoje: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
       })
-      .from(lancamentos)
+      .from(paymentTransactions)
+      .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
       .where(
         and(
-          eq(lancamentos.status, 'pago'),
-          gte(lancamentos.paidAt, todayFrom),
-          lt(lancamentos.paidAt, todayTo),
+          eq(paymentTransactions.clinicId, clinicId),
+          gte(paymentTransactions.occurredAt, todayFrom),
+          lt(paymentTransactions.occurredAt, todayTo),
         ),
       );
 
@@ -273,20 +358,72 @@ export async function getFaturamentoPeriodo(
   return withTenant(clinicId, async (tx) => {
     const [r] = await tx
       .select({
-        recebido: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'receber' then ${lancamentos.valorPago} else 0 end), 0)`,
-        pago: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'pagar' then ${lancamentos.valorPago} else 0 end), 0)`,
+        recebido: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
+        pago: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
       })
-      .from(lancamentos)
+      .from(paymentTransactions)
+      .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
       .where(
         and(
-          eq(lancamentos.status, 'pago'),
-          gte(lancamentos.paidAt, from),
-          lt(lancamentos.paidAt, to),
+          eq(paymentTransactions.clinicId, clinicId),
+          gte(paymentTransactions.occurredAt, from),
+          lt(paymentTransactions.occurredAt, to),
         ),
       );
     const recebido = num(r?.recebido);
     const pago = num(r?.pago);
     return { recebido, pago, saldo: Math.round((recebido - pago) * 100) / 100 };
+  });
+}
+
+export interface AppointmentReceiptTotal {
+  appointmentId: string;
+  recebido: number;
+}
+
+/**
+ * Total líquido recebido por atendimento. O chamador fornece IDs tenant-scoped
+ * vindos de Scheduling; a consulta agrega pagamentos e reembolsos no banco sem
+ * acessar tabelas de outro contexto.
+ */
+export async function getRecebimentosByAppointment(
+  clinicId: string,
+  appointmentIds: string[],
+): Promise<AppointmentReceiptTotal[]> {
+  if (appointmentIds.length === 0) return [];
+
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        appointmentId: lancamentos.appointmentId,
+        recebido: sql<string>`coalesce(sum(case
+          when ${paymentTransactions.kind} = 'payment' then ${paymentTransactions.amount}
+          when ${paymentTransactions.kind} = 'refund' then -${paymentTransactions.amount}
+          else 0 end), 0)`,
+      })
+      .from(paymentTransactions)
+      .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
+      .where(
+        and(
+          eq(paymentTransactions.clinicId, clinicId),
+          eq(lancamentos.clinicId, clinicId),
+          eq(lancamentos.tipo, 'receber'),
+          inArray(lancamentos.appointmentId, appointmentIds),
+        ),
+      )
+      .groupBy(lancamentos.appointmentId);
+
+    return rows.flatMap((row) =>
+      row.appointmentId == null
+        ? []
+        : [{ appointmentId: row.appointmentId, recebido: roundMoney(num(row.recebido)) }],
+    );
   });
 }
 

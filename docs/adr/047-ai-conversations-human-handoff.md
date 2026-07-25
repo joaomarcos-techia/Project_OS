@@ -1,5 +1,9 @@
 # ADR-047 — Painel de Conversas IA e intervenção humana
 
+> **Verificação (2026-07-23)** — Decisão: ACTIVE (de facto) · Implementação: IMPLEMENTED
+> ⚠️ ADR marcado `proposed` no texto, mas **em prod desde 2026-07-20** (route `/admin/conversas-ia` + painel tenant).
+> _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
+
 **Status:** proposed
 **Date:** 2026-07-20
 

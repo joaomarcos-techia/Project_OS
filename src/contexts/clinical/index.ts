@@ -37,3 +37,6 @@ export type {
   MedicalDocumentSummary,
   ClinicalTemplate,
 } from './types';
+
+export { clinicalApiV1 } from './api';
+export type { ClinicalApiV1, FollowupClinicalState } from './api';

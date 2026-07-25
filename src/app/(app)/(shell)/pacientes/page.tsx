@@ -38,7 +38,10 @@ export default async function PacientesPage({
   await requireUser();
   const clinicId = await requireClinicId();
   const { q, novo } = await searchParams;
-  const patients = await listPatients(clinicId, q ? { search: q, limit: 50 } : { limit: 50 });
+  const [patients, guardianCandidates] = await Promise.all([
+    listPatients(clinicId, q ? { search: q, limit: 50 } : { limit: 50 }),
+    listPatients(clinicId, { limit: 200 }),
+  ]);
 
   return (
     <>
@@ -46,7 +49,12 @@ export default async function PacientesPage({
         crumbs={[{ label: 'Clínico' }, { label: 'Pacientes' }]}
         title="Pacientes"
         description="Cadastro e busca de pacientes da clínica."
-        actions={<NewPatientDrawer defaultOpen={novo === '1'} />}
+        actions={
+          <NewPatientDrawer
+            defaultOpen={novo === '1'}
+            guardianCandidates={guardianCandidates.map(({ id, nome }) => ({ id, nome }))}
+          />
+        }
       />
 
       {patients.length === 0 && !q ? (

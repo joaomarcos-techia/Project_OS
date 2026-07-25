@@ -11,12 +11,23 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/ui/cn';
 
 import type { AgendaAppt, AgendaData } from './data';
+import { AppointmentCorrectionDialog } from './appointment-correction-dialog';
 import { groupByDay, monthMatrix, shift as shiftYmd, todayYmd, weekDays } from './range';
 
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const MONTHS = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
 ];
 
 function hora(iso: string, tz: string): string {
@@ -51,7 +62,10 @@ function MonthView({ data }: { data: AgendaData }) {
     <Card className="overflow-hidden p-0">
       <div className="grid grid-cols-7 border-b border-border bg-surface-inset/40">
         {WEEKDAYS.map((w) => (
-          <div key={w} className="px-2 py-2 text-center text-(length:--fs-xs) font-medium text-fg-subtle">
+          <div
+            key={w}
+            className="px-2 py-2 text-center text-(length:--fs-xs) font-medium text-fg-subtle"
+          >
             {w}
           </div>
         ))}
@@ -118,8 +132,13 @@ function WeekView({ data }: { data: AgendaData }) {
         const [, , dd] = ymd.split('-');
         return (
           <Card key={ymd} className="flex flex-col gap-2 p-2.5">
-            <Link href={href('day', ymd)} className="flex items-baseline justify-between hover:underline">
-              <span className="text-(length:--fs-xs) font-medium text-fg-subtle">{WEEKDAYS[i]}</span>
+            <Link
+              href={href('day', ymd)}
+              className="flex items-baseline justify-between hover:underline"
+            >
+              <span className="text-(length:--fs-xs) font-medium text-fg-subtle">
+                {WEEKDAYS[i]}
+              </span>
               <span
                 className={cn(
                   'inline-flex size-6 items-center justify-center rounded-full text-(length:--fs-sm) tabular-nums',
@@ -189,6 +208,9 @@ function DayView({ data }: { data: AgendaData }) {
                 >
                   Abrir no Consultório
                 </Link>
+              ) : null}
+              {data.canEditAgenda && a.recoveryKinds.length > 0 ? (
+                <AppointmentCorrectionDialog appointment={a} doctors={data.doctors} />
               ) : null}
             </li>
           );

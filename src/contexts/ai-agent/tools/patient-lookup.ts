@@ -12,6 +12,7 @@ const InputSchema = z.object({});
 
 const OutputSchema = z.object({
   found: z.boolean(),
+  ambiguous: z.boolean(),
   patient_id: z.string().nullable(),
   nome: z.string().nullable(),
 });
@@ -24,6 +25,7 @@ registerTool({
   outputSchema: OutputSchema,
   handler: async (_input, ctx) => ({
     found: !!ctx.patientId,
+    ambiguous: ctx.identityAmbiguous,
     patient_id: ctx.patientId,
     nome: ctx.patientNome ?? null,
   }),

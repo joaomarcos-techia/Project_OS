@@ -72,6 +72,9 @@ export default async function EquipePage() {
   const assignableRoles = assignableRolesFor(user.role);
   const limits = await billingApiV1.getPlanLimits(user.clinicId);
   const seatLimit = limits?.users ?? null;
+  const canManagePermissions =
+    user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS) &&
+    (await billingApiV1.hasGranularPermissions(user.clinicId));
   const counts = new Map<Role, number>();
   for (const e of employees) counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
 
@@ -142,7 +145,7 @@ export default async function EquipePage() {
                       </TableCell>
                       <TableCell>
                         <Badge tone={meta.tone}>{meta.label}</Badge>
-                        {e.overridesCount > 0 ? (
+                        {canManagePermissions && e.overridesCount > 0 ? (
                           <span className="ml-1.5 text-(length:--fs-xs) text-fg-subtle">
                             +{e.overridesCount} ajuste{e.overridesCount > 1 ? 's' : ''}
                           </span>
@@ -186,6 +189,8 @@ export default async function EquipePage() {
                             role={e.role}
                             ativo={e.ativo}
                             assignableRoles={assignableRoles}
+                            overrides={e.overrides}
+                            canManagePermissions={canManagePermissions}
                           />
                         ) : null}
                       </TableCell>

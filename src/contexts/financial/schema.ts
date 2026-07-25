@@ -70,7 +70,19 @@ export const paymentProofType = pgEnum('payment_proof_type', [
   'outro',
 ]);
 
+export const paymentTransactionKind = pgEnum('payment_transaction_kind', [
+  'payment',
+  'refund',
+]);
+
 export const pendenciaStatus = pgEnum('pendencia_status', ['aberta', 'resolvida']);
+
+export const collectionCaseStage = pgEnum('collection_case_stage', [
+  'd15_review',
+  'd30_manual',
+]);
+
+export const collectionCaseStatus = pgEnum('collection_case_status', ['open', 'resolved']);
 
 // --- payment_methods (catálogo GLOBAL — sem clinic_id) ---------------------
 
@@ -183,6 +195,52 @@ export const lancamentos = pgTable(
 export type LancamentoRow = typeof lancamentos.$inferSelect;
 export type LancamentoInsert = typeof lancamentos.$inferInsert;
 
+// --- payment_transactions (ledger financeiro imutavel) -------------------
+
+export const paymentTransactions = pgTable(
+  'payment_transactions',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    lancamentoId: uuid('lancamento_id')
+      .notNull()
+      .references(() => lancamentos.id, { onDelete: 'restrict' }),
+    kind: paymentTransactionKind('kind').notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    paymentMethod: text('payment_method').references(() => paymentMethods.code),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().default(sql`now()`),
+    originalPaymentId: uuid('original_payment_id').references(
+      (): AnyPgColumn => paymentTransactions.id,
+      { onDelete: 'restrict' },
+    ),
+    reason: text('reason'),
+    createdBy: uuid('created_by'), // FK auth.users via migration
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  },
+  (t) => ({
+    clinicLancamentoIdx: index('payment_transactions_clinic_lancamento_idx').on(
+      t.clinicId,
+      t.lancamentoId,
+    ),
+    originalPaymentIdx: index('payment_transactions_original_payment_idx').on(
+      t.originalPaymentId,
+    ),
+    clinicOccurredIdx: index('payment_transactions_clinic_occurred_idx').on(
+      t.clinicId,
+      t.occurredAt,
+    ),
+    amountChk: check('payment_transactions_amount_chk', sql`${t.amount} > 0`),
+    kindCoerenciaChk: check(
+      'payment_transactions_kind_coerencia_chk',
+      sql`(${t.kind} = 'payment' AND ${t.originalPaymentId} IS NULL AND ${t.reason} IS NULL)
+          OR (${t.kind} = 'refund' AND ${t.originalPaymentId} IS NOT NULL AND length(trim(${t.reason})) > 0)`,
+    ),
+  }),
+);
+
+export type PaymentTransactionRow = typeof paymentTransactions.$inferSelect;
+export type PaymentTransactionInsert = typeof paymentTransactions.$inferInsert;
+
 // --- payment_proofs (comprovantes; append-only; preparado p/ OCR) ----------
 
 export const paymentProofs = pgTable(
@@ -193,6 +251,9 @@ export const paymentProofs = pgTable(
     lancamentoId: uuid('lancamento_id')
       .notNull()
       .references(() => lancamentos.id, { onDelete: 'cascade' }),
+    transactionId: uuid('transaction_id').references(() => paymentTransactions.id, {
+      onDelete: 'restrict',
+    }),
     type: paymentProofType('type').notNull(),
     fileStoragePath: text('file_storage_path').notNull(),
     ocrData: jsonb('ocr_data'), // nullable — preparado p/ OCR futuro; NÃO implementar agora
@@ -204,6 +265,7 @@ export const paymentProofs = pgTable(
       t.clinicId,
       t.lancamentoId,
     ),
+    transactionIdx: index('payment_proofs_transaction_id_idx').on(t.transactionId),
   }),
 );
 
@@ -234,6 +296,33 @@ export const faturamentoPendencias = pgTable(
 
 export type FaturamentoPendenciaRow = typeof faturamentoPendencias.$inferSelect;
 export type FaturamentoPendenciaInsert = typeof faturamentoPendencias.$inferInsert;
+
+// --- collection_cases (fila humana de cobranca antiga) --------------------
+
+export const collectionCases = pgTable(
+  'collection_cases',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    lancamentoId: uuid('lancamento_id')
+      .notNull()
+      .references(() => lancamentos.id, { onDelete: 'restrict' }),
+    stage: collectionCaseStage('stage').notNull(),
+    status: collectionCaseStatus('status').notNull().default('open'),
+    daysOverdue: integer('days_overdue').notNull(),
+    residualAmount: numeric('residual_amount', { precision: 12, scale: 2 }).notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    lancamentoUniq: uniqueIndex('collection_cases_lancamento_uniq').on(t.lancamentoId),
+    clinicStatusIdx: index('collection_cases_clinic_status_idx').on(t.clinicId, t.status),
+    overdueChk: check('collection_cases_days_overdue_chk', sql`${t.daysOverdue} >= 15`),
+    residualChk: check('collection_cases_residual_amount_chk', sql`${t.residualAmount} > 0`),
+  }),
+);
+
+export type CollectionCaseRow = typeof collectionCases.$inferSelect;
 
 // --- cash_flow_daily (rollup diário; tabela RLS, NÃO materialized view) -----
 
