@@ -254,7 +254,7 @@ precisa).
 1. Importar o repo; framework Next.js (já em [vercel.json](../../vercel.json)).
 2. **Env vars** (Settings → Environment Variables): todas as deste documento, ambiente Production + Preview.
 3. **Crons** ([vercel.json](../../vercel.json)): `patient-hard-delete`, `audit-partitions`, `cash-flow-rollup`, `financial-reconcile`. O **outbox** (`*/1`) NÃO cabe no Hobby (cron 1x/dia) → usar agendador externo (cron-job.org / Upstash QStash) apontando `GET /api/cron/outbox` com `Authorization: Bearer <CRON_SECRET>`. Detalhe em [production-readiness.md §4.1](./production-readiness.md).
-- Env: `CRON_SECRET` (≥32 chars, `openssl rand -base64 32`), `NODE_ENV=production`. Tuning opcional: `OUTBOX_BATCH_SIZE`, `OUTBOX_PARALLELISM`, `OUTBOX_DB_POOL_SIZE`, `OUTBOX_MAX_PAYLOAD_BYTES`, `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`, `LOG_LEVEL`.
+- Env: `CRON_SECRET` (≥32 chars, `openssl rand -base64 32`), `NODE_ENV=production`. Tuning opcional: `OUTBOX_BATCH_SIZE`, `OUTBOX_PARALLELISM`, `OUTBOX_MAX_PAYLOAD_BYTES`, `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`, `LOG_LEVEL`. O pool do outbox é fixado em 2 no código porque uma conexão sustenta o lock e a outra executa o trabalho.
 
 ### 3. Upstash Redis (rate-limit) — C3
 

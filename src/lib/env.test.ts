@@ -87,6 +87,38 @@ describe('env validation (C1 contract)', () => {
     );
   });
 
+  it.each(['DATABASE_URL', 'DATABASE_URL_RUNTIME'] as const)(
+    'rejects Supabase Session Pooler em %s no runtime de deployment',
+    (name) => {
+      expect(() =>
+        loadEnv(
+          asEnv({
+            ...baseValid,
+            NODE_ENV: 'production',
+            [name]:
+              'postgresql://postgres.ref:secret@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require',
+          }),
+        ),
+      ).toThrow(new RegExp(`${name}.*6543`));
+    },
+  );
+
+  it('accepts Supabase Transaction Pooler no runtime de deployment', () => {
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        NODE_ENV: 'production',
+        DATABASE_URL:
+          'postgresql://postgres.ref:secret@aws-1-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require',
+        DATABASE_URL_RUNTIME:
+          'postgresql://qoro_runtime.ref:secret@aws-1-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require',
+      }),
+    );
+
+    expect(new URL(parsed.DATABASE_URL).port).toBe('6543');
+    expect(new URL(parsed.DATABASE_URL_RUNTIME!).port).toBe('6543');
+  });
+
   it('rejects invalid NODE_ENV', () => {
     expect(() =>
       loadEnv(asEnv({ ...baseValid, NODE_ENV: 'banana' })),

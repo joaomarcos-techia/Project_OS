@@ -119,13 +119,6 @@ const EnvSchema = z
       emptyToUndefined,
       z.coerce.number().int().min(1000).max(60_000).optional().default(10_000),
     ),
-    // HIGH-06: pool size do dbWorker. dbAdmin (max:1) é sparse path; worker
-    // hammer com TX1+TX3 + reclaim + circuit. 5 connections por instance é OK
-    // para tick com batchSize=50 em rede AWS ~200ms RTT.
-    OUTBOX_DB_POOL_SIZE: z.preprocess(
-      emptyToUndefined,
-      z.coerce.number().int().min(1).max(20).optional().default(5),
-    ),
     // HIGH-07: payload size cap em bytes. Default 64KB. Caps em runtime
     // mirroreiam CHECK constraints no banco (defense in depth).
     OUTBOX_MAX_PAYLOAD_BYTES: z.preprocess(
@@ -293,6 +286,28 @@ const EnvSchema = z
           'One of NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (preferred) or NEXT_PUBLIC_SUPABASE_ANON_KEY (legacy) must be set',
       });
     }
+
+    // Runtime serverless precisa do Transaction Pooler. O Session Pooler mantém
+    // uma sessão por conexão e o prefetch/concurrency da Vercel esgota rapidamente
+    // o pool_size do Supabase (EMAXCONNSESSION). DATABASE_URL_PROD não entra aqui:
+    // migrations e backups usam 5432 deliberadamente e são validados nos scripts.
+    if (data.NODE_ENV === 'production') {
+      for (const [name, value] of [
+        ['DATABASE_URL', data.DATABASE_URL],
+        ['DATABASE_URL_RUNTIME', data.DATABASE_URL_RUNTIME],
+      ] as const) {
+        if (!value) continue;
+        const url = new URL(value);
+        if (/\.pooler\.supabase\.com$/i.test(url.hostname) && url.port !== '6543') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [name],
+            message: `${name} must use the Supabase Transaction Pooler on port 6543 in deployments`,
+          });
+        }
+      }
+    }
+
     // Note: DATABASE_URL_PROD validation lives in scripts/_env.ts.assertProdContext().
     // It is NEVER read by app runtime (only by db:migrate:prod / db:backup:prod),
     // so validating it in env.ts would needlessly break `next build` whenever

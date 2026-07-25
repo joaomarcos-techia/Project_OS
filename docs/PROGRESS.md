@@ -415,7 +415,7 @@ Após smoke verde, executei uma revisão hostil/forense da C4 que identificou 4 
 
 **HIGH fixes:**
 - **HIGH-05** — `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS` env var (default 10s). Era 3s hardcoded, quebrava Server Actions com fn() lento.
-- **HIGH-06** — Pool `dbWorker` separado de `dbAdmin`. dbAdmin (max:1) saturava no smoke. dbWorker max:5 default (`OUTBOX_DB_POOL_SIZE`).
+- **HIGH-06** — Pool `dbWorker` separado de `dbAdmin`. Ambos usam max:2; no worker, uma conexão sustenta o advisory lock e outra executa TX1/TX3. O limite é fonte única no código para evitar auto-bloqueio.
 - **HIGH-07** — CHECK constraints `pg_column_size(payload) <= 65536` em outbox, audit_events.before/after, super_admin_actions.payload. Runtime check em publishEvent throws OutboxError ANTES do INSERT.
 - **HIGH-08** — Cron route auth: Bearer `CRON_SECRET`. ⚠️ **Revisado em 2026-07-15 (M2):** era descrito como "dual-factor: Bearer + `x-vercel-cron`", mas o header nunca foi gate — o código só o logava. Hoje é **single-factor** assumido, em `src/lib/http/cron-auth.ts`; o blast radius é tratado por `CRON_SECRET_DESTRUCTIVE` (V5). Ver addendum M2 no ADR-011.
 - **HIGH-09** — Script `pnpm check:registry` compara catalog vs registry. Em prod fail → previne CRITICAL: handler novo sem import no boot file = eventos failed silenciosamente.

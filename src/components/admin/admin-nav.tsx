@@ -51,6 +51,7 @@ export function AdminNav() {
             <SideNavLink
               key={href}
               href={href}
+              prefetch={false}
               active={isActive(pathname, href)}
               icon={<Icon name={icon} />}
               label={label}

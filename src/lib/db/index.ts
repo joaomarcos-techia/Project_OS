@@ -90,6 +90,13 @@ const sharedOpts = {
   connection: { statement_timeout: 30_000, lock_timeout: 15_000 },
 };
 
+/**
+ * Uma conexão sustenta o advisory lock do tick e a outra executa TX1/TX3.
+ * O worker usa esta mesma constante para não tentar trabalho aninhado quando o
+ * pool for reduzido no futuro.
+ */
+export const DB_WORKER_POOL_SIZE = 2;
+
 // Singleton-safe pool storage on globalThis. ONLY active in non-production.
 const globalForDb = globalThis as unknown as {
   __runtimeClient?: ReturnType<typeof postgres>;
@@ -104,17 +111,17 @@ const globalForDb = globalThis as unknown as {
 const runtimeClient =
   globalForDb.__runtimeClient ??
   postgres(env.DATABASE_URL_RUNTIME ?? env.DATABASE_URL, { ...sharedOpts, max: 2 });
-// dbAdmin pool max:5 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
+// dbAdmin pool max:2 — C15 (Platform Admin) tornou o admin path NÃO-esparso: cada
 // request do painel faz várias leituras (layout + página + pages com Promise.all),
 // que o Next renderiza concorrentemente. Com max:1 essas leituras serializavam e
-// uma query mais cara virava "loading infinito". 5 é folga suficiente p/ o painel
-// (cron/health/webhooks também usam dbAdmin e se beneficiam). HIGH-06: o worker tem
-// pool próprio (dbWorker, OUTBOX_DB_POOL_SIZE). Mesma URL (service_role bypassa RLS).
+// uma query mais cara virava "loading infinito". O limite 2 reduz multiplicação
+// serverless sem voltar à serialização total. O worker tem pool próprio com duas
+// conexões: lock-holder + trabalho. Mesma URL (service_role bypassa RLS).
 const adminClient =
   globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 2 });
 const workerClient =
   globalForDb.__workerClient ??
-  postgres(env.DATABASE_URL, { ...sharedOpts, max: 1 });
+  postgres(env.DATABASE_URL, { ...sharedOpts, max: DB_WORKER_POOL_SIZE });
 
 if (env.NODE_ENV !== 'production') {
   globalForDb.__runtimeClient = runtimeClient;
@@ -124,9 +131,9 @@ if (env.NODE_ENV !== 'production') {
 
 // Three physically distinct Drizzle instances over three pools:
 //   - db        : runtime, user-facing, RLS-enforcing (authenticated role)
-//   - dbAdmin   : admin path, BYPASSRLS, MAX:5 (painel faz fan-out concorrente —
+//   - dbAdmin   : admin path, BYPASSRLS, MAX:2 (painel faz fan-out concorrente —
 //                 ver nota no adminClient; com MAX:1 virava "loading infinito")
-//   - dbWorker  : outbox worker hot-loop, BYPASSRLS, MAX:N (env-tuned)
+//   - dbWorker  : outbox worker hot-loop, BYPASSRLS, MAX:2 (lock + trabalho)
 // Pool sizes are intentionally conservative for serverless multiplication.
 // Tune up only with hard observability data (C16), not on speculation.
 // NOTA HMR: o pool é cacheado em globalThis (singleton anti-HMR). Mudar `max`

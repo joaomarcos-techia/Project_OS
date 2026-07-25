@@ -722,15 +722,15 @@ Referência regulatória usada no item 20: [Direitos dos titulares — ANPD](htt
 
 | Verificação | Resultado |
 | --- | --- |
-| Testes automáticos (`pnpm test`) | **Aprovado:** 123 arquivos e 1.049 testes. |
+| Testes automáticos (`pnpm test`) | **Aprovado:** 126 arquivos e 1.056 testes. |
 | Lint (`pnpm lint`) | **Aprovado:** zero erros e zero avisos. |
 | Type-check (`pnpm typecheck`) | **Aprovado.** |
-| Build de produção (`pnpm build`) | **Aprovado:** Next.js 15.5.21 compilou e gerou as rotas, inclusive as novas telas. O cache do webpack emitiu avisos de leitura no Windows, sem falhar o build. |
+| Build de produção (`pnpm build`) | **Aprovado:** Next.js 15.5.21 compilou, validou tipos e gerou as 10 páginas estáticas. |
 | Segurança das migrations (`pnpm check:migrations`) | **Aprovado:** nenhuma operação destrutiva nova não autorizada. |
-| Fronteiras de banco (`pnpm arch:db-check`) | **Aprovado:** 739 arquivos verificados, zero achados. |
+| Fronteiras de banco (`pnpm arch:db-check`) | **Aprovado:** 743 arquivos verificados, zero achados. |
 | Dependências circulares (`pnpm arch:check`) | **Aprovado:** nenhum ciclo encontrado. |
 | Formatação global (`pnpm format:check`) | **Baseline não verde:** 624 arquivos preexistentes ou fora deste escopo não seguem o formatador. As verificações direcionadas feitas durante as ondas e nos arquivos do fechamento passaram; não foi feita uma reescrita global para não misturar mudanças alheias. |
-| Aplicação das migrations em desenvolvimento (`pnpm db:migrate:dev`) | **Repetição pendente:** a primeira tentativa falhou e foi revertida na `0068`; a causa `55P04` foi corrigida e coberta por teste, mas a nova versão ainda precisa ser aplicada no Supabase de desenvolvimento. |
+| Aplicação das migrations em desenvolvimento (`pnpm db:migrate:dev`) | **Aplicada em dev pelo responsável:** a primeira tentativa falhou e foi revertida na `0068`; após a correção do `55P04`, o comando foi repetido no Supabase de desenvolvimento. Não foi reaplicado nesta execução. |
 
 O código e as migrations estão validados estaticamente, mas os fluxos que dependem de Meta, e-mail ou observação operacional ainda exigem os testes manuais listados acima. Não houve deploy nem alteração em produção nesta remediação.
 
@@ -744,3 +744,46 @@ O `drizzle-orm 0.36.4` executa todas as migrations pendentes dentro de uma únic
 - preservar a modelagem tipada do enum depois do commit.
 
 O teste `proactive-lease.test.ts` reproduz a condição estrutural que causou a falha. Baseline: 3 testes aprovados; teste novo falhou antes da correção; depois: 4 testes aprovados. A suíte integral, lint, type-check, segurança de migrations e build foram repetidos após o ajuste.
+
+### Correção posterior — timeout e auto-bloqueio do outbox
+
+O pool dedicado do worker havia sido reduzido para uma conexão, mas a decisão de manter o advisory lock ainda consultava `OUTBOX_DB_POOL_SIZE`, cujo padrão era cinco. O cron abria uma transação para segurar o lock e, dentro dela, tentava obter uma segunda conexão do mesmo pool para processar o lote. Como o pool real tinha apenas uma conexão, a própria execução aguardava indefinidamente até o timeout de 60 segundos da Vercel. Isso explica o `504 FUNCTION_INVOCATION_TIMEOUT`, a ausência de chamadas para APIs externas e a degradação dos health checks do outbox.
+
+A correção mantém o pool do worker fixo em duas conexões: uma para o advisory lock e outra para o processamento. O worker usa a mesma constante exportada pela configuração do banco para decidir o modo de lock, eliminando divergência entre configuração declarada e capacidade real. A variável `OUTBOX_DB_POOL_SIZE` foi removida da validação de ambiente e do exemplo de configuração para evitar uma falsa possibilidade de ajuste que não correspondia ao pool efetivo.
+
+O teste `worker-pool.test.ts` fixa esse contrato. Ele foi adicionado antes da implementação e falhou no estado regressivo; após a correção, passou. Também passaram os testes focados (3 arquivos / 20 testes), a suíte completa (124 arquivos / 1.050 testes), lint, type-check, fronteiras de banco, dependências circulares, verificação de whitespace do diff e build de produção.
+
+#### Testes manuais após o deploy
+
+1. Acionar `/api/cron/outbox` pela integração autorizada e confirmar resposta antes de 60 segundos, sem `FUNCTION_INVOCATION_TIMEOUT`.
+2. Consultar `/api/health/outbox?strict=1`. Um `503` inicial pode refletir backlog ou alarmes antigos; confirmar que o JSON é retornado rapidamente e que a fila diminui nas execuções seguintes.
+3. Consultar `/api/health?strict=1` e confirmar que o componente `outbox` volta a `ok` depois de processar o backlog.
+4. Entrar como administrador e validar que dashboard e abas carregam sem `Connection closed` ou loading infinito.
+5. Verificar nos logs que não reaparecem `EMAXCONNSESSION` e que as URLs de runtime, em Preview e Production, usam o transaction pooler na porta `6543`; a porta `5432` deve permanecer reservada a migrations e backups.
+
+Esta correção ainda não foi implantada nem validada contra os endpoints remotos nesta execução.
+
+### Correção posterior — timeout de 300 segundos no console admin
+
+Os logs da Preview mostraram MFA concluído (`POST /login/mfa` com `303`), seguido por `GET /admin` e `GET /admin/clinicas` presos até o timeout de 300 segundos. No mesmo instante, o navegador iniciou todas as oito rotas do menu administrativo (`/admin`, clínicas, billing, conversas, métricas, auditoria, saúde e configuração). A causa desse burst era o prefetch automático dos oito `next/link` visíveis no `AdminNav`: cada destino é uma página dinâmica com autenticação e consultas próprias ao banco.
+
+O `SideNavLink` passou a aceitar a opção tipada `prefetch`, preservando o comportamento automático nos demais shells. Somente o `AdminNav` envia `prefetch={false}`, de modo que cada página administrativa é carregada quando o operador efetivamente clica nela. O teste `admin-nav.test.tsx` renderiza o menu completo e prova que os oito links chegam ao Next com prefetch desativado. O teste falhou antes da implementação (`enabled`) e passou depois.
+
+Como defesa adicional, a validação de ambiente agora rejeita, em deployments, `DATABASE_URL` ou `DATABASE_URL_RUNTIME` do Supabase usando o Session Pooler na porta `5432`. O aplicativo serverless deve usar o Transaction Pooler `6543`; `DATABASE_URL_PROD` continua fora desse guard porque migrations e backups usam `5432` deliberadamente. Dois testes falharam antes do guard e passaram depois, cobrindo as duas URLs de runtime; um terceiro confirma que `6543` é aceito.
+
+O deployment analisado ainda apontava para o commit remoto `f02432b`; as correções do pool do outbox, do prefetch e do guard de porta estavam apenas no working tree local durante o diagnóstico. Portanto, o timeout remoto observado não constitui teste das correções atuais.
+
+Após esta correção passaram: testes focados (4 arquivos / 24 testes), suíte completa (126 arquivos / 1.056 testes), lint, type-check, fronteiras de banco (743 arquivos), dependências circulares e build de produção do Next.js 15.5.21.
+
+#### Teste manual recomendado na Preview
+
+1. Confirmar na Vercel, sem copiar senhas para logs, que `DATABASE_URL` e `DATABASE_URL_RUNTIME` da Preview usam o projeto dev e a porta `6543`.
+2. Publicar a branch `preview/teste-nova-feature` com as correções e usar a URL do novo deployment, não o deployment `dpl_DBSeGzmB39naQNcL2G4qg4NgLJPM`.
+3. Entrar como `super_admin`, concluir o MFA e confirmar que apenas `/admin` é carregado inicialmente; o menu não deve iniciar as outras sete páginas em paralelo.
+4. Abrir `/admin/clinicas`, `/admin/saude` e `/admin/config` por clique e confirmar resposta sem timeout de 300 segundos.
+5. Validar `/api/cron/outbox`, `/api/health/outbox?strict=1` e `/api/health?strict=1` conforme a seção anterior.
+6. Somente depois desse smoke verde: aplicar a migration no banco de produção, fazer merge na `main` e repetir um smoke curto em produção.
+
+Os avisos do console referentes a `vercel.live` não causavam o loading: o header é `Content-Security-Policy-Report-Only`, portanto o navegador apenas registrava as violações. Mesmo assim, a política foi separada por ambiente para manter o console da Preview limpo sem ampliar Production. O builder `buildContentSecurityPolicy` permite `https://vercel.live` em `script-src` e `frame-src` somente quando `VERCEL_ENV=preview`; Production mantém `frame-src 'self'` e não contém essa origem. O teste dedicado foi criado antes do builder e falhou pela ausência da política; depois, os dois cenários passaram e a suíte/build foram repetidos.
+
+Nenhuma migration de produção nem deploy foi executado nesta correção.

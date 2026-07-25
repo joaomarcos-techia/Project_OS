@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import pLimit from 'p-limit';
 
-import { dbWorker } from '@/lib/db';
+import { DB_WORKER_POOL_SIZE, dbWorker } from '@/lib/db';
 import { outbox } from '@/lib/db/schema/infra/outbox';
 import { withTenant } from '@/lib/db/tenant';
 import { env } from '@/lib/env';
@@ -42,8 +42,9 @@ import type { ProcessOneResult, WorkerTickSummary } from './types';
  *                        janitor reclamou no meio, UPDATE não aplica e
  *                        emitimos `outbox.lost_race` (CRITICAL-01)
  *
- * Pool: usa `dbWorker` (max:5 por default, env.OUTBOX_DB_POOL_SIZE).
- * `dbAdmin` (max:1) ficaria saturado em rede AWS Oregon (smoke 4.6.2: ~70s).
+ * Pool: usa `dbWorker` com duas conexões: uma segura o advisory lock e a outra
+ * executa TX1/TX3. O limite real e a decisão do lock compartilham a constante
+ * DB_WORKER_POOL_SIZE para impedir auto-bloqueio por configuração divergente.
  */
 export async function runOutboxOnce(opts: {
   batchSize?: number;
@@ -64,9 +65,8 @@ export async function runOutboxOnce(opts: {
   // fazendo trabalho — só uma conexão idle-in-transaction segurando o advisory
   // lock, liberado no COMMIT/ROLLBACK ao fim do tick (release garantido).
   //
-  // Pré-condição: o pool dbWorker precisa de ≥2 conexões (1 lock-holder + as
-  // de trabalho). Com OUTBOX_DB_POOL_SIZE=1 o tick roda SEM serialização
-  // (comportamento efetivo anterior) e emite métrica de anomalia.
+  // Pré-condição: o pool dbWorker precisa de ≥2 conexões (1 lock-holder + 1 de
+  // trabalho). A decisão consulta o limite REAL usado na criação do pool.
   const skippedSummary = (): WorkerTickSummary => ({
     processed: 0,
     failed: 0,
@@ -77,9 +77,9 @@ export async function runOutboxOnce(opts: {
     duration_ms: Date.now() - t0,
   });
 
-  if (env.OUTBOX_DB_POOL_SIZE < 2) {
+  if (DB_WORKER_POOL_SIZE < 2) {
     metrics.emit('worker.tick.lock_skipped_pool_too_small', {
-      poolSize: env.OUTBOX_DB_POOL_SIZE,
+      poolSize: DB_WORKER_POOL_SIZE,
     });
     return runTickBody(t0, batchSize, parallelism);
   }
@@ -436,4 +436,3 @@ async function finalizeRetryOrFailed(
   });
   return 'failed';
 }
-

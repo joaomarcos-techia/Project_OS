@@ -5,6 +5,8 @@ import './src/lib/env';
 
 import type { NextConfig } from 'next';
 
+import { buildContentSecurityPolicy } from './src/lib/http/content-security-policy';
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Promoted from `experimental.typedRoutes` in Next 15.5 (no longer experimental).
@@ -47,21 +49,11 @@ const nextConfig: NextConfig = {
   // quebrar hydration/scripts/analytics do Next. HSTS / anti-clickjacking /
   // nosniff / referrer / permissions são seguros e entram já bloqueantes.
   async headers() {
-    const csp = [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-      "object-src 'none'",
-      // 'unsafe-inline'/'unsafe-eval' toleráveis só porque é Report-Only; a versão
-      // bloqueante usará nonce. img/connect amplos p/ Supabase (storage/realtime),
-      // Sentry (tunnel same-origin /monitoring) e assets.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
-      "connect-src 'self' https: wss:",
-    ].join('; ');
+    // `vercel.live` é liberado somente em Preview para o Vercel Toolbar. Em
+    // Production a origem continua ausente. 'unsafe-inline'/'unsafe-eval' são
+    // toleráveis apenas enquanto a política permanece Report-Only; a versão
+    // bloqueante usará nonce.
+    const csp = buildContentSecurityPolicy(process.env.VERCEL_ENV);
     return [
       {
         source: '/(.*)',

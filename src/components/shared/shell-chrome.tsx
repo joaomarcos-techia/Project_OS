@@ -77,16 +77,19 @@ export function SideNavLink({
   icon,
   label,
   trailing,
+  prefetch,
 }: {
   href: string;
   active: boolean;
   icon: ReactNode;
   label: ReactNode;
   trailing?: ReactNode;
+  prefetch?: boolean;
 }) {
   return (
     <Link
       href={href}
+      prefetch={prefetch ?? null}
       aria-current={active ? 'page' : undefined}
       className={cn(
         itemBase,

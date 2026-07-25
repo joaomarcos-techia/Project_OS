@@ -67,7 +67,7 @@ C4 também é o primeiro lugar onde infra cross-cutting (não tenancy, não iden
 
 29. **Healthcheck tem DOIS níveis**: `level=monitoring` (Bearer-only, counts agregados sem breakdown por type) e `level=super_admin` (super_admin AAL2, com `failures_by_type` completo). Defense in depth contra information disclosure quando secret vaza. Em dev, ambos os paths são acessíveis.
 
-30. **Worker usa pool dedicado `dbWorker` (max:5 default, env.OUTBOX_DB_POOL_SIZE)**, separado de `dbAdmin` (max:1, sparse path para healthcheck/dashboard). `dbAdmin` saturava completamente o worker em rede AWS Oregon (smoke 4.6.2 mostrou ~70s para batch=50). Trade-off aceito: +1 pool, mas worker independente do healthcheck.
+30. **Worker usa pool dedicado `dbWorker` (max:2 fixo)**, separado de `dbAdmin` (max:2). Uma conexão sustenta o advisory lock transacional e a outra executa TX1/TX3. O limite real é compartilhado com a política do worker para impedir o auto-bloqueio ocorrido quando o pool foi reduzido a 1, mas o gate ainda lia o antigo default 5 de `OUTBOX_DB_POOL_SIZE`.
 
 31. **`cleanupExpiredIdempotencyKeys` SÓ deleta rows COMPLETADAS** (`response IS NOT NULL`). In-flight (response NULL) é NUNCA deletado por cleanup, mesmo expirado — defense in depth contra CRITICAL-02 (race entre retry tardio e cleanup). Diagnostic separado via `diagnoseInFlightOrphans()` retorna in-flight com created_at > 1h para investigação. **Trigger BEFORE DELETE no banco** raises exception se tentar DELETE de row in-flight com created_at < 1h — segunda camada contra erro humano operacional. Migration 0010.
 
