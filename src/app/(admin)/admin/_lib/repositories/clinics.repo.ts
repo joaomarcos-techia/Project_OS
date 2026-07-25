@@ -94,7 +94,11 @@ export class ClinicRepository {
         .where(
           and(
             inArray(auditEvents.clinicId, ids),
-            sql`${auditEvents.createdAt} >= now() - interval '90 days'`,
+            // Bound superior (+1d p/ clock skew): sem ele, o `>=` sozinho não poda
+            // NENHUMA partição futura — o Append crescia a cada mês provisionado
+            // pelo cron. Com os dois bounds o pruning trava a largura na janela.
+            sql`${auditEvents.createdAt} >= now() - interval '90 days'
+                AND ${auditEvents.createdAt} < now() + interval '1 day'`,
           ),
         )
         .groupBy(auditEvents.clinicId);
@@ -202,7 +206,8 @@ export class ClinicRepository {
       .where(
         and(
           eq(aiConversations.clinicId, clinicId),
-          sql`${aiConversations.startedAt} >= now() - interval '30 days'`,
+          sql`${aiConversations.startedAt} >= now() - interval '30 days'
+              AND ${aiConversations.startedAt} < now() + interval '1 day'`,
         ),
       );
     const [msg] = await dbAdmin
@@ -215,7 +220,10 @@ export class ClinicRepository {
       .where(
         and(
           eq(aiMessages.clinicId, clinicId),
-          sql`${aiMessages.createdAt} >= now() - interval '30 days'`,
+          // ai_messages também é particionada por mês (PARTITIONED_PARENTS) → o
+          // bound superior poda as partições futuras do Append.
+          sql`${aiMessages.createdAt} >= now() - interval '30 days'
+              AND ${aiMessages.createdAt} < now() + interval '1 day'`,
         ),
       );
 
@@ -249,7 +257,10 @@ export class ClinicRepository {
       .where(
         and(
           eq(auditEvents.clinicId, clinicId),
-          sql`${auditEvents.createdAt} >= now() - interval '90 days'`,
+          // Bound superior (+1d clock skew) → poda as partições futuras; o `>=`
+          // sozinho mantinha TODAS no Append (ver método `list`).
+          sql`${auditEvents.createdAt} >= now() - interval '90 days'
+              AND ${auditEvents.createdAt} < now() + interval '1 day'`,
         ),
       )
       .orderBy(desc(auditEvents.createdAt))
