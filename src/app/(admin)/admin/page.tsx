@@ -20,15 +20,41 @@ const RISK_LABEL: Record<string, string> = {
   pending_payment: 'Aguardando pagamento',
 };
 
+// DIAGNÓSTICO TEMP (2026-07-25): /admin pendura enquanto config/saude carregam.
+// Cronometra cada query do Promise.all — a que NÃO logar `admin.dash.q` é a que
+// pendura. Remover depois de diagnosticar.
+function timed<T>(name: string, p: Promise<T>): Promise<T> {
+  const t0 = Date.now();
+  return p.then(
+    (r) => {
+      console.log(JSON.stringify({ kind: 'admin.dash.q', name, ms: Date.now() - t0, ok: true }));
+      return r;
+    },
+    (e) => {
+      console.error(
+        JSON.stringify({ kind: 'admin.dash.q', name, ms: Date.now() - t0, ok: false, err: String(e).slice(0, 160) }),
+      );
+      throw e;
+    },
+  );
+}
+
 export default async function AdminDashboardPage() {
   await guardAdminAccess();
+  console.log(JSON.stringify({ kind: 'admin.dash.start' }));
   const [m, trend, breakdown, recent, atRisk] = await Promise.all([
-    adminMetricsRepository.getDashboard(),
-    adminMetricsRepository.getMrrTrend(6).catch(() => []),
-    adminMetricsRepository.getStatusBreakdown().catch(() => ({ active: 0, trial: 0, atRisk: 0, cancelled: 0 })),
-    clinicRepository.list({ pageSize: 4 }),
-    clinicRepository.listAtRisk(4).catch(() => []),
+    timed('getDashboard', adminMetricsRepository.getDashboard()),
+    timed('getMrrTrend', adminMetricsRepository.getMrrTrend(6)).catch(() => []),
+    timed('getStatusBreakdown', adminMetricsRepository.getStatusBreakdown()).catch(() => ({
+      active: 0,
+      trial: 0,
+      atRisk: 0,
+      cancelled: 0,
+    })),
+    timed('list', clinicRepository.list({ pageSize: 4 })),
+    timed('listAtRisk', clinicRepository.listAtRisk(4)).catch(() => []),
   ]);
+  console.log(JSON.stringify({ kind: 'admin.dash.done' }));
 
   const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
   const bars = trend.map((t, i) => ({
