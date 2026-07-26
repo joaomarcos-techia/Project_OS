@@ -18,6 +18,7 @@ import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { withQueryDeadline } from '@/lib/db/query-timeout';
 
 import { CaixaView } from './caixa-view';
 
@@ -43,24 +44,32 @@ export default async function CaixaPage() {
   const tz = await getClinicTimezone(clinicId);
   const { from, to } = clinicDayBounds(tz);
 
-  const [lancs, pagaveis, pendencias, methods, collectionCases] = await Promise.all([
-    getCaixaLancamentos(clinicId, from, to),
-    getCaixaPagaveis(clinicId),
-    listPendenciasAbertas(clinicId),
-    listPaymentMethods(clinicId),
-    listOpenCollectionCases(clinicId),
-  ]);
+  // Fan-out do caixa. `withQueryDeadline` (modo FALHA ALTO): financeiro nunca mostra
+  // vazio-por-timeout como se fosse a verdade — se estolar, cai no error boundary do
+  // shell ("tente de novo"), nunca pendura. Conserto estrutural: pool runtime max:6.
+  const [lancs, pagaveis, pendencias, methods, collectionCases] = await withQueryDeadline(
+    'caixa.load',
+    Promise.all([
+      getCaixaLancamentos(clinicId, from, to),
+      getCaixaPagaveis(clinicId),
+      listPendenciasAbertas(clinicId),
+      listPaymentMethods(clinicId),
+      listOpenCollectionCases(clinicId),
+    ]),
+  );
 
   // Caixa patient-first: resolve nomes via contexto patient (camada page — sem
   // JOIN cross-context; igual ao consultório).
   const all = [...lancs.pendentes, ...lancs.parciais, ...lancs.pagosHoje, ...pagaveis];
-  const paymentTransactions: PaymentTransactionSummary[] =
-    await listPaymentTransactionsForLancamentos(
+  const paymentTransactions: PaymentTransactionSummary[] = await withQueryDeadline(
+    'caixa.paymentTransactions',
+    listPaymentTransactionsForLancamentos(
       clinicId,
       all.map((l) => l.id),
-    );
+    ),
+  );
   const patientIds = [...new Set(all.filter((l) => l.patientId).map((l) => l.patientId!))];
-  const cards = await listPatientCards(clinicId, patientIds);
+  const cards = await withQueryDeadline('caixa.patientCards', listPatientCards(clinicId, patientIds));
   const nameById = new Map(cards.map((c) => [c.id, c.nome]));
   const enrich = (l: LancamentoSummary): CaixaItem => ({
     ...l,

@@ -787,3 +787,86 @@ Após esta correção passaram: testes focados (4 arquivos / 24 testes), suíte 
 Os avisos do console referentes a `vercel.live` não causavam o loading: o header é `Content-Security-Policy-Report-Only`, portanto o navegador apenas registrava as violações. Mesmo assim, a política foi separada por ambiente para manter o console da Preview limpo sem ampliar Production. O builder `buildContentSecurityPolicy` permite `https://vercel.live` em `script-src` e `frame-src` somente quando `VERCEL_ENV=preview`; Production mantém `frame-src 'self'` e não contém essa origem. O teste dedicado foi criado antes do builder e falhou pela ausência da política; depois, os dois cenários passaram e a suíte/build foram repetidos.
 
 Nenhuma migration de produção nem deploy foi executado nesta correção.
+
+## Investigação de runtime — "loading infinito" no Preview (2026-07-25)
+
+**Sintoma:** super_admin logava, passava o MFA, a tela abria, mas `/admin` ficava em
+loading infinito. Sessão de depuração conduzida com Claude (não pelo Codex). As
+correções anteriores desta auditoria (prefetch, pool do outbox, guard de porta)
+mitigaram sintomas vizinhos mas **não** eram a causa; o diagnóstico abaixo isolou as
+causas reais por observabilidade (logs da Vercel + `pg_stat_activity` no banco de dev),
+não por especulação.
+
+### Causas-raiz, na ordem em que foram descascadas
+
+1. **Middleware pendura no Edge (`getUser`).** O `middleware.ts` rodava no Edge runtime
+   e chamava `supabase.auth.getUser()`, que faz round-trip de REDE ao Auth server.
+   No Edge esse fetch **pendurava até o timeout de 300s da função** (log
+   `source=edge-middleware`), derrubando TODA rota autenticada. No Node a mesma chamada
+   funciona (por isso `/api/health` e `/login` — serverless — sempre funcionaram, e o
+   `getClaims`, que valida o JWT localmente, também). `Promise.race` no middleware fazia
+   ele DECIDIR em 3s mas a promise de rede abandonada segurava a resposta (`status 0`).
+   **Correção:** middleware virou passthrough SÍNCRONO (checa presença do cookie
+   `sb-*-auth-token`, sem rede). Enforcement real já mora em `authenticate()`
+   (ADR-037), então é seguro. **Dívida aberta** — ver follow-ups.
+
+2. **Starvation do pool `dbAdmin` (max:2).** Com o middleware destravado, `/admin`
+   passou a renderizar, mas o DASHBOARD pendurava enquanto `config`/`saude` carregavam.
+   Instrumentação por query (`admin.dash.q`) provou que 3 das 5 leituras completavam
+   (~800–1000ms) e **`getStatusBreakdown` + `list` nunca** — famintas por conexão. O
+   dashboard dispara ~9 queries concorrentes (`getDashboard`=3, `list`=3, +3) por um
+   pool `max:2`. NÃO era lock (verificado: sem lock em `clinics`, sem
+   idle-in-transaction, `pg_blocking_pids` vazio). **Correção:** `dbAdmin` `max:2 → 8`.
+
+3. **Mesma classe de risco no path tenant (`db` max:2).** `caixa` (~5 leituras
+   concorrentes) e `financeiro` (~4) têm o mesmo fan-out contra o pool runtime. Sob
+   pooler lento estolariam igual. **Correção:** `db` `max:2 → 6` + deadline nas leituras.
+
+4. **`statement_timeout`/`lock_timeout` do app são INERTES no Transaction Pooler.** O
+   `db/index.ts` seta `connection: { statement_timeout: 30_000, lock_timeout: 15_000 }`,
+   mas o Supavisor (porta 6543) **não propaga `SET` de sessão**: `SHOW statement_timeout`
+   volta `2min`, `lock_timeout` volta `0`. Além disso, o `statement_timeout` só corta
+   query EXECUTANDO — não cobre query esperando conexão na fila do pool (que é o que a
+   starvation é). Por isso o admin pendurava *infinito*, não em 2min. A correção correta
+   de timeout é a nível de ROLE (`ALTER ROLE ... SET`, migration `0071` renumerada) —
+   mas só cobre `qoro_runtime` (runtime). **O `dbAdmin` conecta como role `postgres`**
+   (sem timeout de role → herda o default `2min` do banco), e o path tenant como
+   `qoro_runtime` (`statement_timeout=30s`). Isso explica por que o admin pendurava mais
+   feio que o tenant.
+
+5. **Latência cross-region amplifica tudo.** Funções da Vercel em `iad1` (us-east-1),
+   banco Supabase em `aws-1-us-west-1`. `SELECT 1` observado a 2–4,5s e timeouts
+   intermitentes do pooler. Foi essa lentidão que transformou a fraqueza latente
+   (`max:2`) em bug visível.
+
+### Defesa em profundidade adicionada
+
+`src/lib/db/query-timeout.ts` (com teste): deadline para leituras server-side.
+`withQueryDeadline` LANÇA no timeout (páginas onde vazio ENGANA — financeiro/caixa caem
+no error boundary do shell, nunca mostram vazio-por-timeout como verdade);
+`withQueryFallback` devolve fallback (visão geral — dashboard admin renderiza zerado em
+vez de pendurar). Emite `metrics.emit('query.timeout')` para alerta. Aplicado no
+dashboard admin, `caixa` e `financeiro`. Princípio: **nenhuma leitura pendura além do
+deadline, haja o que houver com pool/pooler/rede.**
+
+### Follow-ups em aberto (dívidas conhecidas)
+
+1. **Refresh de sessão saiu do middleware.** O passthrough síncrono resolveu o hang mas
+   removeu o refresh de cookie SSR — o access token não renova server-side; o usuário
+   reautentica quando expira (~1h). **Não levar à `main` sem resolver:** candidatos são
+   rodar o middleware no runtime Node (o flag `experimental.nodeMiddleware` NÃO existe
+   nos tipos do Next 15.5.21 — inviável hoje) ou refresh client-side.
+2. **Co-locar região:** `"regions": ["pdx1"]` (ou `sfo1`) no `vercel.json` para colar as
+   funções no banco us-west — maior ganho de latência do app inteiro.
+3. **Saúde do Supabase de dev:** `SELECT 1` a vários segundos não é normal; investigar
+   pausa/throttle/limite de recursos do projeto de desenvolvimento.
+4. **Ampliar o deadline** (`withQueryDeadline`/`Fallback`) para outras páginas de
+   fan-out conforme forem identificadas; `metrics.emit('query.timeout')` é o sinal.
+
+### Nota metodológica
+
+O que NÃO era a causa (verificado e descartado, para não reabrir): migrations 53–70
+(journal íntegro, `check:migrations`/typecheck verdes), env vars do Preview (todas
+presentes, host/porta corretos — `...pooler.supabase.com:6543`), rótulo "localhost" do
+fator MFA (cosmético — o issuer do TOTP não afeta validação), CSP `vercel.live`
+(Report-Only, nunca bloqueou), e locks de banco (nenhum).

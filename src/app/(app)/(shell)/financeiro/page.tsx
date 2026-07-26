@@ -36,6 +36,7 @@ import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar'
 import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { withQueryDeadline } from '@/lib/db/query-timeout';
 import { formatBRL, formatDatePt } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
 
@@ -89,16 +90,21 @@ export default async function FinanceiroPage({
   // totais "a receber/a pagar" já são o aberto geral (independem da janela).
   const { from, to } = clinicMonthBounds(tz);
 
-  const [flow, lancamentos, suppliers, methods] = await Promise.all([
-    getCashFlowToday(clinicId, from, to),
-    listLancamentos(clinicId, {
-      ...(isTipo(tipo) ? { tipo } : {}),
-      ...(isStatus(status) ? { status } : {}),
-      limit: 50,
-    }),
-    canManage ? listSuppliers(clinicId, { onlyActive: true }) : Promise.resolve([]),
-    canManage ? listPaymentMethods(clinicId) : Promise.resolve([]),
-  ]);
+  // Fan-out do financeiro. `withQueryDeadline` (FALHA ALTO): nunca mostra vazio-por-
+  // timeout como verdade — estolou, cai no error boundary do shell, não pendura.
+  const [flow, lancamentos, suppliers, methods] = await withQueryDeadline(
+    'financeiro.load',
+    Promise.all([
+      getCashFlowToday(clinicId, from, to),
+      listLancamentos(clinicId, {
+        ...(isTipo(tipo) ? { tipo } : {}),
+        ...(isStatus(status) ? { status } : {}),
+        limit: 50,
+      }),
+      canManage ? listSuppliers(clinicId, { onlyActive: true }) : Promise.resolve([]),
+      canManage ? listPaymentMethods(clinicId) : Promise.resolve([]),
+    ]),
+  );
 
   return (
     <>

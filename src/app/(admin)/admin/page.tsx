@@ -7,6 +7,8 @@ import { PageHeader } from '@/components/ui/page-header';
 
 import { Bars, ClinicMark, Donut, Legend } from './_components/charts';
 import { StatCard } from './_components/stat-card';
+import { withQueryFallback } from '@/lib/db/query-timeout';
+
 import { guardAdminAccess } from './_lib/guard';
 import { formatBRLCents, formatDateTime, formatPct } from './_lib/format';
 import { adminMetricsRepository } from './_lib/repositories/metrics.repo';
@@ -20,36 +22,13 @@ const RISK_LABEL: Record<string, string> = {
   pending_payment: 'Aguardando pagamento',
 };
 
-// Resiliência (2026-07-25): o pool do `dbAdmin` (max:2) + o Transaction Pooler do
-// Supabase às vezes estolam sob latência cross-region, e o `statement_timeout` do
-// app NÃO é aplicado pelo pooler nem cobre o role do `dbAdmin` — então uma query
-// estolada pendurava a página INTEIRA ("loading infinito"). Cada leitura tem
-// timeout + fallback: o dashboard SEMPRE renderiza (com dado parcial no pior caso)
-// em vez de pendurar. O timeout registra `admin.dash.timeout` p/ observabilidade.
-function withTimeout<T>(name: string, p: Promise<T>, fallback: T, ms = 8000): Promise<T> {
-  return new Promise<T>((resolve) => {
-    const timer = setTimeout(() => {
-      console.error(JSON.stringify({ kind: 'admin.dash.timeout', name, ms }));
-      resolve(fallback);
-    }, ms);
-    p.then(
-      (r) => {
-        clearTimeout(timer);
-        resolve(r);
-      },
-      (e) => {
-        clearTimeout(timer);
-        console.error(JSON.stringify({ kind: 'admin.dash.err', name, err: String(e).slice(0, 160) }));
-        resolve(fallback);
-      },
-    );
-  });
-}
-
 export default async function AdminDashboardPage() {
   await guardAdminAccess();
+  // Visão geral → `withQueryFallback`: se uma leitura estolar, o dashboard renderiza
+  // com o card zerado em vez de pendurar (o conserto estrutural é o pool max:8 em
+  // db/index.ts; isto é a rede de segurança). Emite `query.timeout` p/ alerta.
   const [m, trend, breakdown, recent, atRisk] = await Promise.all([
-    withTimeout('getDashboard', adminMetricsRepository.getDashboard(), {
+    withQueryFallback('admin.getDashboard', adminMetricsRepository.getDashboard(), {
       mrrCents: 0,
       arrCents: 0,
       churnRatePct: 0,
@@ -57,20 +36,20 @@ export default async function AdminDashboardPage() {
       clinics: { active: 0, atRisk: 0, new: 0, cancelled: 0 },
       generatedAt: new Date().toISOString(),
     }),
-    withTimeout('getMrrTrend', adminMetricsRepository.getMrrTrend(6), []),
-    withTimeout('getStatusBreakdown', adminMetricsRepository.getStatusBreakdown(), {
+    withQueryFallback('admin.getMrrTrend', adminMetricsRepository.getMrrTrend(6), []),
+    withQueryFallback('admin.getStatusBreakdown', adminMetricsRepository.getStatusBreakdown(), {
       active: 0,
       trial: 0,
       atRisk: 0,
       cancelled: 0,
     }),
-    withTimeout('list', clinicRepository.list({ pageSize: 4 }), {
+    withQueryFallback('admin.list', clinicRepository.list({ pageSize: 4 }), {
       items: [],
       total: 0,
       page: 1,
       pageSize: 4,
     }),
-    withTimeout('listAtRisk', clinicRepository.listAtRisk(4), []),
+    withQueryFallback('admin.listAtRisk', clinicRepository.listAtRisk(4), []),
   ]);
 
   const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
