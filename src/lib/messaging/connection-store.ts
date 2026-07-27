@@ -166,6 +166,7 @@ export async function recordConnectionFailure(input: {
   clinicId: string;
   userId: string;
   errorCode: string;
+  errorStage: string;
   requestContext: RequestContext;
 }): Promise<void> {
   await dbAdmin.transaction(async (tx: Tx) => {
@@ -176,7 +177,7 @@ export async function recordConnectionFailure(input: {
       resourceType: 'whatsapp_number',
       resourceId: null,
       before: null,
-      after: { errorCode: input.errorCode },
+      after: { errorCode: input.errorCode, errorStage: input.errorStage },
       requestContext: input.requestContext,
     });
   });

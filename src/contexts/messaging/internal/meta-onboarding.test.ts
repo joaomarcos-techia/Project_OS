@@ -55,13 +55,17 @@ describe('exchangeCodeForToken', () => {
 
   it('sem access_token → MetaConnectError', async () => {
     fetchMock.mockResolvedValueOnce(res({}));
-    await expect(exchangeCodeForToken('CODE')).rejects.toMatchObject({ name: 'MetaConnectError' });
+    await expect(exchangeCodeForToken('CODE')).rejects.toMatchObject({
+      name: 'MetaConnectError',
+      stage: 'authorization',
+    });
   });
 
   it('HTTP erro → MetaConnectError sem vazar secret/token', async () => {
     fetchMock.mockResolvedValueOnce(res({ error: { code: 190 } }, false, 400));
     const err = await exchangeCodeForToken('CODE').catch((e) => e);
     expect(err.name).toBe('MetaConnectError');
+    expect(err.stage).toBe('authorization');
     expect(err.message).toContain('code=190');
     expect(err.message).not.toContain('secret-xyz');
     expect(err.message).not.toContain('CODE');
@@ -108,7 +112,10 @@ describe('validateTokenScopes', () => {
     fetchMock.mockResolvedValueOnce(
       res({ data: { is_valid: true, scopes: ['whatsapp_business_management'] } }),
     );
-    await expect(validateTokenScopes('T')).rejects.toMatchObject({ name: 'MetaConnectError' });
+    await expect(validateTokenScopes('T')).rejects.toMatchObject({
+      name: 'MetaConnectError',
+      stage: 'permissions',
+    });
   });
 
   it('token inválido → MetaConnectError', async () => {
@@ -157,7 +164,10 @@ describe('resolveWabaAndPhone', () => {
       if (p.includes('/me/businesses')) return res({ data: [] });
       return res({}, false, 404);
     });
-    await expect(resolveWabaAndPhone('T')).rejects.toMatchObject({ name: 'MetaConnectError' });
+    await expect(resolveWabaAndPhone('T')).rejects.toMatchObject({
+      name: 'MetaConnectError',
+      stage: 'account',
+    });
   });
 });
 
@@ -176,6 +186,16 @@ describe('subscribe / unsubscribe', () => {
       messaging_product: 'whatsapp',
       pin: '123456',
     });
+  });
+
+  it('identifica a etapa quando a Meta recusa o registro do número', async () => {
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 100 } }, false, 400));
+
+    const err = await registerPhoneNumber('phone-1', 'TOK', '123456').catch((error) => error);
+
+    expect(err).toMatchObject({ name: 'MetaConnectError', stage: 'phone_registration' });
+    expect(err.message).not.toContain('123456');
+    expect(err.message).not.toContain('TOK');
   });
 
   it('subscribe → POST /{waba}/subscribed_apps com bearer', async () => {

@@ -33,7 +33,10 @@ vi.mock('@/lib/messaging', () => ({
   recordConnectionFailure: vi.fn(),
   upsertTenantConnection: vi.fn(),
 }));
-vi.mock('@/lib/env', () => ({ assertWhatsappOnboardingReady: () => {} }));
+vi.mock('@/lib/env', () => ({
+  assertWhatsappOnboardingReady: () => {},
+  env: { LOG_LEVEL: 'error' },
+}));
 
 import {
   connectWhatsappNumber,

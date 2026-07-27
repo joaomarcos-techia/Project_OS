@@ -39,6 +39,7 @@ import {
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import { assertWhatsappOnboardingReady } from '@/lib/env';
 import { maskPhone } from '@/lib/format';
+import { logger } from '@/lib/observability/logger';
 import {
   deactivateTenantConnection,
   recordConnectionFailure,
@@ -231,15 +232,25 @@ export async function connectMyClinicWhatsapp(
     await subscribeAppToWaba(waba.wabaId, token);
     meta = { token, waba };
   } catch (err) {
+    const metaError =
+      err instanceof MetaConnectError
+        ? err
+        : new MetaConnectError('[meta] falha no Embedded Signup', {
+            cause: err,
+            stage: 'unknown',
+          });
+    logger.error('messaging.whatsapp.connection_failed', {
+      stage: metaError.stage,
+      error: metaError,
+    });
     await recordConnectionFailure({
       clinicId,
       userId: user.userId,
-      errorCode: err instanceof MetaConnectError ? err.code : 'UNKNOWN',
+      errorCode: metaError.code,
+      errorStage: metaError.stage,
       requestContext: ctx,
     }).catch(() => {});
-    throw err instanceof MetaConnectError
-      ? err
-      : new MetaConnectError('[meta] falha no Embedded Signup', { cause: err });
+    throw metaError;
   }
 
   // Cifra ANTES da tx (CPU puro). Persiste via seam privilegiado (service_role).
@@ -258,10 +269,30 @@ export async function connectMyClinicWhatsapp(
     return { id, phoneNumberMasked: maskPhone(meta.waba.phoneNumber) };
   } catch (err) {
     // Unique parcial global: número já ativo em OUTRA clínica (anti-sequestro).
-    if (isUniqueViolation(err)) {
-      throw new MetaConnectError('[meta] este número já está conectado em outra clínica');
-    }
-    throw err;
+    const metaError =
+      err instanceof MetaConnectError
+        ? err
+        : isUniqueViolation(err)
+          ? new MetaConnectError('[meta] este número já está conectado em outra clínica', {
+              cause: err,
+              stage: 'persistence',
+            })
+          : new MetaConnectError('[meta] falha ao salvar a conexão', {
+              cause: err,
+              stage: 'persistence',
+            });
+    logger.error('messaging.whatsapp.connection_failed', {
+      stage: metaError.stage,
+      error: metaError,
+    });
+    await recordConnectionFailure({
+      clinicId,
+      userId: user.userId,
+      errorCode: metaError.code,
+      errorStage: metaError.stage,
+      requestContext: ctx,
+    }).catch(() => {});
+    throw metaError;
   }
 }
 
