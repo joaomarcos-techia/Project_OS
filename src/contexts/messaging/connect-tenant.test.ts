@@ -8,9 +8,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as EnvModule from '@/lib/env';
 
+const mocks = vi.hoisted(() => ({ after: vi.fn() }));
+
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }));
+vi.mock('next/server', () => ({ after: mocks.after }));
 vi.mock('@/lib/audit/request-context', () => ({
-  buildRequestContext: vi.fn(() => ({ ip: null, userAgent: null, requestId: 'r', correlationId: 'r' })),
+  buildRequestContext: vi.fn(() => ({
+    ip: null,
+    userAgent: null,
+    requestId: 'r',
+    correlationId: 'r',
+  })),
 }));
 vi.mock('@/lib/auth/tenant-context', () => ({
   requireUser: vi.fn(async () => ({ userId: 'user-1' })),
@@ -35,12 +43,17 @@ vi.mock('./internal/meta-onboarding', () => ({
     phoneNumberId: 'phone-1',
     phoneNumber: '+5511999991234',
   })),
+  registerPhoneNumber: vi.fn(async () => {}),
   subscribeAppToWaba: vi.fn(async () => {}),
   unsubscribeAppFromWaba: vi.fn(async () => {}),
 }));
 vi.mock('@/lib/messaging', () => ({
   upsertTenantConnection: vi.fn(async () => ({ id: 'num-1' })),
-  deactivateTenantConnection: vi.fn(async () => ({ disconnected: true })),
+  deactivateTenantConnection: vi.fn(async () => ({
+    disconnected: true,
+    metaBusinessId: null,
+    tokenCiphertext: null,
+  })),
   recordConnectionFailure: vi.fn(async () => {}),
   loadActiveNumberForSend: vi.fn(async () => null),
 }));
@@ -49,7 +62,6 @@ import { requireClinicId } from '@/lib/auth/tenant-context';
 import { encryptForTenant } from '@/lib/crypto';
 import {
   deactivateTenantConnection,
-  loadActiveNumberForSend,
   recordConnectionFailure,
   upsertTenantConnection,
 } from '@/lib/messaging';
@@ -60,8 +72,12 @@ import * as onboarding from './internal/meta-onboarding';
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireClinicId).mockResolvedValue('clinic-1');
-  vi.mocked(loadActiveNumberForSend).mockResolvedValue(null);
   vi.mocked(upsertTenantConnection).mockResolvedValue({ id: 'num-1' });
+  vi.mocked(deactivateTenantConnection).mockResolvedValue({
+    disconnected: true,
+    metaBusinessId: null,
+    tokenCiphertext: null,
+  });
   vi.mocked(onboarding.exchangeCodeForToken).mockResolvedValue('SECRET_TOKEN_VALUE');
   vi.mocked(onboarding.resolveWabaAndPhone).mockResolvedValue({
     wabaId: 'waba-1',
@@ -72,14 +88,30 @@ beforeEach(() => {
 
 describe('connectMyClinicWhatsapp', () => {
   it('Caso 1: conecta válido → persiste cifrado + retorna número mascarado', async () => {
-    const res = await connectMyClinicWhatsapp({ code: 'CODE', wabaHint: 'waba-1', phoneHint: 'phone-1' });
+    const res = await connectMyClinicWhatsapp({
+      code: 'CODE',
+      registrationPin: '123456',
+      wabaHint: 'waba-1',
+      phoneHint: 'phone-1',
+    });
 
     // token em CLARO só vai para encryptForTenant
     expect(encryptForTenant).toHaveBeenCalledWith('clinic-1', 'SECRET_TOKEN_VALUE');
+    expect(onboarding.registerPhoneNumber).toHaveBeenCalledWith(
+      'phone-1',
+      'SECRET_TOKEN_VALUE',
+      '123456',
+    );
     // webhook assinado
     expect(onboarding.subscribeAppToWaba).toHaveBeenCalledWith('waba-1', 'SECRET_TOKEN_VALUE');
 
     expect(upsertTenantConnection).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(onboarding.registerPhoneNumber).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(onboarding.subscribeAppToWaba).mock.invocationCallOrder[0]!,
+    );
+    expect(vi.mocked(onboarding.registerPhoneNumber).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(upsertTenantConnection).mock.invocationCallOrder[0]!,
+    );
     const arg = vi.mocked(upsertTenantConnection).mock.calls[0]![0];
     expect(arg).toMatchObject({
       clinicId: 'clinic-1',
@@ -106,7 +138,9 @@ describe('connectMyClinicWhatsapp', () => {
       Object.assign(new Error('forbidden'), { name: 'AuthError' }),
     );
 
-    await expect(connectMyClinicWhatsapp({ code: 'CODE' })).rejects.toThrow();
+    await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
+    ).rejects.toThrow();
     expect(upsertTenantConnection).not.toHaveBeenCalled();
     expect(onboarding.exchangeCodeForToken).not.toHaveBeenCalled();
   });
@@ -114,10 +148,24 @@ describe('connectMyClinicWhatsapp', () => {
   it('Caso 3: Meta falha → MetaConnectError, audita falha, NENHUMA escrita', async () => {
     vi.mocked(onboarding.exchangeCodeForToken).mockRejectedValueOnce(new Error('meta down'));
 
-    await expect(connectMyClinicWhatsapp({ code: 'CODE' })).rejects.toMatchObject({
+    await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
+    ).rejects.toMatchObject({
       name: 'MetaConnectError',
       code: 'META_AUTH_FAILED',
     });
+    expect(upsertTenantConnection).not.toHaveBeenCalled();
+    expect(recordConnectionFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it('registro do número falha → não assina webhook nem persiste conexão', async () => {
+    vi.mocked(onboarding.registerPhoneNumber).mockRejectedValueOnce(new Error('register rejected'));
+
+    await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
+    ).rejects.toMatchObject({ name: 'MetaConnectError', code: 'META_AUTH_FAILED' });
+
+    expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
     expect(upsertTenantConnection).not.toHaveBeenCalled();
     expect(recordConnectionFailure).toHaveBeenCalledTimes(1);
   });
@@ -126,9 +174,19 @@ describe('connectMyClinicWhatsapp', () => {
     vi.mocked(upsertTenantConnection).mockRejectedValueOnce(
       Object.assign(new Error('dup'), { code: '23505' }),
     );
-    await expect(connectMyClinicWhatsapp({ code: 'CODE' })).rejects.toMatchObject({
+    await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
+    ).rejects.toMatchObject({
       name: 'MetaConnectError',
     });
+  });
+
+  it('PIN inválido não chama a Meta nem persiste conexão', async () => {
+    await expect(connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123' })).rejects.toThrow(
+      'PIN do WhatsApp',
+    );
+    expect(onboarding.exchangeCodeForToken).not.toHaveBeenCalled();
+    expect(upsertTenantConnection).not.toHaveBeenCalled();
   });
 });
 
@@ -142,18 +200,22 @@ describe('disconnectMyClinicWhatsapp', () => {
     expect(res.disconnected).toBe(true);
   });
 
-  it('com número ativo: tenta unsubscribe (best-effort) antes de desativar', async () => {
-    vi.mocked(loadActiveNumberForSend).mockResolvedValueOnce({
-      clinicId: 'clinic-1',
-      provider: 'meta',
-      metaPhoneId: 'phone-1',
+  it('com número ativo: desativa antes e agenda unsubscribe sem bloquear a resposta', async () => {
+    vi.mocked(deactivateTenantConnection).mockResolvedValueOnce({
+      disconnected: true,
       metaBusinessId: 'waba-1',
-      phoneNumber: '+5511999991234',
       tokenCiphertext: 'enc',
-      tokenVersion: 1,
     });
-    await disconnectMyClinicWhatsapp();
-    expect(onboarding.unsubscribeAppFromWaba).toHaveBeenCalledWith('waba-1', 'plain-token');
+
+    const res = await disconnectMyClinicWhatsapp();
+
+    expect(res).toEqual({ disconnected: true });
     expect(deactivateTenantConnection).toHaveBeenCalled();
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+    expect(onboarding.unsubscribeAppFromWaba).not.toHaveBeenCalled();
+
+    const cleanup = mocks.after.mock.calls[0]![0] as () => Promise<void>;
+    await cleanup();
+    expect(onboarding.unsubscribeAppFromWaba).toHaveBeenCalledWith('waba-1', 'plain-token');
   });
 });

@@ -24,6 +24,7 @@
  * não tem grant de escrita; nem lê `token_encrypted` (column-level grant).
  */
 import { and, eq, sql } from 'drizzle-orm';
+import { after } from 'next/server';
 import { z } from 'zod';
 
 import { requestContext } from '@/lib/audit/request-context-from-headers';
@@ -40,7 +41,6 @@ import { assertWhatsappOnboardingReady } from '@/lib/env';
 import { maskPhone } from '@/lib/format';
 import {
   deactivateTenantConnection,
-  loadActiveNumberForSend,
   recordConnectionFailure,
   upsertTenantConnection,
 } from '@/lib/messaging';
@@ -48,6 +48,7 @@ import {
 import { MetaConnectError, NumberNotConnectedError } from './errors';
 import {
   exchangeCodeForToken,
+  registerPhoneNumber,
   resolveWabaAndPhone,
   subscribeAppToWaba,
   unsubscribeAppFromWaba,
@@ -186,6 +187,8 @@ export async function rotateWhatsappToken(
 /** Input do connect self-service. NÃO há `clinicId` — vem de requireClinicId(). */
 const ConnectMyClinicSchema = z.object({
   code: z.string().min(1),
+  /** PIN de 2FA da Cloud API; usado uma única vez no Graph e nunca persistido. */
+  registrationPin: z.string().regex(/^\d{6}$/, 'O PIN do WhatsApp deve ter 6 dígitos.'),
   /** Sugestões do evento WA_EMBEDDED_SIGNUP; só valem se o token as alcança. */
   wabaHint: z.string().min(1).optional(),
   phoneHint: z.string().min(1).optional(),
@@ -194,17 +197,15 @@ export type ConnectMyClinicInput = z.input<typeof ConnectMyClinicSchema>;
 
 function isUniqueViolation(err: unknown): boolean {
   return (
-    !!err &&
-    typeof err === 'object' &&
-    'code' in err &&
-    (err as { code?: string }).code === '23505'
+    !!err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23505'
   );
 }
 
 /**
  * Conecta (ou reconecta) o WhatsApp da PRÓPRIA clínica do owner via Embedded
  * Signup: troca code→token (server-side), valida escopos, resolve WABA+número,
- * assina o webhook e persiste a credencial cifrada. Retorna só dados não-sensíveis.
+ * registra o telefone na Cloud API, assina o webhook e persiste a credencial
+ * cifrada. Retorna só dados não-sensíveis.
  */
 export async function connectMyClinicWhatsapp(
   input: ConnectMyClinicInput,
@@ -226,6 +227,7 @@ export async function connectMyClinicWhatsapp(
       wabaId: data.wabaHint,
       phoneNumberId: data.phoneHint,
     });
+    await registerPhoneNumber(waba.phoneNumberId, token, data.registrationPin);
     await subscribeAppToWaba(waba.wabaId, token);
     meta = { token, waba };
   } catch (err) {
@@ -264,8 +266,9 @@ export async function connectMyClinicWhatsapp(
 }
 
 /**
- * Desconecta o WhatsApp da própria clínica do owner. Tenta cancelar a assinatura
- * do webhook na WABA (best-effort) e desativa o número (histórico preservado).
+ * Desconecta imediatamente o WhatsApp da própria clínica do owner. A remoção da
+ * assinatura Meta é limpeza best-effort e roda após a resposta: ela não pode
+ * manter a tela aguardando quando a Meta estiver lenta ou indisponível.
  */
 export async function disconnectMyClinicWhatsapp(): Promise<{ disconnected: boolean }> {
   const user = await requireUser();
@@ -273,16 +276,23 @@ export async function disconnectMyClinicWhatsapp(): Promise<{ disconnected: bool
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
 
-  // Unsubscribe ANTES de desativar (precisa do token+waba ativos). Não bloqueia o
-  // disconnect se a Meta falhar / token expirado.
-  const active = await loadActiveNumberForSend(clinicId);
-  if (active?.metaBusinessId) {
-    try {
-      const token = await decryptForTenant(clinicId, active.tokenCiphertext);
-      await unsubscribeAppFromWaba(active.metaBusinessId, token);
-    } catch {
-      /* best-effort */
-    }
+  const result = await deactivateTenantConnection({
+    clinicId,
+    userId: user.userId,
+    requestContext: ctx,
+  });
+  const { metaBusinessId, tokenCiphertext } = result;
+
+  if (metaBusinessId && tokenCiphertext) {
+    after(async () => {
+      try {
+        const token = await decryptForTenant(clinicId, tokenCiphertext);
+        await unsubscribeAppFromWaba(metaBusinessId, token);
+      } catch {
+        // A desconexão local já foi concluída; falhar nesta limpeza não reativa
+        // o número nem interrompe a resposta ao usuário.
+      }
+    });
   }
-  return deactivateTenantConnection({ clinicId, userId: user.userId, requestContext: ctx });
+  return { disconnected: result.disconnected };
 }

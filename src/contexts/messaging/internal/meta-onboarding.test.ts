@@ -16,6 +16,7 @@ vi.mock('@/lib/env', () => ({
 
 import {
   exchangeCodeForToken,
+  registerPhoneNumber,
   resolveWabaAndPhone,
   subscribeAppToWaba,
   unsubscribeAppFromWaba,
@@ -37,7 +38,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 const urlOf = (call: unknown[]) => String(call[0]);
-const optOf = (call: unknown[]) => call[1] as { method?: string; headers?: Record<string, string> };
+const optOf = (call: unknown[]) =>
+  call[1] as { method?: string; headers?: Record<string, string>; body?: string };
 
 describe('exchangeCodeForToken', () => {
   it('GET /oauth/access_token com client_id/secret/code → access_token', async () => {
@@ -121,16 +123,22 @@ describe('resolveWabaAndPhone', () => {
       res({ data: [{ id: 'phone-1', display_phone_number: '+55 11 99999-1234' }] }),
     );
     const r = await resolveWabaAndPhone('T', { wabaId: 'waba-1', phoneNumberId: 'phone-1' });
-    expect(r).toEqual({ wabaId: 'waba-1', phoneNumberId: 'phone-1', phoneNumber: '+5511999991234' });
+    expect(r).toEqual({
+      wabaId: 'waba-1',
+      phoneNumberId: 'phone-1',
+      phoneNumber: '+5511999991234',
+    });
     expect(new URL(urlOf(fetchMock.mock.calls[0]!)).pathname).toContain('/waba-1/phone_numbers');
   });
 
   it('anti-sequestro: token NÃO alcança a WABA do hint → fallback businesses', async () => {
     fetchMock.mockImplementation(async (url: unknown) => {
       const p = new URL(String(url)).pathname;
-      if (p.includes('/waba-hijack/phone_numbers')) return res({ error: { code: 100 } }, false, 400);
+      if (p.includes('/waba-hijack/phone_numbers'))
+        return res({ error: { code: 100 } }, false, 400);
       if (p.includes('/me/businesses')) return res({ data: [{ id: 'biz-1' }] });
-      if (p.includes('/biz-1/owned_whatsapp_business_accounts')) return res({ data: [{ id: 'waba-real' }] });
+      if (p.includes('/biz-1/owned_whatsapp_business_accounts'))
+        return res({ data: [{ id: 'waba-real' }] });
       if (p.includes('/waba-real/phone_numbers'))
         return res({ data: [{ id: 'phone-real', display_phone_number: '+55 21 98888-0000' }] });
       return res({}, false, 404);
@@ -154,6 +162,22 @@ describe('resolveWabaAndPhone', () => {
 });
 
 describe('subscribe / unsubscribe', () => {
+  it('register ativa o telefone com PIN e não o envia na URL', async () => {
+    fetchMock.mockResolvedValueOnce(res({ success: true }));
+    await registerPhoneNumber('phone-1', 'TOK', '123456');
+    const [call] = fetchMock.mock.calls;
+    const url = new URL(urlOf(call!));
+    expect(url.pathname).toContain('/phone-1/register');
+    expect(url.search).toBe('');
+    expect(optOf(call!).method).toBe('POST');
+    expect(optOf(call!).headers?.authorization).toBe('Bearer TOK');
+    expect(optOf(call!).headers?.['content-type']).toBe('application/json');
+    expect(JSON.parse(optOf(call!).body ?? '{}')).toEqual({
+      messaging_product: 'whatsapp',
+      pin: '123456',
+    });
+  });
+
   it('subscribe → POST /{waba}/subscribed_apps com bearer', async () => {
     fetchMock.mockResolvedValueOnce(res({ success: true }));
     await subscribeAppToWaba('waba-1', 'TOK');
