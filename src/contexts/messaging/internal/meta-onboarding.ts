@@ -42,21 +42,33 @@ function onboardingEnv(): { appId: string; appSecret: string } {
  */
 async function graphFetch<T>(
   path: string,
-  init: { method: 'GET' | 'POST' | 'DELETE'; token?: string; query?: Record<string, string> },
+  init: {
+    method: 'GET' | 'POST' | 'DELETE';
+    token?: string;
+    query?: Record<string, string>;
+    body?: Record<string, string>;
+  },
 ): Promise<T> {
   const url = new URL(`https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/${path}`);
   for (const [k, v] of Object.entries(init.query ?? {})) url.searchParams.set(k, v);
+  const headers: Record<string, string> = {};
+  if (init.token) headers.authorization = `Bearer ${init.token}`;
+  if (init.body) headers['content-type'] = 'application/json';
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    const request: RequestInit = {
       method: init.method,
-      headers: init.token ? { authorization: `Bearer ${init.token}` } : {},
+      headers,
       signal: AbortSignal.timeout(env.META_HTTP_TIMEOUT_MS),
-    });
+    };
+    if (init.body) request.body = JSON.stringify(init.body);
+    res = await fetch(url, request);
   } catch (err) {
     // timeout / abort / reset — não inclui token; `path` é seguro (sem segredo).
-    throw new MetaConnectError(`[meta] graph inalcançável (${init.method} ${path})`, { cause: err });
+    throw new MetaConnectError(`[meta] graph inalcançável (${init.method} ${path})`, {
+      cause: err,
+    });
   }
 
   const raw: unknown = await res.json().catch(() => null);
@@ -141,6 +153,23 @@ export async function resolveWabaAndPhone(
     }
   }
   throw new MetaConnectError('[meta] nenhum número WhatsApp encontrado para a conta autorizada');
+}
+
+/**
+ * Ativa o telefone na WhatsApp Cloud API após a confirmação de posse no
+ * Embedded Signup. A confirmação por SMS/voz não substitui este registro: a
+ * Meta exige também um PIN próprio de verificação em duas etapas.
+ */
+export async function registerPhoneNumber(
+  phoneNumberId: string,
+  token: string,
+  registrationPin: string,
+): Promise<void> {
+  await graphFetch(`${encodeURIComponent(phoneNumberId)}/register`, {
+    method: 'POST',
+    token,
+    body: { messaging_product: 'whatsapp', pin: registrationPin },
+  });
 }
 
 /** Assina o app à WABA (campo `messages`) para receber os webhooks daquele número. */

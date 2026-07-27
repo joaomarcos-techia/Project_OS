@@ -119,28 +119,41 @@ export async function deactivateTenantConnection(input: {
   clinicId: string;
   userId: string;
   requestContext: RequestContext;
-}): Promise<{ disconnected: boolean }> {
+}): Promise<{
+  disconnected: boolean;
+  metaBusinessId: string | null;
+  tokenCiphertext: string | null;
+}> {
   return dbAdmin.transaction(async (tx: Tx) => {
-    const rows = await tx.execute<{ id: string }>(sql`
+    const rows = await tx.execute<{
+      id: string;
+      meta_business_id: string | null;
+      token_encrypted: string;
+    }>(sql`
       UPDATE clinic_whatsapp_numbers SET
         active = false, connection_status = 'disconnected', updated_at = now()
       WHERE clinic_id = ${input.clinicId} AND active = true
-      RETURNING id
+      RETURNING id, meta_business_id, token_encrypted
     `);
-    const disconnected = rows.length > 0;
-    if (disconnected) {
+    const deactivated = rows[0] ?? null;
+    const disconnected = deactivated !== null;
+    if (deactivated) {
       await logAudit(tx, {
         clinicId: input.clinicId,
         userId: input.userId,
         action: 'messaging.whatsapp.disconnected',
         resourceType: 'whatsapp_number',
-        resourceId: rows[0]!.id,
+        resourceId: deactivated.id,
         before: null,
         after: null,
         requestContext: input.requestContext,
       });
     }
-    return { disconnected };
+    return {
+      disconnected,
+      metaBusinessId: deactivated?.meta_business_id ?? null,
+      tokenCiphertext: deactivated?.token_encrypted ?? null,
+    };
   });
 }
 
