@@ -20,4 +20,10 @@ describe('buildContentSecurityPolicy', () => {
     expect(policy).not.toContain('https://vercel.live');
     expect(directive(policy, 'frame-src')).toBe("frame-src 'self'");
   });
+
+  it('permite o SDK do Facebook usado pelo Embedded Signup', () => {
+    const policy = buildContentSecurityPolicy('production');
+
+    expect(directive(policy, 'script-src')).toContain('https://connect.facebook.net');
+  });
 });

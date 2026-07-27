@@ -7,7 +7,7 @@ export function buildContentSecurityPolicy(vercelEnv: string | undefined): strin
     "form-action 'self'",
     "frame-ancestors 'none'",
     "object-src 'none'",
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval'${previewSource}`,
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net${previewSource}`,
     `frame-src 'self'${previewSource}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",

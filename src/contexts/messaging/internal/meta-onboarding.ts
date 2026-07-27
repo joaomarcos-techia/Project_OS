@@ -15,7 +15,7 @@ import 'server-only';
 
 import { env } from '@/lib/env';
 
-import { MetaConnectError } from '../errors';
+import { MetaConnectError, type MetaConnectFailureStage } from '../errors';
 
 const REQUIRED_SCOPES = ['whatsapp_business_management', 'whatsapp_business_messaging'] as const;
 
@@ -44,6 +44,7 @@ async function graphFetch<T>(
   path: string,
   init: {
     method: 'GET' | 'POST' | 'DELETE';
+    stage: MetaConnectFailureStage;
     token?: string;
     query?: Record<string, string>;
     body?: Record<string, string>;
@@ -68,6 +69,7 @@ async function graphFetch<T>(
     // timeout / abort / reset — não inclui token; `path` é seguro (sem segredo).
     throw new MetaConnectError(`[meta] graph inalcançável (${init.method} ${path})`, {
       cause: err,
+      stage: init.stage,
     });
   }
 
@@ -75,7 +77,9 @@ async function graphFetch<T>(
   if (!res.ok) {
     // Só o error.code numérico do Meta (não sensível) — nunca o corpo/URL/token.
     const code = (raw as { error?: { code?: number } } | null)?.error?.code;
-    throw new MetaConnectError(`[meta] graph HTTP ${res.status}${code ? ` code=${code}` : ''}`);
+    throw new MetaConnectError(`[meta] graph HTTP ${res.status}${code ? ` code=${code}` : ''}`, {
+      stage: init.stage,
+    });
   }
   return raw as T;
 }
@@ -85,10 +89,13 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
   const { appId, appSecret } = onboardingEnv();
   const res = await graphFetch<{ access_token?: string }>('oauth/access_token', {
     method: 'GET',
+    stage: 'authorization',
     query: { client_id: appId, client_secret: appSecret, code },
   });
   if (!res.access_token) {
-    throw new MetaConnectError('[meta] troca de code não retornou access_token');
+    throw new MetaConnectError('[meta] troca de code não retornou access_token', {
+      stage: 'authorization',
+    });
   }
   return res.access_token;
 }
@@ -103,11 +110,12 @@ export async function validateTokenScopes(token: string): Promise<void> {
     data?: { is_valid?: boolean; scopes?: string[]; granular_scopes?: { scope?: string }[] };
   }>('debug_token', {
     method: 'GET',
+    stage: 'permissions',
     query: { input_token: token, access_token: `${appId}|${appSecret}` },
   });
   const data = res.data;
   if (!data?.is_valid) {
-    throw new MetaConnectError('[meta] token inválido (debug_token)');
+    throw new MetaConnectError('[meta] token inválido (debug_token)', { stage: 'permissions' });
   }
   const scopes = new Set<string>([
     ...(data.scopes ?? []),
@@ -117,7 +125,7 @@ export async function validateTokenScopes(token: string): Promise<void> {
   ]);
   for (const required of REQUIRED_SCOPES) {
     if (!scopes.has(required)) {
-      throw new MetaConnectError(`[meta] escopo ausente: ${required}`);
+      throw new MetaConnectError(`[meta] escopo ausente: ${required}`, { stage: 'permissions' });
     }
   }
 }
@@ -138,13 +146,14 @@ export async function resolveWabaAndPhone(
 
   const businesses = await graphFetch<{ data?: { id?: string }[] }>('me/businesses', {
     method: 'GET',
+    stage: 'account',
     token,
   });
   for (const biz of businesses.data ?? []) {
     if (!biz.id) continue;
     const wabas = await graphFetch<{ data?: { id?: string }[] }>(
       `${encodeURIComponent(biz.id)}/owned_whatsapp_business_accounts`,
-      { method: 'GET', token },
+      { method: 'GET', stage: 'account', token },
     );
     for (const waba of wabas.data ?? []) {
       if (!waba.id) continue;
@@ -152,7 +161,9 @@ export async function resolveWabaAndPhone(
       if (phone) return { wabaId: waba.id, ...phone };
     }
   }
-  throw new MetaConnectError('[meta] nenhum número WhatsApp encontrado para a conta autorizada');
+  throw new MetaConnectError('[meta] nenhum número WhatsApp encontrado para a conta autorizada', {
+    stage: 'account',
+  });
 }
 
 /**
@@ -167,6 +178,7 @@ export async function registerPhoneNumber(
 ): Promise<void> {
   await graphFetch(`${encodeURIComponent(phoneNumberId)}/register`, {
     method: 'POST',
+    stage: 'phone_registration',
     token,
     body: { messaging_product: 'whatsapp', pin: registrationPin },
   });
@@ -174,12 +186,20 @@ export async function registerPhoneNumber(
 
 /** Assina o app à WABA (campo `messages`) para receber os webhooks daquele número. */
 export async function subscribeAppToWaba(wabaId: string, token: string): Promise<void> {
-  await graphFetch(`${encodeURIComponent(wabaId)}/subscribed_apps`, { method: 'POST', token });
+  await graphFetch(`${encodeURIComponent(wabaId)}/subscribed_apps`, {
+    method: 'POST',
+    stage: 'webhook_subscription',
+    token,
+  });
 }
 
 /** Cancela a assinatura do app na WABA (no disconnect — para não receber webhook inútil). */
 export async function unsubscribeAppFromWaba(wabaId: string, token: string): Promise<void> {
-  await graphFetch(`${encodeURIComponent(wabaId)}/subscribed_apps`, { method: 'DELETE', token });
+  await graphFetch(`${encodeURIComponent(wabaId)}/subscribed_apps`, {
+    method: 'DELETE',
+    stage: 'webhook_subscription',
+    token,
+  });
 }
 
 /**
@@ -193,7 +213,11 @@ async function pickPhoneFromWaba(
 ): Promise<{ phoneNumberId: string; phoneNumber: string } | null> {
   let res: { data?: { id?: string; display_phone_number?: string }[] };
   try {
-    res = await graphFetch(`${encodeURIComponent(wabaId)}/phone_numbers`, { method: 'GET', token });
+    res = await graphFetch(`${encodeURIComponent(wabaId)}/phone_numbers`, {
+      method: 'GET',
+      stage: 'account',
+      token,
+    });
   } catch {
     return null; // token sem acesso a esta WABA — não é a do owner.
   }

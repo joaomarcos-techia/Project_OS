@@ -67,6 +67,7 @@ import {
 } from '@/lib/messaging';
 
 import { connectMyClinicWhatsapp, disconnectMyClinicWhatsapp } from './actions';
+import { MetaConnectError } from './errors';
 import * as onboarding from './internal/meta-onboarding';
 
 beforeEach(() => {
@@ -146,7 +147,9 @@ describe('connectMyClinicWhatsapp', () => {
   });
 
   it('Caso 3: Meta falha → MetaConnectError, audita falha, NENHUMA escrita', async () => {
-    vi.mocked(onboarding.exchangeCodeForToken).mockRejectedValueOnce(new Error('meta down'));
+    vi.mocked(onboarding.exchangeCodeForToken).mockRejectedValueOnce(
+      new MetaConnectError('[meta] auth rejected', { stage: 'authorization' }),
+    );
 
     await expect(
       connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
@@ -156,10 +159,15 @@ describe('connectMyClinicWhatsapp', () => {
     });
     expect(upsertTenantConnection).not.toHaveBeenCalled();
     expect(recordConnectionFailure).toHaveBeenCalledTimes(1);
+    expect(recordConnectionFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: 'authorization' }),
+    );
   });
 
   it('registro do número falha → não assina webhook nem persiste conexão', async () => {
-    vi.mocked(onboarding.registerPhoneNumber).mockRejectedValueOnce(new Error('register rejected'));
+    vi.mocked(onboarding.registerPhoneNumber).mockRejectedValueOnce(
+      new MetaConnectError('[meta] register rejected', { stage: 'phone_registration' }),
+    );
 
     await expect(
       connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
@@ -168,6 +176,9 @@ describe('connectMyClinicWhatsapp', () => {
     expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
     expect(upsertTenantConnection).not.toHaveBeenCalled();
     expect(recordConnectionFailure).toHaveBeenCalledTimes(1);
+    expect(recordConnectionFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: 'phone_registration' }),
+    );
   });
 
   it('número já ativo em outra clínica (unique 23505) → MetaConnectError amigável', async () => {

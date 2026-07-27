@@ -25,12 +25,26 @@ export class NumberNotConnectedError extends Error {
  * ("Não foi possível conectar / Código: META_AUTH_FAILED"). A mensagem NUNCA
  * deve conter o access token nem corpos crus do Meta.
  */
+export const META_CONNECT_FAILURE_STAGES = [
+  'authorization',
+  'permissions',
+  'account',
+  'phone_registration',
+  'webhook_subscription',
+  'persistence',
+  'unknown',
+] as const;
+
+export type MetaConnectFailureStage = (typeof META_CONNECT_FAILURE_STAGES)[number];
+
 export class MetaConnectError extends Error {
   readonly code = 'META_AUTH_FAILED';
   readonly httpStatus = 502;
-  constructor(message: string, options?: { cause?: unknown }) {
+  readonly stage: MetaConnectFailureStage;
+  constructor(message: string, options?: { cause?: unknown; stage?: MetaConnectFailureStage }) {
     super(message, options);
     this.name = 'MetaConnectError';
+    this.stage = options?.stage ?? 'unknown';
   }
 }
 
