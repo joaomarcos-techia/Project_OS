@@ -1,4 +1,4 @@
-import type { Handler } from './types';
+import type { DetachedHandler, Handler, RegisteredHandler } from './types';
 
 /**
  * Handler registry. Consumer-side only.
@@ -11,16 +11,35 @@ import type { Handler } from './types';
  * deploy independently without breaking the publishing surface (see catalog.ts
  * for full reasoning).
  */
-const handlers = new Map<string, Handler<unknown>>();
+const handlers = new Map<string, RegisteredHandler<unknown>>();
 
-export function registerHandler<T>(eventType: string, handler: Handler<T>): void {
+function assertUnregistered(eventType: string): void {
   if (handlers.has(eventType)) {
     throw new Error(`[outbox.registry] handler já registrado: ${eventType}`);
   }
-  handlers.set(eventType, handler as Handler<unknown>);
 }
 
-export function getHandler(eventType: string): Handler<unknown> | undefined {
+export function registerHandler<T>(eventType: string, handler: Handler<T>): void {
+  assertUnregistered(eventType);
+  handlers.set(eventType, {
+    execution: 'transactional',
+    handler: handler as Handler<unknown>,
+  });
+}
+
+/** Registra uma saga que controla as próprias transações curtas. */
+export function registerDetachedHandler<T>(
+  eventType: string,
+  handler: DetachedHandler<T>,
+): void {
+  assertUnregistered(eventType);
+  handlers.set(eventType, {
+    execution: 'detached',
+    handler: handler as DetachedHandler<unknown>,
+  });
+}
+
+export function getHandler(eventType: string): RegisteredHandler<unknown> | undefined {
   return handlers.get(eventType);
 }
 

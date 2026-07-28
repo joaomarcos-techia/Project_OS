@@ -3,9 +3,7 @@
  *
  * SAGA multi-fase (R2 — ADR-022, desvio documentado do ADR-011 §26): o LLM
  * JAMAIS roda dentro de uma transação de escrita. Cada fase abre seu próprio
- * `withTenant` CURTO (RLS aplicada) e commita antes do próximo I/O externo;
- * a TX externa do worker (ctx.tx) é usada SÓ para os guards read-only e fica
- * idle/vazia durante o resto (sem locks).
+ * `withTenant` CURTO (RLS aplicada) e commita antes do próximo I/O externo.
  *
  * Re-entrada (at-least-once) coberta por checkpoints idempotentes via eventId:
  *   - inbound.processed_at setado  → turno concluído, return imediato
@@ -42,7 +40,8 @@ import { metrics } from '@/lib/observability/metrics';
 import { getAiAgentMode } from '@/lib/platform-settings';
 import { PoisonPillError, serializeError } from '@/lib/outbox/errors';
 import { publishEvent } from '@/lib/outbox/publish';
-import { registerHandler } from '@/lib/outbox/registry';
+import { registerDetachedHandler } from '@/lib/outbox/registry';
+import type { DetachedHandlerCtx } from '@/lib/outbox/types';
 
 /* eslint-disable boundaries/element-types -- evento + API interna são o contrato PÚBLICO do Messaging (mesma exceção do handler financial/appointment-completed). */
 import {
@@ -257,12 +256,7 @@ async function buildSnapshot(
   return encryptForTenant(clinicId, gz);
 }
 
-async function processInbound(ctx: {
-  tx: Tx;
-  clinicId: string;
-  payload: InboundReceivedPayload;
-  eventId: string;
-}): Promise<void> {
+async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): Promise<void> {
   const { clinicId, payload, eventId } = ctx;
 
   // Defesa: clinicId do payload deve bater com o contexto RLS do worker.
@@ -273,11 +267,9 @@ async function processInbound(ctx: {
     );
   }
 
-  // GUARD (ctx.tx — read-only): inbound + dedup final do turno.
-  const inbound = await messagingApiV1.getInboundForAgent(
-    ctx.tx,
-    clinicId,
-    payload.inboundMessageId,
+  // GUARD em transação curta: inbound + dedup final do turno.
+  const inbound = await phase(clinicId, (tx) =>
+    messagingApiV1.getInboundForAgent(tx, clinicId, payload.inboundMessageId),
   );
   if (!inbound) {
     throw new PoisonPillError(
@@ -714,7 +706,7 @@ async function finalizeTurn(
   });
 }
 
-registerHandler<InboundReceivedPayload>(MESSAGING_EVENTS.INBOUND_RECEIVED, processInbound);
+registerDetachedHandler<InboundReceivedPayload>(MESSAGING_EVENTS.INBOUND_RECEIVED, processInbound);
 
 /** Test-only: o smoke invoca o fluxo diretamente (fora do worker). */
 export const __testing__ = { processInbound };
