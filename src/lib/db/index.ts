@@ -90,6 +90,9 @@ const sharedOpts = {
   connection: { statement_timeout: 30_000, lock_timeout: 15_000 },
 };
 
+/** Uma conexão sustenta o advisory lock do worker e a outra processa a fila. */
+export const DB_WORKER_POOL_SIZE = 2;
+
 // Singleton-safe pool storage on globalThis. ONLY active in non-production.
 const globalForDb = globalThis as unknown as {
   __runtimeClient?: ReturnType<typeof postgres>;
@@ -114,7 +117,7 @@ const adminClient =
   globalForDb.__adminClient ?? postgres(env.DATABASE_URL, { ...sharedOpts, max: 2 });
 const workerClient =
   globalForDb.__workerClient ??
-  postgres(env.DATABASE_URL, { ...sharedOpts, max: 1 });
+  postgres(env.DATABASE_URL, { ...sharedOpts, max: DB_WORKER_POOL_SIZE });
 
 if (env.NODE_ENV !== 'production') {
   globalForDb.__runtimeClient = runtimeClient;

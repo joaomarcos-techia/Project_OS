@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import pLimit from 'p-limit';
 
-import { dbWorker } from '@/lib/db';
+import { DB_WORKER_POOL_SIZE, dbWorker } from '@/lib/db';
 import { outbox } from '@/lib/db/schema/infra/outbox';
 import { withTenant } from '@/lib/db/tenant';
 import { env } from '@/lib/env';
@@ -77,9 +77,9 @@ export async function runOutboxOnce(opts: {
     duration_ms: Date.now() - t0,
   });
 
-  if (env.OUTBOX_DB_POOL_SIZE < 2) {
+  if (DB_WORKER_POOL_SIZE < 2) {
     metrics.emit('worker.tick.lock_skipped_pool_too_small', {
-      poolSize: env.OUTBOX_DB_POOL_SIZE,
+      poolSize: DB_WORKER_POOL_SIZE,
     });
     return runTickBody(t0, batchSize, parallelism);
   }
