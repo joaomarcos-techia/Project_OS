@@ -7,6 +7,9 @@ import type { NextConfig } from 'next';
 
 import { buildContentSecurityPolicy } from './src/lib/http/content-security-policy';
 
+/** Política base, exportada para o teste de não-regressão do Embedded Signup. */
+export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(undefined);
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Promoted from `experimental.typedRoutes` in Next 15.5 (no longer experimental).

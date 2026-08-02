@@ -28,6 +28,14 @@ export type HandlerCtx<TPayload> = {
 
 export type Handler<TPayload> = (ctx: HandlerCtx<TPayload>) => Promise<void>;
 
+/** A saga controla transações curtas por fase, sem uma TX externa longa. */
+export type DetachedHandlerCtx<TPayload> = Omit<HandlerCtx<TPayload>, 'tx'>;
+export type DetachedHandler<TPayload> = (ctx: DetachedHandlerCtx<TPayload>) => Promise<void>;
+
+export type RegisteredHandler<TPayload> =
+  | { execution: 'transactional'; handler: Handler<TPayload> }
+  | { execution: 'detached'; handler: DetachedHandler<TPayload> };
+
 /**
  * `publishEvent` arguments. `idempotencyKey` is client-generated (UUID v7
  * recommended) and combined with `eventType` enforces exactly-once enqueue

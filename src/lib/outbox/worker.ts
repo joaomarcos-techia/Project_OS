@@ -222,18 +222,28 @@ async function processOne(): Promise<ProcessOneResult> {
   // idempotency-key em chamadas a APIs externas (ADR-011 §26).
   let handlerError: unknown | null = null;
   try {
-    await withTenant(reserved.clinic_id, async (tx) => {
-      if (!schema) throw new HandlerNotFoundError(reserved.event_type);
-      if (!handler) throw new HandlerNotFoundError(reserved.event_type);
-      const payload = schema.parse(reserved.payload);
-      await handler({
-        tx,
+    if (!schema) throw new HandlerNotFoundError(reserved.event_type);
+    if (!handler) throw new HandlerNotFoundError(reserved.event_type);
+    const payload = schema.parse(reserved.payload);
+
+    if (handler.execution === 'detached') {
+      await handler.handler({
         clinicId: reserved.clinic_id,
         payload,
         eventId: reserved.id,
         attempt: reserved.attempts,
       });
-    });
+    } else {
+      await withTenant(reserved.clinic_id, async (tx) => {
+        await handler.handler({
+          tx,
+          clinicId: reserved.clinic_id,
+          payload,
+          eventId: reserved.id,
+          attempt: reserved.attempts,
+        });
+      });
+    }
   } catch (err) {
     handlerError = err;
   }

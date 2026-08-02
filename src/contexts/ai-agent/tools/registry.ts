@@ -81,6 +81,9 @@ export type ToolBatchPreflightResult =
       issuePaths?: string[];
     };
 
+/** O preflight só valida catálogo e argumentos; não acessa banco. */
+type ToolPreflightContext = Pick<ToolContext, 'clinicId' | 'aiRequestId'>;
+
 const registry = new Map<string, Tool>();
 
 export function registerTool<In extends z.ZodTypeAny, Out extends z.ZodTypeAny>(
@@ -123,9 +126,7 @@ function zodObjectToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   if (def?.typeName !== 'ZodObject') {
     throw new Error('[ai-agent] inputSchema de tool deve ser z.object(...) (C11)');
   }
-  const shape = (
-    schema as unknown as { shape: Record<string, z.ZodTypeAny> }
-  ).shape;
+  const shape = (schema as unknown as { shape: Record<string, z.ZodTypeAny> }).shape;
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
   for (const [key, field] of Object.entries(shape)) {
@@ -166,7 +167,7 @@ function issuePaths(error: z.ZodError): string[] {
  */
 export function preflightToolCalls(
   calls: ToolCall[],
-  ctx: ToolContext,
+  ctx: ToolPreflightContext,
 ): ToolBatchPreflightResult {
   const mutations: string[] = [];
 
