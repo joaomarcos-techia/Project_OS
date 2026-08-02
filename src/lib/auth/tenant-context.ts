@@ -48,15 +48,16 @@ import 'server-only';
 
 import { cache } from 'react';
 
-import { and, eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
-/* eslint-disable boundaries/element-types -- D35-style: requireFreshPermission revalida no banco; schemas vivem em context (Drizzle FK precisa estar onde a tabela é declarada). Mesma exceção do tenancy.tenantIdRef em outros contexts. */
+/* eslint-disable boundaries/element-types -- A leitura autoritativa cruza schemas por PK e mantém a decisão de autorização no único ponto de enforcement. */
 import {
   permissions as permissionsTable,
   profiles,
   rolePermissions,
   userPermissionOverrides,
 } from '@/contexts/identity/schema';
+import { clinics } from '@/contexts/tenancy/schema';
 /* eslint-enable boundaries/element-types */
 import { dbAdmin } from '@/lib/db';
 import { resolveImpersonation } from '@/lib/impersonation';
@@ -116,6 +117,8 @@ export class AuthError extends Error {
 
 export interface CurrentUser {
   userId: string;
+  name?: string;
+  clinicName?: string | null;
   clinicId: string | null;
   role: Role;
   permissions: readonly string[];
@@ -164,6 +167,8 @@ const readAuthoritativeProfile = cache(async (userId: string) => {
   const rows = await dbAdmin
     .select({
       role: profiles.role,
+      nome: profiles.nome,
+      clinicName: clinics.nome,
       ativo: profiles.ativo,
       deletedAt: profiles.deletedAt,
       clinicId: profiles.clinicId,
@@ -171,6 +176,7 @@ const readAuthoritativeProfile = cache(async (userId: string) => {
       inviteAcceptedAt: profiles.inviteAcceptedAt,
     })
     .from(profiles)
+    .leftJoin(clinics, eq(clinics.id, profiles.clinicId))
     .where(eq(profiles.id, userId))
     .limit(1);
   return rows[0] ?? null;
@@ -241,6 +247,8 @@ export const authenticate = cache(async (): Promise<IdentityResult> => {
 
   const identity: CurrentUser = {
     userId,
+    name: profile.nome,
+    clinicName: profile.clinicName ?? null,
     clinicId: claims.clinic_id,
     // JWT claim é 'app_role' (PostgREST reserva 'role'); domain expõe como 'role'.
     role: claims.app_role,
@@ -445,7 +453,7 @@ export async function requireCachedAnyPermission(perms: readonly Permission[]): 
 
 /**
  * Revalida permission lendo profile + role_permissions + overrides do banco.
- * Garantia forte (D20): nenhuma janela stale. Custo ~5ms (3 queries indexadas).
+ * Garantia forte (D20): nenhuma janela stale. Custo: uma consulta indexada.
  *
  * USO OBRIGATÓRIO em CRITICAL_ACTIONS (lista em policies/critical-actions.ts).
  * Vitest arch test em F8 falha CI se Server Action listada NÃO chamar este.
@@ -484,50 +492,54 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
   // recurso. Em downgrade, a view do hook já remove os overrides das novas
   // claims; este check protege também as ações críticas que fazem revalidação
   // direta no banco.
-  if (user.granularPermissionsEnabled) {
-    // Override negando? → bloqueia mesmo se role tem.
-    const denyRow = await dbAdmin
-    .select({ id: userPermissionOverrides.id })
-    .from(userPermissionOverrides)
-    .where(
-      and(
-        eq(userPermissionOverrides.userId, user.userId),
-        eq(userPermissionOverrides.permissionCode, perm),
-        eq(userPermissionOverrides.granted, false),
-      ),
-    )
-    .limit(1);
-    if (denyRow.length > 0) {
-      throw new AuthError(
-        `Permissão '${perm}' negada por override (fresh check).`,
-        'forbidden',
-        403,
-        'PERMISSION_DENIED',
-      );
-    }
+  const [decision] = await dbAdmin.execute<{
+    denied_override: boolean;
+    granted_override: boolean;
+    has_role_permission: boolean;
+    in_catalog: boolean;
+  }>(sql`
+    SELECT
+      (${user.granularPermissionsEnabled} AND EXISTS(
+        SELECT 1
+          FROM ${userPermissionOverrides}
+         WHERE ${userPermissionOverrides.userId} = ${user.userId}
+           AND ${userPermissionOverrides.permissionCode} = ${perm}
+           AND ${userPermissionOverrides.granted} = false
+      )) AS denied_override,
+      (${user.granularPermissionsEnabled} AND EXISTS(
+        SELECT 1
+          FROM ${userPermissionOverrides}
+         WHERE ${userPermissionOverrides.userId} = ${user.userId}
+           AND ${userPermissionOverrides.permissionCode} = ${perm}
+           AND ${userPermissionOverrides.granted} = true
+      )) AS granted_override,
+      EXISTS(
+        SELECT 1
+          FROM ${rolePermissions}
+         WHERE ${rolePermissions.role} = ${profile.role}
+           AND ${rolePermissions.permissionCode} = ${perm}
+      ) AS has_role_permission,
+      EXISTS(
+        SELECT 1
+          FROM ${permissionsTable}
+         WHERE ${permissionsTable.code} = ${perm}
+      ) AS in_catalog
+  `);
 
-  // Override concedendo? → permite mesmo se role não tem.
-    const grantRow = await dbAdmin
-    .select({ id: userPermissionOverrides.id })
-    .from(userPermissionOverrides)
-    .where(
-      and(
-        eq(userPermissionOverrides.userId, user.userId),
-        eq(userPermissionOverrides.permissionCode, perm),
-        eq(userPermissionOverrides.granted, true),
-      ),
-    )
-    .limit(1);
-    if (grantRow.length > 0) return;
+  // Override negando tem precedência sobre todo o resto da decisão.
+  if (decision?.denied_override) {
+    throw new AuthError(
+      `Permissão '${perm}' negada por override (fresh check).`,
+      'forbidden',
+      403,
+      'PERMISSION_DENIED',
+    );
   }
 
-  // Permissão via role bundle?
-  const rolePermRow = await dbAdmin
-    .select({ role: rolePermissions.role })
-    .from(rolePermissions)
-    .where(and(eq(rolePermissions.role, profile.role), eq(rolePermissions.permissionCode, perm)))
-    .limit(1);
-  if (rolePermRow.length === 0) {
+  // Override concedendo permite mesmo se a role não tem bundle.
+  if (decision?.granted_override) return;
+
+  if (!decision?.has_role_permission) {
     throw new AuthError(
       `Permissão '${perm}' negada (fresh check). Role '${profile.role}' não tem bundle e não há override granted.`,
       'forbidden',
@@ -538,12 +550,7 @@ export async function requireFreshPermission(perm: Permission): Promise<void> {
 
   // Confirma que a permission ainda existe no catálogo (defesa paranóica
   // contra DELETE em permissions sem CASCADE rebuild — improvável mas barato).
-  const catalogRow = await dbAdmin
-    .select({ code: permissionsTable.code })
-    .from(permissionsTable)
-    .where(eq(permissionsTable.code, perm))
-    .limit(1);
-  if (catalogRow.length === 0) {
+  if (!decision.in_catalog) {
     throw new AuthError(
       `Permissão '${perm}' não existe no catálogo (defesa fresh).`,
       'forbidden',

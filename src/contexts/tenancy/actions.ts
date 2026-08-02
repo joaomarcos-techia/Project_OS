@@ -19,6 +19,7 @@ import {
 } from '@/lib/storage/clinic-assets';
 
 import { updateClinicProfileCore } from './internal/profile-core';
+import { revalidateClinicSettings } from './queries';
 import { ClinicProfileSchema, type ClinicProfileInput } from './types';
 
 export async function updateClinicProfile(
@@ -31,6 +32,7 @@ export async function updateClinicProfile(
     const data = ClinicProfileSchema.parse(input);
     const ctx = buildRequestContext(await headers());
     await updateClinicProfileCore(clinicId, user.userId, data, ctx);
+    revalidateClinicSettings(clinicId);
     return { ok: true };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Erro ao salvar.' };

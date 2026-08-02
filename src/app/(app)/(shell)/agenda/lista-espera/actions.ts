@@ -1,9 +1,9 @@
 'use server';
 
 import { createWaitlistEntry } from '@/contexts/scheduling/actions';
-import { getClinicTimezone } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
 import type { CreateWaitlistEntryInput, WaitlistEntryDTO } from '@/contexts/scheduling/types';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { requireClinicId } from '@/lib/auth/tenant-context';
 
 function localBoundary(ymd: string, endOfDay: boolean, timezone: string): string {

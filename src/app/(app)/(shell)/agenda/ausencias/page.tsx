@@ -2,7 +2,8 @@ import Link from 'next/link';
 
 import { isPractitioner } from '@/contexts/identity';
 import { getProfileNames, listEmployees } from '@/contexts/identity/queries';
-import { getClinicTimezone, listDoctorAbsences } from '@/contexts/scheduling/queries';
+import { listDoctorAbsences } from '@/contexts/scheduling/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';

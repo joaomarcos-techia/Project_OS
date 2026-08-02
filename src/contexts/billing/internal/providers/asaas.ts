@@ -271,6 +271,11 @@ export interface PaymentProvider {
   cancelSubscription(asaasSubscriptionId: string): Promise<void>;
   generateInvoice(input: GenerateInvoiceInput): Promise<ProviderPayment>;
   getSubscription(asaasSubscriptionId: string): Promise<ProviderSubscription>;
+  /** Cobranças já geradas pela assinatura (backstop para webhooks perdidos). */
+  listSubscriptionPayments(
+    asaasSubscriptionId: string,
+    opts?: { attempts?: number },
+  ): Promise<ProviderPayment[]>;
   /** `attempts` aperta o orçamento de retry (webhook usa 1 — ver [asaas/route.ts]). */
   getPayment(asaasPaymentId: string, opts?: { attempts?: number }): Promise<ProviderPayment>;
   /** Lança se o corpo não trouxer `body.id` (chave de dedup do provider). */
@@ -378,6 +383,30 @@ export const asaasProvider: PaymentProvider = {
       status: asStr(r.status) ?? 'UNKNOWN',
       value: asNum(r.value),
     };
+  },
+
+  async listSubscriptionPayments(id, opts) {
+    const r = (await request(
+      'GET',
+      `/subscriptions/${encodeURIComponent(id)}/payments`,
+      undefined,
+      opts,
+    )) as { data?: unknown };
+    const payments = Array.isArray(r.data) ? r.data : [];
+    return payments.map((payment) => {
+      const p = payment as Record<string, unknown>;
+      return {
+        paymentId: String(p.id),
+        status: asStr(p.status) ?? 'UNKNOWN',
+        value: asNum(p.value),
+        dueDate: asStr(p.dueDate) ?? '',
+        invoiceUrl: asStr(p.invoiceUrl),
+        // A resposta pertence à assinatura consultada. O fallback mantém a
+        // correlação mesmo se a API omitir o campo `subscription` na listagem.
+        subscriptionId: asStr(p.subscription) ?? id,
+        billingType: asStr(p.billingType),
+      };
+    });
   },
 
   async getPayment(id, opts) {

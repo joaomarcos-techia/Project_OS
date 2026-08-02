@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { clinicMonthBounds } from '@/contexts/financial/logic';
 import {
   getCashFlowToday,
-  getClinicTimezone,
   listLancamentos,
   listPaymentMethods,
   listSuppliers,
 } from '@/contexts/financial/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import type {
   LancamentoStatus,
   LancamentoSummary,

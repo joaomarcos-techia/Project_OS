@@ -6,11 +6,11 @@ import { practitionerSql, profiles } from '@/contexts/identity';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listPatientCards } from '@/contexts/patient/queries';
 import {
-  getClinicTimezone,
   listAppointments,
   listProcedures,
   listSchedulableResources,
 } from '@/contexts/scheduling/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import {
   listAppointmentRecoveryKinds,
   type AppointmentRecoveryKind,

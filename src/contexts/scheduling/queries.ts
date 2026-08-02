@@ -297,16 +297,6 @@ export async function getCheckInTimes(
   });
 }
 
-/** Timezone da clínica (CONGELADO: 1 clínica = 1 tz; default America/Sao_Paulo). */
-export async function getClinicTimezone(clinicId: string): Promise<string> {
-  return withTenant(clinicId, async (tx) => {
-    const rows = await tx.execute<{ timezone: string | null }>(
-      sql`SELECT timezone FROM clinics WHERE id = ${clinicId} LIMIT 1`,
-    );
-    return rows[0]?.timezone ?? DEFAULT_TZ;
-  });
-}
-
 // --- procedure reads -------------------------------------------------------
 
 export async function getProcedure(clinicId: string, id: string): Promise<ProcedureSummary | null> {

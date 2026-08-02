@@ -35,11 +35,11 @@ import {
 import {
   getAppointmentOrThrow,
   getCheckInTimes,
-  getClinicTimezone,
   getWaitingQueueEntries,
   listAppointments,
 } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser, requireUser } from '@/lib/auth/tenant-context';
 

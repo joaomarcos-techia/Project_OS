@@ -14,7 +14,7 @@ import 'server-only';
 
 import { and, desc, eq, gte, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 
-/* eslint-disable boundaries/element-types -- messagingApiV1 é a superfície PÚBLICA do Messaging (mesma exceção já usada em internal/handlers/inbound-received.ts). Só o estado de entrega, sem tocar o schema do outro contexto. */
+/* eslint-disable boundaries/element-types -- API pública de Messaging: só estado de entrega, sem schema. */
 import { messagingApiV1 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
@@ -24,7 +24,7 @@ import { withTenant } from '@/lib/db/tenant';
 import { maskPhone } from '@/lib/format';
 import { metrics } from '@/lib/observability/metrics';
 
-/* eslint-disable boundaries/element-types -- patients é superfície PÚBLICA do Patient (mesma exceção já usada em internal/conversation.ts). Leitura por id, sem JOIN cross-context. */
+/* eslint-disable boundaries/element-types -- A listagem lê somente `nome` via LEFT JOIN para eliminar N+1; não acessa estado do domínio Patient. */
 import { patients } from '@/contexts/patient';
 /* eslint-enable boundaries/element-types */
 
@@ -123,6 +123,7 @@ export async function listConversations(
         .select({
           id: aiConversations.id,
           patientId: aiConversations.patientId,
+          patientName: patients.nome,
           patientPhoneEncrypted: aiConversations.patientPhoneEncrypted,
           status: aiConversations.status,
           intentAtual: aiConversations.intentAtual,
@@ -140,6 +141,10 @@ export async function listConversations(
             eq(aiHandoffQueue.conversationId, aiConversations.id),
             isNull(aiHandoffQueue.resolvedAt),
           ),
+        )
+        .leftJoin(
+          patients,
+          and(eq(patients.id, aiConversations.patientId), eq(patients.clinicId, clinicId)),
         )
         .where(where)
         .orderBy(
@@ -166,12 +171,38 @@ export async function listConversations(
         .where(where),
     ]);
 
+    const conversationIds = rows.map((row) => row.id);
+    const earliestConversationStart = rows.reduce<Date | null>(
+      (earliest, row) => (!earliest || row.startedAt < earliest ? row.startedAt : earliest),
+      null,
+    );
+    const latestMessages =
+      conversationIds.length > 0 && earliestConversationStart
+        ? await tx
+            .selectDistinctOn([aiMessages.conversationId], {
+              conversationId: aiMessages.conversationId,
+              contentEncrypted: aiMessages.contentEncrypted,
+            })
+            .from(aiMessages)
+            .where(
+              and(
+                eq(aiMessages.clinicId, clinicId),
+                inArray(aiMessages.conversationId, conversationIds),
+                // Poda de partição: a conversa mais antiga determina o menor
+                // intervalo que pode conter uma mensagem desta página.
+                gte(aiMessages.createdAt, earliestConversationStart),
+              ),
+            )
+            .orderBy(aiMessages.conversationId, desc(aiMessages.createdAt))
+        : [];
+    const lastMessageByConversation = new Map(
+      latestMessages.map((message) => [message.conversationId, message.contentEncrypted]),
+    );
+
     const items = await Promise.all(
       rows.map(async (r): Promise<AIConversationListItem> => {
-        const [nome, lastText] = await Promise.all([
-          r.patientId ? patientNome(tx, clinicId, r.patientId) : Promise.resolve(null),
-          lastMessagePreview(tx, clinicId, r.id, r.startedAt),
-        ]);
+        const nome = r.patientName ?? null;
+        const lastMessage = lastMessageByConversation.get(r.id);
         return {
           id: r.id,
           patientDisplayName: nome,
@@ -179,7 +210,7 @@ export async function listConversations(
           maskedPhone: nome
             ? null
             : maskPhone(await decryptForTenant(clinicId, r.patientPhoneEncrypted)),
-          lastMessagePreview: lastText,
+          lastMessagePreview: lastMessage ? preview(await decryptForTenant(clinicId, lastMessage)) : null,
           status: r.status,
           lastMessageAt: toIso(r.lastMessageAt)!,
           intentAtual: r.intentAtual,
@@ -207,30 +238,6 @@ export async function listConversations(
   });
 }
 
-async function patientNome(tx: Tx, clinicId: string, patientId: string): Promise<string | null> {
-  const [row] = await tx
-    .select({ nome: patients.nome })
-    .from(patients)
-    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
-    .limit(1);
-  return row?.nome ?? null;
-}
-
-async function lastMessagePreview(
-  tx: Tx,
-  clinicId: string,
-  conversationId: string,
-  startedAt: Date,
-): Promise<string | null> {
-  const [row] = await tx
-    .select({ contentEncrypted: aiMessages.contentEncrypted })
-    .from(aiMessages)
-    .where(partitionScopedConversation(clinicId, conversationId, startedAt))
-    .orderBy(desc(aiMessages.createdAt))
-    .limit(1);
-  return row ? preview(await decryptForTenant(clinicId, row.contentEncrypted)) : null;
-}
-
 /**
  * Predicado padrão de leitura de `ai_messages`.
  *
@@ -256,6 +263,15 @@ function partitionScopedConversation(
     eq(aiMessages.conversationId, conversationId),
     gte(aiMessages.createdAt, startedAt),
   )!;
+}
+
+async function getPatientName(tx: Tx, clinicId: string, patientId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ nome: patients.nome })
+    .from(patients)
+    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+    .limit(1);
+  return row?.nome ?? null;
 }
 
 /**
@@ -353,7 +369,7 @@ export async function getConversationThread(
 
     const lastInboundAt = [...rows].reverse().find((r) => r.direction === 'in')?.createdAt ?? null;
     const now = new Date();
-    const nome = conv.patientId ? await patientNome(tx, clinicId, conv.patientId) : null;
+    const nome = conv.patientId ? await getPatientName(tx, clinicId, conv.patientId) : null;
 
     metrics.emit('ai_agent.conversation.opened', {
       clinicId,

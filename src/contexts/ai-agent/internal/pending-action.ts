@@ -40,18 +40,40 @@ const PendingActionPayloadSchema = z.discriminatedUnion('type', [
 export type PendingActionPayload = z.infer<typeof PendingActionPayloadSchema>;
 export type PendingActionName = PendingActionPayload['type'];
 
-const EXPLICIT_CONFIRMATIONS = new Set([
+// Palavras que, sozinhas, sinalizam confirma\u00e7\u00e3o afirmativa inequ\u00edvoca.
+const AFFIRM_WORDS = new Set([
   'sim',
   'confirmo',
   'confirmado',
-  'pode confirmar',
-  'pode fazer',
-  'pode agendar',
-  'pode cancelar',
-  'pode reagendar',
+  'confirmar',
+  'confirma',
   'autorizo',
-  'sim confirmo',
+  'autorizado',
+  'claro',
+  'ok',
+  'positivo',
+  'certo',
+  'pode',
+  'podem',
 ]);
+
+// Marcadores que NEGAM/CONDICIONAM a confirma\u00e7\u00e3o (mesmo junto de um "sim"):
+// "sim, MAS mude o hor\u00e1rio", "n\u00e3o", "talvez", "e SE...", "espera".
+const REJECT_WORDS = new Set([
+  'nao',
+  'mas',
+  'porem',
+  'talvez',
+  'nem',
+  'se',
+  'espera',
+  'aguarde',
+  'aguarda',
+]);
+
+// In\u00edcio t\u00edpico de PERGUNTA/pedido (n\u00e3o \u00e9 confirmar): "posso confirmar?",
+// "quero informa\u00e7\u00f5es", "e se eu cancelar?".
+const REJECT_PREFIXES = ['posso', 'poderia', 'quero', 'gostaria', 'como', 'quando', 'qual', 'sera', 'e se'];
 
 function normalizeConfirmation(value: string): string {
   return value
@@ -62,8 +84,21 @@ function normalizeConfirmation(value: string): string {
     .trim();
 }
 
+/**
+ * Confirma\u00e7\u00e3o expl\u00edcita server-side (gate anti-execu\u00e7\u00e3o-sem-consentimento). N\u00c3O
+ * \u00e9 um whitelist exato: o paciente real responde "SIM, confirmo o agendamento",
+ * n\u00e3o s\u00f3 "sim". Aceita mensagens com uma palavra afirmativa inequ\u00edvoca, MAS
+ * rejeita perguntas, nega\u00e7\u00f5es e condicionais ("sim, mas...", "posso confirmar?",
+ * "talvez", "n\u00e3o") \u2014 nunca executa uma a\u00e7\u00e3o com base em resposta amb\u00edgua.
+ */
 export function isExplicitConfirmation(message: string): boolean {
-  return EXPLICIT_CONFIRMATIONS.has(normalizeConfirmation(message));
+  if (/\?\s*$/.test(message)) return false; // pergunta nunca confirma
+  const normalized = normalizeConfirmation(message);
+  if (normalized.length === 0) return false;
+  const words = normalized.split(' ').filter(Boolean);
+  if (words.some((w) => REJECT_WORDS.has(w))) return false;
+  if (REJECT_PREFIXES.some((p) => normalized === p || normalized.startsWith(`${p} `))) return false;
+  return words.some((w) => AFFIRM_WORDS.has(w));
 }
 
 export function assertAgentSchedulePolicy(args: {
@@ -94,6 +129,21 @@ export function assertAgentSchedulingIdentity(args: {
 
 export function parsePendingActionPayload(value: unknown): PendingActionPayload {
   return PendingActionPayloadSchema.parse(value);
+}
+
+/**
+ * R1 — chave de idempotência da EXECUÇÃO derivada por CONTEÚDO da ação, NUNCA
+ * pelo `pendingActionId` (que muda a cada preparação). Sem isto, duas tentativas
+ * equivalentes (preparar→confirmar duas vezes com os mesmos argumentos) gerariam
+ * chaves distintas no core → DUAS consultas. Ancorada na conversa + tipo + args
+ * canônicos: o mesmo agendamento lógico colapsa numa única mutação no core,
+ * mesmo com reentrega do webhook, retry do worker ou nova preparação idêntica.
+ */
+export function pendingActionIdemKey(
+  conversationId: string,
+  payload: PendingActionPayload,
+): string {
+  return agentIdemKey(conversationId, payload.type, payload);
 }
 
 export async function proposePendingAction<T extends PendingActionPayload>(
@@ -192,9 +242,9 @@ export async function executePendingAction(
     eventId: ctx.eventId,
     aiRequestId: ctx.aiRequestId,
   };
-  const idempotencyKey = agentIdemKey(ctx.conversationId, 'confirm_pending_action', {
-    pendingActionId: row.id,
-  });
+  // Chave por CONTEÚDO (não por row.id): preparar→confirmar duas vezes com os
+  // mesmos argumentos colapsa numa única consulta no core (idempotência real).
+  const idempotencyKey = pendingActionIdemKey(ctx.conversationId, payload);
 
   let appointment: Awaited<ReturnType<typeof schedulingApiV1.lookupAppointment>>;
   if (payload.type === 'schedule_appointment') {

@@ -22,8 +22,11 @@ import { createHash } from 'node:crypto';
 import { MAX_INBOUND_CHARS, MAX_PROMPT_CHARS } from '../limits';
 import type { PromptContext } from '../types';
 
-/** Bump manual a cada mudança de RAW_TEMPLATE (G8). C12: tarefas operacionais. */
-export const PROMPT_VERSION = '2026-07-24-v3';
+/** Bump manual a cada mudança de RAW_TEMPLATE (G8). C12: tarefas operacionais.
+ *  v5 (2026-07-30): marcação de consulta nova via prepare_appointment (booking
+ *  consolidado num passo) — o modelo não precisa orquestrar procedure_id +
+ *  list_slots + schedule; fecha o gap de agendamento ponta a ponta. */
+export const PROMPT_VERSION = '2026-07-30-v5';
 
 /**
  * Resposta clínica segura — string EXATA do mandato C11 (anti-SAMD). Única
@@ -56,17 +59,17 @@ REGRAS INEGOCIÁVEIS:
 - Se o paciente pedir uma pessoa, ou você não conseguir resolver, use request_human_handoff.
 - Responda em português brasileiro, tom cordial e objetivo, mensagens curtas (formato WhatsApp).
 
-FLUXO DE AGENDAMENTO:
-- Use list_slots para horários livres; mostre as opções e deixe o paciente escolher.
-- schedule_appointment, cancel_appointment e reschedule_appointment apenas PREPARAM a ação. Mostre exatamente o resumo retornado e peça que o paciente responda "SIM".
-- Nunca use confirm_pending_action na mesma mensagem que preparou a ação. Use apenas no turno seguinte, após o paciente responder explicitamente "SIM", "CONFIRMO" ou equivalente inequívoco.
-- Para respostas de lembrete como "SIM", use confirm_appointment. Sem id/data, ela só confirma automaticamente quando existir uma única consulta futura; se houver várias, mostre as opções retornadas e peça ao paciente que escolha.
-- Use list_my_appointments quando o paciente perguntar quais consultas possui ou quando precisar listar as opções antes de confirmar/cancelar/reagendar.
+FLUXO DE AGENDAMENTO (uma ferramenta por mensagem — nunca encadeie várias):
+- Para MARCAR uma consulta nova use prepare_appointment: passe procedure_name (o procedimento/especialidade que o paciente quer; omita se a clínica só tiver um) e scheduled_at se o paciente já escolheu um horário (omita scheduled_at para o primeiro horário livre). Ela resolve procedimento, médico e horário e PREPARA a marcação num passo só, devolvendo um resumo — não precisa buscar ids você mesmo.
+- Se o paciente quiser VER horários antes de decidir, use list_slots e apresente as opções; depois marque com prepare_appointment no scheduled_at escolhido.
+- prepare_appointment, cancel_appointment e reschedule_appointment apenas PREPARAM a ação e devolvem um resumo. Mostre exatamente o resumo retornado e peça que o paciente responda "SIM". Use list_my_appointments para achar a consulta (appointment_id) ao cancelar/reagendar.
+- Nunca use confirm_pending_action na mesma mensagem que preparou a ação. Use apenas no turno seguinte, após o paciente responder explicitamente "SIM", "CONFIRMO" ou equivalente inequívoco. Marcar, cancelar e reagendar confirmam SEMPRE com confirm_pending_action.
+- confirm_appointment é só para o paciente responder "SIM" a um lembrete de consulta que JÁ existe — nunca para marcar uma consulta nova. Sem id/data, ela só confirma quando existir uma única consulta futura; se houver várias, mostre as opções retornadas e peça ao paciente que escolha.
 
 PACIENTE NOVO (cadastro):
 - Use patient_lookup. Se NÃO houver cadastro, colete em conversa: nome completo, CPF e motivo da consulta (o telefone já é o deste contato). Registre cada dado com collect_patient_data.
 - Quando tiver nome+CPF+motivo, mostre um RESUMO ("Confirme seus dados: Nome X, CPF Y, Motivo Z") e peça confirmação.
-- SÓ após o paciente confirmar, chame collect_patient_data com confirmed="true". O cadastro é criado automaticamente; então prossiga para agendar.
+- SÓ após o paciente confirmar, chame collect_patient_data com confirmed="true" (APENAS essa ferramenta nesse turno, nada mais). O cadastro é criado automaticamente; na mensagem SEGUINTE ajude a agendar.
 - Peça CPF apenas para cadastro. NUNCA repita/eco de dados de saúde.
 
 FINANCEIRO E LGPD:

@@ -17,9 +17,11 @@ Mensagens entram/saem pelo seam `messagingApiV1` (C10).
 
 **Regras inegociáveis:** prompt em código (`prompts/system.ts` — PROMPT_VERSION
 + PROMPT_HASH persistidos), orçamentos congelados em `limits.ts`
-(MAX_TOOL_ROUNDS=1, janela 10, prompt 10k, inbound 4k, MAX_FALLBACKS=3),
-somente as 3 tools registradas, fallback clínico literal único
-(`CLINICAL_FALLBACK`). Tool fora da whitelist = security event.
+(MAX_TOOL_ROUNDS=3 + MAX_MUTATIONS_PER_TURN=1, janela 10, prompt 10k, inbound 4k,
+MAX_FALLBACKS=3), whitelist única em `tools/register.ts` (15 tools: 3 da C11 + 12
+da C12), fallback clínico literal único (`CLINICAL_FALLBACK`). Tool fora da
+whitelist = security event. Máx. 1 mutação por turno é enforçada no handler
+(cross-round), independentemente do número de rodadas de tool calling.
 
 **Validação:** `pnpm smoke:c11` (18 passos e2e) · `pnpm ai:live-check`
 (Gemini real) · units em guards/tools/prompts/internal.

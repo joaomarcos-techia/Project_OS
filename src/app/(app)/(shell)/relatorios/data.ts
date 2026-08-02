@@ -5,8 +5,8 @@ import {
   getAppointmentStats,
   getAppointmentStatsByDoctor,
   getAvailableSlots,
-  getClinicTimezone,
 } from '@/contexts/scheduling/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 /**
  * Dados de Relatórios (painéis Solo: faturamento · no-show · ocupação). Tudo de

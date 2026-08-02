@@ -36,7 +36,7 @@ vi.mock('@/lib/db', () => {
   const chain = (fields: Record<string, unknown> | undefined) => {
     const isProfileRead = !!fields && 'claimsVersion' in fields;
     const p: Record<string, unknown> = {};
-    for (const m of ['from', 'where']) p[m] = () => p;
+    for (const m of ['from', 'leftJoin', 'where']) p[m] = () => p;
     p.limit = () => Promise.resolve(isProfileRead ? db.profile : []);
     return p;
   };
@@ -65,6 +65,8 @@ function claims(
   db.profile = [
     {
       role: c.app_role,
+      nome: 'Ana Silva',
+      clinicName: 'Clínica Aurora',
       ativo: true,
       deletedAt: null,
       clinicId: c.clinic_id,

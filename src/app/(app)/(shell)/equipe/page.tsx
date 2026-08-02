@@ -66,15 +66,19 @@ export default async function EquipePage() {
     );
   }
 
-  const employees = await listEmployees(user.clinicId);
+  const [employees, limits, granularPermissionsEnabled] = await Promise.all([
+    listEmployees(user.clinicId),
+    billingApiV1.getPlanLimits(user.clinicId),
+    user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS)
+      ? billingApiV1.hasGranularPermissions(user.clinicId)
+      : Promise.resolve(false),
+  ]);
   const ativos = employees.filter((e) => e.ativo).length;
   // Funções que ESTE ator pode atribuir (server-side; a UI só oferece o permitido).
   const assignableRoles = assignableRolesFor(user.role);
-  const limits = await billingApiV1.getPlanLimits(user.clinicId);
   const seatLimit = limits?.users ?? null;
   const canManagePermissions =
-    user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS) &&
-    (await billingApiV1.hasGranularPermissions(user.clinicId));
+    user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS) && granularPermissionsEnabled;
   const counts = new Map<Role, number>();
   for (const e of employees) counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
 

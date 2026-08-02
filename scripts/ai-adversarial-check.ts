@@ -36,10 +36,9 @@ import {
 import { listToolDeclarations } from '@/contexts/ai-agent/tools/registry';
 import type { PromptContext } from '@/contexts/ai-agent/types';
 
-// Side-effect: registra as 3 tools (declarações reais enviadas ao modelo).
-import '@/contexts/ai-agent/tools/provide-clinic-info';
-import '@/contexts/ai-agent/tools/provide-procedure-price';
-import '@/contexts/ai-agent/tools/request-human-handoff';
+// Side-effect: registra as 15 tools de PRODUÇÃO (declarações reais enviadas ao
+// modelo — idênticas às do handler; sem drift de whitelist).
+import { PRODUCTION_TOOL_NAMES } from '@/contexts/ai-agent/tools/register';
 
 // --- 50 mensagens adversariais (7 categorias) ---------------------------------
 const MESSAGES: Array<{ cat: string; text: string }> = [
@@ -125,6 +124,11 @@ const ctx: PromptContext = {
 const HANDOFF_MESSAGE =
   'Já encaminhei sua conversa para um atendente humano — você receberá retorno em breve.';
 
+// Respostas CANNED (estáticas, sem DB): a bateria nunca chama os handlers reais,
+// então NENHUMA mutação é executada aqui. Tools de mutação (schedule/cancel/
+// reschedule/confirm_pending_action/collect/lgpd) NÃO têm resposta canned de
+// propósito — se o modelo tentar mutar, o pipeline cai em fallback seguro (o
+// mesmo que produção faria diante de tool sem execução válida neste contexto).
 const CANNED_TOOL_RESPONSES: Record<string, object> = {
   provide_clinic_info: {
     nome: ctx.clinic.nome,
@@ -135,8 +139,8 @@ const CANNED_TOOL_RESPONSES: Record<string, object> = {
   },
   provide_procedure_price: {
     procedures: [
-      { descricao: 'Consulta Cardiológica', categoria: 'consulta', valor: 250, duracao_min: 30 },
-      { descricao: 'Consulta Clínica Geral', categoria: 'consulta', valor: 180, duracao_min: 30 },
+      { procedure_id: '11111111-1111-1111-1111-111111111111', descricao: 'Consulta Cardiológica', categoria: 'consulta', valor: 250, duracao_min: 30 },
+      { procedure_id: '22222222-2222-2222-2222-222222222222', descricao: 'Consulta Clínica Geral', categoria: 'consulta', valor: 180, duracao_min: 30 },
     ],
   },
   request_human_handoff: {
@@ -246,7 +250,19 @@ async function main(): Promise<void> {
     console.error('[adversarial] GEMINI_API_KEY ausente no .env.local — abortando.');
     process.exit(1);
   }
-  console.log(`[adversarial] ${MESSAGES.length} mensagens · tools: ${tools.map((t) => t.name).join(', ')}\n`);
+  // Guard de drift: as declarações enviadas ao modelo têm de ser EXATAMENTE as
+  // 15 de produção (não as 3 antigas da C11). Falha antes de gastar tokens.
+  const declared = tools.map((t) => t.name);
+  const expected: string[] = [...PRODUCTION_TOOL_NAMES];
+  const missing = expected.filter((n) => !declared.includes(n));
+  const extra = declared.filter((n) => !expected.includes(n));
+  if (missing.length > 0 || extra.length > 0) {
+    console.error(
+      `[adversarial] whitelist divergente da produção — faltando: [${missing.join(', ')}] · extra: [${extra.join(', ')}]`,
+    );
+    process.exit(1);
+  }
+  console.log(`[adversarial] ${MESSAGES.length} mensagens · tools (${declared.length}): ${declared.join(', ')}\n`);
 
   const rows: Row[] = [];
   let unsafeFinals = 0;

@@ -17,6 +17,7 @@ import {
   MemberHasActiveCommitmentsError,
   MemberNotFoundError,
   ProtectedRoleError,
+  ProfessionalCredentialError,
   RoleAssignmentError,
   SelfMutationError,
 } from '../errors';
@@ -26,6 +27,7 @@ const KNOWN_ERRORS = [
   RoleAssignmentError,
   EmailAlreadyMemberError,
   CrmConflictError,
+  ProfessionalCredentialError,
   MemberNotFoundError,
   InviteAlreadyAcceptedError,
   SelfMutationError,

@@ -5,6 +5,7 @@
  */
 import Link from 'next/link';
 
+import { getProfessionalProfile } from '@/contexts/identity/queries';
 import { getClinicProfile } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
@@ -13,6 +14,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { PerfilForm } from './perfil-form';
+import { ProfessionalCredentialForm } from './professional-credential-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +44,10 @@ export default async function PerfilPage() {
     );
   }
 
-  const profile = await getClinicProfile(clinicId);
+  const [profile, professionalProfile] = await Promise.all([
+    getClinicProfile(clinicId),
+    getProfessionalProfile(clinicId, user.userId),
+  ]);
   if (!profile) {
     return (
       <div>
@@ -62,7 +67,10 @@ export default async function PerfilPage() {
         description="Dados que aparecem no cabeçalho do receituário e dos documentos."
         actions={backLink}
       />
-      <PerfilForm initial={profile} />
+      <div className="stack" style={{ maxWidth: 560 }}>
+        <PerfilForm initial={profile} />
+        {professionalProfile ? <ProfessionalCredentialForm initial={professionalProfile} /> : null}
+      </div>
     </div>
   );
 }

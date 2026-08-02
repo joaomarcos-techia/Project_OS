@@ -67,8 +67,9 @@ export function PatientForm({
       {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Nome">
+        <Field label="Nome" htmlFor="patient-name">
           <Input
+            id="patient-name"
             name="nome"
             required
             maxLength={120}
@@ -77,8 +78,9 @@ export function PatientForm({
           />
         </Field>
 
-        <Field label={`CPF${mode === 'edit' ? ' (em branco = manter)' : ''}`}>
+        <Field label={`CPF${mode === 'edit' ? ' (em branco = manter)' : ''}`} htmlFor="patient-cpf">
           <Input
+            id="patient-cpf"
             name="cpf"
             required={mode === 'create'}
             inputMode="numeric"
@@ -149,8 +151,9 @@ export function PatientForm({
           />
         </Field>
 
-        <Field label="E-mail">
+        <Field label="E-mail" htmlFor="patient-email">
           <Input
+            id="patient-email"
             name="email"
             type="email"
             required={mode === 'create'}

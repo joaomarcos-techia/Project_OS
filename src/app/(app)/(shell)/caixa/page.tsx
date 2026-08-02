@@ -1,9 +1,9 @@
 import { listPatientCards } from '@/contexts/patient/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import {
   getCaixaLancamentos,
   getCaixaPagaveis,
-  getClinicTimezone,
   listOpenCollectionCases,
   listPaymentTransactionsForLancamentos,
   listPaymentMethods,

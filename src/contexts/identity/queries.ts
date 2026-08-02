@@ -36,6 +36,33 @@ export type EmployeeSummary = {
   overrides: Array<{ permission: Permission; granted: boolean }>;
 };
 
+export type ProfessionalProfile = {
+  crm: string | null;
+  crmUf: string | null;
+  especialidade: string | null;
+};
+
+/** Credencial do próprio profissional para a tela de configurações. */
+export async function getProfessionalProfile(
+  clinicId: string,
+  userId: string,
+): Promise<ProfessionalProfile | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [profile] = await tx
+      .select({
+        crm: profiles.crm,
+        crmUf: profiles.crmUf,
+        especialidade: profiles.especialidade,
+      })
+      .from(profiles)
+      .where(
+        and(eq(profiles.id, userId), eq(profiles.clinicId, clinicId), isNull(profiles.deletedAt)),
+      )
+      .limit(1);
+    return profile ?? null;
+  });
+}
+
 /** Lista os funcionários (profiles não-deletados) da clínica, ordenados por nome. */
 export async function listEmployees(clinicId: string): Promise<EmployeeSummary[]> {
   return withTenant(clinicId, async (tx) => {

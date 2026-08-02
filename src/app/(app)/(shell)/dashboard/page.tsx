@@ -20,12 +20,12 @@ import { getProfileNames } from '@/contexts/identity/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import {
   getCashFlowToday,
-  getClinicTimezone,
   listCashFlowDaily,
 } from '@/contexts/financial/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requireUser } from '@/lib/auth/tenant-context';
 import { formatBRL } from '@/lib/format';
 
 import { ActivationChecklist } from './_components/activation-checklist';
@@ -58,9 +58,8 @@ function hora(iso: string): string {
 }
 
 export default async function DashboardPage() {
-  const d = await getDashboard();
-
-  if (!d.hasClinic) {
+  const user = await requireUser();
+  if (!user.clinicId) {
     return (
       <PageHeader
         title="Visão operacional"
@@ -69,18 +68,22 @@ export default async function DashboardPage() {
     );
   }
 
-  const user = await requireUser();
-  const clinicId = await requireClinicId();
-  const checklist = await getActivationChecklist(clinicId);
+  const clinicId = user.clinicId;
   const tz = await getClinicTimezone(clinicId);
   const { from, to } = clinicDayBounds(tz);
-  const flow = await getCashFlowToday(clinicId, from, to);
+  const dias = Array.from({ length: 7 }, (_, i) => ymd(tz, i - 6));
+  const canAudit = user.permissions.includes(PERMISSIONS.VIEW_AUDIT);
 
   // Gráfico: faturamento (recebido) dos últimos 7 dias. Histórico vem do
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
   // roda 1x/dia, então ainda não fechou o dia corrente).
-  const dias = Array.from({ length: 7 }, (_, i) => ymd(tz, i - 6));
-  const serie = await listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1));
+  const [d, checklist, flow, serie, activity] = await Promise.all([
+    getDashboard(clinicId, tz),
+    getActivationChecklist(clinicId),
+    getCashFlowToday(clinicId, from, to),
+    listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1)),
+    canAudit ? getRecentActivity(clinicId, 7) : Promise.resolve<AuditActivity[]>([]),
+  ]);
   const recByDate = new Map(serie.map((s) => [s.date, s.totalRecebido]));
   const chart = dias.map((date, i) => ({
     date,
@@ -90,8 +93,6 @@ export default async function DashboardPage() {
   const chartTotal = chart.reduce((s, c) => s + c.recebido, 0);
 
   // Atividade recente (audit) — feed sensível, gateado em view:audit (gestor/owner).
-  const canAudit = user.permissions.includes(PERMISSIONS.VIEW_AUDIT);
-  const activity: AuditActivity[] = canAudit ? await getRecentActivity(clinicId, 7) : [];
   const actorNames = canAudit
     ? await getProfileNames(
         clinicId,

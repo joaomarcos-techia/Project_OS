@@ -18,6 +18,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "arch:check": "madge --circular --extensions ts,tsx src",
     "arch:db-check": "tsx scripts/arch-db-check.ts",
     "check:migrations": "tsx scripts/check-migration-safety.ts",
@@ -106,6 +108,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.5",

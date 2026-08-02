@@ -9,8 +9,31 @@
  * tool→re-call→tool indefinidamente (loop, custo crescente, timeout do
  * worker); exceder isto NUNCA re-chama o provider: responde fallback
  * operacional + métrica `ai_agent.tool.rounds_exceeded`.
+ *
+ * 2026-07-30 (amend ADR-022 §4): 1 → 3. Provado por teste ao vivo (Gemini real):
+ * com 1 rodada, TODO turno de agendamento caía em `rounds_exceeded`. Preparar
+ * uma marcação exige ≥2 rodadas no MESMO turno — buscar o procedure_id
+ * (provide_procedure_price) e um doctor_id/horário (list_slots) e SÓ ENTÃO
+ * chamar schedule_appointment — porque os ids das tools NÃO persistem entre
+ * turnos (o histórico só guarda o texto do modelo, não os resultados de tool).
+ * Com 1 rodada o agendamento era arquiteturalmente impossível. 3 cobre a
+ * sequência buscar-procedimento → buscar-horário → preparar mesmo sem o modelo
+ * agrupar as leituras; continua um teto DURO anti-loop.
+ *
+ * A invariante "≤ 1 mutação por turno" NÃO pode mais depender do teto de
+ * rodadas: o handler conta mutações ATRAVÉS das rodadas (MAX_MUTATIONS_PER_TURN)
+ * e rejeita a 2ª — antes garantida só por acidente (1 rodada × 1 mutação/rodada).
  */
-export const MAX_TOOL_ROUNDS = 1;
+export const MAX_TOOL_ROUNDS = 3;
+
+/**
+ * G1/segurança — teto DURO de mutações por turno, contado através de TODAS as
+ * rodadas de tool calling (não só dentro de uma). Sempre 1: uma mensagem do
+ * paciente executa no máximo UMA ação com efeito colateral (agendar OU cancelar
+ * OU confirmar OU cadastrar...). Com MAX_TOOL_ROUNDS > 1 este limite é
+ * enforçado EXPLICITAMENTE no handler; a 2ª mutação vira fallback.
+ */
+export const MAX_MUTATIONS_PER_TURN = 1;
 
 /** G2 — janela de memória: últimas N mensagens da conversa no contexto. */
 export const MAX_CONTEXT_MESSAGES = 10;

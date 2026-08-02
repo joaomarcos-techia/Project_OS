@@ -20,8 +20,9 @@ const { getClaims, resolveImpersonation, db } = vi.hoisted(() => ({
      * Fila aqui seria frágil e testaria contagem de chamadas, não comportamento.
      */
     profile: [] as unknown[],
-    /** Respostas das queries de permissão, na ordem: deny → grant → bundle → catálogo. */
+    /** Respostas da consulta atômica de permissão. */
     queue: [] as unknown[][],
+    execute: vi.fn(),
     profileReads: 0,
   },
 }));
@@ -40,7 +41,7 @@ vi.mock('@/lib/db', () => {
   const chain = (fields: Record<string, unknown> | undefined) => {
     const isProfileRead = !!fields && 'claimsVersion' in fields;
     const p: Record<string, unknown> = {};
-    for (const m of ['from', 'where']) p[m] = () => p;
+    for (const m of ['from', 'leftJoin', 'where']) p[m] = () => p;
     p.limit = () => {
       if (isProfileRead) {
         db.profileReads += 1;
@@ -50,7 +51,15 @@ vi.mock('@/lib/db', () => {
     };
     return p;
   };
-  return { dbAdmin: { select: (fields: Record<string, unknown>) => chain(fields) } };
+  return {
+    dbAdmin: {
+      select: (fields: Record<string, unknown>) => chain(fields),
+      execute: (...args: unknown[]) => {
+        db.execute(...args);
+        return Promise.resolve(db.queue.shift() ?? []);
+      },
+    },
+  };
 });
 
 const USER = '11111111-1111-1111-1111-111111111111';
@@ -84,6 +93,8 @@ function claims(o: ClaimOpts = {}) {
 }
 
 type ProfileOpts = {
+  nome?: string;
+  clinicName?: string | null;
   role?: string;
   ativo?: boolean;
   deletedAt?: Date | null;
@@ -97,6 +108,8 @@ function profile(o: ProfileOpts = {}) {
   return [
     {
       role: o.role ?? 'attendant',
+      nome: o.nome ?? 'Ana Silva',
+      clinicName: o.clinicName === undefined ? 'Clínica Aurora' : o.clinicName,
       ativo: o.ativo ?? true,
       deletedAt: o.deletedAt ?? null,
       clinicId: o.clinicId === undefined ? CLINIC : o.clinicId,
@@ -124,6 +137,7 @@ beforeEach(() => {
   resolveImpersonation.mockResolvedValue(null);
   db.profile = [];
   db.queue = [];
+  db.execute.mockReset();
   db.profileReads = 0;
 });
 
@@ -343,17 +357,18 @@ describe('I-6: divergência de clinic_id (V7, 2026-07-14) — agora em TODO requ
   it('deny-override barra mesmo com a role tendo a permissão', async () => {
     getClaims.mockResolvedValue(claims());
     db.profile = profile();
-    db.queue = [[{ id: 'deny-1' }]];
+    db.queue = [[{ denied_override: true, granted_override: false, has_role_permission: true, in_catalog: true }]];
     const { requireFreshPermission } = await subject();
     await expect(requireFreshPermission('view:patient')).rejects.toMatchObject({
       reason: 'PERMISSION_DENIED',
     });
+    expect(db.execute).toHaveBeenCalledTimes(1);
   });
 
   it('grant-override permite mesmo sem bundle da role', async () => {
     getClaims.mockResolvedValue(claims());
     db.profile = profile();
-    db.queue = [[], [{ id: 'grant-1' }]];
+    db.queue = [[{ denied_override: false, granted_override: true, has_role_permission: false, in_catalog: true }]];
     const { requireFreshPermission } = await subject();
     await expect(requireFreshPermission('delete:patient')).resolves.toBeUndefined();
   });
@@ -361,7 +376,7 @@ describe('I-6: divergência de clinic_id (V7, 2026-07-14) — agora em TODO requ
   it('sem override e sem bundle → PERMISSION_DENIED', async () => {
     getClaims.mockResolvedValue(claims());
     db.profile = profile();
-    db.queue = [[], [], []];
+    db.queue = [[{ denied_override: false, granted_override: false, has_role_permission: false, in_catalog: true }]];
     const { requireFreshPermission } = await subject();
     await expect(requireFreshPermission('delete:patient')).rejects.toMatchObject({
       reason: 'PERMISSION_DENIED',
@@ -479,6 +494,7 @@ describe('identidade validada carrega a prova (validatedAt)', () => {
     db.profile = profile({ claimsVersion: 3 });
     const { requireUser } = await subject();
     const user = await requireUser();
+    expect(user.name).toBe('Ana Silva');
     expect(user.claimsVersion).toBe(3);
     expect(Date.parse(user.validatedAt)).not.toBeNaN();
   });

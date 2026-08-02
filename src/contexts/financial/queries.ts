@@ -41,13 +41,12 @@ const toIso = (v: Date | string | null | undefined): string | null =>
 
 const num = (v: string | number | null | undefined): number => (v == null ? 0 : Number(v));
 const roundMoney = (v: number): number => Math.round((v + Number.EPSILON) * 100) / 100;
-
 const DEFAULT_TZ = 'America/Sao_Paulo';
 
 /**
- * Timezone da clínica (1 clínica = 1 tz). Leitura single-table da fundação
- * (tenancy.clinics) — mesmo padrão de scheduling.getClinicTimezone; não é JOIN
- * cross-context. Usada para computar a janela "hoje" do Caixa/fluxo de caixa.
+ * Compatibilidade para actions do contexto financeiro: a página usa o read
+ * model de tenancy cacheado; este fluxo interno continua sob a fronteira do
+ * próprio contexto, sem atravessar as regras de dependência entre contexts.
  */
 export async function getClinicTimezone(clinicId: string): Promise<string> {
   return withTenant(clinicId, async (tx) => {

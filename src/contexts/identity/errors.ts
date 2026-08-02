@@ -60,6 +60,16 @@ export class CrmConflictError extends Error {
   }
 }
 
+/** Perfil sem papel clínico tenta cadastrar CRM ou envia credencial incompleta. */
+export class ProfessionalCredentialError extends Error {
+  readonly code = 'professional_credential_invalid';
+  readonly httpStatus = 422;
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProfessionalCredentialError';
+  }
+}
+
 /** Alvo (funcionário) não existe na clínica (reenviar/cancelar convite — ADR-032 Fase 2). */
 export class MemberNotFoundError extends Error {
   readonly code = 'member_not_found';

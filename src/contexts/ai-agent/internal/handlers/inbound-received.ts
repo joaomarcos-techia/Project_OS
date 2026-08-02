@@ -60,7 +60,12 @@ import { patientApiV1 } from '@/contexts/patient';
 /* eslint-enable boundaries/element-types */
 
 import { AI_AGENT_EVENTS } from '../../events';
-import { COLLECT_STALE_RESET_DAYS, MAX_COLLECT_STAGNATION, MAX_TOOL_ROUNDS } from '../../limits';
+import {
+  COLLECT_STALE_RESET_DAYS,
+  MAX_COLLECT_STAGNATION,
+  MAX_MUTATIONS_PER_TURN,
+  MAX_TOOL_ROUNDS,
+} from '../../limits';
 import {
   buildPromptMessages,
   buildSystemPrompt,
@@ -77,26 +82,15 @@ import {
 } from '../../guards/semantic-guard';
 import { aiAgentFailures, aiConversations } from '../../schema';
 import {
+  getTool,
   listToolDeclarations,
   preflightToolCalls,
   validateAndExecute,
 } from '../../tools/registry';
-// Side-effect: registram as tools no registry (whitelist G9). 3 da C11 + 10 da C12.
-import '../../tools/provide-clinic-info';
-import '../../tools/provide-procedure-price';
-import '../../tools/request-human-handoff';
-import '../../tools/list-slots';
-import '../../tools/schedule-appointment';
-import '../../tools/confirm-appointment';
-import '../../tools/list-my-appointments';
-import '../../tools/cancel-appointment';
-import '../../tools/reschedule-appointment';
-import '../../tools/confirm-pending-action';
-import '../../tools/list-pending-payments';
-import '../../tools/lgpd-export-request';
-import '../../tools/lgpd-delete-request';
-import '../../tools/patient-lookup';
-import '../../tools/collect-patient-data';
+// Side-effect: registra as tools no registry (whitelist G9). FONTE ÚNICA da
+// whitelist (3 da C11 + 12 da C12) — compartilhada com os scripts de verificação
+// (gemini-live-check / ai-adversarial-check) para garantir zero drift.
+import '../../tools/register';
 import {
   appendInboundMessage,
   appendOutboundMessage,
@@ -132,6 +126,15 @@ type FailureStage =
   | 'tool_output_invalid'
   | 'guard'
   | 'send';
+
+/**
+ * Quantas das tool calls têm efeito de MUTAÇÃO (whitelist). Base do teto de
+ * `MAX_MUTATIONS_PER_TURN` contado através das rodadas de tool calling. Tool
+ * desconhecida conta como 0 aqui (o preflight já a barra como security event).
+ */
+export function roundMutationCount(calls: Array<{ name: string }>): number {
+  return calls.filter((c) => getTool(c.name)?.effect === 'mutation').length;
+}
 
 /** withTenant curto com statement_timeout — todas as fases de DB usam isto. */
 async function phase<T>(clinicId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -486,6 +489,10 @@ async function processInbound(ctx: {
 
     // FASE C — tools (TX curta por rodada, máx. MAX_TOOL_ROUNDS — G1).
     let rounds = 0;
+    // Mutações executadas neste TURNO, contadas ATRAVÉS das rodadas (G1). Com
+    // MAX_TOOL_ROUNDS > 1, o teto de "1 mutação por turno" precisa ser explícito
+    // aqui: o preflight só barra >1 mutação DENTRO de uma rodada.
+    let mutationsThisTurn = 0;
     while (!fallback && result?.toolCalls && result.toolCalls.length > 0) {
       if (rounds >= MAX_TOOL_ROUNDS) {
         // G1 — NUNCA loop: excedeu o orçamento de rodadas → fallback.
@@ -523,6 +530,30 @@ async function processInbound(ctx: {
           error: new Error(preflight.error),
           toolName: preflight.toolName,
           issuePaths: preflight.issuePaths,
+          model: model ?? undefined,
+        });
+        fallback = true;
+        break;
+      }
+
+      // Teto DURO de mutações por turno (MAX_MUTATIONS_PER_TURN), atravessando
+      // rodadas: o preflight garante ≤1 mutação NESTA rodada, mas com >1 rodada
+      // o modelo poderia mutar em rodadas distintas. Barra a 2ª antes de executá-la.
+      const roundMutations = roundMutationCount(calls);
+      if (mutationsThisTurn + roundMutations > MAX_MUTATIONS_PER_TURN) {
+        metrics.emit('ai_agent.tool.multiple_mutations_rejected', {
+          clinicId,
+          aiRequestId,
+          toolNames: calls.map((c) => c.name),
+          reason: 'cross_round',
+        });
+        await recordFailure({
+          clinicId,
+          conversationId: conversation.id,
+          eventId,
+          aiRequestId,
+          stage: 'tool_invalid',
+          error: new Error('mais de uma mutação no mesmo turno (cross-round)'),
           model: model ?? undefined,
         });
         fallback = true;
@@ -587,6 +618,7 @@ async function processInbound(ctx: {
         break;
       }
       toolResults.push(...roundResults.acc);
+      mutationsThisTurn += roundMutations;
 
       // Re-chamada com toolResults (SEM TX — R2).
       try {

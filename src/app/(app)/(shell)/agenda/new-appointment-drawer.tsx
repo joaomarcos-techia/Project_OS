@@ -205,8 +205,12 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 para criar atendimentos.
               </Alert>
             ) : (
-              <Field label="Procedimento">
-                <Select value={procedureId} onChange={(e) => setProcedureId(e.target.value)}>
+              <Field label="Procedimento" htmlFor="appointment-procedure">
+                <Select
+                  id="appointment-procedure"
+                  value={procedureId}
+                  onChange={(e) => setProcedureId(e.target.value)}
+                >
                   <option value="">Selecione…</option>
                   {data.procedures.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -218,8 +222,12 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
             )}
 
             {!data.isPractitioner ? (
-              <Field label="Profissional">
-                <Select value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
+              <Field label="Profissional" htmlFor="appointment-doctor">
+                <Select
+                  id="appointment-doctor"
+                  value={doctorId}
+                  onChange={(e) => setDoctorId(e.target.value)}
+                >
                   <option value="">Selecione…</option>
                   {data.doctors.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -233,16 +241,22 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
             {modo === 'agendar' ? (
               <div className="flex flex-col gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Data">
+                  <Field label="Data" htmlFor="appointment-date">
                     <Input
+                      id="appointment-date"
                       type="date"
                       min={hojeISODate()}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                     />
                   </Field>
-                  <Field label="Hora">
-                    <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                  <Field label="Hora" htmlFor="appointment-time">
+                    <Input
+                      id="appointment-time"
+                      type="time"
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                    />
                   </Field>
                 </div>
                 <label className="flex cursor-pointer items-center gap-2.5 text-sm">

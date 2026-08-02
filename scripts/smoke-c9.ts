@@ -37,10 +37,10 @@ import { faturamentoPendencias, lancamentos, suppliers } from '@/contexts/financ
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import {
   getCashFlowToday,
-  getClinicTimezone,
   listLancamentos,
   listSuppliers,
 } from '@/contexts/financial/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 // Catálogo (event schemas) + registry de handlers (boot file do cron).
 import '@/lib/db/schema';

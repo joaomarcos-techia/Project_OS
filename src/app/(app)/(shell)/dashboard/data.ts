@@ -4,9 +4,8 @@ import { sql } from 'drizzle-orm';
 
 import { practitionerSql, profiles } from '@/contexts/identity';
 import { listPatientCards } from '@/contexts/patient/queries';
-import { getClinicTimezone, listAppointments } from '@/contexts/scheduling/queries';
+import { listAppointments } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
-import { requireUser } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
 
 /**
@@ -23,7 +22,6 @@ export interface DashboardUpcoming {
 }
 
 export interface DashboardDTO {
-  hasClinic: boolean;
   consultasHoje: number;
   aguardando: number;
   emAtendimento: number;
@@ -72,15 +70,8 @@ function clinicDayBounds(tz: string): { from: Date; to: Date } {
   return { from, to: new Date(from.getTime() + 24 * 60 * 60 * 1000) };
 }
 
-export async function getDashboard(): Promise<DashboardDTO> {
-  const user = await requireUser();
-  if (!user.clinicId) {
-    return { hasClinic: false, consultasHoje: 0, aguardando: 0, emAtendimento: 0, finalizadas: 0, proximos: [] };
-  }
-  const clinicId = user.clinicId;
-
-  const tz = await getClinicTimezone(clinicId);
-  const { from, to } = clinicDayBounds(tz);
+export async function getDashboard(clinicId: string, timezone: string): Promise<DashboardDTO> {
+  const { from, to } = clinicDayBounds(timezone);
   const appts = await listAppointments(clinicId, { from, to, status: STATUSES, limit: 200 });
 
   const aguardando = appts.filter((a) => a.status === 'chegou').length;
@@ -102,7 +93,6 @@ export async function getDashboard(): Promise<DashboardDTO> {
   }));
 
   return {
-    hasClinic: true,
     consultasHoje: appts.length,
     aguardando,
     emAtendimento,

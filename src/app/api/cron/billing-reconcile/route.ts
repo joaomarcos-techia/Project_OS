@@ -3,11 +3,13 @@
  * pode falhar/perder; o reconcile é a VERDADE do pagamento: busca o estado no
  * Asaas e corrige divergências locais. Grava billing_reconciliation_runs (F8).
  *
- * Foco MVP: invoices com asaas_payment_id ainda 'open'/'overdue' cujo pagamento
- * no Asaas já está RECEIVED/CONFIRMED → marca paga (mesma transição idempotente
- * do webhook). Sem dados Asaas (dev), o scan é no-op (0 divergências).
+ * Primeiro materializa cobranças que o Asaas gerou para assinaturas locais. Isso
+ * cobre a perda de `PAYMENT_CREATED`: sem invoice local, o reconcile antigo não
+ * tinha um id para consultar e uma cobrança pós-trial nunca era observada.
+ * Depois revisita invoices abertas/vencidas cujo pagamento já está
+ * RECEIVED/CONFIRMED. Sem dados Asaas (dev), os scans são no-op.
  */
-import { and, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
@@ -15,14 +17,37 @@ import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
-import { markInvoicePaid } from '@/contexts/billing/internal/subscriptions';
-import { billingReconciliationRuns, invoices, type InvoiceRow } from '@/contexts/billing/schema';
+import {
+  ensureInvoiceForPayment,
+  markInvoiceOverdue,
+  markInvoicePaid,
+  markInvoiceRefunded,
+} from '@/contexts/billing/internal/subscriptions';
+import {
+  billingReconciliationRuns,
+  invoices,
+  subscriptions,
+  type InvoiceRow,
+} from '@/contexts/billing/schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
+const RECONCILE_SUBSCRIPTION_LIMIT = 50;
+type ReconciliationAction = 'paid' | 'overdue' | 'refunded';
+type MaterializationResult = {
+  materialized: boolean;
+  action: ReconciliationAction | null;
+};
+
+function actionFor(status: string): ReconciliationAction | null {
+  if (PAID_STATUSES.has(status)) return 'paid';
+  if (status === 'OVERDUE') return 'overdue';
+  if (status === 'REFUNDED') return 'refunded';
+  return null;
+}
 
 export const GET = withCron(
   { job: 'billing-reconcile', route: 'billing-reconcile', errorEvent: 'billing.reconcile.error' },
@@ -35,6 +60,102 @@ export const GET = withCron(
     let found = 0;
     let fixed = 0;
     try {
+      // O Asaas cria as cobranças de uma assinatura autonomamente. Se o webhook
+      // `PAYMENT_CREATED` falhar, não existe invoice local e o loop abaixo não
+      // consegue sequer descobrir o paymentId. Consulta-se a origem autorizada
+      // por subscription e materializa-se a cobrança antes de reconciliar status.
+      const providerSubscriptions = await dbAdmin
+        .select({
+          clinicId: subscriptions.clinicId,
+          asaasSubscriptionId: subscriptions.asaasSubscriptionId,
+        })
+        .from(subscriptions)
+        .where(
+          and(
+            isNotNull(subscriptions.asaasSubscriptionId),
+            inArray(subscriptions.billingStatus, ['trial', 'active', 'past_due']),
+          ),
+        )
+        .orderBy(desc(subscriptions.updatedAt))
+        .limit(RECONCILE_SUBSCRIPTION_LIMIT);
+
+      let subscriptionsScanned = 0;
+      let paymentsChecked = 0;
+      for (const subscription of providerSubscriptions) {
+        const asaasSubscriptionId = subscription.asaasSubscriptionId;
+        if (!asaasSubscriptionId) continue;
+
+        let payments;
+        try {
+          // Uma tentativa preserva o orçamento do cron. A próxima execução
+          // diária continua sendo o backstop para indisponibilidade do Asaas.
+          payments = await asaasProvider.listSubscriptionPayments(asaasSubscriptionId, {
+            attempts: 1,
+          });
+          subscriptionsScanned++;
+        } catch (err) {
+          metrics.emit('billing.reconcile.subscription_provider_error', {
+            asaasSubscriptionId,
+            error: err,
+          });
+          continue;
+        }
+
+        for (const payment of payments) {
+          try {
+            const result = await dbAdmin.transaction(async (tx): Promise<MaterializationResult> => {
+              const invoice = await ensureInvoiceForPayment(tx, payment);
+              if (!invoice) return { materialized: false, action: null };
+
+              switch (actionFor(payment.status)) {
+                case 'paid':
+                  if (invoice.status !== 'paid') {
+                    await markInvoicePaid(tx, subscription.clinicId, invoice, {
+                      paymentMethod: payment.billingType,
+                      providerPaymentId: payment.paymentId,
+                      idemSuffix: `reconcile:subscription:${payment.paymentId}`,
+                    });
+                    return { materialized: true, action: 'paid' as const };
+                  }
+                  break;
+                case 'overdue':
+                  if (invoice.status === 'open') {
+                    await markInvoiceOverdue(tx, subscription.clinicId, invoice, {
+                      providerPaymentId: payment.paymentId,
+                      idemSuffix: `reconcile:subscription:${payment.paymentId}`,
+                      daysOverdue: 0,
+                    });
+                  }
+                  break;
+                case 'refunded':
+                  if (invoice.status === 'paid') {
+                    await markInvoiceRefunded(tx, subscription.clinicId, invoice, {
+                      providerPaymentId: payment.paymentId,
+                      idemSuffix: `reconcile:subscription:${payment.paymentId}`,
+                    });
+                  }
+                  break;
+                default:
+                  break;
+              }
+              return { materialized: true, action: null };
+            });
+            if (!result.materialized) continue;
+            paymentsChecked++;
+            if (result.action === 'paid') {
+              found++;
+              fixed++;
+            }
+          } catch (err) {
+            metrics.emit('billing.reconcile.materialize_error', {
+              asaasSubscriptionId,
+              paymentId: payment.paymentId,
+              error: err,
+            });
+          }
+        }
+      }
+
       const rows = (await dbAdmin
         .select()
         .from(invoices)
@@ -79,8 +200,19 @@ export const GET = withCron(
         // (C16) reagir; a reconciliação diária permanece a fonte da verdade.
         metrics.emit('billing.reconcile.divergence', { found, fixed, runId: run!.id });
       }
-      metrics.emit('billing.reconcile.run', { scanned: 0, found, fixed });
-      await recordHeartbeat('billing-reconcile', 'success', { found, fixed });
+      metrics.emit('billing.reconcile.run', {
+        scanned: rows.length,
+        subscriptionsScanned,
+        paymentsChecked,
+        found,
+        fixed,
+      });
+      await recordHeartbeat('billing-reconcile', 'success', {
+        subscriptionsScanned,
+        paymentsChecked,
+        found,
+        fixed,
+      });
       return Response.json({ ok: true, found, fixed }, { status: 200 });
     } catch (err) {
       // Este catch existe para FECHAR a linha da run (trabalho real, não

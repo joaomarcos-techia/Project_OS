@@ -81,11 +81,22 @@ GUARD(ctx.tx ro) → FASE A (conversa + msg in) → [pré-filtro/quota/replay]
 
 | Constante | Valor | Efeito |
 |---|---|---|
-| `MAX_TOOL_ROUNDS` | 1 | exceder → fallback operacional, NUNCA loop |
+| `MAX_TOOL_ROUNDS` | 3 | exceder → fallback operacional, NUNCA loop |
+| `MAX_MUTATIONS_PER_TURN` | 1 | 2ª mutação no turno → fallback (enforçado no handler, cross-round) |
 | `MAX_CONTEXT_MESSAGES` | 10 | janela de memória da conversa |
 | `MAX_PROMPT_CHARS` | 10.000 | derruba mensagens antigas primeiro |
 | `MAX_INBOUND_CHARS` | 4.000 | truncamento determinístico (anti prompt-bomb) |
 | `MAX_FALLBACKS` | 3 | atingiu → `status='handoff'` + fila automática |
+
+> **Amend 2026-07-30:** `MAX_TOOL_ROUNDS` 1 → 3. Teste ao vivo (Gemini real)
+> provou que, com 1 rodada, TODO turno de agendamento caía em `rounds_exceeded`:
+> preparar uma marcação exige ≥2 rodadas no mesmo turno (buscar procedure_id via
+> `provide_procedure_price` + doctor_id/horário via `list_slots` → só então
+> `schedule_appointment`), pois os ids das tools não persistem entre turnos. Com
+> 1 rodada o agendamento era impossível. A invariante "≤ 1 mutação por turno" —
+> antes garantida implicitamente por 1 rodada — passou a ser explícita via
+> `MAX_MUTATIONS_PER_TURN`, contada através das rodadas no handler
+> (`roundMutationCount`), com cobertura em `handlers/mutation-budget.test.ts`.
 
 ### 5. Tools: whitelist + Zod nas DUAS direções (G9/R5 — CONGELADO)
 

@@ -38,33 +38,33 @@ export class AdminMetricsRepository {
    * setup fee, anual à vista e avulsos) e oscila por timing de pagamento — não
    * é receita recorrente. A série histórica (getMrrTrend) continua sendo caixa
    * por mês, rotulada como "Receita paga" na UI.
-   */
+  */
   async getDashboard(): Promise<DashboardMetricsDTO> {
-    const [mrrRow] = await dbAdmin
-      .select({
-        mrr: sql<string>`COALESCE(SUM(CASE WHEN ${prices.billingCycle} = 'annual' THEN ${prices.amount} / 12.0 ELSE ${prices.amount} END), 0)`,
-      })
-      .from(subscriptions)
-      .innerJoin(prices, eq(prices.id, subscriptions.priceId))
-      .where(sql`${subscriptions.billingStatus} IN ('active','past_due')`);
-
-    const [clinicRow] = await dbAdmin
-      .select({
-        active: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.status} = 'active'))::int`,
-        cancelled: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.status} = 'cancelled'))::int`,
-        atRisk: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.status} IN ('suspended_readonly','suspended','pending_payment')))::int`,
-        newThis: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.createdAt} >= date_trunc('month', now())))::int`,
-        newLast: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.createdAt} >= date_trunc('month', now()) - interval '1 month' AND ${clinics.createdAt} < date_trunc('month', now())))::int`,
-      })
-      .from(clinics)
-      .where(isNull(clinics.deletedAt));
-
-    const [subRow] = await dbAdmin
-      .select({
-        activeSubs: sql<number>`(COUNT(*) FILTER (WHERE ${subscriptions.billingStatus} = 'active'))::int`,
-        cancelledThis: sql<number>`(COUNT(*) FILTER (WHERE ${subscriptions.cancelledAt} >= date_trunc('month', now()) AND ${subscriptions.cancelledAt} < date_trunc('month', now()) + interval '1 month'))::int`,
-      })
-      .from(subscriptions);
+    const [[mrrRow], [clinicRow], [subRow]] = await Promise.all([
+      dbAdmin
+        .select({
+          mrr: sql<string>`COALESCE(SUM(CASE WHEN ${prices.billingCycle} = 'annual' THEN ${prices.amount} / 12.0 ELSE ${prices.amount} END), 0)`,
+        })
+        .from(subscriptions)
+        .innerJoin(prices, eq(prices.id, subscriptions.priceId))
+        .where(sql`${subscriptions.billingStatus} IN ('active','past_due')`),
+      dbAdmin
+        .select({
+          active: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.status} = 'active'))::int`,
+          cancelled: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.status} = 'cancelled'))::int`,
+          atRisk: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.status} IN ('suspended_readonly','suspended','pending_payment')))::int`,
+          newThis: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.createdAt} >= date_trunc('month', now())))::int`,
+          newLast: sql<number>`(COUNT(*) FILTER (WHERE ${clinics.createdAt} >= date_trunc('month', now()) - interval '1 month' AND ${clinics.createdAt} < date_trunc('month', now())))::int`,
+        })
+        .from(clinics)
+        .where(isNull(clinics.deletedAt)),
+      dbAdmin
+        .select({
+          activeSubs: sql<number>`(COUNT(*) FILTER (WHERE ${subscriptions.billingStatus} = 'active'))::int`,
+          cancelledThis: sql<number>`(COUNT(*) FILTER (WHERE ${subscriptions.cancelledAt} >= date_trunc('month', now()) AND ${subscriptions.cancelledAt} < date_trunc('month', now()) + interval '1 month'))::int`,
+        })
+        .from(subscriptions),
+    ]);
 
     const mrrCents = toCents(mrrRow?.mrr ?? '0');
     const activeSubs = int(subRow?.activeSubs);

@@ -26,8 +26,9 @@ import {
   createWalkInAppointment,
   recoverAppointment,
 } from '@/contexts/scheduling/actions';
-import { getClinicTimezone, listAppointments } from '@/contexts/scheduling/queries';
+import { listAppointments } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 

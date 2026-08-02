@@ -14,10 +14,9 @@ import { listToolDeclarations } from '@/contexts/ai-agent/tools/registry';
 import { buildSystemPrompt } from '@/contexts/ai-agent/prompts/system';
 import type { PromptContext } from '@/contexts/ai-agent/types';
 
-// Side-effect: registra as 3 tools (whitelist C11).
-import '@/contexts/ai-agent/tools/provide-clinic-info';
-import '@/contexts/ai-agent/tools/provide-procedure-price';
-import '@/contexts/ai-agent/tools/request-human-handoff';
+// Side-effect: registra as 15 tools de PRODUÇÃO (mesma whitelist do handler —
+// as declarações enviadas ao modelo são idênticas às de produção).
+import { PRODUCTION_TOOL_NAMES } from '@/contexts/ai-agent/tools/register';
 
 const ctx: PromptContext = {
   clinic: {
@@ -47,6 +46,19 @@ async function main(): Promise<void> {
   const systemPrompt = buildSystemPrompt(ctx);
   const tools = listToolDeclarations();
   console.log(`[live-check] tools declaradas: ${tools.map((t) => t.name).join(', ')}`);
+
+  // Guard de drift: as declarações enviadas ao modelo têm de ser EXATAMENTE as
+  // 15 de produção (não as 3 antigas da C11). Falha antes de gastar tokens.
+  const declared = tools.map((t) => t.name);
+  const expected: string[] = [...PRODUCTION_TOOL_NAMES];
+  const missing = expected.filter((n) => !declared.includes(n));
+  const extra = declared.filter((n) => !expected.includes(n));
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `[live-check] whitelist divergente da produção — faltando: [${missing.join(', ')}] · extra: [${extra.join(', ')}]`,
+    );
+  }
+  console.log(`[live-check] whitelist OK — ${declared.length} tools iguais às de produção.`);
 
   // Chamada 1 — espera-se functionCall provide_clinic_info (o prompt manda
   // usar tool p/ horários; modelo PODE responder texto — registramos ambos).
