@@ -46,9 +46,15 @@ const strict = process.argv.includes('--strict') || process.env.NODE_ENV === 'pr
  * REMOVA a entrada daqui no mesmo PR (o gate falha se esquecer).
  */
 const PRODUCER_AHEAD = new Set<string>([
+  // C10 — callback de entrega atualiza a mensagem e emite métrica; não há
+  // consumidor assíncrono enquanto não existir projeção de status.
+  'messaging.outbound.status_updated',
   // C11/C14/C15 — consumidores de ciclo de vida do paciente (IA, jobs proativos)
   'patient.core.created',
   'patient.core.updated',
+  'patient.core.merged',
+  'patient.relationship.linked',
+  'patient.relationship.unlinked',
   'patient.consent.granted',
   'patient.consent.revoked',
   'patient.suppression.added',
@@ -59,6 +65,12 @@ const PRODUCER_AHEAD = new Set<string>([
   'scheduling.appointment.cancelled',
   'scheduling.appointment.no_show',
   'scheduling.appointment.rescheduled',
+  'scheduling.appointment.corrected',
+  'scheduling.doctor_absence.created',
+  'scheduling.waitlist.offered',
+  'scheduling.recurrence.created',
+  'scheduling.recurrence.cancelled',
+  'scheduling.import.completed',
   // C11+ — projeções clínicas/relatórios
   'clinical.prontuario.created',
   // clinical.prontuario.signed saiu daqui: C14 ativou handler de followup (F-14).
