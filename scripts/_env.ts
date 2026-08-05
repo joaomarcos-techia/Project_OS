@@ -14,6 +14,27 @@ import { config as loadDotenv } from 'dotenv';
 loadDotenv({ path: '.env.local' });
 
 /**
+ * Mantém os scripts fora do runtime Next alinhados à resolução de env.ts.
+ * Aliases DEV prevalecem apenas fora de produção e são promovidos em memória;
+ * o arquivo .env.local não é alterado.
+ */
+if (process.env.NODE_ENV !== 'production') {
+  for (const [canonical, development] of [
+    ['DATABASE_URL', 'DATABASE_URL_DEV'],
+    ['SUPABASE_SECRET_KEY', 'SECRET_KEY_DEV'],
+    ['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV'],
+    ['ASAAS_API_KEY', 'ASAAS_API_KEY_DEV'],
+    ['ASAAS_BASE_URL', 'ASAAS_BASE_URL_DEV'],
+    ['ASAAS_WEBHOOK_TOKEN', 'ASAAS_WEBHOOK_TOKEN_DEV'],
+    ['RESEND_API_KEY', 'RESEND_API_KEY_DEV'],
+    ['EMAIL_FROM', 'EMAIL_FROM_DEV'],
+  ] as const) {
+    const value = process.env[development];
+    if (value) process.env[canonical] = value;
+  }
+}
+
+/**
  * Hostname-based heuristic: weak (Supabase hostnames are random strings) but
  * catches the common copy-paste mistake. Returns true if hostname mentions
  * prod/production OR if SUPABASE_PROJECT_ENV is set to 'prod'.
@@ -24,9 +45,7 @@ loadDotenv({ path: '.env.local' });
 export function looksLikeProd(url: string): boolean {
   try {
     const hostname = new URL(url).hostname;
-    return (
-      /(prod|production)/i.test(hostname) || process.env.SUPABASE_PROJECT_ENV === 'prod'
-    );
+    return /(prod|production)/i.test(hostname) || process.env.SUPABASE_PROJECT_ENV === 'prod';
   } catch {
     return false;
   }
@@ -44,8 +63,8 @@ export function assertProdContext(): { databaseUrl: string } {
   // e vaza para todo script). Por isso o guard ensina o comando: sem isso, a mensagem
   // diz o QUE falta mas não o COMO, e o operador perde tempo no meio de um incidente.
   const howTo =
-    '\n  PowerShell:  $env:SUPABASE_PROJECT_ENV = \'prod\'; $env:DATABASE_URL_PROD = \'postgresql://...?sslmode=require\'' +
-    '\n  bash/zsh:    SUPABASE_PROJECT_ENV=prod DATABASE_URL_PROD=\'postgresql://...?sslmode=require\' pnpm <script>' +
+    "\n  PowerShell:  $env:SUPABASE_PROJECT_ENV = 'prod'; $env:DATABASE_URL_PROD = 'postgresql://...?sslmode=require'" +
+    "\n  bash/zsh:    SUPABASE_PROJECT_ENV=prod DATABASE_URL_PROD='postgresql://...?sslmode=require' pnpm <script>" +
     '\n  A URI está em: Supabase → Project Settings → Database → Connection string.' +
     '\n  Feche o terminal (ou Remove-Item Env:DATABASE_URL_PROD) depois — ela tem a senha de prod.';
 
@@ -136,7 +155,10 @@ export function redact(url: string): string {
  *   2026-05-26T14:32:08.123Z -> 2026-05-26T14-32-08
  */
 export function fsTimestamp(d: Date = new Date()): string {
-  return d.toISOString().replace(/[:.]/g, '-').replace(/-\d{3}Z$/, '');
+  return d
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .replace(/-\d{3}Z$/, '');
 }
 
 /**

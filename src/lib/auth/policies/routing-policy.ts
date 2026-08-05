@@ -11,11 +11,7 @@ import type { Role } from '@/lib/auth/roles';
 
 import { mustHaveMFA } from './mfa-policy';
 
-export type PostLoginRoute =
-  | '/login/mfa'
-  | '/account/security?force=1'
-  | '/dashboard'
-  | '/admin';
+export type PostLoginRoute = '/login/mfa' | '/account/security?force=1' | '/dashboard' | '/admin';
 
 export interface PostLoginContext {
   role: Role;

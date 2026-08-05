@@ -46,7 +46,8 @@ async function probeSupabase(): Promise<Probe> {
 }
 
 async function probeGemini(): Promise<Probe> {
-  if (!env.GEMINI_API_KEY) return { status: 'down', reason: 'GEMINI_API_KEY ausente', latencyMs: null };
+  if (!env.GEMINI_API_KEY)
+    return { status: 'down', reason: 'GEMINI_API_KEY ausente', latencyMs: null };
   const t0 = Date.now();
   try {
     const res = await fetch(
@@ -64,7 +65,8 @@ async function probeGemini(): Promise<Probe> {
 }
 
 async function probeAsaas(): Promise<Probe> {
-  if (!env.ASAAS_API_KEY) return { status: 'down', reason: 'ASAAS_API_KEY ausente', latencyMs: null };
+  if (!env.ASAAS_API_KEY)
+    return { status: 'down', reason: 'ASAAS_API_KEY ausente', latencyMs: null };
   const t0 = Date.now();
   try {
     const res = await fetch(`${env.ASAAS_BASE_URL}/myAccount`, {
@@ -105,7 +107,11 @@ async function probeMeta(): Promise<Probe> {
   }
   if (!reachable) return { status: 'degraded', reason: httpReason, latencyMs };
   if (sig.unknown > 0) {
-    return { status: 'degraded', reason: `${sig.unknown} envio(s) indeterminado(s) (1h)`, latencyMs };
+    return {
+      status: 'degraded',
+      reason: `${sig.unknown} envio(s) indeterminado(s) (1h)`,
+      latencyMs,
+    };
   }
   return { status: 'ok', reason: httpReason, latencyMs };
 }

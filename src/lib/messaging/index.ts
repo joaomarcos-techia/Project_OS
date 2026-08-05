@@ -39,11 +39,7 @@ export {
   type UpsertTenantConnectionInput,
 } from './connection-store';
 
-export {
-  ProviderNotImplementedError,
-  ProviderSendError,
-  ProviderUnreachableError,
-} from './errors';
+export { ProviderNotImplementedError, ProviderSendError, ProviderUnreachableError } from './errors';
 
 export type {
   MessagingProvider,

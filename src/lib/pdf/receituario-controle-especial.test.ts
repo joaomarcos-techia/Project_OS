@@ -44,12 +44,7 @@ function isPdf(buf: Buffer): boolean {
 
 /** Normaliza: minúsculas, sem acentos, espaços colapsados (robusto p/ extração pdfjs). */
 function norm(s: string): string {
-  return s
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function countOf(haystack: string, needle: string): number {
@@ -118,7 +113,11 @@ describe('renderReceituarioControleEspecialPDF', () => {
       posologia: 'tomar 1 comprimido de 8 em 8 horas durante 14 dias contínuos sem interrupção',
       quantidade: String((i + 1) * 10),
     }));
-    const buf = await renderReceituarioControleEspecialPDF({ ...baseData, medicamentos: meds }, branding, doctor);
+    const buf = await renderReceituarioControleEspecialPDF(
+      { ...baseData, medicamentos: meds },
+      branding,
+      doctor,
+    );
     expect(isPdf(buf)).toBe(true);
     const { numPages } = await extractPdf(buf);
     // wrap={false} por via: no pior caso cada via vai para sua própria página.

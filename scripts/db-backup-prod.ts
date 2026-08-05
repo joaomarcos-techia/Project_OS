@@ -18,9 +18,7 @@ const BACKUPS_DIR = resolve(process.cwd(), 'backups');
 function assertPgDump(): void {
   const r = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['pg_dump']);
   if (r.status !== 0) {
-    throw new Error(
-      'pg_dump not found on PATH. Install Postgres CLI tools.',
-    );
+    throw new Error('pg_dump not found on PATH. Install Postgres CLI tools.');
   }
 }
 

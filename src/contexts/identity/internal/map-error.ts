@@ -1,7 +1,7 @@
 /**
  * Mapeia os erros de domínio do Identity para a mensagem que a UI mostra.
  *
- * O TODO em equipe/actions.ts pedia isto "quando a lista passar de ~5 tipos"
+ * A solicitação histórica em equipe/actions.ts pedia isto "quando a lista passar de ~5 tipos"
  * (review #6) — com o ciclo de vida (I-2) passamos de 5. Fica no CONTEXTO, não em
  * `@/lib` (ADR-036: @/lib nunca importa de contexts/*; a hierarquia de erros vive
  * aqui). Cada erro carrega o próprio `message` legível; o default nunca vaza

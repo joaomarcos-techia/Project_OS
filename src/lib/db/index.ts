@@ -36,9 +36,7 @@ if (!env.DATABASE_URL) {
 const looksLikeProd = (url: string): boolean => {
   try {
     const hostname = new URL(url).hostname;
-    return (
-      /(prod|production)/i.test(hostname) || process.env.SUPABASE_PROJECT_ENV === 'prod'
-    );
+    return /(prod|production)/i.test(hostname) || process.env.SUPABASE_PROJECT_ENV === 'prod';
   } catch {
     return false;
   }

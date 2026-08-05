@@ -68,18 +68,16 @@ Congela-se o modelo AGORA (base), sem código de enforcement (isso é C13).
      exatamente o vazamento de receita que o sistema existe pra impedir ("você atingiu
      o limite, não pode marcar esse paciente" é inaceitável). No máximo um teto
      altíssimo anti-abuso que **avisa**, nunca bloqueia a criação.
-   - **Conversas de IA = teto GENEROSO anti-abuso.** É o moat e é baratíssimo (margem
-     ~40x). Bloquear mata a feature de destaque, então o teto é alto o bastante pra
-     que clínica normal nunca encoste; o bloqueio só pega abuso/loop e degrada pra
-     "atendente responde" (mesmo fallback do circuit breaker do Gemini).
+   - **Conversas de IA = métrica, sem hard cap comercial.** É o moat e é baratíssimo.
+     Bloquear mata a feature de destaque; abuso/loop é contido pelos limites técnicos
+     do agente, rate limit e circuit breaker, não por uma cobrança/limite de plano.
    - **Sem overage** em nenhuma dimensão — sem cobrança extra, sem add-on de volume.
 
 **Invariantes:**
 
-- Check de cota é **síncrono na escrita**, mas o efeito difere por dimensão:
-  **usuários** bloqueia (no convite); **IA** bloqueia só ao estourar o teto generoso
-  (já vale via `checkQuota`); **agendamentos** apenas **avisa, nunca bloqueia** a
-  criação. `checkAndIncrementQuota` (C13) reflete isso.
+- Check de cota é síncrono na escrita, mas apenas **usuários** bloqueia (no convite).
+  **IA** e **agendamentos** são métricas e nunca bloqueiam a criação/conversa;
+  `checkAndIncrementQuota` (C13) registra o uso sem criar uma trava comercial.
 - **Números são ponto de partida, não verdade.** Comece generoso e aperte com dado do
   `usage_metrics` dos 5-10 primeiros clientes — nunca o contrário (baixar limite de
   cliente existente é problema contratual: você grandfather o que prometeu). Os 200/200
@@ -103,9 +101,8 @@ que já existe (teto de custo de IA em C12).
   superfície de teste combinatória (alinha com "opinionado sobre flexível" e
   "debugável às 2h da manhã").
 - (+) C13 implementa contra um contrato claro, não decide sob pressão de billing.
-- (−) Sem overage, o teto de usuários/IA vira fricção dura — exige UX clara de
-  upgrade. Aceito: simples e previsível vence cobrança extra surpresa no MVP.
-  Agendamento não bloqueia (anti-produto), então não tem essa fricção.
+- (−) Sem overage, o teto de usuários é a única fricção comercial; exige UX clara
+  de upgrade. Agendamento e IA não bloqueiam o cuidado ao paciente.
 - (−) Menções em prosa de estratégia no §9 da VisãoGeral (overage, multi-unidade/
   subdomínio por plano) ficam superseded por este ADR; a tabela §4.2 e o C13 já
   foram corrigidos, a narrativa do §9 é não-normativa.
@@ -130,3 +127,8 @@ política), via contexto `billing` (ver ADR-025):
    viva vs `plan_limits` no momento da decisão. Efeito: bloqueia **novos** convites de usuário
    acima do limite-alvo; **nunca apaga** usuários/dados; downgrade só vigora no próximo ciclo.
    (Mantém a invariante de downgrade da decisão original.)
+
+4. **Política vigente (2026-08-05).** `users` é a única trava dura. `agendamentos` e
+   `ai_messages` continuam no ledger e nos relatórios, porém são somente métricas: não
+   bloqueiam criação nem conversa. `monthly_budget_usd` e
+   `AI_MONTHLY_COST_LIMIT_USD` permanecem como compatibilidade/telemetria, sem gate.

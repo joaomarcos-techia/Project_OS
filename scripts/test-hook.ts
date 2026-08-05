@@ -104,7 +104,9 @@ function check(name: string, ok: boolean, payload?: unknown): void {
     console.log(`[OK]   ${name}`);
   } else {
     failed++;
-    console.log(`[FAIL] ${name}${payload !== undefined ? ` payload=${JSON.stringify(payload)}` : ''}`);
+    console.log(
+      `[FAIL] ${name}${payload !== undefined ? ` payload=${JSON.stringify(payload)}` : ''}`,
+    );
   }
 }
 
@@ -195,5 +197,7 @@ await dbAdmin.execute(sql`
 `);
 await dbAdmin.execute(sql`DELETE FROM public.clinics WHERE id = ${FIXTURE_CLINIC}::uuid`);
 
-console.log(`\n${failed === 0 ? '✅ test-hook: all 6 scenarios passed' : `❌ test-hook: ${failed} scenario(s) failed`}`);
+console.log(
+  `\n${failed === 0 ? '✅ test-hook: all 6 scenarios passed' : `❌ test-hook: ${failed} scenario(s) failed`}`,
+);
 process.exit(failed === 0 ? 0 : 1);

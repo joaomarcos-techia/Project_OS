@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CLINICAL_TEMPLATES } from '@/contexts/clinical/templates';
-import type { ClinicalTemplate, ProntuarioContent, ProntuarioDetail } from '@/contexts/clinical/types';
+import type {
+  ClinicalTemplate,
+  ProntuarioContent,
+  ProntuarioDetail,
+} from '@/contexts/clinical/types';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -80,7 +84,9 @@ export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail 
       setStatus(dirtyRef.current ? 'idle' : 'saved');
     } else {
       dirtyRef.current = true;
-      setStatus(res.kind === 'conflict' ? 'conflict' : res.kind === 'imutavel' ? 'imutavel' : 'error');
+      setStatus(
+        res.kind === 'conflict' ? 'conflict' : res.kind === 'imutavel' ? 'imutavel' : 'error',
+      );
     }
   }, [prontuario.id, signed]);
 

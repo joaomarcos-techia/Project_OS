@@ -56,7 +56,9 @@ const pend = await dbAdmin.execute(sql`
 console.log('\n=== FATURAMENTO_PENDENCIAS ===');
 table(pend as unknown as unknown[]);
 
-const clinics = await dbAdmin.execute(sql`SELECT id::text AS id, slug, nome FROM clinics ORDER BY created_at`);
+const clinics = await dbAdmin.execute(
+  sql`SELECT id::text AS id, slug, nome FROM clinics ORDER BY created_at`,
+);
 console.log('\n=== CLINICS ===');
 table(clinics as unknown as unknown[]);
 

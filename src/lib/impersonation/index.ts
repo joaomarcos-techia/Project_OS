@@ -22,11 +22,7 @@ import { cookies } from 'next/headers';
 
 import type { Tx } from '@/lib/db';
 
-import {
-  IMPERSONATION_COOKIE,
-  readImpersonationCookie,
-  signImpersonationCookie,
-} from './cookie';
+import { IMPERSONATION_COOKIE, readImpersonationCookie, signImpersonationCookie } from './cookie';
 import {
   IMPERSONATION_TTL_SECONDS,
   createSessionTx,

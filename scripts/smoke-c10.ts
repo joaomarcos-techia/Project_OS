@@ -68,7 +68,10 @@ async function withFetchStub<T>(stub: FetchFn, fn: () => Promise<T>): Promise<T>
   }
 }
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 const acceptedStub: FetchFn = async () =>
   jsonResponse({ messages: [{ id: `wamid.${randomUUID()}` }] }, 200);
@@ -146,7 +149,13 @@ function makeMsg(
 }
 function makeStatus(wamid: string, status: string, phoneId: string): ParsedStatusEvent {
   const raw = { id: wamid, status, recipient_id: '5511999990001' };
-  return { providerMessageId: wamid, status, recipientNumber: '5511999990001', toPhoneId: phoneId, raw };
+  return {
+    providerMessageId: wamid,
+    status,
+    recipientNumber: '5511999990001',
+    toPhoneId: phoneId,
+    raw,
+  };
 }
 
 async function countInbound(clinicId: string, wamid: string): Promise<number> {
@@ -189,9 +198,14 @@ async function main(): Promise<void> {
         'https://x/api/webhooks/meta?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=CH123',
       ),
     );
-    assert(ok.status === 200 && (await ok.text()) === 'CH123', 'token certo deveria ecoar challenge');
+    assert(
+      ok.status === 200 && (await ok.text()) === 'CH123',
+      'token certo deveria ecoar challenge',
+    );
     const bad = await webhookGet(
-      new Request('https://x/api/webhooks/meta?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=X'),
+      new Request(
+        'https://x/api/webhooks/meta?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=X',
+      ),
     );
     assert(bad.status === 403, 'token errado deveria 403');
   });
@@ -205,7 +219,15 @@ async function main(): Promise<void> {
             {
               value: {
                 metadata: { phone_number_id: phoneIdA, display_phone_number: '551140000001' },
-                messages: [{ id: 'wamid.X', from: '5511999990001', type: 'text', text: { body: 'oi' }, timestamp: '1700000000' }],
+                messages: [
+                  {
+                    id: 'wamid.X',
+                    from: '5511999990001',
+                    type: 'text',
+                    text: { body: 'oi' },
+                    timestamp: '1700000000',
+                  },
+                ],
                 statuses: [{ id: 'wamid.Y', status: 'delivered', recipient_id: '5511999990001' }],
               },
             },
@@ -214,16 +236,30 @@ async function main(): Promise<void> {
       ],
     });
     const p = provider.parseWebhook(raw);
-    assert(p.messages.length === 1 && p.messages[0]!.toPhoneId === phoneIdA, 'deveria extrair 1 mensagem');
+    assert(
+      p.messages.length === 1 && p.messages[0]!.toPhoneId === phoneIdA,
+      'deveria extrair 1 mensagem',
+    );
     assert(p.messages[0]!.text === 'oi', 'texto deveria ser extraído');
-    assert(p.statuses.length === 1 && p.statuses[0]!.status === 'delivered', 'deveria extrair 1 status');
+    assert(
+      p.statuses.length === 1 && p.statuses[0]!.status === 'delivered',
+      'deveria extrair 1 status',
+    );
   });
 
   // 4. tenant por meta_phone_id + quarentena de número desconhecido
   await tryStep('4 resolve tenant + quarentena cifrada de órfão', async () => {
-    assert((await resolveClinicByPhoneId(phoneIdA)) === clinicA, 'phoneIdA deveria resolver clinicA');
-    assert((await resolveClinicByPhoneId('UNKNOWN_PHONE')) === null, 'desconhecido deveria ser null');
-    const orphanRaw = JSON.stringify({ entry: [{ changes: [{ value: { metadata: { phone_number_id: 'UNKNOWN_PHONE' } } }] }] });
+    assert(
+      (await resolveClinicByPhoneId(phoneIdA)) === clinicA,
+      'phoneIdA deveria resolver clinicA',
+    );
+    assert(
+      (await resolveClinicByPhoneId('UNKNOWN_PHONE')) === null,
+      'desconhecido deveria ser null',
+    );
+    const orphanRaw = JSON.stringify({
+      entry: [{ changes: [{ value: { metadata: { phone_number_id: 'UNKNOWN_PHONE' } } }] }],
+    });
     await quarantineOrphan('meta', 'UNKNOWN_PHONE', orphanRaw);
     await quarantineOrphan('meta', 'UNKNOWN_PHONE', orphanRaw); // dedup
     const r = await dbAdmin.execute<{ n: number; h: string }>(
@@ -283,11 +319,24 @@ async function main(): Promise<void> {
   await tryStep('9 outbound accepted + dedup + suppression bloqueia', async () => {
     const key1 = randomUUID();
     const out = await withFetchStub(acceptedStub, () =>
-      sendOutbound({ clinicId: clinicA, toNumber: '5511988887777', idempotencyKey: key1, body: { kind: 'text', text: 'olá' } }),
+      sendOutbound({
+        clinicId: clinicA,
+        toNumber: '5511988887777',
+        idempotencyKey: key1,
+        body: { kind: 'text', text: 'olá' },
+      }),
     );
-    assert(out.status === 'accepted' && out.providerMessageId !== null, 'deveria aceitar com wamid');
+    assert(
+      out.status === 'accepted' && out.providerMessageId !== null,
+      'deveria aceitar com wamid',
+    );
     const dup = await withFetchStub(acceptedStub, () =>
-      sendOutbound({ clinicId: clinicA, toNumber: '5511988887777', idempotencyKey: key1, body: { kind: 'text', text: 'olá' } }),
+      sendOutbound({
+        clinicId: clinicA,
+        toNumber: '5511988887777',
+        idempotencyKey: key1,
+        body: { kind: 'text', text: 'olá' },
+      }),
     );
     assert(dup.deduped, 'mesma key deveria dedupar');
     // suppression
@@ -298,7 +347,12 @@ async function main(): Promise<void> {
     let suppressed = false;
     try {
       await withFetchStub(acceptedStub, () =>
-        sendOutbound({ clinicId: clinicA, toNumber: '5511955554444', idempotencyKey: randomUUID(), body: { kind: 'text', text: 'x' } }),
+        sendOutbound({
+          clinicId: clinicA,
+          toNumber: '5511955554444',
+          idempotencyKey: randomUUID(),
+          body: { kind: 'text', text: 'x' },
+        }),
       );
     } catch (e) {
       suppressed = e instanceof Error && e.name === 'SuppressedRecipientError';
@@ -310,10 +364,20 @@ async function main(): Promise<void> {
   await tryStep('7 idempotency_key isolada por clínica (A e B mesma key)', async () => {
     const shared = randomUUID();
     const a = await withFetchStub(acceptedStub, () =>
-      sendOutbound({ clinicId: clinicA, toNumber: '5511900000001', idempotencyKey: shared, body: { kind: 'text', text: 'a' } }),
+      sendOutbound({
+        clinicId: clinicA,
+        toNumber: '5511900000001',
+        idempotencyKey: shared,
+        body: { kind: 'text', text: 'a' },
+      }),
     );
     const b = await withFetchStub(acceptedStub, () =>
-      sendOutbound({ clinicId: clinicB, toNumber: '5511900000002', idempotencyKey: shared, body: { kind: 'text', text: 'b' } }),
+      sendOutbound({
+        clinicId: clinicB,
+        toNumber: '5511900000002',
+        idempotencyKey: shared,
+        body: { kind: 'text', text: 'b' },
+      }),
     );
     assert(!a.deduped && !b.deduped, 'mesma key em clínicas diferentes NÃO deveria colidir');
     assert(a.status === 'accepted' && b.status === 'accepted', 'ambas deveriam aceitar');
@@ -325,12 +389,22 @@ async function main(): Promise<void> {
       throw new Error('network reset');
     };
     const u = await withFetchStub(unknownStub, () =>
-      sendOutbound({ clinicId: clinicA, toNumber: '5511900000003', idempotencyKey: randomUUID(), body: { kind: 'text', text: 'u' } }),
+      sendOutbound({
+        clinicId: clinicA,
+        toNumber: '5511900000003',
+        idempotencyKey: randomUUID(),
+        body: { kind: 'text', text: 'u' },
+      }),
     );
     assert(u.status === 'unknown', `falha de rede deveria ser unknown, foi ${u.status}`);
     const failStub: FetchFn = async () => jsonResponse({ error: { message: 'bad' } }, 500);
     const f = await withFetchStub(failStub, () =>
-      sendOutbound({ clinicId: clinicA, toNumber: '5511900000004', idempotencyKey: randomUUID(), body: { kind: 'text', text: 'f' } }),
+      sendOutbound({
+        clinicId: clinicA,
+        toNumber: '5511900000004',
+        idempotencyKey: randomUUID(),
+        body: { kind: 'text', text: 'f' },
+      }),
     );
     assert(f.status === 'failed', `HTTP 500 deveria ser failed, foi ${f.status}`);
   });
@@ -349,9 +423,17 @@ async function main(): Promise<void> {
       return jsonResponse({ messages: [{ id: 'wamid.AFTER_ROTATE' }] }, 200);
     };
     const r = await withFetchStub(rotateStub, () =>
-      sendOutbound({ clinicId: clinicA, toNumber: '5511900000005', idempotencyKey: randomUUID(), body: { kind: 'text', text: 'r' } }),
+      sendOutbound({
+        clinicId: clinicA,
+        toNumber: '5511900000005',
+        idempotencyKey: randomUUID(),
+        body: { kind: 'text', text: 'r' },
+      }),
     );
-    assert(r.status === 'accepted' && calls === 2, `rotação deveria reenviar e aceitar (calls=${calls}, status=${r.status})`);
+    assert(
+      r.status === 'accepted' && calls === 2,
+      `rotação deveria reenviar e aceitar (calls=${calls}, status=${r.status})`,
+    );
 
     let calls2 = 0;
     const noRotateStub: FetchFn = async () => {
@@ -359,9 +441,17 @@ async function main(): Promise<void> {
       return jsonResponse({ error: { code: 401 } }, 401);
     };
     const r2 = await withFetchStub(noRotateStub, () =>
-      sendOutbound({ clinicId: clinicA, toNumber: '5511900000006', idempotencyKey: randomUUID(), body: { kind: 'text', text: 'r2' } }),
+      sendOutbound({
+        clinicId: clinicA,
+        toNumber: '5511900000006',
+        idempotencyKey: randomUUID(),
+        body: { kind: 'text', text: 'r2' },
+      }),
     );
-    assert(r2.status === 'failed' && calls2 === 1, `sem rotação: failed sem reenvio (calls=${calls2}, status=${r2.status})`);
+    assert(
+      r2.status === 'failed' && calls2 === 1,
+      `sem rotação: failed sem reenvio (calls=${calls2}, status=${r2.status})`,
+    );
   });
 
   // 11. RLS A/B
@@ -379,9 +469,14 @@ async function main(): Promise<void> {
   // 14. concorrência: 5 webhooks simultâneos com mesmo id
   await tryStep('14 concorrência — 5× mesmo id → 1 inbound, 1 evento', async () => {
     const wamid = `wamid.${randomUUID()}`;
-    await Promise.all(Array.from({ length: 5 }, () => persistInbound(clinicA, 'meta', makeMsg(wamid, phoneIdA))));
+    await Promise.all(
+      Array.from({ length: 5 }, () => persistInbound(clinicA, 'meta', makeMsg(wamid, phoneIdA))),
+    );
     assert((await countInbound(clinicA, wamid)) === 1, 'deveria ter exatamente 1 inbound row');
-    assert((await countInboxEvent(`inbound:meta:${wamid}`)) === 1, 'deveria ter exatamente 1 outbox event');
+    assert(
+      (await countInboxEvent(`inbound:meta:${wamid}`)) === 1,
+      'deveria ter exatamente 1 outbox event',
+    );
   });
 
   // 17. rollback do outbox (publishEvent falha → 0 inbound + 0 evento)
@@ -399,7 +494,10 @@ async function main(): Promise<void> {
     if (saved) registerEventSchema(MESSAGING_EVENTS.INBOUND_RECEIVED, InboundReceivedSchema);
     assert(threw, 'persistInbound deveria propagar a exceção do publishEvent');
     assert((await countInbound(clinicA, wamid)) === 0, 'rollback: inbound NÃO deveria persistir');
-    assert((await countInboxEvent(`inbound:meta:${wamid}`)) === 0, 'rollback: evento NÃO deveria persistir');
+    assert(
+      (await countInboxEvent(`inbound:meta:${wamid}`)) === 0,
+      'rollback: evento NÃO deveria persistir',
+    );
   });
 
   // 8. reconexão após disconnect (partial unique WHERE active=true)
@@ -413,7 +511,10 @@ async function main(): Promise<void> {
     const r = await dbAdmin.execute<{ act: number; tot: number }>(sql`
       SELECT count(*) FILTER (WHERE active)::int AS act, count(*)::int AS tot
       FROM clinic_whatsapp_numbers WHERE clinic_id = ${clinicC}`);
-    assert(Number(r[0]?.act) === 1 && Number(r[0]?.tot) === 2, `deveria ter 1 ativo + 1 histórico (act=${r[0]?.act} tot=${r[0]?.tot})`);
+    assert(
+      Number(r[0]?.act) === 1 && Number(r[0]?.tot) === 2,
+      `deveria ter 1 ativo + 1 histórico (act=${r[0]?.act} tot=${r[0]?.tot})`,
+    );
   });
 
   // 12. pré-flight estrutural: FORCE RLS + grants column-level
@@ -439,11 +540,26 @@ async function main(): Promise<void> {
   });
 
   // 13. admin audit (connect/disconnect/rotate) → in-app (super_admin session). Skip noted.
-  record('13 admin audit connect/disconnect/rotate (in-app/runbook — super_admin session)', true, 'SKIP: validado in-app');
+  record(
+    '13 admin audit connect/disconnect/rotate (in-app/runbook — super_admin session)',
+    true,
+    'SKIP: validado in-app',
+  );
 }
 
 // --- cleanup ----------------------------------------------------------------
 async function cleanup(): Promise<void> {
+  // tenantId() não declara FK para clinics nas tabelas de infraestrutura.
+  // Limpar pelo clinic_id da fixture evita eventos órfãos no worker do dev.
+  for (const clinicId of created) {
+    for (const table of ['outbox', 'idempotency_keys', 'audit_events'] as const) {
+      try {
+        await dbAdmin.execute(sql`DELETE FROM ${sql.raw(table)} WHERE clinic_id = ${clinicId}`);
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
   for (const clinicId of created) {
     try {
       await dbAdmin.execute(sql`DELETE FROM clinics WHERE id = ${clinicId}`);
@@ -461,7 +577,7 @@ async function cleanup(): Promise<void> {
 }
 
 main()
-  .catch((e) => record('main', false, e instanceof Error ? e.stack ?? e.message : String(e)))
+  .catch((e) => record('main', false, e instanceof Error ? (e.stack ?? e.message) : String(e)))
   .finally(async () => {
     await cleanup();
     const failed = results.filter((r) => !r.ok);

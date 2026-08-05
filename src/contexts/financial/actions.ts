@@ -33,12 +33,7 @@ import { FINANCIAL_EVENTS } from './events';
 import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { assertFinancialReferencesInClinic } from './internal/tenant-references';
 import { assertPaymentFitsBalance, assertRefundFitsPayment } from './internal/payment-ledger';
-import {
-  assertLancamentoTransition,
-  calcStatusPagamento,
-  clinicDayBounds,
-  round2,
-} from './logic';
+import { assertLancamentoTransition, calcStatusPagamento, clinicDayBounds, round2 } from './logic';
 import {
   getCashFlowToday,
   getClinicTimezone,
@@ -179,11 +174,7 @@ export async function confirmPayment(
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
 
       const valorTotal = Number(lanc.valor);
-      const novoPago = assertPaymentFitsBalance(
-        valorTotal,
-        Number(lanc.valorPago),
-        data.valorPago,
-      );
+      const novoPago = assertPaymentFitsBalance(valorTotal, Number(lanc.valorPago), data.valorPago);
       const novoStatus = calcStatusPagamento(valorTotal, novoPago);
       // Sob concorrência, o perdedor lê o lançamento já 'pago' → transição
       // 'pago'→'pago' é inválida → LancamentoStateError (409). Apenas um vence.
@@ -445,8 +436,18 @@ export async function createSupplier(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('create_supplier', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
-      audit: { action: 'financial.supplier.created', resourceType: 'supplier', resourceId: null, before: null, requestContext: ctx },
+      idempotency: {
+        key: idemKey('create_supplier', idempotencyKey),
+        payload: jsonSafe(data),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'financial.supplier.created',
+        resourceType: 'supplier',
+        resourceId: null,
+        before: null,
+        requestContext: ctx,
+      },
     },
     async (tx) => {
       const [row] = await tx
@@ -478,8 +479,18 @@ export async function updateSupplier(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('update_supplier', idempotencyKey), payload: jsonSafe({ id, ...data }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
-      audit: { action: 'financial.supplier.updated', resourceType: 'supplier', resourceId: id, before: null, requestContext: ctx },
+      idempotency: {
+        key: idemKey('update_supplier', idempotencyKey),
+        payload: jsonSafe({ id, ...data }),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'financial.supplier.updated',
+        resourceType: 'supplier',
+        resourceId: id,
+        before: null,
+        requestContext: ctx,
+      },
     },
     async (tx) => {
       const [row] = await tx
@@ -512,8 +523,18 @@ export async function setSupplierAtivo(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('set_supplier_ativo', idempotencyKey), payload: jsonSafe({ id, ativo }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
-      audit: { action: 'financial.supplier.ativo', resourceType: 'supplier', resourceId: id, before: null, requestContext: ctx },
+      idempotency: {
+        key: idemKey('set_supplier_ativo', idempotencyKey),
+        payload: jsonSafe({ id, ativo }),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'financial.supplier.ativo',
+        resourceType: 'supplier',
+        resourceId: id,
+        before: null,
+        requestContext: ctx,
+      },
     },
     async (tx) => {
       const [row] = await tx

@@ -99,13 +99,29 @@ async function setupClinic(suffix: 'a' | 'b', nome: string, slug: string): Promi
   `)) as unknown as Array<{ id: string }>;
   const clinicId = c!.id;
 
-  const gestor = await createUser(clinicId, `gestor.${suffix}@clinicaos.test`, 'gestor', `Gestor ${suffix.toUpperCase()}`);
-  const atendente = await createUser(clinicId, `atendente.${suffix}@clinicaos.test`, 'attendant', `Atendente ${suffix.toUpperCase()}`);
-  const medico = await createUser(clinicId, `medico.${suffix}@clinicaos.test`, 'doctor', `Dr(a). ${suffix.toUpperCase()}`, {
-    crm: suffix === 'a' ? '111111' : '222222',
-    crmUf: 'SP',
-    esp: 'Clínica Médica',
-  });
+  const gestor = await createUser(
+    clinicId,
+    `gestor.${suffix}@clinicaos.test`,
+    'gestor',
+    `Gestor ${suffix.toUpperCase()}`,
+  );
+  const atendente = await createUser(
+    clinicId,
+    `atendente.${suffix}@clinicaos.test`,
+    'attendant',
+    `Atendente ${suffix.toUpperCase()}`,
+  );
+  const medico = await createUser(
+    clinicId,
+    `medico.${suffix}@clinicaos.test`,
+    'doctor',
+    `Dr(a). ${suffix.toUpperCase()}`,
+    {
+      crm: suffix === 'a' ? '111111' : '222222',
+      crmUf: 'SP',
+      esp: 'Clínica Médica',
+    },
+  );
 
   const seeded = await withTenant(clinicId, async (tx) => {
     const [proc] = await tx
@@ -192,7 +208,9 @@ async function main(): Promise<void> {
     await supabase.auth.admin.deleteUser(u.id);
     deleted++;
   }
-  console.log(`[seed:c9] wipe: clínicas removidas, ${deleted} usuário(s) removido(s), ${superIds.size} super_admin preservado(s).`);
+  console.log(
+    `[seed:c9] wipe: clínicas removidas, ${deleted} usuário(s) removido(s), ${superIds.size} super_admin preservado(s).`,
+  );
 
   // 2-4. Seed das duas clínicas.
   const a = await setupClinic('a', 'Clínica A', 'clinica-a');

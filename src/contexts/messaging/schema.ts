@@ -124,10 +124,14 @@ export const inboundMessagesRaw = pgTable(
     payloadHash: text('payload_hash').notNull(),
     // Coluna existe por contrato; SEMPRE NULL em C10 (proibição de mídia).
     mediaUrl: text('media_url'),
-    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().default(sql`now()`),
+    receivedAt: timestamp('received_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
     // Preenchida pelo consumidor de IA em C11; append-only em C10.
     processedAt: timestamp('processed_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('inbound_messages_raw_clinic_id_idx').on(t.clinicId),
@@ -158,7 +162,9 @@ export const outboundMessages = pgTable(
     readAt: timestamp('read_at', { withTimezone: true }),
     failedAt: timestamp('failed_at', { withTimezone: true }),
     statusUpdatedAt: timestamp('status_updated_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('outbound_messages_clinic_id_idx').on(t.clinicId),
@@ -183,8 +189,12 @@ export const providerStatusEventsRaw = pgTable(
     // sha256/canônico do payload — dedup robusto mesmo sem message id (3ª#1+2).
     payloadHash: text('payload_hash').notNull(),
     raw: jsonb('raw').notNull(),
-    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().default(sql`now()`),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    receivedAt: timestamp('received_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('provider_status_events_raw_clinic_id_idx').on(t.clinicId),
@@ -212,11 +222,18 @@ export const inboundMessagesOrphaned = pgTable(
     payloadHash: text('payload_hash').notNull(),
     // Cifrado com PLATFORM_ORPHAN_SCOPE (sem tenant resolvido). Recovery em C11/C14.
     payloadEncrypted: text('payload_encrypted').notNull(),
-    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().default(sql`now()`),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    receivedAt: timestamp('received_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
-    payloadUniq: uniqueIndex('inbound_messages_orphaned_payload_uniq').on(t.provider, t.payloadHash),
+    payloadUniq: uniqueIndex('inbound_messages_orphaned_payload_uniq').on(
+      t.provider,
+      t.payloadHash,
+    ),
   }),
 );
 

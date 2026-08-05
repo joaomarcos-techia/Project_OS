@@ -28,6 +28,7 @@ const compat = new FlatCompat({
 const config = [
   {
     ignores: [
+      '.claude/worktrees/**',
       '.next/**',
       'node_modules/**',
       'dist/**',
@@ -119,14 +120,19 @@ const config = [
 
   // C1 db guard #1: `postgres` driver may ONLY be imported by:
   //   - src/lib/db/index.ts (canonical pool factory for the app)
-  //   - scripts/db-migrate-prod.ts (needs dedicated 1-shot connection against
-  //     DATABASE_URL_PROD to acquire pg_advisory_lock; src/lib/db is bound to
-  //     env.DATABASE_URL at boot and can't target a different URL).
+  //   - scripts/db-migrate-prod.ts and scripts/delete-test-clinics-prod.ts
+  //     (each needs a dedicated one-shot connection against DATABASE_URL_PROD;
+  //     src/lib/db is bound to env.DATABASE_URL at boot and can't target a
+  //     different URL).
   // Anywhere else duplicates the pool -> connection leak + config drift.
   // Mirror this allowlist in scripts/arch-db-check.ts.
   {
     files: ['src/**/*.{ts,tsx}', 'scripts/**/*.ts'],
-    ignores: ['src/lib/db/index.ts', 'scripts/db-migrate-prod.ts'],
+    ignores: [
+      'src/lib/db/index.ts',
+      'scripts/db-migrate-prod.ts',
+      'scripts/delete-test-clinics-prod.ts',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -317,12 +323,10 @@ const config = [
         {
           selector:
             "CallExpression[callee.type='MemberExpression'][callee.object.name='z'][callee.property.name='nan']",
-          message:
-            'z.nan() em events.ts é nonsense — NaN não sobrevive JSON. ADR-011 §27.',
+          message: 'z.nan() em events.ts é nonsense — NaN não sobrevive JSON. ADR-011 §27.',
         },
         {
-          selector:
-            "NewExpression[callee.name='Date']",
+          selector: "NewExpression[callee.name='Date']",
           message:
             'new Date() em events.ts? Schema deve descrever wire format (string), não runtime type. Use z.string().datetime(). ADR-011 §27.',
         },
@@ -370,7 +374,7 @@ const config = [
           selector:
             "CallExpression[callee.type='MemberExpression'][callee.property.name='getSession'][callee.object.type='MemberExpression'][callee.object.property.name='auth']",
           message:
-            "supabase.auth.getSession() trusts the cookie without validating signature. Use getUser() (or our wrapper getCurrentUser/requireUser) instead. See ADR-008.",
+            'supabase.auth.getSession() trusts the cookie without validating signature. Use getUser() (or our wrapper getCurrentUser/requireUser) instead. See ADR-008.',
         },
         // C4 ADR-011: there is no event bus. The ONLY emitter is publishEvent
         // from @/lib/outbox/publish. Catching the *names* prevents drift via

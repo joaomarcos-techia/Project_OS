@@ -10,11 +10,7 @@ import { metrics } from '@/lib/observability/metrics';
 import { backoffDelayMs, BACKOFF_FAIL } from './backoff';
 import { getEventSchema } from './catalog';
 import { applyCircuitBreaker } from './circuit';
-import {
-  HandlerNotFoundError,
-  PoisonPillError,
-  serializeError,
-} from './errors';
+import { HandlerNotFoundError, PoisonPillError, serializeError } from './errors';
 import { reclaimStuckProcessing } from './janitor';
 import { getHandler } from './registry';
 import type { ProcessOneResult, WorkerTickSummary } from './types';
@@ -46,10 +42,12 @@ import type { ProcessOneResult, WorkerTickSummary } from './types';
  * executa TX1/TX3. O limite real e a decisão do lock compartilham a constante
  * DB_WORKER_POOL_SIZE para impedir auto-bloqueio por configuração divergente.
  */
-export async function runOutboxOnce(opts: {
-  batchSize?: number;
-  parallelism?: number;
-} = {}): Promise<WorkerTickSummary> {
+export async function runOutboxOnce(
+  opts: {
+    batchSize?: number;
+    parallelism?: number;
+  } = {},
+): Promise<WorkerTickSummary> {
   const t0 = Date.now();
   const batchSize = opts.batchSize ?? env.OUTBOX_BATCH_SIZE;
   const parallelism = opts.parallelism ?? env.OUTBOX_PARALLELISM;
@@ -195,8 +193,7 @@ async function processOne(): Promise<ProcessOneResult> {
     // eq(outbox.processingStartedAt, ...)) faz .toISOString() — quebra em string.
     // Garantimos Date aqui.
     const rawValue = updated[0]!.processing_started_at;
-    const processingStartedAt =
-      rawValue instanceof Date ? rawValue : new Date(String(rawValue));
+    const processingStartedAt = rawValue instanceof Date ? rawValue : new Date(String(rawValue));
     return {
       ...row,
       attempts: nextAttempts,
@@ -397,10 +394,7 @@ async function finalizeFailed(
   return 'failed';
 }
 
-async function finalizeRetryOrFailed(
-  reserved: ReservedRow,
-  err: unknown,
-): Promise<'failed'> {
+async function finalizeRetryOrFailed(reserved: ReservedRow, err: unknown): Promise<'failed'> {
   const { message, code } = serializeError(err);
   const delay = backoffDelayMs(reserved.attempts);
   const isFail = delay === BACKOFF_FAIL;

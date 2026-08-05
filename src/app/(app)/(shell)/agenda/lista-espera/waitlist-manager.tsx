@@ -51,8 +51,14 @@ export function WaitlistManager({
   const [notes, setNotes] = useState('');
   const [showClosed, setShowClosed] = useState(false);
   const [busy, startTransition] = useTransition();
-  const patientName = useMemo(() => new Map(patients.map((item) => [item.id, item.name])), [patients]);
-  const procedureName = useMemo(() => new Map(procedures.map((item) => [item.id, item.name])), [procedures]);
+  const patientName = useMemo(
+    () => new Map(patients.map((item) => [item.id, item.name])),
+    [patients],
+  );
+  const procedureName = useMemo(
+    () => new Map(procedures.map((item) => [item.id, item.name])),
+    [procedures],
+  );
   const doctorName = useMemo(() => new Map(doctors.map((item) => [item.id, item.name])), [doctors]);
   const visible = initial.filter(
     (entry) => showClosed || entry.status === 'waiting' || entry.status === 'offered',
@@ -115,7 +121,9 @@ export function WaitlistManager({
           <Select value={procedureId} onChange={(event) => setProcedureId(event.target.value)}>
             <option value="">Selecione…</option>
             {procedures.map((procedure) => (
-              <option key={procedure.id} value={procedure.id}>{procedure.name}</option>
+              <option key={procedure.id} value={procedure.id}>
+                {procedure.name}
+              </option>
             ))}
           </Select>
         </Field>
@@ -123,18 +131,31 @@ export function WaitlistManager({
           <Select value={doctorId} onChange={(event) => setDoctorId(event.target.value)}>
             <option value="">Qualquer profissional</option>
             {doctors.map((doctor) => (
-              <option key={doctor.id} value={doctor.id}>{doctor.name}</option>
+              <option key={doctor.id} value={doctor.id}>
+                {doctor.name}
+              </option>
             ))}
           </Select>
         </Field>
         <Field label="Preferência a partir de">
-          <Input type="date" value={preferredFromDate} onChange={(event) => setPreferredFromDate(event.target.value)} />
+          <Input
+            type="date"
+            value={preferredFromDate}
+            onChange={(event) => setPreferredFromDate(event.target.value)}
+          />
         </Field>
         <Field label="Preferência até">
-          <Input type="date" value={preferredUntilDate} onChange={(event) => setPreferredUntilDate(event.target.value)} />
+          <Input
+            type="date"
+            value={preferredUntilDate}
+            onChange={(event) => setPreferredUntilDate(event.target.value)}
+          />
         </Field>
         <Field label="Prioridade">
-          <Select value={priority} onChange={(event) => setPriority(event.target.value as 'urgent' | 'normal')}>
+          <Select
+            value={priority}
+            onChange={(event) => setPriority(event.target.value as 'urgent' | 'normal')}
+          >
             <option value="normal">Normal</option>
             <option value="urgent">Urgente</option>
           </Select>
@@ -145,12 +166,18 @@ export function WaitlistManager({
           </Field>
         </div>
         <div className="flex items-end">
-          <Button type="button" loading={busy} onClick={create}>Adicionar à lista</Button>
+          <Button type="button" loading={busy} onClick={create}>
+            Adicionar à lista
+          </Button>
         </div>
       </div>
 
       <label className="flex items-center gap-2 text-sm text-fg-muted">
-        <input type="checkbox" checked={showClosed} onChange={(event) => setShowClosed(event.target.checked)} />
+        <input
+          type="checkbox"
+          checked={showClosed}
+          onChange={(event) => setShowClosed(event.target.checked)}
+        />
         Mostrar encerrados
       </label>
       <div className="cardblock">
@@ -159,21 +186,39 @@ export function WaitlistManager({
             <div key={entry.id} className="listrow">
               <div className="lr-main">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{patientName.get(entry.patientId) ?? 'Paciente'}</span>
-                  <span className="text-sm text-fg-muted">{procedureName.get(entry.procedureId) ?? 'Procedimento'}</span>
-                  {entry.doctorId ? <span className="text-xs text-fg-subtle">{doctorName.get(entry.doctorId) ?? 'Profissional'}</span> : null}
+                  <span className="font-medium">
+                    {patientName.get(entry.patientId) ?? 'Paciente'}
+                  </span>
+                  <span className="text-sm text-fg-muted">
+                    {procedureName.get(entry.procedureId) ?? 'Procedimento'}
+                  </span>
+                  {entry.doctorId ? (
+                    <span className="text-xs text-fg-subtle">
+                      {doctorName.get(entry.doctorId) ?? 'Profissional'}
+                    </span>
+                  ) : null}
                   {entry.priority === 'urgent' ? <Badge tone="red">Urgente</Badge> : null}
                   <Badge tone="gray">{STATUS_LABEL[entry.status]}</Badge>
                 </div>
               </div>
               <div className="lr-end">
                 {entry.status === 'waiting' || entry.status === 'offered' ? (
-                  <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => cancel(entry.id)}>Cancelar</Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => cancel(entry.id)}
+                  >
+                    Cancelar
+                  </Button>
                 ) : null}
               </div>
             </div>
           ))}
-          {visible.length === 0 ? <p className="p-4 text-sm text-fg-muted">Lista de espera vazia.</p> : null}
+          {visible.length === 0 ? (
+            <p className="p-4 text-sm text-fg-muted">Lista de espera vazia.</p>
+          ) : null}
         </div>
       </div>
     </div>

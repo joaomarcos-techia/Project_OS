@@ -38,7 +38,7 @@ export class AdminMetricsRepository {
    * setup fee, anual à vista e avulsos) e oscila por timing de pagamento — não
    * é receita recorrente. A série histórica (getMrrTrend) continua sendo caixa
    * por mês, rotulada como "Receita paga" na UI.
-  */
+   */
   async getDashboard(): Promise<DashboardMetricsDTO> {
     const [[mrrRow], [clinicRow], [subRow]] = await Promise.all([
       dbAdmin
@@ -74,7 +74,8 @@ export class AdminMetricsRepository {
 
     const churnDenom = activeSubs + cancelledThis;
     const churnRatePct = churnDenom > 0 ? (cancelledThis / churnDenom) * 100 : 0;
-    const monthlyGrowthPct = newLast > 0 ? ((newThis - newLast) / newLast) * 100 : newThis > 0 ? 100 : 0;
+    const monthlyGrowthPct =
+      newLast > 0 ? ((newThis - newLast) / newLast) * 100 : newThis > 0 ? 100 : 0;
 
     return {
       mrrCents,
@@ -157,7 +158,20 @@ export class AdminMetricsRepository {
       .groupBy(sql`date_trunc('month', ${invoices.paidAt})`);
 
     const byYm = new Map(rows.map((r) => [r.ym, toCents(r.cents)]));
-    const MON = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    const MON = [
+      'jan',
+      'fev',
+      'mar',
+      'abr',
+      'mai',
+      'jun',
+      'jul',
+      'ago',
+      'set',
+      'out',
+      'nov',
+      'dez',
+    ];
     const now = new Date();
     const out: { label: string; cents: number }[] = [];
     for (let i = months - 1; i >= 0; i--) {

@@ -86,7 +86,10 @@ export default async function SaudePage() {
         ) : (
           <TriangleAlert
             aria-hidden="true"
-            className={cn('mt-px size-5', worst === 'down' ? 'text-danger-600' : 'text-warning-700')}
+            className={cn(
+              'mt-px size-5',
+              worst === 'down' ? 'text-danger-600' : 'text-warning-700',
+            )}
           />
         )}
         <div className="min-w-0 flex-1">

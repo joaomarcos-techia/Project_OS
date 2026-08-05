@@ -133,10 +133,11 @@ async function rawRequest(method: string, path: string, body?: unknown): Promise
     throw new BillingProviderUnreachableError(`asaas ${method} ${path} → HTTP ${res.status}`);
   }
   if (res.status >= 400) {
-    const text = await res.text().catch(() => '');
     metrics.emit('billing.asaas.http_4xx', { method, path, status: res.status });
+    // Nunca propague o corpo do provedor: em checkout transparente ele pode
+    // refletir campos sensíveis da requisição e acabar em logs/Sentry.
     throw new BillingProviderError(
-      `asaas ${method} ${path} → HTTP ${res.status}: ${text.slice(0, 300)}`,
+      `asaas ${method} ${path} → HTTP ${res.status}`,
       'billing_provider_error',
       res.status,
     );
@@ -146,7 +147,7 @@ async function rawRequest(method: string, path: string, body?: unknown): Promise
 
 /** GET com retry/backoff (idempotente). POST sem retry (anti-duplicação). */
 async function request(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
   opts?: { attempts?: number },
@@ -154,7 +155,10 @@ async function request(
   // GET re-tenta por default (idempotente). `opts.attempts` permite ao caller
   // apertar o orçamento: o webhook verifica o pagamento DENTRO da janela de 30s
   // da invocação, e 3 × ASAAS_HTTP_TIMEOUT_MS (10s) + backoff estoura o limite.
-  const maxAttempts = opts?.attempts ?? (method === 'GET' ? 3 : 1);
+  // PUT escreve o estado desejado de uma assinatura e é idempotente; portanto
+  // pode usar o mesmo retry seguro de GET. POST continua sem retry porque o
+  // Asaas não oferece uma idempotency-key nativa.
+  const maxAttempts = opts?.attempts ?? (method === 'GET' || method === 'PUT' ? 3 : 1);
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -162,7 +166,8 @@ async function request(
     } catch (err) {
       lastErr = err;
       // Só re-tenta erro indeterminado de GET; 4xx e circuito aberto sobem na hora.
-      const retryable = err instanceof BillingProviderUnreachableError && method === 'GET';
+      const retryable =
+        err instanceof BillingProviderUnreachableError && (method === 'GET' || method === 'PUT');
       if (!retryable || attempt === maxAttempts) throw err;
       await sleep(200 * 2 ** (attempt - 1)); // 200ms, 400ms
     }
@@ -188,6 +193,8 @@ export interface CreateSubscriptionInput {
   nextDueDate: string; // YYYY-MM-DD
   description: string;
   billingType?: AsaasBillingType;
+  /** Chave estável de reconciliação para POST que pode ter timeout após criar. */
+  externalReference?: string;
 }
 
 /** Dados do cartão — transitam em memória na request, NUNCA persistidos/logados. */
@@ -220,6 +227,8 @@ export interface GenerateInvoiceInput {
   dueDate: string; // YYYY-MM-DD
   description: string;
   billingType?: AsaasBillingType;
+  /** Chave de conciliação com uma operação local idempotente. */
+  externalReference?: string;
 }
 
 export interface ProviderPayment {
@@ -236,12 +245,15 @@ export interface ProviderPayment {
    */
   subscriptionId: string | null;
   billingType: string | null;
+  externalReference: string | null;
 }
 
 export interface ProviderSubscription {
   subscriptionId: string;
   status: string; // ACTIVE|INACTIVE|EXPIRED
   value: number;
+  customerId: string | null;
+  externalReference: string | null;
 }
 
 /**
@@ -269,8 +281,23 @@ export interface PaymentProvider {
   ): Promise<{ subscriptionId: string; creditCardToken: string | null }>;
   /** Cancela a assinatura no Asaas (compensação da saga — mata cobrança órfã). */
   cancelSubscription(asaasSubscriptionId: string): Promise<void>;
+  /** Atualiza somente cobranças futuras da recorrência. */
+  updateSubscription(
+    asaasSubscriptionId: string,
+    input: {
+      value?: number;
+      status?: 'ACTIVE' | 'INACTIVE';
+      nextDueDate?: string;
+      updatePendingPayments?: boolean;
+    },
+  ): Promise<void>;
   generateInvoice(input: GenerateInvoiceInput): Promise<ProviderPayment>;
   getSubscription(asaasSubscriptionId: string): Promise<ProviderSubscription>;
+  /** Recupera uma assinatura criada por tentativa anterior após timeout de POST. */
+  findSubscriptionByExternalReference(
+    externalReference: string,
+    opts?: { attempts?: number },
+  ): Promise<ProviderSubscription | null>;
   /** Cobranças já geradas pela assinatura (backstop para webhooks perdidos). */
   listSubscriptionPayments(
     asaasSubscriptionId: string,
@@ -278,6 +305,11 @@ export interface PaymentProvider {
   ): Promise<ProviderPayment[]>;
   /** `attempts` aperta o orçamento de retry (webhook usa 1 — ver [asaas/route.ts]). */
   getPayment(asaasPaymentId: string, opts?: { attempts?: number }): Promise<ProviderPayment>;
+  /** Recupera uma cobrança de operação local após timeout de POST. */
+  findPaymentByExternalReference(
+    externalReference: string,
+    opts?: { attempts?: number },
+  ): Promise<ProviderPayment | null>;
   /** Lança se o corpo não trouxer `body.id` (chave de dedup do provider). */
   parseWebhook(raw: string): ParsedWebhook;
   /** Valida o header `asaas-access-token` em constant-time. */
@@ -312,6 +344,7 @@ export const asaasProvider: PaymentProvider = {
       cycle: input.cycle,
       nextDueDate: input.nextDueDate,
       description: input.description,
+      externalReference: input.externalReference,
     };
     const res = (await request('POST', '/subscriptions', body)) as { id: string };
     metrics.emit('billing.asaas.subscription_created', { subscriptionId: res.id });
@@ -326,6 +359,7 @@ export const asaasProvider: PaymentProvider = {
       cycle: input.cycle,
       nextDueDate: input.nextDueDate,
       description: input.description,
+      externalReference: input.externalReference,
       creditCard: {
         holderName: input.creditCard.holderName,
         number: input.creditCard.number,
@@ -356,6 +390,22 @@ export const asaasProvider: PaymentProvider = {
     metrics.emit('billing.asaas.subscription_cancelled', { subscriptionId: id });
   },
 
+  async updateSubscription(id, input) {
+    if (input.status === 'ACTIVE' && !input.nextDueDate) {
+      throw new BillingProviderError(
+        'Asaas exige nextDueDate ao reativar uma assinatura.',
+        'subscription_reactivation_due_date_required',
+      );
+    }
+    await request('PUT', `/subscriptions/${encodeURIComponent(id)}`, {
+      value: input.value,
+      status: input.status,
+      nextDueDate: input.nextDueDate,
+      updatePendingPayments: input.updatePendingPayments ?? false,
+    });
+    metrics.emit('billing.asaas.subscription_updated', { subscriptionId: id });
+  },
+
   async generateInvoice(input) {
     const body = {
       customer: input.customerId,
@@ -363,6 +413,7 @@ export const asaasProvider: PaymentProvider = {
       value: input.value,
       dueDate: input.dueDate,
       description: input.description,
+      externalReference: input.externalReference,
     };
     const r = (await request('POST', '/payments', body)) as Record<string, unknown>;
     return {
@@ -373,6 +424,7 @@ export const asaasProvider: PaymentProvider = {
       invoiceUrl: asStr(r.invoiceUrl),
       subscriptionId: asStr(r.subscription),
       billingType: asStr(r.billingType),
+      externalReference: asStr(r.externalReference),
     };
   },
 
@@ -382,6 +434,25 @@ export const asaasProvider: PaymentProvider = {
       subscriptionId: String(r.id),
       status: asStr(r.status) ?? 'UNKNOWN',
       value: asNum(r.value),
+      customerId: asStr(r.customer),
+      externalReference: asStr(r.externalReference),
+    };
+  },
+
+  async findSubscriptionByExternalReference(externalReference, opts) {
+    const query = new URLSearchParams({ externalReference, limit: '1' });
+    const r = (await request('GET', `/subscriptions?${query.toString()}`, undefined, opts)) as {
+      data?: unknown;
+    };
+    const first = Array.isArray(r.data) ? r.data[0] : null;
+    if (!first || typeof first !== 'object') return null;
+    const subscription = first as Record<string, unknown>;
+    return {
+      subscriptionId: String(subscription.id),
+      status: asStr(subscription.status) ?? 'UNKNOWN',
+      value: asNum(subscription.value),
+      customerId: asStr(subscription.customer),
+      externalReference: asStr(subscription.externalReference),
     };
   },
 
@@ -405,6 +476,7 @@ export const asaasProvider: PaymentProvider = {
         // correlação mesmo se a API omitir o campo `subscription` na listagem.
         subscriptionId: asStr(p.subscription) ?? id,
         billingType: asStr(p.billingType),
+        externalReference: asStr(p.externalReference),
       };
     });
   },
@@ -419,6 +491,27 @@ export const asaasProvider: PaymentProvider = {
       invoiceUrl: asStr(r.invoiceUrl),
       subscriptionId: asStr(r.subscription),
       billingType: asStr(r.billingType),
+      externalReference: asStr(r.externalReference),
+    };
+  },
+
+  async findPaymentByExternalReference(externalReference, opts) {
+    const query = new URLSearchParams({ externalReference, limit: '1' });
+    const r = (await request('GET', `/payments?${query.toString()}`, undefined, opts)) as {
+      data?: unknown;
+    };
+    const first = Array.isArray(r.data) ? r.data[0] : null;
+    if (!first || typeof first !== 'object') return null;
+    const p = first as Record<string, unknown>;
+    return {
+      paymentId: String(p.id),
+      status: asStr(p.status) ?? 'UNKNOWN',
+      value: asNum(p.value),
+      dueDate: asStr(p.dueDate) ?? '',
+      invoiceUrl: asStr(p.invoiceUrl),
+      subscriptionId: asStr(p.subscription),
+      billingType: asStr(p.billingType),
+      externalReference: asStr(p.externalReference),
     };
   },
 

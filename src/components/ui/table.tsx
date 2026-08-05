@@ -12,10 +12,7 @@ import { cn } from '@/lib/ui/cn';
 export function TableWrap({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
-      className={cn(
-        'overflow-hidden rounded-(--r-lg) border border-border bg-surface',
-        className,
-      )}
+      className={cn('overflow-hidden rounded-(--r-lg) border border-border bg-surface', className)}
       {...props}
     />
   );
@@ -28,10 +25,7 @@ export function TableScroll({ className, ...props }: ComponentProps<'div'>) {
 
 export function Table({ className, ...props }: ComponentProps<'table'>) {
   return (
-    <table
-      className={cn('w-full border-collapse text-(length:--fs-sm)', className)}
-      {...props}
-    />
+    <table className={cn('w-full border-collapse text-(length:--fs-sm)', className)} {...props} />
   );
 }
 
@@ -128,7 +122,5 @@ export function TableFoot({ className, ...props }: ComponentProps<'div'>) {
 }
 
 export function TableFootInfo({ className, ...props }: ComponentProps<'span'>) {
-  return (
-    <span className={cn('text-(length:--fs-xs) text-fg-subtle', className)} {...props} />
-  );
+  return <span className={cn('text-(length:--fs-xs) text-fg-subtle', className)} {...props} />;
 }

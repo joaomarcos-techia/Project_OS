@@ -7,6 +7,8 @@ const {
   markInvoicePaid,
   markInvoiceOverdue,
   markInvoiceRefunded,
+  updateSubscription,
+  applyScheduledPlanChange,
   emit,
 } = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
@@ -15,6 +17,8 @@ const {
   markInvoicePaid: vi.fn(),
   markInvoiceOverdue: vi.fn(),
   markInvoiceRefunded: vi.fn(),
+  updateSubscription: vi.fn(),
+  applyScheduledPlanChange: vi.fn(),
   emit: vi.fn(),
 }));
 
@@ -24,21 +28,26 @@ vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
 vi.mock('@/lib/db', () => ({
   dbAdmin: {
     insert: () => ({ values: () => ({ returning: async () => [{ id: 'run_1' }] }) }),
-    select: () => ({
-      from: () => ({
+    select: () => {
+      const query = {
+        innerJoin: () => query,
+        leftJoin: () => query,
         where: () => ({
           orderBy: () => ({ limit: async () => selectResults.shift() ?? [] }),
           limit: async () => selectResults.shift() ?? [],
         }),
-      }),
-    }),
+      };
+      return { from: () => query };
+    },
     transaction: async (callback: (tx: unknown) => unknown) => callback({}),
+    execute: async () => [{ active_users: 1 }],
     update: () => ({ set: () => ({ where: async () => {} }) }),
   },
 }));
 vi.mock('@/contexts/billing/internal/providers/asaas', () => ({
-  asaasProvider: { listSubscriptionPayments, getPayment: vi.fn() },
+  asaasProvider: { listSubscriptionPayments, getPayment: vi.fn(), updateSubscription },
 }));
+vi.mock('@/contexts/billing/internal/plan-changes', () => ({ applyScheduledPlanChange }));
 vi.mock('@/contexts/billing/internal/subscriptions', () => ({
   ensureInvoiceForPayment,
   markInvoicePaid,
@@ -52,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   selectResults.length = 0;
   listSubscriptionPayments.mockResolvedValue([]);
+  applyScheduledPlanChange.mockResolvedValue({ applied: true, kind: 'cancellation' });
 });
 
 describe('billing reconcile', () => {
@@ -66,6 +76,7 @@ describe('billing reconcile', () => {
         invoiceUrl: null,
         subscriptionId: 'sub_1',
         billingType: 'CREDIT_CARD',
+        externalReference: null,
       },
     ]);
     ensureInvoiceForPayment.mockResolvedValue({
@@ -87,10 +98,45 @@ describe('billing reconcile', () => {
       expect.objectContaining({ id: 'inv_1' }),
       expect.objectContaining({ providerPaymentId: 'pay_1' }),
     );
-    expect(await response.json()).toEqual({ ok: true, found: 1, fixed: 1 });
+    expect(await response.json()).toEqual({
+      ok: true,
+      found: 1,
+      fixed: 1,
+      scheduledChangesApplied: 0,
+    });
     expect(emit).toHaveBeenCalledWith(
       'billing.reconcile.run',
       expect.objectContaining({ subscriptionsScanned: 1, paymentsChecked: 1, fixed: 1 }),
     );
+  });
+
+  it('pausa no Asaas antes de aplicar o cancelamento local agendado', async () => {
+    selectResults.push(
+      [],
+      [
+        {
+          id: 'change_cancel_1',
+          clinicId: 'clinic_1',
+          kind: 'cancellation',
+          asaasSubscriptionId: 'sub_1',
+          targetAmount: null,
+        },
+      ],
+      [],
+    );
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(updateSubscription).toHaveBeenCalledWith('sub_1', {
+      status: 'INACTIVE',
+      updatePendingPayments: false,
+    });
+    expect(applyScheduledPlanChange).toHaveBeenCalledWith(expect.anything(), 'change_cancel_1');
+    expect(await response.json()).toEqual({
+      ok: true,
+      found: 0,
+      fixed: 0,
+      scheduledChangesApplied: 1,
+    });
   });
 });

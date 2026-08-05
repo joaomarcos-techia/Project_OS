@@ -55,7 +55,11 @@ export default async function DocumentPdfPage({ params }: { params: Promise<{ id
               Baixar
             </a>
           </div>
-          <iframe src={url} title="Documento" className="h-[80vh] w-full rounded border border-gray-300" />
+          <iframe
+            src={url}
+            title="Documento"
+            className="h-[80vh] w-full rounded border border-gray-300"
+          />
         </>
       ) : (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">

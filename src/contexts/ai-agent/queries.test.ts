@@ -79,14 +79,20 @@ describe('listConversations', () => {
         { conversationId: 'conversation-2', contentEncrypted: 'Última mensagem sem cadastro' },
       ]),
     );
-    withTenant.mockImplementation(async (_clinicId: string, fn: (transaction: typeof tx) => unknown) => fn(tx));
+    withTenant.mockImplementation(
+      async (_clinicId: string, fn: (transaction: typeof tx) => unknown) => fn(tx),
+    );
 
     const result = await listConversations('clinic-1');
 
     expect(result).toMatchObject({
       total: 2,
       items: [
-        { patientDisplayName: 'Ana', lastMessagePreview: 'Última mensagem da Ana', maskedPhone: null },
+        {
+          patientDisplayName: 'Ana',
+          lastMessagePreview: 'Última mensagem da Ana',
+          maskedPhone: null,
+        },
         {
           patientDisplayName: null,
           lastMessagePreview: 'Última mensagem sem cadastro',

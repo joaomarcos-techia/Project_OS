@@ -57,9 +57,9 @@ export const clinics = pgTable(
     // dá falsa sensação de proteção. Gatilho real: **antes do 1º cliente pagante
     // via onboarding self-serve** (é quando duplicata de cadastro passa a ser
     // possível) — e o pré-requisito é normalizar na escrita. Ver ADR-044 §A11.
-    cnpjEncrypted: text('cnpj_encrypted'),  // nullable
-    cnpjHash: text('cnpj_hash'),            // populada; UNIQUE(A11) pendente de normalização
-    cnes: text('cnes'),                     // nullable: not all clinic types have CNES
+    cnpjEncrypted: text('cnpj_encrypted'), // nullable
+    cnpjHash: text('cnpj_hash'), // populada; UNIQUE(A11) pendente de normalização
+    cnes: text('cnes'), // nullable: not all clinic types have CNES
     // C7 (white-label leve nos PDFs): cabeçalho de prescrições/documentos médicos.
     // Aditivo/nullable — clínica sem branding cai num default no render (não quebra).
     endereco: text('endereco'),

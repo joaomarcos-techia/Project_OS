@@ -85,7 +85,10 @@ export async function recordUsage(
       .values({ clinicId, periodYyyymm: period, agendamentosCount: 1 })
       .onConflictDoUpdate({
         target: [usageMetrics.clinicId, usageMetrics.periodYyyymm],
-        set: { agendamentosCount: sql`${usageMetrics.agendamentosCount} + 1`, updatedAt: sql`now()` },
+        set: {
+          agendamentosCount: sql`${usageMetrics.agendamentosCount} + 1`,
+          updatedAt: sql`now()`,
+        },
       });
   } else if (key.metric === 'ai_messages') {
     await tx

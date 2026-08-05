@@ -80,9 +80,10 @@ export function serializeError(err: unknown): { message: string; code: string } 
     return { message: truncate(err.message, MAX_ERROR_LEN), code: err.code };
   }
   if (err instanceof Error) {
-    const base = env.NODE_ENV === 'production'
-      ? err.message || err.name
-      : `${err.name}: ${err.message}\n${err.stack ?? ''}`;
+    const base =
+      env.NODE_ENV === 'production'
+        ? err.message || err.name
+        : `${err.name}: ${err.message}\n${err.stack ?? ''}`;
     return { message: truncate(base, MAX_ERROR_LEN), code: 'unknown' };
   }
   return { message: truncate(String(err), MAX_ERROR_LEN), code: 'unknown' };

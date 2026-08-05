@@ -40,10 +40,7 @@ export async function importAppointmentHistoryForm(
   }
 
   try {
-    const result = await importAppointmentHistory(
-      { source, justification, items },
-      idempotencyKey,
-    );
+    const result = await importAppointmentHistory({ source, justification, items }, idempotencyKey);
     return {
       error: null,
       message: `Lote ${result.batchId}: ${result.importedAppointments} atendimento(s) importado(s).`,

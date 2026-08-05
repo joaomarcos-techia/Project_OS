@@ -14,4 +14,3 @@ describe('routeDunning', () => {
     expect(routeDunning(365)).toEqual({ mode: 'manual', stage: 'd30_manual' });
   });
 });
-

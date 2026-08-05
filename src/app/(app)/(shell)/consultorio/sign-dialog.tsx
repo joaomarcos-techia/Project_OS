@@ -84,10 +84,7 @@ export function SignDialog({
         <DialogBody className="flex flex-col gap-3">
           {error ? <Alert variant="danger">{error}</Alert> : null}
           <label className="flex cursor-pointer items-center gap-2.5 text-(length:--fs-sm)">
-            <Checkbox
-              checked={needsReturn}
-              onCheckedChange={(v) => setNeedsReturn(v === true)}
-            />
+            <Checkbox checked={needsReturn} onCheckedChange={(v) => setNeedsReturn(v === true)} />
             Precisa retornar
           </label>
           {needsReturn ? (

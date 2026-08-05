@@ -14,7 +14,9 @@ import { dbAdmin } from '@/lib/db';
 // Wrap dbAdmin.execute para devolver array de rows compat com a API antiga.
 const sql = async (query: string): Promise<unknown[]> => {
   const result = await dbAdmin.execute(sqlTag.raw(query));
-  return Array.isArray(result) ? (result as unknown[]) : ((result as { rows?: unknown[] }).rows ?? []);
+  return Array.isArray(result)
+    ? (result as unknown[])
+    : ((result as { rows?: unknown[] }).rows ?? []);
 };
 const sqlUnsafe = { unsafe: sql, end: async () => undefined };
 
@@ -30,8 +32,8 @@ const checks: Array<{ name: string; query: string; expect?: (r: unknown) => bool
     expect: (r) =>
       (r as { relrowsecurity: boolean; relforcerowsecurity: boolean }[])[0]?.relrowsecurity ===
         true &&
-      (r as { relrowsecurity: boolean; relforcerowsecurity: boolean }[])[0]
-        ?.relforcerowsecurity === true,
+      (r as { relrowsecurity: boolean; relforcerowsecurity: boolean }[])[0]?.relforcerowsecurity ===
+        true,
   },
   {
     name: 'profiles has 3 policies',
@@ -42,7 +44,9 @@ const checks: Array<{ name: string; query: string; expect?: (r: unknown) => bool
     name: 'user_permission_overrides policy is defaultTenantPolicy',
     query: `SELECT polname FROM pg_policy WHERE polrelid='public.user_permission_overrides'::regclass`,
     expect: (r) =>
-      (r as { polname: string }[]).some((x) => x.polname === 'user_permission_overrides_tenant_access'),
+      (r as { polname: string }[]).some(
+        (x) => x.polname === 'user_permission_overrides_tenant_access',
+      ),
   },
   {
     name: 'profiles.id FK -> auth.users',

@@ -251,27 +251,34 @@ describe('I-1: super_admin em AAL1 não bypassa RBAC', () => {
     claims({ role: 'super_admin', superAdmin: true, aal, clinicId: null, permissions: [] });
   const superProfile = () => profile({ role: 'super_admin', clinicId: null });
 
-  it.each(['requireRole', 'requireCachedPermission', 'requireCachedAnyPermission', 'requireFreshPermission'] as const)(
-    '%s: AAL1 → 403 MFA_REQUIRED',
-    async (helper) => {
-      getClaims.mockResolvedValue(superAal('aal1'));
-      db.profile = superProfile();
-      const mod = await subject();
-      const call: Record<string, () => Promise<unknown>> = {
-        requireRole: () => mod.requireRole(['owner']),
-        requireCachedPermission: () => mod.requireCachedPermission('view:patient'),
-        requireCachedAnyPermission: () => mod.requireCachedAnyPermission(['view:patient']),
-        requireFreshPermission: () => mod.requireFreshPermission('view:patient'),
-      };
-      await expect(call[helper]!()).rejects.toMatchObject({
-        code: 'forbidden',
-        httpStatus: 403,
-        reason: 'MFA_REQUIRED',
-      });
-    },
-  );
+  it.each([
+    'requireRole',
+    'requireCachedPermission',
+    'requireCachedAnyPermission',
+    'requireFreshPermission',
+  ] as const)('%s: AAL1 → 403 MFA_REQUIRED', async (helper) => {
+    getClaims.mockResolvedValue(superAal('aal1'));
+    db.profile = superProfile();
+    const mod = await subject();
+    const call: Record<string, () => Promise<unknown>> = {
+      requireRole: () => mod.requireRole(['owner']),
+      requireCachedPermission: () => mod.requireCachedPermission('view:patient'),
+      requireCachedAnyPermission: () => mod.requireCachedAnyPermission(['view:patient']),
+      requireFreshPermission: () => mod.requireFreshPermission('view:patient'),
+    };
+    await expect(call[helper]!()).rejects.toMatchObject({
+      code: 'forbidden',
+      httpStatus: 403,
+      reason: 'MFA_REQUIRED',
+    });
+  });
 
-  it.each(['requireRole', 'requireCachedPermission', 'requireCachedAnyPermission', 'requireFreshPermission'] as const)(
+  it.each([
+    'requireRole',
+    'requireCachedPermission',
+    'requireCachedAnyPermission',
+    'requireFreshPermission',
+  ] as const)(
     '%s: AAL2 → bypass funciona (P7 preservado, não apertamos acesso legítimo)',
     async (helper) => {
       getClaims.mockResolvedValue(superAal('aal2'));
@@ -314,14 +321,18 @@ describe('requireClinicId', () => {
   });
 
   it('super_admin sem impersonate → CLINIC_CONTEXT_REQUIRED', async () => {
-    getClaims.mockResolvedValue(claims({ role: 'super_admin', superAdmin: true, aal: 'aal2', clinicId: null }));
+    getClaims.mockResolvedValue(
+      claims({ role: 'super_admin', superAdmin: true, aal: 'aal2', clinicId: null }),
+    );
     db.profile = profile({ role: 'super_admin', clinicId: null });
     const { requireClinicId } = await subject();
     await expect(requireClinicId()).rejects.toMatchObject({ reason: 'CLINIC_CONTEXT_REQUIRED' });
   });
 
   it('impersonate tem precedência sobre o clinicId real (OR-I7)', async () => {
-    getClaims.mockResolvedValue(claims({ role: 'super_admin', superAdmin: true, aal: 'aal2', clinicId: null }));
+    getClaims.mockResolvedValue(
+      claims({ role: 'super_admin', superAdmin: true, aal: 'aal2', clinicId: null }),
+    );
     db.profile = profile({ role: 'super_admin', clinicId: null });
     resolveImpersonation.mockResolvedValue({
       impersonationId: 'imp-1',
@@ -357,7 +368,16 @@ describe('I-6: divergência de clinic_id (V7, 2026-07-14) — agora em TODO requ
   it('deny-override barra mesmo com a role tendo a permissão', async () => {
     getClaims.mockResolvedValue(claims());
     db.profile = profile();
-    db.queue = [[{ denied_override: true, granted_override: false, has_role_permission: true, in_catalog: true }]];
+    db.queue = [
+      [
+        {
+          denied_override: true,
+          granted_override: false,
+          has_role_permission: true,
+          in_catalog: true,
+        },
+      ],
+    ];
     const { requireFreshPermission } = await subject();
     await expect(requireFreshPermission('view:patient')).rejects.toMatchObject({
       reason: 'PERMISSION_DENIED',
@@ -368,7 +388,16 @@ describe('I-6: divergência de clinic_id (V7, 2026-07-14) — agora em TODO requ
   it('grant-override permite mesmo sem bundle da role', async () => {
     getClaims.mockResolvedValue(claims());
     db.profile = profile();
-    db.queue = [[{ denied_override: false, granted_override: true, has_role_permission: false, in_catalog: true }]];
+    db.queue = [
+      [
+        {
+          denied_override: false,
+          granted_override: true,
+          has_role_permission: false,
+          in_catalog: true,
+        },
+      ],
+    ];
     const { requireFreshPermission } = await subject();
     await expect(requireFreshPermission('delete:patient')).resolves.toBeUndefined();
   });
@@ -376,7 +405,16 @@ describe('I-6: divergência de clinic_id (V7, 2026-07-14) — agora em TODO requ
   it('sem override e sem bundle → PERMISSION_DENIED', async () => {
     getClaims.mockResolvedValue(claims());
     db.profile = profile();
-    db.queue = [[{ denied_override: false, granted_override: false, has_role_permission: false, in_catalog: true }]];
+    db.queue = [
+      [
+        {
+          denied_override: false,
+          granted_override: false,
+          has_role_permission: false,
+          in_catalog: true,
+        },
+      ],
+    ];
     const { requireFreshPermission } = await subject();
     await expect(requireFreshPermission('delete:patient')).rejects.toMatchObject({
       reason: 'PERMISSION_DENIED',
@@ -458,7 +496,13 @@ describe('concorrência', () => {
     // está logado — o super_admin. A sessão de impersonate está atada a
     // super_admin+clínica, não ao usuário-alvo. O alvo mudar de role é irrelevante.
     getClaims.mockResolvedValue(
-      claims({ role: 'super_admin', superAdmin: true, aal: 'aal2', clinicId: null, claimsVersion: 5 }),
+      claims({
+        role: 'super_admin',
+        superAdmin: true,
+        aal: 'aal2',
+        clinicId: null,
+        claimsVersion: 5,
+      }),
     );
     db.profile = profile({ role: 'super_admin', clinicId: null, claimsVersion: 5 });
     resolveImpersonation.mockResolvedValue({

@@ -41,9 +41,18 @@ export function AnnouncementForm() {
         </select>
         <label className="text-xs text-fg-muted">
           Expira em (opcional)
-          <input type="datetime-local" name="endsAt" className="input" style={{ maxWidth: 220, marginTop: 2 }} />
+          <input
+            type="datetime-local"
+            name="endsAt"
+            className="input"
+            style={{ maxWidth: 220, marginTop: 2 }}
+          />
         </label>
-        <button type="submit" disabled={pending} className={buttonVariants({ variant: 'primary', size: 'sm' })}>
+        <button
+          type="submit"
+          disabled={pending}
+          className={buttonVariants({ variant: 'primary', size: 'sm' })}
+        >
           {pending ? 'Publicando…' : 'Publicar aviso'}
         </button>
       </div>
@@ -57,7 +66,11 @@ export function DeactivateAnnouncementButton({ id }: { id: string }) {
   return (
     <form action={action}>
       <input type="hidden" name="id" value={id} />
-      <button type="submit" disabled={pending} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+      <button
+        type="submit"
+        disabled={pending}
+        className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+      >
         {pending ? '…' : 'Desativar'}
       </button>
       {state.error ? <span className="text-xs text-danger-600">{state.error}</span> : null}

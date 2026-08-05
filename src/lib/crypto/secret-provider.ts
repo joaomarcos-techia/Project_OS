@@ -47,7 +47,11 @@ class EnvSecretProvider implements SecretProvider {
     // Explicit map (env is strongly typed; no dynamic indexing). Add V3+ here
     // when rotation needs it.
     const raw =
-      version === 1 ? env.CRYPTO_MASTER_KEY_V1 : version === 2 ? env.CRYPTO_MASTER_KEY_V2 : undefined;
+      version === 1
+        ? env.CRYPTO_MASTER_KEY_V1
+        : version === 2
+          ? env.CRYPTO_MASTER_KEY_V2
+          : undefined;
     if (!raw) {
       throw new Error(
         `[crypto] ${varName} is not set. Cannot decrypt ciphertext written with master-key version ${version}.`,
@@ -86,9 +90,11 @@ class GcpSecretManagerProvider implements SecretProvider {
       // TS/bundler won't statically resolve a variable specifier, so dev/test
       // never need the package present.
       const moduleName = '@google-cloud/secret-manager';
-      this.clientPromise = (import(/* webpackIgnore: true */ /* @vite-ignore */ moduleName) as Promise<{
-        SecretManagerServiceClient: new () => unknown;
-      }>).then((m) => new m.SecretManagerServiceClient());
+      this.clientPromise = (
+        import(/* webpackIgnore: true */ /* @vite-ignore */ moduleName) as Promise<{
+          SecretManagerServiceClient: new () => unknown;
+        }>
+      ).then((m) => new m.SecretManagerServiceClient());
     }
     return this.clientPromise;
   }
@@ -129,9 +135,8 @@ let singleton: SecretProvider | null = null;
 export function getSecretProvider(): SecretProvider {
   if (singleton) return singleton;
   assertCryptoRuntimeReady();
-  singleton = resolveCryptoBackend() === 'gcp'
-    ? new GcpSecretManagerProvider()
-    : new EnvSecretProvider();
+  singleton =
+    resolveCryptoBackend() === 'gcp' ? new GcpSecretManagerProvider() : new EnvSecretProvider();
   return singleton;
 }
 

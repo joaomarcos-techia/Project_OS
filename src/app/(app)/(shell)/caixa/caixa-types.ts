@@ -54,5 +54,9 @@ export function fail(err: unknown): ActionResult<never> {
   if (name === 'FinancialValidationError' && err instanceof Error) {
     return { ok: false, code: 'validation', message: err.message };
   }
-  return { ok: false, code: 'error', message: 'Não foi possível concluir a ação. Tente novamente.' };
+  return {
+    ok: false,
+    code: 'error',
+    message: 'Não foi possível concluir a ação. Tente novamente.',
+  };
 }

@@ -125,12 +125,19 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
   ]);
   const cardMap = new Map(cards.map((c) => [c.id, c]));
   const semCobranca = new Set(pendencias.map((p) => p.appointmentId).filter(Boolean));
-  const queueMap = new Map(queueEntries.map((entry, index) => [entry.appointmentId, { ...entry, position: index + 1 }]));
+  const queueMap = new Map(
+    queueEntries.map((entry, index) => [entry.appointmentId, { ...entry, position: index + 1 }]),
+  );
 
   const now = new Date();
   const pick = (statuses: AppointmentStatusDTO[]) =>
     pickByStatus(scoped, statuses).map((a) =>
-      buildCard(a, a.patientId ? cardMap.get(a.patientId) : undefined, checkInTimes[a.id] ?? null, now),
+      buildCard(
+        a,
+        a.patientId ? cardMap.get(a.patientId) : undefined,
+        checkInTimes[a.id] ?? null,
+        now,
+      ),
     );
   const waiting = pickByStatus(scoped, ['chegou'])
     .slice()
@@ -171,7 +178,9 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
 
 // --- painel central --------------------------------------------------------
 
-export async function loadAtendimento(appointmentId: string): Promise<ActionResult<AtendimentoDTO>> {
+export async function loadAtendimento(
+  appointmentId: string,
+): Promise<ActionResult<AtendimentoDTO>> {
   try {
     const user = await requireUser();
     if (!user.permissions.includes(PERMISSIONS.VIEW_CONSULTORIO) || !user.clinicId) {
@@ -229,7 +238,10 @@ export async function callNextPatient(
     let prontuarioId: string | null = null;
     const user = await getCurrentUser();
     if (appt.patientId && user?.permissions.includes(PERMISSIONS.CREATE_PRONTUARIO)) {
-      const p = await createProntuario({ patientId: appt.patientId, appointmentId }, idempotencyKey);
+      const p = await createProntuario(
+        { patientId: appt.patientId, appointmentId },
+        idempotencyKey,
+      );
       prontuarioId = p.id;
     }
     return ok({ prontuarioId });

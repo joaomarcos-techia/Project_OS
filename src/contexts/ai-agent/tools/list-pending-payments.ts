@@ -42,7 +42,12 @@ registerTool({
   handler: async (_input, ctx) => {
     // Sem paciente casado pelo telefone verificado → não há o que listar + handoff.
     if (!ctx.patientId) {
-      await escalateToHuman(ctx.tx, ctx.clinicId, ctx.conversationId, 'financeiro sem identidade verificada');
+      await escalateToHuman(
+        ctx.tx,
+        ctx.clinicId,
+        ctx.conversationId,
+        'financeiro sem identidade verificada',
+      );
       return { disclosed: false, has_pending: false, count: 0, handoff: true };
     }
     const pend = await financialApiV1.listPendingByPatient(ctx.clinicId, ctx.patientId);

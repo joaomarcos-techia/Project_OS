@@ -15,11 +15,7 @@ import {
   rescheduleAppointment as rescheduleAction,
 } from './actions';
 import { SCHEDULING_EVENTS } from './events';
-import {
-  createAppointmentCore,
-  rescheduleCore,
-  transitionCore,
-} from './internal/appointment-core';
+import { createAppointmentCore, rescheduleCore, transitionCore } from './internal/appointment-core';
 import { listReminderCandidates, type ReminderCandidate } from './reminder-candidates';
 import {
   getAppointment,
@@ -132,16 +128,13 @@ export const schedulingApiV1: SchedulingApiV1 = {
   listPatientAppointments: (clinicId, patientId, limit) =>
     listUpcomingPatientAppointments(clinicId, patientId, limit),
   listReminderCandidates: (limit) => listReminderCandidates(limit),
-  doctorActiveCommitments: (clinicId, doctorId) =>
-    getDoctorActiveCommitments(clinicId, doctorId),
+  doctorActiveCommitments: (clinicId, doctorId) => getDoctorActiveCommitments(clinicId, doctorId),
   hasSubsequentCompletedAppointment: (clinicId, input) =>
     hasSubsequentCompletedAppointment(clinicId, input),
-  createAppointment: (input, idempotencyKey) =>
-    createAction(input, idempotencyKey),
+  createAppointment: (input, idempotencyKey) => createAction(input, idempotencyKey),
   confirmAppointment: (id, idempotencyKey, reason) => confirmAction(id, idempotencyKey, reason),
   cancelAppointment: (id, idempotencyKey, reason) => cancelAction(id, idempotencyKey, reason),
-  rescheduleAppointment: (id, input, idempotencyKey) =>
-    rescheduleAction(id, input, idempotencyKey),
+  rescheduleAppointment: (id, input, idempotencyKey) => rescheduleAction(id, input, idempotencyKey),
 
   scheduleAsAgent: (ctx, input, idempotencyKey) =>
     createAppointmentCore(
@@ -181,5 +174,12 @@ export const schedulingApiV1: SchedulingApiV1 = {
       idempotencyKey,
     ),
   rescheduleAsAgent: (ctx, appointmentId, input, idempotencyKey) =>
-    rescheduleCore(agentMutationActor(ctx), 'ai_agent', agentRequestContext(ctx), appointmentId, input, idempotencyKey),
+    rescheduleCore(
+      agentMutationActor(ctx),
+      'ai_agent',
+      agentRequestContext(ctx),
+      appointmentId,
+      input,
+      idempotencyKey,
+    ),
 };

@@ -1,10 +1,6 @@
 'use server';
 
-import {
-  createSupplier,
-  setSupplierAtivo,
-  updateSupplier,
-} from '@/contexts/financial/actions';
+import { createSupplier, setSupplierAtivo, updateSupplier } from '@/contexts/financial/actions';
 import type { CreateSupplierInput, SupplierSummary } from '@/contexts/financial/types';
 
 import { fail, ok, type ActionResult } from '../action-result';

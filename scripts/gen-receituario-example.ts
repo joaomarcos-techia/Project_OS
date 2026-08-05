@@ -38,7 +38,12 @@ async function main(): Promise<void> {
       emitenteEndereco: branding.endereco,
       emitenteTelefone: branding.telefone,
       medicamentos: [
-        { nome: 'Sertralina', dosagem: '50mg', posologia: '1 comprimido pela manhã', quantidade: '30' },
+        {
+          nome: 'Sertralina',
+          dosagem: '50mg',
+          posologia: '1 comprimido pela manhã',
+          quantidade: '30',
+        },
         { nome: 'Clonazepam', dosagem: '2mg', posologia: '1 comprimido à noite', quantidade: '60' },
       ],
       observacoes: 'Uso contínuo. Retornar em 30 dias.',

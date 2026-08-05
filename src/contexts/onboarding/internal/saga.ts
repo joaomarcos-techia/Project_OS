@@ -100,7 +100,10 @@ export interface ProvisionArgs {
  * + subscription trial + convite `completed` (guarded por version). Publica os eventos
  * de billing (downstream: quota/dunning/access-resolver). Recebe a `tx` da action.
  */
-export async function provisionTenantFromInviteTx(tx: Tx, args: ProvisionArgs): Promise<{ clinicId: string }> {
+export async function provisionTenantFromInviteTx(
+  tx: Tx,
+  args: ProvisionArgs,
+): Promise<{ clinicId: string }> {
   // 1. Clínica — nasce `trial` de ACESSO (datas de trial vivem na subscription).
   // A8: id gerado na app para poder cifrar o CNPJ com ele (salt HKDF = id) ANTES
   // do insert — a alternativa (insert→returning→update) faria 2 idas ao banco.
@@ -131,11 +134,20 @@ export async function provisionTenantFromInviteTx(tx: Tx, args: ProvisionArgs): 
     })
     .onConflictDoUpdate({
       target: profiles.id,
-      set: { clinicId, role: 'owner', nome: args.owner.nome, ativo: true, inviteAcceptedAt: new Date() },
+      set: {
+        clinicId,
+        role: 'owner',
+        nome: args.owner.nome,
+        ativo: true,
+        inviteAcceptedAt: new Date(),
+      },
     });
 
   // 3. Config de IA da clínica (defaults). 1:1 com a clínica.
-  await tx.insert(aiClinicConfig).values({ clinicId }).onConflictDoNothing({ target: aiClinicConfig.clinicId });
+  await tx
+    .insert(aiClinicConfig)
+    .values({ clinicId })
+    .onConflictDoNothing({ target: aiClinicConfig.clinicId });
 
   // 4. Billing customer (1 por clínica).
   await tx
@@ -182,7 +194,10 @@ export async function provisionTenantFromInviteTx(tx: Tx, args: ProvisionArgs): 
     .where(and(eq(clinicInvites.id, args.inviteId), eq(clinicInvites.version, args.inviteVersion)))
     .returning({ id: clinicInvites.id });
   if (!doneInvite) {
-    throw new OnboardingProvisionError('convite já concluído/alterado (race)', 'invite_version_conflict');
+    throw new OnboardingProvisionError(
+      'convite já concluído/alterado (race)',
+      'invite_version_conflict',
+    );
   }
 
   // 7. Eventos de billing (downstream reage: quota, dunning, access-resolver).
@@ -211,32 +226,39 @@ export async function provisionTenantFromInviteTx(tx: Tx, args: ProvisionArgs): 
 }
 
 /** Abre a tx dbAdmin e roda o provisionamento (entrypoint da action). */
-export async function provisionTenantFromInvite(args: ProvisionArgs): Promise<{ clinicId: string }> {
+export async function provisionTenantFromInvite(
+  args: ProvisionArgs,
+): Promise<{ clinicId: string }> {
   return dbAdmin.transaction((tx) => provisionTenantFromInviteTx(tx, args));
 }
 
-/** Extrai a descrição legível do erro do Asaas (4xx) da mensagem do adapter. */
-function asaasReason(message: string): string {
-  const sep = message.indexOf(': ');
-  if (sep >= 0) {
-    try {
-      const json = JSON.parse(message.slice(sep + 2)) as { errors?: { description?: string }[] };
-      const desc = json.errors?.[0]?.description;
-      if (desc) return desc;
-    } catch {
-      /* texto truncado/não-json → cai no genérico */
-    }
-  }
+/**
+ * O gateway pode incluir o request no corpo de um 4xx. A interface recebe uma
+ * explicação genérica para que PAN/CVV jamais sejam refletidos em UI, logs ou Sentry.
+ */
+function asaasReason(): string {
   return 'Não conseguimos validar o cartão. Confira número, validade, CVV e o CPF/CNPJ do titular.';
 }
 
 export interface CheckoutArgs {
   invite: { id: string; version: number };
-  clinic: { nome: string; slug: string; cnpj?: string | null; telefone?: string | null; endereco?: string | null };
+  clinic: {
+    nome: string;
+    slug: string;
+    cnpj?: string | null;
+    telefone?: string | null;
+    endereco?: string | null;
+  };
   owner: { nome: string; email: string };
   /** Senha do gestor — transita só aqui, criar o auth user; nunca persistida. */
   password: string;
-  card: { number: string; holderName: string; expiryMonth: string; expiryYear: string; ccv: string };
+  card: {
+    number: string;
+    holderName: string;
+    expiryMonth: string;
+    expiryYear: string;
+    ccv: string;
+  };
   holder: { cpfCnpj: string; postalCode: string; addressNumber: string };
   plan: { planId: string; code: string; priceId: string; amountReais: number; cycle: string };
   trialDays: number;
@@ -255,46 +277,62 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
   const nextDueDate = new Date(Date.now() + a.trialDays * 86_400_000).toISOString().slice(0, 10);
   const description = `Qoro · plano ${a.plan.code} — ${a.clinic.nome}`;
   const phone = a.clinic.telefone ?? null;
+  // O Asaas não aceita Idempotency-Key em POST. A referência estável permite
+  // localizar uma assinatura que foi criada antes de um timeout de resposta.
+  const externalReference = `onboarding:${a.invite.id}`;
 
   let customerId: string;
   let subscriptionId: string;
   try {
-    const c = await asaasProvider.createCustomer({
-      name: a.owner.nome,
-      email: a.owner.email,
-      cpfCnpj: a.holder.cpfCnpj,
-      phone,
-    });
-    customerId = c.customerId;
-    const sub = await asaasProvider.createSubscriptionWithCard({
-      customerId,
-      value: a.plan.amountReais,
-      cycle,
-      nextDueDate,
-      description,
-      creditCard: {
-        holderName: a.card.holderName,
-        number: a.card.number,
-        expiryMonth: a.card.expiryMonth,
-        expiryYear: a.card.expiryYear,
-        ccv: a.card.ccv,
-      },
-      holderInfo: {
-        name: a.card.holderName,
+    const existing = await asaasProvider.findSubscriptionByExternalReference(externalReference);
+    if (existing) {
+      if (!existing.customerId) {
+        throw new OnboardingProvisionError(
+          'A assinatura anterior do Asaas não trouxe o cliente necessário para reconciliação.',
+          'provider_unreachable',
+        );
+      }
+      customerId = existing.customerId;
+      subscriptionId = existing.subscriptionId;
+    } else {
+      const c = await asaasProvider.createCustomer({
+        name: a.owner.nome,
         email: a.owner.email,
         cpfCnpj: a.holder.cpfCnpj,
-        postalCode: a.holder.postalCode,
-        addressNumber: a.holder.addressNumber,
         phone,
-      },
-      remoteIp: a.remoteIp,
-    });
-    subscriptionId = sub.subscriptionId;
+      });
+      customerId = c.customerId;
+      const sub = await asaasProvider.createSubscriptionWithCard({
+        customerId,
+        value: a.plan.amountReais,
+        cycle,
+        nextDueDate,
+        description,
+        externalReference,
+        creditCard: {
+          holderName: a.card.holderName,
+          number: a.card.number,
+          expiryMonth: a.card.expiryMonth,
+          expiryYear: a.card.expiryYear,
+          ccv: a.card.ccv,
+        },
+        holderInfo: {
+          name: a.card.holderName,
+          email: a.owner.email,
+          cpfCnpj: a.holder.cpfCnpj,
+          postalCode: a.holder.postalCode,
+          addressNumber: a.holder.addressNumber,
+          phone,
+        },
+        remoteIp: a.remoteIp,
+      });
+      subscriptionId = sub.subscriptionId;
+    }
   } catch (e) {
     // 4xx (cartão/CPF/payload inválido) é definitivo → vira card_declined com a
-    // razão LEGÍVEL do Asaas (ex.: "CPF/CNPJ inválido", "cartão inválido").
+    // motivo genérico seguro; o corpo do provedor não é confiável para exibição.
     if (e instanceof BillingProviderError) {
-      throw new OnboardingProvisionError(asaasReason(e.message), 'card_declined');
+      throw new OnboardingProvisionError(asaasReason(), 'card_declined');
     }
     // Timeout/5xx/rede/circuito aberto → indeterminado (não sabemos se o Asaas
     // processou). Nenhuma cobrança garantida; o usuário re-tenta.

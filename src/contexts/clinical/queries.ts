@@ -197,7 +197,11 @@ export async function getMedicalDocumentById(
   id: string,
 ): Promise<MedicalDocumentSummary | null> {
   return withTenant(clinicId, async (tx) => {
-    const [row] = await tx.select().from(medicalDocuments).where(eq(medicalDocuments.id, id)).limit(1);
+    const [row] = await tx
+      .select()
+      .from(medicalDocuments)
+      .where(eq(medicalDocuments.id, id))
+      .limit(1);
     return row ? toMedicalDocumentSummary(clinicId, row) : null;
   });
 }

@@ -18,7 +18,9 @@ const kinds = (sql: string): string[] => scanSql('t.sql', sql).map((f) => f.kind
 describe('scanSql — TRUNCATE: privilégio vs comando', () => {
   it('NÃO acusa TRUNCATE como nome de privilégio em REVOKE (o caso da 0040)', () => {
     expect(
-      kinds('REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES\n  ON public.t FROM anon, authenticated;'),
+      kinds(
+        'REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES\n  ON public.t FROM anon, authenticated;',
+      ),
     ).toEqual([]);
   });
 
@@ -34,9 +36,9 @@ describe('scanSql — TRUNCATE: privilégio vs comando', () => {
   it('acusa o TRUNCATE-comando mesmo quando um REVOKE legítimo o precede', () => {
     // Regressão do modo de falha que o statement-scan resolve: se o contexto fosse
     // resolvido por LINHA (e não por statement), o REVOKE contaminaria o resto.
-    expect(
-      kinds('REVOKE TRUNCATE ON public.t FROM anon;\nTRUNCATE TABLE public.t;'),
-    ).toEqual(['TRUNCATE']);
+    expect(kinds('REVOKE TRUNCATE ON public.t FROM anon;\nTRUNCATE TABLE public.t;')).toEqual([
+      'TRUNCATE',
+    ]);
   });
 
   it('resolve o contexto quando o REVOKE quebra em várias linhas', () => {
@@ -56,9 +58,7 @@ describe('scanSql — TRUNCATE: privilégio vs comando', () => {
 
   it('NÃO acusa TRUNCATE em ALTER DEFAULT PRIVILEGES ... GRANT', () => {
     expect(
-      kinds(
-        'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT TRUNCATE ON TABLES TO service_role;',
-      ),
+      kinds('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT TRUNCATE ON TABLES TO service_role;'),
     ).toEqual([]);
   });
 
@@ -73,7 +73,9 @@ describe('scanSql — TRUNCATE: privilégio vs comando', () => {
 
   it('ALTER DEFAULT PRIVILEGES não isenta DROP (não existe privilégio DROP)', () => {
     expect(
-      kinds('ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;\nDROP TABLE public.t;'),
+      kinds(
+        'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;\nDROP TABLE public.t;',
+      ),
     ).toEqual(['DROP TABLE']);
   });
 });

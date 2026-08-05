@@ -46,8 +46,18 @@ afterEach(() => {
 
 describe('mensagem de erro do envelope chega ao operador', () => {
   it.each([
-    ['422 de span', 422, 'Período excede o limite máximo de exportação (12 meses).', 'periodo_excede_limite'],
-    ['422 de truncagem', 422, 'Período gera 5000+ eventos e o export sairia incompleto.', 'audit_export_too_large'],
+    [
+      '422 de span',
+      422,
+      'Período excede o limite máximo de exportação (12 meses).',
+      'periodo_excede_limite',
+    ],
+    [
+      '422 de truncagem',
+      422,
+      'Período gera 5000+ eventos e o export sairia incompleto.',
+      'audit_export_too_large',
+    ],
     ['429', 429, 'Muitos exports em pouco tempo. Aguarde alguns minutos.', 'rate_limited'],
     ['500', 500, 'Erro interno.', 'internal'],
     ['400', 400, 'A data inicial é posterior à final.', 'periodo_invertido'],

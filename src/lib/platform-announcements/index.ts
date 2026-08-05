@@ -43,7 +43,10 @@ export async function getActiveAnnouncement(): Promise<ActiveAnnouncement | null
       .where(
         and(
           eq(platformAnnouncements.active, true),
-          or(isNull(platformAnnouncements.startsAt), lte(platformAnnouncements.startsAt, sql`now()`)),
+          or(
+            isNull(platformAnnouncements.startsAt),
+            lte(platformAnnouncements.startsAt, sql`now()`),
+          ),
           or(isNull(platformAnnouncements.endsAt), gt(platformAnnouncements.endsAt, sql`now()`)),
         ),
       )

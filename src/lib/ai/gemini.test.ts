@@ -102,7 +102,9 @@ describe('GeminiProvider', () => {
     expect(modelTurn!.role).toBe('model');
     expect(modelTurn!.parts[0]).toEqual({ functionCall: { name: 't1', args: { a: 1 } } });
     expect(userTurn!.role).toBe('user');
-    expect(userTurn!.parts[0]).toEqual({ functionResponse: { name: 't1', response: { ok: true } } });
+    expect(userTurn!.parts[0]).toEqual({
+      functionResponse: { name: 't1', response: { ok: true } },
+    });
   });
 
   it('HTTP 503 → AIProviderError (definitivo, sem corpo vazado)', async () => {

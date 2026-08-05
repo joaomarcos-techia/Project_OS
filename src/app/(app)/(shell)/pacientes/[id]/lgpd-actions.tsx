@@ -6,11 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { uuidv4 } from '@/lib/ui/uuid';
 
-import {
-  requestLgpdDeleteForm,
-  requestLgpdExportForm,
-  type LgpdFormState,
-} from '../actions';
+import { requestLgpdDeleteForm, requestLgpdExportForm, type LgpdFormState } from '../actions';
 
 const INITIAL: LgpdFormState = { error: null, message: null };
 
@@ -22,10 +18,12 @@ export function LgpdActions({ id }: { id: string }) {
 
   return (
     <section className="mt-8 border-t border-border pt-4">
-      <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">LGPD (pedido do titular)</h2>
+      <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">
+        LGPD (pedido do titular)
+      </h2>
       <p className="mb-3 text-xs text-fg-subtle">
-        Direitos do paciente sobre os próprios dados (LGPD). A exclusão aqui registra um
-        pedido formal de eliminação (Art. 18) — diferente da exclusão operacional acima.
+        Direitos do paciente sobre os próprios dados (LGPD). A exclusão aqui registra um pedido
+        formal de eliminação (Art. 18) — diferente da exclusão operacional acima.
       </p>
       <div className="flex flex-wrap gap-3">
         <form action={exportAction}>
@@ -64,7 +62,7 @@ export function LgpdActions({ id }: { id: string }) {
           {exportState.message}
         </Alert>
       ) : null}
-      {(exportState.error || deleteState.error) ? (
+      {exportState.error || deleteState.error ? (
         <p className="mt-2 text-sm text-danger-600">{exportState.error ?? deleteState.error}</p>
       ) : null}
     </section>

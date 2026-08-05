@@ -38,12 +38,15 @@ interface PatientLifecyclePayload {
   clinicId: string;
 }
 
-async function cancelFutureForPatient(ctx: {
-  tx: Tx;
-  clinicId: string;
-  payload: PatientLifecyclePayload;
-  eventId: string;
-}, reason: 'patient_deleted' | 'patient_deceased'): Promise<void> {
+async function cancelFutureForPatient(
+  ctx: {
+    tx: Tx;
+    clinicId: string;
+    payload: PatientLifecyclePayload;
+    eventId: string;
+  },
+  reason: 'patient_deleted' | 'patient_deceased',
+): Promise<void> {
   const { tx, clinicId, eventId } = ctx;
   const { patientId } = ctx.payload;
   const now = new Date();

@@ -19,9 +19,9 @@ describe('withQueryDeadline', () => {
   });
 
   it('propaga o erro da própria query', async () => {
-    await expect(
-      withQueryDeadline('erro', Promise.reject(new Error('boom')), 100),
-    ).rejects.toThrow('boom');
+    await expect(withQueryDeadline('erro', Promise.reject(new Error('boom')), 100)).rejects.toThrow(
+      'boom',
+    );
   });
 });
 

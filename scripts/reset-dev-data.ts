@@ -72,8 +72,12 @@ const [{ n: clinicCount } = { n: 0 }] = (await dbAdmin.execute(
 )) as unknown as Array<{ n: number }>;
 await dbAdmin.execute(sql`DELETE FROM public.clinics`);
 
-console.log(`[reset:dev] clínicas removidas: ${clinicCount} (cascade limpou profiles + dados de tenant).`);
-console.log(`[reset:dev] auth users removidos: ${deletedByProfile} (por profile) + ${deletedOrphans} (órfãos por domínio).`);
+console.log(
+  `[reset:dev] clínicas removidas: ${clinicCount} (cascade limpou profiles + dados de tenant).`,
+);
+console.log(
+  `[reset:dev] auth users removidos: ${deletedByProfile} (por profile) + ${deletedOrphans} (órfãos por domínio).`,
+);
 console.log('[reset:dev] ✅ done. super_admin e tabelas de plataforma preservados.');
 console.log('[reset:dev] próximo passo: pnpm seed:dev');
 

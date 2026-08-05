@@ -11,12 +11,19 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { requireSuperAdmin, encryptForTenant, superAdminAction, requestContext } = vi.hoisted(() => ({
-  requireSuperAdmin: vi.fn(async () => {}),
-  encryptForTenant: vi.fn(async () => 'CIPHERTEXT'),
-  superAdminAction: vi.fn(async (_opts: unknown, fn: (tx: unknown) => unknown) => fn({})),
-  requestContext: vi.fn(async () => ({ ip: null, userAgent: null, requestId: 'r', correlationId: 'r' })),
-}));
+const { requireSuperAdmin, encryptForTenant, superAdminAction, requestContext } = vi.hoisted(
+  () => ({
+    requireSuperAdmin: vi.fn(async () => {}),
+    encryptForTenant: vi.fn(async () => 'CIPHERTEXT'),
+    superAdminAction: vi.fn(async (_opts: unknown, fn: (tx: unknown) => unknown) => fn({})),
+    requestContext: vi.fn(async () => ({
+      ip: null,
+      userAgent: null,
+      requestId: 'r',
+      correlationId: 'r',
+    })),
+  }),
+);
 
 vi.mock('@/lib/auth/tenant-context', () => ({
   requireSuperAdmin,
@@ -43,11 +50,7 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
-import {
-  connectWhatsappNumber,
-  disconnectWhatsappNumber,
-  rotateWhatsappToken,
-} from './actions';
+import { connectWhatsappNumber, disconnectWhatsappNumber, rotateWhatsappToken } from './actions';
 
 const CLINIC = '33333333-3333-3333-3333-333333333333';
 const connectInput = {
@@ -70,7 +73,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   requireSuperAdmin.mockResolvedValue(undefined);
   encryptForTenant.mockResolvedValue('CIPHERTEXT');
-  superAdminAction.mockImplementation(async (_opts: unknown, fn: (tx: unknown) => unknown) => fn({}));
+  superAdminAction.mockImplementation(async (_opts: unknown, fn: (tx: unknown) => unknown) =>
+    fn({}),
+  );
 });
 
 describe('gate antes de parse/cripto', () => {

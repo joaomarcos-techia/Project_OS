@@ -58,11 +58,7 @@ export const lancamentoStatus = pgEnum('lancamento_status', [
   'estornado',
 ]);
 
-export const lancamentoCreatedVia = pgEnum('lancamento_created_via', [
-  'auto',
-  'manual',
-  'estorno',
-]);
+export const lancamentoCreatedVia = pgEnum('lancamento_created_via', ['auto', 'manual', 'estorno']);
 
 export const paymentProofType = pgEnum('payment_proof_type', [
   'comprovante',
@@ -70,17 +66,11 @@ export const paymentProofType = pgEnum('payment_proof_type', [
   'outro',
 ]);
 
-export const paymentTransactionKind = pgEnum('payment_transaction_kind', [
-  'payment',
-  'refund',
-]);
+export const paymentTransactionKind = pgEnum('payment_transaction_kind', ['payment', 'refund']);
 
 export const pendenciaStatus = pgEnum('pendencia_status', ['aberta', 'resolvida']);
 
-export const collectionCaseStage = pgEnum('collection_case_stage', [
-  'd15_review',
-  'd30_manual',
-]);
+export const collectionCaseStage = pgEnum('collection_case_stage', ['d15_review', 'd30_manual']);
 
 export const collectionCaseStatus = pgEnum('collection_case_status', ['open', 'resolved']);
 
@@ -208,23 +198,25 @@ export const paymentTransactions = pgTable(
     kind: paymentTransactionKind('kind').notNull(),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     paymentMethod: text('payment_method').references(() => paymentMethods.code),
-    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().default(sql`now()`),
+    occurredAt: timestamp('occurred_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
     originalPaymentId: uuid('original_payment_id').references(
       (): AnyPgColumn => paymentTransactions.id,
       { onDelete: 'restrict' },
     ),
     reason: text('reason'),
     createdBy: uuid('created_by'), // FK auth.users via migration
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicLancamentoIdx: index('payment_transactions_clinic_lancamento_idx').on(
       t.clinicId,
       t.lancamentoId,
     ),
-    originalPaymentIdx: index('payment_transactions_original_payment_idx').on(
-      t.originalPaymentId,
-    ),
+    originalPaymentIdx: index('payment_transactions_original_payment_idx').on(t.originalPaymentId),
     clinicOccurredIdx: index('payment_transactions_clinic_occurred_idx').on(
       t.clinicId,
       t.occurredAt,
@@ -258,7 +250,9 @@ export const paymentProofs = pgTable(
     fileStoragePath: text('file_storage_path').notNull(),
     ocrData: jsonb('ocr_data'), // nullable — preparado p/ OCR futuro; NÃO implementar agora
     uploadedBy: uuid('uploaded_by'), // FK auth.users via migration
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicLancamentoIdx: index('payment_proofs_clinic_lancamento_idx').on(
@@ -283,7 +277,9 @@ export const faturamentoPendencias = pgTable(
     motivo: text('motivo').notNull(),
     valor: numeric('valor', { precision: 12, scale: 2 }),
     status: pendenciaStatus('status').notNull().default('aberta'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     resolvedBy: uuid('resolved_by'),
   },
@@ -334,7 +330,9 @@ export const cashFlowDaily = pgTable(
     totalRecebido: numeric('total_recebido', { precision: 14, scale: 2 }).notNull().default('0'),
     totalPago: numeric('total_pago', { precision: 14, scale: 2 }).notNull().default('0'),
     saldo: numeric('saldo', { precision: 14, scale: 2 }).notNull().default('0'),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.clinicId, t.date] }),

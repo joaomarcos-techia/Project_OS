@@ -86,10 +86,7 @@ export const appointmentRecoveryKind = pgEnum('appointment_recovery_kind', [
   'transfer',
 ]);
 
-export const doctorAbsenceStrategy = pgEnum('doctor_absence_strategy', [
-  'cancel',
-  'transfer',
-]);
+export const doctorAbsenceStrategy = pgEnum('doctor_absence_strategy', ['cancel', 'transfer']);
 
 export const schedulableResourceType = pgEnum('schedulable_resource_type', [
   'room',
@@ -171,7 +168,9 @@ export const procedureHistory = pgTable(
     oldValue: jsonb('old_value'),
     newValue: jsonb('new_value'),
     changedBy: uuid('changed_by'), // FK auth.users via migration
-    changedAt: timestamp('changed_at', { withTimezone: true }).notNull().default(sql`now()`),
+    changedAt: timestamp('changed_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     // D9 (A6/N1): sem este índice, o predicado do RLS (`clinic_id = ...`) varre a
@@ -212,7 +211,10 @@ export const doctorAvailability = pgTable(
       t.doctorId,
       t.weekday,
     ),
-    weekdayChk: check('doctor_availability_weekday_chk', sql`${t.weekday} >= 0 AND ${t.weekday} <= 6`),
+    weekdayChk: check(
+      'doctor_availability_weekday_chk',
+      sql`${t.weekday} >= 0 AND ${t.weekday} <= 6`,
+    ),
     timeChk: check('doctor_availability_time_chk', sql`${t.endTime} > ${t.startTime}`),
     // EXCLUDE anti-overlap (omitindo unit_id) é adicionado na migration (btree_gist).
   }),
@@ -267,7 +269,9 @@ export const clinicHolidays = pgTable(
     unitId: uuid('unit_id'), // nullable = toda a clínica; FK clinic_units via migration
     startTime: time('start_time'), // NULL/NULL = dia inteiro; ambos = janela bloqueada
     endTime: time('end_time'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicDateUnitUniq: unique('clinic_holidays_clinic_date_unit_uniq')
@@ -299,14 +303,8 @@ export const schedulableResources = pgTable(
     ...timestampsPattern(),
   },
   (t) => ({
-    clinicActiveIdx: index('schedulable_resources_clinic_active_idx').on(
-      t.clinicId,
-      t.active,
-    ),
-    clinicNameUniq: uniqueIndex('schedulable_resources_clinic_name_uniq').on(
-      t.clinicId,
-      t.name,
-    ),
+    clinicActiveIdx: index('schedulable_resources_clinic_active_idx').on(t.clinicId, t.active),
+    clinicNameUniq: uniqueIndex('schedulable_resources_clinic_name_uniq').on(t.clinicId, t.name),
   }),
 );
 
@@ -499,7 +497,9 @@ export const appointmentResourceReservations = pgTable(
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
     active: boolean('active').notNull().default(true),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     appointmentResourceUniq: uniqueIndex('appointment_resource_reservations_uniq').on(
@@ -518,8 +518,7 @@ export const appointmentResourceReservations = pgTable(
   }),
 );
 
-export type AppointmentResourceReservationRow =
-  typeof appointmentResourceReservations.$inferSelect;
+export type AppointmentResourceReservationRow = typeof appointmentResourceReservations.$inferSelect;
 
 // --- waiting_queue_entries (fila explícita do consultório) ----------------
 
@@ -535,7 +534,9 @@ export const waitingQueueEntries = pgTable(
     priority: waitingQueuePriority('priority').notNull().default('normal'),
     status: waitingQueueStatus('status').notNull().default('waiting'),
     estimatedWaitMinutesAtEntry: integer('estimated_wait_minutes_at_entry').notNull().default(0),
-    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().default(sql`now()`),
+    queuedAt: timestamp('queued_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
     startedAt: timestamp('started_at', { withTimezone: true }),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     createdBy: uuid('created_by'),
@@ -665,7 +666,9 @@ export const appointmentCorrections = pgTable(
     doctorAbsenceId: uuid('doctor_absence_id').references(() => doctorAbsences.id, {
       onDelete: 'restrict',
     }),
-    correctedAt: timestamp('corrected_at', { withTimezone: true }).notNull().default(sql`now()`),
+    correctedAt: timestamp('corrected_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     clinicIdx: index('appointment_corrections_clinic_id_idx').on(t.clinicId),
@@ -673,9 +676,7 @@ export const appointmentCorrections = pgTable(
       t.appointmentId,
       t.correctedAt,
     ),
-    doctorAbsenceIdx: index('appointment_corrections_doctor_absence_idx').on(
-      t.doctorAbsenceId,
-    ),
+    doctorAbsenceIdx: index('appointment_corrections_doctor_absence_idx').on(t.doctorAbsenceId),
     reasonChk: check('appointment_corrections_reason_chk', sql`length(trim(${t.reason})) > 0`),
   }),
 );

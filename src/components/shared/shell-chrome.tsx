@@ -100,7 +100,10 @@ export function SideNavLink({
     >
       <span
         aria-hidden="true"
-        className={cn('shrink-0 [&>svg]:size-4.5', active ? 'text-primary dark:text-fg' : 'text-fg-subtle')}
+        className={cn(
+          'shrink-0 [&>svg]:size-4.5',
+          active ? 'text-primary dark:text-fg' : 'text-fg-subtle',
+        )}
       >
         {icon}
       </span>
@@ -121,12 +124,17 @@ export function SideNavDisabled({
   note?: string;
 }) {
   return (
-    <span aria-disabled="true" className={cn(itemBase, 'cursor-not-allowed text-fg-muted opacity-60')}>
+    <span
+      aria-disabled="true"
+      className={cn(itemBase, 'cursor-not-allowed text-fg-muted opacity-60')}
+    >
       <span aria-hidden="true" className="shrink-0 text-fg-subtle [&>svg]:size-4.5">
         {icon}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="font-mono text-[9.5px] tracking-[0.04em] text-fg-subtle uppercase">{note}</span>
+      <span className="font-mono text-[9.5px] tracking-[0.04em] text-fg-subtle uppercase">
+        {note}
+      </span>
     </span>
   );
 }

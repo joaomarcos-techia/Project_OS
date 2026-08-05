@@ -52,13 +52,17 @@ function main(): void {
 
   // --- guardas anti-prod (fail-closed) ---
   if (process.env.SUPABASE_PROJECT_ENV === 'prod') {
-    throw new Error('[guard] SUPABASE_PROJECT_ENV=prod — restore test NUNCA roda contra prod. Abortando.');
+    throw new Error(
+      '[guard] SUPABASE_PROJECT_ENV=prod — restore test NUNCA roda contra prod. Abortando.',
+    );
   }
   if (process.env.DATABASE_URL_PROD && target === process.env.DATABASE_URL_PROD) {
     throw new Error('[guard] RESTORE_TARGET_URL == DATABASE_URL_PROD. Abortando.');
   }
   if (looksLikeProd(target)) {
-    throw new Error('[guard] RESTORE_TARGET_URL parece prod (hostname/env). Use um scratch. Abortando.');
+    throw new Error(
+      '[guard] RESTORE_TARGET_URL parece prod (hostname/env). Use um scratch. Abortando.',
+    );
   }
 
   assertPsql();
@@ -67,7 +71,9 @@ function main(): void {
 
   console.log(`[restore:test] dump:   ${dump}`);
   console.log(`[restore:test] target: ${redact(target)}`);
-  console.log('[restore:test] restaurando... (erros de auth/rls são benignos — o dump exclui os schemas do Supabase)\n');
+  console.log(
+    '[restore:test] restaurando... (erros de auth/rls são benignos — o dump exclui os schemas do Supabase)\n',
+  );
 
   // ON_ERROR_STOP=0: tolera GRANT/POLICY que referenciam auth.* (schema ausente no scratch).
   const restore = spawnSync('psql', [target, '-v', 'ON_ERROR_STOP=0', '-q', '-f', dump], {

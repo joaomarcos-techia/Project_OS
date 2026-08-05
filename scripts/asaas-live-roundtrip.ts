@@ -91,7 +91,9 @@ async function main(): Promise<void> {
   console.log('  1. Abra a cobrança da subscription e "Confirmar recebimento".');
   console.log('  2. O Asaas dispara PAYMENT_CREATED/RECEIVED → /api/webhooks/asaas.');
   console.log('  3. Confirme: invoice vira "paid" e a clínica vira "active".');
-  console.log('     (SELECT status FROM clinics WHERE id=...; SELECT status FROM invoices WHERE clinic_id=...)');
+  console.log(
+    '     (SELECT status FROM clinics WHERE id=...; SELECT status FROM invoices WHERE clinic_id=...)',
+  );
   process.exit(0);
 }
 

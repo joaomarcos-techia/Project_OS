@@ -69,7 +69,13 @@ const createdIds: string[] = [];
 async function makeInvite(email = SMOKE_EMAIL): Promise<{ id: string; rawToken: string }> {
   const { rawToken } = generateInviteToken();
   const id = await dbAdmin.transaction((tx) =>
-    createInviteTx(tx, { rawToken, createdBy: randomUUID(), email, planSnapshot: null, metadata: { note: 'smoke' } }),
+    createInviteTx(tx, {
+      rawToken,
+      createdBy: randomUUID(),
+      email,
+      planSnapshot: null,
+      metadata: { note: 'smoke' },
+    }),
   );
   createdIds.push(id);
   return { id, rawToken };
@@ -78,7 +84,11 @@ async function makeInvite(email = SMOKE_EMAIL): Promise<{ id: string; rawToken: 
 async function main(): Promise<void> {
   await tryStep('1 create: token_hash = HMAC, status pending, expires +24h', async () => {
     const { id, rawToken } = await makeInvite();
-    const [row] = await dbAdmin.select().from(clinicInvites).where(eq(clinicInvites.id, id)).limit(1);
+    const [row] = await dbAdmin
+      .select()
+      .from(clinicInvites)
+      .where(eq(clinicInvites.id, id))
+      .limit(1);
     assert(!!row, 'convite não encontrado');
     assert(row!.tokenHash !== rawToken, 'token CRU no banco — deveria ser o HMAC');
     assert(row!.tokenHash === hashToken(rawToken), 'token_hash != HMAC(token)');
@@ -90,7 +100,10 @@ async function main(): Promise<void> {
   await tryStep('2 resolve: token certo → convite; token errado → null', async () => {
     const { rawToken } = await makeInvite();
     assert((await resolveOpenInvite(rawToken)) !== null, 'token válido deveria resolver');
-    assert((await resolveOpenInvite(rawToken.slice(0, -2) + 'ff')) === null, 'token adulterado deveria dar null');
+    assert(
+      (await resolveOpenInvite(rawToken.slice(0, -2) + 'ff')) === null,
+      'token adulterado deveria dar null',
+    );
   });
 
   await tryStep('3 expirado/completed/cancelled → null', async () => {
@@ -102,11 +115,17 @@ async function main(): Promise<void> {
     assert((await resolveOpenInvite(rawToken)) === null, 'expirado deveria dar null');
 
     const a = await makeInvite();
-    await dbAdmin.update(clinicInvites).set({ status: 'completed' }).where(eq(clinicInvites.id, a.id));
+    await dbAdmin
+      .update(clinicInvites)
+      .set({ status: 'completed' })
+      .where(eq(clinicInvites.id, a.id));
     assert((await resolveOpenInvite(a.rawToken)) === null, 'completed deveria dar null');
 
     const b = await makeInvite();
-    await dbAdmin.update(clinicInvites).set({ status: 'cancelled' }).where(eq(clinicInvites.id, b.id));
+    await dbAdmin
+      .update(clinicInvites)
+      .set({ status: 'cancelled' })
+      .where(eq(clinicInvites.id, b.id));
     assert((await resolveOpenInvite(b.rawToken)) === null, 'cancelled deveria dar null');
   });
 
@@ -122,11 +141,18 @@ async function main(): Promise<void> {
     const { id } = await makeInvite();
     const ok = await dbAdmin.transaction((tx) => cancelInviteTx(tx, id));
     assert(ok, 'cancelamento deveria retornar true');
-    const [row] = await dbAdmin.select().from(clinicInvites).where(eq(clinicInvites.id, id)).limit(1);
+    const [row] = await dbAdmin
+      .select()
+      .from(clinicInvites)
+      .where(eq(clinicInvites.id, id))
+      .limit(1);
     assert(row!.status === 'cancelled', 'status deveria ser cancelled');
 
     const done = await makeInvite();
-    await dbAdmin.update(clinicInvites).set({ status: 'completed' }).where(eq(clinicInvites.id, done.id));
+    await dbAdmin
+      .update(clinicInvites)
+      .set({ status: 'completed' })
+      .where(eq(clinicInvites.id, done.id));
     const ok2 = await dbAdmin.transaction((tx) => cancelInviteTx(tx, done.id));
     assert(!ok2, 'completed NÃO deveria ser cancelável');
   });
@@ -150,7 +176,10 @@ async function main(): Promise<void> {
     assert(parseStepState('lixo').currentStep === 'clinic', 'lixo → EMPTY');
     let s = advanceStep(EMPTY_STEP_STATE, 'clinic', 'owner');
     s = advanceStep(s, 'clinic', 'owner'); // idempotente
-    assert(s.completed.length === 1 && s.currentStep === 'owner', 'advanceStep deveria ser idempotente');
+    assert(
+      s.completed.length === 1 && s.currentStep === 'owner',
+      'advanceStep deveria ser idempotente',
+    );
   });
 
   // cleanup

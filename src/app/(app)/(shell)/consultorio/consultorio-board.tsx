@@ -8,15 +8,12 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/ui/cn';
-import { useConsultorioRealtime, type RealtimeState } from '@/lib/realtime/use-consultorio-realtime';
-
 import {
-  callNextPatient,
-  checkInPatient,
-  completeConsulta,
-  getBoard,
-  markAbsent,
-} from './actions';
+  useConsultorioRealtime,
+  type RealtimeState,
+} from '@/lib/realtime/use-consultorio-realtime';
+
+import { callNextPatient, checkInPatient, completeConsulta, getBoard, markAbsent } from './actions';
 import { AttendingPanel } from './attending-panel';
 import type { ActionResult, BoardDTO } from './board-types';
 import { CheckinStrip } from './checkin-strip';
@@ -37,7 +34,9 @@ function ColumnTitle({ children, count }: { children: React.ReactNode; count?: n
         {children}
       </span>
       {count != null ? (
-        <span className="rounded-full bg-surface-inset px-2 py-0.5 text-xs text-fg-muted">{count}</span>
+        <span className="rounded-full bg-surface-inset px-2 py-0.5 text-xs text-fg-muted">
+          {count}
+        </span>
       ) : null}
     </div>
   );
@@ -53,7 +52,9 @@ export function ConsultorioBoard({
   initialBoard: BoardDTO;
 }) {
   const [board, setBoard] = useState<BoardDTO>(initialBoard);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(initialBoard.activeDoctorId);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(
+    initialBoard.activeDoctorId,
+  );
   const [selectedAppt, setSelectedAppt] = useState<string | null>(
     initialBoard.emAtendimento[0]?.appointmentId ?? null,
   );

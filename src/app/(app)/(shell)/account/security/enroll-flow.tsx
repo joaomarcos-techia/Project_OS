@@ -6,11 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-import {
-  startEnrollAction,
-  verifyEnrollAction,
-  type EnrollResultState,
-} from './actions';
+import { startEnrollAction, verifyEnrollAction, type EnrollResultState } from './actions';
 
 const INITIAL: EnrollResultState = {
   step: 'idle',
@@ -22,10 +18,7 @@ const INITIAL: EnrollResultState = {
 
 export function EnrollFlow() {
   const [enrollState, setEnrollState] = useState<EnrollResultState>(INITIAL);
-  const [verifyState, verifyAction, verifyPending] = useActionState(
-    verifyEnrollAction,
-    INITIAL,
-  );
+  const [verifyState, verifyAction, verifyPending] = useActionState(verifyEnrollAction, INITIAL);
   const state = verifyState.step === 'done' ? verifyState : enrollState;
 
   if (state.step === 'done') {
@@ -43,8 +36,9 @@ export function EnrollFlow() {
         className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
       >
         <p className="text-sm">
-          1) Escaneie o QR no app autenticador. <b>Guarde o secret abaixo no seu
-          gerenciador de senhas</b> — Supabase TOTP não emite backup codes.
+          1) Escaneie o QR no app autenticador.{' '}
+          <b>Guarde o secret abaixo no seu gerenciador de senhas</b> — Supabase TOTP não emite
+          backup codes.
         </p>
         {/* Supabase retorna data.totp.qr_code como data URL (data:image/svg+xml...). */}
         {/* eslint-disable-next-line @next/next/no-img-element -- data URL não passa pelo next/image */}
@@ -64,7 +58,7 @@ export function EnrollFlow() {
           aria-label="Código de 6 dígitos"
           className="text-center text-lg tracking-[0.4em]"
         />
-        {(verifyState.error || enrollState.error) ? (
+        {verifyState.error || enrollState.error ? (
           <Alert variant="danger">{verifyState.error ?? enrollState.error}</Alert>
         ) : null}
         <Button type="submit" className="self-start" loading={verifyPending}>

@@ -138,7 +138,11 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
               <option value="closed">Encerradas</option>
               <option value="abandoned">Abandonadas</option>
             </Select>
-            <Select name="sla" defaultValue={overdueOnly ? 'overdue' : ''} aria-label="Filtrar por SLA">
+            <Select
+              name="sla"
+              defaultValue={overdueOnly ? 'overdue' : ''}
+              aria-label="Filtrar por SLA"
+            >
               <option value="">Todos os prazos</option>
               <option value="overdue">SLA vencido</option>
             </Select>
@@ -198,7 +202,13 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                       <TableCell>
                         {c.handoff ? (
                           <div className="flex flex-col gap-0.5 text-xs">
-                            <span className={c.handoff.overdue ? 'font-semibold text-danger-700' : 'text-fg-muted'}>
+                            <span
+                              className={
+                                c.handoff.overdue
+                                  ? 'font-semibold text-danger-700'
+                                  : 'text-fg-muted'
+                              }
+                            >
                               {c.handoff.overdue ? (
                                 <AlertTriangle className="mr-1 inline size-3.5" />
                               ) : null}
@@ -211,7 +221,8 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                             </span>
                             <span className="text-fg-subtle">
                               {c.handoff.assignedToUserId
-                                ? assigneeNames.get(c.handoff.assignedToUserId) ?? 'Responsável atribuído'
+                                ? (assigneeNames.get(c.handoff.assignedToUserId) ??
+                                  'Responsável atribuído')
                                 : 'Sem responsável'}
                               {c.handoff.priority === 'urgent' ? ' · urgente' : ''}
                             </span>

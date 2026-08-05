@@ -17,7 +17,11 @@ vi.mock('../infra/repository', () => ({
   cancel: vi.fn(async () => {}),
 }));
 vi.mock('../infra/templates', () => ({
-  buildProactiveTemplate: vi.fn(() => ({ templateName: 't', languageCode: 'pt_BR', variables: [] })),
+  buildProactiveTemplate: vi.fn(() => ({
+    templateName: 't',
+    languageCode: 'pt_BR',
+    variables: [],
+  })),
   TemplateNotConfiguredError: class extends Error {},
 }));
 vi.mock('@/contexts/messaging', () => ({
@@ -56,9 +60,26 @@ const okContact = {
   suppressedWhatsapp: false,
   suppressedWhatsappPurposes: [],
 };
-const reminderPayload = { patientId: U, appointmentId: U, scheduledAt: '2026-06-19T12:00:00Z', doctorNome: 'Dr X' };
-const dunningPayload = { patientId: U, lancamentoId: U, stage: 3, valor: 200, dueDate: '2026-06-10', procedureNome: 'Consulta' };
-const followupPayload = { patientId: U, prontuarioId: U, doctorNome: 'Dr X', returnDate: '2026-09-10' };
+const reminderPayload = {
+  patientId: U,
+  appointmentId: U,
+  scheduledAt: '2026-06-19T12:00:00Z',
+  doctorNome: 'Dr X',
+};
+const dunningPayload = {
+  patientId: U,
+  lancamentoId: U,
+  stage: 3,
+  valor: 200,
+  dueDate: '2026-06-10',
+  procedureNome: 'Consulta',
+};
+const followupPayload = {
+  patientId: U,
+  prontuarioId: U,
+  doctorNome: 'Dr X',
+  returnDate: '2026-09-10',
+};
 
 function claim(job: Record<string, unknown>): void {
   vi.mocked(repo.claimDue).mockResolvedValue([{ leaseToken: 'lease-1', ...job } as never]);
@@ -85,7 +106,12 @@ beforeEach(() => {
 describe('processProactiveBatch (C14 §14.6)', () => {
   it('T1: reminder de consulta ativa, contato OK, Meta aceita → sent', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
-    vi.mocked(messagingApiV1.sendText).mockResolvedValue({ id: 'o1', status: 'accepted', providerMessageId: 'w', deduped: false });
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
 
     const s = await processProactiveBatch('reminder');
     expect(s.sent).toBe(1);
@@ -97,7 +123,10 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
   it('T2a: telefone em suppression → cancelled(suppressed), não envia', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
-    vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue({ ...okContact, suppressedWhatsapp: true });
+    vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue({
+      ...okContact,
+      suppressedWhatsapp: true,
+    });
 
     const s = await processProactiveBatch('reminder');
     expect(s.cancelled).toBe(1);
@@ -107,7 +136,10 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
   it('T2b: dunning sem opt-in de cobrança → cancelled(no_consent)', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'dunning', payload: dunningPayload, attempts: 1 });
-    vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue({ ...okContact, cobrancaWhatsapp: false });
+    vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue({
+      ...okContact,
+      cobrancaWhatsapp: false,
+    });
 
     const s = await processProactiveBatch('dunning');
     expect(s.cancelled).toBe(1);
@@ -145,7 +177,12 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
   it('T6a: falha Meta na 1ª tentativa → retry com backoff (+30s)', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
-    vi.mocked(messagingApiV1.sendText).mockResolvedValue({ id: 'o1', status: 'failed', providerMessageId: null, deduped: false });
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'failed',
+      providerMessageId: null,
+      deduped: false,
+    });
 
     const before = Date.now();
     const s = await processProactiveBatch('reminder');
@@ -159,7 +196,12 @@ describe('processProactiveBatch (C14 §14.6)', () => {
 
   it('T6b: falha Meta após esgotar MAX_ATTEMPTS → failed definitivo', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 5 });
-    vi.mocked(messagingApiV1.sendText).mockResolvedValue({ id: 'o1', status: 'failed', providerMessageId: null, deduped: false });
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'failed',
+      providerMessageId: null,
+      deduped: false,
+    });
 
     const s = await processProactiveBatch('reminder');
     expect(s.failed).toBe(1);

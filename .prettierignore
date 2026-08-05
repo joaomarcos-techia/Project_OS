@@ -5,3 +5,15 @@ build
 coverage
 pnpm-lock.yaml
 *.md
+
+# Cópias de worktrees e artefatos locais não pertencem ao código de entrega.
+# Não formate trabalho paralelo de agentes nem relatórios/resultados gerados.
+.claude/worktrees/
+playwright-report/
+test-results/
+e2e/.mutation-fixture.json
+
+# Artefatos gerados/visuais: o formato é controlado pelo gerador ou pelo HTML
+# de demonstração, não pelo formatter do código executável.
+drizzle/migrations/meta/*.json
+design_system/*.html

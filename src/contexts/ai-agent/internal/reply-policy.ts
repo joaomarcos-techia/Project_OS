@@ -16,9 +16,7 @@ import { isWindowOpen } from './meta-window';
 
 export type ReplyDenialReason = 'not_handoff' | 'window_closed';
 
-export type ReplyDecision =
-  | { allowed: true }
-  | { allowed: false; reason: ReplyDenialReason };
+export type ReplyDecision = { allowed: true } | { allowed: false; reason: ReplyDenialReason };
 
 export function canReplyManually(args: {
   status: string;

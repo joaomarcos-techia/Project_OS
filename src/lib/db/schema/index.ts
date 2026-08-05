@@ -42,6 +42,7 @@ export * from '@/contexts/ai-agent/proactive-jobs/schema';
 // C13 — Billing. schema.ts side-effect-imports './events', registrando
 // billing.* no catálogo do outbox.
 export * from '@/contexts/billing/schema';
+export * from '@/contexts/feedback/schema';
 // C4 infra — cross-cutting tables (outbox, audit_events, super_admin_actions,
 // idempotency_keys). Not a bounded context, so not under src/contexts/. The
 // drizzle.config.ts glob './src/lib/db/schema/**/*' picks them up.

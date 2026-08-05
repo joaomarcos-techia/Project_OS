@@ -66,7 +66,14 @@ const CLINICS: SeedClinic[] = [
     users: [
       { local: 'owner', role: 'owner', nome: 'Olívia Owner' },
       { local: 'gestor', role: 'gestor', nome: 'Gustavo Gestor' },
-      { local: 'medico', role: 'doctor', nome: 'Dra. Ana Souza', crm: '123456', crmUf: 'SP', especialidade: 'Clínica Médica' },
+      {
+        local: 'medico',
+        role: 'doctor',
+        nome: 'Dra. Ana Souza',
+        crm: '123456',
+        crmUf: 'SP',
+        especialidade: 'Clínica Médica',
+      },
       { local: 'atendente', role: 'attendant', nome: 'Aline Atendente' },
       { local: 'financeiro', role: 'financial', nome: 'Fábio Financeiro' },
     ],
@@ -87,7 +94,14 @@ const CLINICS: SeedClinic[] = [
     telefone: '(21) 3000-0000',
     users: [
       { local: 'owner', role: 'owner', nome: 'Bruno Owner B' },
-      { local: 'medico', role: 'doctor', nome: 'Dr. Bruno Médico B', crm: '654321', crmUf: 'RJ', especialidade: 'Clínica Médica' },
+      {
+        local: 'medico',
+        role: 'doctor',
+        nome: 'Dr. Bruno Médico B',
+        crm: '654321',
+        crmUf: 'RJ',
+        especialidade: 'Clínica Médica',
+      },
     ],
     patient: {
       nome: 'Carlos Teste',
@@ -161,7 +175,9 @@ for (const c of CLINICS) {
         updated_at = now()
     `);
     summary.push({ clinica: c.nome, email, role: u.role, senha: PASSWORD });
-    console.log(`[seed:dev]   • ${email}  (role=${u.role}${u.crm ? `, CRM ${u.crmUf} ${u.crm}` : ''})`);
+    console.log(
+      `[seed:dev]   • ${email}  (role=${u.role}${u.crm ? `, CRM ${u.crmUf} ${u.crm}` : ''})`,
+    );
   }
 
   // 3. Dados de exemplo p/ destravar o CONSULTÓRIO sem a Agenda (que é só front).

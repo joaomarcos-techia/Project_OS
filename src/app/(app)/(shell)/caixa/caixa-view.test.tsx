@@ -102,7 +102,12 @@ describe('CaixaView — RBAC e UI', () => {
   });
 
   it('refund:financial mostra reembolso vinculado ao pagamento; sem permissao nao mostra', () => {
-    const pago = item({ status: 'pago', paidAt: '2026-06-06T10:00:00.000Z', valorPago: 200, paymentMethod: 'pix' });
+    const pago = item({
+      status: 'pago',
+      paidAt: '2026-06-06T10:00:00.000Z',
+      valorPago: 200,
+      paymentMethod: 'pix',
+    });
     const { unmount } = render(
       <CaixaView
         {...base}

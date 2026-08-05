@@ -107,9 +107,7 @@ export const EditSignedProntuarioSchema = z.object({
 export type EditSignedProntuarioInput = z.infer<typeof EditSignedProntuarioSchema>;
 
 /** Tipo de receita. 'simples' = comportamento C7; 'controle_especial' = receituário branco 2 vias. */
-export const PrescriptionKindSchema = z
-  .enum(['simples', 'controle_especial'])
-  .default('simples');
+export const PrescriptionKindSchema = z.enum(['simples', 'controle_especial']).default('simples');
 export type PrescriptionKind = z.infer<typeof PrescriptionKindSchema>;
 
 export const CreatePrescriptionSchema = z.object({

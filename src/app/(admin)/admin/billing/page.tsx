@@ -57,9 +57,21 @@ export default async function BillingPage() {
       />
 
       <div className="grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
-        <StatCard label="MRR" value={formatBRLCents(o.mrrCents)} hint={`ARR ${formatBRLCents(o.arrCents)}`} />
-        <StatCard label="A receber" value={formatBRLCents(sum(o.open))} hint={`${o.open.length} fatura(s)`} />
-        <StatCard label="Em atraso" value={formatBRLCents(sum(o.overdue))} hint={`${o.overdue.length} fatura(s)`} />
+        <StatCard
+          label="MRR"
+          value={formatBRLCents(o.mrrCents)}
+          hint={`ARR ${formatBRLCents(o.arrCents)}`}
+        />
+        <StatCard
+          label="A receber"
+          value={formatBRLCents(sum(o.open))}
+          hint={`${o.open.length} fatura(s)`}
+        />
+        <StatCard
+          label="Em atraso"
+          value={formatBRLCents(sum(o.overdue))}
+          hint={`${o.overdue.length} fatura(s)`}
+        />
         <StatCard label="Dunning ativo" value={o.dunning.length} hint="em cobrança" />
         <StatCard label="Reembolsos" value={o.refunds.length} hint="no período" />
       </div>
@@ -68,7 +80,9 @@ export default async function BillingPage() {
         <TableToolbar>
           <h4 className="text-(length:--fs-sm) font-semibold">Faturas recentes</h4>
           <TableToolbarSpacer />
-          <span className="text-(length:--fs-xs) text-fg-subtle">abertas e em atraso · via Asaas</span>
+          <span className="text-(length:--fs-xs) text-fg-subtle">
+            abertas e em atraso · via Asaas
+          </span>
         </TableToolbar>
         {invoices.length === 0 ? (
           <p className="px-5 py-4 text-sm text-fg-subtle">Nenhuma fatura em aberto.</p>
@@ -124,7 +138,9 @@ export default async function BillingPage() {
             <span className="text-(length:--fs-xs) text-fg-subtle">cobranças em andamento</span>
           </div>
           {o.dunning.length === 0 ? (
-            <p className="px-(--card-pad) py-4 text-sm text-fg-subtle">Nenhuma clínica em dunning.</p>
+            <p className="px-(--card-pad) py-4 text-sm text-fg-subtle">
+              Nenhuma clínica em dunning.
+            </p>
           ) : (
             <ul className="flex flex-col">
               {o.dunning.map((d) => (

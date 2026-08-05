@@ -17,8 +17,7 @@ import { uuidv4 } from '@/lib/ui/uuid';
 
 type Editing = { id: string | null } | null;
 
-const brl = (v: number) =>
-  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) {
   const router = useRouter();
@@ -154,14 +153,18 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
         </Button>
       </div>
 
-
       {editing ? (
         <div className="cardblock wrap-pad flex flex-col gap-3">
           <h4 className="text-sm font-semibold">
             {editing.id ? 'Editar procedimento' : 'Novo procedimento'}
           </h4>
           <div className="grid gap-2 sm:grid-cols-2">
-            <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Código * (ex: CONS)" maxLength={40} />
+            <Input
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              placeholder="Código * (ex: CONS)"
+              maxLength={40}
+            />
             <Input
               value={categoria}
               onChange={(e) => setCategoria(e.target.value)}
@@ -178,11 +181,21 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-fg-muted">Valor padrão (R$)</span>
-              <Input value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" />
+              <Input
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                placeholder="0,00"
+                inputMode="decimal"
+              />
             </label>
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-fg-muted">Duração (min)</span>
-              <Input value={duracao} onChange={(e) => setDuracao(e.target.value)} placeholder="30" inputMode="numeric" />
+              <Input
+                value={duracao}
+                onChange={(e) => setDuracao(e.target.value)}
+                placeholder="30"
+                inputMode="numeric"
+              />
             </label>
           </div>
           <div className="flex gap-2">
@@ -210,7 +223,9 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs text-fg-subtle">{p.codigo}</span>
                     <span className="font-medium">{p.descricao}</span>
-                    {p.categoria ? <span className="text-xs text-fg-subtle">{p.categoria}</span> : null}
+                    {p.categoria ? (
+                      <span className="text-xs text-fg-subtle">{p.categoria}</span>
+                    ) : null}
                     <span className="text-xs text-fg-muted">
                       {brl(p.valorPadrao)} · {p.duracaoPadraoMin}min
                     </span>
@@ -222,11 +237,23 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
                     Editar
                   </Button>
                   {p.ativo ? (
-                    <Button type="button" size="sm" variant="ghost" onClick={() => deactivate(p)} disabled={busy}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deactivate(p)}
+                      disabled={busy}
+                    >
                       Desativar
                     </Button>
                   ) : (
-                    <Button type="button" size="sm" variant="ghost" onClick={() => reactivate(p)} disabled={busy}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => reactivate(p)}
+                      disabled={busy}
+                    >
                       Reativar
                     </Button>
                   )}

@@ -60,12 +60,18 @@ export function AnnouncementPopup({ announcement }: { announcement: Announcement
     >
       <div className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-lg">
         <div className="mb-1.5 flex items-center gap-2">
-          <span className={`inline-block h-2 w-2 rounded-full ${warn ? 'bg-warning-500' : 'bg-primary-500'}`} />
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${warn ? 'bg-warning-500' : 'bg-primary-500'}`}
+          />
           <h3 className="text-base font-semibold text-fg">{announcement.title || 'Aviso'}</h3>
         </div>
         <p className="whitespace-pre-wrap text-sm text-fg-muted">{announcement.message}</p>
         <div className="mt-4 flex justify-end">
-          <button type="button" onClick={dismiss} className={buttonVariants({ variant: 'primary', size: 'sm' })}>
+          <button
+            type="button"
+            onClick={dismiss}
+            className={buttonVariants({ variant: 'primary', size: 'sm' })}
+          >
             Entendi
           </button>
         </div>

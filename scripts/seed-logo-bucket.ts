@@ -29,7 +29,9 @@ if (buckets.some((b) => b.name === CLINIC_LOGO_BUCKET)) {
   // (ex.: criado antes com limite menor). createBucket pula buckets existentes.
   const { error } = await sb.storage.updateBucket(CLINIC_LOGO_BUCKET, opts);
   if (error) throw error;
-  console.log(`[seed-logo-bucket] '${CLINIC_LOGO_BUCKET}' atualizado (público, limite ${CLINIC_LOGO_MAX_BYTES} bytes).`);
+  console.log(
+    `[seed-logo-bucket] '${CLINIC_LOGO_BUCKET}' atualizado (público, limite ${CLINIC_LOGO_MAX_BYTES} bytes).`,
+  );
 } else {
   const { error } = await sb.storage.createBucket(CLINIC_LOGO_BUCKET, opts);
   if (error) throw error;

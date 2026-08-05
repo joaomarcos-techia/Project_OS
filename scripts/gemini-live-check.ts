@@ -69,12 +69,19 @@ async function main(): Promise<void> {
   });
   console.log('[live-check] r1.toolCalls =', JSON.stringify(r1.toolCalls ?? null));
   console.log('[live-check] r1.text      =', JSON.stringify(r1.text ?? null));
-  console.log('[live-check] r1.usage     =', JSON.stringify(r1.usage), '→ USD', computeCostUsd(r1.usage));
+  console.log(
+    '[live-check] r1.usage     =',
+    JSON.stringify(r1.usage),
+    '→ USD',
+    computeCostUsd(r1.usage),
+  );
   if (r1.usage.tokensInput <= 0) throw new Error('usageMetadata.promptTokenCount não veio');
 
   if (!r1.toolCalls || r1.toolCalls[0]?.name !== 'provide_clinic_info') {
     console.warn('[live-check] AVISO: modelo não chamou provide_clinic_info nesta amostra.');
-    console.log('\n[live-check] PARCIAL — structured output + usage OK; tool round não exercitado.');
+    console.log(
+      '\n[live-check] PARCIAL — structured output + usage OK; tool round não exercitado.',
+    );
     return;
   }
 
@@ -98,11 +105,19 @@ async function main(): Promise<void> {
     ],
   });
   console.log('[live-check] r2.text  =', JSON.stringify(r2.text ?? null));
-  console.log('[live-check] r2.usage =', JSON.stringify(r2.usage), '→ USD', computeCostUsd(r2.usage));
-  if (!r2.text || r2.text.trim().length === 0) throw new Error('re-chamada não produziu texto final');
+  console.log(
+    '[live-check] r2.usage =',
+    JSON.stringify(r2.usage),
+    '→ USD',
+    computeCostUsd(r2.usage),
+  );
+  if (!r2.text || r2.text.trim().length === 0)
+    throw new Error('re-chamada não produziu texto final');
 
   const totalUsd = computeCostUsd(r1.usage) + computeCostUsd(r2.usage);
-  console.log(`\n[live-check] OK — tool calling + functionResponse + usage reais. Custo total ≈ $${totalUsd.toFixed(6)}`);
+  console.log(
+    `\n[live-check] OK — tool calling + functionResponse + usage reais. Custo total ≈ $${totalUsd.toFixed(6)}`,
+  );
 }
 
 main().catch((e) => {

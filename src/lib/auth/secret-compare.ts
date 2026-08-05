@@ -34,10 +34,7 @@ import { timingSafeEqual } from 'node:crypto';
  * entropia não o enfraquece); é o mesmo padrão de `hashesEqual`
  * (crypto/encryption.ts).
  */
-export function safeEqual(
-  a: string | null | undefined,
-  b: string | null | undefined,
-): boolean {
+export function safeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
   if (typeof a !== 'string' || typeof b !== 'string') return false;
   const ba = Buffer.from(a, 'utf8');
   const bb = Buffer.from(b, 'utf8');

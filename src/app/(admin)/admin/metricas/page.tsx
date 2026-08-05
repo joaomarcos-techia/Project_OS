@@ -127,7 +127,10 @@ export default async function MetricasPage() {
                       <TableCell>
                         <div className="flex items-center gap-2.5">
                           <div className="h-1.75 w-24 overflow-hidden rounded-full bg-viz-track">
-                            <i className="block h-full rounded-full bg-ai" style={{ width: `${pct}%` }} />
+                            <i
+                              className="block h-full rounded-full bg-ai"
+                              style={{ width: `${pct}%` }}
+                            />
                           </div>
                           <span className="font-mono text-[11.5px] text-fg-muted">{pct}%</span>
                         </div>

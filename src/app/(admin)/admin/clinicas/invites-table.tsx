@@ -134,7 +134,8 @@ export function InvitesTable({
                     aria-current={p === page ? 'page' : undefined}
                     className={cn(
                       pagerBtn,
-                      p === page && 'bg-primary text-on-primary hover:bg-primary hover:text-on-primary',
+                      p === page &&
+                        'bg-primary text-on-primary hover:bg-primary hover:text-on-primary',
                     )}
                     onClick={() => setPage(p)}
                   >

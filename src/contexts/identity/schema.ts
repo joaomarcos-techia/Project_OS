@@ -196,9 +196,6 @@ export const loginAttempts = pgTable(
       t.emailHash,
       sql`${t.attemptedAt} DESC`,
     ),
-    ipIdx: index('login_attempts_ip_attempted_at_idx').on(
-      t.ip,
-      sql`${t.attemptedAt} DESC`,
-    ),
+    ipIdx: index('login_attempts_ip_attempted_at_idx').on(t.ip, sql`${t.attemptedAt} DESC`),
   }),
 );

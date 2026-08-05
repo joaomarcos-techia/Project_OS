@@ -80,10 +80,32 @@ export default async function AdminDashboardPage() {
       />
 
       <div className="stat-row five">
-        <StatCard label="MRR" value={formatBRLCents(m.mrrCents)} delta={`ARR ${formatBRLCents(m.arrCents)}`} icon="cash" tone="green" />
-        <StatCard label="Clínicas ativas" value={m.clinics.active} hint={`${m.clinics.new} novas no mês`} icon="building" />
-        <StatCard label="Em risco" value={m.clinics.atRisk} hint="churn provável" icon="alert" tone="amber" />
-        <StatCard label="Churn mensal" value={formatPct(m.churnRatePct)} icon="refresh" tone="teal" />
+        <StatCard
+          label="MRR"
+          value={formatBRLCents(m.mrrCents)}
+          delta={`ARR ${formatBRLCents(m.arrCents)}`}
+          icon="cash"
+          tone="green"
+        />
+        <StatCard
+          label="Clínicas ativas"
+          value={m.clinics.active}
+          hint={`${m.clinics.new} novas no mês`}
+          icon="building"
+        />
+        <StatCard
+          label="Em risco"
+          value={m.clinics.atRisk}
+          hint="churn provável"
+          icon="alert"
+          tone="amber"
+        />
+        <StatCard
+          label="Churn mensal"
+          value={formatPct(m.churnRatePct)}
+          icon="refresh"
+          tone="teal"
+        />
         <StatCard
           label="Crescimento MoM"
           value={formatPct(m.monthlyGrowthPct)}
@@ -101,7 +123,10 @@ export default async function AdminDashboardPage() {
           {bars.some((b) => b.value > 0) ? (
             <Bars data={bars} />
           ) : (
-            <p className="muted" style={{ fontSize: 13, padding: 'var(--sp-6) 0', textAlign: 'center' }}>
+            <p
+              className="muted"
+              style={{ fontSize: 13, padding: 'var(--sp-6) 0', textAlign: 'center' }}
+            >
               Sem faturas pagas no período.
             </p>
           )}
@@ -109,7 +134,14 @@ export default async function AdminDashboardPage() {
         <div className="panel">
           <h4>Distribuição de clínicas</h4>
           {donutSegs.length > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-6)', marginTop: 'var(--sp-4)' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--sp-6)',
+                marginTop: 'var(--sp-4)',
+              }}
+            >
               <Donut segments={donutSegs} />
               <Legend segments={donutSegs} />
             </div>
@@ -164,7 +196,10 @@ export default async function AdminDashboardPage() {
                   <ClinicMark nome={c.nome} tint="var(--warning-500)" />
                   <div className="lr-main">
                     <b>{c.nome}</b>
-                    <span className="lr-sub" style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}>
+                    <span
+                      className="lr-sub"
+                      style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}
+                    >
                       {RISK_LABEL[c.status] ?? c.status}
                     </span>
                   </div>

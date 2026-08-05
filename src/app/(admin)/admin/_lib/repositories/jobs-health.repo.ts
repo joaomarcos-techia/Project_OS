@@ -19,9 +19,24 @@ const DAY = 86_400_000;
 /** Jobs esperados + janela máxima de staleness antes de virar "atrasado". */
 const JOBS = [
   { job: 'outbox', label: 'Outbox worker', cadence: 'a cada 1 min', maxAgeMs: 10 * MIN },
-  { job: 'financial-reconcile', label: 'Reconcile financeiro', cadence: 'a cada 15 min', maxAgeMs: 45 * MIN },
-  { job: 'proactive-reminders', label: 'Lembretes', cadence: '15 min · 8–20h', maxAgeMs: 14 * HOUR },
-  { job: 'proactive-dunning', label: 'Dunning paciente', cadence: '15 min · 8–20h', maxAgeMs: 14 * HOUR },
+  {
+    job: 'financial-reconcile',
+    label: 'Reconcile financeiro',
+    cadence: 'a cada 15 min',
+    maxAgeMs: 45 * MIN,
+  },
+  {
+    job: 'proactive-reminders',
+    label: 'Lembretes',
+    cadence: '15 min · 8–20h',
+    maxAgeMs: 14 * HOUR,
+  },
+  {
+    job: 'proactive-dunning',
+    label: 'Dunning paciente',
+    cadence: '15 min · 8–20h',
+    maxAgeMs: 14 * HOUR,
+  },
   { job: 'proactive-followup', label: 'Followup', cadence: '15 min · 8–20h', maxAgeMs: 14 * HOUR },
   { job: 'cash-flow-rollup', label: 'Rollup do caixa', cadence: 'diário', maxAgeMs: 26 * HOUR },
   { job: 'patient-hard-delete', label: 'Hard-delete LGPD', cadence: 'diário', maxAgeMs: 26 * HOUR },

@@ -34,9 +34,7 @@ export function ActivationChecklist({ data }: { data: ActivationChecklistDTO }) 
                 aria-hidden="true"
                 className={cn(
                   'grid size-5.5 shrink-0 place-items-center rounded-full',
-                  it.done
-                    ? 'bg-success-500 text-neutral-0'
-                    : 'border-[1.5px] border-border-strong',
+                  it.done ? 'bg-success-500 text-neutral-0' : 'border-[1.5px] border-border-strong',
                 )}
               >
                 {it.done ? <Check className="size-3.5" strokeWidth={3} /> : null}

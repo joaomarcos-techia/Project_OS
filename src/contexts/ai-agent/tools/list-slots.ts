@@ -13,7 +13,10 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
-  date_from: z.string().datetime({ offset: true }).describe('Início da janela (ISO 8601 com offset)'),
+  date_from: z
+    .string()
+    .datetime({ offset: true })
+    .describe('Início da janela (ISO 8601 com offset)'),
   date_to: z.string().datetime({ offset: true }).describe('Fim da janela (ISO 8601 com offset)'),
   doctor_id: z.string().uuid().optional().describe('Filtra por médico (UUID, opcional)'),
   procedure_id: z.string().uuid().optional().describe('Filtra por procedimento (UUID, opcional)'),

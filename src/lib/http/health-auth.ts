@@ -33,6 +33,7 @@ export async function healthAuthLevel(req: Request): Promise<HealthAuthLevel> {
   // "Bearer undefined" e QUALQUER chamador enviando esse header autenticaria.
   // Fail-close aqui, e não na memória de quem chama.
   const secret = env.CRON_SECRET;
-  if (secret && safeEqual(req.headers.get('authorization'), `Bearer ${secret}`)) return 'monitoring';
+  if (secret && safeEqual(req.headers.get('authorization'), `Bearer ${secret}`))
+    return 'monitoring';
   return 'denied';
 }

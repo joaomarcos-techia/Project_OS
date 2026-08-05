@@ -51,7 +51,8 @@ Todos `IMPLEMENTED` (C0–C16 fechadas). Detalhe e nuances → `domains/<nome>.m
 ## Planos (billing) — fonte canônica: `domains/billing.md`
 
 - **3 planos ativos:** `solo`, `clinica`, `pro` (`billing/events.ts:44`). Limite de usuários do maior
-  plano = **10** (`rate-limit.ts:413`, `plan_limits`/migration 0039). Sem overage, sem feature-gating (ADR-024).
+  plano = **10** (`rate-limit.ts:413`, `plan_limits`/migration 0039). Só usuários têm trava dura;
+  agendamentos e conversas de IA são métricas. Sem overage, sem feature-gating (ADR-024).
 - ⚠️ **`Pro+`** aparece em docs antigos mas **não existe no código** → `PLANNED` (ou remover). Ver [docs-migration].
 - 13 **jobs proativos** (crons) rodando: lembretes, dunning, followup, reconciliações, rollups, retenção (ADR-026).
 

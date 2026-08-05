@@ -26,7 +26,13 @@ export function HistoryImporter() {
       <div className="grid gap-4 md:grid-cols-2">
         <label className="grid gap-1.5 text-sm font-medium">
           Fonte dos dados
-          <Input name="source" required minLength={2} maxLength={160} placeholder="Sistema legado / planilha 2024" />
+          <Input
+            name="source"
+            required
+            minLength={2}
+            maxLength={160}
+            placeholder="Sistema legado / planilha 2024"
+          />
         </label>
         <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
           Justificativa
@@ -68,7 +74,8 @@ export function HistoryImporter() {
 
       {payload ? (
         <Alert variant="success">
-          Arquivo validado no navegador. A validacao completa e a importacao atomica acontecerao no servidor.
+          Arquivo validado no navegador. A validacao completa e a importacao atomica acontecerao no
+          servidor.
         </Alert>
       ) : null}
       {fileError || state.error ? <Alert variant="danger">{fileError ?? state.error}</Alert> : null}

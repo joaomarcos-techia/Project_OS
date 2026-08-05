@@ -35,13 +35,14 @@ import { runWithContext } from '@/lib/observability/context';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider, type ProviderPayment } from '@/contexts/billing/internal/providers/asaas';
+import { applyPaidUpgradeForPayment } from '@/contexts/billing/internal/plan-changes';
 import {
   ensureInvoiceForPayment,
   markInvoiceOverdue,
   markInvoicePaid,
   markInvoiceRefunded,
 } from '@/contexts/billing/internal/subscriptions';
-import { processedWebhooks } from '@/contexts/billing/schema';
+import { processedWebhooks, subscriptionChangeRequests } from '@/contexts/billing/schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -143,6 +144,25 @@ async function handleWebhook(req: Request): Promise<Response> {
         .onConflictDoNothing()
         .returning({ id: processedWebhooks.asaasEventId });
       if (dedup.length === 0) return { status: 'duplicate' as const };
+
+      // Cobrança avulsa de upgrade: ela não possui `subscription` no Asaas, por
+      // isso precisa ser resolvida pela externalReference verificada em getPayment
+      // ANTES do caminho normal de invoices recorrentes.
+      const upgradeApplied = await applyPaidUpgradeForPayment(tx, payment, parsed.eventId);
+      if (upgradeApplied) {
+        const [change] = await tx
+          .select({ clinicId: subscriptionChangeRequests.clinicId })
+          .from(subscriptionChangeRequests)
+          .where(eq(subscriptionChangeRequests.providerPaymentId, payment.paymentId))
+          .limit(1);
+        if (change) {
+          await tx
+            .update(processedWebhooks)
+            .set({ clinicId: change.clinicId })
+            .where(eq(processedWebhooks.asaasEventId, parsed.eventId));
+        }
+        return { status: 'processed' as const };
+      }
 
       // Materializa a invoice local a partir do pagamento REAL (resolve subscription
       // por asaas_subscription_id). Out-of-order safe: RECEIVED antes de CREATED ainda

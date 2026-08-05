@@ -9,7 +9,7 @@
  * Depois revisita invoices abertas/vencidas cujo pagamento já está
  * RECEIVED/CONFIRMED. Sem dados Asaas (dev), os scans são no-op.
  */
-import { and, desc, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
@@ -17,6 +17,7 @@ import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
+import { applyScheduledPlanChange } from '@/contexts/billing/internal/plan-changes';
 import {
   ensureInvoiceForPayment,
   markInvoiceOverdue,
@@ -26,6 +27,8 @@ import {
 import {
   billingReconciliationRuns,
   invoices,
+  prices,
+  subscriptionChangeRequests,
   subscriptions,
   type InvoiceRow,
 } from '@/contexts/billing/schema';
@@ -36,6 +39,7 @@ export const maxDuration = 60;
 
 const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 const RECONCILE_SUBSCRIPTION_LIMIT = 50;
+const SCHEDULED_PLAN_CHANGE_LIMIT = 50;
 type ReconciliationAction = 'paid' | 'overdue' | 'refunded';
 type MaterializationResult = {
   materialized: boolean;
@@ -59,6 +63,7 @@ export const GET = withCron(
 
     let found = 0;
     let fixed = 0;
+    let scheduledChangesApplied = 0;
     try {
       // O Asaas cria as cobranças de uma assinatura autonomamente. Se o webhook
       // `PAYMENT_CREATED` falhar, não existe invoice local e o loop abaixo não
@@ -156,6 +161,69 @@ export const GET = withCron(
         }
       }
 
+      // Downgrades e cancelamentos só são efetivados no fim do ciclo. O estado
+      // remoto é alterado ANTES do local: se o Asaas falhar, o pedido continua
+      // agendado e o próximo cron pode retentá-lo sem cancelar só no app.
+      const dueChanges = await dbAdmin
+        .select({
+          id: subscriptionChangeRequests.id,
+          clinicId: subscriptionChangeRequests.clinicId,
+          kind: subscriptionChangeRequests.kind,
+          asaasSubscriptionId: subscriptions.asaasSubscriptionId,
+          targetAmount: prices.amount,
+        })
+        .from(subscriptionChangeRequests)
+        .innerJoin(subscriptions, eq(subscriptions.id, subscriptionChangeRequests.subscriptionId))
+        .leftJoin(prices, eq(prices.id, subscriptionChangeRequests.toPriceId))
+        .where(
+          and(
+            inArray(subscriptionChangeRequests.kind, ['downgrade', 'cancellation']),
+            eq(subscriptionChangeRequests.status, 'scheduled'),
+            lte(subscriptionChangeRequests.effectiveAt, sql`now()`),
+          ),
+        )
+        .orderBy(subscriptionChangeRequests.effectiveAt)
+        .limit(SCHEDULED_PLAN_CHANGE_LIMIT);
+
+      for (const change of dueChanges) {
+        try {
+          if (!change.asaasSubscriptionId) {
+            throw new Error('scheduled subscription change has no Asaas subscription id');
+          }
+          if (change.kind === 'downgrade') {
+            const [active] = await dbAdmin.execute<{ active_users: number }>(sql`
+              SELECT count(*)::int AS active_users
+                FROM public.profiles
+               WHERE clinic_id = ${change.clinicId}::uuid
+                 AND ativo = true
+                 AND deleted_at IS NULL
+            `);
+            if (Number(active?.active_users ?? 0) !== 1) {
+              metrics.emit('billing.plan_change.blocked_active_users', { changeId: change.id });
+              continue;
+            }
+            if (change.targetAmount === null) {
+              throw new Error('scheduled downgrade has no target amount');
+            }
+            await asaasProvider.updateSubscription(change.asaasSubscriptionId, {
+              value: Number(change.targetAmount),
+              updatePendingPayments: false,
+            });
+          } else {
+            // Preserva a recorrência no Asaas como INACTIVE; a reativação
+            // posterior restaura ACTIVE sem recolher PAN/CVV novamente.
+            await asaasProvider.updateSubscription(change.asaasSubscriptionId, {
+              status: 'INACTIVE',
+              updatePendingPayments: false,
+            });
+          }
+          const result = await dbAdmin.transaction((tx) => applyScheduledPlanChange(tx, change.id));
+          if (result.applied) scheduledChangesApplied++;
+        } catch (err) {
+          metrics.emit('billing.plan_change.apply_error', { changeId: change.id, error: err });
+        }
+      }
+
       const rows = (await dbAdmin
         .select()
         .from(invoices)
@@ -204,16 +272,18 @@ export const GET = withCron(
         scanned: rows.length,
         subscriptionsScanned,
         paymentsChecked,
+        scheduledChangesApplied,
         found,
         fixed,
       });
       await recordHeartbeat('billing-reconcile', 'success', {
         subscriptionsScanned,
         paymentsChecked,
+        scheduledChangesApplied,
         found,
         fixed,
       });
-      return Response.json({ ok: true, found, fixed }, { status: 200 });
+      return Response.json({ ok: true, found, fixed, scheduledChangesApplied }, { status: 200 });
     } catch (err) {
       // Este catch existe para FECHAR a linha da run (trabalho real, não
       // telemetria) — sem ele a reconciliação ficaria eternamente "em aberto".

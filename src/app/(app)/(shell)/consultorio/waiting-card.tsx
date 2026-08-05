@@ -39,12 +39,19 @@ function WaitingCardImpl({
   const mins = waitMinutes(card.checkInAt, now);
   const tone = waitTone(mins);
   return (
-    <div className={cn('rounded-lg border border-border border-l-4 bg-surface p-3 shadow-xs', LEFT_BORDER[tone])}>
+    <div
+      className={cn(
+        'rounded-lg border border-border border-l-4 bg-surface p-3 shadow-xs',
+        LEFT_BORDER[tone],
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-medium text-fg">{card.pacienteNome}</p>
           {demographicsLine(card.idade, card.sexo) ? (
-            <p className="truncate text-xs text-fg-subtle">{demographicsLine(card.idade, card.sexo)}</p>
+            <p className="truncate text-xs text-fg-subtle">
+              {demographicsLine(card.idade, card.sexo)}
+            </p>
           ) : null}
           <p className="truncate text-xs text-fg-muted">
             {formatHora(card.horario)} · {card.motivo}
@@ -76,10 +83,20 @@ function WaitingCardImpl({
       )}
 
       <div className="mt-3 flex gap-2">
-        <Button size="sm" variant="primary" loading={busy} onClick={() => onCall(card.appointmentId)}>
+        <Button
+          size="sm"
+          variant="primary"
+          loading={busy}
+          onClick={() => onCall(card.appointmentId)}
+        >
           Chamar
         </Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAbsent(card.appointmentId)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => onAbsent(card.appointmentId)}
+        >
           Marcar ausente
         </Button>
       </div>

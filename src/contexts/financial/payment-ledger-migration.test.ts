@@ -36,7 +36,9 @@ describe('financial payment ledger integration', () => {
 
   it('migra apenas saldos pagos conhecidos sem inventar reembolso legado', () => {
     expect(migration).toContain("WHERE status IN ('parcial', 'pago')");
-    expect(migration).not.toMatch(/INSERT INTO payment_transactions[\s\S]*?'refund'::payment_transaction_kind/);
+    expect(migration).not.toMatch(
+      /INSERT INTO payment_transactions[\s\S]*?'refund'::payment_transaction_kind/,
+    );
   });
 
   it('calcula caixa e consolidacao pela data de cada movimentacao', () => {

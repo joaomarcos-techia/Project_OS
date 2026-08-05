@@ -28,10 +28,7 @@ export function registerHandler<T>(eventType: string, handler: Handler<T>): void
 }
 
 /** Registra uma saga que controla as próprias transações curtas. */
-export function registerDetachedHandler<T>(
-  eventType: string,
-  handler: DetachedHandler<T>,
-): void {
+export function registerDetachedHandler<T>(eventType: string, handler: DetachedHandler<T>): void {
   assertUnregistered(eventType);
   handlers.set(eventType, {
     execution: 'detached',

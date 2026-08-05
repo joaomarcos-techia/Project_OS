@@ -37,7 +37,11 @@ export default async function ListaEsperaPage() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Operação' }, { label: 'Agenda', href: '/agenda' }, { label: 'Lista de espera' }]}
+        crumbs={[
+          { label: 'Operação' },
+          { label: 'Agenda', href: '/agenda' },
+          { label: 'Lista de espera' },
+        ]}
         title="Lista de espera"
         description="Cadastre interessados; quando um horário compatível é cancelado, o primeiro candidato elegível recebe uma oferta."
         actions={
@@ -49,7 +53,10 @@ export default async function ListaEsperaPage() {
       <WaitlistManager
         initial={entries}
         patients={patients.map((patient) => ({ id: patient.id, name: patient.nome }))}
-        procedures={procedures.map((procedure) => ({ id: procedure.id, name: procedure.descricao }))}
+        procedures={procedures.map((procedure) => ({
+          id: procedure.id,
+          name: procedure.descricao,
+        }))}
         doctors={agendaData.doctors.map((doctor) => ({ id: doctor.id, name: doctor.nome }))}
       />
     </>

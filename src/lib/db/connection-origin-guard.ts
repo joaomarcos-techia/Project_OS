@@ -63,8 +63,7 @@ export function findOriginUsages(
     ts.ScriptKind.TS,
   );
   const out: OriginUsage[] = [];
-  const lineOf = (node: ts.Node) =>
-    sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+  const lineOf = (node: ts.Node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
   const excerpt = (node: ts.Node) => node.getText(sf).replace(/\s+/g, ' ').slice(0, 120);
 
   const visit = (node: ts.Node): void => {
@@ -73,7 +72,8 @@ export function findOriginUsages(
       const c = classify(node.moduleSpecifier.text);
       const ic = node.importClause;
       const typeOnly = ic?.isTypeOnly ?? false;
-      if (c.postgresDriver) out.push({ line: lineOf(node), kind: 'postgres', excerpt: excerpt(node) });
+      if (c.postgresDriver)
+        out.push({ line: lineOf(node), kind: 'postgres', excerpt: excerpt(node) });
       if (c.drizzlePgFactory && ic && !typeOnly) {
         const nb = ic.namedBindings;
         if (nb && ts.isNamedImports(nb)) {
@@ -93,7 +93,12 @@ export function findOriginUsages(
             if (el.isTypeOnly) continue;
             const orig = (el.propertyName ?? el.name).text;
             if (POOL_NAMES.has(orig)) {
-              out.push({ line: lineOf(node), kind: 'pool-import', name: orig, excerpt: excerpt(node) });
+              out.push({
+                line: lineOf(node),
+                kind: 'pool-import',
+                name: orig,
+                excerpt: excerpt(node),
+              });
             }
           }
         }
@@ -116,7 +121,12 @@ export function findOriginUsages(
             if (el.isTypeOnly) continue;
             const orig = (el.propertyName ?? el.name).text;
             if (POOL_NAMES.has(orig)) {
-              out.push({ line: lineOf(node), kind: 'pool-reexport', name: orig, excerpt: excerpt(node) });
+              out.push({
+                line: lineOf(node),
+                kind: 'pool-reexport',
+                name: orig,
+                excerpt: excerpt(node),
+              });
             }
           }
         }
@@ -135,7 +145,11 @@ export function findOriginUsages(
     }
 
     // require('...')
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'require') {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'require'
+    ) {
       const arg = node.arguments[0];
       if (arg && ts.isStringLiteral(arg)) {
         const c = classify(arg.text);

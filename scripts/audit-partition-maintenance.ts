@@ -59,13 +59,17 @@ for (let i = 0; i <= MONTHS_AHEAD; i++) {
     // não move sozinho. Remediação manual (ver runbook). NÃO fatal: meses futuros
     // (sem linha na default) continuam sendo criados normalmente.
     if ((e as { code?: string })?.code === '23514') {
-      warnings.push(`${name}: a 'default' já tem linhas deste mês — remediação manual (runbooks/audit-retention.md)`);
+      warnings.push(
+        `${name}: a 'default' já tem linhas deste mês — remediação manual (runbooks/audit-retention.md)`,
+      );
     } else {
       throw e;
     }
   }
 }
-console.log(`[audit:partitions] provision: ${ensured}/${MONTHS_AHEAD + 1} partição(ões) garantida(s) (mês atual + ${MONTHS_AHEAD}).`);
+console.log(
+  `[audit:partitions] provision: ${ensured}/${MONTHS_AHEAD + 1} partição(ões) garantida(s) (mês atual + ${MONTHS_AHEAD}).`,
+);
 for (const w of warnings) console.warn(`[audit:partitions] AVISO ${w}`);
 
 // --- RETENÇÃO (opt-in) -----------------------------------------------------
@@ -92,8 +96,11 @@ if (RETAIN_MONTHS > 0) {
   if (detached.length === 0) {
     console.log(`[audit:partitions] retenção: nenhuma partição anterior a ${RETAIN_MONTHS} meses.`);
   } else {
-    console.log(`[audit:partitions] retenção: ${detached.length} partição(ões) DESANEXADA(s) (dados preservados):`);
-    for (const n of detached) console.log(`  - ${n}  → arquive (pg_dump) e dropie via migration aprovada`);
+    console.log(
+      `[audit:partitions] retenção: ${detached.length} partição(ões) DESANEXADA(s) (dados preservados):`,
+    );
+    for (const n of detached)
+      console.log(`  - ${n}  → arquive (pg_dump) e dropie via migration aprovada`);
   }
 }
 

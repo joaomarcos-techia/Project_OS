@@ -78,7 +78,13 @@ describe('retention-policy — buildPurgeStatement', () => {
   it('rejeita identificador inseguro (mesma fronteira do helper de RLS)', () => {
     expect(() =>
       buildPurgeStatement(
-        { table: 'x; DROP TABLE y; --', idColumns: ['id'], days: 1, expired: () => null as never, why: 'x'.repeat(30) },
+        {
+          table: 'x; DROP TABLE y; --',
+          idColumns: ['id'],
+          days: 1,
+          expired: () => null as never,
+          why: 'x'.repeat(30),
+        },
         10,
       ),
     ).toThrow(/invalid table identifier/);
@@ -104,8 +110,18 @@ describe('contiguousMonthsAhead — A7/N2: o monitor não pode ser cego a lacuna
     // O cálculo antigo era max(partição) => '2028-05' => 22 meses => "saudável".
     // A realidade: o próximo mês SEM partição é 2027-06, a 11 meses.
     const months = [
-      '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12',
-      '2027-01', '2027-02', '2027-03', '2027-04', '2027-05',
+      '2026-06',
+      '2026-07',
+      '2026-08',
+      '2026-09',
+      '2026-10',
+      '2026-11',
+      '2026-12',
+      '2027-01',
+      '2027-02',
+      '2027-03',
+      '2027-04',
+      '2027-05',
       '2028-05', // solta, depois de um buraco de 11 meses
     ];
     expect(contiguousMonthsAhead(months, now)).toBe(11);

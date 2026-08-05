@@ -17,7 +17,10 @@ const base: ProactiveContact = {
 
 describe('evaluateProactivePolicy (C14 — matriz por tipo)', () => {
   it('sem contato/telefone → no_contact', () => {
-    expect(evaluateProactivePolicy('reminder', null)).toEqual({ allowed: false, reason: 'no_contact' });
+    expect(evaluateProactivePolicy('reminder', null)).toEqual({
+      allowed: false,
+      reason: 'no_contact',
+    });
     expect(evaluateProactivePolicy('reminder', { ...base, phone: null })).toEqual({
       allowed: false,
       reason: 'no_contact',

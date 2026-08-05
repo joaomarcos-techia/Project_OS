@@ -19,13 +19,7 @@
 import { LancamentoStateError } from './errors';
 import type { LancamentoStatus, LancamentoTipo } from './types';
 
-export const LANCAMENTO_STATES = [
-  'pendente',
-  'parcial',
-  'pago',
-  'cancelado',
-  'estornado',
-] as const;
+export const LANCAMENTO_STATES = ['pendente', 'parcial', 'pago', 'cancelado', 'estornado'] as const;
 
 export const TERMINAL_LANCAMENTO_STATES = ['cancelado', 'estornado'] as const;
 

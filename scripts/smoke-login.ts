@@ -114,10 +114,7 @@ const bundleRows = (
 ) as Array<{ n: number }>;
 const gestorBundleSize = bundleRows[0]?.n ?? 0;
 
-check(
-  '1.1) signInWithPassword retorna session',
-  !!signIn.session.access_token,
-);
+check('1.1) signInWithPassword retorna session', !!signIn.session.access_token);
 check(
   `1.2) JWT contém claims customizadas (clinic_id, app_role, permissions=${gestorBundleSize}, claims_version)`,
   !!claims1 &&
@@ -190,7 +187,9 @@ await dbAdmin.execute(sql`DELETE FROM public.profiles WHERE id = ${smokeUserId}:
 await admin.auth.admin.deleteUser(smokeUserId);
 await dbAdmin.execute(sql`DELETE FROM public.clinics WHERE id = ${SMOKE_CLINIC_ID}::uuid`);
 
-console.log(`\n${failed === 0 ? '✅ smoke-login: all phases passed' : `❌ smoke-login: ${failed} check(s) failed`}`);
+console.log(
+  `\n${failed === 0 ? '✅ smoke-login: all phases passed' : `❌ smoke-login: ${failed} check(s) failed`}`,
+);
 process.exit(failed === 0 ? 0 : 1);
 
 function decodeJwtClaims(token: string): Record<string, unknown> | null {

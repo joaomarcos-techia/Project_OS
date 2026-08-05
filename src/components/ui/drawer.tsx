@@ -73,10 +73,7 @@ export function DrawerHeader({ className, ...props }: ComponentProps<'div'>) {
   );
 }
 
-export function DrawerTitle({
-  className,
-  ...props
-}: ComponentProps<typeof DialogPrimitive.Title>) {
+export function DrawerTitle({ className, ...props }: ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
       className={cn('text-(length:--fs-h4) font-semibold', className)}

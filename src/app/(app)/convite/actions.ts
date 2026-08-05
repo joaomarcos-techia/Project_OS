@@ -20,7 +20,10 @@ const Schema = z
       .regex(/[^a-zA-Z0-9]/, 'A senha deve conter ao menos um símbolo.'),
     confirm: z.string(),
   })
-  .refine((d) => d.password === d.confirm, { message: 'As senhas não conferem.', path: ['confirm'] });
+  .refine((d) => d.password === d.confirm, {
+    message: 'As senhas não conferem.',
+    path: ['confirm'],
+  });
 
 export type AcceptState = { error: string | null };
 

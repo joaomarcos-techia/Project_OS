@@ -60,9 +60,7 @@ export const PERMISSIONS = {
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 /** Lista completa em runtime — usada para validação contra seed do banco. */
-export const ALL_PERMISSIONS: readonly Permission[] = Object.freeze(
-  Object.values(PERMISSIONS),
-);
+export const ALL_PERMISSIONS: readonly Permission[] = Object.freeze(Object.values(PERMISSIONS));
 
 export function isPermission(value: unknown): value is Permission {
   return typeof value === 'string' && (ALL_PERMISSIONS as readonly string[]).includes(value);

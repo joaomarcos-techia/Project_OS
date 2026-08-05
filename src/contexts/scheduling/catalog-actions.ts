@@ -42,7 +42,11 @@ export async function createProcedure(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('proc_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+        idempotency: {
+          key: idemKey('proc_create', idempotencyKey),
+          payload: jsonSafe(data),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
         audit: {
           action: 'procedure.created',
           resourceType: 'procedure',
@@ -92,7 +96,11 @@ export async function updateProcedure(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('proc_update', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+        idempotency: {
+          key: idemKey('proc_update', idempotencyKey),
+          payload: jsonSafe({ id, data }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
         audit: {
           action: 'procedure.updated',
           resourceType: 'procedure',
@@ -118,19 +126,41 @@ export async function updateProcedure(
         }
         if (data.descricao !== undefined && data.descricao !== current.descricao) {
           set.descricao = data.descricao;
-          history.push({ field: 'descricao', oldValue: current.descricao, newValue: data.descricao });
+          history.push({
+            field: 'descricao',
+            oldValue: current.descricao,
+            newValue: data.descricao,
+          });
         }
-        if (data.categoria !== undefined && (data.categoria ?? null) !== (current.categoria ?? null)) {
+        if (
+          data.categoria !== undefined &&
+          (data.categoria ?? null) !== (current.categoria ?? null)
+        ) {
           set.categoria = data.categoria ?? null;
-          history.push({ field: 'categoria', oldValue: current.categoria, newValue: data.categoria ?? null });
+          history.push({
+            field: 'categoria',
+            oldValue: current.categoria,
+            newValue: data.categoria ?? null,
+          });
         }
         if (data.valorPadrao !== undefined && data.valorPadrao !== Number(current.valorPadrao)) {
           set.valorPadrao = data.valorPadrao.toFixed(2);
-          history.push({ field: 'valor_padrao', oldValue: Number(current.valorPadrao), newValue: data.valorPadrao });
+          history.push({
+            field: 'valor_padrao',
+            oldValue: Number(current.valorPadrao),
+            newValue: data.valorPadrao,
+          });
         }
-        if (data.duracaoPadraoMin !== undefined && data.duracaoPadraoMin !== current.duracaoPadraoMin) {
+        if (
+          data.duracaoPadraoMin !== undefined &&
+          data.duracaoPadraoMin !== current.duracaoPadraoMin
+        ) {
           set.duracaoPadraoMin = data.duracaoPadraoMin;
-          history.push({ field: 'duracao_padrao_min', oldValue: current.duracaoPadraoMin, newValue: data.duracaoPadraoMin });
+          history.push({
+            field: 'duracao_padrao_min',
+            oldValue: current.duracaoPadraoMin,
+            newValue: data.duracaoPadraoMin,
+          });
         }
         if (data.ativo !== undefined && data.ativo !== current.ativo) {
           set.ativo = data.ativo;
@@ -171,7 +201,11 @@ export async function deactivateProcedure(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('proc_deactivate', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+      idempotency: {
+        key: idemKey('proc_deactivate', idempotencyKey),
+        payload: jsonSafe({ id }),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
       audit: {
         action: 'procedure.deactivated',
         resourceType: 'procedure',
@@ -199,7 +233,13 @@ export async function deactivateProcedure(
 
 // --- helpers ---------------------------------------------------------------
 
-type ChangedField = 'valor_padrao' | 'duracao_padrao_min' | 'descricao' | 'ativo' | 'categoria' | 'codigo';
+type ChangedField =
+  | 'valor_padrao'
+  | 'duracao_padrao_min'
+  | 'descricao'
+  | 'ativo'
+  | 'categoria'
+  | 'codigo';
 
 async function recordHistory(
   tx: Tx,

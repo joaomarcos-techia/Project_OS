@@ -155,7 +155,9 @@ export async function findOrCreateConversation(
   };
 }
 
-export function resolvePhoneIdentity<T extends { id: string; nome: string }>(matches: T[]): {
+export function resolvePhoneIdentity<T extends { id: string; nome: string }>(
+  matches: T[],
+): {
   patient: T | null;
   ambiguous: boolean;
 } {
@@ -269,9 +271,7 @@ export async function getRecentMessages(
       and(
         eq(aiMessages.clinicId, clinicId),
         eq(aiMessages.conversationId, conversationId),
-        ...(excludeEventId
-          ? [sql`${aiMessages.eventId} IS DISTINCT FROM ${excludeEventId}`]
-          : []),
+        ...(excludeEventId ? [sql`${aiMessages.eventId} IS DISTINCT FROM ${excludeEventId}`] : []),
       ),
     )
     .orderBy(desc(aiMessages.createdAt))
@@ -407,7 +407,9 @@ export async function appendManualMessage(tx: Tx, args: ManualMessageArgs): Prom
   await tx
     .update(aiConversations)
     .set({ lastMessageAt: sql`now()` })
-    .where(and(eq(aiConversations.id, args.conversationId), eq(aiConversations.clinicId, args.clinicId)));
+    .where(
+      and(eq(aiConversations.id, args.conversationId), eq(aiConversations.clinicId, args.clinicId)),
+    );
 }
 
 /**

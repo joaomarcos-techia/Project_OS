@@ -6,8 +6,14 @@ const CONV = '11111111-1111-1111-1111-111111111111';
 
 describe('agentIdemKey (R1 — idempotência por conteúdo, não por eventId)', () => {
   it('é determinística: mesma conversa+intent+args → mesma chave', () => {
-    const a = agentIdemKey(CONV, 'schedule_appointment', { doctor: 'd1', at: '2026-07-01T10:00:00Z' });
-    const b = agentIdemKey(CONV, 'schedule_appointment', { doctor: 'd1', at: '2026-07-01T10:00:00Z' });
+    const a = agentIdemKey(CONV, 'schedule_appointment', {
+      doctor: 'd1',
+      at: '2026-07-01T10:00:00Z',
+    });
+    const b = agentIdemKey(CONV, 'schedule_appointment', {
+      doctor: 'd1',
+      at: '2026-07-01T10:00:00Z',
+    });
     expect(a).toBe(b);
   });
 

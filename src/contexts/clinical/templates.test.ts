@@ -9,7 +9,9 @@ const baseRow: PrescriptionTemplateRow = {
   doctorId: '33333333-3333-3333-3333-333333333333',
   nome: 'Sertralina início',
   categoria: 'Psiquiatria',
-  medicamentos: [{ nome: 'Sertralina', dosagem: '50mg', posologia: '1 cp manhã', quantidade: '30' }],
+  medicamentos: [
+    { nome: 'Sertralina', dosagem: '50mg', posologia: '1 cp manhã', quantidade: '30' },
+  ],
   observacoes: 'Uso contínuo',
   kind: 'simples',
   createdBy: '33333333-3333-3333-3333-333333333333',

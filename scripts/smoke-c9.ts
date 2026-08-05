@@ -35,11 +35,7 @@ import { patients } from '@/contexts/patient/schema';
 import { appointments, procedures } from '@/contexts/scheduling/schema';
 import { faturamentoPendencias, lancamentos, suppliers } from '@/contexts/financial/schema';
 import { clinicDayBounds } from '@/contexts/financial/logic';
-import {
-  getCashFlowToday,
-  listLancamentos,
-  listSuppliers,
-} from '@/contexts/financial/queries';
+import { getCashFlowToday, listLancamentos, listSuppliers } from '@/contexts/financial/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 // Catálogo (event schemas) + registry de handlers (boot file do cron).
@@ -102,7 +98,10 @@ function tomorrow(h: number): Date {
   return d;
 }
 
-async function insertAppt(scheduledAt: Date, status: 'atendido' | 'em_atendimento' = 'atendido'): Promise<string> {
+async function insertAppt(
+  scheduledAt: Date,
+  status: 'atendido' | 'em_atendimento' = 'atendido',
+): Promise<string> {
   return withTenant(CLINIC_A, async (tx) => {
     const [row] = await tx
       .insert(appointments)
@@ -206,7 +205,9 @@ async function tryPay(id: string, amount: number): Promise<boolean> {
   });
 }
 
-async function statusOf(id: string): Promise<{ status: string; valor_pago: string; paid_at: string | null }> {
+async function statusOf(
+  id: string,
+): Promise<{ status: string; valor_pago: string; paid_at: string | null }> {
   const r = (await dbAdmin.execute(
     sql`SELECT status, valor_pago::text, paid_at::text FROM lancamentos WHERE id = ${id}::uuid`,
   )) as unknown as Array<{ status: string; valor_pago: string; paid_at: string | null }>;
@@ -233,25 +234,28 @@ async function main(): Promise<void> {
     assert(bundle.length === 1, 'attendant não recebeu operate:caixa');
   });
 
-  await tryStep('GRANTs: authenticated tem SELECT/INSERT/UPDATE e NÃO tem DELETE (append-only)', async () => {
-    for (const priv of ['SELECT', 'INSERT', 'UPDATE']) {
-      const r = (await dbAdmin.execute(
-        sql`SELECT has_table_privilege('authenticated', 'public.lancamentos', ${priv}) AS ok`,
+  await tryStep(
+    'GRANTs: authenticated tem SELECT/INSERT/UPDATE e NÃO tem DELETE (append-only)',
+    async () => {
+      for (const priv of ['SELECT', 'INSERT', 'UPDATE']) {
+        const r = (await dbAdmin.execute(
+          sql`SELECT has_table_privilege('authenticated', 'public.lancamentos', ${priv}) AS ok`,
+        )) as unknown as Array<{ ok: boolean }>;
+        assert(r[0]?.ok === true, `authenticated sem ${priv} em lancamentos`);
+      }
+      // App (authenticated) NÃO pode deletar lançamento (0021). service_role mantém
+      // DELETE p/ teardown/admin — não asserimos sobre ele.
+      const del = (await dbAdmin.execute(
+        sql`SELECT has_table_privilege('authenticated', 'public.lancamentos', 'DELETE') AS ok`,
       )) as unknown as Array<{ ok: boolean }>;
-      assert(r[0]?.ok === true, `authenticated sem ${priv} em lancamentos`);
-    }
-    // App (authenticated) NÃO pode deletar lançamento (0021). service_role mantém
-    // DELETE p/ teardown/admin — não asserimos sobre ele.
-    const del = (await dbAdmin.execute(
-      sql`SELECT has_table_privilege('authenticated', 'public.lancamentos', 'DELETE') AS ok`,
-    )) as unknown as Array<{ ok: boolean }>;
-    assert(del[0]?.ok === false, 'authenticated NÃO deveria ter DELETE em lancamentos');
-    // payment_proofs é append-only: sem UPDATE/DELETE para authenticated.
-    const pp = (await dbAdmin.execute(
-      sql`SELECT has_table_privilege('authenticated', 'public.payment_proofs', 'DELETE') AS ok`,
-    )) as unknown as Array<{ ok: boolean }>;
-    assert(pp[0]?.ok === false, 'authenticated NÃO deveria ter DELETE em payment_proofs');
-  });
+      assert(del[0]?.ok === false, 'authenticated NÃO deveria ter DELETE em lancamentos');
+      // payment_proofs é append-only: sem UPDATE/DELETE para authenticated.
+      const pp = (await dbAdmin.execute(
+        sql`SELECT has_table_privilege('authenticated', 'public.payment_proofs', 'DELETE') AS ok`,
+      )) as unknown as Array<{ ok: boolean }>;
+      assert(pp[0]?.ok === false, 'authenticated NÃO deveria ter DELETE em payment_proofs');
+    },
+  );
 
   // --- Fixtures -------------------------------------------------------------
   await dbAdmin.execute(sql`
@@ -303,20 +307,29 @@ async function main(): Promise<void> {
 
   // --- 1 + 12: faturamento automático + evento financial.lancamento.created --
   let autoApptId = '';
-  await tryStep('1 — appointment.completed → lançamento automático (a receber, pendente)', async () => {
-    autoApptId = await insertAppt(tomorrow(7));
-    await publishCompleted(autoApptId, 200, `c9-auto-${autoApptId}`);
-    const ok = await processUntil(async () => (await countLancByAppt(autoApptId)) === 1);
-    assert(ok, 'lançamento automático não foi criado pelo handler');
-    const [l] = (await dbAdmin.execute(
-      sql`SELECT tipo, status, valor::text, created_via, descricao FROM lancamentos WHERE appointment_id = ${autoApptId}::uuid`,
-    )) as unknown as Array<{ tipo: string; status: string; valor: string; created_via: string; descricao: string }>;
-    assert(l!.tipo === 'receber', `tipo deveria ser receber, veio ${l!.tipo}`);
-    assert(l!.status === 'pendente', `status deveria ser pendente, veio ${l!.status}`);
-    assert(Number(l!.valor) === 200, `valor deveria ser 200, veio ${l!.valor}`);
-    assert(l!.created_via === 'auto', `created_via deveria ser auto, veio ${l!.created_via}`);
-    assert(l!.descricao === 'Atendimento - Consulta', `descrição inesperada: ${l!.descricao}`);
-  });
+  await tryStep(
+    '1 — appointment.completed → lançamento automático (a receber, pendente)',
+    async () => {
+      autoApptId = await insertAppt(tomorrow(7));
+      await publishCompleted(autoApptId, 200, `c9-auto-${autoApptId}`);
+      const ok = await processUntil(async () => (await countLancByAppt(autoApptId)) === 1);
+      assert(ok, 'lançamento automático não foi criado pelo handler');
+      const [l] = (await dbAdmin.execute(
+        sql`SELECT tipo, status, valor::text, created_via, descricao FROM lancamentos WHERE appointment_id = ${autoApptId}::uuid`,
+      )) as unknown as Array<{
+        tipo: string;
+        status: string;
+        valor: string;
+        created_via: string;
+        descricao: string;
+      }>;
+      assert(l!.tipo === 'receber', `tipo deveria ser receber, veio ${l!.tipo}`);
+      assert(l!.status === 'pendente', `status deveria ser pendente, veio ${l!.status}`);
+      assert(Number(l!.valor) === 200, `valor deveria ser 200, veio ${l!.valor}`);
+      assert(l!.created_via === 'auto', `created_via deveria ser auto, veio ${l!.created_via}`);
+      assert(l!.descricao === 'Atendimento - Consulta', `descrição inesperada: ${l!.descricao}`);
+    },
+  );
 
   await tryStep('12 — emissão de financial.lancamento.created no outbox', async () => {
     const r = (await dbAdmin.execute(
@@ -325,15 +338,18 @@ async function main(): Promise<void> {
     assert((r[0]?.n ?? 0) === 1, `esperava 1 financial.lancamento.created, veio ${r[0]?.n}`);
   });
 
-  await tryStep('1b — Scheduling limpou appointments.faturamento_pendente (ownership R3)', async () => {
-    const ok = await processUntil(async () => {
-      const r = (await dbAdmin.execute(
-        sql`SELECT faturamento_pendente AS f FROM appointments WHERE id = ${autoApptId}::uuid`,
-      )) as unknown as Array<{ f: boolean }>;
-      return r[0]?.f === false;
-    });
-    assert(ok, 'faturamento_pendente deveria estar false após faturamento');
-  });
+  await tryStep(
+    '1b — Scheduling limpou appointments.faturamento_pendente (ownership R3)',
+    async () => {
+      const ok = await processUntil(async () => {
+        const r = (await dbAdmin.execute(
+          sql`SELECT faturamento_pendente AS f FROM appointments WHERE id = ${autoApptId}::uuid`,
+        )) as unknown as Array<{ f: boolean }>;
+        return r[0]?.f === false;
+      });
+      assert(ok, 'faturamento_pendente deveria estar false após faturamento');
+    },
+  );
 
   // --- 9: UNIQUE appointment_id (re-entrega não duplica) --------------------
   await tryStep('9 — re-entrega do completed NÃO duplica (UNIQUE appointment_id)', async () => {
@@ -357,7 +373,10 @@ async function main(): Promise<void> {
       return p[0]?.status === 'aberta' && f[0]?.f === true;
     });
     assert(ok, 'pendência aberta + flag=true não materializaram');
-    assert((await countLancByAppt(apptId)) === 0, 'não deveria existir lançamento para valor inválido');
+    assert(
+      (await countLancByAppt(apptId)) === 0,
+      'não deveria existir lançamento para valor inválido',
+    );
   });
 
   // --- 4 + 5: pagamento parcial e total ------------------------------------
@@ -378,17 +397,20 @@ async function main(): Promise<void> {
     assert(s.paid_at !== null, 'paid_at deveria estar preenchido em pago');
   });
 
-  await tryStep('5b — CHECK valor_pago <= valor barra pagamento acima do valor (23514)', async () => {
-    const id = await insertLancamento({ valor: '100.00' });
-    try {
-      await withTenant(CLINIC_A, (tx) =>
-        tx.execute(sql`UPDATE lancamentos SET valor_pago = '150.00' WHERE id = ${id}::uuid`),
-      );
-      throw new Error('UPDATE valor_pago>valor deveria falhar');
-    } catch (e) {
-      assert(pgCode(e) === '23514', `esperava 23514 (check_violation), veio ${pgCode(e)}`);
-    }
-  });
+  await tryStep(
+    '5b — CHECK valor_pago <= valor barra pagamento acima do valor (23514)',
+    async () => {
+      const id = await insertLancamento({ valor: '100.00' });
+      try {
+        await withTenant(CLINIC_A, (tx) =>
+          tx.execute(sql`UPDATE lancamentos SET valor_pago = '150.00' WHERE id = ${id}::uuid`),
+        );
+        throw new Error('UPDATE valor_pago>valor deveria falhar');
+      } catch (e) {
+        assert(pgCode(e) === '23514', `esperava 23514 (check_violation), veio ${pgCode(e)}`);
+      }
+    },
+  );
 
   // --- 6: estorno append-only ----------------------------------------------
   await tryStep('6 — estorno append-only: original imutável + compensação estornada', async () => {
@@ -417,7 +439,10 @@ async function main(): Promise<void> {
     const [est] = (await dbAdmin.execute(
       sql`SELECT tipo, status, reverses_lancamento_id::text AS rev FROM lancamentos WHERE id = ${estId}::uuid`,
     )) as unknown as Array<{ tipo: string; status: string; rev: string }>;
-    assert(est!.tipo === 'pagar' && est!.status === 'estornado' && est!.rev === origId, 'compensação inválida');
+    assert(
+      est!.tipo === 'pagar' && est!.status === 'estornado' && est!.rev === origId,
+      'compensação inválida',
+    );
   });
 
   await tryStep('6b — trigger append-only barra UPDATE de valor (imutável, P0001)', async () => {
@@ -453,47 +478,57 @@ async function main(): Promise<void> {
   });
 
   // --- origem obrigatória ---------------------------------------------------
-  await tryStep('origem obrigatória: created_via=auto sem appointment_id é barrado (23514)', async () => {
-    try {
-      await withTenant(CLINIC_A, (tx) =>
-        tx.insert(lancamentos).values({
-          clinicId: CLINIC_A,
-          tipo: 'receber',
-          descricao: 'Órfão',
-          valor: '10.00',
-          status: 'pendente',
-          createdVia: 'auto',
-        }),
-      );
-      throw new Error('lançamento auto sem appointment_id deveria falhar');
-    } catch (e) {
-      assert(pgCode(e) === '23514', `esperava 23514 (check_violation), veio ${pgCode(e)}`);
-    }
-  });
+  await tryStep(
+    'origem obrigatória: created_via=auto sem appointment_id é barrado (23514)',
+    async () => {
+      try {
+        await withTenant(CLINIC_A, (tx) =>
+          tx.insert(lancamentos).values({
+            clinicId: CLINIC_A,
+            tipo: 'receber',
+            descricao: 'Órfão',
+            valor: '10.00',
+            status: 'pendente',
+            createdVia: 'auto',
+          }),
+        );
+        throw new Error('lançamento auto sem appointment_id deveria falhar');
+      } catch (e) {
+        assert(pgCode(e) === '23514', `esperava 23514 (check_violation), veio ${pgCode(e)}`);
+      }
+    },
+  );
 
   // --- 11: fluxo de caixa confere ------------------------------------------
-  await tryStep('11 — fluxo de caixa: rollup = soma de valor_pago liquidado (receber)', async () => {
-    const expected = (await dbAdmin.execute(
-      sql`SELECT coalesce(sum(valor_pago),0)::text AS s FROM lancamentos
+  await tryStep(
+    '11 — fluxo de caixa: rollup = soma de valor_pago liquidado (receber)',
+    async () => {
+      const expected = (await dbAdmin.execute(
+        sql`SELECT coalesce(sum(valor_pago),0)::text AS s FROM lancamentos
            WHERE clinic_id = ${CLINIC_A}::uuid AND tipo = 'receber' AND status = 'pago'`,
-    )) as unknown as Array<{ s: string }>;
-    const rolled = (await dbAdmin.execute(
-      sql`SELECT coalesce(sum(case when tipo='receber' then valor_pago else 0 end),0)::text AS s
+      )) as unknown as Array<{ s: string }>;
+      const rolled = (await dbAdmin.execute(
+        sql`SELECT coalesce(sum(case when tipo='receber' then valor_pago else 0 end),0)::text AS s
             FROM lancamentos WHERE clinic_id = ${CLINIC_A}::uuid AND status = 'pago'`,
-    )) as unknown as Array<{ s: string }>;
-    assert(Number(expected[0]!.s) === Number(rolled[0]!.s), 'soma do caixa não confere');
-    assert(Number(expected[0]!.s) > 0, 'esperava algum valor recebido nos cenários anteriores');
-  });
+      )) as unknown as Array<{ s: string }>;
+      assert(Number(expected[0]!.s) === Number(rolled[0]!.s), 'soma do caixa não confere');
+      assert(Number(expected[0]!.s) > 0, 'esperava algum valor recebido nos cenários anteriores');
+    },
+  );
 
   // --- 10: RLS A/B ----------------------------------------------------------
   await tryStep('10 — RLS: clínica B não vê lançamentos nem pendências de A', async () => {
-    const lancB = await withTenant(CLINIC_B, (tx) => tx.select({ id: lancamentos.id }).from(lancamentos));
+    const lancB = await withTenant(CLINIC_B, (tx) =>
+      tx.select({ id: lancamentos.id }).from(lancamentos),
+    );
     assert(lancB.length === 0, `B não deveria ver lançamentos de A, viu ${lancB.length}`);
     const pendB = await withTenant(CLINIC_B, (tx) =>
       tx.select({ id: faturamentoPendencias.id }).from(faturamentoPendencias),
     );
     assert(pendB.length === 0, `B não deveria ver pendências de A, viu ${pendB.length}`);
-    const lancA = await withTenant(CLINIC_A, (tx) => tx.select({ id: lancamentos.id }).from(lancamentos));
+    const lancA = await withTenant(CLINIC_A, (tx) =>
+      tx.select({ id: lancamentos.id }).from(lancamentos),
+    );
     assert(lancA.length > 0, 'A deveria ver seus próprios lançamentos');
   });
 
@@ -508,24 +543,35 @@ async function main(): Promise<void> {
         coalesce(sum(case when tipo='pagar'   and status in ('pendente','parcial') then valor - valor_pago else 0 end),0)::text AS pagar
       FROM lancamentos WHERE clinic_id = ${CLINIC_A}::uuid
     `)) as unknown as Array<{ receber: string; pagar: string }>;
-    assert(Math.abs(flow.receber - Number(r!.receber)) < 0.001, `receber ${flow.receber} vs ${r!.receber}`);
+    assert(
+      Math.abs(flow.receber - Number(r!.receber)) < 0.001,
+      `receber ${flow.receber} vs ${r!.receber}`,
+    );
     assert(Math.abs(flow.pagar - Number(r!.pagar)) < 0.001, `pagar ${flow.pagar} vs ${r!.pagar}`);
   });
 
   await tryStep('F2 — listLancamentos respeita filtros de tipo e status', async () => {
     await insertLancamento({ valor: '50.00', tipo: 'pagar' }); // garante ao menos 1 a pagar
     const receber = await listLancamentos(CLINIC_A, { tipo: 'receber' });
-    assert(receber.length > 0 && receber.every((l) => l.tipo === 'receber'), 'filtro tipo=receber falhou');
+    assert(
+      receber.length > 0 && receber.every((l) => l.tipo === 'receber'),
+      'filtro tipo=receber falhou',
+    );
     const pagar = await listLancamentos(CLINIC_A, { tipo: 'pagar' });
     assert(pagar.length > 0 && pagar.every((l) => l.tipo === 'pagar'), 'filtro tipo=pagar falhou');
     const pagos = await listLancamentos(CLINIC_A, { status: 'pago' });
-    assert(pagos.every((l) => l.status === 'pago'), 'filtro status=pago vazou outro status');
+    assert(
+      pagos.every((l) => l.status === 'pago'),
+      'filtro status=pago vazou outro status',
+    );
   });
 
   await tryStep('F2 — listSuppliers + onlyActive', async () => {
     await withTenant(CLINIC_A, async (tx) => {
       await tx.insert(suppliers).values({ clinicId: CLINIC_A, razaoSocial: 'Fornecedor Ativo' });
-      await tx.insert(suppliers).values({ clinicId: CLINIC_A, razaoSocial: 'Fornecedor Inativo', ativo: false });
+      await tx
+        .insert(suppliers)
+        .values({ clinicId: CLINIC_A, razaoSocial: 'Fornecedor Inativo', ativo: false });
     });
     const all = await listSuppliers(CLINIC_A);
     assert(all.length >= 2, `esperava >=2 fornecedores, veio ${all.length}`);

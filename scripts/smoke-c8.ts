@@ -135,26 +135,35 @@ async function tryStart(appointmentId: string): Promise<boolean> {
 
 async function main(): Promise<void> {
   // --- Estrutural: GRANTs em appointments + prontuarios ---------------------
-  await tryStep('GRANTs explícitos (has_table_privilege) em appointments + prontuarios', async () => {
-    for (const t of ['appointments', 'prontuarios']) {
-      for (const role of ['authenticated', 'service_role']) {
-        for (const priv of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
-          const r = (await dbAdmin.execute(
-            sql`SELECT has_table_privilege(${role}, ${`public.${t}`}, ${priv}) AS ok`,
-          )) as unknown as Array<{ ok: boolean }>;
-          assert(r[0]?.ok === true, `${role} sem ${priv} em ${t}`);
+  await tryStep(
+    'GRANTs explícitos (has_table_privilege) em appointments + prontuarios',
+    async () => {
+      for (const t of ['appointments', 'prontuarios']) {
+        for (const role of ['authenticated', 'service_role']) {
+          for (const priv of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+            const r = (await dbAdmin.execute(
+              sql`SELECT has_table_privilege(${role}, ${`public.${t}`}, ${priv}) AS ok`,
+            )) as unknown as Array<{ ok: boolean }>;
+            assert(r[0]?.ok === true, `${role} sem ${priv} em ${t}`);
+          }
         }
       }
-    }
-  });
+    },
+  );
 
   // --- Estrutural: Realtime (REPLICA IDENTITY FULL + publication) -----------
-  await tryStep('appointments: REPLICA IDENTITY FULL (Realtime filtra clinic_id em UPDATE)', async () => {
-    const r = (await dbAdmin.execute(
-      sql`SELECT relreplident FROM pg_class WHERE relname = 'appointments'`,
-    )) as unknown as Array<{ relreplident: string }>;
-    assert(r[0]?.relreplident === 'f', `esperava replica identity FULL ('f'), veio ${r[0]?.relreplident}`);
-  });
+  await tryStep(
+    'appointments: REPLICA IDENTITY FULL (Realtime filtra clinic_id em UPDATE)',
+    async () => {
+      const r = (await dbAdmin.execute(
+        sql`SELECT relreplident FROM pg_class WHERE relname = 'appointments'`,
+      )) as unknown as Array<{ relreplident: string }>;
+      assert(
+        r[0]?.relreplident === 'f',
+        `esperava replica identity FULL ('f'), veio ${r[0]?.relreplident}`,
+      );
+    },
+  );
 
   await tryStep('appointments na publication supabase_realtime (se Supabase)', async () => {
     const pub = (await dbAdmin.execute(
@@ -227,19 +236,32 @@ async function main(): Promise<void> {
 
   // --- #13/#14: concorrência "apenas um vence" -----------------------------
   await tryStep('#13/#14 — chamar próximo concorrente: exatamente um vence', async () => {
-    const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(8), status: 'chegou', patientId });
+    const id = await insertAppt({
+      clinicId: CLINIC_A,
+      scheduledAt: tomorrow(8),
+      status: 'chegou',
+      patientId,
+    });
     const [a, b] = await Promise.all([tryStart(id), tryStart(id)]);
     const winners = [a, b].filter(Boolean).length;
     assert(winners === 1, `esperava exatamente 1 vencedor, veio ${winners}`);
     const after = await withTenant(CLINIC_A, (tx) =>
       tx.select({ status: appointments.status }).from(appointments).where(eq(appointments.id, id)),
     );
-    assert(after[0]?.status === 'em_atendimento', `estado final deveria ser em_atendimento, veio ${after[0]?.status}`);
+    assert(
+      after[0]?.status === 'em_atendimento',
+      `estado final deveria ser em_atendimento, veio ${after[0]?.status}`,
+    );
   });
 
   // --- D3: prontuário síncrono idempotente (UNIQUE appointment_id) ----------
   await tryStep('D3 — UNIQUE(appointment_id): 2º insert direto barra (23505)', async () => {
-    const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(9), status: 'em_atendimento', patientId });
+    const id = await insertAppt({
+      clinicId: CLINIC_A,
+      scheduledAt: tomorrow(9),
+      status: 'em_atendimento',
+      patientId,
+    });
     const emptyCe = await encryptJson(CLINIC_A, {});
     await withTenant(CLINIC_A, (tx) =>
       tx.insert(prontuarios).values({
@@ -274,36 +296,55 @@ async function main(): Promise<void> {
   // `loadAtendimento` pode tentar de novo (atendente chamou, médico abre depois). O
   // 2º `onConflictDoNothing` é no-op → ainda 1 prontuário. (A corrida entre dois
   // clientes é impossível aqui: só um vence a transição de início — vide #13/#14.)
-  await tryStep('D3 — onConflictDoNothing repetido → exatamente 1 prontuário (idempotente)', async () => {
-    const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(10), status: 'em_atendimento', patientId });
-    const emptyCe = await encryptJson(CLINIC_A, {});
-    const ins = () =>
-      withTenant(CLINIC_A, (tx) =>
+  await tryStep(
+    'D3 — onConflictDoNothing repetido → exatamente 1 prontuário (idempotente)',
+    async () => {
+      const id = await insertAppt({
+        clinicId: CLINIC_A,
+        scheduledAt: tomorrow(10),
+        status: 'em_atendimento',
+        patientId,
+      });
+      const emptyCe = await encryptJson(CLINIC_A, {});
+      const ins = () =>
+        withTenant(CLINIC_A, (tx) =>
+          tx
+            .insert(prontuarios)
+            .values({
+              clinicId: CLINIC_A,
+              patientId,
+              doctorId,
+              appointmentId: id,
+              status: 'rascunho',
+              contentEncrypted: emptyCe,
+              createdBy: doctorId,
+            })
+            // mesma forma do handler real: predicate do índice parcial
+            .onConflictDoNothing({
+              target: prontuarios.appointmentId,
+              where: sql`appointment_id IS NOT NULL`,
+            }),
+        );
+      await ins();
+      await ins(); // 2ª criação sob demanda = no-op
+      const rows = await withTenant(CLINIC_A, (tx) =>
         tx
-          .insert(prontuarios)
-          .values({
-            clinicId: CLINIC_A,
-            patientId,
-            doctorId,
-            appointmentId: id,
-            status: 'rascunho',
-            contentEncrypted: emptyCe,
-            createdBy: doctorId,
-          })
-          // mesma forma do handler real: predicate do índice parcial
-          .onConflictDoNothing({ target: prontuarios.appointmentId, where: sql`appointment_id IS NOT NULL` }),
+          .select({ id: prontuarios.id })
+          .from(prontuarios)
+          .where(eq(prontuarios.appointmentId, id)),
       );
-    await ins();
-    await ins(); // 2ª criação sob demanda = no-op
-    const rows = await withTenant(CLINIC_A, (tx) =>
-      tx.select({ id: prontuarios.id }).from(prontuarios).where(eq(prontuarios.appointmentId, id)),
-    );
-    assert(rows.length === 1, `esperava 1 prontuário após re-entrada, veio ${rows.length}`);
-  });
+      assert(rows.length === 1, `esperava 1 prontuário após re-entrada, veio ${rows.length}`);
+    },
+  );
 
   // --- #6/#7: encerrar → atendido + evento completed no outbox -------------
   await tryStep('#6/#7 — encerrar: em_atendimento→atendido + completed enfileirado', async () => {
-    const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(11), status: 'em_atendimento', patientId });
+    const id = await insertAppt({
+      clinicId: CLINIC_A,
+      scheduledAt: tomorrow(11),
+      status: 'em_atendimento',
+      patientId,
+    });
     await withTenant(CLINIC_A, async (tx) => {
       await tx.execute(sql`UPDATE appointments SET status = 'atendido' WHERE id = ${id}::uuid`);
       await publishEvent(tx, {

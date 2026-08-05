@@ -87,18 +87,21 @@ export function HorariosManager({
         return toast.error('Fim da tarde deve ser depois do início da tarde.');
     }
     const wd = Number(weekday);
-    run(async () => {
-      await setDoctorAvailability(
-        { doctorId, weekday: wd, startTime: start, endTime: end },
-        uuidv4(),
-      );
-      if (comPausa) {
+    run(
+      async () => {
         await setDoctorAvailability(
-          { doctorId, weekday: wd, startTime: tardeStart, endTime: tardeEnd },
+          { doctorId, weekday: wd, startTime: start, endTime: end },
           uuidv4(),
         );
-      }
-    }, comPausa ? 'Expediente com pausa de almoço adicionado.' : 'Janela adicionada.');
+        if (comPausa) {
+          await setDoctorAvailability(
+            { doctorId, weekday: wd, startTime: tardeStart, endTime: tardeEnd },
+            uuidv4(),
+          );
+        }
+      },
+      comPausa ? 'Expediente com pausa de almoço adicionado.' : 'Janela adicionada.',
+    );
   }
 
   function addHoliday() {

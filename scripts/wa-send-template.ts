@@ -15,7 +15,11 @@ import { randomUUID } from 'node:crypto';
 
 import { messagingApiV1 } from '@/contexts/messaging';
 
-import type { DunningPayload, FollowupPayload, ReminderPayload } from '@/contexts/ai-agent/proactive-jobs/domain/types';
+import type {
+  DunningPayload,
+  FollowupPayload,
+  ReminderPayload,
+} from '@/contexts/ai-agent/proactive-jobs/domain/types';
 import { getClinicTimezone } from '@/contexts/ai-agent/proactive-jobs/infra/repository';
 import { buildProactiveTemplate } from '@/contexts/ai-agent/proactive-jobs/infra/templates';
 import type { ProactiveJobType } from '@/contexts/ai-agent/proactive-jobs/schema';
@@ -36,9 +40,21 @@ function samplePayload(type: ProactiveJobType): ReminderPayload | DunningPayload
     };
   }
   if (type === 'dunning') {
-    return { patientId: randomUUID(), lancamentoId: randomUUID(), stage: 3, valor: 200, dueDate: today, procedureNome: 'Consulta' };
+    return {
+      patientId: randomUUID(),
+      lancamentoId: randomUUID(),
+      stage: 3,
+      valor: 200,
+      dueDate: today,
+      procedureNome: 'Consulta',
+    };
   }
-  return { patientId: randomUUID(), prontuarioId: randomUUID(), doctorNome: 'Dra. Ana', returnDate: today };
+  return {
+    patientId: randomUUID(),
+    prontuarioId: randomUUID(),
+    doctorNome: 'Dra. Ana',
+    returnDate: today,
+  };
 }
 
 async function main(): Promise<void> {
@@ -48,21 +64,32 @@ async function main(): Promise<void> {
   const type = (arg('type') ?? 'reminder') as ProactiveJobType;
 
   if (!clinicId || !to || !['reminder', 'dunning', 'followup'].includes(type)) {
-    console.error('uso: pnpm wa:send-template --clinic <uuid> --to <e164> --type reminder|dunning|followup');
+    console.error(
+      'uso: pnpm wa:send-template --clinic <uuid> --to <e164> --type reminder|dunning|followup',
+    );
     process.exit(1);
   }
 
   const tz = await getClinicTimezone(clinicId);
   const t = buildProactiveTemplate(type, samplePayload(type), 'João Teste', tz);
-  console.log(`[wa:send-template] template="${t.templateName}" lang=${t.languageCode} vars=${JSON.stringify(t.variables)}`);
+  console.log(
+    `[wa:send-template] template="${t.templateName}" lang=${t.languageCode} vars=${JSON.stringify(t.variables)}`,
+  );
 
   const res = await messagingApiV1.sendText({
     clinicId,
     toNumber: to,
     idempotencyKey: randomUUID(),
-    body: { kind: 'template', templateName: t.templateName, languageCode: t.languageCode, variables: t.variables },
+    body: {
+      kind: 'template',
+      templateName: t.templateName,
+      languageCode: t.languageCode,
+      variables: t.variables,
+    },
   });
-  console.log(`[wa:send-template] status=${res.status} providerMessageId=${res.providerMessageId ?? '-'} deduped=${res.deduped}`);
+  console.log(
+    `[wa:send-template] status=${res.status} providerMessageId=${res.providerMessageId ?? '-'} deduped=${res.deduped}`,
+  );
   process.exit(res.status === 'failed' ? 1 : 0);
 }
 

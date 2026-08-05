@@ -81,7 +81,9 @@ export class ProntuarioImutavelError extends Error {
 export class ProntuarioConflitoError extends Error {
   readonly code = 'prontuario_conflito';
   readonly httpStatus = 409;
-  constructor(message = 'Este prontuário foi alterado em outra janela. Recarregue para ver a versão atual.') {
+  constructor(
+    message = 'Este prontuário foi alterado em outra janela. Recarregue para ver a versão atual.',
+  ) {
     super(message);
     this.name = 'ProntuarioConflitoError';
   }

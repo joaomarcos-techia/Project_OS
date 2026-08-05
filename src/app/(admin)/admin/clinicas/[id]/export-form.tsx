@@ -111,15 +111,20 @@ export function ExportAuditForm({ clinicId }: { clinicId: string }) {
             className="input"
           />
         </label>
-        <button type="submit" disabled={loading} className={buttonVariants({ variant: 'primary', size: 'sm' })}>
+        <button
+          type="submit"
+          disabled={loading}
+          className={buttonVariants({ variant: 'primary', size: 'sm' })}
+        >
           <Icon name="download" size={16} />
           {loading ? 'Gerando…' : 'Exportar PDF'}
         </button>
       </div>
 
       <p className="export-note">
-        <Icon name="shield" size={14} sw={1.9} /> O PDF é gerado server-side com hash de integridade e link
-        assinado (TTL 7 dias). A exportação registra <span className="mono">audit.export</span>.
+        <Icon name="shield" size={14} sw={1.9} /> O PDF é gerado server-side com hash de integridade
+        e link assinado (TTL 7 dias). A exportação registra{' '}
+        <span className="mono">audit.export</span>.
       </p>
 
       {error ? <p className="text-sm text-danger-600">{error}</p> : null}

@@ -47,7 +47,11 @@ export function parseStepState(raw: unknown): StepState {
 }
 
 /** Marca um passo como concluído (idempotente) e avança o currentStep. */
-export function advanceStep(state: StepState, done: OnboardingStep, next: OnboardingStep): StepState {
+export function advanceStep(
+  state: StepState,
+  done: OnboardingStep,
+  next: OnboardingStep,
+): StepState {
   const completed = state.completed.includes(done) ? state.completed : [...state.completed, done];
   return { ...state, completed, currentStep: next };
 }

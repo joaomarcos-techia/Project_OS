@@ -9,7 +9,13 @@ import { Icon } from '@/components/painel/icons';
 
 import { BillingBadge, ClinicStatusBadge } from '../../_components/badges';
 import { guardAdminAccess } from '../../_lib/guard';
-import { formatBRLCents, formatDate, formatDateTime, formatNumber, formatUSD } from '../../_lib/format';
+import {
+  formatBRLCents,
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatUSD,
+} from '../../_lib/format';
 import { clinicRepository } from '../../_lib/repositories/clinics.repo';
 import { ExportAuditForm } from './export-form';
 import { ImpersonateForm } from './impersonate-form';
@@ -33,8 +39,10 @@ function initialsOf(name: string): string {
 
 /** Tom do ponto de auditoria por ação (mesma semântica da aba Auditoria). */
 function auditDot(action: string): 'green' | 'amber' | 'red' {
-  if (action.includes('refund') || action.includes('delete') || action.includes('overdue')) return 'red';
-  if (action.includes('update') || action.includes('reschedule') || action.includes('sign')) return 'amber';
+  if (action.includes('refund') || action.includes('delete') || action.includes('overdue'))
+    return 'red';
+  if (action.includes('update') || action.includes('reschedule') || action.includes('sign'))
+    return 'amber';
   return 'green';
 }
 
@@ -48,7 +56,10 @@ function Kv({ k, value, empty }: { k: string; value: ReactNode; empty?: boolean 
 }
 
 function IntegRow({ label, icon, state }: { label: string; icon: string; state: IntegState }) {
-  const map: Record<IntegState, { tone: 'green' | 'amber' | 'gray'; txt: string; sub: string; ico: string }> = {
+  const map: Record<
+    IntegState,
+    { tone: 'green' | 'amber' | 'gray'; txt: string; sub: string; ico: string }
+  > = {
     connected: { tone: 'green', txt: 'Conectado', sub: 'Webhook ativo', ico: 'green' },
     attention: { tone: 'amber', txt: 'Atenção', sub: 'Verificar credenciais', ico: 'amber' },
     none: { tone: 'gray', txt: 'Não conectado', sub: 'Configurar para ativar', ico: '' },
@@ -80,7 +91,11 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
   const active = c.general.status === 'active';
   const lastActivity = c.recentAudit[0]?.timestamp ?? null;
   const waState: IntegState =
-    c.integrations.whatsapp === 'connected' ? 'connected' : c.integrations.whatsapp === 'pending' ? 'attention' : 'none';
+    c.integrations.whatsapp === 'connected'
+      ? 'connected'
+      : c.integrations.whatsapp === 'pending'
+        ? 'attention'
+        : 'none';
   const asaasState: IntegState = c.integrations.asaas === 'linked' ? 'connected' : 'none';
   const priceLabel = c.plan ? formatBRLCents(c.plan.priceCents) : null;
 
@@ -120,7 +135,10 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
             </div>
           </div>
           <div className="ph-actions">
-            <Link href="/admin/billing" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            <Link
+              href="/admin/billing"
+              className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+            >
               <Icon name="wallet" size={15} />
               Ver faturas
             </Link>
@@ -203,7 +221,9 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
               k="Em atraso"
               value={
                 c.billing.overdue > 0 ? (
-                  <span style={{ color: 'var(--danger-600)', fontWeight: 600 }}>{c.billing.overdue}</span>
+                  <span style={{ color: 'var(--danger-600)', fontWeight: 600 }}>
+                    {c.billing.overdue}
+                  </span>
                 ) : (
                   '0'
                 )
@@ -227,7 +247,10 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
       <div className="cols-2" style={{ marginTop: 'var(--sp-4)' }}>
         <div className="panel">
           <h4>
-            Uso de IA <span className="sub" style={{ marginLeft: 'auto' }}>últimos 30 dias</span>
+            Uso de IA{' '}
+            <span className="sub" style={{ marginLeft: 'auto' }}>
+              últimos 30 dias
+            </span>
           </h4>
           {c.aiUsage.conversations === 0 && c.aiUsage.messages === 0 ? (
             <div className="empty-mini">
@@ -298,7 +321,13 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
                     <td>
                       <Badge tone="gray">{u.role}</Badge>
                     </td>
-                    <td>{u.ativo ? <Badge tone="green">Ativo</Badge> : <Badge tone="gray">Inativo</Badge>}</td>
+                    <td>
+                      {u.ativo ? (
+                        <Badge tone="green">Ativo</Badge>
+                      ) : (
+                        <Badge tone="gray">Inativo</Badge>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

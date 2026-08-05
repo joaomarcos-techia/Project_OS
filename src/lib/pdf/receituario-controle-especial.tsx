@@ -23,8 +23,7 @@ const INK = '#1f2937';
 const MUTED = '#4b5563';
 const LINE = '#9ca3af';
 
-const DISCLAIMER =
-  'Documento válido somente mediante assinatura e carimbo físico do prescritor.';
+const DISCLAIMER = 'Documento válido somente mediante assinatura e carimbo físico do prescritor.';
 
 const s = StyleSheet.create({
   page: {
@@ -95,7 +94,12 @@ const s = StyleSheet.create({
   tdQt: { width: '18%', fontSize: 7.5 },
   obs: { fontSize: 7, color: MUTED, marginTop: 2 },
   // data + assinatura
-  signRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 6 },
+  signRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginTop: 6,
+  },
   dateText: { fontSize: 8 },
   signWrap: { alignItems: 'center', width: 200 },
   signLine: { borderTopWidth: 0.8, borderTopColor: INK, width: 200, marginBottom: 1 },

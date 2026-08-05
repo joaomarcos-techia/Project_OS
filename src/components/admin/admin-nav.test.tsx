@@ -17,11 +17,11 @@ import { AdminNav } from './admin-nav';
 afterEach(cleanup);
 
 describe('AdminNav', () => {
-  it('não dispara prefetch das oito páginas server-side do console', () => {
+  it('does not prefetch the nine server-rendered console pages', () => {
     render(<AdminNav />);
 
     const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(8);
+    expect(links).toHaveLength(9);
     for (const link of links) expect(link.getAttribute('data-prefetch')).toBe('false');
   });
 });

@@ -21,8 +21,8 @@ export function ImpersonationBanner({
       className="sticky top-0 z-50 flex items-center justify-between gap-4 bg-danger-600 px-4 py-2 text-sm text-white shadow-md"
     >
       <span>
-        Você está visualizando a clínica <strong>{view.clinicNome}</strong> como Super Admin.
-        Todas as ações estão sendo auditadas.
+        Você está visualizando a clínica <strong>{view.clinicNome}</strong> como Super Admin. Todas
+        as ações estão sendo auditadas.
       </span>
       <form action={stopAction}>
         <button

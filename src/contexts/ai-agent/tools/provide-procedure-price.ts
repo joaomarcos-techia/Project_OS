@@ -20,7 +20,9 @@ const InputSchema = z
       .string()
       .min(1)
       .max(200)
-      .describe('Nome (ou parte do nome) do procedimento que o paciente perguntou. Omita para listar todos.')
+      .describe(
+        'Nome (ou parte do nome) do procedimento que o paciente perguntou. Omita para listar todos.',
+      )
       .optional(),
   })
   .strict();
@@ -42,10 +44,7 @@ const OutputSchema = z.object({
 
 /** Normaliza para matching tolerante (minúsculas, sem acentos). */
 function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
 registerTool({

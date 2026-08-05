@@ -51,10 +51,7 @@ export async function applyProviderDeliveryStatus(
       ...(next === 'failed' ? { failedAt: sql`now()` } : {}),
     })
     .where(
-      and(
-        eq(outboundMessages.id, outbound.id),
-        eq(outboundMessages.clinicId, input.clinicId),
-      ),
+      and(eq(outboundMessages.id, outbound.id), eq(outboundMessages.clinicId, input.clinicId)),
     );
   await publishEvent(tx, {
     clinicId: input.clinicId,

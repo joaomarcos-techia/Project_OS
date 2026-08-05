@@ -14,9 +14,8 @@ export function selectAppointmentForConfirmation<T extends ConfirmableAppointmen
     const target = new Date(selector.scheduledAt).getTime();
     if (Number.isNaN(target)) return null;
     return (
-      appointments.find(
-        (appointment) => new Date(appointment.scheduledAt).getTime() === target,
-      ) ?? null
+      appointments.find((appointment) => new Date(appointment.scheduledAt).getTime() === target) ??
+      null
     );
   }
   return appointments.length === 1 ? appointments[0]! : null;

@@ -44,7 +44,10 @@ for (const r of rows) {
   byClinic.set(r.clinic_id, arr);
 }
 
-await anonymizePatientAuditTrail(dbAdmin, rows.map((r) => r.id));
+await anonymizePatientAuditTrail(
+  dbAdmin,
+  rows.map((r) => r.id),
+);
 
 let deleted = 0;
 let anonymized = 0;

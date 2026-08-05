@@ -147,19 +147,25 @@ export function CaixaView({
         actions={
           <div className="flex gap-4 text-right">
             <div>
-              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">A receber</div>
+              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">
+                A receber
+              </div>
               <div className="font-mono font-semibold tabular-nums text-warning-600">
                 {formatBRL(totalPendente)}
               </div>
             </div>
             <div>
-              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">Recebido hoje</div>
+              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">
+                Recebido hoje
+              </div>
               <div className="font-mono font-semibold tabular-nums text-success-600">
                 {formatBRL(totalRecebidoHoje)}
               </div>
             </div>
             <div>
-              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">A pagar</div>
+              <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">
+                A pagar
+              </div>
               <div className="font-mono font-semibold tabular-nums text-danger-600">
                 {formatBRL(totalAPagar)}
               </div>
@@ -187,8 +193,8 @@ export function CaixaView({
           <ul className="list-disc pl-5 text-[12.5px]">
             {collectionCases.slice(0, 10).map((collectionCase) => (
               <li key={collectionCase.id}>
-                Lançamento #{collectionCase.lancamentoId.slice(0, 8)} · {collectionCase.daysOverdue} dias
-                em atraso · saldo {formatBRL(collectionCase.residualAmount)}
+                Lançamento #{collectionCase.lancamentoId.slice(0, 8)} · {collectionCase.daysOverdue}{' '}
+                dias em atraso · saldo {formatBRL(collectionCase.residualAmount)}
               </li>
             ))}
           </ul>
@@ -218,7 +224,10 @@ export function CaixaView({
 
         <Section title="Recebidos hoje" count={pagosHoje.length}>
           {pagosHoje.length === 0 ? (
-            <EmptyState title="Nenhum recebimento hoje" description="Os pagamentos confirmados hoje aparecem aqui." />
+            <EmptyState
+              title="Nenhum recebimento hoje"
+              description="Os pagamentos confirmados hoje aparecem aqui."
+            />
           ) : (
             pagosHoje.map((i) => renderItem(i, { canOperate: false, canRefund }))
           )}
@@ -228,7 +237,10 @@ export function CaixaView({
             dar baixa direto no caixa, tanto vencido quanto a vencer (item P2.3). */}
         <Section title="A pagar" count={aPagar.length}>
           {aPagar.length === 0 ? (
-            <EmptyState title="Nada a pagar" description="Contas a pagar em aberto aparecem aqui." />
+            <EmptyState
+              title="Nada a pagar"
+              description="Contas a pagar em aberto aparecem aqui."
+            />
           ) : (
             aPagar.map((i) => renderItem(i, { canOperate, canRefund: false }))
           )}
@@ -253,7 +265,9 @@ function Section({
         <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.09em] text-fg-subtle">
           {title}
         </span>
-        <span className="rounded-full bg-surface-inset px-2 py-0.5 text-xs text-fg-muted">{count}</span>
+        <span className="rounded-full bg-surface-inset px-2 py-0.5 text-xs text-fg-muted">
+          {count}
+        </span>
       </div>
       <div className="flex flex-col gap-2">{children}</div>
     </section>
@@ -309,7 +323,9 @@ function ItemCard({
               {item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Walk-in')}
             </div>
             <div className="truncate text-sm text-fg-muted">
-              {item.tipo === 'pagar' ? 'Conta a pagar' : (item.snapshotProcedureName ?? item.descricao)}
+              {item.tipo === 'pagar'
+                ? 'Conta a pagar'
+                : (item.snapshotProcedureName ?? item.descricao)}
             </div>
             <div className="mt-0.5 truncate text-xs text-fg-subtle">
               {item.snapshotDoctorNome ? `${item.snapshotDoctorNome} · ` : ''}
@@ -332,16 +348,31 @@ function ItemCard({
         <div className="flex flex-wrap gap-2">
           {canOperate && (item.status === 'pendente' || item.status === 'parcial') ? (
             <>
-              <Button size="sm" variant="primary" onClick={() => onOpenPanel('confirm')} disabled={pending}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => onOpenPanel('confirm')}
+                disabled={pending}
+              >
                 Confirmar pagamento
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => onOpenPanel('cancel')} disabled={pending}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onOpenPanel('cancel')}
+                disabled={pending}
+              >
                 Cancelar
               </Button>
             </>
           ) : null}
           {canRefund && refundablePayments.length > 0 ? (
-            <Button size="sm" variant="secondary" onClick={() => onOpenPanel('estorno')} disabled={pending}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => onOpenPanel('estorno')}
+              disabled={pending}
+            >
               Reembolsar
             </Button>
           ) : null}
@@ -355,14 +386,17 @@ function ItemCard({
             item={item}
             methods={methods}
             pending={pending}
-            onSubmit={(valorPago, method, comprovante) => onConfirm(item, valorPago, method, comprovante)}
+            onSubmit={(valorPago, method, comprovante) =>
+              onConfirm(item, valorPago, method, comprovante)
+            }
           />
         ) : null}
 
         {panelMode === 'cancel' ? (
           <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-inset/40 p-3 text-sm">
             <span>
-              Cancelar {item.tipo === 'pagar' ? 'esta conta' : 'este recebimento'}? Esta ação não pode ser desfeita.
+              Cancelar {item.tipo === 'pagar' ? 'esta conta' : 'este recebimento'}? Esta ação não
+              pode ser desfeita.
             </span>
             <Button size="sm" variant="danger" loading={pending} onClick={() => onCancel(item)}>
               Sim, cancelar
@@ -429,7 +463,11 @@ function ConfirmForm({
         />
       </Field>
       <Field label="Comprovante (caminho/URL — opcional)" htmlFor={`c-${item.id}`}>
-        <Input id={`c-${item.id}`} value={comprovante} onChange={(e) => setComprovante(e.target.value)} />
+        <Input
+          id={`c-${item.id}`}
+          value={comprovante}
+          onChange={(e) => setComprovante(e.target.value)}
+        />
       </Field>
       <div className="sm:col-span-3">
         <Button
@@ -488,10 +526,15 @@ function EstornoPanel({
   return (
     <div className="grid gap-3 rounded-md border border-border bg-surface-inset/40 p-3 sm:grid-cols-2">
       <Field label="Pagamento original" htmlFor="refund-payment">
-        <Select id="refund-payment" value={paymentId} onChange={(e) => changePayment(e.target.value)}>
+        <Select
+          id="refund-payment"
+          value={paymentId}
+          onChange={(e) => changePayment(e.target.value)}
+        >
           {payments.map((payment) => (
             <option key={payment.id} value={payment.id}>
-              {formatBRL(payment.refundableAmount)} disponível - {payment.paymentMethod ?? 'método legado'}
+              {formatBRL(payment.refundableAmount)} disponível -{' '}
+              {payment.paymentMethod ?? 'método legado'}
             </option>
           ))}
         </Select>

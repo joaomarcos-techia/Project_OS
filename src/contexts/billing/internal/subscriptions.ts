@@ -111,7 +111,14 @@ export async function setBillingStatus(
   await publishEvent(tx, {
     clinicId,
     eventType: BILLING_EVENTS.SUBSCRIPTION_CHANGED,
-    payload: { clinicId, subscriptionId: sub.id, oldPlanCode: null, newPlanCode: null, oldStatus: from, newStatus: to },
+    payload: {
+      clinicId,
+      subscriptionId: sub.id,
+      oldPlanCode: null,
+      newPlanCode: null,
+      oldStatus: from,
+      newStatus: to,
+    },
     idempotencyKey: `sub-changed:${to}:${idemSuffix}`,
   });
   return true;
@@ -153,7 +160,12 @@ export async function activateSubscription(
  */
 export async function ensureInvoiceForPayment(
   tx: Tx,
-  p: { paymentId: string; subscriptionId: string | null; value: number | null; dueDate: string | null },
+  p: {
+    paymentId: string;
+    subscriptionId: string | null;
+    value: number | null;
+    dueDate: string | null;
+  },
 ): Promise<InvoiceRow | null> {
   const [existing] = await tx
     .select()
@@ -181,7 +193,10 @@ export async function ensureInvoiceForPayment(
       dueDate: due,
       asaasPaymentId: p.paymentId,
     })
-    .onConflictDoNothing({ target: invoices.asaasPaymentId, where: sql`asaas_payment_id IS NOT NULL` })
+    .onConflictDoNothing({
+      target: invoices.asaasPaymentId,
+      where: sql`asaas_payment_id IS NOT NULL`,
+    })
     .returning();
   if (!created) {
     // corrida: outra entrega criou a invoice — re-seleciona (idempotente).

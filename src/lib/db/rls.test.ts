@@ -74,7 +74,11 @@ describe('rls — defaultTenantPolicy (D2 + D5 + D22 + D27 + D28 + D33)', () => 
   it('leaves NO bare (unwrapped) auth helper call behind (A14)', () => {
     const sql = defaultTenantPolicy('clinic_units');
     // Every occurrence must be immediately preceded by `(select `.
-    for (const helper of ["current_setting('app.current_clinic', true)", 'current_clinic_id()', 'is_super_admin()']) {
+    for (const helper of [
+      "current_setting('app.current_clinic', true)",
+      'current_clinic_id()',
+      'is_super_admin()',
+    ]) {
       const total = sql.split(helper).length - 1;
       const wrapped = sql.split(`(select ${helper})`).length - 1;
       expect({ helper, total, wrapped }).toEqual({ helper, total: wrapped, wrapped });
@@ -139,7 +143,7 @@ describe('rls — defaultTenantPolicy (D2 + D5 + D22 + D27 + D28 + D33)', () => 
 
   it('rejects SQL injection via tenantColumn', () => {
     expect(() =>
-      defaultTenantPolicy('clinic_units', { tenantColumn: "1; DROP TABLE x; --" }),
+      defaultTenantPolicy('clinic_units', { tenantColumn: '1; DROP TABLE x; --' }),
     ).toThrow(/invalid column identifier/);
   });
 

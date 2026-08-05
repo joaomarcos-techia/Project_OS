@@ -29,12 +29,7 @@ export interface SendOutboundInput {
 }
 
 export type OutboundSendStatus = 'accepted' | 'failed' | 'unknown';
-export type OutboundMessageStatus =
-  | 'pending'
-  | OutboundSendStatus
-  | 'sent'
-  | 'delivered'
-  | 'read';
+export type OutboundMessageStatus = 'pending' | OutboundSendStatus | 'sent' | 'delivered' | 'read';
 
 export interface OutboundResult {
   id: string;

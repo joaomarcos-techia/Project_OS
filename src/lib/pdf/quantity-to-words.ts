@@ -9,17 +9,50 @@
  */
 
 const UNIDADES = [
-  'zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove',
-  'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete',
-  'dezoito', 'dezenove',
+  'zero',
+  'um',
+  'dois',
+  'três',
+  'quatro',
+  'cinco',
+  'seis',
+  'sete',
+  'oito',
+  'nove',
+  'dez',
+  'onze',
+  'doze',
+  'treze',
+  'quatorze',
+  'quinze',
+  'dezesseis',
+  'dezessete',
+  'dezoito',
+  'dezenove',
 ];
 const DEZENAS = [
-  '', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta',
-  'oitenta', 'noventa',
+  '',
+  '',
+  'vinte',
+  'trinta',
+  'quarenta',
+  'cinquenta',
+  'sessenta',
+  'setenta',
+  'oitenta',
+  'noventa',
 ];
 const CENTENAS = [
-  '', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos',
-  'setecentos', 'oitocentos', 'novecentos',
+  '',
+  'cento',
+  'duzentos',
+  'trezentos',
+  'quatrocentos',
+  'quinhentos',
+  'seiscentos',
+  'setecentos',
+  'oitocentos',
+  'novecentos',
 ];
 
 /** Inteiro 0..9999 por extenso (pt-BR). Cobre a faixa realista de uma receita. */

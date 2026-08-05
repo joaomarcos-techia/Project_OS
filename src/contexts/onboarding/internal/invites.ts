@@ -65,7 +65,10 @@ export async function getInviteStatus(
   rawToken: string,
 ): Promise<{ status: string; provisionedClinicId: string | null } | null> {
   const [row] = await dbAdmin
-    .select({ status: clinicInvites.status, provisionedClinicId: clinicInvites.provisionedClinicId })
+    .select({
+      status: clinicInvites.status,
+      provisionedClinicId: clinicInvites.provisionedClinicId,
+    })
     .from(clinicInvites)
     .where(eq(clinicInvites.tokenHash, hashToken(rawToken)))
     .limit(1);
@@ -130,7 +133,11 @@ export async function listOnboardingPlans(): Promise<OnboardingPlan[]> {
     .from(plans)
     .leftJoin(
       prices,
-      and(eq(prices.planId, plans.id), eq(prices.billingCycle, 'monthly'), isNull(prices.activeUntil)),
+      and(
+        eq(prices.planId, plans.id),
+        eq(prices.billingCycle, 'monthly'),
+        isNull(prices.activeUntil),
+      ),
     )
     .where(eq(plans.ativo, true))
     .orderBy(asc(plans.name));
@@ -167,7 +174,11 @@ export async function resolveCheckoutPlan(planId: string): Promise<CheckoutPlan 
     .from(plans)
     .innerJoin(
       prices,
-      and(eq(prices.planId, plans.id), eq(prices.billingCycle, 'monthly'), isNull(prices.activeUntil)),
+      and(
+        eq(prices.planId, plans.id),
+        eq(prices.billingCycle, 'monthly'),
+        isNull(prices.activeUntil),
+      ),
     )
     .where(and(eq(plans.id, planId), eq(plans.ativo, true)))
     .limit(1);

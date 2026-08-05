@@ -42,7 +42,8 @@ async function backfillBillingCustomers(): Promise<void> {
     sql`SELECT id, clinic_id, document FROM billing_customers WHERE document IS NOT NULL AND document_encrypted IS NULL`,
   )) as unknown as Array<{ id: string; clinic_id: string; document: string }>;
   if (rows.length === 0) return console.log('  billing_customers: 0 pendentes');
-  if (DRY_RUN) return console.log(`  billing_customers: ${rows.length} document a cifrar (dry-run)`);
+  if (DRY_RUN)
+    return console.log(`  billing_customers: ${rows.length} document a cifrar (dry-run)`);
   for (const r of rows) {
     const enc = await encryptForTenant(r.clinic_id, r.document);
     await dbAdmin.execute(
@@ -53,7 +54,9 @@ async function backfillBillingCustomers(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log(`[encrypt-business-pii] ${DRY_RUN ? 'DRY-RUN' : 'APLICANDO'}${ALLOW_PROD ? ' (PROD)' : ''}`);
+  console.log(
+    `[encrypt-business-pii] ${DRY_RUN ? 'DRY-RUN' : 'APLICANDO'}${ALLOW_PROD ? ' (PROD)' : ''}`,
+  );
   await backfillClinics();
   await backfillBillingCustomers();
   console.log('[encrypt-business-pii] concluído.');

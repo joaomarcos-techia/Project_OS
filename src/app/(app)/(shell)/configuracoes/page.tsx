@@ -2,7 +2,17 @@
  * /configuracoes — visão geral do hub. As seções são as SUBROTAS reais (nada de
  * link morto / mock — ADR-018); navegação principal fica nas tabs do layout.
  */
-import { Boxes, Building2, Clock3, FileLock2, MessageCircle, Pill, ShieldCheck } from 'lucide-react';
+import {
+  Boxes,
+  Building2,
+  Clock3,
+  FileLock2,
+  Lightbulb,
+  MessageCircle,
+  Pill,
+  ReceiptText,
+  ShieldCheck,
+} from 'lucide-react';
 import Link from 'next/link';
 import type { ComponentType } from 'react';
 
@@ -20,6 +30,18 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
+  {
+    icon: Lightbulb,
+    title: 'Sugestões',
+    description: 'Envie ideias, melhorias e relatos de bugs para o produto.',
+    href: '/configuracoes/sugestoes',
+  },
+  {
+    icon: ReceiptText,
+    title: 'Assinatura',
+    description: 'Plano atual, limites e alterações de assinatura da clínica.',
+    href: '/configuracoes/assinatura',
+  },
   {
     icon: Building2,
     title: 'Perfil da clínica',

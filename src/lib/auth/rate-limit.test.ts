@@ -112,9 +112,7 @@ describe('ipRateLimitKey — normalização /64 (R4)', () => {
     expect(ipRateLimitKey('2001:db8:aa:bb:1:1:1:1')).toBe(
       ipRateLimitKey('2001:db8:aa:bb:ffff:ffff:ffff:ffff'),
     );
-    expect(ipRateLimitKey('2001:db8:aa:bb::1')).not.toBe(
-      ipRateLimitKey('2001:db8:aa:cc::1'),
-    );
+    expect(ipRateLimitKey('2001:db8:aa:bb::1')).not.toBe(ipRateLimitKey('2001:db8:aa:cc::1'));
   });
 });
 
@@ -225,7 +223,10 @@ describe('M3 — fail-open com Redis indisponível', () => {
       'auth.ratelimit.degraded',
       expect.objectContaining({ kind: 'mfa' }),
     );
-    expect(warn).toHaveBeenCalledWith('auth.ratelimit.degraded', expect.objectContaining({ kind: 'mfa' }));
+    expect(warn).toHaveBeenCalledWith(
+      'auth.ratelimit.degraded',
+      expect.objectContaining({ kind: 'mfa' }),
+    );
   });
 
   it('accept (I-12): Redis fora → aceite não morre, loga com kind=accept', async () => {

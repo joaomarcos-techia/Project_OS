@@ -28,11 +28,7 @@ import { CLINICAL_PDF_BUCKET, uploadStorageFile } from '@/lib/storage/clinical';
 
 import { CLINICAL_EVENTS } from '../events';
 import { MedicalDocumentNotFoundError, PrescriptionNotFoundError } from '../errors';
-import {
-  medicalDocuments,
-  prescriptions,
-  type MedicalDocumentRow,
-} from '../schema';
+import { medicalDocuments, prescriptions, type MedicalDocumentRow } from '../schema';
 import type {
   AtestadoContent,
   DeclaracaoContent,
@@ -218,7 +214,12 @@ export async function ensureMedicalDocumentPdf(
     loaded.row.clinicId,
     loaded.row.contentEncrypted,
   );
-  const pdf = await renderMedicalDocument(loaded.row, content, loaded.branding, rowDoctor(loaded.row));
+  const pdf = await renderMedicalDocument(
+    loaded.row,
+    content,
+    loaded.branding,
+    rowDoctor(loaded.row),
+  );
   const path = `${clinicId}/documents/${loaded.row.type}/${id}.pdf`;
   await uploadStorageFile(CLINICAL_PDF_BUCKET, path, pdf);
 

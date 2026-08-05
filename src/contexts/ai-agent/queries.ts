@@ -210,7 +210,9 @@ export async function listConversations(
           maskedPhone: nome
             ? null
             : maskPhone(await decryptForTenant(clinicId, r.patientPhoneEncrypted)),
-          lastMessagePreview: lastMessage ? preview(await decryptForTenant(clinicId, lastMessage)) : null,
+          lastMessagePreview: lastMessage
+            ? preview(await decryptForTenant(clinicId, lastMessage))
+            : null,
           status: r.status,
           lastMessageAt: toIso(r.lastMessageAt)!,
           intentAtual: r.intentAtual,

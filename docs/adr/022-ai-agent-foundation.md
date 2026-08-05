@@ -155,12 +155,13 @@ messages, toolResults}))`. Gate `AI_SNAPSHOT_MODE`: `full` fora de produção,
 `sample` (~1/16, determinístico por eventId) em produção, `off` disponível —
 replay determinístico sem bomba de armazenamento.
 
-### 11. Cost tracking + quota (CONGELADO: tokens × $/1M)
+### 11. Cost tracking + política comercial (CONGELADO: tokens × $/1M)
 
 Tabela de preços EM CÓDIGO (`src/lib/ai/cost.ts`); modelo fora da tabela → 0 +
-métrica. Persistido por turno em ai_messages. Quota placeholder (C13):
-`SUM(cost_usd)` do mês vs `monthly_budget_usd ?? AI_MONTHLY_COST_LIMIT_USD` —
-estourou → bloqueia ANTES do LLM.
+métrica. Persistido por turno em ai_messages. O orçamento histórico
+`monthly_budget_usd ?? AI_MONTHLY_COST_LIMIT_USD` é telemetria/configuração, não
+gate de conversa: por ADR-024, só usuários têm trava comercial; IA continua métrica
+para não degradar o principal fluxo do produto por uso normal.
 
 ### 12. Circuit breaker (parâmetros ainda mutáveis)
 

@@ -17,11 +17,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import {
-  requireCachedPermission,
-  requireClinicId,
-  requireUser,
-} from '@/lib/auth/tenant-context';
+import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import type { Tx } from '@/lib/db';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
@@ -286,7 +282,10 @@ async function assertUnderLimit(tx: Tx, clinicId: string, doctorId: string): Pro
     .select({ n: sql<number>`count(*)::int` })
     .from(prescriptionTemplates)
     .where(
-      and(eq(prescriptionTemplates.clinicId, clinicId), eq(prescriptionTemplates.doctorId, doctorId)),
+      and(
+        eq(prescriptionTemplates.clinicId, clinicId),
+        eq(prescriptionTemplates.doctorId, doctorId),
+      ),
     );
   if ((agg?.n ?? 0) >= MAX_TEMPLATES_PER_DOCTOR) {
     throw new PrescriptionTemplateLimitError(MAX_TEMPLATES_PER_DOCTOR);
@@ -304,7 +303,10 @@ async function resolveCopyName(
     .select({ nome: prescriptionTemplates.nome })
     .from(prescriptionTemplates)
     .where(
-      and(eq(prescriptionTemplates.clinicId, clinicId), eq(prescriptionTemplates.doctorId, doctorId)),
+      and(
+        eq(prescriptionTemplates.clinicId, clinicId),
+        eq(prescriptionTemplates.doctorId, doctorId),
+      ),
     );
   const taken = new Set(rows.map((r) => r.nome.trim().toLowerCase()));
   const cap = (s: string) => (s.length > NOME_MAX ? s.slice(0, NOME_MAX) : s);

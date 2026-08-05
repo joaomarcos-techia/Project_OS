@@ -38,7 +38,9 @@ describe('healthAuthLevel', () => {
   });
 
   it('Bearer errado (mesmo tamanho) → denied', async () => {
-    expect(await healthAuthLevel(req({ authorization: `Bearer ${'y'.repeat(32)}` }))).toBe('denied');
+    expect(await healthAuthLevel(req({ authorization: `Bearer ${'y'.repeat(32)}` }))).toBe(
+      'denied',
+    );
   });
 
   it('secret sem o prefixo Bearer → denied', async () => {

@@ -39,7 +39,12 @@ export const styles = StyleSheet.create({
   clinicNome: { fontSize: 15, fontFamily: 'Helvetica-Bold' },
   clinicMeta: { fontSize: 9, color: '#4b5563' },
   band: { height: 3, marginTop: 6, marginBottom: 14, borderRadius: 2 },
-  docTitle: { fontSize: 14, fontFamily: 'Helvetica-Bold', marginBottom: 10, textTransform: 'uppercase' },
+  docTitle: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
   label: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#6b7280', marginBottom: 2 },
   paragraph: { marginBottom: 10 },
   patientLine: { marginBottom: 12, fontSize: 12 },

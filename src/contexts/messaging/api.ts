@@ -79,7 +79,9 @@ async function getInboundForAgent(
   const [row] = await tx
     .select()
     .from(inboundMessagesRaw)
-    .where(and(eq(inboundMessagesRaw.id, inboundMessageId), eq(inboundMessagesRaw.clinicId, clinicId)))
+    .where(
+      and(eq(inboundMessagesRaw.id, inboundMessageId), eq(inboundMessagesRaw.clinicId, clinicId)),
+    )
     .limit(1);
   if (!row) return null;
 

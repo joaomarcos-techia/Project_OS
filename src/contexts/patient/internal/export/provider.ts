@@ -17,11 +17,7 @@ import type { Tx } from '@/lib/db';
 
 import { collectExportBundle } from '../../queries';
 
-export type ExportCollector = (
-  tx: Tx,
-  clinicId: string,
-  patientId: string,
-) => Promise<unknown>;
+export type ExportCollector = (tx: Tx, clinicId: string, patientId: string) => Promise<unknown>;
 
 const collectors = new Map<string, ExportCollector>();
 

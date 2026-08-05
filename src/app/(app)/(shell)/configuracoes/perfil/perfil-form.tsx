@@ -102,7 +102,6 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
 
   return (
     <div className="stack" style={{ maxWidth: 560 }}>
-
       {/* Dados do documento */}
       <div className="cardblock wrap-pad flex flex-col gap-3">
         <h4 className="text-sm font-semibold">Dados da clínica (aparecem nos documentos)</h4>
@@ -148,13 +147,23 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
           <div className="flex size-16 items-center justify-center overflow-hidden rounded border border-border bg-surface-subtle">
             {shownLogo ? (
               // eslint-disable-next-line @next/next/no-img-element -- preview simples de asset remoto (Supabase); next/image exigiria allowlist de domínio.
-              <img src={shownLogo} alt="Logo da clínica" className="max-h-full max-w-full object-contain" />
+              <img
+                src={shownLogo}
+                alt="Logo da clínica"
+                className="max-h-full max-w-full object-contain"
+              />
             ) : (
               <span className="text-xs text-fg-subtle">sem logo</span>
             )}
           </div>
           <div className="flex flex-col gap-1">
-            <input ref={fileRef} type="file" accept={ACCEPT} onChange={onPickFile} className="hidden" />
+            <input
+              ref={fileRef}
+              type="file"
+              accept={ACCEPT}
+              onChange={onPickFile}
+              className="hidden"
+            />
             <div className="flex gap-2">
               <Button
                 type="button"

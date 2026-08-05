@@ -19,9 +19,9 @@ describe('CreateAppointmentSchema — valor_ajustado integrity', () => {
   });
 
   it('rejects valor_ajustado=true without valor AND motivo', () => {
-    expect(
-      CreateAppointmentSchema.safeParse({ ...baseAppt, valorAjustado: true }).success,
-    ).toBe(false);
+    expect(CreateAppointmentSchema.safeParse({ ...baseAppt, valorAjustado: true }).success).toBe(
+      false,
+    );
     expect(
       CreateAppointmentSchema.safeParse({ ...baseAppt, valorAjustado: true, valor: 150 }).success,
     ).toBe(false);
@@ -38,9 +38,9 @@ describe('CreateAppointmentSchema — valor_ajustado integrity', () => {
   });
 
   it('rejects a non-datetime scheduledAt', () => {
-    expect(CreateAppointmentSchema.safeParse({ ...baseAppt, scheduledAt: '2026-06-01' }).success).toBe(
-      false,
-    );
+    expect(
+      CreateAppointmentSchema.safeParse({ ...baseAppt, scheduledAt: '2026-06-01' }).success,
+    ).toBe(false);
   });
 });
 

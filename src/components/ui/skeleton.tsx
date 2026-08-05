@@ -34,19 +34,10 @@ export function SkeletonCard({ className, lines = 3 }: { className?: string; lin
 }
 
 /** Pré-composição: tabela em carregamento (para loading.tsx). */
-export function SkeletonTable({
-  rows = 5,
-  className,
-}: {
-  rows?: number;
-  className?: string;
-}) {
+export function SkeletonTable({ rows = 5, className }: { rows?: number; className?: string }) {
   return (
     <div
-      className={cn(
-        'overflow-hidden rounded-(--r-lg) border border-border bg-surface',
-        className,
-      )}
+      className={cn('overflow-hidden rounded-(--r-lg) border border-border bg-surface', className)}
     >
       <div className="border-b border-border bg-surface-2 px-3.5 py-3">
         <Skeleton className="h-3.5 w-1/4" />

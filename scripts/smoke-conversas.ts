@@ -189,7 +189,10 @@ async function main(): Promise<void> {
       'VAZAMENTO: clínica B listou conversa da clínica A',
     );
     const listA = await listConversations(CLINIC_A, {});
-    assert(listA.items.some((c) => c.id === convA), 'A não listou a própria conversa');
+    assert(
+      listA.items.some((c) => c.id === convA),
+      'A não listou a própria conversa',
+    );
   });
 
   await tryStep('1.2 thread: B não abre thread de A', async () => {
@@ -270,7 +273,10 @@ async function main(): Promise<void> {
   await tryStep('3.3 telefone aparece mascarado quando não há nome', async () => {
     const list = await listConversations(CLINIC_A, {});
     const item = list.items.find((c) => c.id === convA);
-    assert(item?.maskedPhone?.includes('*') === true, `telefone não mascarado: ${item?.maskedPhone}`);
+    assert(
+      item?.maskedPhone?.includes('*') === true,
+      `telefone não mascarado: ${item?.maskedPhone}`,
+    );
   });
 
   // --- 4.x resposta manual ----------------------------------------------------
@@ -350,46 +356,52 @@ async function main(): Promise<void> {
     assert(rows[0]!.n === 1, `fila duplicou: ${rows[0]!.n} linhas abertas`);
   });
 
-  await tryStep('5.2 devolver ao agente RESOLVE a fila (reescalação volta a funcionar)', async () => {
-    const conv = await seedConversation(CLINIC_A, { status: 'active' });
-    await withTenant(CLINIC_A, (tx) => escalateToHuman(tx, CLINIC_A, conv, 'manual_takeover'));
-    await withTenant(CLINIC_A, (tx) => returnToAgent(tx, CLINIC_A, conv));
+  await tryStep(
+    '5.2 devolver ao agente RESOLVE a fila (reescalação volta a funcionar)',
+    async () => {
+      const conv = await seedConversation(CLINIC_A, { status: 'active' });
+      await withTenant(CLINIC_A, (tx) => escalateToHuman(tx, CLINIC_A, conv, 'manual_takeover'));
+      await withTenant(CLINIC_A, (tx) => returnToAgent(tx, CLINIC_A, conv));
 
-    const aberta = (await dbAdmin.execute(
-      sql`SELECT count(*)::int AS n FROM ai_handoff_queue
+      const aberta = (await dbAdmin.execute(
+        sql`SELECT count(*)::int AS n FROM ai_handoff_queue
           WHERE conversation_id = ${conv}::uuid AND resolved_at IS NULL`,
-    )) as unknown as Array<{ n: number }>;
-    assert(aberta[0]!.n === 0, 'fila não foi resolvida ao devolver ao agente');
+      )) as unknown as Array<{ n: number }>;
+      assert(aberta[0]!.n === 0, 'fila não foi resolvida ao devolver ao agente');
 
-    // Sem o resolved_at, este segundo escalate cairia no DO NOTHING e a conversa
-    // nunca mais apareceria na fila humana.
-    await withTenant(CLINIC_A, (tx) => escalateToHuman(tx, CLINIC_A, conv, 'fallback_threshold'));
-    const rea = (await dbAdmin.execute(
-      sql`SELECT count(*)::int AS n FROM ai_handoff_queue
+      // Sem o resolved_at, este segundo escalate cairia no DO NOTHING e a conversa
+      // nunca mais apareceria na fila humana.
+      await withTenant(CLINIC_A, (tx) => escalateToHuman(tx, CLINIC_A, conv, 'fallback_threshold'));
+      const rea = (await dbAdmin.execute(
+        sql`SELECT count(*)::int AS n FROM ai_handoff_queue
           WHERE conversation_id = ${conv}::uuid AND resolved_at IS NULL`,
-    )) as unknown as Array<{ n: number }>;
-    assert(rea[0]!.n === 1, 'reescalação após devolver NÃO reabriu a fila');
-  });
+      )) as unknown as Array<{ n: number }>;
+      assert(rea[0]!.n === 1, 'reescalação após devolver NÃO reabriu a fila');
+    },
+  );
 
-  await tryStep('5.2b devolver com outra ativa no mesmo contato → erro tipado, não 23505 cru', async () => {
-    const phone = '11955554444';
-    // Uma ativa e uma em handoff para o MESMO contato — estado que a unique
-    // parcial permite (ela só cobre status='active').
-    await seedConversation(CLINIC_A, { status: 'active', phone });
-    const emHandoff = await seedConversation(CLINIC_A, { status: 'handoff', phone });
+  await tryStep(
+    '5.2b devolver com outra ativa no mesmo contato → erro tipado, não 23505 cru',
+    async () => {
+      const phone = '11955554444';
+      // Uma ativa e uma em handoff para o MESMO contato — estado que a unique
+      // parcial permite (ela só cobre status='active').
+      await seedConversation(CLINIC_A, { status: 'active', phone });
+      const emHandoff = await seedConversation(CLINIC_A, { status: 'handoff', phone });
 
-    let caught: unknown;
-    try {
-      await withTenant(CLINIC_A, (tx) => returnToAgent(tx, CLINIC_A, emHandoff));
-    } catch (e) {
-      caught = e;
-    }
-    assert(caught !== undefined, 'devolver deveria ter falhado (duas ativas no mesmo contato)');
-    assert(
-      caught instanceof ActiveConversationConflictError,
-      `erro não tipado vazou para o caller: ${(caught as Error)?.name}`,
-    );
-  });
+      let caught: unknown;
+      try {
+        await withTenant(CLINIC_A, (tx) => returnToAgent(tx, CLINIC_A, emHandoff));
+      } catch (e) {
+        caught = e;
+      }
+      assert(caught !== undefined, 'devolver deveria ter falhado (duas ativas no mesmo contato)');
+      assert(
+        caught instanceof ActiveConversationConflictError,
+        `erro não tipado vazou para o caller: ${(caught as Error)?.name}`,
+      );
+    },
+  );
 
   await tryStep('5.3 CORRIDA: status vira active entre carregar e enviar → bloqueia', async () => {
     const conv = await seedConversation(CLINIC_A, { status: 'handoff' });
@@ -414,10 +426,7 @@ async function main(): Promise<void> {
       now: new Date(),
     });
     assert(!decisao.allowed, 'CORRIDA: envio permitido com a conversa já devolvida ao agente');
-    assert(
-      !decisao.allowed && decisao.reason === 'not_handoff',
-      'motivo errado para a corrida',
-    );
+    assert(!decisao.allowed && decisao.reason === 'not_handoff', 'motivo errado para a corrida');
   });
 
   await tryStep('5.4 janela de 24h fechada bloqueia com dado real do banco', async () => {
@@ -485,7 +494,10 @@ async function main(): Promise<void> {
       'ordenação: handoff NÃO veio primeiro',
     );
     const only = await listConversations(CLINIC_A, { status: 'handoff' });
-    assert(only.items.every((c) => c.status === 'handoff'), 'filtro de status vazou outros status');
+    assert(
+      only.items.every((c) => c.status === 'handoff'),
+      'filtro de status vazou outros status',
+    );
   });
 
   await tryStep('7.2 busca por telefone acha via hash', async () => {

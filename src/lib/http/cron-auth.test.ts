@@ -22,7 +22,9 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
-vi.mock('@/lib/observability/logger', () => ({ logger: { warn, error: vi.fn(), info: vi.fn(), debug: vi.fn() } }));
+vi.mock('@/lib/observability/logger', () => ({
+  logger: { warn, error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
 
 import { assertCronAuth } from './cron-auth';
 
@@ -70,12 +72,16 @@ describe('x-vercel-cron NÃO é gate (F-09)', () => {
   });
 
   it('x-vercel-cron presente → autorizado, sem anomalia', () => {
-    expect(assertCronAuth(req({ ...bearer(SECRET), 'x-vercel-cron': '1' }), { route: 'outbox' })).toBeNull();
+    expect(
+      assertCronAuth(req({ ...bearer(SECRET), 'x-vercel-cron': '1' }), { route: 'outbox' }),
+    ).toBeNull();
     expect(emit).not.toHaveBeenCalledWith('cron.origin_header_missing', expect.anything());
   });
 
   it('x-vercel-cron-schedule (o header que a Vercel realmente documenta) também conta', () => {
-    assertCronAuth(req({ ...bearer(SECRET), 'x-vercel-cron-schedule': '* * * * *' }), { route: 'outbox' });
+    assertCronAuth(req({ ...bearer(SECRET), 'x-vercel-cron-schedule': '* * * * *' }), {
+      route: 'outbox',
+    });
     expect(emit).not.toHaveBeenCalledWith('cron.origin_header_missing', expect.anything());
   });
 
@@ -129,7 +135,9 @@ describe('fail-close', () => {
   // `Bearer ${undefined}` interpola para a string "Bearer undefined".
   it('CRON_SECRET ausente → "Bearer undefined" NÃO autentica', () => {
     envMock.value.CRON_SECRET = undefined as unknown as string;
-    expect(assertCronAuth(req({ authorization: 'Bearer undefined' }), { route: 'outbox' })?.status).toBe(401);
+    expect(
+      assertCronAuth(req({ authorization: 'Bearer undefined' }), { route: 'outbox' })?.status,
+    ).toBe(401);
     expect(assertCronAuth(req(), { route: 'outbox' })?.status).toBe(401);
   });
 
@@ -137,8 +145,10 @@ describe('fail-close', () => {
     envMock.value.CRON_SECRET = undefined as unknown as string;
     envMock.value.CRON_SECRET_DESTRUCTIVE = undefined;
     expect(
-      assertCronAuth(req({ authorization: 'Bearer undefined' }), { route: 'data-retention', destructive: true })
-        ?.status,
+      assertCronAuth(req({ authorization: 'Bearer undefined' }), {
+        route: 'data-retention',
+        destructive: true,
+      })?.status,
     ).toBe(401);
   });
 });

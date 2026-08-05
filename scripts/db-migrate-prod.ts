@@ -147,7 +147,11 @@ async function withAdvisoryLock<T>(databaseUrl: string, fn: () => Promise<T>): P
   }
 }
 
-function writeFailureSentinel(databaseUrl: string, errorText: string, backupPath: string | null): void {
+function writeFailureSentinel(
+  databaseUrl: string,
+  errorText: string,
+  backupPath: string | null,
+): void {
   let gitCommit = 'unknown';
   try {
     gitCommit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
@@ -231,7 +235,9 @@ async function main(): Promise<void> {
     console.log('[migrate:prod] DONE.');
   } catch (err) {
     const msg = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
-    appendLog(`${new Date().toISOString()} | ${gitUserEmail()} | ${backupPath ?? '(no-backup)'} | FAIL: ${msg.slice(0, 200)}`);
+    appendLog(
+      `${new Date().toISOString()} | ${gitUserEmail()} | ${backupPath ?? '(no-backup)'} | FAIL: ${msg.slice(0, 200)}`,
+    );
     writeFailureSentinel(migrateUrl, msg, backupPath);
     throw err;
   }

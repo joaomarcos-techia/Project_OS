@@ -73,7 +73,17 @@ const REJECT_WORDS = new Set([
 
 // In\u00edcio t\u00edpico de PERGUNTA/pedido (n\u00e3o \u00e9 confirmar): "posso confirmar?",
 // "quero informa\u00e7\u00f5es", "e se eu cancelar?".
-const REJECT_PREFIXES = ['posso', 'poderia', 'quero', 'gostaria', 'como', 'quando', 'qual', 'sera', 'e se'];
+const REJECT_PREFIXES = [
+  'posso',
+  'poderia',
+  'quero',
+  'gostaria',
+  'como',
+  'quando',
+  'qual',
+  'sera',
+  'e se',
+];
 
 function normalizeConfirmation(value: string): string {
   return value

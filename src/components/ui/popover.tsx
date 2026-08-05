@@ -33,7 +33,5 @@ export function PopoverContent({
 }
 
 export function PopoverHeading({ className, ...props }: ComponentProps<'div'>) {
-  return (
-    <div className={cn('mb-2 text-(length:--fs-sm) font-semibold', className)} {...props} />
-  );
+  return <div className={cn('mb-2 text-(length:--fs-sm) font-semibold', className)} {...props} />;
 }

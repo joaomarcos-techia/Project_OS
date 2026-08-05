@@ -193,7 +193,11 @@ async function anonymizePatientRow(sp: Tx, clinicId: string, id: string): Promis
   await sp.delete(patientEmergencyContacts).where(eq(patientEmergencyContacts.patientId, id));
 }
 
-async function markDeleteRequestsCompleted(sp: Tx, clinicId: string, patientId: string): Promise<void> {
+async function markDeleteRequestsCompleted(
+  sp: Tx,
+  clinicId: string,
+  patientId: string,
+): Promise<void> {
   await sp
     .update(lgpdRequests)
     .set({ status: 'completed', fulfilledAt: sql`now()` })
@@ -208,7 +212,11 @@ async function markDeleteRequestsCompleted(sp: Tx, clinicId: string, patientId: 
 }
 
 /** Best-effort (fora de savepoint próprio): visibilidade do bloqueio (F-02c). */
-async function markDeleteRequestsFailed(tx: Tx, clinicId: string, patientId: string): Promise<void> {
+async function markDeleteRequestsFailed(
+  tx: Tx,
+  clinicId: string,
+  patientId: string,
+): Promise<void> {
   try {
     await tx
       .update(lgpdRequests)

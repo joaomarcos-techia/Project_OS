@@ -17,7 +17,9 @@ describe('seleção segura da consulta a confirmar', () => {
     expect(selectAppointmentForConfirmation(appointments, { appointmentId: 'a2' })).toEqual(
       appointments[1],
     );
-    expect(selectAppointmentForConfirmation(appointments, { appointmentId: 'terceiro' })).toBeNull();
+    expect(
+      selectAppointmentForConfirmation(appointments, { appointmentId: 'terceiro' }),
+    ).toBeNull();
   });
 
   it('seleciona por instante ISO equivalente e rejeita data inválida', () => {

@@ -20,7 +20,10 @@ export async function offerWaitlistForCancelledAppointment(
         eq(waitlistEntries.clinicId, appointment.clinicId),
         eq(waitlistEntries.status, 'waiting'),
         eq(waitlistEntries.procedureId, appointment.procedureId),
-        or(eq(waitlistEntries.doctorId, appointment.doctorId), sql`${waitlistEntries.doctorId} IS NULL`),
+        or(
+          eq(waitlistEntries.doctorId, appointment.doctorId),
+          sql`${waitlistEntries.doctorId} IS NULL`,
+        ),
       ),
     )
     .for('update');

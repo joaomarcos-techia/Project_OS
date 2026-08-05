@@ -69,7 +69,10 @@ export default async function CaixaPage() {
     ),
   );
   const patientIds = [...new Set(all.filter((l) => l.patientId).map((l) => l.patientId!))];
-  const cards = await withQueryDeadline('caixa.patientCards', listPatientCards(clinicId, patientIds));
+  const cards = await withQueryDeadline(
+    'caixa.patientCards',
+    listPatientCards(clinicId, patientIds),
+  );
   const nameById = new Map(cards.map((c) => [c.id, c.nome]));
   const enrich = (l: LancamentoSummary): CaixaItem => ({
     ...l,

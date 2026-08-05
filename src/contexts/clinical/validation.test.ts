@@ -35,7 +35,9 @@ describe('SignProntuarioSchema (needs_return — teste 7.6.5)', () => {
   });
 
   it('aceita needsReturn=true com returnDays', () => {
-    expect(SignProntuarioSchema.safeParse({ needsReturn: true, returnDays: 90 }).success).toBe(true);
+    expect(SignProntuarioSchema.safeParse({ needsReturn: true, returnDays: 90 }).success).toBe(
+      true,
+    );
   });
 
   it('rejeita needsReturn=true SEM returnDays', () => {
@@ -43,15 +45,17 @@ describe('SignProntuarioSchema (needs_return — teste 7.6.5)', () => {
   });
 
   it('rejeita returnDays <= 0', () => {
-    expect(SignProntuarioSchema.safeParse({ needsReturn: true, returnDays: 0 }).success).toBe(false);
+    expect(SignProntuarioSchema.safeParse({ needsReturn: true, returnDays: 0 }).success).toBe(
+      false,
+    );
   });
 });
 
 describe('CreatePrescriptionSchema', () => {
   it('exige pelo menos um medicamento', () => {
-    expect(
-      CreatePrescriptionSchema.safeParse({ patientId: UUID, medicamentos: [] }).success,
-    ).toBe(false);
+    expect(CreatePrescriptionSchema.safeParse({ patientId: UUID, medicamentos: [] }).success).toBe(
+      false,
+    );
   });
 
   it('aceita prescrição com medicamentos', () => {
@@ -96,17 +100,24 @@ describe('PrescriptionTemplateSchema (modelos de receita — Fase 2)', () => {
   const okMed = { nome: 'Sertralina', dosagem: '50mg' };
 
   it('aceita modelo válido com kind default simples', () => {
-    const r = PrescriptionTemplateSchema.safeParse({ nome: 'Sertralina início', medicamentos: [okMed] });
+    const r = PrescriptionTemplateSchema.safeParse({
+      nome: 'Sertralina início',
+      medicamentos: [okMed],
+    });
     expect(r.success).toBe(true);
     expect(r.success && r.data.kind).toBe('simples');
   });
 
   it('exige nome', () => {
-    expect(PrescriptionTemplateSchema.safeParse({ nome: '', medicamentos: [okMed] }).success).toBe(false);
+    expect(PrescriptionTemplateSchema.safeParse({ nome: '', medicamentos: [okMed] }).success).toBe(
+      false,
+    );
   });
 
   it('exige ao menos um medicamento', () => {
-    expect(PrescriptionTemplateSchema.safeParse({ nome: 'X', medicamentos: [] }).success).toBe(false);
+    expect(PrescriptionTemplateSchema.safeParse({ nome: 'X', medicamentos: [] }).success).toBe(
+      false,
+    );
   });
 
   it('categoria é opcional e aceita controle_especial', () => {
@@ -122,7 +133,8 @@ describe('PrescriptionTemplateSchema (modelos de receita — Fase 2)', () => {
 
   it('rejeita nome acima de 120 chars', () => {
     expect(
-      PrescriptionTemplateSchema.safeParse({ nome: 'a'.repeat(121), medicamentos: [okMed] }).success,
+      PrescriptionTemplateSchema.safeParse({ nome: 'a'.repeat(121), medicamentos: [okMed] })
+        .success,
     ).toBe(false);
   });
 });
@@ -144,8 +156,11 @@ describe('CreateMedicalDocumentSchema (discriminated union por tipo)', () => {
 
   it('exame exige ao menos um exame', () => {
     expect(
-      CreateMedicalDocumentSchema.safeParse({ patientId: UUID, type: 'exame', content: { exames: [] } })
-        .success,
+      CreateMedicalDocumentSchema.safeParse({
+        patientId: UUID,
+        type: 'exame',
+        content: { exames: [] },
+      }).success,
     ).toBe(false);
     expect(
       CreateMedicalDocumentSchema.safeParse({

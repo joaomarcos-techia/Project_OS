@@ -19,7 +19,9 @@ describe('granular consent decisions', () => {
     expect(migration).toContain('UNIQUE NULLS NOT DISTINCT');
     expect(migration).toContain('patient consent decision tenant mismatch');
     expect(migration).toContain('ALTER TABLE patient_consent_decisions FORCE ROW LEVEL SECURITY');
-    expect(migration).toContain('GRANT SELECT, INSERT ON patient_consent_decisions TO authenticated');
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT ON patient_consent_decisions TO authenticated',
+    );
     expect(actions).toContain('pg_advisory_xact_lock');
     expect(actions).not.toContain('.update(patientConsentDecisions)');
   });
@@ -34,6 +36,6 @@ describe('granular consent decisions', () => {
     expect(sender).toContain("eq(suppressionList.purpose, 'all')");
     expect(sender).toContain('eq(suppressionList.purpose, input.purpose)');
     expect(actions).toContain("purpose: 'all'");
-    expect(actions).toContain("eq(suppressionList.reason, `consent_revoked:${decision.purpose}`)");
+    expect(actions).toContain('eq(suppressionList.reason, `consent_revoked:${decision.purpose}`)');
   });
 });

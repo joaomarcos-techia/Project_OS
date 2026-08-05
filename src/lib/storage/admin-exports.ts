@@ -37,7 +37,9 @@ export async function createSignedAdminExportUrl(
     .from(ADMIN_EXPORT_BUCKET)
     .createSignedUrl(path, ttlSeconds);
   if (error || !data) {
-    throw new Error(`[storage] admin export signed url falhou (${path}): ${error?.message ?? 'sem data'}`);
+    throw new Error(
+      `[storage] admin export signed url falhou (${path}): ${error?.message ?? 'sem data'}`,
+    );
   }
   return data.signedUrl;
 }

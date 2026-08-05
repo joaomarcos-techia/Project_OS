@@ -43,18 +43,14 @@ describe('getConnectionStats', () => {
   });
 
   it('arredonda a saturação (evita ruído de casas decimais no alerta)', async () => {
-    execute.mockResolvedValue([
-      { total: 7, active: 7, idle: 0, waiting: 0, max_connections: 60 },
-    ]);
+    execute.mockResolvedValue([{ total: 7, active: 7, idle: 0, waiting: 0, max_connections: 60 }]);
     const { getConnectionStats } = await freshModule();
 
     expect((await getConnectionStats())!.saturation_pct).toBe(12);
   });
 
   it('faz cache: o health é pollado a cada 3min e não pode martelar o catálogo', async () => {
-    execute.mockResolvedValue([
-      { total: 1, active: 1, idle: 0, waiting: 0, max_connections: 60 },
-    ]);
+    execute.mockResolvedValue([{ total: 1, active: 1, idle: 0, waiting: 0, max_connections: 60 }]);
     const { getConnectionStats } = await freshModule();
 
     await getConnectionStats();
@@ -88,9 +84,7 @@ describe('getConnectionStats', () => {
   });
 
   it('max_connections ausente/zero não vira divisão por zero', async () => {
-    execute.mockResolvedValue([
-      { total: 5, active: 5, idle: 0, waiting: 0, max_connections: 0 },
-    ]);
+    execute.mockResolvedValue([{ total: 5, active: 5, idle: 0, waiting: 0, max_connections: 0 }]);
     const { getConnectionStats } = await freshModule();
 
     expect((await getConnectionStats())!.saturation_pct).toBe(0);

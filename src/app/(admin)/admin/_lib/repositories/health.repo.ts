@@ -55,12 +55,19 @@ export class HealthRepository {
     const [m] = await dbAdmin
       .select({ at: sql<string | null>`MAX(${outboundMessages.sentAt})` })
       .from(outboundMessages)
-      .where(and(eq(outboundMessages.status, 'accepted'), sql`${outboundMessages.sentAt} >= ${recent}`));
+      .where(
+        and(eq(outboundMessages.status, 'accepted'), sql`${outboundMessages.sentAt} >= ${recent}`),
+      );
 
     const [a] = await dbAdmin
       .select({ at: sql<string | null>`MAX(${paymentAttempts.createdAt})` })
       .from(paymentAttempts)
-      .where(and(eq(paymentAttempts.status, 'confirmed'), sql`${paymentAttempts.createdAt} >= ${recent}`));
+      .where(
+        and(
+          eq(paymentAttempts.status, 'confirmed'),
+          sql`${paymentAttempts.createdAt} >= ${recent}`,
+        ),
+      );
 
     return { gemini: iso(g?.at ?? null), meta: iso(m?.at ?? null), asaas: iso(a?.at ?? null) };
   }

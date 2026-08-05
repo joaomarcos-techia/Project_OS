@@ -13,6 +13,8 @@ export default function ConfiguracoesLayout({ children }: { children: ReactNode 
       <NavTabs
         className="mb-(--sp-5)"
         tabs={[
+          { label: 'Assinatura', href: '/configuracoes/assinatura' },
+          { label: 'Sugestões', href: '/configuracoes/sugestoes' },
           { label: 'Visão geral', href: '/configuracoes', exact: true },
           { label: 'Perfil da clínica', href: '/configuracoes/perfil' },
           { label: 'Horários', href: '/configuracoes/horarios' },

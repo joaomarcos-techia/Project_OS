@@ -226,9 +226,7 @@ export interface ResendClinicInviteArgs {
  * em /convite (que faz exchangeCodeForSession + updateUser). A UI COPIA este link;
  * o owner entrega (WhatsApp/e-mail) — não dependemos de auto-send (ADR-034).
  */
-export async function resendClinicInvite(
-  args: ResendClinicInviteArgs,
-): Promise<{ link: string }> {
+export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<{ link: string }> {
   const admin = createAdminClient();
 
   // 1. Re-valida: pertence à clínica + ainda pendente (autoridade server-side; a UI
@@ -344,10 +342,10 @@ export async function cancelClinicInvite(args: CancelClinicInviteArgs): Promise<
 
   // Remove o auth user órfão (o profile já saiu pela tx). Best-effort COM
   // visibilidade — se falhar, sobra órfão até a reconciliação (débito #6).
-  await admin.auth.admin
-    .deleteUser(args.userId)
-    .catch((e: unknown) =>
-      logger.error('identity.invite_cancel.delete_user_failed', { userId: args.userId, err: String(e) }),
-    );
+  await admin.auth.admin.deleteUser(args.userId).catch((e: unknown) =>
+    logger.error('identity.invite_cancel.delete_user_failed', {
+      userId: args.userId,
+      err: String(e),
+    }),
+  );
 }
-

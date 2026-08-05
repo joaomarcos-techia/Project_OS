@@ -25,8 +25,16 @@ const [appt] = (await dbAdmin.execute(sql`
          to_char(scheduled_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS sched
     FROM appointments WHERE status = 'atendido' ORDER BY updated_at DESC LIMIT 1
 `)) as unknown as Array<{
-  id: string; clinic: string; doctor: string; patient: string | null; procedure: string;
-  unit: string | null; valor: string; proc_name: string; doc_name: string; sched: string;
+  id: string;
+  clinic: string;
+  doctor: string;
+  patient: string | null;
+  procedure: string;
+  unit: string | null;
+  valor: string;
+  proc_name: string;
+  doc_name: string;
+  sched: string;
 }>;
 
 if (!appt) {
@@ -59,7 +67,15 @@ console.log('publicado completed, key =', key, 'valor =', appt.valor);
 
 for (let i = 0; i < 6; i++) {
   const s = await runOutboxOnce();
-  console.log(`tick ${i}:`, JSON.stringify({ processed: s.processed, failed: s.failed, skipped: s.skipped, empty: s.empty }));
+  console.log(
+    `tick ${i}:`,
+    JSON.stringify({
+      processed: s.processed,
+      failed: s.failed,
+      skipped: s.skipped,
+      empty: s.empty,
+    }),
+  );
 }
 
 const lanc = await dbAdmin.execute(sql`

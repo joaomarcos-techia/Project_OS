@@ -2,9 +2,7 @@
  * ActionResult + helpers compartilhados pelas telas do Financeiro (Fase 2).
  * Mapeia erros de domínio (por `name`, intactos no servidor) → mensagem amigável.
  */
-export type ActionResult<T = undefined> =
-  | { ok: true; data: T }
-  | { ok: false; message: string };
+export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; message: string };
 
 export function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };

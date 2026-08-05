@@ -16,7 +16,16 @@
  * fracionários (ai_cost_usd, revenue_received) sem perda.
  */
 import { sql } from 'drizzle-orm';
-import { date, index, numeric, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  date,
+  index,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 export const systemMetricsDaily = pgTable(
   'system_metrics_daily',
@@ -25,7 +34,9 @@ export const systemMetricsDaily = pgTable(
     date: date('date').notNull(),
     metricName: text('metric_name').notNull(),
     value: numeric('value', { precision: 20, scale: 4 }).notNull().default('0'),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.clinicId, t.date, t.metricName] }),

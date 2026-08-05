@@ -20,7 +20,9 @@ export async function renderPrescriptionPDF(
             </Text>
             {m.posologia ? <Text style={styles.itemDetail}>Posologia: {m.posologia}</Text> : null}
             {m.via ? <Text style={styles.itemDetail}>Via: {m.via}</Text> : null}
-            {m.quantidade ? <Text style={styles.itemDetail}>Quantidade: {m.quantidade}</Text> : null}
+            {m.quantidade ? (
+              <Text style={styles.itemDetail}>Quantidade: {m.quantidade}</Text>
+            ) : null}
           </View>
         ))}
       </View>

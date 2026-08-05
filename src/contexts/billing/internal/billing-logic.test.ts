@@ -120,11 +120,11 @@ describe('state machine (monotônica; webhook fora de ordem)', () => {
     expect(canTransitionInvoice('cancelled', 'paid')).toBe(false);
     expect(canTransitionInvoice('paid', 'paid')).toBe(true); // idempotente
   });
-  it('billing: cancelled é terminal', () => {
+  it('billing: reativação comercial pode sair de cancelled', () => {
     expect(canTransitionBilling('trial', 'active')).toBe(true);
     expect(canTransitionBilling('active', 'past_due')).toBe(true);
     expect(canTransitionBilling('past_due', 'active')).toBe(true);
-    expect(canTransitionBilling('cancelled', 'active')).toBe(false);
+    expect(canTransitionBilling('cancelled', 'active')).toBe(true);
   });
 });
 

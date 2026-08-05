@@ -128,9 +128,6 @@ export async function revokeSession(impersonationId: string): Promise<void> {
     .update(impersonationSessions)
     .set({ revokedAt: sql`now()` })
     .where(
-      and(
-        eq(impersonationSessions.id, impersonationId),
-        isNull(impersonationSessions.revokedAt),
-      ),
+      and(eq(impersonationSessions.id, impersonationId), isNull(impersonationSessions.revokedAt)),
     );
 }

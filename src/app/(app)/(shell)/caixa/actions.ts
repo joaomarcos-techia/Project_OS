@@ -5,11 +5,7 @@
  * contexto financial (auth/idempotência/audit/outbox lá dentro) e devolvem
  * `ActionResult` (sem redirect) — a tela atualiza in-place via router.refresh().
  */
-import {
-  cancelLancamento,
-  confirmPayment,
-  createEstorno,
-} from '@/contexts/financial/actions';
+import { cancelLancamento, confirmPayment, createEstorno } from '@/contexts/financial/actions';
 import type {
   CancelLancamentoInput,
   ConfirmPaymentInput,

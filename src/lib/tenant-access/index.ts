@@ -66,6 +66,7 @@ export class ClinicAccessError extends Error {
  * ao paciente a punição de uma disputa comercial da qual ele não participa.
  */
 const LGPD_RESOURCE_TYPE = 'lgpd_request';
+const SUBSCRIPTION_REACTIVATION_RESOURCE_TYPE = 'subscription_reactivation';
 
 export interface WriteGateInput {
   /** `audit.resourceType` da mutação. */
@@ -92,6 +93,8 @@ export function shouldEnforceWriteGate(input: WriteGateInput): boolean {
   if (input.actor) return false;
   if (input.impersonating) return false;
   if (input.resourceType === LGPD_RESOURCE_TYPE) return false;
+  // This audited action is the controlled path that clears clinic.status=cancelled.
+  if (input.resourceType === SUBSCRIPTION_REACTIVATION_RESOURCE_TYPE) return false;
   return true;
 }
 

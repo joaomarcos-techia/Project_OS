@@ -4,7 +4,7 @@
  * e "12 345" entrariam como três credenciais distintas (review #8 do founder).
  *
  * Regra: CRM é um identificador contíguo (dígitos, ocasionalmente letras) — remove
- * TODO whitespace + uppercase. UF é sigla de estado — trim + uppercase. Vazio → null.
+ * todos os espaços em branco + uppercase. UF é sigla de estado — trim + uppercase. Vazio → null.
  */
 export function normalizeCrm(value: string | null | undefined): string | null {
   if (value == null) return null;

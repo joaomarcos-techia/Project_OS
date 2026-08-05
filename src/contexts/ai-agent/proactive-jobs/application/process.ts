@@ -94,7 +94,12 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   try {
     const tz = await resolveTz(clinicId, tzCache);
     const t = buildProactiveTemplate(type, payload, nome, tz);
-    body = { kind: 'template', templateName: t.templateName, languageCode: t.languageCode, variables: t.variables };
+    body = {
+      kind: 'template',
+      templateName: t.templateName,
+      languageCode: t.languageCode,
+      variables: t.variables,
+    };
   } catch (err) {
     if (err instanceof TemplateNotConfiguredError) {
       await repo.finalizeFailed(clinicId, id, leaseToken, 'template_not_configured');
@@ -146,12 +151,18 @@ async function sendTimeGuard(
   payload: ReminderPayload | DunningPayload | { patientId: string },
 ): Promise<string | null> {
   if (type === 'reminder') {
-    const appt = await schedulingApiV1.lookupAppointment(clinicId, (payload as ReminderPayload).appointmentId);
+    const appt = await schedulingApiV1.lookupAppointment(
+      clinicId,
+      (payload as ReminderPayload).appointmentId,
+    );
     if (!appt || !ACTIVE_APPT.has(appt.status)) return 'appointment_inactive';
     return null;
   }
   if (type === 'dunning') {
-    const lanc = await financialApiV1.getLancamento(clinicId, (payload as DunningPayload).lancamentoId);
+    const lanc = await financialApiV1.getLancamento(
+      clinicId,
+      (payload as DunningPayload).lancamentoId,
+    );
     if (!lanc) return 'lancamento_missing';
     if (lanc.status !== 'pendente' && lanc.status !== 'parcial') {
       return lanc.status === 'pago' ? 'already_paid' : 'lancamento_not_pending';
@@ -222,7 +233,14 @@ export async function processProactiveBatch(
 ): Promise<BatchSummary> {
   const batchSize = opts.batchSize ?? 50;
   const jobs = await repo.claimDue(type, batchSize);
-  const summary: BatchSummary = { type, scanned: jobs.length, sent: 0, cancelled: 0, retried: 0, failed: 0 };
+  const summary: BatchSummary = {
+    type,
+    scanned: jobs.length,
+    sent: 0,
+    cancelled: 0,
+    retried: 0,
+    failed: 0,
+  };
   const tzCache = new Map<string, string>();
 
   for (const job of jobs) {

@@ -20,7 +20,16 @@
  * archive-or-delete. DETACH PARTITION manual no MVP, automation em C16.
  */
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  check,
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 export const auditEvents = pgTable(
   'audit_events',

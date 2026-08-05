@@ -37,7 +37,10 @@ const EnvSchema = z
     //   service_role → secret       (server-only, bypasses RLS)
     // C1 requires URL + at least one of publishable/anon. C3 requires the secret/service_role key.
     NEXT_PUBLIC_SUPABASE_URL: z.preprocess(emptyToUndefined, z.string().url()), // C1: required
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // C1: required IF anon not set (see superRefine)
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.preprocess(
+      emptyToUndefined,
+      z.string().min(1).optional(),
+    ), // C1: required IF anon not set (see superRefine)
     NEXT_PUBLIC_SUPABASE_ANON_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // legacy alias of publishable
     SUPABASE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // C3: required (preferred)
     SUPABASE_SERVICE_ROLE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()), // legacy alias of secret
@@ -123,7 +126,13 @@ const EnvSchema = z
     // mirroreiam CHECK constraints no banco (defense in depth).
     OUTBOX_MAX_PAYLOAD_BYTES: z.preprocess(
       emptyToUndefined,
-      z.coerce.number().int().min(1024).max(1024 * 1024).optional().default(64 * 1024),
+      z.coerce
+        .number()
+        .int()
+        .min(1024)
+        .max(1024 * 1024)
+        .optional()
+        .default(64 * 1024),
     ),
 
     // --- C5: per-tenant encryption (AES-256-GCM + HKDF) + lookup HMAC ---
@@ -201,8 +210,9 @@ const EnvSchema = z
       emptyToUndefined,
       z.coerce.number().int().min(1000).max(60_000).optional().default(15_000),
     ),
-    // Quota guard placeholder (lógica completa em C13). Default global por
-    // clínica/mês em USD; ai_clinic_config.monthly_budget_usd sobrepõe (R4).
+    // Compatibilidade histórica do orçamento de IA. Ele continua aceito para
+    // configuração/telemetria, mas a política comercial atual não bloqueia
+    // conversas de IA (só a cota de usuários é trava dura; ADR-024).
     AI_MONTHLY_COST_LIMIT_USD: z.preprocess(
       emptyToUndefined,
       z.coerce.number().positive().optional().default(50),
@@ -210,10 +220,7 @@ const EnvSchema = z
     // R1: gate do prompt snapshot (replay determinístico G10). 'full' grava
     // sempre; 'sample' grava ~10% (determinístico por eventId); 'off' nunca.
     // Default: 'full' fora de produção, 'sample' em produção.
-    AI_SNAPSHOT_MODE: z.preprocess(
-      emptyToUndefined,
-      z.enum(['off', 'full', 'sample']).optional(),
-    ),
+    AI_SNAPSHOT_MODE: z.preprocess(emptyToUndefined, z.enum(['off', 'full', 'sample']).optional()),
 
     // --- C13: Billing / Asaas ---
     // API key do Asaas (sandbox ou prod). Optional no parse (next build verde
@@ -236,16 +243,26 @@ const EnvSchema = z
       z.coerce.number().int().min(1000).max(60_000).optional().default(10_000),
     ),
 
+    // Email transacional. Optional no boot; o handler LGPD exige ambos em runtime.
+    RESEND_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    EMAIL_FROM: z.preprocess(emptyToUndefined, z.string().min(3).max(320).optional()),
+
     // --- C14: Proactive Jobs (templates Meta aprovados) ---
     // Cloud API envia template por NOME (não ID opaco). Em código vivem a CHAVE
     // canônica + ordem das variáveis; o NOME aprovado por ambiente vem daqui
     // (PlanoAção §14.18 — congelado: "IDs Meta em env por ambiente"). Optional no
     // parse; assertProactiveRuntimeReady() exige em runtime nos crons proactive-*.
-    META_TEMPLATE_CONFIRMATION_REMINDER_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    META_TEMPLATE_CONFIRMATION_REMINDER_ID: z.preprocess(
+      emptyToUndefined,
+      z.string().min(1).optional(),
+    ),
     META_TEMPLATE_DUNNING_FRIENDLY_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     META_TEMPLATE_FOLLOWUP_RETURN_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Idioma BCP-47 dos templates (default pt_BR).
-    META_TEMPLATE_LANG: z.preprocess(emptyToUndefined, z.string().min(2).optional().default('pt_BR')),
+    META_TEMPLATE_LANG: z.preprocess(
+      emptyToUndefined,
+      z.string().min(2).optional().default('pt_BR'),
+    ),
 
     // --- C15: Platform Admin (impersonate) ---
     // Segredo HMAC que assina o cookie `qoro_imp` (carrega só o impersonationId).
@@ -275,10 +292,7 @@ const EnvSchema = z
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
     // Supabase renamed keys in 2024 — accept either, require ≥1.
-    if (
-      !data.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY &&
-      !data.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) {
+    if (!data.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY && !data.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'],
@@ -320,8 +334,32 @@ const EnvSchema = z
 
 export type Env = z.infer<typeof EnvSchema>;
 
+/**
+ * Os sufixos `_DEV` existem somente para segredos locais. Nunca são aceitos em
+ * produção, evitando que uma chave de desenvolvimento seja promovida por engano.
+ */
+function normalizeDevelopmentAliases(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (source.NODE_ENV === 'production') return source;
+  return {
+    ...source,
+    // Um alias DEV explícito prevalece localmente: assim uma chave antiga com
+    // o nome padrão não consegue redirecionar uma homologação para outra conta.
+    // Em produção os aliases nem são lidos (guard acima).
+    DATABASE_URL: source.DATABASE_URL_DEV ?? source.DATABASE_URL,
+    SUPABASE_SECRET_KEY: source.SECRET_KEY_DEV ?? source.SUPABASE_SECRET_KEY,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+      source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV ??
+      source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    ASAAS_API_KEY: source.ASAAS_API_KEY_DEV ?? source.ASAAS_API_KEY,
+    ASAAS_BASE_URL: source.ASAAS_BASE_URL_DEV ?? source.ASAAS_BASE_URL,
+    ASAAS_WEBHOOK_TOKEN: source.ASAAS_WEBHOOK_TOKEN_DEV ?? source.ASAAS_WEBHOOK_TOKEN,
+    RESEND_API_KEY: source.RESEND_API_KEY_DEV ?? source.RESEND_API_KEY,
+    EMAIL_FROM: source.EMAIL_FROM_DEV ?? source.EMAIL_FROM,
+  };
+}
+
 function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = EnvSchema.safeParse(source);
+  const parsed = EnvSchema.safeParse(normalizeDevelopmentAliases(source));
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)
@@ -337,7 +375,7 @@ export const env = loadEnv();
 
 // Test-only helper. Exported as named import so consumers can't reach
 // for a "global" mutable env in production code.
-export const __internal = { loadEnv, EnvSchema };
+export const __internal = { loadEnv, EnvSchema, normalizeDevelopmentAliases };
 
 /**
  * Runtime guard for C4 cron routes. Fails fast when CRON_SECRET is missing
@@ -374,7 +412,11 @@ export function assertCryptoRuntimeReady(): void {
       );
     }
   } else {
-    if (!env.GCP_PROJECT_ID || !env.GCP_SECRET_MASTER_KEY_NAME || !env.GCP_SECRET_LOOKUP_SALT_NAME) {
+    if (
+      !env.GCP_PROJECT_ID ||
+      !env.GCP_SECRET_MASTER_KEY_NAME ||
+      !env.GCP_SECRET_LOOKUP_SALT_NAME
+    ) {
       throw new Error(
         '[env] GCP_PROJECT_ID, GCP_SECRET_MASTER_KEY_NAME and GCP_SECRET_LOOKUP_SALT_NAME are required when CRYPTO_SECRET_BACKEND=gcp',
       );
@@ -442,6 +484,15 @@ export function assertBillingRuntimeReady(): void {
 export function assertBillingWebhookReady(): void {
   if (!env.ASAAS_WEBHOOK_TOKEN) {
     throw new Error('[env] ASAAS_WEBHOOK_TOKEN is required at runtime for /api/webhooks/asaas');
+  }
+}
+
+/** Runtime guard do e-mail transacional, usado pelo worker de exportação LGPD. */
+export function assertEmailRuntimeReady(): void {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+    throw new Error(
+      '[env] RESEND_API_KEY and EMAIL_FROM are required at runtime for transactional email',
+    );
   }
 }
 

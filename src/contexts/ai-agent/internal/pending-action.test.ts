@@ -46,9 +46,7 @@ describe('confirmação server-side de ações da IA', () => {
         appointmentId: '11111111-1111-1111-1111-111111111111',
       }),
     ).toMatchObject({ type: 'cancel_appointment' });
-    expect(() =>
-      parsePendingActionPayload({ type: 'delete_patient', patientId: 'x' }),
-    ).toThrow();
+    expect(() => parsePendingActionPayload({ type: 'delete_patient', patientId: 'x' })).toThrow();
   });
 });
 
@@ -66,9 +64,7 @@ describe('idempotência da execução por CONTEÚDO (R1)', () => {
     // Duas preparações distintas geram pendingActionIds diferentes; a chave de
     // execução NÃO pode depender disso — senão o core cria duas consultas.
     const at = '2026-08-01T12:00:00.000Z';
-    expect(pendingActionIdemKey(conv, schedule(at))).toBe(
-      pendingActionIdemKey(conv, schedule(at)),
-    );
+    expect(pendingActionIdemKey(conv, schedule(at))).toBe(pendingActionIdemKey(conv, schedule(at)));
   });
 
   it('formato compatível com o idemKey() dos contextos (^[a-f0-9]{8,}$)', () => {

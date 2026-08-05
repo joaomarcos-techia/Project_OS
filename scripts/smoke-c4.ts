@@ -30,38 +30,22 @@ import { capJsonSize } from '@/lib/sanitize/cap';
 import { redactStringValue } from '@/lib/sanitize/patterns';
 import { payloadHash } from '@/lib/idempotency/hash';
 import { assertJsonSafe, JsonUnsafeError } from '@/lib/idempotency/json-safe';
-import {
-  HandlerError,
-  serializeError,
-  truncate,
-} from '@/lib/outbox/errors';
+import { HandlerError, serializeError, truncate } from '@/lib/outbox/errors';
 import { backoffDelayMs, BACKOFF_FAIL } from '@/lib/outbox/backoff';
-import {
-  registerEventSchema,
-  __testing__ as catalogTesting,
-} from '@/lib/outbox/catalog';
-import {
-  registerHandler,
-  __testing__ as registryTesting,
-} from '@/lib/outbox/registry';
+import { registerEventSchema, __testing__ as catalogTesting } from '@/lib/outbox/catalog';
+import { registerHandler, __testing__ as registryTesting } from '@/lib/outbox/registry';
 import { publishEvent } from '@/lib/outbox/publish';
 import { reclaimStuckProcessing } from '@/lib/outbox/janitor';
 import { applyCircuitBreaker } from '@/lib/outbox/circuit';
 import { runOutboxOnce } from '@/lib/outbox/worker';
 import { PoisonPillError, OutboxError, SideEffectInFlightError } from '@/lib/outbox/errors';
-import {
-  makeProviderIdempotencyKey,
-  withProviderStatusCheck,
-} from '@/lib/outbox/side-effects';
+import { makeProviderIdempotencyKey, withProviderStatusCheck } from '@/lib/outbox/side-effects';
 import {
   validateTtlSeconds,
   IDEMPOTENCY_TTL_MIN_SECONDS,
   IDEMPOTENCY_TTL_MAX_SECONDS,
 } from '@/lib/idempotency/mutation';
-import {
-  cleanupExpiredIdempotencyKeys,
-  diagnoseInFlightOrphans,
-} from '@/lib/idempotency/cleanup';
+import { cleanupExpiredIdempotencyKeys, diagnoseInFlightOrphans } from '@/lib/idempotency/cleanup';
 import type { HandlerCtx } from '@/lib/outbox/types';
 
 // Helper: payload_hash explícito para INSERTs raw em outbox (post-0010).
@@ -316,8 +300,12 @@ async function setupFixtures(): Promise<void> {
      WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})
        AND response IS NULL
   `);
-  await dbAdmin.execute(sqlTag`DELETE FROM idempotency_keys WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`);
-  await dbAdmin.execute(sqlTag`DELETE FROM audit_events WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`);
+  await dbAdmin.execute(
+    sqlTag`DELETE FROM idempotency_keys WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`,
+  );
+  await dbAdmin.execute(
+    sqlTag`DELETE FROM audit_events WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`,
+  );
 
   // F-04 HERMETICIDADE: o worker pega a row pending MAIS ANTIGA GLOBAL (ORDER BY
   // next_attempt_at, created_at) — cross-tenant. Eventos órfãos de outras
@@ -359,9 +347,15 @@ async function cleanupFixtures(): Promise<void> {
      WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})
        AND response IS NULL
   `);
-  await dbAdmin.execute(sqlTag`DELETE FROM idempotency_keys WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`);
-  await dbAdmin.execute(sqlTag`DELETE FROM audit_events WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`);
-  await dbAdmin.execute(sqlTag`DELETE FROM clinics WHERE id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`);
+  await dbAdmin.execute(
+    sqlTag`DELETE FROM idempotency_keys WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`,
+  );
+  await dbAdmin.execute(
+    sqlTag`DELETE FROM audit_events WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`,
+  );
+  await dbAdmin.execute(
+    sqlTag`DELETE FROM clinics WHERE id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`,
+  );
 }
 
 // =====================================================================
@@ -396,10 +390,7 @@ async function functional(): Promise<void> {
     } catch {
       /* expected */
     }
-    const rows = await dbAdmin
-      .select()
-      .from(outbox)
-      .where(eq(outbox.idempotencyKey, idemKey));
+    const rows = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idemKey));
     if (rows.length !== 0) throw new Error(`expected 0 rows, got ${rows.length}`);
   });
 
@@ -413,10 +404,7 @@ async function functional(): Promise<void> {
         idempotencyKey: idemKey,
       });
     });
-    const rows = await dbAdmin
-      .select()
-      .from(outbox)
-      .where(eq(outbox.idempotencyKey, idemKey));
+    const rows = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idemKey));
     if (rows.length !== 1) throw new Error(`expected 1 row, got ${rows.length}`);
     if (rows[0]!.status !== 'pending') throw new Error(`expected pending, got ${rows[0]!.status}`);
   });
@@ -494,10 +482,7 @@ async function functional(): Promise<void> {
       });
     });
     await runOutboxOnce({ batchSize: 1, parallelism: 1 });
-    const [row] = await dbAdmin
-      .select()
-      .from(outbox)
-      .where(eq(outbox.idempotencyKey, idem));
+    const [row] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
     if (!row) throw new Error('row missing');
     if (row.attempts !== 1) throw new Error(`attempts=${row.attempts}`);
     if (row.errorCode !== 'downstream_bad') throw new Error(`error_code=${row.errorCode}`);
@@ -526,10 +511,7 @@ async function functional(): Promise<void> {
         idempotencyKey: idem,
       });
     });
-    const rows = await dbAdmin
-      .select()
-      .from(outbox)
-      .where(eq(outbox.idempotencyKey, idem));
+    const rows = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
     if (rows.length !== 1) throw new Error(`expected 1 row, got ${rows.length}`);
   });
 
@@ -655,9 +637,7 @@ async function functional(): Promise<void> {
 
   // ---- 4.6.12 redactStringValue (used by metrics.emit) ----
   await tryStep('4.6.12 redactStringValue strips Bearer / JWT / DSN', () => {
-    const r1 = redactStringValue(
-      'Bearer eyJabcdefghij.eyJabcdefghij.abcdefghij has token',
-    );
+    const r1 = redactStringValue('Bearer eyJabcdefghij.eyJabcdefghij.abcdefghij has token');
     if (r1.includes('eyJabcdefghij')) throw new Error('JWT not redacted');
     const r2 = redactStringValue('postgresql://u:secret@host:5432/db');
     if (r2.includes('secret')) throw new Error('DSN password leaked');
@@ -702,10 +682,7 @@ async function functional(): Promise<void> {
     }
     if (result.pausedCount < 1) throw new Error('no pending paused');
     // Verifica que next_attempt_at do pending foi empurrado para o futuro.
-    const [row] = await dbAdmin
-      .select()
-      .from(outbox)
-      .where(eq(outbox.idempotencyKey, pendingKey));
+    const [row] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, pendingKey));
     if (!row || row.nextAttemptAt.getTime() < Date.now() + 60_000) {
       throw new Error('pending not pushed forward');
     }
@@ -724,10 +701,7 @@ async function functional(): Promise<void> {
     `);
     const reclaimed = await reclaimStuckProcessing();
     if (reclaimed < 1) throw new Error('janitor did not reclaim');
-    const [row] = await dbAdmin
-      .select()
-      .from(outbox)
-      .where(eq(outbox.idempotencyKey, idem));
+    const [row] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
     if (!row || row.status !== 'pending') throw new Error('row not reclaimed');
     if (row.processingStartedAt !== null) throw new Error('processing_started_at not cleared');
   });
@@ -748,9 +722,7 @@ async function functional(): Promise<void> {
     // de withTenant — espera ver apenas a row do seu próprio clinic.
     const tasks = Array.from({ length: 10 }, (_, i) =>
       withTenant(i % 2 === 0 ? CLINIC_A : CLINIC_B, async (tx) => {
-        const rows = await tx
-          .select({ clinicId: outbox.clinicId })
-          .from(outbox);
+        const rows = await tx.select({ clinicId: outbox.clinicId }).from(outbox);
         return { i, rows };
       }),
     );
@@ -1017,7 +989,8 @@ async function functional(): Promise<void> {
       throw new Error('should have thrown collision');
     } catch (e) {
       if (!(e instanceof OutboxError)) throw new Error(`not OutboxError: ${e}`);
-      if (!e.message.includes('collision')) throw new Error(`message missing 'collision': ${e.message}`);
+      if (!e.message.includes('collision'))
+        throw new Error(`message missing 'collision': ${e.message}`);
     }
   });
 
@@ -1060,15 +1033,18 @@ async function functional(): Promise<void> {
     if (semBearer.status !== 401) throw new Error(`sem bearer: status=${semBearer.status}`);
 
     const bearerErrado = await call({ authorization: 'Bearer ' + 'x'.repeat(secret.length) });
-    if (bearerErrado.status !== 401) throw new Error(`bearer errado: status=${bearerErrado.status}`);
+    if (bearerErrado.status !== 401)
+      throw new Error(`bearer errado: status=${bearerErrado.status}`);
 
     // Bearer válido passa COM ou SEM o header de origem — o header é anomalia
     // observável (`cron.origin_header_missing`), não gate. Ver F-09 em cron-auth.ts.
     const semHeader = await call({ authorization: `Bearer ${secret}` });
-    if (semHeader.status !== 200) throw new Error(`bearer ok, sem header: status=${semHeader.status}`);
+    if (semHeader.status !== 200)
+      throw new Error(`bearer ok, sem header: status=${semHeader.status}`);
 
     const comHeader = await call({ authorization: `Bearer ${secret}`, 'x-vercel-cron': '1' });
-    if (comHeader.status !== 200) throw new Error(`bearer ok, com header: status=${comHeader.status}`);
+    if (comHeader.status !== 200)
+      throw new Error(`bearer ok, com header: status=${comHeader.status}`);
   });
 
   // ---- 4.6.26 makeProviderIdempotencyKey: deterministic, format-correct ----
@@ -1223,63 +1199,76 @@ async function functional(): Promise<void> {
   });
 
   // ---- 4.6.30 F-03: evento em catálogo SEM handler → terminal 'skipped' ----
-  await tryStep('4.6.30 F-03: catálogo sem handler → skipped (sem retry, não conta como failed)', async () => {
-    await dbAdmin.execute(sqlTag`
+  await tryStep(
+    '4.6.30 F-03: catálogo sem handler → skipped (sem retry, não conta como failed)',
+    async () => {
+      await dbAdmin.execute(sqlTag`
       DELETE FROM outbox WHERE clinic_id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)
         AND status IN ('pending','processing')
     `);
-    const evt = 'test.smoke.nohandler';
-    catalogTesting.reset();
-    registerEventSchema(evt, TestSchema); // schema PRESENTE no catálogo
-    registryTesting.reset(); // NENHUM handler registrado
-    const idem = `nohandler-${Date.now()}`;
-    await withTenant(CLINIC_A, async (tx) => {
-      await publishEvent(tx, {
-        clinicId: CLINIC_A,
-        eventType: evt,
-        payload: { id: 'x' },
-        idempotencyKey: idem,
+      const evt = 'test.smoke.nohandler';
+      catalogTesting.reset();
+      registerEventSchema(evt, TestSchema); // schema PRESENTE no catálogo
+      registryTesting.reset(); // NENHUM handler registrado
+      const idem = `nohandler-${Date.now()}`;
+      await withTenant(CLINIC_A, async (tx) => {
+        await publishEvent(tx, {
+          clinicId: CLINIC_A,
+          eventType: evt,
+          payload: { id: 'x' },
+          idempotencyKey: idem,
+        });
       });
-    });
-    const summary = await runOutboxOnce({ batchSize: 1, parallelism: 1 });
-    const [row] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
-    if (!row) throw new Error('row missing');
-    if (row.status !== 'skipped') throw new Error(`expected status=skipped, got ${row.status}`);
-    if (row.attempts !== 1) throw new Error(`expected attempts=1 (sem retry), got ${row.attempts}`);
-    if (row.lastFailedAt !== null) throw new Error('skipped NÃO deve setar last_failed_at (não é falha)');
-    if (summary.skipped !== 1) throw new Error(`summary.skipped=${summary.skipped} (want 1)`);
-    if (summary.failed !== 0) throw new Error(`skipped contado como failed: ${summary.failed}`);
-  });
+      const summary = await runOutboxOnce({ batchSize: 1, parallelism: 1 });
+      const [row] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
+      if (!row) throw new Error('row missing');
+      if (row.status !== 'skipped') throw new Error(`expected status=skipped, got ${row.status}`);
+      if (row.attempts !== 1)
+        throw new Error(`expected attempts=1 (sem retry), got ${row.attempts}`);
+      if (row.lastFailedAt !== null)
+        throw new Error('skipped NÃO deve setar last_failed_at (não é falha)');
+      if (summary.skipped !== 1) throw new Error(`summary.skipped=${summary.skipped} (want 1)`);
+      if (summary.failed !== 0) throw new Error(`skipped contado como failed: ${summary.failed}`);
+    },
+  );
 
   // ---- 4.6.31 F-03: finalizeSkipped concurrency guard (reclaim mid-flight) ----
-  await tryStep('4.6.31 F-03: finalizeSkipped guard (status,attempts) impede double-write', async () => {
-    const evt = 'test.smoke.nohandler';
-    const idem = `skipguard-${Date.now()}`;
-    const ph = phash({ id: 'sg' });
-    // Row em 'processing' attempts=1 (como se A tivesse reservado para skip).
-    await dbAdmin.execute(sqlTag`
+  await tryStep(
+    '4.6.31 F-03: finalizeSkipped guard (status,attempts) impede double-write',
+    async () => {
+      const evt = 'test.smoke.nohandler';
+      const idem = `skipguard-${Date.now()}`;
+      const ph = phash({ id: 'sg' });
+      // Row em 'processing' attempts=1 (como se A tivesse reservado para skip).
+      await dbAdmin.execute(sqlTag`
       INSERT INTO outbox (clinic_id, event_type, payload, payload_hash, idempotency_key,
                           status, attempts, created_at, processing_started_at)
       VALUES (${CLINIC_A}::uuid, ${evt}, '{"id":"sg"}'::jsonb, ${ph}, ${idem},
               'processing', 1, now() - interval '5 minutes', now() - interval '1 minute')
     `);
-    const [orig] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
-    if (!orig) throw new Error('setup row missing');
-    // Simula janitor + worker B: pending → processing attempts=2.
-    await dbAdmin.execute(sqlTag`UPDATE outbox SET status='pending', processing_started_at=null WHERE id=${orig.id}`);
-    await dbAdmin.execute(sqlTag`UPDATE outbox SET status='processing', attempts=2, processing_started_at=now() WHERE id=${orig.id} AND status='pending'`);
-    // A tenta finalizeSkipped com guard (status='processing' AND attempts=1) → 0 rows.
-    const updated = await dbAdmin.execute<{ id: string }>(sqlTag`
+      const [orig] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
+      if (!orig) throw new Error('setup row missing');
+      // Simula janitor + worker B: pending → processing attempts=2.
+      await dbAdmin.execute(
+        sqlTag`UPDATE outbox SET status='pending', processing_started_at=null WHERE id=${orig.id}`,
+      );
+      await dbAdmin.execute(
+        sqlTag`UPDATE outbox SET status='processing', attempts=2, processing_started_at=now() WHERE id=${orig.id} AND status='pending'`,
+      );
+      // A tenta finalizeSkipped com guard (status='processing' AND attempts=1) → 0 rows.
+      const updated = await dbAdmin.execute<{ id: string }>(sqlTag`
       UPDATE outbox SET status='skipped', processed_at=now(), processing_started_at=null
        WHERE id=${orig.id} AND status='processing' AND attempts=1
        RETURNING id
     `);
-    if (updated.length !== 0) throw new Error('finalizeSkipped guard deveria rejeitar — attempts mudou');
-    const [final] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
-    if (final?.status !== 'processing' || final?.attempts !== 2) {
-      throw new Error(`estado final inesperado: ${final?.status}/${final?.attempts}`);
-    }
-  });
+      if (updated.length !== 0)
+        throw new Error('finalizeSkipped guard deveria rejeitar — attempts mudou');
+      const [final] = await dbAdmin.select().from(outbox).where(eq(outbox.idempotencyKey, idem));
+      if (final?.status !== 'processing' || final?.attempts !== 2) {
+        throw new Error(`estado final inesperado: ${final?.status}/${final?.attempts}`);
+      }
+    },
+  );
 }
 
 // =====================================================================

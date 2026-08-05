@@ -19,7 +19,8 @@ function fakeClock(startMs = 0) {
   };
 }
 
-const fail503 = () => Promise.reject(new AIProviderError('Gemini HTTP 503', 'gemini_server_error', 503));
+const fail503 = () =>
+  Promise.reject(new AIProviderError('Gemini HTTP 503', 'gemini_server_error', 503));
 const ok = () => Promise.resolve('resposta');
 
 describe('AICircuitBreaker (11.6.4)', () => {

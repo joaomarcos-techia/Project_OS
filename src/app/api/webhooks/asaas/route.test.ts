@@ -29,10 +29,17 @@ vi.mock('@/lib/env', async (orig) => ({
 }));
 vi.mock('@/contexts/billing/internal/providers/asaas', async (orig) => {
   const actual = await orig<typeof AsaasProviderModule>();
-  return { ...actual, asaasProvider: { ...actual.asaasProvider, getPayment, validateWebhookToken } };
+  return {
+    ...actual,
+    asaasProvider: { ...actual.asaasProvider, getPayment, validateWebhookToken },
+  };
 });
 vi.mock('@/contexts/billing/internal/subscriptions', () => ({
-  ensureInvoiceForPayment: vi.fn(async () => ({ id: 'inv-1', clinicId: 'clinic-1', status: 'open' })),
+  ensureInvoiceForPayment: vi.fn(async () => ({
+    id: 'inv-1',
+    clinicId: 'clinic-1',
+    status: 'open',
+  })),
   markInvoicePaid: vi.fn(async () => {}),
   markInvoiceOverdue: vi.fn(async () => {}),
   markInvoiceRefunded: vi.fn(async () => {}),
@@ -56,6 +63,7 @@ const PAYMENT = {
   invoiceUrl: null,
   subscriptionId: 'sub_1',
   billingType: 'PIX',
+  externalReference: null,
 };
 
 /** tx falso com dedup real: o 1º insert de um eventId ganha, os seguintes perdem. */
@@ -107,7 +115,10 @@ describe('token', () => {
 
 describe('dedup key (A2)', () => {
   it('sem body.id → 400 e nada é processado', async () => {
-    const res = await post({ event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', status: 'RECEIVED' } });
+    const res = await post({
+      event: 'PAYMENT_RECEIVED',
+      payment: { id: 'pay_1', status: 'RECEIVED' },
+    });
     expect(res.status).toBe(400);
     expect(getPayment).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();
@@ -146,13 +157,22 @@ describe('verify-then-act (A2) — o corpo não dirige estado', () => {
 
   it('corpo diz OVERDUE, provider diz RECEIVED → segue o provider (marca paga)', async () => {
     getPayment.mockResolvedValue({ ...PAYMENT, status: 'RECEIVED' });
-    await post({ id: 'evt_2', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_1', status: 'OVERDUE' } });
+    await post({
+      id: 'evt_2',
+      event: 'PAYMENT_OVERDUE',
+      payment: { id: 'pay_1', status: 'OVERDUE' },
+    });
     expect(markInvoicePaid).toHaveBeenCalledTimes(1);
     expect(markInvoiceOverdue).not.toHaveBeenCalled();
   });
 
   it('valor/subscription persistidos vêm do provider, não do corpo', async () => {
-    getPayment.mockResolvedValue({ ...PAYMENT, status: 'RECEIVED', value: 100, subscriptionId: 'sub_1' });
+    getPayment.mockResolvedValue({
+      ...PAYMENT,
+      status: 'RECEIVED',
+      value: 100,
+      subscriptionId: 'sub_1',
+    });
     await post({
       id: 'evt_3',
       event: 'PAYMENT_RECEIVED',

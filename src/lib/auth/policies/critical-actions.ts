@@ -42,6 +42,7 @@ export const CRITICAL_ACTIONS: readonly string[] = Object.freeze([
   'markNoShow',
   'requestLgpdDelete',
   'requestLgpdExport',
+  'requestPlanChangeAction',
   'resendInviteAction',
   'setMemberActiveAction',
   'setMemberOverrideAction',

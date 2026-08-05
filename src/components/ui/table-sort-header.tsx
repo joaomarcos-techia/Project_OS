@@ -28,7 +28,9 @@ export function TableSortHeader({
   return (
     <TableHead
       numeric={numeric}
-      aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : undefined}
+      aria-sort={
+        direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : undefined
+      }
       className={cn('p-0', className)}
     >
       <Link

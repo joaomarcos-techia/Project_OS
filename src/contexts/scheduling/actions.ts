@@ -105,11 +105,32 @@ function transitionAction(
   };
 }
 
-export const confirmAppointment = transitionAction('confirm', 'confirmado', SCHEDULING_EVENTS.CONFIRMED);
-export const checkInAppointment = transitionAction('checkin', 'chegou', SCHEDULING_EVENTS.CHECKED_IN);
-export const startAppointment = transitionAction('start', 'em_atendimento', SCHEDULING_EVENTS.STARTED);
-export const completeAppointment = transitionAction('complete', 'atendido', SCHEDULING_EVENTS.COMPLETED);
-export const cancelAppointment = transitionAction('cancel', 'cancelado', SCHEDULING_EVENTS.CANCELLED, 'user');
+export const confirmAppointment = transitionAction(
+  'confirm',
+  'confirmado',
+  SCHEDULING_EVENTS.CONFIRMED,
+);
+export const checkInAppointment = transitionAction(
+  'checkin',
+  'chegou',
+  SCHEDULING_EVENTS.CHECKED_IN,
+);
+export const startAppointment = transitionAction(
+  'start',
+  'em_atendimento',
+  SCHEDULING_EVENTS.STARTED,
+);
+export const completeAppointment = transitionAction(
+  'complete',
+  'atendido',
+  SCHEDULING_EVENTS.COMPLETED,
+);
+export const cancelAppointment = transitionAction(
+  'cancel',
+  'cancelado',
+  SCHEDULING_EVENTS.CANCELLED,
+  'user',
+);
 export const markNoShow = transitionAction('no_show', 'faltou', SCHEDULING_EVENTS.NO_SHOW);
 
 // --- createAppointment -----------------------------------------------------
@@ -122,7 +143,13 @@ export async function createAppointment(
   await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
-  return createAppointmentCore({ clinicId, userId: user.userId }, 'user', ctx, input, idempotencyKey);
+  return createAppointmentCore(
+    { clinicId, userId: user.userId },
+    'user',
+    ctx,
+    input,
+    idempotencyKey,
+  );
 }
 
 export async function createRecurringAppointments(
@@ -228,7 +255,9 @@ export async function importAppointmentHistory(
   const ctx = await requestContext();
   const now = Date.now();
   if (data.items.some((item) => new Date(item.scheduledAt).getTime() >= now)) {
-    throw new SchedulingValidationError('a importacao historica aceita apenas atendimentos passados');
+    throw new SchedulingValidationError(
+      'a importacao historica aceita apenas atendimentos passados',
+    );
   }
 
   try {
@@ -273,9 +302,7 @@ export async function importAppointmentHistory(
               createdVia: 'import',
               initialStatus: item.historicalStatus,
               importBatchId: batch!.id,
-              ...(item.externalReference
-                ? { importSourceReference: item.externalReference }
-                : {}),
+              ...(item.externalReference ? { importSourceReference: item.externalReference } : {}),
             },
           });
           appointmentIds.push(appointment.id);
@@ -333,7 +360,11 @@ export async function createWalkInAppointment(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('walkin', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+        idempotency: {
+          key: idemKey('walkin', idempotencyKey),
+          payload: jsonSafe(data),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
         audit: {
           action: SCHEDULING_EVENTS.CREATED,
           resourceType: 'appointment',
@@ -447,12 +478,7 @@ export async function recoverAppointment(
         const [appointment] = await tx
           .select()
           .from(appointments)
-          .where(
-            and(
-              eq(appointments.id, data.appointmentId),
-              eq(appointments.clinicId, clinicId),
-            ),
-          )
+          .where(and(eq(appointments.id, data.appointmentId), eq(appointments.clinicId, clinicId)))
           .for('update')
           .limit(1);
         if (!appointment) {
@@ -500,12 +526,7 @@ export async function recoverAppointment(
             ...(data.newDoctorId ? { doctorId: data.newDoctorId } : {}),
             updatedAt: sql`now()`,
           })
-          .where(
-            and(
-              eq(appointments.id, appointment.id),
-              eq(appointments.clinicId, clinicId),
-            ),
-          )
+          .where(and(eq(appointments.id, appointment.id), eq(appointments.clinicId, clinicId)))
           .returning();
 
         if (decision.target === 'cancelado' || decision.target === 'faltou') {
@@ -627,15 +648,8 @@ export async function createDoctorAbsence(
             await tx
               .update(appointments)
               .set({ status: 'cancelado', updatedAt: sql`now()` })
-              .where(
-                and(eq(appointments.id, appointment.id), eq(appointments.clinicId, clinicId)),
-              );
-            await setAppointmentResourceReservationsActive(
-              tx,
-              appointment.id,
-              clinicId,
-              false,
-            );
+              .where(and(eq(appointments.id, appointment.id), eq(appointments.clinicId, clinicId)));
+            await setAppointmentResourceReservationsActive(tx, appointment.id, clinicId, false);
             await publishEvent(tx, {
               clinicId,
               eventType: SCHEDULING_EVENTS.CANCELLED,
@@ -669,9 +683,7 @@ export async function createDoctorAbsence(
           await tx
             .update(appointments)
             .set({ doctorId: data.replacementDoctorId!, updatedAt: sql`now()` })
-            .where(
-              and(eq(appointments.id, appointment.id), eq(appointments.clinicId, clinicId)),
-            );
+            .where(and(eq(appointments.id, appointment.id), eq(appointments.clinicId, clinicId)));
           await publishEvent(tx, {
             clinicId,
             eventType: SCHEDULING_EVENTS.CORRECTED,

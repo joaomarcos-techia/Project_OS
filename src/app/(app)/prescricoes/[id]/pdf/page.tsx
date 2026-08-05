@@ -15,11 +15,7 @@ import { RegeneratePdfButton } from './regenerate-button';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PrescriptionPdfPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function PrescriptionPdfPage({ params }: { params: Promise<{ id: string }> }) {
   await requireUser();
   const clinicId = await requireClinicId();
   const { id } = await params;
@@ -50,7 +46,11 @@ export default async function PrescriptionPdfPage({
               Baixar
             </a>
           </div>
-          <iframe src={url} title="Prescrição" className="h-[80vh] w-full rounded border border-gray-300" />
+          <iframe
+            src={url}
+            title="Prescrição"
+            className="h-[80vh] w-full rounded border border-gray-300"
+          />
         </>
       ) : (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">

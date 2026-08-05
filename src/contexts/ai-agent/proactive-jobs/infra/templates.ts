@@ -31,7 +31,12 @@ const timeFmtCache = new Map<string, Intl.DateTimeFormat>();
 function horarioLocal(scheduledAtIso: string, tz: string): string {
   let f = timeFmtCache.get(tz);
   if (!f) {
-    f = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    f = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
     timeFmtCache.set(tz, f);
   }
   return f.format(new Date(scheduledAtIso));
@@ -43,7 +48,10 @@ function dataBr(ymd: string): string {
   return `${d}/${m}/${y}`;
 }
 
-const moneyFmt = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyFmt = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 // --- builders ----------------------------------------------------------------
 

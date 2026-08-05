@@ -64,10 +64,7 @@ export async function challengeAndVerify(
 }
 
 /** Remove factor TOTP (unenroll). */
-export async function unenrollTotp(
-  supabase: SupabaseClient,
-  factorId: string,
-): Promise<void> {
+export async function unenrollTotp(supabase: SupabaseClient, factorId: string): Promise<void> {
   const { error } = await supabase.auth.mfa.unenroll({ factorId });
   if (error) throw error;
 }
@@ -77,9 +74,7 @@ export async function unenrollTotp(
  * - aal1: senha apenas
  * - aal2: senha + TOTP verificado
  */
-export async function getAal(
-  supabase: SupabaseClient,
-): Promise<'aal1' | 'aal2' | null> {
+export async function getAal(supabase: SupabaseClient): Promise<'aal1' | 'aal2' | null> {
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (error) return null;
   if (data.currentLevel === 'aal2') return 'aal2';

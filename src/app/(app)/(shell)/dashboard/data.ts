@@ -121,27 +121,83 @@ export interface ActivationChecklistDTO {
   complete: boolean;
 }
 
+export type ActivationChecklistFlags = {
+  hasDoctor: boolean;
+  hasHours: boolean;
+  hasPatient: boolean;
+  hasProcedure: boolean;
+  hasWhatsapp: boolean;
+};
+
+export function buildActivationChecklist(flags: ActivationChecklistFlags): ActivationChecklistDTO {
+  const items: ActivationItem[] = [
+    {
+      key: 'doctor',
+      label: 'Cadastre um médico',
+      desc: 'Adicione quem vai atender na clínica.',
+      href: '/equipe',
+      done: flags.hasDoctor,
+    },
+    {
+      key: 'hours',
+      label: 'Defina os horários de atendimento',
+      desc: 'Configure a disponibilidade para a agenda funcionar.',
+      href: '/configuracoes/horarios',
+      done: flags.hasHours,
+    },
+    {
+      key: 'patient',
+      label: 'Cadastre o primeiro paciente',
+      desc: 'Comece sua base de pacientes.',
+      href: '/pacientes/novo',
+      done: flags.hasPatient,
+    },
+    {
+      key: 'procedure',
+      label: 'Cadastre um procedimento',
+      desc: 'A agenda exige ao menos um procedimento ativo.',
+      href: '/configuracoes/procedimentos',
+      done: flags.hasProcedure,
+    },
+    {
+      key: 'whatsapp',
+      label: 'Conecte o WhatsApp',
+      desc: 'Ative o atendimento por IA no WhatsApp da clínica.',
+      href: '/configuracoes/whatsapp',
+      done: flags.hasWhatsapp,
+    },
+  ];
+  const done = items.filter((item) => item.done).length;
+  return { items, done, total: items.length, complete: done === items.length };
+}
+
 export async function getActivationChecklist(clinicId: string): Promise<ActivationChecklistDTO> {
   const rows = (await withTenant(clinicId, (tx) =>
     tx.execute(sql`SELECT
         EXISTS(SELECT 1 FROM profiles WHERE ${practitionerSql(profiles.role, profiles.crm)}) AS has_doctor,
         EXISTS(SELECT 1 FROM doctor_availability) AS has_hours,
         EXISTS(SELECT 1 FROM patients) AS has_patient,
+        EXISTS(SELECT 1 FROM procedures WHERE ativo = true) AS has_procedure,
         EXISTS(SELECT 1 FROM clinic_whatsapp_numbers WHERE active = true AND connection_status = 'connected') AS has_whatsapp`),
   )) as unknown as Array<{
     has_doctor: boolean;
     has_hours: boolean;
     has_patient: boolean;
+    has_procedure: boolean;
     has_whatsapp: boolean;
   }>;
-  const r = rows[0] ?? { has_doctor: false, has_hours: false, has_patient: false, has_whatsapp: false };
-
-  const items: ActivationItem[] = [
-    { key: 'doctor', label: 'Cadastre um médico', desc: 'Adicione quem vai atender na clínica.', href: '/equipe', done: r.has_doctor },
-    { key: 'hours', label: 'Defina os horários de atendimento', desc: 'Configure a disponibilidade para a agenda funcionar.', href: '/configuracoes/horarios', done: r.has_hours },
-    { key: 'patient', label: 'Cadastre o primeiro paciente', desc: 'Comece sua base de pacientes.', href: '/pacientes/novo', done: r.has_patient },
-    { key: 'whatsapp', label: 'Conecte o WhatsApp', desc: 'Ative o atendimento por IA no WhatsApp da clínica.', href: '/configuracoes/whatsapp', done: r.has_whatsapp },
-  ];
-  const done = items.filter((i) => i.done).length;
-  return { items, done, total: items.length, complete: done === items.length };
+  const r = rows[0] ?? {
+    has_doctor: false,
+    has_hours: false,
+    has_patient: false,
+    has_procedure: false,
+    has_whatsapp: false,
+  };
+  return buildActivationChecklist({
+    hasDoctor: r.has_doctor,
+    hasHours: r.has_hours,
+    hasPatient: r.has_patient,
+    hasProcedure: r.has_procedure,
+    hasWhatsapp: r.has_whatsapp,
+  });
 }

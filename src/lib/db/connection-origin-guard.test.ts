@@ -13,7 +13,8 @@ const classify: Classify = (spec) => ({
   poolOrigin: spec === '@/lib/db' || spec === './helper',
 });
 
-const kinds = (src: string) => findOriginUsages(src, 'src/contexts/x/bad.ts', classify).map((u) => u.kind);
+const kinds = (src: string) =>
+  findOriginUsages(src, 'src/contexts/x/bad.ts', classify).map((u) => u.kind);
 
 describe('connection-origin-guard (F-01) — detects every bypass form', () => {
   it('1) static import { db }', () => {
@@ -24,7 +25,9 @@ describe('connection-origin-guard (F-01) — detects every bypass form', () => {
   });
 
   it('2) dynamic import()', () => {
-    expect(kinds(`async function f(){ const m = await import('@/lib/db'); return m; }`)).toContain('dynamic');
+    expect(kinds(`async function f(){ const m = await import('@/lib/db'); return m; }`)).toContain(
+      'dynamic',
+    );
   });
 
   it('3) require()', () => {
@@ -55,8 +58,12 @@ describe('connection-origin-guard (F-01) — detects every bypass form', () => {
   });
 
   it('does NOT flag type-only imports or unrelated drizzle helpers', () => {
-    expect(findOriginUsages(`import type { Tx } from '@/lib/db';`, 'f.ts', classify)).toHaveLength(0);
-    expect(findOriginUsages(`import { sql, eq } from 'drizzle-orm';`, 'f.ts', classify)).toHaveLength(0);
+    expect(findOriginUsages(`import type { Tx } from '@/lib/db';`, 'f.ts', classify)).toHaveLength(
+      0,
+    );
+    expect(
+      findOriginUsages(`import { sql, eq } from 'drizzle-orm';`, 'f.ts', classify),
+    ).toHaveLength(0);
     expect(
       findOriginUsages(`import { withTenant } from '@/lib/db/tenant';`, 'f.ts', classify),
     ).toHaveLength(0);

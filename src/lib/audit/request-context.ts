@@ -20,8 +20,7 @@ export function buildRequestContext(headers: Headers): RequestContext {
   const firstFromXff = xff ? xff.split(',')[0]?.trim() || null : null;
   const ip = realIp ?? firstFromXff;
 
-  const requestId =
-    headers.get('x-request-id') ?? headers.get('x-vercel-id') ?? randomUUID();
+  const requestId = headers.get('x-request-id') ?? headers.get('x-vercel-id') ?? randomUUID();
 
   return {
     ip,

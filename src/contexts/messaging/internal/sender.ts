@@ -127,10 +127,7 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
           eq(suppressionList.contactHash, toNumberHash),
           eq(suppressionList.channel, 'whatsapp'),
           input.purpose
-            ? or(
-                eq(suppressionList.purpose, 'all'),
-                eq(suppressionList.purpose, input.purpose),
-              )
+            ? or(eq(suppressionList.purpose, 'all'), eq(suppressionList.purpose, input.purpose))
             : eq(suppressionList.purpose, 'all'),
         ),
       )
@@ -186,13 +183,23 @@ export async function sendOutbound(input: SendOutboundInput): Promise<OutboundRe
 
   // (b) send — fora da tx, com refresh único de credencial em 401/403.
   let token = await decryptForTenant(input.clinicId, number.tokenCiphertext);
-  let outcome = await callProvider(getMessagingProvider(number.provider), number.metaPhoneId, token, input);
+  let outcome = await callProvider(
+    getMessagingProvider(number.provider),
+    number.metaPhoneId,
+    token,
+    input,
+  );
   if (outcome.kind === 'auth_error') {
     const refreshed: ActiveNumber | null = await loadActiveNumberForSend(input.clinicId);
     if (refreshed && refreshed.tokenVersion > number.tokenVersion) {
       number = refreshed;
       token = await decryptForTenant(input.clinicId, number.tokenCiphertext);
-      outcome = await callProvider(getMessagingProvider(number.provider), number.metaPhoneId, token, input);
+      outcome = await callProvider(
+        getMessagingProvider(number.provider),
+        number.metaPhoneId,
+        token,
+        input,
+      );
     }
   }
 

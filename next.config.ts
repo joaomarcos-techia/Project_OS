@@ -12,6 +12,9 @@ export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(undefined);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Evita que o dev server bloqueie recursos Next quando a suíte E2E usa
+  // 127.0.0.1 em vez de localhost. Esta opção só é aplicada em desenvolvimento.
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   // Promoted from `experimental.typedRoutes` in Next 15.5 (no longer experimental).
   typedRoutes: true,
   // p-limit (usado pelo outbox worker) declara o subpath import Node `#async_hooks`
@@ -83,9 +86,9 @@ export default withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-  org: "qoro-1v",
+  org: 'qoro-1v',
 
-  project: "qoro",
+  project: 'qoro',
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
@@ -100,7 +103,7 @@ export default withSentryConfig(nextConfig, {
   // This can increase your server load as well as your hosting bill.
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
   // side errors will fail.
-  tunnelRoute: "/monitoring",
+  tunnelRoute: '/monitoring',
 
   webpack: {
     // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)

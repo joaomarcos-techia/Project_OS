@@ -27,11 +27,7 @@ export {
 export { financialApiV1, type FinancialApiV1 } from './api';
 export type { DunningCandidate } from './dunning-candidates';
 export { routeDunning } from './dunning-policy';
-export type {
-  AutomaticDunningStage,
-  DunningRoute,
-  ManualCollectionStage,
-} from './dunning-policy';
+export type { AutomaticDunningStage, DunningRoute, ManualCollectionStage } from './dunning-policy';
 export { FINANCIAL_EVENTS } from './events';
 export type {
   LancamentoCreatedPayload,

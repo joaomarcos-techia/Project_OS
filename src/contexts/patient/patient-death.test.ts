@@ -26,13 +26,15 @@ const dunning = readFileSync(
 describe('patient death workflow', () => {
   it('exige data valida e justificativa operacional', () => {
     expect(
-      RecordPatientDeathSchema.safeParse({ deceasedAt: '2026-07-20', reason: 'Comunicado familiar' })
-        .success,
+      RecordPatientDeathSchema.safeParse({
+        deceasedAt: '2026-07-20',
+        reason: 'Comunicado familiar',
+      }).success,
     ).toBe(true);
-    expect(RecordPatientDeathSchema.safeParse({ deceasedAt: '20/07/2026', reason: 'ok' }).success).toBe(
-      false,
-    );
-    expect(actions).toContain("now() AT TIME ZONE timezone");
+    expect(
+      RecordPatientDeathSchema.safeParse({ deceasedAt: '20/07/2026', reason: 'ok' }).success,
+    ).toBe(false);
+    expect(actions).toContain('now() AT TIME ZONE timezone');
     expect(actions).toContain('isNull(patients.obitoEm)');
     expect(actions).toContain('action: PATIENT_EVENTS.DECEASED');
   });

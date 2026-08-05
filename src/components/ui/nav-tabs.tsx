@@ -15,7 +15,9 @@ export type NavTab = {
 function isActive(pathname: string, search: URLSearchParams, tab: NavTab): boolean {
   const [path, query] = tab.href.split('?');
   if (!path) return false;
-  const pathOk = tab.exact ? pathname === path : pathname === path || pathname.startsWith(`${path}/`);
+  const pathOk = tab.exact
+    ? pathname === path
+    : pathname === path || pathname.startsWith(`${path}/`);
   if (!pathOk) return false;
   if (!query) return true;
   const params = new URLSearchParams(query);

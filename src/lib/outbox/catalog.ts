@@ -35,9 +35,7 @@ export function registerEventSchema<T>(eventType: string, schema: z.ZodType<T>):
   if (existing && existing !== schema) {
     // Re-importing the same module is fine (idempotent set with same schema).
     // Re-registering with a different schema is a programmer error.
-    throw new Error(
-      `[outbox.catalog] eventType já registrado com schema diferente: ${eventType}`,
-    );
+    throw new Error(`[outbox.catalog] eventType já registrado com schema diferente: ${eventType}`);
   }
   catalog.set(eventType, schema);
 }

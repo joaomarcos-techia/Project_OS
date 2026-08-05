@@ -6,15 +6,22 @@
  *
  * Os passos clinic/owner/plan POSTam em saveStepAction (persistência retomável por
  * `version`). A senha do gestor fica SÓ no cliente (nunca no step_state). O checkout
- * coleta o cartão (tokenização Asaas é o próximo increment) e dispara a animação de
+ * coleta o cartão apenas em memória para o checkout transparente do Asaas e dispara a animação de
  * provisionamento → done. Cada step é remontado por `key` p/ o useActionState zerar.
  */
 import { useActionState, useEffect, useRef, useState } from 'react';
 
-import type { OnboardingPlan, OnboardingStep, StepState } from '@/contexts/onboarding';
+import { formatTrialDays } from '@/contexts/onboarding/trial';
+import type { OnboardingPlan } from '@/contexts/onboarding/internal/invites';
+import type { OnboardingStep, StepState } from '@/contexts/onboarding/internal/step-state';
 import { maskCep, maskCnpj, maskCpfCnpj, maskPhoneBR } from '@/lib/masks';
 
-import { saveStepAction, submitCheckoutAction, type CheckoutState, type JoinStepState } from './actions';
+import {
+  saveStepAction,
+  submitCheckoutAction,
+  type CheckoutState,
+  type JoinStepState,
+} from './actions';
 
 type View = 'welcome' | OnboardingStep | 'processing' | 'done';
 const INITIAL: JoinStepState = { error: null };
@@ -28,7 +35,14 @@ const STEP_LABEL: Record<OnboardingStep, string> = {
 
 /* ---------- ícones (inline, do design) ---------- */
 const s = (d: string, w = '2') => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={w} strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={w}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     {d.split('|').map((p, i) => (
       <path key={i} d={p} />
     ))}
@@ -39,34 +53,73 @@ const I = {
   arrowR: s('M9 6l6 6-6 6'),
   arrowL: s('M15 18l-6-6 6-6'),
   lock: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="5" y="11" width="14" height="9" rx="2" />
       <path d="M8 11V8a4 4 0 0 1 8 0v3" />
     </svg>
   ),
   shield: s('M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z|M9.5 12l1.8 1.8L15 10'),
   mail: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="M3 7l9 6 9-6" />
     </svg>
   ),
-  phone: s('M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'),
+  phone: s(
+    'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z',
+  ),
   pin: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z" />
       <circle cx="12" cy="10" r="2.5" />
     </svg>
   ),
-  alert: s('M12 9v4M12 17h.01|M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'),
+  alert: s(
+    'M12 9v4M12 17h.01|M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+  ),
   clock: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="9" />
       <path d="M12 8v4l3 2" />
     </svg>
   ),
   info: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
     </svg>
@@ -77,7 +130,13 @@ const I = {
     </svg>
   ),
   card: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+    >
       <rect x="2.5" y="5" width="19" height="14" rx="2" />
       <path d="M2.5 9.5h19" />
     </svg>
@@ -97,18 +156,28 @@ function Logo({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
       <rect width="32" height="32" rx="8" fill="var(--primary-600)" />
-      <path d="M9 16.5l4.5 4.5L23 11" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M9 16.5l4.5 4.5L23 11"
+        stroke="#fff"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 const fmtBRL = (cents: number | null) =>
-  cents == null ? 'Sob consulta' : `R$ ${(cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  cents == null
+    ? 'Sob consulta'
+    : `R$ ${(cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
 /* ---------- máscaras do cartão (as de doc/cep/telefone vêm de @/lib/masks) ---------- */
 const onlyD = (v: string) => v.replace(/\D/g, '');
 const maskCard = (v: string) =>
-  onlyD(v).slice(0, 19).replace(/(\d{4})(?=\d)/g, '$1 ');
+  onlyD(v)
+    .slice(0, 19)
+    .replace(/(\d{4})(?=\d)/g, '$1 ');
 const maskExpiry = (v: string) => {
   const d = onlyD(v).slice(0, 4);
   return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
@@ -142,7 +211,9 @@ export function JoinWizard({
   const fresh = initialState.currentStep === 'clinic' && initialState.completed.length === 0;
   const [view, setView] = useState<View>(fresh ? 'welcome' : initialState.currentStep);
   const [clinicName, setClinicName] = useState(initialState.clinic?.nome ?? '');
-  const [planId, setPlanId] = useState(initialState.planId ?? suggestedPlanId ?? plans[0]?.id ?? '');
+  const [planId, setPlanId] = useState(
+    initialState.planId ?? suggestedPlanId ?? plans[0]?.id ?? '',
+  );
   const [ownerPassword, setOwnerPassword] = useState('');
 
   const selectedPlan = plans.find((p) => p.id === planId) ?? plans[0] ?? null;
@@ -219,7 +290,7 @@ export function JoinWizard({
 
         {view === 'processing' ? <Processing onDone={() => setView('done')} /> : null}
 
-        {view === 'done' ? <Done email={suggestedEmail} /> : null}
+        {view === 'done' ? <OnboardingComplete /> : null}
       </div>
     </div>
   );
@@ -255,7 +326,15 @@ function useStepAction(onDone: () => void) {
 }
 
 /* ---------- welcome ---------- */
-function Welcome({ email, planName, onStart }: { email: string | null; planName: string | null; onStart: () => void }) {
+function Welcome({
+  email,
+  planName,
+  onStart,
+}: {
+  email: string | null;
+  planName: string | null;
+  onStart: () => void;
+}) {
   return (
     <div className="wiz-card welcome">
       <div className="mark">
@@ -279,7 +358,18 @@ function Welcome({ email, planName, onStart }: { email: string | null; planName:
         <div className="r">{I.check} Configure os dados da sua clínica</div>
         <div className="r">{I.check} Crie seu acesso de gestor</div>
         <div className="r">
-          {I.check} Ative{planName ? <> no plano <b style={{ color: 'var(--text)', fontWeight: 600 }}>&nbsp;{planName}</b> combinado</> : ' sua clínica'}
+          {I.check} Ative
+          {planName ? (
+            <>
+              {' '}
+              no plano <b style={{ color: 'var(--text)', fontWeight: 600 }}>
+                &nbsp;{planName}
+              </b>{' '}
+              combinado
+            </>
+          ) : (
+            ' sua clínica'
+          )}
         </div>
       </div>
       <button type="button" className="btn block" onClick={onStart}>
@@ -364,11 +454,19 @@ function StepClinic({
           <label>Endereço</label>
           <div className="input-wrap">
             {I.pin}
-            <input name="endereco" className="input" maxLength={240} defaultValue={defaults?.endereco ?? ''} placeholder="Rua, número, cidade" />
+            <input
+              name="endereco"
+              className="input"
+              maxLength={240}
+              defaultValue={defaults?.endereco ?? ''}
+              placeholder="Rua, número, cidade"
+            />
           </div>
         </div>
       </div>
-      {state.error ? <p style={{ color: 'var(--danger-600)', fontSize: 13, marginTop: 8 }}>{state.error}</p> : null}
+      {state.error ? (
+        <p style={{ color: 'var(--danger-600)', fontSize: 13, marginTop: 8 }}>{state.error}</p>
+      ) : null}
       <div className="wiz-foot end">
         <button type="submit" className="btn" disabled={pending}>
           {pending ? 'Salvando…' : 'Continuar'} {I.arrowR}
@@ -401,7 +499,11 @@ function StepOwner({
     setPw(v);
     onPassword(v);
   };
-  const rules = { len: pw.length >= 8, mix: /[a-zA-Z]/.test(pw) && /\d/.test(pw), sym: /[^a-zA-Z0-9]/.test(pw) };
+  const rules = {
+    len: pw.length >= 8,
+    mix: /[a-zA-Z]/.test(pw) && /\d/.test(pw),
+    sym: /[^a-zA-Z0-9]/.test(pw),
+  };
   return (
     <form action={action} className="wiz-card">
       <input type="hidden" name="token" value={token} />
@@ -416,13 +518,27 @@ function StepOwner({
       <div className="flow-panel form-col">
         <div className="field">
           <label>Nome completo *</label>
-          <input name="nome" className="input" required maxLength={120} defaultValue={defaults?.nome ?? ''} placeholder="João Silva" />
+          <input
+            name="nome"
+            className="input"
+            required
+            maxLength={120}
+            defaultValue={defaults?.nome ?? ''}
+            placeholder="João Silva"
+          />
         </div>
         <div className="field">
           <label>E-mail *</label>
           <div className="input-wrap">
             {I.mail}
-            <input name="email" className="input" type="email" required maxLength={160} defaultValue={defaults?.email ?? suggestedEmail ?? ''} />
+            <input
+              name="email"
+              className="input"
+              type="email"
+              required
+              maxLength={160}
+              defaultValue={defaults?.email ?? suggestedEmail ?? ''}
+            />
           </div>
         </div>
         <div className="field">
@@ -461,11 +577,14 @@ function StepOwner({
         <div className="note">
           {I.shield}
           <p>
-            <b>Não guardamos sua senha durante o cadastro.</b> Ela é usada apenas para criar seu acesso seguro ao final do processo.
+            <b>Não guardamos sua senha durante o cadastro.</b> Ela é usada apenas para criar seu
+            acesso seguro ao final do processo.
           </p>
         </div>
       </div>
-      {state.error ? <p style={{ color: 'var(--danger-600)', fontSize: 13, marginTop: 8 }}>{state.error}</p> : null}
+      {state.error ? (
+        <p style={{ color: 'var(--danger-600)', fontSize: 13, marginTop: 8 }}>{state.error}</p>
+      ) : null}
       <div className="wiz-foot">
         <button type="button" className="wiz-back" onClick={onBack}>
           {I.arrowL} Voltar
@@ -512,18 +631,16 @@ function StepPlan({
           const sel = p.id === planId;
           return (
             <div key={p.id} className={`wcard ${rec ? 'rec' : ''} ${sel ? 'sel' : ''}`}>
-              {rec ? (
-                <span className="rec-tag">
-                  {I.star} Recomendado
-                </span>
-              ) : null}
+              {rec ? <span className="rec-tag">{I.star} Recomendado</span> : null}
               <span className="nm">{p.name}</span>
               <span className="pr">
                 <span className="amt">{fmtBRL(p.priceCents)}</span>
                 <span className="per">/{p.cycle === 'annual' ? 'ano' : 'mês'}</span>
               </span>
               <ul>
-                <li>{I.check} Cobrança {p.cycle === 'annual' ? 'anual' : 'mensal'}</li>
+                <li>
+                  {I.check} Cobrança {p.cycle === 'annual' ? 'anual' : 'mensal'}
+                </li>
                 <li>{I.check} Suporte incluído</li>
                 <li>{I.check} Cancele quando quiser</li>
               </ul>
@@ -538,9 +655,15 @@ function StepPlan({
             </div>
           );
         })}
-        {plans.length === 0 ? <p style={{ color: 'var(--text-3)' }}>Nenhum plano disponível.</p> : null}
+        {plans.length === 0 ? (
+          <p style={{ color: 'var(--text-3)' }}>Nenhum plano disponível.</p>
+        ) : null}
       </div>
-      {state.error ? <p style={{ color: 'var(--danger-600)', fontSize: 13, textAlign: 'center', marginTop: 8 }}>{state.error}</p> : null}
+      {state.error ? (
+        <p style={{ color: 'var(--danger-600)', fontSize: 13, textAlign: 'center', marginTop: 8 }}>
+          {state.error}
+        </p>
+      ) : null}
       <div className="wiz-foot end" style={{ justifyContent: 'center', marginTop: 'var(--sp-6)' }}>
         <button type="button" className="wiz-back" onClick={onBack}>
           {I.arrowL} Voltar
@@ -569,7 +692,9 @@ function StepCheckout({
   onChangePlan: () => void;
   onActivated: () => void;
 }) {
-  const [state, action, pending] = useActionState(submitCheckoutAction, { error: null } as CheckoutState);
+  const [state, action, pending] = useActionState(submitCheckoutAction, {
+    error: null,
+  } as CheckoutState);
   useEffect(() => {
     if (state.ok) onActivated();
   }, [state.ok, onActivated]);
@@ -653,19 +778,30 @@ function StepCheckout({
 
           {needsPassword ? (
             <>
-              <div className="pay-section-label" style={mt}>Confirme sua senha de acesso</div>
+              <div className="pay-section-label" style={mt}>
+                Confirme sua senha de acesso
+              </div>
               <div className="fgroup">
                 <div className="frow">
                   <div className="fcell">
                     <label>Senha</label>
-                    <input name="password" type="password" minLength={8} required autoComplete="new-password" placeholder="mínimo 8 caracteres" />
+                    <input
+                      name="password"
+                      type="password"
+                      minLength={8}
+                      required
+                      autoComplete="new-password"
+                      placeholder="mínimo 8 caracteres"
+                    />
                   </div>
                 </div>
               </div>
             </>
           ) : null}
 
-          <div className="pay-section-label" style={mt}>Dados do cartão</div>
+          <div className="pay-section-label" style={mt}>
+            Dados do cartão
+          </div>
           <div className="fgroup">
             <div className="frow">
               <div className="fcell mono">
@@ -736,7 +872,9 @@ function StepCheckout({
           </button>
           <div className="trust-mini">
             <span className="tm">{I.shield} Pagamento integrado ao Asaas</span>
-            <span className="tm">{I.check} 7 dias grátis · cancele quando quiser</span>
+            <span className="tm">
+              {I.check} {formatTrialDays()} · cancele quando quiser
+            </span>
           </div>
         </div>
 
@@ -759,7 +897,7 @@ function StepCheckout({
             <span className="v">{fmtBRL(plan?.priceCents ?? null)}</span>
           </div>
           <div className="os-line">
-            <span className="l">Teste grátis (7 dias)</span>
+            <span className="l">Teste grátis ({formatTrialDays()})</span>
             <span className="v">incluído</span>
           </div>
           <div className="os-rule" />
@@ -812,7 +950,9 @@ function Processing({ onDone }: { onDone: () => void }) {
           const cls = i < active ? 'ok' : i === active ? 'run' : '';
           return (
             <div key={st.label} className={`proc-step ${cls}`}>
-              <span className="ico">{i < active ? I.check : i === active ? st.ico : <span className="dot3" />}</span>
+              <span className="ico">
+                {i < active ? I.check : i === active ? st.ico : <span className="dot3" />}
+              </span>
               {st.label}
             </div>
           );
@@ -823,7 +963,7 @@ function Processing({ onDone }: { onDone: () => void }) {
 }
 
 /* ---------- done ---------- */
-function Done({ email }: { email: string | null }) {
+export function OnboardingComplete() {
   return (
     <div className="wiz-card done">
       <div className="mark">{I.check}</div>
@@ -832,7 +972,7 @@ function Done({ email }: { email: string | null }) {
       <a className="btn block" href="/dashboard" style={{ marginTop: 'var(--sp-6)' }}>
         Entrar no painel {I.arrowR}
       </a>
-      {email ? <div className="foot-secure">{I.mail} Enviamos os detalhes de acesso para {email}</div> : null}
+      <div className="foot-secure">{I.check} Sua clínica está pronta para acesso.</div>
     </div>
   );
 }

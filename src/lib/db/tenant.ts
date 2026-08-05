@@ -1,5 +1,5 @@
 /**
- * `withTenant(clinicId, fn)` — the ONLY way to scope Postgres operations to
+ * `withTenant(clinicId, fn, actorUserId?)` — the ONLY way to scope Postgres operations to
  * a single tenant from jobs / workers / scripts (no JWT context).
  *
  * What it does, in order, inside a single transaction:
@@ -11,7 +11,9 @@
  *      cross-tenant reads/writes.
  *   2. `set_config('app.current_clinic', $1, true)` — sets the GUC that
  *      tenant-scoped RLS policies read via `current_setting('app.current_clinic')`.
- *   3. Runs `fn(tx)` inside the same transaction. On commit, both the role
+ *   3. When a request actor is known, sets `app.current_user` for policies
+ *      whose visibility is restricted to their author.
+ *   4. Runs `fn(tx)` inside the same transaction. On commit, both the role
  *      and the GUC evaporate — the next query on this pooled connection is
  *      back to the pool's default role (test 2.6.11 pool reuse safety).
  *
@@ -55,10 +57,14 @@ type TxArg = Parameters<Parameters<Db['transaction']>[0]>[0];
 export async function withTenant<T>(
   clinicId: string,
   fn: (tx: TxArg) => Promise<T>,
+  actorUserId?: string | null,
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL ROLE authenticated`);
     await tx.execute(sql`SELECT set_config('app.current_clinic', ${clinicId}, true)`);
+    if (actorUserId) {
+      await tx.execute(sql`SELECT set_config('app.current_user', ${actorUserId}, true)`);
+    }
     return fn(tx);
   });
 }

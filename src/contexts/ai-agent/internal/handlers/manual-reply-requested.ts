@@ -56,10 +56,7 @@ async function sendManualReply(ctx: HandlerCtx<ManualReplyRequestedPayload>): Pr
       })
       .from(aiConversations)
       .where(
-        and(
-          eq(aiConversations.id, payload.conversationId),
-          eq(aiConversations.clinicId, clinicId),
-        ),
+        and(eq(aiConversations.id, payload.conversationId), eq(aiConversations.clinicId, clinicId)),
       )
       .limit(1);
     if (!conv) return null;

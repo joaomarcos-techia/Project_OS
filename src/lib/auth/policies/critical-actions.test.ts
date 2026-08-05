@@ -104,7 +104,11 @@ function locate(actionName: string): Located {
       }
 
       // Formas 2 e 3 — `export const nome = …`
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === actionName) {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === actionName
+      ) {
         const init = node.initializer;
         if (!init) {
           found = { kind: 'unrecognized', file, detail: 'const sem inicializador' };

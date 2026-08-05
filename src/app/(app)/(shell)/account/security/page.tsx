@@ -59,8 +59,8 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
 
         {params.rate_limited ? (
           <Alert variant="danger">
-            Muitas tentativas de segurança em pouco tempo. Aguarde alguns minutos e tente
-            novamente — não é preciso refazer o login.
+            Muitas tentativas de segurança em pouco tempo. Aguarde alguns minutos e tente novamente
+            — não é preciso refazer o login.
           </Alert>
         ) : null}
 

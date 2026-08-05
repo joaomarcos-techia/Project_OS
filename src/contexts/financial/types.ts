@@ -103,11 +103,7 @@ export interface CollectionCaseDTO {
 
 // --- input schemas (write-side) --------------------------------------------
 
-const money = z
-  .number()
-  .finite()
-  .positive()
-  .max(99_999_999.99, 'valor acima do limite');
+const money = z.number().finite().positive().max(99_999_999.99, 'valor acima do limite');
 
 const uuid = z.string().uuid();
 

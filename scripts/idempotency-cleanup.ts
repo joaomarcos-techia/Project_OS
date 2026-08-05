@@ -14,10 +14,7 @@
  */
 import './_env';
 
-import {
-  cleanupExpiredIdempotencyKeys,
-  diagnoseInFlightOrphans,
-} from '@/lib/idempotency/cleanup';
+import { cleanupExpiredIdempotencyKeys, diagnoseInFlightOrphans } from '@/lib/idempotency/cleanup';
 
 const dryRun = process.argv.includes('--dry-run');
 

@@ -103,7 +103,8 @@ async function insertAppt(opts: {
         doctorId,
         procedureId,
         patientId: opts.patientId ?? null,
-        scheduledAt: typeof opts.scheduledAt === 'string' ? new Date(opts.scheduledAt) : opts.scheduledAt,
+        scheduledAt:
+          typeof opts.scheduledAt === 'string' ? new Date(opts.scheduledAt) : opts.scheduledAt,
         durationMin: opts.durationMin ?? 30,
         status: (opts.status ?? 'agendado') as 'agendado',
         valor: '200.00',
@@ -234,7 +235,10 @@ async function main(): Promise<void> {
     const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(9) });
     try {
       await withTenant(CLINIC_A, (tx) =>
-        tx.update(appointments).set({ snapshotProcedureValor: '300.00' }).where(eq(appointments.id, id)),
+        tx
+          .update(appointments)
+          .set({ snapshotProcedureValor: '300.00' })
+          .where(eq(appointments.id, id)),
       );
       throw new Error('UPDATE de snapshot deveria falhar');
     } catch (e) {
@@ -245,11 +249,17 @@ async function main(): Promise<void> {
   await tryStep('M8 — crm: backfill único NULL→valor, depois congela', async () => {
     const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(10) });
     await withTenant(CLINIC_A, (tx) =>
-      tx.update(appointments).set({ snapshotDoctorCrm: 'CRM-12345' }).where(eq(appointments.id, id)),
+      tx
+        .update(appointments)
+        .set({ snapshotDoctorCrm: 'CRM-12345' })
+        .where(eq(appointments.id, id)),
     ); // NULL→valor: permitido
     try {
       await withTenant(CLINIC_A, (tx) =>
-        tx.update(appointments).set({ snapshotDoctorCrm: 'CRM-99999' }).where(eq(appointments.id, id)),
+        tx
+          .update(appointments)
+          .set({ snapshotDoctorCrm: 'CRM-99999' })
+          .where(eq(appointments.id, id)),
       );
       throw new Error('2ª mudança de crm deveria falhar');
     } catch (e) {
@@ -323,36 +333,43 @@ async function main(): Promise<void> {
     assert(fromA.length > 0, 'A deveria ver seus próprios appointments');
   });
 
-  await tryStep('6.6.6 — appointment.completed processado pelo worker (handler Financial C9)', async () => {
-    const id = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(7), status: 'em_atendimento' });
-    const idemKey = `smoke-completed-${id}`;
-    await withTenant(CLINIC_A, (tx) =>
-      publishEvent(tx, {
+  await tryStep(
+    '6.6.6 — appointment.completed processado pelo worker (handler Financial C9)',
+    async () => {
+      const id = await insertAppt({
         clinicId: CLINIC_A,
-        eventType: 'scheduling.appointment.completed',
-        payload: {
-          appointmentId: id,
+        scheduledAt: tomorrow(7),
+        status: 'em_atendimento',
+      });
+      const idemKey = `smoke-completed-${id}`;
+      await withTenant(CLINIC_A, (tx) =>
+        publishEvent(tx, {
           clinicId: CLINIC_A,
-          doctorId,
-          patientId: null,
-          procedureId,
-          unitId: null,
-          valor: 200,
-          snapshotProcedureName: 'Consulta Smoke',
-          snapshotDoctorNome: 'Dr. Smoke',
-          scheduledAt: tomorrow(7).toISOString(),
-        },
-        idempotencyKey: idemKey,
-      }),
-    );
-    const processed = await processUntil(async () => {
-      const r = (await dbAdmin.execute(
-        sql`SELECT status FROM outbox WHERE event_type = 'scheduling.appointment.completed' AND idempotency_key = ${idemKey} LIMIT 1`,
-      )) as unknown as Array<{ status: string }>;
-      return r[0]?.status === 'processed';
-    });
-    assert(processed, 'evento completed não chegou a status=processed');
-  });
+          eventType: 'scheduling.appointment.completed',
+          payload: {
+            appointmentId: id,
+            clinicId: CLINIC_A,
+            doctorId,
+            patientId: null,
+            procedureId,
+            unitId: null,
+            valor: 200,
+            snapshotProcedureName: 'Consulta Smoke',
+            snapshotDoctorNome: 'Dr. Smoke',
+            scheduledAt: tomorrow(7).toISOString(),
+          },
+          idempotencyKey: idemKey,
+        }),
+      );
+      const processed = await processUntil(async () => {
+        const r = (await dbAdmin.execute(
+          sql`SELECT status FROM outbox WHERE event_type = 'scheduling.appointment.completed' AND idempotency_key = ${idemKey} LIMIT 1`,
+        )) as unknown as Array<{ status: string }>;
+        return r[0]?.status === 'processed';
+      });
+      assert(processed, 'evento completed não chegou a status=processed');
+    },
+  );
 
   await tryStep('6.6.7 — patient.core.deleted → worker cancela agendamentos futuros', async () => {
     const [p] = await withTenant(CLINIC_A, (tx) =>
@@ -384,7 +401,10 @@ async function main(): Promise<void> {
     );
     const cancelled = await processUntil(async () => {
       const r = await withTenant(CLINIC_A, (tx) =>
-        tx.select({ status: appointments.status }).from(appointments).where(eq(appointments.id, apptId)),
+        tx
+          .select({ status: appointments.status })
+          .from(appointments)
+          .where(eq(appointments.id, apptId)),
       );
       return r[0]?.status === 'cancelado';
     });
@@ -393,7 +413,10 @@ async function main(): Promise<void> {
     const evt = (await dbAdmin.execute(
       sql`SELECT payload->>'cancelReason' AS reason FROM outbox WHERE event_type = 'scheduling.appointment.cancelled' AND payload->>'appointmentId' = ${apptId} LIMIT 1`,
     )) as unknown as Array<{ reason: string }>;
-    assert(evt[0]?.reason === 'patient_deleted', `esperava cancelReason=patient_deleted, veio ${evt[0]?.reason}`);
+    assert(
+      evt[0]?.reason === 'patient_deleted',
+      `esperava cancelReason=patient_deleted, veio ${evt[0]?.reason}`,
+    );
   });
 }
 

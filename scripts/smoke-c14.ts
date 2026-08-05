@@ -87,7 +87,11 @@ function localDatePlusUtc(addDays: number): Date {
 async function jobsOfA(): Promise<Array<{ type: string; status: string; dedupKey: string }>> {
   return withTenant(CLINIC_A, async (tx) => {
     const rows = await tx
-      .select({ type: aiProactiveJobs.type, status: aiProactiveJobs.status, dedupKey: aiProactiveJobs.dedupKey })
+      .select({
+        type: aiProactiveJobs.type,
+        status: aiProactiveJobs.status,
+        dedupKey: aiProactiveJobs.dedupKey,
+      })
       .from(aiProactiveJobs)
       .where(eq(aiProactiveJobs.clinicId, CLINIC_A));
     return rows;
@@ -119,7 +123,13 @@ async function main(): Promise<void> {
   await withTenant(CLINIC_A, async (tx) => {
     const [proc] = await tx
       .insert(procedures)
-      .values({ clinicId: CLINIC_A, codigo: 'C001', descricao: 'Consulta', valorPadrao: '200.00', duracaoPadraoMin: 30 })
+      .values({
+        clinicId: CLINIC_A,
+        codigo: 'C001',
+        descricao: 'Consulta',
+        valorPadrao: '200.00',
+        duracaoPadraoMin: 30,
+      })
       .returning({ id: procedures.id });
     procedureId = proc!.id;
     const [pat] = await tx
@@ -134,7 +144,9 @@ async function main(): Promise<void> {
       })
       .returning({ id: patients.id });
     patientId = pat!.id;
-    await tx.insert(patientConsents).values({ clinicId: CLINIC_A, patientId, cobrancaWhatsapp: true, versao: 1 });
+    await tx
+      .insert(patientConsents)
+      .values({ clinicId: CLINIC_A, patientId, cobrancaWhatsapp: true, versao: 1 });
   });
   console.log(`[smoke:c14] A=${CLINIC_A} B=${CLINIC_B} patient=${patientId}`);
 
@@ -149,18 +161,30 @@ async function main(): Promise<void> {
     });
 
     // 2 — suppression reflete no contato -------------------------------------
-    await step('2 — suppression_list (whatsapp) → suppressedWhatsapp=true; remover → false', async () => {
-      await withTenant(CLINIC_A, (tx) =>
-        tx.insert(suppressionList).values({ clinicId: CLINIC_A, contactHash: telHash, channel: 'whatsapp', reason: 'smoke' }),
-      );
-      const sup = await patientApiV1.getProactiveContact(CLINIC_A, patientId);
-      assert(sup!.suppressedWhatsapp === true, 'deveria estar suprimido');
-      await withTenant(CLINIC_A, (tx) =>
-        tx.delete(suppressionList).where(and(eq(suppressionList.clinicId, CLINIC_A), eq(suppressionList.contactHash, telHash))),
-      );
-      const unsup = await patientApiV1.getProactiveContact(CLINIC_A, patientId);
-      assert(unsup!.suppressedWhatsapp === false, 'suppression deveria ter sido removida');
-    });
+    await step(
+      '2 — suppression_list (whatsapp) → suppressedWhatsapp=true; remover → false',
+      async () => {
+        await withTenant(CLINIC_A, (tx) =>
+          tx.insert(suppressionList).values({
+            clinicId: CLINIC_A,
+            contactHash: telHash,
+            channel: 'whatsapp',
+            reason: 'smoke',
+          }),
+        );
+        const sup = await patientApiV1.getProactiveContact(CLINIC_A, patientId);
+        assert(sup!.suppressedWhatsapp === true, 'deveria estar suprimido');
+        await withTenant(CLINIC_A, (tx) =>
+          tx
+            .delete(suppressionList)
+            .where(
+              and(eq(suppressionList.clinicId, CLINIC_A), eq(suppressionList.contactHash, telHash)),
+            ),
+        );
+        const unsup = await patientApiV1.getProactiveContact(CLINIC_A, patientId);
+        assert(unsup!.suppressedWhatsapp === false, 'suppression deveria ter sido removida');
+      },
+    );
 
     // 3 — reminder enqueue + dedup -------------------------------------------
     let apptId = '';
@@ -187,7 +211,9 @@ async function main(): Promise<void> {
       });
       await enqueueRemindersDue();
       await enqueueRemindersDue(); // 2ª vez → dedup
-      const reminders = (await jobsOfA()).filter((j) => j.type === 'reminder' && j.dedupKey === `reminder:${apptId}`);
+      const reminders = (await jobsOfA()).filter(
+        (j) => j.type === 'reminder' && j.dedupKey === `reminder:${apptId}`,
+      );
       assert(reminders.length === 1, `esperava 1 reminder, veio ${reminders.length}`);
       assert(reminders[0]!.status === 'pending', 'reminder deveria estar pending');
     });
@@ -220,9 +246,18 @@ async function main(): Promise<void> {
       lancD7 = await mk(8);
       await enqueueDunningDue();
       const dun = (await jobsOfA()).filter((j) => j.type === 'dunning');
-      assert(dun.some((j) => j.dedupKey === `dunning:${lancD3}:d3`), 'faltou dunning d3 (4 dias)');
-      assert(dun.some((j) => j.dedupKey === `dunning:${lancD7}:d3`), 'faltou dunning d3 (8 dias)');
-      assert(dun.some((j) => j.dedupKey === `dunning:${lancD7}:d7`), 'faltou dunning d7 (8 dias)');
+      assert(
+        dun.some((j) => j.dedupKey === `dunning:${lancD3}:d3`),
+        'faltou dunning d3 (4 dias)',
+      );
+      assert(
+        dun.some((j) => j.dedupKey === `dunning:${lancD7}:d3`),
+        'faltou dunning d3 (8 dias)',
+      );
+      assert(
+        dun.some((j) => j.dedupKey === `dunning:${lancD7}:d7`),
+        'faltou dunning d7 (8 dias)',
+      );
     });
 
     // 5 — guard "pagou → não envia" (nível candidato) ------------------------
@@ -234,27 +269,42 @@ async function main(): Promise<void> {
           .where(eq(lancamentos.id, lancD3)),
       );
       const cands = await financialApiV1.listDunningCandidates(500);
-      assert(!cands.some((c) => c.lancamentoId === lancD3), 'lançamento pago não deveria ser candidato a dunning');
+      assert(
+        !cands.some((c) => c.lancamentoId === lancD3),
+        'lançamento pago não deveria ser candidato a dunning',
+      );
     });
 
     // 6 — claimDue: CTE SQL + janela 8-20h local -----------------------------
-    await step('6 — claimDue executa (CTE/SKIP LOCKED) e respeita a janela 8-20h local', async () => {
-      // job já-vencido p/ ser elegível independente do horário de criação.
-      await withTenant(CLINIC_A, (tx) =>
-        tx.insert(aiProactiveJobs).values({
-          clinicId: CLINIC_A,
-          type: 'reminder',
-          scheduledFor: new Date(Date.now() - 3600_000),
-          payload: { patientId, appointmentId: apptId, scheduledAt: new Date().toISOString(), doctorNome: 'Dra. Smoke' },
-          dedupKey: `reminder-due:${apptId}`,
-        }),
-      );
-      const inWindow = clinicLocalHour(TZ, new Date()) >= 8 && clinicLocalHour(TZ, new Date()) < 20;
-      const claimed = (await claimDue('reminder', 50)).filter((j) => j.clinicId === CLINIC_A);
-      if (inWindow) assert(claimed.length >= 1, 'dentro da janela deveria reservar ≥1 reminder vencido');
-      else assert(claimed.length === 0, 'fora da janela 8-20h NÃO deveria reservar');
-      console.log(`       (janela local ${inWindow ? 'ABERTA' : 'FECHADA'} — ${claimed.length} reservado(s))`);
-    });
+    await step(
+      '6 — claimDue executa (CTE/SKIP LOCKED) e respeita a janela 8-20h local',
+      async () => {
+        // job já-vencido p/ ser elegível independente do horário de criação.
+        await withTenant(CLINIC_A, (tx) =>
+          tx.insert(aiProactiveJobs).values({
+            clinicId: CLINIC_A,
+            type: 'reminder',
+            scheduledFor: new Date(Date.now() - 3600_000),
+            payload: {
+              patientId,
+              appointmentId: apptId,
+              scheduledAt: new Date().toISOString(),
+              doctorNome: 'Dra. Smoke',
+            },
+            dedupKey: `reminder-due:${apptId}`,
+          }),
+        );
+        const inWindow =
+          clinicLocalHour(TZ, new Date()) >= 8 && clinicLocalHour(TZ, new Date()) < 20;
+        const claimed = (await claimDue('reminder', 50)).filter((j) => j.clinicId === CLINIC_A);
+        if (inWindow)
+          assert(claimed.length >= 1, 'dentro da janela deveria reservar ≥1 reminder vencido');
+        else assert(claimed.length === 0, 'fora da janela 8-20h NÃO deveria reservar');
+        console.log(
+          `       (janela local ${inWindow ? 'ABERTA' : 'FECHADA'} — ${claimed.length} reservado(s))`,
+        );
+      },
+    );
 
     // 7 — followup via worker -------------------------------------------------
     await step('7 — prontuario.signed (needs_return) → worker cria followup', async () => {
@@ -279,7 +329,9 @@ async function main(): Promise<void> {
       let ok = false;
       for (let i = 0; i < 8 && !ok; i++) {
         await runOutboxOnce({ batchSize: 10, parallelism: 1 });
-        ok = (await jobsOfA()).some((j) => j.type === 'followup' && j.dedupKey === `followup:${prontuarioId}`);
+        ok = (await jobsOfA()).some(
+          (j) => j.type === 'followup' && j.dedupKey === `followup:${prontuarioId}`,
+        );
       }
       assert(ok, 'followup job não foi criado pelo handler do worker');
     });
@@ -296,8 +348,16 @@ async function main(): Promise<void> {
       assert(seenByB === 0, `RLS furada: B viu ${seenByB} jobs da A`);
     });
   } finally {
-    // cleanup (CASCADE por clinic_id remove jobs/appts/lanc/patients/outbox).
-    await dbAdmin.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`);
+    // outbox/idempotency/audit usam tenantId() sem FK; limpar por fixture antes
+    // das clínicas para não deixar eventos órfãos no worker de desenvolvimento.
+    for (const clinicId of [CLINIC_A, CLINIC_B]) {
+      for (const table of ['outbox', 'idempotency_keys', 'audit_events'] as const) {
+        await dbAdmin.execute(sql`DELETE FROM ${sql.raw(table)} WHERE clinic_id = ${clinicId}`);
+      }
+    }
+    await dbAdmin.execute(
+      sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`,
+    );
     await supabase.auth.admin.deleteUser(doctorId).catch(() => {});
   }
 

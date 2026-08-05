@@ -24,7 +24,11 @@ export function maskPhone(phone: string | null | undefined): string {
   return `+${prefix}${stars}${last4}`;
 }
 
-const DATE_PT = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const DATE_PT = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
 
 /** Formata 'YYYY-MM-DD' ou ISO como dd/mm/aaaa (sem timezone shift para date puro). */
 export function formatDatePt(value: string | null | undefined): string {

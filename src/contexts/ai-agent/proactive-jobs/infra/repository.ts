@@ -67,7 +67,10 @@ export async function insertJobTx(tx: Tx, values: ProactiveJobInsert): Promise<s
 }
 
 /** Enqueue por clínica (cron de reminders/dunning), em withTenant. */
-export async function enqueue(clinicId: string, values: ProactiveJobInsert): Promise<string | null> {
+export async function enqueue(
+  clinicId: string,
+  values: ProactiveJobInsert,
+): Promise<string | null> {
   return withTenant(clinicId, (tx) => insertJobTx(tx, values));
 }
 
@@ -172,16 +175,40 @@ export function finalizeSent(clinicId: string, jobId: string, leaseToken: string
 }
 
 /** Falha transitória → volta a pending com backoff (attempts já incrementado). */
-export function finalizeRetry(clinicId: string, jobId: string, leaseToken: string, nextAt: Date, reason: string): Promise<void> {
-  return finalizeClaim(clinicId, jobId, leaseToken, { status: 'pending', scheduledFor: nextAt, failedReason: reason });
+export function finalizeRetry(
+  clinicId: string,
+  jobId: string,
+  leaseToken: string,
+  nextAt: Date,
+  reason: string,
+): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, {
+    status: 'pending',
+    scheduledFor: nextAt,
+    failedReason: reason,
+  });
 }
 
 /** Falha definitiva (estourou MAX_ATTEMPTS ou erro não-retryável). */
-export function finalizeFailed(clinicId: string, jobId: string, leaseToken: string, reason: string): Promise<void> {
+export function finalizeFailed(
+  clinicId: string,
+  jobId: string,
+  leaseToken: string,
+  reason: string,
+): Promise<void> {
   return finalizeClaim(clinicId, jobId, leaseToken, { status: 'failed', failedReason: reason });
 }
 
 /** Bloqueado por política/guard (suppression, consent, já pago, cancelado). */
-export function cancel(clinicId: string, jobId: string, leaseToken: string, reason: string): Promise<void> {
-  return finalizeClaim(clinicId, jobId, leaseToken, { status: 'cancelled', lastAttemptAt: new Date(), failedReason: reason });
+export function cancel(
+  clinicId: string,
+  jobId: string,
+  leaseToken: string,
+  reason: string,
+): Promise<void> {
+  return finalizeClaim(clinicId, jobId, leaseToken, {
+    status: 'cancelled',
+    lastAttemptAt: new Date(),
+    failedReason: reason,
+  });
 }

@@ -265,7 +265,10 @@ async function main(): Promise<void> {
 
   await tryStep('5.6.4 — soft delete esconde de patientsActive', async () => {
     await withTenant(CLINIC_A, async (tx) => {
-      await tx.update(patients).set({ deletedAt: sql`now()` }).where(eq(patients.id, patientA));
+      await tx
+        .update(patients)
+        .set({ deletedAt: sql`now()` })
+        .where(eq(patients.id, patientA));
     });
     const viaActive = await getPatientSummaryById(CLINIC_A, patientA);
     assert(viaActive === null, 'soft-deleted ainda aparece em getPatientSummaryById');
@@ -300,10 +303,22 @@ async function main(): Promise<void> {
     assert(gone[0]!.n === 0, 'paciente não foi apagado');
 
     for (const [label, q] of [
-      ['consents', sql`SELECT count(*)::int AS n FROM patient_consents WHERE patient_id = ${patientA}::uuid`],
-      ['clinical', sql`SELECT count(*)::int AS n FROM patient_clinical_data WHERE patient_id = ${patientA}::uuid`],
-      ['addresses', sql`SELECT count(*)::int AS n FROM patient_addresses WHERE patient_id = ${patientA}::uuid`],
-      ['contacts', sql`SELECT count(*)::int AS n FROM patient_emergency_contacts WHERE patient_id = ${patientA}::uuid`],
+      [
+        'consents',
+        sql`SELECT count(*)::int AS n FROM patient_consents WHERE patient_id = ${patientA}::uuid`,
+      ],
+      [
+        'clinical',
+        sql`SELECT count(*)::int AS n FROM patient_clinical_data WHERE patient_id = ${patientA}::uuid`,
+      ],
+      [
+        'addresses',
+        sql`SELECT count(*)::int AS n FROM patient_addresses WHERE patient_id = ${patientA}::uuid`,
+      ],
+      [
+        'contacts',
+        sql`SELECT count(*)::int AS n FROM patient_emergency_contacts WHERE patient_id = ${patientA}::uuid`,
+      ],
     ] as const) {
       const r = (await dbAdmin.execute(q)) as unknown as Array<{ n: number }>;
       assert(r[0]!.n === 0, `cascade falhou: ${label} ainda tem linhas`);

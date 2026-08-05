@@ -52,11 +52,7 @@ import { timestampsPattern, uuidPk } from '@/lib/db/types';
 
 import type { Encrypted } from '@/lib/crypto/brand';
 
-import type {
-  Medicamento,
-  MedicalDocumentContent,
-  ProntuarioContent,
-} from './types';
+import type { Medicamento, MedicalDocumentContent, ProntuarioContent } from './types';
 
 import './events'; // side-effect: registra clinical.* no catálogo do outbox.
 
@@ -193,7 +189,9 @@ export const prescriptions = pgTable(
     // A1/ADR-044: lista de medicamentos + observações cifradas per-tenant.
     // observacoes_encrypted é NULLABLE (o original também era) — só é cifrada
     // quando existe (ver decryptJson tolerante a null no queries.ts).
-    medicamentosEncrypted: text('medicamentos_encrypted').notNull().$type<Encrypted<Medicamento[]>>(),
+    medicamentosEncrypted: text('medicamentos_encrypted')
+      .notNull()
+      .$type<Encrypted<Medicamento[]>>(),
     observacoesEncrypted: text('observacoes_encrypted').$type<Encrypted<string>>(),
     pdfStoragePath: text('pdf_storage_path'),
 
@@ -241,7 +239,9 @@ export const medicalDocuments = pgTable(
     doctorId: uuid('doctor_id').notNull(), // FK profiles RESTRICT (migration)
     type: medicalDocumentType('type').notNull(), // fica em CLARO — discrimina o render do PDF
     // A1/ADR-044: conteúdo do documento (atestado/exame/etc.) cifrado per-tenant.
-    contentEncrypted: text('content_encrypted').notNull().$type<Encrypted<MedicalDocumentContent>>(),
+    contentEncrypted: text('content_encrypted')
+      .notNull()
+      .$type<Encrypted<MedicalDocumentContent>>(),
     pdfStoragePath: text('pdf_storage_path'),
 
     snapshotPatientNome: text('snapshot_patient_nome').notNull(),

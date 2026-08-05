@@ -168,13 +168,21 @@ export function demographicsLine(idade: number | null, sexo: Sexo | null): strin
 
 // --- montagem dos cards -----------------------------------------------------
 
-export function motivoOf(a: Pick<AppointmentSummary, 'snapshotProcedureName' | 'observacoes'>): string {
+export function motivoOf(
+  a: Pick<AppointmentSummary, 'snapshotProcedureName' | 'observacoes'>,
+): string {
   return a.observacoes ? `${a.snapshotProcedureName} · ${a.observacoes}` : a.snapshotProcedureName;
 }
 
 type CardAppointment = Pick<
   AppointmentSummary,
-  'id' | 'patientId' | 'scheduledAt' | 'snapshotProcedureName' | 'observacoes' | 'status' | 'urgencia'
+  | 'id'
+  | 'patientId'
+  | 'scheduledAt'
+  | 'snapshotProcedureName'
+  | 'observacoes'
+  | 'status'
+  | 'urgencia'
 >;
 
 /**

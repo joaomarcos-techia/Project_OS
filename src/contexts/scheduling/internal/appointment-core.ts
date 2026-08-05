@@ -94,7 +94,12 @@ function transitionPayload(
     case SCHEDULING_EVENTS.NO_SHOW:
       return {
         eventType,
-        payload: { ...base, patientId: appt.patientId ?? null, fromStatus: appt.status, toStatus: target },
+        payload: {
+          ...base,
+          patientId: appt.patientId ?? null,
+          fromStatus: appt.status,
+          toStatus: target,
+        },
       };
     default: // CONFIRMED / CHECKED_IN
       return { eventType, payload: { ...base, fromStatus: appt.status, toStatus: target, reason } };
@@ -290,7 +295,13 @@ export async function buildSnapshot(
   const [proc] = await tx
     .select()
     .from(procedures)
-    .where(and(eq(procedures.clinicId, clinicId), eq(procedures.id, procedureId), eq(procedures.ativo, true)))
+    .where(
+      and(
+        eq(procedures.clinicId, clinicId),
+        eq(procedures.id, procedureId),
+        eq(procedures.ativo, true),
+      ),
+    )
     .limit(1);
   if (!proc) throw new ProcedureNotFoundError(procedureId);
 
@@ -435,7 +446,11 @@ export async function createAppointmentCore(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+        idempotency: {
+          key: idemKey('create', idempotencyKey),
+          payload: jsonSafe(data),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
         audit: {
           action: SCHEDULING_EVENTS.CREATED,
           resourceType: 'appointment',
@@ -532,7 +547,11 @@ export async function rescheduleCore(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('reschedule', idempotencyKey), payload: jsonSafe({ id, data }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+        idempotency: {
+          key: idemKey('reschedule', idempotencyKey),
+          payload: jsonSafe({ id, data }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
         audit: {
           action: SCHEDULING_EVENTS.RESCHEDULED,
           resourceType: 'appointment',

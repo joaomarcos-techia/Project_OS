@@ -24,8 +24,24 @@ describe('waitlist candidate selection', () => {
 
   it('prefers urgent compatible candidates, then oldest request', () => {
     const candidates: WaitlistCandidate[] = [
-      { id: 'old-normal', doctorId: null, procedureId: 'procedure-1', priority: 'normal', preferredFrom: null, preferredUntil: null, createdAt: new Date('2026-07-20T10:00:00Z') },
-      { id: 'new-urgent', doctorId: 'doctor-1', procedureId: 'procedure-1', priority: 'urgent', preferredFrom: null, preferredUntil: null, createdAt: new Date('2026-07-24T10:00:00Z') },
+      {
+        id: 'old-normal',
+        doctorId: null,
+        procedureId: 'procedure-1',
+        priority: 'normal',
+        preferredFrom: null,
+        preferredUntil: null,
+        createdAt: new Date('2026-07-20T10:00:00Z'),
+      },
+      {
+        id: 'new-urgent',
+        doctorId: 'doctor-1',
+        procedureId: 'procedure-1',
+        priority: 'urgent',
+        preferredFrom: null,
+        preferredUntil: null,
+        createdAt: new Date('2026-07-24T10:00:00Z'),
+      },
     ];
 
     expect(chooseWaitlistCandidate(candidates, slot)?.id).toBe('new-urgent');
@@ -33,9 +49,33 @@ describe('waitlist candidate selection', () => {
 
   it('ignores candidates for another doctor, procedure or preferred period', () => {
     const candidates: WaitlistCandidate[] = [
-      { id: 'doctor', doctorId: 'doctor-2', procedureId: 'procedure-1', priority: 'urgent', preferredFrom: null, preferredUntil: null, createdAt: new Date() },
-      { id: 'procedure', doctorId: null, procedureId: 'procedure-2', priority: 'urgent', preferredFrom: null, preferredUntil: null, createdAt: new Date() },
-      { id: 'period', doctorId: null, procedureId: 'procedure-1', priority: 'urgent', preferredFrom: new Date('2026-08-01T00:00:00Z'), preferredUntil: null, createdAt: new Date() },
+      {
+        id: 'doctor',
+        doctorId: 'doctor-2',
+        procedureId: 'procedure-1',
+        priority: 'urgent',
+        preferredFrom: null,
+        preferredUntil: null,
+        createdAt: new Date(),
+      },
+      {
+        id: 'procedure',
+        doctorId: null,
+        procedureId: 'procedure-2',
+        priority: 'urgent',
+        preferredFrom: null,
+        preferredUntil: null,
+        createdAt: new Date(),
+      },
+      {
+        id: 'period',
+        doctorId: null,
+        procedureId: 'procedure-1',
+        priority: 'urgent',
+        preferredFrom: new Date('2026-08-01T00:00:00Z'),
+        preferredUntil: null,
+        createdAt: new Date(),
+      },
     ];
 
     expect(chooseWaitlistCandidate(candidates, slot)).toBeNull();

@@ -67,7 +67,10 @@ export async function getPlatformSetting<T>(key: string, fallback: T): Promise<T
 
 /** Jobs proativos ligados? Default true (não silenciar a clínica por erro). */
 export async function isProactiveEnabled(): Promise<boolean> {
-  return coerceBool(await getPlatformSetting<unknown>(PLATFORM_FLAG_KEYS.proactiveEnabled, true), true);
+  return coerceBool(
+    await getPlatformSetting<unknown>(PLATFORM_FLAG_KEYS.proactiveEnabled, true),
+    true,
+  );
 }
 
 /** Modo do agente. Default 'normal' (não degradar por erro de config). */

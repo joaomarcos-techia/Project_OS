@@ -216,10 +216,7 @@ export function PrescriptionDrawer({
             <Button variant="ghost" size="sm" onClick={() => setSaveOpen((v) => !v)}>
               Salvar como modelo
             </Button>
-            <Link
-              href="/modelos-receita"
-              className="text-(length:--fs-sm) text-fg-muted underline"
-            >
+            <Link href="/modelos-receita" className="text-(length:--fs-sm) text-fg-muted underline">
               Gerenciar
             </Link>
           </div>
@@ -335,7 +332,11 @@ export function PrescriptionDrawer({
             </div>
           ))}
           <div>
-            <Button size="sm" variant="secondary" onClick={() => setMeds((m) => [...m, emptyMed()])}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setMeds((m) => [...m, emptyMed()])}
+            >
               <Plus className="size-3.5" /> Adicionar medicamento
             </Button>
           </div>

@@ -19,6 +19,8 @@ export function getTemplate(id: string): ClinicalTemplate | undefined {
   return CLINICAL_TEMPLATES.find((t) => t.id === id);
 }
 
-export function listTemplates(): ReadonlyArray<Pick<ClinicalTemplate, 'id' | 'nome' | 'especialidade'>> {
+export function listTemplates(): ReadonlyArray<
+  Pick<ClinicalTemplate, 'id' | 'nome' | 'especialidade'>
+> {
   return CLINICAL_TEMPLATES.map(({ id, nome, especialidade }) => ({ id, nome, especialidade }));
 }

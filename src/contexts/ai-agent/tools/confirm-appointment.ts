@@ -42,7 +42,9 @@ const OutputSchema = z.object({
   appointments: z.array(AppointmentOptionSchema),
 });
 
-function toOption(appointment: Awaited<ReturnType<typeof schedulingApiV1.listPatientAppointments>>[number]) {
+function toOption(
+  appointment: Awaited<ReturnType<typeof schedulingApiV1.listPatientAppointments>>[number],
+) {
   return {
     appointment_id: appointment.id,
     scheduled_at: appointment.scheduledAt,

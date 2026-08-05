@@ -3,8 +3,7 @@ import { __internal } from './env';
 
 const { loadEnv } = __internal;
 
-const asEnv = (obj: Record<string, string>) =>
-  obj as unknown as NodeJS.ProcessEnv;
+const asEnv = (obj: Record<string, string>) => obj as unknown as NodeJS.ProcessEnv;
 
 // Minimal C1-valid env: DATABASE_URL + NEXT_PUBLIC_SUPABASE_URL + one Supabase key.
 const baseValid: Record<string, string> = {
@@ -24,23 +23,13 @@ describe('env validation (C1 contract)', () => {
   });
 
   it('rejects env with no Supabase publishable/anon key', () => {
-    const {
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: _drop,
-      ...rest
-    } = baseValid;
-    expect(() => loadEnv(asEnv(rest))).toThrow(
-      /PUBLISHABLE_KEY.*or.*ANON_KEY/,
-    );
+    const { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: _drop, ...rest } = baseValid;
+    expect(() => loadEnv(asEnv(rest))).toThrow(/PUBLISHABLE_KEY.*or.*ANON_KEY/);
   });
 
   it('accepts legacy ANON_KEY in place of PUBLISHABLE_KEY', () => {
-    const {
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: _drop,
-      ...rest
-    } = baseValid;
-    const parsed = loadEnv(
-      asEnv({ ...rest, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'legacy-anon' }),
-    );
+    const { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: _drop, ...rest } = baseValid;
+    const parsed = loadEnv(asEnv({ ...rest, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'legacy-anon' }));
     expect(parsed.NEXT_PUBLIC_SUPABASE_ANON_KEY).toBe('legacy-anon');
   });
 
@@ -82,9 +71,46 @@ describe('env validation (C1 contract)', () => {
         DATABASE_URL_PROD: 'postgres://u:p@prod-host:5432/db?sslmode=require',
       }),
     );
-    expect(parsed.DATABASE_URL_PROD).toBe(
-      'postgres://u:p@prod-host:5432/db?sslmode=require',
+    expect(parsed.DATABASE_URL_PROD).toBe('postgres://u:p@prod-host:5432/db?sslmode=require');
+  });
+
+  it('maps and prioritizes development aliases outside production only', () => {
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        DATABASE_URL_DEV: 'postgres://dev:dev@dev-host:5432/dev?sslmode=require',
+        SECRET_KEY_DEV: 'sb_secret_dev',
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV: 'sb_publishable_dev',
+        ASAAS_API_KEY: 'old-asaas-key',
+        ASAAS_API_KEY_DEV: 'asaas-dev-key',
+        ASAAS_BASE_URL_DEV: 'https://sandbox.asaas.com/api/v3',
+        ASAAS_WEBHOOK_TOKEN_DEV: 'asaas-webhook-dev',
+        RESEND_API_KEY: 'old-resend-key',
+        RESEND_API_KEY_DEV: 're_dev_test',
+        EMAIL_FROM: 'Qoro <old@qoro.test>',
+        EMAIL_FROM_DEV: 'Qoro <dev@qoro.test>',
+      }),
     );
+    expect(parsed.DATABASE_URL).toContain('dev-host');
+    expect(parsed.SUPABASE_SECRET_KEY).toBe('sb_secret_dev');
+    expect(parsed.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).toBe('sb_publishable_dev');
+    expect(parsed.ASAAS_API_KEY).toBe('asaas-dev-key');
+    expect(parsed.ASAAS_WEBHOOK_TOKEN).toBe('asaas-webhook-dev');
+    expect(parsed.RESEND_API_KEY).toBe('re_dev_test');
+    expect(parsed.EMAIL_FROM).toBe('Qoro <dev@qoro.test>');
+  });
+
+  it('does not map development aliases in production', () => {
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        NODE_ENV: 'production',
+        RESEND_API_KEY_DEV: 're_dev_test',
+        EMAIL_FROM_DEV: 'Qoro <dev@qoro.test>',
+      }),
+    );
+    expect(parsed.RESEND_API_KEY).toBeUndefined();
+    expect(parsed.EMAIL_FROM).toBeUndefined();
   });
 
   it.each(['DATABASE_URL', 'DATABASE_URL_RUNTIME'] as const)(
@@ -120,21 +146,17 @@ describe('env validation (C1 contract)', () => {
   });
 
   it('rejects invalid NODE_ENV', () => {
-    expect(() =>
-      loadEnv(asEnv({ ...baseValid, NODE_ENV: 'banana' })),
-    ).toThrow(/NODE_ENV/);
+    expect(() => loadEnv(asEnv({ ...baseValid, NODE_ENV: 'banana' }))).toThrow(/NODE_ENV/);
   });
 
   it('rejects invalid LOG_LEVEL', () => {
-    expect(() =>
-      loadEnv(asEnv({ ...baseValid, LOG_LEVEL: 'verbose' })),
-    ).toThrow(/LOG_LEVEL/);
+    expect(() => loadEnv(asEnv({ ...baseValid, LOG_LEVEL: 'verbose' }))).toThrow(/LOG_LEVEL/);
   });
 
   it('rejects malformed DATABASE_URL', () => {
-    expect(() =>
-      loadEnv(asEnv({ ...baseValid, DATABASE_URL: 'not-a-url' })),
-    ).toThrow(/DATABASE_URL/);
+    expect(() => loadEnv(asEnv({ ...baseValid, DATABASE_URL: 'not-a-url' }))).toThrow(
+      /DATABASE_URL/,
+    );
   });
 
   it('accepts SUPABASE_PROJECT_ENV opt-in flag', () => {
@@ -143,8 +165,8 @@ describe('env validation (C1 contract)', () => {
   });
 
   it('rejects invalid SUPABASE_PROJECT_ENV', () => {
-    expect(() =>
-      loadEnv(asEnv({ ...baseValid, SUPABASE_PROJECT_ENV: 'staging' })),
-    ).toThrow(/SUPABASE_PROJECT_ENV/);
+    expect(() => loadEnv(asEnv({ ...baseValid, SUPABASE_PROJECT_ENV: 'staging' }))).toThrow(
+      /SUPABASE_PROJECT_ENV/,
+    );
   });
 });

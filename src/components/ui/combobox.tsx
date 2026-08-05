@@ -138,9 +138,7 @@ export function Combobox({
           className={cn(fieldControlClassName, 'pl-9')}
         />
       </span>
-      {searching ? (
-        <p className="mt-1 text-(length:--fs-xs) text-fg-subtle">buscando…</p>
-      ) : null}
+      {searching ? <p className="mt-1 text-(length:--fs-xs) text-fg-subtle">buscando…</p> : null}
       {open ? (
         <ul
           id={listId}

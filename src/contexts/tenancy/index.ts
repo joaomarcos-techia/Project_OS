@@ -7,10 +7,4 @@
 //   - FK helper: tenantIdRef() — used by every tenant-scoped table in C3+
 //
 // C13 / C15 will add api.ts (cross-context calls) and events.ts (outbox).
-export {
-  clinicStatus,
-  clinics,
-  clinicUnits,
-  reservedSlugs,
-  tenantIdRef,
-} from './schema';
+export { clinicStatus, clinics, clinicUnits, reservedSlugs, tenantIdRef } from './schema';

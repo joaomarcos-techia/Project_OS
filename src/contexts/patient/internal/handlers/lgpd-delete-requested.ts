@@ -38,9 +38,19 @@ registerHandler<LgpdDeleteRequestedPayload>(
       .returning({ telefoneHash: patients.telefoneHash, email: patients.email });
     if (!row) return; // already hard-deleted — nothing to do (idempotent)
 
-    const supp: { clinicId: string; contactHash: string; channel: 'whatsapp' | 'email' | 'sms'; reason: string }[] = [];
+    const supp: {
+      clinicId: string;
+      contactHash: string;
+      channel: 'whatsapp' | 'email' | 'sms';
+      reason: string;
+    }[] = [];
     if (row.telefoneHash) {
-      supp.push({ clinicId, contactHash: row.telefoneHash, channel: 'whatsapp', reason: 'lgpd_delete' });
+      supp.push({
+        clinicId,
+        contactHash: row.telefoneHash,
+        channel: 'whatsapp',
+        reason: 'lgpd_delete',
+      });
       supp.push({ clinicId, contactHash: row.telefoneHash, channel: 'sms', reason: 'lgpd_delete' });
     }
     // C12: paciente criado pelo agente pode não ter e-mail — só suprime se houver.

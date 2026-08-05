@@ -55,8 +55,19 @@ export class AuditExportTooLargeError extends Error {
 const t = StyleSheet.create({
   meta: { fontSize: 9, color: '#4b5563', marginBottom: 2 },
   hash: { fontSize: 8, color: '#6b7280', fontFamily: 'Courier', marginTop: 4, marginBottom: 10 },
-  th: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#1f2937', paddingBottom: 3, marginBottom: 3 },
-  tr: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb', paddingVertical: 2 },
+  th: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f2937',
+    paddingBottom: 3,
+    marginBottom: 3,
+  },
+  tr: {
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e5e7eb',
+    paddingVertical: 2,
+  },
   cTime: { width: '24%', fontSize: 8 },
   cAction: { width: '26%', fontSize: 8 },
   cEntity: { width: '24%', fontSize: 8 },

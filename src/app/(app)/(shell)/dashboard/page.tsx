@@ -18,10 +18,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
-import {
-  getCashFlowToday,
-  listCashFlowDaily,
-} from '@/contexts/financial/queries';
+import { getCashFlowToday, listCashFlowDaily } from '@/contexts/financial/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -94,10 +91,7 @@ export default async function DashboardPage() {
 
   // Atividade recente (audit) — feed sensível, gateado em view:audit (gestor/owner).
   const actorNames = canAudit
-    ? await getProfileNames(
-        clinicId,
-        activity.map((a) => a.userId ?? '').filter(Boolean),
-      )
+    ? await getProfileNames(clinicId, activity.map((a) => a.userId ?? '').filter(Boolean))
     : new Map<string, string>();
 
   const hoje = new Intl.DateTimeFormat('pt-BR', {

@@ -90,7 +90,12 @@ export function rangeFor(view: AgendaView, ymd: string, tz: string): DateRange {
     const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Dom..6=Sáb
     const lead = (wd + 6) % 7; // dias desde segunda
     const mon = new Date(Date.UTC(y, m - 1, d - lead));
-    const from = clinicMidnightUtc(mon.getUTCFullYear(), mon.getUTCMonth() + 1, mon.getUTCDate(), tz);
+    const from = clinicMidnightUtc(
+      mon.getUTCFullYear(),
+      mon.getUTCMonth() + 1,
+      mon.getUTCDate(),
+      tz,
+    );
     return { from, to: new Date(from.getTime() + 7 * DAY_MS) };
   }
   // month

@@ -37,14 +37,7 @@ export const ConversationCompletedSchema = z.object({
   clinicId: uuid,
   conversationId: uuid,
   inboundMessageId: uuid,
-  outcome: z.enum([
-    'replied',
-    'fallback',
-    'handoff',
-    'suppressed',
-    'quota_blocked',
-    'prefiltered',
-  ]),
+  outcome: z.enum(['replied', 'fallback', 'handoff', 'suppressed', 'quota_blocked', 'prefiltered']),
   toolCallCount: z.number().int().min(0),
   costUsd: z.number().min(0),
 });

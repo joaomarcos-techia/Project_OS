@@ -10,9 +10,7 @@ import {
 describe('payment ledger', () => {
   it('acumula pagamentos parciais sem exceder o lancamento', () => {
     expect(assertPaymentFitsBalance(1_000, 400, 600)).toBe(1_000);
-    expect(() => assertPaymentFitsBalance(1_000, 400, 600.01)).toThrow(
-      FinancialValidationError,
-    );
+    expect(() => assertPaymentFitsBalance(1_000, 400, 600.01)).toThrow(FinancialValidationError);
   });
 
   it('calcula o saldo reembolsavel por pagamento original', () => {
@@ -22,9 +20,6 @@ describe('payment ledger', () => {
 
   it('permite reembolso parcial e bloqueia valor acima do pagamento liquido', () => {
     expect(assertRefundFitsPayment(500, 200, 300)).toBe(300);
-    expect(() => assertRefundFitsPayment(500, 200, 300.01)).toThrow(
-      FinancialValidationError,
-    );
+    expect(() => assertRefundFitsPayment(500, 200, 300.01)).toThrow(FinancialValidationError);
   });
 });
-

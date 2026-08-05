@@ -91,8 +91,8 @@ export async function fetchWithIdempotency<TPayload>(
 export type ProviderSideEffectStatus =
   | 'completed' // operação concluída com sucesso pelo provider
   | 'not_found' // provider não tem registro desta key
-  | 'failed'    // provider tem a operação mas marcou como permanente-failed
-  | 'pending';  // provider está processando ainda
+  | 'failed' // provider tem a operação mas marcou como permanente-failed
+  | 'pending'; // provider está processando ainda
 
 export interface ProviderStatusCheckOpts<T> {
   /**

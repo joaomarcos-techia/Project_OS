@@ -16,7 +16,8 @@
  * `export *`), with re-export chains tracked transitively to a fixed point.
  *
  * Origins + per-file allowlists:
- *   - bare `postgres`                        → src/lib/db/index.ts, scripts/db-migrate-prod.ts
+ *   - bare `postgres`                        → src/lib/db/index.ts, scripts/db-migrate-prod.ts,
+ *                                               scripts/delete-test-clinics-prod.ts
  *   - `drizzle` from drizzle-orm/postgres-js  → src/lib/db/index.ts
  *   - `db`      (named export of @/lib/db)    → src/lib/db/tenant.ts (withTenant)
  *   - `dbAdmin` (named export of @/lib/db)    → ALLOWED_DB_VALUE_IMPORTS.dbAdmin
@@ -27,12 +28,20 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative, resolve, sep, posix } from 'node:path';
 
-import { findOriginUsages, type Classify, type SpecifierClass } from '@/lib/db/connection-origin-guard';
+import {
+  findOriginUsages,
+  type Classify,
+  type SpecifierClass,
+} from '@/lib/db/connection-origin-guard';
 
 const REPO_ROOT = process.cwd();
 const DB_ORIGIN = 'src/lib/db/index.ts';
 
-const ALLOWED_POSTGRES_IMPORTS = new Set(['src/lib/db/index.ts', 'scripts/db-migrate-prod.ts']);
+const ALLOWED_POSTGRES_IMPORTS = new Set([
+  'src/lib/db/index.ts',
+  'scripts/db-migrate-prod.ts',
+  'scripts/delete-test-clinics-prod.ts',
+]);
 const ALLOWED_DRIZZLE_PG_IMPORTS = new Set(['src/lib/db/index.ts']);
 const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
   db: new Set(['src/lib/db/tenant.ts']),
@@ -145,7 +154,8 @@ function walk(dir: string, extensions: string[]): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || entry.name === '.next' || entry.name === 'dist') continue;
+      if (entry.name === 'node_modules' || entry.name === '.next' || entry.name === 'dist')
+        continue;
       out.push(...walk(full, extensions));
     } else if (extensions.includes(extname(entry.name))) {
       out.push(full);
@@ -182,14 +192,16 @@ function resolveSpecifier(fromRel: string, spec: string): { rel?: string; bare?:
 }
 
 // classify factory: poolOrigin = the origin module OR a tainted re-exporter.
-const makeClassify = (fromRel: string, tainted: ReadonlySet<string>): Classify => (spec: string): SpecifierClass => {
-  const t = resolveSpecifier(fromRel, spec);
-  return {
-    postgresDriver: t.bare === 'postgres',
-    drizzlePgFactory: t.bare === 'drizzle-orm/postgres-js',
-    poolOrigin: t.rel === DB_ORIGIN || (t.rel ? tainted.has(t.rel) : false),
+const makeClassify =
+  (fromRel: string, tainted: ReadonlySet<string>): Classify =>
+  (spec: string): SpecifierClass => {
+    const t = resolveSpecifier(fromRel, spec);
+    return {
+      postgresDriver: t.bare === 'postgres',
+      drizzlePgFactory: t.bare === 'drizzle-orm/postgres-js',
+      poolOrigin: t.rel === DB_ORIGIN || (t.rel ? tainted.has(t.rel) : false),
+    };
   };
-};
 
 // ---- Pass 1: transitive taint set (modules that re-export a pool/origin) ----
 const tainted = new Set<string>();
@@ -208,7 +220,7 @@ for (let changed = true, guard = 0; changed && guard < 10; guard++) {
 // Operator tooling + admin surface may hold the admin/worker pools (mirrors the
 // original ESLint allowlist: scripts/, src/app/(admin)/, src/app/api/admin/).
 // The bare `postgres` driver + `drizzle` factory stay strict (only index.ts +
-// db-migrate-prod) — there is exactly ONE pool factory.
+// the two production one-shot scripts) — there is exactly ONE runtime pool factory.
 const isOperatorOrAdmin = (rel: string): boolean =>
   rel.startsWith('scripts/') ||
   rel.startsWith('src/app/(admin)/') ||
@@ -226,13 +238,15 @@ for (const rel of relSet) {
   const text = textOf(rel);
   const usages = findOriginUsages(text, rel, makeClassify(rel, tainted));
   for (const u of usages) {
-    const deny = (pattern: string) => findings.push({ file: rel, line: u.line, pattern, excerpt: u.excerpt });
+    const deny = (pattern: string) =>
+      findings.push({ file: rel, line: u.line, pattern, excerpt: u.excerpt });
     switch (u.kind) {
       case 'postgres':
         if (!ALLOWED_POSTGRES_IMPORTS.has(rel)) deny('import postgres (driver)');
         break;
       case 'drizzle-pg':
-        if (!ALLOWED_DRIZZLE_PG_IMPORTS.has(rel)) deny("import { drizzle } from 'drizzle-orm/postgres-js'");
+        if (!ALLOWED_DRIZZLE_PG_IMPORTS.has(rel))
+          deny("import { drizzle } from 'drizzle-orm/postgres-js'");
         break;
       case 'pool-import':
         if (!poolHolderAllowed(rel, u.name)) deny(`import { ${u.name} } (connection origin)`);
@@ -247,7 +261,8 @@ for (const rel of relSet) {
         if (!originAccessAllowed(rel)) deny('dynamic import() of connection origin');
         break;
       case 'require':
-        if (!originAccessAllowed(rel) && !ALLOWED_POSTGRES_IMPORTS.has(rel)) deny('require() of connection origin');
+        if (!originAccessAllowed(rel) && !ALLOWED_POSTGRES_IMPORTS.has(rel))
+          deny('require() of connection origin');
         break;
     }
   }
@@ -257,7 +272,10 @@ for (const rel of relSet) {
     if (/\bnew\s+Pool\s*\(/.test(line)) {
       findings.push({ file: rel, line: i + 1, pattern: 'new Pool(', excerpt: line.trim() });
     }
-    if (!ALLOWED_RESTRICTED_DISABLES.has(rel) && /eslint-disable.*no-restricted-imports/.test(line)) {
+    if (
+      !ALLOWED_RESTRICTED_DISABLES.has(rel) &&
+      /eslint-disable.*no-restricted-imports/.test(line)
+    ) {
       findings.push({
         file: rel,
         line: i + 1,
@@ -298,7 +316,9 @@ const CANONICAL = join('src', 'lib', 'db', 'index.ts');
 try {
   const content = readFileSync(resolve(REPO_ROOT, CANONICAL), 'utf8');
   if (!/\bfrom\s+['"]postgres['"]/.test(content)) {
-    console.error(`[arch:db-check] ${CANONICAL} does not import postgres. Did src/lib/db/index.ts move?`);
+    console.error(
+      `[arch:db-check] ${CANONICAL} does not import postgres. Did src/lib/db/index.ts move?`,
+    );
     process.exit(1);
   }
   statSync(resolve(REPO_ROOT, CANONICAL));

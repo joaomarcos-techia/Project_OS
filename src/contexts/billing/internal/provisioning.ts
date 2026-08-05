@@ -44,7 +44,10 @@ export interface ProvisionInput {
 }
 
 /** Provisiona a clínica (pending_payment) + customer + subscription trial. Idempotente. */
-export async function provisionTenant(tx: Tx, input: ProvisionInput): Promise<{ clinicId: string }> {
+export async function provisionTenant(
+  tx: Tx,
+  input: ProvisionInput,
+): Promise<{ clinicId: string }> {
   await tx
     .insert(tenantProvisioning)
     .values({ checkoutSessionId: input.checkoutSessionId, status: 'provisioning', step: 'clinic' })
@@ -86,7 +89,11 @@ export async function provisionTenant(tx: Tx, input: ProvisionInput): Promise<{ 
     await publishEvent(tx, {
       clinicId,
       eventType: BILLING_EVENTS.CUSTOMER_CREATED,
-      payload: { clinicId, billingCustomerId: cust.id, asaasCustomerId: input.asaasCustomerId ?? null },
+      payload: {
+        clinicId,
+        billingCustomerId: cust.id,
+        asaasCustomerId: input.asaasCustomerId ?? null,
+      },
       idempotencyKey: `customer-created:${clinicId}`,
     });
   }

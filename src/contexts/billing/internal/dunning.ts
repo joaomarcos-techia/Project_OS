@@ -27,7 +27,8 @@ const MS_PER_DAY = 86_400_000;
 
 /** Dias de atraso considerando grace period (atraso só conta após o grace). */
 export function daysOverdue(dueDate: Date, now: Date, graceUntil: Date | null): number {
-  const effectiveDue = graceUntil && graceUntil.getTime() > dueDate.getTime() ? graceUntil : dueDate;
+  const effectiveDue =
+    graceUntil && graceUntil.getTime() > dueDate.getTime() ? graceUntil : dueDate;
   const ms = now.getTime() - effectiveDue.getTime();
   if (ms <= 0) return 0;
   return Math.floor(ms / MS_PER_DAY);

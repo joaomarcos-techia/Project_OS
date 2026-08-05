@@ -52,8 +52,18 @@ if (!REDIS_URL || !REDIS_TOK) {
   process.exit(1);
 }
 const redis = new Redis({ url: REDIS_URL, token: REDIS_TOK });
-const ipLimiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: 'rl:login:ip', analytics: false });
-const emailLimiter = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '15 m'), prefix: 'rl:login:email', analytics: false });
+const ipLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '15 m'),
+  prefix: 'rl:login:ip',
+  analytics: false,
+});
+const emailLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '15 m'),
+  prefix: 'rl:login:email',
+  analytics: false,
+});
 async function assertLoginAllowed(ip: string, emailH: string): Promise<{ ok: boolean }> {
   const [ipR, emR] = await Promise.all([ipLimiter.limit(ip), emailLimiter.limit(emailH)]);
   return { ok: ipR.success && emR.success };
@@ -127,11 +137,17 @@ function authedClient() {
   });
 }
 
-async function signIn(email: string): Promise<{ accessToken: string; refreshToken: string; client: ReturnType<typeof authedClient> }> {
+async function signIn(
+  email: string,
+): Promise<{ accessToken: string; refreshToken: string; client: ReturnType<typeof authedClient> }> {
   const c = authedClient();
   const { data, error } = await c.auth.signInWithPassword({ email, password: PASSWORD });
   if (error || !data.session) throw error ?? new Error('signIn falhou');
-  return { accessToken: data.session.access_token, refreshToken: data.session.refresh_token, client: c };
+  return {
+    accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token,
+    client: c,
+  };
 }
 
 function decode(token: string): Record<string, unknown> {
@@ -151,11 +167,7 @@ console.log('\n=== 3.6.2 RLS via JWT respeita tenant ===');
     headers: { apikey: SUPA_KEY, Authorization: `Bearer ${gA.accessToken}` },
   });
   const rows = (await r.json()) as Array<{ id: string; slug: string }>;
-  log(
-    '3.6.2.a gestor-a vê só Clinic A',
-    rows.length === 1 && rows[0]!.id === CLINIC_A,
-    rows,
-  );
+  log('3.6.2.a gestor-a vê só Clinic A', rows.length === 1 && rows[0]!.id === CLINIC_A, rows);
 }
 
 console.log('\n=== 3.6.3 cross-tenant read manipulation ===');
@@ -177,7 +189,9 @@ console.log('\n=== 3.6.4 claims drift detection ===');
   const v1 = (claims1 as { claims_version: number }).claims_version;
 
   // Mudar role via psql/dbAdmin (simula admin SQL direto).
-  await dbAdmin.execute(sql`UPDATE public.profiles SET role = 'attendant' WHERE id = ${gestorA}::uuid`);
+  await dbAdmin.execute(
+    sql`UPDATE public.profiles SET role = 'attendant' WHERE id = ${gestorA}::uuid`,
+  );
 
   // Refresh do session → Hook reexecuta → claims_version deve incrementar.
   const { data: refreshed, error: refErr } = await gA1.client.auth.refreshSession({
@@ -197,7 +211,9 @@ console.log('\n=== 3.6.4 claims drift detection ===');
   }
 
   // Restaurar role para próximos testes.
-  await dbAdmin.execute(sql`UPDATE public.profiles SET role = 'gestor' WHERE id = ${gestorA}::uuid`);
+  await dbAdmin.execute(
+    sql`UPDATE public.profiles SET role = 'gestor' WHERE id = ${gestorA}::uuid`,
+  );
 }
 
 console.log('\n=== 3.6.5 requireCachedPermission via permissions[] no JWT ===');
@@ -227,7 +243,10 @@ console.log('\n=== 3.6.5 requireCachedPermission via permissions[] no JWT ===');
   `);
   // Refresh JWT do doctor.
   const { data: refreshed } = await d.client.auth.refreshSession({ refresh_token: d.refreshToken });
-  const claimsD2 = decode(refreshed!.session!.access_token) as { permissions: string[]; claims_version: number };
+  const claimsD2 = decode(refreshed!.session!.access_token) as {
+    permissions: string[];
+    claims_version: number;
+  };
   log(
     '3.6.5.c após override granted=true + refresh, doctor JWT TEM manage:financial',
     claimsD2.permissions.includes('manage:financial'),
@@ -263,7 +282,10 @@ console.log('\n=== 3.6.6 rate limit DUAL (IP + email_hash) ===');
   for (let i = 0; i < 10; i++) {
     await assertLoginAllowed(ipOnly, hashEmail(`rl-ip-${Date.now()}-${i}@clinicaos.dev`));
   }
-  const eleventh = await assertLoginAllowed(ipOnly, hashEmail(`rl-ip-final-${Date.now()}@clinicaos.dev`));
+  const eleventh = await assertLoginAllowed(
+    ipOnly,
+    hashEmail(`rl-ip-final-${Date.now()}@clinicaos.dev`),
+  );
   log(
     '3.6.6.b 11ª tentativa do mesmo IP (emails diferentes) bloqueia (ip limit 10/15min)',
     eleventh.ok === false,
@@ -286,11 +308,10 @@ console.log('\n=== 3.6.10 WITH CHECK cross-tenant insert ===');
     body: JSON.stringify({ clinic_id: CLINIC_B, nome: '_smoke_should_fail' }),
   });
   const body = await r.json().catch(() => ({}));
-  log(
-    '3.6.10 gestor-a NÃO insere unit em Clinic B (WITH CHECK rejeita)',
-    r.status >= 400,
-    { status: r.status, body },
-  );
+  log('3.6.10 gestor-a NÃO insere unit em Clinic B (WITH CHECK rejeita)', r.status >= 400, {
+    status: r.status,
+    body,
+  });
 }
 
 // --- CLEANUP --------------------------------------------------------
@@ -301,7 +322,9 @@ await dbAdmin.execute(sql`
 await admin.auth.admin.deleteUser(gestorA);
 await admin.auth.admin.deleteUser(gestorB);
 await admin.auth.admin.deleteUser(doctorId);
-await dbAdmin.execute(sql`DELETE FROM public.clinics WHERE id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`);
+await dbAdmin.execute(
+  sql`DELETE FROM public.clinics WHERE id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`,
+);
 
 console.log(`\n${failed === 0 ? '✅ all manual smokes passed' : `❌ ${failed} check(s) failed`}`);
 process.exit(failed === 0 ? 0 : 1);

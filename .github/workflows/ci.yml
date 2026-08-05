@@ -78,8 +78,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
 
-      - name: Test
-        run: pnpm test
+      - name: Test + coverage gate
+        run: pnpm test:coverage
 
       - name: Build
         run: pnpm build

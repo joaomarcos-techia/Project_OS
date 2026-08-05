@@ -26,7 +26,10 @@ const iso = (v: Date | string): string =>
  * wildcard) e limita o tamanho. Ex.: "impersonate" casa `impersonate_start`.
  */
 function likeContains(term: string): string {
-  const escaped = term.trim().slice(0, 80).replace(/[\\%_]/g, (ch) => `\\${ch}`);
+  const escaped = term
+    .trim()
+    .slice(0, 80)
+    .replace(/[\\%_]/g, (ch) => `\\${ch}`);
   return `%${escaped}%`;
 }
 

@@ -26,7 +26,11 @@ export class ZApiProvider implements MessagingProvider {
   parseWebhook(_rawBody: string): ParsedWebhookEvent {
     throw new ProviderNotImplementedError('zapi', 'parseWebhook');
   }
-  validateSignature(_rawBody: string, _signatureHeader: string | null, _appSecret: string): boolean {
+  validateSignature(
+    _rawBody: string,
+    _signatureHeader: string | null,
+    _appSecret: string,
+  ): boolean {
     throw new ProviderNotImplementedError('zapi', 'validateSignature');
   }
 }

@@ -202,7 +202,8 @@ export const aiClinicConfig = pgTable(
     canScheduleAnonymous: boolean('can_schedule_anonymous').notNull().default(false),
     maxDaysAhead: integer('max_days_ahead').notNull().default(30),
     messageTemplateOverrides: jsonb('message_template_overrides'),
-    // R4: orçamento mensal de IA por clínica (USD). NULL → env.AI_MONTHLY_COST_LIMIT_USD.
+    // Compatibilidade histórica: orçamento mensal de IA em USD. A política
+    // comercial atual não o usa para bloquear conversas (ADR-024).
     monthlyBudgetUsd: numeric('monthly_budget_usd', { precision: 10, scale: 2 }),
     // C12 (ADR-023): opt-in para o agente DIVULGAR valores de cobranças pendentes
     // por WhatsApp. Default false — telefone é fator, não prova de identidade;

@@ -144,12 +144,16 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
         </Button>
       </div>
 
-
       {editing ? (
         <div className="cardblock wrap-pad flex flex-col gap-3">
           <h4 className="text-sm font-semibold">{editing.id ? 'Editar modelo' : 'Novo modelo'}</h4>
           <div className="grid gap-2 sm:grid-cols-2">
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome *" maxLength={120} />
+            <Input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Nome *"
+              maxLength={120}
+            />
             <Input
               value={categoria}
               onChange={(e) => setCategoria(e.target.value)}
@@ -176,15 +180,27 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
 
           {meds.map((m, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 border-b border-border pb-2">
-              <Input value={m.nome} onChange={(e) => updateMed(i, { nome: e.target.value })} placeholder="Medicamento *" />
-              <Input value={m.dosagem ?? ''} onChange={(e) => updateMed(i, { dosagem: e.target.value })} placeholder="Dosagem" />
+              <Input
+                value={m.nome}
+                onChange={(e) => updateMed(i, { nome: e.target.value })}
+                placeholder="Medicamento *"
+              />
+              <Input
+                value={m.dosagem ?? ''}
+                onChange={(e) => updateMed(i, { dosagem: e.target.value })}
+                placeholder="Dosagem"
+              />
               <Input
                 value={m.posologia ?? ''}
                 onChange={(e) => updateMed(i, { posologia: e.target.value })}
                 placeholder="Posologia"
                 className="col-span-2"
               />
-              <Input value={m.via ?? ''} onChange={(e) => updateMed(i, { via: e.target.value })} placeholder="Via" />
+              <Input
+                value={m.via ?? ''}
+                onChange={(e) => updateMed(i, { via: e.target.value })}
+                placeholder="Via"
+              />
               <Input
                 value={m.quantidade ?? ''}
                 onChange={(e) => updateMed(i, { quantidade: e.target.value })}
@@ -237,7 +253,9 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
                 <div className="lr-main">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{t.nome}</span>
-                    {t.categoria ? <span className="text-xs text-fg-subtle">{t.categoria}</span> : null}
+                    {t.categoria ? (
+                      <span className="text-xs text-fg-subtle">{t.categoria}</span>
+                    ) : null}
                     <span className="text-xs text-fg-muted">
                       {KIND_LABEL[t.kind]} · {t.medicamentos.length} medicamento(s)
                     </span>
@@ -247,10 +265,22 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
                   <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(t)}>
                     Editar
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => duplicate(t)} disabled={busy}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => duplicate(t)}
+                    disabled={busy}
+                  >
                     Duplicar
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => remove(t)} disabled={busy}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => remove(t)}
+                    disabled={busy}
+                  >
                     Excluir
                   </Button>
                 </div>

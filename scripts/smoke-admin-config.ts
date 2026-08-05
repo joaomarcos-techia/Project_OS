@@ -76,7 +76,10 @@ globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
   if (u.includes('generativelanguage.googleapis.com')) {
     geminiCalls += 1;
     return new Response(
-      JSON.stringify({ candidates: [{ content: { parts: [{ text: 'NAO DEVERIA' }] } }], usageMetadata: {} }),
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'NAO DEVERIA' }] } }],
+        usageMetadata: {},
+      }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     );
   }
@@ -110,7 +113,12 @@ async function connectNumber(clinicId: string, phoneId: string, phone: string): 
     INSERT INTO clinic_whatsapp_numbers (clinic_id, provider, phone_number, meta_phone_id, token_encrypted, verified_at, active)
     VALUES (${clinicId}, 'meta', ${phone}, ${phoneId}, ${token}, now(), true)`);
 }
-async function deliverTurn(clinicId: string, phoneId: string, from: string, text: string): Promise<string> {
+async function deliverTurn(
+  clinicId: string,
+  phoneId: string,
+  from: string,
+  text: string,
+): Promise<string> {
   const msg: ParsedInboundMessage = {
     providerMessageId: `wamid.admin-config.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`,
     fromNumber: from,
@@ -145,7 +153,10 @@ async function main(): Promise<void> {
         FROM pg_class
        WHERE relname IN ('platform_settings','cron_heartbeats','platform_announcements')`);
     assert(r.length === 3, `esperado 3 tabelas, veio ${r.length}`);
-    assert(r.every((x) => x.en && x.fo), 'todas devem ter RLS ENABLE+FORCE');
+    assert(
+      r.every((x) => x.en && x.fo),
+      'todas devem ter RLS ENABLE+FORCE',
+    );
   });
 
   const clinicA = await createClinic();
@@ -170,7 +181,10 @@ async function main(): Promise<void> {
   // 3. reader fail-safe + round-trip
   await tryStep('3 reader: fail-safe default + round-trip via meta', async () => {
     const def = await getPlatformSetting<string>('smoke.admin-config.nao-existe', 'DEFAULT');
-    assert(def === 'DEFAULT', `chave ausente deveria devolver default, veio ${JSON.stringify(def)}`);
+    assert(
+      def === 'DEFAULT',
+      `chave ausente deveria devolver default, veio ${JSON.stringify(def)}`,
+    );
     const meta = await getPlatformSettingsMeta([TEST_KEY]);
     assert(meta.length === 1 && meta[0]!.value === true, 'round-trip do valor jsonb');
   });
@@ -182,7 +196,10 @@ async function main(): Promise<void> {
     assert(r.length === 1 && r[0]!.lastStatus === 'success', 'heartbeat success gravado');
     await recordHeartbeat(HB_JOB, 'skipped');
     r = await dbAdmin.select().from(cronHeartbeats).where(eq(cronHeartbeats.job, HB_JOB));
-    assert(r.length === 1 && r[0]!.lastStatus === 'skipped', 'segundo tick mantém 1 linha (UPSERT)');
+    assert(
+      r.length === 1 && r[0]!.lastStatus === 'skipped',
+      'segundo tick mantém 1 linha (UPSERT)',
+    );
   });
 
   // 5. broadcast: getActiveAnnouncement ignora expirado
@@ -209,7 +226,9 @@ async function main(): Promise<void> {
   // 6. KILL-SWITCH: ai_agent.mode=fallback_only → fallback sem Gemini
   await tryStep('6 IA fallback_only: OPERATIONAL_FALLBACK, custo 0, ZERO Gemini', async () => {
     // snapshot p/ restaurar (flag é global) + seta fallback_only via service_role
-    priorAiMode = (await dbAdmin.select().from(platformSettings).where(eq(platformSettings.key, 'ai_agent.mode')))[0];
+    priorAiMode = (
+      await dbAdmin.select().from(platformSettings).where(eq(platformSettings.key, 'ai_agent.mode'))
+    )[0];
     await dbAdmin
       .insert(platformSettings)
       .values({ key: 'ai_agent.mode', value: 'fallback_only' })
@@ -222,17 +241,27 @@ async function main(): Promise<void> {
     const before = geminiCalls;
     const ev = await deliverTurn(clinicA, phoneId, `5519${RUN}`, 'oi quero agendar uma consulta');
 
-    assert(geminiCalls === before, `Gemini NÃO pode ser chamado em fallback_only (calls=${geminiCalls - before})`);
+    assert(
+      geminiCalls === before,
+      `Gemini NÃO pode ser chamado em fallback_only (calls=${geminiCalls - before})`,
+    );
     assert((await outcomeOf(ev)) === 'fallback', 'outcome deveria ser fallback');
 
-    const out = await dbAdmin.execute<{ ct: string; cost: string | null; model: string | null }>(sql`
+    const out = await dbAdmin.execute<{
+      ct: string;
+      cost: string | null;
+      model: string | null;
+    }>(sql`
       SELECT content_encrypted AS ct, cost_usd AS cost, model
         FROM ai_messages
        WHERE clinic_id = ${clinicA} AND direction = 'out'
        ORDER BY created_at DESC LIMIT 1`);
     assert(out.length === 1, 'deveria ter persistido a resposta out');
     const text = await decryptForTenant(clinicA, out[0]!.ct);
-    assert(text === OPERATIONAL_FALLBACK, `resposta deveria ser o fallback operacional, veio: ${text.slice(0, 40)}`);
+    assert(
+      text === OPERATIONAL_FALLBACK,
+      `resposta deveria ser o fallback operacional, veio: ${text.slice(0, 40)}`,
+    );
     assert(Number(out[0]!.cost ?? 0) === 0, 'custo deveria ser 0 (sem LLM)');
     assert(out[0]!.model === null, 'model deveria ser null (sem LLM)');
   });
@@ -256,7 +285,9 @@ async function cleanup(): Promise<void> {
   for (const op of [
     () => dbAdmin.delete(platformSettings).where(eq(platformSettings.key, TEST_KEY)),
     () => dbAdmin.delete(cronHeartbeats).where(eq(cronHeartbeats.job, HB_JOB)),
-    ...createdAnnouncements.map((id) => () => dbAdmin.delete(platformAnnouncements).where(eq(platformAnnouncements.id, id))),
+    ...createdAnnouncements.map(
+      (id) => () => dbAdmin.delete(platformAnnouncements).where(eq(platformAnnouncements.id, id)),
+    ),
     ...createdClinics.map((id) => () => dbAdmin.execute(sql`DELETE FROM clinics WHERE id = ${id}`)),
   ]) {
     try {
@@ -272,6 +303,8 @@ main()
   .finally(async () => {
     await cleanup();
     const failed = results.filter((r) => !r.ok);
-    console.log(`\n=== smoke-admin-config: ${results.length - failed.length}/${results.length} passed ===`);
+    console.log(
+      `\n=== smoke-admin-config: ${results.length - failed.length}/${results.length} passed ===`,
+    );
     process.exit(failed.length === 0 ? 0 : 1);
   });

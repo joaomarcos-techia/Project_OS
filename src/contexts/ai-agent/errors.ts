@@ -27,7 +27,10 @@ export class ConversationNotInHandoffError extends Error {
 
 /** Transição de status inválida (ex.: devolver ao agente algo que não está em handoff). */
 export class InvalidConversationTransitionError extends Error {
-  constructor(public readonly from: string, public readonly to: string) {
+  constructor(
+    public readonly from: string,
+    public readonly to: string,
+  ) {
     super(`Transição inválida: ${from} → ${to}.`);
     this.name = 'InvalidConversationTransitionError';
   }
@@ -50,7 +53,9 @@ export class MetaWindowClosedError extends Error {
  */
 export class ActiveConversationConflictError extends Error {
   constructor(public readonly conversationId: string) {
-    super('Já existe outra conversa ativa com este contato. Encerre-a antes de devolver esta ao agente.');
+    super(
+      'Já existe outra conversa ativa com este contato. Encerre-a antes de devolver esta ao agente.',
+    );
     this.name = 'ActiveConversationConflictError';
   }
 }

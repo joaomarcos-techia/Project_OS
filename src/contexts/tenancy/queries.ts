@@ -43,11 +43,10 @@ async function readClinicSettings(clinicId: string): Promise<ClinicSettings> {
  * clínicas. Escritas do perfil invalidam a tag somente depois do commit.
  */
 export async function getClinicSettings(clinicId: string): Promise<ClinicSettings> {
-  return unstable_cache(
-    () => readClinicSettings(clinicId),
-    [CLINIC_SETTINGS_CACHE_KEY, clinicId],
-    { revalidate: false, tags: [clinicSettingsTag(clinicId)] },
-  )();
+  return unstable_cache(() => readClinicSettings(clinicId), [CLINIC_SETTINGS_CACHE_KEY, clinicId], {
+    revalidate: false,
+    tags: [clinicSettingsTag(clinicId)],
+  })();
 }
 
 export async function getClinicTimezone(clinicId: string): Promise<string> {

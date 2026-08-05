@@ -125,7 +125,9 @@ async function backfillTable(spec: TableSpec): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log(`[encrypt-clinical-content] ${DRY_RUN ? 'DRY-RUN' : 'APLICANDO'}${ALLOW_PROD ? ' (PROD)' : ''}`);
+  console.log(
+    `[encrypt-clinical-content] ${DRY_RUN ? 'DRY-RUN' : 'APLICANDO'}${ALLOW_PROD ? ' (PROD)' : ''}`,
+  );
   for (const spec of SPECS) {
     await backfillTable(spec);
   }

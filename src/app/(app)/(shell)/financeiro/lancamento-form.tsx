@@ -33,14 +33,24 @@ export function LancamentoForm({
       {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 
       <Field label="Tipo">
-        <Select name="tipo" value={tipo} onChange={(e) => setTipo(e.target.value as 'receber' | 'pagar')}>
+        <Select
+          name="tipo"
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value as 'receber' | 'pagar')}
+        >
           <option value="receber">A receber</option>
           <option value="pagar">A pagar</option>
         </Select>
       </Field>
 
       <Field label="Descrição">
-        <Input name="descricao" required maxLength={200} placeholder="Ex.: Mensalidade, material…" disabled={pending} />
+        <Input
+          name="descricao"
+          required
+          maxLength={200}
+          placeholder="Ex.: Mensalidade, material…"
+          disabled={pending}
+        />
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">

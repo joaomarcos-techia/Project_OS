@@ -36,8 +36,7 @@ export const CLINICAL_FALLBACK =
   'Não posso te orientar sobre sintomas. Vou marcar para você conversar com o médico, ok?';
 
 /** Fallback operacional — provider caiu / circuito aberto / tool quebrou. */
-export const OPERATIONAL_FALLBACK =
-  'Recebi sua mensagem! Um atendente vai te responder em breve.';
+export const OPERATIONAL_FALLBACK = 'Recebi sua mensagem! Um atendente vai te responder em breve.';
 
 /** Quota guard (placeholder C13) — orçamento mensal de IA estourado. */
 export const QUOTA_FALLBACK =

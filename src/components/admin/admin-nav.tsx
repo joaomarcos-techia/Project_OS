@@ -16,6 +16,7 @@ const GROUPS: readonly NavGroup[] = [
       { href: '/admin', label: 'Visão geral', icon: 'dashboard' },
       { href: '/admin/clinicas', label: 'Clínicas', icon: 'building' },
       { href: '/admin/billing', label: 'Pagamentos', icon: 'wallet' },
+      { href: '/admin/feedbacks', label: 'Feedbacks', icon: 'heart' },
     ],
   },
   {

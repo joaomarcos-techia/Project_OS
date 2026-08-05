@@ -12,18 +12,12 @@ describe('pickPrincipalAddress (seam getAddressForDocument)', () => {
   });
 
   it('prefere o endereço principal', () => {
-    const rows = [
-      mk('a', false, new Date('2026-01-01')),
-      mk('b', true, new Date('2025-01-01')),
-    ];
+    const rows = [mk('a', false, new Date('2026-01-01')), mk('b', true, new Date('2025-01-01'))];
     expect(pickPrincipalAddress(rows)?.id).toBe('b');
   });
 
   it('sem principal, usa o mais recente (updatedAt desc)', () => {
-    const rows = [
-      mk('a', false, new Date('2025-01-01')),
-      mk('b', false, new Date('2026-06-01')),
-    ];
+    const rows = [mk('a', false, new Date('2025-01-01')), mk('b', false, new Date('2026-06-01'))];
     expect(pickPrincipalAddress(rows)?.id).toBe('b');
   });
 });

@@ -18,7 +18,12 @@ const branding: PdfBranding = {
   cnpj: '00.000.000/0001-00',
   cnes: '1234567',
 };
-const doctor: PdfDoctor = { nome: 'Dra. Ana', crm: '123456', crmUf: 'SP', especialidade: 'Clínica' };
+const doctor: PdfDoctor = {
+  nome: 'Dra. Ana',
+  crm: '123456',
+  crmUf: 'SP',
+  especialidade: 'Clínica',
+};
 
 /** PDF começa com o magic header "%PDF". Render é puro (input → Buffer). */
 function isPdf(buf: Buffer): boolean {
@@ -46,7 +51,12 @@ describe('PDF engine (funções puras → Buffer)', () => {
 
   it('renderAtestadoPDF gera um PDF válido', async () => {
     const buf = await renderAtestadoPDF(
-      { patientNome: 'João da Silva', descricao: 'compareceu à consulta', dias: 2, issuedAt: '2026-06-01T12:00:00Z' },
+      {
+        patientNome: 'João da Silva',
+        descricao: 'compareceu à consulta',
+        dias: 2,
+        issuedAt: '2026-06-01T12:00:00Z',
+      },
       branding,
       doctor,
     );
@@ -55,7 +65,11 @@ describe('PDF engine (funções puras → Buffer)', () => {
 
   it('renderExamePDF gera um PDF válido', async () => {
     const buf = await renderExamePDF(
-      { patientNome: 'João da Silva', exames: ['Hemograma', 'Glicemia'], issuedAt: '2026-06-01T12:00:00Z' },
+      {
+        patientNome: 'João da Silva',
+        exames: ['Hemograma', 'Glicemia'],
+        issuedAt: '2026-06-01T12:00:00Z',
+      },
       branding,
       doctor,
     );
@@ -64,7 +78,12 @@ describe('PDF engine (funções puras → Buffer)', () => {
 
   it('renderEncaminhamentoPDF gera um PDF válido', async () => {
     const buf = await renderEncaminhamentoPDF(
-      { patientNome: 'João da Silva', especialidade: 'Cardiologia', motivo: 'avaliação de sopro', issuedAt: '2026-06-01T12:00:00Z' },
+      {
+        patientNome: 'João da Silva',
+        especialidade: 'Cardiologia',
+        motivo: 'avaliação de sopro',
+        issuedAt: '2026-06-01T12:00:00Z',
+      },
       branding,
       doctor,
     );

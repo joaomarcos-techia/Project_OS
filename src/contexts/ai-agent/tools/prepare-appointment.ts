@@ -31,7 +31,9 @@ const InputSchema = z.object({
     .string()
     .max(200)
     .optional()
-    .describe('Nome ou especialidade do procedimento que o paciente quer. Omita se a clínica só tiver um procedimento.'),
+    .describe(
+      'Nome ou especialidade do procedimento que o paciente quer. Omita se a clínica só tiver um procedimento.',
+    ),
   scheduled_at: z
     .string()
     .datetime({ offset: true })
@@ -49,10 +51,7 @@ const OutputSchema = z.object({
 
 /** Normaliza (minúsculas, sem acentos). */
 function fold(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
 /** Tokens significativos (>= 4 chars) para matching tolerante. */
@@ -68,7 +67,10 @@ function procTokens(s: string): string[] {
  * "Consulta Cardiológica"). Casa por token: inclusão em qualquer direção OU
  * prefixo de 5 chars compartilhado (cardiologia↔cardiológica, dermato↔dermatológica).
  */
-function matchesProcedure(query: string, p: { descricao: string; categoria: string | null }): boolean {
+function matchesProcedure(
+  query: string,
+  p: { descricao: string; categoria: string | null },
+): boolean {
   const q = procTokens(query);
   const target = procTokens(`${p.descricao} ${p.categoria ?? ''}`);
   return q.some((qt) =>
@@ -107,7 +109,9 @@ registerTool({
         if (procedures.length === 1) procedure = procedures[0];
         else throw new Error(`não encontrei um procedimento para "${input.procedure_name}"`);
       } else {
-        throw new Error(`há mais de um procedimento parecido com "${input.procedure_name}"; peça ao paciente para especificar`);
+        throw new Error(
+          `há mais de um procedimento parecido com "${input.procedure_name}"; peça ao paciente para especificar`,
+        );
       }
     } else if (procedures.length === 1) {
       procedure = procedures[0];
@@ -122,15 +126,22 @@ registerTool({
     if (input.scheduled_at) {
       const at = new Date(input.scheduled_at);
       if (at.getTime() < now.getTime()) throw new Error('não é possível agendar no passado');
-      assertAgentSchedulePolicy({ scheduledAt: input.scheduled_at, now, maxDaysAhead: ctx.maxDaysAhead });
+      assertAgentSchedulePolicy({
+        scheduledAt: input.scheduled_at,
+        now,
+        maxDaysAhead: ctx.maxDaysAhead,
+      });
       const slots = await schedulingApiV1.listSlots({
         clinicId: ctx.clinicId,
         from: new Date(at.getTime() - HOUR_MS),
         to: new Date(at.getTime() + HOUR_MS),
         procedureId: procedure!.id,
       });
-      const match = slots.find((s) => Math.abs(new Date(s.startAt).getTime() - at.getTime()) < 60_000);
-      if (!match) throw new Error('esse horário não está livre; ofereça outras opções com list_slots');
+      const match = slots.find(
+        (s) => Math.abs(new Date(s.startAt).getTime() - at.getTime()) < 60_000,
+      );
+      if (!match)
+        throw new Error('esse horário não está livre; ofereça outras opções com list_slots');
       scheduledAt = match.startAt;
       doctorId = match.doctorId;
     } else {
@@ -140,7 +151,10 @@ registerTool({
         to: new Date(now.getTime() + ctx.maxDaysAhead * 86_400_000),
         procedureId: procedure!.id,
       });
-      if (slots.length === 0) throw new Error('não há horários livres na janela; peça ao paciente para sugerir outra data');
+      if (slots.length === 0)
+        throw new Error(
+          'não há horários livres na janela; peça ao paciente para sugerir outra data',
+        );
       scheduledAt = slots[0]!.startAt;
       doctorId = slots[0]!.doctorId;
     }

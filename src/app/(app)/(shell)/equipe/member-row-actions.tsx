@@ -262,11 +262,15 @@ export function MemberRowActions({
               const value = override ? (override.granted ? 'grant' : 'deny') : 'default';
               return (
                 <div key={permission} className="flex items-center justify-between gap-3">
-                  <Label htmlFor={`permission-${userId}-${permission}`}>{PERMISSION_LABELS[permission] ?? permission}</Label>
+                  <Label htmlFor={`permission-${userId}-${permission}`}>
+                    {PERMISSION_LABELS[permission] ?? permission}
+                  </Label>
                   <Select
                     id={`permission-${userId}-${permission}`}
                     value={value}
-                    onChange={(event) => handlePermissionChange(permission, event.currentTarget.value)}
+                    onChange={(event) =>
+                      handlePermissionChange(permission, event.currentTarget.value)
+                    }
                     disabled={pending}
                   >
                     <option value="default">Padrão da função</option>

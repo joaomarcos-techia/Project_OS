@@ -43,10 +43,12 @@ const routePaths = new Set(
 );
 
 for (const p of manifestPaths) {
-  if (!routePaths.has(p)) findings.push(`vercel.json agenda "${p}", mas não existe route.ts para ela`);
+  if (!routePaths.has(p))
+    findings.push(`vercel.json agenda "${p}", mas não existe route.ts para ela`);
 }
 for (const p of routePaths) {
-  if (!manifestPaths.has(p)) findings.push(`existe route.ts para "${p}", mas o vercel.json NÃO a agenda (nunca roda)`);
+  if (!manifestPaths.has(p))
+    findings.push(`existe route.ts para "${p}", mas o vercel.json NÃO a agenda (nunca roda)`);
 }
 
 // Docs que enumeram crons: o conjunto citado tem de ser subconjunto do real, e
@@ -54,7 +56,9 @@ for (const p of routePaths) {
 const CRON_DOCS = ['docs/c16/c16-inventory.md', 'docs/runbooks/production-readiness.md'];
 for (const doc of CRON_DOCS) {
   const text = read(doc);
-  const cited = new Set([...text.matchAll(/\/api\/cron\/([a-z-]+)/g)].map((m) => `/api/cron/${m[1]}`));
+  const cited = new Set(
+    [...text.matchAll(/\/api\/cron\/([a-z-]+)/g)].map((m) => `/api/cron/${m[1]}`),
+  );
   for (const p of cited) {
     if (!manifestPaths.has(p)) findings.push(`${doc} cita "${p}", que não está no vercel.json`);
   }
@@ -63,7 +67,9 @@ for (const doc of CRON_DOCS) {
     findings.push(`${doc} enumera crons mas OMITE ${missing.length}: ${missing.join(', ')}`);
   }
   // Contagem em prosa ("os 6 crons", "13 jobs", "Crons (12)").
-  for (const m of text.matchAll(/(?:os\s+)?(\d{1,2})\s+(?:crons|jobs)|[Cc]rons?\s*\((\d{1,2})\)/g)) {
+  for (const m of text.matchAll(
+    /(?:os\s+)?(\d{1,2})\s+(?:crons|jobs)|[Cc]rons?\s*\((\d{1,2})\)/g,
+  )) {
     const n = Number(m[1] ?? m[2]);
     if (n !== manifestPaths.size) {
       findings.push(
@@ -79,7 +85,8 @@ function collectSource(dir: string, acc: string[] = []): string[] {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, e.name);
     if (e.isDirectory()) collectSource(full, acc);
-    else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) acc.push(readFileSync(full, 'utf8'));
+    else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name))
+      acc.push(readFileSync(full, 'utf8'));
   }
   return acc;
 }
@@ -87,7 +94,9 @@ const sources = collectSource(join(ROOT, 'src')).join('\n');
 
 const logSearch = read('docs/runbooks/log-search.md');
 const citedEvents = new Set(
-  [...logSearch.matchAll(/message\.event:"([^"]+)"/g)].map((m) => m[1]!).filter((e) => !e.includes('*')),
+  [...logSearch.matchAll(/message\.event:"([^"]+)"/g)]
+    .map((m) => m[1]!)
+    .filter((e) => !e.includes('*')),
 );
 for (const ev of citedEvents) {
   if (!sources.includes(`'${ev}'`) && !sources.includes(`"${ev}"`)) {

@@ -3,8 +3,8 @@
  *
  * Runs in the outbox worker's withTenant tx (RLS-scoped to clinicId). Assembles
  * the export from all registered PatientExportProvider collectors, renders JSON
- * + PDF, uploads to Supabase Storage, writes a 7-day signed URL onto the
- * lgpd_requests row, and (stub) emails the patient.
+ * + PDF, uploads to Supabase Storage, delivers a 24-hour signed PDF URL by
+ * transactional e-mail, and only then marks the request as completed.
  *
  * Cross-tenant safety: collectors read via ctx.tx (RLS) and decrypt with
  * clinicId — another clinic's data is unreadable and undecryptable (5.6.6).
@@ -17,9 +17,10 @@ import { and, eq, sql } from 'drizzle-orm';
 import { metrics } from '@/lib/observability/metrics';
 import { registerHandler } from '@/lib/outbox/registry';
 import { createSignedExportUrl, uploadLgpdExport } from '@/lib/storage/exports';
+import { sendTransactionalEmail } from '@/lib/email/resend';
 
 import { PATIENT_EVENTS, type LgpdExportRequestedPayload } from '../../events';
-import { lgpdRequests } from '../../schema';
+import { lgpdRequests, patients } from '../../schema';
 import { renderExportPdf } from '../export/pdf';
 import { getExportCollectors } from '../export/provider';
 
@@ -35,6 +36,45 @@ const SIGNED_URL_TTL_SECONDS = 24 * 60 * 60;
 // de 5min do janitor (que causaria reclaim + reentrega). Timeout → throw →
 // retry com backoff (uploads são upsert idempotente por requestId).
 const STORAGE_IO_TIMEOUT_MS = 20_000;
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/g, (char) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;',
+    };
+    return entities[char]!;
+  });
+}
+
+function exportEmailContent(signedUrl: string): { subject: string; text: string; html: string } {
+  const safeUrl = escapeHtml(signedUrl);
+  return {
+    subject: 'Seu arquivo de dados pessoais está disponível',
+    text: `Seu arquivo de dados pessoais está disponível por 24 horas: ${signedUrl}`,
+    html: `<p>Seu arquivo de dados pessoais está disponível por 24 horas.</p><p><a href="${safeUrl}">Baixar arquivo PDF</a></p>`,
+  };
+}
+
+function exportEmailContentWithJson(
+  pdfSignedUrl: string,
+  jsonSignedUrl: string,
+): {
+  subject: string;
+  text: string;
+  html: string;
+} {
+  const pdf = exportEmailContent(pdfSignedUrl);
+  const safeJsonUrl = escapeHtml(jsonSignedUrl);
+  return {
+    subject: pdf.subject,
+    text: `${pdf.text}\nJSON: ${jsonSignedUrl}`,
+    html: `${pdf.html}<p><a href="${safeJsonUrl}">Baixar arquivo JSON</a></p>`,
+  };
+}
 
 async function withIoTimeout<T>(p: Promise<T>, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -62,6 +102,24 @@ registerHandler<LgpdExportRequestedPayload>(
       .where(and(eq(lgpdRequests.id, requestId), eq(lgpdRequests.clinicId, clinicId)))
       .limit(1);
     if (!current || current.status === 'completed') return;
+
+    const [recipient] = await tx
+      .select({ email: patients.email })
+      .from(patients)
+      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+      .limit(1);
+    if (!recipient?.email) {
+      await tx
+        .update(lgpdRequests)
+        .set({ status: 'failed', statusReason: 'export_recipient_email_missing' })
+        .where(and(eq(lgpdRequests.id, requestId), eq(lgpdRequests.clinicId, clinicId)));
+      metrics.emit('patient.lgpd.export.failed', {
+        clinicId,
+        requestId,
+        reason: 'recipient_email_missing',
+      });
+      return;
+    }
     await tx
       .update(lgpdRequests)
       .set({ status: 'processing', startedAt: sql`coalesce(started_at, now())` })
@@ -86,13 +144,24 @@ registerHandler<LgpdExportRequestedPayload>(
       uploadLgpdExport(`${base}.json`, jsonBytes, 'application/json'),
       'upload json',
     );
-    await withIoTimeout(
-      uploadLgpdExport(`${base}.pdf`, pdfBytes, 'application/pdf'),
-      'upload pdf',
-    );
-    const signedUrl = await withIoTimeout(
+    await withIoTimeout(uploadLgpdExport(`${base}.pdf`, pdfBytes, 'application/pdf'), 'upload pdf');
+    const pdfSignedUrl = await withIoTimeout(
       createSignedExportUrl(`${base}.pdf`, SIGNED_URL_TTL_SECONDS),
       'signed url',
+    );
+    const jsonSignedUrl = await withIoTimeout(
+      createSignedExportUrl(`${base}.json`, SIGNED_URL_TTL_SECONDS),
+      'signed json url',
+    );
+
+    const content = exportEmailContentWithJson(pdfSignedUrl, jsonSignedUrl);
+    const delivery = await withIoTimeout(
+      sendTransactionalEmail({
+        to: recipient.email,
+        ...content,
+        idempotencyKey: `lgpd-export/${requestId}`,
+      }),
+      'email delivery',
     );
 
     // 4. Persist result on the request row (RLS-scoped via ctx.tx).
@@ -101,17 +170,19 @@ registerHandler<LgpdExportRequestedPayload>(
       .set({
         status: 'completed',
         fulfilledAt: sql`now()`,
-        statusReason: 'export_ready',
-        exportSignedUrl: signedUrl,
+        statusReason: 'export_ready_email_sent',
+        exportSignedUrl: pdfSignedUrl,
         exportSignedUrlExpiresAt: sql`now() + interval '24 hours'`,
+        requesterNotifiedAt: sql`now()`,
+        requesterNotificationChannel: 'email',
       })
       .where(and(eq(lgpdRequests.id, requestId), eq(lgpdRequests.clinicId, clinicId)));
 
-    // 5. Email — STUBBED until transactional email infra lands (later camada).
-    metrics.emit('patient.lgpd.export.completed', { clinicId, requestId });
-    // F-10: TTL real é 24h (constante acima) — o texto antigo dizia "7d".
-    console.warn(
-      `[lgpd-export] email send stubbed — signed URL (TTL 24h) ready for request ${requestId}`,
-    );
+    // 5. E-mail transacional entregue pelo Resend; falhas propagam para o retry da outbox.
+    metrics.emit('patient.lgpd.export.completed', {
+      clinicId,
+      requestId,
+      providerMessageId: delivery.providerMessageId,
+    });
   },
 );

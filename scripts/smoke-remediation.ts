@@ -209,13 +209,15 @@ async function main(): Promise<void> {
     });
 
     // ----- F-09: purge SQL (mesma forma da rota data-retention) -------------
-    await tryStep('F-09a — purge outbox: apaga terminal >30d; preserva recente/pending/failed', async () => {
-      // next_attempt_at no FUTURO: qoro-dev é compartilhado e um worker VIVO
-      // (agendador externo apontado pela auditoria §12.1 — observado neste
-      // smoke reservando a fixture 'pending' em segundos) não pode sequestrar
-      // as fixtures antes do SELECT de verificação.
-      const mk = (suffix: string, status: string, ageDays: number) =>
-        dbAdmin.execute(sql`
+    await tryStep(
+      'F-09a — purge outbox: apaga terminal >30d; preserva recente/pending/failed',
+      async () => {
+        // next_attempt_at no FUTURO: qoro-dev é compartilhado e um worker VIVO
+        // (agendador externo apontado pela auditoria §12.1 — observado neste
+        // smoke reservando a fixture 'pending' em segundos) não pode sequestrar
+        // as fixtures antes do SELECT de verificação.
+        const mk = (suffix: string, status: string, ageDays: number) =>
+          dbAdmin.execute(sql`
           INSERT INTO outbox (clinic_id, event_type, payload, payload_hash, idempotency_key,
                               status, created_at, processed_at, next_attempt_at)
           VALUES (${CLINIC}::uuid, 'smoke.retention.test', '{}'::jsonb,
@@ -226,13 +228,13 @@ async function main(): Promise<void> {
                        THEN now() - make_interval(days => ${ageDays - 1}) ELSE NULL END,
                   now() + interval '1 hour')
         `);
-      await mk('old-processed', 'processed', 40);
-      await mk('old-skipped', 'skipped', 40);
-      await mk('new-processed', 'processed', 2);
-      await mk('old-failed', 'failed', 40);
-      await mk('old-pending', 'pending', 40);
+        await mk('old-processed', 'processed', 40);
+        await mk('old-skipped', 'skipped', 40);
+        await mk('new-processed', 'processed', 2);
+        await mk('old-failed', 'failed', 40);
+        await mk('old-pending', 'pending', 40);
 
-      await dbAdmin.execute(sql`
+        await dbAdmin.execute(sql`
         WITH del AS (
           SELECT id FROM outbox
            WHERE status IN ('processed', 'skipped')
@@ -243,17 +245,18 @@ async function main(): Promise<void> {
         DELETE FROM outbox o USING del WHERE o.id = del.id
       `);
 
-      const left = (await dbAdmin.execute(
-        sql`SELECT status::text AS status FROM outbox
+        const left = (await dbAdmin.execute(
+          sql`SELECT status::text AS status FROM outbox
              WHERE event_type = 'smoke.retention.test' AND clinic_id = ${CLINIC}::uuid
              ORDER BY status`,
-      )) as unknown as Array<{ status: string }>;
-      const statuses = left.map((r) => r.status).sort();
-      assert(
-        JSON.stringify(statuses) === JSON.stringify(['failed', 'pending', 'processed']),
-        `sobraram ${JSON.stringify(statuses)} — esperado [failed, pending, processed(recente)]`,
-      );
-    });
+        )) as unknown as Array<{ status: string }>;
+        const statuses = left.map((r) => r.status).sort();
+        assert(
+          JSON.stringify(statuses) === JSON.stringify(['failed', 'pending', 'processed']),
+          `sobraram ${JSON.stringify(statuses)} — esperado [failed, pending, processed(recente)]`,
+        );
+      },
+    );
 
     await tryStep('F-09b — purge login_attempts: apaga >90d; preserva recente', async () => {
       const oldId = randomUUID();

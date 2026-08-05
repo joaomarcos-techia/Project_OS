@@ -12,7 +12,7 @@ describe('dunning candidate query', () => {
   it('inclui parcelas pelo saldo residual e nao descarta dividas antigas', () => {
     expect(source).toContain("l.status IN ('pendente', 'parcial')");
     expect(source).toContain('(l.valor - l.valor_pago)');
-    expect(source).toContain("- l.due_date) >= 3");
+    expect(source).toContain('- l.due_date) >= 3');
     expect(source).not.toContain('BETWEEN 3 AND 30');
   });
 });

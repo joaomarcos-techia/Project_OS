@@ -17,9 +17,9 @@ describe('unidade da agenda tenant-scoped', () => {
 
   it('rejeita unidade inexistente, inativa ou de outra clínica', async () => {
     const execute = vi.fn().mockResolvedValue([]);
-    await expect(assertUnitInClinic({ execute } as unknown as Tx, clinicId, unitId)).rejects.toThrow(
-      /unidade inválida/,
-    );
+    await expect(
+      assertUnitInClinic({ execute } as unknown as Tx, clinicId, unitId),
+    ).rejects.toThrow(/unidade inválida/);
   });
 
   it('não consulta o banco quando unidade é opcional e não foi informada', async () => {

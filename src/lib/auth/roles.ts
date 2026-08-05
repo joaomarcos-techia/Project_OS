@@ -9,13 +9,7 @@
  */
 import { z } from 'zod';
 
-export type Role =
-  | 'gestor'
-  | 'doctor'
-  | 'attendant'
-  | 'financial'
-  | 'owner'
-  | 'super_admin';
+export type Role = 'gestor' | 'doctor' | 'attendant' | 'financial' | 'owner' | 'super_admin';
 
 export const ROLES: readonly Role[] = Object.freeze([
   'gestor',

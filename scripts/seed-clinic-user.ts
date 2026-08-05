@@ -50,7 +50,9 @@ const logoUrl = process.env.SEED_CLINIC_LOGO_URL ?? null;
 
 const TENANT_ROLES = ['gestor', 'owner', 'attendant', 'doctor', 'financial'];
 if (!TENANT_ROLES.includes(role)) {
-  console.error(`[seed-clinic-user] SEED_USER_ROLE inválido: ${role}. Use um de ${TENANT_ROLES.join(', ')}.`);
+  console.error(
+    `[seed-clinic-user] SEED_USER_ROLE inválido: ${role}. Use um de ${TENANT_ROLES.join(', ')}.`,
+  );
   process.exit(1);
 }
 if (!/^[a-z0-9-]{3,30}$/.test(slug)) {
@@ -92,7 +94,9 @@ if (existing) {
   console.log(`[seed-clinic-user] user existente: ${email} (${userId})`);
 } else {
   if (!password) {
-    console.error('[seed-clinic-user] user inexistente e SEED_USER_PASSWORD ausente. Setar para criar.');
+    console.error(
+      '[seed-clinic-user] user inexistente e SEED_USER_PASSWORD ausente. Setar para criar.',
+    );
     process.exit(1);
   }
   const { data: created, error: createErr } = await supabase.auth.admin.createUser({

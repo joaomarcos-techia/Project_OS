@@ -52,26 +52,26 @@ export default async function RelatoriosPage({
               <FileDown className="size-3.5" />
               Exportar PDF
             </a>
-          <nav
-            aria-label="Período"
-            className="inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-0.75"
-          >
-            {PERIODS.map((p) => (
-              <Link
-                key={p.key}
-                href={`/relatorios?periodo=${p.key}`}
-                aria-current={p.key === period.key ? 'page' : undefined}
-                className={cn(
-                  'rounded-(--r-sm) px-3 py-1.5 text-(length:--fs-sm) font-medium transition-all duration-(--dur-fast)',
-                  p.key === period.key
-                    ? 'bg-surface text-fg shadow-(--elev-raised)'
-                    : 'text-fg-muted hover:text-fg',
-                )}
-              >
-                {p.label}
-              </Link>
-            ))}
-          </nav>
+            <nav
+              aria-label="Período"
+              className="inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-0.75"
+            >
+              {PERIODS.map((p) => (
+                <Link
+                  key={p.key}
+                  href={`/relatorios?periodo=${p.key}`}
+                  aria-current={p.key === period.key ? 'page' : undefined}
+                  className={cn(
+                    'rounded-(--r-sm) px-3 py-1.5 text-(length:--fs-sm) font-medium transition-all duration-(--dur-fast)',
+                    p.key === period.key
+                      ? 'bg-surface text-fg shadow-(--elev-raised)'
+                      : 'text-fg-muted hover:text-fg',
+                  )}
+                >
+                  {p.label}
+                </Link>
+              ))}
+            </nav>
           </>
         }
       />

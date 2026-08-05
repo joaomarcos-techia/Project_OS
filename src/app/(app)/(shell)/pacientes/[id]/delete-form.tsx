@@ -16,8 +16,8 @@ export function DeletePatientForm({ id }: { id: string }) {
     <form action={formAction} className="mt-2">
       <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">Excluir (operacional)</h2>
       <p className="mb-3 text-xs text-fg-subtle">
-        Uso interno da clínica (cadastro errado, duplicado). Soft delete agora; remoção
-        definitiva em 30 dias. Para pedido do próprio paciente, use a exclusão LGPD abaixo.
+        Uso interno da clínica (cadastro errado, duplicado). Soft delete agora; remoção definitiva
+        em 30 dias. Para pedido do próprio paciente, use a exclusão LGPD abaixo.
       </p>
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
@@ -27,7 +27,9 @@ export function DeletePatientForm({ id }: { id: string }) {
         size="sm"
         loading={pending}
         onClick={(e) => {
-          if (!confirm('Excluir paciente (operacional)? Soft delete; remoção definitiva em 30 dias.')) {
+          if (
+            !confirm('Excluir paciente (operacional)? Soft delete; remoção definitiva em 30 dias.')
+          ) {
             e.preventDefault();
           }
         }}

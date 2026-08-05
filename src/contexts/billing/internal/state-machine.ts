@@ -1,7 +1,9 @@
 /**
  * Máquinas de estado de billing (C13 — ADR-025 F4). Transições MONOTÔNICAS:
  * tratam webhook fora de ordem (ex.: OVERDUE chega depois de RECEIVED). Estados
- * terminais não regridem (`paid` nunca volta a `overdue`; `cancelled` é fim).
+ * terminais não regridem (`paid` nunca volta a `overdue`; invoice `cancelled` é fim).
+ * A assinatura de billing pode voltar de `cancelled` para `active` apenas pelo
+ * fluxo auditado de reativação, depois da confirmação do Asaas.
  *
  * O webhook SEMPRE consulta `canTransition` antes de aplicar a mudança.
  */
@@ -17,11 +19,13 @@ const INVOICE_ALLOWED: Record<InvoiceStatus, ReadonlySet<InvoiceStatus>> = {
   cancelled: new Set([]), // terminal
 };
 
+// `cancelled -> active` is intentionally limited to the audited reactivation
+// flow after Asaas accepts the subscription status update.
 const BILLING_ALLOWED: Record<BillingStatus, ReadonlySet<BillingStatus>> = {
   trial: new Set(['active', 'past_due', 'cancelled']),
   active: new Set(['past_due', 'cancelled']),
   past_due: new Set(['active', 'cancelled']),
-  cancelled: new Set([]), // terminal
+  cancelled: new Set(['active']), // explicit reactivation after Asaas accepts it
 };
 
 /** true se a transição é permitida (idempotente: from===to é no-op permitido). */

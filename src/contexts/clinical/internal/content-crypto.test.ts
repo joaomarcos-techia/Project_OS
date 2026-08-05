@@ -51,8 +51,12 @@ describe('content-crypto — round-trip', () => {
   it('cifra lista de medicamentos (1 e 50 itens)', async () => {
     const one: Medicamento[] = [{ nome: 'Amoxicilina', dosagem: '500mg' }];
     const many: Medicamento[] = Array.from({ length: 50 }, (_, i) => ({ nome: `Med ${i}` }));
-    expect(await decryptJson<Medicamento[]>(CLINIC_A, CLINIC_A, await encryptJson(CLINIC_A, one))).toEqual(one);
-    expect(await decryptJson<Medicamento[]>(CLINIC_A, CLINIC_A, await encryptJson(CLINIC_A, many))).toHaveLength(50);
+    expect(
+      await decryptJson<Medicamento[]>(CLINIC_A, CLINIC_A, await encryptJson(CLINIC_A, one)),
+    ).toEqual(one);
+    expect(
+      await decryptJson<Medicamento[]>(CLINIC_A, CLINIC_A, await encryptJson(CLINIC_A, many)),
+    ).toHaveLength(50);
   });
 
   it('objeto vazio e string vazia sobrevivem (espelha encryptForTenant(cid, ""))', async () => {

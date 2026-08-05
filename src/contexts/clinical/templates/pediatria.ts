@@ -19,7 +19,8 @@ export const pediatriaTemplate: ClinicalTemplate = {
     {
       key: 'exame_fisico',
       label: 'Exame físico (O)',
-      placeholder: 'Peso, altura, PC, percentis; estado geral; ausculta; abdome; otoscopia/orofaringe.',
+      placeholder:
+        'Peso, altura, PC, percentis; estado geral; ausculta; abdome; otoscopia/orofaringe.',
     },
     {
       key: 'hipotese_diagnostica',
@@ -31,6 +32,10 @@ export const pediatriaTemplate: ClinicalTemplate = {
       label: 'Conduta (P)',
       placeholder: 'Prescrição (dose por peso), orientações aos pais, sinais de alarme, retorno.',
     },
-    { key: 'observacoes', label: 'Observações', placeholder: 'Aleitamento, marcos do desenvolvimento.' },
+    {
+      key: 'observacoes',
+      label: 'Observações',
+      placeholder: 'Aleitamento, marcos do desenvolvimento.',
+    },
   ],
 };

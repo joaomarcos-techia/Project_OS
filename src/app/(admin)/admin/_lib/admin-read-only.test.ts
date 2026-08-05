@@ -18,11 +18,7 @@ import { describe, expect, it } from 'vitest';
  * NÃO mutações de dados de clínica — e por isso não passam por esses funis.
  */
 const ADMIN_DIR = resolve(process.cwd(), 'src/app/(admin)');
-const FORBIDDEN = [
-  '@/lib/db/tenant',
-  '@/lib/audit/mutation',
-  '@/lib/idempotency/mutation',
-];
+const FORBIDDEN = ['@/lib/db/tenant', '@/lib/audit/mutation', '@/lib/idempotency/mutation'];
 
 function walk(dir: string): string[] {
   const out: string[] = [];
@@ -46,7 +42,9 @@ describe('Platform Admin é read-only sobre dados de clínica (C15)', () => {
     it(`nenhum arquivo de (admin) importa ${spec}`, () => {
       const offenders = files.filter((f) => {
         const text = readFileSync(f, 'utf8');
-        return new RegExp(`from\\s+['"]${spec.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&')}['"]`).test(text);
+        return new RegExp(`from\\s+['"]${spec.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&')}['"]`).test(
+          text,
+        );
       });
       expect(
         offenders,

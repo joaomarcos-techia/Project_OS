@@ -25,8 +25,9 @@ export default async function ImportAppointmentHistoryPage() {
         </Card>
         <Alert title="Formato do arquivo">
           <p className="text-pretty">
-            Envie uma lista JSON com doctorId, patientId, procedureId, scheduledAt e historicalStatus.
-            O estado deve ser atendido, cancelado ou faltou; datas futuras sao rejeitadas.
+            Envie uma lista JSON com doctorId, patientId, procedureId, scheduledAt e
+            historicalStatus. O estado deve ser atendido, cancelado ou faltou; datas futuras sao
+            rejeitadas.
           </p>
           <pre className="mt-3 overflow-x-auto rounded-(--r-sm) bg-surface-inset p-3 text-xs">
             {`[{\n  "doctorId": "uuid",\n  "patientId": "uuid",\n  "procedureId": "uuid",\n  "scheduledAt": "2025-07-24T10:00:00-03:00",\n  "historicalStatus": "atendido",\n  "externalReference": "LEG-001"\n}]`}

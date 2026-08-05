@@ -191,7 +191,12 @@ export function FornecedoresView({
                 </div>
                 {canManage ? (
                   <div className="flex gap-1.5">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(s)} disabled={pending}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => openEdit(s)}
+                      disabled={pending}
+                    >
                       Editar
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => toggle(s)} disabled={pending}>

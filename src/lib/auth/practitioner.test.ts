@@ -64,7 +64,7 @@ describe('practitionerSql ⇄ isPractitioner (equivalência — review #10)', ()
     expect(compiled).toContain('IS NOT NULL');
   });
 
-  it('trata CRM em branco como ausente (btrim(...) <> \'\') — espelha o .trim() do TS', () => {
+  it("trata CRM em branco como ausente (btrim(...) <> '') — espelha o .trim() do TS", () => {
     expect(compiled).toContain('btrim(');
     expect(compiled).toContain("<> ''");
   });

@@ -165,7 +165,12 @@ export function AttendingPanel({
                 }}
               />
             ) : null}
-            <Button size="sm" variant="danger" loading={busy} onClick={() => onComplete(appointmentId)}>
+            <Button
+              size="sm"
+              variant="danger"
+              loading={busy}
+              onClick={() => onComplete(appointmentId)}
+            >
               Encerrar consulta
             </Button>
           </div>

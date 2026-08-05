@@ -131,7 +131,10 @@ async function createSignedProntuario(): Promise<string> {
         patientId,
         doctorId,
         status: 'rascunho',
-        contentEncrypted: await encryptJson<ProntuarioContent>(CLINIC_A, { queixa_principal: 'dor', conduta: 'repouso' }),
+        contentEncrypted: await encryptJson<ProntuarioContent>(CLINIC_A, {
+          queixa_principal: 'dor',
+          conduta: 'repouso',
+        }),
         createdBy: doctorId,
       })
       .returning({ id: prontuarios.id });
@@ -234,7 +237,10 @@ async function main(): Promise<void> {
     );
     const ok = await processUntil(async () => {
       const r = await withTenant(CLINIC_A, (tx) =>
-        tx.select({ id: prontuarios.id, status: prontuarios.status }).from(prontuarios).where(eq(prontuarios.appointmentId, apptId)),
+        tx
+          .select({ id: prontuarios.id, status: prontuarios.status })
+          .from(prontuarios)
+          .where(eq(prontuarios.appointmentId, apptId)),
       );
       return r.length === 1 && r[0]?.status === 'rascunho';
     });
@@ -257,25 +263,41 @@ async function main(): Promise<void> {
     );
     await processUntil(() => eventProcessed(k2));
     const cnt = await withTenant(CLINIC_A, (tx) =>
-      tx.select({ id: prontuarios.id }).from(prontuarios).where(eq(prontuarios.appointmentId, apptId)),
+      tx
+        .select({ id: prontuarios.id })
+        .from(prontuarios)
+        .where(eq(prontuarios.appointmentId, apptId)),
     );
     assert(cnt.length === 1, `esperava 1 prontuário após re-entrega, veio ${cnt.length}`);
   });
 
   await tryStep('walk-in (patientId=null) → handler é no-op', async () => {
-    const walkAppt = await insertAppt({ clinicId: CLINIC_A, scheduledAt: tomorrow(9), patientId: null });
+    const walkAppt = await insertAppt({
+      clinicId: CLINIC_A,
+      scheduledAt: tomorrow(9),
+      patientId: null,
+    });
     const k = `smoke-walkin-${walkAppt}`;
     await withTenant(CLINIC_A, (tx) =>
       publishEvent(tx, {
         clinicId: CLINIC_A,
         eventType: 'scheduling.appointment.started',
-        payload: { appointmentId: walkAppt, clinicId: CLINIC_A, doctorId, patientId: null, procedureId },
+        payload: {
+          appointmentId: walkAppt,
+          clinicId: CLINIC_A,
+          doctorId,
+          patientId: null,
+          procedureId,
+        },
         idempotencyKey: k,
       }),
     );
     await processUntil(() => eventProcessed(k));
     const r = await withTenant(CLINIC_A, (tx) =>
-      tx.select({ id: prontuarios.id }).from(prontuarios).where(eq(prontuarios.appointmentId, walkAppt)),
+      tx
+        .select({ id: prontuarios.id })
+        .from(prontuarios)
+        .where(eq(prontuarios.appointmentId, walkAppt)),
     );
     assert(r.length === 0, `walk-in não deveria gerar prontuário, veio ${r.length}`);
   });
@@ -299,10 +321,16 @@ async function main(): Promise<void> {
     const corrigido = await encryptJson<ProntuarioContent>(CLINIC_A, { conduta: 'corrigido' });
     await withTenant(CLINIC_A, async (tx) => {
       await tx.execute(sql`SELECT set_config('app.allow_signed_edit','on', true)`);
-      await tx.update(prontuarios).set({ contentEncrypted: corrigido }).where(eq(prontuarios.id, pid));
+      await tx
+        .update(prontuarios)
+        .set({ contentEncrypted: corrigido })
+        .where(eq(prontuarios.id, pid));
     });
     const after = await withTenant(CLINIC_A, (tx) =>
-      tx.select({ ce: prontuarios.contentEncrypted, cid: prontuarios.clinicId }).from(prontuarios).where(eq(prontuarios.id, pid)),
+      tx
+        .select({ ce: prontuarios.contentEncrypted, cid: prontuarios.clinicId })
+        .from(prontuarios)
+        .where(eq(prontuarios.id, pid)),
     );
     const dec = await decryptJson<ProntuarioContent>(CLINIC_A, after[0]!.cid, after[0]!.ce);
     assert(dec.conduta === 'corrigido', 'content não foi corrigido com bypass');
@@ -311,7 +339,10 @@ async function main(): Promise<void> {
       () =>
         withTenant(CLINIC_A, async (tx) => {
           await tx.execute(sql`SELECT set_config('app.allow_signed_edit','on', true)`);
-          await tx.update(prontuarios).set({ signedAt: new Date(0) }).where(eq(prontuarios.id, pid));
+          await tx
+            .update(prontuarios)
+            .set({ signedAt: new Date(0) })
+            .where(eq(prontuarios.id, pid));
         }),
       /apenas o conteúdo/,
     );
@@ -344,17 +375,27 @@ async function main(): Promise<void> {
       tx.select({ version: prontuarios.version }).from(prontuarios).where(eq(prontuarios.id, pid)),
     );
     const arch = await withTenant(CLINIC_A, (tx) =>
-      tx.select({ version: prontuarioVersions.version, reason: prontuarioVersions.reason }).from(prontuarioVersions).where(eq(prontuarioVersions.prontuarioId, pid)),
+      tx
+        .select({ version: prontuarioVersions.version, reason: prontuarioVersions.reason })
+        .from(prontuarioVersions)
+        .where(eq(prontuarioVersions.prontuarioId, pid)),
     );
     assert(cur[0]?.version === 2, `version atual deveria ser 2, veio ${cur[0]?.version}`);
-    assert(arch.length === 1 && arch[0]?.version === 1, 'revisão 1 não foi arquivada em prontuario_versions');
+    assert(
+      arch.length === 1 && arch[0]?.version === 1,
+      'revisão 1 não foi arquivada em prontuario_versions',
+    );
   });
 
   // --- #13: RLS -------------------------------------------------------------
   await tryStep('#13 — RLS: clínica B não enxerga prontuário de A', async () => {
-    const fromB = await withTenant(CLINIC_B, (tx) => tx.select({ id: prontuarios.id }).from(prontuarios));
+    const fromB = await withTenant(CLINIC_B, (tx) =>
+      tx.select({ id: prontuarios.id }).from(prontuarios),
+    );
     assert(fromB.length === 0, `B não deveria ver prontuário de A, viu ${fromB.length}`);
-    const fromA = await withTenant(CLINIC_A, (tx) => tx.select({ id: prontuarios.id }).from(prontuarios));
+    const fromA = await withTenant(CLINIC_A, (tx) =>
+      tx.select({ id: prontuarios.id }).from(prontuarios),
+    );
     assert(fromA.length > 0, 'A deveria ver seus próprios prontuários');
   });
 }

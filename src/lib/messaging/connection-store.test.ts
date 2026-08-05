@@ -102,7 +102,11 @@ describe('deactivateTenantConnection', () => {
     const { tx, sqls } = makeTx([[{ id: 'num-1' }]]);
     runWithTx(tx);
 
-    const res = await deactivateTenantConnection({ clinicId: 'clinic-1', userId: 'user-1', requestContext: ctx });
+    const res = await deactivateTenantConnection({
+      clinicId: 'clinic-1',
+      userId: 'user-1',
+      requestContext: ctx,
+    });
 
     expect(res.disconnected).toBe(true);
     expect(sqls[0]).toMatch(/active = false/i);
@@ -115,7 +119,11 @@ describe('deactivateTenantConnection', () => {
     const { tx } = makeTx([[]]);
     runWithTx(tx);
 
-    const res = await deactivateTenantConnection({ clinicId: 'clinic-1', userId: 'user-1', requestContext: ctx });
+    const res = await deactivateTenantConnection({
+      clinicId: 'clinic-1',
+      userId: 'user-1',
+      requestContext: ctx,
+    });
 
     expect(res.disconnected).toBe(false);
     expect(logAudit).not.toHaveBeenCalled();

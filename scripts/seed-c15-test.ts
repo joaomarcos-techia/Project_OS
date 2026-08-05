@@ -102,7 +102,10 @@ const convRows = (await dbAdmin.execute(sql`
 `)) as unknown as Array<{ id: string }>;
 const convId = convRows[0]!.id;
 
-const msgIn = await encryptForTenant(clinicId, 'Olá, gostaria de agendar uma consulta para semana que vem.');
+const msgIn = await encryptForTenant(
+  clinicId,
+  'Olá, gostaria de agendar uma consulta para semana que vem.',
+);
 const msgOut = await encryptForTenant(
   clinicId,
   'Claro! Temos horários na terça às 14h e na quinta às 10h. Qual prefere?',

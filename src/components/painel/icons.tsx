@@ -105,9 +105,7 @@ export function Icon({
 }) {
   const LucideCmp = ICONS[name];
   if (!LucideCmp) return null;
-  return (
-    <LucideCmp size={size} strokeWidth={sw} className={className} aria-hidden="true" />
-  );
+  return <LucideCmp size={size} strokeWidth={sw} className={className} aria-hidden="true" />;
 }
 
 /** Logo de 4 quadrados (marca ClinicaOS — não é lucide). */
@@ -123,7 +121,14 @@ export function LogoIcon({
   style?: CSSProperties;
 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={style}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={style}
+    >
       <rect x="2.5" y="2.5" width="8.4" height="8.4" rx="2.4" fill={strong} />
       <rect x="13.1" y="2.5" width="8.4" height="8.4" rx="2.4" fill={soft} />
       <rect x="2.5" y="13.1" width="8.4" height="8.4" rx="2.4" fill={soft} />

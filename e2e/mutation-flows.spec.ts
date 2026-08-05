@@ -6,6 +6,11 @@ const testEmail = process.env.E2E_USER_EMAIL;
 const testPassword = process.env.E2E_USER_PASSWORD;
 
 test.describe('fluxos mutáveis da Clínica A', () => {
+  // Em `next dev`, o beforeEach também pode compilar login/dashboard pela
+  // primeira vez. O timeout precisa cobrir o hook; configurá-lo dentro do
+  // corpo do teste deixa a autenticação limitada ao default de 30s.
+  test.describe.configure({ timeout: 180_000 });
+
   test.beforeEach(async ({ page }) => {
     test.skip(
       process.env.E2E_MUTATION !== '1' || !testEmail || !testPassword,
@@ -22,7 +27,6 @@ test.describe('fluxos mutáveis da Clínica A', () => {
   test('cria paciente, agenda atendimento e confirma recebimento pela interface', async ({
     page,
   }) => {
-    test.setTimeout(120_000);
     const fixture = await readMutationFixture();
 
     await page.goto('/pacientes?novo=1');
@@ -31,7 +35,7 @@ test.describe('fluxos mutáveis da Clínica A', () => {
     await page.getByLabel('CPF', { exact: true }).fill(fixture.patientCpf);
     await page.getByLabel('E-mail', { exact: true }).fill(fixture.patientEmail);
     await page.getByRole('button', { name: 'Criar paciente' }).click();
-    await expect(page).toHaveURL(/\/pacientes\/[0-9a-f-]{36}(?:\?|$)/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/pacientes\/[0-9a-f-]{36}(?:\?|$)/, { timeout: 90_000 });
     await expect(
       page.getByRole('heading', { name: fixture.patientName, exact: true }),
     ).toBeVisible();

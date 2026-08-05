@@ -75,7 +75,10 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
 
   // Datas formatadas no servidor (tz estável) para a tabela client de convites.
   const inviteDates = Object.fromEntries(
-    invites.map((i) => [i.id, { criado: formatDateTime(i.createdAt), expira: formatDateTime(i.expiresAt) }]),
+    invites.map((i) => [
+      i.id,
+      { criado: formatDateTime(i.createdAt), expira: formatDateTime(i.expiresAt) },
+    ]),
   );
 
   return (
@@ -103,7 +106,12 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
                 className={cn(fieldControlClassName, 'pl-9')}
               />
             </span>
-            <Select name="status" defaultValue={sp.status ?? ''} className="max-w-44" aria-label="Status">
+            <Select
+              name="status"
+              defaultValue={sp.status ?? ''}
+              className="max-w-44"
+              aria-label="Status"
+            >
               <option value="">Status: todos</option>
               {CLINIC_STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -111,7 +119,12 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
                 </option>
               ))}
             </Select>
-            <Select name="billing" defaultValue={sp.billing ?? ''} className="max-w-40" aria-label="Billing">
+            <Select
+              name="billing"
+              defaultValue={sp.billing ?? ''}
+              className="max-w-40"
+              aria-label="Billing"
+            >
               <option value="">Billing: todos</option>
               {BILLING_STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -189,7 +202,8 @@ export default async function ClinicasPage({ searchParams }: { searchParams: Pro
             </TableScroll>
             <TableFoot>
               <TableFootInfo>
-                Página {page} de {totalPages} · {result.total} clínica{result.total === 1 ? '' : 's'}
+                Página {page} de {totalPages} · {result.total} clínica
+                {result.total === 1 ? '' : 's'}
               </TableFootInfo>
               <TablePager
                 page={page}

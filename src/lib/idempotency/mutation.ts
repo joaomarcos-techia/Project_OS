@@ -212,6 +212,8 @@ export async function idempotentMutation<T>(
     impersonation = user.session?.impersonation;
   }
   const hash = payloadHash(opts.idempotency.payload);
+  const withMutationActor = <Result>(fn: (tx: Tx) => Promise<Result>): Promise<Result> =>
+    withTenant(clinicId, fn, userId);
 
   let auditEventId: string | undefined;
   // A2 — correlação AMBIENTE. Este wrapper está por baixo de TODA mutação de
@@ -223,7 +225,7 @@ export async function idempotentMutation<T>(
   const finalResult = await runWithContext(
     { requestId: opts.audit.requestContext.requestId, clinicId, ...(userId ? { userId } : {}) },
     () =>
-      withTenant(clinicId, async (tx) => {
+      withMutationActor(async (tx) => {
         // HIGH-05: lock_timeout configurável via env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS.
         // Default 10s (era 3s; quebrava Server Actions com fn() de 4-5s em rede lenta).
         // Aplica a TODO lock pegado nesta TX, incluindo unique constraint do INSERT.

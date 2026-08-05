@@ -272,8 +272,18 @@ const lazyLoginLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'login', 'ip'), analytics: false }),
-      email: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '15 m'), prefix: redisKey.global('rl', 'login', 'email'), analytics: false }),
+      ip: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '15 m'),
+        prefix: redisKey.global('rl', 'login', 'ip'),
+        analytics: false,
+      }),
+      email: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(5, '15 m'),
+        prefix: redisKey.global('rl', 'login', 'email'),
+        analytics: false,
+      }),
     };
     return cached;
   };
@@ -285,8 +295,18 @@ const lazyResetLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: redisKey.global('rl', 'reset', 'ip'), analytics: false }),
-      email: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(3, '1 h'), prefix: redisKey.global('rl', 'reset', 'email'), analytics: false }),
+      ip: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '1 h'),
+        prefix: redisKey.global('rl', 'reset', 'ip'),
+        analytics: false,
+      }),
+      email: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(3, '1 h'),
+        prefix: redisKey.global('rl', 'reset', 'email'),
+        analytics: false,
+      }),
     };
     return cached;
   };
@@ -320,7 +340,10 @@ export async function assertLoginAllowed(ip: string, emailHash: string): Promise
  * caller mantém `sent:true` (anti-enumeration), o resultado só decide se o email
  * de reset é REALMENTE disparado. F-08: nunca lança (fail-open + fallback).
  */
-export async function assertPasswordResetAllowed(ip: string, emailHash: string): Promise<LimitResult> {
+export async function assertPasswordResetAllowed(
+  ip: string,
+  emailHash: string,
+): Promise<LimitResult> {
   const ipKey = ipRateLimitKey(ip);
   try {
     const { ip: ipLimiter, email: emailLimiter } = lazyResetLimiters();
@@ -432,8 +455,18 @@ const lazyInviteLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(60, '1 h'), prefix: redisKey.global('rl', 'invite', 'clinic'), analytics: false }),
-      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 h'), prefix: redisKey.global('rl', 'invite', 'actor'), analytics: false }),
+      clinic: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(60, '1 h'),
+        prefix: redisKey.global('rl', 'invite', 'clinic'),
+        analytics: false,
+      }),
+      actor: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(30, '1 h'),
+        prefix: redisKey.global('rl', 'invite', 'actor'),
+        analytics: false,
+      }),
     };
     return cached;
   };
@@ -445,8 +478,18 @@ const lazyResendLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 h'), prefix: redisKey.global('rl', 'resend', 'clinic'), analytics: false }),
-      actor: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '1 h'), prefix: redisKey.global('rl', 'resend', 'actor'), analytics: false }),
+      clinic: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(20, '1 h'),
+        prefix: redisKey.global('rl', 'resend', 'clinic'),
+        analytics: false,
+      }),
+      actor: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '1 h'),
+        prefix: redisKey.global('rl', 'resend', 'actor'),
+        analytics: false,
+      }),
     };
     return cached;
   };
@@ -504,8 +547,18 @@ const lazyMfaLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      user: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'mfa', 'user'), analytics: false }),
-      ip: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '15 m'), prefix: redisKey.global('rl', 'mfa', 'ip'), analytics: false }),
+      user: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '15 m'),
+        prefix: redisKey.global('rl', 'mfa', 'user'),
+        analytics: false,
+      }),
+      ip: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(20, '15 m'),
+        prefix: redisKey.global('rl', 'mfa', 'ip'),
+        analytics: false,
+      }),
     };
     return cached;
   };
@@ -542,8 +595,18 @@ const lazyPdfLimiters = (() => {
     if (cached) return cached;
     const redis = lazyRedis();
     cached = {
-      user: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, '15 m'), prefix: redisKey.global('rl', 'pdf', 'user'), analytics: false }),
-      clinic: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '15 m'), prefix: redisKey.global('rl', 'pdf', 'clinic'), analytics: false }),
+      user: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '15 m'),
+        prefix: redisKey.global('rl', 'pdf', 'user'),
+        analytics: false,
+      }),
+      clinic: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(30, '15 m'),
+        prefix: redisKey.global('rl', 'pdf', 'clinic'),
+        analytics: false,
+      }),
     };
     return cached;
   };

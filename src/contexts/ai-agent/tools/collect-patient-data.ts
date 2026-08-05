@@ -57,7 +57,10 @@ registerTool({
     if (input.confirmed === 'true') {
       confirmed = true;
       const cur = (await getCollectedData(ctx.tx, ctx.clinicId, ctx.conversationId)) ?? merged.data;
-      await setCollectedData(ctx.tx, ctx.clinicId, ctx.conversationId, { ...cur, _confirmed: true });
+      await setCollectedData(ctx.tx, ctx.clinicId, ctx.conversationId, {
+        ...cur,
+        _confirmed: true,
+      });
     }
 
     const missing = (['nome', 'cpf', 'telefone', 'motivo'] as const)

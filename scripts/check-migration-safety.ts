@@ -144,7 +144,9 @@ export function assertMigrationsSafe(): void {
 function main(): void {
   const { findings, approved } = scanMigrations();
   if (approved.length > 0) {
-    console.log(`[check:migrations] ${approved.length} migration(s) com DROP/TRUNCATE aprovado(s): ${approved.join(', ')}`);
+    console.log(
+      `[check:migrations] ${approved.length} migration(s) com DROP/TRUNCATE aprovado(s): ${approved.join(', ')}`,
+    );
   }
   if (findings.length === 0) {
     console.log('[check:migrations] OK — nenhuma operação destrutiva não-aprovada.');

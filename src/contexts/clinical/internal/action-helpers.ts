@@ -20,7 +20,9 @@ export const idemKey = makeIdemKey('clinical', (m) => new ClinicalValidationErro
 /** Map UNIQUE (23505) para conflito limpo (ex.: corrida de prontuário por appointment). */
 export function asConflict(err: unknown): never {
   if (isUniqueViolation(err)) {
-    throw new ProntuarioConflitoError('Conflito ao gravar prontuário (já existe registro para esta consulta).');
+    throw new ProntuarioConflitoError(
+      'Conflito ao gravar prontuário (já existe registro para esta consulta).',
+    );
   }
   throw err;
 }

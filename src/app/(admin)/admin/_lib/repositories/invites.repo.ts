@@ -62,13 +62,19 @@ export class InvitesRepository {
       ),
     ];
     const planByIdRows = planIds.length
-      ? await dbAdmin.select({ id: plans.id, code: plans.code }).from(plans).where(inArray(plans.id, planIds))
+      ? await dbAdmin
+          .select({ id: plans.id, code: plans.code })
+          .from(plans)
+          .where(inArray(plans.id, planIds))
       : [];
     const planCode = new Map(planByIdRows.map((p) => [p.id, p.code]));
 
     const clinicIds = rows.map((r) => r.provisionedClinicId).filter((x): x is string => !!x);
     const clinicRows = clinicIds.length
-      ? await dbAdmin.select({ id: clinics.id, nome: clinics.nome }).from(clinics).where(inArray(clinics.id, clinicIds))
+      ? await dbAdmin
+          .select({ id: clinics.id, nome: clinics.nome })
+          .from(clinics)
+          .where(inArray(clinics.id, clinicIds))
       : [];
     const clinicNome = new Map(clinicRows.map((c) => [c.id, c.nome]));
 

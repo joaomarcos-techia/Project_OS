@@ -34,7 +34,9 @@ describe('clinic settings cache', () => {
     const tx = {
       select: vi.fn(() => query([{ nome: 'Clínica Aurora', timezone: 'America/Recife' }])),
     };
-    withTenant.mockImplementation(async (_clinicId: string, fn: (transaction: typeof tx) => unknown) => fn(tx));
+    withTenant.mockImplementation(
+      async (_clinicId: string, fn: (transaction: typeof tx) => unknown) => fn(tx),
+    );
 
     await expect(getClinicSettings('clinic-1')).resolves.toEqual({
       name: 'Clínica Aurora',

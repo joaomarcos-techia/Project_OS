@@ -74,7 +74,8 @@ export async function autosaveProntuario(
     const r = await updateProntuario(pid, parsed, expectedRowVersion);
     return { ok: true, rowVersion: r.rowVersion };
   } catch (err) {
-    const name = err && typeof err === 'object' && 'name' in err ? (err as { name?: string }).name : '';
+    const name =
+      err && typeof err === 'object' && 'name' in err ? (err as { name?: string }).name : '';
     if (name === 'ProntuarioConflitoError') {
       return { ok: false, kind: 'conflict', message: messageFrom(err) };
     }
@@ -139,7 +140,10 @@ export async function createPrescriptionForm(_prev: FormState, fd: FormData): Pr
 
 // --- documento médico ------------------------------------------------------
 
-export async function createMedicalDocumentForm(_prev: FormState, fd: FormData): Promise<FormState> {
+export async function createMedicalDocumentForm(
+  _prev: FormState,
+  fd: FormData,
+): Promise<FormState> {
   const key = str(fd, 'idempotencyKey') ?? '';
   let content: unknown;
   try {

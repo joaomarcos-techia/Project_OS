@@ -70,7 +70,9 @@ export class ConversationsRepository {
       const c = await dbAdmin
         .select({ conversationId: aiMessages.conversationId, n: sql<number>`(COUNT(*))::int` })
         .from(aiMessages)
-        .where(and(inArray(aiMessages.clinicId, clinicIds), inArray(aiMessages.conversationId, convIds)))
+        .where(
+          and(inArray(aiMessages.clinicId, clinicIds), inArray(aiMessages.conversationId, convIds)),
+        )
         .groupBy(aiMessages.conversationId);
       for (const x of c) counts.set(x.conversationId, Number(x.n) || 0);
     }

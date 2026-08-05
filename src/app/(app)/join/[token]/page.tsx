@@ -56,7 +56,8 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
   const { token } = await params;
 
   const rl = await assertJoinAllowed(getClientIp(await headers()));
-  if (!rl.ok) return <InvalidJoin reason="Muitas tentativas. Aguarde alguns minutos e tente de novo." />;
+  if (!rl.ok)
+    return <InvalidJoin reason="Muitas tentativas. Aguarde alguns minutos e tente de novo." />;
 
   const invite = await resolveOpenInvite(token);
   if (!invite) {

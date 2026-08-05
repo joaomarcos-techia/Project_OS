@@ -48,7 +48,10 @@ export function Toaster() {
             role="status"
             className="relative grid animate-toast-in grid-cols-[auto_1fr_auto] items-start gap-3 overflow-hidden rounded-(--r-md) border border-border-2 bg-surface p-3.5 shadow-(--elev-popover)"
           >
-            <Icon aria-hidden="true" className={cn('mt-px size-5 shrink-0', ICON_COLOR[t.variant])} />
+            <Icon
+              aria-hidden="true"
+              className={cn('mt-px size-5 shrink-0', ICON_COLOR[t.variant])}
+            />
             <div className="min-w-0">
               <div className="text-(length:--fs-sm) font-semibold">{t.title}</div>
               {t.description ? (
@@ -65,7 +68,10 @@ export function Toaster() {
             </button>
             <span
               aria-hidden="true"
-              className={cn('absolute bottom-0 left-0 h-0.5 animate-toast-bar', BAR_COLOR[t.variant])}
+              className={cn(
+                'absolute bottom-0 left-0 h-0.5 animate-toast-bar',
+                BAR_COLOR[t.variant],
+              )}
               style={{ animationDuration: `${t.duration}ms` }}
             />
           </div>

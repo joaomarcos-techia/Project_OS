@@ -58,8 +58,7 @@ export function TablePager({
             aria-current={p === page ? 'page' : undefined}
             className={cn(
               btn,
-              p === page &&
-                'bg-primary text-on-primary hover:bg-primary hover:text-on-primary',
+              p === page && 'bg-primary text-on-primary hover:bg-primary hover:text-on-primary',
             )}
           >
             {p}

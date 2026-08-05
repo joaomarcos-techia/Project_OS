@@ -44,8 +44,7 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise
 
 function supabaseEnv(): { url: string; key: string } {
   const url = env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     throw new Error(
       '[auth/supabase-server] NEXT_PUBLIC_SUPABASE_URL ou key publishable/anon ausentes.',

@@ -17,4 +17,3 @@ export function routeDunning(daysOverdue: number): DunningRoute {
   if (daysOverdue <= 30) return { mode: 'manual', stage: 'd15_review' };
   return { mode: 'manual', stage: 'd30_manual' };
 }
-

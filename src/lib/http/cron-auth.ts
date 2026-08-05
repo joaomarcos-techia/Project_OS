@@ -41,7 +41,9 @@ export type CronAuthOptions = {
  * Uso: `const denied = assertCronAuth(req, { route: 'outbox' }); if (denied) return denied;`
  */
 export function assertCronAuth(req: Request, opts: CronAuthOptions): Response | null {
-  const secret = opts.destructive ? (env.CRON_SECRET_DESTRUCTIVE ?? env.CRON_SECRET) : env.CRON_SECRET;
+  const secret = opts.destructive
+    ? (env.CRON_SECRET_DESTRUCTIVE ?? env.CRON_SECRET)
+    : env.CRON_SECRET;
   const authorization = req.headers.get('authorization');
 
   // `secret &&`: CRON_SECRET é optional() no schema. Sem este guard,

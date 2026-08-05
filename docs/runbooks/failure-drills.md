@@ -15,12 +15,15 @@
 - **Passa se:** issue criada + alert rule dispara (ver [alert-tuning.md](./alert-tuning.md)).
 
 ## Drill 2 — Dependência de IA quebrada
-> O `/api/health` checa **presença de config** (leve, por design), não faz chamada cara.
-> Logo, há dois sub-testes:
+> O `/api/health` executa probes leves de alcançabilidade para Gemini, Meta e
+> Asaas, com timeout curto e cache por instância. Assim, uma key presente não
+> mascara um provedor indisponível. O turno de IA continua sendo necessário para
+> provar classificação de erro, saga e circuit breaker.
+
 - **2a (config ausente → health degraded):** remova `GEMINI_API_KEY` do ambiente de teste → `GET /api/health` → `gemini: degraded` e (com `?strict=1`) HTTP 503 → o monitor de Uptime alarma em < 10 min.
-- **2b (key inválida → erro real):** ponha uma key inválida e dispare um turno de IA → o provider devolve 4xx → `event:"ai.provider.error"` no Better Stack + erro no Sentry; SLO `ia_error_rate` (slo.md) sobe. O circuit pausa o event_type.
-- **Passa se:** 2a vira degraded+alerta; 2b aparece em logs/Sentry sem derrubar o resto do app.
-- **Restaurar:** volte a key correta; a fila de turnos reprocessa (saga idempotente).
+- **2b (provider inacessível ou key inválida → probe + turno):** use um ambiente de teste isolado para bloquear a saída ao Gemini ou configure uma key inválida. O health deve reportar `gemini: degraded` após expirar o cache; então dispare um turno de IA. O provider deve gerar `event:"ai.provider.error"` no Better Stack, erro correlacionado no Sentry e aumento do SLO `ia_error_rate` (slo.md), sem derrubar o restante da aplicação. O circuit breaker pausa o event type após as falhas previstas.
+- **Passa se:** 2a e 2b ficam `degraded` no health e notificam o monitor; no 2b o erro também é classificado no fluxo de IA, sem perda nem duplicação do turno.
+- **Restaurar:** volte a key/conectividade correta, aguarde no máximo o TTL do probe e confirme `/api/health` como `ok`; a fila de turnos reprocessa pela saga idempotente.
 
 ## Drill 3 — Restore PITR
 - **Ação:** siga [restore-test.md](./restore-test.md) — restaure um ponto no tempo para um projeto/branch temporário.

@@ -23,7 +23,12 @@ import { decryptForTenant } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 import { auditEvents } from '@/lib/db/schema/infra/audit';
 
-import type { AuditEntryDTO, ClinicDetailDTO, ClinicListItemDTO, ClinicListResultDTO } from '../dto';
+import type {
+  AuditEntryDTO,
+  ClinicDetailDTO,
+  ClinicListItemDTO,
+  ClinicListResultDTO,
+} from '../dto';
 import { toCents } from '../format';
 
 const iso = (v: Date | string | null): string | null =>
@@ -89,7 +94,10 @@ export class ClinicRepository {
     const lastActivity = new Map<string, string | null>();
     if (ids.length > 0) {
       const act = await dbAdmin
-        .select({ clinicId: auditEvents.clinicId, last: sql<string | null>`MAX(${auditEvents.createdAt})` })
+        .select({
+          clinicId: auditEvents.clinicId,
+          last: sql<string | null>`MAX(${auditEvents.createdAt})`,
+        })
         .from(auditEvents)
         .where(
           and(
@@ -115,7 +123,9 @@ export class ClinicRepository {
   }
 
   /** Clínicas em risco (suspensas / aguardando pagamento) — painel da visão geral. */
-  async listAtRisk(limit = 4): Promise<{ id: string; nome: string; slug: string; status: string }[]> {
+  async listAtRisk(
+    limit = 4,
+  ): Promise<{ id: string; nome: string; slug: string; status: string }[]> {
     return dbAdmin
       .select({ id: clinics.id, nome: clinics.nome, slug: clinics.slug, status: clinics.status })
       .from(clinics)
@@ -178,7 +188,9 @@ export class ClinicRepository {
       .select({
         open: sql<number>`(COUNT(*) FILTER (WHERE ${invoices.status} = 'open'))::int`,
         overdue: sql<number>`(COUNT(*) FILTER (WHERE ${invoices.status} = 'overdue'))::int`,
-        lastPaidAt: sql<string | null>`MAX(${invoices.paidAt}) FILTER (WHERE ${invoices.status} = 'paid')`,
+        lastPaidAt: sql<
+          string | null
+        >`MAX(${invoices.paidAt}) FILTER (WHERE ${invoices.status} = 'paid')`,
       })
       .from(invoices)
       .where(eq(invoices.clinicId, clinicId));
@@ -223,7 +235,9 @@ export class ClinicRepository {
     const [wa] = await dbAdmin
       .select({ verifiedAt: clinicWhatsappNumbers.verifiedAt })
       .from(clinicWhatsappNumbers)
-      .where(and(eq(clinicWhatsappNumbers.clinicId, clinicId), eq(clinicWhatsappNumbers.active, true)))
+      .where(
+        and(eq(clinicWhatsappNumbers.clinicId, clinicId), eq(clinicWhatsappNumbers.active, true)),
+      )
       .limit(1);
     const [bc] = await dbAdmin
       .select({ asaasCustomerId: billingCustomers.asaasCustomerId })

@@ -95,7 +95,13 @@ export function computeSlots(params: ComputeSlotsParams): LocalSlot[] {
         const e = s + slotMinutes;
         const collides = blocked.some(([b1, b2]) => overlaps(s, e, b1, b2));
         if (!collides) {
-          out.push({ doctorId: av.doctorId, unitId: av.unitId, date: day.date, startMin: s, endMin: e });
+          out.push({
+            doctorId: av.doctorId,
+            unitId: av.unitId,
+            date: day.date,
+            startMin: s,
+            endMin: e,
+          });
         }
       }
     }
@@ -172,7 +178,10 @@ function pad2(n: number): string {
 }
 
 /** UTC instant → { date: 'YYYY-MM-DD', minutes-from-midnight } in `timeZone`. */
-export function localDateMinutes(instant: Date, timeZone: string): { date: string; minutes: number } {
+export function localDateMinutes(
+  instant: Date,
+  timeZone: string,
+): { date: string; minutes: number } {
   const p = zonedParts(instant, timeZone);
   return {
     date: `${p.year}-${pad2(p.month)}-${pad2(p.day)}`,

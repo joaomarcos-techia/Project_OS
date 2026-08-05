@@ -12,9 +12,7 @@ export async function renderEncaminhamentoPDF(
     <DocShell branding={branding} doctor={doctor} title="Encaminhamento">
       <Text style={styles.patientLine}>Paciente: {data.patientNome}</Text>
       <View style={styles.paragraph}>
-        <Text>
-          Encaminho o(a) paciente acima para avaliação em {data.especialidade}.
-        </Text>
+        <Text>Encaminho o(a) paciente acima para avaliação em {data.especialidade}.</Text>
       </View>
       <View style={styles.paragraph}>
         <Text style={styles.label}>Motivo do encaminhamento</Text>

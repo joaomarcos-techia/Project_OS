@@ -45,10 +45,34 @@ describe('walk-in operational queue', () => {
 
   it('orders the patient already in service, then urgency, then arrival time', () => {
     const queue: QueueCandidate[] = [
-      { id: 'normal-first', status: 'waiting', priority: 'normal', queuedAt: '2026-07-24T10:00:00Z', durationMinutes: 30 },
-      { id: 'urgent-last', status: 'waiting', priority: 'urgent', queuedAt: '2026-07-24T10:05:00Z', durationMinutes: 20 },
-      { id: 'in-service', status: 'in_service', priority: 'normal', queuedAt: '2026-07-24T09:50:00Z', durationMinutes: 40 },
-      { id: 'normal-last', status: 'waiting', priority: 'normal', queuedAt: '2026-07-24T10:10:00Z', durationMinutes: 15 },
+      {
+        id: 'normal-first',
+        status: 'waiting',
+        priority: 'normal',
+        queuedAt: '2026-07-24T10:00:00Z',
+        durationMinutes: 30,
+      },
+      {
+        id: 'urgent-last',
+        status: 'waiting',
+        priority: 'urgent',
+        queuedAt: '2026-07-24T10:05:00Z',
+        durationMinutes: 20,
+      },
+      {
+        id: 'in-service',
+        status: 'in_service',
+        priority: 'normal',
+        queuedAt: '2026-07-24T09:50:00Z',
+        durationMinutes: 40,
+      },
+      {
+        id: 'normal-last',
+        status: 'waiting',
+        priority: 'normal',
+        queuedAt: '2026-07-24T10:10:00Z',
+        durationMinutes: 15,
+      },
     ];
 
     expect(orderQueue(queue).map((entry) => entry.id)).toEqual([
@@ -63,8 +87,20 @@ describe('walk-in operational queue', () => {
 
   it('does not count completed or cancelled entries in the estimate', () => {
     const queue: QueueCandidate[] = [
-      { id: 'done', status: 'completed', priority: 'urgent', queuedAt: '2026-07-24T09:00:00Z', durationMinutes: 90 },
-      { id: 'cancelled', status: 'cancelled', priority: 'urgent', queuedAt: '2026-07-24T09:01:00Z', durationMinutes: 90 },
+      {
+        id: 'done',
+        status: 'completed',
+        priority: 'urgent',
+        queuedAt: '2026-07-24T09:00:00Z',
+        durationMinutes: 90,
+      },
+      {
+        id: 'cancelled',
+        status: 'cancelled',
+        priority: 'urgent',
+        queuedAt: '2026-07-24T09:01:00Z',
+        durationMinutes: 90,
+      },
     ];
 
     expect(estimateWaitMinutes(queue, 'normal')).toBe(0);

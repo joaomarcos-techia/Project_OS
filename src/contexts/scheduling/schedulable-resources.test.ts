@@ -35,8 +35,9 @@ describe('schedulable resources', () => {
       }).resourceIds,
     ).toEqual([resourceId]);
     expect(CreateWalkInSchema.parse(common).resourceIds).toEqual([resourceId]);
-    expect(CreateHolidaySchema.parse({ date: '2026-07-24', resourceIds: [resourceId] })).not
-      .toHaveProperty('resourceIds');
+    expect(
+      CreateHolidaySchema.parse({ date: '2026-07-24', resourceIds: [resourceId] }),
+    ).not.toHaveProperty('resourceIds');
   });
 
   it('bloqueia sobreposicao de sala/equipamento no banco', () => {

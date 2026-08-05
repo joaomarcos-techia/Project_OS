@@ -22,7 +22,9 @@ const {
 } = vi.hoisted(() => ({
   guardAdminAccess: vi.fn(async () => {}),
   requireUser: vi.fn(async () => ({ userId: 'sa-1' })),
-  assertPdfExportAllowed: vi.fn(async (): Promise<{ ok: boolean; reason?: string }> => ({ ok: true })),
+  assertPdfExportAllowed: vi.fn(
+    async (): Promise<{ ok: boolean; reason?: string }> => ({ ok: true }),
+  ),
   run: vi.fn(),
   superAdminAction: vi.fn(async () => {}),
   logError: vi.fn(),
@@ -53,10 +55,17 @@ vi.mock('@/lib/audit/super-admin', () => ({ superAdminAction }));
 // `toErrorResponse` cairia no randomUUID de fallback, mascarando justamente a
 // propriedade sob teste (o trace_id da resposta ser o do request/log).
 vi.mock('@/lib/audit/request-context', () => ({
-  buildRequestContext: () => ({ ip: null, userAgent: null, requestId: REQ_ID, correlationId: REQ_ID }),
+  buildRequestContext: () => ({
+    ip: null,
+    userAgent: null,
+    requestId: REQ_ID,
+    correlationId: REQ_ID,
+  }),
 }));
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
-vi.mock('@/lib/observability/logger', () => ({ logger: { warn: logWarn, error: logError, info: vi.fn(), debug: vi.fn() } }));
+vi.mock('@/lib/observability/logger', () => ({
+  logger: { warn: logWarn, error: logError, info: vi.fn(), debug: vi.fn() },
+}));
 
 import { AuditExportTooLargeError } from '../../../../_lib/services/audit-export.service';
 
@@ -65,16 +74,26 @@ import { POST } from './route';
 const CLINIC = '11111111-1111-1111-1111-111111111111';
 
 const post = (from: string, to: string, id = CLINIC): Promise<Response> =>
-  POST(new Request(`https://qoro.app/admin/clinicas/${id}/audit/export?from=${from}&to=${to}`, { method: 'POST' }), {
-    params: Promise.resolve({ id }),
-  });
+  POST(
+    new Request(`https://qoro.app/admin/clinicas/${id}/audit/export?from=${from}&to=${to}`, {
+      method: 'POST',
+    }),
+    {
+      params: Promise.resolve({ id }),
+    },
+  );
 
 beforeEach(() => {
   vi.clearAllMocks();
   guardAdminAccess.mockResolvedValue(undefined);
   requireUser.mockResolvedValue({ userId: 'sa-1' });
   assertPdfExportAllowed.mockResolvedValue({ ok: true });
-  run.mockResolvedValue({ signedUrl: 'https://x/y.pdf', sha256: 'abc', expiresInDays: 7, rowCount: 12 });
+  run.mockResolvedValue({
+    signedUrl: 'https://x/y.pdf',
+    sha256: 'abc',
+    expiresInDays: 7,
+    rowCount: 12,
+  });
 });
 
 describe('400 — malformado (inalterado)', () => {

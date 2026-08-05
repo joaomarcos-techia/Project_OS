@@ -110,9 +110,7 @@ export async function setSchedulableResourceActive(
       const [row] = await tx
         .update(schedulableResources)
         .set({ active, updatedAt: sql`now()` })
-        .where(
-          and(eq(schedulableResources.id, id), eq(schedulableResources.clinicId, clinicId)),
-        )
+        .where(and(eq(schedulableResources.id, id), eq(schedulableResources.clinicId, clinicId)))
         .returning({ id: schedulableResources.id, active: schedulableResources.active });
       if (!row) throw new SchedulingValidationError('recurso nao encontrado');
       return row;
@@ -137,7 +135,11 @@ export async function setDoctorAvailability(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('avail_set', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+        idempotency: {
+          key: idemKey('avail_set', idempotencyKey),
+          payload: jsonSafe(data),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
         audit: {
           action: 'doctor_availability.set',
           resourceType: 'doctor_availability',
@@ -198,7 +200,11 @@ export async function removeDoctorAvailability(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('avail_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+      idempotency: {
+        key: idemKey('avail_remove', idempotencyKey),
+        payload: jsonSafe({ id }),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
       audit: {
         action: 'doctor_availability.removed',
         resourceType: 'doctor_availability',
@@ -230,7 +236,11 @@ export async function createHoliday(
   try {
     return await idempotentMutation(
       {
-        idempotency: { key: idemKey('holiday_create', idempotencyKey), payload: jsonSafe(data), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+        idempotency: {
+          key: idemKey('holiday_create', idempotencyKey),
+          payload: jsonSafe(data),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
         audit: {
           action: 'clinic_holiday.created',
           resourceType: 'clinic_holiday',
@@ -271,7 +281,11 @@ export async function removeHoliday(
 
   return idempotentMutation(
     {
-      idempotency: { key: idemKey('holiday_remove', idempotencyKey), payload: jsonSafe({ id }), ttlSeconds: MUTATION_IDEM_TTL_SECONDS },
+      idempotency: {
+        key: idemKey('holiday_remove', idempotencyKey),
+        payload: jsonSafe({ id }),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
       audit: {
         action: 'clinic_holiday.removed',
         resourceType: 'clinic_holiday',

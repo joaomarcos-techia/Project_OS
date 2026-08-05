@@ -17,8 +17,22 @@ describe('renderRelatorioPDF', () => {
         ocupacao: { taxa: 0.67 },
       },
       porProfissional: [
-        { doctorId: 'd1', nome: 'Dra. Ana Souza', total: 18, atendidos: 15, faltas: 2, recebido: 900 },
-        { doctorId: 'd2', nome: 'Dr. Bruno Lima', total: 10, atendidos: 7, faltas: 1, recebido: 334.5 },
+        {
+          doctorId: 'd1',
+          nome: 'Dra. Ana Souza',
+          total: 18,
+          atendidos: 15,
+          faltas: 2,
+          recebido: 900,
+        },
+        {
+          doctorId: 'd2',
+          nome: 'Dr. Bruno Lima',
+          total: 10,
+          atendidos: 7,
+          faltas: 1,
+          recebido: 334.5,
+        },
       ],
     });
     expect(buf.length).toBeGreaterThan(1000);
@@ -39,7 +53,14 @@ describe('renderRelatorioPDF', () => {
         ocupacao: { taxa: null },
       },
       porProfissional: [
-        { doctorId: 'd1', nome: 'Dra. Ana Souza', total: 4, atendidos: 4, faltas: 0, recebido: null },
+        {
+          doctorId: 'd1',
+          nome: 'Dra. Ana Souza',
+          total: 4,
+          atendidos: 4,
+          faltas: 0,
+          recebido: null,
+        },
       ],
     });
     expect(buf.subarray(0, 5).toString()).toBe('%PDF-');

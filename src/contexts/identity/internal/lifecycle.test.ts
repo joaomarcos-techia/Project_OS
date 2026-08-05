@@ -52,7 +52,12 @@ import { setMemberActive, setMemberOverride, setMemberRole } from './lifecycle';
 const CLINIC = '11111111-1111-1111-1111-111111111111';
 const ACTOR = '22222222-2222-2222-2222-222222222222';
 const TARGET = '33333333-3333-3333-3333-333333333333';
-const ctx = { ip: '127.0.0.1', userAgent: 'test', requestId: 'req-1', correlationId: 'req-1' } as never;
+const ctx = {
+  ip: '127.0.0.1',
+  userAgent: 'test',
+  requestId: 'req-1',
+  correlationId: 'req-1',
+} as never;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -77,20 +82,38 @@ describe('setMemberActive', () => {
   it('alvo inexistente → MemberNotFoundError', async () => {
     db.target = null;
     await expect(
-      setMemberActive({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, active: false, requestContext: ctx }),
+      setMemberActive({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        targetUserId: TARGET,
+        active: false,
+        requestContext: ctx,
+      }),
     ).rejects.toMatchObject({ code: 'member_not_found' });
   });
 
   it.each(['owner', 'super_admin'])('não desativa papel protegido (%s)', async (role) => {
     db.target = { role, ativo: true };
     await expect(
-      setMemberActive({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, active: false, requestContext: ctx }),
+      setMemberActive({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        targetUserId: TARGET,
+        active: false,
+        requestContext: ctx,
+      }),
     ).rejects.toMatchObject({ code: 'protected_role' });
   });
 
   it('desativa: audita como `deactivated`, before/after corretos', async () => {
     db.target = { role: 'doctor', ativo: true };
-    await setMemberActive({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, active: false, requestContext: ctx });
+    await setMemberActive({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      targetUserId: TARGET,
+      active: false,
+      requestContext: ctx,
+    });
     expect(logAudit).toHaveBeenCalledOnce();
     expect(logAudit.mock.calls[0]![1]).toMatchObject({
       action: 'internal.user.deactivated',
@@ -117,13 +140,25 @@ describe('setMemberActive', () => {
 
   it('reativar: audita como `reactivated`', async () => {
     db.target = { role: 'doctor', ativo: false };
-    await setMemberActive({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, active: true, requestContext: ctx });
+    await setMemberActive({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      targetUserId: TARGET,
+      active: true,
+      requestContext: ctx,
+    });
     expect(logAudit.mock.calls[0]![1]).toMatchObject({ action: 'internal.user.reactivated' });
   });
 
   it('idempotente: já no estado pedido → no-op sem auditar', async () => {
     db.target = { role: 'doctor', ativo: true };
-    await setMemberActive({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, active: true, requestContext: ctx });
+    await setMemberActive({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      targetUserId: TARGET,
+      active: true,
+      requestContext: ctx,
+    });
     expect(logAudit).not.toHaveBeenCalled();
   });
 });
@@ -131,27 +166,55 @@ describe('setMemberActive', () => {
 describe('setMemberRole', () => {
   it('não deixa trocar o próprio papel', async () => {
     await expect(
-      setMemberRole({ clinicId: CLINIC, actorUserId: ACTOR, actorRole: 'owner', targetUserId: ACTOR, newRole: 'gestor', requestContext: ctx }),
+      setMemberRole({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        actorRole: 'owner',
+        targetUserId: ACTOR,
+        newRole: 'gestor',
+        requestContext: ctx,
+      }),
     ).rejects.toMatchObject({ code: 'self_mutation_forbidden' });
   });
 
   it('não rebaixa owner (papel protegido)', async () => {
     db.target = { role: 'owner', ativo: true };
     await expect(
-      setMemberRole({ clinicId: CLINIC, actorUserId: ACTOR, actorRole: 'owner', targetUserId: TARGET, newRole: 'gestor', requestContext: ctx }),
+      setMemberRole({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        actorRole: 'owner',
+        targetUserId: TARGET,
+        newRole: 'gestor',
+        requestContext: ctx,
+      }),
     ).rejects.toMatchObject({ code: 'protected_role' });
   });
 
   it('anti-escalonamento: não PROMOVE a owner', async () => {
     db.target = { role: 'attendant', ativo: true };
     await expect(
-      setMemberRole({ clinicId: CLINIC, actorUserId: ACTOR, actorRole: 'owner', targetUserId: TARGET, newRole: 'owner', requestContext: ctx }),
+      setMemberRole({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        actorRole: 'owner',
+        targetUserId: TARGET,
+        newRole: 'owner',
+        requestContext: ctx,
+      }),
     ).rejects.toMatchObject({ code: 'role_assignment_forbidden' });
   });
 
   it('troca válida: audita before/after do role', async () => {
     db.target = { role: 'attendant', ativo: true };
-    await setMemberRole({ clinicId: CLINIC, actorUserId: ACTOR, actorRole: 'owner', targetUserId: TARGET, newRole: 'financial', requestContext: ctx });
+    await setMemberRole({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      actorRole: 'owner',
+      targetUserId: TARGET,
+      newRole: 'financial',
+      requestContext: ctx,
+    });
     expect(logAudit.mock.calls[0]![1]).toMatchObject({
       action: 'internal.user.role_changed',
       before: { role: 'attendant' },
@@ -161,7 +224,14 @@ describe('setMemberRole', () => {
 
   it('mesmo role → no-op', async () => {
     db.target = { role: 'financial', ativo: true };
-    await setMemberRole({ clinicId: CLINIC, actorUserId: ACTOR, actorRole: 'owner', targetUserId: TARGET, newRole: 'financial', requestContext: ctx });
+    await setMemberRole({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      actorRole: 'owner',
+      targetUserId: TARGET,
+      newRole: 'financial',
+      requestContext: ctx,
+    });
     expect(logAudit).not.toHaveBeenCalled();
   });
 });
@@ -169,20 +239,41 @@ describe('setMemberRole', () => {
 describe('setMemberOverride', () => {
   it('não deixa o ator mexer nos próprios overrides (anti auto-escalonamento)', async () => {
     await expect(
-      setMemberOverride({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: ACTOR, permissionCode: 'manage:employees', granted: true, requestContext: ctx }),
+      setMemberOverride({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        targetUserId: ACTOR,
+        permissionCode: 'manage:employees',
+        granted: true,
+        requestContext: ctx,
+      }),
     ).rejects.toMatchObject({ code: 'self_mutation_forbidden' });
   });
 
   it('não concede override em papel protegido', async () => {
     db.target = { role: 'owner', ativo: true };
     await expect(
-      setMemberOverride({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, permissionCode: 'manage:employees', granted: true, requestContext: ctx }),
+      setMemberOverride({
+        clinicId: CLINIC,
+        actorUserId: ACTOR,
+        targetUserId: TARGET,
+        permissionCode: 'manage:employees',
+        granted: true,
+        requestContext: ctx,
+      }),
     ).rejects.toMatchObject({ code: 'protected_role' });
   });
 
   it('concede: audita a permissão + granted', async () => {
     db.target = { role: 'attendant', ativo: true };
-    await setMemberOverride({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, permissionCode: 'view:financial', granted: true, requestContext: ctx });
+    await setMemberOverride({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      targetUserId: TARGET,
+      permissionCode: 'view:financial',
+      granted: true,
+      requestContext: ctx,
+    });
     expect(logAudit.mock.calls[0]![1]).toMatchObject({
       action: 'internal.user.override_changed',
       after: { permission: 'view:financial', granted: true },
@@ -192,7 +283,14 @@ describe('setMemberOverride', () => {
   it('remover (granted=null): audita a remoção', async () => {
     db.target = { role: 'attendant', ativo: true };
     db.overrideBefore = [{ granted: true }];
-    await setMemberOverride({ clinicId: CLINIC, actorUserId: ACTOR, targetUserId: TARGET, permissionCode: 'view:financial', granted: null, requestContext: ctx });
+    await setMemberOverride({
+      clinicId: CLINIC,
+      actorUserId: ACTOR,
+      targetUserId: TARGET,
+      permissionCode: 'view:financial',
+      granted: null,
+      requestContext: ctx,
+    });
     expect(logAudit.mock.calls[0]![1]).toMatchObject({
       before: { permission: 'view:financial', granted: true },
       after: { permission: 'view:financial', granted: null },

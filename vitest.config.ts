@@ -19,6 +19,20 @@ export default defineConfig({
     // travas reais (a suíte inteira roda em ~30s).
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'lcov'],
+      reportsDirectory: './coverage',
+      all: true,
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.d.ts', 'src/**/*.test.{ts,tsx}', 'src/lib/test/**'],
+      thresholds: {
+        lines: 26,
+        functions: 38,
+        branches: 73,
+        statements: 26,
+      },
+    },
     // Baseline env so that src/lib/env.ts (which validates at module load)
     // can be imported by test files. Individual tests override these via
     // `__internal.loadEnv(asEnv(...))`. These values are intentionally

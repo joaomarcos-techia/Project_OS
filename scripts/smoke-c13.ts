@@ -84,11 +84,18 @@ async function main(): Promise<void> {
   console.log(`[smoke:c13] provisionadas A=${clinicA} B=${clinicB}`);
 
   try {
-    check('clínica provisionada em pending_payment', (await clinicStatus(clinicA)) === 'pending_payment');
+    check(
+      'clínica provisionada em pending_payment',
+      (await clinicStatus(clinicA)) === 'pending_payment',
+    );
 
     // Invoice open + PAYMENT_RECEIVED.
     const invId = await withTenant(clinicA, async (tx) => {
-      const [sub] = await tx.select({ id: subscriptions.id }).from(subscriptions).where(eq(subscriptions.clinicId, clinicA)).limit(1);
+      const [sub] = await tx
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.clinicId, clinicA))
+        .limit(1);
       const [inv] = await tx
         .insert(invoices)
         .values({
@@ -116,13 +123,19 @@ async function main(): Promise<void> {
       sql`SELECT status::text AS s FROM invoices WHERE id=${invId}::uuid`,
     )) as unknown as Array<{ s: string }>;
     check('PAYMENT_RECEIVED → invoice paid', invAfter[0]?.s === 'paid');
-    check('PAYMENT_RECEIVED → clínica reativada (active)', (await clinicStatus(clinicA)) === 'active');
+    check(
+      'PAYMENT_RECEIVED → clínica reativada (active)',
+      (await clinicStatus(clinicA)) === 'active',
+    );
 
     // Dunning D+30 → blocked.
     await dbAdmin.transaction(async (tx) => {
       await setClinicAccess(tx, clinicA, 'blocked', 'dunning D+30', `smoke-dunning-${stamp}`);
     });
-    check('dunning D+30 → clínica suspended (blocked)', (await clinicStatus(clinicA)) === 'suspended');
+    check(
+      'dunning D+30 → clínica suspended (blocked)',
+      (await clinicStatus(clinicA)) === 'suspended',
+    );
 
     // Quota idempotente: mesmo dedup conta 1×.
     const key = ledgerKeyFor('agendamento', { appointmentId: `appt-smoke-${stamp}` });
@@ -146,8 +159,16 @@ async function main(): Promise<void> {
     });
     check('RLS: clínica B não vê subscription da A', crossCount === 0);
   } finally {
-    // Cleanup (CASCADE por clinic_id).
-    await dbAdmin.execute(sql`DELETE FROM clinics WHERE id IN (${clinicA}::uuid, ${clinicB}::uuid)`);
+    // tenantId() não declara FK nas tabelas de infraestrutura; limpar antes das
+    // clínicas impede que o worker de dev herde eventos órfãos desta fixture.
+    for (const clinicId of [clinicA, clinicB]) {
+      for (const table of ['outbox', 'idempotency_keys', 'audit_events'] as const) {
+        await dbAdmin.execute(sql`DELETE FROM ${sql.raw(table)} WHERE clinic_id = ${clinicId}`);
+      }
+    }
+    await dbAdmin.execute(
+      sql`DELETE FROM clinics WHERE id IN (${clinicA}::uuid, ${clinicB}::uuid)`,
+    );
     console.log('[smoke:c13] cleanup ok');
   }
 

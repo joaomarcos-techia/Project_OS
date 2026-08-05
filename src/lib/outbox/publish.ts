@@ -51,9 +51,7 @@ export async function publishEvent<TPayload = unknown>(
   }
   const parsed = schema.safeParse(args.payload);
   if (!parsed.success) {
-    throw new OutboxError(
-      `payload invalid for ${args.eventType}: ${parsed.error.message}`,
-    );
+    throw new OutboxError(`payload invalid for ${args.eventType}: ${parsed.error.message}`);
   }
   assertJsonSafe(parsed.data);
 
@@ -102,10 +100,7 @@ export async function publishEvent<TPayload = unknown>(
     .select({ payloadHash: outbox.payloadHash })
     .from(outbox)
     .where(
-      and(
-        eq(outbox.eventType, args.eventType),
-        eq(outbox.idempotencyKey, args.idempotencyKey),
-      ),
+      and(eq(outbox.eventType, args.eventType), eq(outbox.idempotencyKey, args.idempotencyKey)),
     )
     .limit(1);
 

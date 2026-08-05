@@ -156,7 +156,10 @@ export async function deactivateAnnouncementAction(
       requestContext: rc,
     },
     (tx) =>
-      tx.update(platformAnnouncements).set({ active: false }).where(eq(platformAnnouncements.id, id.data)),
+      tx
+        .update(platformAnnouncements)
+        .set({ active: false })
+        .where(eq(platformAnnouncements.id, id.data)),
   );
   revalidatePath('/admin/config');
   return { error: null, ok: true };

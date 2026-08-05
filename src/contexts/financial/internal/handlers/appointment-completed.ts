@@ -57,7 +57,9 @@ async function faturarAtendimento(ctx: {
 
   // Timeout de 5s por statement (SET LOCAL → escopo desta TX do worker). Aborta
   // queries lentas de forma transaction-safe (sem Promise.race / órfãos).
-  await tx.execute(sql`SELECT set_config('statement_timeout', ${String(STATEMENT_TIMEOUT_MS)}, true)`);
+  await tx.execute(
+    sql`SELECT set_config('statement_timeout', ${String(STATEMENT_TIMEOUT_MS)}, true)`,
+  );
 
   // Defesa: clinicId do payload deve bater com o contexto RLS do worker.
   if (payload.clinicId !== clinicId) {
@@ -86,7 +88,12 @@ async function faturarAtendimento(ctx: {
     await publishEvent(tx, {
       clinicId,
       eventType: FINANCIAL_EVENTS.FATURAMENTO_PENDENTE,
-      payload: { appointmentId: payload.appointmentId, clinicId, motivo, valor: round2(payload.valor) },
+      payload: {
+        appointmentId: payload.appointmentId,
+        clinicId,
+        motivo,
+        valor: round2(payload.valor),
+      },
       idempotencyKey: `faturamento-pendente:${eventId}`,
       correlationId: eventId,
     });

@@ -55,9 +55,7 @@ export default async function ConversasIaPage({ searchParams }: { searchParams: 
       search: sp.q,
       pageSize: 50,
     }),
-    sp.c && sp.clinic
-      ? conversationsRepository.getDetail(sp.clinic, sp.c)
-      : Promise.resolve(null),
+    sp.c && sp.clinic ? conversationsRepository.getDetail(sp.clinic, sp.c) : Promise.resolve(null),
   ]);
 
   return (

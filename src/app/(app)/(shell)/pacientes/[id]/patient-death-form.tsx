@@ -17,9 +17,7 @@ export function PatientDeathForm({ id }: { id: string }) {
 
   return (
     <form action={action} className="mt-8 border-t border-border pt-4">
-      <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">
-        Registrar falecimento
-      </h2>
+      <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">Registrar falecimento</h2>
       <p className="mb-3 text-xs text-fg-subtle">
         Esta acao bloqueia novas consultas, cobrancas automaticas e mensagens, alem de cancelar
         agendamentos futuros e entradas na lista de espera.
@@ -43,7 +41,9 @@ export function PatientDeathForm({ id }: { id: string }) {
         className="mt-3"
         loading={pending}
         onClick={(event) => {
-          if (!confirm('Confirmar o registro de falecimento? Esta acao bloqueia operacoes futuras.')) {
+          if (
+            !confirm('Confirmar o registro de falecimento? Esta acao bloqueia operacoes futuras.')
+          ) {
             event.preventDefault();
           }
         }}

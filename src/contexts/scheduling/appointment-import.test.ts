@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { CreateAppointmentSchema, CreateWalkInSchema, HistoricalAppointmentImportSchema } from './types';
+import {
+  CreateAppointmentSchema,
+  CreateWalkInSchema,
+  HistoricalAppointmentImportSchema,
+} from './types';
 
 const actions = readFileSync(resolve(process.cwd(), 'src/contexts/scheduling/actions.ts'), 'utf8');
 const api = readFileSync(resolve(process.cwd(), 'src/contexts/scheduling/api.ts'), 'utf8');
@@ -25,10 +29,16 @@ const appointment = {
 
 describe('appointment historical import provenance', () => {
   it('remove controles de origem dos contratos comuns', () => {
-    expect(CreateAppointmentSchema.parse({ ...appointment, createdVia: 'super_admin', isHistoricalImport: true }))
-      .not.toHaveProperty('createdVia');
-    expect(CreateAppointmentSchema.parse({ ...appointment, isHistoricalImport: true }))
-      .not.toHaveProperty('isHistoricalImport');
+    expect(
+      CreateAppointmentSchema.parse({
+        ...appointment,
+        createdVia: 'super_admin',
+        isHistoricalImport: true,
+      }),
+    ).not.toHaveProperty('createdVia');
+    expect(
+      CreateAppointmentSchema.parse({ ...appointment, isHistoricalImport: true }),
+    ).not.toHaveProperty('isHistoricalImport');
     expect(CreateWalkInSchema.parse({ ...appointment, createdVia: 'ai_agent' })).not.toHaveProperty(
       'createdVia',
     );

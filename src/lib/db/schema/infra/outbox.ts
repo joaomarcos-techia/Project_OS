@@ -108,10 +108,7 @@ export const outbox = pgTable(
       sql`${t.payloadHash} ~ '^[a-f0-9]{64}$'`,
     ),
     // HIGH-07: defense in depth against payload explosion
-    payloadSizeChk: check(
-      'outbox_payload_size_chk',
-      sql`pg_column_size(${t.payload}) <= 65536`,
-    ),
+    payloadSizeChk: check('outbox_payload_size_chk', sql`pg_column_size(${t.payload}) <= 65536`),
     // MEDIUM-23: temporal coherence — defense against worker bugs / manual replay
     temporalChk: check(
       'outbox_temporal_chk',

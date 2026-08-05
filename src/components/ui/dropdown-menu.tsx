@@ -79,9 +79,6 @@ export function DropdownMenuSeparator({
 /** Atalho/nota à direita do item (`.mi-r`). */
 export function DropdownMenuShortcut({ className, ...props }: ComponentProps<'span'>) {
   return (
-    <span
-      className={cn('ml-auto font-mono text-[10px] text-fg-subtle', className)}
-      {...props}
-    />
+    <span className={cn('ml-auto font-mono text-[10px] text-fg-subtle', className)} {...props} />
   );
 }
