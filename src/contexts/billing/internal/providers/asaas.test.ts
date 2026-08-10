@@ -21,6 +21,21 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 
+describe('compensacao de cliente de checkout', () => {
+  it('remove cliente pelo endpoint do Asaas sem incluir dados de cartao', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(
+      asaasProvider.deleteCustomer('cus_created_for_failed_checkout'),
+    ).resolves.toBeUndefined();
+
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/customers/cus_created_for_failed_checkout');
+    expect(request.method).toBe('DELETE');
+    expect(request.body).toBeUndefined();
+  });
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });

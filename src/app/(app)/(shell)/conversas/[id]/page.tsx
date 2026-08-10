@@ -27,6 +27,7 @@ import { cn } from '@/lib/ui/cn';
 import { ConversaActions } from './_components/conversa-actions';
 import { RetryMessageButton } from './_components/retry-message-button';
 import { ConversasNoAccess } from '../_components/no-access';
+import { ConversationAutoRefresh } from '../_components/conversation-auto-refresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,7 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
 
   return (
     <>
+      <ConversationAutoRefresh />
       <PageHeader
         crumbs={[
           { label: 'Gestão' },

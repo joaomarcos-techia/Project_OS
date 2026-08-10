@@ -40,6 +40,7 @@
     "seed:super-admin": "tsx scripts/seed-super-admin.ts",
     "seed:clinic-user": "tsx scripts/seed-clinic-user.ts",
     "reset:dev": "tsx scripts/reset-dev-data.ts",
+    "reset:prod": "tsx scripts/reset-prod-data.ts",
     "seed:dev": "tsx --conditions=react-server scripts/seed-dev-clinic.ts",
     "seed:c9": "tsx --conditions=react-server scripts/seed-c9-test.ts",
     "seed:plans": "tsx --conditions=react-server scripts/seed-plans.ts",

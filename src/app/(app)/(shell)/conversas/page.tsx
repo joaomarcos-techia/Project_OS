@@ -39,6 +39,7 @@ import { TableToolbar } from '@/components/ui/table-toolbar';
 import { cn } from '@/lib/ui/cn';
 
 import { ConversasNoAccess } from './_components/no-access';
+import { ConversationAutoRefresh } from './_components/conversation-auto-refresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +101,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
+      <ConversationAutoRefresh />
       <PageHeader
         crumbs={[{ label: 'Gestão' }, { label: 'Conversas IA' }]}
         title="Conversas IA"

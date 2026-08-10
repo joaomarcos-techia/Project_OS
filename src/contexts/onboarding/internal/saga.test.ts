@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { transactionMock, createUserMock, provider } = vi.hoisted(() => ({
-  transactionMock: vi.fn(),
-  createUserMock: vi.fn(),
-  provider: {
-    findSubscriptionByExternalReference: vi.fn(),
-    createCustomer: vi.fn(),
-    createSubscriptionWithCard: vi.fn(),
-    cancelSubscription: vi.fn(),
-  },
-}));
+const { transactionMock, createUserMock, provider, BillingProviderErrorMock } = vi.hoisted(() => {
+  class BillingProviderErrorMock extends Error {}
+  return {
+    transactionMock: vi.fn(),
+    createUserMock: vi.fn(),
+    provider: {
+      findSubscriptionByExternalReference: vi.fn(),
+      createCustomer: vi.fn(),
+      createSubscriptionWithCard: vi.fn(),
+      deleteCustomer: vi.fn(),
+      cancelSubscription: vi.fn(),
+    },
+    BillingProviderErrorMock,
+  };
+});
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: transactionMock } }));
@@ -18,7 +23,7 @@ vi.mock('@/lib/auth/supabase-admin', () => ({
 }));
 vi.mock('@/contexts/billing/internal/providers/asaas', () => ({
   asaasProvider: provider,
-  BillingProviderError: class BillingProviderError extends Error {},
+  BillingProviderError: BillingProviderErrorMock,
   BillingProviderUnreachableError: class BillingProviderUnreachableError extends Error {},
   BillingCircuitOpenError: class BillingCircuitOpenError extends Error {},
 }));
@@ -107,5 +112,31 @@ describe('runCheckout', () => {
         externalReference: 'onboarding:00000000-0000-0000-0000-000000000001',
       }),
     );
+  });
+
+  it('compensa somente o cliente criado nesta tentativa quando a assinatura recebe 4xx', async () => {
+    provider.findSubscriptionByExternalReference.mockResolvedValue(null);
+    provider.createCustomer.mockResolvedValue({ customerId: 'cus_to_compensate' });
+    provider.createSubscriptionWithCard.mockRejectedValue(
+      new BillingProviderErrorMock('invalid card'),
+    );
+    provider.deleteCustomer.mockResolvedValue(undefined);
+
+    await expect(runCheckout(args)).rejects.toMatchObject({ code: 'card_declined' });
+
+    expect(provider.deleteCustomer).toHaveBeenCalledWith('cus_to_compensate');
+    expect(provider.cancelSubscription).not.toHaveBeenCalled();
+  });
+
+  it('preserva a recusa segura se a compensacao do cliente falhar', async () => {
+    provider.findSubscriptionByExternalReference.mockResolvedValue(null);
+    provider.createCustomer.mockResolvedValue({ customerId: 'cus_cleanup_failure' });
+    provider.createSubscriptionWithCard.mockRejectedValue(
+      new BillingProviderErrorMock('invalid card'),
+    );
+    provider.deleteCustomer.mockRejectedValue(new Error('network unavailable'));
+
+    await expect(runCheckout(args)).rejects.toMatchObject({ code: 'card_declined' });
+    expect(provider.deleteCustomer).toHaveBeenCalledWith('cus_cleanup_failure');
   });
 });

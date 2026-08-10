@@ -16,12 +16,19 @@ import { z } from 'zod';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { superAdminAction } from '@/lib/audit/super-admin';
 import { requireUser } from '@/lib/auth/tenant-context';
+import { sendTransactionalEmail } from '@/lib/email/resend';
 import { assertOnboardingRuntimeReady } from '@/lib/env';
+import { captureBackgroundError } from '@/lib/observability/capture';
+import { metrics } from '@/lib/observability/metrics';
 import { cancelInviteTx, createInviteTx, generateInviteToken } from '@/contexts/onboarding';
 
 import { guardAdminAccess } from '../_lib/guard';
 
-export type InviteCreateState = { error: string | null; link?: string };
+export type InviteCreateState = {
+  error: string | null;
+  link?: string;
+  emailDelivery?: 'sent' | 'failed';
+};
 export type InviteActionState = { error: string | null; ok?: boolean };
 
 const CreateInput = z.object({
@@ -29,6 +36,36 @@ const CreateInput = z.object({
   planId: z.string().uuid().optional().or(z.literal('')),
   note: z.string().trim().max(280).optional().or(z.literal('')),
 });
+
+/**
+ * A Server Action recebe `Origin` do browser autenticado. Aceitamos apenas HTTPS
+ * (ou localhost em desenvolvimento) para que o token de onboarding nunca seja
+ * enviado por e-mail para uma origem forjada ou insegura.
+ */
+function absoluteInviteUrl(requestHeaders: Headers, rawToken: string): string | null {
+  const origin = requestHeaders.get('origin');
+  if (!origin) return null;
+  try {
+    const url = new URL(origin);
+    const isLocalhost = url.protocol === 'http:' && url.hostname === 'localhost';
+    if (url.protocol !== 'https:' && !isLocalhost) return null;
+    url.pathname = `/join/${rawToken}`;
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function clinicInviteEmail(inviteUrl: string): { subject: string; text: string; html: string } {
+  const subject = 'Seu convite para ativar a clínica';
+  return {
+    subject,
+    text: `Você recebeu um convite para ativar sua clínica no Qoro. Abra ${inviteUrl}. O link expira em 24 horas.`,
+    html: `<p>Você recebeu um convite para ativar sua clínica no Qoro.</p><p><a href="${inviteUrl}">Abrir convite</a></p><p>O link expira em 24 horas.</p>`,
+  };
+}
 
 /** Cria um convite (status pending, expira em 24h). Devolve o link cru UMA vez. */
 export async function createClinicInviteAction(
@@ -51,9 +88,10 @@ export async function createClinicInviteAction(
 
   const { rawToken } = generateInviteToken();
   const user = await requireUser();
-  const rc = buildRequestContext(await headers());
+  const requestHeaders = await headers();
+  const rc = buildRequestContext(requestHeaders);
 
-  await superAdminAction(
+  const inviteId = await superAdminAction(
     {
       action: 'clinic_invite_created',
       targetClinicId: null,
@@ -74,7 +112,31 @@ export async function createClinicInviteAction(
   // SEM revalidatePath aqui: ele força o re-render síncrono de /admin/clinicas (queries
   // pesadas) como parte da resposta do submit → "loading infinito" no modal. O modal já
   // mostra o link; a lista é atualizada pelo router.refresh() no client ao fechar.
-  return { error: null, link: `/join/${rawToken}` };
+  const link = `/join/${rawToken}`;
+  if (!email) return { error: null, link };
+
+  const inviteUrl = absoluteInviteUrl(requestHeaders, rawToken);
+  if (!inviteUrl) {
+    metrics.emit('onboarding.invite_email.failed', { reason: 'unsafe_or_missing_origin' });
+    return { error: null, link, emailDelivery: 'failed' };
+  }
+
+  try {
+    const content = clinicInviteEmail(inviteUrl);
+    await sendTransactionalEmail({
+      to: email,
+      ...content,
+      idempotencyKey: `onboarding-invite:${inviteId}`,
+    });
+    metrics.emit('onboarding.invite_email.sent', {});
+    return { error: null, link, emailDelivery: 'sent' };
+  } catch (error) {
+    // The invitation is already committed and audited. Return its one-time link
+    // rather than creating a duplicate invitation when provider delivery fails.
+    captureBackgroundError(error, { flow: 'onboarding.invite_email' });
+    metrics.emit('onboarding.invite_email.failed', { error });
+    return { error: null, link, emailDelivery: 'failed' };
+  }
 }
 
 /** Cancela um convite (override do admin — por id, qualquer estado menos completed). */

@@ -17,7 +17,8 @@
  *
  * Origins + per-file allowlists:
  *   - bare `postgres`                        → src/lib/db/index.ts, scripts/db-migrate-prod.ts,
- *                                               scripts/delete-test-clinics-prod.ts
+ *                                               scripts/delete-test-clinics-prod.ts,
+ *                                               scripts/reset-prod-data.ts
  *   - `drizzle` from drizzle-orm/postgres-js  → src/lib/db/index.ts
  *   - `db`      (named export of @/lib/db)    → src/lib/db/tenant.ts (withTenant)
  *   - `dbAdmin` (named export of @/lib/db)    → ALLOWED_DB_VALUE_IMPORTS.dbAdmin
@@ -41,6 +42,9 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   'src/lib/db/index.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
+  // Reset operacional one-shot: não pode usar o pool do runtime porque recebe
+  // DATABASE_URL_PROD após opt-in explícito e gera backup antes da transação.
+  'scripts/reset-prod-data.ts',
 ]);
 const ALLOWED_DRIZZLE_PG_IMPORTS = new Set(['src/lib/db/index.ts']);
 const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {

@@ -23,6 +23,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { dbAdmin, type Tx } from '@/lib/db';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { encryptForTenant, hashForLookup } from '@/lib/crypto';
+import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
 /* eslint-disable boundaries/element-types -- saga de provisionamento: onboarding
@@ -283,6 +284,10 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
 
   let customerId: string;
   let subscriptionId: string;
+  // Set only for a customer that this attempt created. A subscription recovered
+  // through externalReference may be the result of an earlier timed-out request
+  // and must remain available for reconciliation.
+  let customerCreatedInThisAttempt: string | null = null;
   try {
     const existing = await asaasProvider.findSubscriptionByExternalReference(externalReference);
     if (existing) {
@@ -302,6 +307,7 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
         phone,
       });
       customerId = c.customerId;
+      customerCreatedInThisAttempt = c.customerId;
       const sub = await asaasProvider.createSubscriptionWithCard({
         customerId,
         value: a.plan.amountReais,
@@ -332,6 +338,21 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
     // 4xx (cartão/CPF/payload inválido) é definitivo → vira card_declined com a
     // motivo genérico seguro; o corpo do provedor não é confiável para exibição.
     if (e instanceof BillingProviderError) {
+      // A known 4xx means the subscription was rejected. Compensate only the
+      // customer created by this attempt; a timeout or 5xx remains indeterminate
+      // and is reconciled by externalReference instead of risking a live charge.
+      if (customerCreatedInThisAttempt) {
+        try {
+          await asaasProvider.deleteCustomer(customerCreatedInThisAttempt);
+          metrics.emit('onboarding.checkout.customer_compensated', { outcome: 'deleted' });
+        } catch (cleanupError) {
+          // Preserve the safe checkout error. The operational metric is sanitized
+          // and lets support reconcile the provider-side orphan without card data.
+          metrics.emit('onboarding.checkout.customer_compensation_failed', {
+            error: cleanupError,
+          });
+        }
+      }
       throw new OnboardingProvisionError(asaasReason(), 'card_declined');
     }
     // Timeout/5xx/rede/circuito aberto → indeterminado (não sabemos se o Asaas

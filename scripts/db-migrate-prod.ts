@@ -22,6 +22,7 @@ import postgres from 'postgres';
 
 import { assertMigrationsSafe } from './check-migration-safety';
 import { assertProdContext, fsTimestamp, gitUserEmail, redact } from './_env';
+import { localBinCommand } from './_local-bin';
 
 const REPO_ROOT = process.cwd();
 const BACKUPS_DIR = resolve(REPO_ROOT, 'backups');
@@ -224,7 +225,7 @@ async function main(): Promise<void> {
     await withAdvisoryLock(migrateUrl, async () => {
       // drizzle-kit reads DATABASE_URL from env; override for this child only.
       // Use the session-pooler URL so the lock and the migrator share session.
-      execSync('drizzle-kit migrate --config=drizzle.config.ts', {
+      execSync(`${localBinCommand('drizzle-kit')} migrate --config=drizzle.config.ts`, {
         stdio: 'inherit',
         env: { ...process.env, DATABASE_URL: migrateUrl, NODE_ENV: 'production' },
       });

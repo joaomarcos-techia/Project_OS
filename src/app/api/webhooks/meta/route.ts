@@ -25,12 +25,13 @@ import {
   type ParsedStatusEvent,
 } from '@/lib/messaging';
 import { metrics } from '@/lib/observability/metrics';
+import { after } from 'next/server';
 
 import { persistInbound, persistStatusEvents } from '@/contexts/messaging/internal/inbound';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const MAX_WEBHOOK_BYTES = 1_000_000;
 const PROVIDER = 'meta' as const;
@@ -100,6 +101,28 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 const FLOW = 'messaging.webhook';
+const INGRESS_OUTBOX_BATCH_SIZE = 1;
+
+/**
+ * The minute cron remains the retry/backstop. This best-effort tick only reduces
+ * normal ingress latency and never changes the webhook acknowledgement outcome.
+ */
+export async function triggerOutboxAfterMetaIngress(): Promise<void> {
+  try {
+    // Load the worker wiring only after Meta has received its acknowledgement.
+    // Importing every consumer before HMAC validation would enlarge the hot
+    // webhook path and make a cold start slower precisely when a provider retry
+    // is most costly.
+    await import('@/app/api/cron/outbox/handlers');
+    await import('@/lib/db/schema');
+    const { runOutboxOnce } = await import('@/lib/outbox/worker');
+    const summary = await runOutboxOnce({ batchSize: INGRESS_OUTBOX_BATCH_SIZE, parallelism: 1 });
+    metrics.emit('messaging.webhook.outbox_triggered', summary);
+  } catch (error) {
+    captureBackgroundError(error, { flow: `${FLOW}.outbox_trigger` });
+    metrics.emit('messaging.webhook.outbox_trigger_failed', { error });
+  }
+}
 
 /**
  * Abre o escopo de correlação e delega (mesmo padrão do webhook Asaas).
@@ -165,6 +188,11 @@ async function handleWebhook(req: Request): Promise<Response> {
     metrics.emit('messaging.webhook.error', { error: err });
     return new Response('internal error', { status: 500 });
   }
+
+  // The provider receives 200 immediately after the transactional persistence.
+  // `after` lets the same invocation start one worker tick without turning a
+  // temporary worker/LLM failure into a duplicate Meta delivery.
+  after(triggerOutboxAfterMetaIngress);
 
   return Response.json(
     { received: parsed.messages.length, statuses: parsed.statuses.length },

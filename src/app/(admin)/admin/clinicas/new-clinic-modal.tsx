@@ -86,7 +86,11 @@ function InviteFlow({
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-fg-muted">
-          Convite criado · expira em 24h. Envie o link ao gestor (mostrado só agora):
+          {state.emailDelivery === 'sent'
+            ? 'Convite criado e enviado por e-mail. O link expira em 24h e permanece disponível abaixo como contingência:'
+            : state.emailDelivery === 'failed'
+              ? 'Convite criado, mas não foi possível enviar o e-mail. Envie este link ao gestor; ele expira em 24h:'
+              : 'Convite criado · expira em 24h. Envie o link ao gestor (mostrado só agora):'}
         </p>
         <div className="rounded-(--r-md) border border-border bg-surface-2 p-3">
           <p className="font-mono text-xs break-all text-fg">{fullLink}</p>
@@ -120,7 +124,10 @@ function InviteFlow({
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <Field label="E-mail do gestor" hint="Opcional — só para seu controle.">
+      <Field
+        label="E-mail do gestor"
+        hint="Opcional. Quando preenchido, o convite é enviado automaticamente; o link também fica disponível como contingência."
+      >
         <Input name="email" type="email" placeholder="gestor@clinica.com" />
       </Field>
       <Field label="Plano inicial sugerido">

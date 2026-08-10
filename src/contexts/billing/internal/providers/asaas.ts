@@ -274,6 +274,8 @@ export interface ParsedWebhook {
 
 export interface PaymentProvider {
   createCustomer(input: CreateCustomerInput): Promise<{ customerId: string }>;
+  /** Remove cliente criado nesta tentativa que falhou antes de gerar assinatura. */
+  deleteCustomer(asaasCustomerId: string): Promise<void>;
   createSubscription(input: CreateSubscriptionInput): Promise<{ subscriptionId: string }>;
   /** Assinatura com cartão de crédito (tokeniza no Asaas; devolve o token p/ futuras cobranças). */
   createSubscriptionWithCard(
@@ -334,6 +336,11 @@ export const asaasProvider: PaymentProvider = {
     const res = (await request('POST', '/customers', body)) as { id: string };
     metrics.emit('billing.asaas.customer_created', { customerId: res.id });
     return { customerId: res.id };
+  },
+
+  async deleteCustomer(id) {
+    await request('DELETE', `/customers/${encodeURIComponent(id)}`);
+    metrics.emit('billing.asaas.customer_deleted', { customerId: id });
   },
 
   async createSubscription(input) {

@@ -120,7 +120,8 @@ const config = [
 
   // C1 db guard #1: `postgres` driver may ONLY be imported by:
   //   - src/lib/db/index.ts (canonical pool factory for the app)
-  //   - scripts/db-migrate-prod.ts and scripts/delete-test-clinics-prod.ts
+  //   - scripts/db-migrate-prod.ts, scripts/delete-test-clinics-prod.ts and
+  //     scripts/reset-prod-data.ts
   //     (each needs a dedicated one-shot connection against DATABASE_URL_PROD;
   //     src/lib/db is bound to env.DATABASE_URL at boot and can't target a
   //     different URL).
@@ -132,6 +133,9 @@ const config = [
       'src/lib/db/index.ts',
       'scripts/db-migrate-prod.ts',
       'scripts/delete-test-clinics-prod.ts',
+      // Reset operacional de pré-go-live: conexão one-shot explícita em
+      // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
+      'scripts/reset-prod-data.ts',
     ],
     rules: {
       'no-restricted-imports': [

@@ -8,6 +8,7 @@
 import { execSync } from 'node:child_process';
 
 import { assertDevContext, redact } from './_env';
+import { localBinCommand } from './_local-bin';
 
 function main(): void {
   const { databaseUrl } = assertDevContext();
@@ -16,7 +17,7 @@ function main(): void {
   // Drizzle-kit reads DATABASE_URL from process.env via drizzle.config.ts.
   // We pass the env through explicitly so the child shell sees it (this also
   // matters on Windows where spawn behavior differs from POSIX).
-  execSync('drizzle-kit migrate --config=drizzle.config.ts', {
+  execSync(`${localBinCommand('drizzle-kit')} migrate --config=drizzle.config.ts`, {
     stdio: 'inherit',
     env: { ...process.env, NODE_ENV: 'development' },
   });
