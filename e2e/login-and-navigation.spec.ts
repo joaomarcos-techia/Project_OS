@@ -5,6 +5,9 @@ const testPassword = process.env.E2E_USER_PASSWORD;
 
 test.describe('acesso público', () => {
   test('a tela de login expõe os controles e alterna a visibilidade da senha', async ({ page }) => {
+    // The first /login visit in next dev compiles the page on demand. Keep this
+    // explicit so a cold local server is not mistaken for a login regression.
+    test.setTimeout(90_000);
     await page.goto('/login');
 
     const password = page.locator('input[name="password"]');
