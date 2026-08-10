@@ -47,13 +47,33 @@ describe('sendWithResend', () => {
   });
 
   it('propaga falha do provedor para o worker retentar', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response('invalid sender', { status: 422 }));
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ name: 'validation_error', message: 'invalid sender' }, { status: 422 }),
+      );
 
     await expect(
       sendWithResend(input, { apiKey: 're_secret', from: 'invalid' }),
     ).rejects.toMatchObject({
       name: 'TransactionalEmailError',
       status: 422,
+      message: 'Resend rejected transactional email (422; validation_error)',
     });
+  });
+
+  it('does not copy provider error details into the application error', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { name: 'validation_error', message: 'sender private@example.com is invalid' },
+          { status: 400 },
+        ),
+      );
+
+    await expect(sendWithResend(input, { apiKey: 're_secret', from: 'invalid' })).rejects.toThrow(
+      'Resend rejected transactional email (400; validation_error)',
+    );
   });
 });

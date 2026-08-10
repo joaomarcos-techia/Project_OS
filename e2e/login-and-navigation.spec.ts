@@ -61,5 +61,12 @@ test.describe('navegação autenticada', () => {
         page.getByRole('heading', { name: destination.heading, exact: true }),
       ).toBeVisible({ timeout: 30_000 });
     }
+
+    await page.getByRole('link', { name: 'Sugestões', exact: true }).first().click();
+    await expect(page).toHaveURL(/\/configuracoes\/sugestoes(?:\?|$)/, { timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'Sugestões', exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByRole('heading', { name: 'Seus envios', exact: true })).toBeVisible();
   });
 });

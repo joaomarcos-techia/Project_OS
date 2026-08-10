@@ -24,6 +24,14 @@ export type TransactionalEmailInput = {
 
 type ResendConfig = { apiKey: string; from: string };
 
+function providerErrorKind(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('name' in body)) return null;
+  const name = body.name;
+  // Only surface Resend's machine-readable error kind. Its human message can
+  // contain request data, which must not become part of an application error.
+  return typeof name === 'string' && /^[a-z0-9_-]{1,64}$/i.test(name) ? name : null;
+}
+
 function assertInput(input: TransactionalEmailInput): void {
   if (!input.to || !input.subject || !input.html || !input.text) {
     throw new TransactionalEmailError('transactional email requires recipient and content', null);
@@ -63,8 +71,10 @@ export async function sendWithResend(
     );
   }
   if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    const kind = providerErrorKind(body);
     throw new TransactionalEmailError(
-      `Resend rejected transactional email (${response.status})`,
+      `Resend rejected transactional email (${response.status}${kind ? `; ${kind}` : ''})`,
       response.status,
     );
   }

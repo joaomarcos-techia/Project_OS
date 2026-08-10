@@ -24,4 +24,12 @@ describe('AdminNav', () => {
     expect(links).toHaveLength(9);
     for (const link of links) expect(link.getAttribute('data-prefetch')).toBe('false');
   });
+
+  it('exposes the feedback queue in the console navigation', () => {
+    render(<AdminNav />);
+
+    expect(screen.getByRole('link', { name: 'Feedbacks' }).getAttribute('href')).toBe(
+      '/admin/feedbacks',
+    );
+  });
 });
