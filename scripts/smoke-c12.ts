@@ -12,7 +12,9 @@
  *
  * Prova os fluxos mandatórios da C12 (par.12.6):
  *   12.1 paciente novo: coleta → confirma → cria paciente
+ *   ---- consulta de horários e das consultas futuras do paciente identificado
  *   ---- agendamento: schedule_appointment → confirm_pending_action → 1 consulta
+ *   ---- confirmação de presença: confirm_appointment → confirm_pending_action
  *   ---- idempotência por conteúdo: preparar+confirmar 2× (args iguais) → 1 consulta
  *   ---- confirmação NÃO explícita → não executa
  *   ---- reagendamento: prepare → confirm → nova data + original cancelada
@@ -20,6 +22,8 @@
  *   ---- cancelamento: prepare → confirm → status 'cancelado'
  *   12.9 horário no passado: prepare + confirm → rejeitado, não persiste
  *   12.x injection → auditado (métrica), sem vazar/agir
+ *   ---- financeiro: pendência sem opt-in → handoff; com opt-in → somente leitura
+ *   ---- LGPD export e delete → requests pending, handoff, sem cumprir pela IA
  *   12.3 LGPD delete → request pending, SEM soft-delete (handler não dispara)
  *
  * NB: requer SUPABASE_SECRET_KEY do MESMO projeto do DATABASE_URL (cria doctor
@@ -43,6 +47,7 @@ import '@/lib/db/schema';
 import '@/app/api/cron/outbox/handlers';
 
 import { persistInbound } from '@/contexts/messaging/internal/inbound';
+import { returnToAgent } from '@/contexts/ai-agent/internal/conversation';
 
 assertDevContext();
 
@@ -223,6 +228,34 @@ async function apptScheduledAtMs(clinicId: string, apptId: string): Promise<numb
   );
   return r[0]?.at ? new Date(r[0].at).getTime() : null;
 }
+async function patientIdFor(clinicId: string, patientCpf: string): Promise<string | null> {
+  const cpfHash = await hashForLookup(normalizeCpf(patientCpf));
+  const r = await dbAdmin.execute<{ id: string }>(sql`
+    SELECT id FROM patients
+    WHERE clinic_id = ${clinicId} AND cpf_hash = ${cpfHash} AND deleted_at IS NULL
+    LIMIT 1`);
+  return r[0]?.id ?? null;
+}
+async function seedPendingPayment(clinicId: string, patientCpf: string): Promise<void> {
+  const patientId = await patientIdFor(clinicId, patientCpf);
+  assert(!!patientId, 'paciente de teste deveria existir antes de criar cobrança');
+  await dbAdmin.execute(sql`
+    INSERT INTO lancamentos (clinic_id, tipo, descricao, valor, status, patient_id, created_via)
+    VALUES (
+      ${clinicId}, 'receber', '[Smoke C12] cobrança pendente', 42.50, 'pendente', ${patientId!}, 'manual'
+    )`);
+}
+async function returnFixtureConversationToAgent(clinicId: string): Promise<void> {
+  const rows = await dbAdmin.execute<{ id: string }>(sql`
+    SELECT id FROM ai_conversations
+    WHERE clinic_id = ${clinicId} AND status = 'handoff'
+    ORDER BY created_at DESC
+    LIMIT 1`);
+  const conversationId = rows[0]?.id;
+  assert(!!conversationId, 'deveria haver uma conversa em handoff para devolver ao agente');
+  const returned = await withTenant(clinicId, (tx) => returnToAgent(tx, clinicId, conversationId!));
+  assert(returned, 'handoff deveria voltar para active antes do próximo cenário');
+}
 
 const CPF = '39053344705'; // CPF de teste válido (Luhn)
 // Telefones únicos por execução: o whatsapp number tem unique global por número
@@ -305,6 +338,24 @@ async function main(): Promise<void> {
     assert(Number(p[0]?.n) === 1, 'paciente deveria ter sido criado após confirmação');
   });
 
+  await tryStep('1b list_slots: horários disponíveis do médico/procedimento', async () => {
+    const from = new Date(Date.now() + 2 * 86_400_000);
+    from.setUTCHours(0, 0, 0, 0);
+    const to = new Date(from.getTime() + 86_400_000);
+    setScript(
+      () =>
+        gCall('list_slots', {
+          date_from: from.toISOString(),
+          date_to: to.toISOString(),
+          doctor_id: doctorId,
+          procedure_id: procedureId,
+        }),
+      () => gText('Encontrei horários disponíveis.'),
+    );
+    const ev = await deliverTurn(clinicA, phoneIdA, NEW, 'quais horários estão disponíveis?');
+    assert((await outcomeOf(ev)) === 'replied', 'list_slots deveria responder com horários reais');
+  });
+
   // Instante ESTÁVEL reusado nos cenários 2 e 3: a idempotência por conteúdo
   // só colapsa se os args (incl. scheduled_at) forem BYTE-a-byte idênticos.
   const AT_SCHEDULE = futureISO(3);
@@ -339,6 +390,22 @@ async function main(): Promise<void> {
       'confirmação deveria criar exatamente 1 consulta',
     );
   });
+
+  await tryStep(
+    '2b list_my_appointments: só a consulta futura do paciente identificado',
+    async () => {
+      setScript(
+        () => gCall('list_my_appointments', {}),
+        () => gText('Sua consulta está agendada.'),
+      );
+      const ev = await deliverTurn(clinicA, phoneIdA, NEW, 'quais são minhas consultas?');
+      assert((await outcomeOf(ev)) === 'replied', 'list_my_appointments deveria responder');
+      assert(
+        (await apptCountFor(clinicA, CPF)) === 1,
+        'a consulta existente deveria continuar única',
+      );
+    },
+  );
 
   // 3. idempotência de fluxo COMPLETO (R1): preparar+confirmar 2ª vez com args
   // IDÊNTICOS (pendingActionId distinto) tem de colapsar na MESMA consulta.
@@ -375,6 +442,31 @@ async function main(): Promise<void> {
       );
     },
   );
+
+  await tryStep('3b confirm_appointment: prepara e confirma presença em duas etapas', async () => {
+    const appointmentId = await latestActiveApptId(clinicA);
+    assert(!!appointmentId, 'deveria haver consulta futura para confirmar presença');
+    setScript(
+      () => gCall('confirm_appointment', { appointment_id: appointmentId! }),
+      () => gText('Confirma sua presença? Responda SIM.'),
+    );
+    const evPrep = await deliverTurn(clinicA, phoneIdA, NEW, 'quero confirmar minha consulta');
+    assert((await outcomeOf(evPrep)) === 'replied', 'confirm_appointment deveria apenas preparar');
+    assert(
+      (await apptStatus(clinicA, appointmentId!)) === 'agendado',
+      'a presença não pode mudar antes da confirmação explícita',
+    );
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('Presença confirmada.'),
+    );
+    const evConfirm = await deliverTurn(clinicA, phoneIdA, NEW, 'sim');
+    assert((await outcomeOf(evConfirm)) === 'replied', 'confirmação de presença deveria responder');
+    assert(
+      (await apptStatus(clinicA, appointmentId!)) === 'confirmado',
+      'a presença deveria ficar confirmada após SIM',
+    );
+  });
 
   // 4. confirmação NÃO explícita não pode executar a ação preparada.
   await tryStep('4 confirmação não explícita → NÃO executa', async () => {
@@ -586,6 +678,47 @@ async function main(): Promise<void> {
     );
     // não bloqueia o turno; a defesa é arquitetural — só checamos que respondeu normal e não vazou tool perigosa
     assert((await outcomeOf(ev)) !== null, 'turno concluiu');
+  });
+
+  await tryStep('9b list_pending_payments sem opt-in: não divulga e escala handoff', async () => {
+    await seedPendingPayment(clinicA, CPF);
+    setScript(
+      () => gCall('list_pending_payments', {}),
+      () => gText('Vou encaminhar ao financeiro.'),
+    );
+    const ev = await deliverTurn(clinicA, phoneIdA, NEW, 'tenho alguma cobrança pendente?');
+    assert((await outcomeOf(ev)) === 'handoff', 'sem opt-in a cobrança deveria escalar handoff');
+    await returnFixtureConversationToAgent(clinicA);
+  });
+
+  await tryStep('9c list_pending_payments com opt-in: consulta somente leitura', async () => {
+    await dbAdmin.execute(sql`
+      UPDATE ai_clinic_config
+      SET can_disclose_payments_via_agent = true
+      WHERE clinic_id = ${clinicA}`);
+    setScript(
+      () => gCall('list_pending_payments', {}),
+      () => gText('Há uma cobrança pendente.'),
+    );
+    const ev = await deliverTurn(clinicA, phoneIdA, NEW, 'quais cobranças pendentes eu tenho?');
+    assert(
+      (await outcomeOf(ev)) === 'replied',
+      'com opt-in a consulta financeira deveria responder',
+    );
+  });
+
+  await tryStep('9d lgpd_export: request pending + handoff, sem exportar pela IA', async () => {
+    setScript(
+      () => gCall('lgpd_export_request', {}),
+      () => gText('Pedido registrado; um atendente vai verificar.'),
+    );
+    const ev = await deliverTurn(clinicA, phoneIdA, NEW, 'quero exportar todos os meus dados');
+    assert((await outcomeOf(ev)) === 'handoff', 'lgpd export deveria escalar handoff');
+    const req = await dbAdmin.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM lgpd_requests
+      WHERE clinic_id = ${clinicA} AND type = 'export' AND status = 'pending'`);
+    assert(Number(req[0]?.n) >= 1, 'deveria existir lgpd export pending');
+    await returnFixtureConversationToAgent(clinicA);
   });
 
   // 10. LGPD delete → request pending, SEM soft-delete (12.3)

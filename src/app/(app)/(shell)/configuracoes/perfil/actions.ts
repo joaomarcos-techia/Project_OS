@@ -21,10 +21,13 @@ const ProfessionalCredentialSchema = z.object({
 });
 
 export type ProfessionalCredentialInput = z.input<typeof ProfessionalCredentialSchema>;
+export type ProfessionalCredentialActionResult =
+  | { ok: true; credential: { crm: string; crmUf: string; especialidade: string | null } }
+  | { ok: false; message: string };
 
 export async function updateProfessionalCredentialAction(
   input: ProfessionalCredentialInput,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<ProfessionalCredentialActionResult> {
   try {
     const user = await requireUser();
     await requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS);
@@ -34,7 +37,7 @@ export async function updateProfessionalCredentialAction(
       return { ok: false, message: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
     }
     const data = parsed.data;
-    await updateOwnProfessionalCredential({
+    const credential = await updateOwnProfessionalCredential({
       clinicId,
       userId: user.userId,
       crm: data.crm,
@@ -43,7 +46,7 @@ export async function updateProfessionalCredentialAction(
       requestContext: buildRequestContext(await headers()),
     });
     revalidatePath('/configuracoes/perfil');
-    return { ok: true };
+    return { ok: true, credential };
   } catch (err) {
     return { ok: false, message: mapIdentityError(err) };
   }

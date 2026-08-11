@@ -9,6 +9,7 @@ Procedimentos operacionais documentados. Cada camada que adiciona ação operaci
 
 | Runbook | Camada | Quando usar |
 |---|---|---|
+| [go-live-2026-08-11.md](./go-live-2026-08-11.md) | go-live | **Gate vigente:** evidências deste release, templates de e-mail, provas externas e último teste Asaas |
 | [production-readiness.md](./production-readiness.md) | go-live | **Checklist completo de prod: banco, sistemas externos, env, monitoramento** |
 | [c0-validation.md](./c0-validation.md) | C0 | Validar a fundação após qualquer mudança estrutural |
 | [c1-validation.md](./c1-validation.md) | C1 | Validar camada de banco após mudança em db/scripts/drizzle |

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import type { ProfessionalProfile } from '@/contexts/identity/queries';
 import { updateProfessionalCredentialAction } from './actions';
 
 export function ProfessionalCredentialForm({ initial }: { initial: ProfessionalProfile }) {
+  const router = useRouter();
   const [crm, setCrm] = useState(initial.crm ?? '');
   const [crmUf, setCrmUf] = useState(initial.crmUf ?? '');
   const [especialidade, setEspecialidade] = useState(initial.especialidade ?? '');
@@ -19,6 +21,10 @@ export function ProfessionalCredentialForm({ initial }: { initial: ProfessionalP
     startSaving(async () => {
       const result = await updateProfessionalCredentialAction({ crm, crmUf, especialidade });
       if (result.ok) {
+        setCrm(result.credential.crm);
+        setCrmUf(result.credential.crmUf);
+        setEspecialidade(result.credential.especialidade ?? '');
+        router.refresh();
         toast.success('Credencial profissional salva.');
       } else {
         toast.error(result.message);

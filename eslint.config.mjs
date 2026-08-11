@@ -230,6 +230,10 @@ const config = [
       // aconteceu no gate; profiles/overrides não têm UPDATE p/ authenticated (D31 /
       // I-13). Escopo defensivo por clinic_id (V1.2). Irmão de members.ts.
       'src/contexts/identity/internal/lifecycle.ts',
+      // Credencial profissional: profiles não tem UPDATE para authenticated (D31).
+      // A action já provou o ator; o comando fixa id+clinic_id, as colunas permitidas
+      // e a auditoria na mesma tx. Irmão do lifecycle e do perfil da clínica.
+      'src/contexts/identity/internal/professional-credential.ts',
       // I-11a (0042): auditoria de login roda por service_role (dbAdmin), não mais por
       // anon via PostgREST. record_login_attempt é SECURITY DEFINER (D9); dbAdmin tem
       // EXECUTE. Ponto ÚNICO e privilegiado — best-effort, nunca bloqueia o login.

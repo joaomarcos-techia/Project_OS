@@ -1,8 +1,13 @@
 # C16 — Checklist de Fechamento (o que falta e como fazer)
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2026-10-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-08-11 · **Próxima revisão:** antes do primeiro cliente pagante
 >
 > ↩︎ Volta para o [índice C16](./README.md) · [índice mestre](../../docs/README.md).
+
+> **Gate corrente:** o registro operacional que vale para esta liberação é o
+> [Go-Live 2026-08-11](../runbooks/go-live-2026-08-11.md). Esta checklist preserva
+> histórico e runbooks de C16; não deve ser usada isoladamente para declarar produção
+> aprovada.
 
 A **implementação** da C16 está pronta e em produção. Faltam **passos operacionais** (não-código) pra fechar 100% pelos critérios do plano. Cada item abaixo tem: **o que**, **como** (passo a passo) e **pronto quando**.
 

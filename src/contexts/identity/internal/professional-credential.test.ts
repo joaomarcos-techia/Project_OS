@@ -10,6 +10,11 @@ const { db, logAudit } = vi.hoisted(() => ({
       especialidade: string | null;
     },
     updateError: null as unknown,
+    updated: { crm: '12345A', crmUf: 'SP', especialidade: 'Cardiologia' } as {
+      crm: string | null;
+      crmUf: string | null;
+      especialidade: string | null;
+    },
   },
   logAudit: vi.fn(async () => 'audit-id'),
 }));
@@ -24,19 +29,19 @@ function selectChain(result: unknown[]) {
 function updateChain() {
   const chain: Record<string, unknown> = {};
   for (const method of ['set', 'where']) chain[method] = () => chain;
-  (chain as { then: unknown }).then = (
-    resolve: (value: unknown) => void,
-    reject: (reason: unknown) => void,
-  ) => (db.updateError ? reject(db.updateError) : resolve(undefined));
+  chain.returning = () =>
+    db.updateError ? Promise.reject(db.updateError) : Promise.resolve([db.updated]);
   return chain;
 }
 
-vi.mock('@/lib/db/tenant', () => ({
-  withTenant: (_clinicId: string, callback: (tx: unknown) => Promise<unknown>) =>
-    callback({
-      select: () => selectChain(db.profile ? [db.profile] : []),
-      update: () => updateChain(),
-    }),
+vi.mock('@/lib/db', () => ({
+  dbAdmin: {
+    transaction: (callback: (tx: unknown) => Promise<unknown>) =>
+      callback({
+        select: () => selectChain(db.profile ? [db.profile] : []),
+        update: () => updateChain(),
+      }),
+  },
 }));
 vi.mock('@/lib/audit/log', () => ({ logAudit }));
 
@@ -55,18 +60,21 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.profile = { role: 'gestor', ativo: true, crm: null, crmUf: null, especialidade: null };
   db.updateError = null;
+  db.updated = { crm: '12345A', crmUf: 'SP', especialidade: 'Cardiologia' };
 });
 
 describe('updateOwnProfessionalCredential', () => {
   it('normaliza o CRM e audita a alteração do próprio gestor', async () => {
-    await updateOwnProfessionalCredential({
-      clinicId: CLINIC,
-      userId: USER,
-      crm: ' 12 345 a ',
-      crmUf: ' sp ',
-      especialidade: ' Cardiologia ',
-      requestContext: ctx,
-    });
+    await expect(
+      updateOwnProfessionalCredential({
+        clinicId: CLINIC,
+        userId: USER,
+        crm: ' 12 345 a ',
+        crmUf: ' sp ',
+        especialidade: ' Cardiologia ',
+        requestContext: ctx,
+      }),
+    ).resolves.toEqual({ crm: '12345A', crmUf: 'SP', especialidade: 'Cardiologia' });
 
     expect(logAudit).toHaveBeenCalledWith(
       expect.anything(),

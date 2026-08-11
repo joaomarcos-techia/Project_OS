@@ -84,6 +84,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // I-2 (ADR-039): ciclo de vida (desativar/reativar/trocar role/override) — escrita
     // administrativa em profiles/overrides via dbAdmin, escopo defensivo por clinic_id.
     'src/contexts/identity/internal/lifecycle.ts',
+    // Credencial profissional: `profiles` bloqueia UPDATE para authenticated (D31).
+    // O comando estreito roda após o gate server-side, restringe id+clinic_id e audita.
+    'src/contexts/identity/internal/professional-credential.ts',
     // I-11a (0042): auditoria de login via service_role (record_login_attempt SECURITY
     // DEFINER, D9) em vez de anon via PostgREST. Best-effort, nunca bloqueia o login.
     'src/lib/auth/login-audit.ts',
