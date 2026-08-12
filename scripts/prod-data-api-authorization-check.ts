@@ -10,9 +10,12 @@
  * Requer opt-in duplo:
  *   SUPABASE_PROJECT_ENV=prod
  *   --confirm=PROBE_PROD_DATA_API
- * e E2E_USER_EMAIL/E2E_USER_PASSWORD de uma conta explicitamente descartável.
+ * e uma sessão Playwright já autenticada ou E2E_USER_EMAIL/E2E_USER_PASSWORD
+ * de uma conta explicitamente descartável.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import { access } from 'node:fs/promises';
+import path from 'node:path';
 
 import { chromium } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
@@ -74,14 +77,28 @@ async function responseBody(response: Response): Promise<unknown> {
   return response.json().catch(() => null);
 }
 
+async function existingStorageState(): Promise<string | undefined> {
+  const configured = process.env.E2E_STORAGE_STATE_PATH;
+  const candidate = configured ?? path.join('.playwright', '.auth', 'user.json');
+  try {
+    await access(candidate);
+    return candidate;
+  } catch {
+    return undefined;
+  }
+}
+
 async function main(): Promise<void> {
   if (confirmation() !== CONFIRMATION) {
     throw new Error(`[data-api-probe] confirmação obrigatória: --confirm=${CONFIRMATION}`);
   }
   const email = process.env.E2E_USER_EMAIL;
   const password = process.env.E2E_USER_PASSWORD;
-  if (!email || !password) {
-    throw new Error('[data-api-probe] E2E_USER_EMAIL/E2E_USER_PASSWORD são obrigatórios');
+  const storageState = await existingStorageState();
+  if ((!email || !password) && !storageState) {
+    throw new Error(
+      '[data-api-probe] credenciais E2E ou um storage state autenticado são obrigatórios',
+    );
   }
 
   const { databaseUrl } = assertProdContext();
@@ -115,12 +132,20 @@ async function main(): Promise<void> {
   try {
     const browser = await chromium.launch();
     try {
-      const context = await browser.newContext({ baseURL: 'https://app.qoro.dev' });
+      const context = await browser.newContext({
+        baseURL: 'https://app.qoro.dev',
+        ...(storageState ? { storageState } : {}),
+      });
       const page = await context.newPage();
-      await page.goto('/login');
-      await page.getByLabel('Email').fill(email);
-      await page.locator('input[name="password"]').fill(password);
-      await page.getByRole('button', { name: 'Entrar' }).click();
+      await page.goto('/dashboard');
+      if (/\/login(?:\?|$)/.test(page.url())) {
+        if (!email || !password) {
+          throw new Error('[data-api-probe] storage state expirado e credenciais não informadas');
+        }
+        await page.getByLabel('Email').fill(email);
+        await page.locator('input[name="password"]').fill(password);
+        await page.getByRole('button', { name: 'Entrar' }).click();
+      }
       await page.waitForURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
 
       // O login é uma Server Action, portanto a chave pública não passa pelo
