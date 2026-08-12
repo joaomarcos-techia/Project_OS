@@ -32,8 +32,9 @@ export function LancamentoForm({
 
       {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 
-      <Field label="Tipo">
+      <Field label="Tipo" htmlFor="lancamento-type">
         <Select
+          id="lancamento-type"
           name="tipo"
           value={tipo}
           onChange={(e) => setTipo(e.target.value as 'receber' | 'pagar')}
@@ -43,8 +44,9 @@ export function LancamentoForm({
         </Select>
       </Field>
 
-      <Field label="Descrição">
+      <Field label="Descrição" htmlFor="lancamento-description">
         <Input
+          id="lancamento-description"
           name="descricao"
           required
           maxLength={200}
@@ -54,17 +56,24 @@ export function LancamentoForm({
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Valor (R$)">
-          <Input name="valor" required inputMode="decimal" placeholder="0,00" disabled={pending} />
+        <Field label="Valor (R$)" htmlFor="lancamento-value">
+          <Input
+            id="lancamento-value"
+            name="valor"
+            required
+            inputMode="decimal"
+            placeholder="0,00"
+            disabled={pending}
+          />
         </Field>
-        <Field label="Vencimento" hint="Opcional">
-          <DateField name="dueDate" disabled={pending} />
+        <Field label="Vencimento" htmlFor="lancamento-due-date" hint="Opcional">
+          <DateField id="lancamento-due-date" name="dueDate" disabled={pending} />
         </Field>
       </div>
 
       {tipo === 'pagar' ? (
-        <Field label="Fornecedor" hint="Opcional">
-          <Select name="supplierId" defaultValue="" disabled={pending}>
+        <Field label="Fornecedor" htmlFor="lancamento-supplier" hint="Opcional">
+          <Select id="lancamento-supplier" name="supplierId" defaultValue="" disabled={pending}>
             <option value="">—</option>
             {suppliers
               .filter((s) => s.ativo)
@@ -77,8 +86,17 @@ export function LancamentoForm({
         </Field>
       ) : null}
 
-      <Field label="Forma de pagamento" hint="Opcional (pode ser definida na hora do pagamento)">
-        <Select name="paymentMethod" defaultValue="" disabled={pending}>
+      <Field
+        label="Forma de pagamento"
+        htmlFor="lancamento-payment-method"
+        hint="Opcional (pode ser definida na hora do pagamento)"
+      >
+        <Select
+          id="lancamento-payment-method"
+          name="paymentMethod"
+          defaultValue=""
+          disabled={pending}
+        >
           <option value="">—</option>
           {methods.map((m) => (
             <option key={m.code} value={m.code}>

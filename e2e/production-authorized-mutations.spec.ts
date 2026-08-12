@@ -18,6 +18,12 @@ function futureDate(daysAhead: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function isoToBrDate(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  if (!year || !month || !day) throw new Error(`Data ISO inválida: ${iso}`);
+  return `${day}/${month}/${year}`;
+}
+
 function validCpfForRun(runId: string): string {
   const digits = Array.from(runId.replace(/\D/g, '').padEnd(9, '7').slice(0, 9), Number);
   const digit = (values: number[], weight: number) => {
@@ -348,7 +354,7 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       await signDialog.getByText('Precisa retornar', { exact: true }).click();
       await signDialog.getByRole('spinbutton').fill('14');
       await signDialog.getByRole('button', { name: 'Assinar consulta', exact: true }).click();
-      await expect(page.getByText('Prontuário assinado', { exact: false })).toBeVisible({
+      await expect(page.getByText('Prontuário assinado', { exact: true })).toBeVisible({
         timeout: 30_000,
       });
 
@@ -364,9 +370,9 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
         'maxlength',
         '200',
       );
-      await financialDrawer.locator('input[name="descricao"]').fill(financialDescription);
-      await financialDrawer.locator('input[name="valor"]').fill('12,34');
-      await financialDrawer.locator('input[name="dueDate"]').fill(futureDate(1));
+      await financialDrawer.getByLabel('Descrição').fill(financialDescription);
+      await financialDrawer.getByLabel('Valor (R$)').fill('12,34');
+      await financialDrawer.getByLabel('Vencimento').fill(isoToBrDate(futureDate(1)));
       await financialDrawer.getByRole('button', { name: 'Criar lançamento' }).click();
       await expect(page).toHaveURL(/\/financeiro(?:\?|$)/, { timeout: 30_000 });
 
