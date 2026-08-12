@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3000';
 const mutationE2E = process.env.E2E_MUTATION === '1';
+const retainAllArtifacts = process.env.E2E_ARTIFACTS === '1';
 
 if (mutationE2E) {
   const hostname = new URL(baseURL).hostname;
@@ -35,9 +36,9 @@ export default defineConfig({
   ...(mutationE2E ? { globalSetup: './e2e/mutation-global-setup.ts' } : {}),
   use: {
     baseURL,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    trace: retainAllArtifacts ? 'on' : 'retain-on-failure',
+    screenshot: retainAllArtifacts ? 'on' : 'only-on-failure',
+    video: retainAllArtifacts ? 'on' : 'retain-on-failure',
   },
   ...(process.env.E2E_BASE_URL
     ? {}

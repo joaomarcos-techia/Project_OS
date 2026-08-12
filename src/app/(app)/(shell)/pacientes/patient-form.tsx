@@ -46,6 +46,40 @@ interface Props {
   };
 }
 
+type PatientFormDraft = {
+  nome: string;
+  email: string;
+  sexo: string;
+  endLogradouro: string;
+  endComplemento: string;
+  endCidade: string;
+  endEstado: string;
+  endCep: string;
+  guardianPatientId: string;
+  guardianRelationshipType: string;
+  guardianLegal: boolean;
+  guardianFinancial: boolean;
+  guardianScheduling: boolean;
+};
+
+function initialDraft(initial: Props['initial']): PatientFormDraft {
+  return {
+    nome: initial?.nome ?? '',
+    email: initial?.email ?? '',
+    sexo: initial?.sexo ?? '',
+    endLogradouro: initial?.endereco?.logradouro ?? '',
+    endComplemento: initial?.endereco?.complemento ?? '',
+    endCidade: initial?.endereco?.cidade ?? '',
+    endEstado: initial?.endereco?.estado ?? '',
+    endCep: initial?.endereco?.cep ?? '',
+    guardianPatientId: '',
+    guardianRelationshipType: 'responsavel',
+    guardianLegal: true,
+    guardianFinancial: false,
+    guardianScheduling: true,
+  };
+}
+
 export function PatientForm({
   mode,
   action,
@@ -55,9 +89,15 @@ export function PatientForm({
 }: Props) {
   const [state, formAction, pending] = useActionState(action, INITIAL);
   const idempotencyKey = useMemo(() => uuidv4(), []);
+  // Server Actions re-renderizam o form quando devolvem erro. Todo campo que
+  // não era controlado perdia o que o usuário digitou nesse round-trip; o
+  // rascunho local mantém o formulário íntegro para correção e reenvio.
+  const [draft, setDraft] = useState<PatientFormDraft>(() => initialDraft(initial));
   // Máscaras UX (o servidor re-normaliza no submit — @/lib/masks docstring).
   const [cpf, setCpf] = useState(() => maskCpf(initial?.cpf ?? ''));
   const [telefone, setTelefone] = useState(() => maskPhoneBR(initial?.telefone ?? ''));
+  const setDraftField = <K extends keyof PatientFormDraft>(key: K, value: PatientFormDraft[K]) =>
+    setDraft((current) => ({ ...current, [key]: value }));
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-3.5">
@@ -73,7 +113,8 @@ export function PatientForm({
             name="nome"
             required
             maxLength={120}
-            defaultValue={initial?.nome}
+            value={draft.nome}
+            onChange={(event) => setDraftField('nome', event.target.value)}
             disabled={pending}
           />
         </Field>
@@ -104,7 +145,12 @@ export function PatientForm({
               label="Paciente responsável"
               hint="Obrigatório quando a data de nascimento indicar menos de 18 anos."
             >
-              <Select name="guardianPatientId" disabled={pending}>
+              <Select
+                name="guardianPatientId"
+                value={draft.guardianPatientId}
+                onChange={(event) => setDraftField('guardianPatientId', event.target.value)}
+                disabled={pending}
+              >
                 <option value="">Selecione…</option>
                 {guardianCandidates.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
@@ -114,7 +160,12 @@ export function PatientForm({
               </Select>
             </Field>
             <Field label="Vínculo">
-              <Select name="guardianRelationshipType" defaultValue="responsavel" disabled={pending}>
+              <Select
+                name="guardianRelationshipType"
+                value={draft.guardianRelationshipType}
+                onChange={(event) => setDraftField('guardianRelationshipType', event.target.value)}
+                disabled={pending}
+              >
                 <option value="mae">Mãe</option>
                 <option value="pai">Pai</option>
                 <option value="tutor_legal">Tutor legal</option>
@@ -125,13 +176,28 @@ export function PatientForm({
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-fg-muted">
             <label className="flex items-center gap-2">
-              <Checkbox name="guardianLegal" defaultChecked /> Responsável legal
+              <Checkbox
+                name="guardianLegal"
+                checked={draft.guardianLegal}
+                onCheckedChange={(value) => setDraftField('guardianLegal', value === true)}
+              />{' '}
+              Responsável legal
             </label>
             <label className="flex items-center gap-2">
-              <Checkbox name="guardianFinancial" /> Responsável financeiro
+              <Checkbox
+                name="guardianFinancial"
+                checked={draft.guardianFinancial}
+                onCheckedChange={(value) => setDraftField('guardianFinancial', value === true)}
+              />{' '}
+              Responsável financeiro
             </label>
             <label className="flex items-center gap-2">
-              <Checkbox name="guardianScheduling" defaultChecked /> Pode gerir agendamentos
+              <Checkbox
+                name="guardianScheduling"
+                checked={draft.guardianScheduling}
+                onCheckedChange={(value) => setDraftField('guardianScheduling', value === true)}
+              />{' '}
+              Pode gerir agendamentos
             </label>
           </div>
         </fieldset>
@@ -158,7 +224,8 @@ export function PatientForm({
             type="email"
             required={mode === 'create'}
             maxLength={120}
-            defaultValue={initial?.email ?? ''}
+            value={draft.email}
+            onChange={(event) => setDraftField('email', event.target.value)}
             disabled={pending}
           />
         </Field>
@@ -174,7 +241,12 @@ export function PatientForm({
         </Field>
 
         <Field label="Sexo">
-          <Select name="sexo" defaultValue={initial?.sexo ?? ''} disabled={pending}>
+          <Select
+            name="sexo"
+            value={draft.sexo}
+            onChange={(event) => setDraftField('sexo', event.target.value)}
+            disabled={pending}
+          >
             <option value="">—</option>
             <option value="M">Masculino</option>
             <option value="F">Feminino</option>
@@ -197,7 +269,8 @@ export function PatientForm({
             name="endLogradouro"
             maxLength={300}
             placeholder="Rua das Flores, 50"
-            defaultValue={initial?.endereco?.logradouro ?? ''}
+            value={draft.endLogradouro}
+            onChange={(event) => setDraftField('endLogradouro', event.target.value)}
             disabled={pending}
           />
         </Field>
@@ -208,7 +281,8 @@ export function PatientForm({
               name="endComplemento"
               maxLength={120}
               placeholder="Apto 12 (opcional)"
-              defaultValue={initial?.endereco?.complemento ?? ''}
+              value={draft.endComplemento}
+              onChange={(event) => setDraftField('endComplemento', event.target.value)}
               disabled={pending}
             />
           </Field>
@@ -218,7 +292,8 @@ export function PatientForm({
               maxLength={20}
               inputMode="numeric"
               placeholder="01000-000"
-              defaultValue={initial?.endereco?.cep ?? ''}
+              value={draft.endCep}
+              onChange={(event) => setDraftField('endCep', event.target.value)}
               disabled={pending}
             />
           </Field>
@@ -230,7 +305,8 @@ export function PatientForm({
               name="endCidade"
               maxLength={120}
               placeholder="São Paulo"
-              defaultValue={initial?.endereco?.cidade ?? ''}
+              value={draft.endCidade}
+              onChange={(event) => setDraftField('endCidade', event.target.value)}
               disabled={pending}
             />
           </Field>
@@ -239,7 +315,8 @@ export function PatientForm({
               name="endEstado"
               maxLength={2}
               placeholder="SP"
-              defaultValue={initial?.endereco?.estado ?? ''}
+              value={draft.endEstado}
+              onChange={(event) => setDraftField('endEstado', event.target.value)}
               disabled={pending}
             />
           </Field>

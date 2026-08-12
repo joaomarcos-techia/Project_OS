@@ -75,10 +75,19 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       );
 
       await patientDrawer.getByRole('button', { name: 'Criar paciente' }).click();
-      await expect(patientDrawer.locator('input[name="nome"]')).toHaveJSProperty(
-        'validationMessage',
-        expect.stringContaining('Preencha'),
-      );
+      const patientNameInput = patientDrawer.locator('input[name="nome"]');
+      expect(
+        await patientNameInput.evaluate((element) => {
+          if (!(element instanceof HTMLInputElement)) throw new Error('Campo nome não é input.');
+          return element.validity.valueMissing;
+        }),
+      ).toBe(true);
+      expect(
+        await patientNameInput.evaluate((element) => {
+          if (!(element instanceof HTMLInputElement)) throw new Error('Campo nome não é input.');
+          return element.validationMessage;
+        }),
+      ).toMatch(/\S/);
 
       await patientDrawer.locator('input[name="nome"]').fill(patientName);
       await patientDrawer.locator('input[name="cpf"]').fill('11111111111');
@@ -87,6 +96,8 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       await expect(patientDrawer.getByRole('alert')).toHaveText('CPF inválido', {
         timeout: 30_000,
       });
+      await expect(patientDrawer.locator('input[name="nome"]')).toHaveValue(patientName);
+      await expect(patientDrawer.locator('input[name="email"]')).toHaveValue(patientEmail);
 
       await patientDrawer.locator('input[name="cpf"]').fill(validCpfForRun(runId));
       await patientDrawer.locator('input[name="telefone"]').fill('11999990000');
