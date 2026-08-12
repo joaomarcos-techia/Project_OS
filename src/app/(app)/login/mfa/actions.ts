@@ -8,6 +8,7 @@ import { postLoginRedirect } from '@/lib/auth/policies';
 import { assertMfaAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { isRole } from '@/lib/auth/roles';
 import { createServerClient } from '@/lib/auth/supabase-server';
+import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { metrics } from '@/lib/observability/metrics';
 
 export type MfaActionState = {
@@ -55,17 +56,12 @@ export async function verifyMfaAction(
   let route = '/dashboard';
   const { data } = await supabase.auth.getUser();
   if (data.user) {
-    const { data: rows } = await supabase
-      .from('profiles')
-      .select('role, mfa_enrolled_at')
-      .eq('id', data.user.id)
-      .limit(1);
-    const profile = rows?.[0] as { role?: string; mfa_enrolled_at?: string | null } | undefined;
+    const profile = await readAuthoritativeProfile(data.user.id);
     if (profile?.role && isRole(profile.role)) {
       const aal = await getAal(supabase);
       route = postLoginRedirect({
         role: profile.role,
-        mfaEnrolledAt: profile.mfa_enrolled_at ? new Date(profile.mfa_enrolled_at) : null,
+        mfaEnrolledAt: profile.mfaEnrolledAt,
         aal,
       });
     }

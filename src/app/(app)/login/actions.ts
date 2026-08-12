@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { createServerClient } from '@/lib/auth/supabase-server';
+import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
 import { recordLoginAttempt } from '@/lib/auth/login-audit';
 import { assertLoginAllowed, getClientIp } from '@/lib/auth/rate-limit';
@@ -60,21 +61,10 @@ export async function loginAction(
   }
   await recordLoginAttempt(emailHash, ip, true);
 
-  // Lê profile via Supabase client (respeita RLS: profiles_self_select cobre).
-  const { data: profileRows, error: profileErr } = await supabase
-    .from('profiles')
-    .select('role, mfa_enrolled_at, ativo, deleted_at')
-    .eq('id', data.user.id)
-    .limit(1);
-  const profile = profileRows?.[0] as
-    | {
-        role?: string;
-        mfa_enrolled_at?: string | null;
-        ativo?: boolean;
-        deleted_at?: string | null;
-      }
-    | undefined;
-  if (profileErr || !profile || !profile.role || !isRole(profile.role)) {
+  // Leitura server-side autoritativa. Não usa PostgREST/Data API: o navegador
+  // fica restrito ao Auth/Realtime/Storage e não ganha uma superfície SQL CRUD.
+  const profile = await readAuthoritativeProfile(data.user.id);
+  if (!profile || !profile.role || !isRole(profile.role)) {
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Profile inválido. Contate o administrador.' };
   }
@@ -84,7 +74,7 @@ export async function loginAction(
   // action redirecionaria — criando "logado mas nada funciona" + um
   // record_login_attempt success=true para um desativado. Fecha aqui com mensagem
   // clara. Não fere anti-enumeração: a senha JÁ foi provada correta.
-  if (profile.ativo === false || profile.deleted_at != null) {
+  if (profile.ativo === false || profile.deletedAt != null) {
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Acesso desativado. Contate o administrador da clínica.' };
   }
@@ -92,7 +82,7 @@ export async function loginAction(
   const aal = await getAal(supabase);
   const route = postLoginRedirect({
     role: profile.role,
-    mfaEnrolledAt: profile.mfa_enrolled_at ? new Date(profile.mfa_enrolled_at) : null,
+    mfaEnrolledAt: profile.mfaEnrolledAt,
     aal,
   });
   redirect(route);

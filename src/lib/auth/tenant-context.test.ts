@@ -23,6 +23,7 @@ const { getClaims, resolveImpersonation, db } = vi.hoisted(() => ({
     /** Respostas da consulta atômica de permissão. */
     queue: [] as unknown[][],
     execute: vi.fn(),
+    txExecute: vi.fn(async () => []),
     profileReads: 0,
   },
 }));
@@ -58,6 +59,8 @@ vi.mock('@/lib/db', () => {
         db.execute(...args);
         return Promise.resolve(db.queue.shift() ?? []);
       },
+      transaction: (fn: (tx: { execute: typeof db.txExecute }) => Promise<unknown>) =>
+        fn({ execute: db.txExecute }),
     },
   };
 });
@@ -111,6 +114,7 @@ function profile(o: ProfileOpts = {}) {
       nome: o.nome ?? 'Ana Silva',
       clinicName: o.clinicName === undefined ? 'Clínica Aurora' : o.clinicName,
       ativo: o.ativo ?? true,
+      mfaEnrolledAt: null,
       deletedAt: o.deletedAt ?? null,
       clinicId: o.clinicId === undefined ? CLINIC : o.clinicId,
       claimsVersion: o.claimsVersion ?? 1,
@@ -138,7 +142,26 @@ beforeEach(() => {
   db.profile = [];
   db.queue = [];
   db.execute.mockReset();
+  db.txExecute.mockClear();
   db.profileReads = 0;
+});
+
+describe('Data API desabilitada: operações de identidade permanecem server-side', () => {
+  it('expõe a mesma leitura autoritativa usada pelo login', async () => {
+    db.profile = profile({ role: 'doctor', ativo: true });
+    const { readAuthoritativeProfile } = await subject();
+    await expect(readAuthoritativeProfile(USER)).resolves.toMatchObject({
+      role: 'doctor',
+      ativo: true,
+      clinicId: CLINIC,
+    });
+  });
+
+  it('marca MFA pela função controlada dentro de transação autenticada', async () => {
+    const { markMfaEnrolledForUser } = await subject();
+    await expect(markMfaEnrolledForUser(USER, true)).resolves.toBeUndefined();
+    expect(db.txExecute).toHaveBeenCalledTimes(4);
+  });
 });
 
 // =====================================================================

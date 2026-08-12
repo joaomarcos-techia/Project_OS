@@ -7,7 +7,8 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { enrollTotp, listFactors, unenrollTotp, verifyTotpEnroll } from '@/lib/auth/mfa';
 import { assertMfaAllowed, getClientIp } from '@/lib/auth/rate-limit';
-import { requireUser } from '@/lib/auth/tenant-context';
+import { markMfaEnrolledForUser, requireUser } from '@/lib/auth/tenant-context';
+import { captureBackgroundError } from '@/lib/observability/capture';
 
 /** M3 — teto da superfície MFA (enroll/verify/unenroll). Ver [rate-limit.ts]. */
 async function mfaRateLimited(userId: string): Promise<boolean> {
@@ -71,10 +72,20 @@ export async function verifyEnrollAction(
   } catch (e) {
     return { ...prev, error: e instanceof Error ? e.message : 'Código inválido.' };
   }
-  // Marca mfa_enrolled_at via RPC SECURITY DEFINER (D31 — coluna-a-coluna controlada).
-  const { error } = await supabase.rpc('mark_mfa_enrolled', { p_enrolled: true });
-  if (error) {
-    return { ...prev, error: error.message };
+  // Mesma SECURITY DEFINER de D31, agora via conexão Postgres server-side para
+  // que a Data API possa permanecer desabilitada.
+  try {
+    await markMfaEnrolledForUser(user.userId, true);
+  } catch (persistError) {
+    // Compensa o fator recém-verificado: sem a marca no profile, deixá-lo ativo
+    // permitiria um próximo login AAL1 sem o redirect obrigatório para MFA.
+    try {
+      await unenrollTotp(supabase, factorId);
+    } catch (compensationError) {
+      captureBackgroundError(compensationError, { flow: 'auth.mfa.enroll_compensation' });
+    }
+    captureBackgroundError(persistError, { flow: 'auth.mfa.enroll_persist' });
+    return { ...prev, error: 'Não foi possível concluir o MFA. Tente novamente.' };
   }
 
   // I-8: acabou de adicionar um 2º fator. As OUTRAS sessões foram estabelecidas
@@ -113,10 +124,16 @@ export async function unenrollAction(formData: FormData): Promise<void> {
     // Recusa do GoTrue (ex.: AAL insuficiente em corrida de sessão) ou rede.
     redirect('/account/security?unenroll_error=1');
   }
-  // Re-checar se ainda há factor verified; se não, limpa mfa_enrolled_at via RPC.
+  // Re-checar se ainda há factor verified; se não, limpa mfa_enrolled_at pela
+  // mesma função controlada, via conexão Postgres server-side.
   const remaining = await listFactors(supabase);
   if (!remaining.some((f) => f.status === 'verified')) {
-    await supabase.rpc('mark_mfa_enrolled', { p_enrolled: false });
+    try {
+      await markMfaEnrolledForUser(user.userId, false);
+    } catch (persistError) {
+      captureBackgroundError(persistError, { flow: 'auth.mfa.unenroll_persist' });
+      redirect('/account/security?unenroll_error=1');
+    }
   }
   revalidatePath('/account/security');
   redirect('/account/security');

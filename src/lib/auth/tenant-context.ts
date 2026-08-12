@@ -163,13 +163,14 @@ export type IdentityResult =
  * epoch-check por request NÃO adicionou query nenhuma às ações críticas — só às
  * demais, e uma só (PK indexada, memoizada).
  */
-const readAuthoritativeProfile = cache(async (userId: string) => {
+export const readAuthoritativeProfile = cache(async (userId: string) => {
   const rows = await dbAdmin
     .select({
       role: profiles.role,
       nome: profiles.nome,
       clinicName: clinics.nome,
       ativo: profiles.ativo,
+      mfaEnrolledAt: profiles.mfaEnrolledAt,
       deletedAt: profiles.deletedAt,
       clinicId: profiles.clinicId,
       claimsVersion: profiles.claimsVersion,
@@ -181,6 +182,26 @@ const readAuthoritativeProfile = cache(async (userId: string) => {
     .limit(1);
   return rows[0] ?? null;
 });
+
+/**
+ * Persiste o estado MFA sem depender da Data API/PostgREST.
+ *
+ * Mantém o contrato D31 existente: a mutação continua passando pela função
+ * SECURITY DEFINER `mark_mfa_enrolled`, executada como `authenticated`, e
+ * `auth.uid()` continua sendo a autoridade sobre a linha que pode ser alterada.
+ * O request JWT é reproduzido somente dentro desta transação server-side e os
+ * GUCs são descartados no commit/rollback.
+ */
+export async function markMfaEnrolledForUser(userId: string, enrolled: boolean): Promise<void> {
+  const jwtClaims = JSON.stringify({ sub: userId, role: 'authenticated' });
+
+  await dbAdmin.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL ROLE authenticated`);
+    await tx.execute(sql`SELECT set_config('request.jwt.claim.sub', ${userId}, true)`);
+    await tx.execute(sql`SELECT set_config('request.jwt.claims', ${jwtClaims}, true)`);
+    await tx.execute(sql`SELECT public.mark_mfa_enrolled(${enrolled})`);
+  });
+}
 
 /**
  * AUTENTICAÇÃO — parse do JWT → validação → leitura autoritativa → epoch → overlay.
