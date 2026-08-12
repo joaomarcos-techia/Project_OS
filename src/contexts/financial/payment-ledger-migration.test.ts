@@ -54,6 +54,7 @@ describe('financial payment ledger integration', () => {
     expect(refundLockFixMigration).not.toMatch(
       /FROM public\.payment_transactions\s+WHERE id = NEW\.original_payment_id\s+FOR UPDATE;/,
     );
+    expect(actions).not.toMatch(/\.from\(paymentTransactions\)[\s\S]{0,500}\.for\('update'\)/);
   });
 
   it('calcula caixa e consolidacao pela data de cada movimentacao', () => {

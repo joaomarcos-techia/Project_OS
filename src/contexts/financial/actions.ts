@@ -350,6 +350,9 @@ export async function createEstorno(
       if (orig.status !== 'pago') {
         throw new LancamentoStateError('estorno exige lançamento totalmente pago');
       }
+      // `orig` já está bloqueado acima e serializa pagamentos/refunds deste
+      // lançamento. payment_transactions é append-only para o runtime
+      // (SELECT + INSERT, sem UPDATE), portanto nunca pode receber FOR UPDATE.
       const [payment] = await tx
         .select()
         .from(paymentTransactions)
@@ -361,7 +364,6 @@ export async function createEstorno(
             eq(paymentTransactions.kind, 'payment'),
           ),
         )
-        .for('update')
         .limit(1);
       if (!payment) throw new PaymentTransactionNotFoundError(data.paymentId);
 
