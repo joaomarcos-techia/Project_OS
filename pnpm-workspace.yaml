@@ -6,4 +6,6 @@ overrides:
   sharp: 0.35.0
   esbuild: 0.25.0
 allowBuilds:
+  '@sentry/cli': true
   esbuild: true
+  unrs-resolver: true
