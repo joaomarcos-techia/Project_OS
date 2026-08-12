@@ -12,8 +12,9 @@ import type {
   CreateEstornoInput,
   LancamentoSummary,
 } from '@/contexts/financial/types';
+import { logger } from '@/lib/observability/logger';
 
-import { fail, ok, type ActionResult } from './caixa-types';
+import { actionErrorLogFields, fail, ok, type ActionResult } from './caixa-types';
 
 export async function confirmPaymentAction(
   input: ConfirmPaymentInput,
@@ -45,6 +46,7 @@ export async function createEstornoAction(
     const r = await createEstorno(input, idempotencyKey);
     return ok({ originalId: r.original.id, estornoId: r.estorno.id });
   } catch (err) {
+    logger.error('financial.caixa.refund_failed', actionErrorLogFields(err));
     return fail(err);
   }
 }

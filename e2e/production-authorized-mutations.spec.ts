@@ -359,7 +359,10 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       });
 
       await page.getByRole('button', { name: 'Encerrar consulta', exact: true }).click();
-      await expect(page.getByText('Consulta finalizada', { exact: false })).toBeVisible({
+      const completedCard = page
+        .getByText(patientName, { exact: true })
+        .locator('xpath=ancestor::button[1]');
+      await expect(completedCard).toBeVisible({
         timeout: 30_000,
       });
 
@@ -374,12 +377,15 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       await financialDrawer.getByLabel('Valor (R$)').fill('12,34');
       await financialDrawer.getByLabel('Vencimento').fill(isoToBrDate(futureDate(1)));
       await financialDrawer.getByRole('button', { name: 'Criar lançamento' }).click();
-      await expect(page).toHaveURL(/\/financeiro(?:\?|$)/, { timeout: 30_000 });
+      await expect(page).toHaveURL(/\/financeiro$/, { timeout: 30_000 });
+      await expect(
+        page.getByText(financialDescription, { exact: true }).locator('xpath=ancestor::tr[1]'),
+      ).toBeVisible({ timeout: 30_000 });
 
       await page.goto('/caixa');
       const financialCard = page
         .getByText(financialDescription, { exact: true })
-        .locator('xpath=ancestor::div[.//button[normalize-space()="Confirmar pagamento"]][1]');
+        .locator('xpath=ancestor::div[contains(@class,"rounded-(--card-radius)")][1]');
       await expect(financialCard).toBeVisible({ timeout: 30_000 });
       await financialCard.getByRole('button', { name: 'Confirmar pagamento' }).click();
       await expect(financialCard.getByLabel('Valor recebido')).toHaveValue('12.34');
@@ -390,6 +396,7 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       await financialCard.getByRole('button', { name: 'Reembolsar' }).click();
       await financialCard.getByLabel('Motivo do reembolso').fill(`${marker} estorno de teste`);
       await financialCard.getByRole('button', { name: 'Confirmar reembolso' }).click();
+      await expect(financialCard).toHaveCount(0, { timeout: 30_000 });
       await page.goto('/financeiro?status=estornado');
       const estornadoRow = page
         .getByText(financialDescription, { exact: true })

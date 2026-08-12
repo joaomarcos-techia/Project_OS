@@ -11,6 +11,29 @@ export function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
 }
 
+const SAFE_ERROR_IDENTIFIER = /^[A-Za-z0-9_.-]{1,80}$/;
+
+function safeErrorIdentifier(value: unknown): string | null {
+  return typeof value === 'string' && SAFE_ERROR_IDENTIFIER.test(value) ? value : null;
+}
+
+/**
+ * Campos seguros para investigação operacional. Nunca envie `message`, `detail`,
+ * `query` ou `stack`: drivers podem incluir dados de clínica nesses campos.
+ */
+export function actionErrorLogFields(err: unknown): {
+  errorName: string;
+  errorCode: string | null;
+  constraint: string | null;
+} {
+  const fields = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
+  return {
+    errorName: safeErrorIdentifier(fields.name) ?? 'UnknownError',
+    errorCode: safeErrorIdentifier(fields.code),
+    constraint: safeErrorIdentifier(fields.constraint),
+  };
+}
+
 /** Mapeia erros de domínio (por `name`, intactos no servidor) → ActionResult. */
 const MAP: Record<string, { code: string; message: string }> = {
   LancamentoStateError: {
