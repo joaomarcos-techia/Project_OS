@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3000';
 const mutationE2E = process.env.E2E_MUTATION === '1';
 const retainAllArtifacts = process.env.E2E_ARTIFACTS === '1';
+const reuseAuthenticatedState = process.env.E2E_AUTH_REUSE === '1';
 
 if (mutationE2E) {
   const hostname = new URL(baseURL).hostname;
@@ -11,6 +12,15 @@ if (mutationE2E) {
   }
   if (!process.env.E2E_USER_EMAIL || !process.env.E2E_USER_PASSWORD) {
     throw new Error('E2E_MUTATION=1 exige E2E_USER_EMAIL e E2E_USER_PASSWORD.');
+  }
+}
+
+if (reuseAuthenticatedState) {
+  if (!process.env.E2E_BASE_URL) {
+    throw new Error('E2E_AUTH_REUSE=1 requires E2E_BASE_URL.');
+  }
+  if (!process.env.E2E_USER_EMAIL || !process.env.E2E_USER_PASSWORD) {
+    throw new Error('E2E_AUTH_REUSE=1 requires E2E_USER_EMAIL and E2E_USER_PASSWORD.');
   }
 }
 
@@ -33,9 +43,14 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   timeout: 30_000,
   expect: { timeout: 10_000 },
-  ...(mutationE2E ? { globalSetup: './e2e/mutation-global-setup.ts' } : {}),
+  ...(mutationE2E
+    ? { globalSetup: './e2e/mutation-global-setup.ts' }
+    : reuseAuthenticatedState
+      ? { globalSetup: './e2e/auth-global-setup.ts' }
+      : {}),
   use: {
     baseURL,
+    ...(reuseAuthenticatedState ? { storageState: '.playwright/.auth/user.json' } : {}),
     trace: retainAllArtifacts ? 'on' : 'retain-on-failure',
     screenshot: retainAllArtifacts ? 'on' : 'only-on-failure',
     video: retainAllArtifacts ? 'on' : 'retain-on-failure',

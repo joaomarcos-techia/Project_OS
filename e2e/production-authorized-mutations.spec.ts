@@ -1,9 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-const testEmail = process.env.E2E_USER_EMAIL;
-const testPassword = process.env.E2E_USER_PASSWORD;
+import { authenticate, hasE2ECredentials } from './auth';
+
 const productionMutationAuthorized = process.env.E2E_PRODUCTION_MUTATION === 'ALLOW_TEST_ACCOUNT';
 const baseUrl = process.env.E2E_BASE_URL;
+const WEEKDAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 function assertProductionTarget(): void {
   if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
@@ -27,14 +28,6 @@ function validCpfForRun(runId: string): string {
   return [...digits, digit(digits, 10), digit([...digits, digit(digits, 10)], 11)].join('');
 }
 
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel('Email').fill(testEmail!);
-  await page.locator('input[name="password"]').fill(testPassword!);
-  await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
-}
-
 test.describe('produção: mutações autorizadas em conta de teste', () => {
   test('valida limites e percorre paciente, agenda, financeiro manual e LGPD', async ({
     page,
@@ -43,7 +36,7 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
     // deixa margem para o finally completar sem encerrar o browser no meio.
     test.setTimeout(600_000);
     test.skip(
-      !productionMutationAuthorized || !testEmail || !testPassword,
+      !productionMutationAuthorized || !hasE2ECredentials(),
       'Exige E2E_PRODUCTION_MUTATION=ALLOW_TEST_ACCOUNT e credenciais da conta de teste.',
     );
     assertProductionTarget();
@@ -59,9 +52,11 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
     const appointmentDate = futureDate(21);
     let patientUrl: string | null = null;
     let procedureCreated = false;
+    let temporaryAvailabilityAdded = false;
+    const todayWeekday = WEEKDAY_NAMES[new Date().getDay()]!;
 
     try {
-      await login(page);
+      await authenticate(page);
 
       // Prova a jornada de conta solo: owner/gestor com CRM torna-se profissional
       // sem depender de outro membro. Só preenche quando a conta de teste ainda
@@ -80,6 +75,26 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
             timeout: 30_000,
           },
         );
+      }
+
+      // The authorized account can be created without working hours. To run a
+      // real walk-in/consulting-room flow without bypassing capacity rules, add
+      // a window only when the current weekday has none. The finally removes it.
+      await page.goto('/configuracoes/horarios');
+      const weekdayRow = page
+        .getByText(todayWeekday, { exact: true })
+        .locator('xpath=ancestor::li[1]');
+      await expect(weekdayRow).toBeVisible();
+      if ((await weekdayRow.getByRole('button', { name: /^Remover / }).count()) === 0) {
+        await page.getByLabel('Dia').selectOption({ label: todayWeekday });
+        await page.getByRole('checkbox').click();
+        await page.getByLabel('Início', { exact: true }).fill('00:00');
+        await page.getByLabel('Fim', { exact: true }).fill('23:59');
+        await page.getByRole('button', { name: 'Adicionar janela', exact: true }).click();
+        await expect(page.getByText('Janela adicionada.', { exact: true })).toBeVisible({
+          timeout: 30_000,
+        });
+        temporaryAvailabilityAdded = true;
       }
 
       await page.goto('/pacientes?novo=1');
@@ -415,11 +430,23 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
           }
         }
       } finally {
-        if (patientUrl) {
-          await page.goto(patientUrl);
-          page.once('dialog', (dialog) => dialog.accept());
-          await page.getByRole('button', { name: 'Solicitar exclusão (LGPD)' }).click();
-          await expect(page).toHaveURL(/\/pacientes(?:\?|$)/, { timeout: 30_000 });
+        try {
+          if (temporaryAvailabilityAdded) {
+            await page.goto('/configuracoes/horarios');
+            const temporaryWindow = page.getByRole('button', {
+              name: `Remover ${todayWeekday} 00:00`,
+            });
+            await expect(temporaryWindow).toBeVisible({ timeout: 30_000 });
+            await temporaryWindow.click();
+            await expect(temporaryWindow).toHaveCount(0, { timeout: 30_000 });
+          }
+        } finally {
+          if (patientUrl) {
+            await page.goto(patientUrl);
+            page.once('dialog', (dialog) => dialog.accept());
+            await page.getByRole('button', { name: 'Solicitar exclusão (LGPD)' }).click();
+            await expect(page).toHaveURL(/\/pacientes(?:\?|$)/, { timeout: 30_000 });
+          }
         }
       }
     }

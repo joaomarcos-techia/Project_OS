@@ -32,6 +32,19 @@ pnpm test:e2e
 Os artefatos de falha (trace, vídeo e relatório) são locais e ficam ignorados
 no Git.
 
+Para uma auditoria autenticada ampla contra ambiente remoto, reutilize uma única
+sessão. Assim cada spec não consome uma nova tentativa de login nem aciona o
+rate limit da aplicação:
+
+```powershell
+$env:E2E_BASE_URL = 'https://seu-preview.vercel.app'
+$env:E2E_USER_EMAIL = 'conta-descartavel@exemplo.test'
+$env:E2E_USER_PASSWORD = '<CONFIGURE_EM_VARIAVEL_DE_AMBIENTE>'
+$env:E2E_AUTH_REUSE = '1'
+$env:E2E_ARTIFACTS = '1'
+pnpm test:e2e
+```
+
 ## Fluxos que alteram dados (somente desenvolvimento local)
 
 Os testes de paciente, agenda e caixa exigem opt-in explícito. Eles aceitam

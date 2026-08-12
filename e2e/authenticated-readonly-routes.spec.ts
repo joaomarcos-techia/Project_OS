@@ -1,7 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const testEmail = process.env.E2E_USER_EMAIL;
-const testPassword = process.env.E2E_USER_PASSWORD;
+import { authenticate, hasE2ECredentials } from './auth';
 
 const READ_ONLY_ROUTES = [
   '/dashboard',
@@ -63,15 +62,11 @@ test.describe('auditoria autenticada somente-leitura', () => {
   }, testInfo) => {
     test.setTimeout(180_000);
     test.skip(
-      !testEmail || !testPassword,
+      !hasE2ECredentials(),
       'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD de uma conta descartável.',
     );
 
-    await page.goto('/login');
-    await page.getByLabel('Email').fill(testEmail!);
-    await page.locator('input[name="password"]').fill(testPassword!);
-    await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
+    await authenticate(page);
 
     const inventory: RouteInventory[] = [];
     for (const route of READ_ONLY_ROUTES) {
@@ -103,15 +98,11 @@ test.describe('auditoria autenticada somente-leitura', () => {
   test('as rotas dinâmicas existentes mantêm a sessão e renderizam', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     test.skip(
-      !testEmail || !testPassword,
+      !hasE2ECredentials(),
       'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD de uma conta descartável.',
     );
 
-    await page.goto('/login');
-    await page.getByLabel('Email').fill(testEmail!);
-    await page.locator('input[name="password"]').fill(testPassword!);
-    await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
+    await authenticate(page);
 
     const outcomes = {
       patient: await assertFirstDynamicRoute(page, '/pacientes', '/pacientes/'),

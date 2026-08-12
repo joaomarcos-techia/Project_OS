@@ -127,8 +127,12 @@ export function DocumentDrawer({ patientId }: { patientId: string }) {
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-4">
           {error ? <Alert variant="danger">{error}</Alert> : null}
-          <Field label="Tipo">
-            <Select value={type} onChange={(e) => setType(e.target.value as MedicalDocumentType)}>
+          <Field label="Tipo" htmlFor="document-type">
+            <Select
+              id="document-type"
+              value={type}
+              onChange={(e) => setType(e.target.value as MedicalDocumentType)}
+            >
               {(Object.keys(DOC_LABEL) as MedicalDocumentType[]).map((t) => (
                 <option key={t} value={t}>
                   {DOC_LABEL[t]}
@@ -139,24 +143,30 @@ export function DocumentDrawer({ patientId }: { patientId: string }) {
 
           {type === 'atestado' ? (
             <>
-              <Field label="Descrição">
+              <Field label="Descrição" htmlFor="document-description">
                 <Textarea
+                  id="document-description"
                   rows={2}
                   value={f('descricao')}
                   onChange={(e) => set('descricao', e.target.value)}
                 />
               </Field>
               <div className="flex gap-2">
-                <Field label="Dias de afastamento" className="w-40">
+                <Field label="Dias de afastamento" htmlFor="document-days" className="w-40">
                   <Input
+                    id="document-days"
                     type="number"
                     min={0}
                     value={f('dias')}
                     onChange={(e) => set('dias', e.target.value)}
                   />
                 </Field>
-                <Field label="CID (opcional)" className="w-40">
-                  <Input value={f('cid')} onChange={(e) => set('cid', e.target.value)} />
+                <Field label="CID (opcional)" htmlFor="document-cid" className="w-40">
+                  <Input
+                    id="document-cid"
+                    value={f('cid')}
+                    onChange={(e) => set('cid', e.target.value)}
+                  />
                 </Field>
               </div>
             </>
@@ -164,15 +174,17 @@ export function DocumentDrawer({ patientId }: { patientId: string }) {
 
           {type === 'exame' ? (
             <>
-              <Field label="Exames (um por linha)">
+              <Field label="Exames (um por linha)" htmlFor="document-exams">
                 <Textarea
+                  id="document-exams"
                   rows={3}
                   value={f('exames')}
                   onChange={(e) => set('exames', e.target.value)}
                 />
               </Field>
-              <Field label="Indicação clínica (opcional)">
+              <Field label="Indicação clínica (opcional)" htmlFor="document-indication">
                 <Textarea
+                  id="document-indication"
                   rows={2}
                   value={f('indicacao')}
                   onChange={(e) => set('indicacao', e.target.value)}
@@ -183,29 +195,36 @@ export function DocumentDrawer({ patientId }: { patientId: string }) {
 
           {type === 'declaracao' ? (
             <>
-              <Field label="Texto">
+              <Field label="Texto" htmlFor="document-text">
                 <Textarea
+                  id="document-text"
                   rows={3}
                   value={f('texto')}
                   onChange={(e) => set('texto', e.target.value)}
                 />
               </Field>
-              <Field label="Período (opcional)">
-                <Input value={f('periodo')} onChange={(e) => set('periodo', e.target.value)} />
+              <Field label="Período (opcional)" htmlFor="document-period">
+                <Input
+                  id="document-period"
+                  value={f('periodo')}
+                  onChange={(e) => set('periodo', e.target.value)}
+                />
               </Field>
             </>
           ) : null}
 
           {type === 'encaminhamento' ? (
             <>
-              <Field label="Especialidade">
+              <Field label="Especialidade" htmlFor="document-specialty">
                 <Input
+                  id="document-specialty"
                   value={f('especialidade')}
                   onChange={(e) => set('especialidade', e.target.value)}
                 />
               </Field>
-              <Field label="Motivo">
+              <Field label="Motivo" htmlFor="document-reason">
                 <Textarea
+                  id="document-reason"
                   rows={2}
                   value={f('motivo')}
                   onChange={(e) => set('motivo', e.target.value)}

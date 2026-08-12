@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 
-const testEmail = process.env.E2E_USER_EMAIL;
-const testPassword = process.env.E2E_USER_PASSWORD;
+import { authenticate, hasE2ECredentials } from './auth';
 
 test.describe('acesso público', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
   test('a tela de login expõe os controles e alterna a visibilidade da senha', async ({ page }) => {
     // The first /login visit in next dev compiles the page on demand. Keep this
     // explicit so a cold local server is not mistaken for a login regression.
@@ -38,15 +38,11 @@ test.describe('navegação autenticada', () => {
     // terminar bem antes.
     test.setTimeout(120_000);
     test.skip(
-      !testEmail || !testPassword,
+      !hasE2ECredentials(),
       'Defina E2E_USER_EMAIL e E2E_USER_PASSWORD de uma clínica descartável.',
     );
 
-    await page.goto('/login');
-    await page.getByLabel('Email').fill(testEmail!);
-    await page.locator('input[name="password"]').fill(testPassword!);
-    await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
+    await authenticate(page);
 
     const destinations = [
       { label: 'Agenda', heading: 'Agenda' },
