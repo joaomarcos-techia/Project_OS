@@ -9,6 +9,7 @@
 import './_env';
 
 import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
+import { redactOpaqueId } from '@/lib/sanitize/redact';
 
 function tomorrowISO(): string {
   const d = new Date(Date.now() + 86_400_000);
@@ -28,7 +29,7 @@ async function main(): Promise<void> {
     cpfCnpj: '24971563792', // CPF de teste (sandbox)
     phone: '11999990000',
   });
-  console.log('[asaas-live] customer:', customer.customerId);
+  console.log('[asaas-live] customer:', redactOpaqueId(customer.customerId));
 
   const sub = await asaasProvider.createSubscription({
     customerId: customer.customerId,
@@ -38,10 +39,10 @@ async function main(): Promise<void> {
     description: 'ClinicaOS — Solo (live check)',
     billingType: 'BOLETO',
   });
-  console.log('[asaas-live] subscription:', sub.subscriptionId);
+  console.log('[asaas-live] subscription:', redactOpaqueId(sub.subscriptionId));
 
   const fetched = await asaasProvider.getSubscription(sub.subscriptionId);
-  console.log('[asaas-live] getSubscription:', fetched);
+  console.log('[asaas-live] subscription status:', fetched.status);
 
   console.log('[asaas-live] OK — adapter Asaas validado contra o sandbox.');
   process.exit(0);

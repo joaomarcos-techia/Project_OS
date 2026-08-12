@@ -14,6 +14,7 @@ import './_env';
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { redactOpaqueId } from '@/lib/sanitize/redact';
 
 import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
 import { provisionTenant } from '@/contexts/billing/internal/provisioning';
@@ -84,9 +85,9 @@ async function main(): Promise<void> {
   });
 
   console.log('\n[roundtrip] criado:');
-  console.log('  clinic_id            =', clinicId, '(status: pending_payment)');
-  console.log('  asaas_customer_id    =', customer.customerId);
-  console.log('  asaas_subscription_id=', sub.subscriptionId);
+  console.log('  clinic_id            =', redactOpaqueId(clinicId), '(status: pending_payment)');
+  console.log('  asaas_customer_id    =', redactOpaqueId(customer.customerId));
+  console.log('  asaas_subscription_id=', redactOpaqueId(sub.subscriptionId));
   console.log('\nAgora, no painel Asaas sandbox:');
   console.log('  1. Abra a cobrança da subscription e "Confirmar recebimento".');
   console.log('  2. O Asaas dispara PAYMENT_CREATED/RECEIVED → /api/webhooks/asaas.');

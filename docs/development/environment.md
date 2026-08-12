@@ -32,7 +32,7 @@
 | **C11 — AI** | `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_HTTP_TIMEOUT_MS`, `AI_MONTHLY_COST_LIMIT_USD`, `AI_SNAPSHOT_MODE` | runtime (agent) |
 | **C13 — Billing** | `ASAAS_API_KEY`, `ASAAS_BASE_URL`, `ASAAS_WEBHOOK_TOKEN`, `ASAAS_HTTP_TIMEOUT_MS` | runtime (billing/webhook) |
 | **C14 — Proactive** | `META_TEMPLATE_*_ID`, `META_TEMPLATE_LANG` | por job (template ausente = job falha retentável) |
-| **C15 — Admin/Onboarding** | `IMPERSONATION_SECRET` (≥32), `MAGIC_TOKEN_SECRET` (≥32) | runtime (impersonate / /join) |
+| **C15 — Admin/Onboarding** | `IMPERSONATION_SECRET` (≥32), `MAGIC_TOKEN_SECRET` (≥32), `APP_BASE_URL` (origem HTTPS sem path) | runtime (impersonate / /join / convites) |
 | **C16 — Sentry** | `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | DSN publishable; token build-time |
 
 ---

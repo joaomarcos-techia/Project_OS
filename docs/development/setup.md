@@ -13,11 +13,11 @@ Do zero ao app rodando. Se você é novo no projeto, siga na ordem — cada pass
 | Ferramenta | Versão | Fonte |
 |---|---|---|
 | Node.js | **22.x** | `package.json` → `engines.node` |
-| pnpm | **9.15.0** | `package.json` → `packageManager` |
+| pnpm | **11.17.0** | `package.json` → `packageManager` |
 | PostgreSQL client (`psql`, `pg_dump`) | 17 | Necessário só para migrations/validação. No PATH. |
 | Conta Supabase | — | Projeto `qoro-dev` (Postgres + Auth + Storage) |
 
-> ⚠️ O CI hoje roda em Node 20 (`.github/workflows/ci.yml`), mas o runtime exige 22.x. Use **22.x** localmente (é o alvo real — ver achado A3 em [documentation-audit.md](../documentation-audit.md)).
+> O CI e o runtime rodam em Node **22.x** (`.github/workflows/ci.yml` e `package.json`). Use a mesma versão localmente.
 
 Recomendado: gerencie a versão do Node com o `.nvmrc` do repo (`nvm use`).
 

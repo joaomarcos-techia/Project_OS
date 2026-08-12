@@ -1,6 +1,6 @@
 # ADR-006 — Drizzle ORM com pin exato + driver postgres-js
 
-> **Verificação (2026-07-23)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
+> **Verificação (2026-08-11)** — Decisão: ACTIVE · Implementação: IMPLEMENTED
 > _Base: em produção (C0–C16 fechadas); confirmação por domínio na Onda 3._
 
 **Status:** accepted
@@ -16,7 +16,7 @@ A escolha do driver Postgres também é estrutural: `pg` (node-postgres) é mais
 
 Pins exatos (sem `^`/`~`) em `package.json`, todas verificadas e estáveis no ecossistema há ≥6 meses:
 
-- `drizzle-orm@0.36.4` (dependencies — runtime)
+- `drizzle-orm@0.45.2` (dependencies — runtime)
 - `postgres@3.4.5` (dependencies — runtime, driver postgres-js)
 - `drizzle-kit@0.28.1` (devDependencies)
 - `tsx@4.19.2` (devDependencies — runner de scripts)
@@ -30,6 +30,15 @@ Pooler ports — split por uso:
 - **Migrations e backups** (`scripts/db-*.ts`): Session Pooler, porta 5432. Scripts fazem swap automático da porta. Razão empírica: `pg_advisory_lock` requer backend sticky, que Transaction Pooler não provê (validado em C1 teste 1.6.11).
 
 Upgrade dessas libs requer: ADR explicando o motivo + checklist de validação manual da spec C1.6 reexecutado + commit dedicado.
+
+### Emenda 2026-08-11 — correção de segurança do runtime
+
+O pin de `drizzle-orm` foi elevado de `0.36.4` para `0.45.2`, a primeira versão corrigida
+para GHSA-gpj5-g38j-94v9. `drizzle-kit@0.28.1` permanece pinado: esta mudança não gera nem
+aplica migration. A compatibilidade foi validada por typecheck, 1.176 testes, checks de
+arquitetura/migrations, build de produção e smoke C11/C12 no ambiente DEV. O lockfile mantém
+reprodutibilidade; qualquer upgrade futuro continua exigindo decisão explícita e validação
+completa.
 
 ## Consequences
 

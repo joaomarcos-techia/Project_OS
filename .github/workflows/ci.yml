@@ -14,13 +14,15 @@ jobs:
   ci:
     name: Lint + Typecheck + Test + Build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Build frio local comprovado pode exceder 10 min só na compilação; este
+    # limite não muda nenhum gate, apenas evita cancelar uma execução saudável.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 9.15.0
+          version: 11.17.0
 
       - uses: actions/setup-node@v4
         with:
@@ -33,11 +35,8 @@ jobs:
 
       # V14 (auditoria de segurança): gate de dependências de PRODUÇÃO. Falha em
       # HIGH+ nas deps que sobem para produção (dev-tooling não conta, por isso
-      # --prod). O advisory GHSA-gpj5-g38j-94v9 (drizzle-orm SQLi via identifiers)
-      # está em pnpm.auditConfig.ignoreGhsas: é NÃO-alcançável neste código (todos
-      # os identifiers/orderBy são estáticos; sql.raw só com constantes) — aceite
-      # documentado até o upgrade coordenado drizzle-orm+drizzle-kit (ADR-006).
-      # Ver docs/achados/auditoria-seguranca-codigo.md (V14).
+      # --prod). pnpm-workspace.yaml fixa apenas as versões corrigidas necessárias
+      # à compatibilidade da stack; não há auditConfig, ignoreGhsas ou exceção.
       - name: Prod dependency audit gate (high+)
         run: pnpm audit --prod --audit-level high
 

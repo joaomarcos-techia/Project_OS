@@ -13,7 +13,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { sanitizePayload } from './redact';
+import { redactOpaqueId, sanitizePayload } from './redact';
 
 describe('sanitizePayload — conteúdo clínico (defesa em profundidade)', () => {
   it('redige o `content` puro do prontuário (a chave que vazou no A1)', () => {
@@ -84,5 +84,15 @@ describe('sanitizePayload — conteúdo clínico (defesa em profundidade)', () =
       token: '[REDACTED]',
       cpf: '[REDACTED]',
     });
+  });
+});
+
+describe('redactOpaqueId', () => {
+  it('mantém somente prefixo e sufixo para correlação operacional', () => {
+    expect(redactOpaqueId('sub_00000000-0000-0000-0000-000000000001')).toBe('sub_…0001');
+  });
+
+  it('não revela identificadores curtos por inteiro', () => {
+    expect(redactOpaqueId('short-id')).toBe('[REDACTED]');
   });
 });

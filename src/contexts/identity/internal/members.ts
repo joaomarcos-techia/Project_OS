@@ -22,6 +22,7 @@ import type { RequestContext } from '@/lib/audit/types';
 import type { Role } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { dbAdmin } from '@/lib/db';
+import { createAuthRedirectUrl } from '@/lib/http/application-url';
 import { idempotencyKeys } from '@/lib/db/schema/infra/idempotency';
 import { payloadHash } from '@/lib/idempotency/hash';
 import { logger } from '@/lib/observability/logger';
@@ -50,8 +51,6 @@ export interface InviteClinicMemberArgs {
   clinicName: string;
   inviterNome: string;
   funcaoLabel: string;
-  /** Origin do request (headers) para o redirect do link de convite → /convite. */
-  redirectOrigin: string;
   invitedBy: string;
   requestContext: RequestContext;
   idempotencyKey: string;
@@ -111,7 +110,7 @@ export async function inviteClinicMember(
       funcao: args.funcaoLabel,
       convidado_por: args.inviterNome,
     },
-    redirectTo: `${args.redirectOrigin}/convite`,
+    redirectTo: createAuthRedirectUrl(),
   });
   if (error || !data?.user) {
     if (isEmailExists(error)) throw new EmailAlreadyMemberError();
@@ -210,8 +209,6 @@ export interface ResendClinicInviteArgs {
   clinicId: string;
   userId: string;
   inviterRole: Role;
-  /** Origin do request (headers) para o redirect do link → /convite. */
-  redirectOrigin: string;
   invitedBy: string;
   requestContext: RequestContext;
 }
@@ -258,7 +255,7 @@ export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<
   const { data: link, error: lErr } = await admin.auth.admin.generateLink({
     type: 'recovery',
     email: u.user.email,
-    options: { redirectTo: `${args.redirectOrigin}/convite` },
+    options: { redirectTo: createAuthRedirectUrl() },
   });
   if (lErr || !link?.properties?.action_link) {
     throw new Error(`Não foi possível gerar um novo convite: ${lErr?.message ?? 'desconhecido'}`);

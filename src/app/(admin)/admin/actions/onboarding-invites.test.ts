@@ -26,7 +26,10 @@ const {
 
 vi.mock('next/headers', () => ({ headers: headersMock }));
 vi.mock('../_lib/guard', () => ({ guardAdminAccess }));
-vi.mock('@/lib/env', () => ({ assertOnboardingRuntimeReady }));
+vi.mock('@/lib/env', () => ({
+  assertOnboardingRuntimeReady,
+  env: { APP_BASE_URL: 'https://app.qoro.test', NODE_ENV: 'test' },
+}));
 vi.mock('@/lib/auth/tenant-context', () => ({ requireUser }));
 vi.mock('@/lib/audit/request-context', () => ({
   buildRequestContext: () => ({ requestId: 'request-1', ip: null, userAgent: null }),
@@ -43,6 +46,8 @@ vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
 
 import { createClinicInviteAction } from './onboarding-invites';
 
+const RAW_TOKEN = 'a'.repeat(43);
+
 function form(email: string): FormData {
   const data = new FormData();
   data.set('email', email);
@@ -55,12 +60,12 @@ describe('createClinicInviteAction', () => {
     guardAdminAccess.mockResolvedValue(undefined);
     assertOnboardingRuntimeReady.mockReturnValue(undefined);
     requireUser.mockResolvedValue({ userId: '5d7da268-292b-4035-9fc0-972232dd7234' });
-    generateInviteToken.mockReturnValue({ rawToken: 'raw-invite-token' });
+    generateInviteToken.mockReturnValue({ rawToken: RAW_TOKEN });
     createInviteTx.mockResolvedValue('invite-1');
     superAdminAction.mockImplementation(
       async (_options: unknown, action: (tx: unknown) => unknown) => action({}),
     );
-    headersMock.mockResolvedValue(new Headers({ origin: 'https://app.qoro.test' }));
+    headersMock.mockResolvedValue(new Headers());
     sendTransactionalEmail.mockResolvedValue({ providerMessageId: 'email-1' });
   });
 
@@ -69,7 +74,7 @@ describe('createClinicInviteAction', () => {
       createClinicInviteAction({ error: null }, form('gestor@example.com')),
     ).resolves.toEqual({
       error: null,
-      link: '/join/raw-invite-token',
+      link: `/join/${RAW_TOKEN}`,
       emailDelivery: 'sent',
     });
 
@@ -77,8 +82,8 @@ describe('createClinicInviteAction', () => {
       expect.objectContaining({
         to: 'gestor@example.com',
         idempotencyKey: 'onboarding-invite:invite-1',
-        text: expect.stringContaining('https://app.qoro.test/join/raw-invite-token'),
-        html: expect.stringContaining('https://app.qoro.test/join/raw-invite-token'),
+        text: expect.stringContaining(`https://app.qoro.test/join/${RAW_TOKEN}`),
+        html: expect.stringContaining(`https://app.qoro.test/join/${RAW_TOKEN}`),
       }),
     );
     expect(emit).toHaveBeenCalledWith('onboarding.invite_email.sent', {});
@@ -92,7 +97,7 @@ describe('createClinicInviteAction', () => {
       createClinicInviteAction({ error: null }, form('gestor@example.com')),
     ).resolves.toEqual({
       error: null,
-      link: '/join/raw-invite-token',
+      link: `/join/${RAW_TOKEN}`,
       emailDelivery: 'failed',
     });
 
@@ -108,7 +113,7 @@ describe('createClinicInviteAction', () => {
   it('não chama o provedor de e-mail quando o super-admin deixa o e-mail vazio', async () => {
     await expect(createClinicInviteAction({ error: null }, form(''))).resolves.toEqual({
       error: null,
-      link: '/join/raw-invite-token',
+      link: `/join/${RAW_TOKEN}`,
     });
 
     expect(sendTransactionalEmail).not.toHaveBeenCalled();

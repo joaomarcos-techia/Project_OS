@@ -97,6 +97,10 @@ gates; (7) só então prod/merge. Um item por vez.
 
 ## 2. Item ③ — Upgrade `drizzle-orm` (V14, defense-in-depth)
 
+> **Status 2026-08-11: CONCLUÍDO.** `drizzle-orm@0.45.2` substituiu `0.36.4`; a exceção de
+> audit foi removida, o ADR-006 foi emendado e o audit de produção retornou zero
+> vulnerabilities. A lista abaixo é o plano histórico que levou à correção.
+
 - **Achado (auditoria V14):** `drizzle-orm@0.36.4` tem HIGH `GHSA-gpj5-g38j-94v9` (SQLi via
   identifiers). **NÃO-alcançável neste código** (todos os `orderBy`/identifiers são estáticos;
   `sql.raw` só com constantes). Hoje há gate de CI `pnpm audit --prod --audit-level high` com esse

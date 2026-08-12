@@ -6,7 +6,7 @@
   "engines": {
     "node": "22.x"
   },
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@11.17.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -98,7 +98,7 @@
     "@upstash/redis": "1.38.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
-    "drizzle-orm": "0.36.4",
+    "drizzle-orm": "0.45.2",
     "lucide-react": "1.17.0",
     "next": "15.5.21",
     "p-limit": "5.0.0",
@@ -136,22 +136,5 @@
     "tsx": "4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
-  },
-  "pnpm": {
-    "overrides": {
-      "postcss": "8.5.18",
-      "brace-expansion@^5.0.0": "5.0.9",
-      "fast-uri": "3.1.5",
-      "nanoid": "3.3.17"
-    },
-    "auditConfig": {
-      "ignoreGhsas": [
-        "GHSA-gpj5-g38j-94v9",
-        "GHSA-f88m-g3jw-g9cj",
-        "GHSA-v2hh-gcrm-f6hx",
-        "GHSA-4c8g-83qw-93j6",
-        "GHSA-3jxr-9vmj-r5cp"
-      ]
-    }
   }
 }

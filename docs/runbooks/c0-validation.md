@@ -11,7 +11,7 @@
 ## Pré-requisitos
 
 - [x] Node 20+ (`node -v`)
-- [x] pnpm 9+ (`pnpm -v`). Se faltar: `npm install -g pnpm@9.15.0`
+- [x] pnpm 11.17.0 (`pnpm -v`). Se faltar: `npm install -g pnpm@11.17.0`
 
 ## 0.1 — Setup base
 

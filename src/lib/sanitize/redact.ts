@@ -33,3 +33,13 @@ export function sanitizePayload(value: unknown, depth = 0): unknown {
   }
   return out;
 }
+
+/**
+ * Keeps an opaque identifier useful for correlating an operational check
+ * without writing the complete provider or database identifier to a log.
+ */
+export function redactOpaqueId(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 8) return '[REDACTED]';
+  return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
+}

@@ -10,6 +10,7 @@
 import './_env';
 
 import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
+import { redactOpaqueId } from '@/lib/sanitize/redact';
 
 const SANDBOX_CARD = {
   holderName: 'Checkout Sandbox',
@@ -64,8 +65,8 @@ async function main(): Promise<void> {
     subscriptionId = subscription.subscriptionId;
     const fetched = await asaasProvider.getSubscription(subscriptionId);
 
-    console.log('[asaas-card-live] customer:', customer.customerId);
-    console.log('[asaas-card-live] subscription:', fetched.subscriptionId);
+    console.log('[asaas-card-live] customer:', redactOpaqueId(customer.customerId));
+    console.log('[asaas-card-live] subscription:', redactOpaqueId(fetched.subscriptionId));
     console.log('[asaas-card-live] subscription status:', fetched.status);
     console.log('[asaas-card-live] token returned:', subscription.creditCardToken !== null);
   } finally {

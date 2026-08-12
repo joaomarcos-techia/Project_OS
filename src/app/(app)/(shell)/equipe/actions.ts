@@ -99,8 +99,6 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
 
     const identity = await getShellIdentity(); // clínica + nome do convidante (metadata rica)
     const hdrs = await headers();
-    const origin = hdrs.get('origin') ?? 'http://localhost:3000';
-
     await inviteClinicMember({
       clinicId,
       nome: d.nome,
@@ -111,7 +109,6 @@ export async function inviteMemberAction(input: InviteMemberInput): Promise<Invi
       clinicName: identity.clinicName,
       inviterNome: identity.userName,
       funcaoLabel: FUNCAO_LABEL[d.role],
-      redirectOrigin: origin,
       invitedBy: user.userId,
       requestContext: buildRequestContext(hdrs),
       idempotencyKey: d.idempotencyKey,
@@ -153,12 +150,10 @@ export async function resendInviteAction(input: { userId: string }): Promise<Res
 
   try {
     const hdrs = await headers();
-    const origin = hdrs.get('origin') ?? 'http://localhost:3000';
     const { link } = await resendClinicInvite({
       clinicId,
       userId: parsed.data.userId,
       inviterRole: user.role,
-      redirectOrigin: origin,
       invitedBy: user.userId,
       requestContext: buildRequestContext(hdrs),
     });

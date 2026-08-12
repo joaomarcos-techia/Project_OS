@@ -16,8 +16,10 @@ import { z } from 'zod';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { superAdminAction } from '@/lib/audit/super-admin';
 import { requireUser } from '@/lib/auth/tenant-context';
+import { renderClinicInviteEmail } from '@/lib/email/templates/clinic-invite';
 import { sendTransactionalEmail } from '@/lib/email/resend';
 import { assertOnboardingRuntimeReady } from '@/lib/env';
+import { createOnboardingInviteUrl } from '@/lib/http/application-url';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
 import { cancelInviteTx, createInviteTx, generateInviteToken } from '@/contexts/onboarding';
@@ -36,36 +38,6 @@ const CreateInput = z.object({
   planId: z.string().uuid().optional().or(z.literal('')),
   note: z.string().trim().max(280).optional().or(z.literal('')),
 });
-
-/**
- * A Server Action recebe `Origin` do browser autenticado. Aceitamos apenas HTTPS
- * (ou localhost em desenvolvimento) para que o token de onboarding nunca seja
- * enviado por e-mail para uma origem forjada ou insegura.
- */
-function absoluteInviteUrl(requestHeaders: Headers, rawToken: string): string | null {
-  const origin = requestHeaders.get('origin');
-  if (!origin) return null;
-  try {
-    const url = new URL(origin);
-    const isLocalhost = url.protocol === 'http:' && url.hostname === 'localhost';
-    if (url.protocol !== 'https:' && !isLocalhost) return null;
-    url.pathname = `/join/${rawToken}`;
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-function clinicInviteEmail(inviteUrl: string): { subject: string; text: string; html: string } {
-  const subject = 'Seu convite para ativar a clínica';
-  return {
-    subject,
-    text: `Você recebeu um convite para ativar sua clínica no Qoro. Abra ${inviteUrl}. O link expira em 24 horas.`,
-    html: `<p>Você recebeu um convite para ativar sua clínica no Qoro.</p><p><a href="${inviteUrl}">Abrir convite</a></p><p>O link expira em 24 horas.</p>`,
-  };
-}
 
 /** Cria um convite (status pending, expira em 24h). Devolve o link cru UMA vez. */
 export async function createClinicInviteAction(
@@ -115,14 +87,8 @@ export async function createClinicInviteAction(
   const link = `/join/${rawToken}`;
   if (!email) return { error: null, link };
 
-  const inviteUrl = absoluteInviteUrl(requestHeaders, rawToken);
-  if (!inviteUrl) {
-    metrics.emit('onboarding.invite_email.failed', { reason: 'unsafe_or_missing_origin' });
-    return { error: null, link, emailDelivery: 'failed' };
-  }
-
   try {
-    const content = clinicInviteEmail(inviteUrl);
+    const content = renderClinicInviteEmail({ inviteUrl: createOnboardingInviteUrl(rawToken) });
     await sendTransactionalEmail({
       to: email,
       ...content,

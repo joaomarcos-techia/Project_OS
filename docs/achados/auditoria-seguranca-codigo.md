@@ -432,6 +432,12 @@ Legenda: 🔴 ALTA · 🟠 MÉDIA · 🟡 BAIXA · ✅ sem problema explorável.
 
 ### V14 — Dependências vulneráveis (produção mínima; dev-tooling com CVEs)
 
+> **Atualização de release (2026-08-11): superado.** `drizzle-orm` foi atualizado para
+> `0.45.2`, `sharp` para `0.35.0`, `postcss` para `8.5.23` e `esbuild` para `0.25.0` via
+> overrides explícitos em `pnpm-workspace.yaml`. `pnpm audit --prod --json` retornou zero
+> vulnerabilities, sem `auditConfig`/`ignoreGhsas`. O texto abaixo é evidência histórica da
+> auditoria anterior.
+
 - **Severidade:** INFORMATIVO / BAIXA · **Categoria:** Manutenção / Segurança (OWASP A06)
 - **Local:** `package.json` / `pnpm-lock.yaml`. `pnpm audit` = 18 vulns (2 critical, 6 high, 9
   moderate, 1 low), **mas a leitura correta separa produção de dev**:
@@ -897,12 +903,12 @@ definido**, caindo no `CRON_SECRET` quando ausente (retrocompat — zero mudanç
 blast radius de um vazamento do `CRON_SECRET` (que guarda também rotas read-only). Ativação = ops
 define o segredo dedicado + configura o agendador dessas rotas.
 
-**V14 (parte segura) — gate de dependências no CI.**
+**V14 (parte segura) — gate de dependências no CI (histórico).**
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): step `pnpm audit --prod --audit-level
-high` (só deps de produção; dev-tooling não conta). O advisory `GHSA-gpj5-g38j-94v9` (drizzle-orm)
-está em `pnpm.auditConfig.ignoreGhsas` ([package.json](../../package.json)) — **não-alcançável**
-neste código (identifiers/`orderBy` estáticos; `sql.raw` só com constantes), aceite documentado até
-o upgrade. Verificado local: `pnpm audit --prod --audit-level high` → exit 0 (`1 high (1 ignored)`).
+high` (só deps de produção; dev-tooling não conta). A implementação atual não possui
+`pnpm.auditConfig.ignoreGhsas`: `pnpm audit --prod --audit-level high` e o JSON detalhado
+retornam zero vulnerabilities. A descrição de ignore abaixo desta emenda não deve ser usada
+como justificativa de release.
 
 **V1.3 (parte segura) — plumbing fail-closed opt-in.** [env.ts](../../src/lib/env.ts) +
 [db/index.ts](../../src/lib/db/index.ts): o pool **runtime** (`db`) passa a conectar por

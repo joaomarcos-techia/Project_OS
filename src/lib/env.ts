@@ -57,6 +57,9 @@ const EnvSchema = z
       emptyToUndefined,
       z.enum(['production', 'preview', 'development']).optional(),
     ),
+    // Origem canônica, controlada no servidor, usada nos links transacionais e
+    // redirects do Supabase Auth. Nunca derive links autenticados do header Origin.
+    APP_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
 
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
