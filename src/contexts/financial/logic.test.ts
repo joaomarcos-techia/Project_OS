@@ -8,6 +8,7 @@ import {
   canTransitionLancamento,
   estornoDescricao,
   estornoTipoOposto,
+  isEstornoIntegral,
   isTerminalLancamento,
   round2,
 } from './logic';
@@ -99,5 +100,13 @@ describe('builders de descrição', () => {
     expect(estornoDescricao('Atendimento - Consulta Clínica')).toBe(
       'Estorno - Atendimento - Consulta Clínica',
     );
+  });
+});
+
+describe('isEstornoIntegral', () => {
+  it('só encerra o lançamento quando todos os pagamentos foram devolvidos', () => {
+    expect(isEstornoIntegral(100, 99.99)).toBe(false);
+    expect(isEstornoIntegral(100, 100)).toBe(true);
+    expect(isEstornoIntegral(0.3, 0.1 + 0.2)).toBe(true);
   });
 });

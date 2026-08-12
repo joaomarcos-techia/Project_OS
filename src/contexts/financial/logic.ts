@@ -76,6 +76,16 @@ export function estornoDescricao(originalDescricao: string): string {
 }
 
 /**
+ * A baixa original só pode se tornar `estornado` quando todo o valor que foi
+ * efetivamente recebido/pago já foi devolvido. Enquanto houver saldo
+ * reembolsável, o lançamento original continua sendo a fonte da entrada e a
+ * compensação quitada registra a saída parcial.
+ */
+export function isEstornoIntegral(valorPago: number, valorEstornado: number): boolean {
+  return round2(valorEstornado) >= round2(valorPago);
+}
+
+/**
  * Offset (ms) da timezone `tz` no instante `at`: wall-clock local − UTC.
  * Ex.: America/Sao_Paulo (UTC-3) → −10_800_000. Usa Intl (DST-aware).
  */

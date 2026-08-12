@@ -25,6 +25,7 @@ import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import {
+  LancamentoStateError,
   LancamentoNotFoundError,
   PaymentTransactionNotFoundError,
   SupplierNotFoundError,
@@ -33,7 +34,15 @@ import { FINANCIAL_EVENTS } from './events';
 import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { assertFinancialReferencesInClinic } from './internal/tenant-references';
 import { assertPaymentFitsBalance, assertRefundFitsPayment } from './internal/payment-ledger';
-import { assertLancamentoTransition, calcStatusPagamento, clinicDayBounds, round2 } from './logic';
+import {
+  assertLancamentoTransition,
+  calcStatusPagamento,
+  clinicDayBounds,
+  estornoDescricao,
+  estornoTipoOposto,
+  isEstornoIntegral,
+  round2,
+} from './logic';
 import {
   getCashFlowToday,
   getClinicTimezone,
@@ -301,6 +310,7 @@ export async function cancelLancamento(
 
 export interface EstornoResult {
   original: LancamentoSummary;
+  estorno: LancamentoSummary;
   refund: PaymentTransactionSummary;
 }
 
@@ -337,6 +347,9 @@ export async function createEstorno(
         .for('update')
         .limit(1);
       if (!orig) throw new LancamentoNotFoundError(data.lancamentoId);
+      if (orig.status !== 'pago') {
+        throw new LancamentoStateError('estorno exige lançamento totalmente pago');
+      }
       const [payment] = await tx
         .select()
         .from(paymentTransactions)
@@ -362,7 +375,10 @@ export async function createEstorno(
             eq(paymentTransactions.kind, 'refund'),
           ),
         );
-      assertRefundFitsPayment(Number(payment.amount), Number(refundTotals?.total ?? 0), data.valor);
+      const valorJaEstornado = Number(refundTotals?.total ?? 0);
+      assertRefundFitsPayment(Number(payment.amount), valorJaEstornado, data.valor);
+      const valorEstornado = round2(valorJaEstornado + data.valor);
+      const estornoIntegral = isEstornoIntegral(Number(orig.valorPago), valorEstornado);
 
       const [refund] = await tx
         .insert(paymentTransactions)
@@ -389,6 +405,51 @@ export async function createEstorno(
         });
       }
 
+      // Estorno é uma compensação append-only. Parcial mantém o lançamento
+      // original pago e quita uma saída oposta; o último estorno transforma
+      // original e todas as compensações em `estornado`, anulando o efeito no
+      // caixa sem alterar valores imutáveis.
+      const [compensacao] = await tx
+        .insert(lancamentos)
+        .values({
+          clinicId,
+          unitId: orig.unitId,
+          tipo: estornoTipoOposto(orig.tipo),
+          descricao: estornoDescricao(orig.descricao),
+          valor: money(data.valor),
+          valorPago: money(data.valor),
+          status: estornoIntegral ? 'estornado' : 'pago',
+          dueDate: orig.dueDate,
+          paidAt: estornoIntegral ? null : sql`now()`,
+          patientId: orig.patientId,
+          supplierId: orig.supplierId,
+          paymentMethod: data.paymentMethod,
+          createdVia: 'estorno',
+          reversesLancamentoId: orig.id,
+          snapshotProcedureName: orig.snapshotProcedureName,
+          snapshotDoctorNome: orig.snapshotDoctorNome,
+          createdBy: user.userId,
+        })
+        .returning();
+
+      let original = orig;
+      if (estornoIntegral) {
+        assertLancamentoTransition(orig.status, 'estornado');
+        const [updated] = await tx
+          .update(lancamentos)
+          .set({ status: 'estornado', updatedAt: sql`now()` })
+          .where(and(eq(lancamentos.id, orig.id), eq(lancamentos.clinicId, clinicId)))
+          .returning();
+        original = updated!;
+
+        await tx
+          .update(lancamentos)
+          .set({ status: 'estornado', updatedAt: sql`now()` })
+          .where(
+            and(eq(lancamentos.clinicId, clinicId), eq(lancamentos.reversesLancamentoId, orig.id)),
+          );
+      }
+
       await publishEvent(tx, {
         clinicId,
         eventType: FINANCIAL_EVENTS.LANCAMENTO_ESTORNADO,
@@ -404,7 +465,8 @@ export async function createEstorno(
         idempotencyKey: `${idempotencyKey}:estornado`,
       });
       return {
-        original: toLancamentoSummary(orig),
+        original: toLancamentoSummary(original),
+        estorno: toLancamentoSummary(compensacao!),
         refund: toPaymentTransactionSummary(refund!, 0),
       };
     },
