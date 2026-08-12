@@ -193,8 +193,12 @@ export function HorariosManager({
         {/* Adicionar expediente (com pausa de almoço em 1 clique) */}
         <div className="flex flex-col gap-3 border-t border-border pt-3.5">
           <div className="flex flex-wrap items-end gap-2.5">
-            <Field label="Dia">
-              <Select value={weekday} onChange={(e) => setWeekday(e.target.value)}>
+            <Field label="Dia" htmlFor="availability-weekday">
+              <Select
+                id="availability-weekday"
+                value={weekday}
+                onChange={(e) => setWeekday(e.target.value)}
+              >
                 {WEEK_ORDER.map((i) => (
                   <option key={i} value={i}>
                     {WEEKDAYS[i]}
@@ -202,23 +206,35 @@ export function HorariosManager({
                 ))}
               </Select>
             </Field>
-            <Field label={comPausa ? 'Manhã — início' : 'Início'}>
-              <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            <Field label={comPausa ? 'Manhã — início' : 'Início'} htmlFor="availability-start">
+              <Input
+                id="availability-start"
+                type="time"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+              />
             </Field>
-            <Field label={comPausa ? 'Manhã — fim' : 'Fim'}>
-              <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            <Field label={comPausa ? 'Manhã — fim' : 'Fim'} htmlFor="availability-end">
+              <Input
+                id="availability-end"
+                type="time"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+              />
             </Field>
             {comPausa ? (
               <>
-                <Field label="Tarde — início">
+                <Field label="Tarde — início" htmlFor="availability-afternoon-start">
                   <Input
+                    id="availability-afternoon-start"
                     type="time"
                     value={tardeStart}
                     onChange={(e) => setTardeStart(e.target.value)}
                   />
                 </Field>
-                <Field label="Tarde — fim">
+                <Field label="Tarde — fim" htmlFor="availability-afternoon-end">
                   <Input
+                    id="availability-afternoon-end"
                     type="time"
                     value={tardeEnd}
                     onChange={(e) => setTardeEnd(e.target.value)}

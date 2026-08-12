@@ -34,6 +34,10 @@ const config = [
       'dist/**',
       'build/**',
       'coverage/**',
+      // Artefatos gerados pelo Playwright são necessários como evidência de E2E,
+      // mas contêm bundles de terceiros minificados — não são código da aplicação.
+      'playwright-report/**',
+      'test-results/**',
       'next-env.d.ts',
     ],
   },

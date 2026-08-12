@@ -39,7 +39,9 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
   test('valida limites e percorre paciente, agenda, financeiro manual e LGPD', async ({
     page,
   }, testInfo) => {
-    test.setTimeout(300_000);
+    // A jornada abre dois PDFs, assina o prontuário e roda o cleanup LGPD;
+    // deixa margem para o finally completar sem encerrar o browser no meio.
+    test.setTimeout(600_000);
     test.skip(
       !productionMutationAuthorized || !testEmail || !testPassword,
       'Exige E2E_PRODUCTION_MUTATION=ALLOW_TEST_ACCOUNT e credenciais da conta de teste.',
@@ -53,12 +55,32 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
     const procedureCode = `E2E-${runId}`;
     const procedureName = `${marker} Procedimento`;
     const financialDescription = `${marker} Recebimento manual`;
+    const credentialCrm = `E2E${runId}`;
     const appointmentDate = futureDate(21);
     let patientUrl: string | null = null;
     let procedureCreated = false;
 
     try {
       await login(page);
+
+      // Prova a jornada de conta solo: owner/gestor com CRM torna-se profissional
+      // sem depender de outro membro. Só preenche quando a conta de teste ainda
+      // não possui credencial; nunca sobrescreve uma credencial existente.
+      await page.goto('/configuracoes/perfil');
+      const credentialForm = page.getByTestId('professional-credential-form');
+      await expect(credentialForm).toBeVisible();
+      const crmInput = credentialForm.getByLabel('CRM');
+      if (!(await crmInput.inputValue()).trim()) {
+        await crmInput.fill(credentialCrm);
+        await credentialForm.getByLabel('UF').fill('SP');
+        await credentialForm.getByLabel('Especialidade').fill('Medicina de teste E2E');
+        await credentialForm.getByRole('button', { name: 'Salvar credencial' }).click();
+        await expect(page.getByText('Credencial profissional salva.', { exact: true })).toBeVisible(
+          {
+            timeout: 30_000,
+          },
+        );
+      }
 
       await page.goto('/pacientes?novo=1');
       const patientDrawer = page.getByRole('dialog', { name: 'Novo paciente' });
@@ -143,7 +165,13 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
         label: procedureName,
       });
       const doctorSelect = appointmentDrawer.getByLabel('Profissional', { exact: true });
-      if ((await doctorSelect.count()) > 0) await doctorSelect.selectOption({ index: 1 });
+      if ((await doctorSelect.count()) > 0) {
+        const doctorOptionCount = await doctorSelect.locator('option').count();
+        if (doctorOptionCount < 2) {
+          throw new Error('A conta de teste não possui profissional disponível para a Agenda.');
+        }
+        await doctorSelect.selectOption({ index: 1 });
+      }
       await appointmentDrawer.getByLabel('Data', { exact: true }).fill(appointmentDate);
       await appointmentDrawer.getByLabel('Hora', { exact: true }).fill('10:37');
       await appointmentDrawer.getByRole('button', { name: 'Agendar', exact: true }).click();
@@ -152,11 +180,59 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
       });
 
       await page.goto(`/agenda?view=day&date=${appointmentDate}`);
-      const appointmentRow = page
+      const scheduledAppointmentRow = page
         .getByText(patientName, { exact: true })
         .locator('xpath=ancestor::li[1]');
-      await expect(appointmentRow).toBeVisible({ timeout: 30_000 });
-      await appointmentRow.getByRole('button', { name: 'Corrigir' }).click();
+      await expect(scheduledAppointmentRow).toBeVisible({ timeout: 30_000 });
+      await expect(scheduledAppointmentRow.getByText('Agendado', { exact: true })).toBeVisible();
+
+      // A correção excepcional só é permitida em atendimento. Cria um encaixe,
+      // chama o paciente e então valida a transição real em vez de tentar uma
+      // combinação de estado/tipo que o contrato corretamente rejeita.
+      await page.goto('/agenda');
+      await page.getByRole('button', { name: 'Novo atendimento' }).click();
+      const cancellationWalkInDrawer = page.getByRole('dialog', { name: 'Novo atendimento' });
+      await cancellationWalkInDrawer.getByRole('radio', { name: 'Encaixe (agora)' }).click();
+      await cancellationWalkInDrawer
+        .getByPlaceholder('Buscar por nome (mín. 2 letras)')
+        .fill(patientName);
+      await cancellationWalkInDrawer.getByRole('option', { name: patientName }).click();
+      await cancellationWalkInDrawer.getByLabel('Procedimento', { exact: true }).selectOption({
+        label: procedureName,
+      });
+      const cancellationWalkInDoctorSelect = cancellationWalkInDrawer.getByLabel('Profissional', {
+        exact: true,
+      });
+      if ((await cancellationWalkInDoctorSelect.count()) > 0) {
+        const doctorOptionCount = await cancellationWalkInDoctorSelect.locator('option').count();
+        if (doctorOptionCount < 2) {
+          throw new Error('A conta de teste não possui profissional disponível para o encaixe.');
+        }
+        await cancellationWalkInDoctorSelect.selectOption({ index: 1 });
+      }
+      await cancellationWalkInDrawer
+        .getByRole('button', { name: 'Criar encaixe', exact: true })
+        .click();
+      await expect(page.getByText('Encaixe criado', { exact: true })).toBeVisible({
+        timeout: 30_000,
+      });
+
+      await page.goto('/consultorio');
+      const cancellationWaitingCard = page
+        .getByText(patientName, { exact: true })
+        .locator('xpath=ancestor::div[.//button[normalize-space()="Chamar"]][1]');
+      await expect(cancellationWaitingCard).toBeVisible({ timeout: 30_000 });
+      await cancellationWaitingCard.getByRole('button', { name: 'Chamar' }).click();
+      await expect(page.getByRole('heading', { name: patientName, exact: true })).toBeVisible({
+        timeout: 30_000,
+      });
+
+      await page.goto(`/agenda?view=day&date=${futureDate(0)}`);
+      const cancellationAppointmentRow = page
+        .getByText(patientName, { exact: true })
+        .locator('xpath=ancestor::li[1]');
+      await expect(cancellationAppointmentRow).toBeVisible({ timeout: 30_000 });
+      await cancellationAppointmentRow.getByRole('button', { name: 'Corrigir' }).click();
       const correctionDialog = page.getByRole('dialog', { name: 'Corrigir atendimento' });
       await expect(correctionDialog).toBeVisible();
       await correctionDialog.locator('select[name="kind"]').selectOption('exceptional_cancel');
@@ -174,17 +250,28 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
 
       await page.goto('/agenda');
       await page.getByRole('button', { name: 'Novo atendimento' }).click();
-      const walkInDrawer = page.getByRole('dialog', { name: 'Novo atendimento' });
-      await walkInDrawer.getByRole('radio', { name: 'Encaixe (agora)' }).click();
-      await walkInDrawer.getByPlaceholder('Buscar por nome (mín. 2 letras)').fill(patientName);
-      await walkInDrawer.getByRole('option', { name: patientName }).click();
-      await walkInDrawer.getByLabel('Procedimento', { exact: true }).selectOption({
+      const completionWalkInDrawer = page.getByRole('dialog', { name: 'Novo atendimento' });
+      await completionWalkInDrawer.getByRole('radio', { name: 'Encaixe (agora)' }).click();
+      await completionWalkInDrawer
+        .getByPlaceholder('Buscar por nome (mín. 2 letras)')
+        .fill(patientName);
+      await completionWalkInDrawer.getByRole('option', { name: patientName }).click();
+      await completionWalkInDrawer.getByLabel('Procedimento', { exact: true }).selectOption({
         label: procedureName,
       });
-      const walkInDoctorSelect = walkInDrawer.getByLabel('Profissional', { exact: true });
-      if ((await walkInDoctorSelect.count()) > 0)
-        await walkInDoctorSelect.selectOption({ index: 1 });
-      await walkInDrawer.getByRole('button', { name: 'Criar encaixe', exact: true }).click();
+      const completionWalkInDoctorSelect = completionWalkInDrawer.getByLabel('Profissional', {
+        exact: true,
+      });
+      if ((await completionWalkInDoctorSelect.count()) > 0) {
+        const doctorOptionCount = await completionWalkInDoctorSelect.locator('option').count();
+        if (doctorOptionCount < 2) {
+          throw new Error('A conta de teste não possui profissional disponível para o encaixe.');
+        }
+        await completionWalkInDoctorSelect.selectOption({ index: 1 });
+      }
+      await completionWalkInDrawer
+        .getByRole('button', { name: 'Criar encaixe', exact: true })
+        .click();
       await expect(page.getByText('Encaixe criado', { exact: true })).toBeVisible({
         timeout: 30_000,
       });
@@ -305,28 +392,35 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
         contentType: 'application/json',
       });
     } finally {
-      if (procedureCreated) {
-        await page.goto('/configuracoes/procedimentos');
-        await page
-          .getByPlaceholder('Buscar por código, descrição ou categoria')
-          .fill(procedureCode);
-        const procedureRow = page
-          .getByText(procedureCode, { exact: true })
-          .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
-        if ((await procedureRow.count()) > 0) {
-          page.once('dialog', (dialog) => dialog.accept());
-          await procedureRow.getByRole('button', { name: 'Desativar' }).click();
-          await expect(procedureRow.getByText('inativo', { exact: true })).toBeVisible({
-            timeout: 30_000,
-          });
+      try {
+        if (procedureCreated) {
+          await page.goto('/configuracoes/procedimentos');
+          await page
+            .getByPlaceholder('Buscar por código, descrição ou categoria')
+            .fill(procedureCode);
+          const procedureRow = page
+            .getByText(procedureCode, { exact: true })
+            .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
+          if ((await procedureRow.count()) > 0) {
+            page.once('dialog', (dialog) => dialog.accept());
+            await procedureRow.getByRole('button', { name: 'Desativar' }).click();
+            await expect(procedureRow).toHaveCount(0, { timeout: 30_000 });
+            await page.getByLabel('Mostrar inativos').check();
+            const inactiveProcedureRow = page
+              .getByText(procedureCode, { exact: true })
+              .locator('xpath=ancestor::div[contains(@class,"listrow")][1]');
+            await expect(inactiveProcedureRow.getByText('inativo', { exact: true })).toBeVisible({
+              timeout: 30_000,
+            });
+          }
         }
-      }
-
-      if (patientUrl) {
-        await page.goto(patientUrl);
-        page.once('dialog', (dialog) => dialog.accept());
-        await page.getByRole('button', { name: 'Solicitar exclusão (LGPD)' }).click();
-        await expect(page).toHaveURL(/\/pacientes(?:\?|$)/, { timeout: 30_000 });
+      } finally {
+        if (patientUrl) {
+          await page.goto(patientUrl);
+          page.once('dialog', (dialog) => dialog.accept());
+          await page.getByRole('button', { name: 'Solicitar exclusão (LGPD)' }).click();
+          await expect(page).toHaveURL(/\/pacientes(?:\?|$)/, { timeout: 30_000 });
+        }
       }
     }
   });
