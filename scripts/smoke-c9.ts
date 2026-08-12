@@ -33,10 +33,14 @@ import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 import { patients } from '@/contexts/patient/schema';
 import { appointments, procedures } from '@/contexts/scheduling/schema';
-import { faturamentoPendencias, lancamentos, suppliers } from '@/contexts/financial/schema';
+import {
+  faturamentoPendencias,
+  lancamentos,
+  paymentTransactions,
+  suppliers,
+} from '@/contexts/financial/schema';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import { getCashFlowToday, listLancamentos, listSuppliers } from '@/contexts/financial/queries';
-import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 // Catálogo (event schemas) + registry de handlers (boot file do cron).
 import '@/lib/db/schema';
@@ -412,7 +416,7 @@ async function main(): Promise<void> {
     },
   );
 
-  // --- 6: estorno append-only ----------------------------------------------
+  // --- 6: estorno append-only + ledger -------------------------------------
   await tryStep('6 — estorno append-only: original imutável + compensação estornada', async () => {
     const origId = await insertLancamento({ valor: '200.00' });
     await tryPay(origId, 200); // original pago
@@ -442,6 +446,64 @@ async function main(): Promise<void> {
     assert(
       est!.tipo === 'pagar' && est!.status === 'estornado' && est!.rev === origId,
       'compensação inválida',
+    );
+  });
+
+  await tryStep('6a — ledger de estorno referencia o payment original', async () => {
+    const origId = await insertLancamento({ valor: '200.00' });
+    const { paymentId, refundId } = await withTenant(CLINIC_A, async (tx) => {
+      await tx.execute(sql`
+        UPDATE lancamentos
+           SET valor_pago = '200.00', status = 'pago', paid_at = now(), payment_method = 'pix'
+         WHERE id = ${origId}::uuid
+      `);
+      const [payment] = await tx
+        .insert(paymentTransactions)
+        .values({
+          clinicId: CLINIC_A,
+          lancamentoId: origId,
+          kind: 'payment',
+          amount: '200.00',
+          paymentMethod: 'pix',
+        })
+        .returning({ id: paymentTransactions.id });
+      let refund: { id: string } | undefined;
+      try {
+        [refund] = await tx
+          .insert(paymentTransactions)
+          .values({
+            clinicId: CLINIC_A,
+            lancamentoId: origId,
+            kind: 'refund',
+            amount: '200.00',
+            paymentMethod: 'pix',
+            originalPaymentId: payment!.id,
+            reason: 'Estorno de teste smoke',
+          })
+          .returning({ id: paymentTransactions.id });
+      } catch (error) {
+        throw new Error(
+          `refund ledger insert failed with PostgreSQL code ${pgCode(error) ?? 'unknown'}`,
+        );
+      }
+      return { paymentId: payment!.id, refundId: refund!.id };
+    });
+    const ledger = (await dbAdmin.execute(sql`
+      SELECT kind, amount::text AS amount, original_payment_id::text AS original_payment_id
+        FROM payment_transactions
+       WHERE id IN (${paymentId}::uuid, ${refundId}::uuid)
+       ORDER BY kind
+    `)) as unknown as Array<{ kind: string; amount: string; original_payment_id: string | null }>;
+    assert(ledger.length === 2, `esperava 2 transações no ledger, vieram ${ledger.length}`);
+    const payment = ledger.find((row) => row.kind === 'payment');
+    const refund = ledger.find((row) => row.kind === 'refund');
+    assert(
+      payment?.amount === '200.00' && payment.original_payment_id === null,
+      'payment inválido',
+    );
+    assert(
+      refund?.amount === '200.00' && refund.original_payment_id === paymentId,
+      'refund não referencia o payment original',
     );
   });
 
@@ -534,7 +596,13 @@ async function main(): Promise<void> {
 
   // --- Fase 2: queries do dashboard / fornecedores -------------------------
   await tryStep('F2 — getCashFlowToday confere com as somas do banco', async () => {
-    const tz = await getClinicTimezone(CLINIC_A);
+    // O smoke roda fora do App Router, onde `unstable_cache` nÃ£o existe. Lemos a
+    // timezone diretamente na fixture, sem trocar o contrato de produÃ§Ã£o de
+    // `getClinicTimezone` (que continua cacheado dentro do runtime Next).
+    const [clinic] = (await dbAdmin.execute(
+      sql`SELECT timezone FROM clinics WHERE id = ${CLINIC_A}::uuid`,
+    )) as unknown as Array<{ timezone: string }>;
+    const tz = clinic?.timezone ?? 'America/Sao_Paulo';
     const { from, to } = clinicDayBounds(tz);
     const flow = await getCashFlowToday(CLINIC_A, from, to);
     const [r] = (await dbAdmin.execute(sql`
@@ -592,6 +660,7 @@ async function cleanup(): Promise<void> {
   const ids = sql`(${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`;
   try {
     await dbAdmin.execute(sql`DELETE FROM payment_proofs WHERE clinic_id IN ${ids}`);
+    await dbAdmin.execute(sql`DELETE FROM payment_transactions WHERE clinic_id IN ${ids}`);
     await dbAdmin.execute(sql`DELETE FROM lancamentos WHERE clinic_id IN ${ids}`);
     await dbAdmin.execute(sql`DELETE FROM suppliers WHERE clinic_id IN ${ids}`);
     await dbAdmin.execute(sql`DELETE FROM faturamento_pendencias WHERE clinic_id IN ${ids}`);

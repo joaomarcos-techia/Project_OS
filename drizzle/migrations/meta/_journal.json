@@ -512,6 +512,13 @@
       "when": 1784293594483,
       "tag": "0072_plan_changes_and_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1786541269740,
+      "tag": "0073_refund_ledger_lock_privilege",
+      "breakpoints": true
     }
   ]
 }

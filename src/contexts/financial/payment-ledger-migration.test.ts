@@ -7,6 +7,10 @@ const migration = readFileSync(
   resolve(process.cwd(), 'drizzle/migrations/0057_financial_payment_ledger.sql'),
   'utf8',
 );
+const refundLockFixMigration = readFileSync(
+  resolve(process.cwd(), 'drizzle/migrations/0073_refund_ledger_lock_privilege.sql'),
+  'utf8',
+);
 const actions = readFileSync(resolve(process.cwd(), 'src/contexts/financial/actions.ts'), 'utf8');
 const queries = readFileSync(resolve(process.cwd(), 'src/contexts/financial/queries.ts'), 'utf8');
 const rollup = readFileSync(
@@ -38,6 +42,17 @@ describe('financial payment ledger integration', () => {
     expect(migration).toContain("WHERE status IN ('parcial', 'pago')");
     expect(migration).not.toMatch(
       /INSERT INTO payment_transactions[\s\S]*?'refund'::payment_transaction_kind/,
+    );
+  });
+
+  it('mantém o ledger append-only e não exige UPDATE para validar refund', () => {
+    expect(migration).toContain('GRANT SELECT, INSERT ON payment_transactions TO authenticated');
+    expect(refundLockFixMigration).toContain(
+      'REVOKE ALL ON FUNCTION public.validate_payment_transaction_insert()',
+    );
+    expect(refundLockFixMigration).toContain('FOR UPDATE;');
+    expect(refundLockFixMigration).not.toMatch(
+      /FROM public\.payment_transactions\s+WHERE id = NEW\.original_payment_id\s+FOR UPDATE;/,
     );
   });
 
