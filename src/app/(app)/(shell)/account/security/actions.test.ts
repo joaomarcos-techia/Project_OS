@@ -48,7 +48,7 @@ vi.mock('@/lib/observability/capture', () => ({
   captureBackgroundError: mocks.captureBackgroundError,
 }));
 
-import { unenrollAction, verifyEnrollAction } from './actions';
+import { startEnrollAction, unenrollAction, verifyEnrollAction } from './actions';
 
 const USER_ID = '11111111-1111-1111-1111-111111111111';
 const FACTOR_ID = 'factor-test';
@@ -80,6 +80,38 @@ beforeEach(() => {
 });
 
 describe('verifyEnrollAction', () => {
+  it('recusa payload incompleto antes de tocar Auth ou banco', async () => {
+    const result = await verifyEnrollAction(PREVIOUS, form({ factorId: '', code: '123' }));
+
+    expect(result.error).toBe('Código de 6 dígitos obrigatório.');
+    expect(mocks.requireUser).not.toHaveBeenCalled();
+    expect(mocks.verifyTotpEnroll).not.toHaveBeenCalled();
+  });
+
+  it('recusa quando o limite MFA está esgotado', async () => {
+    mocks.assertMfaAllowed.mockResolvedValue({ ok: false });
+
+    const result = await verifyEnrollAction(
+      PREVIOUS,
+      form({ factorId: FACTOR_ID, code: '123456' }),
+    );
+
+    expect(result.error).toContain('Muitas tentativas');
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+  });
+
+  it('devolve a falha do TOTP e não persiste', async () => {
+    mocks.verifyTotpEnroll.mockRejectedValue(new Error('Código expirado'));
+
+    const result = await verifyEnrollAction(
+      PREVIOUS,
+      form({ factorId: FACTOR_ID, code: '123456' }),
+    );
+
+    expect(result.error).toBe('Código expirado');
+    expect(mocks.markMfaEnrolledForUser).not.toHaveBeenCalled();
+  });
+
   it('persiste pela função server-side e conclui o enrollment', async () => {
     const result = await verifyEnrollAction(
       PREVIOUS,
@@ -90,6 +122,18 @@ describe('verifyEnrollAction', () => {
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'others' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/account/security');
     expect(result).toMatchObject({ step: 'done', factorId: null, error: null });
+  });
+
+  it('não desfaz enrollment concluído se signOut das outras sessões falhar', async () => {
+    mocks.signOut.mockRejectedValue(new Error('auth unavailable'));
+
+    const result = await verifyEnrollAction(
+      PREVIOUS,
+      form({ factorId: FACTOR_ID, code: '123456' }),
+    );
+
+    expect(result).toMatchObject({ step: 'done', error: null });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/account/security');
   });
 
   it('compensa o fator verificado quando a persistência falha', async () => {
@@ -130,7 +174,54 @@ describe('verifyEnrollAction', () => {
   });
 });
 
+describe('startEnrollAction', () => {
+  it('devolve o material TOTP do Supabase Auth', async () => {
+    mocks.enrollTotp.mockResolvedValue({
+      factorId: FACTOR_ID,
+      qrCodeSvg: '<svg>qr</svg>',
+      secret: 'local-test-secret',
+    });
+
+    await expect(startEnrollAction()).resolves.toEqual({
+      step: 'verifying',
+      factorId: FACTOR_ID,
+      qrSvg: '<svg>qr</svg>',
+      secret: 'local-test-secret',
+      error: null,
+    });
+  });
+
+  it('falha antes do Auth quando o rate limit está esgotado', async () => {
+    mocks.assertMfaAllowed.mockResolvedValue({ ok: false });
+
+    const result = await startEnrollAction();
+
+    expect(result.error).toContain('Muitas tentativas');
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+  });
+
+  it('converte falha de enrollment em estado de erro', async () => {
+    mocks.enrollTotp.mockRejectedValue(new Error('Enrollment indisponível'));
+
+    const result = await startEnrollAction();
+
+    expect(result.error).toBe('Enrollment indisponível');
+    expect(result.step).toBe('idle');
+  });
+});
+
 describe('unenrollAction', () => {
+  it('não limpa o profile enquanto outro fator verificado permanece', async () => {
+    mocks.listFactors.mockResolvedValue([{ id: 'remaining', status: 'verified' }]);
+
+    await expect(unenrollAction(form({ factorId: FACTOR_ID }))).rejects.toMatchObject({
+      target: '/account/security',
+    });
+
+    expect(mocks.markMfaEnrolledForUser).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/account/security');
+  });
+
   it('fica fail-closed e observa falha ao limpar o estado persistido', async () => {
     const persistError = new Error('database unavailable');
     mocks.markMfaEnrolledForUser.mockRejectedValue(persistError);
