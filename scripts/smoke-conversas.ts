@@ -17,7 +17,7 @@
  * camada logo abaixo delas — queries + helpers de conversa + política — e
  * valida as regras de banco. O caminho com sessão é o roteiro manual do runbook.
  */
-import './_env';
+import { assertDevContext } from './_env';
 
 import { randomBytes, randomUUID } from 'node:crypto';
 
@@ -37,6 +37,8 @@ import { decryptForTenant, encryptForTenant, hashForLookup, normalizePhone } fro
 import { __testing__ as cryptoTesting, type SecretProvider } from '@/lib/crypto/secret-provider';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+
+assertDevContext();
 
 // --- test secrets (fixed; never real) ----------------------------------------
 const MASTER_V1 = randomBytes(32);
@@ -506,21 +508,27 @@ async function main(): Promise<void> {
     const miss = await listConversations(CLINIC_A, { search: '11900000000' });
     assert(miss.items.length === 0, 'busca por telefone inexistente retornou resultados');
   });
+}
 
-  // Cleanup. ORDEM IMPORTA: sent_by_user_id é RESTRICT, então as mensagens
-  // precisam morrer antes do profile. Apagar as clínicas cascateia conversas →
-  // mensagens; só depois o auth.user (que cascateia o profile).
+async function cleanup(): Promise<void> {
+  // ORDEM IMPORTA: sent_by_user_id é RESTRICT, então as mensagens precisam
+  // morrer antes do profile. Os UUIDs são aleatórios deste run e o guard DEV
+  // já foi validado antes de qualquer seed.
   await dbAdmin.execute(
     sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}::uuid, ${CLINIC_B}::uuid)`,
   );
   await dbAdmin.execute(sql`DELETE FROM auth.users WHERE id = ${USER_A}::uuid`);
-
-  const failed = results.filter((r) => !r.ok);
-  console.log(`\n${results.length - failed.length}/${results.length} passed`);
-  process.exit(failed.length === 0 ? 0 : 1);
 }
 
-main().catch((e) => {
-  console.error('[smoke-conversas] fatal', e);
-  process.exit(1);
-});
+main()
+  .catch((e) => record('main', false, e instanceof Error ? (e.stack ?? e.message) : String(e)))
+  .finally(async () => {
+    try {
+      await cleanup();
+    } catch (e) {
+      record('cleanup', false, e instanceof Error ? (e.stack ?? e.message) : String(e));
+    }
+    const failed = results.filter((r) => !r.ok);
+    console.log(`\n${results.length - failed.length}/${results.length} passed`);
+    process.exit(failed.length === 0 ? 0 : 1);
+  });

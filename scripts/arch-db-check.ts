@@ -134,6 +134,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // dos crons C9/C13. (Os crons proactive-* NUNCA tocam dbAdmin: só estes 3.)
     'src/contexts/scheduling/reminder-candidates.ts',
     'src/contexts/financial/dunning-candidates.ts',
+    // collection_cases concede escrita apenas a service_role (migration 0058).
+    // Este seam valida lancamento_id + clinic_id, limita o conflito ao mesmo
+    // tenant e grava audit_events na mesma transação (no audit, no op).
+    'src/lib/financial/collection-case-store.ts',
     'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
   ]),
   dbWorker: new Set([

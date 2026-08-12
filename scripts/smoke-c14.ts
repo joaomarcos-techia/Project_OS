@@ -30,7 +30,7 @@ import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { patientApiV1, patientConsents, patients, suppressionList } from '@/contexts/patient';
-import { financialApiV1, lancamentos } from '@/contexts/financial';
+import { collectionCases, financialApiV1, lancamentos } from '@/contexts/financial';
 import { appointments, procedures } from '@/contexts/scheduling';
 import { CLINICAL_EVENTS } from '@/contexts/clinical';
 
@@ -221,7 +221,8 @@ async function main(): Promise<void> {
     // 4 — dunning enqueue por due_date ---------------------------------------
     let lancD3 = '';
     let lancD7 = '';
-    await step('4 — dunning: lançamento 4 dias vencido → d3; 8 dias → d3+d7', async () => {
+    let lancManual = '';
+    await step('4 — dunning: D+4 → d3; D+8 → d3+d7; D+45 → fila humana auditada', async () => {
       const mk = (daysAgo: number): Promise<string> =>
         withTenant(CLINIC_A, async (tx) => {
           const due = new Date();
@@ -244,7 +245,34 @@ async function main(): Promise<void> {
         });
       lancD3 = await mk(4);
       lancD7 = await mk(8);
+      lancManual = await mk(45);
+      const manualCandidate = (await financialApiV1.listDunningCandidates(500)).find(
+        (candidate) => candidate.lancamentoId === lancManual,
+      );
+      if (!manualCandidate) throw new Error('candidato D+45 não encontrado');
+
+      let crossTenantRejected = false;
+      try {
+        await financialApiV1.upsertCollectionCase(
+          { ...manualCandidate, clinicId: CLINIC_B },
+          'd30_manual',
+        );
+      } catch (error) {
+        crossTenantRejected =
+          error instanceof Error &&
+          error.message === 'collection case source does not belong to the candidate clinic';
+        if (!crossTenantRejected) throw error;
+      }
+      assert(crossTenantRejected, 'seam privilegiada aceitou clinic_id divergente da origem');
+      const beforeEnqueue = await dbAdmin.execute<{ n: number }>(sql`
+        SELECT count(*)::int AS n
+          FROM collection_cases
+         WHERE lancamento_id = ${lancManual}
+      `);
+      assert(beforeEnqueue[0]?.n === 0, 'tentativa cross-tenant criou collection_case');
+
       await enqueueDunningDue();
+      await enqueueDunningDue(); // re-scan: jobs e audit do caso inalterado não duplicam
       const dun = (await jobsOfA()).filter((j) => j.type === 'dunning');
       assert(
         dun.some((j) => j.dedupKey === `dunning:${lancD3}:d3`),
@@ -258,21 +286,59 @@ async function main(): Promise<void> {
         dun.some((j) => j.dedupKey === `dunning:${lancD7}:d7`),
         'faltou dunning d7 (8 dias)',
       );
+      assert(
+        !dun.some((j) => j.dedupKey.startsWith(`dunning:${lancManual}:`)),
+        'D+45 não pode gerar WhatsApp automático',
+      );
+      const manual = await withTenant(CLINIC_A, (tx) =>
+        tx
+          .select({ id: collectionCases.id, stage: collectionCases.stage })
+          .from(collectionCases)
+          .where(eq(collectionCases.lancamentoId, lancManual)),
+      );
+      assert(manual.length === 1, `esperava 1 collection_case, veio ${manual.length}`);
+      assert(manual[0]!.stage === 'd30_manual', 'D+45 deveria entrar em d30_manual');
+      const audit = await withTenant(CLINIC_A, (tx) =>
+        tx.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n
+            FROM audit_events
+           WHERE clinic_id = ${CLINIC_A}
+             AND action = 'financial.collection_case.upserted'
+             AND resource_id = ${manual[0]!.id}`),
+      );
+      assert(Number(audit[0]?.n) === 1, 'upsert idempotente deveria ter 1 audit event');
     });
 
     // 5 — guard "pagou → não envia" (nível candidato) ------------------------
-    await step('5 — lançamento pago sai de listDunningCandidates (T5)', async () => {
+    await step('5 — pago sai dos candidatos e resolve a fila manual com audit', async () => {
       await withTenant(CLINIC_A, (tx) =>
         tx
           .update(lancamentos)
           .set({ status: 'pago', valorPago: '200.00', paidAt: new Date() }) // coerência: pago exige paid_at
-          .where(eq(lancamentos.id, lancD3)),
+          .where(sql`${lancamentos.id} IN (${lancD3}::uuid, ${lancManual}::uuid)`),
       );
+      await enqueueDunningDue();
       const cands = await financialApiV1.listDunningCandidates(500);
       assert(
         !cands.some((c) => c.lancamentoId === lancD3),
         'lançamento pago não deveria ser candidato a dunning',
       );
+      const resolved = await withTenant(CLINIC_A, (tx) =>
+        tx
+          .select({ id: collectionCases.id, status: collectionCases.status })
+          .from(collectionCases)
+          .where(eq(collectionCases.lancamentoId, lancManual)),
+      );
+      assert(resolved[0]?.status === 'resolved', 'collection_case quitado deveria ser resolved');
+      const audit = await withTenant(CLINIC_A, (tx) =>
+        tx.execute<{ n: number }>(sql`
+          SELECT count(*)::int AS n
+            FROM audit_events
+           WHERE clinic_id = ${CLINIC_A}
+             AND action = 'financial.collection_case.resolved'
+             AND resource_id = ${resolved[0]!.id}`),
+      );
+      assert(Number(audit[0]?.n) === 1, 'resolução deveria ter 1 audit event');
     });
 
     // 6 — claimDue: CTE SQL + janela 8-20h local -----------------------------

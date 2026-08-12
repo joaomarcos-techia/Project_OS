@@ -12,7 +12,7 @@ const enqueue = readFileSync(
   'utf8',
 );
 const store = readFileSync(
-  resolve(process.cwd(), 'src/contexts/financial/internal/collection-cases.ts'),
+  resolve(process.cwd(), 'src/lib/financial/collection-case-store.ts'),
   'utf8',
 );
 
@@ -34,10 +34,15 @@ describe('manual collection queue', () => {
     );
   });
 
-  it('faz toda escrita de caso manual dentro do tenant explícito', () => {
-    expect(store).toContain('withTenant(candidate.clinicId');
-    expect(store).toContain('withTenant(clinicId');
-    expect(store).not.toContain('dbAdmin');
+  it('usa o seam service-role com vínculo tenant explícito e auditoria atômica', () => {
+    expect(store).toContain('dbAdmin.transaction');
+    expect(store).toContain('id = ${candidate.lancamentoId}');
+    expect(store).toContain('clinic_id = ${candidate.clinicId}');
+    expect(store).toContain('collection_cases.clinic_id = ${candidate.clinicId}');
     expect(store).toContain('cc.clinic_id = ${clinicId}');
+    expect(store).toContain("action: 'financial.collection_case.upserted'");
+    expect(store).toContain("action: 'financial.collection_case.resolved'");
+    expect(store).toContain('await logAudit(tx');
+    expect(store).toContain('correlationId: null');
   });
 });

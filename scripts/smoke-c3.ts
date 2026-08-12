@@ -9,6 +9,7 @@ import './_env';
 
 import { sql as sqlTag } from 'drizzle-orm';
 
+import { ALL_PERMISSIONS, PERMISSIONS } from '@/lib/auth/permissions';
 import { dbAdmin } from '@/lib/db';
 
 // Wrap dbAdmin.execute para devolver array de rows compat com a API antiga.
@@ -19,6 +20,50 @@ const sql = async (query: string): Promise<unknown[]> => {
     : ((result as { rows?: unknown[] }).rows ?? []);
 };
 const sqlUnsafe = { unsafe: sql, end: async () => undefined };
+
+const sorted = (values: readonly string[]) => [...values].sort();
+const EXPECTED_ROLE_BUNDLES = {
+  owner: sorted(ALL_PERMISSIONS),
+  gestor: sorted(
+    ALL_PERMISSIONS.filter((permission) => permission !== PERMISSIONS.REFUND_FINANCIAL),
+  ),
+  doctor: sorted([
+    PERMISSIONS.CREATE_PATIENT,
+    PERMISSIONS.CREATE_PRESCRIPTION,
+    PERMISSIONS.CREATE_PRONTUARIO,
+    PERMISSIONS.EDIT_AGENDA,
+    PERMISSIONS.EDIT_PATIENT,
+    PERMISSIONS.MANAGE_AVAILABILITY,
+    PERMISSIONS.SIGN_PRONTUARIO,
+    PERMISSIONS.VIEW_AGENDA,
+    PERMISSIONS.VIEW_CONSULTORIO,
+    PERMISSIONS.VIEW_CONVERSATIONS,
+    PERMISSIONS.VIEW_PATIENT,
+    PERMISSIONS.VIEW_PRESCRIPTION,
+    PERMISSIONS.VIEW_PRONTUARIO,
+  ]),
+  attendant: sorted([
+    PERMISSIONS.CREATE_PATIENT,
+    PERMISSIONS.EDIT_AGENDA,
+    PERMISSIONS.EDIT_PATIENT,
+    PERMISSIONS.MANAGE_CONVERSATIONS,
+    PERMISSIONS.OPERATE_CAIXA,
+    PERMISSIONS.VIEW_AGENDA,
+    PERMISSIONS.VIEW_CONSULTORIO,
+    PERMISSIONS.VIEW_CONVERSATIONS,
+    PERMISSIONS.VIEW_FINANCIAL,
+    PERMISSIONS.VIEW_PATIENT,
+  ]),
+  financial: sorted([
+    PERMISSIONS.EXPORT_AUDIT,
+    PERMISSIONS.MANAGE_FINANCIAL,
+    PERMISSIONS.OPERATE_CAIXA,
+    PERMISSIONS.VIEW_AGENDA,
+    PERMISSIONS.VIEW_AUDIT,
+    PERMISSIONS.VIEW_FINANCIAL,
+    PERMISSIONS.VIEW_PATIENT,
+  ]),
+} as const;
 
 const checks: Array<{ name: string; query: string; expect?: (r: unknown) => boolean }> = [
   {
@@ -41,12 +86,25 @@ const checks: Array<{ name: string; query: string; expect?: (r: unknown) => bool
     expect: (r) => (r as { n: number }[])[0]?.n === 3,
   },
   {
-    name: 'user_permission_overrides policy is defaultTenantPolicy',
-    query: `SELECT polname FROM pg_policy WHERE polrelid='public.user_permission_overrides'::regclass`,
-    expect: (r) =>
-      (r as { polname: string }[]).some(
-        (x) => x.polname === 'user_permission_overrides_tenant_access',
-      ),
+    name: 'user_permission_overrides is FORCE RLS with least-privilege tenant SELECT',
+    query: `SELECT c.relrowsecurity, c.relforcerowsecurity, p.polcmd, pg_get_expr(p.polqual, p.polrelid) AS using_expression FROM pg_class c JOIN pg_policy p ON p.polrelid=c.oid WHERE c.oid='public.user_permission_overrides'::regclass AND p.polname='user_permission_overrides_tenant_select'`,
+    expect: (r) => {
+      const policy = (
+        r as {
+          relrowsecurity: boolean;
+          relforcerowsecurity: boolean;
+          polcmd: string;
+          using_expression: string;
+        }[]
+      )[0];
+      return (
+        policy?.relrowsecurity === true &&
+        policy.relforcerowsecurity === true &&
+        policy.polcmd === 'r' &&
+        policy.using_expression.includes('current_setting') &&
+        policy.using_expression.includes('current_clinic_id')
+      );
+    },
   },
   {
     name: 'profiles.id FK -> auth.users',
@@ -77,40 +135,24 @@ const checks: Array<{ name: string; query: string; expect?: (r: unknown) => bool
     expect: (r) => (r as { n: number }[])[0]?.n === 1,
   },
   {
-    // F-07: +export:patient → 21 permissions (migration 0013).
-    name: 'permissions seed has 21 codes (20 canônicas + export:patient F-07)',
-    query: `SELECT count(*)::int AS n FROM permissions`,
-    expect: (r) => (r as { n: number }[])[0]?.n === 21,
+    name: 'permissions seed exactly matches the canonical catalog',
+    query: `SELECT array_agg(code::text ORDER BY code) AS codes FROM permissions`,
+    expect: (r) =>
+      JSON.stringify((r as { codes: string[] }[])[0]?.codes ?? []) ===
+      JSON.stringify(sorted(ALL_PERMISSIONS)),
   },
   {
-    // F-07: owner 20→21, gestor 20→21 (export:patient nos bundles).
-    name: 'role_permissions seed total = 66 (21 owner + 21 gestor + 11 doctor + 7 attendant + 6 financial)',
-    query: `SELECT count(*)::int AS n FROM role_permissions`,
-    expect: (r) => (r as { n: number }[])[0]?.n === 66,
-  },
-  {
-    // F-07 cardinalidade: sem duplicatas (PK composta + ON CONFLICT DO NOTHING).
-    name: 'role_permissions sem duplicatas (COUNT = COUNT DISTINCT)',
-    query: `SELECT count(*)::int AS total, count(DISTINCT (role, permission_code))::int AS distinct_n FROM role_permissions`,
-    expect: (r) => {
-      const row = (r as { total: number; distinct_n: number }[])[0];
-      return !!row && row.total === row.distinct_n;
-    },
-  },
-  {
-    name: 'role bundles per role correct',
-    query: `SELECT role::text, count(*)::int AS n FROM role_permissions GROUP BY 1 ORDER BY 1`,
+    name: 'role bundles exactly match the approved least-privilege matrix',
+    query: `SELECT role::text, array_agg(permission_code ORDER BY permission_code) AS codes FROM role_permissions GROUP BY role ORDER BY role`,
     expect: (r) => {
       const map = Object.fromEntries(
-        (r as { role: string; n: number }[]).map((x) => [x.role, x.n]),
+        (r as { role: string; codes: string[] }[]).map((x) => [x.role, x.codes]),
       );
       return (
-        map.owner === 21 &&
-        map.gestor === 21 &&
-        map.doctor === 11 &&
-        map.attendant === 7 &&
-        map.financial === 6 &&
-        map.super_admin === undefined
+        Object.keys(map).length === Object.keys(EXPECTED_ROLE_BUNDLES).length &&
+        Object.entries(EXPECTED_ROLE_BUNDLES).every(
+          ([role, expected]) => JSON.stringify(map[role]) === JSON.stringify(expected),
+        )
       );
     },
   },

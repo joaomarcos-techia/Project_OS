@@ -56,11 +56,29 @@ async function tryStep(name: string, fn: () => Promise<void>): Promise<void> {
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
+function errorChainMessage(error: unknown): string {
+  const messages: string[] = [];
+  const seen = new Set<unknown>();
+  let current = error;
+  while (
+    current !== null &&
+    typeof current === 'object' &&
+    !seen.has(current) &&
+    messages.length < 8
+  ) {
+    seen.add(current);
+    if ('message' in current && typeof current.message === 'string') {
+      messages.push(current.message);
+    }
+    current = 'cause' in current ? current.cause : undefined;
+  }
+  return messages.length > 0 ? messages.join(' <- ') : String(error);
+}
 async function expectThrows(fn: () => Promise<unknown>, matcher: RegExp): Promise<void> {
   try {
     await fn();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorChainMessage(e);
     assert(matcher.test(msg), `erro não casou ${matcher}: ${msg}`);
     return;
   }

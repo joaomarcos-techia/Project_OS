@@ -14,6 +14,7 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { metrics } from '@/lib/observability/metrics';
+import { isUniqueViolation } from '@/lib/outbox/errors';
 
 /* eslint-disable boundaries/element-types -- patients é superfície PÚBLICA do Patient (re-exportada em @/contexts/patient/index); mesma exceção do suppressionList no sender C10. Leitura por hash, sem JOIN. */
 import { patients } from '@/contexts/patient';
@@ -349,7 +350,7 @@ export async function returnToAgent(
     // Devolver esta criaria duas ativas para um telefone só, e
     // findOrCreateConversation não saberia qual usar no próximo inbound.
     // Recusa explícita > erro de driver vazando para a tela.
-    if ((err as { code?: string }).code === '23505') {
+    if (isUniqueViolation(err)) {
       metrics.emit('ai_agent.handoff.return_conflict', { clinicId, conversationId });
       throw new ActiveConversationConflictError(conversationId);
     }

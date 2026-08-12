@@ -32,4 +32,14 @@ describe('identidade de paciente por telefone compartilhado', () => {
     expect(lookup).toContain('.limit(2)');
     expect(lookup).not.toContain('.limit(1)');
   });
+
+  it('traduz unique violation mesmo quando o Drizzle encapsula o SQLSTATE em cause', () => {
+    const source = readFileSync(new URL('./conversation.ts', import.meta.url), 'utf8');
+    const returnToAgent = source.slice(
+      source.indexOf('export async function returnToAgent'),
+      source.indexOf('export interface ManualMessageArgs'),
+    );
+    expect(returnToAgent).toContain('isUniqueViolation(err)');
+    expect(returnToAgent).not.toContain(".code === '23505'");
+  });
 });

@@ -7,6 +7,12 @@ import { sanitizePayload } from '@/lib/sanitize/redact';
 
 import type { RequestContext } from './types';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function uuidOrNull(value: string | null | undefined): string | null {
+  return value && UUID_RE.test(value) ? value : null;
+}
+
 /**
  * logAudit — ÚNICO ponto de gravação em `audit_events`.
  *
@@ -40,6 +46,8 @@ export async function logAudit(
   // C15: id explícito para que a auditoria EXTRA do impersonate referencie esta
   // linha por `auditEventId` (review #4 — referência, nunca payload duplicado).
   const auditEventId = randomUUID();
+  const correlationId =
+    uuidOrNull(args.requestContext.correlationId) ?? uuidOrNull(args.requestContext.requestId);
   await tx.insert(auditEvents).values({
     id: auditEventId,
     clinicId: args.clinicId,
@@ -52,7 +60,9 @@ export async function logAudit(
     ipAddress: args.requestContext.ip,
     userAgent: args.requestContext.userAgent,
     requestId: args.requestContext.requestId,
-    correlationId: args.requestContext.correlationId ?? args.requestContext.requestId,
+    // A coluna é UUID. IDs textuais do Vercel/crons continuam preservados em
+    // request_id, mas nunca podem invalidar e reverter a mutação auditada.
+    correlationId,
   });
   metrics.emit('audit.written', {
     action: args.action,

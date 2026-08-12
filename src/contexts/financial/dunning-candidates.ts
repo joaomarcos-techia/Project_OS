@@ -84,7 +84,7 @@ export async function listDunningCandidates(limit = 500): Promise<DunningCandida
   }));
 }
 
-/** Read-model privilegiado mínimo; mutações posteriores sempre usam withTenant. */
+/** Read-model privilegiado mínimo; mutações usam o seam tenant-bound de collection cases. */
 export async function listOpenCollectionCaseClinicIds(): Promise<string[]> {
   const rows = (await dbAdmin.execute(
     sql`SELECT DISTINCT clinic_id::text AS clinic_id

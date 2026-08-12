@@ -170,6 +170,7 @@ async function seedAvailability(clinicId: string): Promise<void> {
   }
 }
 
+const MAX_WORKER_TICKS_PER_TURN = 6;
 let seq = 0;
 function makeMsg(phoneId: string, from: string, text: string): ParsedInboundMessage {
   seq += 1;
@@ -193,8 +194,20 @@ async function deliverTurn(
   const ev = await dbAdmin.execute<{ id: string }>(
     sql`SELECT id FROM outbox WHERE idempotency_key = ${`inbound:meta:${msg.providerMessageId}`}`,
   );
-  await runOutboxOnce({ batchSize: 10, parallelism: 1 });
-  return ev[0]!.id;
+  const eventId = ev[0]!.id;
+  // Eventos producer-ahead do turno anterior podem ocupar o primeiro lote.
+  // Aguarde o inbound deste turno de forma observável, sem reservar dez slots
+  // vazios no Supabase nem assumir que um único tick processou o evento-alvo.
+  for (let tick = 0; tick < MAX_WORKER_TICKS_PER_TURN; tick += 1) {
+    await runOutboxOnce({ batchSize: 2, parallelism: 1 });
+    const status = await dbAdmin.execute<{ processedAt: Date | null }>(
+      sql`SELECT processed_at AS "processedAt" FROM outbox WHERE id = ${eventId} LIMIT 1`,
+    );
+    if (status[0]?.processedAt) return eventId;
+  }
+  throw new Error(
+    `outbox não processou o inbound do turno após ${MAX_WORKER_TICKS_PER_TURN} ticks`,
+  );
 }
 async function outcomeOf(eventId: string): Promise<string | null> {
   const r = await dbAdmin.execute<{ payload: { outcome?: string } }>(
