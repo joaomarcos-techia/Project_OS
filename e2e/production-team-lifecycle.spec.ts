@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { config as loadDotenv } from 'dotenv';
 import postgres from 'postgres';
 
@@ -81,7 +81,27 @@ function sessionClaims(cookies: Array<{ name: string; value: string }>): Record<
   return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
-async function invite(page: Page, member: Member, runId: string): Promise<string> {
+function assertConfirmationUrl(link: string): void {
+  const parsed = new URL(link);
+  expect(parsed.protocol).toBe('https:');
+  expect(parsed.origin).toBe('https://app.qoro.dev');
+  expect(parsed.pathname).toBe('/auth/confirm');
+  expect(parsed.searchParams.has('token_hash')).toBe(true);
+  expect(parsed.searchParams.get('type')).toBe('recovery');
+  expect(parsed.searchParams.get('next')).toBe('/convite');
+  expect(parsed.hash).toBe('');
+}
+
+async function responseFailureDetail(response: Awaited<ReturnType<Page['goto']>>): Promise<string> {
+  if (!response || response.status() < 500) return '';
+  // A resposta de produção pode conter um digest do Next, mas jamais deve ser
+  // anexada inteira: ela pode trazer payloads de RSC. O digest é opaco e basta
+  // para correlacionar a falha no Sentry sem vazar dados da sessão.
+  const match = /"digest":"([^"\\]{1,128})"/u.exec(await response.text());
+  return match ? ` (digest ${match[1]})` : '';
+}
+
+async function sendInvite(page: Page, member: Member, runId: string): Promise<void> {
   await page.goto('/equipe');
   await page.getByRole('button', { name: 'Convidar', exact: true }).click();
   const drawer = page.getByRole('dialog').filter({ hasText: 'Convidar para a equipe' });
@@ -102,19 +122,38 @@ async function invite(page: Page, member: Member, runId: string): Promise<string
   await expect(row.getByText('Convite pendente', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
+}
+
+async function resendInvite(page: Page, member: Member): Promise<string> {
+  const row = page.getByText(member.name, { exact: true }).locator('xpath=ancestor::tr[1]');
   await row.getByRole('button', { name: `Ações do convite de ${member.name}` }).click();
   await page.getByRole('menuitem', { name: 'Reenviar convite' }).click();
   await expect(page.getByText('Link copiado', { exact: true })).toBeVisible({ timeout: 30_000 });
   const link = await page.evaluate(() => navigator.clipboard.readText());
-  const parsed = new URL(link);
-  expect(parsed.protocol).toBe('https:');
-  expect(parsed.origin).toBe('https://app.qoro.dev');
-  expect(parsed.pathname).toBe('/auth/confirm');
-  expect(parsed.searchParams.has('token_hash')).toBe(true);
-  expect(parsed.searchParams.get('type')).toBe('recovery');
-  expect(parsed.searchParams.get('next')).toBe('/convite');
-  expect(parsed.hash).toBe('');
+  assertConfirmationUrl(link);
   return link;
+}
+
+/**
+ * Fixture bridge for invitations whose real delivery is validated separately.
+ * It never sends email and is deliberately limited to accounts this test has
+ * just created. The doctor still exercises the product's visible re-send flow.
+ */
+async function generateFixtureRecoveryLink(admin: SupabaseClient, email: string): Promise<string> {
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: 'recovery',
+    email,
+    options: { redirectTo: 'https://app.qoro.dev/convite' },
+  });
+  if (error || !data?.properties.hashed_token) {
+    throw error ?? new Error('Não foi possível gerar a fixture de aceite.');
+  }
+  const link = new URL('https://app.qoro.dev/auth/confirm');
+  link.searchParams.set('token_hash', data.properties.hashed_token);
+  link.searchParams.set('type', 'recovery');
+  link.searchParams.set('next', '/convite');
+  assertConfirmationUrl(link.toString());
+  return link.toString();
 }
 
 async function acceptInvite(
@@ -161,7 +200,8 @@ async function routeInventory(
       const response = await page.goto(route);
       const status = response?.status() ?? null;
       expect(status, `${route} sem status`).not.toBeNull();
-      expect(status!, `${route} retornou ${status}`).toBeLessThan(500);
+      const failureDetail = await responseFailureDetail(response);
+      expect(status!, `${route} retornou ${status}${failureDetail}`).toBeLessThan(500);
       await expect(page).not.toHaveURL(/\/login(?:\?|$)/u);
       result.push({
         route,
@@ -256,8 +296,12 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
     });
 
     try {
-      for (const [index, member] of members.entries()) {
-        const link = await invite(page, member, runId);
+      const acceptMember = async (
+        member: Member,
+        link: string,
+        exerciseValidation: boolean,
+        auditRoutes = true,
+      ): Promise<void> => {
         // O state do owner é aplicado ao contexto principal deste teste. Cada
         // convidado deve começar sem cookies/origins, senão o aceite poderia
         // reutilizar a sessão de quem convidou em vez da identidade do link.
@@ -266,14 +310,14 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
           storageState: { cookies: [], origins: [] },
         });
         member.context = context;
-        const claims = await acceptInvite(context, link, member, index === 0);
+        const claims = await acceptInvite(context, link, member, exerciseValidation);
         expect(claims.app_role).toBe(member.role);
         expect(claims.clinic_id).toBe(ownerClinicId);
         expect(claims.aal).toBe('aal1');
         if (typeof claims.sub === 'string') member.userId = claims.sub;
         expect(member.userId).toMatch(/^[0-9a-f-]{36}$/iu);
 
-        inventories[member.role] = await routeInventory(context);
+        if (auditRoutes) inventories[member.role] = await routeInventory(context);
         const teamPage = await context.newPage();
         await teamPage.goto('/equipe');
         if (member.role === 'gestor') {
@@ -286,6 +330,45 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
           ).toBeVisible();
         }
         await teamPage.close();
+      };
+
+      const gestor = members.find((member) => member.role === 'gestor')!;
+      await sendInvite(page, gestor, runId);
+      // O rate limit de reenvio pertence à clínica inteira. Usamos este link
+      // administrativo, sem envio, exclusivamente para materializar a fixture
+      // inicial; o reenvio visível é exercitado logo abaixo pelo gestor novo.
+      await acceptMember(
+        gestor,
+        await generateFixtureRecoveryLink(admin, gestor.email),
+        true,
+        false,
+      );
+      // A contagem de usuários muda depois do aceite. O owner e o gestor devem
+      // continuar renderizando a tela de assinatura sob esse mesmo estado.
+      const ownerSubscription = await page.goto('/configuracoes/assinatura');
+      const ownerSubscriptionStatus = ownerSubscription?.status() ?? null;
+      expect(ownerSubscriptionStatus, 'owner /configuracoes/assinatura sem status').not.toBeNull();
+      expect(
+        ownerSubscriptionStatus!,
+        `owner /configuracoes/assinatura retornou ${ownerSubscriptionStatus}${await responseFailureDetail(ownerSubscription)}`,
+      ).toBeLessThan(500);
+      inventories[gestor.role] = await routeInventory(gestor.context!);
+
+      const doctor = members.find((member) => member.role === 'doctor')!;
+      const gestorPage = await gestor.context!.newPage();
+      await gestor.context!.grantPermissions(['clipboard-read', 'clipboard-write'], {
+        origin: 'https://app.qoro.dev',
+      });
+      await sendInvite(gestorPage, doctor, runId);
+      const doctorLink = await resendInvite(gestorPage, doctor);
+      await gestorPage.close();
+      await acceptMember(doctor, doctorLink, false);
+
+      for (const member of members.filter((candidate) =>
+        ['attendant', 'financial'].includes(candidate.role),
+      )) {
+        await sendInvite(page, member, runId);
+        await acceptMember(member, await generateFixtureRecoveryLink(admin, member.email), false);
       }
 
       const attendant = members.find((member) => member.role === 'attendant')!;
