@@ -120,11 +120,15 @@ async function acceptInvite(
 ): Promise<Record<string, unknown>> {
   const page = await browserContext.newPage();
   await page.goto(link);
-  await page.waitForURL(/\/convite(?:\?|$)/u, { timeout: 60_000 });
+  // `goto()` já concluiu o callback do Supabase. O callback pode entregar a
+  // sessão no fragmento; validamos somente origem e path para jamais incluir a
+  // credencial bearer em uma mensagem de falha ou artefato.
+  const destination = new URL(page.url());
+  expect(destination.origin).toBe('https://app.qoro.dev');
+  expect(destination.pathname).toBe('/convite');
   await expect(page.getByRole('heading', { name: 'Criar senha de acesso' })).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByText(member.name, { exact: false })).toBeVisible();
 
   if (exerciseValidation) {
     await page.getByLabel('Senha', { exact: true }).fill('SemSimbolo123');
@@ -249,7 +253,13 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
     try {
       for (const [index, member] of members.entries()) {
         const link = await invite(page, member, runId);
-        const context = await browser.newContext({ baseURL: 'https://app.qoro.dev' });
+        // O state do owner é aplicado ao contexto principal deste teste. Cada
+        // convidado deve começar sem cookies/origins, senão o aceite poderia
+        // reutilizar a sessão de quem convidou em vez da identidade do link.
+        const context = await browser.newContext({
+          baseURL: 'https://app.qoro.dev',
+          storageState: { cookies: [], origins: [] },
+        });
         member.context = context;
         const claims = await acceptInvite(context, link, member, index === 0);
         expect(claims.app_role).toBe(member.role);

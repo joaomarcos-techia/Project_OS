@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { buildApplicationUrl } from './application-url';
+vi.mock('@/lib/env', () => ({
+  env: { APP_BASE_URL: 'https://app.qoro.test', NODE_ENV: 'test' },
+}));
+
+import { buildApplicationUrl, createAuthConfirmationUrl } from './application-url';
 
 describe('buildApplicationUrl', () => {
   it('constrói um link HTTPS canônico sem aceitar caminhos do valor configurado', () => {
@@ -23,5 +27,15 @@ describe('buildApplicationUrl', () => {
     expect(
       buildApplicationUrl('http://localhost:3000', '/convite', { allowInsecureLocalhost: true }),
     ).toBe('http://localhost:3000/convite');
+  });
+
+  it('constrói a confirmação SSR de um token de uso único sem aceitar redirect externo', () => {
+    expect(createAuthConfirmationUrl('token-hash-de-teste', 'recovery')).toBe(
+      'https://app.qoro.test/auth/confirm?token_hash=token-hash-de-teste&type=recovery&next=%2Fconvite',
+    );
+  });
+
+  it('rejeita hash de token vazio', () => {
+    expect(() => createAuthConfirmationUrl('  ', 'recovery')).toThrow('[app-url]');
   });
 });

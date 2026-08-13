@@ -22,7 +22,7 @@ import type { RequestContext } from '@/lib/audit/types';
 import type { Role } from '@/lib/auth/roles';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { dbAdmin } from '@/lib/db';
-import { createAuthRedirectUrl } from '@/lib/http/application-url';
+import { createAuthConfirmationUrl, createAuthRedirectUrl } from '@/lib/http/application-url';
 import { idempotencyKeys } from '@/lib/db/schema/infra/idempotency';
 import { payloadHash } from '@/lib/idempotency/hash';
 import { logger } from '@/lib/observability/logger';
@@ -220,7 +220,7 @@ export interface ResendClinicInviteArgs {
  * ⚠️ tipo `recovery`, não `invite`: o alvo é um user que JÁ existe (o pendente).
  * `inviteUserByEmail`/`generateLink({type:'invite'})` erram em user existente, e
  * magiclink tem semântica de LOGIN. `recovery` = "definir senha", alinhado ao aceite
- * em /convite (que faz exchangeCodeForSession + updateUser). A UI COPIA este link;
+ * em /convite (que define a senha). A UI COPIA este link;
  * o owner entrega (WhatsApp/e-mail) — não dependemos de auto-send (ADR-034).
  */
 export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<{ link: string }> {
@@ -251,13 +251,15 @@ export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<
     throw new Error(`Falha ao localizar o convite: ${uErr?.message ?? 'usuário sem e-mail'}`);
   }
 
-  // 4. Link novo (recovery — ver docstring). redirectTo → /convite.
+  // 4. Link novo (recovery — ver docstring). Devolvemos a confirmação SSR canônica,
+  // não o action_link bruto: ela troca o hash one-time por cookies HttpOnly antes de
+  // redirecionar para /convite, sem expor bearer credentials no fragmento da URL.
   const { data: link, error: lErr } = await admin.auth.admin.generateLink({
     type: 'recovery',
     email: u.user.email,
     options: { redirectTo: createAuthRedirectUrl() },
   });
-  if (lErr || !link?.properties?.action_link) {
+  if (lErr || !link?.properties?.hashed_token) {
     throw new Error(`Não foi possível gerar um novo convite: ${lErr?.message ?? 'desconhecido'}`);
   }
 
@@ -275,7 +277,7 @@ export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<
     }),
   );
 
-  return { link: link.properties.action_link };
+  return { link: createAuthConfirmationUrl(link.properties.hashed_token, 'recovery') };
 }
 
 export interface CancelClinicInviteArgs {

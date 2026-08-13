@@ -60,3 +60,26 @@ export function createOnboardingInviteUrl(rawToken: string): string {
 export function createAuthRedirectUrl(): string {
   return configuredApplicationUrl('/convite');
 }
+
+/**
+ * Creates the server-side confirmation URL for a one-time Supabase email token.
+ *
+ * The token hash is intentionally kept in the query string only long enough for
+ * `/auth/confirm` to exchange it for the HTTP-only session cookies. Returning the
+ * raw Auth action link would instead redirect the recipient to `/convite` with
+ * bearer credentials in the URL fragment, which is not a supported SSR flow.
+ */
+export function createAuthConfirmationUrl(
+  tokenHash: string,
+  type: 'invite' | 'recovery' | 'magiclink',
+): string {
+  if (!tokenHash.trim()) {
+    throw new Error('[app-url] auth confirmation token hash is required');
+  }
+
+  const url = new URL(configuredApplicationUrl('/auth/confirm'));
+  url.searchParams.set('token_hash', tokenHash);
+  url.searchParams.set('type', type);
+  url.searchParams.set('next', '/convite');
+  return url.toString();
+}
