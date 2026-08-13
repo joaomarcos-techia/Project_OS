@@ -108,7 +108,12 @@ async function invite(page: Page, member: Member, runId: string): Promise<string
   const link = await page.evaluate(() => navigator.clipboard.readText());
   const parsed = new URL(link);
   expect(parsed.protocol).toBe('https:');
-  expect(parsed.hostname).toMatch(/\.supabase\.co$/u);
+  expect(parsed.origin).toBe('https://app.qoro.dev');
+  expect(parsed.pathname).toBe('/auth/confirm');
+  expect(parsed.searchParams.has('token_hash')).toBe(true);
+  expect(parsed.searchParams.get('type')).toBe('recovery');
+  expect(parsed.searchParams.get('next')).toBe('/convite');
+  expect(parsed.hash).toBe('');
   return link;
 }
 
@@ -120,12 +125,12 @@ async function acceptInvite(
 ): Promise<Record<string, unknown>> {
   const page = await browserContext.newPage();
   await page.goto(link);
-  // `goto()` já concluiu o callback do Supabase. O callback pode entregar a
-  // sessão no fragmento; validamos somente origem e path para jamais incluir a
-  // credencial bearer em uma mensagem de falha ou artefato.
+  // `goto()` já concluiu a confirmação SSR. Validamos somente origem e path
+  // para jamais incluir a credencial one-time em uma mensagem de falha ou artefato.
   const destination = new URL(page.url());
   expect(destination.origin).toBe('https://app.qoro.dev');
   expect(destination.pathname).toBe('/convite');
+  expect(destination.hash).toBe('');
   await expect(page.getByRole('heading', { name: 'Criar senha de acesso' })).toBeVisible({
     timeout: 30_000,
   });
