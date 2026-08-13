@@ -31,7 +31,7 @@ function makeCtx(overrides: Partial<PromptContext> = {}): PromptContext {
       canDisclosePayments: false,
     },
     patient: { id: '22222222-2222-2222-2222-222222222222', nome: 'Maria' },
-    patientRegistration: { status: 'registered', missingFields: [] },
+    patientRegistration: { status: 'registered', missingFields: [], nextRequiredField: null },
     history: [],
     currentMessage: 'qual o horário?',
     ...overrides,
@@ -77,12 +77,19 @@ describe('versionamento (G8/R6)', () => {
     const prompt = buildSystemPrompt(
       makeCtx({
         patient: null,
-        patientRegistration: { status: 'collecting', missingFields: ['cpf', 'motivo'] },
+        patientRegistration: {
+          status: 'collecting',
+          missingFields: ['cpf', 'motivo'],
+          nextRequiredField: 'cpf',
+        },
       }),
     );
 
-    expect(prompt).toContain('cadastro em andamento; faltam: cpf, motivo.');
+    expect(prompt).toContain(
+      'cadastro em andamento; próximo dado obrigatório: cpf; faltam: cpf, motivo.',
+    );
     expect(prompt).toContain('Siga o ESTADO DO CADASTRO');
+    expect(prompt).toContain('patient_message retornada pela ferramenta');
   });
 });
 

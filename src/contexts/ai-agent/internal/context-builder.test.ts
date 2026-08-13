@@ -7,6 +7,7 @@ describe('patientRegistrationState', () => {
     expect(__testing__.patientRegistrationState({ id: 'p1', nome: 'Maria' }, null)).toEqual({
       status: 'registered',
       missingFields: [],
+      nextRequiredField: null,
     });
   });
 
@@ -16,6 +17,7 @@ describe('patientRegistrationState', () => {
     ).toEqual({
       status: 'collecting',
       missingFields: ['cpf', 'motivo'],
+      nextRequiredField: 'cpf',
     });
   });
 
@@ -30,6 +32,7 @@ describe('patientRegistrationState', () => {
     ).toEqual({
       status: 'awaiting_confirmation',
       missingFields: [],
+      nextRequiredField: null,
     });
   });
 });

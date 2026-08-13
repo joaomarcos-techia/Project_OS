@@ -9,7 +9,10 @@
  */
 import { z } from 'zod';
 
+import { normalizeCpf, validateCpf } from '@/lib/crypto';
+
 import { getCollectedData, mergeCollectedData, setCollectedData } from '../internal/conversation';
+import { isExplicitConfirmation } from '../internal/pending-action';
 import type { CollectedData } from '../types';
 import { registerTool } from './registry';
 
@@ -23,25 +26,62 @@ const InputSchema = z.object({
     .describe("'true' quando o paciente confirmar o resumo dos dados"),
 });
 
+const RegistrationFieldSchema = z.enum(['nome', 'cpf', 'motivo']);
+
 const OutputSchema = z.object({
   accepted: z.boolean(),
-  missing: z.array(z.string()),
+  missing: z.array(RegistrationFieldSchema),
   complete: z.boolean(),
   confirmed: z.boolean(),
+  next_required_field: RegistrationFieldSchema.nullable(),
+  /** Resposta autoritativa que o handler entrega sem deixar o LLM improvisar. */
+  patient_message: z.string(),
 });
 
-const FIELD_LABEL: Record<string, string> = {
-  nome: 'nome',
-  cpf: 'cpf',
-  telefone: 'telefone',
-  motivo: 'motivo',
-};
+type RegistrationField = z.infer<typeof RegistrationFieldSchema>;
+
+const REQUIRED_FIELDS = ['nome', 'cpf', 'motivo'] as const satisfies readonly RegistrationField[];
+
+function nextRequiredField(data: CollectedData): RegistrationField | null {
+  return REQUIRED_FIELDS.find((field) => !data[field]) ?? null;
+}
+
+export function patientRegistrationMessage(args: {
+  nextRequiredField: RegistrationField | null;
+  complete: boolean;
+  confirmed: boolean;
+  invalidCpf?: boolean;
+  confirmationRejected?: boolean;
+}): string {
+  if (args.invalidCpf) {
+    return 'O CPF informado é inválido. Envie novamente os 11 dígitos, com ou sem pontuação.';
+  }
+  if (args.nextRequiredField === 'nome') {
+    return 'Para iniciar seu cadastro, informe seu nome completo.';
+  }
+  if (args.nextRequiredField === 'cpf') {
+    return 'Agora, informe seu CPF, com ou sem pontuação.';
+  }
+  if (args.nextRequiredField === 'motivo') {
+    return 'Qual é o motivo da consulta?';
+  }
+  if (!args.complete) {
+    return 'Para continuar seu cadastro, informe os dados pendentes.';
+  }
+  if (args.confirmationRejected) {
+    return 'Para concluir seu cadastro, responda SIM ou envie a correção necessária.';
+  }
+  if (!args.confirmed) {
+    return 'Recebi os dados necessários. Responda SIM para confirmar o cadastro ou envie a correção.';
+  }
+  return 'Cadastro confirmado. Estou concluindo o registro.';
+}
 
 registerTool({
   name: 'collect_patient_data',
   effect: 'mutation',
   description:
-    'Registra dados de cadastro de paciente novo (nome, cpf, motivo). O telefone é o do contato. Chame com confirmed="true" quando o paciente confirmar o resumo.',
+    'Registra dados de cadastro de paciente novo (nome, CPF, motivo). O telefone é o do contato. Registre somente o próximo dado obrigatório. Chame com confirmed="true" apenas quando a mensagem atual for uma confirmação explícita. Após a chamada, responda exatamente com patient_message retornada.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
@@ -49,12 +89,15 @@ registerTool({
     // Constrói só com campos definidos (exactOptionalPropertyTypes).
     const partial: CollectedData = { telefone: ctx.verifiedPhone };
     if (input.nome !== undefined) partial.nome = input.nome;
-    if (input.cpf !== undefined) partial.cpf = input.cpf;
+    const invalidCpf = input.cpf !== undefined && !validateCpf(input.cpf);
+    if (input.cpf !== undefined && !invalidCpf) partial.cpf = normalizeCpf(input.cpf);
     if (input.motivo !== undefined) partial.motivo = input.motivo;
     const merged = await mergeCollectedData(ctx.tx, ctx.clinicId, ctx.conversationId, partial);
 
     let confirmed = merged.data._confirmed ?? false;
-    if (input.confirmed === 'true') {
+    const confirmationRejected =
+      input.confirmed === 'true' && !isExplicitConfirmation(ctx.currentMessage);
+    if (input.confirmed === 'true' && !confirmationRejected && !invalidCpf) {
       confirmed = true;
       const cur = (await getCollectedData(ctx.tx, ctx.clinicId, ctx.conversationId)) ?? merged.data;
       await setCollectedData(ctx.tx, ctx.clinicId, ctx.conversationId, {
@@ -63,10 +106,24 @@ registerTool({
       });
     }
 
-    const missing = (['nome', 'cpf', 'telefone', 'motivo'] as const)
-      .filter((k) => !merged.data[k])
-      .map((k) => FIELD_LABEL[k]!);
+    const nextField = nextRequiredField(merged.data);
+    const missing = REQUIRED_FIELDS.filter((field) => !merged.data[field]);
 
-    return { accepted: true, missing, complete: merged.complete, confirmed };
+    return {
+      accepted: !invalidCpf && !confirmationRejected,
+      missing,
+      complete: merged.complete,
+      confirmed,
+      next_required_field: nextField,
+      patient_message: patientRegistrationMessage({
+        nextRequiredField: nextField,
+        complete: merged.complete,
+        confirmed,
+        invalidCpf,
+        confirmationRejected,
+      }),
+    };
   },
 });
+
+export const __testing__ = { patientRegistrationMessage };

@@ -33,7 +33,11 @@ const ctx: PromptContext = {
     canDisclosePayments: false,
   },
   patient: null,
-  patientRegistration: { status: 'collecting', missingFields: ['nome', 'cpf', 'motivo'] },
+  patientRegistration: {
+    status: 'collecting',
+    missingFields: ['nome', 'cpf', 'motivo'],
+    nextRequiredField: 'nome',
+  },
   history: [],
   currentMessage: 'qual o horário de funcionamento?',
 };

@@ -23,9 +23,9 @@ import { MAX_INBOUND_CHARS, MAX_PROMPT_CHARS } from '../limits';
 import type { PromptContext } from '../types';
 
 /** Bump manual a cada mudança de RAW_TEMPLATE (G8). C12: tarefas operacionais.
- *  v7 (2026-08-13): estado não sensível da coleta guia cada turno de cadastro
- *  e impede que o modelo pule a confirmação antes do agendamento. */
-export const PROMPT_VERSION = '2026-08-13-v7';
+ *  v8 (2026-08-13): cada turno de cadastro tem um único próximo campo e a
+ *  resposta da ferramenta é autoritativa. */
+export const PROMPT_VERSION = '2026-08-13-v8';
 
 /**
  * Resposta clínica segura — string EXATA do mandato C11 (anti-SAMD). Única
@@ -67,9 +67,10 @@ FLUXO DE AGENDAMENTO (uma ferramenta por mensagem — nunca encadeie várias):
 PACIENTE NOVO (cadastro):
 - Use patient_lookup. Se NÃO houver cadastro, colete em conversa: nome completo, CPF e motivo da consulta (o telefone já é o deste contato). Registre cada dado com collect_patient_data.
 - Se prepare_appointment retornar status="patient_registration_required", a pessoa ainda não tem cadastro. Não encaminhe para humano, não use fallback e não tente agendar no mesmo turno: peça somente o nome completo para iniciar a coleta. Preserve a intenção de agendamento da conversa para retomá-la após o cadastro confirmado.
-- Siga o ESTADO DO CADASTRO abaixo. Se ele indicar campos faltantes, peça e registre somente o próximo dado informado; não tente agendar antes do cadastro confirmado. Se ele indicar que aguarda confirmação, mostre o resumo e aguarde a confirmação explícita antes de chamar collect_patient_data com confirmed="true".
-- Quando tiver nome+CPF+motivo, mostre um RESUMO ("Confirme seus dados: Nome X, CPF Y, Motivo Z") e peça confirmação.
-- SÓ após o paciente confirmar, chame collect_patient_data com confirmed="true" (APENAS essa ferramenta nesse turno, nada mais). O cadastro é criado automaticamente; na mensagem SEGUINTE retome o pedido de agendamento original.
+- Siga o ESTADO DO CADASTRO abaixo. Quando ele disser "próximo dado obrigatório", peça e registre SOMENTE aquele campo neste turno com collect_patient_data. Não diga que houve erro nem encaminhe a pessoa se a ferramenta aceitar os dados.
+- Depois de collect_patient_data, responda EXATAMENTE com patient_message retornada pela ferramenta. Ela é a resposta autoritativa para o próximo passo do cadastro.
+- Quando tiver nome+CPF+motivo, não repita o CPF. Peça que a pessoa responda "SIM" para confirmar os dados ou envie uma correção.
+- SÓ após uma NOVA mensagem explicitamente afirmativa, chame collect_patient_data com confirmed="true" (APENAS essa ferramenta nesse turno, nada mais). O cadastro é criado automaticamente; na mensagem SEGUINTE retome o pedido de agendamento original.
 - Peça CPF apenas para cadastro. NUNCA repita/eco de dados de saúde.
 
 FINANCEIRO E LGPD:
@@ -116,7 +117,7 @@ function registrationLine(ctx: PromptContext['patientRegistration']): string {
   if (ctx.status === 'registered') return 'cadastro já identificado pelo telefone.';
   if (ctx.status === 'awaiting_confirmation')
     return 'cadastro completo; aguarda a confirmação explícita do resumo.';
-  return `cadastro em andamento; faltam: ${ctx.missingFields.join(', ')}.`;
+  return `cadastro em andamento; próximo dado obrigatório: ${ctx.nextRequiredField}; faltam: ${ctx.missingFields.join(', ')}.`;
 }
 
 /**

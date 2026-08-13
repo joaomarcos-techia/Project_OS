@@ -529,6 +529,8 @@ export async function mergeCollectedData(
       progressed = true;
     }
   }
+  // Uma correção após o resumo exige uma nova confirmação explícita.
+  if (progressed) delete merged._confirmed;
   const stagnation = progressed ? 0 : (prev._stagnation ?? 0) + 1;
   merged._stagnation = stagnation;
   await setCollectedData(tx, clinicId, conversationId, merged);

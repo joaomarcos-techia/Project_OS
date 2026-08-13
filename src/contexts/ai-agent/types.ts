@@ -27,6 +27,8 @@ export interface PatientRegistrationState {
   status: 'registered' | 'collecting' | 'awaiting_confirmation';
   /** Campos que ainda precisam ser informados; telefone é obtido do WhatsApp. */
   missingFields: Array<'nome' | 'cpf' | 'motivo'>;
+  /** Único campo que o agente deve solicitar no turno de coleta atual. */
+  nextRequiredField: 'nome' | 'cpf' | 'motivo' | null;
 }
 
 /** Projeção mínima do paciente identificado (sem PII além do nome). */

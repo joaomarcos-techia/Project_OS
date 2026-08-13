@@ -100,11 +100,14 @@ import {
   getCollectedData,
   incrementFallback,
   resetFallback,
+  setCollectedData,
   setIntent,
 } from '../conversation';
 import type { ActiveConversation } from '../conversation';
 import { buildContext } from '../context-builder';
+import { isExplicitConfirmation } from '../pending-action';
 import { sanitizeAiFailurePayload } from '../sanitize';
+import { patientRegistrationMessage } from '../../tools/collect-patient-data';
 
 // Teto por statement nas fases de DB (mesmo racional do financial handler:
 // transaction-safe; não cobre I/O externo — esse tem AbortSignal próprio).
@@ -133,6 +136,51 @@ type FailureStage =
  */
 export function roundMutationCount(calls: Array<{ name: string }>): number {
   return calls.filter((c) => getTool(c.name)?.effect === 'mutation').length;
+}
+
+const PATIENT_REGISTERED_REPLY =
+  'Cadastro concluído. Para continuar o agendamento, informe a data de preferência para a consulta.';
+
+/**
+ * A ferramenta de coleta devolve uma resposta operacional já validada. Não
+ * deixamos o LLM reescrevê-la, pois isso gerava mensagens de erro inventadas
+ * mesmo depois de o dado ter sido salvo.
+ */
+export function registrationReplyFromToolResults(toolResults: ToolResult[]): string | null {
+  for (let i = toolResults.length - 1; i >= 0; i -= 1) {
+    const result = toolResults[i]!;
+    const response = result.response as {
+      patient_message?: unknown;
+      status?: unknown;
+    };
+    if (result.name === 'collect_patient_data' && typeof response.patient_message === 'string') {
+      return response.patient_message;
+    }
+    if (
+      result.name === 'prepare_appointment' &&
+      response.status === 'patient_registration_required'
+    ) {
+      return patientRegistrationMessage({
+        nextRequiredField: 'nome',
+        complete: false,
+        confirmed: false,
+      });
+    }
+  }
+  return null;
+}
+
+function registrationReplyFromState(
+  status: 'registered' | 'collecting' | 'awaiting_confirmation',
+): string | null {
+  if (status === 'awaiting_confirmation') {
+    return patientRegistrationMessage({
+      nextRequiredField: null,
+      complete: true,
+      confirmed: false,
+    });
+  }
+  return null;
 }
 
 /** withTenant curto com statement_timeout — todas as fases de DB usam isto. */
@@ -467,154 +515,34 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     let fallback = false;
     let handoffExecuted = false;
     let result: GenerateResult | null = null;
-
-    try {
-      result = await aiCircuit.exec(() =>
-        provider.generateWithTools({ systemPrompt, messages, tools: declarations }),
-      );
-      usageTokens.input += result.usage.tokensInput;
-      usageTokens.output += result.usage.tokensOutput;
-      model = result.usage.model;
-    } catch (err) {
-      await recordFailure({
+    // A confirmação do cadastro é um gate de consentimento do servidor, como
+    // a confirmação de agenda. Assim, uma resposta "SIM" não depende do LLM
+    // voltar a chamar a tool apenas para marcar o estado já completo.
+    const confirmedRegistrationServerSide =
+      promptCtx.patientRegistration.status === 'awaiting_confirmation' &&
+      isExplicitConfirmation(text) &&
+      (await phase(clinicId, async (tx) => {
+        const collected = await getCollectedData(tx, clinicId, conversation.id);
+        if (!collected) return false;
+        await setCollectedData(tx, clinicId, conversation.id, {
+          ...collected,
+          _confirmed: true,
+        });
+        return true;
+      }));
+    if (confirmedRegistrationServerSide) {
+      metrics.emit('ai_agent.patient.registration_confirmed', {
         clinicId,
         conversationId: conversation.id,
-        eventId,
         aiRequestId,
-        stage: 'provider',
-        error: err,
-        model: model ?? undefined,
-        httpStatus: (err as { httpStatus?: number })?.httpStatus ?? undefined,
+        source: 'server',
       });
-      fallback = true;
     }
 
-    // FASE C — tools (TX curta por rodada, máx. MAX_TOOL_ROUNDS — G1).
-    let rounds = 0;
-    // Mutações executadas neste TURNO, contadas ATRAVÉS das rodadas (G1). Com
-    // MAX_TOOL_ROUNDS > 1, o teto de "1 mutação por turno" precisa ser explícito
-    // aqui: o preflight só barra >1 mutação DENTRO de uma rodada.
-    let mutationsThisTurn = 0;
-    while (!fallback && result?.toolCalls && result.toolCalls.length > 0) {
-      if (rounds >= MAX_TOOL_ROUNDS) {
-        // G1 — NUNCA loop: excedeu o orçamento de rodadas → fallback.
-        metrics.emit('ai_agent.tool.rounds_exceeded', { clinicId, aiRequestId, rounds });
-        fallback = true;
-        break;
-      }
-      rounds += 1;
-      const calls = result.toolCalls;
-      toolCallCount += calls.length;
-      toolCallsRecord = calls.map((c) => ({ name: c.name }));
-
-      const preflight = preflightToolCalls(calls, {
-        clinicId,
-        aiRequestId,
-      });
-      if (!preflight.ok) {
-        await recordFailure({
-          clinicId,
-          conversationId: conversation.id,
-          eventId,
-          aiRequestId,
-          stage: preflight.kind === 'unknown_tool' ? 'tool_unknown' : 'tool_invalid',
-          error: new Error(preflight.error),
-          toolName: preflight.toolName,
-          issuePaths: preflight.issuePaths,
-          model: model ?? undefined,
-        });
-        fallback = true;
-        break;
-      }
-
-      // Teto DURO de mutações por turno (MAX_MUTATIONS_PER_TURN), atravessando
-      // rodadas: o preflight garante ≤1 mutação NESTA rodada, mas com >1 rodada
-      // o modelo poderia mutar em rodadas distintas. Barra a 2ª antes de executá-la.
-      const roundMutations = roundMutationCount(calls);
-      if (mutationsThisTurn + roundMutations > MAX_MUTATIONS_PER_TURN) {
-        metrics.emit('ai_agent.tool.multiple_mutations_rejected', {
-          clinicId,
-          aiRequestId,
-          toolNames: calls.map((c) => c.name),
-          reason: 'cross_round',
-        });
-        await recordFailure({
-          clinicId,
-          conversationId: conversation.id,
-          eventId,
-          aiRequestId,
-          stage: 'tool_invalid',
-          error: new Error('mais de uma mutação no mesmo turno (cross-round)'),
-          model: model ?? undefined,
-        });
-        fallback = true;
-        break;
-      }
-
-      const roundResults = await phase(clinicId, async (tx) => {
-        const acc: ToolResult[] = [];
-        for (const call of calls) {
-          const exec = await validateAndExecute(call, {
-            tx,
-            clinicId,
-            conversationId: conversation.id,
-            eventId,
-            aiRequestId,
-            // C12 — identidade verificada por telefone (anti-spoofing).
-            patientId: conversation.patientId,
-            patientNome: conversation.patientNome,
-            identityAmbiguous: conversation.identityAmbiguous,
-            verifiedPhone: fromNumber,
-            currentMessage: text,
-            canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
-            maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
-            canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
-          });
-          if (!exec.ok) {
-            const stage: FailureStage =
-              exec.kind === 'unknown_tool'
-                ? 'tool_unknown'
-                : exec.kind === 'invalid_output'
-                  ? 'tool_output_invalid'
-                  : 'tool_invalid';
-            return { failed: { stage, exec, toolName: call.name } as const, acc };
-          }
-          // Handoff via tool dedicado OU qualquer tool que sinalize handoff:true
-          // (lgpd_*, list_pending_payments sem identidade/disclosure — C12).
-          if (
-            call.name === 'request_human_handoff' ||
-            (exec.response as { handoff?: boolean }).handoff === true
-          ) {
-            handoffExecuted = true;
-          }
-          acc.push({ name: call.name, args: call.args, response: exec.response });
-        }
-        return { failed: null, acc };
-      });
-
-      if (roundResults.failed) {
-        const f = roundResults.failed;
-        await recordFailure({
-          clinicId,
-          conversationId: conversation.id,
-          eventId,
-          aiRequestId,
-          stage: f.stage,
-          error: new Error(f.exec.error),
-          toolName: f.toolName,
-          issuePaths: f.exec.issuePaths,
-          model: model ?? undefined,
-        });
-        fallback = true;
-        break;
-      }
-      toolResults.push(...roundResults.acc);
-      mutationsThisTurn += roundMutations;
-
-      // Re-chamada com toolResults (SEM TX — R2).
+    if (!confirmedRegistrationServerSide) {
       try {
         result = await aiCircuit.exec(() =>
-          provider.generateWithTools({ systemPrompt, messages, tools: declarations, toolResults }),
+          provider.generateWithTools({ systemPrompt, messages, tools: declarations }),
         );
         usageTokens.input += result.usage.tokensInput;
         usageTokens.output += result.usage.tokensOutput;
@@ -631,7 +559,157 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
           httpStatus: (err as { httpStatus?: number })?.httpStatus ?? undefined,
         });
         fallback = true;
-        break;
+      }
+
+      // FASE C — tools (TX curta por rodada, máx. MAX_TOOL_ROUNDS — G1).
+      let rounds = 0;
+      // Mutações executadas neste TURNO, contadas ATRAVÉS das rodadas (G1). Com
+      // MAX_TOOL_ROUNDS > 1, o teto de "1 mutação por turno" precisa ser explícito
+      // aqui: o preflight só barra >1 mutação DENTRO de uma rodada.
+      let mutationsThisTurn = 0;
+      while (!fallback && result?.toolCalls && result.toolCalls.length > 0) {
+        if (rounds >= MAX_TOOL_ROUNDS) {
+          // G1 — NUNCA loop: excedeu o orçamento de rodadas → fallback.
+          metrics.emit('ai_agent.tool.rounds_exceeded', { clinicId, aiRequestId, rounds });
+          fallback = true;
+          break;
+        }
+        rounds += 1;
+        const calls = result.toolCalls;
+        toolCallCount += calls.length;
+        toolCallsRecord = calls.map((c) => ({ name: c.name }));
+
+        const preflight = preflightToolCalls(calls, {
+          clinicId,
+          aiRequestId,
+        });
+        if (!preflight.ok) {
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: preflight.kind === 'unknown_tool' ? 'tool_unknown' : 'tool_invalid',
+            error: new Error(preflight.error),
+            toolName: preflight.toolName,
+            issuePaths: preflight.issuePaths,
+            model: model ?? undefined,
+          });
+          fallback = true;
+          break;
+        }
+
+        // Teto DURO de mutações por turno (MAX_MUTATIONS_PER_TURN), atravessando
+        // rodadas: o preflight garante ≤1 mutação NESTA rodada, mas com >1 rodada
+        // o modelo poderia mutar em rodadas distintas. Barra a 2ª antes de executá-la.
+        const roundMutations = roundMutationCount(calls);
+        if (mutationsThisTurn + roundMutations > MAX_MUTATIONS_PER_TURN) {
+          metrics.emit('ai_agent.tool.multiple_mutations_rejected', {
+            clinicId,
+            aiRequestId,
+            toolNames: calls.map((c) => c.name),
+            reason: 'cross_round',
+          });
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: 'tool_invalid',
+            error: new Error('mais de uma mutação no mesmo turno (cross-round)'),
+            model: model ?? undefined,
+          });
+          fallback = true;
+          break;
+        }
+
+        const roundResults = await phase(clinicId, async (tx) => {
+          const acc: ToolResult[] = [];
+          for (const call of calls) {
+            const exec = await validateAndExecute(call, {
+              tx,
+              clinicId,
+              conversationId: conversation.id,
+              eventId,
+              aiRequestId,
+              // C12 — identidade verificada por telefone (anti-spoofing).
+              patientId: conversation.patientId,
+              patientNome: conversation.patientNome,
+              identityAmbiguous: conversation.identityAmbiguous,
+              verifiedPhone: fromNumber,
+              currentMessage: text,
+              canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
+              maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
+              canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
+            });
+            if (!exec.ok) {
+              const stage: FailureStage =
+                exec.kind === 'unknown_tool'
+                  ? 'tool_unknown'
+                  : exec.kind === 'invalid_output'
+                    ? 'tool_output_invalid'
+                    : 'tool_invalid';
+              return { failed: { stage, exec, toolName: call.name } as const, acc };
+            }
+            // Handoff via tool dedicado OU qualquer tool que sinalize handoff:true
+            // (lgpd_*, list_pending_payments sem identidade/disclosure — C12).
+            if (
+              call.name === 'request_human_handoff' ||
+              (exec.response as { handoff?: boolean }).handoff === true
+            ) {
+              handoffExecuted = true;
+            }
+            acc.push({ name: call.name, args: call.args, response: exec.response });
+          }
+          return { failed: null, acc };
+        });
+
+        if (roundResults.failed) {
+          const f = roundResults.failed;
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: f.stage,
+            error: new Error(f.exec.error),
+            toolName: f.toolName,
+            issuePaths: f.exec.issuePaths,
+            model: model ?? undefined,
+          });
+          fallback = true;
+          break;
+        }
+        toolResults.push(...roundResults.acc);
+        mutationsThisTurn += roundMutations;
+
+        // Re-chamada com toolResults (SEM TX — R2).
+        try {
+          result = await aiCircuit.exec(() =>
+            provider.generateWithTools({
+              systemPrompt,
+              messages,
+              tools: declarations,
+              toolResults,
+            }),
+          );
+          usageTokens.input += result.usage.tokensInput;
+          usageTokens.output += result.usage.tokensOutput;
+          model = result.usage.model;
+        } catch (err) {
+          await recordFailure({
+            clinicId,
+            conversationId: conversation.id,
+            eventId,
+            aiRequestId,
+            stage: 'provider',
+            error: err,
+            model: model ?? undefined,
+            httpStatus: (err as { httpStatus?: number })?.httpStatus ?? undefined,
+          });
+          fallback = true;
+          break;
+        }
       }
     }
 
@@ -645,16 +723,30 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     // C12 — coleta concluída + confirmada → cria paciente (handler, NÃO tool).
     // Conflito de identidade/criação ou estagnação → handoff.
     let collectHandoff = false;
-    if (!fallback) {
+    let patientCreated = false;
+    if (!fallback || confirmedRegistrationServerSide || toolResults.length > 0) {
       const collect = await resolveCollect(clinicId, conversation, eventId, aiRequestId);
       if (collect.handoff) collectHandoff = true;
-      else if (collect.patientId) conversation.patientId = collect.patientId;
+      else if (collect.patientId) {
+        conversation.patientId = collect.patientId;
+        patientCreated = true;
+      }
     }
+
+    const registrationReply =
+      registrationReplyFromToolResults(toolResults) ??
+      registrationReplyFromState(promptCtx.patientRegistration.status);
 
     if (collectHandoff) {
       responseText =
         'Recebi seus dados! Vou confirmar sua identidade com um atendente e já te retorno, ok?';
       outcome = 'handoff';
+    } else if (patientCreated) {
+      responseText = PATIENT_REGISTERED_REPLY;
+      outcome = 'replied';
+    } else if (registrationReply) {
+      responseText = registrationReply;
+      outcome = 'replied';
     } else if (fallback || !result?.text || result.text.trim().length === 0) {
       // Falha de provider/tool/rounds OU LLM sem texto → fallback operacional.
       // Se o handoff JÁ executou, o paciente recebe a confirmação do handoff.

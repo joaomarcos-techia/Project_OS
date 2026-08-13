@@ -32,11 +32,17 @@ export function patientRegistrationState(
   patient: { id: string; nome: string } | null,
   collected: StoredCollect | null,
 ): PatientRegistrationState {
-  if (patient) return { status: 'registered', missingFields: [] };
+  if (patient) return { status: 'registered', missingFields: [], nextRequiredField: null };
 
   const missingFields = REGISTRATION_FIELDS.filter((field) => !collected?.[field]);
-  if (missingFields.length > 0) return { status: 'collecting', missingFields };
-  return { status: 'awaiting_confirmation', missingFields: [] };
+  if (missingFields.length > 0) {
+    return {
+      status: 'collecting',
+      missingFields,
+      nextRequiredField: missingFields[0]!,
+    };
+  }
+  return { status: 'awaiting_confirmation', missingFields: [], nextRequiredField: null };
 }
 
 export async function buildContext(
