@@ -318,11 +318,19 @@ async function main(): Promise<void> {
 
   // 1. paciente novo: coleta multi-turn → cria paciente (12.1)
   await tryStep('1 (12.1) paciente novo: collect → createPatient no confirmado', async () => {
+    // Pedido de agenda de contato novo: prepare_appointment NÃO pode virar
+    // fallback/handoff. A tool responde que cadastro é necessário e o modelo
+    // inicia a coleta no mesmo fluxo conversacional.
     setScript(
-      () => gCall('patient_lookup', {}),
-      () => gText('Não achei cadastro. Qual seu nome completo?'),
+      () => gCall('prepare_appointment', { procedure_name: 'cardiologia' }),
+      () => gText('Antes de agendar, preciso fazer seu cadastro. Qual seu nome completo?'),
     );
-    await deliverTurn(clinicA, phoneIdA, NEW, 'oi quero marcar consulta');
+    const evCadastro = await deliverTurn(clinicA, phoneIdA, NEW, 'oi quero marcar consulta');
+    assert(
+      (await outcomeOf(evCadastro)) === 'replied',
+      'contato sem cadastro deve iniciar coleta, sem fallback ou handoff',
+    );
+    assert((await apptCountFor(clinicA, CPF)) === 0, 'cadastro inicial não pode criar consulta');
     setScript(
       () => gCall('collect_patient_data', { nome: 'João Smoke' }),
       () => gText('Qual seu CPF?'),

@@ -41,13 +41,30 @@ const InputSchema = z.object({
     .describe('Horário desejado (ISO 8601 com offset). Omita para pegar o primeiro horário livre.'),
 });
 
-const OutputSchema = z.object({
+const PreparedOutputSchema = z.object({
+  status: z.literal('appointment_prepared'),
   pending_action_id: z.string().uuid(),
   action: z.literal('schedule_appointment'),
   summary: z.string(),
   expires_at: z.string().datetime(),
   requires_confirmation: z.literal(true),
 });
+
+const RegistrationRequiredOutputSchema = z.object({
+  status: z.literal('patient_registration_required'),
+  required_fields: z.tuple([z.literal('nome'), z.literal('cpf'), z.literal('motivo')]),
+});
+
+const REGISTRATION_REQUIRED_FIELDS = ['nome', 'cpf', 'motivo'] satisfies [
+  'nome',
+  'cpf',
+  'motivo',
+];
+
+const OutputSchema = z.discriminatedUnion('status', [
+  PreparedOutputSchema,
+  RegistrationRequiredOutputSchema,
+]);
 
 /** Normaliza (minúsculas, sem acentos). */
 function fold(s: string): string {
@@ -87,10 +104,20 @@ registerTool({
   name: 'prepare_appointment',
   effect: 'mutation',
   description:
-    'Prepara uma marcação de consulta nova de uma vez: resolve procedimento (por nome/especialidade), médico e horário. Passe procedure_name (omita se a clínica só tiver um) e scheduled_at (omita para o primeiro horário livre). Só PREPARA — a consulta é criada depois com confirm_pending_action.',
+    'Prepara uma marcação de consulta nova de uma vez: resolve procedimento (por nome/especialidade), médico e horário. Passe procedure_name (omita se a clínica só tiver um) e scheduled_at (omita para o primeiro horário livre). Só PREPARA — a consulta é criada depois com confirm_pending_action. Se retornar status="patient_registration_required", peça o nome completo para iniciar o cadastro; não encaminhe para humano nem tente agendar neste turno.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
+    // Cadastro é pré-condição do agendamento. É um estado recuperável da conversa,
+    // não uma falha operacional: o resultado orienta o modelo a iniciar a coleta
+    // em vez de cair no fallback que promete atendimento humano.
+    if (!ctx.patientId && !ctx.identityAmbiguous && !ctx.canScheduleAnonymous) {
+      return {
+        status: 'patient_registration_required' as const,
+        required_fields: REGISTRATION_REQUIRED_FIELDS,
+      };
+    }
+
     assertAgentSchedulingIdentity({
       patientId: ctx.patientId,
       identityAmbiguous: ctx.identityAmbiguous,
@@ -174,6 +201,7 @@ registerTool({
       summary: `Agendar ${procedure!.descricao} para ${scheduledAt}`,
     });
     return {
+      status: 'appointment_prepared' as const,
       pending_action_id: pending.id,
       action: pending.action,
       summary: pending.summary,

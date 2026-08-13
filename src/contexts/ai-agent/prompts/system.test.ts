@@ -65,6 +65,12 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain('duas mensagens');
     expect(prompt).toContain('Nunca use confirm_pending_action na mesma mensagem');
   });
+
+  it('prioriza cadastro antes de agendar para contato ainda não identificado', () => {
+    const prompt = buildSystemPrompt(makeCtx({ patient: null }));
+    expect(prompt).toContain('patient_registration_required');
+    expect(prompt).toContain('retome o pedido de agendamento original');
+  });
 });
 
 describe('truncamento determinístico (G2)', () => {

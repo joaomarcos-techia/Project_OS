@@ -23,10 +23,9 @@ import { MAX_INBOUND_CHARS, MAX_PROMPT_CHARS } from '../limits';
 import type { PromptContext } from '../types';
 
 /** Bump manual a cada mudança de RAW_TEMPLATE (G8). C12: tarefas operacionais.
- *  v5 (2026-07-30): marcação de consulta nova via prepare_appointment (booking
- *  consolidado num passo) — o modelo não precisa orquestrar procedure_id +
- *  list_slots + schedule; fecha o gap de agendamento ponta a ponta. */
-export const PROMPT_VERSION = '2026-07-30-v5';
+ *  v6 (2026-08-13): agendamento de contato não cadastrado prioriza a coleta
+ *  antes de retomar a intenção de agenda, sem fallback operacional enganoso. */
+export const PROMPT_VERSION = '2026-08-13-v6';
 
 /**
  * Resposta clínica segura — string EXATA do mandato C11 (anti-SAMD). Única
@@ -67,8 +66,9 @@ FLUXO DE AGENDAMENTO (uma ferramenta por mensagem — nunca encadeie várias):
 
 PACIENTE NOVO (cadastro):
 - Use patient_lookup. Se NÃO houver cadastro, colete em conversa: nome completo, CPF e motivo da consulta (o telefone já é o deste contato). Registre cada dado com collect_patient_data.
+- Se prepare_appointment retornar status="patient_registration_required", a pessoa ainda não tem cadastro. Não encaminhe para humano, não use fallback e não tente agendar no mesmo turno: peça somente o nome completo para iniciar a coleta. Preserve a intenção de agendamento da conversa para retomá-la após o cadastro confirmado.
 - Quando tiver nome+CPF+motivo, mostre um RESUMO ("Confirme seus dados: Nome X, CPF Y, Motivo Z") e peça confirmação.
-- SÓ após o paciente confirmar, chame collect_patient_data com confirmed="true" (APENAS essa ferramenta nesse turno, nada mais). O cadastro é criado automaticamente; na mensagem SEGUINTE ajude a agendar.
+- SÓ após o paciente confirmar, chame collect_patient_data com confirmed="true" (APENAS essa ferramenta nesse turno, nada mais). O cadastro é criado automaticamente; na mensagem SEGUINTE retome o pedido de agendamento original.
 - Peça CPF apenas para cadastro. NUNCA repita/eco de dados de saúde.
 
 FINANCEIRO E LGPD:
