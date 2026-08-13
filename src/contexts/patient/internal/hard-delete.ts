@@ -77,18 +77,25 @@ export async function anonymizePatientAuditTrail(
   patientIds: string[],
 ): Promise<void> {
   if (patientIds.length === 0) return;
+  // Drizzle expande um array interpolado em um record `($1, $2, ...)`, que o
+  // PostgreSQL não converte para `text[]`. ARRAY[...] mantém cada id como bind
+  // param e produz o tipo esperado por ANY.
+  const ids = sql`ARRAY[${sql.join(
+    patientIds.map((patientId) => sql`${patientId}`),
+    sql`, `,
+  )}]::text[]`;
   await admin.execute(
     sql`UPDATE audit_events
         SET before = (before - 'nome' - 'email' - 'dataNascimento' - 'sexo' - 'obitoEm'),
             after  = (after  - 'nome' - 'email' - 'dataNascimento' - 'sexo' - 'obitoEm')
-        WHERE resource_type = 'patient' AND resource_id = ANY(${patientIds}::text[])`,
+        WHERE resource_type = 'patient' AND resource_id = ANY(${ids})`,
   );
   // A resposta de create/update é um PatientSummary cujo `id` é o patient id;
   // anular a response remove nome/email residuais até a key expirar.
   await admin.execute(
     sql`UPDATE idempotency_keys
         SET response = NULL
-        WHERE response IS NOT NULL AND response->>'id' = ANY(${patientIds}::text[])`,
+        WHERE response IS NOT NULL AND response->>'id' = ANY(${ids})`,
   );
 }
 

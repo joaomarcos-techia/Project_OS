@@ -80,6 +80,18 @@ describe('anonymizePatientAuditTrail (F-11 — fonte única de strip de PII)', (
     }
   });
 
+  it('passa vários ids como text[] válido para ANY', async () => {
+    const ids = [
+      '44444444-4444-4444-4444-444444444444',
+      '55555555-5555-5555-5555-555555555555',
+    ];
+    const calls = await capture(ids);
+    for (const call of calls) {
+      expect(call.text).toContain('ANY(ARRAY[$1, $2]::text[])');
+      expect(call.params).toEqual(ids);
+    }
+  });
+
   it('lista vazia → zero round-trips ao banco', async () => {
     const calls = await capture([]);
     expect(calls).toHaveLength(0);
