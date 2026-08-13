@@ -24,7 +24,12 @@ export interface PromptAiConfig {
 
 /** Estado não sensível do cadastro em andamento, disponível ao prompt. */
 export interface PatientRegistrationState {
-  status: 'registered' | 'collecting' | 'awaiting_confirmation';
+  /**
+   * `not_started` means that this contact is not a patient yet, but has not
+   * attempted an operation that requires registration. It must not be treated
+   * as a form already in progress just because the phone is unknown.
+   */
+  status: 'registered' | 'not_started' | 'collecting' | 'awaiting_confirmation';
   /** Campos que ainda precisam ser informados; telefone é obtido do WhatsApp. */
   missingFields: Array<'nome' | 'cpf' | 'motivo'>;
   /** Único campo que o agente deve solicitar no turno de coleta atual. */

@@ -319,7 +319,7 @@ async function main(): Promise<void> {
   // 1. paciente novo: coleta multi-turn → cria paciente (12.1)
   await tryStep('1 (12.1) paciente novo: collect → createPatient no confirmado', async () => {
     // Pedido de agenda de contato novo: prepare_appointment NÃO pode virar
-    // fallback/handoff. A tool responde que cadastro é necessário e o modelo
+    // fallback/handoff. A tool responde que cadastro é necessário e o servidor
     // inicia a coleta no mesmo fluxo conversacional.
     setScript(
       () => gCall('prepare_appointment', { procedure_name: 'cardiologia' }),
@@ -331,25 +331,14 @@ async function main(): Promise<void> {
       'contato sem cadastro deve iniciar coleta, sem fallback ou handoff',
     );
     assert((await apptCountFor(clinicA, CPF)) === 0, 'cadastro inicial não pode criar consulta');
-    setScript(
-      () => gCall('collect_patient_data', { nome: 'João Smoke' }),
-      () => gText('Qual seu CPF?'),
-    );
-    await deliverTurn(clinicA, phoneIdA, NEW, 'João Smoke');
-    setScript(
-      () => gCall('collect_patient_data', { cpf: CPF }),
-      () => gText('Qual o motivo?'),
-    );
-    await deliverTurn(clinicA, phoneIdA, NEW, CPF);
-    setScript(
-      () => gCall('collect_patient_data', { motivo: 'consulta' }),
-      () => gText('Confirme: João Smoke, CPF, consulta. Posso confirmar?'),
-    );
-    await deliverTurn(clinicA, phoneIdA, NEW, 'consulta cardiologica');
-    setScript(
-      () => gCall('collect_patient_data', { confirmed: 'true' }),
-      () => gText('Cadastro feito!'),
-    );
+    // Nome, CPF, motivo e confirmação são campos de estado conhecidos. Eles
+    // percorrem a saga real, mas não chamam Gemini nem dependem de tool call.
+    const evNome = await deliverTurn(clinicA, phoneIdA, NEW, 'João Smoke');
+    assert((await outcomeOf(evNome)) === 'replied', 'nome deveria avançar a coleta no servidor');
+    const evCpf = await deliverTurn(clinicA, phoneIdA, NEW, CPF);
+    assert((await outcomeOf(evCpf)) === 'replied', 'CPF válido deveria avançar a coleta no servidor');
+    const evMotivo = await deliverTurn(clinicA, phoneIdA, NEW, 'consulta cardiologica');
+    assert((await outcomeOf(evMotivo)) === 'replied', 'motivo deveria concluir a coleta');
     const ev = await deliverTurn(clinicA, phoneIdA, NEW, 'confirmo');
     assert((await outcomeOf(ev)) === 'replied', 'turno de confirmação deveria responder');
     const cpfHash = await hashForLookup(normalizeCpf(CPF));

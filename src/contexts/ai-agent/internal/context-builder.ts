@@ -34,6 +34,12 @@ export function patientRegistrationState(
 ): PatientRegistrationState {
   if (patient) return { status: 'registered', missingFields: [], nextRequiredField: null };
 
+  // Um contato desconhecido não é, por si só, um cadastro iniciado. A coleta
+  // começa apenas depois de prepare_appointment informar que ela é necessária.
+  if (!collected) {
+    return { status: 'not_started', missingFields: [], nextRequiredField: null };
+  }
+
   const missingFields = REGISTRATION_FIELDS.filter((field) => !collected?.[field]);
   if (missingFields.length > 0) {
     return {

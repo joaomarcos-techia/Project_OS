@@ -31,7 +31,13 @@ import { and, eq, sql } from 'drizzle-orm';
 import { aiCircuit } from '@/lib/ai/circuit-breaker';
 import { computeCostUsd } from '@/lib/ai/cost';
 import { GeminiProvider } from '@/lib/ai/gemini';
-import type { GenerateResult, ToolResult } from '@/lib/ai/provider';
+import {
+  AIProviderError,
+  type AIProvider,
+  type GenerateOpts,
+  type GenerateResult,
+  type ToolResult,
+} from '@/lib/ai/provider';
 import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -99,6 +105,7 @@ import {
   findTurnMessages,
   getCollectedData,
   incrementFallback,
+  mergeCollectedData,
   resetFallback,
   setCollectedData,
   setIntent,
@@ -107,7 +114,12 @@ import type { ActiveConversation } from '../conversation';
 import { buildContext } from '../context-builder';
 import { isExplicitConfirmation } from '../pending-action';
 import { sanitizeAiFailurePayload } from '../sanitize';
-import { patientRegistrationMessage } from '../../tools/collect-patient-data';
+import {
+  patientRegistrationMessage,
+  registrationFieldFromMessage,
+  type RegistrationField,
+} from '../../tools/collect-patient-data';
+import type { CollectedData, PatientRegistrationState } from '../../types';
 
 // Teto por statement nas fases de DB (mesmo racional do financial handler:
 // transaction-safe; não cobre I/O externo — esse tem AbortSignal próprio).
@@ -141,6 +153,77 @@ export function roundMutationCount(calls: Array<{ name: string }>): number {
 const PATIENT_REGISTERED_REPLY =
   'Cadastro concluído. Para continuar o agendamento, informe a data de preferência para a consulta.';
 
+const REGISTRATION_FIELDS = ['nome', 'cpf', 'motivo'] as const satisfies readonly RegistrationField[];
+
+/**
+ * O Gemini pode devolver HTTP 200 com candidate STOP sem parts. Não há efeito
+ * externo na geração, então uma única nova tentativa é segura e evita que uma
+ * resposta vazia transitória vire a mensagem de handoff ao paciente.
+ */
+export async function generateWithEmptyResponseRetry(
+  provider: Pick<AIProvider, 'generateWithTools'>,
+  opts: GenerateOpts,
+): Promise<GenerateResult> {
+  try {
+    return await provider.generateWithTools(opts);
+  } catch (err) {
+    if (!(err instanceof AIProviderError) || err.code !== 'gemini_empty_response') throw err;
+    metrics.emit('ai_agent.provider.empty_response_retry', {});
+    return provider.generateWithTools(opts);
+  }
+}
+
+function nextRegistrationField(data: CollectedData): RegistrationField | null {
+  return REGISTRATION_FIELDS.find((field) => !data[field]) ?? null;
+}
+
+/** Inicia a coleta somente depois de a tool de agenda a exigir. */
+async function startPatientRegistration(
+  clinicId: string,
+  conversationId: string,
+  verifiedPhone: string,
+): Promise<void> {
+  await phase(clinicId, (tx) =>
+    mergeCollectedData(tx, clinicId, conversationId, { telefone: verifiedPhone }),
+  );
+}
+
+/**
+ * Uma vez iniciado o cadastro, o próximo campo é conhecido pelo servidor. A
+ * validação do CPF e a gravação não dependem de o modelo selecionar ou preencher
+ * collect_patient_data corretamente.
+ */
+async function collectRegistrationFieldServerSide(args: {
+  clinicId: string;
+  conversationId: string;
+  verifiedPhone: string;
+  text: string;
+  state: PatientRegistrationState;
+}): Promise<string | null> {
+  if (args.state.status !== 'collecting' || !args.state.nextRequiredField) return null;
+
+  const parsed = registrationFieldFromMessage(args.state.nextRequiredField, args.text);
+  if (!parsed.accepted) return parsed.patientMessage;
+
+  const partial: CollectedData = { ...parsed.partial, telefone: args.verifiedPhone };
+  const merged = await phase(args.clinicId, (tx) =>
+    mergeCollectedData(tx, args.clinicId, args.conversationId, partial),
+  );
+  return patientRegistrationMessage({
+    nextRequiredField: nextRegistrationField(merged.data),
+    complete: merged.complete,
+    confirmed: false,
+  });
+}
+
+function registrationWasRequired(toolResults: ToolResult[]): boolean {
+  return toolResults.some(
+    (result) =>
+      result.name === 'prepare_appointment' &&
+      (result.response as { status?: unknown }).status === 'patient_registration_required',
+  );
+}
+
 /**
  * A ferramenta de coleta devolve uma resposta operacional já validada. Não
  * deixamos o LLM reescrevê-la, pois isso gerava mensagens de erro inventadas
@@ -171,7 +254,7 @@ export function registrationReplyFromToolResults(toolResults: ToolResult[]): str
 }
 
 function registrationReplyFromState(
-  status: 'registered' | 'collecting' | 'awaiting_confirmation',
+  status: PatientRegistrationState['status'],
 ): string | null {
   if (status === 'awaiting_confirmation') {
     return patientRegistrationMessage({
@@ -515,6 +598,13 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     let fallback = false;
     let handoffExecuted = false;
     let result: GenerateResult | null = null;
+    const serverRegistrationReply = await collectRegistrationFieldServerSide({
+      clinicId,
+      conversationId: conversation.id,
+      verifiedPhone: fromNumber,
+      text,
+      state: promptCtx.patientRegistration,
+    });
     // A confirmação do cadastro é um gate de consentimento do servidor, como
     // a confirmação de agenda. Assim, uma resposta "SIM" não depende do LLM
     // voltar a chamar a tool apenas para marcar o estado já completo.
@@ -539,10 +629,10 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       });
     }
 
-    if (!confirmedRegistrationServerSide) {
+    if (!serverRegistrationReply && !confirmedRegistrationServerSide) {
       try {
         result = await aiCircuit.exec(() =>
-          provider.generateWithTools({ systemPrompt, messages, tools: declarations }),
+          generateWithEmptyResponseRetry(provider, { systemPrompt, messages, tools: declarations }),
         );
         usageTokens.input += result.usage.tokensInput;
         usageTokens.output += result.usage.tokensOutput;
@@ -686,7 +776,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         // Re-chamada com toolResults (SEM TX — R2).
         try {
           result = await aiCircuit.exec(() =>
-            provider.generateWithTools({
+            generateWithEmptyResponseRetry(provider, {
               systemPrompt,
               messages,
               tools: declarations,
@@ -713,6 +803,10 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       }
     }
 
+    if (registrationWasRequired(toolResults)) {
+      await startPatientRegistration(clinicId, conversation.id, fromNumber);
+    }
+
     latencyMs = Date.now() - t0;
     costUsd = computeCostUsd({
       tokensInput: usageTokens.input,
@@ -734,6 +828,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     }
 
     const registrationReply =
+      serverRegistrationReply ??
       registrationReplyFromToolResults(toolResults) ??
       registrationReplyFromState(promptCtx.patientRegistration.status);
 
@@ -772,7 +867,12 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         ? ((toolCallsRecord as Array<{ name: string }>)[0]?.name ?? null)
         : null;
     await phase(clinicId, async (tx) => {
-      await setIntent(tx, clinicId, conversation.id, turnIntent);
+      // Os turnos de coleta são conduzidos pelo servidor e não têm tool call.
+      // Preserve prepare_appointment como intenção para retomar a agenda após o
+      // cadastro, em vez de apagá-la por um intent null.
+      if (!serverRegistrationReply) {
+        await setIntent(tx, clinicId, conversation.id, turnIntent);
+      }
       if (outcome === 'replied') await resetFallback(tx, clinicId, conversation.id);
     });
 

@@ -38,9 +38,75 @@ const OutputSchema = z.object({
   patient_message: z.string(),
 });
 
-type RegistrationField = z.infer<typeof RegistrationFieldSchema>;
+export type RegistrationField = z.infer<typeof RegistrationFieldSchema>;
 
 const REQUIRED_FIELDS = ['nome', 'cpf', 'motivo'] as const satisfies readonly RegistrationField[];
+
+const NAME_PREFIX = /^(?:meu\s+nome\s+(?:é|e)|nome\s*[:\-]|sou)\s+/iu;
+const NON_NAME_WORDS = new Set([
+  'agendar',
+  'atendente',
+  'consulta',
+  'gostaria',
+  'humano',
+  'marcar',
+  'preciso',
+  'quero',
+]);
+
+export type RegistrationFieldFromMessage =
+  | { accepted: true; partial: Pick<CollectedData, RegistrationField> }
+  | { accepted: false; patientMessage: string };
+
+/**
+ * Extrai somente o campo que o servidor já sabe que está aguardando. Isso evita
+ * que um CPF válido dependa de o modelo copiá-lo corretamente para uma tool.
+ */
+export function registrationFieldFromMessage(
+  field: RegistrationField,
+  text: string,
+): RegistrationFieldFromMessage {
+  const value = text.trim();
+  if (field === 'cpf') {
+    if (!validateCpf(value)) {
+      return {
+        accepted: false,
+        patientMessage: patientRegistrationMessage({
+          nextRequiredField: 'cpf',
+          complete: false,
+          confirmed: false,
+          invalidCpf: true,
+        }),
+      };
+    }
+    return { accepted: true, partial: { cpf: normalizeCpf(value) } };
+  }
+
+  if (field === 'nome') {
+    const nome = value.replace(NAME_PREFIX, '').trim();
+    const words = nome.split(/\s+/u);
+    const looksLikeName =
+      nome.length <= 120 &&
+      /^[\p{L}][\p{L}' -]*$/u.test(nome) &&
+      words.length >= 2 &&
+      !words.some((word) => NON_NAME_WORDS.has(word.toLocaleLowerCase('pt-BR')));
+    if (!looksLikeName) {
+      return {
+        accepted: false,
+        patientMessage: 'Para iniciar seu cadastro, informe seu nome completo.',
+      };
+    }
+    return { accepted: true, partial: { nome } };
+  }
+
+  if (value.length === 0 || value.length > 200) {
+    return {
+      accepted: false,
+      patientMessage: 'Informe o motivo da consulta em até 200 caracteres.',
+    };
+  }
+  return { accepted: true, partial: { motivo: value } };
+}
 
 function nextRequiredField(data: CollectedData): RegistrationField | null {
   return REQUIRED_FIELDS.find((field) => !data[field]) ?? null;
@@ -126,4 +192,4 @@ registerTool({
   },
 });
 
-export const __testing__ = { patientRegistrationMessage };
+export const __testing__ = { patientRegistrationMessage, registrationFieldFromMessage };

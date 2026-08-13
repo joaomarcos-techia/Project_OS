@@ -67,10 +67,16 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain('Nunca use confirm_pending_action na mesma mensagem');
   });
 
-  it('prioriza cadastro antes de agendar para contato ainda não identificado', () => {
-    const prompt = buildSystemPrompt(makeCtx({ patient: null }));
+  it('só inicia cadastro depois de a agenda informar que ele é necessário', () => {
+    const prompt = buildSystemPrompt(
+      makeCtx({
+        patient: null,
+        patientRegistration: { status: 'not_started', missingFields: [], nextRequiredField: null },
+      }),
+    );
     expect(prompt).toContain('patient_registration_required');
-    expect(prompt).toContain('retome o pedido de agendamento original');
+    expect(prompt).toContain('NÃO está preenchendo cadastro');
+    expect(prompt).toContain('não peça dados pessoais até prepare_appointment exigir cadastro');
   });
 
   it('expõe apenas o estágio não sensível da coleta em andamento', () => {
@@ -88,8 +94,8 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain(
       'cadastro em andamento; próximo dado obrigatório: cpf; faltam: cpf, motivo.',
     );
-    expect(prompt).toContain('Siga o ESTADO DO CADASTRO');
-    expect(prompt).toContain('patient_message retornada pela ferramenta');
+    expect(prompt).toContain('Durante "cadastro em andamento", peça somente o próximo dado obrigatório');
+    expect(prompt).toContain('O servidor valida e grava nome, CPF e motivo');
   });
 });
 

@@ -21,6 +21,14 @@ describe('patientRegistrationState', () => {
     });
   });
 
+  it('não inicia cadastro apenas porque o telefone ainda não identifica um paciente', () => {
+    expect(__testing__.patientRegistrationState(null, null)).toEqual({
+      status: 'not_started',
+      missingFields: [],
+      nextRequiredField: null,
+    });
+  });
+
   it('exige confirmação depois de receber todos os dados', () => {
     expect(
       __testing__.patientRegistrationState(null, {

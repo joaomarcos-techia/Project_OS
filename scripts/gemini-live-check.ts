@@ -1,7 +1,8 @@
 /**
- * Gemini LIVE check (C11) — 2 chamadas REAIS ao gemini-2.5-flash provando o
+ * Gemini LIVE check (C11) — chamadas REAIS ao gemini-2.5-flash provando o
  * wire format do GeminiProvider de ponta a ponta: tool calling (functionCall),
- * re-chamada com functionResponse e usageMetadata. Custo ≈ $0.001.
+ * re-chamada com functionResponse e usageMetadata, incluindo o início de
+ * cadastro exigido por prepare_appointment. Custo ≈ $0.003.
  *
  * Requer GEMINI_API_KEY real no .env.local. NÃO toca o banco.
  * Uso: `pnpm ai:live-check`
@@ -34,9 +35,9 @@ const ctx: PromptContext = {
   },
   patient: null,
   patientRegistration: {
-    status: 'collecting',
-    missingFields: ['nome', 'cpf', 'motivo'],
-    nextRequiredField: 'nome',
+    status: 'not_started',
+    missingFields: [],
+    nextRequiredField: null,
   },
   history: [],
   currentMessage: 'qual o horário de funcionamento?',
@@ -121,7 +122,41 @@ async function main(): Promise<void> {
 
   const totalUsd = computeCostUsd(r1.usage) + computeCostUsd(r2.usage);
   console.log(
-    `\n[live-check] OK — tool calling + functionResponse + usage reais. Custo total ≈ $${totalUsd.toFixed(6)}`,
+    '\n[live-check] iniciando cenário de agenda para paciente não cadastrado (a tool deve exigir cadastro).',
+  );
+  const r3 = await provider.generateWithTools({
+    systemPrompt,
+    messages: [{ role: 'user', text: 'Quero marcar uma consulta de cardiologia.' }],
+    tools,
+  });
+  console.log('[live-check] r3.toolCalls =', JSON.stringify(r3.toolCalls ?? null));
+  console.log('[live-check] r3.text      =', JSON.stringify(r3.text ?? null));
+  if (r3.usage.tokensInput <= 0) throw new Error('usageMetadata.promptTokenCount não veio');
+  if (!r3.toolCalls || r3.toolCalls[0]?.name !== 'prepare_appointment') {
+    throw new Error('agenda de paciente novo não chamou prepare_appointment');
+  }
+
+  const r4 = await provider.generateWithTools({
+    systemPrompt,
+    messages: [{ role: 'user', text: 'Quero marcar uma consulta de cardiologia.' }],
+    tools,
+    toolResults: [
+      {
+        name: 'prepare_appointment',
+        args: r3.toolCalls[0]!.args,
+        response: {
+          status: 'patient_registration_required',
+          required_fields: ['nome', 'cpf', 'motivo'],
+        },
+      },
+    ],
+  });
+  console.log('[live-check] r4.text  =', JSON.stringify(r4.text ?? null));
+  if (!r4.text || r4.text.trim().length === 0)
+    throw new Error('re-chamada de cadastro não produziu texto final');
+  const registrationUsd = computeCostUsd(r3.usage) + computeCostUsd(r4.usage);
+  console.log(
+    `\n[live-check] OK — tools de informação e de agenda + functionResponse reais. Custo total ≈ $${(totalUsd + registrationUsd).toFixed(6)}`,
   );
 }
 

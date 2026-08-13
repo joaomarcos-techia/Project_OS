@@ -23,9 +23,9 @@ import { MAX_INBOUND_CHARS, MAX_PROMPT_CHARS } from '../limits';
 import type { PromptContext } from '../types';
 
 /** Bump manual a cada mudança de RAW_TEMPLATE (G8). C12: tarefas operacionais.
- *  v8 (2026-08-13): cada turno de cadastro tem um único próximo campo e a
- *  resposta da ferramenta é autoritativa. */
-export const PROMPT_VERSION = '2026-08-13-v8';
+ *  v9 (2026-08-13): contato desconhecido não inicia cadastro sem uma tentativa
+ *  de agendamento; os campos da coleta ativa são validados pelo servidor. */
+export const PROMPT_VERSION = '2026-08-13-v9';
 
 /**
  * Resposta clínica segura — string EXATA do mandato C11 (anti-SAMD). Única
@@ -65,12 +65,10 @@ FLUXO DE AGENDAMENTO (uma ferramenta por mensagem — nunca encadeie várias):
 - confirm_appointment é só para o paciente responder "SIM" a um lembrete de consulta que JÁ existe — nunca para marcar uma consulta nova. Sem id/data, ela só confirma quando existir uma única consulta futura; se houver várias, mostre as opções retornadas e peça ao paciente que escolha.
 
 PACIENTE NOVO (cadastro):
-- Use patient_lookup. Se NÃO houver cadastro, colete em conversa: nome completo, CPF e motivo da consulta (o telefone já é o deste contato). Registre cada dado com collect_patient_data.
-- Se prepare_appointment retornar status="patient_registration_required", a pessoa ainda não tem cadastro. Não encaminhe para humano, não use fallback e não tente agendar no mesmo turno: peça somente o nome completo para iniciar a coleta. Preserve a intenção de agendamento da conversa para retomá-la após o cadastro confirmado.
-- Siga o ESTADO DO CADASTRO abaixo. Quando ele disser "próximo dado obrigatório", peça e registre SOMENTE aquele campo neste turno com collect_patient_data. Não diga que houve erro nem encaminhe a pessoa se a ferramenta aceitar os dados.
-- Depois de collect_patient_data, responda EXATAMENTE com patient_message retornada pela ferramenta. Ela é a resposta autoritativa para o próximo passo do cadastro.
-- Quando tiver nome+CPF+motivo, não repita o CPF. Peça que a pessoa responda "SIM" para confirmar os dados ou envie uma correção.
-- SÓ após uma NOVA mensagem explicitamente afirmativa, chame collect_patient_data com confirmed="true" (APENAS essa ferramenta nesse turno, nada mais). O cadastro é criado automaticamente; na mensagem SEGUINTE retome o pedido de agendamento original.
+- Um contato não identificado com estado "cadastro não iniciado" NÃO está preenchendo cadastro. Não peça nome, CPF ou motivo por iniciativa própria. Primeiro resolva o pedido operacional normalmente; cadastro só começa se prepare_appointment retornar status="patient_registration_required".
+- Se prepare_appointment retornar status="patient_registration_required", a pessoa ainda não tem cadastro. Não encaminhe para humano, não use fallback e não tente agendar no mesmo turno: peça somente o nome completo. O servidor inicia e conduz a coleta nos próximos turnos; preserve a intenção de agendamento para retomá-la após o cadastro confirmado.
+- Durante "cadastro em andamento", peça somente o próximo dado obrigatório. O servidor valida e grava nome, CPF e motivo; não tente interpretar, validar ou repetir o CPF. Quando a pessoa responder, não chame collect_patient_data.
+- Quando o estado indicar que o cadastro está completo, peça que a pessoa responda "SIM" para confirmar ou envie uma correção. O servidor cria o paciente após uma NOVA confirmação explícita.
 - Peça CPF apenas para cadastro. NUNCA repita/eco de dados de saúde.
 
 FINANCEIRO E LGPD:
@@ -115,6 +113,8 @@ export function buildSystemPrompt(ctx: PromptContext): string {
 
 function registrationLine(ctx: PromptContext['patientRegistration']): string {
   if (ctx.status === 'registered') return 'cadastro já identificado pelo telefone.';
+  if (ctx.status === 'not_started')
+    return 'cadastro não iniciado; não peça dados pessoais até prepare_appointment exigir cadastro.';
   if (ctx.status === 'awaiting_confirmation')
     return 'cadastro completo; aguarda a confirmação explícita do resumo.';
   return `cadastro em andamento; próximo dado obrigatório: ${ctx.nextRequiredField}; faltam: ${ctx.missingFields.join(', ')}.`;

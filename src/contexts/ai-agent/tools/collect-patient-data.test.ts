@@ -36,3 +36,26 @@ describe('patientRegistrationMessage', () => {
     );
   });
 });
+
+describe('registrationFieldFromMessage', () => {
+  it('aceita CPF válido mascarado e o normaliza sem depender do modelo', () => {
+    expect(__testing__.registrationFieldFromMessage('cpf', '529.982.247-25')).toEqual({
+      accepted: true,
+      partial: { cpf: '52998224725' },
+    });
+  });
+
+  it('mantém o pedido de CPF quando a mensagem não contém um CPF válido', () => {
+    expect(__testing__.registrationFieldFromMessage('cpf', '123.456.789-00')).toMatchObject({
+      accepted: false,
+      patientMessage: 'O CPF informado é inválido. Envie novamente os 11 dígitos, com ou sem pontuação.',
+    });
+  });
+
+  it('aceita nome completo, inclusive com apresentação natural', () => {
+    expect(__testing__.registrationFieldFromMessage('nome', 'Meu nome é Jonas Duarte')).toEqual({
+      accepted: true,
+      partial: { nome: 'Jonas Duarte' },
+    });
+  });
+});
