@@ -1,5 +1,6 @@
 import { AlertTriangle, ShieldCheck } from 'lucide-react';
 
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,12 @@ import { Select } from '@/components/ui/select';
 import { listEmployees } from '@/contexts/identity/queries';
 import { listLgpdRequestHistory, listLgpdRequests } from '@/contexts/patient/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+import {
+  AuthError,
+  requireClinicId,
+  requireFreshPermission,
+  requireUser,
+} from '@/lib/auth/tenant-context';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import { assignLgpdRequestForm, notifyLgpdRequesterForm, processLgpdRequestForm } from './actions';
@@ -24,7 +30,24 @@ const STATUS_LABEL = {
 
 export default async function LgpdOperationsPage() {
   await requireUser();
-  await requireFreshPermission(PERMISSIONS.EXPORT_PATIENT);
+  // A lista contém dados de solicitações de titulares. Antes de qualquer query,
+  // a negativa precisa ser uma tela segura — não uma exceção/Sentry esperada.
+  try {
+    await requireFreshPermission(PERMISSIONS.EXPORT_PATIENT);
+  } catch (error) {
+    if (!(error instanceof AuthError) || error.code !== 'forbidden') throw error;
+    return (
+      <>
+        <PageHeader
+          title="Solicitações LGPD"
+          description="Responsável, prazo de resposta, tratamento e comunicação ao titular."
+        />
+        <Alert variant="warning" title="Sem acesso">
+          Seu perfil não tem permissão para operar solicitações LGPD.
+        </Alert>
+      </>
+    );
+  }
   const clinicId = await requireClinicId();
   const [requests, employees] = await Promise.all([
     listLgpdRequests(clinicId),

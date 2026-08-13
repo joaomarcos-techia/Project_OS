@@ -2,7 +2,7 @@ import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+import { AuthError, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 
 import { HistoryImporter } from './history-importer';
 
@@ -10,7 +10,24 @@ export const dynamic = 'force-dynamic';
 
 export default async function ImportAppointmentHistoryPage() {
   await requireUser();
-  await requireFreshPermission(PERMISSIONS.IMPORT_AGENDA);
+  // A rota pode ser aberta diretamente mesmo quando a ação crítica continua
+  // bloqueada. Exibir a negativa evita transformar RBAC esperado em erro 500.
+  try {
+    await requireFreshPermission(PERMISSIONS.IMPORT_AGENDA);
+  } catch (error) {
+    if (!(error instanceof AuthError) || error.code !== 'forbidden') throw error;
+    return (
+      <>
+        <PageHeader
+          crumbs={[{ label: 'Agenda', href: '/agenda' }, { label: 'Importar histórico' }]}
+          title="Importar histórico da agenda"
+        />
+        <Alert variant="warning" title="Sem acesso">
+          Seu perfil não tem permissão para importar histórico da agenda.
+        </Alert>
+      </>
+    );
+  }
 
   return (
     <>
