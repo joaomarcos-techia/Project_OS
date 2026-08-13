@@ -25,11 +25,11 @@ import { uuidv4 } from '@/lib/ui/uuid';
 
 import { inviteMemberAction, type InviteMemberInput } from './actions';
 
-type Func = 'doctor' | 'attendant' | 'financial';
+type Func = 'gestor' | 'doctor' | 'attendant' | 'financial';
 
 /**
- * Convite de funcionário — Drawer (spec convite §Fase 1). Só o owner (quem tem
- * manage:employees) vê o botão. Progressive disclosure: a Função decide o resto.
+ * Convite de funcionário — Drawer (spec convite §Fase 1). Quem tem
+ * `manage:employees` vê o botão. Progressive disclosure: a Função decide o resto.
  */
 export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit: number | null }) {
   const router = useRouter();
@@ -139,6 +139,7 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
                 <Segmented
                   aria-label="Função do convidado"
                   options={[
+                    { value: 'gestor', label: 'Gestor' },
                     { value: 'doctor', label: 'Médico' },
                     { value: 'attendant', label: 'Atendente' },
                     { value: 'financial', label: 'Financeiro' },

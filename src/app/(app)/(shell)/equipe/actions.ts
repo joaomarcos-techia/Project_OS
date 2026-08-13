@@ -40,7 +40,7 @@ const INVITE_RATE_LIMITED =
 const RESEND_RATE_LIMITED =
   'Muitos reenvios em pouco tempo. Aguarde até uma hora, ou copie o link do convite existente.';
 
-const InvitableRole = z.enum(['doctor', 'attendant', 'financial']);
+const InvitableRole = z.enum(['gestor', 'doctor', 'attendant', 'financial']);
 
 const InviteMemberSchema = z.object({
   role: InvitableRole,
@@ -58,6 +58,7 @@ export type InviteMemberResult =
   | { upgrade: true; limit: number };
 
 const FUNCAO_LABEL: Record<z.infer<typeof InvitableRole>, string> = {
+  gestor: 'Gestor',
   doctor: 'Médico',
   attendant: 'Atendente',
   financial: 'Financeiro',

@@ -50,16 +50,21 @@ export const GET = withCron(
 
     // Atendimentos atendidos, fora da janela de carência, sem lançamento e ainda
     // não sinalizados como pendentes.
-    const rows = (await dbAdmin.execute(
-      sql`SELECT a.id::text AS id, a.clinic_id::text AS clinic_id, a.valor::text AS valor
-            FROM appointments a
-           WHERE a.status = 'atendido'
-             AND a.faturamento_pendente = false
-             AND a.updated_at < now() - ${sql.raw(GRACE)}
-             AND NOT EXISTS (SELECT 1 FROM lancamentos l WHERE l.appointment_id = a.id)
-           ORDER BY a.updated_at ASC
-           LIMIT ${limit}`,
-    )) as unknown as Array<{ id: string; clinic_id: string; valor: string }>;
+    const rows = (await dbAdmin.transaction(async (tx) => {
+      // O Transaction Pooler pode entregar a conexão administrativa ainda no
+      // papel `authenticator`. Este scan é o bypass cross-tenant explicitamente
+      // autorizado nesta rota; restaura o principal da conexão apenas dentro
+      // desta transação curta, antes da única leitura administrativa.
+      await tx.execute(sql`RESET ROLE`);
+      return tx.execute(sql`SELECT a.id::text AS id, a.clinic_id::text AS clinic_id, a.valor::text AS valor
+                              FROM appointments a
+                             WHERE a.status = 'atendido'
+                               AND a.faturamento_pendente = false
+                               AND a.updated_at < now() - ${sql.raw(GRACE)}
+                               AND NOT EXISTS (SELECT 1 FROM lancamentos l WHERE l.appointment_id = a.id)
+                             ORDER BY a.updated_at ASC
+                             LIMIT ${limit}`);
+    })) as unknown as Array<{ id: string; clinic_id: string; valor: string }>;
 
     if (rows.length === 0) {
       metrics.emit('financial.reconcile.run', { opened: 0, clinics: 0 });

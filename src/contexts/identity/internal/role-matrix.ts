@@ -2,9 +2,8 @@
  * Matriz de quem-convida-quem (spec convite §"Quem convida quem"). Função PURA,
  * server-side — a UI filtra as opções, mas a autoridade é aqui (não confiar no cliente).
  *
- * MVP: só o caminho do `owner` roda (gestor é DORMENTE — não semeado/oferecido). A
- * regra completa fica pronta para o dia que `gestor` acordar: custo zero, e protege
- * contra escalonamento. Invariante: **ninguém cria `owner`** (owner é único — ADR-032).
+ * Owner pode convidar um gestor, e gestor pode convidar os papéis operacionais.
+ * Invariante: **ninguém cria `owner`** (owner é único — ADR-032).
  */
 import type { Role } from '@/lib/auth/roles';
 
