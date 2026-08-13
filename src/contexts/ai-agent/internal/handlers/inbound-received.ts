@@ -162,23 +162,31 @@ const REGISTRATION_FIELDS = [
   'cpf',
   'motivo',
 ] as const satisfies readonly RegistrationField[];
+const MAX_EMPTY_RESPONSE_ATTEMPTS = 3;
 
 /**
  * O Gemini pode devolver HTTP 200 com candidate STOP sem parts. Não há efeito
- * externo na geração, então uma única nova tentativa é segura e evita que uma
- * resposta vazia transitória vire a mensagem de handoff ao paciente.
+ * externo na geração, então novas tentativas são seguras. O Gemini já devolveu
+ * respostas HTTP 200 sem candidate em produção; três tentativas rápidas evitam
+ * que uma instabilidade transitória vire a mensagem de handoff ao paciente.
  */
 export async function generateWithEmptyResponseRetry(
   provider: Pick<AIProvider, 'generateWithTools'>,
   opts: GenerateOpts,
 ): Promise<GenerateResult> {
-  try {
-    return await provider.generateWithTools(opts);
-  } catch (err) {
-    if (!(err instanceof AIProviderError) || err.code !== 'gemini_empty_response') throw err;
-    metrics.emit('ai_agent.provider.empty_response_retry', {});
-    return provider.generateWithTools(opts);
+  for (let attempt = 1; attempt <= MAX_EMPTY_RESPONSE_ATTEMPTS; attempt += 1) {
+    try {
+      return await provider.generateWithTools(opts);
+    } catch (err) {
+      const canRetry =
+        err instanceof AIProviderError &&
+        err.code === 'gemini_empty_response' &&
+        attempt < MAX_EMPTY_RESPONSE_ATTEMPTS;
+      if (!canRetry) throw err;
+      metrics.emit('ai_agent.provider.empty_response_retry', { attempt });
+    }
   }
+  throw new Error('unreachable empty-response retry state');
 }
 
 function nextRegistrationField(data: CollectedData): RegistrationField | null {
