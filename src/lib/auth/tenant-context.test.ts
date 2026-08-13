@@ -8,7 +8,11 @@
  * dbAdmin) e exercitamos a porta única de verdade. `authenticate` é `cache()`-ado,
  * por isso o módulo é reimportado a cada teste.
  */
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dialect = new PgDialect();
 
 const { getClaims, resolveImpersonation, db } = vi.hoisted(() => ({
   getClaims: vi.fn(),
@@ -163,6 +167,8 @@ describe('Data API desabilitada: operações de identidade permanecem server-sid
     });
     expect(db.transactionCalls).toBe(1);
     expect(db.txExecute).toHaveBeenCalledTimes(1);
+    const [statement] = db.txExecute.mock.calls[0] ?? [];
+    expect(dialect.sqlToQuery(statement as SQL).sql).toMatch(/^RESET ROLE$/i);
   });
 
   it('marca MFA pela função controlada dentro de transação autenticada', async () => {
