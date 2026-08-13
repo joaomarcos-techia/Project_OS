@@ -40,7 +40,14 @@ vi.mock('@/lib/db', () => {
     p.limit = () => Promise.resolve(isProfileRead ? db.profile : []);
     return p;
   };
-  return { dbAdmin: { select: (fields: Record<string, unknown>) => chain(fields) } };
+  return {
+    dbAdmin: {
+      select: (fields: Record<string, unknown>) => chain(fields),
+      transaction: (
+        fn: (tx: { execute: () => Promise<unknown>; select: typeof chain }) => Promise<unknown>,
+      ) => fn({ execute: async () => [], select: chain }),
+    },
+  };
 });
 
 import { PERMISSIONS } from './permissions';

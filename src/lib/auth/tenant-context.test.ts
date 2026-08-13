@@ -24,6 +24,7 @@ const { getClaims, resolveImpersonation, db } = vi.hoisted(() => ({
     queue: [] as unknown[][],
     execute: vi.fn(),
     txExecute: vi.fn(async () => []),
+    transactionCalls: 0,
     profileReads: 0,
   },
 }));
@@ -59,8 +60,12 @@ vi.mock('@/lib/db', () => {
         db.execute(...args);
         return Promise.resolve(db.queue.shift() ?? []);
       },
-      transaction: (fn: (tx: { execute: typeof db.txExecute }) => Promise<unknown>) =>
-        fn({ execute: db.txExecute }),
+      transaction: (
+        fn: (tx: { execute: typeof db.txExecute; select: typeof chain }) => Promise<unknown>,
+      ) => {
+        db.transactionCalls += 1;
+        return fn({ execute: db.txExecute, select: chain });
+      },
     },
   };
 });
@@ -143,6 +148,7 @@ beforeEach(() => {
   db.queue = [];
   db.execute.mockReset();
   db.txExecute.mockClear();
+  db.transactionCalls = 0;
   db.profileReads = 0;
 });
 
@@ -155,6 +161,8 @@ describe('Data API desabilitada: operações de identidade permanecem server-sid
       ativo: true,
       clinicId: CLINIC,
     });
+    expect(db.transactionCalls).toBe(1);
+    expect(db.txExecute).toHaveBeenCalledTimes(1);
   });
 
   it('marca MFA pela função controlada dentro de transação autenticada', async () => {

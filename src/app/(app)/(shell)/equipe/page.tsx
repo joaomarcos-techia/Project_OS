@@ -1,4 +1,5 @@
 import type { VariantProps } from 'class-variance-authority';
+import { redirect } from 'next/navigation';
 
 import { billingApiV1 } from '@/contexts/billing/api';
 import { isPractitioner, type Role } from '@/contexts/identity';
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/table';
 import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireUser } from '@/lib/auth/tenant-context';
+import { getCurrentUser } from '@/lib/auth/tenant-context';
 
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
@@ -53,7 +54,10 @@ function initials(nome: string): string {
 }
 
 export default async function EquipePage() {
-  const user = await requireUser();
+  // Ver comentário equivalente no dashboard: o redirect explícito impede que
+  // renders concorrentes transformem a expiração/revogação esperada em Sentry.
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
 
   if (!user.clinicId || !user.permissions.includes(PERMISSIONS.MANAGE_EMPLOYEES)) {
     return (

@@ -9,6 +9,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -22,7 +23,7 @@ import { getCashFlowToday, listCashFlowDaily } from '@/contexts/financial/querie
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireUser } from '@/lib/auth/tenant-context';
+import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { formatBRL } from '@/lib/format';
 
 import { ActivationChecklist } from './_components/activation-checklist';
@@ -55,7 +56,12 @@ function hora(iso: string): string {
 }
 
 export default async function DashboardPage() {
-  const user = await requireUser();
+  // Uma sessão expirada, revogada ou desativada é um estado esperado de
+  // navegação. O layout também é um backstop, mas segmentos podem renderizar
+  // concorrentemente; redirecionar aqui evita que um `AuthError` esperado vire
+  // erro 500/Sentry antes do redirect do layout vencer a corrida.
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
   if (!user.clinicId) {
     return (
       <PageHeader

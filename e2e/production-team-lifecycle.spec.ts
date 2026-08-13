@@ -384,7 +384,11 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
       });
 
       const attendantPage = await attendant.context!.newPage();
-      await attendantPage.goto('/dashboard');
+      const disabledDashboard = await attendantPage.goto('/dashboard');
+      expect(
+        disabledDashboard?.status(),
+        'sessão desativada não pode gerar 500 no dashboard',
+      ).toBeLessThan(500);
       await expect(attendantPage).toHaveURL(/\/login(?:\?|$)/u, { timeout: 30_000 });
 
       await page.reload();
@@ -402,6 +406,12 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
       await attendantPage.getByRole('button', { name: 'Entrar' }).click();
       await expect(attendantPage).toHaveURL(/\/dashboard(?:\?|$)/u, { timeout: 30_000 });
       await attendantPage.getByRole('button', { name: 'Sair' }).click();
+      await expect(attendantPage).toHaveURL(/\/login(?:\?|$)/u, { timeout: 30_000 });
+      const unauthenticatedTeam = await attendantPage.goto('/equipe');
+      expect(
+        unauthenticatedTeam?.status(),
+        'sessão ausente não pode gerar 500 em equipe',
+      ).toBeLessThan(500);
       await expect(attendantPage).toHaveURL(/\/login(?:\?|$)/u, { timeout: 30_000 });
 
       const financial = members.find((member) => member.role === 'financial')!;

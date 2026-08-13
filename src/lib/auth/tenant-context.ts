@@ -164,22 +164,30 @@ export type IdentityResult =
  * demais, e uma só (PK indexada, memoizada).
  */
 export const readAuthoritativeProfile = cache(async (userId: string) => {
-  const rows = await dbAdmin
-    .select({
-      role: profiles.role,
-      nome: profiles.nome,
-      clinicName: clinics.nome,
-      ativo: profiles.ativo,
-      mfaEnrolledAt: profiles.mfaEnrolledAt,
-      deletedAt: profiles.deletedAt,
-      clinicId: profiles.clinicId,
-      claimsVersion: profiles.claimsVersion,
-      inviteAcceptedAt: profiles.inviteAcceptedAt,
-    })
-    .from(profiles)
-    .leftJoin(clinics, eq(clinics.id, profiles.clinicId))
-    .where(eq(profiles.id, userId))
-    .limit(1);
+  // O Transaction Pooler pode reutilizar uma conexão administrativa que ficou
+  // no papel `authenticator`. Esta é uma leitura cross-tenant estritamente por
+  // PK, depois de o JWT já ter fornecido o `sub`; restaura o principal somente
+  // dentro da transação curta para a decisão server-authoritative não falhar
+  // intermitentemente com `permission denied for table profiles`.
+  const rows = await dbAdmin.transaction(async (tx) => {
+    await tx.execute(sql`RESET ROLE`);
+    return tx
+      .select({
+        role: profiles.role,
+        nome: profiles.nome,
+        clinicName: clinics.nome,
+        ativo: profiles.ativo,
+        mfaEnrolledAt: profiles.mfaEnrolledAt,
+        deletedAt: profiles.deletedAt,
+        clinicId: profiles.clinicId,
+        claimsVersion: profiles.claimsVersion,
+        inviteAcceptedAt: profiles.inviteAcceptedAt,
+      })
+      .from(profiles)
+      .leftJoin(clinics, eq(clinics.id, profiles.clinicId))
+      .where(eq(profiles.id, userId))
+      .limit(1);
+  });
   return rows[0] ?? null;
 });
 
