@@ -16,10 +16,28 @@ import type { Tx } from '@/lib/db';
 import { MAX_CONTEXT_MESSAGES } from '../limits';
 import { truncateInbound } from '../prompts/system';
 import { aiClinicConfig } from '../schema';
-import type { PromptContext } from '../types';
-import { getRecentMessages } from './conversation';
+import type { PatientRegistrationState, PromptContext, StoredCollect } from '../types';
+import { getCollectedData, getRecentMessages } from './conversation';
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
+
+const REGISTRATION_FIELDS = ['nome', 'cpf', 'motivo'] as const;
+
+/**
+ * Resume a coleta para o modelo sem inserir PII no prompt de sistema.
+ * O modelo recebe apenas o próximo passo; os valores permanecem cifrados na
+ * conversa e não atravessam esta fronteira.
+ */
+export function patientRegistrationState(
+  patient: { id: string; nome: string } | null,
+  collected: StoredCollect | null,
+): PatientRegistrationState {
+  if (patient) return { status: 'registered', missingFields: [] };
+
+  const missingFields = REGISTRATION_FIELDS.filter((field) => !collected?.[field]);
+  if (missingFields.length > 0) return { status: 'collecting', missingFields };
+  return { status: 'awaiting_confirmation', missingFields: [] };
+}
 
 export async function buildContext(
   tx: Tx,
@@ -55,6 +73,7 @@ export async function buildContext(
     MAX_CONTEXT_MESSAGES,
     args.excludeEventId,
   );
+  const collected = await getCollectedData(tx, args.clinicId, args.conversationId);
 
   return {
     clinic: {
@@ -71,7 +90,10 @@ export async function buildContext(
       canDisclosePayments: config?.canDisclosePaymentsViaAgent ?? false,
     },
     patient: args.patient,
+    patientRegistration: patientRegistrationState(args.patient, collected),
     history,
     currentMessage: truncateInbound(args.currentMessage),
   };
 }
+
+export const __testing__ = { patientRegistrationState };

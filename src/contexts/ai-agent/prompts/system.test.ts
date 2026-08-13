@@ -31,6 +31,7 @@ function makeCtx(overrides: Partial<PromptContext> = {}): PromptContext {
       canDisclosePayments: false,
     },
     patient: { id: '22222222-2222-2222-2222-222222222222', nome: 'Maria' },
+    patientRegistration: { status: 'registered', missingFields: [] },
     history: [],
     currentMessage: 'qual o horário?',
     ...overrides,
@@ -70,6 +71,18 @@ describe('versionamento (G8/R6)', () => {
     const prompt = buildSystemPrompt(makeCtx({ patient: null }));
     expect(prompt).toContain('patient_registration_required');
     expect(prompt).toContain('retome o pedido de agendamento original');
+  });
+
+  it('expõe apenas o estágio não sensível da coleta em andamento', () => {
+    const prompt = buildSystemPrompt(
+      makeCtx({
+        patient: null,
+        patientRegistration: { status: 'collecting', missingFields: ['cpf', 'motivo'] },
+      }),
+    );
+
+    expect(prompt).toContain('cadastro em andamento; faltam: cpf, motivo.');
+    expect(prompt).toContain('Siga o ESTADO DO CADASTRO');
   });
 });
 

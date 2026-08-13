@@ -22,6 +22,13 @@ export interface PromptAiConfig {
   canDisclosePayments: boolean;
 }
 
+/** Estado não sensível do cadastro em andamento, disponível ao prompt. */
+export interface PatientRegistrationState {
+  status: 'registered' | 'collecting' | 'awaiting_confirmation';
+  /** Campos que ainda precisam ser informados; telefone é obtido do WhatsApp. */
+  missingFields: Array<'nome' | 'cpf' | 'motivo'>;
+}
+
 /** Projeção mínima do paciente identificado (sem PII além do nome). */
 export interface PromptPatientInfo {
   id: string;
@@ -37,6 +44,8 @@ export interface PromptContext {
   clinic: PromptClinicInfo;
   aiConfig: PromptAiConfig;
   patient: PromptPatientInfo | null;
+  /** Progresso do cadastro sem expor CPF/telefone ao template. */
+  patientRegistration: PatientRegistrationState;
   /** Últimas MAX_CONTEXT_MESSAGES em ordem cronológica (decifradas). */
   history: PromptHistoryEntry[];
   /** Mensagem corrente, já truncada em MAX_INBOUND_CHARS. */

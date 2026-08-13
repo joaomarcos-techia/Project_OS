@@ -138,6 +138,7 @@ const ctx: PromptContext = {
     canDisclosePayments: false,
   },
   patient: null,
+  patientRegistration: { status: 'collecting', missingFields: ['nome', 'cpf', 'motivo'] },
   history: [],
   currentMessage: '',
 };
