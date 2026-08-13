@@ -27,7 +27,7 @@ const { getClaims, resolveImpersonation, db } = vi.hoisted(() => ({
     /** Respostas da consulta atômica de permissão. */
     queue: [] as unknown[][],
     execute: vi.fn(),
-    txExecute: vi.fn(async () => []),
+    txExecute: vi.fn<(query: SQL) => Promise<unknown>>(async () => []),
     transactionCalls: 0,
     profileReads: 0,
   },
@@ -167,8 +167,9 @@ describe('Data API desabilitada: operações de identidade permanecem server-sid
     });
     expect(db.transactionCalls).toBe(1);
     expect(db.txExecute).toHaveBeenCalledTimes(1);
-    const [statement] = db.txExecute.mock.calls[0] ?? [];
-    expect(dialect.sqlToQuery(statement as SQL).sql).toMatch(/^RESET ROLE$/i);
+    const resetCall = db.txExecute.mock.calls[0];
+    if (!resetCall) throw new Error('a transação autoritativa deve executar RESET ROLE');
+    expect(dialect.sqlToQuery(resetCall[0]).sql).toMatch(/^RESET ROLE$/i);
   });
 
   it('marca MFA pela função controlada dentro de transação autenticada', async () => {
