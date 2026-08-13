@@ -33,6 +33,19 @@ const OutputSchema = z.object({
   ),
 });
 
+/**
+ * A janela é controlada pelo modelo, portanto não pode expor disponibilidade
+ * histórica. Datas relativas erradas devem resultar em nenhuma opção, nunca em
+ * um horário passado que o modelo possa apresentar ao paciente.
+ */
+export function normalizeSlotWindow(from: Date, to: Date, now = new Date()): { from: Date; to: Date } | null {
+  if (to.getTime() <= from.getTime() || to.getTime() <= now.getTime()) return null;
+  return {
+    from: new Date(Math.max(from.getTime(), now.getTime())),
+    to,
+  };
+}
+
 registerTool({
   name: 'list_slots',
   description:
@@ -40,10 +53,12 @@ registerTool({
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
+    const window = normalizeSlotWindow(new Date(input.date_from), new Date(input.date_to));
+    if (!window) return { slots: [] };
     const slots = await schedulingApiV1.listSlots({
       clinicId: ctx.clinicId,
-      from: new Date(input.date_from),
-      to: new Date(input.date_to),
+      from: window.from,
+      to: window.to,
       ...(input.doctor_id ? { doctorId: input.doctor_id } : {}),
       ...(input.procedure_id ? { procedureId: input.procedure_id } : {}),
     });

@@ -23,6 +23,7 @@ function makeCtx(overrides: Partial<PromptContext> = {}): PromptContext {
       endereco: 'Rua das Flores, 100',
       timezone: 'America/Sao_Paulo',
     },
+    currentDateTime: '13/08/2026 às 19:24',
     aiConfig: {
       workingHours: { seg_sex: '08:00-18:00' },
       especialidades: ['cardiologia', 'dermatologia'],
@@ -58,6 +59,8 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain(CLINICAL_FALLBACK);
     expect(prompt).toContain('cardiologia, dermatologia');
     expect(prompt).toContain('Maria (cadastrado)');
+    expect(prompt).toContain('Data e hora atual da clínica (America/Sao_Paulo): 13/08/2026 às 19:24');
+    expect(prompt).toContain('NUNCA use conhecimento próprio');
     expect(prompt).not.toContain('{clinic_name}'); // sem placeholder sobrando
   });
 

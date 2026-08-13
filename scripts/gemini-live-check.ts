@@ -26,6 +26,7 @@ const ctx: PromptContext = {
     endereco: 'Rua de Teste, 42',
     timezone: 'America/Sao_Paulo',
   },
+  currentDateTime: '13/08/2026 às 19:24',
   aiConfig: {
     workingHours: { seg_sex: '08:00-18:00' },
     especialidades: ['cardiologia'],

@@ -49,6 +49,8 @@ export interface PromptHistoryEntry {
 
 export interface PromptContext {
   clinic: PromptClinicInfo;
+  /** Data/hora atual no fuso da clínica, gerada pelo servidor. */
+  currentDateTime: string;
   aiConfig: PromptAiConfig;
   patient: PromptPatientInfo | null;
   /** Progresso do cadastro sem expor CPF/telefone ao template. */

@@ -23,9 +23,8 @@ import { MAX_INBOUND_CHARS, MAX_PROMPT_CHARS } from '../limits';
 import type { PromptContext } from '../types';
 
 /** Bump manual a cada mudança de RAW_TEMPLATE (G8). C12: tarefas operacionais.
- *  v10 (2026-08-13): preserva o serviço solicitado ao atravessar o cadastro e
- *  trata datas informadas pelo paciente no fuso da clínica. */
-export const PROMPT_VERSION = '2026-08-13-v10';
+ *  v11 (2026-08-13): ancora datas relativas na data/hora atual da clínica. */
+export const PROMPT_VERSION = '2026-08-13-v11';
 
 /**
  * Resposta clínica segura — string EXATA do mandato C11 (anti-SAMD). Única
@@ -53,6 +52,7 @@ REGRAS INEGOCIÁVEIS:
 - NUNCA dê conselho clínico, diagnóstico, interpretação de exames, orientação sobre sintomas ou sugestão de tratamento/medicamento.
 - Se a pergunta envolver sintomas, doenças, exames ou medicamentos, responda EXATAMENTE: "{clinical_fallback}"
 - TODA informação de fato (horário, endereço, preço, horários livres, status de consulta) e TODA ação (agendar/confirmar/cancelar/reagendar/cadastrar) vêm SOMENTE de ferramentas. NUNCA invente dados, protocolos, horários ou confirmações.
+- Para "hoje", "amanhã", dia da semana e qualquer data relativa, use EXCLUSIVAMENTE a DATA E HORA ATUAL da clínica abaixo. NUNCA use conhecimento próprio, datas de conversas anteriores ou uma data que não tenha vindo da ferramenta.
 - Uma ação por mensagem. Agendar, cancelar e reagendar SEMPRE exigem duas mensagens: primeiro prepare a ação e mostre o resumo; somente após uma NOVA resposta explicitamente afirmativa use confirm_pending_action.
 - Se o paciente pedir uma pessoa, ou você não conseguir resolver, use request_human_handoff.
 - Responda em português brasileiro, tom cordial e objetivo, mensagens curtas (formato WhatsApp).
@@ -78,6 +78,7 @@ FINANCEIRO E LGPD:
 
 CONTEXTO OPERACIONAL:
 - Clínica: {clinic_name}
+- Data e hora atual da clínica ({clinic_timezone}): {clinic_current_datetime}
 - Endereço: {clinic_endereco}
 - Especialidades: {especialidades}
 - Paciente: {patient_line}
@@ -101,6 +102,8 @@ export function buildSystemPrompt(ctx: PromptContext): string {
   const patientRegistrationLine = registrationLine(ctx.patientRegistration);
   return RAW_TEMPLATE.replace(/\{clinic_name\}/g, ctx.clinic.nome)
     .replace('{clinical_fallback}', CLINICAL_FALLBACK)
+    .replace('{clinic_timezone}', ctx.clinic.timezone)
+    .replace('{clinic_current_datetime}', ctx.currentDateTime)
     .replace('{clinic_endereco}', ctx.clinic.endereco ?? 'não informado')
     .replace(
       '{especialidades}',

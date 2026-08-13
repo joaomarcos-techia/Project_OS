@@ -23,6 +23,25 @@ const DEFAULT_TZ = 'America/Sao_Paulo';
 
 const REGISTRATION_FIELDS = ['nome', 'cpf', 'motivo'] as const;
 
+/** Data/hora operacional que ancora "hoje" e "amanhã" no prompt do agente. */
+function formatClinicDateTime(now: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes): string => {
+    const part = parts.find((item) => item.type === type)?.value;
+    if (!part) throw new Error(`could not resolve timezone ${timeZone}`);
+    return part;
+  };
+  return `${value('day')}/${value('month')}/${value('year')} às ${value('hour')}:${value('minute')}`;
+}
+
 /**
  * Resume a coleta para o modelo sem inserir PII no prompt de sistema.
  * O modelo recebe apenas o próximo passo; os valores permanecem cifrados na
@@ -86,14 +105,16 @@ export async function buildContext(
     args.excludeEventId,
   );
   const collected = await getCollectedData(tx, args.clinicId, args.conversationId);
+  const timeZone = clinic.timezone ?? DEFAULT_TZ;
 
   return {
     clinic: {
       id: args.clinicId,
       nome: clinic.nome,
       endereco: clinic.endereco ?? null,
-      timezone: clinic.timezone ?? DEFAULT_TZ,
+      timezone: timeZone,
     },
+    currentDateTime: formatClinicDateTime(new Date(), timeZone),
     aiConfig: {
       workingHours: config?.workingHours ?? null,
       especialidades: config?.especialidades ?? null,
@@ -110,4 +131,4 @@ export async function buildContext(
   };
 }
 
-export const __testing__ = { patientRegistrationState };
+export const __testing__ = { patientRegistrationState, formatClinicDateTime };
