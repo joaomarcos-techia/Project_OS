@@ -55,15 +55,23 @@ const RegistrationRequiredOutputSchema = z.object({
   required_fields: z.tuple([z.literal('nome'), z.literal('cpf'), z.literal('motivo')]),
 });
 
-const REGISTRATION_REQUIRED_FIELDS = ['nome', 'cpf', 'motivo'] satisfies [
-  'nome',
-  'cpf',
-  'motivo',
-];
+const AppointmentInformationRequiredOutputSchema = z.object({
+  status: z.literal('appointment_information_required'),
+  patient_message: z.string(),
+});
+
+const AppointmentUnavailableOutputSchema = z.object({
+  status: z.literal('appointment_unavailable'),
+  patient_message: z.string(),
+});
+
+const REGISTRATION_REQUIRED_FIELDS = ['nome', 'cpf', 'motivo'] satisfies ['nome', 'cpf', 'motivo'];
 
 const OutputSchema = z.discriminatedUnion('status', [
   PreparedOutputSchema,
   RegistrationRequiredOutputSchema,
+  AppointmentInformationRequiredOutputSchema,
+  AppointmentUnavailableOutputSchema,
 ]);
 
 /** Normaliza (minúsculas, sem acentos). */
@@ -97,14 +105,101 @@ function matchesProcedure(
 
 const HOUR_MS = 60 * 60 * 1000;
 
+type ZonedParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+function zonedParts(instant: Date, timeZone: string): ZonedParts {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const value = (type: Intl.DateTimeFormatPartTypes): number => {
+    const part = parts.find((item) => item.type === type)?.value;
+    if (!part) throw new Error(`could not resolve timezone ${timeZone}`);
+    return Number(part);
+  };
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: value('hour'),
+    minute: value('minute'),
+  };
+}
+
+function timeZoneOffsetMs(instant: Date, timeZone: string): number {
+  const parts = zonedParts(instant, timeZone);
+  return (
+    Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute) - instant.getTime()
+  );
+}
+
+function wallClockInTimeZoneToInstant(args: ZonedParts, timeZone: string): Date {
+  const wallClockUtc = Date.UTC(args.year, args.month - 1, args.day, args.hour, args.minute);
+  let instant = new Date(wallClockUtc - timeZoneOffsetMs(new Date(wallClockUtc), timeZone));
+  const adjustedOffset = timeZoneOffsetMs(instant, timeZone);
+  if (wallClockUtc - adjustedOffset !== instant.getTime()) {
+    instant = new Date(wallClockUtc - adjustedOffset);
+  }
+  return instant;
+}
+
+function tomorrowTimeFromMessage(
+  currentMessage: string,
+  timeZone: string,
+  now: Date,
+): string | null {
+  const match = currentMessage.match(
+    /amanh(?:\u00e3|a)\s*,?\s*(?:\u00e0s?|as|em)\s*(\d{1,2})(?:\s*:\s*(\d{2})|\s*h\s*(\d{1,2})?|\s+horas?(?:\s+e\s+(\d{1,2}))?)?/iu,
+  );
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2] ?? match[3] ?? match[4] ?? '0');
+  if (hour > 23 || minute > 59) return null;
+
+  const today = zonedParts(now, timeZone);
+  const tomorrow = new Date(Date.UTC(today.year, today.month - 1, today.day + 1));
+  return wallClockInTimeZoneToInstant(
+    {
+      year: tomorrow.getUTCFullYear(),
+      month: tomorrow.getUTCMonth() + 1,
+      day: tomorrow.getUTCDate(),
+      hour,
+      minute,
+    },
+    timeZone,
+  ).toISOString();
+}
+
+function appointmentTimeForPatient(iso: string, timeZone: string): string {
+  const parts = zonedParts(new Date(iso), timeZone);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(parts.day)}/${pad(parts.month)}/${parts.year} às ${pad(parts.hour)}:${pad(parts.minute)}`;
+}
+
 /** Test-only: matcher puro exposto p/ cobertura (bug real cardiologia↔cardiológica). */
-export const __testing__ = { matchesProcedure };
+export const __testing__ = {
+  matchesProcedure,
+  tomorrowTimeFromMessage,
+  appointmentTimeForPatient,
+};
 
 registerTool({
   name: 'prepare_appointment',
   effect: 'mutation',
   description:
-    'Prepara uma marcação de consulta nova de uma vez: resolve procedimento (por nome/especialidade), médico e horário. Passe procedure_name (omita se a clínica só tiver um) e scheduled_at (omita para o primeiro horário livre). Só PREPARA — a consulta é criada depois com confirm_pending_action. Se retornar status="patient_registration_required", peça o nome completo para iniciar o cadastro; não encaminhe para humano nem tente agendar neste turno.',
+    'Prepara uma marcação de atendimento novo de uma vez: resolve o serviço ou procedimento, profissional e horário. Passe procedure_name (omita se a clínica só tiver um) e scheduled_at (omita para o primeiro horário livre). Só PREPARA — o atendimento é criado depois com confirm_pending_action. Se retornar status="patient_registration_required", peça o nome completo para iniciar o cadastro; não encaminhe para humano nem tente agendar neste turno.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
@@ -126,35 +221,73 @@ registerTool({
 
     // 1. Resolve o procedimento (server-side; nunca confia num id do LLM).
     const procedures = await schedulingApiV1.listProcedures(ctx.clinicId, { limit: 50 });
-    if (procedures.length === 0) throw new Error('a clínica não tem procedimentos cadastrados');
+    if (procedures.length === 0) {
+      return {
+        status: 'appointment_information_required' as const,
+        patient_message:
+          'Não encontrei atendimentos disponíveis para agendamento. Por favor, informe qual serviço deseja marcar.',
+      };
+    }
     let procedure: (typeof procedures)[number] | undefined;
-    if (input.procedure_name) {
-      const matches = procedures.filter((p) => matchesProcedure(input.procedure_name!, p));
+    const requestedProcedureName = input.procedure_name ?? ctx.pendingAppointmentProcedureName;
+    if (requestedProcedureName) {
+      const matches = procedures.filter((p) => matchesProcedure(requestedProcedureName, p));
       if (matches.length === 1) procedure = matches[0];
       else if (matches.length === 0) {
         // Sem match mas só há um procedimento → é ele (evita fricção boba).
         if (procedures.length === 1) procedure = procedures[0];
-        else throw new Error(`não encontrei um procedimento para "${input.procedure_name}"`);
+        else {
+          return {
+            status: 'appointment_information_required' as const,
+            patient_message:
+              'Não identifiquei o atendimento desejado. Informe o nome do serviço que quer agendar.',
+          };
+        }
       } else {
-        throw new Error(
-          `há mais de um procedimento parecido com "${input.procedure_name}"; peça ao paciente para especificar`,
-        );
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message:
+            'Encontrei mais de um atendimento parecido. Informe o nome completo do serviço que deseja agendar.',
+        };
       }
     } else if (procedures.length === 1) {
       procedure = procedures[0];
     } else {
-      throw new Error('a clínica tem vários procedimentos; pergunte ao paciente qual ele deseja');
+      return {
+        status: 'appointment_information_required' as const,
+        patient_message: 'Informe qual atendimento ou serviço você deseja agendar.',
+      };
     }
 
     // 2. Resolve o horário + médico (server-side, a partir da disponibilidade real).
     const now = new Date();
     let scheduledAt: string;
     let doctorId: string;
-    if (input.scheduled_at) {
-      const at = new Date(input.scheduled_at);
-      if (at.getTime() < now.getTime()) throw new Error('não é possível agendar no passado');
+    const scheduledAtFromMessage = tomorrowTimeFromMessage(
+      ctx.currentMessage,
+      ctx.clinicTimeZone,
+      now,
+    );
+    const requestedScheduledAt = scheduledAtFromMessage ?? input.scheduled_at;
+    if (requestedScheduledAt) {
+      const at = new Date(requestedScheduledAt);
+      if (at.getTime() < now.getTime()) {
+        return {
+          status: 'appointment_unavailable' as const,
+          patient_message:
+            'Esse horário já passou. Informe outra data e horário para o atendimento.',
+        };
+      }
+      const latestAllowedAt = now.getTime() + ctx.maxDaysAhead * 86_400_000;
+      if (at.getTime() > latestAllowedAt) {
+        return {
+          status: 'appointment_unavailable' as const,
+          patient_message:
+            'Essa data não está disponível para agendamento. Informe outra data e horário.',
+        };
+      }
       assertAgentSchedulePolicy({
-        scheduledAt: input.scheduled_at,
+        scheduledAt: requestedScheduledAt,
         now,
         maxDaysAhead: ctx.maxDaysAhead,
       });
@@ -167,8 +300,13 @@ registerTool({
       const match = slots.find(
         (s) => Math.abs(new Date(s.startAt).getTime() - at.getTime()) < 60_000,
       );
-      if (!match)
-        throw new Error('esse horário não está livre; ofereça outras opções com list_slots');
+      if (!match) {
+        return {
+          status: 'appointment_unavailable' as const,
+          patient_message:
+            'Esse horário não está disponível para esse atendimento. Informe outra data ou horário.',
+        };
+      }
       scheduledAt = match.startAt;
       doctorId = match.doctorId;
     } else {
@@ -178,10 +316,13 @@ registerTool({
         to: new Date(now.getTime() + ctx.maxDaysAhead * 86_400_000),
         procedureId: procedure!.id,
       });
-      if (slots.length === 0)
-        throw new Error(
-          'não há horários livres na janela; peça ao paciente para sugerir outra data',
-        );
+      if (slots.length === 0) {
+        return {
+          status: 'appointment_unavailable' as const,
+          patient_message:
+            'Não há horários disponíveis para esse atendimento nesse período. Informe outra data ou horário.',
+        };
+      }
       scheduledAt = slots[0]!.startAt;
       doctorId = slots[0]!.doctorId;
     }
@@ -198,7 +339,10 @@ registerTool({
         procedureId: procedure!.id,
         scheduledAt,
       },
-      summary: `Agendar ${procedure!.descricao} para ${scheduledAt}`,
+      summary: `Agendar ${procedure!.descricao} para ${appointmentTimeForPatient(
+        scheduledAt,
+        ctx.clinicTimeZone,
+      )}`,
     });
     return {
       status: 'appointment_prepared' as const,

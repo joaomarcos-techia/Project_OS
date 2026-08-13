@@ -42,6 +42,8 @@ export type ToolContext = {
   // Configuração autoritativa usada pelas tools, não apenas pelo prompt.
   canScheduleAnonymous: boolean;
   maxDaysAhead: number;
+  clinicTimeZone: string;
+  pendingAppointmentProcedureName: string | null;
   // Opt-in da clínica para divulgar VALORES de cobranças (list_pending_payments).
   canDisclosePayments: boolean;
 };

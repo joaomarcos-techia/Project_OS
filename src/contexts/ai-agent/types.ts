@@ -53,6 +53,8 @@ export interface PromptContext {
   patient: PromptPatientInfo | null;
   /** Progresso do cadastro sem expor CPF/telefone ao template. */
   patientRegistration: PatientRegistrationState;
+  /** Serviço solicitado antes do cadastro, mantido sem dados pessoais. */
+  pendingAppointmentProcedureName: string | null;
   /** Últimas MAX_CONTEXT_MESSAGES em ordem cronológica (decifradas). */
   history: PromptHistoryEntry[];
   /** Mensagem corrente, já truncada em MAX_INBOUND_CHARS. */
@@ -78,6 +80,8 @@ export interface StoredCollect extends CollectedData {
   _stagnation?: number;
   /** Paciente confirmou o resumo dos dados (gate de createPatient — par.12). */
   _confirmed?: boolean;
+  /** Serviço pedido antes do cadastro, para retomar a marcação após criá-lo. */
+  _pendingProcedureName?: string;
 }
 
 /** Campos obrigatórios para criar o paciente (par.12 — regras de coleta). */

@@ -150,10 +150,18 @@ export function roundMutationCount(calls: Array<{ name: string }>): number {
   return calls.filter((c) => getTool(c.name)?.effect === 'mutation').length;
 }
 
-const PATIENT_REGISTERED_REPLY =
-  'Cadastro concluído. Para continuar o agendamento, informe a data de preferência para a consulta.';
+function patientRegisteredReply(procedureName: string | null): string {
+  if (procedureName) {
+    return `Cadastro concluído. Para agendar ${procedureName}, informe a data e o horário de preferência.`;
+  }
+  return 'Cadastro concluído. Para continuar o agendamento, informe a data e o horário de preferência.';
+}
 
-const REGISTRATION_FIELDS = ['nome', 'cpf', 'motivo'] as const satisfies readonly RegistrationField[];
+const REGISTRATION_FIELDS = [
+  'nome',
+  'cpf',
+  'motivo',
+] as const satisfies readonly RegistrationField[];
 
 /**
  * O Gemini pode devolver HTTP 200 com candidate STOP sem parts. Não há efeito
@@ -182,10 +190,19 @@ async function startPatientRegistration(
   clinicId: string,
   conversationId: string,
   verifiedPhone: string,
+  procedureName: string | null,
 ): Promise<void> {
-  await phase(clinicId, (tx) =>
-    mergeCollectedData(tx, clinicId, conversationId, { telefone: verifiedPhone }),
-  );
+  await phase(clinicId, async (tx) => {
+    const merged = await mergeCollectedData(tx, clinicId, conversationId, {
+      telefone: verifiedPhone,
+    });
+    if (procedureName) {
+      await setCollectedData(tx, clinicId, conversationId, {
+        ...merged.data,
+        _pendingProcedureName: procedureName,
+      });
+    }
+  });
 }
 
 /**
@@ -224,6 +241,14 @@ function registrationWasRequired(toolResults: ToolResult[]): boolean {
   );
 }
 
+function requestedProcedureName(toolResults: ToolResult[]): string | null {
+  const result = toolResults.find((item) => item.name === 'prepare_appointment');
+  const value = (result?.args as { procedure_name?: unknown } | undefined)?.procedure_name;
+  if (typeof value !== 'string') return null;
+  const name = value.trim();
+  return name.length > 0 && name.length <= 200 ? name : null;
+}
+
 /**
  * A ferramenta de coleta devolve uma resposta operacional já validada. Não
  * deixamos o LLM reescrevê-la, pois isso gerava mensagens de erro inventadas
@@ -253,9 +278,36 @@ export function registrationReplyFromToolResults(toolResults: ToolResult[]): str
   return null;
 }
 
-function registrationReplyFromState(
-  status: PatientRegistrationState['status'],
-): string | null {
+/**
+ * Resultado de agenda vem do servidor e não pode ser reinterpretado pelo
+ * modelo. Isso preserva o serviço e evita que uma marcação preparada vire um
+ * encaminhamento genérico para atendimento humano.
+ */
+export function appointmentReplyFromToolResults(toolResults: ToolResult[]): string | null {
+  for (let i = toolResults.length - 1; i >= 0; i -= 1) {
+    const result = toolResults[i]!;
+    if (result.name !== 'prepare_appointment') continue;
+
+    const response = result.response as {
+      patient_message?: unknown;
+      status?: unknown;
+      summary?: unknown;
+    };
+    if (response.status === 'appointment_prepared' && typeof response.summary === 'string') {
+      return `${response.summary}\nResponda SIM para confirmar.`;
+    }
+    if (
+      (response.status === 'appointment_information_required' ||
+        response.status === 'appointment_unavailable') &&
+      typeof response.patient_message === 'string'
+    ) {
+      return response.patient_message;
+    }
+  }
+  return null;
+}
+
+function registrationReplyFromState(status: PatientRegistrationState['status']): string | null {
   if (status === 'awaiting_confirmation') {
     return patientRegistrationMessage({
       nextRequiredField: null,
@@ -329,7 +381,7 @@ async function resolveCollect(
   conversation: ActiveConversation,
   eventId: string,
   aiRequestId: string,
-): Promise<{ patientId?: string; handoff?: boolean }> {
+): Promise<{ patientId?: string; handoff?: boolean; pendingProcedureName?: string }> {
   if (conversation.patientId) return {}; // já identificado pelo telefone
   const collected = await phase(clinicId, (tx) => getCollectedData(tx, clinicId, conversation.id));
   if (!collected) return {};
@@ -352,6 +404,7 @@ async function resolveCollect(
       { nome: collected.nome!, cpf: collected.cpf!, telefone: collected.telefone! },
       agentIdemKey(conversation.id, 'register_patient', { cpf: collected.cpf }),
     );
+    const pendingProcedureName = collected._pendingProcedureName ?? null;
     await phase(clinicId, async (tx) => {
       await tx
         .update(aiConversations)
@@ -359,14 +412,23 @@ async function resolveCollect(
         .where(
           and(eq(aiConversations.id, conversation.id), eq(aiConversations.clinicId, clinicId)),
         );
-      await clearCollectedData(tx, clinicId, conversation.id);
+      // Remove PII do cadastro concluído, mas mantém o serviço escolhido para
+      // que o próximo turno possa retomar o agendamento corretamente.
+      await setCollectedData(
+        tx,
+        clinicId,
+        conversation.id,
+        pendingProcedureName ? { _pendingProcedureName: pendingProcedureName } : null,
+      );
     });
     metrics.emit('ai_agent.patient.created', {
       clinicId,
       conversationId: conversation.id,
       aiRequestId,
     });
-    return { patientId: patient.id };
+    return pendingProcedureName
+      ? { patientId: patient.id, pendingProcedureName }
+      : { patientId: patient.id };
   } catch (err) {
     // CPF/e-mail já cadastrado (terceiro) ou erro → handoff (nunca linka alheio).
     await phase(clinicId, (tx) =>
@@ -730,6 +792,8 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
               currentMessage: text,
               canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
               maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
+              clinicTimeZone: promptCtx.clinic.timezone,
+              pendingAppointmentProcedureName: promptCtx.pendingAppointmentProcedureName,
               canDisclosePayments: promptCtx.aiConfig.canDisclosePayments,
             });
             if (!exec.ok) {
@@ -804,7 +868,12 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     }
 
     if (registrationWasRequired(toolResults)) {
-      await startPatientRegistration(clinicId, conversation.id, fromNumber);
+      await startPatientRegistration(
+        clinicId,
+        conversation.id,
+        fromNumber,
+        requestedProcedureName(toolResults),
+      );
     }
 
     latencyMs = Date.now() - t0;
@@ -818,16 +887,19 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     // Conflito de identidade/criação ou estagnação → handoff.
     let collectHandoff = false;
     let patientCreated = false;
+    let patientCreatedProcedureName: string | null = null;
     if (!fallback || confirmedRegistrationServerSide || toolResults.length > 0) {
       const collect = await resolveCollect(clinicId, conversation, eventId, aiRequestId);
       if (collect.handoff) collectHandoff = true;
       else if (collect.patientId) {
         conversation.patientId = collect.patientId;
         patientCreated = true;
+        patientCreatedProcedureName = collect.pendingProcedureName ?? null;
       }
     }
 
-    const registrationReply =
+    const operationalReply =
+      appointmentReplyFromToolResults(toolResults) ??
       serverRegistrationReply ??
       registrationReplyFromToolResults(toolResults) ??
       registrationReplyFromState(promptCtx.patientRegistration.status);
@@ -837,10 +909,10 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         'Recebi seus dados! Vou confirmar sua identidade com um atendente e já te retorno, ok?';
       outcome = 'handoff';
     } else if (patientCreated) {
-      responseText = PATIENT_REGISTERED_REPLY;
+      responseText = patientRegisteredReply(patientCreatedProcedureName);
       outcome = 'replied';
-    } else if (registrationReply) {
-      responseText = registrationReply;
+    } else if (operationalReply) {
+      responseText = operationalReply;
       outcome = 'replied';
     } else if (fallback || !result?.text || result.text.trim().length === 0) {
       // Falha de provider/tool/rounds OU LLM sem texto → fallback operacional.

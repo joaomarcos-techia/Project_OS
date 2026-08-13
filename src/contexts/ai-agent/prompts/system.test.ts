@@ -32,6 +32,7 @@ function makeCtx(overrides: Partial<PromptContext> = {}): PromptContext {
     },
     patient: { id: '22222222-2222-2222-2222-222222222222', nome: 'Maria' },
     patientRegistration: { status: 'registered', missingFields: [], nextRequiredField: null },
+    pendingAppointmentProcedureName: null,
     history: [],
     currentMessage: 'qual o horário?',
     ...overrides,
@@ -94,8 +95,19 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain(
       'cadastro em andamento; próximo dado obrigatório: cpf; faltam: cpf, motivo.',
     );
-    expect(prompt).toContain('Durante "cadastro em andamento", peça somente o próximo dado obrigatório');
+    expect(prompt).toContain(
+      'Durante "cadastro em andamento", peça somente o próximo dado obrigatório',
+    );
     expect(prompt).toContain('O servidor valida e grava nome, CPF e motivo');
+  });
+
+  it('mantém o serviço pedido separado do motivo do cadastro', () => {
+    const prompt = buildSystemPrompt(
+      makeCtx({ pendingAppointmentProcedureName: 'Harmonização facial' }),
+    );
+
+    expect(prompt).toContain('Serviço pendente de agendamento: Harmonização facial');
+    expect(prompt).toContain('motivo informado para cadastro NÃO substitui o serviço escolhido');
   });
 });
 

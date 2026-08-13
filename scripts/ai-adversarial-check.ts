@@ -143,6 +143,7 @@ const ctx: PromptContext = {
     missingFields: ['nome', 'cpf', 'motivo'],
     nextRequiredField: 'nome',
   },
+  pendingAppointmentProcedureName: null,
   history: [],
   currentMessage: '',
 };

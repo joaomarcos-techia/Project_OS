@@ -27,6 +27,8 @@ const unregisteredPatientContext: ToolContext = {
   currentMessage: 'Quero marcar uma consulta',
   canScheduleAnonymous: false,
   maxDaysAhead: 30,
+  clinicTimeZone: 'America/Sao_Paulo',
+  pendingAppointmentProcedureName: null,
   canDisclosePayments: false,
 };
 
@@ -45,6 +47,34 @@ describe('matchesProcedure (tolerante a especialidade vs nome)', () => {
   it('NÃO casa especialidade de outro procedimento', () => {
     expect(matchesProcedure('cardiologia', dermato)).toBe(false);
     expect(matchesProcedure('ortopedia', cardio)).toBe(false);
+  });
+});
+
+describe('horário relativo no fuso da clínica', () => {
+  it('interpreta amanhã às 9 horas como 09:00 em America/Sao_Paulo', () => {
+    expect(
+      __testing__.tomorrowTimeFromMessage(
+        'Quero amanhã, às 9 horas',
+        'America/Sao_Paulo',
+        new Date('2026-08-13T20:00:00.000Z'),
+      ),
+    ).toBe('2026-08-14T12:00:00.000Z');
+  });
+
+  it('não substitui uma data ISO quando a mensagem não informa amanhã com horário', () => {
+    expect(
+      __testing__.tomorrowTimeFromMessage(
+        'Quero na sexta às 9 horas',
+        'America/Sao_Paulo',
+        new Date('2026-08-13T20:00:00.000Z'),
+      ),
+    ).toBeNull();
+  });
+
+  it('mostra o horário preparado no fuso da clínica', () => {
+    expect(
+      __testing__.appointmentTimeForPatient('2026-08-14T12:00:00.000Z', 'America/Sao_Paulo'),
+    ).toBe('14/08/2026 às 09:00');
   });
 });
 

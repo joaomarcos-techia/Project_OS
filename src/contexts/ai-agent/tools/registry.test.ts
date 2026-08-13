@@ -30,6 +30,8 @@ const ctx: ToolContext = {
   currentMessage: 'mensagem de teste',
   canScheduleAnonymous: false,
   maxDaysAhead: 30,
+  clinicTimeZone: 'America/Sao_Paulo',
+  pendingAppointmentProcedureName: null,
   canDisclosePayments: false,
 };
 

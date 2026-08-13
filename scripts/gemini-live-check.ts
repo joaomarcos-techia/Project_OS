@@ -39,6 +39,7 @@ const ctx: PromptContext = {
     missingFields: [],
     nextRequiredField: null,
   },
+  pendingAppointmentProcedureName: null,
   history: [],
   currentMessage: 'qual o horário de funcionamento?',
 };

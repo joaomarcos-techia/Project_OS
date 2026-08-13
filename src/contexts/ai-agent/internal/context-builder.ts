@@ -103,6 +103,8 @@ export async function buildContext(
     },
     patient: args.patient,
     patientRegistration: patientRegistrationState(args.patient, collected),
+    pendingAppointmentProcedureName:
+      args.patient && collected?._pendingProcedureName ? collected._pendingProcedureName : null,
     history,
     currentMessage: truncateInbound(args.currentMessage),
   };
