@@ -25,11 +25,23 @@ import { metrics } from '@/lib/observability/metrics';
 export class BillingProviderError extends Error {
   readonly code: string;
   readonly httpStatus: number | null;
-  constructor(message: string, code = 'billing_provider_error', httpStatus: number | null = null) {
+  /**
+   * Códigos estáveis da API do Asaas, filtrados antes de entrar em métricas.
+   * A descrição é deliberadamente descartada: pode refletir dados enviados no
+   * checkout transparente e não é segura para logs, Sentry ou UI.
+   */
+  readonly providerErrorCodes: readonly string[];
+  constructor(
+    message: string,
+    code = 'billing_provider_error',
+    httpStatus: number | null = null,
+    providerErrorCodes: readonly string[] = [],
+  ) {
     super(message);
     this.name = 'BillingProviderError';
     this.code = code;
     this.httpStatus = httpStatus;
+    this.providerErrorCodes = providerErrorCodes;
   }
 }
 
@@ -104,6 +116,35 @@ const circuit = new CircuitBreaker();
 // --- HTTP base -------------------------------------------------------------
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const ASAAS_USER_AGENT = 'ClinicaOS/1.0 (billing-integration)';
+const SAFE_PROVIDER_ERROR_CODE = /^[a-z][a-z0-9_]{0,63}$/;
+
+/**
+ * Extrai SOMENTE códigos alfanuméricos estáveis do formato de erro do Asaas.
+ * Nunca preserva `description` ou o corpo bruto: a API pode refletir PAN, CVV
+ * ou PII recebidos no checkout transparente.
+ */
+async function getSafeProviderErrorCodes(response: Response): Promise<string[]> {
+  try {
+    const body: unknown = JSON.parse(await response.text());
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      !Array.isArray((body as { errors?: unknown }).errors)
+    ) {
+      return [];
+    }
+
+    const codes = (body as { errors: unknown[] }).errors.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object') return [];
+      const code = (entry as { code?: unknown }).code;
+      return typeof code === 'string' && SAFE_PROVIDER_ERROR_CODE.test(code) ? [code] : [];
+    });
+    return [...new Set(codes)].slice(0, 4);
+  } catch {
+    return [];
+  }
+}
 
 async function rawRequest(method: string, path: string, body?: unknown): Promise<unknown> {
   assertBillingRuntimeReady();
@@ -112,6 +153,9 @@ async function rawRequest(method: string, path: string, body?: unknown): Promise
     method,
     headers: {
       'Content-Type': 'application/json',
+      // Obrigatório para contas-raiz recentes do Asaas; explícito para que o
+      // comportamento não dependa do User-Agent padrão do runtime Node.
+      'User-Agent': ASAAS_USER_AGENT,
       access_token: env.ASAAS_API_KEY!,
     },
     signal: AbortSignal.timeout(env.ASAAS_HTTP_TIMEOUT_MS),
@@ -133,13 +177,20 @@ async function rawRequest(method: string, path: string, body?: unknown): Promise
     throw new BillingProviderUnreachableError(`asaas ${method} ${path} → HTTP ${res.status}`);
   }
   if (res.status >= 400) {
-    metrics.emit('billing.asaas.http_4xx', { method, path, status: res.status });
+    const providerErrorCodes = await getSafeProviderErrorCodes(res);
+    metrics.emit('billing.asaas.http_4xx', {
+      method,
+      path,
+      status: res.status,
+      providerErrorCodes,
+    });
     // Nunca propague o corpo do provedor: em checkout transparente ele pode
     // refletir campos sensíveis da requisição e acabar em logs/Sentry.
     throw new BillingProviderError(
       `asaas ${method} ${path} → HTTP ${res.status}`,
       'billing_provider_error',
       res.status,
+      providerErrorCodes,
     );
   }
   return res.status === 204 ? null : await res.json();

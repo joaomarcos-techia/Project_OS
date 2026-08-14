@@ -13,7 +13,7 @@ vi.mock('@/lib/env', () => ({
 }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
 
-import { __testing__, asaasProvider } from './asaas';
+import { __testing__, asaasProvider, BillingProviderError } from './asaas';
 
 beforeEach(() => {
   __testing__.resetCircuit();
@@ -22,6 +22,21 @@ beforeEach(() => {
 });
 
 describe('compensacao de cliente de checkout', () => {
+  it('identifica explicitamente a integração nas chamadas ao Asaas', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'cus_1' }));
+
+    await asaasProvider.createCustomer({ name: 'Gestora', email: 'gestora@example.test' });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(request.headers).toEqual(
+      expect.objectContaining({
+        'Content-Type': 'application/json',
+        'User-Agent': 'ClinicaOS/1.0 (billing-integration)',
+        access_token: 'test-key',
+      }),
+    );
+  });
+
   it('remove cliente pelo endpoint do Asaas sem incluir dados de cartao', async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
 
@@ -133,11 +148,37 @@ describe('erros HTTP do Asaas', () => {
       expect.objectContaining({
         name: 'BillingProviderError',
         message: 'asaas GET /payments/pay_1 → HTTP 400',
+        providerErrorCodes: [],
       }),
     );
-    if (!(error instanceof Error)) throw new Error('expected BillingProviderError');
+    if (!(error instanceof BillingProviderError)) throw new Error('expected BillingProviderError');
     expect(error.message).not.toContain(pan);
     expect(error.message).not.toContain(cvv);
+  });
+
+  it('preserva apenas códigos seguros do provedor para diagnóstico', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          errors: [
+            {
+              code: 'invalid_credit_card',
+              description: 'dados refletidos que nunca devem ser logados',
+            },
+            { code: 'invalid_credit_card', description: 'duplicado' },
+            { code: 'CPF-123', description: 'código fora da allowlist' },
+          ],
+        }),
+        { status: 400, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const error = await asaasProvider.getPayment('pay_1', { attempts: 1 }).then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+
+    expect(error).toEqual(expect.objectContaining({ providerErrorCodes: ['invalid_credit_card'] }));
   });
 });
 
