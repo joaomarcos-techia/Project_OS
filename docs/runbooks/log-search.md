@@ -163,18 +163,20 @@ WITH
   JSONExtractCaseInsensitive(raw, 'message', 'duration_ms', 'Nullable(Float64)') AS "message.duration_ms"
 SELECT
   {{time}} as time,
-  count(*) as value
+  quantile(0.95)(`message.duration_ms`) AS value
 FROM {{__source_where}} AND
   toString(`message.event`) = 'billing.webhook.verify' AND
-  `message.duration_ms` > 5000 AND
+  isNotNull(`message.duration_ms`) AND
   dt BETWEEN {{start_time}} AND {{end_time}}
 GROUP BY time
 ```
 
-O que muda: **`Nullable(Float64)`** (não `String`), comparação `> 5000` de verdade, e `=`
-exato no evento em vez de `ILIKE '%...%'`.
+O que muda: **`Nullable(Float64)`** (não `String`), `quantile(0.95)` sobre a duração em
+milissegundos e `=` exato no evento em vez de `ILIKE '%...%'`. A versão anterior contava
+quantos eventos lentos existiam; ela não produzia o p95 descrito pelo SLO e fazia um threshold
+como `50` significar quantidade de ocorrências, não cinco segundos.
 
-**No alerta, use threshold ABSOLUTO, não relativo.** A URL do builder carrega
+**No alerta, use threshold ABSOLUTO `higher_than 5000`, não relativo.** A URL do builder carrega
 `alert_type=relative` por default → é o "increases by 10%", que com baseline zero **nunca
 dispara**. Troque para o modo de valor absoluto ("is above N").
 
