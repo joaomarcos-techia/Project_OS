@@ -85,6 +85,26 @@ describe('sanitizePayload — conteúdo clínico (defesa em profundidade)', () =
       cpf: '[REDACTED]',
     });
   });
+
+  it('redige dados de checkout, inclusive nomes prefixados por Server Action', () => {
+    const out = sanitizePayload({
+      _1_cardNumber: 'card-number-private',
+      _1_cardCvv: '123',
+      _1_cpfCnpj: '12345678901',
+      _1_password: 'senha-nao-deve-vazar',
+      addressNumber: '12',
+      event: 'checkout.failed',
+    }) as Record<string, unknown>;
+
+    expect(out).toEqual({
+      _1_cardNumber: '[REDACTED]',
+      _1_cardCvv: '[REDACTED]',
+      _1_cpfCnpj: '[REDACTED]',
+      _1_password: '[REDACTED]',
+      addressNumber: '[REDACTED]',
+      event: 'checkout.failed',
+    });
+  });
 });
 
 describe('redactOpaqueId', () => {

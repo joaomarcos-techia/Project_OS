@@ -25,7 +25,10 @@ export function sanitizePayload(value: unknown, depth = 0): unknown {
   }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (SENSITIVE_KEYS.has(k.toLowerCase())) {
+    // React Server Actions serializa campos de FormData como `_1_cardNumber`.
+    // Mantenha a regra central de redação mesmo com esse prefixo interno.
+    const normalizedKey = k.toLowerCase().replace(/^_\d+_/, '');
+    if (SENSITIVE_KEYS.has(normalizedKey)) {
       out[k] = '[REDACTED]';
     } else {
       out[k] = sanitizePayload(v, depth + 1);

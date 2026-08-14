@@ -37,6 +37,33 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'mfa_secret',
   'totp_secret',
   'recovery_codes',
+  // Checkout transparente: esses campos chegam numa Server Action antes de
+  // serem encaminhados ao Asaas. Nunca podem entrar em logs, auditoria ou
+  // telemetria, mesmo se o React prefixar seu nome no multipart.
+  'cardnumber',
+  'card_number',
+  'creditcardnumber',
+  'credit_card_number',
+  'cardcvv',
+  'card_cvv',
+  'cvv',
+  'ccv',
+  'cardexpiry',
+  'card_expiry',
+  'creditcard',
+  'credit_card',
+  'creditcardholderinfo',
+  'credit_card_holder_info',
+  'cardname',
+  'card_name',
+  'holdername',
+  'holder_name',
+  'cpfcnpj',
+  'cpf_cnpj',
+  'postalcode',
+  'postal_code',
+  'addressnumber',
+  'address_number',
   // C5 (ADR-012): patient PII. Actions already build audit before/after from a
   // non-sensitive projection, so these never reach the audit path — this is
   // defense in depth in case raw rows are ever passed to logAudit/metrics.

@@ -1,13 +1,22 @@
 import type { ErrorEvent } from '@sentry/nextjs';
 
 import { sanitizePayload } from '@/lib/sanitize/redact';
+import { redactStringValue } from '@/lib/sanitize/patterns';
+
+const INVITE_TOKEN_PATH = /(\/join\/)[^/?#]+/g;
+
+function scrubRequestUrl(url: string): string {
+  return redactStringValue(url.replace(INVITE_TOKEN_PATH, '$1[REDACTED]'));
+}
 
 /**
  * `beforeSend` scrubber shared by the Sentry client/server/edge configs.
  *
  * Reusa a mesma disciplina `sanitizePayload` do logger/metrics (Bearer/JWT/sk_/
  * DSN + SENSITIVE_KEYS). Combinado com `sendDefaultPii: false`, remove cookies/
- * headers da request e redige request body / extra / contexts.
+ * headers da request e redige request body / extra / contexts. URLs de convite
+ * e corpos multipart também são tratados explicitamente: token de convite e
+ * dados de checkout não podem sair para o Sentry.
  *
  * ⚠️ LIMITES REAIS — leia antes de confiar (corrigido em 2026-07-18, achado N6).
  * O docblock anterior afirmava que "um evento nunca carrega credencial OU
@@ -32,8 +41,16 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   if (event.request) {
     delete event.request.cookies;
     delete event.request.headers;
+    if (typeof event.request.url === 'string') {
+      event.request.url = scrubRequestUrl(event.request.url);
+    }
     if (event.request.data !== undefined) {
-      event.request.data = sanitizePayload(event.request.data);
+      // Uma string pode ser um body multipart bruto. Sem parse seguro, ela
+      // nunca deve ser enviada a telemetria.
+      event.request.data =
+        typeof event.request.data === 'string'
+          ? '[REDACTED_REQUEST_BODY]'
+          : sanitizePayload(event.request.data);
     }
   }
   if (event.extra) {
