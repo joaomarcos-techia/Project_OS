@@ -124,6 +124,32 @@ async function sendInvite(page: Page, member: Member, runId: string): Promise<vo
   });
 }
 
+/**
+ * This production journey needs the owner plus its four role fixtures. Check
+ * the contracted capacity before creating anything so a reused test account
+ * cannot fail halfway through after consuming seats.
+ */
+async function assertTeamCapacity(page: Page, requiredSeats: number): Promise<void> {
+  await page.goto('/equipe');
+  const indicator = page.getByText(/^Usuários: \d+ de \d+$/u);
+  if ((await indicator.count()) === 0) return;
+
+  const label = (await indicator.textContent())?.trim() ?? '';
+  const match = /^Usuários: (\d+) de (\d+)$/u.exec(label);
+  if (!match) throw new Error(`Indicador de vagas da equipe inválido: ${label || '(vazio)'}.`);
+
+  const activeUsers = Number(match[1]);
+  const seatLimit = Number(match[2]);
+  const availableSeats = seatLimit - activeUsers;
+  if (availableSeats < requiredSeats) {
+    throw new Error(
+      `Conta E2E sem vagas suficientes: ${activeUsers} de ${seatLimit} usuários em uso; ` +
+        `a jornada exige ${requiredSeats} vagas livres para gestor, médico, atendente e financeiro. ` +
+        'Use uma clínica descartável com capacidade livre antes de executar o teste.',
+    );
+  }
+}
+
 async function resendInvite(page: Page, member: Member): Promise<string> {
   const row = page.getByText(member.name, { exact: true }).locator('xpath=ancestor::tr[1]');
   await row.getByRole('button', { name: `Ações do convite de ${member.name}` }).click();
@@ -296,6 +322,8 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
     });
 
     try {
+      await assertTeamCapacity(page, members.length);
+
       const acceptMember = async (
         member: Member,
         link: string,
