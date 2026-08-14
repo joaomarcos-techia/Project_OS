@@ -59,12 +59,22 @@ function record(name: string, ok: boolean, detail?: string): void {
 function fmtErr(e: unknown): string {
   return e instanceof Error ? (e.stack ?? e.message) : String(e);
 }
+/** Contenção do worker não é falha de cenário — é ambiente. Aborta tudo. */
+class WorkerContentionError extends Error {}
+let aborted = false;
+
 async function tryStep(name: string, fn: () => Promise<void>): Promise<void> {
+  if (aborted) return; // não empilhar falhas em cascata depois de abortar
   try {
     await fn();
     record(name, true);
   } catch (e) {
     record(name, false, fmtErr(e));
+    if (e instanceof WorkerContentionError) {
+      aborted = true;
+      console.log('\n>>> execução ABORTADA: o worker do outbox está sendo disputado.');
+      console.log('>>> Os cenários seguintes NÃO rodaram — não conclua nada sobre eles.\n');
+    }
   }
 }
 function assert(cond: boolean, msg: string): void {
@@ -159,7 +169,7 @@ async function seedClinic(clinicId: string): Promise<void> {
 }
 
 // --- entrega de turnos ----------------------------------------------------------
-const MAX_TICKS = 6;
+const MAX_TICKS = 10;
 let seq = 0;
 function makeMsg(text: string): ParsedInboundMessage {
   seq += 1;
@@ -180,9 +190,36 @@ async function persistOnly(clinicId: string, text: string): Promise<string> {
   );
   return ev[0]!.id;
 }
+/**
+ * Roda o worker até o evento do turno ser consumido.
+ *
+ * Distingue "o produto falhou" de "o ambiente está ocupado" — sem isso, um
+ * segundo processo tocando o worker transforma UMA contenção de lock em uma
+ * dezena de falhas em cascata, e o operador procura bug onde não há.
+ *
+ * `runOutboxOnce` devolve `empty: 0` quando o tick foi ROUBADO (não conseguiu o
+ * advisory lock global) e `empty > 0` quando a fila estava genuinamente vazia.
+ * É essa diferença que permite acusar a causa certa.
+ *
+ * `batchSize` é folgado de propósito: eventos residuais de outra clínica na fila
+ * não podem empurrar o evento deste turno para fora do lote.
+ */
 async function drainUntil(eventId: string): Promise<void> {
+  let stolen = 0;
   for (let tick = 0; tick < MAX_TICKS; tick += 1) {
-    await runOutboxOnce({ batchSize: 2, parallelism: 1 });
+    const summary = await runOutboxOnce({ batchSize: 10, parallelism: 1 });
+    if (summary.processed === 0 && summary.failed === 0 && summary.empty === 0) {
+      stolen += 1;
+      if (stolen >= 3) {
+        throw new WorkerContentionError(
+          'outro processo está usando o worker do outbox (advisory lock global). ' +
+            'Feche qualquer outro smoke, `worker:once` ou dev server rodando contra este banco ' +
+            'e execute de novo — NÃO é falha do agente.',
+        );
+      }
+      continue;
+    }
+    stolen = 0;
     const st = await dbAdmin.execute<{ p: Date | null }>(
       sql`SELECT processed_at AS p FROM outbox WHERE id = ${eventId} LIMIT 1`,
     );
@@ -304,8 +341,29 @@ function localDayOf(instant: Date): string {
 }
 
 // ================================================================================
+/**
+ * Drena o que já estava na fila ANTES de semear.
+ *
+ * Uma execução anterior interrompida deixa eventos de outra clínica pendentes;
+ * eles competem por lugar no lote e fazem o evento deste turno parecer não
+ * processado. Limpar o terreno primeiro é mais barato que diagnosticar depois.
+ */
+async function drainLeftovers(): Promise<void> {
+  const pend = await dbAdmin.execute<{ n: number }>(
+    sql`SELECT count(*)::int AS n FROM outbox WHERE status = 'pending' AND next_attempt_at <= now()`,
+  );
+  const n = Number(pend[0]?.n ?? 0);
+  if (n === 0) return;
+  console.log(`[preflight] ${n} evento(s) residual(is) na fila — drenando antes de começar.`);
+  for (let i = 0; i < 12; i += 1) {
+    const s = await runOutboxOnce({ batchSize: 10, parallelism: 1 });
+    if (s.processed === 0 && s.failed === 0 && s.empty > 0) return; // fila limpa
+  }
+}
+
 async function main(): Promise<void> {
   aiCircuitTesting.reset();
+  await drainLeftovers();
   const clinic = await createClinic();
   await seedClinic(clinic);
 
