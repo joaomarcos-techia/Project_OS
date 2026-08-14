@@ -24,6 +24,8 @@ import {
   assertAgentSchedulingIdentity,
   proposePendingAction,
 } from '../internal/pending-action';
+import { reconcileRequestedTime, resolveRequestedDateTime, zonedParts } from '../internal/relative-datetime';
+import { agentSlotFloor } from './list-slots';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
@@ -105,83 +107,12 @@ function matchesProcedure(
 
 const HOUR_MS = 60 * 60 * 1000;
 
-type ZonedParts = {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-};
-
-function zonedParts(instant: Date, timeZone: string): ZonedParts {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(instant);
-  const value = (type: Intl.DateTimeFormatPartTypes): number => {
-    const part = parts.find((item) => item.type === type)?.value;
-    if (!part) throw new Error(`could not resolve timezone ${timeZone}`);
-    return Number(part);
-  };
-  return {
-    year: value('year'),
-    month: value('month'),
-    day: value('day'),
-    hour: value('hour'),
-    minute: value('minute'),
-  };
-}
-
-function timeZoneOffsetMs(instant: Date, timeZone: string): number {
-  const parts = zonedParts(instant, timeZone);
-  return (
-    Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute) - instant.getTime()
-  );
-}
-
-function wallClockInTimeZoneToInstant(args: ZonedParts, timeZone: string): Date {
-  const wallClockUtc = Date.UTC(args.year, args.month - 1, args.day, args.hour, args.minute);
-  let instant = new Date(wallClockUtc - timeZoneOffsetMs(new Date(wallClockUtc), timeZone));
-  const adjustedOffset = timeZoneOffsetMs(instant, timeZone);
-  if (wallClockUtc - adjustedOffset !== instant.getTime()) {
-    instant = new Date(wallClockUtc - adjustedOffset);
-  }
-  return instant;
-}
-
-function tomorrowTimeFromMessage(
-  currentMessage: string,
-  timeZone: string,
-  now: Date,
-): string | null {
-  const match = currentMessage.match(
-    /amanh(?:\u00e3|a)\s*,?\s*(?:\u00e0s?|as|em)\s*(\d{1,2})(?:\s*:\s*(\d{2})|\s*h\s*(\d{1,2})?|\s+horas?(?:\s+e\s+(\d{1,2}))?)?/iu,
-  );
-  if (!match) return null;
-
-  const hour = Number(match[1]);
-  const minute = Number(match[2] ?? match[3] ?? match[4] ?? '0');
-  if (hour > 23 || minute > 59) return null;
-
-  const today = zonedParts(now, timeZone);
-  const tomorrow = new Date(Date.UTC(today.year, today.month - 1, today.day + 1));
-  return wallClockInTimeZoneToInstant(
-    {
-      year: tomorrow.getUTCFullYear(),
-      month: tomorrow.getUTCMonth() + 1,
-      day: tomorrow.getUTCDate(),
-      hour,
-      minute,
-    },
-    timeZone,
-  ).toISOString();
-}
-
+/**
+ * F-04 (auditoria 2026-08-14): a resolução de data/hora saiu daqui para
+ * `internal/relative-datetime.ts`. O que existia era um regex de "amanhã às N"
+ * que vencia o modelo até quando a frase o negava, e que lia "depois de amanhã"
+ * como "amanhã". Os primitivos de fuso moraram aqui; hoje vivem lá, com testes.
+ */
 function appointmentTimeForPatient(iso: string, timeZone: string): string {
   const parts = zonedParts(new Date(iso), timeZone);
   const pad = (value: number): string => String(value).padStart(2, '0');
@@ -191,7 +122,6 @@ function appointmentTimeForPatient(iso: string, timeZone: string): string {
 /** Test-only: matcher puro exposto p/ cobertura (bug real cardiologia↔cardiológica). */
 export const __testing__ = {
   matchesProcedure,
-  tomorrowTimeFromMessage,
   appointmentTimeForPatient,
 };
 
@@ -263,13 +193,51 @@ registerTool({
     const now = new Date();
     let scheduledAt: string;
     let doctorId: string;
-    const scheduledAtFromMessage = tomorrowTimeFromMessage(
-      ctx.currentMessage,
-      ctx.clinicTimeZone,
-      now,
-    );
-    const requestedScheduledAt = scheduledAtFromMessage ?? input.scheduled_at;
-    if (requestedScheduledAt) {
+    // F-04: quem traduz "sexta de manhã" em instante é o SERVIDOR, ancorado no
+    // fuso e no relógio da clínica. O modelo só decide quando o texto não traz
+    // marcador de data; e quando o servidor só tem uma janela, um instante do
+    // modelo DENTRO dela é aceito.
+    const requested = reconcileRequestedTime({
+      resolved: resolveRequestedDateTime({
+        text: ctx.currentMessage,
+        now,
+        timeZone: ctx.clinicTimeZone,
+        maxDaysAhead: ctx.maxDaysAhead,
+      }),
+      modelIso: input.scheduled_at,
+    });
+
+    // Hora nua 1–7 sem marcador AM/PM: 15:00 e 03:00 são igualmente plausíveis.
+    // Perguntar é obrigatório — chutar aqui marcaria a madrugada do paciente.
+    if (requested.mode === 'candidates') {
+      const opcoes = requested.candidatesIso
+        .map((iso) => appointmentTimeForPatient(iso, ctx.clinicTimeZone))
+        .join(' ou ');
+      return {
+        status: 'appointment_information_required' as const,
+        patient_message: `Só para confirmar: você prefere ${opcoes}?`,
+      };
+    }
+
+    if (requested.mode === 'search') {
+      const slots = await schedulingApiV1.listSlots({
+        clinicId: ctx.clinicId,
+        from: new Date(requested.fromIso),
+        to: new Date(requested.toIso),
+        notBefore: agentSlotFloor(now),
+        procedureId: procedure!.id,
+      });
+      if (slots.length === 0) {
+        return {
+          status: 'appointment_unavailable' as const,
+          patient_message:
+            'Não há horários livres nesse período para esse atendimento. Informe outra data ou horário.',
+        };
+      }
+      scheduledAt = slots[0]!.startAt;
+      doctorId = slots[0]!.doctorId;
+    } else if (requested.mode === 'instant') {
+      const requestedScheduledAt = requested.atIso;
       const at = new Date(requestedScheduledAt);
       if (at.getTime() < now.getTime()) {
         return {
@@ -295,6 +263,7 @@ registerTool({
         clinicId: ctx.clinicId,
         from: new Date(at.getTime() - HOUR_MS),
         to: new Date(at.getTime() + HOUR_MS),
+        notBefore: agentSlotFloor(now),
         procedureId: procedure!.id,
       });
       const match = slots.find(
@@ -314,6 +283,10 @@ registerTool({
         clinicId: ctx.clinicId,
         from: now,
         to: new Date(now.getTime() + ctx.maxDaysAhead * 86_400_000),
+        // F-03: sem isto, `slots[0]` no caminho "primeiro horário livre" era o
+        // primeiro bloco do DIA (08:00), já vencido às 15:00 — a marcação era
+        // preparada no passado e só falhava na confirmação.
+        notBefore: agentSlotFloor(now),
         procedureId: procedure!.id,
       });
       if (slots.length === 0) {

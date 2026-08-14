@@ -77,3 +77,32 @@ export const COLLECT_STALE_RESET_DAYS = 3;
  * falso quando o paciente erra e corrige aos poucos.
  */
 export const MAX_COLLECT_STAGNATION = 5;
+
+/**
+ * F-03 (auditoria 2026-08-14) — antecedência mínima do agente, em minutos.
+ *
+ * O defeito era oferecer horário JÁ PASSADO (`computeSlots` não conhece o
+ * relógio). Corrigir só para "> agora" resolveria o passado e deixaria em pé o
+ * vizinho imediato: um slot que começa em 2 minutos é tão inútil quanto um que
+ * já passou — o paciente não chega. Este piso é aplicado pelo AGENTE (as tools
+ * passam `notBefore = agora + isto`); o Scheduling continua sem política, porque
+ * a recepção humana legitimamente encaixa alguém para "daqui a 10 minutos".
+ *
+ * Ajuste consciente: 30 → 0 devolve o encaixe imediato via WhatsApp.
+ */
+export const AGENT_MIN_LEAD_MINUTES = 30;
+
+/**
+ * F-08 (auditoria 2026-08-14) — quantas mensagens seguidas do MESMO contato
+ * entram num turno só. O paciente escreve como fala ("amanhã" / "de manhã" /
+ * "9"); cada fragmento virava um turno paralelo, com histórico pela metade e
+ * respostas fora de ordem. Teto baixo de propósito: absorver demais transforma
+ * assuntos distintos numa mensagem confusa.
+ */
+export const COALESCE_MAX_MESSAGES = 4;
+
+/**
+ * F-08 — idade máxima da mensagem absorvida. Mais velha que isto não é rajada:
+ * é assunto anterior que ficou para trás, e merece o próprio turno.
+ */
+export const COALESCE_MAX_AGE_MS = 90_000;

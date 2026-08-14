@@ -84,6 +84,8 @@ ADRs futuros devem incluir também **Alternatives** + **References**._
 | [046](046-no-login-gate-clinical-record-access.md) | Inadimplência NÃO bloqueia login nem leitura — só ESCRITA. Emenda o ADR-016 (revoga o invariante 3 e a coluna `login` da tabela congelada): o prontuário é registro médico-legal com guarda de 20 anos (CFM 1.821/2007, ADR-017). `isLoginBlocked` removido — nunca foi plugado | accepted | Billing / Compliance |
 | [047](047-ai-conversations-human-handoff.md) | Painel `/conversas` + intervenção humana. `handoff` é pré-condição para resposta manual (mata a corrida agente × humano); primeira implementação da janela de 24h da Meta (fronteiras fechadas: sem inbound e exatamente 24h); envio via outbox, nunca direto da action; `ai_messages` persistida ≠ entregue (selo vem de `outbound_messages`); autoria por `sent_by_user_id` → `profiles` RESTRICT | proposed → **em prod** | AI Agent / Messaging |
 
+| [048](048-ai-agent-conversational-safety.md) | Segurança conversacional do agente: formaliza o contrato de pending actions (que nunca teve ADR), dá saída ao pré-filtro clínico sem afrouxar a blacklist (F-01), resolve data relativa server-side (F-04), põe piso por instante na disponibilidade (F-03), inclui a linha pendente na chave de idempotência (F-05) e coalesce rajadas num turno só (F-08) — emenda ADR-022 §7 | proposed | AI Agent / Segurança |
+
 ## Como propor um novo ADR
 
 1. Copie [000-template.md](000-template.md) para `NNN-<short-kebab-name>.md`

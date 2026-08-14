@@ -11,7 +11,11 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
 import { selectAppointmentForConfirmation } from '../internal/appointment-selection';
-import { isExplicitConfirmation, proposePendingAction } from '../internal/pending-action';
+import {
+  findPendingActionSummary,
+  isExplicitConfirmation,
+  proposePendingAction,
+} from '../internal/pending-action';
 import { registerTool } from './registry';
 
 const InputSchema = z.object({
@@ -65,6 +69,24 @@ registerTool({
     if (!ctx.patientId || ctx.identityAmbiguous) {
       throw new Error('paciente não identificado de forma inequívoca');
     }
+
+    // F-11 (auditoria 2026-08-14) — se já existe uma ação preparada, o "SIM" do
+    // paciente pertence a ELA. Confirmar presença aqui produziria um efeito
+    // diferente do resumo que ele leu, e a marcação preparada evaporaria.
+    const pendingBefore = await findPendingActionSummary(ctx.tx, ctx.clinicId, ctx.conversationId);
+    if (pendingBefore) {
+      return {
+        confirmed: false,
+        requires_selection: false,
+        requires_confirmation: true,
+        appointment_id: null,
+        pending_action_id: pendingBefore.id,
+        status: null,
+        summary: pendingBefore.summary,
+        appointments: [],
+      };
+    }
+
     const appointments = await schedulingApiV1.listPatientAppointments(
       ctx.clinicId,
       ctx.patientId,

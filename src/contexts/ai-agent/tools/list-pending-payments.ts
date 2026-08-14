@@ -35,6 +35,11 @@ const OutputSchema = z.object({
 
 registerTool({
   name: 'list_pending_payments',
+  // F-10 (auditoria 2026-08-14): declarada MUTATION porque escala handoff
+  // (escalateToHuman muda o status da conversa). Como 'read' ela escapava do
+  // teto de uma mutação por turno e podia rodar junto de um agendamento,
+  // deixando uma ação pendente órfã numa conversa já entregue ao humano.
+  effect: 'mutation',
   description:
     'Verifica cobranças pendentes do paciente. Não revela valores sem autorização da clínica.',
   inputSchema: InputSchema,

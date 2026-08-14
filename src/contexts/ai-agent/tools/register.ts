@@ -15,7 +15,6 @@ import './provide-clinic-info';
 import './provide-procedure-price';
 import './request-human-handoff';
 import './list-slots';
-import './schedule-appointment';
 import './prepare-appointment';
 import './confirm-appointment';
 import './list-my-appointments';
@@ -29,7 +28,14 @@ import './patient-lookup';
 import './collect-patient-data';
 
 /**
- * Nomes das 16 tools de produção (3 da C11 + 12 da C12 + prepare_appointment),
+ * Nomes das 15 tools de produção (3 da C11 + 12 da C12).
+ *
+ * F-12 (auditoria 2026-08-14): `schedule_appointment` saiu do catálogo. Ela
+ * aceitava doctor_id/procedure_id arbitrários do modelo, NÃO checava
+ * disponibilidade e resumia como "Agendar consulta para <ISO cru>" — o paciente
+ * confirmava um texto ilegível e o erro só aparecia na execução.
+ * `prepare_appointment` resolve serviço, profissional e horário server-side e é
+ * o único caminho de marcação,
  * na ordem de registro. Contrato: mudou aqui → mude o import acima E confirme em
  * register.test.ts.
  */
@@ -38,7 +44,6 @@ export const PRODUCTION_TOOL_NAMES = [
   'provide_procedure_price',
   'request_human_handoff',
   'list_slots',
-  'schedule_appointment',
   'prepare_appointment',
   'confirm_appointment',
   'list_my_appointments',

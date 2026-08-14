@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeSlots,
   eachLocalDayInRange,
+  filterSlotsFrom,
   localDateMinutes,
   minutesToTime,
   parseTimeToMinutes,
@@ -10,6 +11,7 @@ import {
   zonedWallToUtc,
   type LocalAvailability,
   type LocalDay,
+  type LocalFloor,
 } from './slot-resolver';
 
 const TZ = 'America/Sao_Paulo'; // UTC-3, sem DST desde 2019
@@ -57,6 +59,53 @@ describe('computeSlots — availability slicing', () => {
       slotMinutes: 30,
     });
     expect(slots).toHaveLength(0);
+  });
+});
+
+describe('filterSlotsFrom (F-03 — computeSlots é cego ao relógio)', () => {
+  // Agenda 08:00-11:00 em blocos de 60min, no dia da MONDAY do fixture.
+  const dayFloor = (minutes: number): LocalFloor => ({ date: MONDAY.date, minutes });
+  const slots = computeSlots({
+    days: [MONDAY],
+    availabilities: [avail({ startMin: 480, endMin: 660 })],
+    busy: [],
+    holidays: [],
+    slotMinutes: 60,
+  });
+
+  it('o defeito que motivou a função: computeSlots devolve a manhã inteira', () => {
+    expect(slots.map((s) => s.startMin)).toEqual([480, 540, 600]);
+  });
+
+  it('às 09:30 locais restam só os blocos que ainda vão começar', () => {
+    expect(filterSlotsFrom(slots, dayFloor(570)).map((s) => s.startMin)).toEqual([600]);
+  });
+
+  it('a fronteira é inclusiva: um bloco que começa EXATAMENTE no piso vale', () => {
+    expect(filterSlotsFrom(slots, dayFloor(540)).map((s) => s.startMin)).toEqual([540, 600]);
+  });
+
+  it('piso antes da agenda não descarta nada; depois dela descarta tudo', () => {
+    expect(filterSlotsFrom(slots, dayFloor(0))).toHaveLength(3);
+    expect(filterSlotsFrom(slots, dayFloor(23 * 60))).toHaveLength(0);
+  });
+
+  it('compara DIA antes de hora — o dia seguinte sobrevive a um piso tardio', () => {
+    const tuesday = { date: '2026-06-02', weekday: 2 };
+    const twoDays = computeSlots({
+      days: [MONDAY, tuesday],
+      availabilities: [avail({ startMin: 480, endMin: 660 }), avail({ weekday: 2, startMin: 480, endMin: 660 })],
+      busy: [],
+      holidays: [],
+      slotMinutes: 60,
+    });
+    const kept = filterSlotsFrom(twoDays, dayFloor(23 * 60));
+    expect(kept.every((s) => s.date === tuesday.date)).toBe(true);
+    expect(kept).toHaveLength(3);
+  });
+
+  it('lista vazia continua vazia', () => {
+    expect(filterSlotsFrom([], dayFloor(600))).toEqual([]);
   });
 });
 

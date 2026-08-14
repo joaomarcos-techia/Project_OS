@@ -23,6 +23,14 @@ import { sendOutbound } from './internal/sender';
 import { inboundMessagesRaw, outboundMessages } from './schema';
 import type { OutboundResult, SendOutboundInput } from './types';
 
+/** Mensagem irmã absorvida pelo turno corrente (C12/F-08). */
+export interface CoalescedInbound {
+  id: string;
+  /** Conteúdo decifrado. */
+  text: string;
+  receivedAt: Date;
+}
+
 export interface InboundForAgent {
   id: string;
   /** Conteúdo decifrado ('' quando a mensagem não tinha texto). */
@@ -63,6 +71,20 @@ export interface MessagingApiV1 {
     inboundMessageId: string,
   ): Promise<InboundForAgent | null>;
   markInboundProcessed(tx: Tx, clinicId: string, inboundMessageId: string): Promise<void>;
+  /**
+   * C12/F-08 — RECLAMA as mensagens ainda não consumidas do mesmo contato para
+   * que o turno corrente as trate como uma só.
+   *
+   * A reivindicação é ATÔMICA (`UPDATE … WHERE processed_at IS NULL RETURNING`):
+   * duas execuções concorrentes nunca absorvem a mesma linha, e quem perder a
+   * corrida simplesmente não a recebe. Marcar aqui — e não no fim do turno — é
+   * o que fecha a janela em que o irmão seria processado por outro worker.
+   */
+  claimPendingSiblings(
+    tx: Tx,
+    clinicId: string,
+    args: { fromNumberHash: string; excludeId: string; notBefore: Date; limit: number },
+  ): Promise<CoalescedInbound[]>;
   getOutboundStatuses(
     tx: Tx,
     clinicId: string,
@@ -111,6 +133,54 @@ async function markInboundProcessed(
     );
 }
 
+/**
+ * C12/F-08 — reivindica os inbounds pendentes do mesmo contato.
+ *
+ * SQL cru porque o `UPDATE … WHERE id IN (SELECT … ORDER BY … LIMIT … FOR UPDATE
+ * SKIP LOCKED)` não tem equivalente no query builder. O `SKIP LOCKED` evita que
+ * dois turnos concorrentes fiquem se esperando: quem não pegar a linha segue sem
+ * ela em vez de bloquear.
+ *
+ * Só absorve mensagens RECENTES (`notBefore`): uma mensagem de horas atrás que
+ * ficou para trás merece o próprio turno, não ser costurada num assunto novo.
+ */
+async function claimPendingSiblings(
+  tx: Tx,
+  clinicId: string,
+  args: { fromNumberHash: string; excludeId: string; notBefore: Date; limit: number },
+): Promise<CoalescedInbound[]> {
+  if (args.limit <= 0) return [];
+  const rows = await tx.execute<{
+    id: string;
+    content_encrypted: string;
+    received_at: Date | string;
+  }>(sql`
+    UPDATE inbound_messages_raw
+       SET processed_at = now()
+     WHERE id IN (
+       SELECT id FROM inbound_messages_raw
+        WHERE clinic_id = ${clinicId}
+          AND from_number_hash = ${args.fromNumberHash}
+          AND id <> ${args.excludeId}
+          AND processed_at IS NULL
+          AND received_at >= ${args.notBefore.toISOString()}
+        ORDER BY received_at
+        LIMIT ${args.limit}
+        FOR UPDATE SKIP LOCKED
+     )
+    RETURNING id, content_encrypted, received_at`);
+
+  const decoded = await Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      text: await decryptForTenant(clinicId, r.content_encrypted),
+      receivedAt: r.received_at instanceof Date ? r.received_at : new Date(String(r.received_at)),
+    })),
+  );
+  // O RETURNING não preserva a ordem do SELECT; a conversa depende dela.
+  return decoded.sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime());
+}
+
 async function getOutboundStatuses(
   tx: Tx,
   clinicId: string,
@@ -132,6 +202,7 @@ async function getOutboundStatuses(
 export const messagingApiV1: MessagingApiV1 = {
   getInboundForAgent,
   markInboundProcessed,
+  claimPendingSiblings,
   getOutboundStatuses,
   sendText: (input) => sendOutbound(input),
 };

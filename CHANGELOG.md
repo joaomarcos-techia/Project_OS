@@ -14,6 +14,53 @@ detalhado, camada a camada (contratos congelados, defesas validadas, débitos), 
 
 ## [Unreleased]
 
+### Corrigido (agente de IA — auditoria 2026-08-14)
+
+Auditoria completa do agente de WhatsApp ([relatório](./docs/audits/C12_AI_AGENT_AUDIT_2026-08-14.md),
+[ADR-048](./docs/adr/048-ai-agent-conversational-safety.md)). A camada de segurança
+passou — zero tenant escape, zero IDOR, whitelist de tools, teto de uma mutação
+por turno, consumo atômico da confirmação. O que estava quebrado era a corretude
+das jornadas, e três defeitos prendiam o paciente em loop permanente.
+
+- **Pedido operacional que menciona sintoma deixa de ser descartado.** "Quero
+  marcar por causa de uma dor de dente" — o caso mais frequente de uma clínica —
+  recebia só a recusa clínica e a consulta se perdia em silêncio. Pior: o turno
+  bloqueado não incrementava contador nenhum, então a conversa nunca chegava a um
+  humano; e o campo `motivo` do cadastro tinha o mesmo destino, travando o
+  cadastro em definitivo. A blacklist anti-SAMD **não foi afrouxada** (as 6
+  mensagens do corpus de 50 que passam o pré-filtro estão travadas em teste):
+  mudou o que acontece depois dela — turno de cadastro é isento porque o servidor
+  responde sem LLM, mensagem clínica com intenção operacional recebe a recusa
+  MAIS o encaminhamento, e todo bloqueio alimenta o contador que escala para
+  humano.
+- **Cadastro deixa de ser um beco sem saída.** Uma resposta inválida retornava
+  antes de registrar o não-avanço, então a estagnação nunca subia e o handoff
+  automático jamais disparava; e "quero falar com um atendente" era lido como
+  nome inválido. Responder "joao" seis vezes prendia a pessoa para sempre.
+- **O agente não oferece mais horário que já passou.** O resolvedor de slots
+  recebe DIAS e devolvia todos os blocos do dia — às 15:00 o "primeiro horário
+  livre" era 08:00, e a marcação só falhava quando o paciente confirmava.
+  Relatórios continua contando capacidade livre de janelas passadas (o filtro é
+  opt-in), e o agente passa a exigir 30 min de antecedência.
+- **Datas relativas passam a ser resolvidas pelo servidor.** "Depois de amanhã às
+  9" marcava para AMANHÃ, e "amanhã às 9 não posso, pode ser às 14?" marcava
+  09:00 — um regex vencia o modelo até quando a frase o negava. Hora ambígua
+  ("às 3") agora pergunta em vez de chutar a madrugada.
+- **Fim do agendamento fantasma.** Agendar, cancelar e pedir o mesmo horário de
+  novo devolvia a consulta cancelada do cache de idempotência: o agente anunciava
+  sucesso e não existia consulta.
+- **"blz", "ss", "ta bom" e "beleza" passam a confirmar; "ok obrigado" e "ok vou
+  ver e te falo" deixam de confirmar.** O gate bastava achar uma palavra
+  afirmativa em qualquer posição — errava nos dois sentidos.
+- **Mensagens em rajada viram um atendimento só.** "amanhã" / "de manhã" / "9" em
+  três mensagens eram três turnos paralelos, com contexto pela metade e respostas
+  fora de ordem.
+- **O agente cala quando um humano assume no meio do turno**, e o nome que o
+  paciente escolhe no cadastro não entra mais cru no prompt de sistema.
+- `schedule_appointment` saiu do catálogo (aceitava ids arbitrários e não checava
+  disponibilidade); `prepare_appointment` é o único caminho de marcação — 15 tools.
+- Migration `0074` (índice parcial, aditiva). `PROMPT_VERSION` → `2026-08-14-v12`.
+
 ### Corrigido (lote de teste em produção — 2026-07-22)
 - **Convite e redefinição de senha voltam a funcionar (itens 11/21).** Os links de
   e-mail (convite de equipe, recuperação de senha) davam "sessão inválida" /

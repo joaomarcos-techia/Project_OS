@@ -72,6 +72,82 @@ export function isMedicalQuestion(inboundText: string): SemanticCheckResult {
 }
 
 /**
+ * Intenção OPERACIONAL na mensagem (F-01 — auditoria 2026-08-14).
+ *
+ * Não é um guard: é o que distingue "estou com dor" (pergunta clínica pura) de
+ * "quero marcar por causa de uma dor de dente" (pedido operacional que MENCIONA
+ * sintoma). Os dois viravam a mesma resposta seca e a consulta era perdida em
+ * silêncio — no caso mais frequente de uma clínica.
+ */
+const OPERATIONAL_RE =
+  /\b(marcar|marca|marque|agendar|agenda|agende|remarcar|reagendar|desmarcar|cancelar|cancela|confirmar|confirma|horario\w*|hora\b|vaga\w*|encaixe|consulta\w*|atendimento\w*|preco\w*|valor\w*|quanto custa|endereco|onde fica|localizacao|funciona|aberto|convenio|plano de saude|atendente|humano)\b/;
+
+export function detectOperationalIntent(text: string): boolean {
+  return OPERATIONAL_RE.test(normalize(text));
+}
+
+/**
+ * Pedido explícito de atendimento humano (F-02).
+ *
+ * Durante a coleta de cadastro o servidor interpreta TODA mensagem como o campo
+ * pendente — "quero falar com um atendente" virava "nome inválido" e o paciente
+ * ficava presa no formulário. Este detector é a porta de saída.
+ */
+const HUMAN_HANDOFF_RE =
+  /\b(atendente|humano|pessoa de verdade|secretaria|recepcao|falar com (alguem|uma pessoa|voce|humano)|me lig(a|ar|ue)|liga(r|m)? (pra|para) mim|telefone da clinica)\b/;
+
+export function detectHumanHandoffRequest(text: string): boolean {
+  return HUMAN_HANDOFF_RE.test(normalize(text));
+}
+
+/** Estados de cadastro conduzidos INTEGRALMENTE pelo servidor (sem LLM). */
+type ServerDrivenRegistration = 'collecting' | 'awaiting_confirmation';
+
+export type TurnGuardDecision =
+  | { kind: 'allow' }
+  /** Pergunta clínica pura → fallback clínico + contador de escalonamento. */
+  | { kind: 'clinical_block'; matched: string }
+  /** Clínico E operacional → fallback clínico + retomada da jornada, sem LLM. */
+  | { kind: 'clinical_with_operational'; matched: string }
+  /** Turno de cadastro: resposta determinística do servidor, LLM nunca roda. */
+  | { kind: 'collection_bypass' };
+
+/**
+ * Decide o destino do turno ANTES do Gemini (G4 + F-01).
+ *
+ * A ordem importa e é o coração da correção:
+ *
+ *  1. **Cadastro primeiro.** Num turno de coleta o servidor responde sozinho —
+ *     o LLM não é chamado, logo não há risco de orientação clínica. Sem esta
+ *     isenção, um `motivo` legítimo como "dor nas costas" era barrado pelo
+ *     pré-filtro, nunca gravado, e o cadastro travava para sempre (F-01/F-02).
+ *  2. **Clínico + operacional** vira resposta combinada: a recusa clínica
+ *     obrigatória MAIS o encaminhamento do que dá para resolver. A jornada
+ *     continua na próxima mensagem em vez de morrer.
+ *  3. **Clínico puro** mantém exatamente o comportamento anti-SAMD de sempre.
+ *
+ * A blacklist clínica NÃO é afrouxada em nenhum caminho — `adversarial-corpus`
+ * + `semantic-guard.test.ts` travam isso.
+ */
+export function decideTurnGuard(args: {
+  text: string;
+  registrationStatus: string;
+}): TurnGuardDecision {
+  const serverDriven: readonly string[] = [
+    'collecting',
+    'awaiting_confirmation',
+  ] satisfies readonly ServerDrivenRegistration[];
+  if (serverDriven.includes(args.registrationStatus)) return { kind: 'collection_bypass' };
+
+  const clinical = isMedicalQuestion(args.text);
+  if (clinical.safe) return { kind: 'allow' };
+  const matched = clinical.matched ?? 'clinico';
+  return detectOperationalIntent(args.text)
+    ? { kind: 'clinical_with_operational', matched }
+    : { kind: 'clinical_block', matched };
+}
+
+/**
  * C12 (ADR-023) — detecção de prompt-injection APENAS PARA AUDITORIA. NÃO
  * bloqueia: a defesa real é tool whitelist (G9) + Zod + RLS + recusa do próprio
  * LLM (gate §11.12: 50/50). Um filtro de string é frágil e dá falsa sensação de

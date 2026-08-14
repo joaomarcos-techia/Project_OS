@@ -26,11 +26,17 @@ export default defineConfig({
       all: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.d.ts', 'src/**/*.test.{ts,tsx}', 'src/lib/test/**'],
+      // Re-baseline 2026-08-14 (remediação do agente): 26/38/73/26 → abaixo.
+      // A regra é só subir. O piso antigo de branches (73) tinha ~4 branches de
+      // folga sobre o real, o que tornava perigoso QUALQUER teste novo que
+      // carregasse um módulo antes não instrumentado — o denominador crescia
+      // mais rápido que o numerador. Depois da remediação o real é 74,5%;
+      // fixar 74 preserva o ganho em vez de deixá-lo evaporar na próxima PR.
       thresholds: {
-        lines: 26,
-        functions: 38,
-        branches: 73,
-        statements: 26,
+        lines: 29,
+        functions: 41,
+        branches: 74,
+        statements: 29,
       },
     },
     // Baseline env so that src/lib/env.ts (which validates at module load)

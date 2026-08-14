@@ -20,7 +20,10 @@ type SP = { clinic?: string; from?: string; to?: string; q?: string; c?: string 
  * inbound-received.ts). Mantido em sincronia manual com `tools/*`.
  */
 const INTENTS: readonly { value: string; label: string }[] = [
-  { value: 'schedule_appointment', label: 'Agendar consulta' },
+  { value: 'prepare_appointment', label: 'Agendar consulta' },
+  // F-12: a tool saiu do catálogo, mas conversas ANTIGAS têm este intent
+  // gravado — remover a opção esconderia histórico do filtro.
+  { value: 'schedule_appointment', label: 'Agendar consulta (histórico)' },
   { value: 'confirm_appointment', label: 'Confirmar consulta' },
   { value: 'cancel_appointment', label: 'Cancelar consulta' },
   { value: 'reschedule_appointment', label: 'Remarcar consulta' },

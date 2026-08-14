@@ -139,6 +139,12 @@ export const inboundMessagesRaw = pgTable(
       t.provider,
       t.providerMessageId,
     ),
+    // C12/F-08 — coalescing: busca as mensagens ainda não consumidas do MESMO
+    // contato. Parcial (só `processed_at IS NULL`) porque a fila pendente é
+    // minúscula perto do histórico. Migration 0074.
+    pendingByContactIdx: index('inbound_messages_raw_pending_contact_idx')
+      .on(t.clinicId, t.fromNumberHash, t.receivedAt)
+      .where(sql`processed_at IS NULL`),
   }),
 );
 

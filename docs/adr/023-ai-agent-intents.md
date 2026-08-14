@@ -48,6 +48,14 @@ UNIQUE `appointments_doctor_slot_uniq`.
 Booking é multi-turn com confirmação humana no loop. "3 tentativas → handoff" =
 `MAX_FALLBACKS = 3` ao longo de turnos.
 
+> **Reconciliação 2026-08-14 (divergência doc × código):** este parágrafo está
+> **SUPERADO**. `MAX_TOOL_ROUNDS` é **3** desde o amend de 2026-07-30 registrado
+> na [ADR-022 §4](022-ai-agent-foundation.md) — com 1 rodada, todo turno de
+> agendamento caía em `rounds_exceeded` e a marcação era arquiteturalmente
+> impossível. A invariante "≤ 1 mutação por turno" deixou de depender do teto de
+> rodadas e virou explícita (`MAX_MUTATIONS_PER_TURN`, contada cross-round no
+> handler). Fonte da verdade: `src/contexts/ai-agent/limits.ts`.
+
 ### 4. 13 tools registradas (12 intents de negócio + handoff mecanismo)
 3 da C11 + 10 novas: list_slots, schedule_appointment, confirm_appointment,
 cancel_appointment, reschedule_appointment, list_pending_payments,

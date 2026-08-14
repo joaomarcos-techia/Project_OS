@@ -448,6 +448,27 @@ export async function resetFallback(
     .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)));
 }
 
+/**
+ * A conversa está em handoff AGORA? (F-09 — auditoria 2026-08-14)
+ *
+ * O status é lido no início do turno e a chamada ao LLM leva segundos. Se um
+ * humano assumir a conversa nesse meio-tempo, o agente ainda enviava a resposta
+ * por cima — exatamente o cenário que `canReplyManually` existe para evitar do
+ * outro lado. Relido imediatamente antes de persistir/enviar.
+ */
+export async function isConversationInHandoff(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ status: aiConversations.status })
+    .from(aiConversations)
+    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)))
+    .limit(1);
+  return row?.status === 'handoff';
+}
+
 /** C12 — persiste o intent canônico do turno na conversa. */
 export async function setIntent(
   tx: Tx,
@@ -513,13 +534,22 @@ export async function clearCollectedData(
  * `_stagnation` zera no progresso e incrementa quando o turno não avança
  * (MAX_COLLECT_STAGNATION → handoff). `complete` = todos os campos obrigatórios.
  */
-export async function mergeCollectedData(
-  tx: Tx,
-  clinicId: string,
-  conversationId: string,
-  partial: CollectedData,
-): Promise<{ data: StoredCollect; progressed: boolean; complete: boolean; stagnation: number }> {
-  const prev = (await getCollectedData(tx, clinicId, conversationId)) ?? {};
+export interface MergedCollect {
+  data: StoredCollect;
+  progressed: boolean;
+  complete: boolean;
+  stagnation: number;
+}
+
+/**
+ * Matemática PURA da coleta — extraída de `mergeCollectedData` para ser testável
+ * sem banco (auditoria 2026-08-14, F-02: a estagnação nunca subia porque o
+ * caminho de rejeição retornava antes de chegar aqui).
+ *
+ * Chamar com `partial` vazio é o jeito canônico de registrar "o turno não
+ * avançou": nenhum campo entra, `progressed` fica false e `_stagnation` sobe.
+ */
+export function mergeCollectedFields(prev: StoredCollect, partial: CollectedData): MergedCollect {
   const merged: StoredCollect = { ...prev };
   let progressed = false;
   for (const k of COLLECT_REQUIRED_FIELDS) {
@@ -533,7 +563,22 @@ export async function mergeCollectedData(
   if (progressed) delete merged._confirmed;
   const stagnation = progressed ? 0 : (prev._stagnation ?? 0) + 1;
   merged._stagnation = stagnation;
-  await setCollectedData(tx, clinicId, conversationId, merged);
-  const complete = COLLECT_REQUIRED_FIELDS.every((k) => !!merged[k]);
-  return { data: merged, progressed, complete, stagnation };
+  return {
+    data: merged,
+    progressed,
+    complete: COLLECT_REQUIRED_FIELDS.every((k) => !!merged[k]),
+    stagnation,
+  };
+}
+
+export async function mergeCollectedData(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+  partial: CollectedData,
+): Promise<MergedCollect> {
+  const prev = (await getCollectedData(tx, clinicId, conversationId)) ?? {};
+  const merged = mergeCollectedFields(prev, partial);
+  await setCollectedData(tx, clinicId, conversationId, merged.data);
+  return merged;
 }

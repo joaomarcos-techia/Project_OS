@@ -30,7 +30,7 @@ const InputSchema = z
 const OutputSchema = z.object({
   procedures: z.array(
     z.object({
-      // procedure_id é o identificador que schedule_appointment/list_slots exigem.
+      // procedure_id é o identificador que list_slots aceita como filtro.
       // Sem ele o agente não tinha como referenciar o procedimento para agendar
       // (o preço era divulgável, mas o agendamento ficava impossível).
       procedure_id: z.string(),
@@ -50,7 +50,7 @@ function fold(s: string): string {
 registerTool({
   name: 'provide_procedure_price',
   description:
-    'Lista procedimentos da clínica com procedure_id, preço (BRL) e duração. Passe procedure_name para filtrar pelo procedimento que o paciente mencionou; sem filtro retorna o catálogo (top 20). Use o procedure_id retornado para agendar (schedule_appointment).',
+    'Lista procedimentos da clínica com procedure_id, preço (BRL) e duração. Passe procedure_name para filtrar pelo procedimento que o paciente mencionou; sem filtro retorna o catálogo (top 20). Para agendar, use prepare_appointment com o NOME do procedimento — ela resolve profissional e horário sozinha.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {

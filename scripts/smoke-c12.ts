@@ -13,9 +13,9 @@
  * Prova os fluxos mandatórios da C12 (par.12.6):
  *   12.1 paciente novo: coleta → confirma → cria paciente
  *   ---- consulta de horários e das consultas futuras do paciente identificado
- *   ---- agendamento: schedule_appointment → confirm_pending_action → 1 consulta
+ *   ---- agendamento: prepare_appointment → confirm_pending_action → 1 consulta
  *   ---- confirmação de presença: confirm_appointment → confirm_pending_action
- *   ---- idempotência por conteúdo: preparar+confirmar 2× (args iguais) → 1 consulta
+ *   ---- não-duplicação: pedir o MESMO horário de novo → segue 1 consulta
  *   ---- confirmação NÃO explícita → não executa
  *   ---- reagendamento: prepare → confirm → nova data + original cancelada
  *   12.7 cross-tenant: clínica B tenta operar consulta de A → falha sem alterar
@@ -277,6 +277,27 @@ const RUN = Date.now().toString().slice(-9);
 const NEW = `5511${RUN}`; // contato (paciente)
 const futureISO = (days: number): string => new Date(Date.now() + days * 86_400_000).toISOString();
 
+/**
+ * Instante de um slot REAL da agenda semeada (08:00–18:00 local, blocos de 30min).
+ *
+ * `futureISO` carrega o horário do relógio (ex.: 10:56:55) e NUNCA cai numa
+ * fronteira de slot. Isso não importava enquanto o roteiro usava
+ * `schedule_appointment`, que aceitava qualquer ISO sem consultar
+ * disponibilidade — precisamente o motivo de a tool ter saído do catálogo
+ * (F-12). `prepare_appointment` exige um slot que exista de verdade.
+ *
+ * São Paulo não tem DST desde 2019, então o offset fixo é determinístico.
+ */
+const futureSlotISO = (days: number, hour = 9): string => {
+  const day = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(Date.now() + days * 86_400_000));
+  return new Date(`${day}T${String(hour).padStart(2, '0')}:00:00-03:00`).toISOString();
+};
+
 async function main(): Promise<void> {
   aiCircuitTesting.reset();
   const clinicA = await createClinic('a');
@@ -368,16 +389,15 @@ async function main(): Promise<void> {
 
   // Instante ESTÁVEL reusado nos cenários 2 e 3: a idempotência por conteúdo
   // só colapsa se os args (incl. scheduled_at) forem BYTE-a-byte idênticos.
-  const AT_SCHEDULE = futureISO(3);
+  const AT_SCHEDULE = futureSlotISO(3, 9);
 
-  // 2. agendamento em DUAS etapas: schedule_appointment (prepara) →
+  // 2. agendamento em DUAS etapas: prepare_appointment (prepara) →
   // confirm_pending_action (executa após confirmação explícita) → 1 consulta.
   await tryStep('2 agendamento: prepare → confirm → EXATAMENTE 1 consulta', async () => {
     setScript(
       () =>
-        gCall('schedule_appointment', {
-          doctor_id: doctorId,
-          procedure_id: procedureId,
+        gCall('prepare_appointment', {
+          procedure_name: 'Consulta cardiológica',
           scheduled_at: AT_SCHEDULE,
         }),
       () => gText('Posso confirmar o agendamento? Responda SIM.'),
@@ -417,38 +437,42 @@ async function main(): Promise<void> {
     },
   );
 
-  // 3. idempotência de fluxo COMPLETO (R1): preparar+confirmar 2ª vez com args
-  // IDÊNTICOS (pendingActionId distinto) tem de colapsar na MESMA consulta.
-  // Prova o fix da chave por conteúdo: com a chave antiga (por pendingActionId),
-  // a 2ª execução geraria uma chave nova no core → INSERT no mesmo instante →
-  // conflito de sobreposição → 'fallback'. Com a chave por conteúdo, é cache hit
-  // no core → devolve a MESMA consulta → 'replied'. Em ambos há 1 consulta, mas
-  // só o outcome 'replied' distingue a idempotência real do conflito mascarado.
+  // 3. NÃO-DUPLICAÇÃO do agendamento (R1 + emenda F-05).
+  //
+  // Este passo já provou a chave de idempotência por CONTEÚDO: com
+  // `schedule_appointment` — que aceitava qualquer ISO sem consultar a agenda —
+  // era possível preparar DUAS vezes o mesmo instante e as duas execuções
+  // chegavam ao core, onde só a chave impedia a segunda consulta.
+  //
+  // Esse caminho não existe mais (F-12: a tool saiu do catálogo). Com
+  // `prepare_appointment` a disponibilidade é consultada ANTES, e o slot já está
+  // ocupado pela consulta do passo 2 — a duplicata é barrada uma camada acima,
+  // sem depender de cache. A garantia que resta a provar aqui é a que importa
+  // para o paciente: pedir de novo o mesmo horário NÃO cria uma segunda consulta.
+  //
+  // (O colapso de um RETRY sobre a MESMA ação pendente — a idempotência que a
+  // emenda F-05 preserva — é coberto em pending-action.test.ts.)
   await tryStep(
-    '3 idempotência: preparar+confirmar 2× (args iguais) → cache hit, ainda 1 consulta',
+    '3 não-duplicação: pedir de novo o MESMO horário não cria segunda consulta',
     async () => {
+      const before = await apptCountFor(clinicA, CPF);
       setScript(
         () =>
-          gCall('schedule_appointment', {
-            doctor_id: doctorId,
-            procedure_id: procedureId,
+          gCall('prepare_appointment', {
+            procedure_name: 'Consulta cardiológica',
             scheduled_at: AT_SCHEDULE,
           }),
-        () => gText('Confirma de novo? SIM.'),
+        () => gText('Esse horário não está mais livre.'),
       );
       await deliverTurn(clinicA, phoneIdA, NEW, 'marca de novo pra mim');
       setScript(
         () => gCall('confirm_pending_action', {}),
-        () => gText('Já estava agendado!'),
+        () => gText('nao deveria executar'),
       );
-      const evConf = await deliverTurn(clinicA, phoneIdA, NEW, 'sim');
+      await deliverTurn(clinicA, phoneIdA, NEW, 'sim');
       assert(
-        (await outcomeOf(evConf)) === 'replied',
-        'reconfirmação idêntica deveria ser idempotente (cache hit), não conflito/fallback',
-      );
-      assert(
-        (await apptCountFor(clinicA, CPF)) === 1,
-        'duas tentativas equivalentes deveriam colapsar em 1 consulta (idempotência por conteúdo)',
+        (await apptCountFor(clinicA, CPF)) === before,
+        'repetir o mesmo horário não pode criar uma segunda consulta',
       );
     },
   );
@@ -483,10 +507,9 @@ async function main(): Promise<void> {
     const before = await apptCountFor(clinicA, CPF);
     setScript(
       () =>
-        gCall('schedule_appointment', {
-          doctor_id: doctorId,
-          procedure_id: procedureId,
-          scheduled_at: futureISO(4),
+        gCall('prepare_appointment', {
+          procedure_name: 'Consulta cardiológica',
+          scheduled_at: futureSlotISO(4, 10),
         }),
       () => gText('Confirma? Responda SIM.'),
     );
@@ -510,7 +533,7 @@ async function main(): Promise<void> {
   await tryStep('5 reagendamento: prepare → confirm → nova data + original cancelada', async () => {
     const original = await latestActiveApptId(clinicA);
     assert(!!original, 'deveria haver consulta ativa para reagendar');
-    const newAt = futureISO(6);
+    const newAt = futureSlotISO(6, 11);
     setScript(
       () => gCall('reschedule_appointment', { appointment_id: original!, new_scheduled_at: newAt }),
       () => gText('Confirma o novo horário? SIM.'),
@@ -604,9 +627,8 @@ async function main(): Promise<void> {
     async () => {
       setScript(
         () =>
-          gCall('schedule_appointment', {
-            doctor_id: doctorId,
-            procedure_id: procedureId,
+          gCall('prepare_appointment', {
+            procedure_name: 'Consulta cardiológica',
             scheduled_at: futureISO(-2),
           }),
         () => gText('Confirma? SIM.'),

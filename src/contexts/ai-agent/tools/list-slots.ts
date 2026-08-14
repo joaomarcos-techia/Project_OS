@@ -1,7 +1,12 @@
 /**
  * Tool list_slots (C12) — horários livres numa janela. Thin wrapper de
- * schedulingApiV1.listSlots. NUNCA retorna slot ocupado/no passado/de outra
- * clínica (garantido pela query de disponibilidade + RLS por clinicId).
+ * schedulingApiV1.listSlots. Nunca devolve slot ocupado nem de outra clínica
+ * (query de disponibilidade + RLS por clinicId).
+ *
+ * F-03 (auditoria 2026-08-14): "nem no passado" NÃO era verdade e agora é. A
+ * janela normalizada aqui só move a fronteira `from`, e `from` é reduzido a uma
+ * DATA lá dentro — às 15:00 a tool devolvia os blocos das 08:00. O piso por
+ * INSTANTE é `notBefore`, aplicado pelo Scheduling.
  * Input string-only (R4): UUIDs e datas são z.string() refinadas.
  */
 import { z } from 'zod';
@@ -10,7 +15,13 @@ import { z } from 'zod';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
+import { AGENT_MIN_LEAD_MINUTES } from '../limits';
 import { registerTool } from './registry';
+
+/** Piso de disponibilidade do agente: agora + antecedência mínima. */
+export function agentSlotFloor(now = new Date()): Date {
+  return new Date(now.getTime() + AGENT_MIN_LEAD_MINUTES * 60_000);
+}
 
 const InputSchema = z.object({
   date_from: z
@@ -59,6 +70,7 @@ registerTool({
       clinicId: ctx.clinicId,
       from: window.from,
       to: window.to,
+      notBefore: agentSlotFloor(),
       ...(input.doctor_id ? { doctorId: input.doctor_id } : {}),
       ...(input.procedure_id ? { procedureId: input.procedure_id } : {}),
     });

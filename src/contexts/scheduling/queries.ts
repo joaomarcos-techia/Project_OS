@@ -33,6 +33,7 @@ import {
 import {
   computeSlots,
   eachLocalDayInRange,
+  filterSlotsFrom,
   localDateMinutes,
   parseTimeToMinutes,
   zonedWallToUtc,
@@ -632,6 +633,17 @@ export interface GetAvailableSlotsOpts {
   doctorId?: string;
   procedureId?: string;
   unitId?: string | null;
+  /**
+   * OPT-IN (C12/F-03) — descarta slots que começam antes deste instante.
+   *
+   * `from` sozinho não basta: ele é reduzido a uma DATA local por
+   * `eachLocalDayInRange`, então uma janela que começa às 15:00 ainda devolvia os
+   * blocos das 08:00. Quem agenda (o agente) passa isto; quem mede capacidade
+   * histórica NÃO passa — `relatorios/data.ts` consulta janelas PASSADAS de
+   * propósito para calcular a taxa de ocupação, e filtrar lá zeraria
+   * `freeMinutes`.
+   */
+  notBefore?: Date;
 }
 
 export async function getAvailableSlots(opts: GetAvailableSlotsOpts): Promise<Slot[]> {
@@ -712,7 +724,7 @@ export async function getAvailableSlots(opts: GetAvailableSlotsOpts): Promise<Sl
 
     // 6. pure compute, then convert local slots back to UTC instants.
     const days = eachLocalDayInRange(from, to, timeZone);
-    const localSlots = computeSlots({
+    const computed = computeSlots({
       days,
       availabilities,
       busy,
@@ -721,6 +733,11 @@ export async function getAvailableSlots(opts: GetAvailableSlotsOpts): Promise<Sl
       doctorId: opts.doctorId,
       unitId: opts.unitId,
     });
+    // F-03: `computeSlots` opera em DIAS; o piso por instante é aplicado aqui,
+    // só para quem pediu (ver o docblock de `notBefore`).
+    const localSlots = opts.notBefore
+      ? filterSlotsFrom(computed, localDateMinutes(opts.notBefore, timeZone))
+      : computed;
 
     return localSlots.map((s): Slot => {
       const [y, m, d] = s.date.split('-').map(Number);

@@ -29,7 +29,7 @@ describe('roundMutationCount (efeito da whitelist)', () => {
 
   it('cada mutação conta 1', () => {
     for (const name of [
-      'schedule_appointment',
+      'prepare_appointment',
       'cancel_appointment',
       'reschedule_appointment',
       'confirm_pending_action',
@@ -53,7 +53,7 @@ describe('roundMutationCount (efeito da whitelist)', () => {
 
 describe('orçamento cross-round de mutação', () => {
   it('permite a 1ª mutação do turno', () => {
-    expect(budgetExceeded(0, ['schedule_appointment'])).toBe(false);
+    expect(budgetExceeded(0, ['prepare_appointment'])).toBe(false);
   });
 
   it('rejeita a 2ª mutação mesmo em rodada seguinte', () => {

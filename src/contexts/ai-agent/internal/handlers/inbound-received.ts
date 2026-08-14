@@ -66,6 +66,8 @@ import { patientApiV1 } from '@/contexts/patient';
 
 import { AI_AGENT_EVENTS } from '../../events';
 import {
+  COALESCE_MAX_AGE_MS,
+  COALESCE_MAX_MESSAGES,
   COLLECT_STALE_RESET_DAYS,
   MAX_COLLECT_STAGNATION,
   MAX_MUTATIONS_PER_TURN,
@@ -76,14 +78,16 @@ import {
   buildSystemPrompt,
   CLINICAL_FALLBACK,
   OPERATIONAL_FALLBACK,
+  OPERATIONAL_NUDGE,
   PROMPT_HASH,
   PROMPT_VERSION,
   truncateInbound,
 } from '../../prompts/system';
 import {
   checkClinicalContent,
+  decideTurnGuard,
+  detectHumanHandoffRequest,
   detectPromptInjection,
-  isMedicalQuestion,
 } from '../../guards/semantic-guard';
 import { aiAgentFailures, aiConversations } from '../../schema';
 import {
@@ -105,13 +109,14 @@ import {
   findTurnMessages,
   getCollectedData,
   incrementFallback,
+  isConversationInHandoff,
   mergeCollectedData,
   resetFallback,
   setCollectedData,
   setIntent,
 } from '../conversation';
 import type { ActiveConversation } from '../conversation';
-import { buildContext } from '../context-builder';
+import { buildContext, patientRegistrationState } from '../context-builder';
 import { isExplicitConfirmation } from '../pending-action';
 import { sanitizeAiFailurePayload } from '../sanitize';
 import {
@@ -214,31 +219,69 @@ async function startPatientRegistration(
 }
 
 /**
+ * Resultado de um turno de coleta conduzido pelo SERVIDOR (F-02).
+ * `null` = não é turno de coleta; segue o fluxo normal com o LLM.
+ */
+type RegistrationTurn =
+  | { kind: 'reply'; text: string }
+  | { kind: 'handoff'; reason: 'collect_human_requested' | 'collect_stagnation' }
+  | null;
+
+/**
  * Uma vez iniciado o cadastro, o próximo campo é conhecido pelo servidor. A
  * validação do CPF e a gravação não dependem de o modelo selecionar ou preencher
  * collect_patient_data corretamente.
+ *
+ * F-02 (auditoria 2026-08-14) — este era um estado MODAL SEM SAÍDA. Duas
+ * correções, ambas sobre o mesmo sintoma (o paciente preso repetindo um campo):
+ *
+ *   1. Uma resposta REJEITADA retornava antes de `mergeCollectedData`, então
+ *      `_stagnation` nunca subia e `MAX_COLLECT_STAGNATION` nunca disparava.
+ *      Agora a rejeição registra o não-avanço com um merge vazio.
+ *   2. Não havia como pedir um humano: "quero falar com um atendente" era lido
+ *      como nome inválido. Agora escala.
+ *
+ * Sem as duas, o turno ainda terminava como `replied` — que chama
+ * `resetFallback` — e as DUAS válvulas de escape ficavam desarmadas ao mesmo
+ * tempo.
  */
-async function collectRegistrationFieldServerSide(args: {
+async function runRegistrationTurnServerSide(args: {
   clinicId: string;
   conversationId: string;
   verifiedPhone: string;
   text: string;
   state: PatientRegistrationState;
-}): Promise<string | null> {
+}): Promise<RegistrationTurn> {
   if (args.state.status !== 'collecting' || !args.state.nextRequiredField) return null;
 
+  if (detectHumanHandoffRequest(args.text)) {
+    return { kind: 'handoff', reason: 'collect_human_requested' };
+  }
+
   const parsed = registrationFieldFromMessage(args.state.nextRequiredField, args.text);
-  if (!parsed.accepted) return parsed.patientMessage;
+  if (!parsed.accepted) {
+    // Merge VAZIO: nada entra, mas o turno é contabilizado como sem progresso.
+    const stalled = await phase(args.clinicId, (tx) =>
+      mergeCollectedData(tx, args.clinicId, args.conversationId, {}),
+    );
+    if (stalled.stagnation >= MAX_COLLECT_STAGNATION) {
+      return { kind: 'handoff', reason: 'collect_stagnation' };
+    }
+    return { kind: 'reply', text: parsed.patientMessage };
+  }
 
   const partial: CollectedData = { ...parsed.partial, telefone: args.verifiedPhone };
   const merged = await phase(args.clinicId, (tx) =>
     mergeCollectedData(tx, args.clinicId, args.conversationId, partial),
   );
-  return patientRegistrationMessage({
-    nextRequiredField: nextRegistrationField(merged.data),
-    complete: merged.complete,
-    confirmed: false,
-  });
+  return {
+    kind: 'reply',
+    text: patientRegistrationMessage({
+      nextRequiredField: nextRegistrationField(merged.data),
+      complete: merged.complete,
+      confirmed: false,
+    }),
+  };
 }
 
 function registrationWasRequired(toolResults: ToolResult[]): boolean {
@@ -249,12 +292,23 @@ function registrationWasRequired(toolResults: ToolResult[]): boolean {
   );
 }
 
+/**
+ * Serviço pedido antes do cadastro, preservado para retomar a agenda depois.
+ *
+ * F-01 (auditoria 2026-08-14) — o valor vem do TEXTO DO PACIENTE via args do
+ * modelo, e é reapresentado a ele em "Cadastro concluído. Para agendar X...".
+ * Se X carregar um termo clínico ("dor no joelho"), o pós-guard substitui a
+ * resposta inteira pelo fallback clínico e o cadastro recém-concluído parece ter
+ * falhado. Guardar `null` é melhor que guardar algo que envenena a própria
+ * resposta — o paciente apenas reinforma o serviço.
+ */
 function requestedProcedureName(toolResults: ToolResult[]): string | null {
   const result = toolResults.find((item) => item.name === 'prepare_appointment');
   const value = (result?.args as { procedure_name?: unknown } | undefined)?.procedure_name;
   if (typeof value !== 'string') return null;
   const name = value.trim();
-  return name.length > 0 && name.length <= 200 ? name : null;
+  if (name.length === 0 || name.length > 200) return null;
+  return checkClinicalContent(name).safe ? name : null;
 }
 
 /**
@@ -394,16 +448,17 @@ async function resolveCollect(
   const collected = await phase(clinicId, (tx) => getCollectedData(tx, clinicId, conversation.id));
   if (!collected) return {};
 
-  const complete = !!(collected.nome && collected.cpf && collected.telefone && collected.motivo);
-  if (!complete) {
-    if ((collected._stagnation ?? 0) >= MAX_COLLECT_STAGNATION) {
-      await phase(clinicId, (tx) =>
-        escalateToHuman(tx, clinicId, conversation.id, 'collect_stagnation'),
-      );
-      return { handoff: true };
-    }
-    return {};
+  // F-02: a checagem de estagnação vinha DEPOIS de `!complete`, então o estado
+  // "completo, aguardando SIM" não tinha escape nenhum — quem não conseguisse
+  // produzir uma confirmação reconhecível ficava preso no resumo para sempre.
+  if ((collected._stagnation ?? 0) >= MAX_COLLECT_STAGNATION) {
+    await phase(clinicId, (tx) =>
+      escalateToHuman(tx, clinicId, conversation.id, 'collect_stagnation'),
+    );
+    return { handoff: true };
   }
+  const complete = !!(collected.nome && collected.cpf && collected.telefone && collected.motivo);
+  if (!complete) return {};
   if (!collected._confirmed) return {}; // completo mas aguardando confirmação do resumo
 
   try {
@@ -512,8 +567,8 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   const fromNumber = inbound.fromNumber;
   const aiRequestId = randomUUID(); // R7 — trace do turno
 
-  // FASE A — conversa + mensagem 'in' (checkpoint por eventId).
-  const { conversation, replayedOut } = await phase(clinicId, async (tx) => {
+  // FASE A — conversa + mensagem 'in' (checkpoint por eventId) + coalescing.
+  const { conversation, replayedOut, turnText, coalesced } = await phase(clinicId, async (tx) => {
     const conv: ActiveConversation = await findOrCreateConversation(
       tx,
       clinicId,
@@ -521,16 +576,55 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       await encryptForTenant(clinicId, fromNumber),
     );
     const turn = await findTurnMessages(tx, clinicId, eventId);
-    if (!turn.inRow) {
-      await appendInboundMessage(tx, {
-        clinicId,
-        conversationId: conv.id,
-        eventId,
-        text: truncateInbound(text),
-      });
+    if (turn.inRow) {
+      // F-08 — a row 'in' É o checkpoint do coalescing: ela guarda o texto do
+      // turno JÁ costurado. Um retry precisa reproduzir exatamente o mesmo
+      // turno; reler `inbound.text` aqui descartaria em silêncio tudo que foi
+      // absorvido na primeira tentativa.
+      return {
+        conversation: conv,
+        replayedOut: turn.outRow,
+        turnText: await decryptForTenant(clinicId, turn.inRow.contentEncrypted),
+        coalesced: 0,
+      };
     }
-    return { conversation: conv, replayedOut: turn.outRow };
+
+    // F-08 — absorve as mensagens que o paciente mandou na sequência e ainda
+    // não foram consumidas. A reivindicação é atômica (ver claimPendingSiblings),
+    // então o evento de outbox de cada irmã vira no-op no guard de
+    // `processed_at` em vez de virar um turno concorrente.
+    const siblings = await messagingApiV1.claimPendingSiblings(tx, clinicId, {
+      fromNumberHash: inbound.fromNumberHash,
+      excludeId: inbound.id,
+      notBefore: new Date(Date.now() - COALESCE_MAX_AGE_MS),
+      limit: COALESCE_MAX_MESSAGES - 1,
+    });
+    const joined = [text, ...siblings.map((s) => s.text.trim()).filter((t) => t.length > 0)].join(
+      '\n',
+    );
+    const turnText = truncateInbound(joined);
+    await appendInboundMessage(tx, {
+      clinicId,
+      conversationId: conv.id,
+      eventId,
+      text: turnText,
+    });
+    return {
+      conversation: conv,
+      replayedOut: turn.outRow,
+      turnText,
+      coalesced: siblings.length,
+    };
   });
+
+  if (coalesced > 0) {
+    metrics.emit('ai_agent.turn.coalesced', {
+      clinicId,
+      conversationId: conversation.id,
+      eventId,
+      absorbed: coalesced,
+    });
+  }
 
   // C12 — staleness (COLLECT_STALE_RESET_DAYS): paciente sumiu por dias e voltou
   // → recomeça a coleta limpa em vez de retomar formulário stale. Só fora de
@@ -604,10 +698,24 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   let snapshot: string | null = null;
   let alreadyPersisted = false;
 
-  const preFilter = isMedicalQuestion(text);
+  // G4 + F-01 — o pré-filtro precisa saber se este é um turno de CADASTRO, que é
+  // conduzido pelo servidor sem LLM (e portanto não pode ser barrado por conter
+  // um sintoma no campo `motivo`). Uma leitura curta e indexada por conversa.
+  const collectedForGuard = conversation.patientId
+    ? null
+    : await phase(clinicId, (tx) => getCollectedData(tx, clinicId, conversation.id));
+  const guard = decideTurnGuard({
+    text: turnText,
+    registrationStatus: patientRegistrationState(
+      conversation.patientId && conversation.patientNome
+        ? { id: conversation.patientId, nome: conversation.patientNome }
+        : null,
+      collectedForGuard,
+    ).status,
+  });
   // C12 (ADR-023) — injection é AUDIT-ONLY: não bloqueia (RLS + whitelist de
   // tools + recusa do LLM são a defesa real); só dá visibilidade.
-  const injection = detectPromptInjection(text);
+  const injection = detectPromptInjection(turnText);
   if (!injection.safe) {
     metrics.emit('ai_agent.injection.detected', {
       clinicId,
@@ -625,14 +733,30 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     costUsd = replayedOut.costUsd ? Number(replayedOut.costUsd) : 0;
     alreadyPersisted = true;
     metrics.emit('ai_agent.turn.replayed', { clinicId, eventId, aiRequestId });
-  } else if (!preFilter.safe) {
+  } else if (guard.kind === 'clinical_block' || guard.kind === 'clinical_with_operational') {
     // G4 — pré-filtro clínico: custo zero, latência zero, zero LLM.
-    responseText = CLINICAL_FALLBACK;
-    outcome = 'prefiltered';
+    //
+    // F-01: duas mudanças em relação à versão original, nenhuma delas afrouxando
+    // a blacklist. (a) quando a mensagem também traz pedido operacional, a
+    // recusa clínica vem ACOMPANHADA da retomada da jornada — antes o "quero
+    // marcar" morria junto com o sintoma; (b) o turno passa a alimentar o
+    // contador de fallback, então N mensagens clínicas seguidas acabam num
+    // humano. Sem (b) o paciente repetia a mesma pergunta para sempre: este
+    // ramo não incrementava nada e nunca escalava.
+    responseText =
+      guard.kind === 'clinical_with_operational'
+        ? `${CLINICAL_FALLBACK}\n${OPERATIONAL_NUDGE}`
+        : CLINICAL_FALLBACK;
+    const { escalated } = await phase(clinicId, (tx) =>
+      incrementFallback(tx, clinicId, conversation.id),
+    );
+    outcome = escalated ? 'handoff' : 'prefiltered';
     metrics.emit('ai_agent.semantic_guard.prefiltered', {
       clinicId,
       aiRequestId,
-      matched: preFilter.matched,
+      matched: guard.matched,
+      mode: guard.kind,
+      escalated,
     });
   } else if ((await getAiAgentMode()) === 'fallback_only') {
     // Kill-switch global (platform_settings): agente em degradação MANUAL.
@@ -651,7 +775,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       buildContext(tx, {
         clinicId,
         conversationId: conversation.id,
-        currentMessage: text,
+        currentMessage: turnText,
         patient:
           conversation.patientId && conversation.patientNome
             ? { id: conversation.patientId, nome: conversation.patientNome }
@@ -668,19 +792,36 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     let fallback = false;
     let handoffExecuted = false;
     let result: GenerateResult | null = null;
-    const serverRegistrationReply = await collectRegistrationFieldServerSide({
+    const registrationTurn = await runRegistrationTurnServerSide({
       clinicId,
       conversationId: conversation.id,
       verifiedPhone: fromNumber,
-      text,
+      text: turnText,
       state: promptCtx.patientRegistration,
     });
+    // F-02 — as duas saídas do cadastro. Sem elas o paciente ficava preso: nem
+    // o contador de estagnação subia (a rejeição retornava antes do merge), nem
+    // um pedido de humano era reconhecido (virava "nome inválido").
+    if (registrationTurn?.kind === 'handoff') {
+      await phase(clinicId, (tx) =>
+        escalateToHuman(tx, clinicId, conversation.id, registrationTurn.reason),
+      );
+      metrics.emit('ai_agent.registration.handoff', {
+        clinicId,
+        conversationId: conversation.id,
+        aiRequestId,
+        reason: registrationTurn.reason,
+      });
+    }
+    const serverRegistrationReply =
+      registrationTurn?.kind === 'reply' ? registrationTurn.text : null;
+    const registrationHandoff = registrationTurn?.kind === 'handoff';
     // A confirmação do cadastro é um gate de consentimento do servidor, como
     // a confirmação de agenda. Assim, uma resposta "SIM" não depende do LLM
     // voltar a chamar a tool apenas para marcar o estado já completo.
     const confirmedRegistrationServerSide =
       promptCtx.patientRegistration.status === 'awaiting_confirmation' &&
-      isExplicitConfirmation(text) &&
+      isExplicitConfirmation(turnText) &&
       (await phase(clinicId, async (tx) => {
         const collected = await getCollectedData(tx, clinicId, conversation.id);
         if (!collected) return false;
@@ -699,7 +840,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       });
     }
 
-    if (!serverRegistrationReply && !confirmedRegistrationServerSide) {
+    if (!serverRegistrationReply && !confirmedRegistrationServerSide && !registrationHandoff) {
       try {
         result = await aiCircuit.exec(() =>
           generateWithEmptyResponseRetry(provider, { systemPrompt, messages, tools: declarations }),
@@ -797,7 +938,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
               patientNome: conversation.patientNome,
               identityAmbiguous: conversation.identityAmbiguous,
               verifiedPhone: fromNumber,
-              currentMessage: text,
+              currentMessage: turnText,
               canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
               maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
               clinicTimeZone: promptCtx.clinic.timezone,
@@ -912,7 +1053,12 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       registrationReplyFromToolResults(toolResults) ??
       registrationReplyFromState(promptCtx.patientRegistration.status);
 
-    if (collectHandoff) {
+    if (registrationHandoff) {
+      // F-02 — o cadastro travou (estagnação) ou o paciente pediu um humano.
+      responseText =
+        'Sem problema — encaminhei você para um atendente concluir o cadastro. Já te retornamos por aqui.';
+      outcome = 'handoff';
+    } else if (collectHandoff) {
       responseText =
         'Recebi seus dados! Vou confirmar sua identidade com um atendente e já te retorno, ok?';
       outcome = 'handoff';
@@ -977,6 +1123,31 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     }
 
     snapshot = await buildSnapshot(clinicId, eventId, systemPrompt, messages, toolResults);
+  }
+
+  // F-09 — um humano pode ter assumido a conversa DURANTE este turno (a chamada
+  // ao LLM leva segundos). Nesse caso o agente cala: não persiste 'out' nem
+  // envia. A checagem fica ANTES da FASE D de propósito — uma linha 'out'
+  // gravada e não entregue apareceria no painel como mensagem que o paciente
+  // nunca recebeu. Turnos que ESCALARAM sozinhos precisam entregar seu aviso,
+  // por isso `outcome === 'handoff'` é isento.
+  if (!alreadyPersisted && outcome !== 'handoff') {
+    const takenOver = await phase(clinicId, (tx) =>
+      isConversationInHandoff(tx, clinicId, conversation.id),
+    );
+    if (takenOver) {
+      metrics.emit('ai_agent.turn.handoff_race_dropped', {
+        clinicId,
+        conversationId: conversation.id,
+        aiRequestId,
+      });
+      await finalizeTurn(clinicId, conversation.id, inbound.id, eventId, {
+        outcome: 'handoff',
+        toolCallCount,
+        costUsd,
+      });
+      return;
+    }
   }
 
   // FASE D — persiste a resposta (checkpoint 'out' por eventId).

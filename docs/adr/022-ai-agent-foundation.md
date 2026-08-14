@@ -123,6 +123,22 @@ falso negativo não): **pré-filtro** na mensagem do paciente (clínica → resp
 `CLINICAL_FALLBACK` com custo/latência ZERO, sem LLM) e **pós-guard** na
 resposta do LLM (substitui + dead letter `stage='guard'`).
 
+> **Amend 2026-08-14 (auditoria F-01):** a premissa "falso positivo é aceitável
+> porque cai no fallback seguro **e o médico assume**" nunca foi implementada. O
+> ramo do pré-filtro não incrementava contador nenhum, então `MAX_FALLBACKS`
+> jamais disparava: o paciente que dissesse "quero marcar por causa de uma dor de
+> dente" recebia a recusa clínica para sempre, sem agendar e sem chegar a um
+> humano. O `motivo` do cadastro tinha o mesmo destino, travando o cadastro em
+> definitivo.
+>
+> A blacklist **não foi tocada** (a lista exata das 6 mensagens que passam do
+> corpus de 50 está travada em `guards/adversarial-corpus.ts` +
+> `semantic-guard.test.ts`). Mudou o que acontece depois da detecção: turno de
+> cadastro é isento (o servidor responde sem LLM), mensagem clínica **com**
+> intenção operacional recebe a recusa MAIS o encaminhamento operacional, e todo
+> turno bloqueado alimenta o contador de fallback — que é o que finalmente
+> implementa o "o médico assume". Ver [ADR-048](048-ai-agent-conversational-safety.md) §3.
+
 ### 8. Schema (5 tabelas, ADR-012/007 reusados)
 
 `ai_conversations` (1 ativa por `(clinic, phone_hash)` — unique parcial),

@@ -109,6 +109,36 @@ export function computeSlots(params: ComputeSlotsParams): LocalSlot[] {
   return out;
 }
 
+/** Piso local (wall-clock da clínica) usado por `filterSlotsFrom`. */
+export interface LocalFloor {
+  /** YYYY-MM-DD no fuso da clínica. */
+  date: string;
+  /** Minutos desde a meia-noite local. */
+  minutes: number;
+}
+
+/**
+ * Descarta os slots que COMEÇAM antes do piso local (auditoria 2026-08-14, F-03).
+ *
+ * `computeSlots` é deliberadamente cego ao relógio: ele recebe DIAS e devolve
+ * todos os blocos de disponibilidade daqueles dias. Quem chama com `from` no
+ * meio do dia — o agente, sempre — recebia os blocos da manhã inteira já
+ * vencidos: às 15:00, `slots[0]` era 08:00, e `prepare_appointment` preparava
+ * uma marcação no passado que o core recusava só na confirmação.
+ *
+ * Puro e local-naive de propósito: a comparação de `YYYY-MM-DD` é lexicográfica
+ * e portanto cronológica, então não há conversão de fuso aqui — o caller já
+ * traduziu o instante em piso local com `localDateMinutes`.
+ *
+ * NÃO é aplicado por padrão: Relatórios pede capacidade livre de janelas
+ * PASSADAS (`relatorios/data.ts`), e filtrar ali zeraria a taxa de ocupação.
+ */
+export function filterSlotsFrom(slots: LocalSlot[], floor: LocalFloor): LocalSlot[] {
+  return slots.filter(
+    (s) => s.date > floor.date || (s.date === floor.date && s.startMin >= floor.minutes),
+  );
+}
+
 // --- timezone helpers (Intl-based; DST-correct; no dependency) -------------
 
 interface ZonedParts {
