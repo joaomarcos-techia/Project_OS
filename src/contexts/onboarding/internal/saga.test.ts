@@ -42,7 +42,14 @@ const args = {
     expiryYear: '2030',
     ccv: '123',
   },
-  holder: { cpfCnpj: '12345678901', postalCode: '01001000', addressNumber: '10' },
+  billingContact: {
+    name: 'Titular da Cobrança',
+    email: 'titular@example.test',
+    phone: '11990000000',
+    cpfCnpj: '12345678901',
+    postalCode: '01001000',
+    addressNumber: '10',
+  },
   plan: {
     planId: '00000000-0000-0000-0000-000000000002',
     code: 'pro',
@@ -110,6 +117,36 @@ describe('runCheckout', () => {
       expect.objectContaining({
         customerId: 'cus_new',
         externalReference: 'onboarding:00000000-0000-0000-0000-000000000001',
+      }),
+    );
+  });
+
+  it('usa somente o titular informado para o cliente e o holder do Asaas', async () => {
+    provider.findSubscriptionByExternalReference.mockResolvedValue(null);
+    provider.createCustomer.mockResolvedValue({ customerId: 'cus_billing_holder' });
+    provider.createSubscriptionWithCard.mockResolvedValue({
+      subscriptionId: 'sub_billing_holder',
+      creditCardToken: null,
+    });
+
+    await runCheckout(args);
+
+    expect(provider.createCustomer).toHaveBeenCalledWith({
+      name: 'Titular da Cobrança',
+      email: 'titular@example.test',
+      cpfCnpj: '12345678901',
+      phone: '11990000000',
+    });
+    expect(provider.createSubscriptionWithCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        holderInfo: {
+          name: 'Titular da Cobrança',
+          email: 'titular@example.test',
+          cpfCnpj: '12345678901',
+          postalCode: '01001000',
+          addressNumber: '10',
+          phone: '11990000000',
+        },
       }),
     );
   });

@@ -149,11 +149,15 @@ export async function submitCheckoutAction(
     return { error: 'Complete os passos anteriores antes de ativar.' };
   }
 
-  // Cartão + dados de cobrança — NUNCA logados/persistidos (só transitam aqui).
+  // Cartão nunca é logado/persistido. O contato de cobrança é usado somente para
+  // criar o cliente billing/Asaas e não entra no step_state retomável.
   const cardNumber = onlyDigits(formData.get('cardNumber'));
   const cardName = String(formData.get('cardName') ?? '').trim();
   const cvv = onlyDigits(formData.get('cardCvv'));
-  const cpfCnpj = onlyDigits(formData.get('cpfCnpj'));
+  const billingHolderName = String(formData.get('billingHolderName') ?? '').trim();
+  const billingHolderEmail = String(formData.get('billingHolderEmail') ?? '').trim();
+  const billingHolderPhone = onlyDigits(formData.get('billingHolderPhone'));
+  const cpfCnpj = onlyDigits(formData.get('billingHolderCpfCnpj'));
   const cep = onlyDigits(formData.get('cep'));
   const addressNumber = String(formData.get('addressNumber') ?? '').trim();
   const password = String(formData.get('password') ?? '');
@@ -165,6 +169,10 @@ export async function submitCheckoutAction(
     cardNumber.length < 13 ||
     cardNumber.length > 19 ||
     cardName.length < 2 ||
+    billingHolderName.length < 2 ||
+    billingHolderName.length > 120 ||
+    !z.string().email().max(160).safeParse(billingHolderEmail).success ||
+    (billingHolderPhone.length !== 10 && billingHolderPhone.length !== 11) ||
     !exp ||
     cvv.length < 3 ||
     cvv.length > 4 ||
@@ -199,7 +207,14 @@ export async function submitCheckoutAction(
         expiryYear,
         ccv: cvv,
       },
-      holder: { cpfCnpj, postalCode: cep, addressNumber },
+      billingContact: {
+        name: billingHolderName,
+        email: billingHolderEmail,
+        phone: billingHolderPhone,
+        cpfCnpj,
+        postalCode: cep,
+        addressNumber,
+      },
       plan,
       trialDays: QORO_TRIAL_DAYS,
       remoteIp: ip,

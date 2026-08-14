@@ -260,7 +260,15 @@ export interface CheckoutArgs {
     expiryYear: string;
     ccv: string;
   };
-  holder: { cpfCnpj: string; postalCode: string; addressNumber: string };
+  /** Pessoa ou empresa efetivamente responsável pela cobrança no Asaas. */
+  billingContact: {
+    name: string;
+    email: string;
+    phone: string;
+    cpfCnpj: string;
+    postalCode: string;
+    addressNumber: string;
+  };
   plan: { planId: string; code: string; priceId: string; amountReais: number; cycle: string };
   trialDays: number;
   remoteIp: string;
@@ -277,7 +285,6 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
   const cycle = a.plan.cycle === 'annual' ? ('YEARLY' as const) : ('MONTHLY' as const);
   const nextDueDate = new Date(Date.now() + a.trialDays * 86_400_000).toISOString().slice(0, 10);
   const description = `Qoro · plano ${a.plan.code} — ${a.clinic.nome}`;
-  const phone = a.clinic.telefone ?? null;
   // O Asaas não aceita Idempotency-Key em POST. A referência estável permite
   // localizar uma assinatura que foi criada antes de um timeout de resposta.
   const externalReference = `onboarding:${a.invite.id}`;
@@ -301,10 +308,10 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
       subscriptionId = existing.subscriptionId;
     } else {
       const c = await asaasProvider.createCustomer({
-        name: a.owner.nome,
-        email: a.owner.email,
-        cpfCnpj: a.holder.cpfCnpj,
-        phone,
+        name: a.billingContact.name,
+        email: a.billingContact.email,
+        cpfCnpj: a.billingContact.cpfCnpj,
+        phone: a.billingContact.phone,
       });
       customerId = c.customerId;
       customerCreatedInThisAttempt = c.customerId;
@@ -323,12 +330,12 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
           ccv: a.card.ccv,
         },
         holderInfo: {
-          name: a.card.holderName,
-          email: a.owner.email,
-          cpfCnpj: a.holder.cpfCnpj,
-          postalCode: a.holder.postalCode,
-          addressNumber: a.holder.addressNumber,
-          phone,
+          name: a.billingContact.name,
+          email: a.billingContact.email,
+          cpfCnpj: a.billingContact.cpfCnpj,
+          postalCode: a.billingContact.postalCode,
+          addressNumber: a.billingContact.addressNumber,
+          phone: a.billingContact.phone,
         },
         remoteIp: a.remoteIp,
       });
@@ -374,7 +381,12 @@ export async function runCheckout(a: CheckoutArgs): Promise<{ clinicId: string }
       inviteVersion: a.invite.version,
       clinic: a.clinic,
       owner: { userId, nome: a.owner.nome },
-      customer: { name: a.owner.nome, email: a.owner.email, document: a.holder.cpfCnpj, phone },
+      customer: {
+        name: a.billingContact.name,
+        email: a.billingContact.email,
+        document: a.billingContact.cpfCnpj,
+        phone: a.billingContact.phone,
+      },
       planId: a.plan.planId,
       planCode: a.plan.code,
       priceId: a.plan.priceId,

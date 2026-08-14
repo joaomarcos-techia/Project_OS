@@ -30,7 +30,7 @@ const STEP_LABEL: Record<OnboardingStep, string> = {
   clinic: 'Clínica',
   owner: 'Acesso',
   plan: 'Plano',
-  checkout: 'Ativação',
+  checkout: 'Pagamento',
 };
 
 /* ---------- ícones (inline, do design) ---------- */
@@ -282,7 +282,6 @@ export function JoinWizard({
             clinicName={clinicName}
             plan={selectedPlan}
             ownerPassword={ownerPassword}
-            defaultCnpj={initialState.clinic?.cnpj ?? ''}
             onChangePlan={() => setView('plan')}
             onActivated={() => setView('processing')}
           />
@@ -680,7 +679,6 @@ function StepCheckout({
   clinicName,
   plan,
   ownerPassword,
-  defaultCnpj,
   onChangePlan,
   onActivated,
 }: {
@@ -688,7 +686,6 @@ function StepCheckout({
   clinicName: string;
   plan: OnboardingPlan | null;
   ownerPassword: string;
-  defaultCnpj: string;
   onChangePlan: () => void;
   onActivated: () => void;
 }) {
@@ -701,7 +698,10 @@ function StepCheckout({
   // Senha vive só no cliente; em retomada (outra aba/sessão) o estado some → pede de novo.
   const needsPassword = !ownerPassword;
   const mt = { marginTop: 'var(--sp-5)' };
-  const [doc, setDoc] = useState(maskCpfCnpj(defaultCnpj));
+  const [billingHolderName, setBillingHolderName] = useState('');
+  const [billingHolderEmail, setBillingHolderEmail] = useState('');
+  const [billingHolderPhone, setBillingHolderPhone] = useState('');
+  const [doc, setDoc] = useState('');
   const [cep, setCep] = useState('');
   const [num, setNum] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -732,13 +732,27 @@ function StepCheckout({
             </div>
           ) : null}
 
-          <div className="pay-section-label">Dados de cobrança</div>
+          <div className="pay-section-label">Titular da cobrança</div>
           <div className="fgroup">
             <div className="frow">
+              <div className="fcell">
+                <label>Nome completo do titular</label>
+                <input
+                  name="billingHolderName"
+                  value={billingHolderName}
+                  onChange={(e) => setBillingHolderName(e.target.value.slice(0, 120))}
+                  required
+                  maxLength={120}
+                  autoComplete="name"
+                  placeholder="Nome da pessoa ou empresa responsável"
+                />
+              </div>
+            </div>
+            <div className="frow two">
               <div className="fcell mono">
                 <label>CPF ou CNPJ do titular</label>
                 <input
-                  name="cpfCnpj"
+                  name="billingHolderCpfCnpj"
                   value={doc}
                   onChange={(e) => setDoc(maskCpfCnpj(e.target.value))}
                   required
@@ -747,10 +761,36 @@ function StepCheckout({
                   placeholder="000.000.000-00"
                 />
               </div>
+              <div className="fcell">
+                <label>E-mail do titular</label>
+                <input
+                  name="billingHolderEmail"
+                  type="email"
+                  value={billingHolderEmail}
+                  onChange={(e) => setBillingHolderEmail(e.target.value.slice(0, 160))}
+                  required
+                  maxLength={160}
+                  autoComplete="email"
+                  placeholder="titular@exemplo.com"
+                />
+              </div>
             </div>
             <div className="frow two">
               <div className="fcell mono">
-                <label>CEP</label>
+                <label>Telefone do titular</label>
+                <input
+                  name="billingHolderPhone"
+                  value={billingHolderPhone}
+                  onChange={(e) => setBillingHolderPhone(maskPhoneBR(e.target.value))}
+                  required
+                  inputMode="tel"
+                  maxLength={16}
+                  autoComplete="tel"
+                  placeholder="(11) 90000-0000"
+                />
+              </div>
+              <div className="fcell mono">
+                <label>CEP do titular</label>
                 <input
                   name="cep"
                   value={cep}
@@ -758,11 +798,14 @@ function StepCheckout({
                   required
                   inputMode="numeric"
                   maxLength={9}
+                  autoComplete="postal-code"
                   placeholder="00000-000"
                 />
               </div>
+            </div>
+            <div className="frow">
               <div className="fcell mono">
-                <label>Número</label>
+                <label>Número do endereço do titular</label>
                 <input
                   name="addressNumber"
                   value={num}
@@ -770,9 +813,17 @@ function StepCheckout({
                   required
                   inputMode="numeric"
                   maxLength={10}
+                  autoComplete="address-line2"
                   placeholder="nº"
                 />
               </div>
+            </div>
+            <div className="note">
+              {I.info}
+              <p>
+                Use os dados da pessoa ou empresa que responde pelo cartão. Eles podem ser
+                diferentes da clínica e do responsável pelo acesso.
+              </p>
             </div>
           </div>
 
@@ -831,6 +882,7 @@ function StepCheckout({
                   style={{ textTransform: 'uppercase' }}
                   autoComplete="cc-name"
                 />
+                <small>Copie exatamente como aparece no cartão.</small>
               </div>
             </div>
             <div className="frow two">
