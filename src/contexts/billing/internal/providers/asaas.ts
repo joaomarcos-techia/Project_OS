@@ -117,7 +117,10 @@ const circuit = new CircuitBreaker();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const ASAAS_USER_AGENT = 'ClinicaOS/1.0 (billing-integration)';
-const SAFE_PROVIDER_ERROR_CODE = /^[a-z][a-z0-9_]{0,63}$/;
+// O Asaas usa códigos como `invalid_creditCard`. Aceita somente letras,
+// `_` e `-`: preserva o identificador diagnóstico sem permitir CPF, PAN ou
+// qualquer outro valor numérico refletido pelo provedor.
+const SAFE_PROVIDER_ERROR_CODE = /^[A-Za-z][A-Za-z_-]{0,63}$/;
 
 /**
  * Extrai SOMENTE códigos alfanuméricos estáveis do formato de erro do Asaas.

@@ -162,10 +162,10 @@ describe('erros HTTP do Asaas', () => {
         JSON.stringify({
           errors: [
             {
-              code: 'invalid_credit_card',
+              code: 'invalid_creditCard',
               description: 'dados refletidos que nunca devem ser logados',
             },
-            { code: 'invalid_credit_card', description: 'duplicado' },
+            { code: 'invalid_creditCard', description: 'duplicado' },
             { code: 'CPF-123', description: 'código fora da allowlist' },
           ],
         }),
@@ -178,7 +178,7 @@ describe('erros HTTP do Asaas', () => {
       (reason: unknown) => reason,
     );
 
-    expect(error).toEqual(expect.objectContaining({ providerErrorCodes: ['invalid_credit_card'] }));
+    expect(error).toEqual(expect.objectContaining({ providerErrorCodes: ['invalid_creditCard'] }));
   });
 });
 
