@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { readOnboardingInviteToken } from '@/lib/auth/onboarding-invite-fragment';
+
 export const CLINIC_INVITE_EMAIL_TEMPLATE_VERSION = 'clinic-invite.v2';
 
 const EXPIRATION_HOURS = 24;
@@ -44,8 +46,8 @@ function assertInviteUrl(inviteUrl: string): URL {
     url.username ||
     url.password ||
     url.search ||
-    url.hash ||
-    !/^\/join\/[A-Za-z0-9_-]{32,512}$/.test(url.pathname)
+    url.pathname !== '/join' ||
+    !readOnboardingInviteToken(url.hash)
   ) {
     throw new Error('[email] clinic invite URL is invalid');
   }

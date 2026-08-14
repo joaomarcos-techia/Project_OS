@@ -19,6 +19,7 @@ import { requireUser } from '@/lib/auth/tenant-context';
 import { renderClinicInviteEmail } from '@/lib/email/templates/clinic-invite';
 import { sendTransactionalEmail } from '@/lib/email/resend';
 import { assertOnboardingRuntimeReady } from '@/lib/env';
+import { createOnboardingInvitePath } from '@/lib/auth/onboarding-invite-fragment';
 import { createOnboardingInviteUrl } from '@/lib/http/application-url';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
@@ -84,7 +85,7 @@ export async function createClinicInviteAction(
   // SEM revalidatePath aqui: ele força o re-render síncrono de /admin/clinicas (queries
   // pesadas) como parte da resposta do submit → "loading infinito" no modal. O modal já
   // mostra o link; a lista é atualizada pelo router.refresh() no client ao fechar.
-  const link = `/join/${rawToken}`;
+  const link = createOnboardingInvitePath(rawToken);
   if (!email) return { error: null, link };
 
   try {

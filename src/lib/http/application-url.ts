@@ -1,5 +1,9 @@
 import 'server-only';
 
+import {
+  createOnboardingInvitePath,
+  isOnboardingInviteToken,
+} from '@/lib/auth/onboarding-invite-fragment';
 import { env } from '@/lib/env';
 
 const LOCALHOST_NAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -51,10 +55,12 @@ function configuredApplicationUrl(pathname: string): string {
 }
 
 export function createOnboardingInviteUrl(rawToken: string): string {
-  if (!/^[A-Za-z0-9_-]{32,512}$/.test(rawToken)) {
+  if (!isOnboardingInviteToken(rawToken)) {
     throw new Error('[app-url] onboarding invite token is invalid');
   }
-  return configuredApplicationUrl(`/join/${rawToken}`);
+  const url = new URL(configuredApplicationUrl('/join'));
+  url.hash = createOnboardingInvitePath(rawToken).slice('/join#'.length);
+  return url.toString();
 }
 
 export function createAuthRedirectUrl(): string {

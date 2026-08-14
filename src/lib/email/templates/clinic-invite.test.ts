@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CLINIC_INVITE_EMAIL_TEMPLATE_VERSION, renderClinicInviteEmail } from './clinic-invite';
 
-const inviteUrl = `https://app.qoro.test/join/${'a'.repeat(43)}`;
+const inviteUrl = `https://app.qoro.test/join#invite=${'a'.repeat(43)}`;
 
 describe('renderClinicInviteEmail', () => {
   it('produz HTML e texto equivalentes para um convite HTTPS seguro', () => {
@@ -23,12 +23,13 @@ describe('renderClinicInviteEmail', () => {
   });
 
   it.each([
-    'http://app.qoro.test/join/' + 'a'.repeat(43),
+    'http://app.qoro.test/join#invite=' + 'a'.repeat(43),
     'javascript:alert(1)',
     'data:text/html,unsafe',
-    'https://user:pass@app.qoro.test/join/' + 'a'.repeat(43),
-    'https://app.qoro.test/join/token?next=https://evil.test',
-    'https://app.qoro.test/join/short',
+    'https://user:pass@app.qoro.test/join#invite=' + 'a'.repeat(43),
+    'https://app.qoro.test/join?next=https://evil.test#invite=' + 'a'.repeat(43),
+    'https://app.qoro.test/join/' + 'a'.repeat(43),
+    'https://app.qoro.test/join#invite=short',
   ])('rejeita URL de convite insegura: %s', (unsafeUrl) => {
     expect(() => renderClinicInviteEmail({ inviteUrl: unsafeUrl })).toThrow('[email]');
   });

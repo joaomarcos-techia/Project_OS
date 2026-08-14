@@ -74,7 +74,7 @@ describe('createClinicInviteAction', () => {
       createClinicInviteAction({ error: null }, form('gestor@example.com')),
     ).resolves.toEqual({
       error: null,
-      link: `/join/${RAW_TOKEN}`,
+      link: `/join#invite=${RAW_TOKEN}`,
       emailDelivery: 'sent',
     });
 
@@ -82,8 +82,8 @@ describe('createClinicInviteAction', () => {
       expect.objectContaining({
         to: 'gestor@example.com',
         idempotencyKey: 'onboarding-invite:invite-1',
-        text: expect.stringContaining(`https://app.qoro.test/join/${RAW_TOKEN}`),
-        html: expect.stringContaining(`https://app.qoro.test/join/${RAW_TOKEN}`),
+        text: expect.stringContaining(`https://app.qoro.test/join#invite=${RAW_TOKEN}`),
+        html: expect.stringContaining(`https://app.qoro.test/join#invite=${RAW_TOKEN}`),
       }),
     );
     expect(emit).toHaveBeenCalledWith('onboarding.invite_email.sent', {});
@@ -97,7 +97,7 @@ describe('createClinicInviteAction', () => {
       createClinicInviteAction({ error: null }, form('gestor@example.com')),
     ).resolves.toEqual({
       error: null,
-      link: `/join/${RAW_TOKEN}`,
+      link: `/join#invite=${RAW_TOKEN}`,
       emailDelivery: 'failed',
     });
 
@@ -113,7 +113,7 @@ describe('createClinicInviteAction', () => {
   it('não chama o provedor de e-mail quando o super-admin deixa o e-mail vazio', async () => {
     await expect(createClinicInviteAction({ error: null }, form(''))).resolves.toEqual({
       error: null,
-      link: `/join/${RAW_TOKEN}`,
+      link: `/join#invite=${RAW_TOKEN}`,
     });
 
     expect(sendTransactionalEmail).not.toHaveBeenCalled();

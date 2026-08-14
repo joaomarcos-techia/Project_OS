@@ -4,7 +4,11 @@ vi.mock('@/lib/env', () => ({
   env: { APP_BASE_URL: 'https://app.qoro.test', NODE_ENV: 'test' },
 }));
 
-import { buildApplicationUrl, createAuthConfirmationUrl } from './application-url';
+import {
+  buildApplicationUrl,
+  createAuthConfirmationUrl,
+  createOnboardingInviteUrl,
+} from './application-url';
 
 describe('buildApplicationUrl', () => {
   it('constrói um link HTTPS canônico sem aceitar caminhos do valor configurado', () => {
@@ -32,6 +36,12 @@ describe('buildApplicationUrl', () => {
   it('constrói a confirmação SSR de um token de uso único sem aceitar redirect externo', () => {
     expect(createAuthConfirmationUrl('token-hash-de-teste', 'recovery')).toBe(
       'https://app.qoro.test/auth/confirm?token_hash=token-hash-de-teste&type=recovery&next=%2Fconvite',
+    );
+  });
+
+  it('mantém o token pré-clínica no fragmento, fora da requisição inicial', () => {
+    expect(createOnboardingInviteUrl('a'.repeat(43))).toBe(
+      `https://app.qoro.test/join#invite=${'a'.repeat(43)}`,
     );
   });
 

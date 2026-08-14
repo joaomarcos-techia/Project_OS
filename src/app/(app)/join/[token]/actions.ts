@@ -21,6 +21,7 @@ import {
   type OnboardingStep,
 } from '@/contexts/onboarding';
 import { assertJoinAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import { isOnboardingInviteToken } from '@/lib/auth/onboarding-invite-fragment';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { logger } from '@/lib/observability/logger';
@@ -58,6 +59,7 @@ export async function saveStepAction(
   formData: FormData,
 ): Promise<JoinStepState> {
   const token = String(formData.get('token') ?? '');
+  if (!isOnboardingInviteToken(token)) return { error: 'Convite inválido ou expirado.' };
   const step = String(formData.get('step') ?? '');
   const next = NEXT[step];
   if (!next) return { error: 'Passo inválido.' };
@@ -136,6 +138,8 @@ export async function submitCheckoutAction(
   if (!rl.ok) return { error: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.' };
 
   const token = String(formData.get('token') ?? '');
+  if (!isOnboardingInviteToken(token))
+    return { error: 'Convite inválido, expirado ou já ativado.' };
   const invite = await resolveOpenInvite(token);
   if (!invite || invite.status !== 'started')
     return { error: 'Convite inválido, expirado ou já ativado.' };
