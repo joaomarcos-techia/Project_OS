@@ -8,14 +8,18 @@ describe('renderClinicInviteEmail', () => {
   it('produz HTML e texto equivalentes para um convite HTTPS seguro', () => {
     const email = renderClinicInviteEmail({ inviteUrl });
 
-    expect(CLINIC_INVITE_EMAIL_TEMPLATE_VERSION).toBe('clinic-invite.v1');
+    expect(CLINIC_INVITE_EMAIL_TEMPLATE_VERSION).toBe('clinic-invite.v2');
     expect(email.subject).toBe('Ative sua clínica no Qoro');
     expect(email.text).toContain(inviteUrl);
     expect(email.text).toContain('expira em 24 horas');
-    expect(email.html).toContain('<!doctype html>');
+    expect(email.html).toContain('<!DOCTYPE html PUBLIC');
     expect(email.html).toContain('lang="pt-BR"');
     expect(email.html).toContain(`href="${inviteUrl}"`);
     expect(email.html).toContain('expira em 24 horas');
+    expect(email.html).toContain('Convite para sua clínica');
+    expect(email.html).toContain('Ativar minha clínica');
+    expect(email.html).toContain('background:#00737e');
+    expect(email.html).toContain('logo_master_blaster_powerrr.png');
   });
 
   it.each([
