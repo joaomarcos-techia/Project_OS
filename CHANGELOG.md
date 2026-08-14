@@ -60,6 +60,11 @@ das jornadas, e três defeitos prendiam o paciente em loop permanente.
 - `schedule_appointment` saiu do catálogo (aceitava ids arbitrários e não checava
   disponibilidade); `prepare_appointment` é o único caminho de marcação — 15 tools.
 - Migration `0074` (índice parcial, aditiva). `PROMPT_VERSION` → `2026-08-14-v12`.
+- **Novo `pnpm smoke:journeys`** — 15 jornadas conversacionais da §36 da auditoria
+  contra o banco DEV, asseverando o ESTADO da conversa (não o texto): loops que
+  não travam mais, horário nunca no passado, "depois de amanhã" no dia certo,
+  rajada de mensagens virando um atendimento só e o agente calando quando um
+  humano assume no meio do turno.
 
 ### Corrigido (lote de teste em produção — 2026-07-22)
 - **Convite e redefinição de senha voltam a funcionar (itens 11/21).** Os links de

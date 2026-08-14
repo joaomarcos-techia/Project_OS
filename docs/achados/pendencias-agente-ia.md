@@ -10,8 +10,10 @@
 ## Situação
 
 A auditoria deu **NO-GO** por corretude, não por segurança. Os 5 P1 e os 7 P2
-estão corrigidos e cobertos por teste local. **O agente continua bloqueado para
-go-live** até as provas externas (§ Provas pendentes).
+estão corrigidos, cobertos por teste e **provados contra o banco DEV e contra o
+Gemini real**. Resta uma prova que nenhum smoke substitui: a conversa real pelo
+WhatsApp, porque o que falta verificar é a interpretação do modelo, não o
+servidor (§ Provas pendentes).
 
 ## Estado por achado
 
@@ -41,6 +43,11 @@ go-live** até as provas externas (§ Provas pendentes).
 
 - **Gate §11.12 — `pnpm ai:adversarial` contra o Gemini REAL:** 0 respostas finais inseguras, pré-filtro 44/50, pós-guard 50. O relatório regenerado é **idêntico ao de 2026-08-12 exceto pela linha de cabeçalho** — mesmas 44 pegas, exatamente as mesmas 6 passagens. É a prova de que a F-01 não afrouxou a blacklist.
 - **Smokes contra `qoro-dev`: `c11` 18/18 · `c12` 20/20 · `conversas` 23/23** (61/61). Caminho real completo: persistInbound → outbox → worker → saga → tools → cores de mutação → banco.
+- **`pnpm smoke:journeys` — 15/15 contra `qoro-dev`.** Jornadas conversacionais da §36, asseverando ESTADO (não texto): clínico+operacional preserva o agendamento e nunca chega ao modelo; sintomas repetidos escalam em vez de repetir; pedir humano durante a coleta escapa do formulário; resposta inválida repetida escala por estagnação; motivo clínico é gravado dentro da coleta; `blz` confirma; primeiro horário livre nunca cai no passado; "depois de amanhã" marca D+2 mesmo com o modelo propondo D+1; `ok e qual o endereço` não executa; `quero confirmar` só prepara; `sim` sem pendência não cria nada; rajada de 3 mensagens vira UMA resposta com todos os inbounds consumidos; humano assumindo **durante** o turno cala o agente; e o estado final não deixa pendência órfã.
+
+  O cenário de corrida do handoff (F-09) é determinístico porque os passos do
+  roteiro do modelo são assíncronos: o passo escala a conversa **antes** de
+  devolver a resposta, que é exatamente a janela real do defeito.
 - **Migration `0074` aplicada em DEV e PROD** (backup de 1,9 MB, advisory lock 4242).
 - Suíte local: **1455 testes / 172 arquivos**. Nove gates de CI verdes. Cobertura de branches 73,37% → 74,50%.
 
@@ -74,14 +81,13 @@ tempo contra o mesmo banco.**
 
 ## Provas pendentes
 
-1. **Conversa real pelo WhatsApp** cobrindo o que quebrava — é a única prova que resta e nenhum smoke a substitui:
+1. **Conversa real pelo WhatsApp** cobrindo o que quebrava — nenhum smoke com stub substitui, porque o que falta provar é a interpretação do MODELO:
    - "quero marcar, to com dor de dente" → tem de agendar ou escalar, **nunca repetir a mesma resposta**;
    - "depois de amanhã às 9" → conferir o DIA no resumo antes de responder SIM;
    - 4 mensagens em rajada (<2s) → **uma** resposta coerente;
    - cadastro respondendo "dor nas costas" no motivo → tem de gravar e seguir;
    - responder "blz" a um resumo → tem de confirmar;
    - "Assumir" no painel enquanto o agente digita → nenhuma mensagem do agente depois.
-2. **`smoke:journeys`** com as ~20 personas da §36 (não escrito), asseverando ESTADO e não texto.
 
 ## Decisões que pedem confirmação do dono
 
