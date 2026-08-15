@@ -56,6 +56,11 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // is_super_admin()). Escrita pós-commit, best-effort.
     'src/lib/audit/impersonation-extra.ts',
     'src/lib/auth/tenant-context.ts',
+    // AUTH-005/006/007: o bump autoritativo do epoch de sessão (logout global e
+    // troca de senha). `profiles` não tem UPDATE para `authenticated` (D31) —
+    // via RLS o UPDATE casaria zero linhas e falharia ABERTO, que é o modo de
+    // falha que a 0040 corrigiu. Comando estreito, WHERE por PK, uma coluna.
+    'src/lib/auth/session-epoch.ts',
     'src/lib/idempotency/cleanup.ts',
     // C15 — impersonate: a tabela impersonation_sessions é a fonte autoritativa
     // (cross-tenant, global-protected). Leitura/escrita via dbAdmin; o cookie só

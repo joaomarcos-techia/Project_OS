@@ -51,8 +51,38 @@ function isTopLevelRequireFresh(stmt: ts.Statement): boolean {
   return ts.isIdentifier(callee) && callee.text === 'requireFreshPermission';
 }
 
+/**
+ * OBS-001 — segunda forma canônica do MESMO gate.
+ *
+ * `authorizeAction(perm)` roda `requireUser` + `requireFreshPermission(perm)` +
+ * `requireClinicId` e traduz o `AuthError` numa negativa controlada, em vez de
+ * deixá-lo escapar como HTTP 500/Sentry error. A revalidação no banco é
+ * idêntica — só a tradução da recusa muda.
+ *
+ * FAIL-CLOSED de propósito: o segundo argumento é o modo, e só a ausência ou o
+ * literal `'fresh'` contam. `authorizeAction(perm, 'cached')` NÃO satisfaz uma
+ * CRITICAL_ACTION, e qualquer coisa que não seja um literal reconhecível
+ * (variável, ternário) também não — o parser não adivinha.
+ */
+function isTopLevelAuthorizeActionFresh(stmt: ts.Statement): boolean {
+  if (!ts.isVariableStatement(stmt)) return false;
+  return stmt.declarationList.declarations.some((decl) => {
+    const init = decl.initializer;
+    if (!init || !ts.isAwaitExpression(init)) return false;
+    const call = init.expression;
+    if (!ts.isCallExpression(call)) return false;
+    const callee = call.expression;
+    if (!ts.isIdentifier(callee) || callee.text !== 'authorizeAction') return false;
+    const mode = call.arguments[1];
+    if (mode === undefined) return true; // default = 'fresh'
+    return ts.isStringLiteral(mode) && mode.text === 'fresh';
+  });
+}
+
 function guardsAtTopLevel(body: ts.Block): boolean {
-  return body.statements.some(isTopLevelRequireFresh);
+  return body.statements.some(
+    (stmt) => isTopLevelRequireFresh(stmt) || isTopLevelAuthorizeActionFresh(stmt),
+  );
 }
 
 /** Declaração local de função com este nome (para resolver a factory — 1 hop). */
@@ -184,6 +214,37 @@ describe('CRITICAL_ACTIONS (F-14) — enforcement via AST', () => {
     expect(fn).not.toBeNull();
     // A chamada está DENTRO de if(false) → não é statement de nível superior.
     expect(guardsAtTopLevel(fn!.body!)).toBe(false);
+  });
+
+  it('authorizeAction(perm) conta como fresh; authorizeAction(perm, "cached") NÃO', () => {
+    const parse = (src: string) =>
+      ts.createSourceFile('x.ts', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+    const ok = findFunctionDeclaration(
+      parse(`export async function a() { const auth = await authorizeAction('p'); }`),
+      'a',
+    );
+    expect(guardsAtTopLevel(ok!.body!)).toBe(true);
+
+    const explicitFresh = findFunctionDeclaration(
+      parse(`export async function a() { const auth = await authorizeAction('p', 'fresh'); }`),
+      'a',
+    );
+    expect(guardsAtTopLevel(explicitFresh!.body!)).toBe(true);
+
+    // O ponto do gate: uma action crítica não pode cair para o JWT cacheado.
+    const cached = findFunctionDeclaration(
+      parse(`export async function a() { const auth = await authorizeAction('p', 'cached'); }`),
+      'a',
+    );
+    expect(guardsAtTopLevel(cached!.body!)).toBe(false);
+
+    // Modo dinâmico é irreconhecível → fail-closed, não "provavelmente fresh".
+    const dynamic = findFunctionDeclaration(
+      parse(`export async function a() { const auth = await authorizeAction('p', mode); }`),
+      'a',
+    );
+    expect(guardsAtTopLevel(dynamic!.body!)).toBe(false);
   });
 
   it('a varredura enxerga os arquivos de actions dos contexts e do app', () => {

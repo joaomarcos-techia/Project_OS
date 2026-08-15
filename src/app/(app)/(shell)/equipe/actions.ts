@@ -27,11 +27,11 @@ import { assertCanAssignRole } from '@/contexts/identity/internal/role-matrix';
 import { listEmployees } from '@/contexts/identity/queries';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 import { buildRequestContext } from '@/lib/audit/request-context';
+import { authorizeAction } from '@/lib/auth/action-guard';
 import { isPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { isPractitionerRole } from '@/lib/auth/practitioner';
 import { ROLES } from '@/lib/auth/roles';
 import { assertInviteAllowed, assertResendInviteAllowed } from '@/lib/auth/rate-limit';
-import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 
 // M3 — a janela dos dois tetos é de 1 HORA. "Aguarde alguns minutos" mentiria e faria
 // o gestor tentar em loop, queimando o resto do orçamento.
@@ -65,9 +65,11 @@ const FUNCAO_LABEL: Record<z.infer<typeof InvitableRole>, string> = {
 };
 
 export async function inviteMemberAction(input: InviteMemberInput): Promise<InviteMemberResult> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES); // crítica (D20/F-14) — lê do banco
-  const clinicId = await requireClinicId();
+  // OBS-001 — a negativa do fresh-check vira resultado controlado, não 500.
+  // O gate em si é o mesmo de antes (D20/F-14 — lê do banco).
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_EMPLOYEES);
+  if (!auth.ok) return { error: auth.message };
+  const { user, clinicId } = auth;
   await requireActiveClinic(clinicId); // ADR-016 — clínica suspensa não convida
 
   const parsed = InviteMemberSchema.safeParse(input);
@@ -135,9 +137,9 @@ export type CancelInviteResult = { ok: true } | { error: string };
  * A validação (pendente + anti-escalonamento) mora no serviço (uma query só).
  */
 export async function resendInviteAction(input: { userId: string }): Promise<ResendInviteResult> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES); // crítica (D20/F-14) — lê do banco
-  const clinicId = await requireClinicId();
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_EMPLOYEES); // OBS-001
+  if (!auth.ok) return { error: auth.message };
+  const { user, clinicId } = auth;
   await requireActiveClinic(clinicId); // ADR-016
 
   const parsed = TargetSchema.safeParse(input);
@@ -169,9 +171,9 @@ export async function resendInviteAction(input: { userId: string }): Promise<Res
  * serviço: libera a vaga e o e-mail. Só atinge PENDENTE (aceito = desativar, 2b).
  */
 export async function cancelInviteAction(input: { userId: string }): Promise<CancelInviteResult> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES); // crítica (D20/F-14) — lê do banco
-  const clinicId = await requireClinicId();
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_EMPLOYEES); // OBS-001
+  if (!auth.ok) return { error: auth.message };
+  const { user, clinicId } = auth;
   await requireActiveClinic(clinicId); // ADR-016
 
   const parsed = TargetSchema.safeParse(input);
@@ -223,9 +225,9 @@ export type SetMemberActiveResult =
 export async function setMemberActiveAction(
   input: z.input<typeof SetActiveSchema>,
 ): Promise<SetMemberActiveResult> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES);
-  const clinicId = await requireClinicId();
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_EMPLOYEES); // OBS-001
+  if (!auth.ok) return { error: auth.message };
+  const { user, clinicId } = auth;
   await requireActiveClinic(clinicId);
 
   const parsed = SetActiveSchema.safeParse(input);
@@ -278,9 +280,9 @@ export type SetMemberRoleResult = { ok: true } | { error: string };
 export async function setMemberRoleAction(
   input: z.input<typeof SetRoleSchema>,
 ): Promise<SetMemberRoleResult> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_EMPLOYEES);
-  const clinicId = await requireClinicId();
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_EMPLOYEES); // OBS-001
+  if (!auth.ok) return { error: auth.message };
+  const { user, clinicId } = auth;
   await requireActiveClinic(clinicId);
 
   const parsed = SetRoleSchema.safeParse(input);
@@ -319,9 +321,11 @@ export type SetMemberOverrideResult = { ok: true } | { error: string };
 export async function setMemberOverrideAction(
   input: z.input<typeof SetOverrideSchema>,
 ): Promise<SetMemberOverrideResult> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_PERMISSIONS);
-  const clinicId = await requireClinicId();
+  // OBS-001 — este era o caso reproduzido: o replay do POST por um atendente
+  // recebia HTTP 500 (Sentry error) em vez de uma negativa 403 controlada.
+  const auth = await authorizeAction(PERMISSIONS.MANAGE_PERMISSIONS);
+  if (!auth.ok) return { error: auth.message };
+  const { user, clinicId } = auth;
   await requireActiveClinic(clinicId);
 
   // Overrides por usuário são um recurso comercial dos planos Clínica e Pro.
