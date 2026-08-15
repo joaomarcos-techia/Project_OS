@@ -8,7 +8,9 @@ import { Files, Search } from 'lucide-react';
 import Link from 'next/link';
 
 import { listClinicalDocumentFeed } from '@/contexts/clinical/queries';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { pageGate } from '@/lib/auth/page-guard';
+import { PageNoAccess } from '@/components/shared/page-no-access';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -37,8 +39,23 @@ export default async function DocumentosPage({
 }: {
   searchParams: Promise<{ q?: string; tipo?: string }>;
 }) {
-  await requireUser();
-  const clinicId = await requireClinicId();
+  // AUTHZ-003 — o feed mistura DOIS tipos, e o gate segue o tipo do recurso,
+  // não um OR generoso. Ambos os tipos são "família prescrição" pela decisão do
+  // próprio produto: `createMedicalDocument()` reusa `create:prescription`
+  // (comentado como "reuso documentado" em clinical/actions.ts). A leitura usa a
+  // contraparte `view:prescription`. Prontuário é OUTRO recurso, com
+  // `view:prontuario` próprio — e por isso NÃO abre esta tela.
+  const gate = await pageGate([PERMISSIONS.VIEW_PRESCRIPTION]);
+  if (!gate.allowed) {
+    return (
+      <PageNoAccess
+        crumbs={[{ label: 'Clínico' }, { label: 'Documentos' }]}
+        title="Documentos"
+        description="Seu perfil não tem permissão para ver receitas e documentos médicos. Fale com um gestor se precisar de acesso."
+      />
+    );
+  }
+  const { clinicId } = gate;
   const { q, tipo } = await searchParams;
   const kind = tipo === 'prescription' || tipo === 'document' ? tipo : undefined;
 

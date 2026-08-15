@@ -5,6 +5,7 @@
  */
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
+import { PageNoAccess } from '@/components/shared/page-no-access';
 import { buttonVariants } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -23,6 +24,19 @@ export default async function AgendaPage({
   const sp = await searchParams;
   const view = isAgendaView(sp.view) ? sp.view : 'day';
   const data = await getAgendaData({ view, ...(sp.date ? { date: sp.date } : {}) });
+
+  // AUTHZ-002 — o loader já saiu sem consultar nada; aqui só desenhamos a
+  // negativa. A ordem importa: `hasAccess` antes de `hasClinic` porque quem
+  // não pode ver a agenda não deve nem saber se a clínica está vinculada.
+  if (!data.hasAccess) {
+    return (
+      <PageNoAccess
+        crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
+        title="Agenda"
+        description="Seu perfil não tem permissão para ver a agenda da clínica. Fale com um gestor se precisar de acesso."
+      />
+    );
+  }
 
   if (!data.hasClinic) {
     return (

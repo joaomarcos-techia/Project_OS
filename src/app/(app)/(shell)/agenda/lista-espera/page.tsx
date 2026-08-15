@@ -16,7 +16,14 @@ export const dynamic = 'force-dynamic';
 export default async function ListaEsperaPage() {
   const user = await requireUser();
   const clinicId = await requireClinicId();
-  if (!user.permissions.includes(PERMISSIONS.EDIT_AGENDA)) {
+  // AUTHZ-002 — a fila mostra paciente/profissional da agenda. Com
+  // `view:agenda` negada o loader compartilhado devolveria roster vazio; negar
+  // a tela inteira é coerente e fail-closed em vez de um dropdown misteriosamente
+  // vazio. `edit:agenda` continua sendo a capacidade que opera a fila.
+  if (
+    !user.permissions.includes(PERMISSIONS.EDIT_AGENDA) ||
+    !user.permissions.includes(PERMISSIONS.VIEW_AGENDA)
+  ) {
     return (
       <>
         <PageHeader title="Lista de espera" />

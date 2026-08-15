@@ -6,8 +6,10 @@
 import { ChevronRight, Search, Users } from 'lucide-react';
 import Link from 'next/link';
 
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { pageGate } from '@/lib/auth/page-guard';
 import { listPatients } from '@/contexts/patient/queries';
+import { PageNoAccess } from '@/components/shared/page-no-access';
 import { EmptyState } from '@/components/ui/empty-state';
 import { fieldControlClassName } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
@@ -35,8 +37,20 @@ export default async function PacientesPage({
 }: {
   searchParams: Promise<{ q?: string; novo?: string }>;
 }) {
-  await requireUser();
-  const clinicId = await requireClinicId();
+  // AUTHZ-001 — o gate vem ANTES de qualquer leitura. `listPatients` aplica
+  // tenant-scope/RLS, não RBAC: sem isto, um colaborador com `view:patient`
+  // negada continuava lendo a lista da própria clínica.
+  const gate = await pageGate([PERMISSIONS.VIEW_PATIENT]);
+  if (!gate.allowed) {
+    return (
+      <PageNoAccess
+        crumbs={[{ label: 'Clínico' }, { label: 'Pacientes' }]}
+        title="Pacientes"
+        description="Seu perfil não tem permissão para ver os pacientes da clínica. Fale com um gestor se precisar de acesso."
+      />
+    );
+  }
+  const { clinicId } = gate;
   const { q, novo } = await searchParams;
   const [patients, guardianCandidates] = await Promise.all([
     listPatients(clinicId, q ? { search: q, limit: 50 } : { limit: 50 }),

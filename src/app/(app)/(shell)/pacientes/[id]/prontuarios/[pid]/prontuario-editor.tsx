@@ -45,8 +45,23 @@ function savedLabel(savedAt: number | null, now: number): string {
   return mins <= 1 ? 'Salvo há 1 minuto' : `Salvo há ${mins} minutos`;
 }
 
-export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail }) {
-  const signed = prontuario.status === 'assinado';
+export function ProntuarioEditor({
+  prontuario,
+  canEdit = true,
+}: {
+  prontuario: ProntuarioDetail;
+  /**
+   * AUTHZ-003 — falso quando a sessão não tem `create:prontuario`. O editor
+   * era sempre editável e só a action negava, produzindo a combinação que o
+   * pentest registrou: tela dizendo "somente leitura" com textarea habilitado.
+   * Somar aqui em `signed` deixa UMA porta de imutabilidade, não duas.
+   */
+  canEdit?: boolean;
+}) {
+  // "Imutável" tem duas origens — assinado (contrato clínico) e sem permissão
+  // de escrita (RBAC) — e o editor trata as duas igual: não digita, não
+  // autosalva, não avisa de saída suja.
+  const signed = prontuario.status === 'assinado' || !canEdit;
   const [content, setContent] = useState<ProntuarioContent>(prontuario.content ?? {});
   const [templateId, setTemplateId] = useState<string>(CLINICAL_TEMPLATES[0]!.id);
   const template = useMemo<ClinicalTemplate>(
@@ -141,7 +156,7 @@ export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail 
 
   return (
     <div>
-      {signed ? (
+      {prontuario.status === 'assinado' ? (
         <Alert variant="success" title="Prontuário assinado — somente leitura" className="mb-4">
           {prontuario.signedDoctorNome ?? '—'}
           {prontuario.signedDoctorCrm
@@ -150,6 +165,12 @@ export function ProntuarioEditor({ prontuario }: { prontuario: ProntuarioDetail 
           {prontuario.signedAt
             ? ` · assinado em ${new Date(prontuario.signedAt).toLocaleString('pt-BR')}`
             : ''}
+        </Alert>
+      ) : signed ? (
+        // Rascunho que ESTA sessão não pode editar. Dizer "assinado" aqui seria
+        // mentira clínica; o rótulo precisa nomear a causa real.
+        <Alert variant="warning" title="Somente leitura" className="mb-4">
+          Seu perfil não tem permissão para editar prontuários.
         </Alert>
       ) : (
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">

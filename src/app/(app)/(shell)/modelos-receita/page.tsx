@@ -4,7 +4,9 @@
  * (create:prescription). Aplicar um modelo acontece no editor de prescrição.
  */
 import { listPrescriptionTemplates } from '@/contexts/clinical/queries';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { pageGate } from '@/lib/auth/page-guard';
+import { PageNoAccess } from '@/components/shared/page-no-access';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { TemplatesManager } from './templates-manager';
@@ -12,8 +14,19 @@ import { TemplatesManager } from './templates-manager';
 export const dynamic = 'force-dynamic';
 
 export default async function ModelosReceitaPage() {
-  const user = await requireUser();
-  const clinicId = await requireClinicId();
+  // AUTHZ-004 — a tela inteira É gestão de modelos, e as quatro actions já
+  // exigem `create:prescription`. A rota tem de exigir o mesmo: sem isso a UI
+  // oferecia "Novo modelo" a quem a action ia negar.
+  const gate = await pageGate([PERMISSIONS.CREATE_PRESCRIPTION]);
+  if (!gate.allowed) {
+    return (
+      <PageNoAccess
+        title="Modelos de receita"
+        description="Seu perfil não tem permissão para gerenciar modelos de receita. Fale com um gestor se precisar de acesso."
+      />
+    );
+  }
+  const { clinicId, user } = gate;
   const templates = await listPrescriptionTemplates(clinicId, user.userId);
 
   return (

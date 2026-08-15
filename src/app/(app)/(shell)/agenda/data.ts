@@ -50,6 +50,13 @@ export interface ResourceOption {
   type: 'room' | 'equipment' | 'other';
 }
 export interface AgendaData {
+  /**
+   * AUTHZ-002 — falso quando a sessão não tem `view:agenda`. Distinto de
+   * `hasClinic`: "não pode ver" ≠ "não há clínica", e a tela precisa dizer a
+   * coisa certa. Quando falso, TODAS as coleções vêm vazias porque nenhuma
+   * query foi executada — não é filtro de render.
+   */
+  hasAccess: boolean;
   hasClinic: boolean;
   isPractitioner: boolean;
   selfDoctorId: string | null;
@@ -68,6 +75,7 @@ export interface AgendaData {
 const DEFAULT_TZ = 'America/Sao_Paulo';
 
 const EMPTY: AgendaData = {
+  hasAccess: false,
   hasClinic: false,
   isPractitioner: false,
   selfDoctorId: null,
@@ -88,9 +96,30 @@ export interface AgendaQuery {
   date?: string | undefined;
 }
 
+/**
+ * Mesma semântica de `requireCachedPermission(VIEW_AGENDA)` sem lançar — o
+ * loader devolve estado vazio e a página desenha "Sem acesso" (OBS-001).
+ * O JWT é confiável porque `authenticate()` já conferiu `claims_version`
+ * contra o banco neste request (ADR-037).
+ */
+function canViewAgenda(user: {
+  isSuperAdmin: boolean;
+  aal: string | null;
+  permissions: readonly string[];
+}): boolean {
+  if (user.isSuperAdmin) return user.aal === 'aal2';
+  return user.permissions.includes(PERMISSIONS.VIEW_AGENDA);
+}
+
 export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promise<AgendaData> {
   const user = await requireUser();
   if (!user.clinicId) return EMPTY;
+  // AUTHZ-002 — o gate mora AQUI, não só na página: `data.ts` é o loader
+  // compartilhado (agenda + lista de espera) e é ele quem consulta
+  // appointments, patient cards, procedimentos, recursos e profissionais.
+  // Gatear só na página deixaria o próximo caller reabrir o vazamento.
+  // Sair antes do primeiro SELECT é o ponto: negar depois já serializou.
+  if (!canViewAgenda(user)) return { ...EMPTY, hasClinic: true };
   const clinicId = user.clinicId;
   const isPractitioner = await getCurrentPractitioner();
 
@@ -137,6 +166,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   }));
 
   return {
+    hasAccess: true,
     hasClinic: true,
     isPractitioner,
     selfDoctorId: isPractitioner ? user.userId : null,

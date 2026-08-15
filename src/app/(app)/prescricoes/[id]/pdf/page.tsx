@@ -8,7 +8,8 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { getPrescriptionById } from '@/contexts/clinical/queries';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { resourceGate } from '@/lib/auth/page-guard';
 import { createClinicalSignedUrl } from '@/lib/storage/clinical';
 
 import { RegeneratePdfButton } from './regenerate-button';
@@ -16,8 +17,11 @@ import { RegeneratePdfButton } from './regenerate-button';
 export const dynamic = 'force-dynamic';
 
 export default async function PrescriptionPdfPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
-  const clinicId = await requireClinicId();
+  // AUTHZ-003 — ver a nota gêmea em documentos/[id]/pdf: o gate precede a
+  // consulta e a emissão da signed URL, e a negativa é indistinguível de 404.
+  const gate = await resourceGate([PERMISSIONS.VIEW_PRESCRIPTION]);
+  if (!gate) notFound();
+  const { clinicId } = gate;
   const { id } = await params;
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) notFound();

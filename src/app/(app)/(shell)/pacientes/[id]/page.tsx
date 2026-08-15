@@ -10,7 +10,9 @@ import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { listProntuariosByPatient } from '@/contexts/clinical/queries';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { pageGate } from '@/lib/auth/page-guard';
+import { PageNoAccess } from '@/components/shared/page-no-access';
 import {
   getPatientWithDecryptedFields,
   getPrincipalAddress,
@@ -36,7 +38,15 @@ export const dynamic = 'force-dynamic';
 type Tab = 'dados' | 'prontuarios';
 
 /** Abas do hub — server-rendered (o estado ativo vem dos searchParams). */
-function HubTabs({ patientId, active }: { patientId: string; active: Tab }) {
+function HubTabs({
+  patientId,
+  active,
+  canViewProntuario,
+}: {
+  patientId: string;
+  active: Tab;
+  canViewProntuario: boolean;
+}) {
   const tab = (t: Tab, label: string) => (
     <Link
       href={`/pacientes/${patientId}?tab=${t}`}
@@ -58,7 +68,10 @@ function HubTabs({ patientId, active }: { patientId: string; active: Tab }) {
       aria-label="Seções do paciente"
     >
       {tab('dados', 'Dados')}
-      {tab('prontuarios', 'Prontuários')}
+      {/* AUTHZ-003 — sem `view:prontuario` a aba não é oferecida. O gate real
+          está no render do conteúdo abaixo; esconder o link só evita prometer
+          uma ação proibida. */}
+      {canViewProntuario ? tab('prontuarios', 'Prontuários') : null}
     </nav>
   );
 }
@@ -70,8 +83,19 @@ export default async function PacienteDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  await requireUser();
-  const clinicId = await requireClinicId();
+  // AUTHZ-001 — antes de `getPatientWithDecryptedFields`, que é O ponto de
+  // decifragem: sem gate, um deny de `view:patient` ainda entregava CPF.
+  const gate = await pageGate([PERMISSIONS.VIEW_PATIENT]);
+  if (!gate.allowed) {
+    return (
+      <PageNoAccess
+        crumbs={[{ label: 'Pacientes', href: '/pacientes' }]}
+        title="Paciente"
+        description="Seu perfil não tem permissão para ver dados de pacientes. Fale com um gestor se precisar de acesso."
+      />
+    );
+  }
+  const { clinicId, user } = gate;
   const { id } = await params;
   const { tab: rawTab } = await searchParams;
   // F-11: validate the route param is a UUID before touching the DB / decrypt.
@@ -84,7 +108,12 @@ export default async function PacienteDetailPage({
   if (p.mergedIntoPatientId) redirect(`/pacientes/${p.mergedIntoPatientId}`);
   if (p.deletedAt) notFound();
 
-  const tab: Tab = rawTab === 'prontuarios' ? 'prontuarios' : 'dados';
+  // AUTHZ-003 — o deep-link `?tab=prontuarios` não pode virar leitura clínica
+  // só porque a URL foi digitada. Sem a permission, a aba não existe.
+  const canViewProntuario = user.isSuperAdmin
+    ? user.aal === 'aal2'
+    : user.permissions.includes(PERMISSIONS.VIEW_PRONTUARIO);
+  const tab: Tab = rawTab === 'prontuarios' && canViewProntuario ? 'prontuarios' : 'dados';
 
   return (
     <>
@@ -105,7 +134,7 @@ export default async function PacienteDetailPage({
         </div>
       ) : null}
 
-      <HubTabs patientId={p.id} active={tab} />
+      <HubTabs patientId={p.id} active={tab} canViewProntuario={canViewProntuario} />
 
       {tab === 'dados' ? <DadosTab clinicId={clinicId} patient={p} /> : null}
       {tab === 'prontuarios' ? (

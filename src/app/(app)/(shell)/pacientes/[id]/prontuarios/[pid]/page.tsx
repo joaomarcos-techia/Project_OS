@@ -9,7 +9,8 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { getProntuarioById } from '@/contexts/clinical/queries';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import { resourceGate } from '@/lib/auth/page-guard';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -28,8 +29,11 @@ export default async function ProntuarioEditorPage({
   params: Promise<{ id: string; pid: string }>;
   searchParams: Promise<{ assinar?: string }>;
 }) {
-  await requireUser();
-  const clinicId = await requireClinicId();
+  // AUTHZ-003-V1 — `getProntuarioById` decifra o SOAP. O gate precede a
+  // consulta; sem `view:prontuario` a rota é indistinguível de inexistente.
+  const gate = await resourceGate([PERMISSIONS.VIEW_PRONTUARIO]);
+  if (!gate) notFound();
+  const { clinicId, user } = gate;
   const { id, pid } = await params;
   const { assinar } = await searchParams;
   const patParsed = z.string().uuid().safeParse(id);
@@ -38,6 +42,15 @@ export default async function ProntuarioEditorPage({
 
   const prontuario = await getProntuarioById(clinicId, pidParsed.data);
   if (!prontuario || prontuario.patientId !== patParsed.data) notFound();
+
+  // AUTHZ-003 — cada controle deriva da SUA capacidade, não da presença na
+  // tela. Sem isto, "Assinar"/"Emitir" apareciam para quem só podia ler e a
+  // única barreira era o gate posterior da action.
+  const superBypass = user.isSuperAdmin && user.aal === 'aal2';
+  const canEditProntuario = superBypass || user.permissions.includes(PERMISSIONS.CREATE_PRONTUARIO);
+  const canSignProntuario = superBypass || user.permissions.includes(PERMISSIONS.SIGN_PRONTUARIO);
+  const canIssueDocuments =
+    superBypass || user.permissions.includes(PERMISSIONS.CREATE_PRESCRIPTION);
 
   const assinado = prontuario.status === 'assinado';
   const vazio = !Object.values(prontuario.content).some(
@@ -55,7 +68,7 @@ export default async function ProntuarioEditorPage({
         title={`Prontuário ${assinado ? '(assinado)' : '(rascunho)'}`}
         actions={
           <>
-            {!assinado ? (
+            {!assinado && canSignProntuario ? (
               <SignProntuarioDialog
                 patientId={patParsed.data}
                 prontuarioId={prontuario.id}
@@ -75,16 +88,18 @@ export default async function ProntuarioEditorPage({
 
       <div className="flex max-w-215 flex-col gap-(--sp-4)">
         <Card className="p-(--card-pad)">
-          <ProntuarioEditor prontuario={prontuario} />
+          <ProntuarioEditor prontuario={prontuario} canEdit={canEditProntuario} />
         </Card>
 
-        <Card className="flex flex-wrap items-center gap-2 p-4">
-          <span className="mr-1 font-mono text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
-            Emitir
-          </span>
-          <PrescriptionDrawer patientId={patParsed.data} prontuarioId={prontuario.id} />
-          <DocumentDrawer patientId={patParsed.data} />
-        </Card>
+        {canIssueDocuments ? (
+          <Card className="flex flex-wrap items-center gap-2 p-4">
+            <span className="mr-1 font-mono text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
+              Emitir
+            </span>
+            <PrescriptionDrawer patientId={patParsed.data} prontuarioId={prontuario.id} />
+            <DocumentDrawer patientId={patParsed.data} />
+          </Card>
+        ) : null}
       </div>
     </>
   );

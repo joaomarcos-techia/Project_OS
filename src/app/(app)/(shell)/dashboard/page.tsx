@@ -20,6 +20,7 @@ import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import { getCashFlowToday, listCashFlowDaily } from '@/contexts/financial/queries';
+import type { CashFlowDTO } from '@/contexts/financial/types';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -51,6 +52,15 @@ function weekdayLabel(date: string): string {
     .slice(0, 3);
 }
 
+/** AUTHZ-005 — placeholder para quem não tem `view:financial`. Nunca renderizado. */
+const NO_CASH_FLOW: CashFlowDTO = {
+  receber: 0,
+  pagar: 0,
+  recebidoHoje: 0,
+  pagoHoje: 0,
+  saldoHoje: 0,
+};
+
 function hora(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -76,6 +86,13 @@ export default async function DashboardPage() {
   const { from, to } = clinicDayBounds(tz);
   const dias = Array.from({ length: 7 }, (_, i) => ymd(tz, i - 6));
   const canAudit = user.permissions.includes(PERMISSIONS.VIEW_AUDIT);
+  // AUTHZ-005 — o Dashboard era a única tela que lia caixa sem gate: os cards
+  // "A receber"/"Faturado hoje" e a série de 7 dias iam para o RSC de qualquer
+  // role. Esconder no cliente não resolveria — o valor já teria sido
+  // serializado. A condição decide a QUERY, não o CSS.
+  const canViewFinancial =
+    (user.isSuperAdmin && user.aal === 'aal2') ||
+    user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
 
   // Gráfico: faturamento (recebido) dos últimos 7 dias. Histórico vem do
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
@@ -83,8 +100,12 @@ export default async function DashboardPage() {
   const [d, checklist, flow, serie, activity] = await Promise.all([
     getDashboard(clinicId, tz),
     getActivationChecklist(clinicId),
-    getCashFlowToday(clinicId, from, to),
-    listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1)),
+    // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
+    // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
+    canViewFinancial ? getCashFlowToday(clinicId, from, to) : Promise.resolve(NO_CASH_FLOW),
+    canViewFinancial
+      ? listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
+      : Promise.resolve<Awaited<ReturnType<typeof listCashFlowDaily>>>([]),
     canAudit ? getRecentActivity(clinicId, 7) : Promise.resolve<AuditActivity[]>([]),
   ]);
   const recByDate = new Map(serie.map((s) => [s.date, s.totalRecebido]));
@@ -143,34 +164,42 @@ export default async function DashboardPage() {
           hint="agora"
           icon={<Stethoscope />}
         />
-        <StatCard
-          label="A receber"
-          value={formatBRL(flow.receber)}
-          hint="pendências em aberto"
-          icon={<Wallet />}
-        />
-        <StatCard
-          label="Faturado hoje"
-          value={formatBRL(flow.recebidoHoje)}
-          hint="recebido hoje"
-          icon={<Banknote />}
-        />
+        {canViewFinancial ? (
+          <>
+            <StatCard
+              label="A receber"
+              value={formatBRL(flow.receber)}
+              hint="pendências em aberto"
+              icon={<Wallet />}
+            />
+            <StatCard
+              label="Faturado hoje"
+              value={formatBRL(flow.recebidoHoje)}
+              hint="recebido hoje"
+              icon={<Banknote />}
+            />
+          </>
+        ) : null}
       </div>
 
       <div className="mt-(--sp-4) grid gap-(--sp-4) xl:grid-cols-[3fr_2fr]">
         <div className="flex flex-col gap-(--sp-4)">
-          <PanelCard
-            title="Faturamento · últimos 7 dias"
-            action={{ label: 'Financeiro', href: '/financeiro' }}
-          >
-            {chartTotal === 0 ? (
-              <p className="py-(--sp-6) text-center text-(length:--fs-sm) text-fg-subtle">
-                Sem recebimentos registrados no período.
-              </p>
-            ) : (
-              <RevenueChart points={chart} />
-            )}
-          </PanelCard>
+          {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
+              HTML quando a permissão existe. */}
+          {canViewFinancial ? (
+            <PanelCard
+              title="Faturamento · últimos 7 dias"
+              action={{ label: 'Financeiro', href: '/financeiro' }}
+            >
+              {chartTotal === 0 ? (
+                <p className="py-(--sp-6) text-center text-(length:--fs-sm) text-fg-subtle">
+                  Sem recebimentos registrados no período.
+                </p>
+              ) : (
+                <RevenueChart points={chart} />
+              )}
+            </PanelCard>
+          ) : null}
 
           <div className="grid gap-(--sp-4) md:grid-cols-2">
             <PanelCard
