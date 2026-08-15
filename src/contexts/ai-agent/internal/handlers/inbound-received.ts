@@ -119,6 +119,7 @@ import type { ActiveConversation } from '../conversation';
 import { buildContext, patientRegistrationState } from '../context-builder';
 import { isExplicitConfirmation } from '../pending-action';
 import { sanitizeAiFailurePayload } from '../sanitize';
+import { toToolCallRecords } from '../tool-call-record';
 import {
   patientRegistrationMessage,
   registrationFieldFromMessage,
@@ -748,7 +749,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         ? `${CLINICAL_FALLBACK}\n${OPERATIONAL_NUDGE}`
         : CLINICAL_FALLBACK;
     const { escalated } = await phase(clinicId, (tx) =>
-      incrementFallback(tx, clinicId, conversation.id),
+      incrementFallback(tx, clinicId, conversation.id, 'clinical'),
     );
     outcome = escalated ? 'handoff' : 'prefiltered';
     metrics.emit('ai_agent.semantic_guard.prefiltered', {
@@ -878,7 +879,9 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         rounds += 1;
         const calls = result.toolCalls;
         toolCallCount += calls.length;
-        toolCallsRecord = calls.map((c) => ({ name: c.name }));
+        // F-16: além do nome, ids e instantes (whitelist) — `tool_calls` é jsonb
+        // SEM cifra, então texto do paciente jamais entra aqui.
+        toolCallsRecord = toToolCallRecords(calls);
 
         const preflight = preflightToolCalls(calls, {
           clinicId,

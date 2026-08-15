@@ -125,11 +125,66 @@ function setScript(...steps: ScriptStep[]): void {
 // --- fixtures ------------------------------------------------------------------
 const created: string[] = [];
 let doctorId = '';
+let nightDoctorId = '';
 const supabase = createAdminClient();
 const CPF = '39053344705'; // válido (Luhn)
 const RUN = Date.now().toString().slice(-9);
 const PHONE = `5511${RUN}`;
 const PHONE_ID = `journeys-${RUN}`;
+
+/** Segunda clínica: agenda NOTURNA, para provar que a decisão vem da config. */
+const NIGHT_PHONE = `5521${RUN}`;
+const NIGHT_PHONE_ID = `journeys-night-${RUN}`;
+
+async function createClinicNamed(tag: string): Promise<string> {
+  const slug = `jrn${tag}${RUN}`.slice(0, 30).toLowerCase();
+  const rows = await dbAdmin.execute<{ id: string }>(
+    sql`INSERT INTO clinics (slug, nome, endereco, status)
+        VALUES (${slug}, ${`Smoke Jornadas ${tag}`}, 'Rua das Jornadas, 36', 'active') RETURNING id`,
+  );
+  created.push(rows[0]!.id);
+  return rows[0]!.id;
+}
+
+/** Clínica que atende 14–22: às 9 só existe 21:00. */
+async function seedNightClinic(clinicId: string): Promise<void> {
+  const token = await encryptForTenant(clinicId, 'TEST_TOKEN');
+  await dbAdmin.execute(sql`
+    INSERT INTO clinic_whatsapp_numbers (clinic_id, provider, phone_number, meta_phone_id, token_encrypted, verified_at, active)
+    VALUES (${clinicId}, 'meta', ${`5521${RUN}00`}, ${NIGHT_PHONE_ID}, ${token}, now(), true)`);
+  await dbAdmin.execute(sql`INSERT INTO ai_clinic_config (clinic_id) VALUES (${clinicId})`);
+  const { data, error } = await supabase.auth.admin.createUser({
+    email: `journeys.night.${RUN}@example.com`,
+    password: randomUUID(),
+    email_confirm: true,
+  });
+  if (error || !data.user?.id) throw new Error(`createUser noturno falhou: ${error?.message}`);
+  const nightDoctor = data.user.id;
+  nightDoctorId = nightDoctor;
+  await dbAdmin.execute(sql`
+    INSERT INTO profiles (id, clinic_id, nome, role, ativo)
+    VALUES (${nightDoctor}, ${clinicId}, 'Dr. Noturno', 'doctor', true)
+    ON CONFLICT (id) DO UPDATE SET clinic_id = ${clinicId}`);
+  await dbAdmin.execute(sql`
+    INSERT INTO procedures (clinic_id, codigo, descricao, categoria, valor_padrao, duracao_padrao_min, ativo)
+    VALUES (${clinicId}, 'HARM01', 'Harmonização Facial', 'estetica', 900.00, 30, true)`);
+  for (let weekday = 0; weekday <= 6; weekday += 1) {
+    await dbAdmin.execute(sql`
+      INSERT INTO doctor_availability (clinic_id, doctor_id, weekday, start_time, end_time)
+      VALUES (${clinicId}, ${nightDoctor}, ${weekday}, '14:00', '22:00') ON CONFLICT DO NOTHING`);
+  }
+  // Paciente JÁ cadastrado: o que este cenário testa é a resolução de horário
+  // contra a agenda, não a coleta (que tem cenários próprios). Sem ele,
+  // `prepare_appointment` pediria cadastro e nunca chegaria a agendar.
+  const nightCpf = '52998224725'; // válido (Luhn), distinto do CPF da 1ª clínica
+  await dbAdmin.execute(sql`
+    INSERT INTO patients (clinic_id, nome, cpf_encrypted, cpf_hash, telefone_encrypted, telefone_hash)
+    VALUES (
+      ${clinicId}, 'Paciente Noturno',
+      ${await encryptForTenant(clinicId, nightCpf)}, ${await hashForLookup(nightCpf)},
+      ${await encryptForTenant(clinicId, NIGHT_PHONE)}, ${await hashForLookup(NIGHT_PHONE)}
+    )`);
+}
 
 async function createClinic(): Promise<string> {
   const slug = `jrn${RUN}`.slice(0, 30).toLowerCase();
@@ -140,7 +195,10 @@ async function createClinic(): Promise<string> {
   created.push(rows[0]!.id);
   return rows[0]!.id;
 }
-async function seedClinic(clinicId: string): Promise<void> {
+async function seedClinic(
+  clinicId: string,
+  hours: { start: string; end: string } = { start: '08:00', end: '18:00' },
+): Promise<void> {
   const token = await encryptForTenant(clinicId, 'TEST_TOKEN');
   await dbAdmin.execute(sql`
     INSERT INTO clinic_whatsapp_numbers (clinic_id, provider, phone_number, meta_phone_id, token_encrypted, verified_at, active)
@@ -164,26 +222,31 @@ async function seedClinic(clinicId: string): Promise<void> {
   for (let weekday = 0; weekday <= 6; weekday += 1) {
     await dbAdmin.execute(sql`
       INSERT INTO doctor_availability (clinic_id, doctor_id, weekday, start_time, end_time)
-      VALUES (${clinicId}, ${doctorId}, ${weekday}, '08:00', '18:00') ON CONFLICT DO NOTHING`);
+      VALUES (${clinicId}, ${doctorId}, ${weekday}, ${hours.start}, ${hours.end}) ON CONFLICT DO NOTHING`);
   }
 }
 
 // --- entrega de turnos ----------------------------------------------------------
 const MAX_TICKS = 10;
 let seq = 0;
-function makeMsg(text: string): ParsedInboundMessage {
+function makeMsg(text: string, phoneId = PHONE_ID, from = PHONE): ParsedInboundMessage {
   seq += 1;
   return {
     providerMessageId: `wamid.jrn.${Date.now().toString(36)}.${seq}`,
-    fromNumber: PHONE,
-    toPhoneId: PHONE_ID,
+    fromNumber: from,
+    toPhoneId: phoneId,
     toNumber: `5511${RUN}00`,
     text,
     timestamp: String(Math.floor(Date.now() / 1000)),
   };
 }
-async function persistOnly(clinicId: string, text: string): Promise<string> {
-  const msg = makeMsg(text);
+async function persistOnly(
+  clinicId: string,
+  text: string,
+  phoneId = PHONE_ID,
+  from = PHONE,
+): Promise<string> {
+  const msg = makeMsg(text, phoneId, from);
   await persistInbound(clinicId, 'meta', msg);
   const ev = await dbAdmin.execute<{ id: string }>(
     sql`SELECT id FROM outbox WHERE idempotency_key = ${`inbound:meta:${msg.providerMessageId}`}`,
@@ -230,6 +293,17 @@ async function drainUntil(eventId: string): Promise<void> {
 /** Uma mensagem do paciente, processada até o fim. Devolve o eventId do turno. */
 async function say(clinicId: string, text: string): Promise<string> {
   const eventId = await persistOnly(clinicId, text);
+  await drainUntil(eventId);
+  return eventId;
+}
+/** Mesma coisa, mas para a segunda clínica (outro número, outro contato). */
+async function sayTo(
+  clinicId: string,
+  phoneId: string,
+  from: string,
+  text: string,
+): Promise<string> {
+  const eventId = await persistOnly(clinicId, text, phoneId, from);
   await drainUntil(eventId);
   return eventId;
 }
@@ -607,6 +681,106 @@ async function main(): Promise<void> {
   });
 
   // ---------------------------------------------------------------- consistência
+  // ------------------------------------------------- hora ambígua × agenda real
+  /**
+   * "às 3" é 03:00 ou 15:00 no relógio. Quem decide NÃO é faixa de horário
+   * embutida no código — é a agenda que a clínica configurou. Prova-se com DUAS
+   * clínicas de janelas diferentes: a mesma frase tem de produzir horários
+   * diferentes, cada um dentro da agenda da sua clínica.
+   */
+  await tryStep('CV-17 clínica diurna (08–18): "às 3" vira 15:00 sem perguntar', async () => {
+    setScript(
+      () => gCall('prepare_appointment', { procedure_name: 'Harmonização Facial' }),
+      () => gText('Confirma?'),
+    );
+    await say(clinic, 'pode ser amanhã às 3');
+    const reply = await lastReply(clinic);
+    assert(
+      !reply.includes('você prefere'),
+      `não deveria perguntar: 03:00 não existe numa agenda 08–18. Veio: ${reply}`,
+    );
+    setScript(() => gCall('confirm_pending_action', {}), () => gText('Marcado!'));
+    await say(clinic, 'sim');
+    const appt = await latestAppt(clinic);
+    assert(!!appt, 'consulta deveria ter sido criada');
+    assert(
+      localHourOf(appt!.at) === 15,
+      `deveria resolver para 15:00 na clínica diurna; veio ${localHourOf(appt!.at)}h`,
+    );
+  });
+
+  await tryStep('CV-17b clínica noturna (14–22): a MESMA frase resolve para outro horário', async () => {
+    // Segunda clínica, mesma frase, agenda diferente. Se a decisão viesse de
+    // código e não da configuração, este cenário produziria 15:00 de novo.
+    const nightClinic = await createClinicNamed('noturna');
+    await seedNightClinic(nightClinic);
+    setScript(
+      () => gCall('prepare_appointment', { procedure_name: 'Harmonização Facial' }),
+      () => gText('Confirma?'),
+    );
+    await sayTo(nightClinic, NIGHT_PHONE_ID, NIGHT_PHONE, 'pode ser amanhã às 9');
+    const reply = await lastReply(nightClinic);
+    assert(
+      !reply.includes('você prefere'),
+      `não deveria perguntar: 09:00 não existe numa agenda 14–22. Veio: ${reply}`,
+    );
+    setScript(() => gCall('confirm_pending_action', {}), () => gText('Marcado!'));
+    await sayTo(nightClinic, NIGHT_PHONE_ID, NIGHT_PHONE, 'sim');
+    const appt = await latestAppt(nightClinic);
+    assert(!!appt, 'consulta deveria ter sido criada na clínica noturna');
+    assert(
+      localHourOf(appt!.at) === 21,
+      `deveria resolver para 21:00 na clínica noturna; veio ${localHourOf(appt!.at)}h`,
+    );
+
+    // ---- RLS: a clínica diurna não enxerga nada da noturna, e vice-versa.
+    const cruzado = await dbAdmin.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM appointments
+      WHERE clinic_id = ${clinic} AND id = ${appt!.id}`);
+    assert(Number(cruzado[0]?.n) === 0, 'consulta da clínica B não pode aparecer sob a clínica A');
+
+    const isolada = await withTenant(clinic, async (tx) => {
+      const r = await tx.execute<{ n: number }>(
+        sql`SELECT count(*)::int AS n FROM appointments WHERE id = ${appt!.id}`,
+      );
+      return Number(r[0]?.n ?? 0);
+    });
+    assert(isolada === 0, 'RLS deveria esconder a consulta da outra clínica sob withTenant');
+
+    const convCruzada = await dbAdmin.execute<{ n: number }>(sql`
+      SELECT count(*)::int AS n FROM ai_conversations
+      WHERE clinic_id = ${clinic} AND patient_phone_hash = ${await hashForLookup(NIGHT_PHONE)}`);
+    assert(Number(convCruzada[0]?.n) === 0, 'conversa da clínica B não pode existir sob a clínica A');
+  });
+
+  // ------------------------------------------------- sem vazamento clínico
+  /**
+   * O termo clínico do paciente não pode reaparecer em lugar nenhum que não
+   * seja o conteúdo cifrado da própria conversa: nem na resposta, nem no
+   * `tool_calls` (jsonb SEM cifra), nem no intent.
+   */
+  await tryStep('CV-18 termo clínico não vaza para colunas não cifradas', async () => {
+    setScript(() => gText('resposta'));
+    await say(clinic, 'to com dor de cabeça, quero marcar');
+
+    const linhas = await dbAdmin.execute<{ tool_calls: unknown; intent: string | null }>(sql`
+      SELECT m.tool_calls, c.intent_atual AS intent
+        FROM ai_messages m JOIN ai_conversations c ON c.id = m.conversation_id
+       WHERE m.clinic_id = ${clinic}`);
+    const cru = JSON.stringify(linhas);
+    for (const termo of ['dor de cabeça', 'dor de cabeca', 'dor']) {
+      assert(!cru.includes(termo), `termo clínico "${termo}" vazou para coluna não cifrada`);
+    }
+
+    const falhas = await dbAdmin.execute<{ payload: unknown }>(
+      sql`SELECT payload FROM ai_agent_failures WHERE clinic_id = ${clinic}`,
+    );
+    assert(
+      !JSON.stringify(falhas).includes('dor'),
+      'dead letter não pode carregar termo clínico',
+    );
+  });
+
   await tryStep('estado final consistente: nenhuma pendência órfã, nenhum inbound solto', async () => {
     assert((await unprocessedInbound(clinic)) === 0, 'todo inbound deveria ter sido consumido');
     const conv = await conversationRow(clinic);
@@ -631,9 +805,9 @@ async function cleanup(): Promise<void> {
       /* best-effort */
     }
   }
-  if (doctorId) {
+  for (const uid of [doctorId, nightDoctorId].filter(Boolean)) {
     try {
-      await supabase.auth.admin.deleteUser(doctorId);
+      await supabase.auth.admin.deleteUser(uid);
     } catch {
       /* best-effort */
     }

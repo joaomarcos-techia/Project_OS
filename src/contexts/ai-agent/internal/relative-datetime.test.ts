@@ -31,14 +31,25 @@ const instantOf = (text: string): string | null => {
 
 describe('ordem dos marcadores de data (o bug do dia errado)', () => {
   it('"depois de amanhã" NÃO é "amanhã" — era D+1, tem de ser D+2', () => {
-    expect(instantOf('depois de amanhã às 9')).toBe('2026-08-16T12:00:00.000Z');
+    expect(instantOf('depois de amanhã às 14')).toBe('2026-08-16T17:00:00.000Z');
+  });
+
+  it('a frase original do defeito: o DIA é D+2 nas duas leituras da hora', () => {
+    // "às 9" é ambíguo (09:00/21:00) e quem desempata é a agenda; o que este
+    // caso trava é a DATA, que era o defeito — lia "depois de amanhã" como D+1.
+    const r = resolve('depois de amanhã às 9');
+    expect(r.kind).toBe('ambiguous');
+    const dias = (r as { candidatesIso: string[] }).candidatesIso.map((iso) =>
+      new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(iso)),
+    );
+    expect(new Set(dias)).toEqual(new Set(['2026-08-16']));
   });
 
   it.each([
     ['hoje às 15', '2026-08-14T18:00:00.000Z'],
-    ['amanhã às 9', '2026-08-15T12:00:00.000Z'],
-    ['amanha as 9h', '2026-08-15T12:00:00.000Z'],
-    ['dia 20 às 10', '2026-08-20T13:00:00.000Z'],
+    ['amanhã às 14', '2026-08-15T17:00:00.000Z'],
+    ['amanha as 14h', '2026-08-15T17:00:00.000Z'],
+    ['dia 20 às 16', '2026-08-20T19:00:00.000Z'],
   ])('%s → %s', (text, expected) => {
     expect(instantOf(text)).toBe(expected);
   });
@@ -56,8 +67,8 @@ describe('contraste e correção (o bug do horário sobrescrito)', () => {
   });
 
   it('a correção pode trocar o dia inteiro', () => {
-    expect(instantOf('amanhã às 9, na verdade depois de amanhã às 9')).toBe(
-      '2026-08-16T12:00:00.000Z',
+    expect(instantOf('amanhã às 14, na verdade depois de amanhã às 14')).toBe(
+      '2026-08-16T17:00:00.000Z',
     );
   });
 });
@@ -81,7 +92,7 @@ describe('dias da semana', () => {
   });
 
   it('abreviações também resolvem', () => {
-    expect(instantOf('seg às 10')).toBe('2026-08-17T13:00:00.000Z');
+    expect(instantOf('seg às 16')).toBe('2026-08-17T19:00:00.000Z');
   });
 });
 
@@ -106,12 +117,12 @@ describe('datas numéricas', () => {
 describe('horas humanas', () => {
   it.each([
     ['hoje às 10:30', '2026-08-14T13:30:00.000Z'],
-    ['hoje 9 e meia', '2026-08-14T12:30:00.000Z'],
+    ['hoje 14 e meia', '2026-08-14T17:30:00.000Z'],
     ['hoje ao meio dia', '2026-08-14T15:00:00.000Z'],
     ['hoje às 14h', '2026-08-14T17:00:00.000Z'],
     ['hoje as 14 horas', '2026-08-14T17:00:00.000Z'],
     ['hoje 15h30', '2026-08-14T18:30:00.000Z'],
-    ['hoje umas 11', '2026-08-14T14:00:00.000Z'],
+    ['hoje umas 16', '2026-08-14T19:00:00.000Z'],
     ['amanhã 9 da manhã', '2026-08-15T12:00:00.000Z'],
     ['amanhã 3 da tarde', '2026-08-15T18:00:00.000Z'],
   ])('%s → %s', (text, expected) => {
@@ -124,21 +135,69 @@ describe('horas humanas', () => {
   });
 });
 
-describe('ambiguidade — perguntar, nunca chutar', () => {
-  it('"às 3" devolve os dois candidatos (15:00 e 03:00), o da tarde primeiro', () => {
-    expect(resolve('às 3')).toEqual({
+describe('ambiguidade — o resolvedor NÃO escolhe; a agenda da clínica escolhe', () => {
+  /**
+   * Não há faixa de horário embutida aqui, de propósito. "às 3" é 03:00 ou
+   * 15:00 no relógio; qual delas EXISTE depende do que a clínica configurou.
+   * Chutar por uma faixa fixa erraria nos dois extremos — clínica que abre às
+   * 07:00 e clínica que atende até as 22:00.
+   *
+   * Este módulo devolve as duas leituras; `prepare_appointment` consulta a
+   * disponibilidade real e resolve sozinho quando só uma tem horário livre
+   * (o caso comum), perguntando apenas quando as duas existem de fato.
+   */
+  it.each([
+    ['às 1', '2026-08-14T16:00:00.000Z', '2026-08-15T04:00:00.000Z'], // 13:00 / 01:00
+    ['às 3', '2026-08-14T18:00:00.000Z', '2026-08-15T06:00:00.000Z'], // 15:00 / 03:00
+    ['às 7', '2026-08-14T22:00:00.000Z', '2026-08-15T10:00:00.000Z'], // 19:00 / 07:00
+    ['às 9', '2026-08-15T00:00:00.000Z', '2026-08-15T12:00:00.000Z'], // 21:00 / 09:00
+  ])('%s devolve as duas leituras, vespertina primeiro', (text, pm, am) => {
+    expect(resolve(text)).toEqual({
       kind: 'ambiguous',
-      candidatesIso: ['2026-08-14T18:00:00.000Z', '2026-08-15T06:00:00.000Z'],
+      candidatesIso: [pm, am],
       label: 'no horário informado',
     });
   });
 
-  it('marcador de período desfaz a ambiguidade', () => {
-    expect(instantOf('hoje às 3 da tarde')).toBe('2026-08-14T18:00:00.000Z');
+  it('a partir de 12h não há segunda leitura possível', () => {
+    expect(resolve('hoje às 14').kind).toBe('instant');
+    expect(resolve('hoje ao meio dia').kind).toBe('instant');
   });
 
-  it('hora ≥ 8 nunca é ambígua', () => {
-    expect(resolve('hoje às 14').kind).toBe('instant');
+  it('marcador explícito de período encerra a dúvida', () => {
+    expect(instantOf('amanhã às 3 da manhã')).toBe('2026-08-15T06:00:00.000Z');
+    expect(instantOf('amanhã 3 da tarde')).toBe('2026-08-15T18:00:00.000Z');
+  });
+
+  it('minuto explícito também encerra: "15h30" não é "3h30"', () => {
+    expect(instantOf('hoje 15h30')).toBe('2026-08-14T18:30:00.000Z');
+  });
+
+  /**
+   * Regressão: às 22h a leitura vespertina de "às 7" (19:00 de HOJE) já passou.
+   * Cada candidato rola para amanhã de forma INDEPENDENTE — empurrar os dois
+   * juntos perderia a leitura mais provável quando só uma venceu.
+   */
+  it('tarde da noite, os dois candidatos rolam para amanhã', () => {
+    const late = new Date('2026-08-14T01:09:00.000Z'); // 22:09 de 13/08 em SP
+    expect(
+      resolveRequestedDateTime({ text: 'pode ser às 7', now: late, timeZone: TZ, maxDaysAhead: 30 }),
+    ).toEqual({
+      kind: 'ambiguous',
+      candidatesIso: ['2026-08-14T22:00:00.000Z', '2026-08-14T10:00:00.000Z'],
+      label: 'no horário informado',
+    });
+  });
+
+  it('meio-dia: a tarde ainda cabe hoje, a manhã já passou — rolam separado', () => {
+    const noon = new Date('2026-08-14T15:00:00.000Z'); // 12:00 em SP
+    expect(
+      resolveRequestedDateTime({ text: 'às 7', now: noon, timeZone: TZ, maxDaysAhead: 30 }),
+    ).toEqual({
+      kind: 'ambiguous',
+      candidatesIso: ['2026-08-14T22:00:00.000Z', '2026-08-15T10:00:00.000Z'],
+      label: 'no horário informado',
+    });
   });
 });
 
@@ -187,42 +246,42 @@ describe('fusos e fronteiras de calendário', () => {
     const endOfMonth = new Date('2026-08-31T12:00:00.000Z');
     expect(
       resolveRequestedDateTime({
-        text: 'amanhã às 9',
+        text: 'amanhã às 14',
         now: endOfMonth,
         timeZone: TZ,
         maxDaysAhead: 30,
       }),
-    ).toMatchObject({ atIso: '2026-09-01T12:00:00.000Z' });
+    ).toMatchObject({ atIso: '2026-09-01T17:00:00.000Z' });
   });
 
   it('vira o ano corretamente', () => {
     const nye = new Date('2026-12-31T12:00:00.000Z');
     expect(
-      resolveRequestedDateTime({ text: 'amanhã às 9', now: nye, timeZone: TZ, maxDaysAhead: 30 }),
-    ).toMatchObject({ atIso: '2027-01-01T12:00:00.000Z' });
+      resolveRequestedDateTime({ text: 'amanhã às 14', now: nye, timeZone: TZ, maxDaysAhead: 30 }),
+    ).toMatchObject({ atIso: '2027-01-01T17:00:00.000Z' });
   });
 
   it('perto da meia-noite local, "amanhã" é o dia seguinte DA CLÍNICA', () => {
     // 2026-08-15T02:00Z = 14/08 23:00 em São Paulo — ainda é sexta lá.
     expect(
       resolveRequestedDateTime({
-        text: 'amanhã às 9',
+        text: 'amanhã às 14',
         now: new Date('2026-08-15T02:00:00.000Z'),
         timeZone: TZ,
         maxDaysAhead: 30,
       }),
-    ).toMatchObject({ atIso: '2026-08-15T12:00:00.000Z' });
+    ).toMatchObject({ atIso: '2026-08-15T17:00:00.000Z' });
   });
 
   it('respeita um fuso diferente do padrão', () => {
     expect(
       resolveRequestedDateTime({
-        text: 'amanhã às 9',
+        text: 'amanhã às 14',
         now: NOW,
         timeZone: 'America/Manaus', // UTC-4
         maxDaysAhead: 30,
       }),
-    ).toMatchObject({ atIso: '2026-08-15T13:00:00.000Z' });
+    ).toMatchObject({ atIso: '2026-08-15T18:00:00.000Z' });
   });
 });
 
@@ -231,8 +290,8 @@ describe('reconcileRequestedTime — precedência servidor × modelo', () => {
 
   it('instante do servidor VENCE o do modelo (o servidor conhece o fuso da clínica)', () => {
     expect(
-      reconcileRequestedTime({ resolved: resolve('amanhã às 9'), modelIso }),
-    ).toEqual({ mode: 'instant', atIso: '2026-08-15T12:00:00.000Z' });
+      reconcileRequestedTime({ resolved: resolve('amanhã às 14'), modelIso }),
+    ).toEqual({ mode: 'instant', atIso: '2026-08-15T17:00:00.000Z' });
   });
 
   it('sem marcador de data, o modelo decide', () => {
@@ -257,15 +316,15 @@ describe('reconcileRequestedTime — precedência servidor × modelo', () => {
   });
 
   it('ambiguidade sem apoio do modelo devolve os candidatos para perguntar', () => {
-    expect(reconcileRequestedTime({ resolved: resolve('às 3'), modelIso: undefined })).toMatchObject(
+    expect(reconcileRequestedTime({ resolved: resolve('às 7'), modelIso: undefined })).toMatchObject(
       { mode: 'candidates' },
     );
   });
 
   it('modelo que casa um dos candidatos resolve a ambiguidade', () => {
     expect(
-      reconcileRequestedTime({ resolved: resolve('às 3'), modelIso: '2026-08-14T18:00:00.000Z' }),
-    ).toEqual({ mode: 'instant', atIso: '2026-08-14T18:00:00.000Z' });
+      reconcileRequestedTime({ resolved: resolve('às 7'), modelIso: '2026-08-14T22:00:00.000Z' }),
+    ).toEqual({ mode: 'instant', atIso: '2026-08-14T22:00:00.000Z' });
   });
 
   it('nada de nenhum lado → none (cai no primeiro horário livre)', () => {

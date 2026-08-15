@@ -13,9 +13,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Tx } from '@/lib/db';
 
-const { listSlots, listProcedures } = vi.hoisted(() => ({
+import type * as PendingActionModule from '../internal/pending-action';
+
+const { listSlots, listProcedures, proposePendingAction } = vi.hoisted(() => ({
   listSlots: vi.fn(),
   listProcedures: vi.fn(),
+  proposePendingAction: vi.fn(),
+}));
+
+// Só a PERSISTÊNCIA da ação pendente é substituída: ela cifra o payload e grava
+// no banco, e nada disso é o que está sob teste aqui. As validações de
+// identidade e de política de agenda continuam reais.
+vi.mock('../internal/pending-action', async (orig) => ({
+  ...(await orig<typeof PendingActionModule>()),
+  proposePendingAction,
 }));
 
 // `vi.mock` é chamada, não import — não cruza fronteira de contexto.
@@ -88,6 +99,12 @@ describe('list_slots pede o piso ao Scheduling', () => {
 describe('prepare_appointment pede o piso nos DOIS caminhos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    proposePendingAction.mockImplementation(async (_tx, args: { summary: string }) => ({
+      id: '88888888-8888-8888-8888-888888888888',
+      action: 'schedule_appointment' as const,
+      summary: args.summary,
+      expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    }));
     listProcedures.mockResolvedValue([
       { id: PROCEDURE, descricao: 'Harmonização Facial', categoria: 'Estética', valorPadrao: 900, duracaoPadraoMin: 60 },
     ]);
@@ -123,14 +140,70 @@ describe('prepare_appointment pede o piso nos DOIS caminhos', () => {
     expect(local).toBe('14');
   });
 
-  it('F-04: hora ambígua pergunta em vez de chutar a madrugada', async () => {
-    const out = await getTool('prepare_appointment')!.handler(
-      {},
-      { ...ctx, currentMessage: 'pode ser às 3' },
-    );
-    expect(out).toMatchObject({ status: 'appointment_information_required' });
-    expect((out as { patient_message: string }).patient_message).toContain('você prefere');
-    expect(listSlots).not.toHaveBeenCalled();
+  /**
+   * Hora nua ("às 3" = 03:00 ou 15:00): quem desempata é a AGENDA CONFIGURADA
+   * pela clínica, não uma faixa de horário embutida no código. Os três casos
+   * abaixo são o contrato inteiro.
+   */
+  describe('hora ambígua — a agenda da clínica decide', () => {
+    const slotAt = (iso: string) => ({
+      doctorId: DOCTOR,
+      startAt: iso,
+      endAt: iso,
+      durationMin: 60,
+    });
+    /** Instante local de amanhã na hora pedida (SP não tem DST). */
+    const tomorrowAt = (hour: number): string => {
+      const day = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(Date.now() + 86_400_000));
+      return new Date(`${day}T${String(hour).padStart(2, '0')}:00:00-03:00`).toISOString();
+    };
+
+    it('clínica 08–18: "às 3" vira 15:00 sozinho, sem perguntar nada', async () => {
+      listSlots.mockResolvedValue([slotAt(tomorrowAt(15))]); // 03:00 não existe na agenda
+      const out = await getTool('prepare_appointment')!.handler(
+        {},
+        { ...ctx, currentMessage: 'pode ser amanhã às 3' },
+      );
+      expect(out).toMatchObject({ status: 'appointment_prepared' });
+      expect((out as { summary: string }).summary).toContain('15:00');
+    });
+
+    it('clínica que atende à noite: "às 9" vira 21:00 quando 09:00 não tem vaga', async () => {
+      listSlots.mockResolvedValue([slotAt(tomorrowAt(21))]);
+      const out = await getTool('prepare_appointment')!.handler(
+        {},
+        { ...ctx, currentMessage: 'pode ser amanhã às 9' },
+      );
+      expect(out).toMatchObject({ status: 'appointment_prepared' });
+      expect((out as { summary: string }).summary).toContain('21:00');
+    });
+
+    it('as DUAS existem na agenda → aí sim pergunta', async () => {
+      listSlots.mockResolvedValue([slotAt(tomorrowAt(9)), slotAt(tomorrowAt(21))]);
+      const out = await getTool('prepare_appointment')!.handler(
+        {},
+        { ...ctx, currentMessage: 'pode ser amanhã às 9' },
+      );
+      expect(out).toMatchObject({ status: 'appointment_information_required' });
+      const msg = (out as { patient_message: string }).patient_message;
+      expect(msg).toContain('você prefere');
+      expect(msg).toContain('09:00');
+      expect(msg).toContain('21:00');
+    });
+
+    it('nenhuma das duas existe → indisponível, sem inventar horário', async () => {
+      listSlots.mockResolvedValue([]);
+      const out = await getTool('prepare_appointment')!.handler(
+        {},
+        { ...ctx, currentMessage: 'pode ser amanhã às 9' },
+      );
+      expect(out).toMatchObject({ status: 'appointment_unavailable' });
+    });
   });
 
   it('caminho "horário pedido" também aplica o piso', async () => {

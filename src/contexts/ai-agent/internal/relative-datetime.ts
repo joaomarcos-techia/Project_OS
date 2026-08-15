@@ -209,8 +209,32 @@ function addMonth(date: CivilDate): CivilDate {
 
 interface TimePart {
   minutes: number;
-  /** Hora nua 1–7 sem marcador AM/PM: 15:00 é tão plausível quanto 03:00. */
+  /** Hora nua em que as duas leituras (AM e PM) são plausíveis numa clínica. */
   ambiguous: boolean;
+}
+
+/**
+ * Resolve uma hora nua (sem "da manhã"/"da tarde") em minutos do dia.
+ *
+ * NÃO existe envelope de horário aqui, de propósito. "às 3" pode ser 03:00 ou
+ * 15:00; qual delas é possível depende da agenda que a CLÍNICA configurou, e
+ * este módulo é puro — não conhece clínica. Chutar por uma faixa fixa erraria
+ * nos dois extremos: clínica que abre às 07:00 e clínica que atende até 22:00.
+ *
+ * Então marcamos as duas leituras como candidatas e deixamos
+ * `prepare_appointment` desempatar contra a DISPONIBILIDADE REAL. Numa clínica
+ * 08–18, 03:00 não tem slot e o candidato morre sozinho — sem perguntar nada ao
+ * paciente. Numa clínica que atende à noite, 21:00 é legítimo e é considerado.
+ *
+ * `hour + 12 <= 23` delimita a única restrição de relógio que existe: acima
+ * disso não há segunda leitura possível.
+ */
+function bareHourToTimePart(hour: number, extraMinutes = 0): TimePart | null {
+  if (hour > 23) return null;
+  return {
+    minutes: hour * 60 + extraMinutes,
+    ambiguous: hour >= 1 && hour + 12 <= 23,
+  };
 }
 
 function extractTimePart(text: string): TimePart | null {
@@ -226,8 +250,8 @@ function extractTimePart(text: string): TimePart | null {
 
   const half = /\b(\d{1,2})\s*e\s*meia\b/.exec(text); // "9 e meia"
   if (half) {
-    const h = Number(half[1]);
-    if (h <= 23) return { minutes: h * 60 + 30, ambiguous: h >= 1 && h <= 7 };
+    const part = bareHourToTimePart(Number(half[1]), 30);
+    if (part) return part;
   }
 
   const period = /\b(\d{1,2})\s*(?:h(?:oras?)?\s*)?d[ae]\s*(manha|tarde|noite)\b/.exec(text);
@@ -242,14 +266,14 @@ function extractTimePart(text: string): TimePart | null {
 
   const bare = /\b(?:as|a)?\s*(\d{1,2})\s*(?:h|hs|horas?)\b/.exec(text); // 9h / 9 horas
   if (bare) {
-    const h = Number(bare[1]);
-    if (h <= 23) return { minutes: h * 60, ambiguous: h >= 1 && h <= 7 };
+    const part = bareHourToTimePart(Number(bare[1]));
+    if (part) return part;
   }
 
   const prefixed = /\b(?:as|para as|pras|umas|depois das)\s*(\d{1,2})\b/.exec(text); // "às 9"
   if (prefixed) {
-    const h = Number(prefixed[1]);
-    if (h <= 23) return { minutes: h * 60, ambiguous: h >= 1 && h <= 7 };
+    const part = bareHourToTimePart(Number(prefixed[1]));
+    if (part) return part;
   }
   return null;
 }
@@ -314,14 +338,26 @@ export function resolveRequestedDateTime(args: ResolveArgs): ResolvedWhen {
   // passou (ou está colada em agora), o paciente só pode estar falando de amanhã.
   if (timePart) {
     const base = datePart?.date ?? today;
-    let at = atLocalTime(base, timePart.minutes, args.timeZone);
-    if (!datePart && at.getTime() <= args.now.getTime()) {
-      at = atLocalTime(addDays(today, 1), timePart.minutes, args.timeZone);
-    }
+    /**
+     * Sem data explícita, uma hora que já passou só pode ser de amanhã.
+     *
+     * O rolamento é POR LEITURA, nunca das duas juntas: às 09:00, "às 3" tem a
+     * leitura vespertina (15:00) ainda hoje e a matinal já vencida — empurrar
+     * ambas para amanhã perderia justamente a mais provável. Às 22:00 as duas
+     * venceram e as duas rolam, que é o que impede o resolvedor de chutar a
+     * madrugada e contradizer o contrato de nunca escolher sozinho.
+     */
+    const atOrNextDay = (minutes: number): Date => {
+      const candidate = atLocalTime(base, minutes, args.timeZone);
+      if (datePart || candidate.getTime() > args.now.getTime()) return candidate;
+      return atLocalTime(addDays(base, 1), minutes, args.timeZone);
+    };
+
+    const at = atOrNextDay(timePart.minutes);
     if (at.getTime() < args.now.getTime() || !inHorizon(at)) return { kind: 'none' };
 
     if (timePart.ambiguous) {
-      const pm = atLocalTime(base, timePart.minutes + 12 * 60, args.timeZone);
+      const pm = atOrNextDay(timePart.minutes + 12 * 60);
       if (inHorizon(pm) && pm.getTime() >= args.now.getTime()) {
         return {
           kind: 'ambiguous',

@@ -418,10 +418,24 @@ export async function appendManualMessage(tx: Tx, args: ManualMessageArgs): Prom
  * automaticamente (reason 'fallback_threshold'). Retorna o novo count e se
  * escalou neste incremento.
  */
+/**
+ * Por que o agente não resolveu o turno. Vira o `reason` do handoff quando o
+ * limiar estoura — o operador que abre a fila precisa saber se o agente ficou
+ * sem provedor ou se o paciente insistiu em assunto clínico, porque a resposta
+ * humana é diferente em cada caso. Antes era sempre `fallback_threshold`.
+ */
+export type FallbackCause = 'provider' | 'clinical';
+
+const FALLBACK_REASON: Record<FallbackCause, string> = {
+  provider: 'fallback_threshold',
+  clinical: 'clinical_threshold',
+};
+
 export async function incrementFallback(
   tx: Tx,
   clinicId: string,
   conversationId: string,
+  cause: FallbackCause = 'provider',
 ): Promise<{ fallbackCount: number; escalated: boolean }> {
   const [row] = await tx
     .update(aiConversations)
@@ -430,7 +444,7 @@ export async function incrementFallback(
     .returning({ fallbackCount: aiConversations.fallbackCount });
   const fallbackCount = row?.fallbackCount ?? 0;
   if (fallbackCount >= MAX_FALLBACKS) {
-    await escalateToHuman(tx, clinicId, conversationId, 'fallback_threshold');
+    await escalateToHuman(tx, clinicId, conversationId, FALLBACK_REASON[cause]);
     return { fallbackCount, escalated: true };
   }
   return { fallbackCount, escalated: false };

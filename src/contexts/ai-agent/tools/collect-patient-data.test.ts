@@ -2,6 +2,33 @@ import { describe, expect, it } from 'vitest';
 
 import { __testing__ } from './collect-patient-data';
 
+/**
+ * F-15 (auditoria 2026-08-14) — teclados de iOS/Android substituem a apóstrofe
+ * reta (') pela tipográfica (’) sem o usuário perceber. Aceitar só a reta
+ * rejeitava nomes legítimos e, com a coleta sendo um estado modal, prendia a
+ * pessoa repetindo o próprio nome.
+ */
+describe('nome com apóstrofe (F-15)', () => {
+  const aceita = (nome: string) => __testing__.registrationFieldFromMessage('nome', nome);
+
+  it.each([
+    ['apóstrofe tipográfica do teclado móvel', 'Maria D’Ávila'],
+    ['apóstrofe reta', "Maria D'Ávila"],
+    ['tipográfica no meio de nome composto', 'Ana D’Angelo Souza'],
+    ['nome africano com apóstrofe', 'Amadou N’Doye'],
+  ])('aceita %s: %s', (_caso, nome) => {
+    const r = aceita(nome);
+    expect(r.accepted).toBe(true);
+    expect(r.accepted && r.partial.nome).toBe(nome);
+  });
+
+  it('a apóstrofe não afrouxa o resto da validação', () => {
+    expect(aceita('D’Ávila').accepted).toBe(false); // continua exigindo 2 palavras
+    expect(aceita('Maria D’Ávila 2').accepted).toBe(false); // dígito segue proibido
+    expect(aceita('quero marcar consulta').accepted).toBe(false);
+  });
+});
+
 describe('patientRegistrationMessage', () => {
   it('pede somente o próximo campo obrigatório', () => {
     expect(

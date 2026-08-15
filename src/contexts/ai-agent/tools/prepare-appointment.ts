@@ -207,19 +207,51 @@ registerTool({
       modelIso: input.scheduled_at,
     });
 
-    // Hora nua 1–7 sem marcador AM/PM: 15:00 e 03:00 são igualmente plausíveis.
-    // Perguntar é obrigatório — chutar aqui marcaria a madrugada do paciente.
+    // Hora nua sem marcador AM/PM ("às 3" = 03:00 ou 15:00). Quem desempata é a
+    // AGENDA CONFIGURADA PELA CLÍNICA, não uma faixa de horário chutada aqui:
+    // numa clínica 08–18 o candidato da madrugada não tem slot e morre sozinho;
+    // numa que atende à noite, 21:00 é legítimo. Só pergunta quando os DOIS
+    // horários existem de verdade — aí a dúvida é real.
     if (requested.mode === 'candidates') {
-      const opcoes = requested.candidatesIso
-        .map((iso) => appointmentTimeForPatient(iso, ctx.clinicTimeZone))
-        .join(' ou ');
-      return {
-        status: 'appointment_information_required' as const,
-        patient_message: `Só para confirmar: você prefere ${opcoes}?`,
-      };
-    }
+      const instants = requested.candidatesIso
+        .map((iso) => new Date(iso))
+        .sort((a, b) => a.getTime() - b.getTime());
+      // Uma única consulta cobre os dois candidatos (12h de distância).
+      const slots = await schedulingApiV1.listSlots({
+        clinicId: ctx.clinicId,
+        from: new Date(instants[0]!.getTime() - HOUR_MS),
+        to: new Date(instants[instants.length - 1]!.getTime() + HOUR_MS),
+        notBefore: agentSlotFloor(now),
+        procedureId: procedure!.id,
+      });
+      const viable = requested.candidatesIso
+        .map((iso) => ({
+          iso,
+          slot: slots.find(
+            (s) => Math.abs(new Date(s.startAt).getTime() - new Date(iso).getTime()) < 60_000,
+          ),
+        }))
+        .filter((c) => c.slot);
 
-    if (requested.mode === 'search') {
+      if (viable.length === 0) {
+        return {
+          status: 'appointment_unavailable' as const,
+          patient_message:
+            'Esse horário não está disponível para esse atendimento. Informe outra data ou horário.',
+        };
+      }
+      if (viable.length > 1) {
+        const opcoes = viable
+          .map((c) => appointmentTimeForPatient(c.iso, ctx.clinicTimeZone))
+          .join(' ou ');
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: `Só para confirmar: você prefere ${opcoes}?`,
+        };
+      }
+      scheduledAt = viable[0]!.slot!.startAt;
+      doctorId = viable[0]!.slot!.doctorId;
+    } else if (requested.mode === 'search') {
       const slots = await schedulingApiV1.listSlots({
         clinicId: ctx.clinicId,
         from: new Date(requested.fromIso),

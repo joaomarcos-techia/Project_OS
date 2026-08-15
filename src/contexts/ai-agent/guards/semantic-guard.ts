@@ -154,11 +154,33 @@ export function decideTurnGuard(args: {
  * segurança; aqui só emitimos métrica de visibilidade quando há tentativa óbvia.
  * `matched` é categoria:termo (telemetria), nunca o texto completo.
  */
-const INJECTION_RE =
-  /\b(ignore\w*.{0,40}(instru\w*|prompt|regras?)|disregard.{0,40}(instru|above|previous)|esque(ca|ce)\w*.{0,40}(instru\w*|tudo|regras?)|system prompt|reveal.{0,20}(prompt|system)|mostr\w*.{0,25}(prompt|banco|database|todos os pacientes|tabela)|list.{0,20}(patients|pacientes|usuarios|users)|show.{0,20}(database|all (patients|data))|drop table|select \* from|voce agora e|act as|aja como|developer mode|jailbreak)/;
+/**
+ * Padrões ROTULADOS (F-18 — auditoria 2026-08-14).
+ *
+ * Antes era um regex único e `matched` levava `m[0]` para a métrica. Como
+ * vários ramos usam curingas (`.{0,40}`), o trecho casado carregava TEXTO DO
+ * PACIENTE para o log — numa base onde o conteúdo da conversa é cifrado em
+ * repouso justamente para não estar em claro. O rótulo abaixo é fixo e escrito
+ * por nós; nenhum caractere do inbound atravessa esta fronteira.
+ */
+const INJECTION_PATTERNS: ReadonlyArray<{ label: string; re: RegExp }> = [
+  { label: 'ignore_instructions', re: /\bignore\w*.{0,40}(instru\w*|prompt|regras?)/ },
+  { label: 'ignore_instructions', re: /\bdisregard.{0,40}(instru|above|previous)/ },
+  { label: 'ignore_instructions', re: /\besque(ca|ce)\w*.{0,40}(instru\w*|tudo|regras?)/ },
+  { label: 'reveal_prompt', re: /\bsystem prompt\b/ },
+  { label: 'reveal_prompt', re: /\breveal.{0,20}(prompt|system)/ },
+  { label: 'dump_data', re: /\bmostr\w*.{0,25}(prompt|banco|database|todos os pacientes|tabela)/ },
+  { label: 'dump_data', re: /\blist.{0,20}(patients|pacientes|usuarios|users)/ },
+  { label: 'dump_data', re: /\bshow.{0,20}(database|all (patients|data))/ },
+  { label: 'sql', re: /\b(drop table|select \* from)\b/ },
+  { label: 'role_override', re: /\b(voce agora e|act as|aja como)\b/ },
+  { label: 'jailbreak', re: /\b(developer mode|jailbreak)\b/ },
+];
 
 export function detectPromptInjection(inboundText: string): SemanticCheckResult {
   const norm = normalize(inboundText);
-  const m = INJECTION_RE.exec(norm);
-  return m ? { safe: false, matched: `injection:${m[0]}` } : { safe: true };
+  for (const { label, re } of INJECTION_PATTERNS) {
+    if (re.test(norm)) return { safe: false, matched: `injection:${label}` };
+  }
+  return { safe: true };
 }

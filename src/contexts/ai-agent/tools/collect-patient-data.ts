@@ -87,7 +87,10 @@ export function registrationFieldFromMessage(
     const words = nome.split(/\s+/u);
     const looksLikeName =
       nome.length <= 120 &&
-      /^[\p{L}][\p{L}' -]*$/u.test(nome) &&
+      // F-15: teclados de iOS/Android trocam a apóstrofe reta (') pela
+      // tipográfica (’) automaticamente. Aceitar só a reta rejeitava nomes
+      // legítimos — D’Ávila, D’Angelo, N’Doye — e prendia a pessoa no cadastro.
+      /^[\p{L}][\p{L}'’ -]*$/u.test(nome) &&
       words.length >= 2 &&
       !words.some((word) => NON_NAME_WORDS.has(word.toLocaleLowerCase('pt-BR')));
     if (!looksLikeName) {
