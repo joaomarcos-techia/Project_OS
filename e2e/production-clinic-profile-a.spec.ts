@@ -106,11 +106,13 @@ async function fillVisibleProfile(page: Page, profile: VisibleProfile): Promise<
   await page.getByLabel('CNES').fill(profile.cnes);
 }
 
-async function saveProfile(page: Page): Promise<number> {
+async function saveProfile(page: Page, expectSuccess = true): Promise<number> {
   const responsePromise = page.waitForResponse(isServerAction);
   await page.getByRole('button', { name: 'Salvar perfil' }).click();
   const status = (await responsePromise).status();
-  await expect(page.getByText('Perfil salvo.', { exact: true })).toBeVisible();
+  if (expectSuccess) {
+    await expect(page.getByText('Perfil salvo.', { exact: true })).toBeVisible();
+  }
   return status;
 }
 
@@ -235,13 +237,18 @@ test.describe('produção: perfil da Clínica A', () => {
       visibleBaseline = await readVisibleProfile(firstPage);
       expect(await readVisibleProfile(secondPage)).toEqual(visibleBaseline);
 
+      // VAL-002 — o achado: a UI mascarava e enviava `1`, o backend respondia
+      // 200 e persistia ciphertext/hash de um documento invalido. Agora o
+      // schema exige 14 digitos e checksum, entao NADA e salvo e o rascunho
+      // digitado permanece na tela para correcao.
       await firstPage.getByLabel('CNPJ').fill('1');
       await firstPage.getByLabel('CNES').fill(invalidCnes);
-      const invalidHttp = await saveProfile(firstPage);
+      const invalidHttp = await saveProfile(firstPage, false);
       expect(invalidHttp).toBe(200);
+      await expect(firstPage.getByText('Perfil salvo.', { exact: true })).toHaveCount(0);
       await firstPage.reload();
-      expect(await firstPage.getByLabel('CNPJ').inputValue()).toBe('1');
-      expect(await firstPage.getByLabel('CNES').inputValue()).toBe(invalidCnes);
+      // Recarregando, o CNPJ invalido NAO foi persistido.
+      expect(await firstPage.getByLabel('CNPJ').inputValue()).not.toBe('1');
 
       const [invalidState] = await sql<
         { cnes: string | null; cnpj_hash_changed: boolean; immutable_fields_unchanged: boolean }[]
@@ -252,9 +259,11 @@ test.describe('produção: perfil da Clínica A', () => {
                  and timezone=${baseline.timezone} immutable_fields_unchanged
           from clinics where id=${clinicId}::uuid
       `;
+      // VAL-002 — antes o CNES invalido e o hash de um CNPJ invalido eram
+      // PERSISTIDOS. Agora a gravacao inteira e recusada: nada mudou no banco.
       expect(invalidState).toEqual({
-        cnes: invalidCnes,
-        cnpj_hash_changed: true,
+        cnes: baseline.cnes,
+        cnpj_hash_changed: false,
         immutable_fields_unchanged: true,
       });
 
@@ -277,10 +286,13 @@ test.describe('produção: perfil da Clínica A', () => {
         response.status(),
       );
       expect(concurrentHttp).toEqual([200, 200]);
-      await Promise.all([
-        expect(firstPage.getByText('Perfil salvo.', { exact: true })).toBeVisible(),
-        expect(secondPage.getByText('Perfil salvo.', { exact: true })).toBeVisible(),
-      ]);
+      // DATA-005 — o achado: as DUAS abas mostravam "Perfil salvo." e um dos
+      // valores sumia em silencio. Com o compare-and-swap so uma vence; a
+      // perdedora recebe instrucao de recarregar, nao confirmacao falsa.
+      const savedCount =
+        (await firstPage.getByText('Perfil salvo.', { exact: true }).count()) +
+        (await secondPage.getByText('Perfil salvo.', { exact: true }).count());
+      expect(savedCount).toBe(1);
 
       const [concurrentState] = await sql<{ cnes: string | null; audits: number }[]>`
         select c.cnes,
@@ -290,7 +302,8 @@ test.describe('produção: perfil da Clínica A', () => {
           from clinics c where c.id=${clinicId}::uuid
       `;
       expect(concurrentCnes).toContain(concurrentState?.cnes);
-      expect(concurrentState?.audits).toBe(2);
+      // Uma auditoria, nao duas: o perdedor reverte sem deixar trilha de sucesso.
+      expect(concurrentState?.audits).toBe(1);
 
       const [testAudits] = await sql<{ count: number }[]>`
         select count(*)::int count from audit_events

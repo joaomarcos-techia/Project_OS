@@ -255,31 +255,36 @@ test.describe('produção: estados e concorrência de Agenda/Consultório na Cl�
         .getByText(scheduledName, { exact: true })
         .locator('xpath=ancestor::div[.//button[normalize-space()="Check-in"]][1]');
       await expect(scheduledCard).toBeVisible({ timeout: 30_000 });
+      // STATE-001 — o achado era "no-show inalcancavel": o cartao AGENDADO nao
+      // tinha a acao, e o cartao em ESPERA oferecia uma transicao invalida que
+      // sempre falhava. A correcao inverteu os dois, derivando as acoes do
+      // `allowedTransitions` em vez de fixa-las na UI.
       await expect(
         scheduledCard.getByRole('button', { name: 'Check-in', exact: true }),
       ).toBeVisible();
       await expect(
-        scheduledCard.getByRole('button', { name: 'Marcar ausente', exact: true }),
-      ).toHaveCount(0);
+        scheduledCard.getByRole('button', { name: 'Faltou', exact: true }),
+      ).toBeVisible();
 
       const waitingCard = page
         .getByText(arrivedName, { exact: true })
-        .locator('xpath=ancestor::div[.//button[normalize-space()="Marcar ausente"]][1]');
+        .locator('xpath=ancestor::div[.//button][1]');
       await expect(waitingCard).toBeVisible({ timeout: 30_000 });
+      // Quem ja chegou nao pode ser marcado como falta — a acao invalida sumiu.
+      await expect(waitingCard.getByRole('button', { name: 'Faltou', exact: true })).toHaveCount(0);
+      await expect(
+        waitingCard.getByRole('button', { name: 'Marcar ausente', exact: true }),
+      ).toHaveCount(0);
+
+      // O no-show agora e alcancavel a partir do AGENDADO.
       const responsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === 'POST' &&
           new URL(response.url()).pathname === '/consultorio',
       );
-      await waitingCard.getByRole('button', { name: 'Marcar ausente', exact: true }).click();
+      await scheduledCard.getByRole('button', { name: 'Faltou', exact: true }).click();
       const response = await responsePromise;
-      const alert = page.getByRole('alert').filter({ hasText: 'Esta ação não é mais possível' });
-      await expect(alert).toHaveText(
-        'Esta ação não é mais possível — o paciente já mudou de etapa.',
-        { timeout: 30_000 },
-      );
-      await expect(waitingCard).toBeVisible();
-
+      expect(response.status()).toBeLessThan(500);
       const [state] = await sql<
         {
           status: string;

@@ -340,7 +340,13 @@ test.describe('produção: configurações de scheduling na Clínica A', () => {
       const absenceForm = doctorPage
         .getByRole('button', { name: 'Registrar e reorganizar agenda' })
         .locator('xpath=ancestor::form[1]');
-      await absenceForm.locator('select[name="doctorId"]').selectOption(ownerId);
+      // AUTHZ-007 — o medico so administra a PROPRIA agenda: o owner nao e mais
+      // uma opcao do seletor. Antes, um medico com `manage:availability`
+      // registrava ausencia do owner e o fluxo cancelava/transferia todas as
+      // consultas dele atomicamente.
+      await expect(
+        absenceForm.locator(`select[name="doctorId"] option[value="${ownerId}"]`),
+      ).toHaveCount(0);
       await absenceForm.locator('select[name="strategy"]').selectOption('cancel');
       await absenceForm.locator('input[name="startsAt"]').fill('2099-01-01T10:00');
       await absenceForm.locator('input[name="endsAt"]').fill('2099-01-01T11:00');

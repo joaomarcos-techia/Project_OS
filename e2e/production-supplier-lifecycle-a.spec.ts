@@ -156,10 +156,24 @@ test.describe('produção: fornecedores financeiros na Clínica A', () => {
         ownerPage,
         dialog.getByRole('button', { name: 'Criar' }),
       );
+      // VAL-001 — o achado: o formulario mascarava e enviava `1`, o backend
+      // aceitava e o banco persistia `cnpj='1'`. Agora o documento e validado
+      // (14 digitos + checksum), o dialogo PERMANECE aberto com o rascunho e
+      // nenhum fornecedor e criado.
       expect(createStatus).toBeLessThan(500);
+      await expect(dialog).toBeVisible();
+      expect(await ownerPage.evaluate(() => Boolean(globalThis.__supplierXss))).toBe(false);
+
+      // Corrige para um CNPJ valido e cria de verdade — o resto do ciclo
+      // (isolamento, edicao concorrente, desativacao) continua sendo exercido.
+      await createInputs.nth(1).fill('11.222.333/0001-81');
+      const retryStatus = await clickServerAction(
+        ownerPage,
+        dialog.getByRole('button', { name: 'Criar' }),
+      );
+      expect(retryStatus).toBeLessThan(500);
       await expect(dialog).toBeHidden();
       await expect(ownerPage.getByText(originalName, { exact: true })).toBeVisible();
-      expect(await ownerPage.evaluate(() => Boolean(globalThis.__supplierXss))).toBe(false);
 
       const [created] = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
@@ -170,7 +184,9 @@ test.describe('produção: fornecedores financeiros na Clínica A', () => {
       });
       if (!created) throw new Error('Fornecedor sintético não persistiu.');
       supplierId = created.id;
-      expect(created).toMatchObject({ cnpj: '1', contato: '(11) 9', ativo: true });
+      // VAL-001 — o fornecedor so existe apos o CNPJ valido; o `1` nao chega
+      // mais ao banco. O CNPJ e persistido na forma CANONICA (so digitos).
+      expect(created).toMatchObject({ cnpj: '11222333000181', contato: '(11) 9', ativo: true });
 
       await tenantBPage.goto('/financeiro/fornecedores');
       await expect(tenantBPage.getByText(originalName, { exact: true })).toHaveCount(0);
@@ -244,7 +260,9 @@ test.describe('produção: fornecedores financeiros na Clínica A', () => {
             from suppliers s where s.id = ${supplierId!}::uuid
         `;
       });
-      expect(concurrentState).toMatchObject({ updates: 2, actors: 2, idempotency: 3 });
+      // DATA-004 — eram 2 updates e 2 atores (lost update silencioso); com o
+      // compare-and-swap so um vence e o perdedor nao deixa trilha de sucesso.
+      expect(concurrentState).toMatchObject({ updates: 1, actors: 1 });
       expect([ownerEditName, financialEditName]).toContain(concurrentState?.name);
       const finalName = concurrentState!.name;
 
@@ -312,7 +330,9 @@ test.describe('produção: fornecedores financeiros na Clínica A', () => {
                 and i.response ->> 'id' = ${supplierId!}) idempotency
         `;
       });
-      expect(trails).toEqual({ audits: 5, actors: 2, idempotency: 5 });
+      // Uma trilha a menos e um ator a menos: a edicao concorrente perdedora
+      // nao e mais registrada como sucesso (DATA-004).
+      expect(trails).toEqual({ audits: 4, actors: 1, idempotency: 4 });
 
       console.log(
         `[supplier-lifecycle-a] ${JSON.stringify({

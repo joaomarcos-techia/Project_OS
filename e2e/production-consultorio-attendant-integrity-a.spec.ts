@@ -318,9 +318,13 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
       await expect(page.getByRole('button', { name: 'Assinar consulta', exact: true })).toHaveCount(
         0,
       );
+      // AUTHZ-008 — o achado foi um ATENDENTE encerrando a consulta. Declarar
+      // que houve atendimento e ato clinico: `edit:agenda` move a fila, mas nao
+      // conclui. O controle sumiu para quem nao tem capacidade clinica, e o
+      // core recusa mesmo por chamada direta.
       await expect(
         page.getByRole('button', { name: 'Encerrar consulta', exact: true }),
-      ).toBeVisible();
+      ).toHaveCount(0);
 
       const [started] = await sql<
         { status: string; prontuarios: number; queue_status: string | null }[]
