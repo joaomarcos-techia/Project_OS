@@ -440,13 +440,12 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
       `;
       expect(mergeRows?.n).toBe(0);
 
-      // There is no consent grant/revoke control in the deployed patient hub.
-      expect(await ownerPage.getByRole('button', { name: /conceder consentimento/i }).count()).toBe(
-        0,
-      );
-      expect(await ownerPage.getByRole('button', { name: /revogar consentimento/i }).count()).toBe(
-        0,
-      );
+      // LGPD-005 — o hub do paciente ganhou o cartao de consentimento no ciclo
+      // anterior. Este spec procurava o texto "conceder consentimento", que
+      // nunca existiu: os controles se chamam Conceder/Revogar.
+      const consentControls =
+        (await ownerPage.getByRole('button', { name: /^(Conceder|Revogar)$/u }).count()) > 0;
+      expect(consentControls).toBe(true);
 
       // Two users start from the same patient state. A held row lock makes both writes overlap.
       await Promise.all([
@@ -801,14 +800,14 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
           relationshipRows: linkedEvidence!.rows,
           selfAndUnknownMergeRejected: true,
           validMergeNotRun: 'append-only history has no supported fixture cleanup',
-          consentControlsExposed: false,
+          consentControlsExposed: consentControls,
           concurrentUpdateAccepted: updateEvidence!.audits,
           concurrentUpdateActors: updateEvidence!.actors,
           concurrentUpdateConflictDetected: false,
           futureDeathRejected: true,
           deathReplayResponses: 4,
           deathExactlyOnce: deathEvidence!.audit === 1,
-          deceasedPatientVisibleInAgendaSelector: true,
+          deceasedPatientVisibleInAgendaSelector: deceasedOfferedInSelector,
           deceasedSchedulingBlocked: deceasedAppointments!.n === 0,
           concurrentDeleteAccepted: deleteEvidence!.audit,
           concurrentDeleteActors: deleteEvidence!.actors,

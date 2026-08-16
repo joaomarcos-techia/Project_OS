@@ -117,12 +117,14 @@ test.describe('produção: RBAC das configurações do WhatsApp', () => {
       await page.goto('/configuracoes/assinatura');
       await expect(page.getByText('Sem acesso', { exact: true })).toBeVisible();
 
+      // AUTHZ-006 — o spec afirmava numero mascarado, data de conexao e o botao
+      // Desconectar VISIVEIS para um medico sem `manage:settings`. Agora o gate
+      // precede a leitura: metadado de integracao e informacao administrativa.
       await page.goto('/configuracoes/whatsapp');
-      await expect(page.getByRole('heading', { name: 'WhatsApp da clínica' })).toBeVisible();
-      await expect(page.getByText('WhatsApp conectado', { exact: true })).toBeVisible();
-      await expect(page.getByText('Ativo', { exact: true })).toBeVisible();
-      await expect(page.getByText(lastFourDigits!)).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Desconectar' })).toBeVisible();
+      await expect(page.getByText('Sem acesso', { exact: true })).toBeVisible();
+      await expect(page.getByText('WhatsApp conectado', { exact: true })).toHaveCount(0);
+      await expect(page.getByText(lastFourDigits!)).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Desconectar' })).toHaveCount(0);
 
       console.log(
         `[whatsapp-settings-rbac] ${JSON.stringify({

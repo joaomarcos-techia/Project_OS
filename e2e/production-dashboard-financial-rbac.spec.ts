@@ -118,16 +118,18 @@ test.describe('produção: RBAC financeiro do Dashboard', () => {
       await page.goto('/dashboard');
       await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u);
 
-      const receivablesCard = page.getByText('A receber', { exact: true }).locator('../..');
-      await expect(receivablesCard).toBeVisible();
+      // AUTHZ-005 — este spec reproduzia o vazamento e afirmava os cards
+      // VISIVEIS para um medico sem `view:financial`. A assercao agora e a do
+      // comportamento correto: nenhum KPI financeiro chega ao RSC, e o valor
+      // exato de contas a receber nao aparece em lugar nenhum da pagina.
       const expectedReceivables = new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL',
       }).format(Number(precondition.open_receivables));
-      await expect(receivablesCard).toContainText(expectedReceivables);
-      await expect(page.getByText('Faturado hoje', { exact: true })).toBeVisible();
-      await expect(page.getByText('Faturamento · últimos 7 dias', { exact: true })).toBeVisible();
-      await expect(page.getByText('Sem recebimentos registrados no período.')).toHaveCount(0);
+      await expect(page.getByText('A receber', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Faturado hoje', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Faturamento · últimos 7 dias', { exact: true })).toHaveCount(0);
+      expect(await page.locator('body').innerText()).not.toContain(expectedReceivables);
 
       await page.goto('/financeiro');
       await expect(page.getByText('Sem acesso', { exact: true })).toBeVisible();

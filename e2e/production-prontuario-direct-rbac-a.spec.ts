@@ -201,20 +201,21 @@ test.describe('produção: autorização do deep-link de prontuário na Clínica
       if (!beforeDeniedSave) throw new Error('Prontuário sintético não persistiu.');
 
       await signInContext(attendantContext, attendantEmail);
+      // AUTHZ-003 — o spec reproduzia o achado: o atendente LIA o SOAP e so o
+      // autosave era negado. Agora o gate precede a leitura e a decifracao.
       await attendantPage.goto(`/pacientes/${patientId}?tab=prontuarios`);
-      await expect(attendantPage.getByText('rascunho', { exact: true })).toBeVisible();
-      await expect(attendantPage.getByRole('link', { name: 'Editar', exact: true })).toBeVisible();
+      await expect(attendantPage.getByText('rascunho', { exact: true })).toHaveCount(0);
+      await expect(attendantPage.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
       await attendantPage.goto(`/pacientes/${patientId}/prontuarios/${prontuarioId}`);
       await expect(
         attendantPage.getByRole('heading', { name: 'Prontuário (rascunho)', exact: true }),
-      ).toBeVisible();
-      const attendantField = attendantPage.locator('textarea').first();
-      await expect(attendantField).toHaveValue(clinicalContent);
-      await attendantField.fill(deniedContent);
-      await attendantPage.getByRole('button', { name: 'Salvar agora', exact: true }).click();
-      await expect(attendantPage.getByText('Erro ao salvar', { exact: true })).toBeVisible({
-        timeout: 30_000,
-      });
+      ).toHaveCount(0);
+      // O conteudo clinico decifrado nao aparece em lugar nenhum da pagina.
+      expect(await attendantPage.locator('body').innerText()).not.toContain(clinicalContent);
+      // O editor sequer e alcancavel: nao ha textarea para digitar. O gate de
+      // ESCRITA continua existindo no core (coberto por teste unitario); aqui o
+      // que se prova e que o registro nao mudou.
+      await expect(attendantPage.locator('textarea')).toHaveCount(0);
 
       const [afterDeniedSave] = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
@@ -227,25 +228,25 @@ test.describe('produção: autorização do deep-link de prontuário na Clínica
       });
       expect(afterDeniedSave).toEqual(beforeDeniedSave);
 
+      // Mesma verificacao para o perfil Financeiro.
       await signInContext(financialContext, financialEmail);
       await financialPage.goto(`/pacientes/${patientId}?tab=prontuarios`);
-      await expect(financialPage.getByText('rascunho', { exact: true })).toBeVisible();
-      await expect(financialPage.getByRole('link', { name: 'Editar', exact: true })).toBeVisible();
+      await expect(financialPage.getByText('rascunho', { exact: true })).toHaveCount(0);
       await financialPage.goto(`/pacientes/${patientId}/prontuarios/${prontuarioId}`);
       await expect(
         financialPage.getByRole('heading', { name: 'Prontuário (rascunho)', exact: true }),
-      ).toBeVisible();
-      await expect(financialPage.locator('textarea').first()).toHaveValue(clinicalContent);
+      ).toHaveCount(0);
+      expect(await financialPage.locator('body').innerText()).not.toContain(clinicalContent);
 
       console.log(
         `[clinical-direct-rbac-a] ${JSON.stringify({
           testedRolesWithoutView: ['attendant', 'financial'],
-          hubMetadataVisibleWithoutView: true,
-          decryptedSoapVisibleWithoutView: true,
-          deniedAutosaveUiError: true,
-          deniedAutosaveDatabaseUnchanged: true,
+          hubMetadataVisibleWithoutView: false,
+          decryptedSoapVisibleWithoutView: false,
+          editorReachableWithoutView: false,
+          databaseUnchanged: true,
           mutationBypass: false,
-          result: 'read-authorization-fail-write-gate-pass',
+          result: 'read-and-write-authorization-pass',
         })}`,
       );
     } finally {

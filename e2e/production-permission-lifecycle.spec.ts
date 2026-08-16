@@ -503,11 +503,13 @@ test.describe('produção: ciclo de permissões granulares', () => {
       const patientDetailVisibleWithoutPermission =
         (await targetPage.getByRole('heading', { name: patientSample.name, exact: true }).count()) >
         0;
-      const cpfValue =
-        (await targetPage
-          .getByText('CPF', { exact: true })
-          .locator('xpath=following-sibling::dd[1]')
-          .textContent()) ?? '';
+      // AUTHZ-001 — com `view:patient` negada a pagina nao renderiza mais o
+      // detalhe do paciente, entao o campo CPF simplesmente nao existe. Ler sem
+      // guarda estourava timeout; a ausencia E o resultado correto.
+      const cpfCell = targetPage
+        .getByText('CPF', { exact: true })
+        .locator('xpath=following-sibling::dd[1]');
+      const cpfValue = (await cpfCell.count()) > 0 ? ((await cpfCell.textContent()) ?? '') : '';
       const decryptedCpfVisibleWithoutPermission = /\d{11}/u.test(cpfValue.replace(/\D/gu, ''));
 
       for (const [permission, label] of [
@@ -598,8 +600,12 @@ test.describe('produção: ciclo de permissões granulares', () => {
         `;
       });
       await targetPage.goto('/documentos');
-      const documentsRouteVisibleWithoutPermission =
-        (await targetPage.getByRole('heading', { name: 'Documentos', exact: true }).count()) > 0;
+      // AUTHZ-003 — medir o TITULO era falso positivo: `PageNoAccess` tambem
+      // renderiza "Documentos" no cabecalho, entao a tela de NEGACAO contava
+      // como rota exposta. O que importa e se o feed aparece.
+      const documentsDenied =
+        (await targetPage.getByText(/n.o tem permiss.o para ver receitas/iu).count()) > 0;
+      const documentsRouteVisibleWithoutPermission = !documentsDenied;
       const clinicalDocumentVisibleWithoutPermission = clinicalDocumentSample
         ? (await targetPage
             .getByText(clinicalDocumentSample.patient_name, { exact: true })
@@ -665,7 +671,11 @@ test.describe('produção: ciclo de permissões granulares', () => {
         await targetPage.goto(pdfRoute);
         clinicalPdfRouteVisibleWithoutPermission =
           (await targetPage.getByText(pdfSample.patient_name, { exact: true }).count()) > 0;
-        const signedUrl = await targetPage.locator('iframe').getAttribute('src');
+        // AUTHZ-003 — sem a permissao clinica a pagina nao emite mais a signed
+        // URL, entao nao ha iframe. A ausencia E o resultado correto; ler sem
+        // guarda estourava timeout.
+        const pdfFrame = targetPage.locator('iframe');
+        const signedUrl = (await pdfFrame.count()) > 0 ? await pdfFrame.getAttribute('src') : null;
         if (signedUrl) {
           const pdfResponse = await targetContext.request.get(signedUrl, {
             failOnStatusCode: false,
