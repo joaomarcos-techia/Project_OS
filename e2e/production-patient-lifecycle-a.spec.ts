@@ -634,27 +634,19 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
         suppression: 3,
       });
 
-      // The selector still exposes the deceased patient, but the scheduling core must reject it.
+      // UX-001 — o seletor de "Novo atendimento" NAO oferece mais o falecido.
+      // Este spec foi escrito quando ele aparecia e so era recusado no submit;
+      // a assercao agora e a do comportamento correto, e continua provando o
+      // essencial: nenhuma consulta e criada para um paciente com obito.
       await ownerPage.goto('/agenda');
       await ownerPage.getByRole('button', { name: 'Novo atendimento' }).click();
       const appointmentDrawer = ownerPage.getByRole('dialog', { name: 'Novo atendimento' });
       await appointmentDrawer.getByPlaceholder(/Buscar por nome/).fill(finalConcurrentName!);
-      await appointmentDrawer
-        .getByRole('option', { name: finalConcurrentName!, exact: true })
-        .click();
-      await appointmentDrawer
-        .getByLabel('Procedimento', { exact: true })
-        .selectOption({ index: 1 });
-      const professionalSelect = appointmentDrawer.getByLabel('Profissional', { exact: true });
-      if ((await professionalSelect.count()) > 0) {
-        await professionalSelect.selectOption({ index: 1 });
-      }
-      await appointmentDrawer.getByLabel('Data', { exact: true }).fill(clinicDate(7));
-      await appointmentDrawer.getByLabel('Hora', { exact: true }).fill('12:00');
-      await appointmentDrawer.getByRole('button', { name: 'Agendar', exact: true }).click();
-      await expect(appointmentDrawer.getByRole('alert')).toContainText(
-        /paciente inv.lido para esta cl.nica/iu,
-      );
+      await expect(
+        appointmentDrawer.getByRole('option', { name: finalConcurrentName!, exact: true }),
+      ).toHaveCount(0, { timeout: 15_000 });
+      const deceasedOfferedInSelector = false;
+      await ownerPage.keyboard.press('Escape');
       const [deceasedAppointments] = await sql<{ n: number }[]>`
         select count(*)::int as n from appointments
          where clinic_id = ${clinicId}::uuid and patient_id = ${subjectId}::uuid
@@ -767,24 +759,32 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
       await expect(ownerPage.locator(`a[href="/pacientes/${deleteId}"]`)).toHaveCount(0);
       await ownerPage.goto(`/pacientes?includeDeleted=1&q=${encodeURIComponent(deleteName)}`);
       await expect(ownerPage.locator(`a[href="/pacientes/${deleteId}"]`)).toHaveCount(0);
-      // PAT-001 — a janela de 30 dias passou a ter recuperacao de verdade: a
-      // lixeira lista o removido e o restore o traz de volta, sem link (a rota
-      // do removido responde 404 por HTTP-001).
-      await ownerPage.goto(`/pacientes?removidos=1&q=${encodeURIComponent(deleteName)}`);
-      await expect(ownerPage.getByText(deleteName, { exact: true })).toBeVisible();
-      const restoreResponse = ownerPage.waitForResponse((r) => isServerAction(r.request()));
-      await ownerPage.getByRole('button', { name: 'Restaurar', exact: true }).first().click();
-      expect((await restoreResponse).status()).toBeLessThan(500);
-      await ownerPage.goto(`/pacientes?q=${encodeURIComponent(deleteName)}`);
-      await expect(ownerPage.locator(`a[href="/pacientes/${deleteId}"]`)).toHaveCount(1);
-      recoverySurfaceExposed = true;
-      // Volta ao estado removido para o cleanup seguir o mesmo caminho.
-      await ownerPage.goto(`/pacientes/${deleteId}`);
       deletedRouteStatus = (await ownerPage.goto(`/pacientes/${deleteId}`))?.status() ?? -1;
       // HTTP-001 — antes era 200 (soft-404). O status agora e distinguivel por
       // monitoramento e cache.
       expect(deletedRouteStatus).toBe(404);
       deletedRouteVisibleChars = (await ownerPage.locator('body').innerText()).trim().length;
+
+      // PAT-001 — a janela de 30 dias passou a ter recuperacao de verdade. A
+      // lixeira lista o removido (sem link, porque a rota dele responde 404) e
+      // o restore o traz de volta.
+      await ownerPage.goto(`/pacientes?removidos=1&q=${encodeURIComponent(deleteName)}`);
+      await expect(ownerPage.getByText(deleteName, { exact: true })).toBeVisible();
+      const restoreResponse = ownerPage.waitForResponse((r) => isServerAction(r.request()));
+      await ownerPage.getByRole('button', { name: 'Restaurar', exact: true }).first().click();
+      expect((await restoreResponse).status()).toBeLessThan(500);
+
+      await ownerPage.goto(`/pacientes?q=${encodeURIComponent(deleteName)}`);
+      // A linha da lista tem dois links para o mesmo paciente (nome + chevron):
+      // o que importa e o paciente ter voltado a ser listado.
+      await expect(ownerPage.locator(`a[href="/pacientes/${deleteId}"]`).first()).toBeVisible();
+      const [restored] = await sql<{ deleted: boolean }[]>`
+        select (deleted_at is not null) as deleted from patients where id=${deleteId!}::uuid`;
+      expect(restored?.deleted).toBe(false);
+      recoverySurfaceExposed = true;
+      // Contraprova: depois do restore a MESMA rota volta a 200 — o 404 anterior
+      // era ausencia do recurso, nao rota quebrada.
+      expect((await ownerPage.goto(`/pacientes/${deleteId}`))?.status()).toBe(200);
 
       console.log(
         `[patient-lifecycle-a] ${JSON.stringify({
@@ -814,6 +814,7 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
           concurrentDeleteActors: deleteEvidence!.actors,
           duplicateDeleteEvents: deleteEvidence!.outbox,
           concurrentDeleteDuplicateObserved: deleteEvidence!.outbox > 1,
+          deceasedOfferedInSelector,
           softDeletedHidden: true,
           softDeletedRouteHttp: deletedRouteStatus,
           softDeletedRouteVisibleChars: deletedRouteVisibleChars,

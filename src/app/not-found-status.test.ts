@@ -43,11 +43,23 @@ describe('HTTP-001 — 404 antes do commit dos headers', () => {
   });
 
   it.each(notFoundPages.map((f) => relative(APP_DIR, f)))(
-    '%s não tem loading.tsx irmão (senão o 404 vira 200)',
+    '%s não tem loading.tsx em NENHUM segmento ancestral',
     (relativePage) => {
-      const dir = join(APP_DIR, relativePage, '..');
-      const siblings = readdirSync(dir);
-      expect(siblings).not.toContain('loading.tsx');
+      // A primeira correção olhou só o irmão e não bastou: em produção a rota
+      // continuou 200. `loading.tsx` cria o Suspense para o segmento E TODA a
+      // subárvore, então um boundary no PAI (`/pacientes/loading.tsx`) também
+      // faz o shell sair antes de a página resolver.
+      let dir = join(APP_DIR, relativePage, '..');
+      const offenders: string[] = [];
+      while (dir.startsWith(APP_DIR)) {
+        if (readdirSync(dir).includes('loading.tsx')) {
+          offenders.push(relative(APP_DIR, dir) || '.');
+        }
+        const parent = join(dir, '..');
+        if (parent === dir) break;
+        dir = parent;
+      }
+      expect(offenders, `boundaries de streaming acima de ${relativePage}`).toEqual([]);
     },
   );
 
