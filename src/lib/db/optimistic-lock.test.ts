@@ -32,6 +32,18 @@ describe('matchesExpectedVersion — a comparação sobrevive ao round-trip', ()
     expect(helper.match(/date_trunc\('milliseconds'/gu)).toHaveLength(2);
   });
 
+  it('vincula a string ISO crua, nunca um Date', () => {
+    // Descoberto em producao depois do primeiro conserto: o template do Drizzle
+    // serializa `Date` com `toString()` (`... (Coordinated Universal Time)`), e
+    // o Postgres nao converte isso para timestamptz — a query FALHA, em vez de
+    // casar zero linhas. Uma verificacao feita com o driver direto nao reproduz
+    // o defeito, porque ali a serializacao e outra.
+    // Só o CORPO — o comentário cita `new Date(iso)` ao explicar a causa.
+    const body = helper.slice(helper.indexOf('export function matchesExpectedVersion'));
+    expect(body).not.toContain('new Date(');
+    expect(body).toContain('${expectedIso}::timestamptz');
+  });
+
   it('o valor esperado é tipado como timestamptz', () => {
     // Sem o cast, o Postgres compara com `timestamp without time zone` e o
     // resultado passa a depender do fuso da sessão.

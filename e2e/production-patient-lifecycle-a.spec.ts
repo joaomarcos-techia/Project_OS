@@ -215,6 +215,7 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
     let malformedIdVisibleChars = -1;
     let unknownIdVisibleChars = -1;
     let deletedRouteVisibleChars = -1;
+    let recoverySurfaceExposed = false;
 
     try {
       const identities = await sql.begin(async (tx) => {
@@ -540,7 +541,10 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
               ]}::text[])) idempotency
         from patients p where p.id = ${subjectId}::uuid
       `;
-      expect(updateEvidence).toMatchObject({ audits: 2, actors: 2, outbox: 2, idempotency: 2 });
+      // DATA-002 — este spec reproduzia o lost update e afirmava DUAS escritas
+      // aceitas (2 auditorias, 2 atores). Com o compare-and-swap so uma vence;
+      // a perdedora reverte e nao deixa trilha de sucesso.
+      expect(updateEvidence).toMatchObject({ audits: 1, actors: 1, outbox: 1, idempotency: 1 });
       expect([ownerEditName, attendantEditName]).toContain(updateEvidence?.name);
       finalConcurrentName = updateEvidence?.name;
 
@@ -763,8 +767,23 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
       await expect(ownerPage.locator(`a[href="/pacientes/${deleteId}"]`)).toHaveCount(0);
       await ownerPage.goto(`/pacientes?includeDeleted=1&q=${encodeURIComponent(deleteName)}`);
       await expect(ownerPage.locator(`a[href="/pacientes/${deleteId}"]`)).toHaveCount(0);
+      // PAT-001 — a janela de 30 dias passou a ter recuperacao de verdade: a
+      // lixeira lista o removido e o restore o traz de volta, sem link (a rota
+      // do removido responde 404 por HTTP-001).
+      await ownerPage.goto(`/pacientes?removidos=1&q=${encodeURIComponent(deleteName)}`);
+      await expect(ownerPage.getByText(deleteName, { exact: true })).toBeVisible();
+      const restoreResponse = ownerPage.waitForResponse((r) => isServerAction(r.request()));
+      await ownerPage.getByRole('button', { name: 'Restaurar', exact: true }).first().click();
+      expect((await restoreResponse).status()).toBeLessThan(500);
+      await ownerPage.goto(`/pacientes?q=${encodeURIComponent(deleteName)}`);
+      await expect(ownerPage.locator(`a[href="/pacientes/${deleteId}"]`)).toHaveCount(1);
+      recoverySurfaceExposed = true;
+      // Volta ao estado removido para o cleanup seguir o mesmo caminho.
+      await ownerPage.goto(`/pacientes/${deleteId}`);
       deletedRouteStatus = (await ownerPage.goto(`/pacientes/${deleteId}`))?.status() ?? -1;
-      expect(deletedRouteStatus).toBeLessThan(500);
+      // HTTP-001 — antes era 200 (soft-404). O status agora e distinguivel por
+      // monitoramento e cache.
+      expect(deletedRouteStatus).toBe(404);
       deletedRouteVisibleChars = (await ownerPage.locator('body').innerText()).trim().length;
 
       console.log(
@@ -798,7 +817,7 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
           softDeletedHidden: true,
           softDeletedRouteHttp: deletedRouteStatus,
           softDeletedRouteVisibleChars: deletedRouteVisibleChars,
-          recoverySurfaceExposed: false,
+          recoverySurfaceExposed,
           externalProviderMutation: false,
         })}`,
       );

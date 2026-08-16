@@ -24,5 +24,10 @@ import { sql, type Column, type SQL } from 'drizzle-orm';
  * UPDATE`/lock de linha já serializa gravações simultâneas de qualquer forma.
  */
 export function matchesExpectedVersion(column: Column, expectedIso: string): SQL {
-  return sql`date_trunc('milliseconds', ${column}) = date_trunc('milliseconds', ${new Date(expectedIso)}::timestamptz)`;
+  // A string ISO vai CRUA como parâmetro. Passar um `Date` aqui parece
+  // equivalente e não é: o template do Drizzle o serializa com `toString()`
+  // (`Sun Aug 16 2026 12:52:18 GMT+0000 (Coordinated Universal Time)`), que o
+  // Postgres não converte para timestamptz — a query inteira falha em vez de
+  // casar zero linhas. O ISO-8601 é parseado nativamente.
+  return sql`date_trunc('milliseconds', ${column}) = date_trunc('milliseconds', ${expectedIso}::timestamptz)`;
 }
