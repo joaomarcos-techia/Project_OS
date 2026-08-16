@@ -45,6 +45,7 @@ vi.mock('./internal/meta-onboarding', () => ({
   })),
   registerPhoneNumber: vi.fn(async () => {}),
   subscribeAppToWaba: vi.fn(async () => {}),
+  ensureMessageTemplates: vi.fn(async () => []),
   unsubscribeAppFromWaba: vi.fn(async () => {}),
 }));
 vi.mock('@/lib/messaging', () => ({
@@ -228,5 +229,70 @@ describe('disconnectMyClinicWhatsapp', () => {
     const cleanup = mocks.after.mock.calls[0]![0] as () => Promise<void>;
     await cleanup();
     expect(onboarding.unsubscribeAppFromWaba).toHaveBeenCalledWith('waba-1', 'plain-token');
+  });
+});
+
+/**
+ * Provisionamento de templates no connect. O requisito central é NEGATIVO: a
+ * conexão precisa continuar válida mesmo quando a Meta recusa os modelos — o
+ * canal atende conversa de serviço sem template nenhum, e derrubar o connect
+ * transformaria uma conexão boa em falha.
+ */
+describe('connect — provisionamento dos templates', () => {
+  const connectInput = {
+    code: 'code-1',
+    registrationPin: '123456',
+    wabaHint: 'waba-1',
+    phoneHint: 'phone-1',
+  };
+
+  it('agenda o provisionamento para depois da resposta', async () => {
+    const result = await connectMyClinicWhatsapp(connectInput);
+    expect(result).toMatchObject({ id: 'num-1' });
+
+    // Nada de Graph de template no caminho síncrono: a clínica não espera.
+    expect(onboarding.ensureMessageTemplates).not.toHaveBeenCalled();
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+
+    await (mocks.after.mock.calls[0]![0] as () => Promise<void>)();
+    expect(onboarding.ensureMessageTemplates).toHaveBeenCalledTimes(1);
+    const [wabaId, token] = vi.mocked(onboarding.ensureMessageTemplates).mock.calls[0]!;
+    expect(wabaId).toBe('waba-1');
+    expect(token).toBe('SECRET_TOKEN_VALUE');
+  });
+
+  it('provisiona só depois de persistir a conexão', async () => {
+    await connectMyClinicWhatsapp(connectInput);
+    // `after` é registrado depois do upsert; se invertesse, um template criado
+    // poderia sobreviver a uma conexão que falhou ao salvar.
+    expect(vi.mocked(upsertTenantConnection).mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.after.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('recusa de template não derruba a conexão', async () => {
+    vi.mocked(onboarding.ensureMessageTemplates).mockResolvedValueOnce([
+      { name: 'lembrete_confirmacao', status: 'failed' },
+    ]);
+    const result = await connectMyClinicWhatsapp(connectInput);
+    expect(result).toMatchObject({ id: 'num-1' });
+
+    // A conexão foi persistida e nenhuma falha foi registrada.
+    expect(upsertTenantConnection).toHaveBeenCalledTimes(1);
+    await expect(
+      (mocks.after.mock.calls[0]![0] as () => Promise<void>)(),
+    ).resolves.toBeUndefined();
+    expect(recordConnectionFailure).not.toHaveBeenCalled();
+  });
+
+  it('não provisiona quando a fase Meta falha antes de persistir', async () => {
+    vi.mocked(onboarding.subscribeAppToWaba).mockRejectedValueOnce(
+      new MetaConnectError('[meta] subscribe rejected', { stage: 'webhook_subscription' }),
+    );
+    await expect(connectMyClinicWhatsapp(connectInput)).rejects.toMatchObject({
+      name: 'MetaConnectError',
+    });
+    expect(mocks.after).not.toHaveBeenCalled();
+    expect(onboarding.ensureMessageTemplates).not.toHaveBeenCalled();
   });
 });

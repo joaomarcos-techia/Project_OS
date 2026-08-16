@@ -15,6 +15,7 @@ vi.mock('@/lib/env', () => ({
 }));
 
 import {
+  ensureMessageTemplates,
   exchangeCodeForToken,
   registerPhoneNumber,
   resolveWabaAndPhone,
@@ -211,5 +212,95 @@ describe('subscribe / unsubscribe', () => {
     fetchMock.mockResolvedValueOnce(res({ success: true }));
     await unsubscribeAppFromWaba('waba-1', 'TOK');
     expect(optOf(fetchMock.mock.calls[0]!).method).toBe('DELETE');
+  });
+});
+
+describe('ensureMessageTemplates', () => {
+  const definition = (name: string, vars: number) => ({
+    kind: 'reminder' as const,
+    name,
+    category: 'UTILITY' as const,
+    languageCode: 'pt_BR',
+    body: `Olá {{1}}${vars > 1 ? ' às {{2}}' : ''}, tudo certo?`,
+    example: Array.from({ length: vars }, (_, i) => `ex${i + 1}`),
+  });
+
+  it('não chama a Meta quando não há definição', async () => {
+    expect(await ensureMessageTemplates('waba-1', 'TOK', [])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('cria só o que falta e reporta o que já existia', async () => {
+    fetchMock.mockResolvedValueOnce(res({ data: [{ name: 'ja_existe' }] }));
+    fetchMock.mockResolvedValueOnce(res({ id: 'tpl-1' }));
+
+    const outcomes = await ensureMessageTemplates('waba-1', 'TOK', [
+      definition('ja_existe', 1),
+      definition('novo', 2),
+    ]);
+
+    expect(outcomes).toEqual([
+      { name: 'ja_existe', status: 'already_exists' },
+      { name: 'novo', status: 'created' },
+    ]);
+    // 1 GET da listagem + 1 POST apenas do que faltava.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(optOf(fetchMock.mock.calls[1]!).method).toBe('POST');
+  });
+
+  it('envia o corpo no formato que a Meta espera', async () => {
+    fetchMock.mockResolvedValueOnce(res({ data: [] }));
+    fetchMock.mockResolvedValueOnce(res({ id: 'tpl-1' }));
+
+    await ensureMessageTemplates('waba-1', 'TOK', [definition('novo', 2)]);
+
+    const body = JSON.parse(String(optOf(fetchMock.mock.calls[1]!).body)) as {
+      name: string;
+      language: string;
+      category: string;
+      components: Array<{ type: string; text: string; example?: { body_text: string[][] } }>;
+    };
+    expect(body).toMatchObject({ name: 'novo', language: 'pt_BR', category: 'UTILITY' });
+    // Só BODY: o sender monta apenas esse componente. Header/botão quebraria o envio.
+    expect(body.components).toHaveLength(1);
+    expect(body.components[0]!.type).toBe('BODY');
+    expect(body.components[0]!.example).toEqual({ body_text: [['ex1', 'ex2']] });
+  });
+
+  it('uma recusa não impede os outros modelos', async () => {
+    fetchMock.mockResolvedValueOnce(res({ data: [] }));
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 100 } }, false, 400));
+    fetchMock.mockResolvedValueOnce(res({ id: 'tpl-2' }));
+
+    const outcomes = await ensureMessageTemplates('waba-1', 'TOK', [
+      definition('recusado', 1),
+      definition('aceito', 1),
+    ]);
+
+    expect(outcomes).toEqual([
+      { name: 'recusado', status: 'failed' },
+      { name: 'aceito', status: 'created' },
+    ]);
+  });
+
+  it('nunca lança: listagem indisponível vira failed em todos', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('boom'));
+    const outcomes = await ensureMessageTemplates('waba-1', 'TOK', [
+      definition('a', 1),
+      definition('b', 1),
+    ]);
+    expect(outcomes).toEqual([
+      { name: 'a', status: 'failed' },
+      { name: 'b', status: 'failed' },
+    ]);
+    // Não tenta criar às cegas — duplicaria pedidos de revisão na Meta.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('não vaza o token quando a Meta recusa', async () => {
+    fetchMock.mockResolvedValueOnce(res({ data: [] }));
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 100 } }, false, 400));
+    const outcomes = await ensureMessageTemplates('waba-1', 'SEGREDO', [definition('x', 1)]);
+    expect(JSON.stringify(outcomes)).not.toContain('SEGREDO');
   });
 });

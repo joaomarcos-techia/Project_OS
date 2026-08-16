@@ -28,6 +28,7 @@ import { after } from 'next/server';
 import { z } from 'zod';
 
 import { requestContext } from '@/lib/audit/request-context-from-headers';
+import { listProactiveTemplateDefinitions } from '@/lib/messaging/proactive-template-catalog';
 import { superAdminAction } from '@/lib/audit/super-admin';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import {
@@ -40,6 +41,7 @@ import { decryptForTenant, encryptForTenant } from '@/lib/crypto';
 import { assertWhatsappOnboardingReady } from '@/lib/env';
 import { maskPhone } from '@/lib/format';
 import { logger } from '@/lib/observability/logger';
+import { metrics } from '@/lib/observability/metrics';
 import {
   deactivateTenantConnection,
   recordConnectionFailure,
@@ -51,6 +53,7 @@ import {
   exchangeCodeForToken,
   registerPhoneNumber,
   resolveWabaAndPhone,
+  ensureMessageTemplates,
   subscribeAppToWaba,
   unsubscribeAppFromWaba,
   validateTokenScopes,
@@ -266,6 +269,31 @@ export async function connectMyClinicWhatsapp(
       tokenEncrypted,
       requestContext: ctx,
     });
+    // Provisionamento dos templates proativos: roda DEPOIS da resposta. São até
+    // cinco chamadas ao Graph e a clínica não pode ficar esperando por elas —
+    // a conexão já está válida e persistida neste ponto.
+    const { token, waba } = meta;
+    after(async () => {
+      const outcomes = await ensureMessageTemplates(
+        waba.wabaId,
+        token,
+        listProactiveTemplateDefinitions(),
+      );
+      const failed = outcomes.filter((o) => o.status === 'failed');
+      metrics.emit('messaging.whatsapp.templates_provisioned', {
+        created: outcomes.filter((o) => o.status === 'created').length,
+        alreadyExists: outcomes.filter((o) => o.status === 'already_exists').length,
+        failed: failed.length,
+      });
+      if (failed.length > 0) {
+        // Nome de template não é segredo e é o que o operador precisa para
+        // cadastrar o que faltou na WhatsApp Manager daquela clínica.
+        logger.error('messaging.whatsapp.template_provision_failed', {
+          templates: failed.map((o) => o.name).join(','),
+        });
+      }
+    });
+
     return { id, phoneNumberMasked: maskPhone(meta.waba.phoneNumber) };
   } catch (err) {
     // Unique parcial global: número já ativo em OUTRA clínica (anti-sequestro).

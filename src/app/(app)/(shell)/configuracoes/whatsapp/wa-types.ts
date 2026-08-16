@@ -24,6 +24,10 @@ const META_FAILURE_MESSAGES: Record<MetaConnectFailureStage, string> = {
     'A Meta recusou a ativação do número. Confirme a verificação por SMS/voz e use um PIN novo de 6 dígitos, diferente do código recebido.',
   webhook_subscription:
     'O número foi ativado, mas a Meta não autorizou a assinatura do webhook. Revise a configuração de Webhooks do app Meta.',
+  // Provisionamento de template nunca aborta o connect (roda depois da resposta,
+  // best-effort). A mensagem existe só para a exaustividade do Record.
+  template_provisioning:
+    'O número foi conectado, mas os modelos de mensagem não puderam ser criados. Cadastre-os na WhatsApp Manager.',
   persistence:
     'Este número já está conectado ou não foi possível salvar a conexão. Tente novamente.',
   unknown: 'Não foi possível conectar o WhatsApp. Tente novamente.',

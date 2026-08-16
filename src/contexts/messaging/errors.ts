@@ -31,6 +31,9 @@ export const META_CONNECT_FAILURE_STAGES = [
   'account',
   'phone_registration',
   'webhook_subscription',
+  // Provisionamento de template no connect. Nunca aborta a conexao: so aparece
+  // em log/metrica, porque o canal serve conversa de servico sem template.
+  'template_provisioning',
   'persistence',
   'unknown',
 ] as const;

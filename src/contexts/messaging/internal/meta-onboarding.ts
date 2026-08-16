@@ -14,6 +14,7 @@
 import 'server-only';
 
 import { env } from '@/lib/env';
+import type { ProactiveTemplateDefinition } from '@/lib/messaging/proactive-template-catalog';
 
 import { MetaConnectError, type MetaConnectFailureStage } from '../errors';
 import type { MetaChannelProbe, MetaProbeOutcome } from './channel-health';
@@ -48,7 +49,8 @@ async function graphFetch<T>(
     stage: MetaConnectFailureStage;
     token?: string;
     query?: Record<string, string>;
-    body?: Record<string, string>;
+    // `unknown`: o corpo de template carrega `components` aninhados.
+    body?: Record<string, unknown>;
   },
 ): Promise<T> {
   const url = new URL(`https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/${path}`);
@@ -193,6 +195,82 @@ export async function subscribeAppToWaba(wabaId: string, token: string): Promise
     stage: 'webhook_subscription',
     token,
   });
+}
+
+export interface TemplateProvisionOutcome {
+  name: string;
+  status: 'created' | 'already_exists' | 'failed';
+}
+
+/**
+ * Garante que os templates proativos existam na WABA do cliente.
+ *
+ * Com Embedded Signup a WABA é do CLIENTE, e template pertence à WABA — não há
+ * como compartilhar um template aprovado entre clínicas. Como o app tem
+ * `whatsapp_business_management` na WABA outorgada, ele cria os modelos por API
+ * no connect, em vez de alguém cadastrar quatro modelos à mão por clínica.
+ *
+ * NUNCA lança. O canal funciona para conversa de serviço mesmo sem template
+ * aprovado; derrubar o connect porque a Meta recusou um modelo transformaria uma
+ * conexão boa em falha. Cada modelo é reportado individualmente para o operador
+ * enxergar o que ficou de fora.
+ *
+ * Idempotente: relê os nomes existentes antes de criar, então reconectar não
+ * tenta recriar nem depende de interpretar o subcode de "name already exists".
+ */
+export async function ensureMessageTemplates(
+  wabaId: string,
+  token: string,
+  definitions: ProactiveTemplateDefinition[],
+): Promise<TemplateProvisionOutcome[]> {
+  if (definitions.length === 0) return [];
+
+  let existing: Set<string>;
+  try {
+    const res = await graphFetch<{ data?: Array<{ name?: string }> }>(
+      `${encodeURIComponent(wabaId)}/message_templates`,
+      { method: 'GET', stage: 'template_provisioning', token, query: { fields: 'name', limit: '250' } },
+    );
+    existing = new Set((res.data ?? []).map((t) => t.name).filter((n): n is string => !!n));
+  } catch {
+    // Sem a lista não dá para decidir o que falta. Criar às cegas duplicaria
+    // pedidos de revisão na Meta; melhor reportar e deixar o health/retry expor.
+    return definitions.map((d) => ({ name: d.name, status: 'failed' as const }));
+  }
+
+  const outcomes: TemplateProvisionOutcome[] = [];
+  for (const definition of definitions) {
+    if (existing.has(definition.name)) {
+      outcomes.push({ name: definition.name, status: 'already_exists' });
+      continue;
+    }
+    try {
+      await graphFetch(`${encodeURIComponent(wabaId)}/message_templates`, {
+        method: 'POST',
+        stage: 'template_provisioning',
+        token,
+        body: {
+          name: definition.name,
+          language: definition.languageCode,
+          category: definition.category,
+          components: [
+            {
+              type: 'BODY',
+              text: definition.body,
+              ...(definition.example.length > 0
+                ? { example: { body_text: [definition.example] } }
+                : {}),
+            },
+          ],
+        },
+      });
+      outcomes.push({ name: definition.name, status: 'created' });
+    } catch {
+      // Uma recusa não pode impedir as outras: cada modelo é independente.
+      outcomes.push({ name: definition.name, status: 'failed' });
+    }
+  }
+  return outcomes;
 }
 
 /** Cancela a assinatura do app na WABA (no disconnect — para não receber webhook inútil). */
