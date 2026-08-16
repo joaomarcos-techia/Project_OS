@@ -454,6 +454,7 @@ test.describe('produção: ciclo LGPD destrutivo completo na Clínica A', () => 
             completed_delete_requests: number;
             audit_pii_keys: number;
             outbox_pii_rows: number;
+            outbox_rows_for_patients: number;
           }[]
         >`
           select
@@ -500,7 +501,14 @@ test.describe('produção: ciclo LGPD destrutivo completo na Clínica A', () => 
                 ]}::text[])
                 and (payload::text like ${`%${marker}%`}
                   or payload::text like ${`%${retainedEmail}%`}
-                  or payload::text like ${`%${physicalEmail}%`})) outbox_pii_rows
+                  or payload::text like ${`%${physicalEmail}%`})) outbox_pii_rows,
+            (select count(*)::int
+               from outbox
+              where clinic_id = ${clinicId!}::uuid
+                and payload ->> 'patientId' = any(${[
+                  retainedPatientId!,
+                  physicalPatientId!,
+                ]}::text[])) outbox_rows_for_patients
         `;
       });
       expect(postState).toEqual({
@@ -510,16 +518,52 @@ test.describe('produção: ciclo LGPD destrutivo completo na Clínica A', () => 
         retained_clinical_rows: 1,
         completed_delete_requests: 2,
         audit_pii_keys: 0,
-        outbox_pii_rows: expect.any(Number),
+        outbox_pii_rows: 0,
+        outbox_rows_for_patients: expect.any(Number),
       });
-      expect(postState!.outbox_pii_rows).toBeGreaterThan(0);
+      // O outbox referencia o paciente por id, nunca por nome/e-mail. A coluna
+      // companheira separa "nao ha linha nenhuma" de "ha linha, sem PII" — so a
+      // segunda prova que a eliminacao nao dependeu de o evento inexistir.
+      expect(postState!.outbox_rows_for_patients).toBeGreaterThan(0);
 
-      const pdfAfterErasure = await ownerContext.request.get(signedUrl);
-      expect(pdfAfterErasure.status()).toBe(200);
-      await pdfAfterErasure.dispose();
-      const jsonAfterErasure = await admin.storage.from('lgpd-exports').download(storagePaths[1]!);
-      expect(jsonAfterErasure.error).toBeNull();
-      expect(jsonAfterErasure.data).not.toBeNull();
+      // O hard-delete purga os artefatos de exportacao junto com o paciente.
+      // Manter um PDF/JSON com a PII integral anularia a anonimizacao — vale
+      // tanto para quem foi eliminado fisicamente quanto para quem ficou por
+      // retencao clinica, porque o snapshot exportado nao anonimiza.
+      const pdfObjectAfterErasure = await admin.storage
+        .from('lgpd-exports')
+        .download(storagePaths[0]!);
+      const jsonObjectAfterErasure = await admin.storage
+        .from('lgpd-exports')
+        .download(storagePaths[1]!);
+      expect(pdfObjectAfterErasure.error).not.toBeNull();
+      expect(jsonObjectAfterErasure.error).not.toBeNull();
+
+      // A URL assinada emitida ANTES da eliminacao nao pode seguir entregando o
+      // arquivo: o portador dela nao deve virar uma copia residual da PII.
+      // O objeto ja nao existe, mas a resposta da URL assinada pode estar no
+      // cache do CDN. Medimos por quanto tempo ela ainda entrega PII em vez de
+      // assumir invalidacao imediata.
+      const startedAt = Date.now();
+      let signedPdfAfterErasureHttp = 0;
+      let signedPdfCacheStatus = '';
+      let signedPdfStillServesContent = true;
+      let signedPdfInvalidatedAfterMs: number | null = null;
+      while (Date.now() - startedAt < 120_000) {
+        const probe = await ownerContext.request.get(signedUrl);
+        signedPdfAfterErasureHttp = probe.status();
+        signedPdfCacheStatus = probe.headers()['cf-cache-status'] ?? '';
+        const body = await probe.body();
+        await probe.dispose();
+        signedPdfStillServesContent =
+          signedPdfAfterErasureHttp === 200 && body.subarray(0, 4).toString('ascii') === '%PDF';
+        if (!signedPdfStillServesContent) {
+          signedPdfInvalidatedAfterMs = Date.now() - startedAt;
+          break;
+        }
+        await ownerPage.waitForTimeout(5_000);
+      }
+      expect(signedPdfStillServesContent).toBe(false);
 
       await ownerPage.goto(`/pacientes/${retainedPatientId}`);
       await expect(ownerPage.getByText('Página não encontrada', { exact: true })).toBeVisible();
@@ -539,9 +583,13 @@ test.describe('produção: ciclo LGPD destrutivo completo na Clínica A', () => 
           completedDeleteRequests: postState!.completed_delete_requests,
           auditPiiKeys: postState!.audit_pii_keys,
           outboxPiiRows: postState!.outbox_pii_rows,
-          signedPdfAfterErasureHttp: 200,
-          privateJsonAfterErasure: true,
-          result: 'functional-pass-with-residual-copy-findings',
+          outboxRowsForPatients: postState!.outbox_rows_for_patients,
+          signedPdfAfterErasureHttp,
+          signedPdfCacheStatus,
+          signedPdfStillServesContent,
+          signedPdfInvalidatedAfterMs,
+          exportArtifactsPurged: true,
+          result: 'functional-pass-without-residual-pii',
         })}`,
       );
     } finally {
