@@ -96,7 +96,7 @@ async function createPatient(
 test.describe('produção: autorização do deep-link de prontuário na Clínica A', () => {
   test.describe.configure({ retries: 0 });
 
-  test('roles sem view:prontuario leem SOAP, mas autosave permanece negado', async ({
+  test('roles sem view:prontuario nao leem SOAP nem alcancam o editor', async ({
     browser,
   }) => {
     test.setTimeout(240_000);

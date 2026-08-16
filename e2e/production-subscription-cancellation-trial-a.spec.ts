@@ -67,7 +67,7 @@ function isServerAction(response: Response): boolean {
 test.describe('produção: negativa de cancelamento durante trial', () => {
   test.describe.configure({ retries: 0 });
 
-  test('UI oferece a ação, backend rejeita retry e nada persiste', async ({ browser }) => {
+  test('UI nao oferece a acao durante o trial e nada persiste', async ({ browser }) => {
     test.setTimeout(180_000);
     test.skip(!authorized, 'Exige autorização explícita para a negativa controlada de assinatura.');
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {

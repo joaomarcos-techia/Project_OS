@@ -87,7 +87,7 @@ function todayInClinicTimezone(): string {
 test.describe('produção: integridade clínica do Consultório na Clínica A', () => {
   test.describe.configure({ retries: 0 });
 
-  test('atendente encerra antes do prontuário e dispara rascunho e faturamento assíncronos', async ({
+  test('atendente NAO encerra a consulta; o medico so encerra com prontuario assinado', async ({
     page,
   }, testInfo) => {
     test.setTimeout(420_000);
@@ -343,6 +343,81 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
         queue_status: 'in_service',
       });
 
+      // AUTHZ-008 — o cenario original era o ATENDENTE encerrando: o worker
+      // criava um prontuario RASCUNHO depois do fato e o Financeiro ganhava um
+      // lancamento de uma consulta sem registro clinico. Esse encadeamento
+      // deixou de existir. O caminho legitimo e o medico: rascunho -> conteudo
+      // -> ASSINATURA -> encerramento.
+      await signIn(page, doctorEmail);
+      await page.goto('/consultorio');
+      // O medico ve apenas o proprio painel: o seletor de profissional so existe
+      // para quem administra a equipe.
+      const doctorBoardSelect = page.getByLabel('Selecionar médico', { exact: true });
+      if ((await doctorBoardSelect.count()) > 0) {
+        await doctorBoardSelect.selectOption(doctorId);
+      }
+      await page.getByRole('button', { name: 'Encerrar consulta', exact: true }).waitFor({
+        timeout: 60_000,
+      });
+
+      // O rascunho nasce do handler de `appointment.started` (assincrono).
+      await expect
+        .poll(
+          async () => {
+            const [row] = await sql<{ n: number }[]>`
+              select count(*)::int n from prontuarios
+               where clinic_id = ${clinicId!}::uuid and appointment_id = ${appointmentId!}::uuid
+            `;
+            return row?.n ?? 0;
+          },
+          { timeout: 90_000, intervals: [3_000] },
+        )
+        .toBe(1);
+      await page.reload();
+      if ((await doctorBoardSelect.count()) > 0) {
+        await doctorBoardSelect.selectOption(doctorId);
+      }
+
+      const soapField = page.locator('textarea').first();
+      await soapField.waitFor({ timeout: 30_000 });
+      await soapField.fill(`${marker} evolucao clinica registrada pelo profissional`);
+
+      // O autosave tem debounce de 10s: assinar antes do flush assinaria um
+      // prontuario sem o conteudo. `Salvar agora` torna isso deterministico.
+      const saveNow = page.getByRole('button', { name: 'Salvar agora', exact: true });
+      if ((await saveNow.count()) > 0) {
+        await saveNow.first().click();
+      }
+      await expect
+        .poll(
+          async () => {
+            const [row] = await sql<{ v: number }[]>`
+              select row_version v from prontuarios
+               where clinic_id = ${clinicId!}::uuid and appointment_id = ${appointmentId!}::uuid
+            `;
+            return row?.v ?? 0;
+          },
+          { timeout: 40_000, intervals: [2_000] },
+        )
+        .toBeGreaterThan(1);
+
+      await page.getByRole('button', { name: 'Assinar consulta', exact: true }).first().click();
+      const signDialog = page.getByRole('dialog', { name: 'Assinar prontuário' });
+      await signDialog.getByRole('button', { name: 'Assinar consulta', exact: true }).click();
+      await expect
+        .poll(
+          async () => {
+            const [row] = await sql<{ status: string }[]>`
+              select status::text from prontuarios
+               where clinic_id = ${clinicId!}::uuid and appointment_id = ${appointmentId!}::uuid
+            `;
+            return row?.status;
+          },
+          { timeout: 60_000, intervals: [2_000] },
+        )
+        .toBe('assinado');
+
+      // So AGORA o encerramento e possivel — a invariante clinica do AUTHZ-008.
       await page.getByRole('button', { name: 'Encerrar consulta', exact: true }).click();
       await expect
         .poll(async () => {
@@ -378,9 +453,11 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
           from appointments a
          where a.clinic_id = ${clinicId}::uuid and a.id = ${appointmentId!}::uuid
       `;
+      // `prontuarios: 1` — antes era 0, porque a consulta era encerrada SEM
+      // registro clinico. E o que o AUTHZ-008 tornou impossivel.
       expect(completed).toEqual({
         status: 'atendido',
-        prontuarios: 0,
+        prontuarios: 1,
         queue_status: 'completed',
         transitions: ['chegou', 'em_atendimento', 'atendido'],
         completed_events: 1,
@@ -394,12 +471,17 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
       await expect(
         page.getByText('Consulta finalizada — somente leitura.', { exact: true }),
       ).toBeVisible();
+      // A consulta finalizada agora TEM prontuario assinado, entao a tela nao
+      // mostra mais "sera criado quando o paciente estiver em atendimento" —
+      // essa mensagem era o sintoma de encerrar sem registro clinico.
       await expect(
         page.getByText('O prontuário será criado quando o paciente estiver em atendimento.', {
           exact: true,
         }),
-      ).toBeVisible();
-      await expect(page.locator('textarea')).toHaveCount(0);
+      ).toHaveCount(0);
+      // Assinado = imutavel. O conteudo agora APARECE (antes nao havia
+      // prontuario nenhum), mas nenhum campo e editavel.
+      await expect(page.locator('textarea:not([disabled]):not([readonly])')).toHaveCount(0);
 
       await signIn(page, financialEmail);
       await page.goto('/consultorio');
@@ -449,11 +531,11 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
            and appointment_id = ${appointmentId!}::uuid
          limit 1
       `;
+      // O prontuario existe, foi preenchido e esta ASSINADO — nao mais um
+      // rascunho vazio criado depois do encerramento.
       expect(lateProntuario).toMatchObject({
-        status: 'rascunho',
-        row_version: 1,
-        version: 1,
-        signed: false,
+        status: 'assinado',
+        signed: true,
         created_by: doctorId,
       });
 
@@ -465,8 +547,11 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
       await expect(
         page.getByText('Consulta finalizada — somente leitura.', { exact: true }),
       ).toBeVisible();
+      // Antes o rascunho tardio ficava EDITAVEL depois da consulta encerrada —
+      // consequencia direta de encerrar sem registro clinico. Assinado, e
+      // imutavel.
       await expect(page.locator('textarea').first()).toBeVisible();
-      await expect(page.locator('textarea').first()).toBeEnabled();
+      await expect(page.locator('textarea').first()).toBeDisabled();
       await expect(page.getByRole('button', { name: 'Assinar consulta', exact: true })).toHaveCount(
         0,
       );
@@ -485,19 +570,17 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
           syntheticWalkIn: true,
           temporaryAvailabilityCreated: Boolean(temporaryAvailabilityId),
         },
-        attendantStartedWithoutProntuario: started?.prontuarios === 0,
-        attendantCompletedWithoutProntuario: completed?.prontuarios === 0,
+        attendantCanCompleteConsult: false,
+        completionRequiredSignedProntuario: completed?.prontuarios === 1,
         finalStatus: completed?.status,
         stateTransitions: completed?.transitions,
-        doctorImmediatePostCompletionView: 'read-only-without-prontuario',
-        eventualWorkerDraft: {
+        clinicalRecord: {
           observed: Boolean(lateProntuario),
           status: lateProntuario?.status,
-          unsigned: lateProntuario ? !lateProntuario.signed : null,
-          initialVersion: lateProntuario?.row_version === 1 && lateProntuario.version === 1,
+          signed: lateProntuario?.signed ?? null,
           attributedToDoctor: lateProntuario?.created_by === doctorId,
         },
-        doctorAfterWorkerView: 'read-only-label-with-editable-draft-and-no-sign-control',
+        doctorAfterCompletionView: 'read-only-with-signed-immutable-record',
         completedEventPublished: completed?.completed_events === 1,
         completedEventProcessed,
         automaticFinancialEntryObserved: Boolean(financialEntry),
@@ -505,7 +588,7 @@ test.describe('produção: integridade clínica do Consultório na Clínica A', 
           ? { status: financialEntry.status, positiveValue: Number(financialEntry.valor) > 0 }
           : null,
         externalProviderCalls: false,
-        result: 'vulnerable-unprivileged-completion-races-clinical-record-and-billing',
+        result: 'clinical-integrity-enforced-completion-requires-signed-record',
       };
       console.log(`[consultorio-attendant-integrity-a] ${JSON.stringify(result)}`);
       await testInfo.attach('consultorio-attendant-integrity-a-result.json', {

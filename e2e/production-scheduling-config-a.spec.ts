@@ -96,7 +96,7 @@ async function openAppointmentDrawer(page: Page): Promise<Locator> {
 test.describe('produção: configurações de scheduling na Clínica A', () => {
   test.describe.configure({ retries: 0 });
 
-  test('procedimentos, recursos e ausência global criada por médico', async ({ browser }) => {
+  test('procedimentos, recursos administrativos e ausencia restrita a propria agenda', async ({ browser }) => {
     test.setTimeout(540_000);
     test.skip(!authorized, 'Exige autorização explícita para dados sintéticos na Clínica A.');
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {
