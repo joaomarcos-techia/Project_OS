@@ -13,6 +13,26 @@ export class IdempotencyConflictError extends Error {
   }
 }
 
+/**
+ * LGPD-004 — a operação TERMINOU, mas a resposta cacheada foi expurgada pela
+ * eliminação do titular.
+ *
+ * Erro próprio, e não um dos dois acima, porque a semântica é a terceira:
+ *   - `InFlight` (425) diria "tente de novo em instantes" → o cliente ficaria
+ *     em loop esperando algo que nunca vai voltar;
+ *   - `Conflict` (409) diria "você reusou a chave com outro payload" → falso.
+ *
+ * O contrato que importa: NÃO reexecutar a mutação (ela aconteceu) e NÃO
+ * devolver um DTO inventado no lugar do conteúdo apagado.
+ */
+export class IdempotencyPurgedError extends Error {
+  readonly httpStatus = 410;
+  constructor(public readonly key: string) {
+    super(`Idempotency key ${key} completed, but its response was erased (LGPD)`);
+    this.name = 'IdempotencyPurgedError';
+  }
+}
+
 export class IdempotencyInFlightError extends Error {
   constructor(public readonly key: string) {
     // Either:

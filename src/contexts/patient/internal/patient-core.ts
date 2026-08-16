@@ -153,7 +153,8 @@ export async function createPatientCore(
         await publishEvent(tx, {
           clinicId,
           eventType: PATIENT_EVENTS.CREATED,
-          payload: { patientId: row!.id, clinicId, nome: row!.nome, cpfHash, telefoneHash, email },
+          // LGPD-002 — só chaves de correlação. Ver a nota no schema do evento.
+          payload: { patientId: row!.id, clinicId },
           idempotencyKey: `${idempotencyKey}:created`,
         });
         return summary;

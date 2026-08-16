@@ -31,13 +31,27 @@ export const PATIENT_EVENTS = {
 
 const uuid = z.string().uuid();
 
+/**
+ * LGPD-002 — MINIMIZAÇÃO NA ORIGEM.
+ *
+ * Este evento carregava `nome`, `cpfHash`, `telefoneHash` e `email`. Não existe
+ * consumidor registrado, então todos os 31 eventos em produção terminaram
+ * `skipped` — e ficaram guardados, com PII, por até 30 dias pela política de
+ * retenção. Sete deles pertenciam a pacientes que JÁ NÃO EXISTIAM em `patients`:
+ * o titular recebeu "eliminação concluída" enquanto nome, e-mail e
+ * identificadores pseudonimizados seguiam em outra cópia.
+ *
+ * Hash de 64 caracteres é PSEUDÔNIMO ESTÁVEL, não dado anônimo: quem tem o CPF
+ * confirma a correspondência. Publicar isso "porque é hash" não satisfaz
+ * minimização.
+ *
+ * O payload agora carrega apenas as chaves de correlação. Quando existir um
+ * consumidor real que precise de mais, ele volta com escopo justificado — e
+ * junto com o saneamento no hard-delete, que é o outro lado desta correção.
+ */
 export const PatientCreatedSchema = z.object({
   patientId: uuid,
   clinicId: uuid,
-  nome: z.string(),
-  cpfHash: z.string(),
-  telefoneHash: z.string().nullable(),
-  email: z.string().email().nullable(), // C12: paciente do agente pode não ter e-mail
 });
 export type PatientCreatedPayload = z.infer<typeof PatientCreatedSchema>;
 

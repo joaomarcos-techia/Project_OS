@@ -17,14 +17,17 @@ import {
   deletePatient,
   linkPatientRelationship,
   mergePatients,
+  recordConsent,
   requestLgpdDelete,
   requestLgpdExport,
   recordPatientDeath,
+  revokeConsent,
   updatePatient,
   unlinkPatientRelationship,
 } from '@/contexts/patient/actions';
 import { listPatients } from '@/contexts/patient/queries';
 import {
+  ConsentTypeSchema,
   CreatePatientSchema,
   LinkPatientRelationshipSchema,
   MergePatientsSchema,
@@ -276,4 +279,65 @@ export async function requestLgpdDeleteForm(
     return { error: messageFrom(err), message: null };
   }
   redirect('/pacientes');
+}
+
+// --- LGPD-005: consentimento ------------------------------------------------
+//
+// O domínio já tinha `recordConsent`/`revokeConsent` — append-only, auditados,
+// idempotentes e gateados por `EDIT_PATIENT`. O que NÃO existia era caller:
+// nenhuma página, action, rota ou ferramenta do agente os invocava, então a
+// clínica não conseguia operar conceder → consultar → revogar pelo produto.
+//
+// Estes wrappers são só a porta. Nenhuma regra nova, nenhuma escrita paralela,
+// nenhum UPDATE em decisão antiga: o histórico continua sendo a fonte.
+
+export async function grantConsentForm(_prev: LgpdFormState, fd: FormData): Promise<LgpdFormState> {
+  const id = str(fd, 'id');
+  const key = str(fd, 'idempotencyKey') ?? '';
+  const purpose = ConsentTypeSchema.safeParse(str(fd, 'purpose'));
+  if (!id || !purpose.success) return { error: 'Finalidade inválida.', message: null };
+
+  // `recordConsent` grava o conjunto completo de finalidades. Concedemos a
+  // pedida e preservamos as demais como estão — conceder uma não pode revogar
+  // as outras por omissão.
+  const current = {
+    dadosSaude: fd.get('dadosSaude') === '1',
+    compartilhamento: fd.get('compartilhamento') === '1',
+    cobrancaWhatsapp: fd.get('cobrancaWhatsapp') === '1',
+    marketing: fd.get('marketing') === '1',
+    pesquisa: fd.get('pesquisa') === '1',
+  };
+  const FIELD: Record<string, keyof typeof current> = {
+    dados_saude: 'dadosSaude',
+    compartilhamento: 'compartilhamento',
+    cobranca_whatsapp: 'cobrancaWhatsapp',
+    marketing: 'marketing',
+    pesquisa: 'pesquisa',
+  };
+  current[FIELD[purpose.data]!] = true;
+
+  try {
+    await recordConsent(id, current, key);
+    return { error: null, message: 'Consentimento registrado.' };
+  } catch (err) {
+    return { error: messageFrom(err), message: null };
+  }
+}
+
+export async function revokeConsentForm(
+  _prev: LgpdFormState,
+  fd: FormData,
+): Promise<LgpdFormState> {
+  const id = str(fd, 'id');
+  const key = str(fd, 'idempotencyKey') ?? '';
+  const purpose = ConsentTypeSchema.safeParse(str(fd, 'purpose'));
+  if (!id || !purpose.success) return { error: 'Finalidade inválida.', message: null };
+  try {
+    // Revogar canal de contato também alimenta a suppression list — quem revoga
+    // para de receber, não só "fica marcado como revogado".
+    await revokeConsent(id, purpose.data, key);
+    return { error: null, message: 'Consentimento revogado.' };
+  } catch (err) {
+    return { error: messageFrom(err), message: null };
+  }
 }

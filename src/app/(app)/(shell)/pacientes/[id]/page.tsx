@@ -16,6 +16,7 @@ import { PageNoAccess } from '@/components/shared/page-no-access';
 import {
   getPatientWithDecryptedFields,
   getPrincipalAddress,
+  listCurrentConsentDecisions,
   listPatientRelationships,
 } from '@/contexts/patient/queries';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +28,7 @@ import { cn } from '@/lib/ui/cn';
 
 import { updatePatientForm } from '../actions';
 import { PatientForm } from '../patient-form';
+import { ConsentCard, type ConsentPurposeView } from './consent-card';
 import { DeletePatientForm } from './delete-form';
 import { LgpdActions } from './lgpd-actions';
 import { PatientDeathForm } from './patient-death-form';
@@ -110,6 +112,10 @@ export default async function PacienteDetailPage({
 
   // AUTHZ-003 — o deep-link `?tab=prontuarios` não pode virar leitura clínica
   // só porque a URL foi digitada. Sem a permission, a aba não existe.
+  // LGPD-005 — mesma permissão que `recordConsent`/`revokeConsent` exigem.
+  const canEditPatient = user.isSuperAdmin
+    ? user.aal === 'aal2'
+    : user.permissions.includes(PERMISSIONS.EDIT_PATIENT);
   const canViewProntuario = user.isSuperAdmin
     ? user.aal === 'aal2'
     : user.permissions.includes(PERMISSIONS.VIEW_PRONTUARIO);
@@ -136,7 +142,9 @@ export default async function PacienteDetailPage({
 
       <HubTabs patientId={p.id} active={tab} canViewProntuario={canViewProntuario} />
 
-      {tab === 'dados' ? <DadosTab clinicId={clinicId} patient={p} /> : null}
+      {tab === 'dados' ? (
+        <DadosTab clinicId={clinicId} patient={p} canEditPatient={canEditPatient} />
+      ) : null}
       {tab === 'prontuarios' ? (
         <ProntuariosTab clinicId={clinicId} patientId={p.id} deceased={p.obitoEm != null} />
       ) : null}
@@ -144,17 +152,65 @@ export default async function PacienteDetailPage({
   );
 }
 
+/**
+ * LGPD-005 — catálogo apresentável das finalidades. Os `purpose` são os mesmos
+ * do enum do banco e de `CONSENT_DECISIONS` no domínio; o texto vive aqui
+ * porque é decisão de tela, não de contrato.
+ */
+const CONSENT_PURPOSES: Array<{ purpose: string; label: string; description: string }> = [
+  {
+    purpose: 'dados_saude',
+    label: 'Tratamento de dados de saúde',
+    description: 'Uso dos dados clínicos para o atendimento na clínica.',
+  },
+  {
+    purpose: 'compartilhamento',
+    label: 'Compartilhamento com terceiros',
+    description: 'Envio de dados a laboratórios, convênios e demais parceiros.',
+  },
+  {
+    purpose: 'cobranca_whatsapp',
+    label: 'Cobrança por WhatsApp',
+    description: 'Mensagens sobre pagamentos e pendências financeiras.',
+  },
+  {
+    purpose: 'marketing',
+    label: 'Comunicações de marketing',
+    description: 'Campanhas, novidades e promoções da clínica.',
+  },
+  {
+    purpose: 'pesquisa',
+    label: 'Pesquisa e estudos',
+    description: 'Uso de dados anonimizados em pesquisas clínicas.',
+  },
+];
+
 async function DadosTab({
   clinicId,
   patient: p,
+  canEditPatient,
 }: {
   clinicId: string;
   patient: NonNullable<Awaited<ReturnType<typeof getPatientWithDecryptedFields>>>;
+  canEditPatient: boolean;
 }) {
-  const [endereco, relationships] = await Promise.all([
+  const [endereco, relationships, decisions] = await Promise.all([
     getPrincipalAddress(clinicId, p.id),
     listPatientRelationships(clinicId, p.id),
+    listCurrentConsentDecisions(clinicId, p.id),
   ]);
+  const decisionByPurpose = new Map(decisions.map((d) => [d.purpose, d]));
+  const consentPurposes: ConsentPurposeView[] = CONSENT_PURPOSES.map((c) => {
+    const d = decisionByPurpose.get(c.purpose);
+    return {
+      purpose: c.purpose,
+      label: c.label,
+      description: c.description,
+      granted: d?.granted ?? false,
+      version: d?.version ?? 0,
+      recordedAt: d?.recordedAt ?? null,
+    };
+  });
   return (
     <div className="flex flex-col gap-(--sp-4)">
       <Card>
@@ -201,6 +257,8 @@ async function DadosTab({
       </Card>
 
       <PatientRelationshipsCard patientId={p.id} relationships={relationships} />
+
+      <ConsentCard patientId={p.id} purposes={consentPurposes} canEdit={canEditPatient} />
 
       <Card className="p-(--card-pad)">
         <DeletePatientForm id={p.id} />

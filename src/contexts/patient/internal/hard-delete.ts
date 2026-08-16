@@ -35,6 +35,7 @@ import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 
 import { encryptForTenant } from '@/lib/crypto';
 import { withTenant } from '@/lib/db/tenant';
+import { PURGED_RESPONSE } from '@/lib/idempotency/purged';
 
 import {
   lgpdRequests,
@@ -90,12 +91,67 @@ export async function anonymizePatientAuditTrail(
             after  = (after  - 'nome' - 'email' - 'dataNascimento' - 'sexo' - 'obitoEm')
         WHERE resource_type = 'patient' AND resource_id = ANY(${ids})`,
   );
-  // A resposta de create/update é um PatientSummary cujo `id` é o patient id;
-  // anular a response remove nome/email residuais até a key expirar.
+  // A resposta de create/update é um PatientSummary cujo `id` é o patient id.
+  //
+  // LGPD-004 — o scrub anterior fazia `response = NULL`, e `NULL` já significava
+  // OUTRA coisa no protocolo de idempotência: "reserva em andamento". Uma chave
+  // concluída (status_code=200) virava indistinguível de uma operação em voo —
+  // o replay recebia conflito falso, o health contava `in_flight` para algo que
+  // terminou, e o trigger bloqueava o DELETE como se fosse recente.
+  //
+  // O sentinel abaixo mantém a resposta NÃO-NULA (portanto terminal) e sem PII.
+  // `idempotentMutation` continua enxergando uma execução concluída; quem
+  // consome só vê que o conteúdo foi expurgado.
   await admin.execute(
     sql`UPDATE idempotency_keys
-        SET response = NULL
-        WHERE response IS NOT NULL AND response->>'id' = ANY(${ids})`,
+        SET response = ${JSON.stringify(PURGED_RESPONSE)}::jsonb
+        WHERE response IS NOT NULL
+          AND response->>'purged' IS NULL
+          AND response->>'id' = ANY(${ids})`,
+  );
+}
+
+/**
+ * LGPD-002 — saneia os payloads do OUTBOX do titular.
+ *
+ * `anonymizePatientAuditTrail` cuidava de `audit_events` e `idempotency_keys` e
+ * parava ali. O outbox ficava intocado, inclusive os eventos já `skipped`, que
+ * a política genérica conserva por até 30 dias. Resultado medido em produção:
+ * sete pacientes ausentes de `patients` com nome/hash de CPF ainda no payload.
+ *
+ * Duas regras deliberadas:
+ *
+ *  - Só toca eventos TERMINAIS (`processed`/`skipped`). Uma linha `pending` ou
+ *    `processing` ainda vai ser entregue a um handler; reescrever o payload
+ *    debaixo dele trocaria um problema de privacidade por um de corrupção de
+ *    fila. Se existir pendência do titular, ela é entregue e o próximo run do
+ *    cron a alcança — o job é idempotente.
+ *
+ *  - Escopo por `clinic_id` + `patientId` dentro do payload. Evento de outro
+ *    paciente ou de outro tenant fica byte a byte igual.
+ *
+ * As chaves removidas são as mesmas de `PATIENT_PII_AUDIT_KEYS` mais os
+ * pseudônimos (`cpfHash`/`telefoneHash`): hash estável identifica o titular
+ * para quem já tem o dado original.
+ */
+export async function anonymizePatientOutbox(
+  admin: AdminExecutor,
+  clinicId: string,
+  patientIds: string[],
+): Promise<void> {
+  if (patientIds.length === 0) return;
+  const ids = sql`ARRAY[${sql.join(
+    patientIds.map((patientId) => sql`${patientId}`),
+    sql`, `,
+  )}]::text[]`;
+  await admin.execute(
+    sql`UPDATE outbox
+        SET payload = (payload
+              - 'nome' - 'email' - 'dataNascimento' - 'sexo' - 'obitoEm'
+              - 'cpfHash' - 'telefoneHash' - 'telefone' - 'cpf')
+        WHERE clinic_id = ${clinicId}::uuid
+          AND status IN ('processed', 'skipped')
+          AND payload->>'patientId' = ANY(${ids})`,
   );
 }
 
@@ -120,15 +176,48 @@ function anonCpfHash(patientId: string): string {
   return `anon:${patientId}`;
 }
 
+/**
+ * Porta do Storage, injetada pelo caller.
+ *
+ * `@/lib/storage/exports` usa o client service-role e um context não pode
+ * alcançá-lo (boundary C1). Recebê-la por parâmetro mantém a regra e deixa o
+ * teste exercitar sucesso, ausência de objeto e falha sem tocar em rede.
+ */
+export type ExportEraser = (clinicId: string, patientId: string) => Promise<{ removed: number }>;
+
 export async function hardDeletePatients(
   clinicId: string,
   ids: string[],
+  eraseExports?: ExportEraser,
 ): Promise<HardDeleteOutcome> {
   const outcome: HardDeleteOutcome = { deleted: 0, anonymized: 0, failed: 0 };
   if (ids.length === 0) return outcome;
 
+  // LGPD-003 — o Storage é apagado ANTES de o pedido virar `completed`.
+  //
+  // A ordem não é estética: se o objeto sumir depois da conclusão e a remoção
+  // falhar, o sistema já terá dito ao titular que a eliminação terminou
+  // enquanto a cópia mais completa dos dados dele continua baixável. Falhar
+  // aqui deixa o paciente para o próximo run — o pedido segue observável em
+  // `processing`, que é o estado honesto.
+  const storageFailures = new Set<string>();
+  if (eraseExports) {
+    for (const id of ids) {
+      try {
+        await eraseExports(clinicId, id);
+      } catch {
+        storageFailures.add(id);
+      }
+    }
+  }
+
   await withTenant(clinicId, async (tx) => {
     for (const id of ids) {
+      if (storageFailures.has(id)) {
+        outcome.failed++;
+        await markDeleteRequestsFailed(tx, clinicId, id);
+        continue;
+      }
       try {
         // Savepoint: o DELETE que violar o RESTRICT clínico faz rollback só
         // deste paciente; o lote continua (F-02).
@@ -214,6 +303,21 @@ async function markDeleteRequestsCompleted(
         eq(lgpdRequests.patientId, patientId),
         eq(lgpdRequests.type, 'delete'),
         inArray(lgpdRequests.status, ['pending', 'processing']),
+      ),
+    );
+
+  // LGPD-003 — a URL assinada persistida do pedido de EXPORTAÇÃO do mesmo
+  // titular também morre aqui. O objeto já foi removido do bucket, mas deixar a
+  // URL na linha mantém um bearer token guardado e faz a UI oferecer um
+  // download que não existe mais. Escopo: pedidos de `export` deste paciente.
+  await sp
+    .update(lgpdRequests)
+    .set({ exportSignedUrl: null, exportSignedUrlExpiresAt: null })
+    .where(
+      and(
+        eq(lgpdRequests.clinicId, clinicId),
+        eq(lgpdRequests.patientId, patientId),
+        eq(lgpdRequests.type, 'export'),
       ),
     );
 }

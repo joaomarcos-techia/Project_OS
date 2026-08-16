@@ -634,3 +634,63 @@ export async function collectExportBundle(
     };
   }
 }
+
+/**
+ * LGPD-005 — decisão ATUAL de consentimento por finalidade.
+ *
+ * `patient_consent_decisions` é append-only: cada concessão/revogação vira uma
+ * linha nova com `version` incrementada. "O estado atual" é a linha de maior
+ * versão de cada (purpose, channel) — nunca um UPDATE.
+ *
+ * O domínio (`recordConsent`/`revokeConsent`) já existia, íntegro e auditado, e
+ * NADA no produto o invocava: nem página, nem Server Action, nem rota, nem
+ * ferramenta do agente. A clínica não conseguia operar conceder → consultar →
+ * revogar. Esta query é a metade que faltava para a leitura.
+ */
+export interface ConsentDecisionDTO {
+  purpose: string;
+  channel: string | null;
+  granted: boolean;
+  version: number;
+  recordedAt: string;
+  recordedBy: string | null;
+}
+
+export async function listCurrentConsentDecisions(
+  clinicId: string,
+  patientId: string,
+): Promise<ConsentDecisionDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    // DISTINCT ON (purpose, channel) + ORDER BY version DESC devolve exatamente
+    // a decisão vigente de cada finalidade numa única varredura do índice
+    // (patient_id, purpose, channel, version).
+    const rows = (await tx.execute(sql`
+      SELECT DISTINCT ON (purpose, channel)
+             purpose::text        AS purpose,
+             channel::text        AS channel,
+             granted,
+             version,
+             recorded_at          AS recorded_at,
+             recorded_by::text    AS recorded_by
+        FROM patient_consent_decisions
+       WHERE clinic_id = ${clinicId}::uuid AND patient_id = ${patientId}::uuid
+       ORDER BY purpose, channel, version DESC
+    `)) as unknown as Array<{
+      purpose: string;
+      channel: string | null;
+      granted: boolean;
+      version: number;
+      recorded_at: Date | string;
+      recorded_by: string | null;
+    }>;
+
+    return rows.map((r) => ({
+      purpose: r.purpose,
+      channel: r.channel,
+      granted: r.granted,
+      version: Number(r.version),
+      recordedAt: toIso(r.recorded_at as Date)!,
+      recordedBy: r.recorded_by,
+    }));
+  });
+}

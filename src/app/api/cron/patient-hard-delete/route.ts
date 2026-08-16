@@ -31,11 +31,13 @@ import { sql } from 'drizzle-orm';
 
 import {
   anonymizePatientAuditTrail,
+  anonymizePatientOutbox,
   hardDeletePatients,
 } from '@/contexts/patient/internal/hard-delete';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withCron } from '@/lib/http/cron';
+import { deletePatientExports } from '@/lib/storage/exports';
 import { metrics } from '@/lib/observability/metrics';
 
 export const runtime = 'nodejs';
@@ -97,6 +99,13 @@ export const GET = withCron(
       rows.map((r) => r.id),
     );
 
+    // 3b. LGPD-002 — saneia os payloads do outbox do titular, inclusive os já
+    //     `skipped`. O passo 3 parava em audit/idempotency; era por isso que
+    //     nome e hash de CPF sobreviviam à "eliminação concluída".
+    for (const [clinicId, ids] of byClinic) {
+      await anonymizePatientOutbox(dbAdmin, clinicId, ids);
+    }
+
     // 4. Per-clinic, per-patient processing (RLS-scoped). F-02: uma clínica que
     //    falhe catastroficamente não aborta as seguintes.
     let deleted = 0;
@@ -104,7 +113,9 @@ export const GET = withCron(
     let failed = 0;
     for (const [clinicId, ids] of byClinic) {
       try {
-        const outcome = await hardDeletePatients(clinicId, ids);
+        // LGPD-003 — a porta do Storage é injetada: o context não pode
+        // alcançar o client service-role (boundary C1).
+        const outcome = await hardDeletePatients(clinicId, ids, deletePatientExports);
         deleted += outcome.deleted;
         anonymized += outcome.anonymized;
         failed += outcome.failed;

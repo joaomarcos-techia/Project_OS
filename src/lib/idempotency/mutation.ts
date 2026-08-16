@@ -13,7 +13,12 @@ import { runWithContext } from '@/lib/observability/context';
 import { isLockTimeout } from '@/lib/outbox/errors';
 import { capJsonSize } from '@/lib/sanitize/cap';
 
-import { IdempotencyConflictError, IdempotencyInFlightError } from './errors';
+import {
+  IdempotencyConflictError,
+  IdempotencyInFlightError,
+  IdempotencyPurgedError,
+} from './errors';
+import { isPurgedResponse } from './purged';
 import { payloadHash } from './hash';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 
@@ -306,6 +311,14 @@ export async function idempotentMutation<T>(
           if (row.response === null) {
             metrics.emit('idempotency.in_flight', { key: opts.idempotency.key });
             throw new IdempotencyInFlightError(opts.idempotency.key);
+          }
+          // LGPD-004 — resposta expurgada pela eliminação do titular. É estado
+          // TERMINAL: a mutação já rodou. Antes o scrub escrevia NULL aqui e
+          // caía no ramo acima, dizendo "em processamento" para algo concluído.
+          // Não reexecuta e não devolve o sentinel como se fosse o DTO.
+          if (isPurgedResponse(row.response)) {
+            metrics.emit('idempotency.purged', { key: opts.idempotency.key });
+            throw new IdempotencyPurgedError(opts.idempotency.key);
           }
           metrics.emit('idempotency.hit', { key: opts.idempotency.key });
           return row.response as T;

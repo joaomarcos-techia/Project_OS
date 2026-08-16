@@ -16,8 +16,11 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 
+import { PURGED_RESPONSE } from '@/lib/idempotency/purged';
+
 import {
   anonymizePatientAuditTrail,
+  anonymizePatientOutbox,
   isFkRestrictViolation,
   PATIENT_PII_AUDIT_KEYS,
 } from './hard-delete';
@@ -64,11 +67,19 @@ describe('anonymizePatientAuditTrail (F-11 — fonte única de strip de PII)', (
     ]);
   });
 
-  it('faz scrub das respostas cacheadas em idempotency_keys', async () => {
+  it('LGPD-004: o scrub grava o sentinel expurgado, NUNCA NULL', async () => {
+    // `response = NULL` já significa "reserva em andamento" no protocolo de
+    // idempotência. Usá-lo para apagar PII fazia uma chave CONCLUÍDA parecer
+    // in-flight: replay recebia conflito falso, o health contava operação em
+    // curso e o trigger recusava o DELETE. O sentinel é não-nulo (terminal),
+    // sem PII e reconhecível.
     const calls = await capture(['22222222-2222-2222-2222-222222222222']);
     const idem = calls.find((c) => c.text.includes('idempotency_keys'));
     expect(idem).toBeDefined();
-    expect(idem!.text).toContain('response = NULL');
+    expect(idem!.text).not.toContain('response = NULL');
+    expect(idem!.params).toContain(JSON.stringify(PURGED_RESPONSE));
+    // Idempotente: não reescreve o que já foi expurgado.
+    expect(idem!.text).toContain("response->>'purged' IS NULL");
   });
 
   it('ids são SEMPRE bind params (CWE-89), nunca interpolados', async () => {
@@ -81,14 +92,13 @@ describe('anonymizePatientAuditTrail (F-11 — fonte única de strip de PII)', (
   });
 
   it('passa vários ids como text[] válido para ANY', async () => {
-    const ids = [
-      '44444444-4444-4444-4444-444444444444',
-      '55555555-5555-5555-5555-555555555555',
-    ];
+    const ids = ['44444444-4444-4444-4444-444444444444', '55555555-5555-5555-5555-555555555555'];
     const calls = await capture(ids);
     for (const call of calls) {
-      expect(call.text).toContain('ANY(ARRAY[$1, $2]::text[])');
-      expect(call.params).toEqual(ids);
+      // Os ids continuam sendo bind params num text[]; o índice inicial varia
+      // porque o UPDATE de idempotency_keys também vincula o sentinel.
+      expect(call.text).toMatch(/ANY\(ARRAY\[\$\d+, \$\d+\]::text\[\]\)/u);
+      expect(call.params).toEqual(expect.arrayContaining(ids));
     }
   });
 
@@ -125,5 +135,58 @@ describe('isFkRestrictViolation (F-02 — decide anonimização vs falha)', () =
     expect(isFkRestrictViolation(null)).toBe(false);
     expect(isFkRestrictViolation(undefined)).toBe(false);
     expect(isFkRestrictViolation('23503')).toBe(false);
+  });
+});
+
+describe('anonymizePatientOutbox (LGPD-002)', () => {
+  async function capture(
+    clinicId: string,
+    ids: string[],
+  ): Promise<Array<{ text: string; params: unknown[] }>> {
+    const captured: Array<{ text: string; params: unknown[] }> = [];
+    const fakeAdmin = {
+      execute: (query: SQL) => {
+        captured.push(render(query));
+        return Promise.resolve([]);
+      },
+    };
+    await anonymizePatientOutbox(fakeAdmin, clinicId, ids);
+    return captured;
+  }
+
+  const CLINIC = '99999999-9999-9999-9999-999999999999';
+  const PATIENT = '11111111-1111-1111-1111-111111111111';
+
+  it('remove nome, e-mail e os PSEUDÔNIMOS do payload', async () => {
+    // Hash de 64 chars é pseudônimo estável, não dado anônimo: quem tem o CPF
+    // confirma a correspondência. Por isso cpfHash/telefoneHash saem junto.
+    const [call] = await capture(CLINIC, [PATIENT]);
+    for (const key of ['nome', 'email', 'cpfHash', 'telefoneHash', 'telefone', 'cpf']) {
+      expect(call!.text).toContain(`- '${key}'`);
+    }
+  });
+
+  it('só toca eventos TERMINAIS — fila em voo não é reescrita debaixo do handler', async () => {
+    const [call] = await capture(CLINIC, [PATIENT]);
+    expect(call!.text).toContain("status IN ('processed', 'skipped')");
+    expect(call!.text).not.toContain('pending');
+    expect(call!.text).not.toContain('processing');
+  });
+
+  it('escopa por clínica E paciente — evento de outro tenant fica intacto', async () => {
+    const [call] = await capture(CLINIC, [PATIENT]);
+    expect(call!.text).toContain('clinic_id =');
+    expect(call!.text).toContain("payload->>'patientId' = ANY(");
+    expect(call!.params).toEqual(expect.arrayContaining([CLINIC, PATIENT]));
+  });
+
+  it('ids nunca são interpolados na string (CWE-89)', async () => {
+    const [call] = await capture(CLINIC, [PATIENT]);
+    expect(call!.text).not.toContain(PATIENT);
+    expect(call!.params).toContain(PATIENT);
+  });
+
+  it('lista vazia → zero round-trips', async () => {
+    expect(await capture(CLINIC, [])).toHaveLength(0);
   });
 });
