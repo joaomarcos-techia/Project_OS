@@ -295,13 +295,23 @@ test.describe('produção: configurações de scheduling na Clínica A', () => {
       );
       expect(deactivateProcedureHttp).toBeLessThan(500);
 
+      // AUTHZ-007 — sala/equipamento e recurso COMPARTILHADO: desativar um
+      // afeta a agenda da clinica inteira. O spec afirmava que um MEDICO
+      // conseguia desativar; agora a subrota exige a mesma capacidade
+      // administrativa que a action passou a exigir.
       await doctorPage.goto('/configuracoes/recursos');
+      await expect(doctorPage.getByText('Sem acesso', { exact: true })).toBeVisible();
       const doctorCanSeeGlobalResource = await doctorPage
         .getByText(resourceName, { exact: true })
         .isVisible();
+      expect(doctorCanSeeGlobalResource).toBe(false);
+      await expect(doctorPage.getByRole('button', { name: 'Desativar' })).toHaveCount(0);
+
+      // Quem administra a equipe desativa — o resto do roteiro continua valendo.
+      await ownerPage.goto('/configuracoes/recursos');
       const deactivateResourceHttp = await clickServerAction(
-        doctorPage,
-        resourceRow(doctorPage, resourceName).getByRole('button', { name: 'Desativar' }),
+        ownerPage,
+        resourceRow(ownerPage, resourceName).getByRole('button', { name: 'Desativar' }),
       );
       expect(deactivateResourceHttp).toBeLessThan(500);
 
@@ -325,7 +335,10 @@ test.describe('produção: configurações de scheduling na Clínica A', () => {
       expect(inactive).toEqual({
         procedure_active: false,
         resource_active: false,
-        resource_actor_is_doctor: true,
+        // AUTHZ-007 — quem desativou foi o owner, nao o medico: o recurso
+        // compartilhado deixou de ser administravel por quem so gere a propria
+        // agenda.
+        resource_actor_is_doctor: false,
       });
 
       appointmentDrawer = await openAppointmentDrawer(ownerPage);
@@ -347,6 +360,9 @@ test.describe('produção: configurações de scheduling na Clínica A', () => {
       await expect(
         absenceForm.locator(`select[name="doctorId"] option[value="${ownerId}"]`),
       ).toHaveCount(0);
+      // O seletor comeca vazio e e `required`: sem escolher, o submit nem sai.
+      // A unica opcao disponivel e o proprio medico — que e o ponto do AUTHZ-007.
+      await absenceForm.locator('select[name="doctorId"]').selectOption(doctorId!);
       await absenceForm.locator('select[name="strategy"]').selectOption('cancel');
       await absenceForm.locator('input[name="startsAt"]').fill('2099-01-01T10:00');
       await absenceForm.locator('input[name="endsAt"]').fill('2099-01-01T11:00');
@@ -378,8 +394,11 @@ test.describe('produção: configurações de scheduling na Clínica A', () => {
       });
       if (!absence) throw new Error('Ausência sintética não persistiu.');
       absenceId = absence.id;
+      // AUTHZ-007 — o alvo agora e o PROPRIO medico, nunca o owner. Antes o
+      // spec afirmava `target_is_owner: true`, que era o achado: um medico com
+      // `manage:availability` registrava ausencia da agenda alheia.
       expect(absence).toMatchObject({
-        target_is_owner: true,
+        target_is_owner: false,
         creator_is_doctor: true,
         affected: 0,
         strategy: 'cancel',
@@ -400,11 +419,12 @@ test.describe('produção: configurações de scheduling na Clínica A', () => {
       );
       expect(reactivateProcedureHttp).toBeLessThan(500);
 
-      await doctorPage.goto('/configuracoes/recursos');
-      await doctorPage.getByText('Mostrar inativos', { exact: true }).locator('input').check();
+      // AUTHZ-007 — reativar tambem e administracao de recurso compartilhado.
+      await ownerPage.goto('/configuracoes/recursos');
+      await ownerPage.getByText('Mostrar inativos', { exact: true }).locator('input').check();
       const reactivateResourceHttp = await clickServerAction(
-        doctorPage,
-        resourceRow(doctorPage, resourceName).getByRole('button', { name: 'Reativar' }),
+        ownerPage,
+        resourceRow(ownerPage, resourceName).getByRole('button', { name: 'Reativar' }),
       );
       expect(reactivateResourceHttp).toBeLessThan(500);
 

@@ -64,16 +64,6 @@ function isServerAction(response: Response): boolean {
   return request.method() === 'POST' && Boolean(request.headers()['next-action']);
 }
 
-async function clickCancellation(page: Page): Promise<number> {
-  const responsePromise = page.waitForResponse(isServerAction);
-  await page.getByRole('button', { name: 'Cancelar assinatura ao fim do ciclo' }).click();
-  const status = (await responsePromise).status();
-  await expect(
-    page.getByText('O cancelamento exige uma assinatura ativa.', { exact: true }),
-  ).toBeVisible();
-  return status;
-}
-
 test.describe('produção: negativa de cancelamento durante trial', () => {
   test.describe.configure({ retries: 0 });
 
@@ -147,20 +137,21 @@ test.describe('produção: negativa de cancelamento durante trial', () => {
         doctorPage.getByRole('button', { name: 'Cancelar assinatura ao fim do ciclo' }),
       ).toHaveCount(0);
 
+      // UX-002 — o achado: a assinatura em `trial` OFERECIA o botao de
+      // cancelamento, o owner clicava, recebia 200 controlado com "O
+      // cancelamento exige uma assinatura ativa." e nada acontecia. O backend
+      // sempre esteve fail-closed; o defeito era a UI prometer uma acao
+      // impossivel. Agora o botao so aparece com `billingStatus === 'active'`.
       const cancelButton = ownerPage.getByRole('button', {
         name: 'Cancelar assinatura ao fim do ciclo',
       });
-      await expect(cancelButton).toBeVisible();
-      await expect(cancelButton).toBeEnabled();
-      const cancellationForm = cancelButton.locator('xpath=ancestor::form[1]');
-      cancellationKey = await cancellationForm.locator('input[name="idempotencyKey"]').inputValue();
-      expect(cancellationKey).toMatch(/^[0-9a-f-]{36}$/u);
+      await expect(cancelButton).toHaveCount(0);
+      const cancellationButtonVisible = false;
 
-      const firstHttp = await clickCancellation(ownerPage);
-      const secondHttp = await clickCancellation(ownerPage);
-      expect([firstHttp, secondHttp]).toEqual([200, 200]);
-
-      const idempotencyKey = `billing:cancellation:${cancellationKey.replaceAll('-', '')}`;
+      // A verificacao que continua importando: nada mudou no estado da
+      // assinatura. O gate de backend (`billingStatus === 'active'`) segue
+      // coberto por teste unitario.
+      const idempotencyKey = 'billing:cancellation:nao-houve-tentativa';
       const [after] = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
         const rows = await tx<
@@ -204,11 +195,8 @@ test.describe('produção: negativa de cancelamento durante trial', () => {
         `[subscription-trial-negative-a] ${JSON.stringify({
           billingStatus: baseline.status,
           periodEndPresent: baseline.period_end_present,
-          cancellationButtonVisible: true,
-          cancellationButtonEnabled: true,
-          httpStatuses: [firstHttp, secondHttp],
-          controlledDomainError: true,
-          retryProducedSameControlledError: true,
+          cancellationButtonVisible,
+          uiOffersImpossibleAction: cancellationButtonVisible,
           cancelAtPeriodEndAfter: after?.cancel_at_period_end,
           pendingChangesAfter: after?.pending_changes,
           billingEventsAfter: after?.cancellation_events,

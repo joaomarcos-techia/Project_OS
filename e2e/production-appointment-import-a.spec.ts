@@ -432,7 +432,12 @@ test.describe('produção: importação histórica da Agenda na Clínica A', () 
         .inputValue();
       const validResponse = await submitImport(ownerPage);
       await expect(ownerPage.getByText(/3 atendimento\(s\) importado\(s\)/u)).toBeVisible();
-      await expect(ownerPage.locator('input[name="idempotencyKey"]')).toHaveValue(
+      // UX-004 — o achado: `useMemo(() => uuidv4(), [])` congelava a chave na
+      // montagem da pagina, entao um segundo lote na MESMA montagem batia em
+      // "Idempotency key reused with a different payload" e importava zero. A
+      // chave agora ROTACIONA depois de um lote concluido: o segundo arquivo e
+      // uma operacao nova, nao replay do primeiro.
+      await expect(ownerPage.locator('input[name="idempotencyKey"]')).not.toHaveValue(
         validIdempotencyKey,
       );
 
@@ -549,6 +554,16 @@ test.describe('produção: importação histórica da Agenda na Clínica A', () 
         items: validItems,
         filename: 'valid-replay.json',
       });
+      // UX-004 — a chave rotaciona, entao a UI ja NAO produz um replay sozinha
+      // (era exatamente o defeito: o segundo lote herdava a chave do primeiro e
+      // era recusado). Para exercitar a idempotencia de verdade, forcamos a
+      // chave ORIGINAL de volta: mesma chave + mesma carga = retry legitimo, e
+      // o servidor deve devolver o lote original sem duplicar nada.
+      await ownerPage
+        .locator('input[name="idempotencyKey"]')
+        .evaluate((element, value) => {
+          (element as HTMLInputElement).value = value;
+        }, validIdempotencyKey);
       await expect(ownerPage.locator('input[name="idempotencyKey"]')).toHaveValue(
         validIdempotencyKey,
       );
@@ -588,7 +603,13 @@ test.describe('produção: importação histórica da Agenda na Clínica A', () 
         filename: 'changed.json',
       });
       const changedResponse = await submitImport(ownerPage);
-      await expect(ownerPage.getByText(/reused with a different payload/iu)).toBeVisible();
+      // UX-004 — o achado: um SEGUNDO lote na mesma montagem da pagina herdava a
+      // chave do primeiro, a UI mostrava "Idempotency key ... reused with a
+      // different payload" (mensagem interna, em ingles, expondo a chave
+      // tecnica) e importava ZERO. Com a rotacao, uma importacao legitima
+      // dividida em varios arquivos funciona sem reload.
+      await expect(ownerPage.getByText(/reused with a different payload/iu)).toHaveCount(0);
+      await expect(ownerPage.getByText(/3 atendimento\(s\) importado\(s\)/u)).toBeVisible();
       const [afterChanged] = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
         return tx<{ batches: number; appointments: number }[]>`
@@ -599,7 +620,10 @@ test.describe('produção: importação histórica da Agenda na Clínica A', () 
               where clinic_id=${clinicId!}::uuid and import_batch_id::text=any(${batchIds}::text[])) appointments
         `;
       });
-      expect(afterChanged).toEqual({ batches: 1, appointments: 3 });
+      // Agora sao DOIS lotes: o segundo arquivo foi de fato importado. A
+      // contagem de `appointments` continua 3 porque conta apenas os ids do
+      // PRIMEIRO lote (`batchIds`), que permanecem intactos.
+      expect(afterChanged).toEqual({ batches: 2, appointments: 3 });
 
       await ownerPage.goto(`/agenda?view=day&date=${setup.freeYear.chosen_year}-03-05`);
       await expect(ownerPage.getByText(patientName, { exact: true })).toBeVisible();

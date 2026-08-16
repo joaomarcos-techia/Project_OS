@@ -311,7 +311,10 @@ test.describe('produção: perfil da Clínica A', () => {
            and action='tenancy.clinic.profile_updated'
            and (before->>'cnes' like ${`${marker}%`} or after->>'cnes' like ${`${marker}%`})
       `;
-      expect(testAudits?.count).toBe(3);
+      // Antes eram 3 trilhas de sucesso: a gravacao com CNPJ invalido (VAL-002)
+      // e as DUAS edicoes concorrentes (DATA-005). Agora a invalida nem chega a
+      // gravar e a concorrente perdedora reverte — sobra uma.
+      expect(testAudits?.count).toBe(1);
 
       await restoreExact();
       const clinicABaseline = baseline;
