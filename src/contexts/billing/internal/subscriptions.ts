@@ -7,7 +7,7 @@
  * `clinics.status` aqui é o ponto sancionado dessa decisão (control write de
  * tabela única, não import de schema cross-context).
  */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { publishEvent } from '@/lib/outbox/publish';
@@ -18,11 +18,13 @@ import {
   invoices,
   paymentAttempts,
   plans,
+  prices,
   subscriptionHistory,
   subscriptions,
   type InvoiceRow,
 } from '../schema';
 import { type AccessMode, accessModeToClinicStatus } from './access';
+import { billingPeriodFor, shouldAdvanceSubscriptionPeriod } from './billing-period';
 import { toCents, toReais, toReaisString } from './money';
 import { canTransitionBilling, canTransitionInvoice, type BillingStatus } from './state-machine';
 
@@ -255,9 +257,73 @@ export async function markInvoicePaid(
     });
     await recordBillingEvent(tx, clinicId, 'invoice.paid', { invoiceId: invoice.id });
   }
+  // BILLING-001 — abre o período que esta cobrança pagou. Roda ANTES de ativar:
+  // quem lê a subscription no evento de ativação já vê o ciclo novo, não o
+  // trial encerrado.
+  await advanceBillingPeriod(tx, clinicId, invoice);
+
   // Pagamento recebido reativa acesso + billing_status (decisão de ClinicaOS).
   await activateSubscription(tx, clinicId, opts.idemSuffix);
   await setClinicAccess(tx, clinicId, 'enabled', 'payment received', opts.idemSuffix);
+}
+
+/**
+ * BILLING-001 — preenche o período da invoice paga e avança o ciclo da
+ * subscription.
+ *
+ * Fica fora do `if` da transição de propósito: uma reentrega do webhook sobre
+ * uma invoice já `paid` REPARA um período ausente em vez de ignorá-lo — que é
+ * exatamente o estado que uma cobrança paga antes desta correção deixaria.
+ * Continua idempotente porque só escreve o que ainda falta.
+ */
+async function advanceBillingPeriod(tx: Tx, clinicId: string, invoice: InvoiceRow): Promise<void> {
+  const [sub] = await tx
+    .select({
+      id: subscriptions.id,
+      cycle: prices.billingCycle,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
+    })
+    .from(subscriptions)
+    .innerJoin(prices, eq(prices.id, subscriptions.priceId))
+    .where(eq(subscriptions.clinicId, clinicId))
+    .limit(1);
+  // Sem subscription/preço não há ciclo a derivar (cobrança avulsa, upgrade
+  // one-off): a invoice permanece sem período, como já era.
+  if (!sub) return;
+
+  const period = billingPeriodFor(invoice.dueDate, sub.cycle);
+
+  if (invoice.periodStart === null || invoice.periodEnd === null) {
+    await tx
+      .update(invoices)
+      .set({ periodStart: period.start, periodEnd: period.end })
+      .where(eq(invoices.id, invoice.id));
+  }
+
+  if (!shouldAdvanceSubscriptionPeriod(sub.currentPeriodEnd, period.end)) return;
+  // O predicado no WHERE fecha a corrida entre webhook e reconcile: dois
+  // caminhos concorrentes chegam ao mesmo estado final, e o pagamento tardio de
+  // uma invoice antiga não regride o ciclo corrente.
+  await tx
+    .update(subscriptions)
+    .set({
+      currentPeriodStart: sql`${period.start}::date`,
+      currentPeriodEnd: sql`${period.end}::date`,
+    })
+    .where(
+      and(
+        eq(subscriptions.id, sub.id),
+        or(
+          isNull(subscriptions.currentPeriodEnd),
+          lt(subscriptions.currentPeriodEnd, sql`${period.end}::date`),
+        ),
+      ),
+    );
+  await recordBillingEvent(tx, clinicId, 'subscription.period_advanced', {
+    invoiceId: invoice.id,
+    periodStart: period.start,
+    periodEnd: period.end,
+  });
 }
 
 /** PAYMENT_OVERDUE: invoice → overdue + attempt declined + eventos. */
@@ -320,4 +386,6 @@ export async function markInvoiceRefunded(
 }
 
 /** Test-only: mantém a validação do contrato do evento sem mockar o banco. */
-export const __testing__ = { toPlanCode };
+// `advanceBillingPeriod` é privado (só `markInvoicePaid` deve abrir período),
+// mas precisa de teste próprio: é onde mora a regra de BILLING-001.
+export const __testing__ = { toPlanCode, advanceBillingPeriod };
