@@ -81,6 +81,11 @@ import { canNotifyLgpdRequester, canProcessLgpdRequest } from './lgpd-policy';
 import { currentIsoDate, isMinorOnDate } from './minor-policy';
 import { idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { createPatientCore } from './internal/patient-core';
+import {
+  decidePatientRestore,
+  describeRestoreRefusal,
+  type RestoreRefusalReason,
+} from './internal/restore-policy';
 
 // --- helpers ---------------------------------------------------------------
 
@@ -416,6 +421,131 @@ export async function deletePatient(
       return { patientId: id, soft: true as const };
     },
   );
+}
+
+/**
+ * PAT-001 — desfaz a remoção de um paciente dentro da janela de retenção.
+ *
+ * A tela informa "remoção definitiva em 30 dias", mas não existia nenhum
+ * controle, rota ou action de restauração: um erro de operação só era reversível
+ * mexendo direto no banco, sem workflow nem trilha.
+ *
+ * Exige a MESMA capacidade que removeu (`delete:patient`): quem pode apagar pode
+ * desfazer, e ninguém além disso. Criar uma permissão nova só para o undo
+ * deixaria a matriz mais confusa sem separar risco algum.
+ *
+ * A suppression de `patient_deleted` é levantada — senão o paciente voltaria à
+ * lista sem poder receber mensagem alguma. A de `patient_deceased`, se houver,
+ * PERMANECE: óbito é um fato do titular, não um efeito da remoção.
+ */
+export async function restorePatient(
+  id: string,
+  idempotencyKey: string,
+): Promise<{ patientId: string; restored: boolean; reason?: RestoreRefusalReason }> {
+  await requireUser();
+  await requireFreshPermission(PERMISSIONS.DELETE_PATIENT);
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+
+  const before = await getPatientSummaryById(clinicId, id, { includeDeleted: true });
+  if (!before) throw new PatientNotFoundError(id);
+
+  return idempotentMutation(
+    {
+      idempotency: {
+        key: idemKey('restore', idempotencyKey),
+        payload: { id },
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'patient.core.restored',
+        resourceType: 'patient',
+        resourceId: id,
+        before,
+        requestContext: ctx,
+      },
+    },
+    async (tx) => {
+      // FOR UPDATE fecha a corrida com o cron de hard-delete e com um segundo
+      // restore simultâneo: só um vencedor decide sobre esta linha.
+      const [row] = await tx
+        .select({
+          deletedAt: patients.deletedAt,
+          anonymizedAt: patients.anonymizedAt,
+          telefoneHash: patients.telefoneHash,
+          email: patients.email,
+        })
+        .from(patients)
+        .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)))
+        .for('update')
+        .limit(1);
+      if (!row) throw new PatientNotFoundError(id);
+
+      const [openErasure] = await tx
+        .select({ id: lgpdRequests.id })
+        .from(lgpdRequests)
+        .where(
+          and(
+            eq(lgpdRequests.clinicId, clinicId),
+            eq(lgpdRequests.patientId, id),
+            eq(lgpdRequests.type, 'delete'),
+            inArray(lgpdRequests.status, ['pending', 'processing']),
+          ),
+        )
+        .limit(1);
+
+      const decision = decidePatientRestore({
+        deletedAt: row.deletedAt,
+        anonymizedAt: row.anonymizedAt,
+        hasOpenErasureRequest: Boolean(openErasure),
+      });
+
+      if (!decision.allowed) {
+        // Replay: já ativo é sucesso sem efeito. Os demais são recusas de
+        // domínio — nunca se restaura um registro eliminado ou expirado.
+        if (decision.idempotent) return { patientId: id, restored: false };
+        throw new PatientValidationError(describeRestoreRefusal(decision.reason));
+      }
+
+      await tx
+        .update(patients)
+        .set({ deletedAt: null, updatedAt: sql`now()` })
+        .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)));
+
+      await liftSuppression(tx, clinicId, row.telefoneHash, row.email, 'patient_deleted');
+
+      return { patientId: id, restored: true };
+    },
+  );
+}
+
+/**
+ * PAT-001 — remove APENAS as supressões criadas por um motivo específico.
+ *
+ * O filtro por `reason` é o ponto: uma remoção que também tinha óbito ou opt-out
+ * do próprio paciente não pode voltar "liberada para mensagens" só porque o
+ * cadastro foi restaurado.
+ */
+async function liftSuppression(
+  tx: Tx,
+  clinicId: string,
+  telefoneHash: string | null,
+  email: string | null,
+  reason: string,
+): Promise<void> {
+  const hashes: string[] = [];
+  if (telefoneHash) hashes.push(telefoneHash);
+  if (email) hashes.push(await hashForLookup(normalizeEmail(email)));
+  if (hashes.length === 0) return;
+  await tx
+    .delete(suppressionList)
+    .where(
+      and(
+        eq(suppressionList.clinicId, clinicId),
+        inArray(suppressionList.contactHash, hashes),
+        eq(suppressionList.reason, reason),
+      ),
+    );
 }
 
 // --- patient relationships ------------------------------------------------

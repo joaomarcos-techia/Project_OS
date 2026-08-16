@@ -18,6 +18,7 @@ import {
   linkPatientRelationship,
   mergePatients,
   recordConsent,
+  restorePatient,
   requestLgpdDelete,
   requestLgpdExport,
   recordPatientDeath,
@@ -340,5 +341,24 @@ export async function revokeConsentForm(
     return { error: null, message: 'Consentimento revogado.' };
   } catch (err) {
     return { error: messageFrom(err), message: null };
+  }
+}
+
+/**
+ * PAT-001 — desfaz a remoção dentro da janela de retenção.
+ *
+ * Devolve resultado controlado em vez de lançar: a recusa (fora do prazo,
+ * anonimizado, eliminação LGPD em curso) é resposta de domínio esperada, e o
+ * operador precisa LER o motivo — não ver um erro genérico.
+ */
+export async function restaurarPacienteAction(
+  patientId: string,
+  idempotencyKey: string,
+): Promise<{ ok: true; restored: boolean } | { ok: false; message: string }> {
+  try {
+    const result = await restorePatient(patientId, idempotencyKey);
+    return { ok: true, restored: result.restored };
+  } catch (err) {
+    return { ok: false, message: messageFrom(err) };
   }
 }

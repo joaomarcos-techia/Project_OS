@@ -84,6 +84,12 @@ export interface ListPatientsOpts {
   search?: string;
   includeDeleted?: boolean;
   /**
+   * PAT-001 — SOMENTE os removidos (lixeira). `includeDeleted` traz ativos e
+   * removidos juntos, o que não serve para a tela de recuperação: quem foi
+   * desfazer um clique errado precisa ver exatamente o que sumiu.
+   */
+  onlyDeleted?: boolean;
+  /**
    * UX-001 — remove pacientes com óbito registrado. Usado pelas buscas que
    * alimentam AGENDAMENTO (Agenda, lista de espera), onde o core recusa o
    * submit de qualquer forma. Não é default: o cadastro e a busca geral
@@ -102,7 +108,14 @@ export async function listPatients(
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
   const conds: SQL[] = [];
-  if (!opts.includeDeleted) conds.push(patientsActiveFilter());
+  if (opts.onlyDeleted) {
+    conds.push(sql`${patients.deletedAt} IS NOT NULL` as SQL);
+    // Anonimizado é irrecuperável: mostrá-lo na lixeira ofereceria um botão
+    // que sempre falha.
+    conds.push(isNull(patients.anonymizedAt) as SQL);
+  } else if (!opts.includeDeleted) {
+    conds.push(patientsActiveFilter());
+  }
   // UX-001 — candidatos de AGENDAMENTO não incluem falecidos. O core já recusa
   // no submit (`assertPatientInClinic` exige `obito_em IS NULL`), mas oferecer o
   // nome no seletor e só negar depois é retrabalho num contexto sensível. A
