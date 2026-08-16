@@ -3420,3 +3420,205 @@ código. Três operações externas seguem pendentes de autorização.
 Declarar `GO` aqui seria exatamente o que o escopo proíbe: transformar
 impossibilidade operacional em aprovação.
 
+
+## 48. Publicação, migrations e E2E de produção executado (2026-08-16)
+
+A seção 47 registrou o gate de E2E como `BLOCKED` porque produção rodava
+`304bc5c`. Com a autorização para publicar, o bloqueio caiu e a suíte foi
+executada de verdade. **Esta seção substitui o `BLOCKED` de 47.3 por evidência
+observada** e corrige a matriz de 47.4/47.5.
+
+### 48.1 Migrations
+
+Aplicadas primeiro em DEV, conferidas, e só então em PROD — nesta ordem de
+propósito: as duas são compatíveis com o código antigo (o valor novo do enum
+ninguém usava ainda; `export:audit` não era enforçado em lugar nenhum), enquanto
+publicar antes abriria uma janela em que o perfil Financeiro alcançaria o export
+novo ainda com a permissão no bundle.
+
+`pnpm db:migrate:prod` gravou backup de 2.104.475 bytes antes de tocar em
+qualquer coisa, tomou `pg_advisory_lock(4242)` e liberou ao fim.
+
+Verificação pós-migration, idêntica em DEV e PROD:
+
+| Verificação | Resultado |
+| --- | --- |
+| `proactive_job_type` | `[reminder, dunning, followup, waitlist_offer]` |
+| `export:audit` no bundle `financial` | removido |
+| `view:audit` no bundle `financial` | preservado |
+| Catálogo mantém os dois codes | `[export:audit, manage:agent]` |
+| Quem ainda tem `export:audit` por ROLE | `gestor`, `owner` |
+| Profiles `financial` com claims reemitidas | 1 |
+| Overrides afetados | 0 |
+
+### 48.2 Publicação
+
+`origin/main`: `304bc5c` → `1fc3568` (+ ajustes de spec). Build novo confirmado
+no ar antes de qualquer teste, usando as rotas de cron novas como marcador
+(`404` no build antigo, `401` no novo).
+
+### 48.3 REGRESSION — compare-and-swap por `updated_at` nunca casava
+
+**Encontrada pela execução em produção. Nenhum teste local a pegaria.**
+
+`timestamptz` no Postgres guarda MICROSSEGUNDOS. O valor viaja até o formulário
+como ISO-8601 (`toISOString()`), que só tem MILISSEGUNDOS, e volta como
+`new Date(iso)`. Comparar com `=` compara `…471227` com `…471000`: nunca é
+igual. Amostra real da produção no dia: **28 de 28 pacientes** com precisão
+sub-milissegundo — taxa de falha de 100%.
+
+Efeito: as duas escritas concorrentes falharam (o correto é uma vencer) e, pior,
+**qualquer edição isolada** de paciente, fornecedor ou perfil da clínica falhava
+com "registro alterado em outra janela". O defeito depende só do round-trip, não
+da concorrência.
+
+Origem: o conserto de `DATA-002/004/005` no ciclo anterior introduziu a mesma
+linha copiada em três arquivos. Os testes unitários não pegaram porque nenhum
+compara timestamps reais vindos do banco.
+
+O primeiro conserto ainda estava errado e a produção também o denunciou: passar
+`new Date(iso)` ao template `sql` do Drizzle o serializa com `toString()`
+(`Sun Aug 16 2026 … (Coordinated Universal Time)`), que o Postgres não converte
+— a query INTEIRA falhava, pior que casar zero linhas. A verificação que fiz
+antes não reproduziu porque usei o driver `postgres.js` direto, onde a
+serialização é outra. Só o caminho real da aplicação expõe isso.
+
+Correção final: helper único (`lib/db/optimistic-lock.ts`) que trunca os dois
+lados ao milissegundo e vincula a string ISO crua. 13 testes, incluindo um que
+falha se algum call-site voltar à igualdade estrita ou construir um `Date`.
+
+### 48.4 HTTP-001 — a primeira correção não bastou
+
+A seção 47 declarou `FIXED (código)`. A medição em produção mostrou **200**.
+
+Causa real: `loading.tsx` não cria Suspense só para o `page.tsx` do próprio
+segmento — envolve TODA a subárvore. Remover o irmão não bastou porque
+`pacientes/loading.tsx` (o pai) seguia fazendo o shell sair com 200. Foram
+removidos os quatro boundaries que cobrem rotas com `notFound()`
+(`pacientes`, `conversas`, `admin`, `admin/clinicas`), e o guard passou a varrer
+todos os segmentos ancestrais — foi ele que revelou as outras três rotas.
+
+Custo assumido: essas quatro listas perdem o skeleton de navegação. Alternativa
+para recuperá-lo sem reabrir o defeito, se valer o esforço: trocar o
+`loading.tsx` por um `<Suspense>` DENTRO do próprio `page.tsx`, que não cria
+boundary de segmento.
+
+Depois disso: `malformedIdHttp: 404`, `unknownIdHttp: 404`,
+`softDeletedRouteHttp: 404`, e contraprova de `200` após o restore.
+
+### 48.5 Os specs de `e2e/` afirmavam os achados
+
+Os 45 specs foram escritos DURANTE o pentest para reproduzir os defeitos: eles
+codificam o comportamento defeituoso. Com os achados corrigidos, falharam por
+estarem certos sobre o passado. Cada asserção foi trocada pela do comportamento
+correto — e as novas são mais **ESTRITAS**, nunca mais frouxas:
+
+| Achado | Afirmava | Passou a afirmar |
+| --- | --- | --- |
+| DATA-006 | `[200, 500]`, manhã persistida | 1 chamada, zero estado parcial |
+| WAIT-001 | `offered_events: 0`, `waiting` | vaga ao URGENTE, exatamente 1 evento |
+| DATA-007 | `duplicate_day: 2` | `1` |
+| UX-003 | indicador/cancelamento `false` | `true` |
+| DATA-002/004/005 | 2 auditorias, 2 atores | 1 vencedor |
+| HTTP-001 | rota 200 | 404, com contraprova de 200 pós-restore |
+| UX-001 | falecido no seletor | ausente do seletor |
+| UX-002 | botão de cancelar trial | ausente |
+| UX-004 | chave idempotente reutilizada | rotacionada |
+| VAL-001/002 | CNPJ `1` persistido | recusado, nada gravado |
+| AUTHZ-003/005/006/007/008 | dados/controles visíveis | negados |
+| A11Y-001/002 | campos sem nome acessível | com nome |
+| LGPD-005 | sem controle de consentimento | presente |
+
+Um **falso positivo** foi removido: `documentsRouteVisibleWithoutPermission`
+media o TÍTULO da página, e `PageNoAccess` também renderiza "Documentos" — a
+tela de NEGAÇÃO contava como rota exposta. Três specs liam elementos que a
+correção fez desaparecer (CPF, `iframe` do PDF) e estouravam timeout: a ausência
+É o resultado correto, então a leitura passou a ser guardada por `count`.
+Literais de log que contradiziam as próprias asserções também foram corrigidos —
+um registro de evidência que diz o contrário do que foi provado engana quem
+ler depois.
+
+### 48.6 Resultado do E2E de produção
+
+**26 specs `PASS`**, com cleanup verificado em todos os mutáveis
+(`remaining` zerado) e os quatro usuários permanentes da Clínica A intactos
+(`active: 4`).
+
+Isolamento A↔B: 44 tabelas com fixture, **zero vazamentos** nas duas direções;
+IDOR clínico bloqueado em prescrição, documento, prontuário e conversa; CRUD com
+`clinic_id` adulterado bloqueado; matriz de mutação com rollback.
+
+RBAC: ciclo completo de deny/grant/restore nas **28 permissões canônicas**; as 9
+transições de role com invalidação de sessão; as 4 jornadas humanas.
+
+| Spec | Status | Observação |
+| --- | --- | --- |
+| unauthenticated-boundary | `PASS` | 34 rotas redirecionadas |
+| cross-tenant-rls-matrix / patients / clinical-idor / rls-mutations | `PASS` | zero vazamento |
+| all-permission-overrides | `PASS` | 28 permissões |
+| role-journeys-a / role-transition-matrix-a | `PASS` | 4 jornadas, 9 transições |
+| permission-lifecycle | `PASS` | nenhum bypass |
+| hours-atomicity-a | `PASS` | DATA-006, A11Y-001, OBS-002 |
+| waitlist-a | `PASS` | WAIT-001, OBS-002 |
+| recurrence-a | `PASS` | UX-003, DATA-007, A11Y-002 |
+| patient-lifecycle-a | `PASS` | PAT-001, HTTP-001, DATA-002, UX-001, LGPD-005 |
+| dashboard-financial-rbac / whatsapp-settings-rbac / prontuario-direct-rbac-a | `PASS` | AUTHZ-005/006/003 |
+| appointment-concurrency / appointment-recovery-a / patient-idempotency | `PASS` | — |
+| financial-concurrency-a / feedback-privacy-a | `PASS` | — |
+| dashboard-nonzero-a / dashboard-operational-a / report-matrix | `PASS` | — |
+| session-logout-replay-a / mfa-lifecycle | `PASS` | AUTH-005 |
+| clinic-profile-a | `PARTIAL` | VAL-002 e DATA-005 passam; contagens de trilha do roteiro legado ainda com números pré-correção |
+| supplier-lifecycle-a | `PARTIAL` | VAL-001 e DATA-004 passam; idem |
+| consultorio-attendant-integrity-a | `PARTIAL` | AUTHZ-008 provado (controle ausente); o resto do roteiro exercia o caminho vulnerável, que deixou de existir |
+| consultorio-no-show-a | `PARTIAL` | STATE-001 provado; idem |
+| scheduling-config-a | `PARTIAL` | AUTHZ-007 provado (owner não é opção); idem |
+| financial-lifecycle-a | `PARTIAL` | DATA-003 mudou a semântica da compensação |
+| appointment-import-a | `PARTIAL` | UX-004: chave rotacionada, spec esperava reúso |
+| subscription-cancellation-trial-a | `PARTIAL` | UX-002: botão removido, spec esperava presente |
+| conversation-handoff-a / collection-case-a | `BLOCKED` | o spec importa módulo `server-only`; não executa no processo do Playwright |
+| team-lifecycle | `BLOCKED` | a Clínica A tem 4 de 5 vagas em uso e a jornada exige 4 livres. O spec se recusa a rodar em vez de destruir os usuários permanentes |
+| password-recovery-a / invite-concurrency-a | `NOT TESTED` | dependem de inbox |
+| lgpd-export-email / lgpd-full-lifecycle-a | `NOT TESTED` | inbox real e roteiro destrutivo |
+
+`PARTIAL` significa: a asserção que codifica o achado passa, e o restante do
+roteiro legado ainda descreve o mundo anterior. Nenhum `PARTIAL` esconde falha
+de produto — todos foram inspecionados individualmente.
+
+### 48.7 As quinze perguntas, agora com evidência
+
+| # | Pergunta | Resposta |
+| --- | --- | --- |
+| 1 | O WhatsApp realmente funciona? | **Não.** A WABA segue sem app inscrito. O código detecta e para de mentir; a reinscrição é externa. |
+| 2 | A waitlist preenche horário cancelado? | Sim até a oferta, provado em produção (candidato urgente, 1 evento). A mensagem depende de template aprovado. |
+| 3 | O primeiro pagamento abre o novo período? | Pelo código e pelos testes temporais, sim. Não observado com cobrança real. |
+| 4 | O ClinicaOS detecta divergência no Asaas? | Sim pelo reconcile. Os dois eventos de webhook seguem desabilitados. |
+| 5 | Expediente com pausa é atômico? | **Sim, provado em produção.** |
+| 6 | Séries recorrentes são administráveis? | **Sim, provado em produção.** |
+| 7 | Paciente removido pode ser restaurado? | **Sim, provado em produção.** |
+| 8 | Recursos inexistentes retornam 404? | **Sim, provado em produção** (malformado, inexistente e removido). |
+| 9 | Erros de input não geram 500? | **Sim, provado em produção.** |
+| 10 | `export:audit` controla capacidade tenant? | Sim; bundle do Financeiro corrigido em produção. |
+| 11 | `manage:agent` controla capacidade própria? | Sim, sem alias. |
+| 12 | As correções anteriores funcionam em PRODUÇÃO? | **Em sua maioria sim** — e a execução revelou uma regressão séria (48.3) que estava viva e foi corrigida. |
+| 13 | A↔B continua isolado? | **Sim** — 44 tabelas, zero vazamento nas duas direções. |
+| 14 | As quatro roles continuam corretas? | **Sim** — jornadas, 9 transições e as 28 permissões. |
+| 15 | Pronto para GO-LIVE? | **Ainda não.** |
+
+### 48.8 Veredito
+
+**NO-GO**, por três motivos objetivos e nomeados:
+
+1. **META-001 continua aberto.** A WABA segue sem app inscrito: o paciente
+   escreve e nada acontece. O produto agora avisa em vez de mentir, mas o canal
+   não funciona. Operação externa pendente.
+2. **WAIT-001 e BILLING-002 dependem de operação externa** (template aprovado na
+   Meta; eventos `PAYMENT_UPDATED`/`PAYMENT_DELETED` no Asaas).
+3. **BILLING-001 não foi observado com cobrança real.** A regra está correta e
+   testada com relógio controlado, mas a primeira cobrança ainda não ocorreu.
+
+O que mudou desde a seção 47: o isolamento multi-tenant, o RBAC completo, as
+jornadas das quatro roles e sete dos dez gaps deste ciclo passaram a ter prova
+de comportamento em produção, não só de código. E uma regressão que quebrava
+toda edição de paciente, fornecedor e perfil da clínica foi encontrada e
+corrigida — ela só apareceu porque a suíte rodou contra o ambiente real.
+
