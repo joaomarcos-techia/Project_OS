@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache';
 
 import { getPatientSummaryById, listPatients } from '@/contexts/patient/queries';
 import {
+  cancelRecurringSeries,
   createAppointment,
   createDoctorAbsence,
   createRecurringAppointments,
@@ -215,6 +216,38 @@ export async function corrigirAtendimentoAction(
     );
     revalidatePath('/agenda');
     return { ok: true, message: 'Correção registrada na trilha do atendimento.' };
+  } catch (error) {
+    return { ok: false, message: messageFrom(error) };
+  }
+}
+
+/**
+ * UX-003 — cancela as ocorrências FUTURAS de uma série recorrente.
+ *
+ * `cancelRecurringSeries()` já existia no domínio (permissão fresh, motivo
+ * obrigatório, transição pela state machine, histórico preservado, idempotente
+ * e auditada), mas a busca completa não encontrava página, action, rota ou
+ * componente que a invocasse: a série era criada e não podia ser interrompida.
+ * Este wrapper é o caller que faltava.
+ */
+export async function cancelarSerieRecorrenteAction(
+  _previous: AgendaOperationState,
+  formData: FormData,
+): Promise<AgendaOperationState> {
+  try {
+    const result = await cancelRecurringSeries(
+      String(formData.get('seriesId') ?? ''),
+      String(formData.get('reason') ?? ''),
+      String(formData.get('idempotencyKey') ?? ''),
+    );
+    revalidatePath('/agenda');
+    return {
+      ok: true,
+      message:
+        result.cancelledAppointments === 0
+          ? 'A série foi encerrada. Não havia consultas futuras ativas.'
+          : `${result.cancelledAppointments} consulta(s) futura(s) cancelada(s). As anteriores foram preservadas.`,
+    };
   } catch (error) {
     return { ok: false, message: messageFrom(error) };
   }

@@ -12,6 +12,7 @@ import { cn } from '@/lib/ui/cn';
 
 import type { AgendaAppt, AgendaData } from './data';
 import { AppointmentCorrectionDialog } from './appointment-correction-dialog';
+import { RecurrenceSeriesDialog } from './recurrence-series-dialog';
 import { groupByDay, monthMatrix, shift as shiftYmd, todayYmd, weekDays } from './range';
 
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -175,6 +176,7 @@ function WeekView({ data }: { data: AgendaData }) {
 /* ---------------- Dia ---------------- */
 function DayView({ data }: { data: AgendaData }) {
   const appts = [...data.appointments].sort((a, b) => a.horario.localeCompare(b.horario));
+  const seriesById = new Map(data.recurrenceSeries.map((s) => [s.id, s]));
   if (appts.length === 0) {
     return (
       <EmptyState
@@ -200,6 +202,13 @@ function DayView({ data }: { data: AgendaData }) {
               <span className="min-w-0 truncate font-medium">{a.pacienteNome}</span>
               <span className="text-xs text-fg-subtle">{a.medicoNome}</span>
               <AppointmentStatusBadge status={a.status} />
+              {/* UX-003 — o vínculo com a série vira visível e acionável aqui. */}
+              {a.recurrenceSeriesId && seriesById.get(a.recurrenceSeriesId) ? (
+                <RecurrenceSeriesDialog
+                  series={seriesById.get(a.recurrenceSeriesId)!}
+                  occurrence={a.recurrenceOccurrence}
+                />
+              ) : null}
               <span className="flex-1" />
               {noConsultorio ? (
                 <Link

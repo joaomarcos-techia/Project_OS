@@ -24,6 +24,7 @@ import {
   doctorAbsences,
   doctorAvailability,
   procedures,
+  recurrenceSeries,
   schedulableResources,
   waitingQueueEntries,
   waitlistEntries,
@@ -128,6 +129,72 @@ export async function getAppointmentOrThrow(
   const row = await getAppointment(clinicId, id);
   if (!row) throw new AppointmentNotFoundError(id);
   return row;
+}
+
+/**
+ * UX-003 — resumo das séries recorrentes visíveis na Agenda.
+ *
+ * A UI criava até 104 consultas e renderizava cada uma como isolada: o operador
+ * não reconhecia a origem recorrente nem sabia quantas ocorrências existiam.
+ * Sem o total e o estado da série, "ocorrência 3" não diz nada — e não há como
+ * decidir se ainda vale interromper as futuras.
+ */
+export interface RecurrenceSeriesSummary {
+  id: string;
+  status: 'active' | 'cancelled' | 'completed';
+  /** Total de ocorrências planejadas na criação da série. */
+  occurrences: number;
+  intervalWeeks: number;
+  /** Quantas ainda estão ativas e no futuro — o que um cancelamento atingiria. */
+  futureActive: number;
+}
+
+export async function listRecurrenceSeriesSummaries(
+  clinicId: string,
+  seriesIds: readonly string[],
+): Promise<RecurrenceSeriesSummary[]> {
+  if (seriesIds.length === 0) return [];
+  const ids = [...seriesIds];
+  return withTenant(clinicId, async (tx) => {
+    const series = await tx
+      .select({
+        id: recurrenceSeries.id,
+        status: recurrenceSeries.status,
+        occurrences: recurrenceSeries.occurrences,
+        intervalWeeks: recurrenceSeries.intervalWeeks,
+      })
+      .from(recurrenceSeries)
+      .where(and(eq(recurrenceSeries.clinicId, clinicId), inArray(recurrenceSeries.id, ids)));
+    if (series.length === 0) return [];
+
+    // Contagem separada em vez de LEFT JOIN + GROUP BY: os ids seguem
+    // parametrizados pelo builder (nada de SQL montado por concatenação) e a
+    // leitura fica óbvia.
+    const counts = await tx
+      .select({
+        seriesId: appointments.recurrenceSeriesId,
+        futureActive: sql<number>`count(*)::int`,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          inArray(appointments.recurrenceSeriesId, ids),
+          inArray(appointments.status, ['agendado', 'confirmado']),
+          gte(appointments.scheduledAt, sql`now()`),
+        ),
+      )
+      .groupBy(appointments.recurrenceSeriesId);
+    const futureBySeries = new Map(counts.map((c) => [c.seriesId, Number(c.futureActive)]));
+
+    return series.map((s) => ({
+      id: s.id,
+      status: s.status,
+      occurrences: s.occurrences,
+      intervalWeeks: s.intervalWeeks,
+      futureActive: futureBySeries.get(s.id) ?? 0,
+    }));
+  });
 }
 
 /**

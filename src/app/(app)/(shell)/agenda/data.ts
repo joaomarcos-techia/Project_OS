@@ -8,7 +8,9 @@ import { listPatientCards } from '@/contexts/patient/queries';
 import {
   listAppointments,
   listProcedures,
+  listRecurrenceSeriesSummaries,
   listSchedulableResources,
+  type RecurrenceSeriesSummary,
 } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import {
@@ -35,6 +37,14 @@ export interface AgendaAppt {
   medicoNome: string;
   status: AppointmentStatusDTO;
   recoveryKinds: AppointmentRecoveryKind[];
+  /**
+   * UX-003 — origem recorrente. A projeção não transportava estes campos, então
+   * a Agenda renderizava cada uma das até 104 consultas de uma série como se
+   * fosse isolada: o operador não reconhecia o vínculo nem conseguia interromper
+   * as futuras de uma vez.
+   */
+  recurrenceSeriesId: string | null;
+  recurrenceOccurrence: number | null;
 }
 export interface ProcedureOption {
   id: string;
@@ -63,6 +73,8 @@ export interface AgendaData {
   canEditAgenda: boolean;
   canManageAvailability: boolean;
   appointments: AgendaAppt[];
+  /** UX-003 — séries recorrentes presentes na faixa exibida. */
+  recurrenceSeries: RecurrenceSeriesSummary[];
   procedures: ProcedureOption[];
   doctors: DoctorOption[];
   resources: ResourceOption[];
@@ -82,6 +94,7 @@ const EMPTY: AgendaData = {
   canEditAgenda: false,
   canManageAvailability: false,
   appointments: [],
+  recurrenceSeries: [],
   procedures: [],
   doctors: [],
   resources: [],
@@ -163,7 +176,17 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     medicoNome: doctorNameOf.get(a.doctorId) ?? a.snapshotDoctorNome,
     status: a.status,
     recoveryKinds: listAppointmentRecoveryKinds(a.status),
+    recurrenceSeriesId: a.recurrenceSeriesId,
+    recurrenceOccurrence: a.recurrenceOccurrence,
   }));
+
+  // UX-003 — total e estado das séries presentes na faixa. Sem o total,
+  // "ocorrência 3" não informa nada; sem `futureActive`, o operador não sabe o
+  // que um cancelamento de série atingiria.
+  const seriesIds = [
+    ...new Set(appts.map((a) => a.recurrenceSeriesId).filter((id): id is string => id !== null)),
+  ];
+  const recurrenceSeries = await listRecurrenceSeriesSummaries(clinicId, seriesIds);
 
   return {
     hasAccess: true,
@@ -173,6 +196,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     canEditAgenda: user.permissions.includes(PERMISSIONS.EDIT_AGENDA),
     canManageAvailability: user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY),
     appointments,
+    recurrenceSeries,
     procedures,
     doctors,
     resources,
