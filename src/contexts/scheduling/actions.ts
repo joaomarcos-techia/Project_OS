@@ -22,6 +22,7 @@ import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
+import type { SchedulingActionResult } from './action-result';
 import { SCHEDULING_EVENTS, type CancelReason } from './events';
 import { SchedulingValidationError } from './errors';
 import { getAppointmentOrThrow, toAppointmentSummary } from './queries';
@@ -38,6 +39,7 @@ import { buildWeeklyOccurrences } from './recurrence-policy';
 import { decideAppointmentRecovery } from './recovery-policy';
 import { assertTransition, type AppointmentState } from './state-machine';
 import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
+import { toActionResult } from './internal/action-result';
 import { assertCanManageDoctorSchedule } from './internal/availability-scope';
 import { assertCanCompleteClinically } from './internal/clinical-completion';
 import { assertNoDailyDuplicate, readClinicTimeZone } from './internal/daily-duplicate';
@@ -905,163 +907,170 @@ function waitlistDto(row: typeof waitlistEntries.$inferSelect): WaitlistEntryDTO
 export async function createWaitlistEntry(
   input: CreateWaitlistEntryInput,
   idempotencyKey: string,
-): Promise<WaitlistEntryDTO> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
-  const data = CreateWaitlistEntrySchema.parse(input);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('waitlist_create', idempotencyKey),
-        payload: jsonSafe(data),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+): Promise<SchedulingActionResult<WaitlistEntryDTO>> {
+  return toActionResult(async () => {
+    const user = await requireUser();
+    await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+    const data = CreateWaitlistEntrySchema.parse(input);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+    return idempotentMutation(
+      {
+        idempotency: {
+          key: idemKey('waitlist_create', idempotencyKey),
+          payload: jsonSafe(data),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
+        audit: {
+          action: 'scheduling.waitlist.created',
+          resourceType: 'waitlist_entry',
+          resourceId: null,
+          before: null,
+          requestContext: ctx,
+        },
       },
-      audit: {
-        action: 'scheduling.waitlist.created',
-        resourceType: 'waitlist_entry',
-        resourceId: null,
-        before: null,
-        requestContext: ctx,
+      async (tx) => {
+        await assertPatientInClinic(tx, clinicId, data.patientId);
+        if (data.doctorId) {
+          await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
+        } else {
+          const [procedure] = await tx
+            .select({ id: procedures.id })
+            .from(procedures)
+            .where(
+              and(
+                eq(procedures.id, data.procedureId),
+                eq(procedures.clinicId, clinicId),
+                eq(procedures.ativo, true),
+              ),
+            )
+            .limit(1);
+          if (!procedure) throw new SchedulingValidationError('procedimento inválido');
+        }
+        const [row] = await tx
+          .insert(waitlistEntries)
+          .values({
+            clinicId,
+            patientId: data.patientId,
+            doctorId: data.doctorId ?? null,
+            procedureId: data.procedureId,
+            priority: data.priority ?? 'normal',
+            preferredFrom: data.preferredFrom ? new Date(data.preferredFrom) : null,
+            preferredUntil: data.preferredUntil ? new Date(data.preferredUntil) : null,
+            notes: data.notes ?? null,
+            createdBy: user.userId,
+          })
+          .returning();
+        return waitlistDto(row!);
       },
-    },
-    async (tx) => {
-      await assertPatientInClinic(tx, clinicId, data.patientId);
-      if (data.doctorId) {
-        await buildSnapshot(tx, clinicId, data.procedureId, data.doctorId);
-      } else {
-        const [procedure] = await tx
-          .select({ id: procedures.id })
-          .from(procedures)
-          .where(
-            and(
-              eq(procedures.id, data.procedureId),
-              eq(procedures.clinicId, clinicId),
-              eq(procedures.ativo, true),
-            ),
-          )
-          .limit(1);
-        if (!procedure) throw new SchedulingValidationError('procedimento inválido');
-      }
-      const [row] = await tx
-        .insert(waitlistEntries)
-        .values({
-          clinicId,
-          patientId: data.patientId,
-          doctorId: data.doctorId ?? null,
-          procedureId: data.procedureId,
-          priority: data.priority ?? 'normal',
-          preferredFrom: data.preferredFrom ? new Date(data.preferredFrom) : null,
-          preferredUntil: data.preferredUntil ? new Date(data.preferredUntil) : null,
-          notes: data.notes ?? null,
-          createdBy: user.userId,
-        })
-        .returning();
-      return waitlistDto(row!);
-    },
-  );
+    );
+  });
 }
 
 export async function cancelWaitlistEntry(
   id: string,
   idempotencyKey: string,
-): Promise<WaitlistEntryDTO> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('waitlist_cancel', idempotencyKey),
-        payload: jsonSafe({ id }),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+): Promise<SchedulingActionResult<WaitlistEntryDTO>> {
+  return toActionResult(async () => {
+    const user = await requireUser();
+    await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+    return idempotentMutation(
+      {
+        idempotency: {
+          key: idemKey('waitlist_cancel', idempotencyKey),
+          payload: jsonSafe({ id }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
+        audit: {
+          action: 'scheduling.waitlist.cancelled',
+          resourceType: 'waitlist_entry',
+          resourceId: id,
+          before: null,
+          requestContext: ctx,
+        },
       },
-      audit: {
-        action: 'scheduling.waitlist.cancelled',
-        resourceType: 'waitlist_entry',
-        resourceId: id,
-        before: null,
-        requestContext: ctx,
+      async (tx) => {
+        const [row] = await tx
+          .update(waitlistEntries)
+          .set({
+            status: 'cancelled',
+            cancelledBy: user.userId,
+            cancelledAt: sql`now()`,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(waitlistEntries.id, id),
+              eq(waitlistEntries.clinicId, clinicId),
+              inArray(waitlistEntries.status, ['waiting', 'offered']),
+            ),
+          )
+          .returning();
+        if (!row)
+          throw new SchedulingValidationError('entrada da lista não encontrada ou encerrada');
+        return waitlistDto(row);
       },
-    },
-    async (tx) => {
-      const [row] = await tx
-        .update(waitlistEntries)
-        .set({
-          status: 'cancelled',
-          cancelledBy: user.userId,
-          cancelledAt: sql`now()`,
-          updatedAt: sql`now()`,
-        })
-        .where(
-          and(
-            eq(waitlistEntries.id, id),
-            eq(waitlistEntries.clinicId, clinicId),
-            inArray(waitlistEntries.status, ['waiting', 'offered']),
-          ),
-        )
-        .returning();
-      if (!row) throw new SchedulingValidationError('entrada da lista não encontrada ou encerrada');
-      return waitlistDto(row);
-    },
-  );
+    );
+  });
 }
 
 export async function markWaitlistEntryBooked(
   id: string,
   appointmentId: string,
   idempotencyKey: string,
-): Promise<WaitlistEntryDTO> {
-  await requireUser();
-  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('waitlist_book', idempotencyKey),
-        payload: jsonSafe({ id, appointmentId }),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+): Promise<SchedulingActionResult<WaitlistEntryDTO>> {
+  return toActionResult(async () => {
+    await requireUser();
+    await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+    return idempotentMutation(
+      {
+        idempotency: {
+          key: idemKey('waitlist_book', idempotencyKey),
+          payload: jsonSafe({ id, appointmentId }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
+        audit: {
+          action: 'scheduling.waitlist.booked',
+          resourceType: 'waitlist_entry',
+          resourceId: id,
+          before: null,
+          requestContext: ctx,
+        },
       },
-      audit: {
-        action: 'scheduling.waitlist.booked',
-        resourceType: 'waitlist_entry',
-        resourceId: id,
-        before: null,
-        requestContext: ctx,
+      async (tx) => {
+        const [entry] = await tx
+          .select()
+          .from(waitlistEntries)
+          .where(and(eq(waitlistEntries.id, id), eq(waitlistEntries.clinicId, clinicId)))
+          .for('update')
+          .limit(1);
+        const [appointment] = await tx
+          .select()
+          .from(appointments)
+          .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
+          .limit(1);
+        if (
+          !entry ||
+          !appointment ||
+          entry.status === 'cancelled' ||
+          entry.patientId !== appointment.patientId ||
+          entry.procedureId !== appointment.procedureId
+        ) {
+          throw new SchedulingValidationError('agendamento não corresponde à entrada da lista');
+        }
+        const [row] = await tx
+          .update(waitlistEntries)
+          .set({ status: 'booked', bookedAppointmentId: appointmentId, updatedAt: sql`now()` })
+          .where(and(eq(waitlistEntries.id, id), eq(waitlistEntries.clinicId, clinicId)))
+          .returning();
+        return waitlistDto(row!);
       },
-    },
-    async (tx) => {
-      const [entry] = await tx
-        .select()
-        .from(waitlistEntries)
-        .where(and(eq(waitlistEntries.id, id), eq(waitlistEntries.clinicId, clinicId)))
-        .for('update')
-        .limit(1);
-      const [appointment] = await tx
-        .select()
-        .from(appointments)
-        .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
-        .limit(1);
-      if (
-        !entry ||
-        !appointment ||
-        entry.status === 'cancelled' ||
-        entry.patientId !== appointment.patientId ||
-        entry.procedureId !== appointment.procedureId
-      ) {
-        throw new SchedulingValidationError('agendamento não corresponde à entrada da lista');
-      }
-      const [row] = await tx
-        .update(waitlistEntries)
-        .set({ status: 'booked', bookedAppointmentId: appointmentId, updatedAt: sql`now()` })
-        .where(and(eq(waitlistEntries.id, id), eq(waitlistEntries.clinicId, clinicId)))
-        .returning();
-      return waitlistDto(row!);
-    },
-  );
+    );
+  });
 }
 
 // --- WAIT-001: aceite e recusa da oferta ----------------------------------
@@ -1082,94 +1091,96 @@ export async function markWaitlistEntryBooked(
 export async function acceptWaitlistOffer(
   id: string,
   idempotencyKey: string,
-): Promise<{ entry: WaitlistEntryDTO; appointment: AppointmentSummary }> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-  try {
-    return await idempotentMutation(
-      {
-        idempotency: {
-          key: idemKey('waitlist_accept', idempotencyKey),
-          payload: jsonSafe({ id }),
-          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+): Promise<SchedulingActionResult<{ entry: WaitlistEntryDTO; appointment: AppointmentSummary }>> {
+  return toActionResult(async () => {
+    const user = await requireUser();
+    await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+    try {
+      return await idempotentMutation(
+        {
+          idempotency: {
+            key: idemKey('waitlist_accept', idempotencyKey),
+            payload: jsonSafe({ id }),
+            ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+          },
+          audit: {
+            action: 'scheduling.waitlist.booked',
+            resourceType: 'waitlist_entry',
+            resourceId: id,
+            before: null,
+            requestContext: ctx,
+          },
         },
-        audit: {
-          action: 'scheduling.waitlist.booked',
-          resourceType: 'waitlist_entry',
-          resourceId: id,
-          before: null,
-          requestContext: ctx,
+        async (tx) => {
+          const [entry] = await tx
+            .select()
+            .from(waitlistEntries)
+            .where(and(eq(waitlistEntries.id, id), eq(waitlistEntries.clinicId, clinicId)))
+            .for('update')
+            .limit(1);
+          // Só uma oferta VIVA pode ser aceita. O `FOR UPDATE` + este teste é o
+          // que impede dois atendentes de aceitarem a mesma oferta e criarem duas
+          // consultas na mesma vaga.
+          if (!entry || entry.status !== 'offered' || !entry.offeredAppointmentId) {
+            throw new SchedulingValidationError('não há oferta aberta para esta entrada');
+          }
+
+          const [released] = await tx
+            .select()
+            .from(appointments)
+            .where(
+              and(
+                eq(appointments.id, entry.offeredAppointmentId),
+                eq(appointments.clinicId, clinicId),
+                eq(appointments.status, 'cancelado'),
+              ),
+            )
+            .limit(1);
+          if (!released) {
+            throw new SchedulingValidationError('o horário ofertado não está mais disponível');
+          }
+
+          const created = await insertScheduledAppointment(tx, {
+            clinicId,
+            userId: user.userId,
+            actorType: 'user',
+            correlationId: ctx.correlationId ?? null,
+            idempotencyKey,
+            data: {
+              patientId: entry.patientId,
+              doctorId: released.doctorId,
+              procedureId: entry.procedureId,
+              scheduledAt: released.scheduledAt.toISOString(),
+              ...(released.unitId ? { unitId: released.unitId } : {}),
+            } as CreateAppointmentInput,
+            scheduledAt: released.scheduledAt,
+          });
+
+          const [row] = await tx
+            .update(waitlistEntries)
+            .set({
+              status: 'booked',
+              bookedAppointmentId: created.id,
+              updatedAt: sql`now()`,
+            })
+            .where(
+              and(
+                eq(waitlistEntries.id, id),
+                eq(waitlistEntries.clinicId, clinicId),
+                eq(waitlistEntries.status, 'offered'),
+              ),
+            )
+            .returning();
+          if (!row) throw new SchedulingValidationError('não há oferta aberta para esta entrada');
+          return { entry: waitlistDto(row), appointment: created };
         },
-      },
-      async (tx) => {
-        const [entry] = await tx
-          .select()
-          .from(waitlistEntries)
-          .where(and(eq(waitlistEntries.id, id), eq(waitlistEntries.clinicId, clinicId)))
-          .for('update')
-          .limit(1);
-        // Só uma oferta VIVA pode ser aceita. O `FOR UPDATE` + este teste é o
-        // que impede dois atendentes de aceitarem a mesma oferta e criarem duas
-        // consultas na mesma vaga.
-        if (!entry || entry.status !== 'offered' || !entry.offeredAppointmentId) {
-          throw new SchedulingValidationError('não há oferta aberta para esta entrada');
-        }
-
-        const [released] = await tx
-          .select()
-          .from(appointments)
-          .where(
-            and(
-              eq(appointments.id, entry.offeredAppointmentId),
-              eq(appointments.clinicId, clinicId),
-              eq(appointments.status, 'cancelado'),
-            ),
-          )
-          .limit(1);
-        if (!released) {
-          throw new SchedulingValidationError('o horário ofertado não está mais disponível');
-        }
-
-        const created = await insertScheduledAppointment(tx, {
-          clinicId,
-          userId: user.userId,
-          actorType: 'user',
-          correlationId: ctx.correlationId ?? null,
-          idempotencyKey,
-          data: {
-            patientId: entry.patientId,
-            doctorId: released.doctorId,
-            procedureId: entry.procedureId,
-            scheduledAt: released.scheduledAt.toISOString(),
-            ...(released.unitId ? { unitId: released.unitId } : {}),
-          } as CreateAppointmentInput,
-          scheduledAt: released.scheduledAt,
-        });
-
-        const [row] = await tx
-          .update(waitlistEntries)
-          .set({
-            status: 'booked',
-            bookedAppointmentId: created.id,
-            updatedAt: sql`now()`,
-          })
-          .where(
-            and(
-              eq(waitlistEntries.id, id),
-              eq(waitlistEntries.clinicId, clinicId),
-              eq(waitlistEntries.status, 'offered'),
-            ),
-          )
-          .returning();
-        if (!row) throw new SchedulingValidationError('não há oferta aberta para esta entrada');
-        return { entry: waitlistDto(row), appointment: created };
-      },
-    );
-  } catch (error) {
-    return asConflict(error);
-  }
+      );
+    } catch (error) {
+      return asConflict(error);
+    }
+  });
 }
 
 /**
@@ -1183,32 +1194,34 @@ export async function acceptWaitlistOffer(
 export async function declineWaitlistOffer(
   id: string,
   idempotencyKey: string,
-): Promise<{ released: boolean; nextEntryId: string | null }> {
-  await requireUser();
-  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('waitlist_decline', idempotencyKey),
-        payload: jsonSafe({ id }),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+): Promise<SchedulingActionResult<{ released: boolean; nextEntryId: string | null }>> {
+  return toActionResult(async () => {
+    await requireUser();
+    await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+    return idempotentMutation(
+      {
+        idempotency: {
+          key: idemKey('waitlist_decline', idempotencyKey),
+          payload: jsonSafe({ id }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
+        audit: {
+          action: 'scheduling.waitlist.offer_declined',
+          resourceType: 'waitlist_entry',
+          resourceId: id,
+          before: null,
+          requestContext: ctx,
+        },
       },
-      audit: {
-        action: 'scheduling.waitlist.offer_declined',
-        resourceType: 'waitlist_entry',
-        resourceId: id,
-        before: null,
-        requestContext: ctx,
-      },
-    },
-    async (tx) =>
-      releaseWaitlistOffer(tx, {
-        clinicId,
-        entryId: id,
-        idempotencyKey: `${idempotencyKey}:decline`,
-        correlationId: ctx.correlationId ?? null,
-      }),
-  );
+      async (tx) =>
+        releaseWaitlistOffer(tx, {
+          clinicId,
+          entryId: id,
+          idempotencyKey: `${idempotencyKey}:decline`,
+          correlationId: ctx.correlationId ?? null,
+        }),
+    );
+  });
 }

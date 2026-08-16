@@ -16,6 +16,7 @@ import {
   cancelWaitlistEntry,
   declineWaitlistOffer,
 } from '@/contexts/scheduling/actions';
+import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { WaitlistEntryDTO } from '@/contexts/scheduling/types';
 import { uuidv4 } from '@/lib/ui/uuid';
 
@@ -86,17 +87,19 @@ export function WaitlistManager({
     }
     startTransition(async () => {
       try {
-        await createWaitlistFromUi(
-          {
-            patientId: patient.id,
-            procedureId,
-            doctorId: doctorId || null,
-            priority,
-            ...(preferredFromDate ? { preferredFromDate } : {}),
-            ...(preferredUntilDate ? { preferredUntilDate } : {}),
-            ...(notes.trim() ? { notes: notes.trim() } : {}),
-          },
-          uuidv4(),
+        await unwrapAction(
+          createWaitlistFromUi(
+            {
+              patientId: patient.id,
+              procedureId,
+              doctorId: doctorId || null,
+              priority,
+              ...(preferredFromDate ? { preferredFromDate } : {}),
+              ...(preferredUntilDate ? { preferredUntilDate } : {}),
+              ...(notes.trim() ? { notes: notes.trim() } : {}),
+            },
+            uuidv4(),
+          ),
         );
         setPatient(null);
         setNotes('');
@@ -111,7 +114,7 @@ export function WaitlistManager({
   function cancel(id: string) {
     startTransition(async () => {
       try {
-        await cancelWaitlistEntry(id, uuidv4());
+        await unwrapAction(cancelWaitlistEntry(id, uuidv4()));
         router.refresh();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao cancelar entrada.');
@@ -126,7 +129,7 @@ export function WaitlistManager({
   function accept(id: string) {
     startTransition(async () => {
       try {
-        await acceptWaitlistOffer(id, uuidv4());
+        await unwrapAction(acceptWaitlistOffer(id, uuidv4()));
         toast.success('Consulta agendada na vaga ofertada.');
         router.refresh();
       } catch (error) {
@@ -138,7 +141,7 @@ export function WaitlistManager({
   function decline(id: string) {
     startTransition(async () => {
       try {
-        const result = await declineWaitlistOffer(id, uuidv4());
+        const result = await unwrapAction(declineWaitlistOffer(id, uuidv4()));
         toast.success(
           result.nextEntryId
             ? 'Oferta recusada. A vaga foi repassada ao próximo da fila.'
