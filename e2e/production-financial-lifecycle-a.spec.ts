@@ -365,15 +365,28 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         { kind: 'payment', count: 2, total: '10.00', actors: 1 },
         { kind: 'refund', count: 2, total: '10.00', actors: 1 },
       ]);
-      expect(evidence.compensation).toMatchObject({ count: 2, total: '10.00', paid_rows: 2 });
+      // DATA-003 — o achado: com estorno INTEGRAL em multiplas parcelas, o
+      // lancamento original e as compensacoes ficavam `pago`, o filtro "Pago"
+      // ainda os listava e nao havia acao para terminalizar. Agora o estorno
+      // total marca tudo como `estornado`, entao nenhuma compensacao permanece
+      // paga.
+      expect(evidence.compensation).toMatchObject({ count: 2, total: '10.00', paid_rows: 0 });
       expect(evidence.cancelAuditRows).toBe(1);
       expect(evidence.refundAuditRows).toBe(2);
 
-      await page.reload();
-      mainCard = financialCard(page, mainDescription);
-      await expect(mainCard).toBeVisible();
-      const refundStillExposed = await mainCard
+      // DATA-003 — terminalizado, o lancamento sai da lista padrao e passa a
+      // aparecer sob o status `estornado`. Antes ele continuava em "Pago", que
+      // era justamente a classificacao mentirosa do achado.
+      await page.goto('/financeiro?tipo=receber&status=estornado');
+      // Espera a lista renderizar antes de procurar o card (a rota tem
+      // loading.tsx, entao o shell aparece primeiro).
+      await page.getByLabel('Filtrar por status').waitFor({ timeout: 30_000 });
+      // O card terminalizado nao expoe o mesmo wrapper das linhas acionaveis,
+      // entao ancora-se no texto e checa-se a acao no escopo da lista.
+      await expect(page.getByText(mainDescription, { exact: true })).toBeVisible();
+      const refundStillExposed = await page
         .getByRole('button', { name: 'Reembolsar' })
+        .first()
         .isVisible()
         .catch(() => false);
 
@@ -384,6 +397,9 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         page.getByText(mainDescription, { exact: true }),
       );
       await page.goto('/financeiro?tipo=receber&status=estornado');
+      // Espera a lista renderizar antes de procurar o card (a rota tem
+      // loading.tsx, entao o shell aparece primeiro).
+      await page.getByLabel('Filtrar por status').waitFor({ timeout: 30_000 });
       await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('receber');
       await expect(page.getByLabel('Filtrar por status')).toHaveValue('estornado');
       const appearsInRefundedFilter = await page
@@ -397,16 +413,20 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         page.getByText(mainDescription, { exact: true }),
       );
 
+      // DATA-003 — o achado: apesar do estorno INTEGRAL em duas parcelas, o
+      // original continuava `pago`, aparecia no filtro "Pago", nao aparecia em
+      // "Estornado" e nao havia acao para terminalizar. O razao fechava, mas a
+      // classificacao mentia. Agora o estorno total terminaliza.
       const fullRefundTerminalized = evidence.original?.status === 'estornado';
-      expect(fullRefundTerminalized).toBe(false);
+      expect(fullRefundTerminalized).toBe(true);
       expect(evidence.original).toMatchObject({
-        status: 'pago',
+        status: 'estornado',
         valor: '10.00',
         valor_pago: '10.00',
       });
       expect(refundStillExposed).toBe(false);
-      expect(remainsInPaidFilter).toBe(true);
-      expect(appearsInRefundedFilter).toBe(false);
+      expect(remainsInPaidFilter).toBe(false);
+      expect(appearsInRefundedFilter).toBe(true);
       expect(invalidFiltersIgnored).toBe(true);
 
       console.log(
