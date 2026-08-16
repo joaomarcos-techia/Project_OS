@@ -107,7 +107,6 @@ test.describe('produção: recovery de senha na Clínica A', () => {
     const syntheticEmail = `e2e-password-recovery-a-${runId}@example.test`;
     const syntheticName = `[E2E-RECOVERY-A-${runId}]`;
     const originalPassword = `Aa1!${randomBytes(18).toString('base64url')}`;
-    const intermediateStrongPassword = `Bb2!${randomBytes(18).toString('base64url')}`;
     const finalPassword = `Cc3!${randomBytes(18).toString('base64url')}`;
     const weakPassword = 'aaaaaaaa';
     let clinicId: string | undefined;
@@ -162,47 +161,23 @@ test.describe('produção: recovery de senha na Clínica A', () => {
       );
       await Promise.all([resetPage.goto('/reset-password'), oldSessionPage.goto('/dashboard')]);
       await expect(resetPage.getByRole('heading', { name: 'Nova senha' })).toBeVisible();
-      await expect(resetPage.getByLabel('Nova senha (mín 8 caracteres)')).toBeVisible();
-      const normalSessionReachedResetForm = true;
-
-      const weakPasswordHttpStatus = await submitPassword(resetPage, weakPassword);
-      const weakPasswordAccepted = await resetPage
-        .waitForURL(/\/login\?reason=password_updated$/u, { timeout: 10_000 })
-        .then(() => true)
+      // AUTH-006 — a pagina so monta o formulario com o grant one-time emitido
+      // por `/auth/confirm`. Uma sessao autenticada por senha nao e prova de
+      // recovery e precisa parar aqui.
+      await expect(resetPage.getByText('Link inválido ou expirado')).toBeVisible();
+      const normalSessionReachedResetForm = await resetPage
+        .getByLabel('Nova senha (mín 8 caracteres)')
+        .isVisible()
         .catch(() => false);
+      expect(normalSessionReachedResetForm).toBe(false);
 
-      let directResetPassword = weakPassword;
-      let directResetHttpStatus = weakPasswordHttpStatus;
-      if (!weakPasswordAccepted) {
-        await expect(resetPage.getByText('Não foi possível redefinir a senha.')).toBeVisible();
-        directResetPassword = intermediateStrongPassword;
-        directResetHttpStatus = await submitPassword(resetPage, directResetPassword);
-        await expect(resetPage).toHaveURL(/\/login\?reason=password_updated$/u);
-      }
-      const normalSessionChangedPassword = /\/login\?reason=password_updated$/u.test(
-        resetPage.url(),
-      );
-      expect(normalSessionChangedPassword).toBe(true);
+      // Reencaminhar o link "na mao" para esta pagina tambem nao vale: sem
+      // token verificado o redirect cai no erro de autenticacao.
+      await resetPage.goto('/reset-password?token_hash=nao-e-um-token&type=recovery');
+      const forgedTokenDenied = /\/auth\/auth-error\?reason=/u.test(resetPage.url());
+      expect(forgedTokenDenied).toBe(true);
+      const normalSessionChangedPassword = false;
 
-      const oldCredentialAttempt = await statelessClient(url, secretKey).auth.signInWithPassword({
-        email: syntheticEmail,
-        password: originalPassword,
-      });
-      const directCredentialAttempt = await statelessClient(url, secretKey).auth.signInWithPassword(
-        { email: syntheticEmail, password: directResetPassword },
-      );
-      expect(oldCredentialAttempt.error).not.toBeNull();
-      expect(directCredentialAttempt.error).toBeNull();
-
-      const oldSessionResponse = await oldSessionPage.goto('/dashboard');
-      const oldSessionAllowedAfterPasswordReset = !/\/login(?:\?|$)/u.test(oldSessionPage.url());
-      expect(oldSessionResponse?.status()).toBeLessThan(500);
-
-      const oldRefresh = await statelessClient(url, secretKey).auth.refreshSession({
-        refresh_token: oldSessionTokens.refreshToken,
-      });
-      const otherRefreshTokenRevoked = Boolean(oldRefresh.error) && !oldRefresh.data.session;
-      expect(otherRefreshTokenRevoked).toBe(true);
 
       const generated = await admin.auth.admin.generateLink({
         type: 'recovery',
@@ -221,8 +196,29 @@ test.describe('produção: recovery de senha na Clínica A', () => {
       await recoveryPage.goto(recoveryLink.toString());
       await expect(recoveryPage).toHaveURL(/\/reset-password$/u);
       await expect(recoveryPage.getByLabel('Nova senha (mín 8 caracteres)')).toBeVisible();
+
+      // A politica de senha e checada com o grant valido em maos: a prova de
+      // recovery nao pode servir de atalho para uma senha fraca.
+      const weakPasswordHttpStatus = await submitPassword(recoveryPage, weakPassword);
+      const weakPasswordAccepted = await recoveryPage
+        .waitForURL(/\/login\?reason=password_updated$/u, { timeout: 10_000 })
+        .then(() => true)
+        .catch(() => false);
+      expect(weakPasswordAccepted).toBe(false);
+      await expect(recoveryPage.getByText('Não foi possível redefinir a senha.')).toBeVisible();
+
       const recoveryResetHttpStatus = await submitPassword(recoveryPage, finalPassword);
       await expect(recoveryPage).toHaveURL(/\/login\?reason=password_updated$/u);
+
+      const oldRefresh = await statelessClient(url, secretKey).auth.refreshSession({
+        refresh_token: oldSessionTokens.refreshToken,
+      });
+      const otherRefreshTokenRevoked = Boolean(oldRefresh.error) && !oldRefresh.data.session;
+      expect(otherRefreshTokenRevoked).toBe(true);
+
+      const oldSessionResponse = await oldSessionPage.goto('/dashboard');
+      const oldSessionAllowedAfterPasswordReset = !/\/login(?:\?|$)/u.test(oldSessionPage.url());
+      expect(oldSessionResponse?.status()).toBeLessThan(500);
 
       await reusePage.goto(recoveryLink.toString());
       const recoveryLinkReuseDenied = /\/auth\/auth-error\?reason=/u.test(reusePage.url());
@@ -230,7 +226,7 @@ test.describe('produção: recovery de senha na Clínica A', () => {
 
       const priorCredentialAttempt = await statelessClient(url, secretKey).auth.signInWithPassword({
         email: syntheticEmail,
-        password: directResetPassword,
+        password: originalPassword,
       });
       const finalCredentialAttempt = await statelessClient(url, secretKey).auth.signInWithPassword({
         email: syntheticEmail,
@@ -253,16 +249,14 @@ test.describe('produção: recovery de senha na Clínica A', () => {
         `[password-recovery-a] ${JSON.stringify({
           normalSessionReachedResetForm,
           normalSessionChangedPassword,
-          directResetHttpStatus,
+          forgedTokenDenied,
           weakPasswordHttpStatus,
           weakPasswordAccepted,
-          oldPasswordRejectedAfterDirectReset: Boolean(oldCredentialAttempt.error),
-          directPasswordAccepted: !directCredentialAttempt.error,
           otherRefreshTokenRevoked,
           oldSessionAllowedAfterPasswordReset,
           recoveryResetHttpStatus,
           recoveryLinkReuseDenied,
-          priorPasswordRejectedAfterRecovery: Boolean(priorCredentialAttempt.error),
+          originalPasswordRejectedAfterRecovery: Boolean(priorCredentialAttempt.error),
           finalPasswordAccepted: !finalCredentialAttempt.error,
           oldSessionAllowedAfterRecovery,
           deletedUserDenied,
