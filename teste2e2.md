@@ -3010,3 +3010,413 @@ restantes.
 | A11Y-003 | P3 | FAIL | sete campos + Combobox | gate | suíte | não reexecutado | `FIXED` |
 
 **Totais:** 33 `FIXED` · 1 `PARCIAL` (OBS-002) · 2 `BLOCKED` · 8 `NOT FIXED`.
+
+## 47. REMEDIATION — gaps restantes (ciclo de 2026-08-16)
+
+Escopo desta execução: os dez achados que o ciclo anterior deixou abertos
+(`META-001`, `WAIT-001`, `BILLING-001`, `BILLING-002`, `DATA-006`, `UX-003`,
+`PAT-001`, `HTTP-001`, `OBS-002`, `RBAC-001`) mais o gate de reexecução E2E em
+produção. Nenhum achado já corrigido foi reaberto ou refatorado.
+
+### 47.1 Baseline (commit `4a83303`, branch `main`)
+
+| Gate | Resultado |
+| --- | --- |
+| `git status` (src/, drizzle/, scripts/) | limpo |
+| `pnpm lint` | `PASS` |
+| `pnpm typecheck` | `PASS` |
+| `pnpm test` | `PASS` — 1.638 testes / 185 arquivos |
+| `pnpm build` | `PASS` |
+| `pnpm format:check` | `FAIL` — 86 arquivos |
+
+`format:check` é **BASELINE FAILURE**, não regressão: os arquivos não formatados
+vêm de `304bc5c` (majoritariamente `src/contexts/ai-agent/**`) e de `evidence/`.
+Cada arquivo tocado neste ciclo foi formatado individualmente; a base herdada não
+foi mascarada com um `--write` global, que esconderia a origem do problema.
+
+### 47.2 Gate final
+
+| Gate | Antes | Depois |
+| --- | --- | --- |
+| `pnpm lint` | PASS | `PASS` |
+| `pnpm typecheck` | PASS | `PASS` |
+| `pnpm test` | 1.638 | `PASS` — 1.853 testes / 196 arquivos (**+215**) |
+| `pnpm build` | PASS | `PASS` |
+| `pnpm arch:db-check` | PASS | `PASS` — 888 arquivos, 0 findings |
+
+Nenhum teste existente foi alterado para passar. Três arquivos de teste tiveram
+mocks ESTENDIDOS porque a superfície mockada cresceu (`route.test.ts` do webhook
+e do reconcile ganharam `syncInvoiceFromProviderPayment`; `process.test.ts`
+ganhou `lookupWaitlistOffer`) — as asserções originais permaneceram intactas.
+
+---
+
+### META-001 — WABA ativa sem app inscrito para webhooks
+
+- **Estado inicial:** `FAIL`. Graph respondia HTTP 200 com `subscribed_apps`
+  vazio enquanto o banco dizia `active=true, connection_status='connected'`.
+- **Causa:** o health só testava a raiz da Graph API, que responde 200 mesmo com
+  o app desinscrito. Nada revalidava token, escopos, phone ID, WABA ou
+  assinatura; o booleano da tela vinha de uma coluna que ninguém reconciliava.
+- **Arquivos:** `contexts/messaging/internal/channel-health.ts` (novo),
+  `internal/health-check.ts` (novo), `internal/meta-onboarding.ts`, `errors.ts`,
+  `index.ts`, `lib/messaging/connection-store.ts`, `lib/messaging/index.ts`,
+  `configuracoes/whatsapp/{data.ts,whatsapp-connect.tsx}`,
+  `api/cron/whatsapp-health/route.ts` (novo), `vercel.json`.
+- **Mudança:** sondagem read-only (só `GET`) de token, escopos, número, WABA e
+  `subscribed_apps`; avaliador PURO decide o veredito. A distinção que sustenta
+  tudo: **negativa do provedor** (4xx, `is_valid=false`, lista sem o nosso app)
+  rebaixa a conexão; **indeterminação** (timeout/5xx) preserva o estado anterior
+  — degradar por instabilidade da Meta trocaria uma mentira por outra. O estado
+  observado só é gravado quando MUDA. `active` não é tocado: desativar apagaria
+  a única credencial capaz de se reinscrever. A tela verifica ANTES de ler e
+  ganhou o estado "com problema"; cron a cada 6h cobre quem nunca abre a tela.
+- **Testes criados:** `channel-health.test.ts` (15), `meta-health-probe.test.ts`
+  (18), 2 casos em `whatsapp-connect.test.tsx`. Cobrem os onze cenários exigidos.
+- **Antes/depois:** os testes de veredito e de sondagem não existiam; a suíte de
+  `meta-onboarding` (15) continua verde.
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED` no código preventivo. A **reinscrição do app na Meta**
+  permanece `BLOCKED` — é mutação externa não autorizada.
+
+### WAIT-001 — lifecycle da lista de espera
+
+- **Estado inicial:** `FAIL`. Cancelamento humano não ofertava; evento sem
+  handler; `markWaitlistEntryBooked()` sem caller; UI rotulava "Oferta enviada"
+  sem que nada produzisse o estado.
+- **Causa:** só `applyTransition(target='cancelado')` chamava
+  `offerWaitlistForCancelledAppointment`. `recoverAppointment(exceptional_cancel)`
+  — o caminho MAIS usado na Agenda — tem implementação própria e liberava a vaga
+  sem ofertar.
+- **Arquivos:** `scheduling/internal/waitlist-store.ts`, `actions.ts`,
+  `events.ts`, `queries.ts`, `types.ts`, `api.ts`, `index.ts`,
+  `waitlist-expiry.ts` (novo), `ai-agent/proactive-jobs/**` (tipo
+  `waitlist_offer`), `internal/handlers/waitlist-offered.ts` (novo),
+  `api/cron/{outbox/handlers.ts,proactive-waitlist/route.ts}`,
+  `lista-espera/{actions.ts,waitlist-manager.tsx}`, `lib/env.ts`,
+  migration `0075`, `eslint.config.mjs`, `scripts/arch-db-check.ts`.
+- **Mudança:** o cancelamento humano passa a ofertar. Recusa e expiração
+  devolvem a entrada à fila e **repassam** a vaga ao próximo, excluindo quem
+  acabou de recusar — sem o repasse, uma recusa mataria o horário. Aceitar cria
+  a consulta pelo MESMO core de qualquer agendamento. O handler enfileira na
+  fila C14 (lease, backoff, suppression, consentimento, dedup, at-most-once) em
+  vez de abrir caminho paralelo, e o guard de send-time cancela a mensagem se a
+  oferta já foi resolvida.
+- **Decisão contrária ao texto do achado, documentada:** ausência médica **não**
+  oferta. O pentest a listou junto dos caminhos omissos, mas todos os horários
+  afetados estão DENTRO da janela de ausência: ofertar ali marcaria um paciente
+  da fila justamente quando não há quem o atenda. Há teste afirmando a ausência
+  da chamada.
+- **Testes criados:** `waitlist-store.test.ts` (10), 6 casos em
+  `waitlist-policy.test.ts`, 5 em `process.test.ts`. Cobrem candidato normal/
+  urgente/período, nenhum/um/múltiplos, inelegível, aceite, recusa, expiração,
+  segundo candidato, replay, retry e disputa do claim.
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED` no pipeline interno. O **envio real** depende de template
+  aprovado na Meta (`META_TEMPLATE_WAITLIST_OFFER_ID`): sem ele o job termina em
+  `template_not_configured` em vez de enviar algo não aprovado. Esse trecho é
+  `BLOCKED`.
+
+### BILLING-001 — período pago não era avançado
+
+- **Estado inicial:** `FAIL` estrutural.
+- **Causa:** `markInvoicePaid()` marcava `paid`, ativava a subscription e zerava
+  o dunning sem preencher `invoice.period_*` nem avançar
+  `subscriptions.current_period_*`. Webhook e reconcile usam a mesma função.
+- **Arquivos:** `billing/internal/billing-period.ts` (novo), `subscriptions.ts`.
+- **Mudança:** aritmética PURA sobre `YYYY-MM-DD`, derivada do `due_date` da
+  própria cobrança — nunca de `now()`, para que webhook atrasado, reconcile do
+  dia seguinte e replay produzam o MESMO período. Meses de calendário com clamp
+  de fim de mês (31/01 + 1 = 28/02; 29/02 em bissexto); sem o clamp o ciclo
+  pularia um mês por overflow. Roda ANTES de ativar. Fica FORA do ramo da
+  transição de propósito: reentrega sobre invoice já `paid` REPARA período
+  ausente. O avanço tem predicado no `WHERE` (`IS NULL OR < novo`), que fecha a
+  corrida webhook×reconcile, impede replay duplo e impede que pagamento tardio
+  de invoice antiga regrida ou pule o ciclo.
+- **Testes criados:** `billing-period.test.ts` (15) + 13 casos de decisão com tx
+  roteirizada e contrato em `subscriptions.test.ts`. Cobrem mensal, anual,
+  31/01, bissexto, replay, invoice antiga e reparo de período ausente.
+- **Nenhuma data foi falsificada:** os testes usam vencimentos fixos, não
+  passagem de tempo, e nada foi alterado no Asaas.
+- **E2E / produção:** `BLOCKED` (ver 47.3). Confirmação com cobrança real
+  continua dependendo da primeira cobrança autorizada.
+- **Status:** `FIXED` no código.
+
+### BILLING-002 — divergência com o painel do Asaas
+
+- **Estado inicial:** `FAIL` estrutural/configuração.
+- **Causa:** `ensureInvoiceForPayment()` retorna a invoice existente sem olhar
+  `due_date`, `total_amount` ou remoção; `actionFor()` só traduzia pago, vencido
+  e estornado.
+- **Arquivos:** `billing/internal/provider-sync.ts` (novo), `subscriptions.ts`,
+  `events.ts`, `api/webhooks/asaas/route.ts`,
+  `api/cron/billing-reconcile/route.ts`.
+- **Mudança:** decisão PURA sobre o par (local, provedor), com três invariantes:
+  terminal não regride; **delete é fail-closed** (o corpo do webhook só tem
+  token estático compartilhado, então sem 404 do `GET` autoritativo a invoice vai
+  para REVISÃO, nunca para `cancelled`); e delete **nunca** vira refund.
+  Aplicação com compare-and-swap pelo status lido. A função devolve a linha
+  ATUALIZADA porque BILLING-001 deriva o período do `due_date` — pagar com o
+  vencimento antigo em memória abriria o ciclo errado. O reconcile recebeu o
+  mesmo tratamento nos dois scans: é o caminho que fecha a divergência **sem**
+  depender de habilitar eventos novos no provedor.
+- **Testes criados:** `provider-sync.test.ts` (18, cenários A–G nomeados), 7 no
+  webhook, 4 no reconcile.
+- **Nenhuma cobrança foi criada, alterada ou excluída no Asaas.**
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED` no código. Habilitar `PAYMENT_UPDATED`/`PAYMENT_DELETED`
+  no painel permanece `BLOCKED` (operação externa).
+
+### DATA-006 — expediente com pausa persistia parcialmente
+
+- **Estado inicial:** `FAIL` de atomicidade.
+- **Causa:** `addExpediente()` aguardava duas chamadas sequenciais a
+  `setDoctorAvailability()`, cada uma com transação e chave idempotente próprias.
+- **Arquivos:** `scheduling/config-actions.ts`, `types.ts`,
+  `configuracoes/horarios/horarios-manager.tsx`.
+- **Mudança:** `setDoctorAvailabilityWindows` — uma transação, uma chave, uma
+  auditoria para o expediente inteiro. O EXCLUDE do banco continua sendo a
+  barreira, agora derrubando o conjunto em vez de metade dele. O schema valida o
+  CONJUNTO antes de qualquer escrita (janela invertida, duração zero,
+  sobreposição interna mesmo fora de ordem). `assertPractitionerInClinic` foi
+  extraída para o lote herdar exatamente a mesma verificação tenant da janela
+  única.
+- **Testes criados:** `availability-windows.test.ts` (14) + 2 na UI, provando que
+  manhã+tarde vão numa ÚNICA chamada.
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED`.
+
+### UX-003 — série recorrente sem identificação nem cancelamento
+
+- **Estado inicial:** `FAIL` funcional.
+- **Causa:** a projeção `AgendaAppt` não transportava
+  `recurrenceSeriesId`/`occurrence`; `cancelRecurringSeries()` existia no
+  domínio com zero callers.
+- **Arquivos:** `agenda/data.ts`, `agenda/actions.ts`, `agenda-calendar.tsx`,
+  `recurrence-series-dialog.tsx` (novo), `scheduling/queries.ts`, `index.ts`.
+- **Mudança:** a projeção carrega série e ocorrência;
+  `listRecurrenceSeriesSummaries` traz total, cadência, estado e quantas futuras
+  ainda estão ativas — sem o total, "ocorrência 3" não informa nada. Badge
+  "Série N/M" abre o diálogo, que declara o alcance ANTES de confirmar e exige
+  motivo. Série encerrada continua visível (o vínculo é histórico) sem ação. A
+  chave idempotente é rotacionada após o sucesso (lição de UX-004).
+- **Nada foi afrouxado no domínio:** permissão fresh, motivo obrigatório, apenas
+  futuras ativas, transição pela state machine, histórico preservado,
+  `FOR UPDATE` + teste de `status='active'` para um vencedor entre cancelamentos
+  concorrentes, idempotência e auditoria — tudo coberto por teste.
+- **Testes criados:** `recurrence-series-management.test.ts` (16).
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED`.
+
+### PAT-001 — soft-delete sem recuperação operacional
+
+- **Estado inicial:** `FAIL` funcional.
+- **Causa:** `includeDeleted` existia apenas em queries internas; não havia
+  `restorePatient` nem rota/ação equivalente.
+- **Arquivos:** `patient/internal/restore-policy.ts` (novo), `actions.ts`,
+  `queries.ts`, `pacientes/{page.tsx,actions.ts,restore-patient-button.tsx}`.
+- **Mudança:** decisão PURA sobre "esta remoção ainda é reversível?". A metade
+  difícil não é restaurar, é **recusar**: um registro eliminado por LGPD que
+  reaparece é violação de direito do titular. Nunca restaura anonimizado, fora
+  dos 30 dias, ou com pedido LGPD de eliminação em aberto; a ordem das checagens
+  coloca o irreversível antes do prazo, porque estar dentro da janela não reabre
+  o que já foi apagado. Paciente já ativo é replay: sucesso sem efeito. Exige
+  `delete:patient` fresh — a MESMA capacidade que removeu. `FOR UPDATE` fecha a
+  corrida com o cron de hard-delete. A supressão levantada é só a de
+  `patient_deleted`: a de `patient_deceased` permanece, porque óbito é fato do
+  titular, não efeito da remoção.
+- **Testes criados:** `restore-policy.test.ts` (15).
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED`.
+
+### HTTP-001 — soft-404 respondendo HTTP 200
+
+- **Estado inicial:** `FAIL` de semântica HTTP.
+- **Causa confirmada (o relatório anterior a deixou como "provável"):** não
+  estava no `notFound()`. Estava no `loading.tsx` do MESMO segmento — ele envolve
+  a página num Suspense, então o App Router emite o shell com status 200 antes de
+  a página resolver, e o `notFound()` posterior só troca a UI dentro do stream.
+- **Arquivos:** removidos `pacientes/[id]/loading.tsx` e
+  `conversas/[id]/loading.tsx`; criado `src/app/not-found-status.test.ts`.
+- **Mudança:** sem o boundary, a página precisa resolver antes de qualquer HTML
+  sair, e o 404 é o status real. Varredura da classe (regra #62): apenas essas
+  duas rotas tinham o par; as demais páginas com `notFound()` já não tinham
+  `loading.tsx` irmão.
+- **Nada foi relaxado:** os três casos de ausência continuam idênticos e a
+  leitura segue tenant-scoped — id de outro tenant cai no mesmo
+  `!p → notFound()`, sem permitir enumeração. Custo assumido: o skeleton dessas
+  duas rotas.
+- **Testes criados:** guard permanente que varre `src/app` e falha se qualquer
+  página com `notFound()` ganhar um `loading.tsx` irmão (11 casos).
+- **E2E / produção:** `BLOCKED` (ver 47.3) — a verificação do status HTTP real
+  exige a aplicação publicada.
+- **Status:** `FIXED` no código; **status HTTP não observado em produção**.
+
+### OBS-002 — erro esperado respondendo HTTP 500
+
+- **Estado inicial:** `PARCIAL`. A metade de Procedimentos/Horários foi fechada
+  no ciclo anterior; a da Lista de espera continuava aberta.
+- **Causa:** as actions de waitlist deixavam `ZodError` escapar cru pela
+  fronteira RSC, e `localBoundary` lançava um `Error` cru na app-layer, FORA do
+  boundary da action.
+- **Arquivos:** `scheduling/actions.ts`, `lista-espera/actions.ts`,
+  `lista-espera/waitlist-manager.tsx`.
+- **Mudança:** as quatro actions da lista passam pelo mesmo `toActionResult` já
+  usado em `config-actions`; a conversão de data devolve `null` em vez de lançar;
+  a UI consome o resultado discriminado via `unwrapAction` — sem isso um
+  `{ok:false}` seria lido como sucesso.
+- **O que NÃO é traduzido continua subindo:** timeout de banco e bug de código
+  seguem virando 5xx + Sentry. Um `catch` genérico trocaria ruído por cegueira.
+- **Testes criados:** `waitlist-validation-errors.test.ts` (11), incluindo o
+  intervalo invertido literal do achado.
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED`.
+
+### RBAC-001 — permissões órfãs (Opção B)
+
+- **Estado inicial:** `FAIL` de consistência RBAC.
+- **Causa:** drift de catálogo. As features evoluíram (WhatsApp foi para
+  `manage:settings`; Conversas ganhou `view/manage:conversations`) e os codes
+  antigos ficaram sem remoção nem remapeamento.
+- **Arquivos:** `lib/audit/tenant-export.ts` (novo),
+  `configuracoes/auditoria/**` (novo), `contexts/ai-agent/config-actions.ts` e
+  `config-types.ts` (novos), `configuracoes/agente/**` (novo),
+  `configuracoes/page.tsx`, migration `0076`,
+  `lib/auth/permission-enforcement-map.test.ts` (novo).
+- **`export:audit`:** export da trilha da PRÓPRIA clínica em CSV, separado do
+  export de PLATAFORMA (super-admin, cross-tenant, PDF assinado) — esta tela não
+  alcança aquele. `clinicId` vem de `requireClinicId()`: não existe parâmetro de
+  tenant a adulterar. Gate fresh, leitura sob RLS, e o próprio export é
+  auditado. `before`/`after` NÃO entram no CSV — eles carregam estado de
+  registro de paciente, e a trilha responde quem fez o quê e quando, não qual
+  era o dado; exportá-los transformaria uma permissão de auditoria em via
+  paralela de extração de prontuário. Corte por teto é DECLARADO.
+- **`manage:agent`:** configuração do comportamento do agente. Não é escopo
+  inventado — `ai_clinic_config` já governa o agente (o context-builder e
+  `provide_clinic_info` a leem a cada turno) e era escrita uma única vez pela
+  saga de onboarding, com defaults, sem nenhuma forma de a clínica ajustar.
+  Inclui `canDisclosePaymentsViaAgent`, que é decisão de privacidade (ADR-023).
+  **Sem alias** para `manage:settings`: aquela governa identidade e integrações,
+  esta governa o que o agente pode fazer e dizer. Há teste afirmando que a
+  conexão do WhatsApp continua em `manage:settings`.
+- **Bundle do Financeiro — decisão de produto:** `export:audit` **sai**
+  (migration `0076`). Enquanto o code era órfão a linha do seed `0003` era
+  inofensiva; ligada a uma capacidade real, ela concederia de uma vez, em todas
+  as clínicas, algo que ninguém decidiu dar a esse perfil — a trilha atravessa
+  todos os contextos, inclusive o clínico, e é artefato de conformidade
+  administrativa, não insumo de trabalho financeiro. O code **permanece no
+  catálogo**: um owner que queira delegar continua podendo, agora por decisão
+  explícita via override. Bump de `claims_version` apenas nos profiles
+  `financial` — sem ele, o JWT em uso seguiria apresentando a permissão removida.
+- **Guard de CI:** `permission-enforcement-map` exige consumidor para cada um dos
+  28 codes, com allowlist explícita, justificada e datada (hoje **vazia**). A
+  exclusão é por ARQUIVO, não por diretório: `equipe/page.tsx` e
+  `equipe/actions.ts` aplicam gates reais e contam; só o diálogo que enumera o
+  catálogo fica de fora, porque aceitá-lo tornaria o guard sempre verde — que é
+  exatamente como o drift passou despercebido. O guard encontrou de imediato
+  dois codes que eu havia excluído por engano (`manage:employees`,
+  `manage:permissions`), o que confirma que ele detecta o que se propõe a
+  detectar.
+- **Testes criados:** `permission-enforcement-map.test.ts` (36).
+- **E2E / produção:** `BLOCKED` (ver 47.3).
+- **Status:** `FIXED`.
+
+---
+
+### 47.3 Gate E2E de produção — `BLOCKED`
+
+**Não executado, e não por falta de suíte.** O motivo é objetivo e verificável:
+
+```
+origin/main = 304bc5c   (produção)
+main local  = 105a4ba   (19 commits à frente)
+```
+
+`app.qoro.dev` está publicado a partir de `origin/main`, que é o commit
+**anterior ao ciclo de correções passado**. A produção de hoje não contém nem os
+33 achados corrigidos no ciclo anterior nem os 10 deste ciclo.
+
+Consequência: rodar `pnpm test:e2e` contra `https://app.qoro.dev` agora
+exercitaria o código que produziu o pentest original. As falhas seriam
+reproduções dos achados, não avaliação das correções — e registrá-las como
+"correção não funciona" seria tão incorreto quanto registrar `PASS`.
+
+**Por que não publiquei:** `git push origin main` dispara deploy de produção de
+19 commits, incluindo duas migrations — e a `0076` faz `DELETE` em
+`role_permissions` e incrementa `claims_version` de todos os profiles
+`financial`, forçando reemissão de claims. É alteração externa, irreversível na
+prática e não autorizada; o próprio escopo manda marcar `BLOCKED` nesse caso.
+
+**Verificação read-only feita:** `GET /api/health` → `401` (rota viva, exige
+credencial); `GET /configuracoes/agente` → `307` para `/login`. Nenhuma
+credencial foi usada, nenhuma fixture criada, nenhum dado alterado.
+
+**O que precisa ser feito manualmente, nesta ordem:**
+
+1. Revisar os 19 commits e publicar `main`.
+2. Aplicar as migrations `0075` e `0076` no ambiente de produção. Avisar os
+   usuários de perfil Financeiro: o bump de `claims_version` reemite as claims
+   no próximo request.
+3. Rodar a suíte com a base apontada para produção:
+   `E2E_BASE_URL=https://app.qoro.dev pnpm test:e2e` (45 specs em `e2e/`).
+4. Nas suítes mutáveis, confirmar o cleanup em `finally` e a contraprova de zero
+   fixtures remanescentes.
+5. Só então executar as operações externas ainda pendentes: reinscrição do app na
+   WABA (META-001), aprovação do template de oferta (WAIT-001) e habilitação de
+   `PAYMENT_UPDATED`/`PAYMENT_DELETED` no Asaas (BILLING-002).
+
+Enquanto isso não acontecer, as respostas às quinze perguntas do escopo são as
+da tabela abaixo — e nenhuma delas pode ser dada como `PASS`.
+
+### 47.4 Matriz dos dez gaps
+
+| Achado | Código | Testes automatizados | E2E produção | Operação externa | Status |
+| --- | --- | --- | --- | --- | --- |
+| META-001 | corrigido | `PASS` (33) | `BLOCKED` | reinscrição na Meta `BLOCKED` | `FIXED` (código) |
+| WAIT-001 | corrigido | `PASS` (21) | `BLOCKED` | template Meta `BLOCKED` | `FIXED` (pipeline) |
+| BILLING-001 | corrigido | `PASS` (28) | `BLOCKED` | cobrança real `BLOCKED` | `FIXED` (código) |
+| BILLING-002 | corrigido | `PASS` (29) | `BLOCKED` | eventos Asaas `BLOCKED` | `FIXED` (código) |
+| DATA-006 | corrigido | `PASS` (16) | `BLOCKED` | — | `FIXED` |
+| UX-003 | corrigido | `PASS` (16) | `BLOCKED` | — | `FIXED` |
+| PAT-001 | corrigido | `PASS` (15) | `BLOCKED` | — | `FIXED` |
+| HTTP-001 | corrigido | `PASS` (11) | `BLOCKED` | — | `FIXED` (código) |
+| OBS-002 | corrigido | `PASS` (11) | `BLOCKED` | — | `FIXED` |
+| RBAC-001 | corrigido | `PASS` (36) | `BLOCKED` | — | `FIXED` |
+
+`FIXED (código)` distingue, de propósito, o que tem prova de código e teste do
+que teria prova de comportamento observado em produção. Nenhuma linha desta
+tabela afirma que o comportamento foi visto rodando.
+
+### 47.5 As quinze perguntas do escopo
+
+| # | Pergunta | Resposta honesta hoje |
+| --- | --- | --- |
+| 1 | O WhatsApp realmente funciona? | **Não.** A WABA segue sem app inscrito; o código agora DETECTA e para de mentir, mas a reinscrição é externa. |
+| 2 | A clínica preenche horário cancelado pela waitlist? | Internamente sim; a mensagem ao paciente depende de template aprovado. `BLOCKED`. |
+| 3 | O primeiro pagamento abre o novo período? | Pelo código e pelos testes temporais, sim. Não observado com cobrança real. |
+| 4 | O ClinicaOS detecta divergência no Asaas? | Sim pelo reconcile (não depende de config nova). Os dois eventos de webhook seguem desabilitados. |
+| 5 | Expediente com pausa é atômico? | Sim. `NOT TESTED` em produção. |
+| 6 | Séries recorrentes são administráveis? | Sim. `NOT TESTED` em produção. |
+| 7 | Paciente soft-deleted pode ser restaurado? | Sim, dentro da janela e com as recusas corretas. `NOT TESTED` em produção. |
+| 8 | Recursos inexistentes retornam 404? | Pelo código, sim. O status HTTP **não** foi observado em produção. |
+| 9 | Erros de input não geram 500? | Sim no código. `NOT TESTED` em produção. |
+| 10 | `export:audit` controla capacidade tenant? | Sim, com export próprio e separado do de plataforma. |
+| 11 | `manage:agent` controla capacidade própria? | Sim, sem alias para `manage:settings`. |
+| 12 | As correções anteriores funcionam em PRODUÇÃO? | **Desconhecido** — elas não estão publicadas. |
+| 13 | A↔B continua isolado? | `NOT TESTED` neste ciclo. |
+| 14 | As quatro roles continuam corretas? | `NOT TESTED` neste ciclo. |
+| 15 | Pronto para GO-LIVE? | **Não.** |
+
+### 47.6 Veredito
+
+**NO-GO.**
+
+O critério do escopo exige, além de `FIXED` em todos os gaps, uma suíte de
+produção verde, A↔B verde, RBAC verde e cleanup verde. Os dez gaps estão
+corrigidos com teste automatizado permanente e a base ficou em 1.853 testes
+verdes, mas **nada disso foi observado em produção**, porque produção não tem o
+código. Três operações externas seguem pendentes de autorização.
+
+Declarar `GO` aqui seria exatamente o que o escopo proíbe: transformar
+impossibilidade operacional em aprovação.
+
