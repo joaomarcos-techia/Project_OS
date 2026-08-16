@@ -3786,3 +3786,91 @@ O que mudou desde a seção 48: os quinze estados intermediários (`PARTIAL`,
 `BLOCKED`, `NOT TESTED`) viraram `PASS` com evidência de produção; três defeitos
 de roteiro que só a suíte completa expõe foram corrigidos; e um incidente vivo de
 integração de cobrança foi diagnosticado e fechado.
+
+## 50. META-001 fechado — canal WhatsApp reconectado e verificado (2026-08-16)
+
+O número foi reconectado às `18:28:16Z` (`messaging.whatsapp.disconnected` às
+`18:26:50Z`, `messaging.whatsapp.connected` 86 s depois). O ciclo de
+desconexão/reconexão executa `unsubscribeAppFromWaba` e depois
+`subscribeAppToWaba` — ou seja, ele reassina o app na WABA, que era exatamente a
+peça ausente do achado.
+
+### 50.1 Verificação, não suposição
+
+Reconectar pela tela **não é prova** de que o canal funciona: era precisamente
+esse o achado original — a tela dizia "conectado" enquanto a Meta respondia
+`200` com `subscribed_apps` vazio. A verificação foi feita pelo mecanismo que
+este ciclo construiu.
+
+**Sonda 1 — varredura real (`GET /api/cron/whatsapp-health`)**
+
+```
+{"ok":true,"scanned":1,"broken":0,"changed":0}
+```
+
+`broken: 0` **elimina o veredito `broken`**. Pelo avaliador, `subscribed_apps`
+vazio produz `appSubscription: 'failed'` → `app_not_subscribed` → `broken` →
+status persistido `failed` → a varredura teria reportado `broken: 1, changed: 1`.
+Não reportou. Logo, a lista não está vazia.
+
+**Sonda 2 — a tela, que revalida ao abrir**
+
+Restava distinguir `healthy` de `indeterminate`, já que ambos deixam
+`changed: 0` (indeterminado por contrato não escreve). A tela de configurações
+renderiza o aviso *"O estado exibido é o da última verificação bem-sucedida"*
+**somente** quando o veredito é `indeterminate`. Um `GET` autenticado em
+`/configuracoes/whatsapp` retornou `200` com o bloco de canal conectado e **sem**
+esse aviso.
+
+Veredito efetivo: **`healthy`** — o que, pelo `CHECK_ORDER`, significa token
+válido, escopos presentes, WABA alcançável, telefone alcançável e **app inscrito
+na WABA**.
+
+Vale registrar um detalhe do avaliador que sustenta a leitura: `appSubscription`
+só fica `'unknown'` quando `META_APP_ID` não está configurado — e `unknown`
+levaria a `indeterminate`, que renderizaria o aviso. Como o aviso não aparece, o
+id do app está configurado **e** consta na lista de inscritos.
+
+### 50.2 Estado persistido
+
+| Campo | Valor |
+| --- | --- |
+| `connection_status` | `connected` |
+| `verified_at` | `2026-08-16T18:28:16.828Z` |
+| `meta_phone_id` / `meta_business_id` / `token_encrypted` | presentes |
+| `token_version` | 3 |
+
+Nenhum `messaging.whatsapp.health_changed` foi gravado — coerente: a varredura só
+escreve quando o estado MUDA, e ele já era `connected` com veredito saudável.
+
+### 50.3 Regressão dos specs dependentes
+
+O canal mudou de estado, então os dois specs que dependem dele foram
+reexecutados: `waitlist-a` e `whatsapp-settings-rbac` — ambos `PASS`.
+
+### 50.4 O que isso NÃO fecha
+
+**WAIT-001 continua aberto.** A oferta da lista de espera precisa do template
+`META_TEMPLATE_WAITLIST_OFFER_ID`, que não está configurado; sem ele
+`buildProactiveTemplate` lança `TemplateNotConfiguredError`. O canal estar
+saudável é condição necessária, não suficiente: falta criar e aprovar o template
+na Meta e publicar o id.
+
+Os outros três templates (`CONFIRMATION_REMINDER`, `DUNNING_FRIENDLY`,
+`FOLLOWUP_RETURN`) estão configurados.
+
+### 50.5 Veredito atualizado
+
+**NO-GO**, agora por **dois** motivos — e nenhum deles é mais o canal em si:
+
+1. **WAIT-001** — template de oferta da lista de espera não configurado.
+2. **BILLING-001** — primeira liquidação real não observada (cobrança `PENDING`,
+   vencimento 24/09).
+
+**Saíram da lista neste ciclo**: META-001 (canal verificado saudável, com app
+inscrito) e BILLING-002 (eventos `PAYMENT_UPDATED`/`PAYMENT_DELETED` inscritos e
+webhook reativado — §49.7).
+
+Das quinze perguntas de 48.7, a de número 1 — *"O WhatsApp realmente funciona?"* —
+passa de **"Não"** para **"O canal está saudável e verificado; as mensagens
+proativas de lista de espera ainda dependem de um template."**
