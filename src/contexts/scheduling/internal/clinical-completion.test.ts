@@ -97,12 +97,12 @@ describe('assertCanCompleteClinically — revalidação no banco', () => {
 
 describe('assertClinicalRecordReady (AUTHZ-008) — O QUÊ é concluído', () => {
   it('sem prontuário nenhum: recusa e explica o que fazer', async () => {
-    await expect(assertClinicalRecordReady(txWith([]), 'clinic-a', 'appt-1')).rejects.toBeInstanceOf(
-      SchedulingValidationError,
-    );
     await expect(
       assertClinicalRecordReady(txWith([]), 'clinic-a', 'appt-1'),
-    ).rejects.toThrow(/ainda não tem prontuário/u);
+    ).rejects.toBeInstanceOf(SchedulingValidationError);
+    await expect(assertClinicalRecordReady(txWith([]), 'clinic-a', 'appt-1')).rejects.toThrow(
+      /ainda não tem prontuário/u,
+    );
   });
 
   it('rascunho NÃO basta — é exatamente o que o worker atrasado produzia', async () => {
