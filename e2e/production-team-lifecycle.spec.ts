@@ -9,6 +9,11 @@ loadDotenv({ path: '.env.local' });
 
 const authorized = process.env.E2E_PRODUCTION_TEAM === 'ALLOW_TEST_ACCOUNT';
 const baseUrl = process.env.E2E_BASE_URL;
+// A jornada consome quatro vagas de equipe. Quando a clinica do storageState
+// padrao nao tem capacidade livre, aponte para outro owner descartavel com
+// E2E_TEAM_OWNER_EMAIL (a senha compartilhada ja existe para os testes A<->B).
+const ownerOverrideEmail = process.env.E2E_TEAM_OWNER_EMAIL;
+const ownerOverridePassword = process.env.E2E_TENANT_PASSWORD;
 
 // Convite/recovery e senha são credenciais bearer. Não entram em artefatos.
 test.use({
@@ -99,6 +104,16 @@ async function responseFailureDetail(response: Awaited<ReturnType<Page['goto']>>
   // para correlacionar a falha no Sentry sem vazar dados da sessão.
   const match = /"digest":"([^"\\]{1,128})"/u.exec(await response.text());
   return match ? ` (digest ${match[1]})` : '';
+}
+
+async function login(context: BrowserContext, email: string, password: string): Promise<Page> {
+  const page = await context.newPage();
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.locator('input[name="password"]').fill(password);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u, { timeout: 60_000 });
+  return page;
 }
 
 async function sendInvite(page: Page, member: Member, runId: string): Promise<void> {
@@ -248,7 +263,7 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
 
   test('convida, aceita, audita rotas, muda função e desativa/reativa', async ({
     browser,
-    page,
+    page: defaultOwnerPage,
   }, testInfo) => {
     test.setTimeout(900_000);
     test.skip(
@@ -268,6 +283,18 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const sql = postgres(databaseUrl, { max: 1, ssl: 'require' });
+
+    if (ownerOverrideEmail && !ownerOverridePassword) {
+      throw new Error('E2E_TEAM_OWNER_EMAIL exige E2E_TENANT_PASSWORD.');
+    }
+    // O contexto sobrescrito nasce sem cookies para nao herdar a sessao do
+    // storageState padrao; o owner correto vem apenas do login.
+    const ownerContext = ownerOverrideEmail
+      ? await browser.newContext({ baseURL: baseUrl, storageState: { cookies: [], origins: [] } })
+      : undefined;
+    const page = ownerContext
+      ? await login(ownerContext, ownerOverrideEmail!, ownerOverridePassword!)
+      : defaultOwnerPage;
 
     const ownerClaims = sessionClaims(await page.context().cookies());
     const ownerClinicId = typeof ownerClaims.clinic_id === 'string' ? ownerClaims.clinic_id : '';
@@ -487,6 +514,7 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
     } finally {
       try {
         for (const member of members) await member.context?.close().catch(() => undefined);
+        await ownerContext?.close().catch(() => undefined);
 
         const listed = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
         if (listed.error) throw listed.error;
