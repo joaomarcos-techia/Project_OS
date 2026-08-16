@@ -34,6 +34,7 @@ import {
   type DunningPayload,
   type FollowupPayload,
   type ReminderPayload,
+  type WaitlistOfferPayload,
 } from '../domain/types';
 import * as repo from '../infra/repository';
 import type { ClaimedJob } from '../infra/repository';
@@ -115,7 +116,9 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
       toNumber: phone!,
       idempotencyKey: id,
       body,
-      purpose: type === 'dunning' ? 'billing' : type,
+      // Mesmo mapeamento da política de supressão: a oferta de vaga é contato
+      // proativo de agendamento, então respeita o opt-out de `followup`.
+      purpose: type === 'dunning' ? 'billing' : type === 'waitlist_offer' ? 'followup' : type,
     });
     if (
       res.status === 'accepted' ||
@@ -148,7 +151,7 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
 async function sendTimeGuard(
   type: ProactiveJobType,
   clinicId: string,
-  payload: ReminderPayload | DunningPayload | { patientId: string },
+  payload: ReminderPayload | DunningPayload | WaitlistOfferPayload | { patientId: string },
 ): Promise<string | null> {
   if (type === 'reminder') {
     const appt = await schedulingApiV1.lookupAppointment(
@@ -167,6 +170,23 @@ async function sendTimeGuard(
     if (lanc.status !== 'pendente' && lanc.status !== 'parcial') {
       return lanc.status === 'pago' ? 'already_paid' : 'lancamento_not_pending';
     }
+    return null;
+  }
+  if (type === 'waitlist_offer') {
+    // WAIT-001 — a vaga é perecível e disputada. Entre o enfileiramento e o
+    // envio a oferta pode ter sido aceita, recusada, expirada ou a entrada
+    // cancelada; e o horário liberado pode ter sido reaberto ou preenchido por
+    // outro caminho. Convidar alguém para um horário que não existe mais é pior
+    // do que não convidar.
+    const offer = payload as WaitlistOfferPayload;
+    const state = await schedulingApiV1.lookupWaitlistOffer(clinicId, offer.waitlistEntryId);
+    if (!state || state.status !== 'offered') return 'waitlist_offer_closed';
+    if (state.patientId !== offer.patientId) return 'waitlist_patient_mismatch';
+    if (state.offeredAppointmentId !== offer.releasedAppointmentId) {
+      return 'waitlist_offer_superseded';
+    }
+    const released = await schedulingApiV1.lookupAppointment(clinicId, offer.releasedAppointmentId);
+    if (!released || released.status !== 'cancelado') return 'waitlist_slot_unavailable';
     return null;
   }
   if (type === 'followup') {

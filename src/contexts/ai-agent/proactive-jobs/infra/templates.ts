@@ -8,7 +8,12 @@
  */
 import { env } from '@/lib/env';
 
-import type { DunningPayload, FollowupPayload, ReminderPayload } from '../domain/types';
+import type {
+  DunningPayload,
+  FollowupPayload,
+  ReminderPayload,
+  WaitlistOfferPayload,
+} from '../domain/types';
 import type { ProactiveJobType } from '../schema';
 
 /** Config não-encontrada = erro de operação NÃO-retryável (job → failed). */
@@ -48,6 +53,17 @@ function dataBr(ymd: string): string {
   return `${d}/${m}/${y}`;
 }
 
+const dateFmtCache = new Map<string, Intl.DateTimeFormat>();
+/** Instante UTC → 'DD/MM' no fuso da clínica (a vaga é sempre próxima). */
+function dataLocalBr(iso: string, tz: string): string {
+  let f = dateFmtCache.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit' });
+    dateFmtCache.set(tz, f);
+  }
+  return f.format(new Date(iso));
+}
+
 const moneyFmt = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -61,7 +77,9 @@ function envName(type: ProactiveJobType): string {
       ? env.META_TEMPLATE_CONFIRMATION_REMINDER_ID
       : type === 'dunning'
         ? env.META_TEMPLATE_DUNNING_FRIENDLY_ID
-        : env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
+        : type === 'waitlist_offer'
+          ? env.META_TEMPLATE_WAITLIST_OFFER_ID
+          : env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
   if (!name) throw new TemplateNotConfiguredError(type);
   return name;
 }
@@ -72,7 +90,7 @@ function envName(type: ProactiveJobType): string {
  */
 export function buildProactiveTemplate(
   type: ProactiveJobType,
-  payload: ReminderPayload | DunningPayload | FollowupPayload,
+  payload: ReminderPayload | DunningPayload | FollowupPayload | WaitlistOfferPayload,
   patientNome: string,
   tz: string,
 ): ProactiveTemplate {
@@ -88,6 +106,15 @@ export function buildProactiveTemplate(
     const p = payload as DunningPayload;
     // "Olá {nome}, sua consulta de {data} ainda tem pagamento pendente de R$ {valor}. Pode pagar via PIX?"
     variables = [patientNome, dataBr(p.dueDate), moneyFmt.format(p.valor)];
+  } else if (type === 'waitlist_offer') {
+    const p = payload as WaitlistOfferPayload;
+    // "Oi {nome}, abriu um horário em {data} às {hora} com Dr {nome}. Quer ficar com ele?"
+    variables = [
+      patientNome,
+      dataLocalBr(p.scheduledAt, tz),
+      horarioLocal(p.scheduledAt, tz),
+      p.doctorNome ?? 'nossa equipe',
+    ];
   } else {
     const p = payload as FollowupPayload;
     // "Oi {nome}, Dr {nome} pediu retorno. Quer marcar pra essa semana?"

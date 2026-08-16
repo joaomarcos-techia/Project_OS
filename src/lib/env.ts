@@ -261,6 +261,10 @@ const EnvSchema = z
     ),
     META_TEMPLATE_DUNNING_FRIENDLY_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     META_TEMPLATE_FOLLOWUP_RETURN_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // WAIT-001 — oferta de vaga da lista de espera. Como os demais, o NOME
+    // aprovado na Meta vem do ambiente; sem ele o job falha com
+    // `template_not_configured` em vez de enviar algo não aprovado.
+    META_TEMPLATE_WAITLIST_OFFER_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Idioma BCP-47 dos templates (default pt_BR).
     META_TEMPLATE_LANG: z.preprocess(
       emptyToUndefined,

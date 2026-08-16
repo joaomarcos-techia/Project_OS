@@ -43,13 +43,35 @@ export const FollowupPayloadSchema = z.object({
 });
 export type FollowupPayload = z.infer<typeof FollowupPayloadSchema>;
 
+/**
+ * WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º elegível da fila.
+ *
+ * `waitlistEntryId` é a chave do ciclo: o guard de send-time confirma que a
+ * oferta continua aberta antes de mandar qualquer mensagem, para não convidar
+ * alguém para um horário que a clínica já preencheu.
+ */
+export const WaitlistOfferPayloadSchema = z.object({
+  patientId: uuid,
+  waitlistEntryId: uuid,
+  releasedAppointmentId: uuid,
+  /** Instante UTC da vaga (formata-se p/ hora local no template). */
+  scheduledAt: z.string().datetime(),
+  doctorNome: z.string().nullable(),
+});
+export type WaitlistOfferPayload = z.infer<typeof WaitlistOfferPayloadSchema>;
+
 export const PROACTIVE_PAYLOAD_SCHEMAS = {
   reminder: ReminderPayloadSchema,
   dunning: DunningPayloadSchema,
   followup: FollowupPayloadSchema,
+  waitlist_offer: WaitlistOfferPayloadSchema,
 } satisfies Record<ProactiveJobType, z.ZodTypeAny>;
 
-export type ProactivePayload = ReminderPayload | DunningPayload | FollowupPayload;
+export type ProactivePayload =
+  | ReminderPayload
+  | DunningPayload
+  | FollowupPayload
+  | WaitlistOfferPayload;
 
 /** Resultado da política de envio (suppression/consent/contato). */
 export interface ProactivePolicyResult {

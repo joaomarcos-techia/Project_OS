@@ -176,6 +176,13 @@ export const WaitlistOfferedSchema = z.object({
   doctorId: uuid,
   procedureId: uuid,
   scheduledAt: z.string().datetime(),
+  /**
+   * WAIT-001 — nome do profissional para a mensagem da oferta. Vem no evento
+   * porque o consumidor roda dentro da TX do worker e não pode abrir uma leitura
+   * paralela só para resolver o nome. `nullish` de propósito: eventos
+   * publicados antes deste campo continuam válidos na reentrega.
+   */
+  doctorNome: z.string().nullish(),
 });
 export type WaitlistOfferedPayload = z.infer<typeof WaitlistOfferedSchema>;
 

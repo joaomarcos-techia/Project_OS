@@ -1,0 +1,11 @@
+-- WAIT-001 — a oferta da lista de espera passa a ser uma mensagem proativa real.
+--
+-- A UI já rotulava `waitlist_entries.status='offered'` como "Oferta enviada",
+-- mas nada enviava: `scheduling.waitlist.offered` não tinha handler. Em vez de
+-- criar uma fila paralela, a oferta entra na fila C14 que já resolve lease,
+-- backoff, suppression, consentimento, dedup e at-most-once no Meta.
+--
+-- ADD VALUE é aditivo e seguro em transação no PG 12+ desde que o valor novo não
+-- seja USADO na mesma transação — aqui só se declara. IF NOT EXISTS mantém o
+-- replay da migration idempotente.
+ALTER TYPE "public"."proactive_job_type" ADD VALUE IF NOT EXISTS 'waitlist_offer';

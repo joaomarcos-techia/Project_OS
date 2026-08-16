@@ -130,6 +130,35 @@ export async function getAppointmentOrThrow(
   return row;
 }
 
+/**
+ * WAIT-001 — estado da oferta no instante do envio. Sem este guard, uma oferta
+ * já aceita, recusada ou cancelada ainda geraria a mensagem "abriu um horário
+ * pra você", convidando o paciente para uma vaga que não existe mais.
+ */
+export interface WaitlistOfferState {
+  status: 'waiting' | 'offered' | 'booked' | 'cancelled';
+  patientId: string;
+  offeredAppointmentId: string | null;
+}
+
+export async function getWaitlistOfferState(
+  clinicId: string,
+  entryId: string,
+): Promise<WaitlistOfferState | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({
+        status: waitlistEntries.status,
+        patientId: waitlistEntries.patientId,
+        offeredAppointmentId: waitlistEntries.offeredAppointmentId,
+      })
+      .from(waitlistEntries)
+      .where(eq(waitlistEntries.id, entryId))
+      .limit(1);
+    return row ?? null;
+  });
+}
+
 export interface ListAppointmentsOpts {
   from?: Date;
   to?: Date;
@@ -451,15 +480,19 @@ export async function listWaitlistEntries(
   return withTenant(clinicId, async (tx) => {
     const conditions: SQL[] = [eq(waitlistEntries.clinicId, clinicId)];
     if (!includeClosed) conditions.push(inArray(waitlistEntries.status, ['waiting', 'offered']));
+    // WAIT-001 — o LEFT JOIN traz o horário da vaga ofertada. A tela precisa
+    // dizer QUAL horário está sendo oferecido; "Oferta enviada" sozinho não é
+    // acionável por quem vai aceitar ou recusar em nome do paciente.
     const rows = await tx
-      .select()
+      .select({ entry: waitlistEntries, offeredScheduledAt: appointments.scheduledAt })
       .from(waitlistEntries)
+      .leftJoin(appointments, eq(appointments.id, waitlistEntries.offeredAppointmentId))
       .where(and(...conditions))
       .orderBy(
         sql`case when ${waitlistEntries.priority} = 'urgent' then 0 else 1 end`,
         asc(waitlistEntries.createdAt),
       );
-    return rows.map((row) => ({
+    return rows.map(({ entry: row, offeredScheduledAt }) => ({
       id: row.id,
       patientId: row.patientId,
       doctorId: row.doctorId ?? null,
@@ -469,6 +502,8 @@ export async function listWaitlistEntries(
       preferredFrom: row.preferredFrom?.toISOString() ?? null,
       preferredUntil: row.preferredUntil?.toISOString() ?? null,
       offeredAppointmentId: row.offeredAppointmentId ?? null,
+      offeredAt: row.offeredAt?.toISOString() ?? null,
+      offeredScheduledAt: offeredScheduledAt?.toISOString() ?? null,
       bookedAppointmentId: row.bookedAppointmentId ?? null,
       notes: row.notes ?? null,
       createdAt: row.createdAt.toISOString(),

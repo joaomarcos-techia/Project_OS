@@ -526,6 +526,13 @@
       "when": 1786705200000,
       "tag": "0074_inbound_pending_by_contact_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1786791600000,
+      "tag": "0075_waitlist_offer_proactive_job",
+      "breakpoints": true
     }
   ]
 }

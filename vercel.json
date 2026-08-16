@@ -17,7 +17,8 @@
     { "path": "/api/cron/whatsapp-health", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/proactive-reminders", "schedule": "*/15 11-23 * * *" },
     { "path": "/api/cron/proactive-dunning", "schedule": "*/15 11-23 * * *" },
-    { "path": "/api/cron/proactive-followup", "schedule": "*/15 11-23 * * *" }
+    { "path": "/api/cron/proactive-followup", "schedule": "*/15 11-23 * * *" },
+    { "path": "/api/cron/proactive-waitlist", "schedule": "*/15 11-23 * * *" }
   ],
   "outputDirectory": ".next"
 }

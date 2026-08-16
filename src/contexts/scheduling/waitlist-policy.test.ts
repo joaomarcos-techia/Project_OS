@@ -14,6 +14,22 @@ const waitlistPage = readFileSync(
   resolve(process.cwd(), 'src/app/(app)/(shell)/agenda/lista-espera/page.tsx'),
   'utf8',
 );
+const actions = readFileSync(resolve(process.cwd(), 'src/contexts/scheduling/actions.ts'), 'utf8');
+const handlerBoot = readFileSync(
+  resolve(process.cwd(), 'src/app/api/cron/outbox/handlers.ts'),
+  'utf8',
+);
+const offerHandler = readFileSync(
+  resolve(
+    process.cwd(),
+    'src/contexts/ai-agent/proactive-jobs/internal/handlers/waitlist-offered.ts',
+  ),
+  'utf8',
+);
+const manager = readFileSync(
+  resolve(process.cwd(), 'src/app/(app)/(shell)/agenda/lista-espera/waitlist-manager.tsx'),
+  'utf8',
+);
 
 describe('waitlist candidate selection', () => {
   const slot = {
@@ -88,6 +104,51 @@ describe('waitlist candidate selection', () => {
     expect(migration).toContain('FORCE ROW LEVEL SECURITY');
     expect(waitlistPage).toContain('listWaitlistEntries(clinicId, true)');
     expect(waitlistPage).toContain('PERMISSIONS.EDIT_AGENDA');
+  });
+
+  // WAIT-001 — o achado: só `applyTransition(target=cancelado)` ofertava. O
+  // cancelamento humano da Agenda (`exceptional_cancel`) tem implementação
+  // própria em `recoverAppointment` e liberava a vaga sem ofertar a ninguém.
+  it('o cancelamento humano da Agenda também oferta a vaga', () => {
+    const recoverBlock = actions.slice(
+      actions.indexOf('export async function recoverAppointment'),
+      actions.indexOf('export async function createDoctorAbsence'),
+    );
+    expect(recoverBlock).toContain('offerWaitlistForCancelledAppointment');
+    expect(recoverBlock).toContain("decision.target === 'cancelado'");
+  });
+
+  // Ausência médica NÃO oferta de propósito: os horários afetados estão dentro
+  // da janela em que o profissional não estará na clínica.
+  it('ausência médica não oferta a vaga que ela mesma bloqueia', () => {
+    const absenceBlock = actions.slice(
+      actions.indexOf('export async function createDoctorAbsence'),
+    );
+    expect(absenceBlock).not.toContain('await offerWaitlistForCancelledAppointment');
+  });
+
+  it('o evento de oferta tem handler registrado (não termina em `skipped`)', () => {
+    // A UI rotulava `offered` como "Oferta enviada" enquanto o worker
+    // descartava o evento por falta de consumidor.
+    expect(handlerBoot).toContain('proactive-jobs/internal/handlers/waitlist-offered');
+    expect(offerHandler).toContain('SCHEDULING_EVENTS.WAITLIST_OFFERED');
+    expect(offerHandler).toContain("type: 'waitlist_offer'");
+  });
+
+  it('a oferta tem aceite e recusa reais, com permissão e idempotência', () => {
+    expect(actions).toContain('export async function acceptWaitlistOffer');
+    expect(actions).toContain('export async function declineWaitlistOffer');
+    expect(actions).toContain('scheduling.waitlist.offer_declined');
+    // Aceitar cria a consulta pelo MESMO core de qualquer agendamento.
+    const acceptBlock = actions.slice(
+      actions.indexOf('export async function acceptWaitlistOffer'),
+      actions.indexOf('export async function declineWaitlistOffer'),
+    );
+    expect(acceptBlock).toContain('insertScheduledAppointment');
+    expect(acceptBlock).toContain('PERMISSIONS.EDIT_AGENDA');
+    expect(acceptBlock).toContain('idemKey(');
+    expect(manager).toContain('Aceitar vaga');
+    expect(manager).toContain('Recusar');
   });
 });
 import { readFileSync } from 'node:fs';

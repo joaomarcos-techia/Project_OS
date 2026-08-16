@@ -219,6 +219,10 @@ const config = [
       'src/contexts/scheduling/reminder-candidates.ts',
       'src/contexts/financial/dunning-candidates.ts',
       'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
+      // WAIT-001: mesma forma — o SCAN de ofertas de lista de espera vencidas é
+      // cross-tenant e devolve só ids; a liberação/repasse de cada uma roda em
+      // withTenant, sob RLS. O privilégio descobre o trabalho, não o executa.
+      'src/contexts/scheduling/waitlist-expiry.ts',
       // F1 onboarding: clinic_invites é global-protected (entidade PRÉ-clínica, sem
       // clinic_id de tenant). Resolução de token (/join público), transições guardadas
       // por version e a saga de provisionamento rodam via dbAdmin/BYPASSRLS. Mesma

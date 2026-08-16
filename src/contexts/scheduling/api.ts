@@ -21,11 +21,13 @@ import {
   getAppointment,
   getAvailableSlots,
   getDoctorActiveCommitments,
+  getWaitlistOfferState,
   hasSubsequentCompletedAppointment,
   listUpcomingPatientAppointments,
   listProcedures as listProceduresQuery,
   type DoctorCommitments,
   type GetAvailableSlotsOpts,
+  type WaitlistOfferState,
 } from './queries';
 import type {
   AppointmentSummary,
@@ -45,6 +47,11 @@ export interface SchedulingApiV1 {
    */
   listProcedures(clinicId: string, opts?: { limit?: number }): Promise<ProcedureSummary[]>;
   lookupAppointment(clinicId: string, id: string): Promise<AppointmentSummary | null>;
+  /**
+   * WAIT-001 — estado da oferta da lista de espera, para o guard de send-time do
+   * C14 não mandar convite de uma vaga já resolvida.
+   */
+  lookupWaitlistOffer(clinicId: string, entryId: string): Promise<WaitlistOfferState | null>;
   listPatientAppointments(
     clinicId: string,
     patientId: string,
@@ -125,6 +132,7 @@ export const schedulingApiV1: SchedulingApiV1 = {
     return rows.slice(0, opts?.limit ?? 20);
   },
   lookupAppointment: (clinicId, id) => getAppointment(clinicId, id),
+  lookupWaitlistOffer: (clinicId, entryId) => getWaitlistOfferState(clinicId, entryId),
   listPatientAppointments: (clinicId, patientId, limit) =>
     listUpcomingPatientAppointments(clinicId, patientId, limit),
   listReminderCandidates: (limit) => listReminderCandidates(limit),

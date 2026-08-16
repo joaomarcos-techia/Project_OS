@@ -45,7 +45,15 @@ import { uuidPk } from '@/lib/db/types';
 
 // --- enums -------------------------------------------------------------------
 
-export const proactiveJobType = pgEnum('proactive_job_type', ['reminder', 'dunning', 'followup']);
+// WAIT-001 — `waitlist_offer` é o 4º tipo: a vaga liberada por um cancelamento
+// precisa chegar ao paciente da fila. Reusa lease/backoff/suppression/dedup
+// desta fila em vez de abrir uma paralela (migration 0075).
+export const proactiveJobType = pgEnum('proactive_job_type', [
+  'reminder',
+  'dunning',
+  'followup',
+  'waitlist_offer',
+]);
 export const proactiveJobStatus = pgEnum('proactive_job_status', [
   'pending',
   'processing',

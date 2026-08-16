@@ -61,6 +61,10 @@ import {
   syncWaitingQueueStatus,
 } from './internal/waiting-queue-store';
 import {
+  offerWaitlistForCancelledAppointment,
+  releaseWaitlistOffer,
+} from './internal/waitlist-store';
+import {
   CreateDoctorAbsenceSchema,
   HistoricalAppointmentImportSchema,
   CreateRecurringAppointmentsSchema,
@@ -569,6 +573,18 @@ export async function recoverAppointment(
         }
         await syncWaitingQueueStatus(tx, updated!, decision.target, user.userId);
 
+        // WAIT-001 — o cancelamento humano da Agenda (`exceptional_cancel`) tem
+        // implementação própria e não passava por `applyTransition`, então
+        // liberava a vaga sem ofertá-la a ninguém. A página promete que o
+        // primeiro candidato elegível recebe a oferta; era o caminho MAIS comum
+        // de cancelamento e o único que nunca disparava o fluxo.
+        if (decision.target === 'cancelado' && appointment.status !== 'cancelado') {
+          await offerWaitlistForCancelledAppointment(tx, updated!, {
+            idempotencyKey,
+            correlationId: ctx.correlationId ?? null,
+          });
+        }
+
         await publishEvent(tx, {
           clinicId,
           eventType: SCHEDULING_EVENTS.CORRECTED,
@@ -690,6 +706,13 @@ export async function createDoctorAbsence(
               .set({ status: 'cancelado', updatedAt: sql`now()` })
               .where(and(eq(appointments.id, appointment.id), eq(appointments.clinicId, clinicId)));
             await setAppointmentResourceReservationsActive(tx, appointment.id, clinicId, false);
+            // WAIT-001 — aqui NÃO se oferta, de propósito. O pentest listou a
+            // ausência médica junto dos caminhos que deixaram de ofertar, mas
+            // este cancelamento não libera vaga nenhuma: todos os horários
+            // afetados estão DENTRO da janela de ausência (o SELECT filtra por
+            // ela), e o profissional não vai estar na clínica. Ofertar aqui
+            // marcaria um paciente da fila justamente no intervalo em que não
+            // há quem o atenda.
             await publishEvent(tx, {
               clinicId,
               eventType: SCHEDULING_EVENTS.CANCELLED,
@@ -872,6 +895,7 @@ function waitlistDto(row: typeof waitlistEntries.$inferSelect): WaitlistEntryDTO
     preferredFrom: row.preferredFrom?.toISOString() ?? null,
     preferredUntil: row.preferredUntil?.toISOString() ?? null,
     offeredAppointmentId: row.offeredAppointmentId ?? null,
+    offeredAt: row.offeredAt?.toISOString() ?? null,
     bookedAppointmentId: row.bookedAppointmentId ?? null,
     notes: row.notes ?? null,
     createdAt: row.createdAt.toISOString(),
@@ -1037,5 +1061,154 @@ export async function markWaitlistEntryBooked(
         .returning();
       return waitlistDto(row!);
     },
+  );
+}
+
+// --- WAIT-001: aceite e recusa da oferta ----------------------------------
+//
+// A UI rotulava `offered` como "Oferta enviada" sem que nada produzisse esse
+// estado e sem nenhuma ação para concluí-lo: a oferta era um beco sem saída.
+// Estas duas actions fecham o ciclo — aceitar cria a consulta na vaga liberada,
+// recusar devolve a entrada à fila e REPASSA a vaga ao próximo elegível.
+
+/**
+ * Aceita a oferta: agenda o paciente da fila no horário que foi liberado.
+ *
+ * A consulta nasce pelo MESMO core de qualquer agendamento
+ * (`insertScheduledAppointment`), então herda snapshot imutável, validação de
+ * paciente/profissional/unidade, anti-conflito por constraint e o evento
+ * `scheduling.appointment.created`. Não existe caminho paralelo de criação.
+ */
+export async function acceptWaitlistOffer(
+  id: string,
+  idempotencyKey: string,
+): Promise<{ entry: WaitlistEntryDTO; appointment: AppointmentSummary }> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+  try {
+    return await idempotentMutation(
+      {
+        idempotency: {
+          key: idemKey('waitlist_accept', idempotencyKey),
+          payload: jsonSafe({ id }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
+        audit: {
+          action: 'scheduling.waitlist.booked',
+          resourceType: 'waitlist_entry',
+          resourceId: id,
+          before: null,
+          requestContext: ctx,
+        },
+      },
+      async (tx) => {
+        const [entry] = await tx
+          .select()
+          .from(waitlistEntries)
+          .where(and(eq(waitlistEntries.id, id), eq(waitlistEntries.clinicId, clinicId)))
+          .for('update')
+          .limit(1);
+        // Só uma oferta VIVA pode ser aceita. O `FOR UPDATE` + este teste é o
+        // que impede dois atendentes de aceitarem a mesma oferta e criarem duas
+        // consultas na mesma vaga.
+        if (!entry || entry.status !== 'offered' || !entry.offeredAppointmentId) {
+          throw new SchedulingValidationError('não há oferta aberta para esta entrada');
+        }
+
+        const [released] = await tx
+          .select()
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.id, entry.offeredAppointmentId),
+              eq(appointments.clinicId, clinicId),
+              eq(appointments.status, 'cancelado'),
+            ),
+          )
+          .limit(1);
+        if (!released) {
+          throw new SchedulingValidationError('o horário ofertado não está mais disponível');
+        }
+
+        const created = await insertScheduledAppointment(tx, {
+          clinicId,
+          userId: user.userId,
+          actorType: 'user',
+          correlationId: ctx.correlationId ?? null,
+          idempotencyKey,
+          data: {
+            patientId: entry.patientId,
+            doctorId: released.doctorId,
+            procedureId: entry.procedureId,
+            scheduledAt: released.scheduledAt.toISOString(),
+            ...(released.unitId ? { unitId: released.unitId } : {}),
+          } as CreateAppointmentInput,
+          scheduledAt: released.scheduledAt,
+        });
+
+        const [row] = await tx
+          .update(waitlistEntries)
+          .set({
+            status: 'booked',
+            bookedAppointmentId: created.id,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(waitlistEntries.id, id),
+              eq(waitlistEntries.clinicId, clinicId),
+              eq(waitlistEntries.status, 'offered'),
+            ),
+          )
+          .returning();
+        if (!row) throw new SchedulingValidationError('não há oferta aberta para esta entrada');
+        return { entry: waitlistDto(row), appointment: created };
+      },
+    );
+  } catch (error) {
+    return asConflict(error);
+  }
+}
+
+/**
+ * Recusa (ou devolve) a oferta: a entrada volta para a fila e a vaga passa ao
+ * próximo candidato elegível na MESMA transação. Sem o repasse, uma recusa
+ * mataria o horário — o mesmo desfecho de não haver automação.
+ *
+ * Idempotente: um replay encontra a entrada já em `waiting` e devolve
+ * `released: false`, sem repassar a vaga duas vezes.
+ */
+export async function declineWaitlistOffer(
+  id: string,
+  idempotencyKey: string,
+): Promise<{ released: boolean; nextEntryId: string | null }> {
+  await requireUser();
+  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+  const clinicId = await requireClinicId();
+  const ctx = await requestContext();
+  return idempotentMutation(
+    {
+      idempotency: {
+        key: idemKey('waitlist_decline', idempotencyKey),
+        payload: jsonSafe({ id }),
+        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+      },
+      audit: {
+        action: 'scheduling.waitlist.offer_declined',
+        resourceType: 'waitlist_entry',
+        resourceId: id,
+        before: null,
+        requestContext: ctx,
+      },
+    },
+    async (tx) =>
+      releaseWaitlistOffer(tx, {
+        clinicId,
+        entryId: id,
+        idempotencyKey: `${idempotencyKey}:decline`,
+        correlationId: ctx.correlationId ?? null,
+      }),
   );
 }

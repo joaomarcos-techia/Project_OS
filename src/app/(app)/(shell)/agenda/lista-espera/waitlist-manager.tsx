@@ -11,7 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
-import { cancelWaitlistEntry } from '@/contexts/scheduling/actions';
+import {
+  acceptWaitlistOffer,
+  cancelWaitlistEntry,
+  declineWaitlistOffer,
+} from '@/contexts/scheduling/actions';
 import type { WaitlistEntryDTO } from '@/contexts/scheduling/types';
 import { uuidv4 } from '@/lib/ui/uuid';
 
@@ -29,6 +33,17 @@ const STATUS_LABEL: Record<WaitlistEntryDTO['status'], string> = {
   booked: 'Agendado',
   cancelled: 'Cancelado',
 };
+
+const slotFmt = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatSlot(iso: string): string {
+  return slotFmt.format(new Date(iso));
+}
 
 export function WaitlistManager({
   initial,
@@ -100,6 +115,38 @@ export function WaitlistManager({
         router.refresh();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao cancelar entrada.');
+      }
+    });
+  }
+
+  // WAIT-001 — a oferta era um beco sem saída: a UI rotulava `offered` como
+  // "Oferta enviada" e não havia nenhuma ação para concluí-la. Aceitar agenda o
+  // paciente na vaga liberada; recusar devolve a entrada à fila e repassa a vaga
+  // ao próximo elegível.
+  function accept(id: string) {
+    startTransition(async () => {
+      try {
+        await acceptWaitlistOffer(id, uuidv4());
+        toast.success('Consulta agendada na vaga ofertada.');
+        router.refresh();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao aceitar a oferta.');
+      }
+    });
+  }
+
+  function decline(id: string) {
+    startTransition(async () => {
+      try {
+        const result = await declineWaitlistOffer(id, uuidv4());
+        toast.success(
+          result.nextEntryId
+            ? 'Oferta recusada. A vaga foi repassada ao próximo da fila.'
+            : 'Oferta recusada. O paciente continua na fila.',
+        );
+        router.refresh();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao recusar a oferta.');
       }
     });
   }
@@ -215,10 +262,38 @@ export function WaitlistManager({
                     </span>
                   ) : null}
                   {entry.priority === 'urgent' ? <Badge tone="red">Urgente</Badge> : null}
-                  <Badge tone="gray">{STATUS_LABEL[entry.status]}</Badge>
+                  <Badge tone={entry.status === 'offered' ? 'amber' : 'gray'}>
+                    {STATUS_LABEL[entry.status]}
+                  </Badge>
                 </div>
+                {entry.status === 'offered' && entry.offeredScheduledAt ? (
+                  <p className="mt-1 text-sm text-fg-muted">
+                    Vaga oferecida: {formatSlot(entry.offeredScheduledAt)}
+                  </p>
+                ) : null}
               </div>
-              <div className="lr-end">
+              <div className="lr-end flex gap-2">
+                {entry.status === 'offered' ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => accept(entry.id)}
+                    >
+                      Aceitar vaga
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => decline(entry.id)}
+                    >
+                      Recusar
+                    </Button>
+                  </>
+                ) : null}
                 {entry.status === 'waiting' || entry.status === 'offered' ? (
                   <Button
                     type="button"

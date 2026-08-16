@@ -61,4 +61,9 @@ import '@/contexts/ai-agent/internal/handlers/manual-reply-requested';
 // (reminder/dunning NÃO são handlers — são cron-scan dos read-models das origens.)
 import '@/contexts/ai-agent/proactive-jobs/internal/handlers/prontuario-signed';
 
+// WAIT-001 — scheduling.waitlist.offered → mensagem de oferta da vaga. Sem este
+// import o evento continuava terminando como `skipped` e a UI seguia dizendo
+// "Oferta enviada" sem que nada tivesse sido enviado.
+import '@/contexts/ai-agent/proactive-jobs/internal/handlers/waitlist-offered';
+
 export {};

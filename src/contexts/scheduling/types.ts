@@ -181,6 +181,13 @@ export interface WaitlistEntryDTO {
   preferredFrom: string | null;
   preferredUntil: string | null;
   offeredAppointmentId: string | null;
+  /** WAIT-001 — quando a oferta foi feita (alimenta a expiração e a tela). */
+  offeredAt: string | null;
+  /**
+   * WAIT-001 — instante da VAGA ofertada. Sem ele o atendente veria "Oferta
+   * enviada" sem saber qual horário está aceitando ou recusando.
+   */
+  offeredScheduledAt?: string | null;
   bookedAppointmentId: string | null;
   notes: string | null;
   createdAt: string;

@@ -20,7 +20,11 @@ export function evaluateProactivePolicy(
 ): ProactivePolicyResult {
   if (!contact || !contact.phone) return { allowed: false, reason: 'no_contact' };
   if (contact.deceased) return { allowed: false, reason: 'deceased' };
-  const purpose = type === 'dunning' ? 'billing' : type;
+  // WAIT-001 — a oferta de vaga é contato proativo de agendamento, a mesma
+  // natureza do followup: quem pediu para não receber followup também não quer
+  // ser chamado por causa de um cancelamento alheio. Não se cria um propósito
+  // novo de supressão para não invalidar os opt-outs já registrados.
+  const purpose = type === 'dunning' ? 'billing' : type === 'waitlist_offer' ? 'followup' : type;
   if (
     contact.suppressedWhatsapp ||
     contact.suppressedWhatsappPurposes.includes('all') ||

@@ -35,6 +35,7 @@ vi.mock('@/contexts/clinical', () => ({ clinicalApiV1: { getFollowupState: vi.fn
 vi.mock('@/contexts/scheduling', () => ({
   schedulingApiV1: {
     lookupAppointment: vi.fn(),
+    lookupWaitlistOffer: vi.fn(),
     hasSubsequentCompletedAppointment: vi.fn(),
   },
 }));
@@ -80,6 +81,15 @@ const followupPayload = {
   doctorNome: 'Dr X',
   returnDate: '2026-09-10',
 };
+// WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º da fila.
+const RELEASED = '22222222-2222-2222-2222-222222222222';
+const waitlistPayload = {
+  patientId: U,
+  waitlistEntryId: U,
+  releasedAppointmentId: RELEASED,
+  scheduledAt: '2026-09-12T13:00:00Z',
+  doctorNome: 'Dr X',
+};
 
 function claim(job: Record<string, unknown>): void {
   vi.mocked(repo.claimDue).mockResolvedValue([{ leaseToken: 'lease-1', ...job } as never]);
@@ -101,6 +111,121 @@ beforeEach(() => {
     signedAt: new Date('2026-06-10T12:00:00Z'),
   });
   vi.mocked(schedulingApiV1.hasSubsequentCompletedAppointment).mockResolvedValue(false);
+  vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+    status: 'offered',
+    patientId: U,
+    offeredAppointmentId: RELEASED,
+  });
+});
+
+describe('WAIT-001 — oferta da lista de espera', () => {
+  /** A vaga só existe enquanto o atendimento liberado seguir cancelado. */
+  function slotStillFree(): void {
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+      status: 'cancelado',
+    } as never);
+  }
+
+  it('oferta aberta com vaga livre → envia e marca sent', async () => {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+    });
+    slotStillFree();
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const s = await processProactiveBatch('waitlist_offer');
+    expect(s.sent).toBe(1);
+    // Respeita o opt-out de `followup`: é contato proativo de agendamento.
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'followup' }),
+    );
+  });
+
+  it('oferta já aceita/recusada → cancelled, sem convidar para vaga inexistente', async () => {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+      status: 'booked',
+      patientId: U,
+      offeredAppointmentId: RELEASED,
+    });
+
+    const s = await processProactiveBatch('waitlist_offer');
+    expect(s.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'waitlist_offer_closed');
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('vaga reaberta ou preenchida por outro caminho → cancelled', async () => {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+      status: 'agendado',
+    } as never);
+
+    const s = await processProactiveBatch('waitlist_offer');
+    expect(s.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'waitlist_slot_unavailable');
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('entrada já ofertada para OUTRA vaga → cancelled (oferta superada)', async () => {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+    });
+    slotStillFree();
+    vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
+      status: 'offered',
+      patientId: U,
+      offeredAppointmentId: '33333333-3333-3333-3333-333333333333',
+    });
+
+    const s = await processProactiveBatch('waitlist_offer');
+    expect(s.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j1', 'lease-1', 'waitlist_offer_superseded');
+  });
+
+  it('paciente na suppression não recebe oferta', async () => {
+    claim({
+      id: 'j1',
+      clinicId: 'c1',
+      type: 'waitlist_offer',
+      payload: waitlistPayload,
+      attempts: 1,
+    });
+    slotStillFree();
+    vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue({
+      ...okContact,
+      suppressedWhatsappPurposes: ['followup'],
+    });
+
+    const s = await processProactiveBatch('waitlist_offer');
+    expect(s.cancelled).toBe(1);
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
 });
 
 describe('processProactiveBatch (C14 §14.6)', () => {
