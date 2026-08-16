@@ -16,6 +16,7 @@ import { profiles } from '@/contexts/identity/schema';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { practitionerSql } from '@/lib/auth/practitioner';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
@@ -35,10 +36,12 @@ import {
   CreateHolidaySchema,
   CreateSchedulableResourceSchema,
   SetAvailabilitySchema,
+  SetAvailabilityWindowsSchema,
   type CreateHolidayInput,
   type CreateSchedulableResourceInput,
   type SchedulableResourceDTO,
   type SetAvailabilityInput,
+  type SetAvailabilityWindowsInput,
 } from './types';
 
 /**
@@ -162,6 +165,110 @@ export async function setSchedulableResourceActive(
   });
 }
 
+/**
+ * DATA-006 — grava o expediente de um dia como UNIDADE ATÔMICA.
+ *
+ * A UI oferece "expediente com pausa de almoço" e chamava `setDoctorAvailability`
+ * duas vezes, cada uma com sua própria transação e sua própria chave idempotente.
+ * Quando a tarde conflitava, a manhã já estava persistida: o operador via o erro
+ * e concluía que nada tinha sido salvo, enquanto a agenda já abria horários que
+ * o profissional não trabalha — e um retry passava a conflitar também na manhã
+ * "fantasma" que ele não sabia existir.
+ *
+ * Uma transação, uma chave, uma auditoria. Qualquer janela que falhe reverte
+ * todas: o EXCLUDE de sobreposição continua sendo a barreira de dados, e agora
+ * ele derruba o conjunto inteiro em vez de metade dele.
+ */
+/**
+ * F-04/F-05 (auditoria 2026-06-10): valida vínculo doctor↔clínica DENTRO do tx
+ * tenant-scoped (mesmo padrão do buildSnapshot) — RLS faz o cross-tenant
+ * retornar 0 linhas. Sem isto, um gestor da clínica A com o UUID de um profile
+ * da clínica B criava availability "fantasma" e o EXCLUDE global (doctor_id,
+ * weekday, range) passava a rejeitar janelas legítimas da clínica B
+ * (interferência cross-tenant). Também exige practitioner (role='doctor' OU CRM
+ * — ADR-032 §2) + ativo + não soft-deletado (F-05).
+ *
+ * Extraída em DATA-006 para que a gravação em lote herde exatamente a mesma
+ * verificação da gravação de janela única — duas cópias divergiriam.
+ */
+async function assertPractitionerInClinic(
+  tx: Tx,
+  clinicId: string,
+  doctorId: string,
+): Promise<void> {
+  const doc = await tx.execute<{ id: string }>(
+    sql`SELECT id FROM profiles
+       WHERE id = ${doctorId}
+         AND clinic_id = ${clinicId}
+         AND ${practitionerSql(profiles.role, profiles.crm)}
+         AND ativo = true
+         AND deleted_at IS NULL
+         AND invite_accepted_at IS NOT NULL
+       LIMIT 1`,
+  );
+  if (!doc[0]) {
+    throw new SchedulingValidationError('médico inválido para esta clínica');
+  }
+}
+
+export async function setDoctorAvailabilityWindows(
+  input: SetAvailabilityWindowsInput,
+  idempotencyKey: string,
+): Promise<SchedulingActionResult<{ ids: string[] }>> {
+  return toActionResult(async () => {
+    const user = await requireUser();
+    await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    const data = SetAvailabilityWindowsSchema.parse(input);
+    // AUTHZ-007 — mesma regra da janela única: agenda de outro profissional é
+    // ato administrativo revalidado no banco.
+    await assertCanManageDoctorSchedule(user, data.doctorId);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+
+    try {
+      return await idempotentMutation(
+        {
+          idempotency: {
+            key: idemKey('avail_set_windows', idempotencyKey),
+            payload: jsonSafe(data),
+            ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+          },
+          audit: {
+            action: 'doctor_availability.set_windows',
+            resourceType: 'doctor_availability',
+            resourceId: null,
+            before: null,
+            requestContext: ctx,
+          },
+        },
+        async (tx) => {
+          await assertUnitInClinic(tx, clinicId, data.unitId);
+          await assertPractitionerInClinic(tx, clinicId, data.doctorId);
+
+          const ids: string[] = [];
+          for (const window of data.windows) {
+            const [row] = await tx
+              .insert(doctorAvailability)
+              .values({
+                clinicId,
+                doctorId: data.doctorId,
+                unitId: data.unitId ?? null,
+                weekday: data.weekday,
+                startTime: window.startTime,
+                endTime: window.endTime,
+              })
+              .returning({ id: doctorAvailability.id });
+            ids.push(row!.id);
+          }
+          return { ids };
+        },
+      );
+    } catch (err) {
+      return asConflict(err); // UNIQUE ou EXCLUDE de overlap interno
+    }
+  });
+}
+
 export async function setDoctorAvailability(
   input: SetAvailabilityInput,
   idempotencyKey: string,
@@ -198,26 +305,7 @@ export async function setDoctorAvailability(
         },
         async (tx) => {
           await assertUnitInClinic(tx, clinicId, data.unitId);
-          // F-04/F-05 (auditoria 2026-06-10): valida vínculo doctor↔clínica DENTRO
-          // do tx tenant-scoped (mesmo padrão do buildSnapshot) — RLS faz o
-          // cross-tenant retornar 0 linhas. Sem isto, um gestor da clínica A com
-          // o UUID de um profile da clínica B criava availability "fantasma" e o
-          // EXCLUDE global (doctor_id, weekday, range) passava a rejeitar janelas
-          // legítimas da clínica B (interferência cross-tenant). Também exige
-          // practitioner (role='doctor' OU CRM — ADR-032 §2) + ativo + não soft-deletado (F-05).
-          const doc = await tx.execute<{ id: string }>(
-            sql`SELECT id FROM profiles
-               WHERE id = ${data.doctorId}
-                 AND clinic_id = ${clinicId}
-                 AND ${practitionerSql(profiles.role, profiles.crm)}
-                 AND ativo = true
-                 AND deleted_at IS NULL
-                 AND invite_accepted_at IS NOT NULL
-               LIMIT 1`,
-          );
-          if (!doc[0]) {
-            throw new SchedulingValidationError('médico inválido para esta clínica');
-          }
+          await assertPractitionerInClinic(tx, clinicId, data.doctorId);
           const [row] = await tx
             .insert(doctorAvailability)
             .values({

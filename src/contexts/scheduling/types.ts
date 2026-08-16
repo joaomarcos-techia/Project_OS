@@ -62,6 +62,53 @@ export const SetAvailabilitySchema = z.object({
 });
 export type SetAvailabilityInput = z.infer<typeof SetAvailabilitySchema>;
 
+/**
+ * DATA-006 — expediente como UNIDADE. A UI promete criar manhã+tarde "de uma
+ * vez", mas executava duas Server Actions independentes: a manhã persistia, a
+ * tarde conflitava, o operador via erro e concluía que nada foi salvo — enquanto
+ * uma disponibilidade parcial já alterava os slots da agenda.
+ *
+ * As janelas são validadas como conjunto (ordenadas, sem sobreposição entre si)
+ * antes de qualquer escrita.
+ */
+export const SetAvailabilityWindowsSchema = z
+  .object({
+    doctorId: uuid,
+    unitId: uuid.nullable().optional(),
+    weekday: WeekdaySchema,
+    windows: z
+      .array(z.object({ startTime: TimeSchema, endTime: TimeSchema }))
+      .min(1, 'informe ao menos uma janela')
+      .max(6, 'expediente com mais de seis janelas no mesmo dia'),
+  })
+  .superRefine((value, ctx) => {
+    const toMin = (t: string): number => {
+      const [h, m] = t.split(':');
+      return Number(h) * 60 + Number(m);
+    };
+    const sorted = [...value.windows].sort((a, b) => toMin(a.startTime) - toMin(b.startTime));
+    for (const [index, window] of sorted.entries()) {
+      if (toMin(window.endTime) <= toMin(window.startTime)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'o fim de cada janela deve ser depois do início',
+          path: ['windows', index],
+        });
+        return;
+      }
+      const previous = sorted[index - 1];
+      if (previous && toMin(window.startTime) < toMin(previous.endTime)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'as janelas do mesmo dia não podem se sobrepor',
+          path: ['windows', index],
+        });
+        return;
+      }
+    }
+  });
+export type SetAvailabilityWindowsInput = z.input<typeof SetAvailabilityWindowsSchema>;
+
 // --- clinic holidays -------------------------------------------------------
 
 export const CreateHolidaySchema = z

@@ -8,7 +8,7 @@ import {
   createHoliday,
   removeHoliday,
   removeDoctorAvailability,
-  setDoctorAvailability,
+  setDoctorAvailabilityWindows,
 } from '@/contexts/scheduling/config-actions';
 import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { DoctorAvailabilityDTO, HolidayDTO } from '@/contexts/scheduling/queries';
@@ -94,23 +94,19 @@ export function HorariosManager({
         return toast.error('Fim da tarde deve ser depois do início da tarde.');
     }
     const wd = Number(weekday);
+    // DATA-006 — UMA action para o expediente inteiro. Duas chamadas
+    // independentes deixavam a manhã gravada quando a tarde conflitava: o
+    // operador via erro, achava que nada tinha sido salvo, e a agenda passava a
+    // abrir horários que o profissional não trabalha.
+    const windows = comPausa
+      ? [
+          { startTime: start, endTime: end },
+          { startTime: tardeStart, endTime: tardeEnd },
+        ]
+      : [{ startTime: start, endTime: end }];
     run(
-      async () => {
-        await unwrapAction(
-          setDoctorAvailability(
-            { doctorId, weekday: wd, startTime: start, endTime: end },
-            uuidv4(),
-          ),
-        );
-        if (comPausa) {
-          await unwrapAction(
-            setDoctorAvailability(
-              { doctorId, weekday: wd, startTime: tardeStart, endTime: tardeEnd },
-              uuidv4(),
-            ),
-          );
-        }
-      },
+      () =>
+        unwrapAction(setDoctorAvailabilityWindows({ doctorId, weekday: wd, windows }, uuidv4())),
       comPausa ? 'Expediente com pausa de almoço adicionado.' : 'Janela adicionada.',
     );
   }
