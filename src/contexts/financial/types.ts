@@ -4,6 +4,8 @@
  */
 import { z } from 'zod';
 
+import { CNPJ_INVALID_MESSAGE, parseOptionalCnpj } from '@/lib/validation/cnpj';
+
 export type LancamentoTipo = 'receber' | 'pagar';
 export type LancamentoStatus = 'pendente' | 'parcial' | 'pago' | 'cancelado' | 'estornado';
 export type LancamentoCreatedVia = 'auto' | 'manual' | 'estorno';
@@ -160,7 +162,17 @@ export type CreateEstornoInput = z.infer<typeof CreateEstornoSchema>;
 
 export const CreateSupplierSchema = z.object({
   razaoSocial: z.string().trim().min(1, 'razão social obrigatória').max(160),
-  cnpj: z.string().trim().max(18).nullable().optional(),
+  // VAL-001 — `trim().max(18)` aceitava `1`, e o banco persistiu `cnpj='1'`.
+  // O schema é o boundary: máscara de formulário não protege caller direto.
+  // Vazio continua opcional; preenchido normaliza para 14 dígitos canônicos e
+  // passa pelos verificadores.
+  cnpj: z
+    .string()
+    .trim()
+    .max(18)
+    .nullable()
+    .optional()
+    .refine((value) => parseOptionalCnpj(value).ok, { message: CNPJ_INVALID_MESSAGE }),
   contato: z.string().trim().max(160).nullable().optional(),
   condicaoPagamento: z.string().trim().max(120).nullable().optional(),
 });

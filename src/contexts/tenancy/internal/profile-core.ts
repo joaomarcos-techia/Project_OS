@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
+import { normalizeCnpj } from '@/lib/validation/cnpj';
 import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 
@@ -35,7 +36,11 @@ export async function updateClinicProfileCore(
     return t ? t : null;
   };
   // A8: CNPJ cifrado + hash. O salt HKDF é o próprio clinicId (que vem do request).
-  const cnpjRaw = norm(data.cnpj);
+  // VAL-002 — canônico (só dígitos) ANTES de cifrar e hashear. Se o hash for
+  // calculado sobre a grafia, `12.345.678/0001-95` e `12345678000195` viram
+  // registros distintos do mesmo documento e a deduplicação futura quebra.
+  // O schema já rejeitou checksum inválido; aqui só normalizamos.
+  const cnpjRaw = normalizeCnpj(norm(data.cnpj));
   const after = {
     nome: data.nome.trim(),
     endereco: norm(data.endereco),

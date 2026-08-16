@@ -83,6 +83,13 @@ export async function getPatientSummaryById(
 export interface ListPatientsOpts {
   search?: string;
   includeDeleted?: boolean;
+  /**
+   * UX-001 — remove pacientes com óbito registrado. Usado pelas buscas que
+   * alimentam AGENDAMENTO (Agenda, lista de espera), onde o core recusa o
+   * submit de qualquer forma. Não é default: o cadastro e a busca geral
+   * precisam continuar mostrando o falecido.
+   */
+  excludeDeceased?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -96,6 +103,11 @@ export async function listPatients(
   const offset = Math.max(opts.offset ?? 0, 0);
   const conds: SQL[] = [];
   if (!opts.includeDeleted) conds.push(patientsActiveFilter());
+  // UX-001 — candidatos de AGENDAMENTO não incluem falecidos. O core já recusa
+  // no submit (`assertPatientInClinic` exige `obito_em IS NULL`), mas oferecer o
+  // nome no seletor e só negar depois é retrabalho num contexto sensível. A
+  // guarda do backend permanece: isto é filtro de candidatos, não a barreira.
+  if (opts.excludeDeceased) conds.push(isNull(patients.obitoEm) as SQL);
   // F-12: bound the search term (trim + cap 64 chars). The value is parameterized
   // by Drizzle (no SQL injection) and the GIN trigram index serves `%term%`, but
   // an unbounded string is needless DoS surface. Empty-after-trim → no filter.

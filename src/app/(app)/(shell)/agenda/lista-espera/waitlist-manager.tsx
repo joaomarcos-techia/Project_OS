@@ -107,8 +107,9 @@ export function WaitlistManager({
   return (
     <div className="stack">
       <div className="cardblock wrap-pad grid gap-3 lg:grid-cols-3">
-        <Field label="Paciente">
+        <Field label="Paciente" htmlFor="waitlist-patient">
           <Combobox
+            id="waitlist-patient"
             value={patient}
             onSelect={setPatient}
             onSearch={async (term) =>
@@ -117,8 +118,12 @@ export function WaitlistManager({
             placeholder="Buscar paciente"
           />
         </Field>
-        <Field label="Procedimento">
-          <Select value={procedureId} onChange={(event) => setProcedureId(event.target.value)}>
+        <Field label="Procedimento" htmlFor="waitlist-procedure">
+          <Select
+            id="waitlist-procedure"
+            value={procedureId}
+            onChange={(event) => setProcedureId(event.target.value)}
+          >
             <option value="">Selecione…</option>
             {procedures.map((procedure) => (
               <option key={procedure.id} value={procedure.id}>
@@ -127,8 +132,12 @@ export function WaitlistManager({
             ))}
           </Select>
         </Field>
-        <Field label="Profissional (opcional)">
-          <Select value={doctorId} onChange={(event) => setDoctorId(event.target.value)}>
+        <Field label="Profissional (opcional)" htmlFor="waitlist-doctor">
+          <Select
+            id="waitlist-doctor"
+            value={doctorId}
+            onChange={(event) => setDoctorId(event.target.value)}
+          >
             <option value="">Qualquer profissional</option>
             {doctors.map((doctor) => (
               <option key={doctor.id} value={doctor.id}>
@@ -137,22 +146,25 @@ export function WaitlistManager({
             ))}
           </Select>
         </Field>
-        <Field label="Preferência a partir de">
+        <Field label="Preferência a partir de" htmlFor="waitlist-preferred-from">
           <Input
+            id="waitlist-preferred-from"
             type="date"
             value={preferredFromDate}
             onChange={(event) => setPreferredFromDate(event.target.value)}
           />
         </Field>
-        <Field label="Preferência até">
+        <Field label="Preferência até" htmlFor="waitlist-preferred-until">
           <Input
+            id="waitlist-preferred-until"
             type="date"
             value={preferredUntilDate}
             onChange={(event) => setPreferredUntilDate(event.target.value)}
           />
         </Field>
-        <Field label="Prioridade">
+        <Field label="Prioridade" htmlFor="waitlist-priority">
           <Select
+            id="waitlist-priority"
             value={priority}
             onChange={(event) => setPriority(event.target.value as 'urgent' | 'normal')}
           >
@@ -161,8 +173,13 @@ export function WaitlistManager({
           </Select>
         </Field>
         <div className="lg:col-span-2">
-          <Field label="Observações">
-            <Textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} />
+          <Field label="Observações" htmlFor="waitlist-notes">
+            <Textarea
+              id="waitlist-notes"
+              rows={2}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
           </Field>
         </div>
         <div className="flex items-end">

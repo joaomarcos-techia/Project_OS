@@ -22,6 +22,8 @@ export function Combobox({
   debounceMs = 200,
   emptyLabel = 'Nada encontrado.',
   disabled = false,
+  id,
+  'aria-label': ariaLabel,
 }: {
   value: ComboboxItem | null;
   onSelect: (item: ComboboxItem | null) => void;
@@ -31,6 +33,13 @@ export function Combobox({
   debounceMs?: number;
   emptyLabel?: string;
   disabled?: boolean;
+  /**
+   * A11Y-003 — sem `id` o `<label htmlFor>` do `Field` não alcança o input e o
+   * combobox ficava sem NOME acessível, dependendo do placeholder (que não é
+   * nome). Opcional para não quebrar os call-sites existentes.
+   */
+  id?: string;
+  'aria-label'?: string;
 }) {
   const listId = useId();
   const [term, setTerm] = useState('');
@@ -106,6 +115,8 @@ export function Combobox({
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-subtle"
         />
         <input
+          {...(id ? { id } : {})}
+          {...(ariaLabel ? { 'aria-label': ariaLabel } : {})}
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}

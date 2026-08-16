@@ -14,6 +14,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { normalizeCnpj } from '@/lib/validation/cnpj';
 import {
   requireCachedAnyPermission,
   requireCachedPermission,
@@ -545,7 +546,8 @@ export async function createSupplier(
         .values({
           clinicId,
           razaoSocial: data.razaoSocial,
-          cnpj: data.cnpj ?? null,
+          // VAL-001 — representação canônica; formatação é só apresentação.
+          cnpj: normalizeCnpj(data.cnpj),
           contato: data.contato ?? null,
           condicaoPagamento: data.condicaoPagamento ?? null,
           createdBy: user.userId,
@@ -587,7 +589,8 @@ export async function updateSupplier(
         .update(suppliers)
         .set({
           razaoSocial: data.razaoSocial,
-          cnpj: data.cnpj ?? null,
+          // VAL-001 — representação canônica; formatação é só apresentação.
+          cnpj: normalizeCnpj(data.cnpj),
           contato: data.contato ?? null,
           condicaoPagamento: data.condicaoPagamento ?? null,
           updatedAt: sql`now()`,

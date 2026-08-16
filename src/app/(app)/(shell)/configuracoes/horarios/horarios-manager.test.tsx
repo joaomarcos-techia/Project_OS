@@ -41,6 +41,23 @@ describe('HorariosManager', () => {
     );
   });
 
+  it('A11Y-001: Data e Motivo do feriado têm nome acessível', () => {
+    // A árvore acessível expunha dois textboxes SEM nome e `getByLabel()`
+    // encontrava zero — os quatro inputs de disponibilidade logo acima já
+    // usavam id/htmlFor corretamente, o que isolava o defeito nestes dois.
+    render(
+      <HorariosManager
+        doctors={[{ id: 'doctor-1', nome: 'Dra. Teste' }]}
+        availability={[]}
+        holidays={[]}
+        canManageHolidays
+      />,
+    );
+
+    expect(screen.getByLabelText('Data').getAttribute('id')).toBe('holiday-date');
+    expect(screen.getByLabelText('Motivo (opcional)').getAttribute('id')).toBe('holiday-reason');
+  });
+
   it('AUTHZ-007: sem gestão de equipe, o bloco de feriados não é renderizado', () => {
     // Feriado vale para a clínica inteira. Um médico que só administra a
     // própria agenda não pode criá-lo — e a tela não deve oferecer.

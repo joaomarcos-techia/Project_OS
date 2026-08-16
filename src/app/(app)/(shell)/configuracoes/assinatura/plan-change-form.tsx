@@ -213,13 +213,24 @@ export function PlanChangeForm({
             Manter assinatura
           </Button>
         </form>
-      ) : !pending ? (
+      ) : !pending && current.billingStatus === 'active' ? (
+        /* UX-002 — o ramo do cancelamento testava apenas `!pending`, enquanto
+           `requestSubscriptionCancellation()` exige `billingStatus === 'active'`.
+           Em trial o botão aparecia habilitado e as duas tentativas voltavam com
+           "O cancelamento exige uma assinatura ativa." A habilitação agora deriva
+           do MESMO estado que o backend aceita — é o critério que os botões de
+           plano logo acima já usavam. */
         <form action={cancellationAction}>
           <input type="hidden" name="idempotencyKey" value={cancellationKey} />
           <Button type="submit" variant="ghost" loading={cancelling}>
             Cancelar assinatura ao fim do ciclo
           </Button>
         </form>
+      ) : !pending && current.billingStatus === 'trial' ? (
+        <p className="text-(length:--fs-xs) text-fg-subtle">
+          O período de teste termina sozinho no fim do ciclo — não há assinatura ativa para
+          cancelar.
+        </p>
       ) : null}
       <p className="text-(length:--fs-xs) text-fg-subtle">
         Mensagens de IA, agendamentos e pacientes nunca são removidos nem bloqueiam esta alteração.

@@ -187,7 +187,9 @@ export async function buscarPacientes(term: string): Promise<Array<{ id: string;
   const clinicId = await requireClinicId();
   const t = term.trim();
   if (t.length < 2) return [];
-  const rows = await listPatients(clinicId, { search: t, limit: 10 });
+  // UX-001 — o seletor de "Novo atendimento" oferecia paciente falecido e só o
+  // submit negava. A guarda do core continua (defesa em profundidade).
+  const rows = await listPatients(clinicId, { search: t, limit: 10, excludeDeceased: true });
   return rows.map((p) => ({ id: p.id, nome: p.nome }));
 }
 

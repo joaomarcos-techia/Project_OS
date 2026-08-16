@@ -268,8 +268,13 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 </label>
                 {recurring ? (
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Field label="Intervalo (semanas)">
+                    {/* A11Y-002 — estes dois números decidem a criação de até
+                        104 consultas e não tinham nome acessível: rótulo visual
+                        sem `htmlFor`, input sem `id`. Um leitor de tela não
+                        distinguia "intervalo" de "quantidade". */}
+                    <Field label="Intervalo (semanas)" htmlFor="recurrence-interval-weeks">
                       <Input
+                        id="recurrence-interval-weeks"
                         type="number"
                         min={1}
                         max={52}
@@ -277,8 +282,9 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                         onChange={(event) => setIntervalWeeks(event.target.value)}
                       />
                     </Field>
-                    <Field label="Quantidade de consultas">
+                    <Field label="Quantidade de consultas" htmlFor="recurrence-occurrences">
                       <Input
+                        id="recurrence-occurrences"
                         type="number"
                         min={2}
                         max={104}
@@ -318,8 +324,9 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
               Urgência
             </label>
 
-            <Field label="Observações (opcional)">
+            <Field label="Observações (opcional)" htmlFor="appointment-observacoes">
               <Textarea
+                id="appointment-observacoes"
                 rows={2}
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}

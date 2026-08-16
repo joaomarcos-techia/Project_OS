@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { CNPJ_INVALID_MESSAGE, parseOptionalCnpj } from '@/lib/validation/cnpj';
+
 /**
  * Perfil editável da clínica (Configurações › Perfil). SÓ os campos de
  * identidade/branding do documento — NUNCA status/plan/slug/timezone (esses são
@@ -17,7 +19,11 @@ export const ClinicProfileSchema = z.object({
   nome: z.string().trim().min(1).max(160),
   endereco: opt(240),
   telefone: opt(40),
-  cnpj: opt(20),
+  // VAL-002 — antes qualquer string de até 20 chars era cifrada e hasheada; o
+  // valor `1` sobreviveu ao reload. Normalizar ANTES da cifra/hash importa: o
+  // hash precisa representar o documento, não a grafia, senão duas escritas do
+  // mesmo CNPJ viram registros distintos.
+  cnpj: opt(20).refine((value) => parseOptionalCnpj(value).ok, { message: CNPJ_INVALID_MESSAGE }),
   cnes: opt(20),
   // logo: white-label do PDF (ADR-028). Vazio → limpa (null).
   logoUrl: z.union([z.string().trim().url().max(500), z.literal('')]).optional(),

@@ -310,15 +310,21 @@ export function HorariosManager({
             </ul>
           )}
           <div className="flex flex-wrap items-end gap-2.5 border-t border-border pt-3.5">
-            <Field label="Data">
+            {/* A11Y-001 — os dois `Field` tinham rótulo VISUAL sem `htmlFor` e
+                os inputs sem `id`: a árvore acessível expunha dois textboxes sem
+                nome e `getByLabel()` encontrava zero. Os quatro inputs de
+                disponibilidade logo acima já usavam ids corretamente. */}
+            <Field label="Data" htmlFor="holiday-date">
               <Input
+                id="holiday-date"
                 type="date"
                 value={holidayDate}
                 onChange={(e) => setHolidayDate(e.target.value)}
               />
             </Field>
-            <Field label="Motivo (opcional)" className="min-w-45 flex-1">
+            <Field label="Motivo (opcional)" htmlFor="holiday-reason" className="min-w-45 flex-1">
               <Input
+                id="holiday-reason"
                 value={holidayReason}
                 onChange={(e) => setHolidayReason(e.target.value)}
                 maxLength={200}
