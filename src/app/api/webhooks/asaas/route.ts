@@ -34,13 +34,20 @@ import { captureBackgroundError } from '@/lib/observability/capture';
 import { runWithContext } from '@/lib/observability/context';
 import { metrics } from '@/lib/observability/metrics';
 
-import { asaasProvider, type ProviderPayment } from '@/contexts/billing/internal/providers/asaas';
+import {
+  asaasProvider,
+  BillingProviderError,
+  type ProviderPayment,
+} from '@/contexts/billing/internal/providers/asaas';
 import { applyPaidUpgradeForPayment } from '@/contexts/billing/internal/plan-changes';
+import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {
   ensureInvoiceForPayment,
+  findInvoiceByProviderPayment,
   markInvoiceOverdue,
   markInvoicePaid,
   markInvoiceRefunded,
+  syncInvoiceFromProviderPayment,
 } from '@/contexts/billing/internal/subscriptions';
 import { processedWebhooks, subscriptionChangeRequests } from '@/contexts/billing/schema';
 
@@ -61,6 +68,15 @@ function actionFor(status: string): 'paid' | 'overdue' | 'refunded' | null {
   if (status === 'OVERDUE') return 'overdue';
   if (status === 'REFUNDED') return 'refunded';
   return null; // PENDING e afins: materializa a invoice, sem transição.
+}
+
+/**
+ * BILLING-002 — eventos que ALEGAM remoção. O rótulo sozinho não decide nada
+ * (o corpo não é confiável); ele só autoriza INTERPRETAR um 404 do GET como
+ * remoção confirmada, em vez de como anomalia.
+ */
+function isDeletionEvent(event: string): boolean {
+  return event === 'PAYMENT_DELETED' || event === 'PAYMENT_REMOVED';
 }
 
 const FLOW = 'billing.webhook';
@@ -117,22 +133,38 @@ async function handleWebhook(req: Request): Promise<Response> {
 
   // 3. verify — fonte da verdade, fora da tx.
   const t0 = Date.now();
-  let payment: ProviderPayment;
+  let payment: ProviderPayment | null = null;
   try {
     payment = await asaasProvider.getPayment(parsed.paymentId, { attempts: 1 });
     metrics.emit('billing.webhook.verify', { duration_ms: Date.now() - t0, outcome: 'ok' });
   } catch (err) {
     const name = err instanceof Error ? err.name : 'unknown';
+    // BILLING-002 — 404 do GET AUTORITATIVO é a única prova aceitável de que a
+    // cobrança foi removida no painel. O corpo do webhook não serve: ele é
+    // autenticado só por um token estático compartilhado, então acreditar nele
+    // deixaria qualquer um cancelar cobrança alheia. Sem esta distinção, um
+    // PAYMENT_DELETED legítimo virava 500 eterno e a invoice ficava `open`,
+    // com o dunning perseguindo algo que não existe mais.
+    const confirmedMissing =
+      err instanceof BillingProviderError &&
+      err.httpStatus === 404 &&
+      isDeletionEvent(parsed.event);
     metrics.emit('billing.webhook.verify', {
       duration_ms: Date.now() - t0,
       // 4xx = o pagamento não existe/não é nosso → forjado ou apagado (definitivo).
       // Timeout/circuito aberto = indeterminado → o Asaas re-entrega.
-      outcome: name === 'BillingProviderError' ? 'failure' : 'timeout',
+      outcome: confirmedMissing
+        ? 'deleted'
+        : name === 'BillingProviderError'
+          ? 'failure'
+          : 'timeout',
       error: name,
     });
-    // 500 (não 4xx) mesmo no caso definitivo: um corpo que não confere é anomalia
-    // que merece re-entrega + investigação, e o reconcile cobre o resto.
-    return new Response('verification failed', { status: 500 });
+    if (!confirmedMissing) {
+      // 500 (não 4xx) mesmo no caso definitivo: um corpo que não confere é anomalia
+      // que merece re-entrega + investigação, e o reconcile cobre o resto.
+      return new Response('verification failed', { status: 500 });
+    }
   }
 
   // 4. dedup + resolve + processar (atômico).
@@ -144,6 +176,26 @@ async function handleWebhook(req: Request): Promise<Response> {
         .onConflictDoNothing()
         .returning({ id: processedWebhooks.asaasEventId });
       if (dedup.length === 0) return { status: 'duplicate' as const };
+
+      // BILLING-002 — remoção CONFIRMADA por 404 do GET. Não há `payment` para
+      // materializar: localiza a invoice já persistida e deixa a reconciliação
+      // decidir. Delete NUNCA vira refund — nada foi pago nem devolvido.
+      if (payment === null) {
+        const inv = await findInvoiceByProviderPayment(tx, parsed.paymentId!);
+        if (!inv) return { status: 'ignored' as const, reason: 'unknown_payment' };
+        await tx
+          .update(processedWebhooks)
+          .set({ clinicId: inv.clinicId })
+          .where(eq(processedWebhooks.asaasEventId, parsed.eventId));
+        await syncInvoiceFromProviderPayment(
+          tx,
+          inv.clinicId,
+          inv,
+          { exists: false },
+          { idemSuffix: parsed.eventId, providerConfirmedMissing: true },
+        );
+        return { status: 'processed' as const };
+      }
 
       // Cobrança avulsa de upgrade: ela não possui `subscription` no Asaas, por
       // isso precisa ser resolvida pela externalReference verificada em getPayment
@@ -182,23 +234,44 @@ async function handleWebhook(req: Request): Promise<Response> {
         .where(eq(processedWebhooks.asaasEventId, parsed.eventId));
 
       const idem = parsed.eventId;
+
+      // BILLING-002 — reconcilia data/valor ANTES de decidir a transição.
+      // `ensureInvoiceForPayment` devolve a invoice existente sem olhar nada
+      // disso, então uma alteração feita no painel ficava divergente para
+      // sempre. Precisa vir antes porque o período pago (BILLING-001) é
+      // derivado do `due_date` — pagar com o vencimento antigo em memória
+      // abriria o ciclo errado.
+      const synced = await syncInvoiceFromProviderPayment(
+        tx,
+        clinicId,
+        inv,
+        {
+          exists: true,
+          dueDate: payment.dueDate,
+          totalCents: payment.value === null ? null : Math.round(payment.value * 100),
+          status: providerStatusToInvoiceStatus(payment.status),
+        },
+        { idemSuffix: idem },
+      );
+      const current = synced.invoice;
+
       switch (actionFor(payment.status)) {
         case 'paid':
-          await markInvoicePaid(tx, clinicId, inv, {
+          await markInvoicePaid(tx, clinicId, current, {
             paymentMethod: payment.billingType,
             providerPaymentId: payment.paymentId,
             idemSuffix: idem,
           });
           break;
         case 'overdue':
-          await markInvoiceOverdue(tx, clinicId, inv, {
+          await markInvoiceOverdue(tx, clinicId, current, {
             providerPaymentId: payment.paymentId,
             idemSuffix: idem,
             daysOverdue: 0,
           });
           break;
         case 'refunded':
-          await markInvoiceRefunded(tx, clinicId, inv, {
+          await markInvoiceRefunded(tx, clinicId, current, {
             providerPaymentId: payment.paymentId,
             idemSuffix: idem,
           });
@@ -213,7 +286,8 @@ async function handleWebhook(req: Request): Promise<Response> {
     // O detalhe fica na métrica, que é interna.
     metrics.emit('billing.webhook.received', {
       event: parsed.event,
-      provider_status: payment.status,
+      // `null` = remoção confirmada por 404: não existe status de provedor.
+      provider_status: payment?.status ?? 'deleted',
       ...result,
     });
     return Response.json({ received: true }, { status: 200 });

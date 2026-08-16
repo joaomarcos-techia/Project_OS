@@ -10,6 +10,7 @@
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
+import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import { BILLING_EVENTS, type SubscriptionActivatedPayload } from '../events';
@@ -25,6 +26,11 @@ import {
 } from '../schema';
 import { type AccessMode, accessModeToClinicStatus } from './access';
 import { billingPeriodFor, shouldAdvanceSubscriptionPeriod } from './billing-period';
+import {
+  decideProviderSync,
+  type ProviderInvoiceState,
+  type ProviderSyncAction,
+} from './provider-sync';
 import { toCents, toReais, toReaisString } from './money';
 import { canTransitionBilling, canTransitionInvoice, type BillingStatus } from './state-machine';
 
@@ -223,6 +229,125 @@ export async function ensureInvoiceForPayment(
   });
   await recordBillingEvent(tx, sub.clinicId, 'invoice.generated', { invoiceId: created.id });
   return created;
+}
+
+/**
+ * BILLING-002 — reconcilia a invoice local com o estado autoritativo do Asaas.
+ *
+ * `ensureInvoiceForPayment()` devolve a invoice existente sem olhar `due_date`,
+ * `total_amount` ou remoção; sem esta função, uma edição no painel ficava
+ * divergente para sempre e uma cobrança excluída seguia `open` local, com o
+ * dunning perseguindo algo que não existe mais.
+ *
+ * NÃO paga nem vence invoice: `paid`/`overdue` continuam saindo do caminho
+ * monotônico existente (`markInvoicePaid`/`markInvoiceOverdue`), para que exista
+ * UM único lugar que quita uma cobrança. Aqui só se trata o que não tinha dono:
+ * data, valor, cancelamento e divergência.
+ *
+ * Devolve a ação decidida — inclusive as que não aplicou — para o caller rotear
+ * e para o teste afirmar sobre a decisão, não sobre o efeito colateral.
+ */
+export async function syncInvoiceFromProviderPayment(
+  tx: Tx,
+  clinicId: string,
+  invoice: InvoiceRow,
+  provider: ProviderInvoiceState,
+  opts: { idemSuffix: string; providerConfirmedMissing?: boolean },
+): Promise<{ action: ProviderSyncAction; invoice: InvoiceRow }> {
+  const action = decideProviderSync(
+    {
+      status: invoice.status,
+      dueDate: invoice.dueDate,
+      totalCents: toCents(invoice.totalAmount),
+    },
+    provider,
+    { providerConfirmedMissing: opts.providerConfirmedMissing ?? false },
+  );
+
+  if (action.kind === 'noop') return { action, invoice };
+
+  if (action.kind === 'flag_divergence') {
+    // Sem confirmação autoritativa não se decide nada: registra para revisão e
+    // alarma. Cancelar aqui seria acreditar num corpo que só tem token estático.
+    await recordBillingEvent(tx, clinicId, 'invoice.divergence_detected', {
+      invoiceId: invoice.id,
+      reason: action.reason,
+    });
+    metrics.emit('billing.invoice.divergence', { clinicId, invoiceId: invoice.id });
+    return { action, invoice };
+  }
+
+  if (action.kind === 'terminalize') {
+    // Só o cancelamento é aplicado aqui. `paid`/`overdue` voltam ao caller.
+    if (action.status !== 'cancelled') return { action, invoice };
+    if (!canTransitionInvoice(invoice.status, 'cancelled')) {
+      return {
+        action: { kind: 'noop', reason: `transition_blocked:${invoice.status}` },
+        invoice,
+      };
+    }
+    const cancelled = await tx
+      .update(invoices)
+      .set({ status: 'cancelled' })
+      // CAS pelo status lido: se outra entrega já pagou a invoice entre a
+      // decisão e a escrita, esta atualização não encontra a linha.
+      .where(and(eq(invoices.id, invoice.id), eq(invoices.status, invoice.status)))
+      .returning();
+    if (cancelled.length === 0) {
+      return { action: { kind: 'noop', reason: 'lost_cas' }, invoice };
+    }
+
+    await publishEvent(tx, {
+      clinicId,
+      eventType: BILLING_EVENTS.INVOICE_CANCELLED,
+      payload: { clinicId, invoiceId: invoice.id, reason: 'provider_deleted' },
+      idempotencyKey: `invoice-cancelled:${opts.idemSuffix}`,
+    });
+    await recordBillingEvent(tx, clinicId, 'invoice.cancelled', {
+      invoiceId: invoice.id,
+      reason: 'provider_deleted',
+    });
+    return { action, invoice: cancelled[0]! };
+  }
+
+  // action.kind === 'update' — data e/ou valor de uma invoice ainda aberta.
+  const updated = await tx
+    .update(invoices)
+    .set({
+      ...(action.dueDate ? { dueDate: action.dueDate } : {}),
+      ...(action.totalCents !== undefined ? { totalAmount: toReaisString(action.totalCents) } : {}),
+    })
+    .where(and(eq(invoices.id, invoice.id), eq(invoices.status, invoice.status)))
+    .returning();
+  if (updated.length === 0) {
+    return { action: { kind: 'noop', reason: 'lost_cas' }, invoice };
+  }
+
+  await recordBillingEvent(tx, clinicId, 'invoice.synced_from_provider', {
+    invoiceId: invoice.id,
+    ...(action.dueDate ? { dueDate: action.dueDate } : {}),
+    ...(action.totalCents !== undefined ? { totalCents: action.totalCents } : {}),
+  });
+  if (action.amountChanged) {
+    // Mudar quanto o cliente deve nunca passa despercebido.
+    metrics.emit('billing.invoice.amount_changed', { clinicId, invoiceId: invoice.id });
+  }
+  // Devolve a linha ATUALIZADA: quem paga em seguida precisa derivar o período
+  // do vencimento novo, não do que estava em memória antes da reconciliação.
+  return { action, invoice: updated[0]! };
+}
+
+/** Invoice local de um pagamento do provedor (usada quando o GET devolve 404). */
+export async function findInvoiceByProviderPayment(
+  tx: Tx,
+  providerPaymentId: string,
+): Promise<InvoiceRow | null> {
+  const [row] = await tx
+    .select()
+    .from(invoices)
+    .where(eq(invoices.asaasPaymentId, providerPaymentId))
+    .limit(1);
+  return row ?? null;
 }
 
 /** PAYMENT_RECEIVED: invoice → paid (monotônico) + attempt + reativa acesso. */

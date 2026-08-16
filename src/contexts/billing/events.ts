@@ -30,6 +30,9 @@ export const BILLING_EVENTS = {
   INVOICE_PAID: 'billing.invoice.paid',
   INVOICE_OVERDUE: 'billing.invoice.overdue',
   INVOICE_REFUNDED: 'billing.invoice.refunded',
+  // BILLING-002 — cobrança removida no provedor. Distinto de refunded: nada
+  // foi pago nem devolvido; a cobrança deixou de existir.
+  INVOICE_CANCELLED: 'billing.invoice.cancelled',
   PAYMENT_FAILED: 'billing.payment.failed',
   TRIAL_STARTED: 'billing.trial.started',
   TRIAL_EXPIRED: 'billing.trial.expired',
@@ -112,6 +115,13 @@ export const InvoicePaidSchema = z.object({
 });
 export type InvoicePaidPayload = z.infer<typeof InvoicePaidSchema>;
 
+export const InvoiceCancelledSchema = z.object({
+  clinicId: uuid,
+  invoiceId: uuid,
+  reason: z.string(),
+});
+export type InvoiceCancelledPayload = z.infer<typeof InvoiceCancelledSchema>;
+
 export const InvoiceOverdueSchema = z.object({
   clinicId: uuid,
   invoiceId: uuid,
@@ -184,6 +194,7 @@ registerEventSchema(BILLING_EVENTS.SUBSCRIPTION_CHANGED, SubscriptionChangedSche
 registerEventSchema(BILLING_EVENTS.SUBSCRIPTION_CANCELLED, SubscriptionCancelledSchema);
 registerEventSchema(BILLING_EVENTS.INVOICE_GENERATED, InvoiceGeneratedSchema);
 registerEventSchema(BILLING_EVENTS.INVOICE_PAID, InvoicePaidSchema);
+registerEventSchema(BILLING_EVENTS.INVOICE_CANCELLED, InvoiceCancelledSchema);
 registerEventSchema(BILLING_EVENTS.INVOICE_OVERDUE, InvoiceOverdueSchema);
 registerEventSchema(BILLING_EVENTS.INVOICE_REFUNDED, InvoiceRefundedSchema);
 registerEventSchema(BILLING_EVENTS.PAYMENT_FAILED, PaymentFailedSchema);

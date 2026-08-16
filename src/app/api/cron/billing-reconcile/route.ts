@@ -16,13 +16,15 @@ import { dbAdmin } from '@/lib/db';
 import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
-import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
+import { asaasProvider, BillingProviderError } from '@/contexts/billing/internal/providers/asaas';
 import { applyScheduledPlanChange } from '@/contexts/billing/internal/plan-changes';
+import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {
   ensureInvoiceForPayment,
   markInvoiceOverdue,
   markInvoicePaid,
   markInvoiceRefunded,
+  syncInvoiceFromProviderPayment,
 } from '@/contexts/billing/internal/subscriptions';
 import {
   billingReconciliationRuns,
@@ -109,8 +111,28 @@ export const GET = withCron(
         for (const payment of payments) {
           try {
             const result = await dbAdmin.transaction(async (tx): Promise<MaterializationResult> => {
-              const invoice = await ensureInvoiceForPayment(tx, payment);
-              if (!invoice) return { materialized: false, action: null };
+              const materialized = await ensureInvoiceForPayment(tx, payment);
+              if (!materialized) return { materialized: false, action: null };
+
+              // BILLING-002 — reconcilia data/valor com o estado autoritativo
+              // ANTES de transicionar. `ensureInvoiceForPayment` devolve a
+              // invoice existente sem olhar nada disso, então uma edição no
+              // painel do Asaas ficava divergente indefinidamente. Este caminho
+              // é o que cobre a divergência SEM depender de habilitar eventos
+              // novos no provedor.
+              const synced = await syncInvoiceFromProviderPayment(
+                tx,
+                subscription.clinicId,
+                materialized,
+                {
+                  exists: true,
+                  dueDate: payment.dueDate,
+                  totalCents: payment.value === null ? null : Math.round(payment.value * 100),
+                  status: providerStatusToInvoiceStatus(payment.status),
+                },
+                { idemSuffix: `reconcile:subscription:${payment.paymentId}` },
+              );
+              const invoice = synced.invoice;
 
               switch (actionFor(payment.status)) {
                 case 'paid':
@@ -233,20 +255,59 @@ export const GET = withCron(
         .limit(200)) as InvoiceRow[];
 
       for (const inv of rows) {
-        let providerStatus: string;
+        let payment: Awaited<ReturnType<typeof asaasProvider.getPayment>> | null = null;
         try {
-          const p = await asaasProvider.getPayment(inv.asaasPaymentId!);
-          providerStatus = p.status;
+          payment = await asaasProvider.getPayment(inv.asaasPaymentId!);
         } catch (err) {
-          metrics.emit('billing.reconcile.provider_error', { invoiceId: inv.id, error: err });
-          continue; // não trava a run por um pagamento inacessível
+          // BILLING-002 — 404 aqui é o backstop diário para uma cobrança
+          // EXCLUÍDA no painel: sem ele a invoice ficava `open` para sempre e o
+          // dunning perseguia algo que não existe mais. Qualquer outro erro
+          // continua sendo indisponibilidade — a próxima run tenta de novo.
+          const deleted = err instanceof BillingProviderError && err.httpStatus === 404;
+          if (!deleted) {
+            metrics.emit('billing.reconcile.provider_error', { invoiceId: inv.id, error: err });
+            continue; // não trava a run por um pagamento inacessível
+          }
+          found++;
+          const outcome = await dbAdmin.transaction((tx) =>
+            syncInvoiceFromProviderPayment(
+              tx,
+              inv.clinicId,
+              inv,
+              { exists: false },
+              { idemSuffix: `reconcile:${inv.id}`, providerConfirmedMissing: true },
+            ),
+          );
+          if (outcome.action.kind !== 'noop') fixed++;
+          continue;
         }
-        if (!PAID_STATUSES.has(providerStatus)) continue;
+
+        // Reconcilia data/valor mesmo quando não há transição a fazer.
+        const synced = await dbAdmin.transaction((tx) =>
+          syncInvoiceFromProviderPayment(
+            tx,
+            inv.clinicId,
+            inv,
+            {
+              exists: true,
+              dueDate: payment!.dueDate,
+              totalCents: payment!.value === null ? null : Math.round(payment!.value * 100),
+              status: providerStatusToInvoiceStatus(payment!.status),
+            },
+            { idemSuffix: `reconcile:${inv.id}` },
+          ),
+        );
+        if (synced.action.kind === 'update') {
+          found++;
+          fixed++;
+        }
+
+        if (!PAID_STATUSES.has(payment.status)) continue;
         found++;
         // dbAdmin (service_role): markInvoicePaid → setClinicAccess escreve
         // clinics.status (write privilegiado — D31). withTenant seria bloqueado.
         await dbAdmin.transaction(async (tx) => {
-          await markInvoicePaid(tx, inv.clinicId, inv, {
+          await markInvoicePaid(tx, inv.clinicId, synced.invoice, {
             paymentMethod: inv.paymentMethod ?? null,
             providerPaymentId: inv.asaasPaymentId,
             idemSuffix: `reconcile:${inv.id}`,

@@ -39,6 +39,27 @@ vi.mock('@/contexts/billing/internal/subscriptions', () => ({
     id: 'inv-1',
     clinicId: 'clinic-1',
     status: 'open',
+    dueDate: '2026-08-24',
+    totalAmount: '199.00',
+  })),
+  findInvoiceByProviderPayment: vi.fn(async () => ({
+    id: 'inv-1',
+    clinicId: 'clinic-1',
+    status: 'open',
+    dueDate: '2026-08-24',
+    totalAmount: '199.00',
+  })),
+  // BILLING-002 — devolve a invoice (possivelmente reconciliada) para o caller
+  // pagar/vencer sobre o estado atual, não sobre o que estava em memória.
+  syncInvoiceFromProviderPayment: vi.fn(async () => ({
+    action: { kind: 'noop', reason: 'in_sync' },
+    invoice: {
+      id: 'inv-1',
+      clinicId: 'clinic-1',
+      status: 'open',
+      dueDate: '2026-08-24',
+      totalAmount: '199.00',
+    },
   })),
   markInvoicePaid: vi.fn(async () => {}),
   markInvoiceOverdue: vi.fn(async () => {}),
@@ -47,9 +68,11 @@ vi.mock('@/contexts/billing/internal/subscriptions', () => ({
 
 import {
   ensureInvoiceForPayment,
+  findInvoiceByProviderPayment,
   markInvoiceOverdue,
   markInvoicePaid,
   markInvoiceRefunded,
+  syncInvoiceFromProviderPayment,
 } from '@/contexts/billing/internal/subscriptions';
 import { BillingProviderError } from '@/contexts/billing/internal/providers/asaas';
 
@@ -271,5 +294,96 @@ describe('B5 — corpo da resposta', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ received: true });
     expect(transactionMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BILLING-002 — reconciliação com o painel do Asaas.
+// ---------------------------------------------------------------------------
+
+describe('BILLING-002 — update e delete do painel', () => {
+  it('reconcilia a invoice ANTES de decidir a transição', async () => {
+    // `ensureInvoiceForPayment` devolve a invoice existente sem olhar data ou
+    // valor: sem esta chamada, uma alteração no painel ficava divergente para
+    // sempre. Precisa vir antes porque o período pago (BILLING-001) sai do
+    // `due_date`.
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'RECEIVED', dueDate: '2026-09-05' });
+    await post({ id: 'evt_sync', event: 'PAYMENT_UPDATED', payment: { id: 'pay_1' } });
+
+    expect(syncInvoiceFromProviderPayment).toHaveBeenCalledTimes(1);
+    const [, , , provider] = vi.mocked(syncInvoiceFromProviderPayment).mock.calls[0]!;
+    expect(provider).toMatchObject({ exists: true, dueDate: '2026-09-05', totalCents: 10_000 });
+    expect(vi.mocked(syncInvoiceFromProviderPayment).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(markInvoicePaid).mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('paga sobre a invoice RECONCILIADA, não sobre a que estava em memória', async () => {
+    vi.mocked(syncInvoiceFromProviderPayment).mockResolvedValueOnce({
+      action: { kind: 'update', dueDate: '2026-09-05', amountChanged: false },
+      invoice: { id: 'inv-1', clinicId: 'clinic-1', status: 'open', dueDate: '2026-09-05' },
+    } as never);
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'RECEIVED', dueDate: '2026-09-05' });
+
+    await post({ id: 'evt_sync2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1' } });
+
+    const [, , invoiceArg] = vi.mocked(markInvoicePaid).mock.calls[0]!;
+    expect(invoiceArg).toMatchObject({ dueDate: '2026-09-05' });
+  });
+
+  it('PAYMENT_DELETED com 404 no GET → cancela a invoice, sem 500', async () => {
+    // Antes, um delete legítimo virava 500 eterno e a invoice ficava `open`.
+    getPayment.mockRejectedValue(new BillingProviderError('not found', 'not_found', 404));
+
+    const res = await post({ id: 'evt_del', event: 'PAYMENT_DELETED', payment: { id: 'pay_1' } });
+
+    expect(res.status).toBe(200);
+    const [, , , provider, opts] = vi.mocked(syncInvoiceFromProviderPayment).mock.calls[0]!;
+    expect(provider).toEqual({ exists: false });
+    expect(opts).toMatchObject({ providerConfirmedMissing: true });
+    // Delete NUNCA vira estorno.
+    expect(markInvoiceRefunded).not.toHaveBeenCalled();
+    expect(markInvoicePaid).not.toHaveBeenCalled();
+  });
+
+  it('404 em evento que NÃO alega remoção continua sendo 500 (anomalia)', async () => {
+    // Um `PAYMENT_RECEIVED` cujo pagamento não existe é corpo forjado ou
+    // apagado — merece re-entrega e investigação, não cancelamento silencioso.
+    getPayment.mockRejectedValue(new BillingProviderError('not found', 'not_found', 404));
+
+    const res = await post({ id: 'evt_404', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1' } });
+
+    expect(res.status).toBe(500);
+    expect(syncInvoiceFromProviderPayment).not.toHaveBeenCalled();
+  });
+
+  it('timeout do provider em PAYMENT_DELETED NÃO cancela nada', async () => {
+    // Sem o 404 autoritativo não há prova de remoção: o Asaas re-entrega.
+    getPayment.mockRejectedValue(new Error('timeout'));
+
+    const res = await post({ id: 'evt_to', event: 'PAYMENT_DELETED', payment: { id: 'pay_1' } });
+
+    expect(res.status).toBe(500);
+    expect(syncInvoiceFromProviderPayment).not.toHaveBeenCalled();
+  });
+
+  it('delete de pagamento sem invoice local é ignorado, sem erro', async () => {
+    getPayment.mockRejectedValue(new BillingProviderError('not found', 'not_found', 404));
+    vi.mocked(findInvoiceByProviderPayment).mockResolvedValueOnce(null);
+
+    const res = await post({ id: 'evt_del2', event: 'PAYMENT_DELETED', payment: { id: 'pay_x' } });
+
+    expect(res.status).toBe(200);
+    expect(syncInvoiceFromProviderPayment).not.toHaveBeenCalled();
+  });
+
+  it('replay do delete é deduplicado pelo eventId', async () => {
+    getPayment.mockRejectedValue(new BillingProviderError('not found', 'not_found', 404));
+    const body = { id: 'evt_del_dup', event: 'PAYMENT_DELETED', payment: { id: 'pay_1' } };
+
+    await post(body);
+    await post(body);
+
+    expect(syncInvoiceFromProviderPayment).toHaveBeenCalledTimes(1);
   });
 });

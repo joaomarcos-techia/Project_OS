@@ -3,20 +3,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   selectResults,
   listSubscriptionPayments,
+  getPayment,
   ensureInvoiceForPayment,
   markInvoicePaid,
   markInvoiceOverdue,
   markInvoiceRefunded,
+  syncInvoiceFromProviderPayment,
   updateSubscription,
   applyScheduledPlanChange,
   emit,
 } = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
   listSubscriptionPayments: vi.fn(),
+  getPayment: vi.fn(),
   ensureInvoiceForPayment: vi.fn(),
   markInvoicePaid: vi.fn(),
   markInvoiceOverdue: vi.fn(),
   markInvoiceRefunded: vi.fn(),
+  syncInvoiceFromProviderPayment: vi.fn(),
   updateSubscription: vi.fn(),
   applyScheduledPlanChange: vi.fn(),
   emit: vi.fn(),
@@ -45,7 +49,18 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 vi.mock('@/contexts/billing/internal/providers/asaas', () => ({
-  asaasProvider: { listSubscriptionPayments, getPayment: vi.fn(), updateSubscription },
+  asaasProvider: { listSubscriptionPayments, getPayment, updateSubscription },
+  // BILLING-002 — a rota distingue 404 (cobranca removida) de indisponibilidade.
+  BillingProviderError: class BillingProviderError extends Error {
+    constructor(
+      message: string,
+      readonly code = 'billing_provider_error',
+      readonly httpStatus: number | null = null,
+    ) {
+      super(message);
+      this.name = 'BillingProviderError';
+    }
+  },
 }));
 vi.mock('@/contexts/billing/internal/plan-changes', () => ({ applyScheduledPlanChange }));
 vi.mock('@/contexts/billing/internal/subscriptions', () => ({
@@ -53,7 +68,10 @@ vi.mock('@/contexts/billing/internal/subscriptions', () => ({
   markInvoicePaid,
   markInvoiceOverdue,
   markInvoiceRefunded,
+  syncInvoiceFromProviderPayment,
 }));
+
+import { BillingProviderError } from '@/contexts/billing/internal/providers/asaas';
 
 import { GET } from './route';
 
@@ -62,6 +80,14 @@ beforeEach(() => {
   selectResults.length = 0;
   listSubscriptionPayments.mockResolvedValue([]);
   applyScheduledPlanChange.mockResolvedValue({ applied: true, kind: 'cancellation' });
+  // BILLING-002 — por padrão local e provedor concordam: a reconciliação é
+  // no-op e devolve a mesma invoice para a transição seguinte.
+  syncInvoiceFromProviderPayment.mockImplementation(
+    async (_tx: unknown, _clinicId: string, invoice: unknown) => ({
+      action: { kind: 'noop', reason: 'in_sync' },
+      invoice,
+    }),
+  );
 });
 
 describe('billing reconcile', () => {
@@ -138,5 +164,114 @@ describe('billing reconcile', () => {
       fixed: 0,
       scheduledChangesApplied: 1,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BILLING-002 — o reconcile é o backstop que NÃO depende de habilitar eventos
+// novos no Asaas. É por aqui que uma cobrança editada ou excluída no painel
+// deixa de ficar divergente do ClinicaOS.
+// ---------------------------------------------------------------------------
+
+describe('BILLING-002 — divergência com o painel', () => {
+  /** Uma invoice aberta com pagamento no provedor, no 2º scan da rota. */
+  function openInvoice() {
+    selectResults.push(
+      [],
+      [],
+      [
+        {
+          id: 'inv_9',
+          clinicId: 'clinic_1',
+          status: 'open',
+          dueDate: '2026-08-24',
+          totalAmount: '199.00',
+          asaasPaymentId: 'pay_9',
+          paymentMethod: 'PIX',
+        },
+      ],
+    );
+  }
+
+  it('cobrança EXCLUÍDA no painel (404) é reconciliada, não ignorada', async () => {
+    // Antes, o catch tratava tudo como indisponibilidade e dava `continue`: a
+    // invoice ficava `open` para sempre e o dunning cobrava algo inexistente.
+    openInvoice();
+    getPayment.mockRejectedValue(new BillingProviderError('not found', 'not_found', 404));
+    syncInvoiceFromProviderPayment.mockResolvedValue({
+      action: { kind: 'terminalize', status: 'cancelled' },
+      invoice: { id: 'inv_9', clinicId: 'clinic_1', status: 'cancelled' },
+    });
+
+    await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    const [, , , provider, opts] = syncInvoiceFromProviderPayment.mock.calls[0]!;
+    expect(provider).toEqual({ exists: false });
+    expect(opts).toMatchObject({ providerConfirmedMissing: true });
+    expect(markInvoicePaid).not.toHaveBeenCalled();
+  });
+
+  it('indisponibilidade do provedor NÃO cancela nada — a próxima run tenta', async () => {
+    openInvoice();
+    getPayment.mockRejectedValue(new Error('timeout'));
+
+    await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    expect(syncInvoiceFromProviderPayment).not.toHaveBeenCalled();
+    expect(emit).toHaveBeenCalledWith(
+      'billing.reconcile.provider_error',
+      expect.objectContaining({ invoiceId: 'inv_9' }),
+    );
+  });
+
+  it('data/valor divergentes são reconciliados mesmo sem transição a fazer', async () => {
+    openInvoice();
+    getPayment.mockResolvedValue({
+      paymentId: 'pay_9',
+      status: 'PENDING',
+      value: 249,
+      dueDate: '2026-09-05',
+      invoiceUrl: null,
+      subscriptionId: 'sub_1',
+      billingType: 'PIX',
+      externalReference: null,
+    });
+    syncInvoiceFromProviderPayment.mockResolvedValue({
+      action: { kind: 'update', dueDate: '2026-09-05', totalCents: 24_900, amountChanged: true },
+      invoice: { id: 'inv_9', clinicId: 'clinic_1', status: 'open', dueDate: '2026-09-05' },
+    });
+
+    const response = await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    const [, , , provider] = syncInvoiceFromProviderPayment.mock.calls[0]!;
+    expect(provider).toMatchObject({ exists: true, dueDate: '2026-09-05', totalCents: 24_900 });
+    // PENDING não paga; a divergência sozinha já conta como corrigida.
+    expect(markInvoicePaid).not.toHaveBeenCalled();
+    expect(await response.json()).toMatchObject({ found: 1, fixed: 1 });
+  });
+
+  it('paga sobre a invoice RECONCILIADA, não sobre a lida antes', async () => {
+    openInvoice();
+    getPayment.mockResolvedValue({
+      paymentId: 'pay_9',
+      status: 'CONFIRMED',
+      value: 199,
+      dueDate: '2026-09-05',
+      invoiceUrl: null,
+      subscriptionId: 'sub_1',
+      billingType: 'PIX',
+      externalReference: null,
+    });
+    syncInvoiceFromProviderPayment.mockResolvedValue({
+      action: { kind: 'update', dueDate: '2026-09-05', amountChanged: false },
+      invoice: { id: 'inv_9', clinicId: 'clinic_1', status: 'open', dueDate: '2026-09-05' },
+    });
+
+    await GET(new Request('http://localhost/api/cron/billing-reconcile'));
+
+    // BILLING-001 deriva o período do due_date: pagar com o vencimento antigo
+    // em memória abriria o ciclo errado.
+    const [, , invoiceArg] = markInvoicePaid.mock.calls[0]!;
+    expect(invoiceArg).toMatchObject({ dueDate: '2026-09-05' });
   });
 });
