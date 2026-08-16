@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page, type Response } from '@playwright/test';
+import { expect, test, type BrowserContext } from '@playwright/test';
 import { createServerClient as createSsrClient } from '@supabase/ssr';
 import { config as loadDotenv } from 'dotenv';
 import postgres from 'postgres';
@@ -59,10 +59,6 @@ async function signInContext(
   );
 }
 
-function isServerAction(response: Response): boolean {
-  const request = response.request();
-  return request.method() === 'POST' && Boolean(request.headers()['next-action']);
-}
 
 test.describe('produção: negativa de cancelamento durante trial', () => {
   test.describe.configure({ retries: 0 });

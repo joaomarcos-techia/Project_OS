@@ -124,7 +124,6 @@ test.describe('produção: autorização do deep-link de prontuário na Clínica
     const patientName = `${marker} Paciente`;
     const patientEmail = `e2e-clinical-rbac-a-${runId}@example.test`;
     const clinicalContent = `${marker} conteúdo clínico estritamente sintético.`;
-    const deniedContent = `${marker} tentativa negada do atendente.`;
     const idempotencyKeys: string[] = [];
     let clinicId: string | undefined;
     let patientId: string | undefined;

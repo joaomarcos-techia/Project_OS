@@ -265,6 +265,10 @@ test.describe('produção: fornecedores financeiros na Clínica A', () => {
       expect(concurrentState).toMatchObject({ updates: 1, actors: 1 });
       expect([ownerEditName, financialEditName]).toContain(concurrentState?.name);
       const finalName = concurrentState!.name;
+      // Quem vence a corrida e indeterminado por construcao. A trilha completa
+      // do fornecedor tem dois atores distintos quando o financeiro venceu, e
+      // um so quando o owner venceu — fixar o numero cru seria flaky.
+      const financialWonRace = finalName === financialEditName;
 
       await ownerPage.goto('/financeiro/fornecedores');
       let item = supplierItem(ownerPage, finalName);
@@ -330,9 +334,14 @@ test.describe('produção: fornecedores financeiros na Clínica A', () => {
                 and i.response ->> 'id' = ${supplierId!}) idempotency
         `;
       });
-      // Uma trilha a menos e um ator a menos: a edicao concorrente perdedora
-      // nao e mais registrada como sucesso (DATA-004).
-      expect(trails).toEqual({ audits: 4, actors: 1, idempotency: 4 });
+      // DATA-004 — a edicao concorrente perdedora nao deixa trilha de sucesso:
+      // sao 4 auditorias (criacao, update vencedor, desativacao, reativacao) e
+      // nao 5. Os atores seguem o vencedor da corrida.
+      expect(trails).toEqual({
+        audits: 4,
+        actors: financialWonRace ? 2 : 1,
+        idempotency: 4,
+      });
 
       console.log(
         `[supplier-lifecycle-a] ${JSON.stringify({

@@ -507,6 +507,13 @@ test.describe.serial('produção: jornadas humanas por role na Clínica A', () =
       .toMatch(/^[0-9a-f-]{36}$/iu);
 
     await page.goto('/consultorio');
+    // O board nunca mistura medicos: para quem nao e practitioner ele default
+    // ao primeiro medico do dia em ordem alfabetica. Com mais de um medico com
+    // agenda hoje, a fila do encaixe so aparece ao selecionar o profissional.
+    const boardDoctorSelect = page.getByLabel('Selecionar médico');
+    if ((await boardDoctorSelect.count()) > 0) {
+      await boardDoctorSelect.selectOption(doctorId);
+    }
     await expect(page.getByText(patientName, { exact: true })).toBeVisible({ timeout: 30_000 });
     await page.goto('/equipe');
     await expect(page.getByText('Sem acesso', { exact: true })).toBeVisible();

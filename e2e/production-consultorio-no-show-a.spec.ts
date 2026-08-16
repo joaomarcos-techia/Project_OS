@@ -333,9 +333,12 @@ test.describe('produção: estados e concorrência de Agenda/Consultório na Cl�
       await signIn(ownerPage, ownerEmail);
       await Promise.all([page.goto('/agenda?view=day'), ownerPage.goto('/agenda?view=day')]);
 
+      // STATE-001 — o agendado foi consumido pelo no-show (que agora e
+      // alcancavel a partir dele). A corrida de transferencia usa o atendimento
+      // que CHEGOU: `chegou` tambem admite `transfer` pela recovery-policy.
       const openTransfer = async (actorPage: Page, reason: string) => {
         const row = actorPage
-          .getByText(scheduledName, { exact: true })
+          .getByText(arrivedName, { exact: true })
           .locator('xpath=ancestor::li[1]');
         await expect(row).toBeVisible({ timeout: 30_000 });
         await row.getByRole('button', { name: 'Corrigir', exact: true }).click();
@@ -442,10 +445,12 @@ test.describe('produção: estados e concorrência de Agenda/Consultório na Cl�
                    and i.response ->> 'id' = a.id::text
                    and i.created_at >= ${startedAt}::timestamptz) idempotency
           from appointments a
-         where a.clinic_id = ${clinicId}::uuid and a.id = ${scheduledAppointmentId}::uuid
+         where a.clinic_id = ${clinicId}::uuid and a.id = ${arrivedAppointmentId}::uuid
       `;
       expect(raceState).toEqual({
-        status: 'agendado',
+        // A transferencia PRESERVA o status; a corrida roda sobre o atendimento
+        // que ja chegou (o agendado foi consumido pelo no-show).
+        status: 'chegou',
         doctor_id: ownerId,
         corrections: 1,
         correction_kinds: ['transfer'],
