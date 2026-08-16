@@ -533,6 +533,13 @@
       "when": 1786791600000,
       "tag": "0075_waitlist_offer_proactive_job",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1786791700000,
+      "tag": "0076_financial_audit_export_least_privilege",
+      "breakpoints": true
     }
   ]
 }

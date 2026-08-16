@@ -3,6 +3,7 @@
  * link morto / mock — ADR-018); navegação principal fica nas tabs do layout.
  */
 import {
+  Bot,
   Boxes,
   Building2,
   Clock3,
@@ -11,6 +12,7 @@ import {
   MessageCircle,
   Pill,
   ReceiptText,
+  ScrollText,
   ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -93,6 +95,25 @@ const SECTIONS: Section[] = [
     description: 'Conecte o número da clínica (Meta) para o agente atender.',
     href: '/configuracoes/whatsapp',
     permission: PERMISSIONS.MANAGE_SETTINGS,
+  },
+  {
+    // RBAC-001 — `manage:agent` passa a controlar uma capacidade real e
+    // SEPARADA de `manage:settings`: a conexão do WhatsApp é integração; isto
+    // é o comportamento do agente em nome da clínica.
+    icon: Bot,
+    title: 'Agente de IA',
+    description: 'O que o agente pode fazer e dizer ao atender pelo WhatsApp.',
+    href: '/configuracoes/agente',
+    permission: PERMISSIONS.MANAGE_AGENT,
+  },
+  {
+    // RBAC-001 — export da trilha da PRÓPRIA clínica. Distinto do export de
+    // plataforma (super-admin, cross-tenant), que esta tela não alcança.
+    icon: ScrollText,
+    title: 'Auditoria',
+    description: 'Exporte a trilha de ações da clínica para conformidade.',
+    href: '/configuracoes/auditoria',
+    permission: PERMISSIONS.EXPORT_AUDIT,
   },
   {
     icon: ShieldCheck,
