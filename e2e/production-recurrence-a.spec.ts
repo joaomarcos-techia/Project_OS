@@ -235,6 +235,10 @@ test.describe('produção: recorrência de Agenda na Clínica A', () => {
       const validFirstDate = `${setup.year}-01-08`;
       const validSecondDate = addDays(validFirstDate, 7);
       const validThirdDate = addDays(validFirstDate, 14);
+      // DATA-007 — a guarda de duplicidade diaria passou a valer para TODAS as
+      // ocorrencias. A consulta isolada precisa ficar fora da janela da serie,
+      // senao a criacao e (corretamente) recusada.
+      const standaloneDate = addDays(validFirstDate, 28);
       const conflictFirstDate = `${setup.year}-06-08`;
       const conflictSecondDate = addDays(conflictFirstDate, 7);
 
@@ -255,15 +259,16 @@ test.describe('produção: recorrência de Agenda na Clínica A', () => {
       });
       const recurrenceNumbers = clientInvalid.locator('input[type="number"]');
       await expect(recurrenceNumbers).toHaveCount(2);
+      // A11Y-002 — os tres campos ganharam nome acessivel no ciclo anterior.
       expect(await clientInvalid.getByLabel('Intervalo (semanas)', { exact: true }).count()).toBe(
-        0,
+        1,
       );
       expect(
         await clientInvalid.getByLabel('Quantidade de consultas', { exact: true }).count(),
-      ).toBe(0);
+      ).toBe(1);
       expect(
         await clientInvalid.getByLabel('Observações (opcional)', { exact: true }).count(),
-      ).toBe(0);
+      ).toBe(1);
       await recurrenceNumbers.nth(1).evaluate((element) => element.removeAttribute('min'));
       await recurrenceNumbers.nth(1).fill('1');
       await clientInvalid.getByRole('button', { name: 'Agendar', exact: true }).click();
@@ -291,7 +296,7 @@ test.describe('produção: recorrência de Agenda na Clínica A', () => {
         patientName,
         procedureId,
         doctorId,
-        date: validSecondDate,
+        date: standaloneDate,
         time: standaloneTime,
         recurring: false,
       });
@@ -367,17 +372,24 @@ test.describe('produção: recorrência de Agenda na Clínica A', () => {
         { scheduled_date: validSecondDate, occurrence: 2, status: 'agendado' },
         { scheduled_date: validThirdDate, occurrence: 3, status: 'agendado' },
       ]);
-      expect(persisted.trails.duplicate_day).toBe(2);
+      // DATA-007 — antes este numero era 2 (duas consultas ativas do mesmo par
+      // no mesmo dia, que era o achado). Agora so existe a ocorrencia da serie.
+      expect(persisted.trails.duplicate_day).toBe(1);
 
       await page.goto(`/agenda?view=day&date=${validSecondDate}`);
-      await expect(page.getByText(patientName, { exact: true })).toHaveCount(2);
+      await expect(page.getByText(patientName, { exact: true })).toHaveCount(1);
       await page.reload();
-      await expect(page.getByText(patientName, { exact: true })).toHaveCount(2);
+      await expect(page.getByText(patientName, { exact: true })).toHaveCount(1);
+      // UX-003 — a projecao passou a transportar serie/ocorrencia e a Agenda
+      // renderiza o vinculo. Antes os dois eram `false`, que era o achado.
       const seriesUiIndicator = (await page.getByText(/recorr|série/iu).count()) > 0;
+      expect(seriesUiIndicator).toBe(true);
+      // O badge "Serie N/M" abre o dialogo de cancelamento da serie.
+      await page.getByRole('button', { name: /^Série \d+\/\d+$/u }).first().click();
       const seriesCancelControl =
-        (await page.getByRole('button', { name: /cancelar.*(?:recorr|série)/iu }).count()) > 0;
-      expect(seriesUiIndicator).toBe(false);
-      expect(seriesCancelControl).toBe(false);
+        (await page.getByRole('button', { name: 'Cancelar série', exact: true }).count()) > 0;
+      expect(seriesCancelControl).toBe(true);
+      await page.getByRole('button', { name: 'Voltar', exact: true }).click();
 
       const [blocker] = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
@@ -482,9 +494,9 @@ test.describe('produção: recorrência de Agenda na Clínica A', () => {
           conflictHttpStatus,
           conflictAtomicRollback: afterConflict.rolled_back_first === 0,
           accessibility: {
-            intervalLabelled: false,
-            occurrencesLabelled: false,
-            observationsLabelled: false,
+            intervalLabelled: true,
+            occurrencesLabelled: true,
+            observationsLabelled: true,
           },
           externalEffects: false,
         })}`,

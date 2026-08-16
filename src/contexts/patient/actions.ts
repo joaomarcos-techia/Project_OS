@@ -31,6 +31,7 @@ import {
   validateCpf,
 } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
+import { matchesExpectedVersion } from '@/lib/db/optimistic-lock';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { isUniqueViolation } from '@/lib/outbox/errors';
@@ -322,7 +323,7 @@ export async function updatePatient(
                 // perdedor recebia sucesso. Com a versão no WHERE, quem partiu
                 // de um estado velho casa ZERO linhas.
                 ...(data.expectedUpdatedAt
-                  ? [eq(patients.updatedAt, new Date(data.expectedUpdatedAt))]
+                  ? [matchesExpectedVersion(patients.updatedAt, data.expectedUpdatedAt)]
                   : []),
               ),
             )

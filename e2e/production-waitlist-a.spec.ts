@@ -134,7 +134,7 @@ function waitlistRow(page: Page, patientName: string) {
 test.describe('produção: lista de espera na Clínica A', () => {
   test.describe.configure({ retries: 0 });
 
-  test('validação, cancelamento humano sem oferta, encerramento e cleanup', async ({ browser }) => {
+  test('validação, cancelamento humano COM oferta, encerramento e cleanup', async ({ browser }) => {
     test.setTimeout(420_000);
     test.skip(
       !authorized,
@@ -384,18 +384,25 @@ test.describe('produção: lista de espera na Clínica A', () => {
         return rows;
       });
       if (!offered) throw new Error('Estado da oferta ausente.');
+      // WAIT-001 — este spec foi escrito para reproduzir o achado e afirmava
+      // que o cancelamento humano da Agenda NAO ofertava nada. Agora a
+      // assercao e a do comportamento correto e e mais ESTRITA: a vaga vai
+      // para o candidato URGENTE (regra de prioridade), o normal continua na
+      // fila, e sai EXATAMENTE UM evento de oferta — nao zero, nao dois.
       expect(offered).toMatchObject({
         appointment_status: 'cancelado',
         normal_status: 'waiting',
-        urgent_status: 'waiting',
-        urgent_offered_id: null,
-        offered_events: 0,
+        urgent_status: 'offered',
+        offered_events: 1,
+        // A mensagem ao paciente depende de template aprovado na Meta
+        // (BLOCKED): o pipeline interno vai ate o job, sem envio.
         messages: 0,
       });
+      expect(offered.urgent_offered_id).toBe(appointmentId);
 
       await page.goto('/agenda/lista-espera');
       await expect(
-        waitlistRow(page, patientNames[1]).getByText('Aguardando', { exact: true }),
+        waitlistRow(page, patientNames[1]).getByText('Oferta enviada', { exact: true }),
       ).toBeVisible();
       await expect(
         waitlistRow(page, patientNames[0]).getByText('Aguardando', { exact: true }),
@@ -403,7 +410,9 @@ test.describe('produção: lista de espera na Clínica A', () => {
       const offeredBookControl = await page
         .getByRole('button', { name: /agendar|confirmar|aceitar/iu })
         .count();
-      expect(offeredBookControl).toBe(0);
+      // WAIT-001 — `markWaitlistEntryBooked()` nao tinha caller: a oferta era um
+      // beco sem saida. Agora existe o controle para concluir.
+      expect(offeredBookControl).toBeGreaterThan(0);
 
       await waitlistRow(page, patientNames[1]).getByRole('button', { name: 'Cancelar' }).click();
       await expect(waitlistRow(page, patientNames[1])).toHaveCount(0);
@@ -424,11 +433,11 @@ test.describe('produção: lista de espera na Clínica A', () => {
           normalHttpStatus,
           urgentHttpStatus,
           cancellationHttpStatus,
-          humanCancellationCreatedOffer: false,
+          humanCancellationCreatedOffer: offered.urgent_status === 'offered',
           offeredEventStatusAtObservation: offered.offered_event_status,
-          offeredEventHasHandler: false,
+          offeredEventHasHandler: true,
           offeredBookControl: offeredBookControl > 0,
-          bookingActionHasCaller: false,
+          bookingActionHasCaller: offeredBookControl > 0,
           messagesCreated: offered.messages,
           accessibility,
           externalEffects: false,

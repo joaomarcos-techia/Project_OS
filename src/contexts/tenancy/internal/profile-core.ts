@@ -7,6 +7,7 @@ import type { RequestContext } from '@/lib/audit/types';
 import { normalizeCnpj } from '@/lib/validation/cnpj';
 import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
+import { matchesExpectedVersion } from '@/lib/db/optimistic-lock';
 
 import { clinics } from '../schema';
 
@@ -91,7 +92,10 @@ export async function updateClinicProfileCore(
       .set(after)
       .where(
         data.expectedUpdatedAt
-          ? and(eq(clinics.id, clinicId), eq(clinics.updatedAt, new Date(data.expectedUpdatedAt)))
+          ? and(
+              eq(clinics.id, clinicId),
+              matchesExpectedVersion(clinics.updatedAt, data.expectedUpdatedAt),
+            )
           : eq(clinics.id, clinicId),
       )
       .returning({ id: clinics.id });

@@ -21,6 +21,7 @@ import {
   requireClinicId,
   requireUser,
 } from '@/lib/auth/tenant-context';
+import { matchesExpectedVersion } from '@/lib/db/optimistic-lock';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
@@ -606,7 +607,7 @@ export async function updateSupplier(
             // Razão social, CNPJ e contato de fornecedor alimentam contas a
             // pagar: perder a alteração é perder o favorecido certo.
             ...(data.expectedUpdatedAt
-              ? [eq(suppliers.updatedAt, new Date(data.expectedUpdatedAt))]
+              ? [matchesExpectedVersion(suppliers.updatedAt, data.expectedUpdatedAt)]
               : []),
           ),
         )
