@@ -72,12 +72,14 @@ export async function getClinicProfile(clinicId: string): Promise<ClinicProfile 
         cnpjEncrypted: clinics.cnpjEncrypted,
         cnes: clinics.cnes,
         logoUrl: clinics.logoUrl,
+        updatedAt: clinics.updatedAt,
       })
       .from(clinics)
       .where(eq(clinics.id, clinicId))
       .limit(1);
     return r
       ? {
+          updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : null,
           nome: r.nome,
           endereco: r.endereco ?? null,
           telefone: r.telefone ?? null,

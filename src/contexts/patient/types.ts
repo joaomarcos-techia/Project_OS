@@ -115,6 +115,13 @@ export const CreatePatientSchema = z.object({
 export type CreatePatientInput = z.infer<typeof CreatePatientSchema>;
 
 export const UpdatePatientSchema = z.object({
+  /**
+   * DATA-002 — `updatedAt` lido pelo formulário, devolvido no submit e
+   * conferido no `WHERE`. Reusa a coluna que já existe: nenhuma migration.
+   * Opcional para não quebrar callers programáticos (agente, importação), que
+   * não têm "estado na tela" a proteger.
+   */
+  expectedUpdatedAt: z.string().datetime().optional(),
   nome: NomeSchema.optional(),
   cpf: CpfSchema.optional(),
   telefone: TelefoneSchema.nullable().optional(),

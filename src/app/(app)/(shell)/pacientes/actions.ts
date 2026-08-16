@@ -121,6 +121,7 @@ export async function updatePatientForm(
   const key = str(fd, 'idempotencyKey') ?? '';
   if (!id) return { error: 'id ausente.' };
   const parsed = UpdatePatientSchema.safeParse({
+    expectedUpdatedAt: str(fd, 'expectedUpdatedAt'),
     nome: str(fd, 'nome'),
     cpf: str(fd, 'cpf'),
     telefone: str(fd, 'telefone'),

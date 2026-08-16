@@ -26,3 +26,25 @@ export class PatientConflictError extends Error {
     this.name = 'PatientConflictError';
   }
 }
+
+/**
+ * DATA-002 — escrita sobre estado OBSOLETO (concorrência otimista).
+ *
+ * Dois atores abriram o mesmo paciente, partiram do mesmo estado e enviaram
+ * valores diferentes. As duas Server Actions eram aceitas, geravam duas
+ * auditorias e o último commit sobrescrevia o primeiro em silêncio: o perdedor
+ * recebia sucesso e acreditava que sua edição valia.
+ *
+ * Erro dedicado (409) para a UI poder dizer "recarregue e reaplique" — que é a
+ * única saída que preserva as duas intenções.
+ */
+export class StaleWriteError extends Error {
+  readonly code = 'stale_write';
+  readonly httpStatus = 409;
+  constructor(
+    message = 'Este cadastro foi alterado em outra janela. Recarregue e refaça a edição.',
+  ) {
+    super(message);
+    this.name = 'StaleWriteError';
+  }
+}

@@ -66,6 +66,8 @@ export interface CashFlowDTO {
 }
 
 export interface SupplierSummary {
+  /** DATA-004 — token de versão para o compare-and-swap da edição. */
+  updatedAt: string | null;
   id: string;
   razaoSocial: string;
   cnpj: string | null;
@@ -161,6 +163,11 @@ export const CreateEstornoSchema = z.object({
 export type CreateEstornoInput = z.infer<typeof CreateEstornoSchema>;
 
 export const CreateSupplierSchema = z.object({
+  /**
+   * DATA-004 — versão lida pelo formulário, conferida no `WHERE` do update.
+   * Reusa `updated_at`: nenhuma migration. Ignorada no create.
+   */
+  expectedUpdatedAt: z.string().datetime().optional(),
   razaoSocial: z.string().trim().min(1, 'razão social obrigatória').max(160),
   // VAL-001 — `trim().max(18)` aceitava `1`, e o banco persistiu `cnpj='1'`.
   // O schema é o boundary: máscara de formulário não protege caller direto.

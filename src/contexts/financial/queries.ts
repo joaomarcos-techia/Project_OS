@@ -481,6 +481,7 @@ export function toSupplierSummary(r: SupplierRow): SupplierSummary {
     contato: r.contato ?? null,
     condicaoPagamento: r.condicaoPagamento ?? null,
     ativo: r.ativo,
+    updatedAt: toIso(r.updatedAt),
   };
 }
 

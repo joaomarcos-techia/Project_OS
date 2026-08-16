@@ -25,6 +25,7 @@ function supplier(overrides: Partial<SupplierSummary> = {}): SupplierSummary {
     contato: 'contato@x.com',
     condicaoPagamento: '30 dias',
     ativo: true,
+    updatedAt: '2026-08-15T12:00:00.000Z',
     ...overrides,
   };
 }

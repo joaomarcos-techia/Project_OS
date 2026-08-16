@@ -36,7 +36,12 @@ import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { isUniqueViolation } from '@/lib/outbox/errors';
 import { publishEvent } from '@/lib/outbox/publish';
 
-import { PatientConflictError, PatientNotFoundError, PatientValidationError } from './errors';
+import {
+  PatientConflictError,
+  PatientNotFoundError,
+  PatientValidationError,
+  StaleWriteError,
+} from './errors';
 import { PATIENT_EVENTS } from './events';
 import { getPatientSummaryById, hasLegalGuardian, toPatientSummary } from './queries';
 import {
@@ -302,9 +307,26 @@ export async function updatePatient(
             .update(patients)
             .set(set)
             .where(
-              and(eq(patients.id, id), eq(patients.clinicId, clinicId), isNull(patients.deletedAt)),
+              and(
+                eq(patients.id, id),
+                eq(patients.clinicId, clinicId),
+                isNull(patients.deletedAt),
+                // DATA-002 — compare-and-swap. Sem isto o UPDATE casava por
+                // `id + clinic_id` e o último commit vencia em silêncio: duas
+                // edições simultâneas eram ambas aceitas, ambas auditadas, e o
+                // perdedor recebia sucesso. Com a versão no WHERE, quem partiu
+                // de um estado velho casa ZERO linhas.
+                ...(data.expectedUpdatedAt
+                  ? [eq(patients.updatedAt, new Date(data.expectedUpdatedAt))]
+                  : []),
+              ),
             )
             .returning();
+          // Zero linhas com versão esperada = perdeu a corrida, não "sumiu".
+          // Distinguir importa: a UI precisa mandar recarregar, não dizer que o
+          // paciente não existe. O throw reverte a tx — sem audit/outbox de
+          // sucesso para o perdedor.
+          if (!row && data.expectedUpdatedAt) throw new StaleWriteError();
           if (!row) throw new PatientNotFoundError(id);
           summary = toPatientSummary(row);
         }

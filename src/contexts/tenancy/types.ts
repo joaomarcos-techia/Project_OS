@@ -16,6 +16,12 @@ import { CNPJ_INVALID_MESSAGE, parseOptionalCnpj } from '@/lib/validation/cnpj';
 const opt = (max: number) => z.string().trim().max(max).optional();
 
 export const ClinicProfileSchema = z.object({
+  /**
+   * DATA-005 — versão lida pelo formulário, conferida no `WHERE`. Duas abas do
+   * mesmo owner gravavam CNES diferentes ao mesmo tempo, as duas recebiam
+   * "Perfil salvo." e um valor sumia sem aviso.
+   */
+  expectedUpdatedAt: z.string().datetime().optional(),
   nome: z.string().trim().min(1).max(160),
   endereco: opt(240),
   telefone: opt(40),
@@ -31,6 +37,8 @@ export const ClinicProfileSchema = z.object({
 export type ClinicProfileInput = z.infer<typeof ClinicProfileSchema>;
 
 export interface ClinicProfile {
+  /** DATA-005 — token de versão para o compare-and-swap da edição. */
+  updatedAt: string | null;
   nome: string;
   endereco: string | null;
   telefone: string | null;

@@ -42,14 +42,22 @@ export function FornecedoresView({
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null); // null = fechado; '' = criar
   const [draft, setDraft] = useState<Draft>(EMPTY);
+  /**
+   * DATA-004 — versão do fornecedor no instante em que o diálogo abriu. Volta no
+   * submit para o compare-and-swap: quem partiu de estado velho recebe conflito
+   * em vez de sobrescrever a edição do outro em silêncio.
+   */
+  const [editingUpdatedAt, setEditingUpdatedAt] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditingId('');
     setDraft(EMPTY);
+    setEditingUpdatedAt(null);
     setError(null);
   };
   const openEdit = (s: SupplierSummary) => {
     setEditingId(s.id);
+    setEditingUpdatedAt(s.updatedAt ?? null);
     setDraft({
       razaoSocial: s.razaoSocial,
       cnpj: maskCnpj(s.cnpj ?? ''),
@@ -73,7 +81,11 @@ export function FornecedoresView({
     }
     startTransition(async () => {
       const r = editingId
-        ? await updateSupplierAction(editingId, input, uuidv4())
+        ? await updateSupplierAction(
+            editingId,
+            { ...input, ...(editingUpdatedAt ? { expectedUpdatedAt: editingUpdatedAt } : {}) },
+            uuidv4(),
+          )
         : await createSupplierAction(input, uuidv4());
       if (!r.ok) {
         setError(r.message);

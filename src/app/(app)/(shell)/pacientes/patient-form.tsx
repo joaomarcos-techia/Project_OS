@@ -29,6 +29,8 @@ interface Props {
   stickyAction?: boolean;
   guardianCandidates?: Array<{ id: string; nome: string }>;
   initial?: {
+    /** DATA-002 — versão lida na abertura; volta no submit para o compare-and-swap. */
+    updatedAt?: string;
     id: string;
     nome: string;
     cpf?: string;
@@ -103,6 +105,12 @@ export function PatientForm({
     <form action={formAction} className="flex max-w-xl flex-col gap-3.5">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {initial?.id ? <input type="hidden" name="id" value={initial.id} /> : null}
+      {/* DATA-002 — a versão que ESTA tela leu. O backend só grava se o banco
+          ainda estiver nela; quem partiu de estado velho recebe conflito em vez
+          de sobrescrever em silêncio. */}
+      {initial?.updatedAt ? (
+        <input type="hidden" name="expectedUpdatedAt" value={initial.updatedAt} />
+      ) : null}
 
       {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 

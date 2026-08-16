@@ -246,6 +246,7 @@ async function DadosTab({
           action={updatePatientForm}
           initial={{
             id: p.id,
+            updatedAt: p.updatedAt,
             nome: p.nome,
             telefone: p.telefone,
             email: p.email,

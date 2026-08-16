@@ -26,6 +26,7 @@ import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 import { publishEvent } from '@/lib/outbox/publish';
 
 import {
+  FinancialValidationError,
   LancamentoStateError,
   LancamentoNotFoundError,
   PaymentTransactionNotFoundError,
@@ -595,8 +596,28 @@ export async function updateSupplier(
           condicaoPagamento: data.condicaoPagamento ?? null,
           updatedAt: sql`now()`,
         })
-        .where(and(eq(suppliers.id, id), eq(suppliers.clinicId, clinicId)))
+        .where(
+          and(
+            eq(suppliers.id, id),
+            eq(suppliers.clinicId, clinicId),
+            // DATA-004 — compare-and-swap. O update casava por `id + clinic_id`
+            // e duas edições concorrentes (owner e Financeiro) eram ambas
+            // aceitas, com duas auditorias de sucesso; um dos valores sumia.
+            // Razão social, CNPJ e contato de fornecedor alimentam contas a
+            // pagar: perder a alteração é perder o favorecido certo.
+            ...(data.expectedUpdatedAt
+              ? [eq(suppliers.updatedAt, new Date(data.expectedUpdatedAt))]
+              : []),
+          ),
+        )
         .returning();
+      // Zero linhas com versão esperada = perdeu a corrida. O throw reverte a
+      // tx: o perdedor NÃO deixa auditoria nem idempotência de sucesso.
+      if (!row && data.expectedUpdatedAt) {
+        throw new FinancialValidationError(
+          'Este fornecedor foi alterado em outra janela. Recarregue e refaça a edição.',
+        );
+      }
       if (!row) throw new SupplierNotFoundError(id);
       return toSupplierSummary(row);
     },
@@ -633,6 +654,8 @@ export async function setSupplierAtivo(
       const [row] = await tx
         .update(suppliers)
         .set({ ativo, updatedAt: sql`now()` })
+        // Ativar/desativar é um toggle idempotente, sem campo em disputa: não
+        // faz sentido exigir versão aqui.
         .where(and(eq(suppliers.id, id), eq(suppliers.clinicId, clinicId)))
         .returning();
       if (!row) throw new SupplierNotFoundError(id);

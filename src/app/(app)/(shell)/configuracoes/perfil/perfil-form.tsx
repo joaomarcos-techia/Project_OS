@@ -84,6 +84,9 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
     if (!nome.trim()) return toast.error('Informe o nome da clínica.');
     startSave(async () => {
       const res = await updateClinicProfile({
+        // DATA-005 — a versão que ESTA aba leu. Duas abas do owner salvavam
+        // valores diferentes e as duas diziam "Perfil salvo."
+        ...(initial.updatedAt ? { expectedUpdatedAt: initial.updatedAt } : {}),
         nome: nome.trim(),
         endereco: endereco.trim() || undefined,
         telefone: telefone.trim() || undefined,

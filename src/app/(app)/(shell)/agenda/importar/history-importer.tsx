@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,30 @@ export function HistoryImporter() {
   const [state, action, pending] = useActionState(importAppointmentHistoryForm, INITIAL);
   const [payload, setPayload] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
-  const idempotencyKey = useMemo(() => uuidv4(), []);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // UX-004 — a chave nascia com `useMemo(..., [])` e NUNCA rodava. Depois de um
+  // lote concluído, escolher outro JSON na mesma montagem da página reenviava a
+  // MESMA chave com payload diferente, e o backend recusava, corretamente, com
+  // "Idempotency key ... reused with a different payload". Uma importação
+  // legítima dividida em vários arquivos exigia um reload não documentado.
+  //
+  // A chave agora é ESTADO: preservada durante retry/replay do lote em curso
+  // (que é o que a torna exactly-once) e rotacionada só APÓS sucesso, junto com
+  // a limpeza do arquivo/payload. Conflito de payload com chave antiga continua
+  // fail-closed no backend — a correção é de ciclo de vida da chave, não do gate.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => uuidv4());
+
+  useEffect(() => {
+    if (!state.message) return;
+    setIdempotencyKey(uuidv4());
+    setPayload('');
+    setFileError(null);
+    formRef.current?.reset();
+  }, [state.message]);
 
   return (
-    <form action={action} className="grid gap-5">
+    <form ref={formRef} action={action} className="grid gap-5">
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="payload" value={payload} />
 

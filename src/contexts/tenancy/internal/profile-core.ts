@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
@@ -9,6 +9,20 @@ import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 
 import { clinics } from '../schema';
+
+/**
+ * DATA-005 — escrita sobre perfil OBSOLETO. Erro dedicado para a UI manter os
+ * valores digitados e pedir recarregar, em vez de confirmar um salvamento que
+ * foi sobrescrito.
+ */
+export class StaleClinicProfileError extends Error {
+  readonly code = 'stale_clinic_profile';
+  readonly httpStatus = 409;
+  constructor() {
+    super('O perfil foi alterado em outra janela. Recarregue a página e refaça a edição.');
+    this.name = 'StaleClinicProfileError';
+  }
+}
 import type { ClinicProfileInput } from '../types';
 
 /**
@@ -68,7 +82,24 @@ export async function updateClinicProfileCore(
       .limit(1);
     if (!before) throw new Error('clínica não encontrada');
 
-    await tx.update(clinics).set(after).where(eq(clinics.id, clinicId));
+    // DATA-005 — compare-and-swap sobre a MESMA allowlist de colunas. O update
+    // casava só por `clinicId`: duas abas do owner salvavam CNES diferentes,
+    // as duas mostravam "Perfil salvo.", duas auditorias persistiam e um valor
+    // sumia. `slug/status/timezone` continuam fora do update.
+    const affected = await tx
+      .update(clinics)
+      .set(after)
+      .where(
+        data.expectedUpdatedAt
+          ? and(eq(clinics.id, clinicId), eq(clinics.updatedAt, new Date(data.expectedUpdatedAt)))
+          : eq(clinics.id, clinicId),
+      )
+      .returning({ id: clinics.id });
+    // Zero linhas com versão esperada = o registro mudou entre a leitura e o
+    // submit. O throw reverte a tx: o perdedor não deixa auditoria de sucesso.
+    if (affected.length === 0 && data.expectedUpdatedAt) {
+      throw new StaleClinicProfileError();
+    }
 
     await logAudit(tx, {
       clinicId,
