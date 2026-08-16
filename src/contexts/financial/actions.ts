@@ -378,8 +378,34 @@ export async function createEstorno(
           ),
         );
       const valorJaEstornado = Number(refundTotals?.total ?? 0);
+      // Invariante 1 — TETO POR PARCELA: não se estorna mais do que aquela
+      // transação de pagamento trouxe. Continua olhando só esta parcela.
       assertRefundFitsPayment(Number(payment.amount), valorJaEstornado, data.valor);
-      const valorEstornado = round2(valorJaEstornado + data.valor);
+
+      // DATA-003 — invariante 2, que faltava: TOTAL GLOBAL do lançamento.
+      //
+      // O cálculo antigo reusava o subtotal da parcela (`valorJaEstornado`)
+      // para decidir a terminalização. Com mais de uma transação de pagamento,
+      // nenhum subtotal individual alcança `valorPago`, então o ramo que marca
+      // original e compensações como `estornado` NUNCA rodava. Foi o que o
+      // pentest mediu: R$ 3,33 + R$ 6,67 recebidos, os dois integralmente
+      // reembolsados, ledger líquido zerado — e o lançamento seguiu `pago`,
+      // dentro do filtro "Pago", fora de "Estornado", sem ação restante.
+      //
+      // As duas somas respondem perguntas diferentes e por isso são duas
+      // queries: uma limita o reembolso da parcela, a outra decide o estado do
+      // lançamento. Ambas rodam sob o `FOR UPDATE` do original, que serializa.
+      const [globalRefunds] = await tx
+        .select({ total: sql<string>`coalesce(sum(${paymentTransactions.amount}), 0)` })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.clinicId, clinicId),
+            eq(paymentTransactions.lancamentoId, orig.id),
+            eq(paymentTransactions.kind, 'refund'),
+          ),
+        );
+      const valorEstornado = round2(Number(globalRefunds?.total ?? 0) + data.valor);
       const estornoIntegral = isEstornoIntegral(Number(orig.valorPago), valorEstornado);
 
       const [refund] = await tx

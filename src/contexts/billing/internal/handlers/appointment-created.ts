@@ -22,6 +22,21 @@ async function countAgendamento(ctx: {
   payload: AppointmentCreatedPayload;
 }): Promise<void> {
   const { tx, clinicId, payload } = ctx;
+
+  // DATA-009 — carga HISTÓRICA não é operação corrente.
+  //
+  // O pentest importou três consultas de 2001 e o worker normal criou três
+  // linhas de ledger no período `2026-08`, levando `usage_metrics` de 37 para
+  // 40. A métrica passou a descrever o mês da IMPORTAÇÃO, não a operação da
+  // clínica — e um lote pode ter até 500 itens.
+  //
+  // O evento continua sendo publicado (proveniência, state logs e o lote são
+  // trilha legítima); só não é METRÁVEL. Usar `createdVia` em vez de comparar
+  // `scheduledAt` com "hoje" é o critério certo: uma consulta remarcada para o
+  // passado por correção continua sendo operação corrente, e um import de
+  // datas futuras continua sendo import.
+  if (payload.createdVia === 'import') return;
+
   const key = ledgerKeyFor('agendamento', { appointmentId: payload.appointmentId });
   await recordUsage(tx, clinicId, key, currentPeriod());
 }

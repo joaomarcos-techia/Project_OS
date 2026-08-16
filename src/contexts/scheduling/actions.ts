@@ -40,6 +40,7 @@ import { assertTransition, type AppointmentState } from './state-machine';
 import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
 import { assertCanManageDoctorSchedule } from './internal/availability-scope';
 import { assertCanCompleteClinically } from './internal/clinical-completion';
+import { assertNoDailyDuplicate, readClinicTimeZone } from './internal/daily-duplicate';
 import {
   assertActiveDoctorInClinic,
   assertPatientInClinic,
@@ -172,7 +173,11 @@ export async function createRecurringAppointments(
   const data = CreateRecurringAppointmentsSchema.parse(input);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
-  const occurrenceDates = buildWeeklyOccurrences(data);
+  // DATA-008 — a série repete um HORÁRIO DE PAREDE. Sem o fuso da clínica o
+  // cálculo somava 168 h fixas e derivava uma hora ao atravessar mudança de
+  // offset. `getClinicTimezone` é a mesma fonte que a Agenda e os slots usam.
+  const timeZone = await readClinicTimeZone(clinicId);
+  const occurrenceDates = buildWeeklyOccurrences({ ...data, timeZone });
   if (occurrenceDates.some((date) => date.getTime() < Date.now())) {
     throw new SchedulingValidationError('não é permitido criar recorrência no passado');
   }
@@ -194,6 +199,23 @@ export async function createRecurringAppointments(
         },
       },
       async (tx) => {
+        // DATA-007 — a guarda "mesmo paciente + mesmo médico + mesmo dia" era
+        // aplicada na app-layer, FORA da transação e SÓ para a primeira data.
+        // O core percorria as demais sem repeti-la, e o EXCLUDE do banco só
+        // cobre colisão de HORÁRIO — duas consultas do mesmo par em horários
+        // diferentes do mesmo dia passavam. Agora a regra vale para TODAS as
+        // ocorrências, dentro da mesma transação que as insere: qualquer
+        // colisão aborta a série inteira, sem appointment/audit/outbox parcial.
+        if (data.patientId) {
+          await assertNoDailyDuplicate(tx, {
+            clinicId,
+            patientId: data.patientId,
+            doctorId: data.doctorId,
+            timeZone,
+            occurrences: occurrenceDates,
+          });
+        }
+
         const [series] = await tx
           .insert(recurrenceSeries)
           .values({

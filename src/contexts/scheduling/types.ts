@@ -312,6 +312,13 @@ export interface AppointmentSummary {
   snapshotProcedureValor: number;
   snapshotProcedureDuracaoMin: number;
   snapshotDoctorNome: string;
+  /**
+   * DATA-001 — nome do profissional ATUALMENTE atribuído, resolvido por
+   * `doctorId`. Preenchido só pelas leituras que descrevem o estado corrente
+   * (ex.: consultas do paciente para a IA). `snapshotDoctorNome` continua sendo
+   * o histórico imutável da criação; os dois coexistem de propósito.
+   */
+  currentDoctorNome?: string;
   snapshotDoctorCrm: string | null;
   snapshotDoctorEspecialidade: string | null;
   createdVia: CreatedVia;

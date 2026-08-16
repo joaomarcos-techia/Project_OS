@@ -230,7 +230,30 @@ export async function listUpcomingPatientAppointments(
       )
       .orderBy(asc(appointments.scheduledAt))
       .limit(safeLimit);
-    return rows.map(toAppointmentSummary);
+
+    // DATA-001 — esta leitura alimenta as ferramentas da IA, que DIZEM AO
+    // PACIENTE quem vai atendê-lo. O snapshot é a projeção congelada da criação
+    // e não acompanha uma transferência: o paciente recebia o médico anterior.
+    // Resolvemos o profissional ATUAL por `doctor_id`; o snapshot permanece
+    // intacto como histórico e como fallback (profile removido).
+    const doctorIds = [...new Set(rows.map((row) => row.doctorId))];
+    const nameOf = new Map<string, string>();
+    if (doctorIds.length > 0) {
+      const list = sql.join(
+        doctorIds.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      );
+      const profileRows = (await tx.execute(sql`
+        SELECT id::text AS id, nome FROM profiles
+         WHERE clinic_id = ${clinicId}::uuid AND id IN (${list})
+      `)) as unknown as Array<{ id: string; nome: string }>;
+      for (const profile of profileRows) nameOf.set(profile.id, profile.nome);
+    }
+
+    return rows.map((row) => ({
+      ...toAppointmentSummary(row),
+      currentDoctorNome: nameOf.get(row.doctorId) ?? row.snapshotDoctorNome,
+    }));
   });
 }
 
@@ -557,7 +580,15 @@ export async function getAppointmentStatsByDoctor(
     const rows = await tx
       .select({
         doctorId: appointments.doctorId,
-        nome: sql<string>`(array_agg(${appointments.snapshotDoctorNome} order by ${appointments.scheduledAt} desc))[1]`,
+        // DATA-001: o agrupamento é por `doctor_id` (profissional atual), mas o
+        // rótulo vinha do snapshot de criação — depois de uma transferência a
+        // linha somava as consultas do médico novo sob o nome do antigo.
+        nome: sql<string>`coalesce(
+          (SELECT p.nome FROM profiles p
+            WHERE p.id = ${appointments.doctorId} AND p.clinic_id = ${appointments.clinicId}
+            LIMIT 1),
+          (array_agg(${appointments.snapshotDoctorNome} order by ${appointments.scheduledAt} desc))[1]
+        )`,
         total: sql<number>`count(*)::int`,
         atendidos: sql<number>`coalesce(sum(case when ${appointments.status} = 'atendido' then 1 else 0 end), 0)::int`,
         faltas: sql<number>`coalesce(sum(case when ${appointments.status} = 'faltou' then 1 else 0 end), 0)::int`,

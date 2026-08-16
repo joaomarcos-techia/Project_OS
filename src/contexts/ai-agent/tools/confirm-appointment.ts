@@ -53,7 +53,8 @@ function toOption(
     appointment_id: appointment.id,
     scheduled_at: appointment.scheduledAt,
     status: appointment.status,
-    doctor_name: appointment.snapshotDoctorNome,
+    // DATA-001 — o profissional ATUAL; o snapshot só cobre o fallback.
+    doctor_name: appointment.currentDoctorNome ?? appointment.snapshotDoctorNome,
     procedure_name: appointment.snapshotProcedureName,
   };
 }

@@ -41,13 +41,19 @@ export async function listReminderCandidates(limit = 500): Promise<ReminderCandi
                a.id::text                                AS appointment_id,
                a.patient_id::text                        AS patient_id,
                a.scheduled_at                            AS scheduled_at,
-               a.snapshot_doctor_nome                    AS doctor_nome,
+               -- DATA-001: o lembrete diz ao PACIENTE quem vai atendê-lo, então
+               -- precisa do profissional ATUAL. O snapshot é a projeção
+               -- congelada da criação e não acompanha a transferência; usá-lo
+               -- aqui mandava o paciente para o médico errado. Fallback ao
+               -- snapshot cobre profile removido.
+               coalesce(p.nome, a.snapshot_doctor_nome)  AS doctor_nome,
                c.timezone                                AS timezone,
                row_number() OVER (
                  PARTITION BY a.clinic_id ORDER BY a.scheduled_at, a.id
                )                                         AS clinic_rank
           FROM appointments a
           JOIN clinics c ON c.id = a.clinic_id
+          LEFT JOIN profiles p ON p.id = a.doctor_id AND p.clinic_id = a.clinic_id
          WHERE a.patient_id IS NOT NULL
            AND a.status IN ('agendado', 'confirmado')
            AND (a.scheduled_at AT TIME ZONE c.timezone)::date
