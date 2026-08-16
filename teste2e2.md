@@ -3622,3 +3622,167 @@ de comportamento em produção, não só de código. E uma regressão que quebra
 toda edição de paciente, fornecedor e perfil da clínica foi encontrada e
 corrigida — ela só apareceu porque a suíte rodou contra o ambiente real.
 
+
+## 49. Fechamento dos `PARTIAL`/`BLOCKED` e incidente do webhook Asaas (2026-08-16)
+
+A seção 48 encerrou o gate com oito specs em `PARTIAL`, três `BLOCKED` e quatro
+`NOT TESTED`. Nenhum desses estados era limite do produto — eram limites de
+execução. **Esta seção os elimina e substitui a matriz de 48.6.**
+
+Resultado consolidado da suíte completa contra `https://app.qoro.dev`:
+
+| | |
+| --- | --- |
+| Specs executados | **45** |
+| `PASS` | **45** |
+| `FAIL` / `BLOCKED` / `NOT TESTED` / pulados | **0** |
+| Duração | 32,3 min, `--workers=1` |
+
+### 49.1 O que `PARTIAL` de fato significava
+
+Os oito casos tinham a mesma forma: **o roteiro descrevia o mundo anterior à
+correção**. A asserção que codificava o achado passava; o resto continuava
+exigindo o comportamento vulnerável — botão removido, chave reusada, compensação
+`pago`, owner como opção de agenda. Cada roteiro foi **invertido**, não relaxado.
+
+| Spec | Afirmava | Passou a afirmar |
+| --- | --- | --- |
+| clinic-profile-a / supplier-lifecycle-a | contagens de trilha pré-correção | contagens pós-correção |
+| consultorio-attendant-integrity-a | percorria o caminho vulnerável (AUTHZ-008) | cenário reescrito sobre o controle novo |
+| consultorio-no-show-a | corrida sobre a consulta consumida pelo no-show | corrida em `chegou`, único estado que permite `transfer` |
+| scheduling-config-a | owner entre as opções de médico | `doctorId` obrigatório e sem owner |
+| financial-lifecycle-a | compensação permanecendo `pago` | estorno integral terminaliza como `estornado` |
+| appointment-import-a | reúso da chave de idempotência | chave rotacionada a cada import (UX-004) |
+| subscription-cancellation-trial-a | botão de cancelamento presente no trial | botão ausente (UX-002) |
+
+### 49.2 Os três `BLOCKED`
+
+`conversation-handoff-a` e `collection-case-a` importavam por transitividade um
+módulo `server-only` — pacote cujo `package.json` só resolve sob a condição de
+exportação `react-server`. Fora do Next, o Playwright caía no ramo que existe
+para explodir. **A fronteira `server-only` não foi tocada**: ela impede que
+código de servidor vaze para o bundle do cliente, e enfraquecê-la para agradar um
+runner trocaria uma garantia real por conveniência. A correção foi informar a
+condição ao processo de teste, registrada como `pnpm test:e2e:prod`.
+
+`team-lifecycle` conta as vagas contratadas antes de criar qualquer coisa e se
+recusa a rodar sem quatro livres. A Clínica A tem 4 de 5 em uso. A saída não era
+baixar a checagem nem apagar usuários permanentes: `E2E_TEAM_OWNER_EMAIL` passou
+a permitir apontar a jornada para outro owner descartável, e ela roda na
+Clínica B (1 de 5 em uso).
+
+### 49.3 Os quatro `NOT TESTED` — nenhum precisava de inbox
+
+Os gates já se chamavam `ALLOW_SYNTHETIC_*`: foram escritos para provar o
+mecanismo sem depender de entrega de e-mail.
+
+| Spec | Como obtém a credencial |
+| --- | --- |
+| invite-concurrency-a | convites sintéticos criados e consumidos no próprio teste |
+| password-recovery-a | `generateLink` da Admin API + fluxo real de `/auth/confirm` |
+| lgpd-export-email | alias controlado; verifica worker real, outbox e artefatos |
+| lgpd-full-lifecycle-a | fixtures próprias, criadas e destruídas no teste |
+
+Nenhum e-mail foi enviado a endereço de cliente. Nenhuma passagem de tempo foi
+falsificada: a retenção é acelerada só para os ids sintéticos do run, e o spec
+confere que o candidato mais antigo elegível é exatamente o esperado.
+
+### 49.4 `password-recovery-a` ainda afirmava o AUTH-006
+
+O roteiro exigia que uma sessão autenticada **por senha** alcançasse o formulário
+de nova senha e trocasse a credencial — exatamente o achado. Hoje
+`/reset-password` só monta o formulário com o grant one-time de `/auth/confirm`.
+O spec foi invertido: sessão comum vê "Link inválido ou expirado" sem formulário,
+link reencaminhado à mão cai em `/auth/auth-error`, e política de senha e
+revogação passaram para dentro do grant válido.
+
+```
+normalSessionReachedResetForm: false   forgedTokenDenied: true
+weakPasswordAccepted: false            otherRefreshTokenRevoked: true
+recoveryLinkReuseDenied: true          originalPasswordRejectedAfterRecovery: true
+oldSessionAllowedAfterRecovery: false  deletedUserDenied: true
+```
+
+### 49.5 LGPD — duas cópias residuais fecharam, uma janela foi medida
+
+- **Outbox**: o evento referencia o paciente só por id. `outboxPiiRows: 0` com
+  `outboxRowsForPatients: 8` — a coluna companheira separa "não há evento" de
+  "há evento, sem PII"; só a segunda prova que a eliminação funcionou.
+- **Artefatos de exportação**: o hard-delete purga PDF e JSON junto com o
+  paciente, inclusive de quem ficou por **retenção clínica** — o snapshot
+  exportado não anonimiza, então mantê-lo anularia a anonimização do registro.
+
+Resta um ponto **medido, não suposto**: a URL assinada emitida antes da
+eliminação continua servindo o PDF pelo cache do CDN depois que o objeto some do
+Storage. Observado em duas execuções: **56,1 s** e **56,7 s** até virar `400`.
+
+É exposição real e fica registrada, com três atenuantes: a URL só chega a quem já
+tinha direito ao export, não é indexável, e a janela fecha sozinha. Não é motivo
+de NO-GO — é backlog: encurtar o TTL do objeto ou servir o export por rota
+autorizada em vez de URL assinada de 7 dias.
+
+### 49.6 Três falhas que só a suíte completa revelou — nenhuma era regressão
+
+| Spec | Causa |
+| --- | --- |
+| supplier-lifecycle-a | A trilha do fornecedor tem **2 atores** quando o financeiro vence a corrida de edição e **1** quando o owner vence. Antes do compare-and-swap as duas escritas falhavam e o número era sempre 1. A asserção passou a seguir o vencedor real — fixar 2 seria flaky na direção oposta. |
+| role-journeys-a (J2) | O board do consultório **nunca mistura médicos**: para quem não é practitioner ele default ao primeiro médico do dia em ordem alfabética. Com mais de um médico com agenda, a fila do encaixe só aparece ao selecionar o profissional — que é o que o atendente faz. |
+| mfa-lifecycle | Nenhuma mudança de código. O storage state compartilhado estava com JWT vencido. A suíte exige `E2E_AUTH_REUSE=1` para regenerá-lo; sem a variável o `globalSetup` nem é registrado. |
+
+### 49.7 INCIDENTE — webhook do Asaas interrompido por 401
+
+O Asaas suspendeu a integração após uma sequência de `401 invalid token` em
+`/api/webhooks/asaas`. O painel exibia estados contraditórios: "pausado" na
+lista, "ativo" ao editar.
+
+**Causa raiz**: o webhook tem dois campos independentes. `enabled` já era `true`;
+o que estava setado era `interrupted: true`. E o token configurado no painel
+divergia do `ASAAS_WEBHOOK_TOKEN` do deploy.
+
+O diagnóstico foi confundido por uma armadilha da API: `authToken` **nunca** é
+devolvido (vem sempre `null`, mesmo configurado). O indicador real é
+`hasAuthToken`, que já era `true` — ou seja, token divergente, não ausente.
+
+Prova de que o lado ClinicaOS estava correto, sem efeito colateral: o token é
+validado **antes** do parse do corpo, então um POST com corpo malformado
+distingue os dois casos.
+
+| Requisição | Resultado |
+| --- | --- |
+| sem token | `401` |
+| token de produção | `400` (passou no token, parou no parse) |
+| token de DEV | `401` |
+
+**Correção aplicada** via `PUT /v3/webhooks/{id}`, com autorização explícita:
+`authToken` alinhado ao valor de produção, `interrupted: false`, e os eventos
+`PAYMENT_UPDATED` e `PAYMENT_DELETED` adicionados. Estado final:
+
+```
+enabled: true  interrupted: false  hasAuthToken: true
+penalizedRequestsCount: 0  events: 7
+```
+
+Isso **encerra a operação externa do BILLING-002** — os dois eventos que faltavam
+estão inscritos. A entrega ponta a ponta com evento real ainda não foi observada.
+A janela em que o webhook esteve suspenso é coberta pelo `billing-reconcile`
+(cron diário às 09:00), que é exatamente o mecanismo desenhado para divergência.
+
+### 49.8 Veredito
+
+**NO-GO**, agora por dois motivos e não três:
+
+1. **META-001 continua aberto.** A WABA segue sem app inscrito: o paciente
+   escreve e nada acontece. O produto avisa em vez de mentir, mas o canal não
+   funciona. Operação externa pendente. WAIT-001 depende do mesmo template.
+2. **BILLING-001 não foi observado com cobrança real.** A regra está correta e
+   testada com relógio controlado; a assinatura da conta de teste tem cobrança
+   `PENDING` com vencimento em 24/09, então a primeira liquidação ainda não
+   ocorreu.
+
+**Saiu da lista**: BILLING-002, cuja pendência era configuração no Asaas, agora
+feita.
+
+O que mudou desde a seção 48: os quinze estados intermediários (`PARTIAL`,
+`BLOCKED`, `NOT TESTED`) viraram `PASS` com evidência de produção; três defeitos
+de roteiro que só a suíte completa expõe foram corrigidos; e um incidente vivo de
+integração de cobrança foi diagnosticado e fechado.
