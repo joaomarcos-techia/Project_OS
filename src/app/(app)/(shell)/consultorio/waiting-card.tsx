@@ -28,13 +28,11 @@ function WaitingCardImpl({
   now,
   busy,
   onCall,
-  onAbsent,
 }: {
   card: BoardCardDTO;
   now: number;
   busy: boolean;
   onCall: (id: string) => void;
-  onAbsent: (id: string) => void;
 }) {
   const mins = waitMinutes(card.checkInAt, now);
   const tone = waitTone(mins);
@@ -91,14 +89,11 @@ function WaitingCardImpl({
         >
           Chamar
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() => onAbsent(card.appointmentId)}
-        >
-          Marcar ausente
-        </Button>
+        {/* STATE-001 — `chegou → faltou` NÃO é transição válida. O botão
+            existia aqui e a action respondia "esta ação não é mais possível"
+            com HTTP 200 e zero persistência: um controle semanticamente
+            impossível oferecido logo depois de registrar que o paciente
+            chegou. A ação de falta vive em "A chegar". */}
       </div>
     </div>
   );

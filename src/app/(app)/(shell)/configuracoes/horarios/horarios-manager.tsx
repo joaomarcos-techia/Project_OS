@@ -10,6 +10,7 @@ import {
   removeDoctorAvailability,
   setDoctorAvailability,
 } from '@/contexts/scheduling/config-actions';
+import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { DoctorAvailabilityDTO, HolidayDTO } from '@/contexts/scheduling/queries';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -34,10 +35,16 @@ export function HorariosManager({
   doctors,
   availability,
   holidays,
+  canManageHolidays,
 }: {
   doctors: Doctor[];
   availability: DoctorAvailabilityDTO[];
   holidays: HolidayDTO[];
+  /**
+   * AUTHZ-007 — feriado vale para a clínica inteira; só quem administra a
+   * equipe pode criá-lo/removê-lo. A action reaplica a regra: isto é UX.
+   */
+  canManageHolidays: boolean;
 }) {
   const router = useRouter();
   const [doctorId, setDoctorId] = useState(doctors[0]?.id ?? '');
@@ -89,14 +96,18 @@ export function HorariosManager({
     const wd = Number(weekday);
     run(
       async () => {
-        await setDoctorAvailability(
-          { doctorId, weekday: wd, startTime: start, endTime: end },
-          uuidv4(),
+        await unwrapAction(
+          setDoctorAvailability(
+            { doctorId, weekday: wd, startTime: start, endTime: end },
+            uuidv4(),
+          ),
         );
         if (comPausa) {
-          await setDoctorAvailability(
-            { doctorId, weekday: wd, startTime: tardeStart, endTime: tardeEnd },
-            uuidv4(),
+          await unwrapAction(
+            setDoctorAvailability(
+              { doctorId, weekday: wd, startTime: tardeStart, endTime: tardeEnd },
+              uuidv4(),
+            ),
           );
         }
       },
@@ -108,9 +119,14 @@ export function HorariosManager({
     if (!holidayDate) return toast.error('Informe a data.');
     run(
       () =>
-        createHoliday(
-          { date: holidayDate, ...(holidayReason.trim() ? { reason: holidayReason.trim() } : {}) },
-          uuidv4(),
+        unwrapAction(
+          createHoliday(
+            {
+              date: holidayDate,
+              ...(holidayReason.trim() ? { reason: holidayReason.trim() } : {}),
+            },
+            uuidv4(),
+          ),
         ),
       'Feriado adicionado.',
     );
@@ -172,7 +188,9 @@ export function HorariosManager({
                         type="button"
                         aria-label={`Remover ${WEEKDAYS[w.weekday]} ${hhmm(w.startTime)}`}
                         disabled={busy}
-                        onClick={() => run(() => removeDoctorAvailability(w.id, uuidv4()))}
+                        onClick={() =>
+                          run(() => unwrapAction(removeDoctorAvailability(w.id, uuidv4())))
+                        }
                         className="grid size-5 place-items-center rounded-(--r-xs) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-danger-600"
                       >
                         <X className="size-3" />
@@ -256,59 +274,62 @@ export function HorariosManager({
         </div>
       </Card>
 
-      {/* Feriados / bloqueios de dia inteiro */}
-      <Card className="flex flex-col gap-3 p-(--card-pad)">
-        <h4 className="text-sm font-semibold">Feriados (dia inteiro)</h4>
-        {holidays.length === 0 ? (
-          <p className="text-sm text-fg-subtle">Nenhum feriado cadastrado.</p>
-        ) : (
-          <ul className="flex flex-col">
-            {holidays.map((h) => (
-              <li
-                key={h.id}
-                className="flex items-center gap-3 border-b border-border py-2 last:border-b-0"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="text-(length:--fs-sm) font-medium">
-                    {new Date(`${h.date}T00:00:00`).toLocaleDateString('pt-BR')}
-                  </span>
-                  {h.reason ? (
-                    <span className="ml-2 text-(length:--fs-xs) text-fg-subtle">{h.reason}</span>
-                  ) : null}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => run(() => removeHoliday(h.id, uuidv4()))}
+      {/* Feriados / bloqueios de dia inteiro — AUTHZ-007: da clínica, não do
+          profissional. Some para quem não administra a equipe. */}
+      {canManageHolidays ? (
+        <Card className="flex flex-col gap-3 p-(--card-pad)">
+          <h4 className="text-sm font-semibold">Feriados (dia inteiro)</h4>
+          {holidays.length === 0 ? (
+            <p className="text-sm text-fg-subtle">Nenhum feriado cadastrado.</p>
+          ) : (
+            <ul className="flex flex-col">
+              {holidays.map((h) => (
+                <li
+                  key={h.id}
+                  className="flex items-center gap-3 border-b border-border py-2 last:border-b-0"
                 >
-                  Remover
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="flex flex-wrap items-end gap-2.5 border-t border-border pt-3.5">
-          <Field label="Data">
-            <Input
-              type="date"
-              value={holidayDate}
-              onChange={(e) => setHolidayDate(e.target.value)}
-            />
-          </Field>
-          <Field label="Motivo (opcional)" className="min-w-45 flex-1">
-            <Input
-              value={holidayReason}
-              onChange={(e) => setHolidayReason(e.target.value)}
-              maxLength={200}
-            />
-          </Field>
-          <Button type="button" size="sm" loading={busy} onClick={addHoliday}>
-            Adicionar feriado
-          </Button>
-        </div>
-      </Card>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-(length:--fs-sm) font-medium">
+                      {new Date(`${h.date}T00:00:00`).toLocaleDateString('pt-BR')}
+                    </span>
+                    {h.reason ? (
+                      <span className="ml-2 text-(length:--fs-xs) text-fg-subtle">{h.reason}</span>
+                    ) : null}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => run(() => unwrapAction(removeHoliday(h.id, uuidv4())))}
+                  >
+                    Remover
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-end gap-2.5 border-t border-border pt-3.5">
+            <Field label="Data">
+              <Input
+                type="date"
+                value={holidayDate}
+                onChange={(e) => setHolidayDate(e.target.value)}
+              />
+            </Field>
+            <Field label="Motivo (opcional)" className="min-w-45 flex-1">
+              <Input
+                value={holidayReason}
+                onChange={(e) => setHolidayReason(e.target.value)}
+                maxLength={200}
+              />
+            </Field>
+            <Button type="button" size="sm" loading={busy} onClick={addHoliday}>
+              Adicionar feriado
+            </Button>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

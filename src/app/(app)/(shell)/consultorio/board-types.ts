@@ -68,4 +68,15 @@ export interface AtendimentoDTO {
   status: AppointmentStatusDTO;
   /** prontuário vinculado (rascunho p/ editar ou assinado p/ leitura). */
   prontuario: ProntuarioDetail | null;
+  /**
+   * AUTHZ-008 — os dois derivam da MESMA regra que o backend aplica
+   * (`canCompleteClinically` / `create:prontuario`). A tela lê daqui em vez de
+   * decidir sozinha: antes ela renderizava "Encerrar consulta" para qualquer
+   * usuário da página, e um atendente fechou a consulta por ali.
+   *
+   * Isto é UX. O gate real está na action e no core — nenhum dos dois consulta
+   * estes campos.
+   */
+  canComplete: boolean;
+  canEditProntuario: boolean;
 }

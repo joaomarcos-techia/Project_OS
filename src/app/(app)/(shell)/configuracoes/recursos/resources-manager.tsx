@@ -11,6 +11,7 @@ import {
   createSchedulableResource,
   setSchedulableResourceActive,
 } from '@/contexts/scheduling/config-actions';
+import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { SchedulableResourceDTO } from '@/contexts/scheduling/types';
 import { uuidv4 } from '@/lib/ui/uuid';
 
@@ -38,7 +39,7 @@ export function ResourcesManager({ initial }: { initial: SchedulableResourceDTO[
     }
     startTransition(async () => {
       try {
-        await createSchedulableResource({ name: name.trim(), type }, uuidv4());
+        await unwrapAction(createSchedulableResource({ name: name.trim(), type }, uuidv4()));
         setName('');
         toast.success('Recurso cadastrado.');
         router.refresh();
@@ -51,7 +52,7 @@ export function ResourcesManager({ initial }: { initial: SchedulableResourceDTO[
   function setActive(resource: SchedulableResourceDTO, active: boolean) {
     startTransition(async () => {
       try {
-        await setSchedulableResourceActive(resource.id, active, uuidv4());
+        await unwrapAction(setSchedulableResourceActive(resource.id, active, uuidv4()));
         router.refresh();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao atualizar recurso.');

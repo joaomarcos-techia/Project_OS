@@ -177,7 +177,12 @@ export function ConsultorioBoard({
         }
       />
 
-      <CheckinStrip cards={board.aChegar} busyId={busyId} onCheckIn={onCheckIn} />
+      <CheckinStrip
+        cards={board.aChegar}
+        busyId={busyId}
+        onCheckIn={onCheckIn}
+        onAbsent={onAbsent}
+      />
 
       {error ? (
         <Alert variant="danger" className="mb-4">
@@ -205,7 +210,6 @@ export function ConsultorioBoard({
                   now={now}
                   busy={busyId === c.appointmentId}
                   onCall={onCall}
-                  onAbsent={onAbsent}
                 />
               ))
             )}

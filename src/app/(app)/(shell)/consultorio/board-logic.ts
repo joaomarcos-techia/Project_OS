@@ -7,6 +7,7 @@
  * disso), a janela do dia no timezone da clínica (DST-correct), o cálculo de
  * idade e a montagem/bucketização dos cards. Nada toca o banco.
  */
+import { allowedTransitions, type AppointmentState } from '@/contexts/scheduling/state-machine';
 import type { AppointmentStatusDTO, AppointmentSummary } from '@/contexts/scheduling/types';
 
 import type { ActionResult, BoardCardDTO, BoardDTO } from './board-types';
@@ -224,3 +225,25 @@ export function pickByStatus<T extends { status: AppointmentStatusDTO }>(
 }
 
 export type { ActionResult };
+
+/**
+ * STATE-001 — quais ações a UI pode oferecer para um card, DERIVADO da máquina
+ * de estados em vez de reescrito no layout.
+ *
+ * O bug: `CheckinStrip` (agendado/confirmado) não oferecia falta, e
+ * `WaitingCard` (chegou) sempre oferecia. Só que a tabela de transições permite
+ * `agendado|confirmado → faltou` e PROÍBE `chegou → faltou`. Resultado: a etapa
+ * em que registrar falta é válido não tinha o botão, e a etapa que tinha o
+ * botão rejeitava a transição com HTTP 200 e zero persistência — a clínica
+ * simplesmente não conseguia registrar no-show pela interface.
+ *
+ * Derivar de `allowedTransitions` faz o layout seguir a regra automaticamente
+ * se a tabela mudar, em vez de as duas versões divergirem em silêncio de novo.
+ */
+export function canMarkNoShow(status: AppointmentStatusDTO): boolean {
+  return allowedTransitions(status as AppointmentState).includes('faltou');
+}
+
+export function canCheckIn(status: AppointmentStatusDTO): boolean {
+  return allowedTransitions(status as AppointmentState).includes('chegou');
+}

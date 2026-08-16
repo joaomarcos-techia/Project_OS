@@ -165,14 +165,23 @@ export function AttendingPanel({
                 }}
               />
             ) : null}
-            <Button
-              size="sm"
-              variant="danger"
-              loading={busy}
-              onClick={() => onComplete(appointmentId)}
-            >
-              Encerrar consulta
-            </Button>
+            {/* AUTHZ-008 — encerrar é ato clínico. O botão era renderizado para
+                todo usuário da página; agora deriva da mesma regra do servidor.
+                Perfil não clínico segue vendo a fila e o painel, sem a ação. */}
+            {data.canComplete ? (
+              <Button
+                size="sm"
+                variant="danger"
+                loading={busy}
+                onClick={() => onComplete(appointmentId)}
+              >
+                Encerrar consulta
+              </Button>
+            ) : (
+              <span className="text-xs text-fg-subtle">
+                O encerramento é feito pelo profissional responsável.
+              </span>
+            )}
           </div>
         ) : null}
 
@@ -188,7 +197,11 @@ export function AttendingPanel({
 
       {data.prontuario ? (
         <div className="rounded-(--r-lg) border border-border bg-surface p-4 shadow-sm">
-          <ProntuarioEditor key={data.prontuario.id} prontuario={data.prontuario} />
+          <ProntuarioEditor
+            key={data.prontuario.id}
+            prontuario={data.prontuario}
+            canEdit={data.canEditProntuario}
+          />
         </div>
       ) : data.patientId ? (
         <Alert variant="info">

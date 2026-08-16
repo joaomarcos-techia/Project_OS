@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ageFromBirthdate,
   buildCard,
+  canCheckIn,
+  canMarkNoShow,
   clinicDayBounds,
   demographicsLine,
   fail,
@@ -217,5 +219,32 @@ describe('board-logic — pickByStatus', () => {
 
   it('respeita o teto da coluna (limit)', () => {
     expect(pickByStatus(rows, ['chegou'], 1).map((r) => r.id)).toEqual([1]);
+  });
+});
+
+describe('STATE-001 — ações derivadas da máquina de estados', () => {
+  it('falta é oferecida em agendado e confirmado (transição válida)', () => {
+    expect(canMarkNoShow('agendado')).toBe(true);
+    expect(canMarkNoShow('confirmado')).toBe(true);
+  });
+
+  it('falta NÃO é oferecida depois do check-in — `chegou → faltou` não existe', () => {
+    // Era exatamente aqui que o botão aparecia e a action recusava com
+    // HTTP 200 e zero persistência.
+    expect(canMarkNoShow('chegou')).toBe(false);
+    expect(canMarkNoShow('em_atendimento')).toBe(false);
+  });
+
+  it('estados terminais não oferecem nada', () => {
+    for (const s of ['atendido', 'cancelado', 'faltou'] as const) {
+      expect(canMarkNoShow(s)).toBe(false);
+      expect(canCheckIn(s)).toBe(false);
+    }
+  });
+
+  it('check-in é oferecido apenas onde `→ chegou` é válido', () => {
+    expect(canCheckIn('agendado')).toBe(true);
+    expect(canCheckIn('confirmado')).toBe(true);
+    expect(canCheckIn('chegou')).toBe(false);
   });
 });

@@ -46,6 +46,7 @@ import {
   type RescheduleInput,
 } from '../types';
 import { asConflict, idemKey, jsonSafe } from './action-helpers';
+import { assertClinicalRecordReady } from './clinical-completion';
 import { assertUnitInClinic } from './tenant-references';
 import { logAppointmentStateChange, type AppointmentActor } from './state-log';
 import { syncWaitingQueueStatus } from './waiting-queue-store';
@@ -183,6 +184,15 @@ export async function applyTransition(tx: Tx, o: TransitionOpts): Promise<Appoin
 
   const from = appt.status as AppointmentState;
   assertTransition(from, o.target);
+
+  // AUTHZ-008 — a invariante clínica roda AQUI, depois do `FOR UPDATE` e antes
+  // de qualquer escrita: sob o mesmo lock ela fecha a corrida com o worker
+  // atrasado, impede o state log de nascer e — porque o evento é publicado
+  // nesta mesma transação — impede o lançamento financeiro automático.
+  // Walk-in (sem `patientId`) segue fora: não há prontuário a exigir.
+  if (o.target === 'atendido' && appt.patientId) {
+    await assertClinicalRecordReady(tx, o.clinicId, o.appointmentId);
+  }
 
   await logAppointmentStateChange(tx, {
     clinicId: o.clinicId,

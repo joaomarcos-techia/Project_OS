@@ -38,6 +38,7 @@ import {
   getWaitingQueueEntries,
   listAppointments,
 } from '@/contexts/scheduling/queries';
+import { canCompleteClinically } from '@/contexts/scheduling/internal/clinical-completion';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -220,6 +221,9 @@ export async function loadAtendimento(
       motivo: motivoOf(appt),
       status: appt.status,
       prontuario,
+      // AUTHZ-008 — mesma regra pura que a action e o core aplicam.
+      canComplete: canCompleteClinically(user, appt.doctorId),
+      canEditProntuario: user.permissions.includes(PERMISSIONS.CREATE_PRONTUARIO),
     });
   } catch (err) {
     return fail(err);

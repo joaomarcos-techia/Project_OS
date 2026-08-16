@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
+import { administersTeamSchedule } from '@/contexts/scheduling/internal/availability-scope';
 import { listSchedulableResources } from '@/contexts/scheduling/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
@@ -26,7 +27,13 @@ export default async function RecursosPage() {
     </Link>
   );
 
-  if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {
+  // AUTHZ-007 — sala/equipamento é recurso COMPARTILHADO: desativar um afeta a
+  // agenda de toda a clínica. Exige a mesma capacidade administrativa que a
+  // action passou a exigir; a tela não pode oferecer o que o servidor nega.
+  if (
+    !user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY) ||
+    !administersTeamSchedule(user)
+  ) {
     return (
       <div>
         <PageHeader breadcrumb={breadcrumb} title="Salas e equipamentos" actions={backLink} />

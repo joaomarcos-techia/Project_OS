@@ -16,11 +16,18 @@ import { profiles } from '@/contexts/identity/schema';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { practitionerSql } from '@/lib/auth/practitioner';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+import { withTenant } from '@/lib/db/tenant';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
 
+import type { SchedulingActionResult } from './action-result';
 import { SchedulingValidationError } from './errors';
 import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
+import { toActionResult } from './internal/action-result';
+import {
+  assertCanManageClinicSchedule,
+  assertCanManageDoctorSchedule,
+} from './internal/availability-scope';
 import { assertUnitInClinic } from './internal/tenant-references';
 import { clinicHolidays, doctorAvailability, schedulableResources } from './schema';
 import { parseTimeToMinutes } from './slot-resolver';
@@ -34,115 +41,59 @@ import {
   type SetAvailabilityInput,
 } from './types';
 
+/**
+ * AUTHZ-007 — remover uma janela é mexer na agenda de quem ela pertence, mas o
+ * cliente só manda o `id`. Resolvemos o dono no banco, dentro do tenant, e só
+ * então decidimos. Confiar num `doctorId` vindo do formulário reintroduziria o
+ * mesmo bug por outro caminho.
+ *
+ * Janela inexistente cai no ramo administrativo: assim a resposta não revela
+ * se o id existe para quem não pode administrar.
+ */
+async function assertOwnsAvailabilityWindow(
+  actor: {
+    userId: string;
+    isSuperAdmin: boolean;
+    aal: 'aal1' | 'aal2' | null;
+    permissions: readonly string[];
+  },
+  clinicId: string,
+  windowId: string,
+): Promise<void> {
+  const [row] = await withTenant(clinicId, (tx) =>
+    tx
+      .select({ doctorId: doctorAvailability.doctorId })
+      .from(doctorAvailability)
+      .where(and(eq(doctorAvailability.clinicId, clinicId), eq(doctorAvailability.id, windowId)))
+      .limit(1),
+  );
+  await assertCanManageDoctorSchedule(actor, row?.doctorId ?? '');
+}
+
 export async function createSchedulableResource(
   input: CreateSchedulableResourceInput,
   idempotencyKey: string,
-): Promise<SchedulableResourceDTO> {
-  const user = await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
-  const data = CreateSchedulableResourceSchema.parse(input);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
+): Promise<SchedulingActionResult<SchedulableResourceDTO>> {
+  return toActionResult(async () => {
+    const user = await requireUser();
+    await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    // AUTHZ-007 — sala/equipamento é recurso COMPARTILHADO da clínica, não a
+    // agenda de ninguém. `manage:availability` sozinha não basta.
+    await assertCanManageClinicSchedule();
+    const data = CreateSchedulableResourceSchema.parse(input);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
 
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('resource_create', idempotencyKey),
-        payload: jsonSafe(data),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
-      },
-      audit: {
-        action: 'scheduling.resource.created',
-        resourceType: 'schedulable_resource',
-        resourceId: null,
-        before: null,
-        requestContext: ctx,
-      },
-    },
-    async (tx) => {
-      await assertUnitInClinic(tx, clinicId, data.unitId);
-      const [row] = await tx
-        .insert(schedulableResources)
-        .values({
-          clinicId,
-          unitId: data.unitId ?? null,
-          name: data.name,
-          type: data.type,
-          createdBy: user.userId,
-        })
-        .returning();
-      return {
-        id: row!.id,
-        name: row!.name,
-        type: row!.type,
-        unitId: row!.unitId ?? null,
-        active: row!.active,
-      };
-    },
-  );
-}
-
-export async function setSchedulableResourceActive(
-  id: string,
-  active: boolean,
-  idempotencyKey: string,
-): Promise<{ id: string; active: boolean }> {
-  await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('resource_active', idempotencyKey),
-        payload: jsonSafe({ id, active }),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
-      },
-      audit: {
-        action: 'scheduling.resource.active_changed',
-        resourceType: 'schedulable_resource',
-        resourceId: id,
-        before: null,
-        requestContext: ctx,
-      },
-    },
-    async (tx) => {
-      const [row] = await tx
-        .update(schedulableResources)
-        .set({ active, updatedAt: sql`now()` })
-        .where(and(eq(schedulableResources.id, id), eq(schedulableResources.clinicId, clinicId)))
-        .returning({ id: schedulableResources.id, active: schedulableResources.active });
-      if (!row) throw new SchedulingValidationError('recurso nao encontrado');
-      return row;
-    },
-  );
-}
-
-export async function setDoctorAvailability(
-  input: SetAvailabilityInput,
-  idempotencyKey: string,
-): Promise<{ id: string }> {
-  await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
-  const data = SetAvailabilitySchema.parse(input);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-
-  if (parseTimeToMinutes(data.endTime) <= parseTimeToMinutes(data.startTime)) {
-    throw new SchedulingValidationError('end_time deve ser maior que start_time');
-  }
-
-  try {
-    return await idempotentMutation(
+    return idempotentMutation(
       {
         idempotency: {
-          key: idemKey('avail_set', idempotencyKey),
+          key: idemKey('resource_create', idempotencyKey),
           payload: jsonSafe(data),
           ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
         },
         audit: {
-          action: 'doctor_availability.set',
-          resourceType: 'doctor_availability',
+          action: 'scheduling.resource.created',
+          resourceType: 'schedulable_resource',
           resourceId: null,
           before: null,
           requestContext: ctx,
@@ -150,15 +101,112 @@ export async function setDoctorAvailability(
       },
       async (tx) => {
         await assertUnitInClinic(tx, clinicId, data.unitId);
-        // F-04/F-05 (auditoria 2026-06-10): valida vínculo doctor↔clínica DENTRO
-        // do tx tenant-scoped (mesmo padrão do buildSnapshot) — RLS faz o
-        // cross-tenant retornar 0 linhas. Sem isto, um gestor da clínica A com
-        // o UUID de um profile da clínica B criava availability "fantasma" e o
-        // EXCLUDE global (doctor_id, weekday, range) passava a rejeitar janelas
-        // legítimas da clínica B (interferência cross-tenant). Também exige
-        // practitioner (role='doctor' OU CRM — ADR-032 §2) + ativo + não soft-deletado (F-05).
-        const doc = await tx.execute<{ id: string }>(
-          sql`SELECT id FROM profiles
+        const [row] = await tx
+          .insert(schedulableResources)
+          .values({
+            clinicId,
+            unitId: data.unitId ?? null,
+            name: data.name,
+            type: data.type,
+            createdBy: user.userId,
+          })
+          .returning();
+        return {
+          id: row!.id,
+          name: row!.name,
+          type: row!.type,
+          unitId: row!.unitId ?? null,
+          active: row!.active,
+        };
+      },
+    );
+  });
+}
+
+export async function setSchedulableResourceActive(
+  id: string,
+  active: boolean,
+  idempotencyKey: string,
+): Promise<SchedulingActionResult<{ id: string; active: boolean }>> {
+  return toActionResult(async () => {
+    await requireUser();
+    await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    await assertCanManageClinicSchedule(); // AUTHZ-007 — recurso compartilhado
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+    return idempotentMutation(
+      {
+        idempotency: {
+          key: idemKey('resource_active', idempotencyKey),
+          payload: jsonSafe({ id, active }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
+        audit: {
+          action: 'scheduling.resource.active_changed',
+          resourceType: 'schedulable_resource',
+          resourceId: id,
+          before: null,
+          requestContext: ctx,
+        },
+      },
+      async (tx) => {
+        const [row] = await tx
+          .update(schedulableResources)
+          .set({ active, updatedAt: sql`now()` })
+          .where(and(eq(schedulableResources.id, id), eq(schedulableResources.clinicId, clinicId)))
+          .returning({ id: schedulableResources.id, active: schedulableResources.active });
+        if (!row) throw new SchedulingValidationError('recurso nao encontrado');
+        return row;
+      },
+    );
+  });
+}
+
+export async function setDoctorAvailability(
+  input: SetAvailabilityInput,
+  idempotencyKey: string,
+): Promise<SchedulingActionResult<{ id: string }>> {
+  return toActionResult(async () => {
+    const user = await requireUser();
+    await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    const data = SetAvailabilitySchema.parse(input);
+    // AUTHZ-007 — a própria agenda passa direto; a de outro profissional exige a
+    // capacidade administrativa revalidada no banco.
+    await assertCanManageDoctorSchedule(user, data.doctorId);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+
+    if (parseTimeToMinutes(data.endTime) <= parseTimeToMinutes(data.startTime)) {
+      throw new SchedulingValidationError('end_time deve ser maior que start_time');
+    }
+
+    try {
+      return await idempotentMutation(
+        {
+          idempotency: {
+            key: idemKey('avail_set', idempotencyKey),
+            payload: jsonSafe(data),
+            ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+          },
+          audit: {
+            action: 'doctor_availability.set',
+            resourceType: 'doctor_availability',
+            resourceId: null,
+            before: null,
+            requestContext: ctx,
+          },
+        },
+        async (tx) => {
+          await assertUnitInClinic(tx, clinicId, data.unitId);
+          // F-04/F-05 (auditoria 2026-06-10): valida vínculo doctor↔clínica DENTRO
+          // do tx tenant-scoped (mesmo padrão do buildSnapshot) — RLS faz o
+          // cross-tenant retornar 0 linhas. Sem isto, um gestor da clínica A com
+          // o UUID de um profile da clínica B criava availability "fantasma" e o
+          // EXCLUDE global (doctor_id, weekday, range) passava a rejeitar janelas
+          // legítimas da clínica B (interferência cross-tenant). Também exige
+          // practitioner (role='doctor' OU CRM — ADR-032 §2) + ativo + não soft-deletado (F-05).
+          const doc = await tx.execute<{ id: string }>(
+            sql`SELECT id FROM profiles
                WHERE id = ${data.doctorId}
                  AND clinic_id = ${clinicId}
                  AND ${practitionerSql(profiles.role, profiles.crm)}
@@ -166,140 +214,154 @@ export async function setDoctorAvailability(
                  AND deleted_at IS NULL
                  AND invite_accepted_at IS NOT NULL
                LIMIT 1`,
-        );
-        if (!doc[0]) {
-          throw new SchedulingValidationError('médico inválido para esta clínica');
-        }
-        const [row] = await tx
-          .insert(doctorAvailability)
-          .values({
-            clinicId,
-            doctorId: data.doctorId,
-            unitId: data.unitId ?? null,
-            weekday: data.weekday,
-            startTime: data.startTime,
-            endTime: data.endTime,
-          })
-          .returning({ id: doctorAvailability.id });
-        return { id: row!.id };
-      },
-    );
-  } catch (err) {
-    return asConflict(err); // UNIQUE ou EXCLUDE de overlap interno
-  }
+          );
+          if (!doc[0]) {
+            throw new SchedulingValidationError('médico inválido para esta clínica');
+          }
+          const [row] = await tx
+            .insert(doctorAvailability)
+            .values({
+              clinicId,
+              doctorId: data.doctorId,
+              unitId: data.unitId ?? null,
+              weekday: data.weekday,
+              startTime: data.startTime,
+              endTime: data.endTime,
+            })
+            .returning({ id: doctorAvailability.id });
+          return { id: row!.id };
+        },
+      );
+    } catch (err) {
+      return asConflict(err); // UNIQUE ou EXCLUDE de overlap interno
+    }
+  });
 }
 
 export async function removeDoctorAvailability(
   id: string,
   idempotencyKey: string,
-): Promise<{ id: string; removed: boolean }> {
-  await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
+): Promise<SchedulingActionResult<{ id: string; removed: boolean }>> {
+  return toActionResult(async () => {
+    const user = await requireUser();
+    await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+    // AUTHZ-007 — remover janela alheia é mexer na agenda do outro. O dono da
+    // janela é lido ANTES, no escopo do tenant, para a decisão não depender do
+    // id que o cliente mandou.
+    await assertOwnsAvailabilityWindow(user, clinicId, id);
 
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('avail_remove', idempotencyKey),
-        payload: jsonSafe({ id }),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
-      },
-      audit: {
-        action: 'doctor_availability.removed',
-        resourceType: 'doctor_availability',
-        resourceId: id,
-        before: null,
-        requestContext: ctx,
-      },
-    },
-    async (tx) => {
-      const deleted = await tx
-        .delete(doctorAvailability)
-        .where(and(eq(doctorAvailability.clinicId, clinicId), eq(doctorAvailability.id, id)))
-        .returning({ id: doctorAvailability.id });
-      return { id, removed: deleted.length > 0 };
-    },
-  );
-}
-
-export async function createHoliday(
-  input: CreateHolidayInput,
-  idempotencyKey: string,
-): Promise<{ id: string }> {
-  await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
-  const data = CreateHolidaySchema.parse(input);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
-
-  try {
-    return await idempotentMutation(
+    return idempotentMutation(
       {
         idempotency: {
-          key: idemKey('holiday_create', idempotencyKey),
-          payload: jsonSafe(data),
+          key: idemKey('avail_remove', idempotencyKey),
+          payload: jsonSafe({ id }),
           ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
         },
         audit: {
-          action: 'clinic_holiday.created',
-          resourceType: 'clinic_holiday',
-          resourceId: null,
+          action: 'doctor_availability.removed',
+          resourceType: 'doctor_availability',
+          resourceId: id,
           before: null,
           requestContext: ctx,
         },
       },
       async (tx) => {
-        await assertUnitInClinic(tx, clinicId, data.unitId);
-        const [row] = await tx
-          .insert(clinicHolidays)
-          .values({
-            clinicId,
-            date: data.date,
-            reason: data.reason ?? null,
-            unitId: data.unitId ?? null,
-            startTime: data.startTime ?? null,
-            endTime: data.endTime ?? null,
-          })
-          .returning({ id: clinicHolidays.id });
-        return { id: row!.id };
+        const deleted = await tx
+          .delete(doctorAvailability)
+          .where(and(eq(doctorAvailability.clinicId, clinicId), eq(doctorAvailability.id, id)))
+          .returning({ id: doctorAvailability.id });
+        return { id, removed: deleted.length > 0 };
       },
     );
-  } catch (err) {
-    return asConflict(err);
-  }
+  });
+}
+
+export async function createHoliday(
+  input: CreateHolidayInput,
+  idempotencyKey: string,
+): Promise<SchedulingActionResult<{ id: string }>> {
+  return toActionResult(async () => {
+    await requireUser();
+    await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    // AUTHZ-007 — feriado vale para a clínica inteira, não para um profissional.
+    await assertCanManageClinicSchedule();
+    const data = CreateHolidaySchema.parse(input);
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
+
+    try {
+      return await idempotentMutation(
+        {
+          idempotency: {
+            key: idemKey('holiday_create', idempotencyKey),
+            payload: jsonSafe(data),
+            ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+          },
+          audit: {
+            action: 'clinic_holiday.created',
+            resourceType: 'clinic_holiday',
+            resourceId: null,
+            before: null,
+            requestContext: ctx,
+          },
+        },
+        async (tx) => {
+          await assertUnitInClinic(tx, clinicId, data.unitId);
+          const [row] = await tx
+            .insert(clinicHolidays)
+            .values({
+              clinicId,
+              date: data.date,
+              reason: data.reason ?? null,
+              unitId: data.unitId ?? null,
+              startTime: data.startTime ?? null,
+              endTime: data.endTime ?? null,
+            })
+            .returning({ id: clinicHolidays.id });
+          return { id: row!.id };
+        },
+      );
+    } catch (err) {
+      return asConflict(err);
+    }
+  });
 }
 
 export async function removeHoliday(
   id: string,
   idempotencyKey: string,
-): Promise<{ id: string; removed: boolean }> {
-  await requireUser();
-  await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
-  const clinicId = await requireClinicId();
-  const ctx = await requestContext();
+): Promise<SchedulingActionResult<{ id: string; removed: boolean }>> {
+  return toActionResult(async () => {
+    await requireUser();
+    await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
+    await assertCanManageClinicSchedule(); // AUTHZ-007 — feriado é da clínica
+    const clinicId = await requireClinicId();
+    const ctx = await requestContext();
 
-  return idempotentMutation(
-    {
-      idempotency: {
-        key: idemKey('holiday_remove', idempotencyKey),
-        payload: jsonSafe({ id }),
-        ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+    return idempotentMutation(
+      {
+        idempotency: {
+          key: idemKey('holiday_remove', idempotencyKey),
+          payload: jsonSafe({ id }),
+          ttlSeconds: MUTATION_IDEM_TTL_SECONDS,
+        },
+        audit: {
+          action: 'clinic_holiday.removed',
+          resourceType: 'clinic_holiday',
+          resourceId: id,
+          before: null,
+          requestContext: ctx,
+        },
       },
-      audit: {
-        action: 'clinic_holiday.removed',
-        resourceType: 'clinic_holiday',
-        resourceId: id,
-        before: null,
-        requestContext: ctx,
+      async (tx) => {
+        const deleted = await tx
+          .delete(clinicHolidays)
+          .where(and(eq(clinicHolidays.clinicId, clinicId), eq(clinicHolidays.id, id)))
+          .returning({ id: clinicHolidays.id });
+        return { id, removed: deleted.length > 0 };
       },
-    },
-    async (tx) => {
-      const deleted = await tx
-        .delete(clinicHolidays)
-        .where(and(eq(clinicHolidays.clinicId, clinicId), eq(clinicHolidays.id, id)))
-        .returning({ id: clinicHolidays.id });
-      return { id, removed: deleted.length > 0 };
-    },
-  );
+    );
+  });
 }

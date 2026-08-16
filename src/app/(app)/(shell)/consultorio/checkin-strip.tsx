@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 
+import { canMarkNoShow } from './board-logic';
 import type { BoardCardDTO } from './board-types';
 import { formatHora } from './format';
 
@@ -14,10 +15,13 @@ export function CheckinStrip({
   cards,
   busyId,
   onCheckIn,
+  onAbsent,
 }: {
   cards: BoardCardDTO[];
   busyId: string | null;
   onCheckIn: (id: string) => void;
+  /** STATE-001 — falta só é transição válida ANTES do check-in. */
+  onAbsent: (id: string) => void;
 }) {
   if (cards.length === 0) return null;
   return (
@@ -37,14 +41,28 @@ export function CheckinStrip({
                 {formatHora(c.horario)} · {c.motivo}
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              loading={busyId === c.appointmentId}
-              onClick={() => onCheckIn(c.appointmentId)}
-            >
-              Check-in
-            </Button>
+            <div className="flex shrink-0 gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={busyId === c.appointmentId}
+                onClick={() => onCheckIn(c.appointmentId)}
+              >
+                Check-in
+              </Button>
+              {/* STATE-001 — `agendado`/`confirmado → faltou` é válido; era aqui
+                  que o botão faltava. Derivado da máquina de estados. */}
+              {canMarkNoShow(c.status) ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busyId === c.appointmentId}
+                  onClick={() => onAbsent(c.appointmentId)}
+                >
+                  Faltou
+                </Button>
+              ) : null}
+            </div>
           </div>
         ))}
       </div>

@@ -38,6 +38,8 @@ import { buildWeeklyOccurrences } from './recurrence-policy';
 import { decideAppointmentRecovery } from './recovery-policy';
 import { assertTransition, type AppointmentState } from './state-machine';
 import { asConflict, idemKey, jsonSafe, requestContext } from './internal/action-helpers';
+import { assertCanManageDoctorSchedule } from './internal/availability-scope';
+import { assertCanCompleteClinically } from './internal/clinical-completion';
 import {
   assertActiveDoctorInClinic,
   assertPatientInClinic,
@@ -94,6 +96,15 @@ function transitionAction(
     const user = await requireUser();
     await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
     const clinicId = await requireClinicId();
+    // AUTHZ-008 — `edit:agenda` autoriza MOVER A FILA (check-in, chamar,
+    // falta, cancelar). Declarar que houve atendimento é ato clínico e exige
+    // capacidade clínica fresh + vínculo com o profissional atribuído (ou
+    // delegação administrativa). Antes, a factory tratava as seis transições
+    // como equivalentes — foi por isso que um atendente encerrou a consulta.
+    if (target === 'atendido') {
+      const appt = await getAppointmentOrThrow(clinicId, id);
+      await assertCanCompleteClinically(user, appt.doctorId);
+    }
     const ctx = await requestContext();
     return transitionCore(
       { clinicId, userId: user.userId },
@@ -570,6 +581,13 @@ export async function createDoctorAbsence(
   const user = await requireUser();
   await requireFreshPermission(PERMISSIONS.MANAGE_AVAILABILITY);
   const data = CreateDoctorAbsenceSchema.parse(input);
+  // AUTHZ-007 — o gate anterior parava aqui e `assertActiveDoctorInClinic`
+  // apenas confirmava que o alvo era da clínica. Um médico com
+  // `manage:availability` registrava ausência do OWNER e, em janela ocupada,
+  // este mesmo fluxo cancelaria ou transferiria TODAS as consultas
+  // agendadas/confirmadas dele, atomicamente e publicando eventos.
+  // Ausência dos outros é ato administrativo, não gestão da própria agenda.
+  await assertCanManageDoctorSchedule(user, data.doctorId);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
   const startsAt = new Date(data.startsAt);

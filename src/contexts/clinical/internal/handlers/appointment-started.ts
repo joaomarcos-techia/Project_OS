@@ -32,6 +32,25 @@ async function createDraftProntuario(ctx: {
   const { tx, clinicId, payload, eventId } = ctx;
   if (payload.patientId === null) return; // walk-in sem paciente: no-op idempotente
 
+  // AUTHZ-008 — ORDEM CAUSAL. O worker é assíncrono e pode processar `started`
+  // DEPOIS de o atendimento já ter terminado. Foi o que o pentest observou: a
+  // consulta fechou às cegas e, minutos depois, este handler materializou um
+  // rascunho VAZIO, não assinado, atribuído a um médico que não atendeu
+  // ninguém — uma trilha clínica falsa criada por um job.
+  //
+  // A precondição de conclusão (prontuário assinado) já impede o fechamento
+  // sem registro; este guard fecha o outro lado: se o appointment já está em
+  // estado terminal, não há atendimento em curso para abrir prontuário.
+  // No-op idempotente, não erro: reentrega de um evento legítimo cujo
+  // appointment terminou no meio do caminho não é falha.
+  const [current] = await tx.execute<{ status: string }>(
+    sql`SELECT status FROM appointments
+         WHERE id = ${payload.appointmentId}::uuid AND clinic_id = ${clinicId}::uuid
+         LIMIT 1`,
+  );
+  const TERMINAL = ['atendido', 'cancelado', 'faltou'];
+  if (!current || TERMINAL.includes(current.status)) return;
+
   const [row] = await tx
     .insert(prontuarios)
     .values({
