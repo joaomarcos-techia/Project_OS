@@ -23,6 +23,13 @@ export { messagingApiV1 } from './api';
 export type { MessagingApiV1, InboundForAgent } from './api';
 export { SuppressedRecipientError, NumberNotConnectedError } from './errors';
 
+// META-001 — saúde REAL do canal. A tela e o cron precisam disso para não
+// exibir "conectado" quando a Meta não entrega webhook algum.
+export { checkClinicChannelHealth, sweepChannelHealth } from './internal/health-check';
+export type { ChannelHealthResult } from './internal/health-check';
+export { describeChannelHealthReason } from './internal/channel-health';
+export type { ChannelHealthReason, ChannelHealthVerdict } from './internal/channel-health';
+
 export type {
   ConnectNumberInput,
   SendOutboundInput,

@@ -41,10 +41,23 @@ export class MetaConnectError extends Error {
   readonly code = 'META_AUTH_FAILED';
   readonly httpStatus = 502;
   readonly stage: MetaConnectFailureStage;
-  constructor(message: string, options?: { cause?: unknown; stage?: MetaConnectFailureStage }) {
+  /**
+   * META-001 — status HTTP devolvido pelo Graph, ou `null` quando o Graph sequer
+   * respondeu (timeout/DNS/reset). O health precisa dessa distinção: 4xx é uma
+   * NEGATIVA do provedor (o canal está mesmo quebrado), enquanto 5xx/timeout é
+   * INDETERMINAÇÃO nossa. Tratar as duas igual degradaria a conexão de toda
+   * clínica sempre que a Meta tivesse instabilidade. Não é usado no connect —
+   * lá qualquer falha aborta do mesmo jeito.
+   */
+  readonly graphStatus: number | null;
+  constructor(
+    message: string,
+    options?: { cause?: unknown; stage?: MetaConnectFailureStage; graphStatus?: number | null },
+  ) {
     super(message, options);
     this.name = 'MetaConnectError';
     this.stage = options?.stage ?? 'unknown';
+    this.graphStatus = options?.graphStatus ?? null;
   }
 }
 

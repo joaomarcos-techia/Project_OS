@@ -32,9 +32,12 @@ import { WhatsappConnect } from './whatsapp-connect';
 
 const status: WhatsappStatusDTO = {
   connected: false,
+  hasActiveNumber: false,
+  degraded: false,
   phoneNumberMasked: null,
   connectionStatus: null,
   verifiedAt: null,
+  health: { verdict: 'indeterminate', messages: [] },
 };
 
 afterEach(() => {
@@ -107,6 +110,63 @@ describe('WhatsappConnect', () => {
     });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Desconectando…' })).toBeNull();
+  });
+
+  it('META-001: canal inoperante NÃO é exibido como ativo nem como nunca conectado', async () => {
+    // O achado: WABA sem app inscrito, banco `connected`, tela dizendo "Ativo".
+    // A tela precisa dizer que as mensagens não chegam — e continuar mostrando
+    // que existe uma conexão, senão o operador só vê um convite para conectar.
+    render(
+      <WhatsappConnect
+        status={{
+          ...status,
+          connected: false,
+          hasActiveNumber: true,
+          degraded: true,
+          phoneNumberMasked: '+55 ****-1234',
+          connectionStatus: 'failed',
+          health: {
+            verdict: 'broken',
+            messages: ['A Meta não está entregando mensagens para o ClinicaOS.'],
+          },
+        }}
+        appId="app-id"
+        configId="config-id"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+
+    expect(screen.getByText('WhatsApp com problema')).toBeTruthy();
+    expect(screen.getByText('A Meta não está entregando mensagens para o ClinicaOS.')).toBeTruthy();
+    expect(screen.queryByText('WhatsApp conectado')).toBeNull();
+    expect(screen.queryByText('Conecte o WhatsApp da clínica')).toBeNull();
+    // A reconexão continua disponível, e desconectar também.
+    expect(screen.getByRole('button', { name: 'Desconectar' })).toBeTruthy();
+  });
+
+  it('META-001: sonda indisponível preserva o estado anterior e avisa que não verificou', () => {
+    render(
+      <WhatsappConnect
+        status={{
+          ...status,
+          connected: true,
+          hasActiveNumber: true,
+          connectionStatus: 'connected',
+          health: {
+            verdict: 'indeterminate',
+            messages: ['Não foi possível confirmar o estado da conexão com a Meta agora.'],
+          },
+        }}
+        appId="app-id"
+        configId="config-id"
+        graphVersion="v23.0"
+        ready={true}
+      />,
+    );
+
+    expect(screen.getByText('WhatsApp conectado')).toBeTruthy();
+    expect(screen.getByText(/última verificação bem-sucedida/u)).toBeTruthy();
   });
 
   it('remove o loading e mostra erro quando a action de desconectar falha na rede', async () => {

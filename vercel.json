@@ -14,6 +14,7 @@
     { "path": "/api/cron/invites-cleanup", "schedule": "0 6 * * *" },
     { "path": "/api/cron/billing-dunning", "schedule": "0 8 * * *" },
     { "path": "/api/cron/billing-reconcile", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/whatsapp-health", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/proactive-reminders", "schedule": "*/15 11-23 * * *" },
     { "path": "/api/cron/proactive-dunning", "schedule": "*/15 11-23 * * *" },
     { "path": "/api/cron/proactive-followup", "schedule": "*/15 11-23 * * *" }

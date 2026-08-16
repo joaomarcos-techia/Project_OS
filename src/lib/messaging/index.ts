@@ -36,6 +36,10 @@ export {
   upsertTenantConnection,
   deactivateTenantConnection,
   recordConnectionFailure,
+  loadConnectionForHealth,
+  listActiveConnectionsForHealth,
+  recordConnectionHealth,
+  type ConnectionForHealth,
   type UpsertTenantConnectionInput,
 } from './connection-store';
 

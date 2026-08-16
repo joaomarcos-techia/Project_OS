@@ -157,6 +157,133 @@ export async function deactivateTenantConnection(input: {
   });
 }
 
+// ===========================================================================
+// META-001 — leitura/escrita do estado de SAÚDE da conexão.
+//
+// Mora aqui pela mesma razão do resto do arquivo: `token_encrypted` tem grant
+// service_role-only e `dbAdmin` é proibido em `src/contexts/**` (F-01). O
+// contexto decide o veredito; este seam só busca a credencial e persiste o
+// resultado.
+// ===========================================================================
+
+export interface ConnectionForHealth {
+  id: string;
+  clinicId: string;
+  metaPhoneId: string;
+  metaBusinessId: string | null;
+  /** Ciphertext — o decrypt acontece no contexto, com a chave do tenant. */
+  tokenCiphertext: string;
+  connectionStatus: string;
+}
+
+/** Conexão ATIVA da clínica, com a credencial cifrada, para sondar a Meta. */
+export async function loadConnectionForHealth(
+  clinicId: string,
+): Promise<ConnectionForHealth | null> {
+  const rows = await dbAdmin.execute<{
+    id: string;
+    clinic_id: string;
+    meta_phone_id: string;
+    meta_business_id: string | null;
+    token_encrypted: string;
+    connection_status: string;
+  }>(sql`
+    SELECT id, clinic_id, meta_phone_id, meta_business_id, token_encrypted, connection_status
+      FROM clinic_whatsapp_numbers
+     WHERE clinic_id = ${clinicId} AND active = true
+     LIMIT 1
+  `);
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    id: r.id,
+    clinicId: r.clinic_id,
+    metaPhoneId: r.meta_phone_id,
+    metaBusinessId: r.meta_business_id,
+    tokenCiphertext: r.token_encrypted,
+    connectionStatus: r.connection_status,
+  };
+}
+
+/** Todas as conexões ativas — varredura do cron, para o painel não mentir também. */
+export async function listActiveConnectionsForHealth(
+  limit: number,
+): Promise<ConnectionForHealth[]> {
+  const rows = await dbAdmin.execute<{
+    id: string;
+    clinic_id: string;
+    meta_phone_id: string;
+    meta_business_id: string | null;
+    token_encrypted: string;
+    connection_status: string;
+  }>(sql`
+    SELECT id, clinic_id, meta_phone_id, meta_business_id, token_encrypted, connection_status
+      FROM clinic_whatsapp_numbers
+     WHERE active = true
+     ORDER BY updated_at ASC
+     LIMIT ${limit}
+  `);
+  return rows.map((r) => ({
+    id: r.id,
+    clinicId: r.clinic_id,
+    metaPhoneId: r.meta_phone_id,
+    metaBusinessId: r.meta_business_id,
+    tokenCiphertext: r.token_encrypted,
+    connectionStatus: r.connection_status,
+  }));
+}
+
+/**
+ * Persiste o estado observado do canal. Só escreve quando MUDA — o health roda a
+ * cada abertura da tela e a cada passada do cron, e auditar "continua igual"
+ * transformaria `audit_events` em log de polling.
+ *
+ * `active` NÃO é tocado: a conexão continua existindo e sendo a credencial de
+ * roteamento; o que mudou é a informação de que ela não está operante. Desativar
+ * automaticamente apagaria a única credencial capaz de se reinscrever.
+ */
+export async function recordConnectionHealth(input: {
+  clinicId: string;
+  connectionId: string;
+  /** `null` = indeterminado; preserva o estado anterior. */
+  status: 'connected' | 'failed' | null;
+  reasons: readonly string[];
+  requestContext: RequestContext;
+  /** Ausente na varredura do cron (ator é o sistema). */
+  userId?: string | null;
+}): Promise<{ changed: boolean }> {
+  if (input.status === null) return { changed: false };
+  const status = input.status;
+
+  return dbAdmin.transaction(async (tx: Tx) => {
+    const rows = await tx.execute<{ connection_status: string }>(sql`
+      SELECT connection_status FROM clinic_whatsapp_numbers
+       WHERE id = ${input.connectionId} AND clinic_id = ${input.clinicId}
+       FOR UPDATE
+    `);
+    const previous = rows[0]?.connection_status ?? null;
+    if (previous === null || previous === status) return { changed: false };
+
+    await tx.execute(sql`
+      UPDATE clinic_whatsapp_numbers
+         SET connection_status = ${status}, updated_at = now()
+       WHERE id = ${input.connectionId} AND clinic_id = ${input.clinicId}
+    `);
+    await logAudit(tx, {
+      clinicId: input.clinicId,
+      userId: input.userId ?? null,
+      action: 'messaging.whatsapp.health_changed',
+      resourceType: 'whatsapp_number',
+      resourceId: input.connectionId,
+      before: { connectionStatus: previous },
+      // `reasons` são códigos estáveis (channel-health), nunca IDs externos.
+      after: { connectionStatus: status, reasons: [...input.reasons] },
+      requestContext: input.requestContext,
+    });
+    return { changed: true };
+  });
+}
+
 /**
  * Audita uma tentativa de conexão FALHA (sem tocar no número) — observabilidade
  * do lifecycle sem tabela paralela. Best-effort (o caller não deve mascarar o

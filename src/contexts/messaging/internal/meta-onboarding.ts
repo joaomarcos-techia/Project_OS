@@ -16,6 +16,7 @@ import 'server-only';
 import { env } from '@/lib/env';
 
 import { MetaConnectError, type MetaConnectFailureStage } from '../errors';
+import type { MetaChannelProbe, MetaProbeOutcome } from './channel-health';
 
 const REQUIRED_SCOPES = ['whatsapp_business_management', 'whatsapp_business_messaging'] as const;
 
@@ -79,6 +80,7 @@ async function graphFetch<T>(
     const code = (raw as { error?: { code?: number } } | null)?.error?.code;
     throw new MetaConnectError(`[meta] graph HTTP ${res.status}${code ? ` code=${code}` : ''}`, {
       stage: init.stage,
+      graphStatus: res.status,
     });
   }
   return raw as T;
@@ -200,6 +202,119 @@ export async function unsubscribeAppFromWaba(wabaId: string, token: string): Pro
     stage: 'webhook_subscription',
     token,
   });
+}
+
+// ===========================================================================
+// META-001 — sondagem READ-ONLY da saúde do canal.
+//
+// Nenhuma destas funções muta a Meta: só GET. A reinscrição do app continua
+// sendo operação externa explícita (`subscribeAppToWaba`), nunca um efeito
+// colateral de abrir a tela de configurações.
+// ===========================================================================
+
+/** 4xx = o provedor NEGOU (evidência); 5xx/timeout = não sabemos (sem evidência). */
+function outcomeFromGraphError(err: unknown): MetaProbeOutcome {
+  const status = err instanceof MetaConnectError ? err.graphStatus : null;
+  if (status !== null && status >= 400 && status < 500) return 'failed';
+  return 'unknown';
+}
+
+/**
+ * Lê o estado real do canal na Meta: token, escopos, WABA, número e — o que o
+ * health antigo não via — se ALGUM app está inscrito para receber os webhooks
+ * daquela WABA. Nunca lança: toda falha vira `unknown`/`failed` no `probe`,
+ * porque uma sonda que explode não pode derrubar a tela de configurações.
+ */
+export async function probeMetaChannel(input: {
+  token: string;
+  wabaId: string | null;
+  phoneNumberId: string;
+  /** App que DEVE estar inscrito. `null` quando o ambiente não o configurou. */
+  expectedAppId: string | null;
+}): Promise<MetaChannelProbe> {
+  const probe: MetaChannelProbe = {
+    token: 'unknown',
+    scopes: 'unknown',
+    phone: 'unknown',
+    waba: 'unknown',
+    appSubscription: 'unknown',
+  };
+
+  // 1. Credencial + escopos (app token; não vaza o token do tenant).
+  try {
+    const { appId, appSecret } = onboardingEnv();
+    const res = await graphFetch<{
+      data?: { is_valid?: boolean; scopes?: string[]; granular_scopes?: { scope?: string }[] };
+    }>('debug_token', {
+      method: 'GET',
+      stage: 'permissions',
+      query: { input_token: input.token, access_token: `${appId}|${appSecret}` },
+    });
+    const data = res.data;
+    if (!data?.is_valid) {
+      // Token revogado/expirado: os checks seguintes não têm como ser feitos, e
+      // o veredito já é `broken` por esta causa raiz.
+      probe.token = 'failed';
+      return probe;
+    }
+    probe.token = 'ok';
+    const scopes = new Set<string>([
+      ...(data.scopes ?? []),
+      ...(data.granular_scopes ?? [])
+        .map((g) => g.scope)
+        .filter((s): s is string => typeof s === 'string'),
+    ]);
+    probe.scopes = REQUIRED_SCOPES.every((s) => scopes.has(s)) ? 'ok' : 'failed';
+  } catch (err) {
+    probe.token = outcomeFromGraphError(err);
+    return probe;
+  }
+
+  // 2. O número persistido ainda é alcançável por esta credencial.
+  try {
+    await graphFetch(`${encodeURIComponent(input.phoneNumberId)}`, {
+      method: 'GET',
+      stage: 'account',
+      token: input.token,
+      query: { fields: 'id' },
+    });
+    probe.phone = 'ok';
+  } catch (err) {
+    probe.phone = outcomeFromGraphError(err);
+  }
+
+  // 3. Assinatura do webhook — a verificação que faltava. Sem `wabaId` local
+  // (linhas legadas do connect super_admin, onde a coluna é opcional) não há o
+  // que consultar: fica `unknown` e o estado anterior é preservado, em vez de
+  // inventar um veredito.
+  if (!input.wabaId) return probe;
+  try {
+    const res = await graphFetch<{
+      data?: Array<{ id?: string; whatsapp_business_api_data?: { id?: string } }>;
+    }>(`${encodeURIComponent(input.wabaId)}/subscribed_apps`, {
+      method: 'GET',
+      stage: 'webhook_subscription',
+      token: input.token,
+    });
+    probe.waba = 'ok';
+    const apps = (res.data ?? [])
+      .map((entry) => entry.whatsapp_business_api_data?.id ?? entry.id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+    if (apps.length === 0) {
+      // Exatamente o estado do achado: HTTP 200 com lista vazia. Nenhum app
+      // recebe os webhooks desta WABA, independente de qual seja o nosso.
+      probe.appSubscription = 'failed';
+    } else if (!input.expectedAppId) {
+      probe.appSubscription = 'unknown';
+    } else {
+      probe.appSubscription = apps.includes(input.expectedAppId) ? 'ok' : 'failed';
+    }
+  } catch (err) {
+    probe.waba = outcomeFromGraphError(err);
+  }
+
+  return probe;
 }
 
 /**

@@ -270,6 +270,21 @@ export function WhatsappConnect({
       <div className="panel" style={{ maxWidth: 560 }}>
         {status.connected && !locallyDisconnected ? (
           <ConnectedView status={status} onDisconnect={disconnect} pending={disconnecting} />
+        ) : status.degraded && !locallyDisconnected ? (
+          // META-001 — existe número ativo, mas o canal não está operante. Cair
+          // no DisconnectedView aqui esconderia a conexão quebrada atrás de um
+          // convite para conectar, que foi o que permitiu o achado passar.
+          <DegradedView
+            status={status}
+            ready={ready}
+            sdkReady={sdkReady}
+            pending={pending}
+            registrationPin={registrationPin}
+            onRegistrationPinChange={setPin}
+            onReconnect={launchSignup}
+            onDisconnect={disconnect}
+            disconnecting={disconnecting}
+          />
         ) : (
           <DisconnectedView
             ready={ready}
@@ -319,9 +334,120 @@ function ConnectedView({
         <dt style={{ color: 'var(--text-3)' }}>Conectado em</dt>
         <dd style={{ margin: 0 }}>{formatDatePt(status.verifiedAt)}</dd>
       </dl>
+      {status.health.verdict === 'indeterminate' && status.health.messages.length > 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 'var(--sp-3) 0 0' }}>
+          {status.health.messages[0]} O estado exibido é o da última verificação bem-sucedida.
+        </p>
+      ) : null}
       <div style={{ marginTop: 'var(--sp-4)' }}>
         <button className="btn danger sm" onClick={onDisconnect} disabled={pending}>
           {pending ? 'Desconectando…' : 'Desconectar'}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * META-001 — número ativo com canal inoperante. A tela precisa dizer o que
+ * parou de funcionar (o paciente escreve e ninguém recebe) e oferecer a
+ * reconexão, sem expor WABA/app/token.
+ */
+function DegradedView({
+  status,
+  ready,
+  sdkReady,
+  pending,
+  registrationPin,
+  onRegistrationPinChange,
+  onReconnect,
+  onDisconnect,
+  disconnecting,
+}: {
+  status: WhatsappStatusDTO;
+  ready: boolean;
+  sdkReady: boolean;
+  pending: boolean;
+  registrationPin: string;
+  onRegistrationPinChange: (pin: string) => void;
+  onReconnect: () => void;
+  onDisconnect: () => void;
+  disconnecting: boolean;
+}) {
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'var(--sp-3)' }}>
+        <h4 style={{ margin: 0 }}>WhatsApp com problema</h4>
+        <span className="badge red">
+          <span className="bdot" />
+          Não está recebendo mensagens
+        </span>
+      </div>
+      <dl
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr',
+          gap: '8px 16px',
+          margin: 0,
+          fontSize: 14,
+        }}
+      >
+        <dt style={{ color: 'var(--text-3)' }}>Número</dt>
+        <dd style={{ margin: 0, fontFamily: 'var(--font-mono)' }}>
+          {status.phoneNumberMasked ?? '—'}
+        </dd>
+        <dt style={{ color: 'var(--text-3)' }}>Conectado em</dt>
+        <dd style={{ margin: 0 }}>{formatDatePt(status.verifiedAt)}</dd>
+      </dl>
+      {status.health.messages.length > 0 ? (
+        <ul
+          style={{
+            fontSize: 13,
+            color: 'var(--text-2)',
+            margin: 'var(--sp-3) 0 0',
+            paddingLeft: '1.1rem',
+            display: 'grid',
+            gap: 4,
+          }}
+        >
+          {status.health.messages.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      ) : null}
+      <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 'var(--sp-3) 0 var(--sp-3)' }}>
+        Refaça a conexão para voltar a receber mensagens dos pacientes.
+      </p>
+      <label
+        htmlFor="whatsapp-reconnect-pin"
+        style={{ display: 'grid', gap: 6, marginBottom: 'var(--sp-4)', fontSize: 13 }}
+      >
+        <span>PIN de ativação do WhatsApp</span>
+        <input
+          id="whatsapp-reconnect-pin"
+          type="password"
+          inputMode="numeric"
+          autoComplete="new-password"
+          pattern="[0-9]{6}"
+          maxLength={6}
+          value={registrationPin}
+          onChange={(event) => onRegistrationPinChange(event.target.value.replace(/\D/g, ''))}
+          disabled={pending}
+          className="h-10 rounded-(--r-sm) border border-border bg-surface px-3 text-sm"
+        />
+      </label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {ready ? (
+          <button
+            className="btn"
+            onClick={onReconnect}
+            disabled={pending || !sdkReady || registrationPin.length !== 6}
+          >
+            {pending ? 'Reconectando…' : !sdkReady ? 'Carregando…' : 'Reconectar WhatsApp'}
+          </button>
+        ) : null}
+        <button className="btn danger sm" onClick={onDisconnect} disabled={disconnecting}>
+          {disconnecting ? 'Desconectando…' : 'Desconectar'}
         </button>
       </div>
     </>
