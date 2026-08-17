@@ -154,10 +154,15 @@ export const prices = pgTable(
   },
   (t) => ({
     planIdx: index('prices_plan_id_idx').on(t.planId),
-    // Um preço vigente por (plano, ciclo): garante resolução determinística.
-    activeUniq: uniqueIndex('prices_active_uniq')
+    // Um preço de TABELA vigente por (plano, ciclo) e um por campanha: mantém a
+    // resolução determinística sem proibir o preço promocional de conviver com
+    // o de tabela.
+    activeStandardUniq: uniqueIndex('prices_active_standard_uniq')
       .on(t.planId, t.billingCycle)
-      .where(sql`active_until IS NULL`),
+      .where(sql`active_until IS NULL AND campaign_code IS NULL`),
+    activeCampaignUniq: uniqueIndex('prices_active_campaign_uniq')
+      .on(t.planId, t.billingCycle, t.campaignCode)
+      .where(sql`active_until IS NULL AND campaign_code IS NOT NULL`),
     amountChk: check('prices_amount_chk', sql`${t.amount} >= 0`),
   }),
 );

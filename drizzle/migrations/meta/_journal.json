@@ -540,6 +540,20 @@
       "when": 1786791700000,
       "tag": "0076_financial_audit_export_least_privilege",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1786878100000,
+      "tag": "0077_founder_campaign_prices",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1786878200000,
+      "tag": "0078_founder_prices_replace_active_uniq",
+      "breakpoints": true
     }
   ]
 }
