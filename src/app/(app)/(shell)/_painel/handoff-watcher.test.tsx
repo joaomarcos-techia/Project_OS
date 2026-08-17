@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { render } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('./handoff-actions', () => ({ fetchOpenHandoffs: mocks.fetchOpenHandoffs }));
 vi.mock('@/components/ui/use-toast', () => ({ toast: { info: mocks.info } }));
+
+import { useOpenHandoffCount, __testing__ } from '@/components/painel/handoff-store';
 
 import { HandoffWatcher } from './handoff-watcher';
 
@@ -33,9 +35,13 @@ beforeEach(() => {
   mocks.fetchOpenHandoffs.mockReset();
   mocks.refresh.mockReset();
   mocks.info.mockReset();
+  __testing__.reset();
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('HandoffWatcher', () => {
   it('não avisa nada quando a fila está vazia', async () => {
@@ -155,5 +161,59 @@ describe('HandoffWatcher', () => {
     render(<HandoffWatcher />);
     await tick();
     expect(mocks.info.mock.calls[0]![2]).toBe(5_000);
+  });
+
+  it('leva à conversa ao clicar', async () => {
+    mocks.fetchOpenHandoffs.mockResolvedValueOnce([]).mockResolvedValueOnce([handoff('c1')]);
+    render(<HandoffWatcher />);
+    await tick();
+    await poll();
+    expect(mocks.info.mock.calls[0]![3]).toBe('/conversas/c1');
+  });
+
+  it('o resumo leva à lista, não a uma conversa específica', async () => {
+    mocks.fetchOpenHandoffs
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([handoff('c1'), handoff('c2'), handoff('c3'), handoff('c4')]);
+    render(<HandoffWatcher />);
+    await tick();
+    await poll();
+    expect(mocks.info.mock.calls[0]![3]).toBe('/conversas');
+  });
+});
+
+/**
+ * O badge é o que sustenta quem não viu o toast passar, então ele precisa
+ * refletir a fila SEMPRE — inclusive quando ela esvazia.
+ */
+describe('HandoffWatcher — contador da sidebar', () => {
+  function Contador() {
+    return <span data-testid="contador">{useOpenHandoffCount()}</span>;
+  }
+
+  it('publica o tamanho da fila já na primeira carga', async () => {
+    mocks.fetchOpenHandoffs.mockResolvedValue([handoff('c1'), handoff('c2')]);
+    const { getByTestId } = render(
+      <>
+        <HandoffWatcher />
+        <Contador />
+      </>,
+    );
+    await tick();
+    expect(getByTestId('contador').textContent).toBe('2');
+  });
+
+  it('zera quando a fila é atendida', async () => {
+    mocks.fetchOpenHandoffs.mockResolvedValueOnce([handoff('c1')]).mockResolvedValueOnce([]);
+    const { getByTestId } = render(
+      <>
+        <HandoffWatcher />
+        <Contador />
+      </>,
+    );
+    await tick();
+    expect(getByTestId('contador').textContent).toBe('1');
+    await poll();
+    expect(getByTestId('contador').textContent).toBe('0');
   });
 });

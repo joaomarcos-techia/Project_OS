@@ -1,6 +1,7 @@
 'use client';
 
 import { CircleAlert, CircleCheck, Info, Sparkles, X, type LucideIcon } from 'lucide-react';
+import Link from 'next/link';
 
 import { cn } from '@/lib/ui/cn';
 import { dismissToast, useToasts, type ToastVariant } from './use-toast';
@@ -53,16 +54,41 @@ export function Toaster() {
               className={cn('mt-px size-5 shrink-0', ICON_COLOR[t.variant])}
             />
             <div className="min-w-0">
-              <div className="text-(length:--fs-sm) font-semibold">{t.title}</div>
-              {t.description ? (
-                <div className="mt-0.5 text-(length:--fs-xs) text-fg-muted">{t.description}</div>
-              ) : null}
+              {/* Só vira link quando há destino. Um <a> sem href ou um botão
+                  que não navega seria um alvo de clique que não faz nada. O
+                  clique dispensa junto: ao chegar no destino o aviso perdeu a
+                  função e ficaria sobreposto à tela que ele pediu para abrir. */}
+              {t.href ? (
+                <Link
+                  href={t.href}
+                  onClick={() => dismissToast(t.id)}
+                  className="block rounded-(--r-xs) after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  <span className="text-(length:--fs-sm) font-semibold">{t.title}</span>
+                  {t.description ? (
+                    <span className="mt-0.5 block text-(length:--fs-xs) text-fg-muted">
+                      {t.description}
+                    </span>
+                  ) : null}
+                </Link>
+              ) : (
+                <>
+                  <div className="text-(length:--fs-sm) font-semibold">{t.title}</div>
+                  {t.description ? (
+                    <div className="mt-0.5 text-(length:--fs-xs) text-fg-muted">
+                      {t.description}
+                    </div>
+                  ) : null}
+                </>
+              )}
             </div>
             <button
               type="button"
               aria-label="Dispensar"
               onClick={() => dismissToast(t.id)}
-              className="grid size-6 place-items-center rounded-(--r-xs) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg"
+              // `relative`+z: o overlay do link cobre o card inteiro, e sem
+              // isto o X ficaria embaixo dele e nunca receberia o clique.
+              className="relative z-10 grid size-6 place-items-center rounded-(--r-xs) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg"
             >
               <X className="size-3.5" />
             </button>

@@ -117,7 +117,7 @@ Fonte da verdade: [src/lib/env.ts](../../src/lib/env.ts). Gere segredos **novos*
 > reconcile frequente dependiam de agendador externo invisível ao repo.
 
 - [ ] Deploy do branch para `main` (produção).
-- [ ] Confirmar que os 13 crons de [vercel.json](../../vercel.json) estão ativos (Vercel → Project → Settings → Cron Jobs):
+- [ ] Confirmar que os 15 crons de [vercel.json](../../vercel.json) estão ativos (Vercel → Project → Settings → Cron Jobs):
   - `/api/cron/outbox` — `* * * * *` (motor event-driven; F-01).
   - `/api/cron/patient-hard-delete` — `0 3 * * *` (LGPD hard-delete/anonimização após 30d — ADR-021).
   - `/api/cron/audit-partitions` — `0 4 1 * *` (provisiona partições + alerta de contiguidade — ADR-043).
@@ -131,6 +131,8 @@ Fonte da verdade: [src/lib/env.ts](../../src/lib/env.ts). Gere segredos **novos*
   - `/api/cron/proactive-reminders` — `*/15 11-23 * * *` (lembrete D-1).
   - `/api/cron/proactive-dunning` — `*/15 11-23 * * *` (cobrança D+3/D+7).
   - `/api/cron/proactive-followup` — `*/15 11-23 * * *` (retorno pós-consulta).
+  - `/api/cron/proactive-waitlist` — `*/15 11-23 * * *` (oferta de vaga da lista de espera — WAIT-001).
+  - `/api/cron/whatsapp-health` — `0 */6 * * *` (sonda READ-ONLY do canal Meta; fecha a janela em que a tela dizia "conectado" sem webhook — META-001).
 
 > ⚠️ Esta lista estava **incompleta** até 2026-07-18 (achado M5): faltavam sete
 > entradas. Runbook é o que se lê DURANTE incidente — um cron ausente da lista
@@ -251,7 +253,7 @@ fechando os itens 1–8 do INSUFFICIENT_EVIDENCE §12 da auditoria 2026-06-10:
 
 | # | Item (auditoria §12) | Confirmação |
 |---|---|---|
-| 1 | Agendador do outbox/reconcile | cron-job.org DESATIVADO; agendamento 100% via vercel.json — 13/13 crons ativos no painel, worker processou replay em ≤15s |
+| 1 | Agendador do outbox/reconcile | cron-job.org DESATIVADO; agendamento 100% via vercel.json — 15/15 crons ativos no painel, worker processou replay em ≤15s |
 | 2 | Allowlist de redirect URLs | configurada (Site URL + `/reset-password`) |
 | 3 | TTL access token 15 min | configurado (JWT expiry = 900s) |
 | 4 | AAL2 p/ unenroll MFA | **CONFIRMADO** (teste manual em prod 2026-06-11): GoTrue recusa unenroll de factor verificado em sessão AAL1. A recusa aflorava como 500; `unenrollAction` ganhou guard explícito de AAL2 (redirect a /login/mfa) + erro elegante (R-04 fechado com defense-in-depth) |

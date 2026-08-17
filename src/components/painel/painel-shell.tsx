@@ -19,6 +19,7 @@ import { useTheme } from '@/components/shared/use-theme';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+import { useOpenHandoffCount } from './handoff-store';
 import { Icon, LogoIcon } from './icons';
 import { GROUPS, MODULES } from './modules';
 
@@ -42,6 +43,9 @@ export function PainelShell({
 }) {
   const pathname = usePathname();
   const { dark, toggle } = useTheme();
+  // 0 quando o usuário não tem `view:conversations`: o watcher não é montado e
+  // ninguém alimenta o store, então o badge simplesmente não aparece.
+  const handoffCount = useOpenHandoffCount();
   const [navOpen, setNavOpen] = useState(false);
 
   // fecha o drawer mobile ao trocar de rota
@@ -103,7 +107,20 @@ export function PainelShell({
                         icon={<Icon name={m.icon} />}
                         label={m.label}
                         trailing={
-                          m.badge ? (
+                          m.id === 'conversas' && handoffCount > 0 ? (
+                            // Vermelho porque pede ação de alguém, e com o
+                            // NÚMERO: "3" diz o tamanho da fila, um ponto não.
+                            <span
+                              aria-label={`${handoffCount} ${
+                                handoffCount === 1
+                                  ? 'conversa aguardando atendimento'
+                                  : 'conversas aguardando atendimento'
+                              }`}
+                              className="grid min-w-4.5 place-items-center rounded-full bg-danger-600 px-1 text-[10px] font-semibold text-white"
+                            >
+                              {handoffCount > 9 ? '9+' : handoffCount}
+                            </span>
+                          ) : m.badge ? (
                             <span className="grid min-w-4.5 place-items-center rounded-full bg-(--primary-soft) px-1 text-[10px] font-semibold text-(--primary-active) dark:text-fg">
                               {m.badge}
                             </span>

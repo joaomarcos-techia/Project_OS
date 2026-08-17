@@ -16,6 +16,12 @@ export type ToastItem = {
   description?: string;
   /** ms até auto-dismiss */
   duration: number;
+  /**
+   * Destino ao clicar. Opcional porque a esmagadora maioria dos toasts é
+   * confirmação de algo que o usuário acabou de fazer — não há para onde ir.
+   * Só quem avisa de algo acontecido em outro lugar precisa levar até lá.
+   */
+  href?: string;
 };
 
 type Listener = () => void;
@@ -29,12 +35,25 @@ function emit() {
   for (const l of listeners) l();
 }
 
-function push(variant: ToastVariant, title: string, description?: string, duration?: number) {
+function push(
+  variant: ToastVariant,
+  title: string,
+  description?: string,
+  duration?: number,
+  href?: string,
+) {
   const id = nextId++;
   const ms = duration ?? (variant === 'error' ? 6000 : 4000);
   items = [
     ...items,
-    { id, variant, title, duration: ms, ...(description !== undefined ? { description } : {}) },
+    {
+      id,
+      variant,
+      title,
+      duration: ms,
+      ...(description !== undefined ? { description } : {}),
+      ...(href !== undefined ? { href } : {}),
+    },
   ];
   timers.set(
     id,
@@ -56,14 +75,14 @@ export function dismissToast(id: number) {
 }
 
 export const toast = {
-  success: (title: string, description?: string, duration?: number) =>
-    push('success', title, description, duration),
-  error: (title: string, description?: string, duration?: number) =>
-    push('error', title, description, duration),
-  info: (title: string, description?: string, duration?: number) =>
-    push('info', title, description, duration),
-  ai: (title: string, description?: string, duration?: number) =>
-    push('ai', title, description, duration),
+  success: (title: string, description?: string, duration?: number, href?: string) =>
+    push('success', title, description, duration, href),
+  error: (title: string, description?: string, duration?: number, href?: string) =>
+    push('error', title, description, duration, href),
+  info: (title: string, description?: string, duration?: number, href?: string) =>
+    push('info', title, description, duration, href),
+  ai: (title: string, description?: string, duration?: number, href?: string) =>
+    push('ai', title, description, duration, href),
 };
 
 function subscribe(l: Listener) {

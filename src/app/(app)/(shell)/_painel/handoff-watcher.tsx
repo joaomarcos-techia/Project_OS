@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
+import { setOpenHandoffCount } from '@/components/painel/handoff-store';
 import { toast } from '@/components/ui/use-toast';
 
 import { fetchOpenHandoffs } from './handoff-actions';
@@ -50,6 +51,9 @@ export function HandoffWatcher() {
         return;
       }
       if (cancelled) return;
+      // O badge reflete a fila SEMPRE, inclusive na primeira carga e quando ela
+      // esvazia — é o que sustenta quem não viu o toast passar.
+      setOpenHandoffCount(pending.length);
 
       // Primeira carga: estabelece o baseline e resume o que já espera.
       if (seen.current === null) {
@@ -59,8 +63,9 @@ export function HandoffWatcher() {
             pending.length === 1
               ? 'Uma conversa aguarda atendimento'
               : `${pending.length} conversas aguardam atendimento`,
-            'Abra Conversas IA para assumir.',
+            'Abrir Conversas IA.',
             HANDOFF_TOAST_MS,
+            '/conversas',
           );
         }
         return;
@@ -77,8 +82,9 @@ export function HandoffWatcher() {
       if (novos.length > MAX_INDIVIDUAL_TOASTS) {
         toast.info(
           `${novos.length} pacientes pediram atendimento`,
-          'Abra Conversas IA para assumir.',
+          'Abrir Conversas IA.',
           HANDOFF_TOAST_MS,
+          '/conversas',
         );
       } else {
         for (const h of novos) {
@@ -86,8 +92,9 @@ export function HandoffWatcher() {
             h.priority === 'urgent'
               ? 'Paciente pediu atendimento (urgente)'
               : 'Paciente pediu atendimento',
-            'Abra Conversas IA para assumir.',
+            'Abrir a conversa.',
             HANDOFF_TOAST_MS,
+            `/conversas/${h.conversationId}`,
           );
         }
       }

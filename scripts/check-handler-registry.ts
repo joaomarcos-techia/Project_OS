@@ -67,7 +67,10 @@ const PRODUCER_AHEAD = new Set<string>([
   'scheduling.appointment.rescheduled',
   'scheduling.appointment.corrected',
   'scheduling.doctor_absence.created',
-  'scheduling.waitlist.offered',
+  // BILLING-002 — emitido quando o GET autoritativo confirma que a cobrança
+  // sumiu do Asaas. Fecha a invoice na própria transação; não há projeção
+  // assíncrona a alimentar.
+  'billing.invoice.cancelled',
   'scheduling.recurrence.created',
   'scheduling.recurrence.cancelled',
   'scheduling.import.completed',

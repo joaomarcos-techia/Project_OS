@@ -58,7 +58,7 @@ Três instâncias Drizzle fisicamente distintas:
 - [/api/health/outbox](../../src/app/api/health/outbox/route.ts): dois níveis (Bearer `CRON_SECRET` = mínimo; super_admin AAL2 = `failures_by_type`). Alarms: `outbox.failed>0`, `pending_age>300s`, `processing_age>600s`, `idem_orphans>0`, `audit_default_rows>1000`. `?strict=1`/`?alert=1` → 503.
 - [/api/health/auth-hook](../../src/app/api/health/auth-hook/route.ts): self-test do custom access token hook. Mesma auth das irmãs (Bearer `CRON_SECRET` ou super_admin AAL2) desde o A1 da auditoria de APIs — era a única rota de health anônima. Auth das três em [health-auth.ts](../../src/lib/http/health-auth.ts).
 
-### 1.8 Cron / heartbeats — `vercel.json` (13 jobs)
+### 1.8 Cron / heartbeats — `vercel.json` (15 jobs)
 
 | Rota | Schedule | Função |
 |---|---|---|
@@ -75,6 +75,8 @@ Três instâncias Drizzle fisicamente distintas:
 | `/api/cron/proactive-reminders` | `*/15 11-23 * * *` | lembretes D-1 |
 | `/api/cron/proactive-dunning` | `*/15 11-23 * * *` | cobranças proativas D+3/D+7 |
 | `/api/cron/proactive-followup` | `*/15 11-23 * * *` | follow-up clínico |
+| `/api/cron/proactive-waitlist` | `*/15 11-23 * * *` | oferta de vaga da lista de espera (WAIT-001) |
+| `/api/cron/whatsapp-health` | `0 */6 * * *` | sonda read-only do canal Meta (META-001) |
 
 - Auth + erro + correlação centralizados em [`withCron`](../../src/lib/http/cron.ts) (ADR-045): as 13 rotas repetiam o mesmo esqueleto à mão e todas esqueciam a mesma coisa — a exceção nunca chegava ao Sentry.
 - `recordHeartbeat(job, status, detail)` → `cron_heartbeats` (best-effort, mas a falha de escrita agora emite `cron.heartbeat.write_failed` — antes era engolida, cegando o próprio SLO de liveness).
@@ -104,7 +106,7 @@ Três instâncias Drizzle fisicamente distintas:
 | Rotas API | `src/app/api/**` | retorno ad-hoc (`{ok:false,error:'internal'}`); **sem envelope** |
 | Webhook Meta | [/api/webhooks/meta](../../src/app/api/webhooks/meta/route.ts) | HMAC + size guard; `metrics.emit` parcial |
 | Webhook Asaas | [/api/webhooks/asaas](../../src/app/api/webhooks/asaas/route.ts) | token + `processed_webhooks` dedup |
-| Crons (13) | `src/app/api/cron/**` | `withCron`: auth + correlação + `recordHeartbeat` + `metrics.emit` + **Sentry na exceção** (ADR-045) |
+| Crons (15) | `src/app/api/cron/**` | `withCron`: auth + correlação + `recordHeartbeat` + `metrics.emit` + **Sentry na exceção** (ADR-045) |
 | Outbox worker | `src/lib/outbox/worker.ts` | rico em `metrics.emit`; sem Sentry/trace |
 | Chamadas externas | Gemini / Meta / Asaas / Storage | timeout + classificação de erro; sem captura central |
 | Render React / rotas | `src/app/**` | **sem `error.tsx`/`global-error.tsx`** |
