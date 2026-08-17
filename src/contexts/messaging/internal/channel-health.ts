@@ -32,6 +32,24 @@ export interface MetaChannelProbe {
   waba: MetaProbeOutcome;
   /** O NOSSO app está em `subscribed_apps` — é o que habilita o webhook. */
   appSubscription: MetaProbeOutcome;
+  /**
+   * O número está `CONNECTED` na Meta. Alcançar o `phone_number_id` (acima) NÃO
+   * é a mesma coisa: um número existe e responde 200 mesmo quando saiu do ar
+   * para envio. A doc é explícita — só `CONNECTED` envia e recebe pela API.
+   */
+  phoneStatus: MetaProbeOutcome;
+  /**
+   * `account_review_status` da WABA. Só `REJECTED` conta como negativa: uma
+   * conta em `PENDING`/`DEFERRED` está em fila de revisão e continua servindo,
+   * então rebaixá-la marcaria como quebrada uma clínica que funciona.
+   *
+   * A Meta NÃO expõe método de pagamento no nó da WABA (os campos legíveis são
+   * id, name, timezone_id, message_template_namespace, account_review_status,
+   * business_verification_status, country, ownership_type e
+   * primary_business_location). Não dá para sondar crédito diretamente; esta é
+   * a negativa documentada mais próxima.
+   */
+  accountReview: MetaProbeOutcome;
 }
 
 /**
@@ -45,6 +63,8 @@ export const CHANNEL_HEALTH_REASONS = [
   'phone_unreachable',
   'waba_unreachable',
   'app_not_subscribed',
+  'phone_not_connected',
+  'account_rejected',
   'probe_unavailable',
 ] as const;
 export type ChannelHealthReason = (typeof CHANNEL_HEALTH_REASONS)[number];
@@ -65,8 +85,10 @@ export interface ChannelHealth {
 const CHECK_ORDER: Array<{ key: keyof MetaChannelProbe; reason: ChannelHealthReason }> = [
   { key: 'token', reason: 'token_invalid' },
   { key: 'scopes', reason: 'scopes_missing' },
+  { key: 'accountReview', reason: 'account_rejected' },
   { key: 'waba', reason: 'waba_unreachable' },
   { key: 'phone', reason: 'phone_unreachable' },
+  { key: 'phoneStatus', reason: 'phone_not_connected' },
   { key: 'appSubscription', reason: 'app_not_subscribed' },
 ];
 
@@ -113,6 +135,10 @@ export function describeChannelHealthReason(reason: ChannelHealthReason): string
       return 'O número conectado não está mais acessível por esta conexão.';
     case 'app_not_subscribed':
       return 'A Meta não está entregando mensagens para o ClinicaOS: as mensagens recebidas não chegam até a clínica.';
+    case 'phone_not_connected':
+      return 'O número não está ativo na Meta: ele não envia nem recebe mensagens neste estado.';
+    case 'account_rejected':
+      return 'A Meta reprovou a conta WhatsApp Business desta clínica. Resolva a pendência na WhatsApp Manager.';
     case 'probe_unavailable':
       return 'Não foi possível confirmar o estado da conexão com a Meta agora.';
   }

@@ -16,6 +16,8 @@ function probe(over: Partial<MetaChannelProbe> = {}): MetaChannelProbe {
     phone: 'ok',
     waba: 'ok',
     appSubscription: 'ok',
+    phoneStatus: 'ok',
+    accountReview: 'ok',
     ...over,
   };
 }
@@ -115,6 +117,66 @@ describe('describeChannelHealthReason — o que o operador lê', () => {
       'probe_unavailable',
     ] as const) {
       expect(describeChannelHealthReason(reason).length).toBeGreaterThan(20);
+    }
+  });
+});
+
+/**
+ * Sondas acrescentadas depois do META-001. Alcançar o número e alcançar a WABA
+ * não provam que a clínica consegue enviar: um número existe e responde 200
+ * mesmo fora do ar, e uma conta reprovada continua alcançável.
+ */
+describe('evaluateChannelHealth — número fora do ar e conta reprovada', () => {
+  it('número não CONNECTED → broken, mesmo alcançável', () => {
+    expect(evaluateChannelHealth(probe({ phone: 'ok', phoneStatus: 'failed' }))).toEqual({
+      verdict: 'broken',
+      reasons: ['phone_not_connected'],
+    });
+  });
+
+  it('conta reprovada → broken', () => {
+    expect(evaluateChannelHealth(probe({ accountReview: 'failed' }))).toEqual({
+      verdict: 'broken',
+      reasons: ['account_rejected'],
+    });
+  });
+
+  it('conta reprovada aparece ANTES do número na ordem de causa', () => {
+    // A conta é a causa mais fundamental: resolver o número não adianta se a
+    // WABA foi reprovada.
+    const health = evaluateChannelHealth(
+      probe({ accountReview: 'failed', phoneStatus: 'failed' }),
+    );
+    expect(health.reasons).toEqual(['account_rejected', 'phone_not_connected']);
+  });
+
+  it('status do número indeterminado não rebaixa a conexão', () => {
+    // Resposta sem o campo `status` não é evidência de nada.
+    expect(evaluateChannelHealth(probe({ phoneStatus: 'unknown' }))).toEqual({
+      verdict: 'indeterminate',
+      reasons: ['probe_unavailable'],
+    });
+  });
+
+  it('revisão indeterminada não rebaixa a conexão', () => {
+    expect(evaluateChannelHealth(probe({ accountReview: 'unknown' }))).toEqual({
+      verdict: 'indeterminate',
+      reasons: ['probe_unavailable'],
+    });
+  });
+
+  it('negativa vence indeterminação também nas sondas novas', () => {
+    // Fail-closed sobre NEGATIVA, fail-open sobre INDETERMINAÇÃO.
+    const health = evaluateChannelHealth(probe({ phoneStatus: 'failed', waba: 'unknown' }));
+    expect(health.verdict).toBe('broken');
+    expect(health.reasons).toEqual(['phone_not_connected']);
+  });
+
+  it('descreve as razões novas sem expor identificador externo', () => {
+    for (const reason of ['phone_not_connected', 'account_rejected'] as const) {
+      const message = describeChannelHealthReason(reason);
+      expect(message.length).toBeGreaterThan(0);
+      expect(message).not.toMatch(/\d{6,}/u);
     }
   });
 });

@@ -49,8 +49,9 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('1. tudo válido: token, escopos, número e app inscrito', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
-      .mockResolvedValueOnce(res({ data: [{ whatsapp_business_api_data: { id: 'app-123' } }] }));
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
+      .mockResolvedValueOnce(res({ data: [{ whatsapp_business_api_data: { id: 'app-123' } }] }))
+      .mockResolvedValueOnce(res({ account_review_status: 'APPROVED' }));
 
     const probe = await probeMetaChannel(INPUT);
     expect(probe).toEqual({
@@ -59,6 +60,8 @@ describe('probeMetaChannel — leitura do estado externo', () => {
       phone: 'ok',
       waba: 'ok',
       appSubscription: 'ok',
+      phoneStatus: 'ok',
+      accountReview: 'ok',
     });
     expect(evaluateChannelHealth(probe).verdict).toBe('healthy');
   });
@@ -66,7 +69,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('6. subscribed_apps VAZIO com HTTP 200 → appSubscription failed (o achado)', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [] }));
 
     const probe = await probeMetaChannel(INPUT);
@@ -81,7 +84,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('7. subscribed_apps com app de TERCEIRO → failed', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [{ whatsapp_business_api_data: { id: 'app-999' } }] }));
 
     expect((await probeMetaChannel(INPUT)).appSubscription).toBe('failed');
@@ -90,7 +93,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('aceita o `id` no topo do item, além do aninhado', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [{ id: 'app-123' }] }));
 
     expect((await probeMetaChannel(INPUT)).appSubscription).toBe('ok');
@@ -99,7 +102,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('lista não vazia sem app esperado configurado → unknown, não failed', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [{ id: 'app-outro' }] }));
 
     const probe = await probeMetaChannel({ ...INPUT, expectedAppId: null });
@@ -110,7 +113,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('lista VAZIA continua failed mesmo sem app esperado — ninguém recebe webhook', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [] }));
 
     expect((await probeMetaChannel({ ...INPUT, expectedAppId: null })).appSubscription).toBe(
@@ -132,7 +135,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
       .mockResolvedValueOnce(
         res({ data: { is_valid: true, scopes: ['whatsapp_business_management'] } }),
       )
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [{ id: 'app-123' }] }));
 
     const probe = await probeMetaChannel(INPUT);
@@ -153,7 +156,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
           },
         }),
       )
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [{ id: 'app-123' }] }));
 
     expect((await probeMetaChannel(INPUT)).scopes).toBe('ok');
@@ -174,7 +177,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('5. WABA inacessível (403) → waba failed', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ error: { code: 200 } }, false, 403));
 
     const probe = await probeMetaChannel(INPUT);
@@ -210,7 +213,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('11. resposta parcial: subscribed_apps cai em 500 após token/phone OK', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({}, false, 500));
 
     const probe = await probeMetaChannel(INPUT);
@@ -219,7 +222,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   });
 
   it('sem wabaId local (linha legada) → não inventa veredito sobre a assinatura', async () => {
-    fetchMock.mockResolvedValueOnce(res(VALID_TOKEN)).mockResolvedValueOnce(res({ id: 'phone-1' }));
+    fetchMock.mockResolvedValueOnce(res(VALID_TOKEN)).mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
 
     const probe = await probeMetaChannel({ ...INPUT, wabaId: null });
     expect(probe.waba).toBe('unknown');
@@ -230,7 +233,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('só faz GET: a sondagem NUNCA reinscreve o app', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [] }));
 
     await probeMetaChannel(INPUT);
@@ -242,7 +245,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   it('nunca vaza o token do tenant nem o app secret na URL do subscribed_apps', async () => {
     fetchMock
       .mockResolvedValueOnce(res(VALID_TOKEN))
-      .mockResolvedValueOnce(res({ id: 'phone-1' }))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
       .mockResolvedValueOnce(res({ data: [] }));
 
     await probeMetaChannel(INPUT);
@@ -252,5 +255,115 @@ describe('probeMetaChannel — leitura do estado externo', () => {
     // O token do tenant vai no header Authorization, não na query.
     const headers = (subscribedCall[1] as { headers?: Record<string, string> }).headers ?? {};
     expect(headers.authorization).toBe('Bearer TENANT-TOKEN');
+  });
+});
+
+/**
+ * Sondas acrescentadas depois do META-001. A Meta NÃO expõe método de pagamento
+ * no nó da WABA, então não há sonda de crédito; estas são as duas negativas
+ * documentadas mais próximas de "conectado na tela, mudo na prática".
+ */
+describe('probeMetaChannel — status do número e revisão da conta', () => {
+  const okToken = () => fetchMock.mockResolvedValueOnce(res(VALID_TOKEN));
+  const okSubscription = () =>
+    fetchMock.mockResolvedValueOnce(
+      res({ data: [{ whatsapp_business_api_data: { id: 'app-123' } }] }),
+    );
+
+  it('pede o status junto do id — sem GET extra para o número', async () => {
+    okToken();
+    fetchMock.mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
+    okSubscription();
+    fetchMock.mockResolvedValueOnce(res({ account_review_status: 'APPROVED' }));
+
+    await probeMetaChannel(INPUT);
+    const phoneUrl = new URL(String(fetchMock.mock.calls[1]![0]));
+    expect(phoneUrl.searchParams.get('fields')).toBe('id,status');
+  });
+
+  it('número alcançável mas FLAGGED → phoneStatus failed', async () => {
+    okToken();
+    fetchMock.mockResolvedValueOnce(res({ id: 'phone-1', status: 'FLAGGED' }));
+    okSubscription();
+    fetchMock.mockResolvedValueOnce(res({ account_review_status: 'APPROVED' }));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.phone).toBe('ok'); // responde 200 — alcançar não é enviar
+    expect(probe.phoneStatus).toBe('failed');
+    expect(evaluateChannelHealth(probe)).toEqual({
+      verdict: 'broken',
+      reasons: ['phone_not_connected'],
+    });
+  });
+
+  it('resposta sem o campo status não inventa veredito', async () => {
+    okToken();
+    fetchMock.mockResolvedValueOnce(res({ id: 'phone-1' }));
+    okSubscription();
+    fetchMock.mockResolvedValueOnce(res({ account_review_status: 'APPROVED' }));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.phoneStatus).toBe('unknown');
+    expect(evaluateChannelHealth(probe).verdict).toBe('indeterminate');
+  });
+
+  it('404 no número não duplica a causa', async () => {
+    okToken();
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 100 } }, false, 404));
+    okSubscription();
+    fetchMock.mockResolvedValueOnce(res({ account_review_status: 'APPROVED' }));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.phone).toBe('failed');
+    expect(probe.phoneStatus).toBe('unknown');
+    expect(evaluateChannelHealth(probe).reasons).toEqual(['phone_unreachable']);
+  });
+
+  it('conta REJECTED → accountReview failed', async () => {
+    okToken();
+    fetchMock.mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
+    okSubscription();
+    fetchMock.mockResolvedValueOnce(res({ account_review_status: 'REJECTED' }));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.accountReview).toBe('failed');
+    expect(evaluateChannelHealth(probe)).toEqual({
+      verdict: 'broken',
+      reasons: ['account_rejected'],
+    });
+  });
+
+  it.each(['APPROVED', 'PENDING', 'DEFERRED'])(
+    'conta %s não rebaixa: fila de revisão ainda atende',
+    async (status) => {
+      okToken();
+      fetchMock.mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
+      okSubscription();
+      fetchMock.mockResolvedValueOnce(res({ account_review_status: status }));
+
+      const probe = await probeMetaChannel(INPUT);
+      expect(probe.accountReview).toBe('ok');
+      expect(evaluateChannelHealth(probe).verdict).toBe('healthy');
+    },
+  );
+
+  it('5xx na revisão é indeterminação, não negativa', async () => {
+    okToken();
+    fetchMock.mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
+    okSubscription();
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 1 } }, false, 500));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.accountReview).toBe('unknown');
+    expect(evaluateChannelHealth(probe).verdict).toBe('indeterminate');
+  });
+
+  it('sem wabaId não consulta a revisão', async () => {
+    okToken();
+    fetchMock.mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
+
+    const probe = await probeMetaChannel({ ...INPUT, wabaId: null });
+    expect(probe.accountReview).toBe('unknown');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

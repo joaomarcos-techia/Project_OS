@@ -316,6 +316,8 @@ export async function probeMetaChannel(input: {
     phone: 'unknown',
     waba: 'unknown',
     appSubscription: 'unknown',
+    phoneStatus: 'unknown',
+    accountReview: 'unknown',
   };
 
   // 1. Credencial + escopos (app token; não vaza o token do tenant).
@@ -350,14 +352,21 @@ export async function probeMetaChannel(input: {
 
   // 2. O número persistido ainda é alcançável por esta credencial.
   try {
-    await graphFetch(`${encodeURIComponent(input.phoneNumberId)}`, {
-      method: 'GET',
-      stage: 'account',
-      token: input.token,
-      query: { fields: 'id' },
-    });
+    const phoneRes = await graphFetch<{ status?: string }>(
+      `${encodeURIComponent(input.phoneNumberId)}`,
+      { method: 'GET', stage: 'account', token: input.token, query: { fields: 'id,status' } },
+    );
     probe.phone = 'ok';
+    // Alcançar o número não prova que ele envia. A doc é explícita: só
+    // `CONNECTED` envia e recebe pela API. Campo ausente fica `unknown` — não
+    // se inventa veredito a partir de uma resposta que não trouxe o dado.
+    const status = phoneRes?.status;
+    if (typeof status === 'string') {
+      probe.phoneStatus = status.toUpperCase() === 'CONNECTED' ? 'ok' : 'failed';
+    }
   } catch (err) {
+    // `phoneStatus` fica `unknown` de propósito: `phone` já carrega a negativa,
+    // e duplicar a causa faria a tela listar dois motivos para um problema só.
     probe.phone = outcomeFromGraphError(err);
   }
 
@@ -390,6 +399,31 @@ export async function probeMetaChannel(input: {
     }
   } catch (err) {
     probe.waba = outcomeFromGraphError(err);
+  }
+
+  // 4. Revisão da conta. Só `REJECTED` é negativa: `PENDING`/`DEFERRED` são
+  // estados de fila e a clínica segue atendendo — rebaixá-los marcaria como
+  // quebrada uma conexão que funciona.
+  //
+  // Não existe sonda de método de pagamento: a Meta não expõe esse campo no nó
+  // da WABA. Esta é a negativa documentada mais próxima de "a conta não pode
+  // mais enviar".
+  try {
+    const account = await graphFetch<{ account_review_status?: string }>(
+      `${encodeURIComponent(input.wabaId)}`,
+      {
+        method: 'GET',
+        stage: 'account',
+        token: input.token,
+        query: { fields: 'account_review_status' },
+      },
+    );
+    const review = account?.account_review_status;
+    probe.accountReview = typeof review === 'string' && review.toUpperCase() === 'REJECTED'
+      ? 'failed'
+      : 'ok';
+  } catch (err) {
+    probe.accountReview = outcomeFromGraphError(err);
   }
 
   return probe;
