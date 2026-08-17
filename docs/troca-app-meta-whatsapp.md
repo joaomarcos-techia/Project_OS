@@ -40,20 +40,35 @@ Não altere estas variáveis por causa da troca de app:
 Os nomes abaixo devem ser usados **exatamente** ao criar os modelos na Meta.
 Apesar do sufixo `_ID`, o código envia o **nome do modelo**, não um ID numérico.
 
-| Variável da Vercel | Nome do modelo na Meta | Categoria | Texto do corpo | Variáveis de exemplo |
-| --- | --- | --- | --- | --- |
-| `META_TEMPLATE_CONFIRMATION_REMINDER_ID` | `lembrete_confirmacao` | Utilidade | `Olá, {{1}}! Lembramos que sua consulta está agendada para amanhã às {{2}} com {{3}}. Você confirma sua presença? Responda SIM ou NÃO.` | `Maria`, `14:30`, `Dra. Ana Silva` |
-| `META_TEMPLATE_DUNNING_FRIENDLY_ID` | `cobranca_amigavel` | Utilidade | `Olá, {{1}}! Identificamos um pagamento pendente referente à sua consulta de {{2}}, no valor de R$ {{3}}. Caso já tenha realizado o pagamento, desconsidere esta mensagem. Precisa de ajuda? Responda aqui.` | `Maria`, `25/07/2026`, `150,00` |
-| `META_TEMPLATE_FOLLOWUP_RETURN_ID` | `retorno_consulta` | Utilidade | `Olá, {{1}}! {{2}} solicitou um retorno de acompanhamento. Deseja agendar para esta semana? Responda a esta mensagem e ajudaremos com os horários.` | `Maria`, `Dra. Ana Silva` |
+| Variável da Vercel | Nome do modelo na Meta | Categoria | Variáveis |
+| --- | --- | --- | --- |
+| `META_TEMPLATE_CONFIRMATION_REMINDER_ID` | `lembrete_confirmacao` | Utilidade | nome, hora, profissional |
+| `META_TEMPLATE_DUNNING_FRIENDLY_ID` | `amigavel_cobranca` | Utilidade | nome, data, valor |
+| `META_TEMPLATE_WAITLIST_OFFER_ID` | `lista_espera_oferta` | Utilidade | nome, data, hora, profissional |
+| `META_TEMPLATE_FOLLOWUP_RETURN_ID` | `retorno_consulta` | Utilidade | nome, profissional |
+
+> **O texto do corpo NÃO fica neste documento.** Ele vive em
+> `src/lib/messaging/proactive-template-catalog.ts`, junto dos exemplos de
+> submissão — a copy e a ordem das variáveis precisam concordar, e duplicá-las
+> aqui já produziu divergência uma vez. Copie de lá ao cadastrar na Meta.
+
+Desde o provisionamento automático, a clínica que conecta pelo Embedded Signup
+tem os quatro modelos criados por API na própria WABA. Este cadastro manual só
+é necessário para uma WABA que já existia antes disso.
 
 Configure na Vercel:
 
 ```text
 META_TEMPLATE_CONFIRMATION_REMINDER_ID=lembrete_confirmacao
-META_TEMPLATE_DUNNING_FRIENDLY_ID=cobranca_amigavel
+META_TEMPLATE_DUNNING_FRIENDLY_ID=amigavel_cobranca
+META_TEMPLATE_WAITLIST_OFFER_ID=lista_espera_oferta
 META_TEMPLATE_FOLLOWUP_RETURN_ID=retorno_consulta
 META_TEMPLATE_LANG=pt_BR
 ```
+
+Apagar um modelo bloqueia a reutilização do MESMO nome por 30 dias. Para trocar
+a copy de um modelo já submetido, EDITE em vez de apagar: a edição dispara nova
+revisão e preserva o nome.
 
 Se a mesma WABA for mantida, os modelos já aprovados pertencem à WABA e não
 precisam ser recriados apenas pela troca do app. Confirme no WhatsApp Manager

@@ -24,7 +24,7 @@ vi.mock('@/lib/env', async (importActual) => {
     env: {
       ...actual.env,
       META_TEMPLATE_CONFIRMATION_REMINDER_ID: 'lembrete_confirmacao',
-      META_TEMPLATE_DUNNING_FRIENDLY_ID: 'cobranca_amigavel',
+      META_TEMPLATE_DUNNING_FRIENDLY_ID: 'amigavel_cobranca',
       META_TEMPLATE_WAITLIST_OFFER_ID: 'lista_espera_oferta',
       META_TEMPLATE_FOLLOWUP_RETURN_ID: 'retorno_consulta',
       META_TEMPLATE_LANG: 'pt_BR',

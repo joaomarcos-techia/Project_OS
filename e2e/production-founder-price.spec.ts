@@ -9,6 +9,8 @@
  * O roteiro PARA antes do pagamento: não cria assinatura no Asaas nem cobrança
  * real. O convite sintético é removido no fim.
  */
+import { createHmac, randomBytes } from 'node:crypto';
+
 import { expect, test } from '@playwright/test';
 import { config as loadDotenv } from 'dotenv';
 import postgres from 'postgres';
@@ -82,14 +84,35 @@ test.describe('produção: preço de fundador no link de onboarding', () => {
 
       // 2. Convite sintético direto no banco: não passa pelo painel admin nem
       // dispara e-mail, e some no cleanup.
+      // O banco guarda só o HMAC; o token CRU vive no link. Mesmo algoritmo de
+      // `onboarding/internal/token.ts` — se ele mudar, este teste falha, que é
+      // o comportamento desejado.
+      const secret = process.env.MAGIC_TOKEN_SECRET;
+      if (!secret) throw new Error('MAGIC_TOKEN_SECRET ausente.');
+      const rawToken = randomBytes(32).toString('hex');
+      const tokenHash = createHmac('sha256', secret).update(rawToken).digest('hex');
+
       const [invite] = await sql.begin(async (tx) => {
         await tx.unsafe('RESET ROLE');
-        return tx<{ id: string; token: string }[]>`
-          insert into clinic_invites (email, status, created_by, expires_at)
+        return tx<{ id: string }[]>`
+          insert into clinic_invites (email, status, created_by, expires_at, token_hash,
+                                      started_at, step_state)
           values (${`e2e-fundador-${runId}@example.test`}, 'pending',
                   (select id from auth.users order by created_at limit 1),
-                  now() + interval '1 day')
-          returning id::text, id::text as token
+                  now() + interval '1 day', ${tokenHash}, now(),
+                  ${sql.json({
+                    owner: { nome: `E2E Fundador ${runId}`, email: `e2e-fundador-${runId}@example.test` },
+                    clinic: {
+                      cnpj: '05.418.239/0001-08',
+                      nome: `E2E Fundador ${runId}`,
+                      slug: `e2e-fundador-${runId}`,
+                      endereco: 'Rua de Teste',
+                      telefone: '(88) 99629-1175',
+                    },
+                    completed: ['clinic', 'owner'],
+                    currentStep: 'plan',
+                  })})
+          returning id::text
         `;
       });
       if (!invite) throw new Error('Convite sintético não foi criado.');
@@ -104,22 +127,24 @@ test.describe('produção: preço de fundador no link de onboarding', () => {
         const clinica = priceRows.find((r) => r.code === 'clinica');
         if (!clinica?.founder_cents) throw new Error('Plano clinica sem preço de fundador.');
 
-        await page.goto(`/join/${inviteId}`);
-        // Convite sintético não tem step_state; o wizard pode barrar antes do
-        // passo de plano. O que não pode acontecer, em hipótese alguma, é a
-        // página anunciar o preço de tabela como se fosse o cobrado.
-        const body = await page.locator('body').innerText();
-        const anunciaTabela = body.includes(brl(clinica.list_cents));
-        const anunciaFundador = body.includes(brl(clinica.founder_cents));
-        if (anunciaTabela || anunciaFundador) {
-          // Se exibe preço, tem que exibir o de fundador — e o de tabela só
-          // pode aparecer riscado.
-          expect(anunciaFundador, 'tela mostra preço sem o desconto de fundador').toBe(true);
-          if (anunciaTabela) {
-            const riscado = page.locator('s', { hasText: brl(clinica.list_cents) });
-            await expect(riscado).toHaveCount(1);
-          }
-        }
+        await page.goto(`/join/${rawToken}`);
+        // O passo de plano precisa RENDERIZAR de verdade: com `step_state`
+        // vazio o wizard abre na boas-vindas, o preço nunca aparece e a
+        // asserção passaria sem testar nada.
+        await expect(page.getByText('Plano', { exact: true }).first()).toBeVisible({
+          timeout: 30_000,
+        });
+
+        const anunciaFundador = await page.getByText(brl(clinica.founder_cents)).first().isVisible();
+        expect(anunciaFundador, 'o card não mostra o preço de fundador').toBe(true);
+
+        // O de tabela só pode existir riscado — nunca como valor cobrado.
+        const riscado = page.locator('s', { hasText: brl(clinica.list_cents) });
+        await expect(riscado).toHaveCount(1);
+
+        // E o desconto tem que estar dito, não só implícito no número.
+        await expect(page.getByText(/vale para sempre/iu).first()).toBeVisible();
+        const anunciaTabela = true;
 
         console.log(
           `[founder-price] ${JSON.stringify({

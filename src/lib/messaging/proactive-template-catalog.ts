@@ -59,10 +59,17 @@ export const PROACTIVE_TEMPLATE_BODIES: Record<
     // e anunciar só PIX fecha a porta antes da conversa. A cobrança em saúde
     // revela que a pessoa foi atendida, então o tom é cordial e resolve no
     // canal privado, com a clínica — nunca cobrando na recepção.
+    //
+    // O atendente humano é OPÇÃO, não instrução única: "já paguei" e "consigo
+    // semana que vem" o agente resolve sozinho, e mandar todo mundo chamar
+    // atendente jogaria na clínica um volume que não precisava chegar lá. O
+    // texto também não promete redirecionamento — `escalateToHuman` enfileira
+    // em `ai_handoff_queue` sem SLA, então prometer "te redireciono" deixaria
+    // o paciente esperando fora do horário de atendimento.
     body:
       'Olá {{1}}! Sobre o seu atendimento de {{2}}, ainda consta um valor em aberto ' +
       'de R$ {{3}}.\n\nPodemos combinar a melhor forma de pagamento para você? ' +
-      'Responda por aqui e a clínica te apresenta as opções disponíveis.',
+      'Responda por aqui — e, se preferir falar com uma pessoa, é só dizer CHAMAR ATENDENTE.',
     example: ['Maria Silva', '10/08/2026', '150,00'],
   },
   waitlist_offer: {
