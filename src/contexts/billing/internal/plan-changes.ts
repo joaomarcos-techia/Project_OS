@@ -176,6 +176,8 @@ async function readTargetPlan(
         eq(prices.planId, plans.id),
         eq(prices.billingCycle, billingCycle),
         isNull(prices.activeUntil),
+        // Preço de tabela: a linha de campanha não entra aqui.
+        isNull(prices.campaignCode),
       ),
     )
     .where(and(eq(plans.id, targetPlanId), eq(plans.ativo, true)))
@@ -1019,6 +1021,8 @@ export async function getPlanChangeOverview(clinicId: string): Promise<PlanChang
           eq(prices.planId, plans.id),
           eq(prices.billingCycle, current.billingCycle),
           isNull(prices.activeUntil),
+          // Preço de tabela: a linha de campanha não entra aqui.
+          isNull(prices.campaignCode),
         ),
       )
       .where(eq(plans.ativo, true));

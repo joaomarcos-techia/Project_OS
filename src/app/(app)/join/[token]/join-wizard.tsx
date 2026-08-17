@@ -633,9 +633,21 @@ function StepPlan({
               {rec ? <span className="rec-tag">{I.star} Recomendado</span> : null}
               <span className="nm">{p.name}</span>
               <span className="pr">
+                {/* O riscado só aparece quando existe preço de tabela DIFERENTE
+                    do cobrado. Sem isso o wizard exibiria um "de" que nunca foi
+                    praticado — o desconto perde o sentido e vira propaganda
+                    enganosa. */}
+                {p.listPriceCents != null ? (
+                  <s className="was" aria-label={`Preço de tabela ${fmtBRL(p.listPriceCents)}`}>
+                    {fmtBRL(p.listPriceCents)}
+                  </s>
+                ) : null}
                 <span className="amt">{fmtBRL(p.priceCents)}</span>
                 <span className="per">/{p.cycle === 'annual' ? 'ano' : 'mês'}</span>
               </span>
+              {p.listPriceCents != null ? (
+                <span className="founder">Preço de fundador — vale para sempre</span>
+              ) : null}
               <ul>
                 <li>
                   {I.check} Cobrança {p.cycle === 'annual' ? 'anual' : 'mensal'}

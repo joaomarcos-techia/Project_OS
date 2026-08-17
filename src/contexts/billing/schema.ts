@@ -143,6 +143,13 @@ export const prices = pgTable(
       .notNull()
       .default(sql`now()`),
     activeUntil: timestamp('active_until', { withTimezone: true }), // null = vigente
+    /**
+     * `null` = preço de tabela. Um código (ex.: `fundador`) marca uma linha de
+     * campanha, que só é resolvida por quem pede aquela campanha
+     * explicitamente. A assinatura fixa `price_id`, então o desconto sobrevive
+     * às renovações sem cálculo em runtime.
+     */
+    campaignCode: text('campaign_code'),
     ...timestampsPattern(),
   },
   (t) => ({

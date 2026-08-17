@@ -7,6 +7,7 @@
 import 'server-only';
 
 import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import { dbAdmin, type Tx } from '@/lib/db';
 /* eslint-disable boundaries/element-types -- catálogo de planos (billing) p/ o wizard
@@ -109,11 +110,40 @@ export async function cancelInviteTx(tx: Tx, id: string): Promise<boolean> {
   return row != null;
 }
 
+/**
+ * Código da campanha de lançamento. Quem entra pelo LINK de onboarding paga o
+ * preço de fundador; a futura criação de conta pela landing page resolverá o
+ * preço de tabela simplesmente não pedindo campanha nenhuma.
+ */
+export const FOUNDER_CAMPAIGN = 'fundador';
+
+/**
+ * Decide o par (cobrado, riscado) exibido no wizard.
+ *
+ * Puro de propósito: a regra é de COMUNICAÇÃO, não de banco. Exibir um "de" que
+ * nunca foi praticado é propaganda enganosa pelo CDC, então o riscado só existe
+ * quando há preço de tabela efetivamente diferente do cobrado.
+ */
+export function resolveDisplayPrice(
+  listPriceCents: number | null,
+  founderPriceCents: number | null,
+): { priceCents: number | null; listPriceCents: number | null } {
+  const charged = founderPriceCents ?? listPriceCents;
+  const strike =
+    founderPriceCents != null && listPriceCents != null && listPriceCents !== founderPriceCents
+      ? listPriceCents
+      : null;
+  return { priceCents: charged, listPriceCents: strike };
+}
+
 export interface OnboardingPlan {
   id: string;
   code: string;
   name: string;
+  /** O que a clínica de fato paga (preço de fundador, quando existe). */
   priceCents: number | null;
+  /** Preço de tabela, para exibir riscado. `null` quando não há desconto. */
+  listPriceCents: number | null;
   cycle: string;
 }
 
@@ -122,32 +152,53 @@ export interface OnboardingPlan {
  * não-autenticado → leitura via dbAdmin (RLS não aplica sem sessão).
  */
 export async function listOnboardingPlans(): Promise<OnboardingPlan[]> {
+  const listPrice = alias(prices, 'list_price');
+  const founderPrice = alias(prices, 'founder_price');
   const rows = await dbAdmin
     .select({
       id: plans.id,
       code: plans.code,
       name: plans.name,
-      amount: prices.amount,
-      cycle: prices.billingCycle,
+      listAmount: listPrice.amount,
+      founderAmount: founderPrice.amount,
+      cycle: listPrice.billingCycle,
     })
     .from(plans)
     .leftJoin(
-      prices,
+      listPrice,
       and(
-        eq(prices.planId, plans.id),
-        eq(prices.billingCycle, 'monthly'),
-        isNull(prices.activeUntil),
+        eq(listPrice.planId, plans.id),
+        eq(listPrice.billingCycle, 'monthly'),
+        isNull(listPrice.activeUntil),
+        isNull(listPrice.campaignCode),
+      ),
+    )
+    .leftJoin(
+      founderPrice,
+      and(
+        eq(founderPrice.planId, plans.id),
+        eq(founderPrice.billingCycle, 'monthly'),
+        isNull(founderPrice.activeUntil),
+        eq(founderPrice.campaignCode, FOUNDER_CAMPAIGN),
       ),
     )
     .where(eq(plans.ativo, true))
     .orderBy(asc(plans.name));
-  return rows.map((r) => ({
-    id: r.id,
-    code: r.code,
-    name: r.name,
-    priceCents: r.amount != null ? Math.round(Number(r.amount) * 100) : null,
-    cycle: r.cycle ?? 'monthly',
-  }));
+
+  return rows.map((r) => {
+    const cents = (v: string | null) => (v != null ? Math.round(Number(v) * 100) : null);
+    const list = cents(r.listAmount);
+    const founder = cents(r.founderAmount);
+    // Sem linha de campanha o plano cai no preço de tabela e não há riscado —
+    // o wizard não pode inventar um "de" que nunca foi praticado.
+    return {
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      ...resolveDisplayPrice(list, founder),
+      cycle: r.cycle ?? 'monthly',
+    };
+  });
 }
 
 export interface CheckoutPlan {
@@ -181,6 +232,9 @@ export async function resolveCheckoutPlan(planId: string): Promise<CheckoutPlan 
       ),
     )
     .where(and(eq(plans.id, planId), eq(plans.ativo, true)))
+    // Preço de fundador primeiro: quem chega por convite paga o promocional. O
+    // `limit(1)` sozinho seria não-determinístico com duas linhas vigentes.
+    .orderBy(sql`case when ${prices.campaignCode} = ${FOUNDER_CAMPAIGN} then 0 else 1 end`)
     .limit(1);
   if (!row) return null;
   return {

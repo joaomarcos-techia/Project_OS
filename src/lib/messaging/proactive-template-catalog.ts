@@ -54,9 +54,15 @@ export const PROACTIVE_TEMPLATE_BODIES: Record<
   },
   dunning: {
     // `{{3}}` chega só com o número (`moneyFmt`), por isso o "R$ " é literal.
+    //
+    // Não cita um meio de pagamento específico: a clínica aceita várias formas,
+    // e anunciar só PIX fecha a porta antes da conversa. A cobrança em saúde
+    // revela que a pessoa foi atendida, então o tom é cordial e resolve no
+    // canal privado, com a clínica — nunca cobrando na recepção.
     body:
-      'Olá {{1}}! Identificamos um pagamento pendente referente à sua consulta de {{2}}, ' +
-      'no valor de R$ {{3}}.\n\nPodemos enviar o PIX para você quitar?',
+      'Olá {{1}}! Sobre o seu atendimento de {{2}}, ainda consta um valor em aberto ' +
+      'de R$ {{3}}.\n\nPodemos combinar a melhor forma de pagamento para você? ' +
+      'Responda por aqui e a clínica te apresenta as opções disponíveis.',
     example: ['Maria Silva', '10/08/2026', '150,00'],
   },
   waitlist_offer: {
