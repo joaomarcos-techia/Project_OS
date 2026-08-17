@@ -12,7 +12,10 @@ import { getShellIdentity } from '@/components/painel/shell-identity';
 import { AnnouncementPopup } from '@/components/shared/announcement-popup';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { getImpersonationView } from '@/lib/impersonation';
+import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getActiveAnnouncement } from '@/lib/platform-announcements';
+
+import { HandoffWatcher } from './_painel/handoff-watcher';
 
 import { stopImpersonationAction } from '../../(admin)/admin/actions/impersonation';
 
@@ -52,6 +55,10 @@ export default async function ShellLayout({ children }: { children: ReactNode })
       {impersonation ? (
         <ImpersonationBanner view={impersonation} stopAction={stopImpersonationAction} />
       ) : null}
+      {/* Só monta para quem atende: sem a permissão o watcher nem existe no
+          cliente, então não há polling nem payload de fila para quem não pode
+          ver conversa. A action reautoriza por conta própria. */}
+      {user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS) ? <HandoffWatcher /> : null}
       <PainelShell userName={id.userName} userRole={id.userRole} clinicName={id.clinicName}>
         {children}
       </PainelShell>

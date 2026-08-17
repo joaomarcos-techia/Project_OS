@@ -67,6 +67,46 @@ export interface ListConversationsOpts {
   overdueOnly?: boolean | undefined;
 }
 
+export interface PendingHandoff {
+  conversationId: string;
+  createdAt: string;
+  priority: 'normal' | 'urgent';
+}
+
+/**
+ * Handoffs ABERTOS da clínica — os que ainda esperam um humano.
+ *
+ * Existe para a notificação do shell, então é deliberadamente magra: só id,
+ * instante e prioridade. Nada de nome de paciente ou trecho da conversa — o
+ * payload trafega a cada polling, para todo usuário com a permissão, e uma
+ * notificação não precisa de PII para dizer "alguém está esperando".
+ *
+ * `resolvedAt IS NULL` é o mesmo predicado do dedup da fila: uma linha aberta é
+ * exatamente uma espera não atendida.
+ */
+export async function listOpenHandoffs(
+  clinicId: string,
+  limit = 20,
+): Promise<PendingHandoff[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        conversationId: aiHandoffQueue.conversationId,
+        createdAt: aiHandoffQueue.createdAt,
+        priority: aiHandoffQueue.priority,
+      })
+      .from(aiHandoffQueue)
+      .where(and(eq(aiHandoffQueue.clinicId, clinicId), isNull(aiHandoffQueue.resolvedAt)))
+      .orderBy(desc(aiHandoffQueue.createdAt))
+      .limit(limit);
+    return rows.map((r) => ({
+      conversationId: r.conversationId,
+      createdAt: r.createdAt.toISOString(),
+      priority: r.priority,
+    }));
+  });
+}
+
 /**
  * Fila de conversas. Ordenação NÃO é preferência de UI — é a regra operacional:
  * `handoff` primeiro porque são as que esperam um humano; dentro de cada grupo,
