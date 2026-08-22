@@ -455,6 +455,23 @@ export interface ListLancamentosFilter {
   limit?: number;
 }
 
+export interface ListLancamentosPageFilter {
+  tipo?: LancamentoTipo;
+  status?: LancamentoStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedLancamentos {
+  items: LancamentoSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+const DEFAULT_LANCAMENTOS_PAGE_SIZE = 50;
+const MAX_LANCAMENTOS_PAGE_SIZE = 200;
+
 export async function listLancamentos(
   clinicId: string,
   filter: ListLancamentosFilter = {},
@@ -470,6 +487,57 @@ export async function listLancamentos(
       .orderBy(desc(lancamentos.createdAt))
       .limit(filter.limit ?? 50);
     return rows.map(toLancamentoSummary);
+  });
+}
+
+export async function listLancamentosPage(
+  clinicId: string,
+  filter: ListLancamentosPageFilter = {},
+): Promise<PaginatedLancamentos> {
+  const requestedPage = filter.page;
+  const requestedPageSize = filter.pageSize;
+  const page =
+    typeof requestedPage === 'number' && Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? requestedPage
+      : 1;
+  const pageSize =
+    typeof requestedPageSize === 'number' &&
+    Number.isSafeInteger(requestedPageSize) &&
+    requestedPageSize > 0
+      ? Math.min(requestedPageSize, MAX_LANCAMENTOS_PAGE_SIZE)
+      : DEFAULT_LANCAMENTOS_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+
+  return withTenant(clinicId, async (tx) => {
+    // RLS continua sendo a barreira autoritativa. O predicado explícito reduz a
+    // superfície de erro e garante que lista e total usem exatamente o mesmo tenant.
+    const conds = [eq(lancamentos.clinicId, clinicId)];
+    if (filter.tipo) conds.push(eq(lancamentos.tipo, filter.tipo));
+    if (filter.status) conds.push(eq(lancamentos.status, filter.status));
+    const where = and(...conds);
+
+    const [rows, [countRow]] = await Promise.all([
+      tx
+        .select()
+        .from(lancamentos)
+        .where(where)
+        // created_at não é único; id fecha o empate para evitar itens pulando
+        // entre páginas quando dois lançamentos são criados no mesmo instante.
+        .orderBy(desc(lancamentos.createdAt), desc(lancamentos.id))
+        .limit(pageSize)
+        .offset(offset),
+      tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(lancamentos)
+        .where(where),
+    ]);
+
+    return {
+      items: rows.map(toLancamentoSummary),
+      total: Number(countRow?.total ?? 0),
+      page,
+      pageSize,
+    };
   });
 }
 

@@ -12,6 +12,11 @@ const page = readFileSync(
   resolve(process.cwd(), 'src/app/(app)/(shell)/configuracoes/lgpd/page.tsx'),
   'utf8',
 );
+const workQueue = readFileSync(
+  resolve(process.cwd(), 'src/app/(app)/(shell)/configuracoes/lgpd/lgpd-work-queue.tsx'),
+  'utf8',
+);
+const lgpdUi = `${page}\n${workQueue}`;
 
 describe('LGPD operational workflow integration', () => {
   it('atribui owner e fixa prazo de resposta em 15 dias', () => {
@@ -35,9 +40,9 @@ describe('LGPD operational workflow integration', () => {
   });
 
   it('expoe SLA, responsavel, historico e comunicacao na fila operacional', () => {
-    expect(page).toContain('SLA vencido');
-    expect(page).toContain('Historico de tratamento');
+    expect(lgpdUi).toContain('SLA vencido');
+    expect(lgpdUi).toContain('Histórico de tratamento');
     expect(actions).toContain('export async function markLgpdRequesterNotified');
-    expect(page).toContain('notifyLgpdRequesterForm');
+    expect(lgpdUi).toContain('notifyLgpdRequesterForm');
   });
 });

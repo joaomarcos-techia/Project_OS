@@ -54,6 +54,8 @@ export type {
   MergePatientsInput,
   PatientRelationshipType,
   PatientRelationshipDTO,
+  PatientListItem,
+  PatientListResult,
   PatientSummary,
   DecryptedPatient,
   ProactiveContact,

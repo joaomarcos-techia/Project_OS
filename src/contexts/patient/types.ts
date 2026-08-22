@@ -157,6 +157,22 @@ export interface PatientSummary {
   deletedAt: string | null;
 }
 
+/** Projeção mínima usada na tabela; nenhum dado clínico ou coluna cifrada. */
+export interface PatientListItem {
+  id: string;
+  nome: string;
+  email: string | null;
+  deletedAt: string | null;
+}
+
+/** Resultado paginado da lista operacional de pacientes. */
+export interface PatientListResult {
+  items: PatientListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 /** Fully decrypted patient — produced ONLY by getPatientWithDecryptedFields. */
 export interface DecryptedPatient extends PatientSummary {
   cpf: string;

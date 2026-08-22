@@ -6,7 +6,7 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, ilike, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, sql, type SQL } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
@@ -163,6 +163,32 @@ export async function listProntuariosByPatient(
   });
 }
 
+const RECENT_PATIENT_PRONTUARIOS_LIMIT = 8;
+
+/**
+ * Recorte pequeno para a atividade do perfil do paciente. A aba completa
+ * continua usando `listProntuariosByPatient`, sem limite.
+ */
+export async function listRecentProntuariosByPatient(
+  clinicId: string,
+  patientId: string,
+): Promise<ProntuarioSummary[]> {
+  return withTenant(clinicId, async (tx) => {
+    const activityAt = sql<Date>`CASE
+      WHEN ${prontuarios.status} = 'assinado'
+        THEN COALESCE(${prontuarios.signedAt}, ${prontuarios.updatedAt})
+      ELSE ${prontuarios.updatedAt}
+    END`;
+    const rows = await tx
+      .select()
+      .from(prontuarios)
+      .where(and(eq(prontuarios.clinicId, clinicId), eq(prontuarios.patientId, patientId)))
+      .orderBy(desc(activityAt), desc(prontuarios.id))
+      .limit(RECENT_PATIENT_PRONTUARIOS_LIMIT);
+    return rows.map(toProntuarioSummary);
+  });
+}
+
 export async function getProntuarioById(
   clinicId: string,
   id: string,
@@ -240,6 +266,18 @@ export interface ClinicalDocumentFeedOpts {
   limit?: number;
 }
 
+export interface ClinicalDocumentFeedPageOpts extends Omit<ClinicalDocumentFeedOpts, 'limit'> {
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ClinicalDocumentFeedPageResult {
+  items: ClinicalDocumentFeedItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 const MEDICAL_DOCUMENT_LABEL: Record<string, string> = {
   atestado: 'Atestado',
   declaracao: 'Declaração',
@@ -247,7 +285,7 @@ const MEDICAL_DOCUMENT_LABEL: Record<string, string> = {
   encaminhamento: 'Encaminhamento',
 };
 
-const prescriptionLabel = (kind: PrescriptionRow['kind']): string =>
+const prescriptionLabel = (kind: string): string =>
   kind === 'controle_especial' ? 'Receituário de controle especial' : 'Receita';
 
 export async function listClinicalDocumentFeed(
@@ -309,6 +347,126 @@ export async function listClinicalDocumentFeed(
 
     items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
     return items.slice(0, limit);
+  });
+}
+
+const DEFAULT_CLINICAL_DOCUMENT_PAGE_SIZE = 50;
+const MAX_CLINICAL_DOCUMENT_PAGE_SIZE = 200;
+
+interface ClinicalDocumentFeedDbRow extends Record<string, unknown> {
+  kind: ClinicalDocumentKind;
+  id: string;
+  patient_id: string;
+  patient_nome: string;
+  source_type: string;
+  created_at: Date | string;
+  has_pdf: boolean;
+}
+
+/**
+ * Feed global paginado para `/documentos`.
+ *
+ * A paginação acontece DEPOIS do `UNION ALL`: aplicar `limit/offset` em cada
+ * tabela antes do merge produziria páginas incorretas quando prescrições e
+ * documentos se intercalam. O RLS continua autoritativo via `withTenant`, e os
+ * dois ramos também carregam `clinic_id` explícito como defesa em profundidade.
+ */
+export async function listClinicalDocumentFeedPage(
+  clinicId: string,
+  opts: ClinicalDocumentFeedPageOpts = {},
+): Promise<ClinicalDocumentFeedPageResult> {
+  const page =
+    typeof opts.page === 'number' && Number.isSafeInteger(opts.page) && opts.page > 0
+      ? opts.page
+      : 1;
+  const pageSize =
+    typeof opts.pageSize === 'number' && Number.isSafeInteger(opts.pageSize) && opts.pageSize > 0
+      ? Math.min(opts.pageSize, MAX_CLINICAL_DOCUMENT_PAGE_SIZE)
+      : DEFAULT_CLINICAL_DOCUMENT_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+  const search = opts.search?.trim().slice(0, 64);
+
+  return withTenant(clinicId, async (tx) => {
+    const sources: SQL[] = [];
+
+    if (opts.kind !== 'document') {
+      const conditions: SQL[] = [eq(prescriptions.clinicId, clinicId)];
+      if (opts.patientId) conditions.push(eq(prescriptions.patientId, opts.patientId));
+      if (search) {
+        conditions.push(ilike(prescriptions.snapshotPatientNome, `%${search}%`) as SQL);
+      }
+      sources.push(sql`
+        SELECT
+          'prescription'::text AS kind,
+          ${prescriptions.id} AS id,
+          ${prescriptions.patientId} AS patient_id,
+          ${prescriptions.snapshotPatientNome} AS patient_nome,
+          ${prescriptions.kind}::text AS source_type,
+          ${prescriptions.createdAt} AS created_at,
+          (${prescriptions.pdfStoragePath} IS NOT NULL) AS has_pdf
+        FROM ${prescriptions}
+        WHERE ${and(...conditions)}
+      `);
+    }
+
+    if (opts.kind !== 'prescription') {
+      const conditions: SQL[] = [eq(medicalDocuments.clinicId, clinicId)];
+      if (opts.patientId) conditions.push(eq(medicalDocuments.patientId, opts.patientId));
+      if (search) {
+        conditions.push(ilike(medicalDocuments.snapshotPatientNome, `%${search}%`) as SQL);
+      }
+      sources.push(sql`
+        SELECT
+          'document'::text AS kind,
+          ${medicalDocuments.id} AS id,
+          ${medicalDocuments.patientId} AS patient_id,
+          ${medicalDocuments.snapshotPatientNome} AS patient_nome,
+          ${medicalDocuments.type}::text AS source_type,
+          ${medicalDocuments.createdAt} AS created_at,
+          (${medicalDocuments.pdfStoragePath} IS NOT NULL) AS has_pdf
+        FROM ${medicalDocuments}
+        WHERE ${and(...conditions)}
+      `);
+    }
+
+    // `kind` é um union fechado, portanto sempre existe ao menos uma fonte.
+    const source =
+      sources.length === 1 ? sources[0]! : sql`${sources[0]!} UNION ALL ${sources[1]!}`;
+    const [rows, countRows] = await Promise.all([
+      tx.execute<ClinicalDocumentFeedDbRow>(sql`
+        WITH unified AS (${source})
+        SELECT kind, id, patient_id, patient_nome, source_type, created_at, has_pdf
+        FROM unified
+        ORDER BY created_at DESC, kind DESC, id DESC
+        LIMIT ${pageSize}
+        OFFSET ${offset}
+      `),
+      tx.execute<{ total: number }>(sql`
+        WITH unified AS (${source})
+        SELECT count(*)::int AS total
+        FROM unified
+      `),
+    ]);
+
+    return {
+      items: rows.map((row) => ({
+        kind: row.kind,
+        id: row.id,
+        patientId: row.patient_id,
+        patientNome: row.patient_nome,
+        label:
+          row.kind === 'prescription'
+            ? prescriptionLabel(row.source_type)
+            : (MEDICAL_DOCUMENT_LABEL[row.source_type] ?? 'Documento'),
+        createdAt: toIso(row.created_at)!,
+        pdfHref:
+          row.kind === 'prescription' ? `/prescricoes/${row.id}/pdf` : `/documentos/${row.id}/pdf`,
+        hasPdf: row.has_pdf,
+      })),
+      total: Number(countRows[0]?.total ?? 0),
+      page,
+      pageSize,
+    };
   });
 }
 

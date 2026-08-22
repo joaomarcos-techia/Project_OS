@@ -270,6 +270,41 @@ export interface ListDoctorAbsencesOpts {
   limit?: number;
 }
 
+export type DoctorAbsencePeriod = 'upcoming' | 'past' | 'all';
+
+export interface ListDoctorAbsencesPageOpts {
+  doctorId?: string;
+  period?: DoctorAbsencePeriod;
+  /** Instante de corte injetável para lista e total compartilharem a mesma janela. */
+  asOf?: Date;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedDoctorAbsences {
+  items: DoctorAbsenceDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+const DEFAULT_DOCTOR_ABSENCES_PAGE_SIZE = 30;
+const MAX_DOCTOR_ABSENCES_PAGE_SIZE = 100;
+
+function toDoctorAbsenceDTO(row: typeof doctorAbsences.$inferSelect): DoctorAbsenceDTO {
+  return {
+    id: row.id,
+    doctorId: row.doctorId,
+    startsAt: toIso(row.startsAt)!,
+    endsAt: toIso(row.endsAt)!,
+    reason: row.reason,
+    strategy: row.strategy,
+    replacementDoctorId: row.replacementDoctorId ?? null,
+    affectedAppointments: row.affectedAppointments,
+    createdAt: toIso(row.createdAt)!,
+  };
+}
+
 /** Ausências que intersectam o período informado, ordenadas pelo início. */
 export async function listDoctorAbsences(
   clinicId: string,
@@ -286,19 +321,64 @@ export async function listDoctorAbsences(
       .select()
       .from(doctorAbsences)
       .where(and(...conds))
-      .orderBy(asc(doctorAbsences.startsAt))
+      .orderBy(asc(doctorAbsences.startsAt), asc(doctorAbsences.id))
       .limit(limit);
-    return rows.map((row) => ({
-      id: row.id,
-      doctorId: row.doctorId,
-      startsAt: toIso(row.startsAt)!,
-      endsAt: toIso(row.endsAt)!,
-      reason: row.reason,
-      strategy: row.strategy,
-      replacementDoctorId: row.replacementDoctorId ?? null,
-      affectedAppointments: row.affectedAppointments,
-      createdAt: toIso(row.createdAt)!,
-    }));
+    return rows.map(toDoctorAbsenceDTO);
+  });
+}
+
+/**
+ * Página de ausências para o histórico operacional. Lista e `count(*)` usam o
+ * mesmo predicado tenant-scoped; o `id` fecha empates de data entre páginas.
+ */
+export async function listDoctorAbsencesPage(
+  clinicId: string,
+  opts: ListDoctorAbsencesPageOpts = {},
+): Promise<PaginatedDoctorAbsences> {
+  const page =
+    typeof opts.page === 'number' && Number.isSafeInteger(opts.page) && opts.page > 0
+      ? opts.page
+      : 1;
+  const pageSize =
+    typeof opts.pageSize === 'number' && Number.isSafeInteger(opts.pageSize) && opts.pageSize > 0
+      ? Math.min(opts.pageSize, MAX_DOCTOR_ABSENCES_PAGE_SIZE)
+      : DEFAULT_DOCTOR_ABSENCES_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+  const period = opts.period ?? 'upcoming';
+  const asOf = opts.asOf ?? new Date();
+  const conds: SQL[] = [eq(doctorAbsences.clinicId, clinicId)];
+
+  if (opts.doctorId) conds.push(eq(doctorAbsences.doctorId, opts.doctorId));
+  if (period === 'upcoming') conds.push(gte(doctorAbsences.endsAt, asOf));
+  if (period === 'past') conds.push(lt(doctorAbsences.endsAt, asOf));
+
+  const where = and(...conds);
+  const newestFirst = period !== 'upcoming';
+
+  return withTenant(clinicId, async (tx) => {
+    const [rows, [countRow]] = await Promise.all([
+      tx
+        .select()
+        .from(doctorAbsences)
+        .where(where)
+        .orderBy(
+          newestFirst ? desc(doctorAbsences.startsAt) : asc(doctorAbsences.startsAt),
+          newestFirst ? desc(doctorAbsences.id) : asc(doctorAbsences.id),
+        )
+        .limit(pageSize)
+        .offset(offset),
+      tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(doctorAbsences)
+        .where(where),
+    ]);
+
+    return {
+      items: rows.map(toDoctorAbsenceDTO),
+      total: Number(countRow?.total ?? 0),
+      page,
+      pageSize,
+    };
   });
 }
 

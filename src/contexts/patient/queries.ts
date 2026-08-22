@@ -32,6 +32,8 @@ import {
 } from './schema';
 import type {
   DecryptedPatient,
+  PatientListItem,
+  PatientListResult,
   PatientRelationshipDTO,
   PatientSummary,
   ProactiveContact,
@@ -49,8 +51,58 @@ export function patientsActiveFilter(): SQL {
 const toIso = (v: Date | string | null): string | null =>
   v == null ? null : v instanceof Date ? v.toISOString() : v;
 
+type PatientSummaryRow = Pick<
+  PatientRow,
+  | 'id'
+  | 'clinicId'
+  | 'nome'
+  | 'email'
+  | 'dataNascimento'
+  | 'sexo'
+  | 'obitoEm'
+  | 'mergedIntoPatientId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'deletedAt'
+>;
+
+const patientSummaryColumns = {
+  id: patients.id,
+  clinicId: patients.clinicId,
+  nome: patients.nome,
+  email: patients.email,
+  dataNascimento: patients.dataNascimento,
+  sexo: patients.sexo,
+  obitoEm: patients.obitoEm,
+  mergedIntoPatientId: patients.mergedIntoPatientId,
+  createdAt: patients.createdAt,
+  updatedAt: patients.updatedAt,
+  deletedAt: patients.deletedAt,
+};
+
+const patientListItemColumns = {
+  id: patients.id,
+  nome: patients.nome,
+  email: patients.email,
+  deletedAt: patients.deletedAt,
+};
+
+function toPatientListItem(row: {
+  id: string;
+  nome: string;
+  email: string | null;
+  deletedAt: Date | string | null;
+}): PatientListItem {
+  return {
+    id: row.id,
+    nome: row.nome,
+    email: row.email,
+    deletedAt: toIso(row.deletedAt),
+  };
+}
+
 /** Non-sensitive projection — safe for lists, events and audit. */
-export function toPatientSummary(row: PatientRow): PatientSummary {
+export function toPatientSummary(row: PatientSummaryRow): PatientSummary {
   return {
     id: row.id,
     clinicId: row.clinicId,
@@ -100,14 +152,16 @@ export interface ListPatientsOpts {
   offset?: number;
 }
 
-/** Paginated list. No decryption — name/email only (5.13: lists never decrypt). */
-export async function listPatients(
-  clinicId: string,
-  opts: ListPatientsOpts = {},
-): Promise<PatientSummary[]> {
-  const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
-  const offset = Math.max(opts.offset ?? 0, 0);
-  const conds: SQL[] = [];
+export type ListPatientsPageOpts = Omit<ListPatientsOpts, 'limit' | 'offset'> & {
+  page?: number;
+};
+
+const PATIENTS_PAGE_SIZE = 30;
+
+function patientListConditions(clinicId: string, opts: ListPatientsOpts): SQL[] {
+  // Defesa em profundidade: o predicado explícito acompanha o RLS configurado
+  // por `withTenant`, evitando que a segurança dependa de uma única barreira.
+  const conds: SQL[] = [eq(patients.clinicId, clinicId)];
   if (opts.onlyDeleted) {
     conds.push(sql`${patients.deletedAt} IS NOT NULL` as SQL);
     // Anonimizado é irrecuperável: mostrá-lo na lixeira ofereceria um botão
@@ -117,27 +171,70 @@ export async function listPatients(
     conds.push(patientsActiveFilter());
   }
   // UX-001 — candidatos de AGENDAMENTO não incluem falecidos. O core já recusa
-  // no submit (`assertPatientInClinic` exige `obito_em IS NULL`), mas oferecer o
-  // nome no seletor e só negar depois é retrabalho num contexto sensível. A
-  // guarda do backend permanece: isto é filtro de candidatos, não a barreira.
+  // no submit; isto evita oferecer um candidato inválido, sem substituir a guarda.
   if (opts.excludeDeceased) conds.push(isNull(patients.obitoEm) as SQL);
-  // F-12: bound the search term (trim + cap 64 chars). The value is parameterized
-  // by Drizzle (no SQL injection) and the GIN trigram index serves `%term%`, but
-  // an unbounded string is needless DoS surface. Empty-after-trim → no filter.
-  if (opts.search) {
-    const term = opts.search.trim().slice(0, 64);
-    if (term) conds.push(ilike(patients.nome, `%${term}%`) as SQL);
-  }
+
+  // F-12: valor parametrizado, normalizado e limitado antes do ILIKE.
+  const term = opts.search?.trim().slice(0, 64) ?? '';
+  if (term) conds.push(ilike(patients.nome, `%${term}%`) as SQL);
+  return conds;
+}
+
+/** Paginated list. No decryption — name/email only (5.13: lists never decrypt). */
+export async function listPatients(
+  clinicId: string,
+  opts: ListPatientsOpts = {},
+): Promise<PatientSummary[]> {
+  const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const conds = patientListConditions(clinicId, opts);
 
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
-      .select()
+      .select(patientSummaryColumns)
       .from(patients)
-      .where(conds.length ? and(...conds) : undefined)
-      .orderBy(desc(patients.updatedAt))
+      .where(and(...conds))
+      .orderBy(desc(patients.updatedAt), desc(patients.id))
       .limit(limit)
       .offset(offset);
     return rows.map(toPatientSummary);
+  });
+}
+
+/**
+ * Lista paginada para `/pacientes`. Itens e total usam exatamente os mesmos
+ * filtros dentro do mesmo contexto de tenant; nenhuma coluna cifrada é lida.
+ */
+export async function listPatientsPage(
+  clinicId: string,
+  opts: ListPatientsPageOpts = {},
+): Promise<PatientListResult> {
+  const page =
+    opts.page != null && Number.isSafeInteger(opts.page) && opts.page > 0 ? opts.page : 1;
+  const offset = (page - 1) * PATIENTS_PAGE_SIZE;
+  const where = and(...patientListConditions(clinicId, opts));
+
+  return withTenant(clinicId, async (tx) => {
+    const [rows, [countRow]] = await Promise.all([
+      tx
+        .select(patientListItemColumns)
+        .from(patients)
+        .where(where)
+        .orderBy(desc(patients.updatedAt), desc(patients.id))
+        .limit(PATIENTS_PAGE_SIZE)
+        .offset(offset),
+      tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(patients)
+        .where(where),
+    ]);
+
+    return {
+      items: rows.map(toPatientListItem),
+      total: countRow?.total ?? 0,
+      page,
+      pageSize: PATIENTS_PAGE_SIZE,
+    };
   });
 }
 
