@@ -501,6 +501,31 @@ compacta em vez de tabular: **motivo** = refatoração de documentação; **comm
 - [x] Todo arquivo classificado
 - [x] Zero classe E / F — nada bloqueia
 - [x] Classe B isolada em commits próprios, fora do baseline do redesign
-- [ ] Branch `redesign/qoro-ds-v3` criada
-- [ ] Commits temáticos aplicados na ordem: `fix/*` → `baseline/*` → `docs/refactor`
-- [ ] Suíte verde e baseline de testes registrado
+- [x] Branch `redesign/qoro-ds-v3` criada a partir de `ui-redesign-controlled`
+- [x] 10 commits temáticos aplicados; árvore limpa
+- [x] Suíte verde e baseline registrado
+
+### Baseline registrado (2026-08-22)
+
+| Verificação | Resultado |
+| --- | --- |
+| `pnpm lint` | limpo |
+| `pnpm typecheck` | limpo |
+| `pnpm test` | **2.213 testes / 249 arquivos**, todos verdes |
+| `pnpm build` | sucesso — 190 kB de JS compartilhado |
+
+### Ordem dos commits
+
+Os `baseline/*` vêm **antes** dos `fix/*`, invertendo a ordem sugerida no plano. Os
+primitivos precisam existir antes das telas e das correções que os consomem — `login/page.tsx`
+e `mfa/page.tsx` importam do DS. A separação por assunto, que é o objetivo do gate, fica
+intacta: cada correção continua num commit próprio e identificável.
+
+### Uma correção necessária durante o gate
+
+`slot-floor.test.ts` falhava: o teste de apresentação no fuso fixava `2026-08-20` na janela e
+`normalizeSlotWindow` passou a rejeitá-la como inteiramente passada a partir de 2026-08-21. O
+código estava certo — o comportamento tem cobertura própria no teste vizinho. O relógio do
+teste foi fixado, como os outros testes datados do arquivo já faziam.
+
+Não é regressão do redesign: é um teste que apodrecia por data.
