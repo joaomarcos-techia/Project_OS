@@ -28,7 +28,10 @@ export function StatCard({
   className?: string;
 }) {
   return (
-    <Card className={cn('flex flex-col gap-2.5 p-(--card-pad)', className)}>
+    <Card
+      data-slot="stat-card"
+      className={cn('flex min-w-0 flex-col gap-2 p-(--card-pad)', className)}
+    >
       <div className="flex items-center gap-2">
         {icon ? (
           <span aria-hidden="true" className="text-fg-subtle [&>svg]:size-4">
@@ -39,10 +42,13 @@ export function StatCard({
           {label}
         </span>
       </div>
-      <div className="font-display text-[34px] leading-none font-medium tracking-(--tracking-tight)">
+      <div className="font-mono text-(length:--fs-h2) leading-none font-medium tracking-(--tracking-tight) tabular-nums">
         {value}
         {suffix ? (
-          <small className="font-sans text-base font-medium text-fg-subtle"> {suffix}</small>
+          <small className="font-sans text-(length:--fs-sm) font-medium text-fg-subtle">
+            {' '}
+            {suffix}
+          </small>
         ) : null}
       </div>
       {delta ? (

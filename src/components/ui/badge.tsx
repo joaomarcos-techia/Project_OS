@@ -25,7 +25,7 @@ export const badgeVariants = cva(
         teal: 'border-[color-mix(in_oklch,var(--viz-8)_30%,transparent)] bg-[color-mix(in_oklch,var(--viz-8)_14%,var(--surface))] text-[oklch(0.42_0.08_180)] dark:bg-[color-mix(in_oklch,var(--viz-8)_20%,transparent)] dark:text-[oklch(0.85_0.07_180)]',
         violet:
           'border-[color-mix(in_oklch,var(--viz-3)_30%,transparent)] bg-[color-mix(in_oklch,var(--viz-3)_12%,var(--surface))] text-[oklch(0.44_0.12_300)] dark:bg-[color-mix(in_oklch,var(--viz-3)_20%,transparent)] dark:text-[oklch(0.83_0.09_300)]',
-        ai: 'border-(--ai-border) bg-(--ai-soft) text-accent-700 dark:text-accent-200',
+        ai: 'border-(--ai-border) bg-(--ai-soft) text-brand-accent-700 dark:text-brand-accent-200',
       },
     },
     defaultVariants: { tone: 'gray' },

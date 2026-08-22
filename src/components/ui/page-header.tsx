@@ -28,15 +28,19 @@ export function PageHeader({
       {crumbs ? (
         <Breadcrumbs items={crumbs} className="mb-(--sp-3)" />
       ) : breadcrumb ? (
-        <div className="mb-(--sp-3) flex items-center gap-1.75 font-mono text-[11px] text-fg-subtle [&_.sep]:opacity-50 [&_b]:font-medium [&_b]:text-fg-muted">
+        <div className="mb-(--sp-3) flex items-center gap-1.75 font-mono text-(length:--fs-2xs) text-fg-subtle [&_.sep]:opacity-50 [&_b]:font-medium [&_b]:text-fg-muted">
           {breadcrumb}
         </div>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-(--sp-4)">
         <div className="min-w-0">
-          <h1 className="font-display text-[27px] font-semibold tracking-tight">{title}</h1>
+          <h1 className="text-balance font-display text-(length:--fs-h2) font-semibold tracking-tight">
+            {title}
+          </h1>
           {description ? (
-            <p className="mt-1.25 max-w-160 text-[14.5px] text-fg-muted">{description}</p>
+            <p className="mt-1.25 max-w-160 text-pretty text-(length:--fs-base) text-fg-muted">
+              {description}
+            </p>
           ) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-(--sp-2)">{actions}</div> : null}

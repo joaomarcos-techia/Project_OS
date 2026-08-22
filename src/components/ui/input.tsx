@@ -8,17 +8,18 @@ import { cn } from '@/lib/ui/cn';
  */
 export const fieldControlClassName = cn(
   'w-full appearance-none rounded-(--field-radius) border border-(--field-border) bg-(--field-bg)',
-  'h-(--control-h) px-(--control-px) text-(length:--control-fs) text-(--field-text)',
+  'h-(--control-h) min-h-(--hit-target) px-(--control-px) text-(length:--control-fs) text-(--field-text)',
   'transition-[border-color,box-shadow,background] duration-(--dur-fast)',
   'placeholder:text-(--field-placeholder)',
   'hover:border-border-strong',
-  'focus:border-(--ring) focus:bg-surface focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--ring)_18%,transparent)] focus:outline-none',
+  'focus:border-(--ring) focus:bg-surface focus:outline-none',
+  'focus-visible:shadow-[0_0_0_3px_color-mix(in_oklch,var(--ring)_18%,transparent)]',
   'disabled:cursor-not-allowed disabled:bg-surface-inset disabled:text-fg-subtle',
 );
 
 export const fieldControlInvalidClassName = cn(
   'border-danger-500',
-  'focus:border-danger-500 focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--danger-500)_20%,transparent)]',
+  'focus:border-danger-500 focus-visible:shadow-[0_0_0_3px_color-mix(in_oklch,var(--danger-500)_20%,transparent)]',
 );
 
 type InputProps = ComponentProps<'input'> & { invalid?: boolean };

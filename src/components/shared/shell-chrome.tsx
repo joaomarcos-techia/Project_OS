@@ -1,12 +1,13 @@
 'use client';
 
-import { Menu, Moon, Sun } from 'lucide-react';
+import { Laptop, Menu, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
 import { Logo } from './logo';
+import type { ThemePreference } from './use-theme';
 
 /**
  * Peças de chrome compartilhadas pelos shells (painel tenant e admin) —
@@ -22,7 +23,7 @@ export function MobileNavButton({ open, onClick }: { open: boolean; onClick: () 
       onClick={onClick}
       className={cn(
         // acima do topbar sticky (z-sticky) para o clique não ser interceptado
-        'fixed top-3.5 left-3.5 z-[450] grid size-9 place-items-center rounded-(--r-md) border border-border bg-surface text-fg-muted shadow-xs nav:hidden',
+        'fixed top-3 left-3 z-[450] grid size-(--hit-target) place-items-center rounded-(--r-md) border border-border bg-surface text-fg-muted shadow-xs nav:hidden',
         open && 'hidden',
       )}
     >
@@ -67,7 +68,7 @@ export function SideNavGroupLabel({ children }: { children: ReactNode }) {
 }
 
 const itemBase = cn(
-  'relative flex items-center gap-2.5 rounded-(--r-md) px-(--sp-3) py-2 text-(length:--fs-sm)',
+  'relative flex min-h-(--hit-target) items-center gap-2.5 rounded-(--r-md) px-(--sp-3) py-2 text-(length:--fs-sm)',
   'mb-0.5 transition-colors duration-(--dur-fast)',
 );
 
@@ -160,7 +161,7 @@ export function SidebarFootButton({
       type={type}
       onClick={onClick}
       aria-label={ariaLabel}
-      className="flex w-full items-center justify-between rounded-(--r-sm) px-(--sp-3) py-2 text-(length:--fs-sm) text-fg-muted transition-colors duration-(--dur-fast) hover:bg-surface-hover hover:text-fg"
+      className="flex min-h-(--hit-target) w-full items-center justify-between rounded-(--r-sm) px-(--sp-3) py-2 text-(length:--fs-sm) text-fg-muted transition-colors duration-(--dur-fast) hover:bg-surface-hover hover:text-fg"
     >
       <span className="flex items-center gap-2.25 [&>svg]:size-3.75">
         {icon}
@@ -172,14 +173,24 @@ export function SidebarFootButton({
 }
 
 /** Toggle de tema do rodapé — usado pelos dois shells. */
-export function ThemeFootToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
+export function ThemeFootToggle({
+  theme,
+  onToggle,
+}: {
+  theme: ThemePreference;
+  onToggle: () => void;
+}) {
+  const label =
+    theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
+  const icon = theme === 'dark' ? <Moon /> : theme === 'system' ? <Laptop /> : <Sun />;
+
   return (
     <SidebarFootButton
       onClick={onToggle}
-      aria-label="Alternar tema"
-      icon={dark ? <Moon /> : <Sun />}
-      label={dark ? 'Tema escuro' : 'Tema claro'}
-      trailing={<span className="font-mono text-[10.5px] text-fg-subtle">⌘\</span>}
+      aria-label={`${label}. Alternar tema`}
+      icon={icon}
+      label={label}
+      trailing={<span className="font-mono text-(length:--fs-2xs) text-fg-subtle">⌘\</span>}
     />
   );
 }
@@ -187,7 +198,11 @@ export function ThemeFootToggle({ dark, onToggle }: { dark: boolean; onToggle: (
 /** Wordmark da marca (Qoro) — logo enviada pelo founder (2026-07-04). */
 export function Wordmark() {
   return (
-    <Link href="/" aria-label="Qoro — início" className="flex items-center px-(--sp-5)">
+    <Link
+      href="/"
+      aria-label="Qoro — início"
+      className="flex min-h-(--hit-target) items-center px-(--sp-5)"
+    >
       <Logo className="h-7 w-auto" />
     </Link>
   );

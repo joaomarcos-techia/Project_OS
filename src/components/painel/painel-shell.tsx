@@ -15,6 +15,7 @@ import {
   ThemeFootToggle,
   Wordmark,
 } from '@/components/shared/shell-chrome';
+import { resolvePageLayout } from '@/components/shared/page-layout';
 import { useTheme } from '@/components/shared/use-theme';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -42,11 +43,12 @@ export function PainelShell({
   userRole?: string;
 }) {
   const pathname = usePathname();
-  const { dark, toggle } = useTheme();
+  const { theme, toggle } = useTheme();
   // 0 quando o usuário não tem `view:conversations`: o watcher não é montado e
   // ninguém alimenta o store, então o badge simplesmente não aparece.
   const handoffCount = useOpenHandoffCount();
   const [navOpen, setNavOpen] = useState(false);
+  const pageLayout = resolvePageLayout(pathname);
 
   // fecha o drawer mobile ao trocar de rota
   useEffect(() => {
@@ -152,7 +154,7 @@ export function PainelShell({
                 ) : null}
               </span>
             </div>
-            <ThemeFootToggle dark={dark} onToggle={toggle} />
+            <ThemeFootToggle theme={theme} onToggle={toggle} />
             <form action="/logout" method="post">
               <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
             </form>
@@ -163,7 +165,10 @@ export function PainelShell({
         </ShellSidebar>
 
         <div className="flex min-w-0 flex-col bg-canvas">
-          <main className="mx-auto w-full max-w-330 flex-1 px-(--sp-8) pt-(--sp-6) pb-(--sp-16) max-nav:pt-(--sp-12) max-md:px-(--sp-4)">
+          <main
+            data-page-layout={pageLayout}
+            className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb) max-nav:pt-(--page-pt-mobile)"
+          >
             {children}
           </main>
         </div>

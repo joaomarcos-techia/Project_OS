@@ -55,7 +55,7 @@ export function DialogContent({
         {showClose ? (
           <DialogPrimitive.Close
             aria-label="Fechar"
-            className="absolute top-4 right-4 grid size-8 place-items-center rounded-(--r-sm) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
+            className="absolute top-3 right-3 grid size-(--hit-target) place-items-center rounded-(--r-sm) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
           >
             <X className="size-4" />
           </DialogPrimitive.Close>

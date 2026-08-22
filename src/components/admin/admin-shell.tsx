@@ -25,7 +25,7 @@ import { AdminNav } from './admin-nav';
  */
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { dark, toggle } = useTheme();
+  const { theme, toggle } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <AdminNav />
 
           <div className="flex flex-col gap-1 border-t border-border p-(--sp-3)">
-            <ThemeFootToggle dark={dark} onToggle={toggle} />
+            <ThemeFootToggle theme={theme} onToggle={toggle} />
             <form action="/logout" method="post">
               <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
             </form>
@@ -71,7 +71,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </ShellSidebar>
 
         <div className="flex min-w-0 flex-col bg-canvas">
-          <main className="mx-auto w-full max-w-330 flex-1 px-(--sp-8) pt-(--sp-6) pb-(--sp-16) max-md:px-(--sp-4)">
+          <main
+            data-page-layout="data"
+            className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb) max-nav:pt-(--page-pt-mobile)"
+          >
             {children}
           </main>
         </div>
