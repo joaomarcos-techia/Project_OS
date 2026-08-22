@@ -103,31 +103,41 @@ describe('list_slots pede o piso ao Scheduling', () => {
   });
 
   it('apresenta os slots no fuso da clínica, não na hora UTC do banco', async () => {
-    listSlots.mockResolvedValue([
-      {
-        doctorId: DOCTOR,
-        startAt: '2026-08-20T11:00:00.000Z',
-        endAt: '2026-08-20T11:30:00.000Z',
-        durationMin: 30,
-      },
-    ]);
+    // O relógio é fixado porque a janela é datada: sem isso o teste passa no dia
+    // em que foi escrito e falha no seguinte, quando `normalizeSlotWindow` passa
+    // a rejeitar 2026-08-20 como janela inteiramente passada.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-20T10:00:00.000Z'));
 
-    const out = await getTool('list_slots')!.handler(
-      { date_from: '2026-08-20T00:00:00-03:00', date_to: '2026-08-20T23:59:59-03:00' },
-      ctx,
-    );
-
-    expect(out).toEqual({
-      time_zone: 'America/Sao_Paulo',
-      slots: [
+    try {
+      listSlots.mockResolvedValue([
         {
-          doctor_id: DOCTOR,
-          start_at: '2026-08-20T08:00:00-03:00',
-          end_at: '2026-08-20T08:30:00-03:00',
-          duration_min: 30,
+          doctorId: DOCTOR,
+          startAt: '2026-08-20T11:00:00.000Z',
+          endAt: '2026-08-20T11:30:00.000Z',
+          durationMin: 30,
         },
-      ],
-    });
+      ]);
+
+      const out = await getTool('list_slots')!.handler(
+        { date_from: '2026-08-20T00:00:00-03:00', date_to: '2026-08-20T23:59:59-03:00' },
+        ctx,
+      );
+
+      expect(out).toEqual({
+        time_zone: 'America/Sao_Paulo',
+        slots: [
+          {
+            doctor_id: DOCTOR,
+            start_at: '2026-08-20T08:00:00-03:00',
+            end_at: '2026-08-20T08:30:00-03:00',
+            duration_min: 30,
+          },
+        ],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
