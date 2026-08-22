@@ -89,6 +89,21 @@ boot: preview mal configurado **falha cedo**, não silenciosamente) e em
 
 - [ ] `NEXT_PUBLIC_SENTRY_DSN` → projeto separado ou vazio
 
+## Deployment Protection (descoberto no primeiro deploy)
+
+O preview responde **302 para `vercel.com/sso-api`**: a Deployment Protection da Vercel
+bloqueia qualquer request não autenticado. No browser você passa pela sua sessão Vercel; o
+Playwright do GATE 3 não.
+
+- [ ] **Settings → Deployment Protection → Protection Bypass for Automation** → gerar o segredo
+- [ ] Exportar como `VERCEL_AUTOMATION_BYPASS_SECRET` ao rodar o GATE 3
+
+O harness já manda os headers (`x-vercel-protection-bypass` e `x-vercel-set-bypass-cookie`)
+quando a variável existe — ver `e2e/vercel-bypass.ts`. Sem ela, devolve `{}` e rodar contra
+localhost continua idêntico.
+
+Não desligar a Deployment Protection: o preview serve dado de banco e não deve ficar público.
+
 ## Conta de teste para o GATE 3
 
 O harness visual exige credenciais descartáveis:

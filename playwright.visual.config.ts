@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { vercelBypassHeaders } from './e2e/vercel-bypass';
+
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3000';
 const hasReusableAuth =
   process.env.E2E_AUTH_REUSE === '1' &&
@@ -34,6 +36,7 @@ export default defineConfig({
   ...(hasReusableAuth ? { globalSetup: './e2e/auth-global-setup.ts' } : {}),
   use: {
     baseURL,
+    extraHTTPHeaders: vercelBypassHeaders(),
     ...(hasReusableAuth ? { storageState: '.playwright/.auth/user.json' } : {}),
     trace: 'off',
     video: 'off',

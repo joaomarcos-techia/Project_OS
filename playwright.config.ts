@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { vercelBypassHeaders } from './e2e/vercel-bypass';
+
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3000';
 const mutationE2E = process.env.E2E_MUTATION === '1';
 const retainAllArtifacts = process.env.E2E_ARTIFACTS === '1';
@@ -50,6 +52,7 @@ export default defineConfig({
       : {}),
   use: {
     baseURL,
+    extraHTTPHeaders: vercelBypassHeaders(),
     ...(reuseAuthenticatedState ? { storageState: '.playwright/.auth/user.json' } : {}),
     trace: retainAllArtifacts ? 'on' : 'retain-on-failure',
     screenshot: retainAllArtifacts ? 'on' : 'only-on-failure',

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { chromium } from '@playwright/test';
 
 import { authenticate, hasE2ECredentials } from './auth';
+import { vercelBypassHeaders } from './vercel-bypass';
 
 const authStatePath = path.join('.playwright', '.auth', 'user.json');
 
@@ -32,6 +33,7 @@ export default async function setupAuthenticatedE2E(): Promise<void> {
     const storageState = await existingAuthState();
     const context = await browser.newContext({
       baseURL: baseUrl,
+      extraHTTPHeaders: vercelBypassHeaders(),
       ...(storageState ? { storageState } : {}),
     });
     try {
