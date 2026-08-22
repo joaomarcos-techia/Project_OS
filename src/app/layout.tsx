@@ -1,19 +1,13 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
-import { Hanken_Grotesk, IBM_Plex_Mono, Inter } from 'next/font/google';
+import { DM_Sans, IBM_Plex_Mono } from 'next/font/google';
 
 import './globals.css';
 
-const hanken = Hanken_Grotesk({
+const dmSans = DM_Sans({
   subsets: ['latin'],
-  variable: '--font-hanken',
-  display: 'swap',
-});
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-dm-sans',
   display: 'swap',
 });
 
@@ -32,13 +26,13 @@ export const metadata: Metadata = {
 
 // Aplica o tema salvo antes da pintura — evita flash. Light é o default (ADR-031).
 // Chave 'clinicaos-theme' = a mesma que os shells gravam; data-theme cobre o CSS legado.
-const THEME_INIT = `try{if(localStorage.getItem('clinicaos-theme')==='dark'){var e=document.documentElement;e.classList.add('dark');e.setAttribute('data-theme','dark')}}catch(e){}`;
+const THEME_INIT = `try{var t=localStorage.getItem('clinicaos-theme');var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.setAttribute('data-theme',d?'dark':'light')}catch(e){}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="pt-BR"
-      className={`${hanken.variable} ${inter.variable} ${plexMono.variable}`}
+      className={`${dmSans.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
       <head>

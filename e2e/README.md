@@ -61,3 +61,21 @@ pnpm test:e2e
 
 Não use `E2E_MUTATION=1` contra Preview ou produção. Se uma execução for
 interrompida, a próxima execução mutável remove antes a fixture pendente.
+
+## Auditoria visual responsiva
+
+A matriz visual fica isolada dos specs de mutação e produção. Ela gera 40
+capturas locais (5 rotas × 4 viewports × 2 temas), desliga trace/vídeo e valida
+tema, overflow horizontal, foco inicial e ausência de telas de “Sem acesso”.
+
+```powershell
+$env:E2E_BASE_URL='https://preview.example.test'
+$env:E2E_USER_EMAIL='conta-descartavel@example.test'
+$env:E2E_USER_PASSWORD='...'
+$env:E2E_AUTH_REUSE='1'
+pnpm exec playwright test --config playwright.visual.config.ts
+```
+
+Os artefatos ficam em `.playwright/ui-visual-results/`, já ignorado pelo Git.
+Sem as quatro variáveis, os cenários ficam explicitamente pulados; isso não deve
+ser reportado como aprovação visual.
