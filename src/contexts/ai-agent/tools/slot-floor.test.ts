@@ -76,15 +76,22 @@ describe('list_slots pede o piso ao Scheduling', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('passa notBefore ≈ agora + antecedência mínima', async () => {
-    listSlots.mockResolvedValue([]);
-    const before = Date.now();
-    await getTool('list_slots')!.handler(
-      { date_from: '2026-08-14T00:00:00-03:00', date_to: '2026-08-20T00:00:00-03:00' },
-      ctx,
-    );
-    const notBefore = lastNotBefore();
-    expect(notBefore).toBeInstanceOf(Date);
-    expect(notBefore!.getTime()).toBeGreaterThanOrEqual(before + AGENT_MIN_LEAD_MINUTES * 60_000);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-14T18:00:00.000Z'));
+
+    try {
+      listSlots.mockResolvedValue([]);
+      const before = Date.now();
+      await getTool('list_slots')!.handler(
+        { date_from: '2026-08-14T00:00:00-03:00', date_to: '2026-08-20T00:00:00-03:00' },
+        ctx,
+      );
+      const notBefore = lastNotBefore();
+      expect(notBefore).toBeInstanceOf(Date);
+      expect(notBefore!.getTime()).toBeGreaterThanOrEqual(before + AGENT_MIN_LEAD_MINUTES * 60_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('janela inteiramente passada nem chega ao Scheduling', async () => {
@@ -93,6 +100,34 @@ describe('list_slots pede o piso ao Scheduling', () => {
       ctx,
     );
     expect(listSlots).not.toHaveBeenCalled();
+  });
+
+  it('apresenta os slots no fuso da clínica, não na hora UTC do banco', async () => {
+    listSlots.mockResolvedValue([
+      {
+        doctorId: DOCTOR,
+        startAt: '2026-08-20T11:00:00.000Z',
+        endAt: '2026-08-20T11:30:00.000Z',
+        durationMin: 30,
+      },
+    ]);
+
+    const out = await getTool('list_slots')!.handler(
+      { date_from: '2026-08-20T00:00:00-03:00', date_to: '2026-08-20T23:59:59-03:00' },
+      ctx,
+    );
+
+    expect(out).toEqual({
+      time_zone: 'America/Sao_Paulo',
+      slots: [
+        {
+          doctor_id: DOCTOR,
+          start_at: '2026-08-20T08:00:00-03:00',
+          end_at: '2026-08-20T08:30:00-03:00',
+          duration_min: 30,
+        },
+      ],
+    });
   });
 });
 
@@ -106,7 +141,13 @@ describe('prepare_appointment pede o piso nos DOIS caminhos', () => {
       expiresAt: new Date(Date.now() + 600_000).toISOString(),
     }));
     listProcedures.mockResolvedValue([
-      { id: PROCEDURE, descricao: 'Harmonização Facial', categoria: 'Estética', valorPadrao: 900, duracaoPadraoMin: 60 },
+      {
+        id: PROCEDURE,
+        descricao: 'Harmonização Facial',
+        categoria: 'Estética',
+        valorPadrao: 900,
+        duracaoPadraoMin: 60,
+      },
     ]);
   });
 
@@ -212,9 +253,11 @@ describe('prepare_appointment pede o piso nos DOIS caminhos', () => {
       { doctorId: DOCTOR, startAt: at.toISOString(), endAt: at.toISOString(), durationMin: 60 },
     ]);
     const before = Date.now();
-    await getTool('prepare_appointment')!.handler({ scheduled_at: at.toISOString() }, ctx).catch(
-      () => undefined, // proposePendingAction precisa de tx; o que importa é o argumento acima
-    );
+    await getTool('prepare_appointment')!
+      .handler({ scheduled_at: at.toISOString() }, ctx)
+      .catch(
+        () => undefined, // proposePendingAction precisa de tx; o que importa é o argumento acima
+      );
     expect(lastNotBefore()!.getTime()).toBeGreaterThanOrEqual(
       before + AGENT_MIN_LEAD_MINUTES * 60_000,
     );
