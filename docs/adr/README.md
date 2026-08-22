@@ -1,111 +1,30 @@
-# Architecture Decision Records (ADRs)
+# Decisões arquiteturais vigentes
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-23
->
-> ↩︎ Volta para o [índice mestre](../README.md).
+## Status
 
-> **ADRs carregam carimbo de status (política de 2026-07-23).** Cada ADR tem, logo abaixo do título, um
-> bloco `> **Verificação (data)**` com **Decisão** (ACTIVE/SUPERSEDED/HISTORICAL) e **Implementação**
-> (IMPLEMENTED/PARTIALLY/NOT/UNKNOWN/NEEDS_USER_CONFIRMATION) vs. código. **A prosa da decisão
-> (Context/Decision/Consequences) continua imutável** — só o carimbo é adicionado/atualizado. Quando a
-> decisão muda, um novo ADR cita o anterior (cadeia bidirecional: antigo `SUPERSEDED · Successor`, novo
-> `Supersedes`). Narrativa e histórico vivem em `../history/`; runbooks em `../operations/`.
+Canonical — decisões atuais consolidadas.
 
-## Status de implementação (2026-07-23)
+## Scope
 
-**Padrão:** os 47 ADRs (001–047) estão `Decisão: ACTIVE · Implementação: IMPLEMENTED` — sistema em
-produção (C0–C16 fechadas); confirmação por domínio na Onda 3 da reestruturação. **Exceções:**
+Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras de domínio. O Git preserva esse histórico. Esta tabela contém somente decisões ainda sustentadas pela implementação; arquivos individuais permanecem quando código/scripts os referenciam.
 
-| ADR | Decisão | Implementação | Nota |
-|---|---|---|---|
-| 004 | ACTIVE | **PARTIALLY** | Meta em prod; **fallback Z-API sem adapter** (só a abstração) |
-| 018 | ACTIVE (superseded em parte por 031) | IMPLEMENTED | UI foundation → DS v2 |
-| 030 | ACTIVE | **PARTIALLY** | headers sim; **CSP bloqueante diferida** (sem CSP em `src/`) |
-| 031 | ACTIVE (paleta superseded por 035) | IMPLEMENTED | — |
-| 035 | ACTIVE | IMPLEMENTED | **supersedes** a paleta do 031 |
-| 047 | ACTIVE (de facto) | IMPLEMENTED | texto diz `proposed`, mas **em prod desde 2026-07-20** |
+| Decisão | Estado atual | Fonte canônica |
+| --- | --- | --- |
+| Bounded contexts com internals privados | Accepted | [context map](../architecture/context-map.md) |
+| PostgreSQL/Supabase + Drizzle/postgres.js | Accepted | [database](../database/schema.md) |
+| RLS forçada e `withTenant` na mesma tx | Accepted | [ADR-007](007-rls-implementation-patterns.md) |
+| Supabase Auth + roles/permissions no profile | Accepted | [ADR-008](008-identity-patterns.md) |
+| `claims_version` contra drift JWT | Accepted | [ADR-009](009-claims-drift-mitigation.md) |
+| SECURITY DEFINER somente como seam mínimo auditado | Accepted | [ADR-010](010-security-definer-patterns.md) |
+| Outbox transacional at-least-once | Accepted | [ADR-011](011-outbox-audit-idempotency-patterns.md) |
+| PII/clínico cifrado por tenant | Accepted | [security](../security/model.md) |
+| Prontuário assinado imutável; retenção legal sobre anonimização | Accepted | [patient/clinical](../domains/patient-clinical-lgpd.md) |
+| Meta Cloud API é o único messaging provider funcional | Accepted | [ADR-020](020-messaging-provider-patterns.md) |
+| Gemini é o provider de IA funcional | Accepted | [ADR-022](022-ai-agent-foundation.md) |
+| Confirmação em dois turnos e segurança clínica | Accepted | [ADR-048](048-ai-agent-conversational-safety.md) |
+| Asaas-only, planos/preços separados, sem overage | Accepted | [billing](../billing/subscriptions.md) |
+| Trial 14d e convite mágico HMAC/versionado | Accepted | [onboarding](../onboarding-spec.md) |
+| Inadimplência bloqueia escrita, não login/leitura | Accepted | [billing](../billing/subscriptions.md) |
+| Sentry + logs + métricas + health/heartbeats | Accepted | [operations](../operations/deployment-observability.md) |
 
-**Cadeia de supersessão/emenda:** 018 →(parcial) 031 →(paleta) 035 · 009 →(parcial) 037 · 007+010
-→(emenda) 042 · 007 →(delimita) 041 · 016 →(emenda) 046 · 032 →(refina/emenda) 033 e 039 · 018 →(refina) 028.
-
-_Substitui `adr-conformance.md`: os 47 ADRs têm as 3 seções essenciais (Context/Decision/Consequences);
-ADRs futuros devem incluir também **Alternatives** + **References**._
-
-## Índice
-
-| # | Título | Status | Camada |
-|---|---|---|---|
-| [000](000-template.md) | Template | template | — |
-| [001](001-bounded-contexts.md) | Bounded contexts isolados via DDD | accepted | C0 |
-| [002](002-rls-postgres.md) | RLS Postgres como defesa de isolamento de tenant | accepted | C0 |
-| [003](003-outbox-pattern.md) | Outbox transacional para eventos cross-context | accepted | C0 / C4 |
-| [004](004-meta-cloud-api.md) | Meta Cloud API como provider primário de WhatsApp | accepted | C0 / C10 |
-| [005](005-supabase-vs-firebase.md) | Supabase (Postgres) escolhido sobre Firebase | accepted | C0 / C1 |
-| [006](006-drizzle-orm-pinning.md) | Drizzle ORM com pin exato + driver postgres-js | accepted | C1 |
-| [007](007-rls-implementation-patterns.md) | RLS implementation patterns (FORCE-principal + dual-context + single helper) | accepted | C2 |
-| [008](008-identity-patterns.md) | Identity patterns (super_admin platform-scoped, JWT cache snapshot, RBAC vs RLS) | accepted | C3 |
-| [009](009-claims-drift-mitigation.md) | Claims drift mitigation (trigger + Hook + throttled middleware) | accepted | C3 |
-| [010](010-security-definer-patterns.md) | SECURITY DEFINER patterns (8 rules + PR checklist) | accepted | C3 |
-| [011](011-outbox-audit-idempotency-patterns.md) | Outbox / Audit / Idempotency implementation patterns | accepted | C4 |
-| [012](012-encryption-strategy.md) | Encryption strategy (AES-256-GCM per-tenant via HKDF + lookup HMAC + secret provider) | accepted | C5 |
-| [013](013-clinical-data-ownership.md) | patient_clinical_data fica em C5, C7 é o futuro owner | accepted | C5 |
-| [014](014-scheduling-patterns.md) | Scheduling Core (C6): contratos congelados (R1–R13 + walk-in + lifecycle) | accepted | C6 |
-| [015](015-event-versioning.md) | Versionamento de eventos do outbox (event_type é a fronteira de versão) | accepted | C4+ |
-| [016](016-clinic-lifecycle.md) | Semântica do ciclo de vida de clínica (base; enforcement em C13) | accepted | C2 / C13 |
-| [017](017-clinical-record-retention-vs-lgpd.md) | Retenção de prontuário (CFM) vs hard-delete LGPD | accepted | C7 |
-| [018](018-ui-design-foundation.md) | UI / Design Foundation (DS = verdade de design; foundation-first; tokens Tailwind 4) | accepted | Fundação Visual (pré-C8) |
-| [019](019-consultorio-chamadas.md) | Consultório (C8): orquestração fina + `chamadas` em Clinical + Realtime com RLS por JWT | accepted | C8 |
-| [020](020-messaging-provider-patterns.md) | Messaging Provider Patterns (webhook Meta, inbound/outbound cifrado, dedup, identificação de tenant por número) | accepted | C10 |
-| [021](021-lgpd-anonymization-on-clinical-retention.md) | Anonimização LGPD quando o hard-delete é bloqueado por retenção clínica (RESTRICT) | accepted | Remediação forense pós-C10 |
-| [022](022-ai-agent-foundation.md) | Fundação do AI Agent (provider Gemini, saga LLM-fora-de-TX, guards anti-SAMD, orçamentos) | accepted | C11 |
-| [023](023-ai-agent-intents.md) | AI Agent Intents Core (ator de sistema `ai_agent`, intents executores, memória de coleta) | accepted | C12 |
-| [024](024-plan-model.md) | Modelo de planos (só limites, sem overage, sem feature-gating; enforcement em C13) | accepted | base / C13 |
-| [025](025-billing-architecture.md) | Arquitetura de Billing (Asaas é adapter, não o centro; Billing context é dono do modelo) | accepted | C13 |
-| [026](026-proactive-jobs.md) | Proactive Jobs (proativo determinístico via cron + reativo via IA; lembrete/dunning/followup) | accepted | C14 |
-| [027](027-onboarding-magic-invite.md) | Onboarding via convite mágico (admin → /join wizard → checkout Asaas → saga trial + owner auto-login; reusa webhook C13) | accepted | F1 |
-| [028](028-white-label-scope-pdf-only.md) | White-label restrito aos PDFs (logo + cor no cabeçalho); sem tema de app (refina ADR-018 §5) | accepted | Fundação Visual |
-| [029](029-observability-stack.md) | Observability stack (Sentry + logger in-house + Better Stack + error envelope + health unificado) | accepted | C16 |
-| [030](030-security-headers-csp.md) | Security headers + CSP faseada (Report-Only primeiro, bloqueante com nonce depois) | accepted | C16 |
-| [031](031-design-system-v2-rebrand.md) | Design System v2: rebrand petrol/clay + governança de UI + estrangulamento do CSS legado (supersede parcial ADR-018) | accepted | Fundação Visual |
-| [032](032-mvp-identity-practitioner-model.md) | Modelo de identidade do MVP (colapso User=Employee=Practitioner + predicado `isPractitioner`; canal=email; ciclo de vida + políticas de CRM) | accepted | Identity (C3) |
-| [033](033-consultorio-board-scope-practitioner.md) | Escopo do board do Consultório: practitioner vê a própria fila (refina ADR-032 §2) | accepted | C8 / C19 |
-| [034](034-invite-resend-copy-link.md) | Reenvio de convite copia o link (sem auto-send) — o owner entrega por WhatsApp/e-mail | accepted | Identity (C3) |
-| [035](035-palette-rebrand-navy-orchid.md) | Rebrand de paleta petrol/clay → navy/orchid (Qoro) + swap do wordmark (supersede parcial ADR-031 §2) | accepted | Fundação Visual |
-| [036](036-asconflict-permanece-no-contexto.md) | `asConflict` permanece em cada contexto (não centralizar em `@/lib`) — preserva boundary `context→lib` ao aplicar o S1 | accepted | Contexts / Boundaries |
-| [037](037-server-authoritative-session.md) | Sessão server-authoritative por request (auth epoch na porta única; mata replay de JWT + drift global; middleware perde o heal) — supersede parcial ADR-009 D12/D22/D28 | accepted | Identity (C3) |
-| [038](038-mfa-policy.md) | Política de MFA: obrigatório só para `super_admin` (formaliza o "ADR-008 D6" que nunca foi escrito) | accepted | Identity (C3) |
-| [039](039-member-lifecycle.md) | Ciclo de vida de membro (desativar/reativar/trocar role/override) + bloqueio de agenda com override auditado — emenda ADR-032 §4 | accepted | Identity (C3) |
-| [040](040-invite-acceptance-gate.md) | Aceite do convite como gate de sessão (hook nega claims enquanto pendente) | accepted | Identity (C3) |
-| [041](041-authz-tables-are-not-tenant-tables.md) | Tabela de autorização não é tabela de tenant: read-only para `authenticated` (fecha escalonamento por override — I-13) — delimita ADR-007 D27 | accepted | RLS / Identity |
-| [042](042-rls-initplan-and-public-least-privilege.md) | Policy v2 (helpers de auth em subquery escalar → InitPlan) + least-privilege do `public` atacando o DEFAULT ACL, não só os grants de hoje (A13/A14/A15/N1) — emenda ADR-007 (texto) e ADR-010 (vira default) | accepted | RLS / Grants |
-| [043](043-messaging-retention-not-partitioning.md) | Retenção (não particionamento) contém a mensageria raw: particionar quebraria as UNIQUE de exactly-once (envio duplicado ao paciente). Registro único de retenção + monitor de partições por contiguidade (A2/A5/A7/N2) | accepted | Messaging / Retenção |
-| [044](044-clinical-content-encryption.md) | Cifra do conteúdo clínico (estende ADR-012 ao registro médico): colunas `*_encrypted`, branded type `Encrypted<T>`, seam `project` para não vazar em audit/idempotência (A1). Adia `patient_clinical_data`, não cifra templates | accepted | Clinical / Crypto |
-| [045](045-observability-execution-boundary.md) | Fronteira de observabilidade: `withCron` centraliza os 13 crons, contexto AMBIENTE (AsyncLocalStorage) correlaciona os ~150 emits sem tocá-los, e `captureBackgroundError` leva a exceção de background ao Sentry COM stack (C3/A2/A3/M2). Allowlist tipada fechada no contexto — denylist não segura prosa clínica | accepted | Observabilidade |
-| [046](046-no-login-gate-clinical-record-access.md) | Inadimplência NÃO bloqueia login nem leitura — só ESCRITA. Emenda o ADR-016 (revoga o invariante 3 e a coluna `login` da tabela congelada): o prontuário é registro médico-legal com guarda de 20 anos (CFM 1.821/2007, ADR-017). `isLoginBlocked` removido — nunca foi plugado | accepted | Billing / Compliance |
-| [047](047-ai-conversations-human-handoff.md) | Painel `/conversas` + intervenção humana. `handoff` é pré-condição para resposta manual (mata a corrida agente × humano); primeira implementação da janela de 24h da Meta (fronteiras fechadas: sem inbound e exatamente 24h); envio via outbox, nunca direto da action; `ai_messages` persistida ≠ entregue (selo vem de `outbound_messages`); autoria por `sent_by_user_id` → `profiles` RESTRICT | proposed → **em prod** | AI Agent / Messaging |
-
-| [048](048-ai-agent-conversational-safety.md) | Segurança conversacional do agente: formaliza o contrato de pending actions (que nunca teve ADR), dá saída ao pré-filtro clínico sem afrouxar a blacklist (F-01), resolve data relativa server-side (F-04), põe piso por instante na disponibilidade (F-03), inclui a linha pendente na chave de idempotência (F-05) e coalesce rajadas num turno só (F-08) — emenda ADR-022 §7 | proposed | AI Agent / Segurança |
-
-## Como propor um novo ADR
-
-1. Copie [000-template.md](000-template.md) para `NNN-<short-kebab-name>.md`
-   (próximo número disponível).
-2. Preencha as seções: Context, Decision, Consequences, Alternatives, References.
-3. Status inicial: `proposed`. Vira `accepted` quando o PR é mergeado.
-4. Adicione uma linha no índice acima no mesmo PR.
-
-## Convenções
-
-- Um ADR = uma decisão arquitetural. Decisões pequenas (renomear variável) NÃO precisam de ADR.
-- Cite ADRs anteriores que essa decisão estende, refina ou substitui.
-- Documente alternativas rejeitadas — futuras releituras dependem disso para entender o "porquê".
-- Não escreva sobre código que ainda não existe (a menos que o ADR seja sobre o contrato do que será construído).
-
----
-
-## Veja também
-
-- [../README.md](../README.md) — índice mestre da documentação.
-- [../governance/authority.md](../governance/authority.md) — como código e ADR se relacionam (divergência se classifica).
-- [../engineering/decision-guide.md](../engineering/decision-guide.md) — quando uma mudança exige abrir um ADR.
-- [../architecture/context-map.md](../architecture/context-map.md) — o mapa que ADR-001 estabelece.
+Decisão futura só entra aqui quando adotada na implementação. Uma ideia descartada ou sem código não é `Accepted`.

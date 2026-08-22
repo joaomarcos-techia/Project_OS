@@ -1,46 +1,25 @@
-# Runbook — Disaster Recovery (DR)
+# Disaster recovery
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
->
-> ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
+## Status
 
+Canonical — backup, restore e recuperação.
 
-> C16 FASE 9. Recuperação de perda de dados / banco indisponível. Estende
-> [restore-test.md](./restore-test.md) (que cobre o **teste** trimestral de restore).
+## Backup versionado
 
-## Metas (GAP 5)
+Workflow diário às 06:00 UTC executa `pg_dump` PG17, exclui schemas Supabase gerenciados, cifra com GPG AES-256 e retém artifact por 30 dias. Credencial/chave ficam em secrets do CI.
 
-| Métrica | Alvo | Significado |
-|---|---|---|
-| **RPO** | **≤ 24h** | perda máxima de dados aceitável (Supabase PITR cobre bem melhor que isso; 24h é o teto contratual) |
-| **RTO** | **≤ 4h** | tempo máximo da detecção até o serviço restaurado |
+## Restore test
 
-> Reavaliar após o primeiro teste real de restore (medir o RTO efetivo).
+1. escolha backup e verifique hash/tamanho/descriptografia;
+2. crie banco scratch explicitamente identificado;
+3. execute `pnpm restore:test` com variáveis do scratch;
+4. confira migrations, contagens, constraints, RLS e queries críticas;
+5. destrua o scratch somente após validar o path exato.
 
-## Cenário A — Banco indisponível (não houve perda)
-1. Confirme: `GET /api/health` → `db: down`. Cheque o status do Supabase (dashboard / status page).
-2. Se for incidente do Supabase: nada a restaurar — aguarde + comunique (SEV1). O app degrada (timeouts), não corrompe.
-3. Quando voltar: confirme `db: ok`, e que a fila outbox drena (`oldest_pending_age_s` cai). Eventos pendentes reprocessam sozinhos.
+## Produção
 
-## Cenário B — Perda PARCIAL de dados (delete acidental, bug)
-1. **Não** escreva por cima. Identifique a janela temporal e as tabelas afetadas.
-2. Supabase **PITR**: restaure para um timestamp **antes** do incidente (ver [restore-test.md](./restore-test.md) para o procedimento exato).
-3. Prefira restaurar para um **projeto/branch temporário** e exportar só as linhas afetadas, em vez de sobrescrever produção inteira.
-4. Reconcilie: rode os crons de reconciliação (`/api/cron/financial-reconcile`, `/api/cron/billing-reconcile`) para fechar gaps de estado.
+Restore sobre produção é último recurso e exige autorização, RPO/RTO, snapshot adicional, janela, rollback e comunicação. Não teste restore no banco ativo. Auth/Storage/providers têm backups/estados próprios; `pg_dump` não os restaura.
 
-## Cenário C — Perda TOTAL (projeto corrompido/perdido)
-1. Provisione um novo projeto Supabase.
-2. Restaure do **dump** mais recente (`pnpm db:backup:prod` gera o dump; ver [restore-test.md](./restore-test.md)) ou do PITR.
-3. Aplique migrations faltantes: `pnpm db:migrate:prod`.
-4. Reconfigure secrets (ver [secret-rotation.md](./secret-rotation.md)) e o `DATABASE_URL` no Vercel.
-5. Valide: `GET /api/health` tudo `ok`; smoke crítico (login, criar paciente, agenda).
+## Evidência — 2026-08-18
 
-## Verificação pós-restore (obrigatória)
-- [ ] `GET /api/health` → `status: ok`.
-- [ ] Contagens de sanidade por clínica (pacientes/agendamentos) batem com o esperado.
-- [ ] Fila outbox drenando, sem `failed` represado.
-- [ ] Partições de audit presentes (`audit.default_partition_rows == 0`).
-- [ ] Um export de audit confere o hash (ver [restore-test.md](./restore-test.md) / FASE 13).
-
-## Comunicação
-- SEV1. Comunique janela de indisponibilidade e, se houve perda, o intervalo afetado (RPO real).
+Os dez últimos workflows diários concluíram com sucesso. O artifact mais recente contém dump cifrado não vazio e expira em 2026-09-17. Não houve download, descriptografia ou restore nesta auditoria; recuperabilidade permanece `NOT_TESTED`.

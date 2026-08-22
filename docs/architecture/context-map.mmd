@@ -1,0 +1,54 @@
+%% GERADO por `pnpm arch:graphs` — não edite à mão.
+%% Alto nível. Linha cheia = evento (outbox). Linha tracejada = import do
+%% barrel público do vizinho (exceção `boundaries` justificada no código).
+flowchart LR
+  context_ai_agent["ai-agent"]
+  context_billing["billing"]
+  context_clinical["clinical"]
+  context_feedback["feedback"]
+  context_financial["financial"]
+  context_identity["identity"]
+  context_messaging["messaging"]
+  context_onboarding["onboarding"]
+  context_patient["patient"]
+  context_platform_admin["platform-admin"]
+  context_scheduling["scheduling"]
+  context_tenancy["tenancy"]
+  context_ai_agent -->|"1 evento"| context_ai_agent
+  context_ai_agent -->|"1 evento"| context_billing
+  context_clinical -->|"1 evento"| context_ai_agent
+  context_financial -->|"2 eventos"| context_scheduling
+  context_messaging -->|"1 evento"| context_ai_agent
+  context_patient -->|"2 eventos"| context_patient
+  context_patient -->|"2 eventos"| context_scheduling
+  context_scheduling -->|"1 evento"| context_ai_agent
+  context_scheduling -->|"1 evento"| context_billing
+  context_scheduling -->|"1 evento"| context_clinical
+  context_scheduling -->|"1 evento"| context_financial
+  context_ai_agent -.->|import| context_clinical
+  context_ai_agent -.->|import| context_financial
+  context_ai_agent -.->|import| context_messaging
+  context_ai_agent -.->|import| context_patient
+  context_ai_agent -.->|import| context_scheduling
+  context_ai_agent -.->|import| context_tenancy
+  context_billing -.->|import| context_ai_agent
+  context_billing -.->|import| context_scheduling
+  context_billing -.->|import| context_tenancy
+  context_clinical -.->|import| context_identity
+  context_clinical -.->|import| context_patient
+  context_clinical -.->|import| context_scheduling
+  context_clinical -.->|import| context_tenancy
+  context_feedback -.->|import| context_tenancy
+  context_financial -.->|import| context_scheduling
+  context_financial -.->|import| context_tenancy
+  context_identity -.->|import| context_tenancy
+  context_messaging -.->|import| context_patient
+  context_messaging -.->|import| context_tenancy
+  context_onboarding -.->|import| context_ai_agent
+  context_onboarding -.->|import| context_billing
+  context_onboarding -.->|import| context_identity
+  context_onboarding -.->|import| context_tenancy
+  context_patient -.->|import| context_tenancy
+  context_scheduling -.->|import| context_financial
+  context_scheduling -.->|import| context_identity
+  context_scheduling -.->|import| context_tenancy

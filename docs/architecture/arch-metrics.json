@@ -1,0 +1,681 @@
+{
+  "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
+  "totals": {
+    "modules": 623,
+    "elements": 52,
+    "importEdges": 264,
+    "moduleCycles": 0,
+    "events": 57,
+    "eventsWithoutConsumer": 43
+  },
+  "elements": [
+    {
+      "id": "app:(admin)",
+      "kind": "app",
+      "fanIn": 1,
+      "fanOut": 25,
+      "dependsOn": [
+        "component:admin",
+        "component:painel",
+        "component:shared",
+        "component:ui",
+        "context:ai-agent",
+        "context:billing",
+        "context:feedback",
+        "context:identity",
+        "context:messaging",
+        "context:onboarding",
+        "context:tenancy",
+        "lib:audit",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:email",
+        "lib:env",
+        "lib:http",
+        "lib:impersonation",
+        "lib:observability",
+        "lib:pdf",
+        "lib:platform-announcements",
+        "lib:platform-settings",
+        "lib:storage",
+        "lib:ui"
+      ]
+    },
+    {
+      "id": "app:(app)",
+      "kind": "app",
+      "fanIn": 0,
+      "fanOut": 30,
+      "dependsOn": [
+        "app:(admin)",
+        "component:admin",
+        "component:painel",
+        "component:shared",
+        "component:ui",
+        "context:ai-agent",
+        "context:billing",
+        "context:clinical",
+        "context:feedback",
+        "context:financial",
+        "context:identity",
+        "context:messaging",
+        "context:onboarding",
+        "context:patient",
+        "context:scheduling",
+        "context:tenancy",
+        "lib:audit",
+        "lib:auth",
+        "lib:db",
+        "lib:env",
+        "lib:format",
+        "lib:idempotency",
+        "lib:impersonation",
+        "lib:masks",
+        "lib:observability",
+        "lib:pdf",
+        "lib:platform-announcements",
+        "lib:realtime",
+        "lib:storage",
+        "lib:ui"
+      ]
+    },
+    {
+      "id": "app:api",
+      "kind": "app",
+      "fanIn": 0,
+      "fanOut": 18,
+      "dependsOn": [
+        "context:ai-agent",
+        "context:billing",
+        "context:clinical",
+        "context:financial",
+        "context:messaging",
+        "context:patient",
+        "context:scheduling",
+        "lib:audit",
+        "lib:auth",
+        "lib:cron-heartbeat",
+        "lib:db",
+        "lib:env",
+        "lib:http",
+        "lib:messaging",
+        "lib:observability",
+        "lib:outbox",
+        "lib:platform-settings",
+        "lib:storage"
+      ]
+    },
+    {
+      "id": "app:error",
+      "kind": "app",
+      "fanIn": 0,
+      "fanOut": 1,
+      "dependsOn": [
+        "component:shared"
+      ]
+    },
+    {
+      "id": "app:global-error",
+      "kind": "app",
+      "fanIn": 0,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "app:layout",
+      "kind": "app",
+      "fanIn": 0,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "app:not-found",
+      "kind": "app",
+      "fanIn": 0,
+      "fanOut": 1,
+      "dependsOn": [
+        "component:ui"
+      ]
+    },
+    {
+      "id": "app:page",
+      "kind": "app",
+      "fanIn": 0,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "component:admin",
+      "kind": "component",
+      "fanIn": 2,
+      "fanOut": 4,
+      "dependsOn": [
+        "component:painel",
+        "component:shared",
+        "component:ui",
+        "lib:impersonation"
+      ]
+    },
+    {
+      "id": "component:painel",
+      "kind": "component",
+      "fanIn": 3,
+      "fanOut": 3,
+      "dependsOn": [
+        "component:shared",
+        "component:ui",
+        "lib:auth"
+      ]
+    },
+    {
+      "id": "component:shared",
+      "kind": "component",
+      "fanIn": 5,
+      "fanOut": 2,
+      "dependsOn": [
+        "component:ui",
+        "lib:ui"
+      ]
+    },
+    {
+      "id": "component:ui",
+      "kind": "component",
+      "fanIn": 6,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:ui"
+      ]
+    },
+    {
+      "id": "context:ai-agent",
+      "kind": "context",
+      "fanIn": 6,
+      "fanOut": 19,
+      "dependsOn": [
+        "context:clinical",
+        "context:financial",
+        "context:messaging",
+        "context:patient",
+        "context:scheduling",
+        "context:tenancy",
+        "lib:agent",
+        "lib:ai",
+        "lib:audit",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:env",
+        "lib:format",
+        "lib:idempotency",
+        "lib:observability",
+        "lib:outbox",
+        "lib:platform-settings",
+        "lib:sanitize"
+      ]
+    },
+    {
+      "id": "context:billing",
+      "kind": "context",
+      "fanIn": 5,
+      "fanOut": 10,
+      "dependsOn": [
+        "context:ai-agent",
+        "context:scheduling",
+        "context:tenancy",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:env",
+        "lib:observability",
+        "lib:outbox",
+        "lib:tenant-access"
+      ]
+    },
+    {
+      "id": "context:clinical",
+      "kind": "context",
+      "fanIn": 4,
+      "fanOut": 13,
+      "dependsOn": [
+        "context:identity",
+        "context:patient",
+        "context:scheduling",
+        "context:tenancy",
+        "lib:audit",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:idempotency",
+        "lib:outbox",
+        "lib:pdf",
+        "lib:storage",
+        "lib:tenant-access"
+      ]
+    },
+    {
+      "id": "context:feedback",
+      "kind": "context",
+      "fanIn": 3,
+      "fanOut": 2,
+      "dependsOn": [
+        "context:tenancy",
+        "lib:db"
+      ]
+    },
+    {
+      "id": "context:financial",
+      "kind": "context",
+      "fanIn": 5,
+      "fanOut": 9,
+      "dependsOn": [
+        "context:scheduling",
+        "context:tenancy",
+        "lib:audit",
+        "lib:auth",
+        "lib:db",
+        "lib:financial",
+        "lib:idempotency",
+        "lib:outbox",
+        "lib:validation"
+      ]
+    },
+    {
+      "id": "context:identity",
+      "kind": "context",
+      "fanIn": 7,
+      "fanOut": 8,
+      "dependsOn": [
+        "context:tenancy",
+        "lib:audit",
+        "lib:auth",
+        "lib:db",
+        "lib:http",
+        "lib:idempotency",
+        "lib:observability",
+        "lib:outbox"
+      ]
+    },
+    {
+      "id": "context:messaging",
+      "kind": "context",
+      "fanIn": 5,
+      "fanOut": 12,
+      "dependsOn": [
+        "context:patient",
+        "context:tenancy",
+        "lib:audit",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:env",
+        "lib:format",
+        "lib:idempotency",
+        "lib:messaging",
+        "lib:observability",
+        "lib:outbox"
+      ]
+    },
+    {
+      "id": "context:onboarding",
+      "kind": "context",
+      "fanIn": 3,
+      "fanOut": 10,
+      "dependsOn": [
+        "context:ai-agent",
+        "context:billing",
+        "context:identity",
+        "context:tenancy",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:env",
+        "lib:observability",
+        "lib:outbox"
+      ]
+    },
+    {
+      "id": "context:patient",
+      "kind": "context",
+      "fanIn": 6,
+      "fanOut": 11,
+      "dependsOn": [
+        "context:tenancy",
+        "lib:agent",
+        "lib:audit",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:email",
+        "lib:idempotency",
+        "lib:observability",
+        "lib:outbox",
+        "lib:storage"
+      ]
+    },
+    {
+      "id": "context:platform-admin",
+      "kind": "context",
+      "fanIn": 0,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "context:scheduling",
+      "kind": "context",
+      "fanIn": 7,
+      "fanOut": 10,
+      "dependsOn": [
+        "context:financial",
+        "context:identity",
+        "context:tenancy",
+        "lib:agent",
+        "lib:audit",
+        "lib:auth",
+        "lib:db",
+        "lib:idempotency",
+        "lib:observability",
+        "lib:outbox"
+      ]
+    },
+    {
+      "id": "context:tenancy",
+      "kind": "context",
+      "fanIn": 15,
+      "fanOut": 6,
+      "dependsOn": [
+        "lib:audit",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:storage",
+        "lib:validation"
+      ]
+    },
+    {
+      "id": "lib:agent",
+      "kind": "lib",
+      "fanIn": 3,
+      "fanOut": 2,
+      "dependsOn": [
+        "lib:audit",
+        "lib:idempotency"
+      ]
+    },
+    {
+      "id": "lib:ai",
+      "kind": "lib",
+      "fanIn": 1,
+      "fanOut": 2,
+      "dependsOn": [
+        "lib:env",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:audit",
+      "kind": "lib",
+      "fanIn": 16,
+      "fanOut": 4,
+      "dependsOn": [
+        "lib:auth",
+        "lib:db",
+        "lib:observability",
+        "lib:sanitize"
+      ]
+    },
+    {
+      "id": "lib:auth",
+      "kind": "lib",
+      "fanIn": 20,
+      "fanOut": 6,
+      "dependsOn": [
+        "context:identity",
+        "context:tenancy",
+        "lib:db",
+        "lib:env",
+        "lib:impersonation",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:cron-heartbeat",
+      "kind": "lib",
+      "fanIn": 2,
+      "fanOut": 2,
+      "dependsOn": [
+        "lib:db",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:crypto",
+      "kind": "lib",
+      "fanIn": 9,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:env"
+      ]
+    },
+    {
+      "id": "lib:db",
+      "kind": "lib",
+      "fanIn": 25,
+      "fanOut": 13,
+      "dependsOn": [
+        "context:ai-agent",
+        "context:billing",
+        "context:clinical",
+        "context:feedback",
+        "context:financial",
+        "context:identity",
+        "context:messaging",
+        "context:onboarding",
+        "context:patient",
+        "context:scheduling",
+        "context:tenancy",
+        "lib:env",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:email",
+      "kind": "lib",
+      "fanIn": 2,
+      "fanOut": 2,
+      "dependsOn": [
+        "lib:auth",
+        "lib:env"
+      ]
+    },
+    {
+      "id": "lib:env",
+      "kind": "lib",
+      "fanIn": 18,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:financial",
+      "kind": "lib",
+      "fanIn": 1,
+      "fanOut": 3,
+      "dependsOn": [
+        "lib:audit",
+        "lib:db",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:format",
+      "kind": "lib",
+      "fanIn": 4,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:http",
+      "kind": "lib",
+      "fanIn": 3,
+      "fanOut": 5,
+      "dependsOn": [
+        "lib:audit",
+        "lib:auth",
+        "lib:cron-heartbeat",
+        "lib:env",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:idempotency",
+      "kind": "lib",
+      "fanIn": 11,
+      "fanOut": 8,
+      "dependsOn": [
+        "lib:audit",
+        "lib:auth",
+        "lib:db",
+        "lib:env",
+        "lib:observability",
+        "lib:outbox",
+        "lib:sanitize",
+        "lib:tenant-access"
+      ]
+    },
+    {
+      "id": "lib:impersonation",
+      "kind": "lib",
+      "fanIn": 4,
+      "fanOut": 3,
+      "dependsOn": [
+        "context:tenancy",
+        "lib:db",
+        "lib:env"
+      ]
+    },
+    {
+      "id": "lib:masks",
+      "kind": "lib",
+      "fanIn": 1,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:messaging",
+      "kind": "lib",
+      "fanIn": 2,
+      "fanOut": 7,
+      "dependsOn": [
+        "lib:audit",
+        "lib:crypto",
+        "lib:db",
+        "lib:env",
+        "lib:format",
+        "lib:idempotency",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:observability",
+      "kind": "lib",
+      "fanIn": 20,
+      "fanOut": 2,
+      "dependsOn": [
+        "lib:env",
+        "lib:sanitize"
+      ]
+    },
+    {
+      "id": "lib:outbox",
+      "kind": "lib",
+      "fanIn": 11,
+      "fanOut": 4,
+      "dependsOn": [
+        "lib:db",
+        "lib:env",
+        "lib:idempotency",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:pdf",
+      "kind": "lib",
+      "fanIn": 3,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:platform-announcements",
+      "kind": "lib",
+      "fanIn": 2,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:db"
+      ]
+    },
+    {
+      "id": "lib:platform-settings",
+      "kind": "lib",
+      "fanIn": 3,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:db"
+      ]
+    },
+    {
+      "id": "lib:realtime",
+      "kind": "lib",
+      "fanIn": 1,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:auth"
+      ]
+    },
+    {
+      "id": "lib:sanitize",
+      "kind": "lib",
+      "fanIn": 4,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:storage",
+      "kind": "lib",
+      "fanIn": 6,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:auth"
+      ]
+    },
+    {
+      "id": "lib:tenant-access",
+      "kind": "lib",
+      "fanIn": 3,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:db"
+      ]
+    },
+    {
+      "id": "lib:test",
+      "kind": "lib",
+      "fanIn": 0,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:ui",
+      "kind": "lib",
+      "fanIn": 4,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:validation",
+      "kind": "lib",
+      "fanIn": 2,
+      "fanOut": 0,
+      "dependsOn": []
+    }
+  ]
+}

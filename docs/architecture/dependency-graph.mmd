@@ -1,0 +1,327 @@
+%% GERADO por `pnpm arch:graphs` — não edite à mão.
+%% Acoplamento por IMPORT, agregado por elemento.
+flowchart LR
+  subgraph apps["app"]
+    app__admin_["(admin)"]
+    app__app_["(app)"]
+    app_api["api"]
+    app_error["error"]
+    app_global_error["global-error"]
+    app_layout["layout"]
+    app_not_found["not-found"]
+    app_page["page"]
+  end
+  subgraph contexts["context"]
+    context_ai_agent["ai-agent"]
+    context_billing["billing"]
+    context_clinical["clinical"]
+    context_feedback["feedback"]
+    context_financial["financial"]
+    context_identity["identity"]
+    context_messaging["messaging"]
+    context_onboarding["onboarding"]
+    context_patient["patient"]
+    context_platform_admin["platform-admin"]
+    context_scheduling["scheduling"]
+    context_tenancy["tenancy"]
+  end
+  subgraph libs["lib"]
+    lib_agent["agent"]
+    lib_ai["ai"]
+    lib_audit["audit"]
+    lib_auth["auth"]
+    lib_cron_heartbeat["cron-heartbeat"]
+    lib_crypto["crypto"]
+    lib_db["db"]
+    lib_email["email"]
+    lib_env["env"]
+    lib_financial["financial"]
+    lib_format["format"]
+    lib_http["http"]
+    lib_idempotency["idempotency"]
+    lib_impersonation["impersonation"]
+    lib_masks["masks"]
+    lib_messaging["messaging"]
+    lib_observability["observability"]
+    lib_outbox["outbox"]
+    lib_pdf["pdf"]
+    lib_platform_announcements["platform-announcements"]
+    lib_platform_settings["platform-settings"]
+    lib_realtime["realtime"]
+    lib_sanitize["sanitize"]
+    lib_storage["storage"]
+    lib_tenant_access["tenant-access"]
+    lib_test["test"]
+    lib_ui["ui"]
+    lib_validation["validation"]
+  end
+  subgraph components["component"]
+    component_admin["admin"]
+    component_painel["painel"]
+    component_shared["shared"]
+    component_ui["ui"]
+  end
+  app__admin_ --> component_admin
+  app__admin_ --> component_painel
+  app__admin_ --> component_shared
+  app__admin_ --> component_ui
+  app__admin_ --> context_ai_agent
+  app__admin_ --> context_billing
+  app__admin_ --> context_feedback
+  app__admin_ --> context_identity
+  app__admin_ --> context_messaging
+  app__admin_ --> context_onboarding
+  app__admin_ --> context_tenancy
+  app__admin_ --> lib_audit
+  app__admin_ --> lib_auth
+  app__admin_ --> lib_crypto
+  app__admin_ --> lib_db
+  app__admin_ --> lib_email
+  app__admin_ --> lib_env
+  app__admin_ --> lib_http
+  app__admin_ --> lib_impersonation
+  app__admin_ --> lib_observability
+  app__admin_ --> lib_pdf
+  app__admin_ --> lib_platform_announcements
+  app__admin_ --> lib_platform_settings
+  app__admin_ --> lib_storage
+  app__admin_ --> lib_ui
+  app__app_ --> app__admin_
+  app__app_ --> component_admin
+  app__app_ --> component_painel
+  app__app_ --> component_shared
+  app__app_ --> component_ui
+  app__app_ --> context_ai_agent
+  app__app_ --> context_billing
+  app__app_ --> context_clinical
+  app__app_ --> context_feedback
+  app__app_ --> context_financial
+  app__app_ --> context_identity
+  app__app_ --> context_messaging
+  app__app_ --> context_onboarding
+  app__app_ --> context_patient
+  app__app_ --> context_scheduling
+  app__app_ --> context_tenancy
+  app__app_ --> lib_audit
+  app__app_ --> lib_auth
+  app__app_ --> lib_db
+  app__app_ --> lib_env
+  app__app_ --> lib_format
+  app__app_ --> lib_idempotency
+  app__app_ --> lib_impersonation
+  app__app_ --> lib_masks
+  app__app_ --> lib_observability
+  app__app_ --> lib_pdf
+  app__app_ --> lib_platform_announcements
+  app__app_ --> lib_realtime
+  app__app_ --> lib_storage
+  app__app_ --> lib_ui
+  app_api --> context_ai_agent
+  app_api --> context_billing
+  app_api --> context_clinical
+  app_api --> context_financial
+  app_api --> context_messaging
+  app_api --> context_patient
+  app_api --> context_scheduling
+  app_api --> lib_audit
+  app_api --> lib_auth
+  app_api --> lib_cron_heartbeat
+  app_api --> lib_db
+  app_api --> lib_env
+  app_api --> lib_http
+  app_api --> lib_messaging
+  app_api --> lib_observability
+  app_api --> lib_outbox
+  app_api --> lib_platform_settings
+  app_api --> lib_storage
+  app_error --> component_shared
+  app_not_found --> component_ui
+  component_admin --> component_painel
+  component_admin --> component_shared
+  component_admin --> component_ui
+  component_admin --> lib_impersonation
+  component_painel --> component_shared
+  component_painel --> component_ui
+  component_painel --> lib_auth
+  component_shared --> component_ui
+  component_shared --> lib_ui
+  component_ui --> lib_ui
+  context_ai_agent --> context_clinical
+  context_ai_agent --> context_financial
+  context_ai_agent --> context_messaging
+  context_ai_agent --> context_patient
+  context_ai_agent --> context_scheduling
+  context_ai_agent --> context_tenancy
+  context_ai_agent --> lib_agent
+  context_ai_agent --> lib_ai
+  context_ai_agent --> lib_audit
+  context_ai_agent --> lib_auth
+  context_ai_agent --> lib_crypto
+  context_ai_agent --> lib_db
+  context_ai_agent --> lib_env
+  context_ai_agent --> lib_format
+  context_ai_agent --> lib_idempotency
+  context_ai_agent --> lib_observability
+  context_ai_agent --> lib_outbox
+  context_ai_agent --> lib_platform_settings
+  context_ai_agent --> lib_sanitize
+  context_billing --> context_ai_agent
+  context_billing --> context_scheduling
+  context_billing --> context_tenancy
+  context_billing --> lib_auth
+  context_billing --> lib_crypto
+  context_billing --> lib_db
+  context_billing --> lib_env
+  context_billing --> lib_observability
+  context_billing --> lib_outbox
+  context_billing --> lib_tenant_access
+  context_clinical --> context_identity
+  context_clinical --> context_patient
+  context_clinical --> context_scheduling
+  context_clinical --> context_tenancy
+  context_clinical --> lib_audit
+  context_clinical --> lib_auth
+  context_clinical --> lib_crypto
+  context_clinical --> lib_db
+  context_clinical --> lib_idempotency
+  context_clinical --> lib_outbox
+  context_clinical --> lib_pdf
+  context_clinical --> lib_storage
+  context_clinical --> lib_tenant_access
+  context_feedback --> context_tenancy
+  context_feedback --> lib_db
+  context_financial --> context_scheduling
+  context_financial --> context_tenancy
+  context_financial --> lib_audit
+  context_financial --> lib_auth
+  context_financial --> lib_db
+  context_financial --> lib_financial
+  context_financial --> lib_idempotency
+  context_financial --> lib_outbox
+  context_financial --> lib_validation
+  context_identity --> context_tenancy
+  context_identity --> lib_audit
+  context_identity --> lib_auth
+  context_identity --> lib_db
+  context_identity --> lib_http
+  context_identity --> lib_idempotency
+  context_identity --> lib_observability
+  context_identity --> lib_outbox
+  context_messaging --> context_patient
+  context_messaging --> context_tenancy
+  context_messaging --> lib_audit
+  context_messaging --> lib_auth
+  context_messaging --> lib_crypto
+  context_messaging --> lib_db
+  context_messaging --> lib_env
+  context_messaging --> lib_format
+  context_messaging --> lib_idempotency
+  context_messaging --> lib_messaging
+  context_messaging --> lib_observability
+  context_messaging --> lib_outbox
+  context_onboarding --> context_ai_agent
+  context_onboarding --> context_billing
+  context_onboarding --> context_identity
+  context_onboarding --> context_tenancy
+  context_onboarding --> lib_auth
+  context_onboarding --> lib_crypto
+  context_onboarding --> lib_db
+  context_onboarding --> lib_env
+  context_onboarding --> lib_observability
+  context_onboarding --> lib_outbox
+  context_patient --> context_tenancy
+  context_patient --> lib_agent
+  context_patient --> lib_audit
+  context_patient --> lib_auth
+  context_patient --> lib_crypto
+  context_patient --> lib_db
+  context_patient --> lib_email
+  context_patient --> lib_idempotency
+  context_patient --> lib_observability
+  context_patient --> lib_outbox
+  context_patient --> lib_storage
+  context_scheduling --> context_financial
+  context_scheduling --> context_identity
+  context_scheduling --> context_tenancy
+  context_scheduling --> lib_agent
+  context_scheduling --> lib_audit
+  context_scheduling --> lib_auth
+  context_scheduling --> lib_db
+  context_scheduling --> lib_idempotency
+  context_scheduling --> lib_observability
+  context_scheduling --> lib_outbox
+  context_tenancy --> lib_audit
+  context_tenancy --> lib_auth
+  context_tenancy --> lib_crypto
+  context_tenancy --> lib_db
+  context_tenancy --> lib_storage
+  context_tenancy --> lib_validation
+  lib_agent --> lib_audit
+  lib_agent --> lib_idempotency
+  lib_ai --> lib_env
+  lib_ai --> lib_observability
+  lib_audit --> lib_auth
+  lib_audit --> lib_db
+  lib_audit --> lib_observability
+  lib_audit --> lib_sanitize
+  lib_auth --> context_identity
+  lib_auth --> context_tenancy
+  lib_auth --> lib_db
+  lib_auth --> lib_env
+  lib_auth --> lib_impersonation
+  lib_auth --> lib_observability
+  lib_cron_heartbeat --> lib_db
+  lib_cron_heartbeat --> lib_observability
+  lib_crypto --> lib_env
+  lib_db --> context_ai_agent
+  lib_db --> context_billing
+  lib_db --> context_clinical
+  lib_db --> context_feedback
+  lib_db --> context_financial
+  lib_db --> context_identity
+  lib_db --> context_messaging
+  lib_db --> context_onboarding
+  lib_db --> context_patient
+  lib_db --> context_scheduling
+  lib_db --> context_tenancy
+  lib_db --> lib_env
+  lib_db --> lib_observability
+  lib_email --> lib_auth
+  lib_email --> lib_env
+  lib_financial --> lib_audit
+  lib_financial --> lib_db
+  lib_financial --> lib_observability
+  lib_http --> lib_audit
+  lib_http --> lib_auth
+  lib_http --> lib_cron_heartbeat
+  lib_http --> lib_env
+  lib_http --> lib_observability
+  lib_idempotency --> lib_audit
+  lib_idempotency --> lib_auth
+  lib_idempotency --> lib_db
+  lib_idempotency --> lib_env
+  lib_idempotency --> lib_observability
+  lib_idempotency --> lib_outbox
+  lib_idempotency --> lib_sanitize
+  lib_idempotency --> lib_tenant_access
+  lib_impersonation --> context_tenancy
+  lib_impersonation --> lib_db
+  lib_impersonation --> lib_env
+  lib_messaging --> lib_audit
+  lib_messaging --> lib_crypto
+  lib_messaging --> lib_db
+  lib_messaging --> lib_env
+  lib_messaging --> lib_format
+  lib_messaging --> lib_idempotency
+  lib_messaging --> lib_observability
+  lib_observability --> lib_env
+  lib_observability --> lib_sanitize
+  lib_outbox --> lib_db
+  lib_outbox --> lib_env
+  lib_outbox --> lib_idempotency
+  lib_outbox --> lib_observability
+  lib_platform_announcements --> lib_db
+  lib_platform_settings --> lib_db
+  lib_realtime --> lib_auth
+  lib_storage --> lib_auth
+  lib_tenant_access --> lib_db

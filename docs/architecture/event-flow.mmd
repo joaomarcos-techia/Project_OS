@@ -1,0 +1,141 @@
+%% GERADO por `pnpm arch:graphs` — não edite à mão.
+%% Acoplamento ASSÍNCRONO: produtor -> evento -> consumidor (outbox).
+%% Evento sem consumidor é estado terminal legítimo (worker marca `skipped`).
+flowchart LR
+  context_ai_agent(["ai-agent"])
+  context_billing(["billing"])
+  context_clinical(["clinical"])
+  context_financial(["financial"])
+  context_messaging(["messaging"])
+  context_patient(["patient"])
+  context_scheduling(["scheduling"])
+  ev_ai_agent_conversation_completed["ai_agent.conversation.completed"]
+  context_ai_agent --> ev_ai_agent_conversation_completed
+  ev_ai_agent_conversation_completed --> context_billing
+  ev_ai_agent_manual_reply_requested["ai_agent.manual_reply.requested"]
+  context_ai_agent --> ev_ai_agent_manual_reply_requested
+  ev_ai_agent_manual_reply_requested --> context_ai_agent
+  ev_billing_clinic_dunning_advanced["billing.clinic.dunning_advanced"]
+  context_billing --> ev_billing_clinic_dunning_advanced
+  ev_billing_clinic_reactivated["billing.clinic.reactivated"]
+  context_billing --> ev_billing_clinic_reactivated
+  ev_billing_clinic_suspended["billing.clinic.suspended"]
+  context_billing --> ev_billing_clinic_suspended
+  ev_billing_customer_created["billing.customer.created"]
+  context_billing --> ev_billing_customer_created
+  ev_billing_customer_portal_requested["billing.customer.portal_requested"]
+  context_billing --> ev_billing_customer_portal_requested
+  ev_billing_invoice_cancelled["billing.invoice.cancelled"]
+  context_billing --> ev_billing_invoice_cancelled
+  ev_billing_invoice_generated["billing.invoice.generated"]
+  context_billing --> ev_billing_invoice_generated
+  ev_billing_invoice_overdue["billing.invoice.overdue"]
+  context_billing --> ev_billing_invoice_overdue
+  ev_billing_invoice_paid["billing.invoice.paid"]
+  context_billing --> ev_billing_invoice_paid
+  ev_billing_invoice_refunded["billing.invoice.refunded"]
+  context_billing --> ev_billing_invoice_refunded
+  ev_billing_payment_failed["billing.payment.failed"]
+  context_billing --> ev_billing_payment_failed
+  ev_billing_subscription_activated["billing.subscription.activated"]
+  context_billing --> ev_billing_subscription_activated
+  ev_billing_subscription_cancelled["billing.subscription.cancelled"]
+  context_billing --> ev_billing_subscription_cancelled
+  ev_billing_subscription_changed["billing.subscription.changed"]
+  context_billing --> ev_billing_subscription_changed
+  ev_billing_subscription_created["billing.subscription.created"]
+  context_billing --> ev_billing_subscription_created
+  ev_billing_trial_converted["billing.trial.converted"]
+  context_billing --> ev_billing_trial_converted
+  ev_billing_trial_expired["billing.trial.expired"]
+  context_billing --> ev_billing_trial_expired
+  ev_billing_trial_started["billing.trial.started"]
+  context_billing --> ev_billing_trial_started
+  ev_clinical_document_generated["clinical.document.generated"]
+  context_clinical --> ev_clinical_document_generated
+  ev_clinical_prescription_created["clinical.prescription.created"]
+  context_clinical --> ev_clinical_prescription_created
+  ev_clinical_prontuario_created["clinical.prontuario.created"]
+  context_clinical --> ev_clinical_prontuario_created
+  ev_clinical_prontuario_signed["clinical.prontuario.signed"]
+  context_clinical --> ev_clinical_prontuario_signed
+  ev_clinical_prontuario_signed --> context_ai_agent
+  ev_financial_faturamento_pendente["financial.faturamento.pendente"]
+  context_financial --> ev_financial_faturamento_pendente
+  ev_financial_faturamento_pendente --> context_scheduling
+  ev_financial_lancamento_cancelled["financial.lancamento.cancelled"]
+  context_financial --> ev_financial_lancamento_cancelled
+  ev_financial_lancamento_created["financial.lancamento.created"]
+  context_financial --> ev_financial_lancamento_created
+  ev_financial_lancamento_created --> context_scheduling
+  ev_financial_lancamento_estornado["financial.lancamento.estornado"]
+  context_financial --> ev_financial_lancamento_estornado
+  ev_financial_lancamento_paid["financial.lancamento.paid"]
+  context_financial --> ev_financial_lancamento_paid
+  ev_messaging_inbound_received["messaging.inbound.received"]
+  context_messaging --> ev_messaging_inbound_received
+  ev_messaging_inbound_received --> context_ai_agent
+  ev_messaging_outbound_status_updated["messaging.outbound.status_updated"]
+  context_messaging --> ev_messaging_outbound_status_updated
+  ev_patient_consent_granted["patient.consent.granted"]
+  context_patient --> ev_patient_consent_granted
+  ev_patient_consent_revoked["patient.consent.revoked"]
+  context_patient --> ev_patient_consent_revoked
+  ev_patient_core_created["patient.core.created"]
+  context_patient --> ev_patient_core_created
+  ev_patient_core_deceased["patient.core.deceased"]
+  context_patient --> ev_patient_core_deceased
+  ev_patient_core_deceased --> context_scheduling
+  ev_patient_core_deleted["patient.core.deleted"]
+  context_patient --> ev_patient_core_deleted
+  ev_patient_core_deleted --> context_scheduling
+  ev_patient_core_merged["patient.core.merged"]
+  context_patient --> ev_patient_core_merged
+  ev_patient_core_updated["patient.core.updated"]
+  context_patient --> ev_patient_core_updated
+  ev_patient_lgpd_delete_requested["patient.lgpd.delete_requested"]
+  context_patient --> ev_patient_lgpd_delete_requested
+  ev_patient_lgpd_delete_requested --> context_patient
+  ev_patient_lgpd_export_requested["patient.lgpd.export_requested"]
+  context_patient --> ev_patient_lgpd_export_requested
+  ev_patient_lgpd_export_requested --> context_patient
+  ev_patient_relationship_linked["patient.relationship.linked"]
+  context_patient --> ev_patient_relationship_linked
+  ev_patient_relationship_unlinked["patient.relationship.unlinked"]
+  context_patient --> ev_patient_relationship_unlinked
+  ev_patient_suppression_added["patient.suppression.added"]
+  context_patient --> ev_patient_suppression_added
+  ev_scheduling_appointment_cancelled["scheduling.appointment.cancelled"]
+  context_scheduling --> ev_scheduling_appointment_cancelled
+  ev_scheduling_appointment_checked_in["scheduling.appointment.checked_in"]
+  context_scheduling --> ev_scheduling_appointment_checked_in
+  ev_scheduling_appointment_completed["scheduling.appointment.completed"]
+  context_scheduling --> ev_scheduling_appointment_completed
+  ev_scheduling_appointment_completed --> context_financial
+  ev_scheduling_appointment_confirmed["scheduling.appointment.confirmed"]
+  context_scheduling --> ev_scheduling_appointment_confirmed
+  ev_scheduling_appointment_corrected["scheduling.appointment.corrected"]
+  context_scheduling --> ev_scheduling_appointment_corrected
+  ev_scheduling_appointment_created["scheduling.appointment.created"]
+  context_scheduling --> ev_scheduling_appointment_created
+  ev_scheduling_appointment_created --> context_billing
+  ev_scheduling_appointment_no_show["scheduling.appointment.no_show"]
+  context_scheduling --> ev_scheduling_appointment_no_show
+  ev_scheduling_appointment_rescheduled["scheduling.appointment.rescheduled"]
+  context_scheduling --> ev_scheduling_appointment_rescheduled
+  ev_scheduling_appointment_started["scheduling.appointment.started"]
+  context_scheduling --> ev_scheduling_appointment_started
+  ev_scheduling_appointment_started --> context_clinical
+  ev_scheduling_doctor_absence_created["scheduling.doctor_absence.created"]
+  context_scheduling --> ev_scheduling_doctor_absence_created
+  ev_scheduling_import_completed["scheduling.import.completed"]
+  context_scheduling --> ev_scheduling_import_completed
+  ev_scheduling_recurrence_cancelled["scheduling.recurrence.cancelled"]
+  context_scheduling --> ev_scheduling_recurrence_cancelled
+  ev_scheduling_recurrence_created["scheduling.recurrence.created"]
+  context_scheduling --> ev_scheduling_recurrence_created
+  ev_scheduling_waitlist_offered["scheduling.waitlist.offered"]
+  context_scheduling --> ev_scheduling_waitlist_offered
+  ev_scheduling_waitlist_offered --> context_ai_agent
+  classDef semConsumidor stroke-dasharray: 4 4;
+  class ev_billing_clinic_dunning_advanced,ev_billing_clinic_reactivated,ev_billing_clinic_suspended,ev_billing_customer_created,ev_billing_customer_portal_requested,ev_billing_invoice_cancelled,ev_billing_invoice_generated,ev_billing_invoice_overdue,ev_billing_invoice_paid,ev_billing_invoice_refunded,ev_billing_payment_failed,ev_billing_subscription_activated,ev_billing_subscription_cancelled,ev_billing_subscription_changed,ev_billing_subscription_created,ev_billing_trial_converted,ev_billing_trial_expired,ev_billing_trial_started,ev_clinical_document_generated,ev_clinical_prescription_created,ev_clinical_prontuario_created,ev_financial_lancamento_cancelled,ev_financial_lancamento_estornado,ev_financial_lancamento_paid,ev_messaging_outbound_status_updated,ev_patient_consent_granted,ev_patient_consent_revoked,ev_patient_core_created,ev_patient_core_merged,ev_patient_core_updated,ev_patient_relationship_linked,ev_patient_relationship_unlinked,ev_patient_suppression_added,ev_scheduling_appointment_cancelled,ev_scheduling_appointment_checked_in,ev_scheduling_appointment_confirmed,ev_scheduling_appointment_corrected,ev_scheduling_appointment_no_show,ev_scheduling_appointment_rescheduled,ev_scheduling_doctor_absence_created,ev_scheduling_import_completed,ev_scheduling_recurrence_cancelled,ev_scheduling_recurrence_created semConsumidor;
