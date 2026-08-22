@@ -35,6 +35,19 @@ boot: preview mal configurado **falha cedo**, não silenciosamente) e em
 - [ ] `NEXT_PUBLIC_SUPABASE_URL` → mesmo projeto não-produtivo
 - [ ] `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` → chave do projeto não-produtivo
 - [ ] `SUPABASE_SECRET_KEY` → chave do projeto não-produtivo
+- [ ] **Migrations aplicadas no projeto de preview, incluindo as políticas de RLS**
+
+> **Sobre o prefixo `NEXT_PUBLIC_`.** Ele inlina o valor no bundle do browser — verificado:
+> a publishable aparece em 2 arquivos de `.next/static`, a secret em nenhum. Isso é o
+> comportamento correto: a publishable (antiga `anon`) é pública por design e sua segurança
+> vem de **RLS**, não do sigilo. A que bypassa RLS é a `SUPABASE_SECRET_KEY`, que não tem o
+> prefixo e nunca pode ganhar um.
+>
+> A consequência prática para o preview: **o risco não é a chave estar exposta, é para qual
+> projeto ela aponta.** Publishable de produção no Preview faz o preview conversar com o
+> banco de produção. E num projeto de preview novo, sem as migrations de RLS aplicadas, a
+> publishable deixa de ser inofensiva — sem políticas, o papel `anon` vira handle de leitura
+> e escrita no banco inteiro.
 
 ### Criptografia — atenção
 
