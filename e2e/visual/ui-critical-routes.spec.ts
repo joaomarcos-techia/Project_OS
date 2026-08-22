@@ -2,10 +2,19 @@ import { expect, test } from '@playwright/test';
 
 import { authenticate } from '../auth';
 
+/**
+ * As oito telas de referência do redesign mais /configuracoes, que não tem
+ * referência mas é a tela mais densa em formulário do sistema.
+ * Ordem = ordem de revisão no GATE 3.
+ */
 const ROUTES = [
   { path: '/dashboard', slug: 'dashboard' },
   { path: '/agenda', slug: 'agenda' },
+  { path: '/consultorio', slug: 'consultorio' },
   { path: '/pacientes', slug: 'pacientes' },
+  { path: '/documentos', slug: 'documentos' },
+  { path: '/financeiro', slug: 'financeiro' },
+  { path: '/caixa', slug: 'caixa' },
   { path: '/conversas', slug: 'conversas' },
   { path: '/configuracoes', slug: 'configuracoes' },
 ] as const;

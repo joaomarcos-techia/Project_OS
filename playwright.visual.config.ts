@@ -26,7 +26,11 @@ export default defineConfig({
   reporter: 'list',
   timeout: 180_000,
   expect: { timeout: 15_000 },
-  outputDir: '.playwright/ui-visual-results',
+  // VISUAL_WAVE separa as capturas por wave, para comparar antes/depois sem
+  // que a run seguinte sobrescreva a anterior.
+  outputDir: process.env.VISUAL_WAVE
+    ? `.playwright/visual/${process.env.VISUAL_WAVE}`
+    : '.playwright/ui-visual-results',
   ...(hasReusableAuth ? { globalSetup: './e2e/auth-global-setup.ts' } : {}),
   use: {
     baseURL,
