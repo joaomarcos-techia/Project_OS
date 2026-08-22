@@ -124,6 +124,8 @@ const fallback = {
   loginEmail: new BoundedFallbackLimiter(5, FIFTEEN_MIN_MS),
   resetIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   resetEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
+  resetCompletionIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
+  resetCompletionEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
   joinIp: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
   acceptIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
   inviteClinic: new BoundedFallbackLimiter(60, ONE_HOUR_MS),
@@ -234,7 +236,16 @@ export function classifyRedisError(err: unknown): DegradedReason {
  * crua, sanitizada nos dois emissores) fica só como diagnóstico, nunca como lógica.
  */
 function degraded(
-  kind: 'login' | 'reset' | 'join' | 'accept' | 'invite' | 'resend' | 'mfa' | 'pdf',
+  kind:
+    | 'login'
+    | 'reset'
+    | 'reset_completion'
+    | 'join'
+    | 'accept'
+    | 'invite'
+    | 'resend'
+    | 'mfa'
+    | 'pdf',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -312,6 +323,29 @@ const lazyResetLimiters = (() => {
   };
 })();
 
+const lazyResetCompletionLimiters = (() => {
+  let cached: { ip: Ratelimit; email: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      ip: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '1 h'),
+        prefix: redisKey.global('rl', 'reset-completion', 'ip'),
+        analytics: false,
+      }),
+      email: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(3, '1 h'),
+        prefix: redisKey.global('rl', 'reset-completion', 'email'),
+        analytics: false,
+      }),
+    };
+    return cached;
+  };
+})();
+
 /**
  * Chama AMBOS os limites (IP + email_hash). Bloqueia se QUALQUER um exceder.
  * F-08: nunca lança — falha do Upstash → degradado (fail-open + fallback local).
@@ -359,6 +393,33 @@ export async function assertPasswordResetAllowed(
     const ipOk = fallback.resetIp.hit(ipKey);
     const emailOk = fallback.resetEmail.hit(emailHash);
     return degraded('reset', err, ipOk && emailOk);
+  }
+}
+
+/**
+ * Orçamento separado para EFETIVAR uma senha após grant de recovery válido.
+ * Um anônimo pode esgotar o limite de envio de links; ele não pode consumir o
+ * orçamento que a vítima precisa depois de apresentar o token one-time.
+ */
+export async function assertPasswordResetCompletionAllowed(
+  ip: string,
+  emailHash: string,
+): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const { ip: ipLimiter, email: emailLimiter } = lazyResetCompletionLimiters();
+    const [ipResult, emailResult] = await Promise.all([
+      ipLimiter.limit(ipKey),
+      emailLimiter.limit(emailHash),
+    ]);
+    if (!ipResult.success || !emailResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const ipOk = fallback.resetCompletionIp.hit(ipKey);
+    const emailOk = fallback.resetCompletionEmail.hit(emailHash);
+    return degraded('reset_completion', err, ipOk && emailOk);
   }
 }
 

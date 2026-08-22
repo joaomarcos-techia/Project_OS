@@ -8,6 +8,8 @@ import {
   assertInviteAcceptAllowed,
   assertInviteAllowed,
   assertMfaAllowed,
+  assertPasswordResetAllowed,
+  assertPasswordResetCompletionAllowed,
   assertResendInviteAllowed,
   classifyRedisError,
   ipRateLimitKey,
@@ -227,6 +229,22 @@ describe('M3 — fail-open com Redis indisponível', () => {
       'auth.ratelimit.degraded',
       expect.objectContaining({ kind: 'mfa' }),
     );
+  });
+
+  it('esgotar envio de recovery não bloqueia a efetivação com grant', async () => {
+    spies();
+    const ip = '198.51.100.91';
+    const emailHash = 'reset-budgets-separated';
+
+    expect(await assertPasswordResetAllowed(ip, emailHash)).toEqual({ ok: true });
+    expect(await assertPasswordResetAllowed(ip, emailHash)).toEqual({ ok: true });
+    expect(await assertPasswordResetAllowed(ip, emailHash)).toEqual({ ok: true });
+    expect(await assertPasswordResetAllowed(ip, emailHash)).toEqual({
+      ok: false,
+      reason: 'rate_limited',
+    });
+
+    expect(await assertPasswordResetCompletionAllowed(ip, emailHash)).toEqual({ ok: true });
   });
 
   it('accept (I-12): Redis fora → aceite não morre, loga com kind=accept', async () => {

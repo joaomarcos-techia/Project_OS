@@ -8,10 +8,12 @@ import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
 import { recordLoginAttempt } from '@/lib/auth/login-audit';
-import { assertLoginAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
 import { getAal } from '@/lib/auth/mfa';
 import { isRole } from '@/lib/auth/roles';
+import { createPasswordResetRedirectUrl } from '@/lib/http/application-url';
+import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
 const LoginSchema = z.object({
@@ -22,6 +24,53 @@ const LoginSchema = z.object({
 export type LoginActionState = {
   error: string | null;
 };
+
+const ForgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+});
+
+export type ForgotPasswordActionState = {
+  error: string | null;
+  sent: boolean;
+};
+
+/**
+ * Inicia recovery sem revelar se o endereço pertence a uma conta. A mensagem de
+ * sucesso é idêntica para usuário ausente, rate-limit e falha do provedor; o
+ * detalhe operacional fica somente nos logs sanitizados.
+ */
+export async function forgotPasswordAction(
+  _prev: ForgotPasswordActionState,
+  formData: FormData,
+): Promise<ForgotPasswordActionState> {
+  const parsed = ForgotPasswordSchema.safeParse({ email: formData.get('email') });
+  if (!parsed.success) {
+    return { error: 'Informe um e-mail válido.', sent: false };
+  }
+
+  const email = parsed.data.email;
+  const limit = await assertPasswordResetAllowed(getClientIp(await headers()), hashEmail(email));
+  if (!limit.ok) {
+    metrics.emit('auth.ratelimit.tripped', { route: 'forgot-password' });
+    return { error: null, sent: true };
+  }
+
+  try {
+    const supabase = await createServerClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: createPasswordResetRedirectUrl(),
+    });
+    if (error) {
+      logger.warn('forgot_password.request_failed', { reason: 'provider_rejected' });
+    }
+  } catch (error) {
+    logger.error('forgot_password.request_failed', {
+      reason: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+
+  return { error: null, sent: true };
+}
 
 export async function loginAction(
   _prev: LoginActionState,

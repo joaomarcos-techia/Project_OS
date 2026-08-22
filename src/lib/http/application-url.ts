@@ -67,6 +67,11 @@ export function createAuthRedirectUrl(): string {
   return configuredApplicationUrl('/convite');
 }
 
+/** Allowlisted destination for password recovery initiated from Login. */
+export function createPasswordResetRedirectUrl(): string {
+  return configuredApplicationUrl('/reset-password');
+}
+
 /**
  * Creates the server-side confirmation URL for a one-time Supabase email token.
  *

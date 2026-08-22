@@ -2,24 +2,30 @@
 
 import { useActionState } from 'react';
 
+import { Logo } from '@/components/shared/logo';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 
-import { verifyMfaAction, type MfaActionState } from './actions';
+import { switchAccountAction, verifyMfaAction, type MfaActionState } from './actions';
 
 const INITIAL: MfaActionState = { error: null };
 
 export default function MfaPage() {
   const [state, formAction, pending] = useActionState(verifyMfaAction, INITIAL);
+  const [switchState, switchFormAction, switchPending] = useActionState(
+    switchAccountAction,
+    INITIAL,
+  );
+  const busy = pending || switchPending;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <span className="text-lg font-semibold tracking-[-0.02em]">
-            Clinica<b className="font-bold text-primary-600">OS</b>
-          </span>
+          <Logo className="h-7 w-auto" />
           <p className="text-sm text-fg-muted">Verificação em duas etapas.</p>
         </div>
 
@@ -40,15 +46,34 @@ export default function MfaPage() {
                 maxLength={6}
                 required
                 autoFocus
-                disabled={pending}
+                disabled={busy}
                 aria-label="Código de 6 dígitos"
                 className="text-center text-lg tracking-[0.4em]"
               />
               {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
-              <Button type="submit" loading={pending} className="w-full">
+              <Button type="submit" loading={pending} disabled={switchPending} className="w-full">
                 Verificar
               </Button>
             </form>
+
+            <Separator />
+            <div className="grid gap-2 text-center">
+              <p className="text-pretty text-(length:--fs-xs) text-fg-subtle">
+                Entrou com a conta errada?
+              </p>
+              <form action={switchFormAction}>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  loading={switchPending}
+                  disabled={pending}
+                  className="min-h-(--hit-target) w-full"
+                >
+                  Usar outra conta
+                </Button>
+              </form>
+              {switchState.error ? <Alert variant="danger">{switchState.error}</Alert> : null}
+            </div>
           </CardContent>
         </Card>
       </div>

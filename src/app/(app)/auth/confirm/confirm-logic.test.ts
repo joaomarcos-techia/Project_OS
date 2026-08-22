@@ -27,6 +27,18 @@ describe('safeNext — anti open-redirect (invariante de segurança)', () => {
     expect(safeNext('/javascript:alert(1)')).toBe('/dashboard');
   });
 
+  it('bloqueia controles ASCII que o parser poderia normalizar para outro host', () => {
+    expect(safeNext('/\t/evil.com')).toBe('/dashboard');
+    expect(safeNext('/\n/evil.com')).toBe('/dashboard');
+    expect(safeNext('/\r/evil.com')).toBe('/dashboard');
+    expect(safeNext('/%09/evil.com')).toBe('/dashboard');
+  });
+
+  it('rejeita destinos internos fora da allowlist do fluxo de OTP', () => {
+    expect(safeNext('/admin')).toBe('/dashboard');
+    expect(safeNext('/dashboard#fragment')).toBe('/dashboard');
+  });
+
   it('vazio / null / undefined → fallback', () => {
     expect(safeNext('')).toBe('/dashboard');
     expect(safeNext(null)).toBe('/dashboard');

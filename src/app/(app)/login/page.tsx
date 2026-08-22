@@ -1,5 +1,6 @@
 'use client';
 
+import { Eye, EyeOff } from 'lucide-react';
 import { Suspense, useActionState, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -8,14 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/shared/logo';
+import { AuthScreenSkeleton } from '@/components/shared/auth-screen-skeleton';
 import { loginAction, type LoginActionState } from './actions';
+import { ForgotPasswordForm } from './forgot-password-form';
 
 const INITIAL: LoginActionState = { error: null };
 
 // useSearchParams() força CSR bailout — boundary <Suspense> obrigatório p/ prerender.
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<AuthScreenSkeleton variant="login" />}>
       <LoginScreen />
     </Suspense>
   );
@@ -25,27 +28,8 @@ const REASONS: Record<string, string> = {
   drift: 'Sua sessão foi invalidada por mudança de permissões. Faça login novamente.',
   disabled: 'Seu acesso foi desativado. Contate o administrador.',
   no_profile: 'Profile não encontrado. Contate o administrador.',
+  password_updated: 'Senha atualizada. Entre novamente com sua nova senha.',
 };
-
-function EyeIcon({ off = false }: { off?: boolean }) {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-      <circle cx="12" cy="12" r="3" />
-      {off ? <path d="M3 3l18 18" /> : null}
-    </svg>
-  );
-}
 
 function LoginScreen() {
   const params = useSearchParams();
@@ -69,7 +53,10 @@ function LoginScreen() {
             </p>
 
             {reason && REASONS[reason] ? (
-              <Alert variant="warning" className="mt-5">
+              <Alert
+                variant={reason === 'password_updated' ? 'success' : 'warning'}
+                className="mt-5"
+              >
                 {REASONS[reason]}
               </Alert>
             ) : null}
@@ -97,15 +84,19 @@ function LoginScreen() {
                     autoComplete="current-password"
                     disabled={pending}
                     placeholder="••••••••"
-                    style={{ paddingRight: '2.5rem' }}
+                    className="pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw((v) => !v)}
                     aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'}
-                    className="absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-fg-subtle transition-colors hover:text-fg"
+                    className="absolute right-0 top-1/2 flex size-(--hit-target) -translate-y-1/2 items-center justify-center rounded-md text-fg-subtle transition-colors hover:text-fg"
                   >
-                    <EyeIcon off={showPw} />
+                    {showPw ? (
+                      <EyeOff aria-hidden="true" className="size-4.5" />
+                    ) : (
+                      <Eye aria-hidden="true" className="size-4.5" />
+                    )}
                   </button>
                 </div>
               </Field>
@@ -116,6 +107,8 @@ function LoginScreen() {
                 Entrar
               </Button>
             </form>
+
+            <ForgotPasswordForm />
           </div>
         </div>
 
@@ -151,15 +144,15 @@ function LoginScreen() {
           className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full"
           style={{
             background:
-              'radial-gradient(circle, color-mix(in oklch, var(--accent-500) 55%, transparent), transparent 70%)',
+              'radial-gradient(circle, color-mix(in oklch, var(--brand-accent-500) 55%, transparent), transparent 70%)',
           }}
         />
 
         <div className="relative z-10 px-12 xl:px-16">
-          <h2 className="max-w-md text-[2.1rem] font-semibold leading-[1.12] tracking-[-0.03em] text-white xl:text-[2.5rem]">
+          <h2 className="max-w-md text-balance text-3xl font-semibold leading-tight tracking-tight text-white xl:text-4xl">
             Gerencie sua clínica sem vazamentos.
           </h2>
-          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/70">
+          <p className="mt-4 max-w-md text-pretty text-base leading-relaxed text-white/70">
             Entre para acessar o painel e operar agenda, atendimento e caixa em tempo real.
           </p>
         </div>
