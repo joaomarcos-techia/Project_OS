@@ -6,8 +6,12 @@
  */
 import { Files, Search } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
-import { listClinicalDocumentFeed } from '@/contexts/clinical/queries';
+import {
+  listClinicalDocumentFeedPage,
+  type ClinicalDocumentKind,
+} from '@/contexts/clinical/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
@@ -30,14 +34,17 @@ import {
   TableWrap,
 } from '@/components/ui/table';
 import { TableToolbar } from '@/components/ui/table-toolbar';
+import { TablePager } from '@/components/ui/table-pager';
 import { cn } from '@/lib/ui/cn';
+
+import { documentosPageHref, parseDocumentosPage, type DocumentosSearchParams } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DocumentosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tipo?: string }>;
+  searchParams: Promise<DocumentosSearchParams>;
 }) {
   // AUTHZ-003 — o feed mistura DOIS tipos, e o gate segue o tipo do recurso,
   // não um OR generoso. Ambos os tipos são "família prescrição" pela decisão do
@@ -56,14 +63,28 @@ export default async function DocumentosPage({
     );
   }
   const { clinicId } = gate;
-  const { q, tipo } = await searchParams;
-  const kind = tipo === 'prescription' || tipo === 'document' ? tipo : undefined;
+  const { q: rawSearch, tipo, page: rawPage } = await searchParams;
+  const q = rawSearch?.trim().slice(0, 64) || undefined;
+  const kind: ClinicalDocumentKind | undefined =
+    tipo === 'prescription' || tipo === 'document' ? tipo : undefined;
+  const page = parseDocumentosPage(rawPage);
+  const filters = {
+    ...(q ? { q } : {}),
+    ...(kind ? { kind } : {}),
+  };
 
-  const items = await listClinicalDocumentFeed(clinicId, {
+  const result = await listClinicalDocumentFeedPage(clinicId, {
     ...(q ? { search: q } : {}),
     ...(kind ? { kind } : {}),
-    limit: 100,
+    page,
   });
+  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  if (page > totalPages) {
+    redirect(documentosPageHref(filters, totalPages));
+  }
+  const items = result.items;
+  const firstItem = (page - 1) * result.pageSize + 1;
+  const lastItem = Math.min(page * result.pageSize, result.total);
 
   const filtrando = Boolean(q || kind);
 
@@ -77,7 +98,7 @@ export default async function DocumentosPage({
 
       <TableWrap>
         <TableToolbar>
-          <form className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <form className="flex min-w-0 flex-1 flex-wrap items-center gap-2" role="search">
             <span className="relative block min-w-52 flex-1 sm:max-w-90">
               <Search
                 aria-hidden="true"
@@ -135,7 +156,7 @@ export default async function DocumentosPage({
                         <Badge tone={d.kind === 'prescription' ? 'blue' : 'teal'}>{d.label}</Badge>
                       </TableCell>
                       <TableCell className="font-medium">{d.patientNome}</TableCell>
-                      <TableCell className="text-fg-muted">
+                      <TableCell className="text-fg-muted tabular-nums">
                         {new Date(d.createdAt).toLocaleString('pt-BR')}
                         {!d.hasPdf ? (
                           <span className="ml-2 text-(length:--fs-xs) text-fg-subtle">
@@ -157,10 +178,15 @@ export default async function DocumentosPage({
               </Table>
             </TableScroll>
             <TableFoot>
-              <TableFootInfo>
-                {items.length} documento{items.length === 1 ? '' : 's'}
-                {items.length === 100 ? ' (mostrando os 100 mais recentes)' : ''}
+              <TableFootInfo className="tabular-nums">
+                Página {page} de {totalPages} · {firstItem}–{lastItem} de {result.total} documento
+                {result.total === 1 ? '' : 's'}
               </TableFootInfo>
+              <TablePager
+                page={page}
+                pageCount={totalPages}
+                hrefFor={(targetPage) => documentosPageHref(filters, targetPage)}
+              />
             </TableFoot>
           </>
         )}

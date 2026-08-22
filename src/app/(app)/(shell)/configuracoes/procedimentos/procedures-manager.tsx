@@ -12,6 +12,7 @@ import type { ProcedureSummary } from '@/contexts/scheduling/types';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
+import { DestructiveAction } from '@/components/ui/destructive-action';
 import { Input } from '@/components/ui/input';
 import { uuidv4 } from '@/lib/ui/uuid';
 
@@ -103,18 +104,6 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao salvar.');
-      }
-    });
-  }
-
-  function deactivate(p: ProcedureSummary) {
-    if (!confirm(`Desativar "${p.descricao}"? Atendimentos existentes não são afetados.`)) return;
-    start(async () => {
-      try {
-        await deactivateProcedure(p.id, uuidv4());
-        router.refresh();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Erro ao desativar.');
       }
     });
   }
@@ -237,15 +226,25 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
                     Editar
                   </Button>
                   {p.ativo ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deactivate(p)}
+                    <DestructiveAction
+                      trigger={
+                        <Button type="button" size="sm" variant="ghost" disabled={busy}>
+                          Desativar
+                        </Button>
+                      }
+                      title={`Desativar “${p.descricao}”`}
+                      description="O procedimento deixa de aparecer em novos agendamentos. Atendimentos existentes não são alterados."
+                      confirmLabel="Desativar procedimento"
+                      cancelLabel="Manter ativo"
                       disabled={busy}
-                    >
-                      Desativar
-                    </Button>
+                      action={async () => {
+                        await deactivateProcedure(p.id, uuidv4());
+                        router.refresh();
+                      }}
+                      onError={(error) =>
+                        toast.error(error instanceof Error ? error.message : 'Erro ao desativar.')
+                      }
+                    />
                   ) : (
                     <Button
                       type="button"

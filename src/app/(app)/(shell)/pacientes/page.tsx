@@ -5,10 +5,11 @@
  */
 import { ChevronRight, Search, Users } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
-import { listPatients } from '@/contexts/patient/queries';
+import { listPatients, listPatientsPage } from '@/contexts/patient/queries';
 import { PageNoAccess } from '@/components/shared/page-no-access';
 import { EmptyState } from '@/components/ui/empty-state';
 import { fieldControlClassName } from '@/components/ui/input';
@@ -25,6 +26,7 @@ import {
   TableScroll,
   TableWrap,
 } from '@/components/ui/table';
+import { TablePager } from '@/components/ui/table-pager';
 import { TableToolbar } from '@/components/ui/table-toolbar';
 import { cn } from '@/lib/ui/cn';
 
@@ -32,6 +34,11 @@ import { PATIENT_RESTORE_WINDOW_DAYS } from '@/contexts/patient/internal/restore
 import { formatDatePt } from '@/lib/format';
 
 import { NewPatientDrawer } from './new-patient-drawer';
+import {
+  parsePatientListPage,
+  patientListHref,
+  type PatientListSearchParams,
+} from './patient-list-url';
 import { RestorePatientButton } from './restore-patient-button';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +46,7 @@ export const dynamic = 'force-dynamic';
 export default async function PacientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; novo?: string; removidos?: string }>;
+  searchParams: Promise<PatientListSearchParams>;
 }) {
   // AUTHZ-001 — o gate vem ANTES de qualquer leitura. `listPatients` aplica
   // tenant-scope/RLS, não RBAC: sem isto, um colaborador com `view:patient`
@@ -55,23 +62,42 @@ export default async function PacientesPage({
     );
   }
   const { clinicId } = gate;
-  const { q, novo, removidos } = await searchParams;
+  const sp = await searchParams;
+  const q = sp.q?.trim().slice(0, 64) || undefined;
+  const page = parsePatientListPage(sp.page);
   // PAT-001 — a lixeira só existe para quem tem a capacidade que removeu. Ver
   // quem foi apagado é informação sobre a operação da clínica, não uma listagem
   // de pacientes: `view:patient` sozinho não basta.
   const canRestore = gate.user.permissions.includes(PERMISSIONS.DELETE_PATIENT);
-  const showTrash = removidos === '1' && canRestore;
-  const [patients, guardianCandidates] = await Promise.all([
-    listPatients(
-      clinicId,
-      showTrash
-        ? { onlyDeleted: true, limit: 50, ...(q ? { search: q } : {}) }
-        : q
-          ? { search: q, limit: 50 }
-          : { limit: 50 },
-    ),
-    listPatients(clinicId, { limit: 200 }),
+  const showTrash = sp.removidos === '1' && canRestore;
+  const drawerOpen = sp.novo === '1';
+  const [result, guardianCandidates] = await Promise.all([
+    listPatientsPage(clinicId, {
+      page,
+      ...(showTrash ? { onlyDeleted: true } : {}),
+      ...(q ? { search: q } : {}),
+    }),
+    // Os candidatos só são necessários dentro do formulário aberto. A listagem
+    // normal não carrega mais 200 pacientes adicionais em toda navegação.
+    drawerOpen ? listPatients(clinicId, { limit: 200 }) : Promise.resolve([]),
   ]);
+  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  const filtering = Boolean(q || showTrash);
+  const currentParams: PatientListSearchParams = {
+    ...(q ? { q } : {}),
+    ...(showTrash ? { removidos: '1' } : {}),
+    ...(drawerOpen ? { novo: '1' } : {}),
+    ...(page > 1 ? { page: String(page) } : {}),
+  };
+  if (page > totalPages) {
+    redirect(
+      patientListHref(currentParams, {
+        page: totalPages > 1 ? String(totalPages) : undefined,
+      }),
+    );
+  }
+  const firstItem = (page - 1) * result.pageSize + 1;
+  const lastItem = Math.min(page * result.pageSize, result.total);
 
   return (
     <>
@@ -85,13 +111,15 @@ export default async function PacientesPage({
         }
         actions={
           <NewPatientDrawer
-            defaultOpen={novo === '1'}
+            defaultOpen={drawerOpen}
             guardianCandidates={guardianCandidates.map(({ id, nome }) => ({ id, nome }))}
+            openHref={patientListHref(currentParams, { novo: '1' })}
+            closeHref={patientListHref(currentParams, { novo: undefined })}
           />
         }
       />
 
-      {patients.length === 0 && !q ? (
+      {result.total === 0 && !filtering ? (
         <EmptyState
           icon={<Users />}
           title="Nenhum paciente ainda"
@@ -101,6 +129,7 @@ export default async function PacientesPage({
         <TableWrap>
           <TableToolbar>
             <form className="min-w-0 flex-1" role="search">
+              {showTrash ? <input type="hidden" name="removidos" value="1" /> : null}
               <span className="relative block max-w-90">
                 <Search
                   aria-hidden="true"
@@ -108,7 +137,7 @@ export default async function PacientesPage({
                 />
                 <input
                   name="q"
-                  defaultValue={q ?? ''}
+                  defaultValue={sp.q ?? ''}
                   placeholder="Buscar por nome…"
                   aria-label="Buscar pacientes por nome"
                   className={cn(fieldControlClassName, 'pl-9')}
@@ -117,18 +146,28 @@ export default async function PacientesPage({
             </form>
             {canRestore ? (
               <Link
-                href={showTrash ? '/pacientes' : '/pacientes?removidos=1'}
+                href={patientListHref(currentParams, {
+                  removidos: showTrash ? undefined : '1',
+                  novo: undefined,
+                  page: undefined,
+                })}
                 className="text-(length:--fs-sm) font-medium text-link hover:underline"
               >
                 {showTrash ? 'Voltar aos ativos' : 'Removidos'}
               </Link>
             ) : null}
           </TableToolbar>
-          {patients.length === 0 ? (
+          {result.items.length === 0 ? (
             <EmptyState
               icon={<Search />}
-              title="Nenhum paciente encontrado"
-              description={`Nada para “${q}”. Tente outro nome.`}
+              title={showTrash ? 'Nenhum paciente removido' : 'Nenhum paciente encontrado'}
+              description={
+                q
+                  ? `Nada para “${q}”. Tente outro nome.`
+                  : showTrash
+                    ? 'Não há pacientes removidos para restaurar.'
+                    : 'Nenhum paciente está disponível nesta página.'
+              }
             />
           ) : (
             <>
@@ -143,7 +182,7 @@ export default async function PacientesPage({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {patients.map((p) => (
+                    {result.items.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className={showTrash ? undefined : 'p-0'}>
                           {showTrash ? (
@@ -184,10 +223,15 @@ export default async function PacientesPage({
                 </Table>
               </TableScroll>
               <TableFoot>
-                <TableFootInfo>
-                  {patients.length} paciente{patients.length === 1 ? '' : 's'}
-                  {patients.length === 50 ? ' (mostrando os 50 primeiros — refine a busca)' : ''}
+                <TableFootInfo className="tabular-nums">
+                  Página {page} de {totalPages} · {firstItem}–{lastItem} de {result.total} paciente
+                  {result.total === 1 ? '' : 's'}
                 </TableFootInfo>
+                <TablePager
+                  page={page}
+                  pageCount={totalPages}
+                  hrefFor={(nextPage) => patientListHref(currentParams, { page: String(nextPage) })}
+                />
               </TableFoot>
             </>
           )}

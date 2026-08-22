@@ -33,7 +33,7 @@ export async function importAppointmentHistoryForm(
   try {
     items = JSON.parse(payload);
   } catch {
-    return { error: 'O arquivo nao contem JSON valido.', message: null };
+    return { error: 'O arquivo não contém JSON válido.', message: null };
   }
   if (!Array.isArray(items)) {
     return { error: 'O JSON deve conter uma lista de atendimentos.', message: null };
@@ -47,7 +47,7 @@ export async function importAppointmentHistoryForm(
     };
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : 'Falha ao importar o historico.',
+      error: error instanceof Error ? error.message : 'Falha ao importar o histórico.',
       message: null,
     };
   }

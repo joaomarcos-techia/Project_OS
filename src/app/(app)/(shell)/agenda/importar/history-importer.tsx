@@ -61,7 +61,7 @@ export function HistoryImporter() {
             required
             minLength={5}
             maxLength={1000}
-            placeholder="Motivo da importacao e autorizacao recebida"
+            placeholder="Motivo da importação e autorização recebida"
           />
         </label>
         <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
@@ -94,7 +94,7 @@ export function HistoryImporter() {
 
       {payload ? (
         <Alert variant="success">
-          Arquivo validado no navegador. A validacao completa e a importacao atomica acontecerao no
+          Arquivo validado no navegador. A validação completa e a importação atômica acontecerão no
           servidor.
         </Alert>
       ) : null}
@@ -103,7 +103,7 @@ export function HistoryImporter() {
 
       <div>
         <Button type="submit" disabled={!payload} loading={pending}>
-          Importar historico
+          Importar histórico
         </Button>
       </div>
     </form>

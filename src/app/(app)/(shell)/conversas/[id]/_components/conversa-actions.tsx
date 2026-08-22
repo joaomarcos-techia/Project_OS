@@ -16,6 +16,7 @@ import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import type { AIHandoffState } from '@/contexts/ai-agent/types';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useActionFeedback } from '@/components/ui/use-action-feedback';
 import { uuidv4 } from '@/lib/ui/uuid';
@@ -211,25 +212,6 @@ function HandoffPanel({
         {handoff.priority === 'urgent' ? 'urgente' : 'normal'}.
       </Alert>
 
-      <form action={priorityAction} className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="conversationId" value={conversationId} />
-        <input type="hidden" name="idempotencyKey" value={priorityKey} />
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Prioridade
-          <select
-            name="priority"
-            defaultValue={handoff.priority}
-            disabled={prioritizing}
-            className="h-9 rounded-(--r-sm) border border-border bg-surface px-3 text-sm"
-          >
-            <option value="normal">Normal</option>
-            <option value="urgent">Urgente</option>
-          </select>
-        </label>
-        <Button type="submit" variant="secondary" size="sm" disabled={prioritizing}>
-          Atualizar
-        </Button>
-      </form>
       {windowOpen ? null : (
         <Alert variant="warning" title="Janela de 24h da Meta expirada">
           {lastInboundAt
@@ -243,8 +225,8 @@ function HandoffPanel({
       <form action={replyAction} className="flex flex-col gap-(--sp-2)">
         <input type="hidden" name="conversationId" value={conversationId} />
         <input type="hidden" name="idempotencyKey" value={replyKey} />
-        <label htmlFor={textId} className="sr-only">
-          Resposta ao paciente
+        <label htmlFor={textId} className="text-(length:--fs-sm) font-semibold text-fg">
+          Responder ao paciente
         </label>
         <Textarea
           id={textId}
@@ -272,6 +254,28 @@ function HandoffPanel({
             {replying ? 'Enviando…' : 'Enviar resposta'}
           </Button>
         </div>
+      </form>
+
+      <Separator />
+
+      <form action={priorityAction} className="flex flex-wrap items-end gap-2">
+        <input type="hidden" name="conversationId" value={conversationId} />
+        <input type="hidden" name="idempotencyKey" value={priorityKey} />
+        <label className="flex flex-col gap-1 text-(length:--fs-sm) font-medium">
+          Prioridade
+          <select
+            name="priority"
+            defaultValue={handoff.priority}
+            disabled={prioritizing}
+            className="h-(--control-h) rounded-(--r-sm) border border-border bg-surface px-3 text-(length:--fs-sm)"
+          >
+            <option value="normal">Normal</option>
+            <option value="urgent">Urgente</option>
+          </select>
+        </label>
+        <Button type="submit" variant="secondary" size="sm" disabled={prioritizing}>
+          Atualizar
+        </Button>
       </form>
 
       <form action={returnAction}>

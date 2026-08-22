@@ -261,7 +261,7 @@ export function PrescriptionDrawer({
             </div>
           ) : null}
 
-          <Field label="Tipo de receita">
+          <Field label="Tipo de receita" group>
             <Segmented
               aria-label="Tipo de receita"
               options={[
@@ -283,36 +283,66 @@ export function PrescriptionDrawer({
 
           {meds.map((m, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
-              <Field label={i === 0 ? 'Medicamento' : undefined} className="min-w-40 flex-1">
+              <Field
+                label={i === 0 ? 'Medicamento' : undefined}
+                htmlFor={`prescription-medication-${i}`}
+                className="min-w-40 flex-1"
+              >
                 <Input
+                  id={`prescription-medication-${i}`}
+                  aria-label={`Medicamento ${i + 1}`}
                   value={m.nome}
                   onChange={(e) => setMed(i, { nome: e.target.value })}
                   placeholder="Ex.: Amoxicilina 500mg"
                 />
               </Field>
-              <Field label={i === 0 ? 'Dosagem' : undefined} className="w-24">
+              <Field
+                label={i === 0 ? 'Dosagem' : undefined}
+                htmlFor={`prescription-dosage-${i}`}
+                className="w-24"
+              >
                 <Input
+                  id={`prescription-dosage-${i}`}
+                  aria-label={`Dosagem ${i + 1}`}
                   value={m.dosagem}
                   onChange={(e) => setMed(i, { dosagem: e.target.value })}
                   placeholder="1 cp"
                 />
               </Field>
-              <Field label={i === 0 ? 'Posologia' : undefined} className="min-w-36 flex-1">
+              <Field
+                label={i === 0 ? 'Posologia' : undefined}
+                htmlFor={`prescription-directions-${i}`}
+                className="min-w-36 flex-1"
+              >
                 <Input
+                  id={`prescription-directions-${i}`}
+                  aria-label={`Posologia ${i + 1}`}
                   value={m.posologia}
                   onChange={(e) => setMed(i, { posologia: e.target.value })}
                   placeholder="8/8h por 7 dias"
                 />
               </Field>
-              <Field label={i === 0 ? 'Qtd.' : undefined} className="w-20">
+              <Field
+                label={i === 0 ? 'Qtd.' : undefined}
+                htmlFor={`prescription-quantity-${i}`}
+                className="w-20"
+              >
                 <Input
+                  id={`prescription-quantity-${i}`}
+                  aria-label={`Qtd. do medicamento ${i + 1}`}
                   value={m.quantidade}
                   onChange={(e) => setMed(i, { quantidade: e.target.value })}
                   placeholder="30"
                 />
               </Field>
-              <Field label={i === 0 ? 'Via' : undefined} className="w-20">
+              <Field
+                label={i === 0 ? 'Via' : undefined}
+                htmlFor={`prescription-route-${i}`}
+                className="w-20"
+              >
                 <Input
+                  id={`prescription-route-${i}`}
+                  aria-label={`Via ${i + 1}`}
                   value={m.via}
                   onChange={(e) => setMed(i, { via: e.target.value })}
                   placeholder="oral"
@@ -340,8 +370,9 @@ export function PrescriptionDrawer({
               <Plus className="size-3.5" /> Adicionar medicamento
             </Button>
           </div>
-          <Field label="Observações (opcional)">
+          <Field label="Observações (opcional)" htmlFor="prescription-notes">
             <Textarea
+              id="prescription-notes"
               rows={2}
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}

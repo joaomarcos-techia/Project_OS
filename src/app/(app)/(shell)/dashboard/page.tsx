@@ -1,18 +1,8 @@
-import {
-  Banknote,
-  CalendarDays,
-  Clock3,
-  RefreshCw,
-  Sparkles,
-  Stethoscope,
-  Users,
-  Wallet,
-} from 'lucide-react';
-import Link from 'next/link';
+import { Banknote, CalendarDays, Clock3, Stethoscope, Wallet } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
-import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
 import { StatCard } from '@/components/ui/stat-card';
@@ -133,19 +123,11 @@ export default async function DashboardPage() {
       <PageHeader
         crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
         title="Visão operacional"
-        description="O pulso da clínica em tempo real — agenda, atendimento, caixa e inteligência num só lugar."
-        actions={
-          <Link href="/dashboard" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-            <RefreshCw className="size-3.5" />
-            Atualizar
-          </Link>
-        }
+        description="Agenda, atendimento e indicadores essenciais para decidir o próximo passo."
       />
 
-      <ActivationChecklist data={checklist} />
-
       {/* ---- stat tiles (dados reais) ---- */}
-      <div className="grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
+      <MetricStrip>
         <StatCard
           label="Consultas hoje"
           value={d.consultasHoje}
@@ -180,93 +162,95 @@ export default async function DashboardPage() {
             />
           </>
         ) : null}
-      </div>
+      </MetricStrip>
 
-      <div className="mt-(--sp-4) grid gap-(--sp-4) xl:grid-cols-[3fr_2fr]">
-        <div className="flex flex-col gap-(--sp-4)">
-          {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
-              HTML quando a permissão existe. */}
-          {canViewFinancial ? (
-            <PanelCard
-              title="Faturamento · últimos 7 dias"
-              action={{ label: 'Financeiro', href: '/financeiro' }}
-            >
-              {chartTotal === 0 ? (
-                <p className="py-(--sp-6) text-center text-(length:--fs-sm) text-fg-subtle">
-                  Sem recebimentos registrados no período.
-                </p>
+      <div
+        className={
+          canViewFinancial
+            ? 'mt-(--sp-4) grid gap-(--sp-4) xl:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]'
+            : 'mt-(--sp-4)'
+        }
+      >
+        {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
+            HTML quando a permissão existe. */}
+        {canViewFinancial ? (
+          <PanelCard
+            title="Faturamento · últimos 7 dias"
+            action={{ label: 'Financeiro', href: '/financeiro' }}
+          >
+            {chartTotal === 0 ? (
+              <EmptyState
+                variant="compact"
+                icon={<Banknote />}
+                title="Sem recebimentos no período"
+                description="Os valores recebidos aparecem aqui assim que forem registrados."
+              />
+            ) : (
+              <RevenueChart points={chart} />
+            )}
+          </PanelCard>
+        ) : null}
+
+        <div
+          className={
+            canViewFinancial
+              ? 'flex min-w-0 flex-col gap-(--sp-4)'
+              : canAudit
+                ? 'grid gap-(--sp-4) lg:grid-cols-2'
+                : 'min-w-0'
+          }
+        >
+          <PanelCard
+            title="Próximos na agenda"
+            action={{ label: 'Ver consultório', href: '/consultorio' }}
+          >
+            {d.proximos.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                icon={<CalendarDays />}
+                title="Agenda livre hoje"
+                description="Nenhum atendimento está agendado para hoje."
+              />
+            ) : (
+              <ul className="flex flex-col">
+                {d.proximos.map((p) => (
+                  <li
+                    key={p.appointmentId}
+                    className="flex items-center gap-3 border-b border-border py-2 text-(length:--fs-sm) last:border-b-0"
+                  >
+                    <span className="font-mono text-(length:--fs-xs) text-fg-subtle tabular-nums">
+                      {hora(p.horario)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{p.nome}</span>
+                    <AppointmentStatusBadge status={p.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PanelCard>
+
+          {canAudit ? (
+            <PanelCard title="Atividade recente">
+              {activity.length === 0 ? (
+                <EmptyState
+                  variant="compact"
+                  icon={<Clock3 />}
+                  title="Sem atividade recente"
+                  description="As próximas ações da equipe aparecerão aqui."
+                />
               ) : (
-                <RevenueChart points={chart} />
+                <ActivityFeed activity={activity} actorNames={actorNames} />
               )}
             </PanelCard>
           ) : null}
-
-          <div className="grid gap-(--sp-4) md:grid-cols-2">
-            <PanelCard
-              title="Próximos na agenda"
-              action={{ label: 'Ver consultório', href: '/consultorio' }}
-            >
-              {d.proximos.length === 0 ? (
-                <p className="py-2 text-(length:--fs-sm) text-fg-subtle">Nada para hoje.</p>
-              ) : (
-                <ul className="flex flex-col">
-                  {d.proximos.map((p) => (
-                    <li
-                      key={p.appointmentId}
-                      className="flex items-center gap-3 border-b border-border py-2 text-(length:--fs-sm) last:border-b-0"
-                    >
-                      <span className="font-mono text-(length:--fs-xs) text-fg-subtle">
-                        {hora(p.horario)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate font-medium">{p.nome}</span>
-                      <AppointmentStatusBadge status={p.status} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </PanelCard>
-
-            <PanelCard title="Ocupação por profissional" meta="em breve">
-              <EmptyState
-                className="px-(--sp-4) py-(--sp-8)"
-                icon={<Users />}
-                title="Em breve"
-                description="Ocupação por médico chega com a Agenda."
-              />
-            </PanelCard>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-(--sp-4)">
-          <PanelCard
-            className="border-ai-border"
-            title="Alertas da IA"
-            titleIcon={<Sparkles className="text-ai" />}
-            meta="em breve"
-          >
-            <EmptyState
-              className="px-(--sp-4) py-(--sp-8)"
-              icon={<Sparkles />}
-              title="Em breve"
-              description="Alertas (no-show, cobrança ausente, retorno vencido) chegam com o Agente de IA."
-            />
-          </PanelCard>
-
-          <PanelCard title="Atividade recente">
-            {!canAudit ? (
-              <p className="py-2 text-(length:--fs-sm) text-fg-subtle">
-                A trilha de atividade fica disponível para gestores.
-              </p>
-            ) : activity.length === 0 ? (
-              <p className="py-2 text-(length:--fs-sm) text-fg-subtle">
-                Nenhuma atividade registrada ainda.
-              </p>
-            ) : (
-              <ActivityFeed activity={activity} actorNames={actorNames} />
-            )}
-          </PanelCard>
         </div>
       </div>
+
+      {!checklist.complete ? (
+        <div className="mt-(--sp-4)">
+          <ActivationChecklist data={checklist} />
+        </div>
+      ) : null}
     </>
   );
 }

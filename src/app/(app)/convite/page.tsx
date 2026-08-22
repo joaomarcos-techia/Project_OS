@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useActionState, useEffect, useState } from 'react';
 
 import { Logo } from '@/components/shared/logo';
+import { AuthScreenSkeleton } from '@/components/shared/auth-screen-skeleton';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,7 +19,7 @@ const INITIAL: AcceptState = { error: null };
 // useSearchParams() força CSR bailout — boundary <Suspense> obrigatório p/ prerender.
 export default function ConvitePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<AuthScreenSkeleton variant="invite" />}>
       <ConviteForm />
     </Suspense>
   );

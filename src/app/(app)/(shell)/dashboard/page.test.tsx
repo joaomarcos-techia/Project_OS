@@ -1,0 +1,171 @@
+// @vitest-environment happy-dom
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  getActivationChecklist,
+  getCashFlowToday,
+  getClinicTimezone,
+  getCurrentUser,
+  getDashboard,
+  getProfileNames,
+  getRecentActivity,
+  listCashFlowDaily,
+  redirect,
+} = vi.hoisted(() => ({
+  getActivationChecklist: vi.fn(),
+  getCashFlowToday: vi.fn(),
+  getClinicTimezone: vi.fn(),
+  getCurrentUser: vi.fn(),
+  getDashboard: vi.fn(),
+  getProfileNames: vi.fn(),
+  getRecentActivity: vi.fn(),
+  listCashFlowDaily: vi.fn(),
+  redirect: vi.fn(),
+}));
+
+vi.mock('next/navigation', () => ({ redirect }));
+vi.mock('@/lib/auth/tenant-context', () => ({ getCurrentUser }));
+vi.mock('@/contexts/tenancy/queries', () => ({ getClinicTimezone }));
+vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
+vi.mock('@/contexts/financial/queries', () => ({ getCashFlowToday, listCashFlowDaily }));
+vi.mock('@/lib/audit/recent', () => ({ getRecentActivity }));
+vi.mock('./data', () => ({ getActivationChecklist, getDashboard }));
+
+import DashboardPage from './page';
+
+const clinicId = '11111111-1111-1111-1111-111111111111';
+
+const dashboard = {
+  consultasHoje: 4,
+  aguardando: 1,
+  emAtendimento: 1,
+  finalizadas: 1,
+  proximos: [
+    {
+      appointmentId: 'appointment-1',
+      horario: '2026-08-20T13:30:00.000Z',
+      nome: 'Maria Silva',
+      status: 'confirmado',
+    },
+  ],
+};
+
+const checklist = {
+  done: 1,
+  total: 2,
+  complete: false,
+  items: [
+    {
+      key: 'patient',
+      label: 'Cadastre o primeiro paciente',
+      desc: 'Comece sua base de pacientes.',
+      href: '/pacientes/novo',
+      done: false,
+    },
+  ],
+};
+
+function currentUser(permissions: string[]) {
+  return {
+    userId: 'user-1',
+    clinicId,
+    role: 'owner',
+    permissions,
+    granularPermissionsEnabled: true,
+    claimsVersion: 1,
+    isSuperAdmin: false,
+    aal: 'aal2',
+    validatedAt: '2026-08-20T12:00:00.000Z',
+  };
+}
+
+describe('DashboardPage', () => {
+  afterEach(cleanup);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCurrentUser.mockResolvedValue(currentUser(['view:financial', 'view:audit']));
+    getClinicTimezone.mockResolvedValue('America/Sao_Paulo');
+    getDashboard.mockResolvedValue(dashboard);
+    getActivationChecklist.mockResolvedValue(checklist);
+    getCashFlowToday.mockResolvedValue({
+      receber: 42_000,
+      pagar: 0,
+      recebidoHoje: 18_000,
+      pagoHoje: 0,
+      saldoHoje: 18_000,
+    });
+    listCashFlowDaily.mockResolvedValue([{ date: '2026-08-19', totalRecebido: 12_000 }]);
+    getRecentActivity.mockResolvedValue([
+      {
+        id: 'audit-1',
+        action: 'patient.updated',
+        resourceType: 'patient',
+        resourceId: 'patient-1',
+        userId: 'user-1',
+        createdAt: '2026-08-20T11:50:00.000Z',
+      },
+    ]);
+    getProfileNames.mockResolvedValue(new Map([['user-1', 'Ana Costa']]));
+  });
+
+  it('prioriza métricas, gráfico e agenda antes do checklist sem placeholders ou auto-refresh', async () => {
+    const { container } = render(await DashboardPage());
+    const content = container.textContent ?? '';
+
+    expect(screen.getByText('Consultas hoje')).toBeTruthy();
+    expect(screen.getByText('Faturamento · últimos 7 dias')).toBeTruthy();
+    expect(screen.getByText('Próximos na agenda')).toBeTruthy();
+    expect(screen.getByText('Atividade recente')).toBeTruthy();
+    expect(screen.queryByText(/em breve/iu)).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Atualizar' })).toBeNull();
+    expect(content.indexOf('Consultas hoje')).toBeLessThan(content.indexOf('Faturamento'));
+    expect(content.indexOf('Faturamento')).toBeLessThan(content.indexOf('Próximos na agenda'));
+    expect(content.indexOf('Próximos na agenda')).toBeLessThan(content.indexOf('Primeiros passos'));
+  });
+
+  it('usa o EmptyState compacto canônico nos três vazios reais', async () => {
+    getDashboard.mockResolvedValue({ ...dashboard, proximos: [] });
+    getCashFlowToday.mockResolvedValue({
+      receber: 0,
+      pagar: 0,
+      recebidoHoje: 0,
+      pagoHoje: 0,
+      saldoHoje: 0,
+    });
+    listCashFlowDaily.mockResolvedValue([]);
+    getRecentActivity.mockResolvedValue([]);
+
+    render(await DashboardPage());
+
+    for (const title of [
+      'Sem recebimentos no período',
+      'Agenda livre hoje',
+      'Sem atividade recente',
+    ]) {
+      expect(screen.getByText(title).parentElement?.className).toContain('py-(--sp-5)');
+    }
+    expect(screen.queryByText('Nada para hoje.')).toBeNull();
+    expect(screen.queryByText('Nenhuma atividade registrada ainda.')).toBeNull();
+  });
+
+  it('não consulta nem serializa conteúdo financeiro ou de auditoria sem permissão', async () => {
+    getCurrentUser.mockResolvedValue(currentUser([]));
+
+    const { container } = render(await DashboardPage());
+    const html = container.innerHTML;
+
+    expect(getCashFlowToday).not.toHaveBeenCalled();
+    expect(listCashFlowDaily).not.toHaveBeenCalled();
+    expect(getRecentActivity).not.toHaveBeenCalled();
+    expect(getProfileNames).not.toHaveBeenCalled();
+    expect(html).not.toContain('A receber');
+    expect(html).not.toContain('Faturado hoje');
+    expect(html).not.toContain('Faturamento');
+    expect(html).not.toContain('Financeiro');
+    expect(html).not.toContain('Atividade recente');
+    expect(html).not.toContain('Ana Costa');
+    expect(screen.getByText('Próximos na agenda')).toBeTruthy();
+  });
+});

@@ -131,15 +131,22 @@ export function FornecedoresView({
                 {error}
               </Alert>
             ) : null}
-            <Field label="Razão social" required className="sm:col-span-2">
+            <Field
+              label="Razão social"
+              htmlFor="supplier-legal-name"
+              required
+              className="sm:col-span-2"
+            >
               <Input
+                id="supplier-legal-name"
                 value={draft.razaoSocial}
                 onChange={(e) => setDraft((d) => ({ ...d, razaoSocial: e.target.value }))}
                 maxLength={160}
               />
             </Field>
-            <Field label="CNPJ">
+            <Field label="CNPJ" htmlFor="supplier-cnpj">
               <Input
+                id="supplier-cnpj"
                 value={draft.cnpj}
                 onChange={(e) => setDraft((d) => ({ ...d, cnpj: maskCnpj(e.target.value) }))}
                 maxLength={18}
@@ -147,8 +154,9 @@ export function FornecedoresView({
                 placeholder="00.000.000/0001-00"
               />
             </Field>
-            <Field label="Telefone">
+            <Field label="Telefone" htmlFor="supplier-phone">
               <Input
+                id="supplier-phone"
                 value={draft.contato}
                 onChange={(e) => setDraft((d) => ({ ...d, contato: maskPhoneBR(e.target.value) }))}
                 type="tel"
@@ -157,8 +165,13 @@ export function FornecedoresView({
                 placeholder="(11) 99999-9999"
               />
             </Field>
-            <Field label="Condição de pagamento" className="sm:col-span-2">
+            <Field
+              label="Condição de pagamento"
+              htmlFor="supplier-payment-terms"
+              className="sm:col-span-2"
+            >
               <Input
+                id="supplier-payment-terms"
                 value={draft.condicaoPagamento}
                 onChange={(e) => setDraft((d) => ({ ...d, condicaoPagamento: e.target.value }))}
                 maxLength={120}

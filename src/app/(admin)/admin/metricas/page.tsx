@@ -113,7 +113,7 @@ export default async function MetricasPage() {
                     <TableRow key={i}>
                       <TableCell>
                         <span className="flex items-center gap-2.5 font-medium">
-                          <ClinicMark nome={t.nome} tint="var(--accent-500)" />
+                          <ClinicMark nome={t.nome} tint="var(--brand-accent-500)" />
                           {t.nome}
                         </span>
                       </TableCell>

@@ -33,8 +33,8 @@ function inviteTone(s: string): 'blue' | 'amber' | 'green' | 'gray' | 'red' {
 }
 
 const pagerBtn = cn(
-  'inline-flex h-7.5 min-w-7.5 items-center justify-center rounded-(--r-sm) px-2 text-(length:--fs-sm) tabular-nums',
-  'text-fg-muted transition-all duration-(--dur-fast) hover:bg-surface-hover hover:text-fg',
+  'inline-flex h-(--hit-target) min-w-(--hit-target) items-center justify-center rounded-(--r-sm) px-2 text-(length:--fs-sm) tabular-nums',
+  'text-fg-muted transition-[background-color,color] duration-(--dur-fast) hover:bg-surface-hover hover:text-fg',
   'disabled:pointer-events-none disabled:opacity-40',
 );
 

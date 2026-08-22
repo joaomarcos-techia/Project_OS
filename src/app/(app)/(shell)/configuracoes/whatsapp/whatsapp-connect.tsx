@@ -7,8 +7,18 @@
  */
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
+import { Check, CircleCheck, MessageCircle, WifiOff } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { Separator } from '@/components/ui/separator';
 import { formatDatePt } from '@/lib/format';
 
 import { connectWhatsappAction, disconnectWhatsappAction } from './actions';
@@ -223,8 +233,15 @@ export function WhatsappConnect({
     }
   };
 
+  const viewState =
+    status.connected && !locallyDisconnected
+      ? 'connected'
+      : status.degraded && !locallyDisconnected
+        ? 'degraded'
+        : 'disconnected';
+
   return (
-    <div>
+    <div className="min-w-0">
       {ready && appId ? (
         <Script
           src="https://connect.facebook.net/en_US/sdk.js"
@@ -233,44 +250,34 @@ export function WhatsappConnect({
         />
       ) : null}
 
-      <div className="page-head">
-        <div className="ph-crumb">
-          Configurações <span className="sep">›</span> <b>WhatsApp</b>
-        </div>
-        <h1 className="ph-title">WhatsApp da clínica</h1>
-        <p className="ph-desc">
-          Conecte o número para o Agente de IA atender pacientes pelo WhatsApp.
-        </p>
-      </div>
+      <PageHeader
+        crumbs={[{ label: 'Configurações' }, { label: 'WhatsApp' }]}
+        title="WhatsApp da clínica"
+        description="Gerencie o canal usado pelo Agente de IA para atender pacientes."
+      />
 
       {error ? (
-        <div
-          className="panel"
-          style={{
-            marginBottom: 'var(--sp-4)',
-            borderColor: 'var(--danger-500)',
-            background: 'color-mix(in oklch, var(--danger-500) 6%, var(--surface))',
-          }}
+        <Alert
+          variant="danger"
+          title="Não foi possível concluir a ação"
+          className="mb-(--sp-4) max-w-190"
         >
-          <b style={{ color: 'var(--danger-700)' }}>Não foi possível conectar</b>
-          <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 0' }}>{error.message}</p>
-          <p
-            style={{
-              fontSize: 11,
-              color: 'var(--text-3)',
-              fontFamily: 'var(--font-mono)',
-              marginTop: 6,
-            }}
-          >
+          <p className="text-pretty">{error.message}</p>
+          <p className="mt-1.5 font-mono text-(length:--fs-2xs) text-fg-subtle">
             Código: {error.code}
           </p>
-        </div>
+        </Alert>
       ) : null}
 
-      <div className="panel" style={{ maxWidth: 560 }}>
-        {status.connected && !locallyDisconnected ? (
+      <Card
+        role="region"
+        aria-labelledby="whatsapp-connection-title"
+        data-whatsapp-state={viewState}
+        className="max-w-190 overflow-hidden"
+      >
+        {viewState === 'connected' ? (
           <ConnectedView status={status} onDisconnect={disconnect} pending={disconnecting} />
-        ) : status.degraded && !locallyDisconnected ? (
+        ) : viewState === 'degraded' ? (
           // META-001 — existe número ativo, mas o canal não está operante. Cair
           // no DisconnectedView aqui esconderia a conexão quebrada atrás de um
           // convite para conectar, que foi o que permitiu o achado passar.
@@ -295,8 +302,106 @@ export function WhatsappConnect({
             onConnect={launchSignup}
           />
         )}
-      </div>
+      </Card>
     </div>
+  );
+}
+
+function ConnectionStateHeader({
+  icon,
+  title,
+  description,
+  badge,
+  badgeTone,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  badge: string;
+  badgeTone: 'gray' | 'green' | 'amber' | 'red';
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-border bg-surface-2 px-(--card-pad) py-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-10 shrink-0 place-items-center rounded-(--r-lg) border border-border bg-surface text-fg-muted shadow-xs [&>svg]:size-5"
+        >
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <h2
+            id="whatsapp-connection-title"
+            className="text-balance text-(length:--fs-h4) font-semibold"
+          >
+            {title}
+          </h2>
+          <p className="mt-0.5 max-w-[52ch] text-pretty text-(length:--fs-sm) text-fg-muted">
+            {description}
+          </p>
+        </div>
+      </div>
+      <Badge tone={badgeTone} dot className="self-start">
+        {badge}
+      </Badge>
+    </div>
+  );
+}
+
+function ConnectionDetails({ status }: { status: WhatsappStatusDTO }) {
+  return (
+    <dl className="grid gap-3 text-(length:--fs-sm) sm:grid-cols-2">
+      <div className="min-w-0">
+        <dt className="text-(length:--fs-xs) font-medium text-fg-subtle">Número</dt>
+        <dd className="mt-1 truncate font-mono text-fg">{status.phoneNumberMasked ?? '—'}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-(length:--fs-xs) font-medium text-fg-subtle">Conectado em</dt>
+        <dd className="mt-1 font-mono text-fg">{formatDatePt(status.verifiedAt)}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function RegistrationPinField({
+  id,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  value: string;
+  onChange: (pin: string) => void;
+  disabled: boolean;
+}) {
+  const helpId = `${id}-help`;
+  return (
+    <Field
+      label="PIN de ativação do WhatsApp"
+      htmlFor={id}
+      required
+      hint={
+        <span id={helpId}>
+          Crie e guarde um PIN numérico de 6 dígitos. Ele ativa o número na Cloud API e não é salvo
+          pela Qoro.
+        </span>
+      }
+    >
+      <Input
+        id={id}
+        type="password"
+        inputMode="numeric"
+        autoComplete="new-password"
+        pattern="[0-9]{6}"
+        maxLength={6}
+        required
+        value={value}
+        onChange={(event) => onChange(event.target.value.replace(/\D/g, ''))}
+        disabled={disabled}
+        aria-describedby={helpId}
+        className="min-h-(--hit-target) max-w-80 font-mono"
+      />
+    </Field>
   );
 }
 
@@ -309,40 +414,53 @@ function ConnectedView({
   onDisconnect: () => void;
   pending: boolean;
 }) {
+  const verificationPending =
+    status.health.verdict === 'indeterminate' && status.health.messages.length > 0;
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'var(--sp-3)' }}>
-        <h4 style={{ margin: 0 }}>WhatsApp conectado</h4>
-        <span className="badge green">
-          <span className="bdot" />
-          Ativo
-        </span>
+      <ConnectionStateHeader
+        icon={<CircleCheck />}
+        title="WhatsApp conectado"
+        description={
+          verificationPending
+            ? 'A última conexão válida foi preservada enquanto a Meta não responde à verificação.'
+            : 'O número está vinculado e disponível para o atendimento automatizado.'
+        }
+        badge={verificationPending ? 'Verificação pendente' : 'Ativo'}
+        badgeTone={verificationPending ? 'amber' : 'green'}
+      />
+      <div className="grid gap-4 p-(--card-pad)">
+        <ConnectionDetails status={status} />
+        {verificationPending ? (
+          <Alert variant="warning" title="Verificação temporariamente indisponível">
+            <ul className="grid list-disc gap-1 pl-4">
+              {status.health.messages.map((message) => (
+                <li key={message} className="text-pretty">
+                  {message}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-pretty">
+              O estado exibido é o da última verificação bem-sucedida.
+            </p>
+          </Alert>
+        ) : null}
       </div>
-      <dl
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'auto 1fr',
-          gap: '8px 16px',
-          margin: 0,
-          fontSize: 14,
-        }}
-      >
-        <dt style={{ color: 'var(--text-3)' }}>Número</dt>
-        <dd style={{ margin: 0, fontFamily: 'var(--font-mono)' }}>
-          {status.phoneNumberMasked ?? '—'}
-        </dd>
-        <dt style={{ color: 'var(--text-3)' }}>Conectado em</dt>
-        <dd style={{ margin: 0 }}>{formatDatePt(status.verifiedAt)}</dd>
-      </dl>
-      {status.health.verdict === 'indeterminate' && status.health.messages.length > 0 ? (
-        <p style={{ fontSize: 12, color: 'var(--text-3)', margin: 'var(--sp-3) 0 0' }}>
-          {status.health.messages[0]} O estado exibido é o da última verificação bem-sucedida.
+      <div className="flex flex-col gap-3 border-t border-border bg-surface-2 px-(--card-pad) py-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-[48ch] text-pretty text-(length:--fs-xs) text-fg-subtle">
+          Desconectar interrompe o atendimento automatizado neste número.
         </p>
-      ) : null}
-      <div style={{ marginTop: 'var(--sp-4)' }}>
-        <button className="btn danger sm" onClick={onDisconnect} disabled={pending}>
-          {pending ? 'Desconectando…' : 'Desconectar'}
-        </button>
+        <Button
+          type="button"
+          variant="danger"
+          size="sm"
+          loading={pending}
+          onClick={onDisconnect}
+          className="min-h-(--hit-target) w-full sm:w-auto"
+        >
+          Desconectar
+        </Button>
       </div>
     </>
   );
@@ -374,81 +492,80 @@ function DegradedView({
   onDisconnect: () => void;
   disconnecting: boolean;
 }) {
+  const busy = pending || disconnecting;
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'var(--sp-3)' }}>
-        <h4 style={{ margin: 0 }}>WhatsApp com problema</h4>
-        <span className="badge red">
-          <span className="bdot" />
-          Não está recebendo mensagens
-        </span>
-      </div>
-      <dl
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'auto 1fr',
-          gap: '8px 16px',
-          margin: 0,
-          fontSize: 14,
-        }}
-      >
-        <dt style={{ color: 'var(--text-3)' }}>Número</dt>
-        <dd style={{ margin: 0, fontFamily: 'var(--font-mono)' }}>
-          {status.phoneNumberMasked ?? '—'}
-        </dd>
-        <dt style={{ color: 'var(--text-3)' }}>Conectado em</dt>
-        <dd style={{ margin: 0 }}>{formatDatePt(status.verifiedAt)}</dd>
-      </dl>
-      {status.health.messages.length > 0 ? (
-        <ul
-          style={{
-            fontSize: 13,
-            color: 'var(--text-2)',
-            margin: 'var(--sp-3) 0 0',
-            paddingLeft: '1.1rem',
-            display: 'grid',
-            gap: 4,
-          }}
-        >
-          {status.health.messages.map((message) => (
-            <li key={message}>{message}</li>
-          ))}
-        </ul>
-      ) : null}
-      <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 'var(--sp-3) 0 var(--sp-3)' }}>
-        Refaça a conexão para voltar a receber mensagens dos pacientes.
-      </p>
-      <label
-        htmlFor="whatsapp-reconnect-pin"
-        style={{ display: 'grid', gap: 6, marginBottom: 'var(--sp-4)', fontSize: 13 }}
-      >
-        <span>PIN de ativação do WhatsApp</span>
-        <input
-          id="whatsapp-reconnect-pin"
-          type="password"
-          inputMode="numeric"
-          autoComplete="new-password"
-          pattern="[0-9]{6}"
-          maxLength={6}
-          value={registrationPin}
-          onChange={(event) => onRegistrationPinChange(event.target.value.replace(/\D/g, ''))}
-          disabled={pending}
-          className="h-10 rounded-(--r-sm) border border-border bg-surface px-3 text-sm"
-        />
-      </label>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {ready ? (
-          <button
-            className="btn"
-            onClick={onReconnect}
-            disabled={pending || !sdkReady || registrationPin.length !== 6}
-          >
-            {pending ? 'Reconectando…' : !sdkReady ? 'Carregando…' : 'Reconectar WhatsApp'}
-          </button>
+      <ConnectionStateHeader
+        icon={<WifiOff />}
+        title="WhatsApp com problema"
+        description="A conexão existe, mas o canal não está recebendo mensagens dos pacientes."
+        badge="Não está recebendo"
+        badgeTone="red"
+      />
+      <div className="grid gap-4 p-(--card-pad)">
+        <ConnectionDetails status={status} />
+        {status.health.messages.length > 0 ? (
+          <Alert variant="danger" title="Falhas encontradas">
+            <ul className="grid list-disc gap-1 pl-4">
+              {status.health.messages.map((message) => (
+                <li key={message} className="text-pretty">
+                  {message}
+                </li>
+              ))}
+            </ul>
+          </Alert>
         ) : null}
-        <button className="btn danger sm" onClick={onDisconnect} disabled={disconnecting}>
-          {disconnecting ? 'Desconectando…' : 'Desconectar'}
-        </button>
+        <Separator />
+        <div className="grid gap-4">
+          <p className="text-pretty text-(length:--fs-sm) text-fg-muted">
+            Refaça a conexão para voltar a receber mensagens dos pacientes.
+          </p>
+          {ready ? (
+            <RegistrationPinField
+              id="whatsapp-reconnect-pin"
+              value={registrationPin}
+              onChange={onRegistrationPinChange}
+              disabled={busy}
+            />
+          ) : (
+            <Alert variant="warning" title="Reconexão automática indisponível">
+              Esta instância não está configurada para iniciar a reconexão. Fale com o suporte para
+              restabelecer o canal.
+            </Alert>
+          )}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {ready ? (
+              <Button
+                type="button"
+                loading={pending}
+                onClick={onReconnect}
+                disabled={busy || !sdkReady || registrationPin.length !== 6}
+                className="min-h-(--hit-target) w-full sm:w-auto"
+              >
+                {sdkReady ? 'Reconectar WhatsApp' : 'Carregando integração…'}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              loading={disconnecting}
+              onClick={onDisconnect}
+              disabled={busy}
+              className="min-h-(--hit-target) w-full sm:w-auto"
+            >
+              Desconectar
+            </Button>
+          </div>
+          <span className="sr-only" role="status" aria-live="polite">
+            {pending
+              ? 'Reconectando o WhatsApp.'
+              : disconnecting
+                ? 'Desconectando o WhatsApp.'
+                : ''}
+          </span>
+        </div>
       </div>
     </>
   );
@@ -471,63 +588,66 @@ function DisconnectedView({
 }) {
   return (
     <>
-      <h4 style={{ marginTop: 0 }}>Conecte o WhatsApp da clínica</h4>
-      <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 var(--sp-3)' }}>
-        Com o número conectado, o Agente de IA poderá:
-      </p>
-      <ul
-        style={{
-          fontSize: 14,
-          color: 'var(--text)',
-          margin: '0 0 var(--sp-4)',
-          paddingLeft: 0,
-          listStyle: 'none',
-          display: 'grid',
-          gap: 6,
-        }}
-      >
-        <li>✓ responder pacientes</li>
-        <li>✓ confirmar consultas</li>
-        <li>✓ enviar lembretes</li>
-        <li>✓ recuperar pagamentos</li>
-      </ul>
-      <label
-        htmlFor="whatsapp-registration-pin"
-        style={{ display: 'grid', gap: 6, marginBottom: 'var(--sp-4)', fontSize: 13 }}
-      >
-        <span>PIN de ativação do WhatsApp</span>
-        <input
-          id="whatsapp-registration-pin"
-          type="password"
-          inputMode="numeric"
-          autoComplete="new-password"
-          pattern="[0-9]{6}"
-          maxLength={6}
-          value={registrationPin}
-          onChange={(event) => onRegistrationPinChange(event.target.value.replace(/\D/g, ''))}
-          disabled={pending}
-          aria-describedby="whatsapp-registration-pin-help"
-          className="h-10 rounded-(--r-sm) border border-border bg-surface px-3 text-sm"
-        />
-        <span id="whatsapp-registration-pin-help" style={{ color: 'var(--text-3)' }}>
-          Crie e guarde um PIN numérico de 6 dígitos. Ele ativa o número na Cloud API e não é salvo
-          pelo ClinicaOS.
-        </span>
-      </label>
-      {ready ? (
-        <button
-          className="btn"
-          onClick={onConnect}
-          disabled={pending || !sdkReady || registrationPin.length !== 6}
-        >
-          {pending ? 'Conectando…' : !sdkReady ? 'Carregando…' : 'Conectar WhatsApp'}
-        </button>
-      ) : (
-        <p style={{ fontSize: 13, color: 'var(--text-3)' }}>
-          A conexão automática ainda não está habilitada nesta instância. Fale com o suporte para
-          conectar o WhatsApp da clínica.
-        </p>
-      )}
+      <ConnectionStateHeader
+        icon={<MessageCircle />}
+        title="Conecte o WhatsApp da clínica"
+        description="Vincule o número usado no atendimento para ativar o canal da clínica."
+        badge={ready ? 'Não conectado' : 'Indisponível'}
+        badgeTone="gray"
+      />
+      <div className="grid gap-4 p-(--card-pad)">
+        <div>
+          <p className="text-pretty text-(length:--fs-sm) text-fg-muted">
+            Com o número conectado, o Agente de IA poderá:
+          </p>
+          <ul
+            aria-label="Recursos disponíveis após a conexão"
+            className="mt-3 grid gap-x-5 gap-y-2 text-(length:--fs-sm) text-fg sm:grid-cols-2"
+          >
+            {[
+              'Responder pacientes',
+              'Confirmar consultas',
+              'Enviar lembretes',
+              'Recuperar pagamentos',
+            ].map((benefit) => (
+              <li key={benefit} className="flex items-center gap-2">
+                <Check aria-hidden="true" className="size-4 shrink-0 text-success-600" />
+                <span>{benefit}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <Separator />
+        {ready ? (
+          <div className="grid gap-4">
+            <RegistrationPinField
+              id="whatsapp-registration-pin"
+              value={registrationPin}
+              onChange={onRegistrationPinChange}
+              disabled={pending}
+            />
+            <div>
+              <Button
+                type="button"
+                loading={pending}
+                onClick={onConnect}
+                disabled={pending || !sdkReady || registrationPin.length !== 6}
+                className="min-h-(--hit-target) w-full sm:w-auto"
+              >
+                {sdkReady ? 'Conectar WhatsApp' : 'Carregando integração…'}
+              </Button>
+            </div>
+            <span className="sr-only" role="status" aria-live="polite">
+              {pending ? 'Conectando o WhatsApp.' : ''}
+            </span>
+          </div>
+        ) : (
+          <Alert variant="warning" title="Conexão automática indisponível">
+            A conexão ainda não está habilitada nesta instância. Fale com o suporte para conectar o
+            WhatsApp da clínica.
+          </Alert>
+        )}
+      </div>
     </>
   );
 }

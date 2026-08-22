@@ -151,9 +151,11 @@ export function PatientForm({
           <div className="grid gap-3.5 sm:grid-cols-2">
             <Field
               label="Paciente responsável"
+              htmlFor="patient-guardian"
               hint="Obrigatório quando a data de nascimento indicar menos de 18 anos."
             >
               <Select
+                id="patient-guardian"
                 name="guardianPatientId"
                 value={draft.guardianPatientId}
                 onChange={(event) => setDraftField('guardianPatientId', event.target.value)}
@@ -167,8 +169,9 @@ export function PatientForm({
                 ))}
               </Select>
             </Field>
-            <Field label="Vínculo">
+            <Field label="Vínculo" htmlFor="patient-guardian-relationship">
               <Select
+                id="patient-guardian-relationship"
                 name="guardianRelationshipType"
                 value={draft.guardianRelationshipType}
                 onChange={(event) => setDraftField('guardianRelationshipType', event.target.value)}
@@ -212,8 +215,9 @@ export function PatientForm({
       ) : null}
 
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Telefone">
+        <Field label="Telefone" htmlFor="patient-phone">
           <Input
+            id="patient-phone"
             name="telefone"
             type="tel"
             inputMode="tel"
@@ -240,16 +244,18 @@ export function PatientForm({
       </div>
 
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Data de nascimento">
+        <Field label="Data de nascimento" htmlFor="patient-birth-date">
           <DateField
+            id="patient-birth-date"
             name="dataNascimento"
             defaultValue={initial?.dataNascimento ?? ''}
             disabled={pending}
           />
         </Field>
 
-        <Field label="Sexo">
+        <Field label="Sexo" htmlFor="patient-sex">
           <Select
+            id="patient-sex"
             name="sexo"
             value={draft.sexo}
             onChange={(event) => setDraftField('sexo', event.target.value)}
@@ -272,8 +278,9 @@ export function PatientForm({
           </span>
         </legend>
 
-        <Field label="Logradouro (rua, número)">
+        <Field label="Logradouro (rua, número)" htmlFor="patient-address-street">
           <Input
+            id="patient-address-street"
             name="endLogradouro"
             maxLength={300}
             placeholder="Rua das Flores, 50"
@@ -284,8 +291,9 @@ export function PatientForm({
         </Field>
 
         <div className="grid gap-3.5 sm:grid-cols-2">
-          <Field label="Complemento">
+          <Field label="Complemento" htmlFor="patient-address-complement">
             <Input
+              id="patient-address-complement"
               name="endComplemento"
               maxLength={120}
               placeholder="Apto 12 (opcional)"
@@ -294,8 +302,9 @@ export function PatientForm({
               disabled={pending}
             />
           </Field>
-          <Field label="CEP">
+          <Field label="CEP" htmlFor="patient-address-postal-code">
             <Input
+              id="patient-address-postal-code"
               name="endCep"
               maxLength={20}
               inputMode="numeric"
@@ -308,8 +317,9 @@ export function PatientForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-[1fr_6rem]">
-          <Field label="Cidade">
+          <Field label="Cidade" htmlFor="patient-address-city">
             <Input
+              id="patient-address-city"
               name="endCidade"
               maxLength={120}
               placeholder="São Paulo"
@@ -318,8 +328,9 @@ export function PatientForm({
               disabled={pending}
             />
           </Field>
-          <Field label="UF">
+          <Field label="UF" htmlFor="patient-address-state">
             <Input
+              id="patient-address-state"
               name="endEstado"
               maxLength={2}
               placeholder="SP"

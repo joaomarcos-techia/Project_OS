@@ -238,7 +238,7 @@ export async function recordPatientDeathForm(
   const deceasedAt = str(fd, 'deceasedAt');
   const reason = str(fd, 'reason');
   if (!id || !deceasedAt || !reason) {
-    return { error: 'Data e motivo do falecimento sao obrigatorios.' };
+    return { error: 'Data e motivo do falecimento são obrigatórios.' };
   }
   try {
     await recordPatientDeath(id, { deceasedAt, reason }, key);

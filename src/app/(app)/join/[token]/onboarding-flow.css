@@ -97,7 +97,10 @@
     background: var(--surface-inset);
     color: var(--text-3);
     border: 1px solid var(--border);
-    transition: all var(--dur-base) var(--ease-out);
+    transition:
+      background-color var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
   }
   .wiz-steps .ws .num svg {
     width: 13px;
@@ -865,7 +868,10 @@
     background: var(--surface-inset);
     color: var(--text-3);
     border: 1px solid var(--border);
-    transition: all var(--dur-base) var(--ease-out);
+    transition:
+      background-color var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
   }
   .proc-step .ico svg {
     width: 14px;

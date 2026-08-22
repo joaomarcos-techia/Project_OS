@@ -1,14 +1,13 @@
 // @vitest-environment happy-dom
 /**
- * RBAC + UI da tela /caixa (C9). Testa a VISIBILIDADE por papel sem navegador:
- * - operate:caixa → "Confirmar pagamento" / "Cancelar"
- * - refund:financial → "Reembolsar" (em pagamentos com saldo)
- * - banner de pendências
- * - card patient-first (nome do paciente em destaque)
- * Server Actions e next/navigation são mockados (testamos render, não rede).
+ * P-30 — Caixa como work queue: rótulos por direção financeira, RBAC,
+ * confirmação contextual e paginação local sem corte silencioso.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type {
   CaixaItem,
@@ -24,6 +23,7 @@ vi.mock('./actions', () => ({
   createEstornoAction: vi.fn(),
 }));
 
+import { cancelLancamentoAction } from './actions';
 import { CaixaView } from './caixa-view';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
@@ -67,6 +67,24 @@ function item(overrides: Partial<CaixaItem> = {}): CaixaItem {
   };
 }
 
+function payable(overrides: Partial<CaixaItem> = {}): CaixaItem {
+  return item({
+    id: 'pg1',
+    tipo: 'pagar',
+    descricao: 'Aluguel da sala',
+    valor: 1200,
+    valorPago: 0,
+    status: 'pendente',
+    patientId: null,
+    supplierId: 's1',
+    appointmentId: null,
+    pacienteNome: null,
+    snapshotProcedureName: null,
+    snapshotDoctorNome: null,
+    ...overrides,
+  });
+}
+
 const base = {
   pendentes: [] as CaixaItem[],
   parciais: [] as CaixaItem[],
@@ -80,28 +98,64 @@ const base = {
   canRefund: true,
 };
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(cancelLancamentoAction).mockResolvedValue({ ok: true, data: item() });
+});
+
 afterEach(cleanup);
 
-describe('CaixaView — RBAC e UI', () => {
-  it('patient-first: mostra o nome do paciente em destaque', () => {
+describe('CaixaView — work queue, rótulos e RBAC', () => {
+  it('mantém paciente e procedimento como contexto principal do recebível', () => {
     render(<CaixaView {...base} pendentes={[item()]} />);
+
     expect(screen.getByText('João Silva')).toBeTruthy();
-    expect(screen.getByText('Consulta')).toBeTruthy(); // procedimento
+    expect(screen.getByText(/Consulta · Dra\. Smoke/)).toBeTruthy();
   });
 
-  it('operate:caixa → mostra Confirmar pagamento e Cancelar', () => {
-    render(<CaixaView {...base} canOperate={true} pendentes={[item()]} />);
-    expect(screen.getByRole('button', { name: 'Confirmar pagamento' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy();
+  it('usa Receber para recebível e Pagar para pagável, mantendo os formulários inline', () => {
+    render(<CaixaView {...base} pendentes={[item()]} aPagar={[payable()]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Receber João Silva' }));
+    expect(screen.getByLabelText('Valor recebido')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Receber R\$\s*200,00/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: /A pagar 1/ }));
+    expect(screen.getByText('Aluguel da sala')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar Aluguel da sala' }));
+    expect(screen.getByLabelText('Valor pago')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Pagar R\$\s*1\.200,00/ })).toBeTruthy();
   });
 
-  it('sem operate:caixa → NÃO mostra Confirmar/Cancelar', () => {
+  it('operate:caixa mostra ações de receber/cancelar; sem permissão não mostra', () => {
+    const { unmount } = render(<CaixaView {...base} canOperate pendentes={[item()]} />);
+    expect(screen.getByRole('button', { name: 'Receber João Silva' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancelar João Silva' })).toBeTruthy();
+
+    unmount();
     render(<CaixaView {...base} canOperate={false} canRefund={false} pendentes={[item()]} />);
-    expect(screen.queryByRole('button', { name: 'Confirmar pagamento' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Receber João Silva' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancelar João Silva' })).toBeNull();
   });
 
-  it('refund:financial mostra reembolso vinculado ao pagamento; sem permissao nao mostra', () => {
+  it('cancelamento exige confirmação contextual antes da action idempotente', async () => {
+    render(<CaixaView {...base} pendentes={[item()]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar João Silva' }));
+    expect(cancelLancamentoAction).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/saldo de R\$\s*200,00 deixará de aparecer em A receber/i),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sim, cancelar' }));
+    await waitFor(() => expect(cancelLancamentoAction).toHaveBeenCalledTimes(1));
+    const [input, idempotencyKey] = vi.mocked(cancelLancamentoAction).mock.calls[0]!;
+    expect(input).toEqual({ lancamentoId: 'l1' });
+    expect(idempotencyKey).toEqual(expect.any(String));
+    expect(idempotencyKey.length).toBeGreaterThan(0);
+  });
+
+  it('refund:financial mostra reembolso apenas na fila recebida e com saldo reembolsável', () => {
     const pago = item({
       status: 'pago',
       paidAt: '2026-06-06T10:00:00.000Z',
@@ -112,12 +166,14 @@ describe('CaixaView — RBAC e UI', () => {
       <CaixaView
         {...base}
         canOperate={false}
-        canRefund={true}
+        canRefund
         pagosHoje={[pago]}
         paymentTransactions={[PAYMENT]}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Reembolsar' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: /Recebido hoje 1/ }));
+    expect(screen.getByRole('button', { name: 'Reembolsar João Silva' })).toBeTruthy();
+
     unmount();
     render(
       <CaixaView
@@ -128,25 +184,47 @@ describe('CaixaView — RBAC e UI', () => {
         paymentTransactions={[PAYMENT]}
       />,
     );
-    expect(screen.queryByRole('button', { name: 'Reembolsar' })).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: /Recebido hoje 1/ }));
+    expect(screen.queryByRole('button', { name: 'Reembolsar João Silva' })).toBeNull();
   });
 
-  it('banner de pendências aparece só quando há pendência aberta', () => {
-    const pend: FaturamentoPendenciaDTO = {
+  it('preserva os cálculos de saldo dos três totais executivos', () => {
+    const partial = item({ id: 'partial', valor: 300, valorPago: 125, status: 'parcial' });
+    const paid = item({ id: 'paid', valor: 200, valorPago: 200, status: 'pago' });
+    const account = payable({ valor: 1200, valorPago: 200, status: 'parcial' });
+
+    render(
+      <CaixaView
+        {...base}
+        pendentes={[item()]}
+        parciais={[partial]}
+        pagosHoje={[paid]}
+        aPagar={[account]}
+      />,
+    );
+
+    expect(screen.getByLabelText(/A receber: R\$\s*375,00/)).toBeTruthy();
+    expect(screen.getByLabelText(/Recebido hoje: R\$\s*200,00/)).toBeTruthy();
+    expect(screen.getByLabelText(/A pagar: R\$\s*1\.000,00/)).toBeTruthy();
+  });
+
+  it('mostra pendências de faturamento apenas quando a fila possui itens', () => {
+    const pendingBilling: FaturamentoPendenciaDTO = {
       id: 'fp1',
       appointmentId: 'a9',
       motivo: 'Atendimento sem lançamento',
       valor: 150,
       createdAt: '2026-06-06T00:00:00.000Z',
     };
-    const { unmount } = render(<CaixaView {...base} pendencias={[pend]} />);
-    expect(screen.getByText(/Existem atendimentos não faturados/i)).toBeTruthy();
+    const { unmount } = render(<CaixaView {...base} pendencias={[pendingBilling]} />);
+    expect(screen.getByText(/Atendimentos não faturados/)).toBeTruthy();
+
     unmount();
     render(<CaixaView {...base} pendencias={[]} />);
-    expect(screen.queryByText(/Existem atendimentos não faturados/i)).toBeNull();
+    expect(screen.queryByText(/Atendimentos não faturados/)).toBeNull();
   });
 
-  it('exibe fila humana de cobranca antiga com saldo residual', () => {
+  it('exibe fila humana de cobrança antiga com atraso e saldo residual', () => {
     render(
       <CaixaView
         {...base}
@@ -167,25 +245,36 @@ describe('CaixaView — RBAC e UI', () => {
     expect(screen.getByText(/R\$\s*600,00/i)).toBeTruthy();
   });
 
-  it('mostra a seção "A pagar" com conta acionável (botão pagar — item P2.3)', () => {
-    const conta = item({
-      id: 'pg1',
-      tipo: 'pagar',
-      descricao: 'Aluguel da sala',
-      valor: 1200,
-      valorPago: 0,
-      status: 'pendente',
-      patientId: null,
-      supplierId: 's1',
-      appointmentId: null,
-      pacienteNome: null,
-    });
-    render(<CaixaView {...base} canOperate={true} aPagar={[conta]} />);
-    // "A pagar" aparece 2×: total no header + título da seção.
-    expect(screen.getAllByText('A pagar').length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('Aluguel da sala')).toBeTruthy();
-    // acionável: mostra o botão de dar baixa (mesmo ItemCard dos recebíveis).
-    expect(screen.getAllByText('Confirmar pagamento').length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByText('Nada a pagar')).toBeNull();
+  it('torna todos os lançamentos acessíveis por paginação local', () => {
+    const receivables = Array.from({ length: 11 }, (_, index) =>
+      item({ id: `l${index + 1}`, pacienteNome: `Paciente ${index + 1}` }),
+    );
+    render(<CaixaView {...base} pendentes={receivables} />);
+
+    expect(screen.queryByText('Paciente 11')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima página de A receber' }));
+    expect(screen.getByText('Paciente 11')).toBeTruthy();
+    expect(screen.getByText('11–11 de 11 em a receber')).toBeTruthy();
+  });
+
+  it('remove o corte de cinco pendências e oferece caminho até a página seguinte', () => {
+    const pendingBilling = Array.from({ length: 11 }, (_, index) => ({
+      id: `fp${index + 1}`,
+      appointmentId: `a${index + 1}`,
+      motivo: `Pendência ${index + 1}`,
+      valor: 100 + index,
+      createdAt: '2026-06-06T00:00:00.000Z',
+    }));
+    render(<CaixaView {...base} pendencias={pendingBilling} />);
+
+    expect(screen.queryByText('Pendência 11')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Próxima página de atendimentos não faturados' }),
+    );
+    expect(screen.getByText('Pendência 11')).toBeTruthy();
+
+    const source = readFileSync(resolve(__dirname, 'caixa-view.tsx'), 'utf8');
+    expect(source).not.toContain('.slice(0, 5)');
+    expect(source).not.toContain('.slice(0, 10)');
   });
 });

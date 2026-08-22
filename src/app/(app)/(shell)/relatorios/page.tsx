@@ -11,6 +11,7 @@ import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { cn } from '@/lib/ui/cn';
@@ -42,41 +43,43 @@ export default async function RelatoriosPage({
         title="Relatórios"
         description={`Período: ${data.fromLabel} – ${data.toLabel} (fuso da clínica).`}
         actions={
-          <>
-            <a
-              href={`/relatorios/pdf?periodo=${period.key}`}
-              target="_blank"
-              rel="noopener"
-              className={buttonVariants({ variant: 'secondary', size: 'sm' })}
-            >
-              <FileDown className="size-3.5" />
-              Exportar PDF
-            </a>
-            <nav
-              aria-label="Período"
-              className="inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-0.75"
-            >
-              {PERIODS.map((p) => (
-                <Link
-                  key={p.key}
-                  href={`/relatorios?periodo=${p.key}`}
-                  aria-current={p.key === period.key ? 'page' : undefined}
-                  className={cn(
-                    'rounded-(--r-sm) px-3 py-1.5 text-(length:--fs-sm) font-medium transition-all duration-(--dur-fast)',
-                    p.key === period.key
-                      ? 'bg-surface text-fg shadow-(--elev-raised)'
-                      : 'text-fg-muted hover:text-fg',
-                  )}
-                >
-                  {p.label}
-                </Link>
-              ))}
-            </nav>
-          </>
+          <a
+            href={`/relatorios/pdf?periodo=${period.key}`}
+            target="_blank"
+            rel="noopener"
+            className={cn(
+              buttonVariants({ variant: 'secondary', size: 'sm' }),
+              'min-h-(--hit-target)',
+            )}
+          >
+            <FileDown aria-hidden="true" className="size-4" />
+            Exportar PDF
+          </a>
         }
       />
 
-      <div className="grid gap-(--sp-4) sm:grid-cols-2 xl:grid-cols-3">
+      <nav
+        aria-label="Período do relatório"
+        className="mb-(--sp-4) inline-flex max-w-full gap-0.5 overflow-x-auto rounded-(--r-md) border border-border bg-surface-inset p-0.75"
+      >
+        {PERIODS.map((p) => (
+          <Link
+            key={p.key}
+            href={`/relatorios?periodo=${p.key}`}
+            aria-current={p.key === period.key ? 'page' : undefined}
+            className={cn(
+              'inline-flex min-h-(--hit-target) shrink-0 items-center rounded-(--r-sm) px-3 text-(length:--fs-sm) font-medium transition-[background-color,color,box-shadow] duration-(--dur-fast)',
+              p.key === period.key
+                ? 'bg-surface text-fg shadow-(--elev-raised)'
+                : 'text-fg-muted hover:text-fg',
+            )}
+          >
+            {p.label}
+          </Link>
+        ))}
+      </nav>
+
+      <MetricStrip>
         {canFinancial ? (
           <StatCard
             label="Faturamento (recebido)"
@@ -91,11 +94,11 @@ export default async function RelatoriosPage({
           hint={`${data.noShow.faltou} falta(s) de ${data.noShow.atendido + data.noShow.faltou} com desfecho`}
         />
 
-        <Card className="flex flex-col gap-2.5 p-(--card-pad)">
+        <Card data-slot="stat-card" className="flex flex-col gap-2.5 p-(--card-pad)">
           <span className="font-mono text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
             Ocupação
           </span>
-          <span className="font-display text-[34px] leading-none font-medium tracking-tight">
+          <span className="font-mono text-(length:--fs-h2) leading-none font-medium tracking-(--tracking-tight) tabular-nums">
             {pct(data.ocupacao.taxa)}
           </span>
           <div className="h-1.75 w-full overflow-hidden rounded-full bg-viz-track">
@@ -112,25 +115,27 @@ export default async function RelatoriosPage({
                 )}h disponíveis`}
           </span>
         </Card>
-      </div>
+      </MetricStrip>
 
       {/* Volume de atendimentos */}
-      <Card className="mt-(--sp-4) flex flex-wrap gap-8 p-(--card-pad)">
-        {(
-          [
-            ['Total no período', data.noShow.total],
-            ['Atendidos', data.noShow.atendido],
-            ['Faltas', data.noShow.faltou],
-            ['Cancelados', data.noShow.cancelado],
-          ] as const
-        ).map(([label, value]) => (
-          <div key={label} className="flex flex-col gap-1">
-            <span className="font-mono text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
-              {label}
-            </span>
-            <span className="font-display text-xl font-medium tabular-nums">{value}</span>
-          </div>
-        ))}
+      <Card role="region" aria-label="Volume de atendimentos" className="mt-(--sp-4)">
+        <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-x-8 gap-y-4 p-(--card-pad)">
+          {(
+            [
+              ['Total no período', data.noShow.total],
+              ['Atendidos', data.noShow.atendido],
+              ['Faltas', data.noShow.faltou],
+              ['Cancelados', data.noShow.cancelado],
+            ] as const
+          ).map(([label, value]) => (
+            <div key={label} className="flex flex-col gap-1">
+              <dt className="font-mono text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
+                {label}
+              </dt>
+              <dd className="font-mono text-xl font-medium tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
       </Card>
     </>
   );

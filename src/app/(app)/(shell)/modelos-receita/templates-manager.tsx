@@ -11,6 +11,7 @@ import {
 } from '@/contexts/clinical/actions-templates';
 import type { PrescriptionTemplateSummary } from '@/contexts/clinical';
 import { Button } from '@/components/ui/button';
+import { DestructiveAction } from '@/components/ui/destructive-action';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -103,18 +104,6 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao salvar.');
-      }
-    });
-  }
-
-  function remove(t: PrescriptionTemplateSummary) {
-    if (!confirm(`Excluir o modelo "${t.nome}"?`)) return;
-    start(async () => {
-      try {
-        await deletePrescriptionTemplate(t.id, uuidv4());
-        router.refresh();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Erro ao excluir.');
       }
     });
   }
@@ -274,15 +263,25 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
                   >
                     Duplicar
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => remove(t)}
+                  <DestructiveAction
+                    trigger={
+                      <Button type="button" size="sm" variant="ghost" disabled={busy}>
+                        Excluir
+                      </Button>
+                    }
+                    title={`Excluir “${t.nome}”`}
+                    description="O modelo deixa de estar disponível para novas prescrições. Documentos já emitidos não são alterados."
+                    confirmLabel="Excluir modelo"
+                    cancelLabel="Manter modelo"
                     disabled={busy}
-                  >
-                    Excluir
-                  </Button>
+                    action={async () => {
+                      await deletePrescriptionTemplate(t.id, uuidv4());
+                      router.refresh();
+                    }}
+                    onError={(error) =>
+                      toast.error(error instanceof Error ? error.message : 'Erro ao excluir.')
+                    }
+                  />
                 </div>
               </div>
             ))}

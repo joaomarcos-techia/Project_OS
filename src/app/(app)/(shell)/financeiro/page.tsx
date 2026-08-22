@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { clinicMonthBounds } from '@/contexts/financial/logic';
 import {
   getCashFlowToday,
-  listLancamentos,
+  listLancamentosPage,
   listPaymentMethods,
   listSuppliers,
 } from '@/contexts/financial/queries';
@@ -16,6 +17,7 @@ import type {
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
@@ -33,6 +35,7 @@ import {
   TableWrap,
 } from '@/components/ui/table';
 import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
+import { TablePager } from '@/components/ui/table-pager';
 import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
@@ -41,8 +44,11 @@ import { formatBRL, formatDatePt } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
 
 import { NewLancamentoDrawer } from './new-lancamento-drawer';
+import { financeiroPageHref, parseFinanceiroPage } from './pagination';
 
 export const dynamic = 'force-dynamic';
+
+type SP = { tipo?: string; status?: string; novo?: string; page?: string };
 
 const STATUS_TONE: Record<LancamentoStatus, 'amber' | 'blue' | 'green' | 'gray' | 'red'> = {
   pendente: 'amber',
@@ -63,11 +69,7 @@ const isTipo = (v: string | undefined): v is LancamentoTipo => v === 'receber' |
 const isStatus = (v: string | undefined): v is LancamentoStatus =>
   v === 'pendente' || v === 'parcial' || v === 'pago' || v === 'cancelado' || v === 'estornado';
 
-export default async function FinanceiroPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tipo?: string; status?: string; novo?: string }>;
-}) {
+export default async function FinanceiroPage({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requireUser();
   await requireClinicId();
 
@@ -84,7 +86,14 @@ export default async function FinanceiroPage({
 
   const clinicId = user.clinicId;
   const canManage = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
-  const { tipo, status, novo } = await searchParams;
+  const { tipo, status, novo, page: rawPage } = await searchParams;
+  const tipoFilter = isTipo(tipo) ? tipo : undefined;
+  const statusFilter = isStatus(status) ? status : undefined;
+  const paginationFilters = {
+    ...(tipoFilter ? { tipo: tipoFilter } : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
+  };
+  const page = parseFinanceiroPage(rawPage);
   const tz = await getClinicTimezone(clinicId);
   // Cards de fluxo = MÊS corrente (não o dia): recebido/pago/saldo do mês. Os
   // totais "a receber/a pagar" já são o aberto geral (independem da janela).
@@ -92,19 +101,24 @@ export default async function FinanceiroPage({
 
   // Fan-out do financeiro. `withQueryDeadline` (FALHA ALTO): nunca mostra vazio-por-
   // timeout como verdade — estolou, cai no error boundary do shell, não pendura.
-  const [flow, lancamentos, suppliers, methods] = await withQueryDeadline(
+  const [flow, lancamentosResult, suppliers, methods] = await withQueryDeadline(
     'financeiro.load',
     Promise.all([
       getCashFlowToday(clinicId, from, to),
-      listLancamentos(clinicId, {
-        ...(isTipo(tipo) ? { tipo } : {}),
-        ...(isStatus(status) ? { status } : {}),
-        limit: 50,
+      listLancamentosPage(clinicId, {
+        ...paginationFilters,
+        page,
       }),
       canManage ? listSuppliers(clinicId, { onlyActive: true }) : Promise.resolve([]),
       canManage ? listPaymentMethods(clinicId) : Promise.resolve([]),
     ]),
   );
+
+  const totalPages = Math.max(1, Math.ceil(lancamentosResult.total / lancamentosResult.pageSize));
+  if (page > totalPages) {
+    redirect(financeiroPageHref(paginationFilters, totalPages));
+  }
+  const lancamentos = lancamentosResult.items;
 
   return (
     <>
@@ -131,7 +145,7 @@ export default async function FinanceiroPage({
         }
       />
 
-      <div className="mb-(--sp-4) grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
+      <MetricStrip className="mb-(--sp-4)">
         <StatCard label="A receber" value={formatBRL(flow.receber)} />
         <StatCard label="A pagar" value={formatBRL(flow.pagar)} />
         <StatCard label="Recebido no mês" value={formatBRL(flow.recebidoHoje)} />
@@ -144,14 +158,14 @@ export default async function FinanceiroPage({
             </span>
           }
         />
-      </div>
+      </MetricStrip>
 
       <TableWrap>
         <TableToolbar>
           <form className="flex flex-wrap items-center gap-2">
             <Select
               name="tipo"
-              defaultValue={tipo ?? ''}
+              defaultValue={tipoFilter ?? ''}
               aria-label="Filtrar por tipo"
               className="min-w-36"
             >
@@ -161,7 +175,7 @@ export default async function FinanceiroPage({
             </Select>
             <Select
               name="status"
-              defaultValue={status ?? ''}
+              defaultValue={statusFilter ?? ''}
               aria-label="Filtrar por status"
               className="min-w-36"
             >
@@ -227,9 +241,14 @@ export default async function FinanceiroPage({
             </TableScroll>
             <TableFoot>
               <TableFootInfo>
-                {lancamentos.length} lançamento{lancamentos.length === 1 ? '' : 's'}
-                {lancamentos.length === 50 ? ' (mostrando os 50 mais recentes)' : ''}
+                Página {page} de {totalPages} · {lancamentosResult.total} lançamento
+                {lancamentosResult.total === 1 ? '' : 's'}
               </TableFootInfo>
+              <TablePager
+                page={page}
+                pageCount={totalPages}
+                hrefFor={(targetPage) => financeiroPageHref(paginationFilters, targetPage)}
+              />
             </TableFoot>
           </>
         )}

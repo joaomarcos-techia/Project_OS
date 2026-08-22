@@ -141,8 +141,8 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
       }}
     >
       <DrawerTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-3.5" />
+        <Button className="min-h-(--hit-target)">
+          <Plus className="size-4" />
           Novo atendimento
         </Button>
       </DrawerTrigger>
@@ -162,7 +162,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
           <DrawerBody className="flex flex-col gap-4">
             {error ? <Alert variant="danger">{error}</Alert> : null}
 
-            <Field label="Tipo">
+            <Field label="Tipo" group>
               <Segmented
                 aria-label="Tipo de atendimento"
                 options={[
@@ -179,8 +179,9 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 : 'Agende para uma data/hora futura. O horário é o da clínica.'}
             </p>
 
-            <Field label="Paciente">
+            <Field label="Paciente" htmlFor="appointment-patient">
               <Combobox
+                id="appointment-patient"
                 value={paciente}
                 onSelect={setPaciente}
                 onSearch={async (term) =>
@@ -298,7 +299,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
             ) : null}
 
             {data.resources.length > 0 ? (
-              <Field label="Salas e equipamentos (opcional)">
+              <Field label="Salas e equipamentos (opcional)" group>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {data.resources.map((resource) => (
                     <label key={resource.id} className="flex items-center gap-2 text-sm">

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
+import { Alert } from '@/components/ui/alert';
 import { getMedicalDocumentById } from '@/contexts/clinical/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
@@ -47,7 +48,7 @@ export default async function DocumentPdfPage({ params }: { params: Promise<{ id
         <h1 className="text-xl font-semibold">
           {TYPE_LABEL[doc.type] ?? 'Documento'} — {doc.snapshotPatientNome}
         </h1>
-        <Link href={`/pacientes/${doc.patientId}/prontuarios`} className="text-sm underline">
+        <Link href={`/pacientes/${doc.patientId}?tab=prontuarios`} className="text-sm underline">
           Voltar
         </Link>
       </div>
@@ -65,13 +66,13 @@ export default async function DocumentPdfPage({ params }: { params: Promise<{ id
           <iframe
             src={url}
             title="Documento"
-            className="h-[80vh] w-full rounded border border-gray-300"
+            className="h-[80vh] w-full rounded-(--r-md) border border-border bg-surface"
           />
         </>
       ) : (
-        <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <Alert variant="warning" className="mb-3">
           O PDF ainda não foi gerado. Clique abaixo para gerar.
-        </p>
+        </Alert>
       )}
 
       <div className="mt-4">

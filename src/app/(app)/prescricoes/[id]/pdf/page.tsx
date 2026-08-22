@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
+import { Alert } from '@/components/ui/alert';
 import { getPrescriptionById } from '@/contexts/clinical/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
@@ -35,7 +36,7 @@ export default async function PrescriptionPdfPage({ params }: { params: Promise<
     <main className="mx-auto max-w-3xl p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Prescrição — {presc.snapshotPatientNome}</h1>
-        <Link href={`/pacientes/${presc.patientId}/prontuarios`} className="text-sm underline">
+        <Link href={`/pacientes/${presc.patientId}?tab=prontuarios`} className="text-sm underline">
           Voltar
         </Link>
       </div>
@@ -53,13 +54,13 @@ export default async function PrescriptionPdfPage({ params }: { params: Promise<
           <iframe
             src={url}
             title="Prescrição"
-            className="h-[80vh] w-full rounded border border-gray-300"
+            className="h-[80vh] w-full rounded-(--r-md) border border-border bg-surface"
           />
         </>
       ) : (
-        <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <Alert variant="warning" className="mb-3">
           O PDF ainda não foi gerado. Clique abaixo para gerar.
-        </p>
+        </Alert>
       )}
 
       <div className="mt-4">

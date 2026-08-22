@@ -4,17 +4,21 @@
  * atendimentos. "Novo atendimento" segue o fluxo walk-in do C6.
  */
 import { EmptyState } from '@/components/ui/empty-state';
+import { NavTabs } from '@/components/ui/nav-tabs';
 import { PageHeader } from '@/components/ui/page-header';
 import { PageNoAccess } from '@/components/shared/page-no-access';
-import { buttonVariants } from '@/components/ui/button';
-import Link from 'next/link';
 
 import { AgendaCalendar, AgendaNav } from './agenda-calendar';
+import { AgendaPageActions } from './agenda-page-actions';
 import { getAgendaData } from './data';
-import { NewAppointmentDrawer } from './new-appointment-drawer';
 import { isAgendaView } from './range';
 
 export const dynamic = 'force-dynamic';
+
+const AGENDA_TABS = [
+  { label: 'Agenda', href: '/agenda', exact: true },
+  { label: 'Lista de espera', href: '/agenda/lista-espera' },
+];
 
 export default async function AgendaPage({
   searchParams,
@@ -53,34 +57,10 @@ export default async function AgendaPage({
         crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
         title="Agenda"
         description="Veja os atendimentos por mês, semana ou dia."
-        actions={
-          <>
-            <Link
-              href="/agenda/importar"
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-            >
-              Importar historico
-            </Link>
-            <Link
-              href="/agenda/lista-espera"
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-            >
-              Lista de espera
-            </Link>
-            {data.canManageAvailability ? (
-              <Link
-                href="/agenda/ausencias"
-                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-              >
-                Ausencias medicas
-              </Link>
-            ) : null}
-            {data.canEditAgenda ? <NewAppointmentDrawer data={data} /> : null}
-          </>
-        }
       />
 
-      <AgendaNav data={data} />
+      <NavTabs tabs={AGENDA_TABS} className="mb-(--sp-4)" />
+      <AgendaNav data={data} actions={<AgendaPageActions data={data} />} />
       <AgendaCalendar data={data} />
     </>
   );

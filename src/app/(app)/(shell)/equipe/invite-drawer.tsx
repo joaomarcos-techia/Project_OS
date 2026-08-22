@@ -96,7 +96,7 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
         <span
           className={cn(
             'text-(length:--fs-xs)',
-            atLimit ? 'font-medium text-amber-600' : 'text-fg-subtle',
+            atLimit ? 'font-medium text-warning-700 dark:text-warning-200' : 'text-fg-subtle',
           )}
         >
           Usuários: {ativos} de {seatLimit}
@@ -135,7 +135,7 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
                 </Alert>
               ) : null}
 
-              <Field label="Função">
+              <Field label="Função" group>
                 <Segmented
                   aria-label="Função do convidado"
                   options={[
@@ -149,8 +149,9 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
                 />
               </Field>
 
-              <Field label="Nome">
+              <Field label="Nome" htmlFor="team-invite-name">
                 <Input
+                  id="team-invite-name"
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   placeholder="Nome completo"
@@ -160,9 +161,11 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
 
               <Field
                 label="E-mail para o convite"
+                htmlFor="team-invite-email"
                 hint="Enviaremos um link para essa pessoa criar a senha."
               >
                 <Input
+                  id="team-invite-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -175,18 +178,21 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
                 <div className="flex gap-3">
                   <Field
                     label="CRM"
+                    htmlFor="team-invite-crm"
                     hint="Opcional agora — necessário para emitir o primeiro documento."
                     className="flex-1"
                   >
                     <Input
+                      id="team-invite-crm"
                       value={crm}
                       onChange={(e) => setCrm(e.target.value)}
                       placeholder="123456"
                       autoComplete="off"
                     />
                   </Field>
-                  <Field label="UF" className="w-24">
+                  <Field label="UF" htmlFor="team-invite-crm-uf" className="w-24">
                     <Input
+                      id="team-invite-crm-uf"
                       value={crmUf}
                       onChange={(e) => setCrmUf(e.target.value.toUpperCase())}
                       placeholder="SP"

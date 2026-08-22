@@ -3,7 +3,9 @@
  * Server component — navegação por URL (`?view=&date=`), sem estado cliente.
  * Cancelados aparecem esmaecidos (decisão do founder), não somem.
  */
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 import { AppointmentStatusBadge } from '@/components/ui/status-badge';
 import { Card } from '@/components/ui/card';
@@ -230,7 +232,7 @@ function DayView({ data }: { data: AgendaData }) {
 }
 
 /** Cabeçalho de navegação: alterna visão + prev/próximo/hoje. */
-export function AgendaNav({ data }: { data: AgendaData }) {
+export function AgendaNav({ data, actions }: { data: AgendaData; actions?: ReactNode }) {
   const { view, ymd, tz } = data;
   const [y, m] = ymd.split('-').map(Number);
   let label: string;
@@ -252,8 +254,9 @@ export function AgendaNav({ data }: { data: AgendaData }) {
   const tab = (v: 'month' | 'week' | 'day', txt: string) => (
     <Link
       href={href(v, ymd)}
+      aria-current={view === v ? 'page' : undefined}
       className={cn(
-        'rounded-(--r-sm) px-2.5 py-1 text-(length:--fs-sm) font-medium transition-colors',
+        'inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm) font-medium transition-colors',
         view === v ? 'bg-primary text-on-primary' : 'text-fg-muted hover:bg-surface-hover',
       )}
     >
@@ -261,38 +264,50 @@ export function AgendaNav({ data }: { data: AgendaData }) {
     </Link>
   );
 
-  // prev/next via shift são strings — computados aqui p/ manter o server component simples.
-  const nav = (dir: -1 | 1, sym: string, aria: string) => {
+  // Prev/next continuam URLs determinísticas, calculadas no servidor para preservar o fuso.
+  const nav = (dir: -1 | 1, icon: ReactNode, aria: string) => {
     const target = shiftYmd(view, ymd, dir);
     return (
       <Link
         href={href(view, target)}
         aria-label={aria}
-        className="inline-flex size-7 items-center justify-center rounded-(--r-sm) text-fg-muted hover:bg-surface-hover"
+        className="inline-flex size-(--hit-target) items-center justify-center rounded-(--r-sm) text-fg-muted transition-colors hover:bg-surface-hover"
       >
-        {sym}
+        {icon}
       </Link>
     );
   };
 
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-1">
-        {nav(-1, '‹', 'Anterior')}
-        {nav(1, '›', 'Próximo')}
+    <section
+      aria-label="Controles da agenda"
+      className="mb-4 flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between"
+    >
+      <nav aria-label="Navegação por data" className="flex min-w-0 flex-wrap items-center gap-1">
+        {nav(-1, <ChevronLeft aria-hidden="true" className="size-4" />, 'Anterior')}
+        {nav(1, <ChevronRight aria-hidden="true" className="size-4" />, 'Próximo')}
         <Link
           href={href(view, todayYmd(tz))}
-          className="ml-1 rounded-(--r-sm) px-2.5 py-1 text-(length:--fs-sm) font-medium text-fg-muted hover:bg-surface-hover"
+          className="ml-1 inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm) font-medium text-fg-muted transition-colors hover:bg-surface-hover"
         >
           Hoje
         </Link>
-        <span className="ml-2 text-(length:--fs-sm) font-medium capitalize">{label}</span>
+        <span className="ml-2 min-w-0 text-balance text-(length:--fs-sm) font-medium capitalize">
+          {label}
+        </span>
+      </nav>
+
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <nav
+          aria-label="Visualização da agenda"
+          className="flex items-center gap-1 rounded-(--r-md) bg-surface-inset p-0.5"
+        >
+          {tab('month', 'Mês')}
+          {tab('week', 'Semana')}
+          {tab('day', 'Dia')}
+        </nav>
+        {actions}
       </div>
-      <div className="flex items-center gap-1 rounded-(--r-md) bg-surface-inset p-0.5">
-        {tab('month', 'Mês')}
-        {tab('week', 'Semana')}
-        {tab('day', 'Dia')}
-      </div>
-    </div>
+    </section>
   );
 }

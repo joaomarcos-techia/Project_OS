@@ -20,6 +20,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
+import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
 import { cn } from '@/lib/ui/cn';
@@ -109,78 +110,94 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
         }
       />
 
-      <div className="flex flex-col gap-(--sp-5)">
-        {failedDeliveries > 0 ? (
-          <Alert variant="danger" title="Falha de entrega no WhatsApp">
-            {failedDeliveries} mensagem{failedDeliveries === 1 ? '' : 'ns'} não foi
-            {failedDeliveries === 1 ? '' : 'ram'} entregue{failedDeliveries === 1 ? '' : 's'}. Use o
-            reenvio ao lado da mensagem após confirmar que o número e a conexão estão corretos.
-          </Alert>
-        ) : null}
-        <PanelCard
-          title="Histórico"
-          meta={`${thread.messages.length} mensagem${thread.messages.length === 1 ? '' : 's'}`}
-        >
-          <ol className="flex flex-col gap-(--sp-4)">
-            {thread.messages.map((m) => (
-              <li
-                key={m.id}
-                className={cn(
-                  'flex flex-col gap-1',
-                  m.direction === 'in' ? 'items-start' : 'items-end',
-                )}
-              >
-                <div
-                  className={cn(
-                    'max-w-[min(42rem,85%)] rounded-(--r-md) px-3.5 py-2.5 text-(length:--fs-sm) whitespace-pre-wrap',
-                    m.author === 'patient' && 'bg-surface-inset text-fg',
-                    m.author === 'agent' &&
-                      'bg-info-50 text-fg dark:bg-[color-mix(in_oklch,var(--info-500)_14%,transparent)]',
-                    m.author === 'human' && 'bg-primary text-on-primary',
-                  )}
-                >
-                  {m.text}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-(length:--fs-xs) text-fg-subtle">
-                  <span>{AUTHOR_LABEL[m.author]}</span>
-                  <span>·</span>
-                  <time dateTime={m.createdAt}>
-                    {new Date(m.createdAt).toLocaleString('pt-BR')}
-                  </time>
-                  {m.delivery ? (
-                    <>
-                      <span>·</span>
-                      <span className={cn(m.delivery === 'failed' && 'text-danger-600')}>
-                        {DELIVERY_LABEL[m.delivery]}
-                      </span>
-                    </>
-                  ) : null}
-                </div>
-                {m.delivery === 'failed' && canRetryFailedMessages ? (
-                  <RetryMessageButton conversationId={thread.id} messageId={m.id} />
-                ) : null}
-                {m.meta ? <AgentMeta meta={m.meta} /> : null}
-              </li>
-            ))}
-          </ol>
-          {thread.messages.length === 0 ? (
-            <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma mensagem nesta conversa.</p>
-          ) : null}
-        </PanelCard>
+      {failedDeliveries > 0 ? (
+        <Alert className="mb-(--sp-4)" variant="danger" title="Falha de entrega no WhatsApp">
+          {failedDeliveries} mensagem{failedDeliveries === 1 ? '' : 'ns'} não foi
+          {failedDeliveries === 1 ? '' : 'ram'} entregue{failedDeliveries === 1 ? '' : 's'}. Use o
+          reenvio ao lado da mensagem após confirmar que o número e a conexão estão corretos.
+        </Alert>
+      ) : null}
 
-        <PanelCard title="Atendimento humano">
-          <ConversaActions
-            conversationId={thread.id}
-            status={thread.status}
-            windowOpen={thread.window.open}
-            windowClosesAt={thread.window.closesAt}
-            lastInboundAt={thread.window.lastInboundAt}
-            canManage={canManage}
-            handoff={thread.handoff}
-            currentUserId={user.userId}
-            assignedToName={assignedToName}
-          />
-        </PanelCard>
+      <div className="grid min-w-0 items-start gap-(--sp-4) lg:grid-cols-[minmax(0,1fr)_minmax(19rem,24rem)]">
+        <aside
+          aria-label="Atendimento humano"
+          className="min-w-0 lg:sticky lg:top-(--sp-5) lg:col-start-2 lg:row-start-1"
+        >
+          <PanelCard title="Atendimento humano">
+            <ConversaActions
+              conversationId={thread.id}
+              status={thread.status}
+              windowOpen={thread.window.open}
+              windowClosesAt={thread.window.closesAt}
+              lastInboundAt={thread.window.lastInboundAt}
+              canManage={canManage}
+              handoff={thread.handoff}
+              currentUserId={user.userId}
+              assignedToName={assignedToName}
+            />
+          </PanelCard>
+        </aside>
+
+        <section
+          aria-label="Histórico da conversa"
+          className="min-w-0 lg:col-start-1 lg:row-start-1"
+        >
+          <PanelCard
+            title="Histórico"
+            meta={`${thread.messages.length} mensagem${thread.messages.length === 1 ? '' : 's'}`}
+          >
+            {thread.messages.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                title="Nenhuma mensagem nesta conversa"
+                description="As mensagens aparecerão aqui quando o contato ou a equipe responder."
+              />
+            ) : (
+              <ol className="flex flex-col gap-(--sp-4)">
+                {thread.messages.map((m) => (
+                  <li
+                    key={m.id}
+                    className={cn(
+                      'flex flex-col gap-1',
+                      m.direction === 'in' ? 'items-start' : 'items-end',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'max-w-[min(42rem,85%)] rounded-(--r-md) px-3.5 py-2.5 text-(length:--fs-sm) whitespace-pre-wrap',
+                        m.author === 'patient' && 'bg-surface-inset text-fg',
+                        m.author === 'agent' &&
+                          'bg-info-50 text-fg dark:bg-[color-mix(in_oklch,var(--info-500)_14%,transparent)]',
+                        m.author === 'human' && 'bg-primary text-on-primary',
+                      )}
+                    >
+                      {m.text}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-(length:--fs-xs) text-fg-subtle">
+                      <span>{AUTHOR_LABEL[m.author]}</span>
+                      <span>·</span>
+                      <time className="tabular-nums" dateTime={m.createdAt}>
+                        {new Date(m.createdAt).toLocaleString('pt-BR')}
+                      </time>
+                      {m.delivery ? (
+                        <>
+                          <span>·</span>
+                          <span className={cn(m.delivery === 'failed' && 'text-danger-600')}>
+                            {DELIVERY_LABEL[m.delivery]}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                    {m.delivery === 'failed' && canRetryFailedMessages ? (
+                      <RetryMessageButton conversationId={thread.id} messageId={m.id} />
+                    ) : null}
+                    {m.meta ? <AgentMeta meta={m.meta} /> : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </PanelCard>
+        </section>
       </div>
     </>
   );
@@ -200,5 +217,12 @@ function AgentMeta({ meta }: { meta: NonNullable<AIThreadMessage['meta']> }) {
   const tools = Array.isArray(meta.toolCalls) ? meta.toolCalls.length : 0;
   if (tools > 0) parts.push(`${tools} tool call${tools === 1 ? '' : 's'}`);
   if (parts.length === 0) return null;
-  return <p className="text-(length:--fs-xs) text-fg-subtle tabular-nums">{parts.join(' · ')}</p>;
+  return (
+    <details className="max-w-[min(42rem,85%)] text-(length:--fs-xs) text-fg-subtle">
+      <summary className="cursor-pointer rounded-(--r-xs) py-1 transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none">
+        Diagnóstico do agente
+      </summary>
+      <p className="mt-1 font-mono tabular-nums">{parts.join(' · ')}</p>
+    </details>
+  );
 }

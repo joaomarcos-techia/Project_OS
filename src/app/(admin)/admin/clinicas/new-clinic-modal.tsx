@@ -126,12 +126,18 @@ function InviteFlow({
     <form action={action} className="flex flex-col gap-4">
       <Field
         label="E-mail do gestor"
+        htmlFor="clinic-invite-manager-email"
         hint="Opcional. Quando preenchido, o convite é enviado automaticamente; o link também fica disponível como contingência."
       >
-        <Input name="email" type="email" placeholder="gestor@clinica.com" />
+        <Input
+          id="clinic-invite-manager-email"
+          name="email"
+          type="email"
+          placeholder="gestor@clinica.com"
+        />
       </Field>
-      <Field label="Plano inicial sugerido">
-        <Select name="planId" defaultValue="">
+      <Field label="Plano inicial sugerido" htmlFor="clinic-invite-plan">
+        <Select id="clinic-invite-plan" name="planId" defaultValue="">
           <option value="">Sem sugestão</option>
           {plans.map((p) => (
             <option key={p.id} value={p.id}>
@@ -140,8 +146,13 @@ function InviteFlow({
           ))}
         </Select>
       </Field>
-      <Field label="Observação interna" hint="Opcional.">
-        <Input name="note" maxLength={280} placeholder="ex.: indicação do Dr. Silva" />
+      <Field label="Observação interna" htmlFor="clinic-invite-note" hint="Opcional.">
+        <Input
+          id="clinic-invite-note"
+          name="note"
+          maxLength={280}
+          placeholder="ex.: indicação do Dr. Silva"
+        />
       </Field>
       {state.error ? <span className="text-sm text-danger-600">{state.error}</span> : null}
       <div className="mt-1 flex justify-end gap-2">

@@ -3,6 +3,7 @@
 import { useActionState, useMemo } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 import { deletePatientForm, type PatientFormState } from '../actions';
 import { uuidv4 } from '@/lib/ui/uuid';
@@ -13,30 +14,38 @@ export function DeletePatientForm({ id }: { id: string }) {
   const [state, formAction, pending] = useActionState(deletePatientForm, INITIAL);
   const idempotencyKey = useMemo(() => uuidv4(), []);
   return (
-    <form action={formAction} className="mt-2">
+    <section className="mt-2">
       <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">Excluir (operacional)</h2>
       <p className="mb-3 text-xs text-fg-subtle">
         Uso interno da clínica (cadastro errado, duplicado). Soft delete agora; remoção definitiva
         em 30 dias. Para pedido do próprio paciente, use a exclusão LGPD abaixo.
       </p>
-      <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-      <Button
-        type="submit"
-        variant="danger"
-        size="sm"
+      <ConfirmDialog
+        trigger={
+          <Button type="button" variant="danger" size="sm" className="min-h-(--hit-target)">
+            Excluir paciente
+          </Button>
+        }
+        title="Excluir paciente"
+        description="O cadastro fica indisponível agora e é removido definitivamente em 30 dias. Use a exclusão LGPD quando o pedido vier do titular."
+        confirmLabel="Excluir paciente"
+        cancelLabel="Manter paciente"
+        tone="danger"
+        action={formAction}
         loading={pending}
-        onClick={(e) => {
-          if (
-            !confirm('Excluir paciente (operacional)? Soft delete; remoção definitiva em 30 dias.')
-          ) {
-            e.preventDefault();
-          }
-        }}
+        formFields={
+          <>
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+          </>
+        }
       >
-        Excluir paciente
-      </Button>
-      {state.error ? <p className="mt-2 text-sm text-danger-600">{state.error}</p> : null}
-    </form>
+        {state.error ? (
+          <p role="alert" className="text-(length:--fs-sm) text-danger-600">
+            {state.error}
+          </p>
+        ) : null}
+      </ConfirmDialog>
+    </section>
   );
 }

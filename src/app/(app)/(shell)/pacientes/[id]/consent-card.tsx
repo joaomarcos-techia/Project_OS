@@ -56,8 +56,10 @@ export function ConsentCard({
 
   return (
     <Card className="p-(--card-pad)">
-      <h4 className="mb-1 text-(length:--fs-sm) font-semibold">Consentimentos (LGPD)</h4>
-      <p className="mb-4 text-(length:--fs-xs) text-fg-muted">
+      <h2 className="mb-1 text-balance text-(length:--fs-h4) font-semibold">
+        Consentimentos (LGPD)
+      </h2>
+      <p className="mb-4 text-pretty text-(length:--fs-xs) text-fg-muted">
         Decisão vigente por finalidade. Cada alteração cria uma nova versão — o histórico é
         preservado.
       </p>
@@ -86,9 +88,9 @@ export function ConsentCard({
                   {p.granted ? 'Concedido' : 'Não concedido'}
                 </Badge>
               </div>
-              <p className="text-(length:--fs-xs) text-fg-muted">{p.description}</p>
+              <p className="text-pretty text-(length:--fs-xs) text-fg-muted">{p.description}</p>
               {p.recordedAt ? (
-                <p className="text-(length:--fs-2xs) text-fg-subtle">
+                <p className="text-(length:--fs-2xs) text-fg-subtle tabular-nums">
                   versão {p.version} · {new Date(p.recordedAt).toLocaleString('pt-BR')}
                 </p>
               ) : (
@@ -117,6 +119,7 @@ export function ConsentCard({
                   type="submit"
                   size="sm"
                   variant={p.granted ? 'ghost' : 'secondary'}
+                  className="min-h-(--hit-target)"
                   disabled={busy}
                 >
                   {p.granted ? 'Revogar' : 'Conceder'}

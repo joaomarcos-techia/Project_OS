@@ -25,9 +25,13 @@ import { PatientForm } from './patient-form';
 export function NewPatientDrawer({
   defaultOpen = false,
   guardianCandidates = [],
+  openHref = '/pacientes?novo=1',
+  closeHref = '/pacientes',
 }: {
   defaultOpen?: boolean;
   guardianCandidates?: Array<{ id: string; nome: string }>;
+  openHref?: string;
+  closeHref?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
@@ -35,7 +39,7 @@ export function NewPatientDrawer({
   const onOpenChange = (v: boolean) => {
     setOpen(v);
     // mantém a URL espelhando o estado (back fecha o drawer; link é compartilhável)
-    router.replace(v ? '/pacientes?novo=1' : '/pacientes', { scroll: false });
+    router.replace(v ? openHref : closeHref, { scroll: false });
   };
 
   return (
