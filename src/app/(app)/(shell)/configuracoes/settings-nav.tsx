@@ -51,7 +51,11 @@ export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
 
   return (
     <nav aria-label="Configurações" className="mb-(--sp-5) min-w-0">
-      <div className="hidden grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-x-(--sp-5) gap-y-(--sp-4) border-b border-border pb-(--sp-4) sm:grid">
+      {/* Colunas fixas, nao `auto-fit`: com largura minima o navegador cabia
+          cinco colunas em 1440px e jogava a sexta categoria sozinha para uma
+          segunda fileira, com um vazio do lado. 3 ou 6 divide os seis grupos
+          exatamente, em qualquer largura. */}
+      <div className="hidden gap-x-(--sp-5) gap-y-(--sp-4) border-b border-border pb-(--sp-4) sm:grid sm:grid-cols-3 xl:grid-cols-6">
         {groups.map((group, index) => {
           // Rótulo de grupo como texto + `aria-labelledby`, não <h2>: a barra
           // vem ANTES do <h1> da página, e seis h2 aqui inverteriam o esqueleto
