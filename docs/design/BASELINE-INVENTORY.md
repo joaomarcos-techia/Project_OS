@@ -529,3 +529,21 @@ código estava certo — o comportamento tem cobertura própria no teste vizinho
 teste foi fixado, como os outros testes datados do arquivo já faziam.
 
 Não é regressão do redesign: é um teste que apodrecia por data.
+
+
+---
+
+## Waves executadas (2026-08-23)
+
+| Wave | Entrega | Testes ao fim |
+| --- | --- | ---: |
+| 0 | Baseline, gates 1–3, referências commitadas | 2.213 |
+| 1 | Tokens, tipografia, matriz de campos, status | 2.219 |
+| 2 | Shell — sidebar, PageHeader, menu de usuário | 2.226 |
+| 3 | Camada de dados — FilterBar, DataTable, EntityCell, StatsInline, Avatar | 2.240 |
+| 4 | Métricas e visualização — StatCard, BarChart, StackedBar, BreakdownList, SummaryList | 2.251 |
+| 5 | Formulários — FormSection, OptionCardGroup | 2.259 |
+| 6 e 7 | Consultório, Conversas IA (orchid), Relatórios | 2.259 |
+| 8 | Varredura de consistência + gate mecânico do contrato | 2.266 |
+
+O gate mecânico vive em `src/app/design-contract.test.ts` e roda junto da suíte.
