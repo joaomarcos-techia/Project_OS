@@ -201,13 +201,19 @@ export function ThemeFootToggle({
   );
 }
 
-/** Wordmark da marca (Qoro) — logo enviada pelo founder (2026-07-04). */
+/**
+ * Wordmark da marca (Qoro) — logo enviada pelo founder (2026-07-04).
+ *
+ * O padding de 24px alinha a borda esquerda da logo com a coluna dos ícones: o
+ * <nav> tem px-(--sp-3) e cada item tem px-(--sp-3). Com os 20px anteriores ela
+ * ficava 4px fora do eixo de tudo abaixo dela.
+ */
 export function Wordmark() {
   return (
     <Link
       href="/"
       aria-label="Qoro — início"
-      className="flex min-h-(--hit-target) items-center px-(--sp-5)"
+      className="flex min-h-(--hit-target) items-center px-(--sp-6)"
     >
       <Logo className="h-8 w-auto" />
     </Link>
