@@ -10,7 +10,7 @@ export function Breadcrumbs({ items, className }: { items: Crumb[]; className?: 
   if (items.length === 0) return null;
   return (
     <nav aria-label="Trilha de navegação" className={className}>
-      <ol className="flex items-center gap-1.5 font-mono text-(length:--fs-xs) text-fg-subtle">
+      <ol className="flex items-center gap-1.5 text-(length:--fs-xs) text-fg-subtle">
         {items.map((item, i) => {
           const last = i === items.length - 1;
           return (

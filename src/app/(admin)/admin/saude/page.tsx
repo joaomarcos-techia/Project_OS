@@ -123,7 +123,7 @@ export default async function SaudePage() {
               >
                 <span
                   aria-hidden="true"
-                  className={cn('size-1.75 shrink-0 rounded-full', DOT[r.status])}
+                  className={cn('size-2 shrink-0 rounded-full', DOT[r.status])}
                 />
                 <IconCmp className="size-4 shrink-0 text-fg-subtle" />
                 <div className="min-w-0 flex-1">
@@ -168,7 +168,7 @@ export default async function SaudePage() {
               >
                 <span
                   aria-hidden="true"
-                  className={cn('size-1.75 shrink-0 rounded-full', DOT[r.status])}
+                  className={cn('size-2 shrink-0 rounded-full', DOT[r.status])}
                 />
                 <div className="min-w-0 flex-1">
                   <b className="block text-(length:--fs-sm) font-semibold">

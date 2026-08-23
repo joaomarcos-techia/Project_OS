@@ -37,7 +37,9 @@ export function PanelCard({
             {action.label}
           </Link>
         ) : meta ? (
-          <span className="font-mono text-(length:--fs-2xs) text-fg-subtle uppercase">{meta}</span>
+          <span className="text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
+            {meta}
+          </span>
         ) : null}
       </div>
       {children}

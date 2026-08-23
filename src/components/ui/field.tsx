@@ -61,7 +61,7 @@ export function Field({
       ) : null}
       {children}
       {error ? (
-        <p className="flex items-center gap-1.25 text-(length:--fs-xs) text-danger-600">
+        <p className="flex items-center gap-1.5 text-(length:--fs-xs) text-danger-600">
           <CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />
           {error}
         </p>

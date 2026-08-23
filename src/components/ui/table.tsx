@@ -42,7 +42,7 @@ export function TableHead({
     <th
       className={cn(
         'border-b border-border bg-(--table-header-bg) px-3.5 py-2.5 text-left text-(length:--fs-xs) font-semibold whitespace-nowrap text-fg-muted',
-        numeric && 'text-right font-mono tabular-nums',
+        numeric && 'text-right tabular-nums',
         className,
       )}
       {...props}
@@ -82,7 +82,7 @@ export function TableCell({
     <td
       className={cn(
         'h-(--row-h) border-b border-border px-3.5 py-(--cell-py) align-middle',
-        numeric && 'text-right font-mono tabular-nums',
+        numeric && 'text-right tabular-nums',
         className,
       )}
       {...props}
@@ -113,7 +113,7 @@ export function TableFoot({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface-2 px-3.5 py-2.75',
+        'flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface-2 px-3.5 py-3',
         className,
       )}
       {...props}

@@ -48,11 +48,55 @@ const PAYMENT: Record<PaymentStatus, { tone: Tone; label: string }> = {
   estornado: { tone: 'red', label: 'Estornado' },
 };
 
-export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
-  const { tone, label } = PAYMENT[status];
+/**
+ * `overdue` NAO e um status armazenado: o Financial deriva "vencido" comparando
+ * `due_date` com hoje no fuso da clinica (ver dunning-candidates.ts). A regra e
+ * dele; aqui so existe a apresentacao dela, porque um pendente vencido e um
+ * pendente no prazo pedem acoes diferentes e a tela precisa distinguir.
+ */
+export function PaymentStatusBadge({
+  status,
+  overdue = false,
+}: {
+  status: PaymentStatus;
+  overdue?: boolean;
+}) {
+  const vencido = overdue && status === 'pendente';
+  const { tone, label } = vencido ? { tone: 'red' as Tone, label: 'Vencido' } : PAYMENT[status];
   return (
     <Badge tone={tone} dot>
       {label}
+    </Badge>
+  );
+}
+
+/** Prontuario — o dominio tem DOIS estados (schema.ts: prontuarioStatus). */
+export type ProntuarioStatus = 'rascunho' | 'assinado';
+
+const PRONTUARIO: Record<ProntuarioStatus, { tone: Tone; label: string }> = {
+  rascunho: { tone: 'amber', label: 'Rascunho' },
+  assinado: { tone: 'green', label: 'Assinado' },
+};
+
+export function ProntuarioStatusBadge({ status }: { status: ProntuarioStatus }) {
+  const { tone, label } = PRONTUARIO[status];
+  return (
+    <Badge tone={tone} dot>
+      {label}
+    </Badge>
+  );
+}
+
+/**
+ * Paciente nao tem enum de status: o que existe e `deletedAt` (soft delete).
+ * O badge traduz isso para a linguagem da tela sem inventar um estado novo.
+ */
+export function PatientStatusBadge({ deletedAt }: { deletedAt: string | null }) {
+  return deletedAt ? (
+    <Badge tone="gray">Inativo</Badge>
+  ) : (
+    <Badge tone="green" dot>
+      Ativo
     </Badge>
   );
 }

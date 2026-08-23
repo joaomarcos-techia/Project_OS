@@ -61,7 +61,7 @@ export function ShellSidebar({ open, children }: { open: boolean; children: Reac
 
 export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="mb-2 block px-(--sp-3) font-mono text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+    <span className="mb-2 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
       {children}
     </span>
   );
@@ -163,7 +163,7 @@ export function SidebarFootButton({
       aria-label={ariaLabel}
       className="flex min-h-(--hit-target) w-full items-center justify-between rounded-(--r-sm) px-(--sp-3) py-2 text-(length:--fs-sm) text-fg-muted transition-colors duration-(--dur-fast) hover:bg-surface-hover hover:text-fg"
     >
-      <span className="flex items-center gap-2.25 [&>svg]:size-3.75">
+      <span className="flex items-center gap-2 [&>svg]:size-4">
         {icon}
         <span>{label}</span>
       </span>

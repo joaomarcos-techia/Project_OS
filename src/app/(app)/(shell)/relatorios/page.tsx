@@ -60,7 +60,7 @@ export default async function RelatoriosPage({
 
       <nav
         aria-label="Período do relatório"
-        className="mb-(--sp-4) inline-flex max-w-full gap-0.5 overflow-x-auto rounded-(--r-md) border border-border bg-surface-inset p-0.75"
+        className="mb-(--sp-4) inline-flex max-w-full gap-0.5 overflow-x-auto rounded-(--r-md) border border-border bg-surface-inset p-1"
       >
         {PERIODS.map((p) => (
           <Link
@@ -101,7 +101,7 @@ export default async function RelatoriosPage({
           <span className="font-mono text-(length:--fs-h2) leading-none font-medium tracking-(--tracking-tight) tabular-nums">
             {pct(data.ocupacao.taxa)}
           </span>
-          <div className="h-1.75 w-full overflow-hidden rounded-full bg-viz-track">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-viz-track">
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-(--dur-slower) ease-out"
               style={{ width: `${Math.round((data.ocupacao.taxa ?? 0) * 100)}%` }}

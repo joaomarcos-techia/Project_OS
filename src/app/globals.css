@@ -181,19 +181,30 @@
   --font-heading: var(--font-sans);
   --font-mono: var(--font-plex), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  --fs-display: 56px;
-  --lh-display: 1.02;
-  --fs-h1: 38px;
-  --fs-h2: 30px;
-  --fs-h3: 23px;
-  --fs-h4: 18px;
-  --fs-lg: 17px;
+  /* Escala crua. Titulos encolheram: 38px de titulo de pagina competia com o
+     conteudo e empurrava tudo para baixo — a referencia le ~28px em 1440. */
+  --fs-display: 40px;
+  --lh-display: 1.05;
+  --fs-h1: 28px;
+  --fs-h2: 22px;
+  --fs-h3: 18px;
+  --fs-h4: 16px;
+  --fs-lg: 16px;
   --fs-base: 15px;
   --fs-sm: 13.5px;
   --fs-xs: 12px;
   --fs-2xs: 11px;
   --tracking-tight: -0.02em;
   --tracking-label: 0.08em;
+
+  /* Papeis — o que os componentes consomem. A escala crua acima pode ser
+     reafinada sem cacar tamanho solto em 209 arquivos. */
+  --fs-page: var(--fs-h1);
+  --fs-section: var(--fs-h3);
+  --fs-subsection: var(--fs-h4);
+  --fs-body: var(--fs-base);
+  --fs-body-sm: var(--fs-sm);
+  --fs-caption: var(--fs-xs);
 
   /* Spacing — base 4px (consumido pelo CSS legado e pelos primitivos) */
   --sp-1: 4px;
@@ -270,8 +281,19 @@
   /* Component hooks — componentes referenciam SÓ estes; retematizar
      nunca alcança o interior do componente */
   --btn-radius: var(--r-md);
-  --field-bg: var(--surface);
-  --field-border: var(--input);
+  /* Campos preenchidos, sem borda em repouso. O hover mistura com --foreground
+     em vez de usar --neutral-*: o bloco .dark nao inverte a rampa neutra, entao
+     um neutral cru sairia claro no tema escuro. Misturar com o texto escurece no
+     claro e clareia no escuro, sem ramo por tema. */
+  --field-bg: var(--surface-2);
+  --field-bg-hover: color-mix(in oklch, var(--surface-2) 94%, var(--foreground));
+  --field-bg-focus: var(--surface);
+  --field-border: transparent;
+  --field-border-hover: var(--border);
+  /* Sem borda em repouso, o foco e a UNICA affordance de interacao — por isso
+     usa a primaria, nao o --ring neutro do preset (que segue valendo no resto). */
+  --field-border-focus: var(--primary-600);
+  --field-ring-focus: color-mix(in oklch, var(--primary-600) 18%, transparent);
   --field-radius: var(--r-md);
   --field-text: var(--text);
   --field-placeholder: var(--text-3);

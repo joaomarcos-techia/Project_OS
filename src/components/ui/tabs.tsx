@@ -20,7 +20,7 @@ export function TabsList({
     <TabsPrimitive.List
       className={cn(
         boxed
-          ? 'inline-flex gap-0.5 rounded-(--r-md) bg-surface-inset p-0.75'
+          ? 'inline-flex gap-0.5 rounded-(--r-md) bg-surface-inset p-1'
           : 'relative flex gap-0.5 border-b border-border',
         className,
       )}

@@ -11,7 +11,7 @@ import { cn } from '@/lib/ui/cn';
  * design-system-map), ai=superfície de IA (clay).
  */
 export const badgeVariants = cva(
-  'inline-flex h-5.25 items-center gap-1.25 rounded-(--r-sm) border px-2 text-(length:--fs-2xs) font-semibold tracking-[0.01em] whitespace-nowrap',
+  'inline-flex h-5 items-center gap-1.5 rounded-(--r-sm) border px-2 text-(length:--fs-2xs) font-semibold tracking-[0.01em] whitespace-nowrap',
   {
     variants: {
       tone: {

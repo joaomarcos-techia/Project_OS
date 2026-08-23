@@ -36,7 +36,7 @@ export function TablePager({
   }
 
   return (
-    <nav aria-label="Paginação" className={cn('inline-flex gap-0.75', className)}>
+    <nav aria-label="Paginação" className={cn('inline-flex gap-1', className)}>
       {page > 1 ? (
         <Link href={hrefFor(page - 1)} aria-label="Página anterior" className={btn}>
           <ChevronLeft className="size-4" />

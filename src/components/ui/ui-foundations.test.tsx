@@ -19,7 +19,7 @@ describe('foundations densas de página', () => {
   it('usa a escala tipográfica normativa no título e na descrição', () => {
     render(<PageHeader title="Pacientes" description="Operação clínica" />);
 
-    expect(screen.getByRole('heading', { level: 1 }).className).toContain('--fs-h2');
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('--fs-page');
     expect(screen.getByText('Operação clínica').className).toContain('--fs-base');
   });
 

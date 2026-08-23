@@ -159,7 +159,7 @@ export default async function BillingPage() {
                     <span
                       aria-hidden="true"
                       className={cn(
-                        'size-1.75 rounded-full',
+                        'size-2 rounded-full',
                         d.stage >= 3
                           ? 'bg-danger-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--danger-500)_16%,transparent)]'
                           : 'bg-warning-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--warning-500)_16%,transparent)]',

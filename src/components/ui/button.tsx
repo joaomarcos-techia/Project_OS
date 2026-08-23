@@ -12,7 +12,7 @@ import { Spinner } from './spinner';
  */
 export const buttonVariants = cva(
   [
-    'relative inline-flex select-none items-center justify-center gap-1.75 whitespace-nowrap',
+    'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap',
     'h-(--control-h) min-h-(--hit-target) rounded-(--btn-radius) border px-(--control-px) text-(length:--control-fs) font-medium',
     'transition-[background-color,border-color,color,box-shadow,filter,transform] duration-(--dur-fast) ease-out',
     'focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
@@ -37,7 +37,7 @@ export const buttonVariants = cva(
           'border-transparent bg-success-600 text-[oklch(0.99_0.01_152)] shadow-[0_1px_2px_oklch(0.5_0.1_151/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-success-700',
       },
       size: {
-        sm: 'h-(--control-h-sm) gap-1.25 px-2.5 text-(length:--fs-xs)',
+        sm: 'h-(--control-h-sm) gap-1.5 px-2.5 text-(length:--fs-xs)',
         md: '',
         lg: 'h-(--control-h-lg) px-5 text-(length:--fs-base)',
       },

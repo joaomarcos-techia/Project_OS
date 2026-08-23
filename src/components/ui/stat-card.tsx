@@ -38,23 +38,22 @@ export function StatCard({
             {icon}
           </span>
         ) : null}
-        <span className="font-mono text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+        <span className="text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
           {label}
         </span>
       </div>
-      <div className="font-mono text-(length:--fs-h2) leading-none font-medium tracking-(--tracking-tight) tabular-nums">
+      {/* Numeral em sans com tabular-nums: alinha coluna como mono alinhava, sem
+          o desvio de familia que fazia o KPI parecer de outro produto. */}
+      <div className="text-(length:--fs-h2) leading-none font-semibold tracking-(--tracking-tight) tabular-nums">
         {value}
         {suffix ? (
-          <small className="font-sans text-(length:--fs-sm) font-medium text-fg-subtle">
-            {' '}
-            {suffix}
-          </small>
+          <small className="text-(length:--fs-sm) font-medium text-fg-subtle"> {suffix}</small>
         ) : null}
       </div>
       {delta ? (
         <span
           className={cn(
-            'inline-flex items-center gap-1.25 text-(length:--fs-xs) font-semibold',
+            'inline-flex items-center gap-1.5 text-(length:--fs-xs) font-semibold',
             delta.direction === 'up'
               ? 'text-success-600 dark:text-success-200'
               : 'text-danger-600 dark:text-danger-200',

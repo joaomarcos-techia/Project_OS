@@ -25,7 +25,7 @@ export function Segmented<V extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-0.75',
+        'inline-flex gap-0.5 rounded-(--r-md) border border-border bg-surface-inset p-1',
         className,
       )}
     >

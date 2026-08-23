@@ -117,7 +117,7 @@ export function InvitesTable({
               Página {page} de {pages}
             </TableFootInfo>
             {pages > 1 ? (
-              <nav aria-label="Páginas de convites" className="inline-flex gap-0.75">
+              <nav aria-label="Páginas de convites" className="inline-flex gap-1">
                 <button
                   type="button"
                   aria-label="Página anterior"

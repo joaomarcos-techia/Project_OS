@@ -112,7 +112,7 @@ export function DialogDescription({
 }: ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
-      className={cn('mt-0.75 text-(length:--fs-sm) leading-normal text-fg-muted', className)}
+      className={cn('mt-1 text-(length:--fs-sm) leading-normal text-fg-muted', className)}
       {...props}
     />
   );
