@@ -597,6 +597,29 @@ A mesma varredura achou `ProntuÃ¡rio` num regex de `e2e/production-permission-
 que por isso nunca casava com o heading real. Ambos corrigidos; nenhum outro arquivo do repo tem
 o padrão.
 
+### Verificação no preview
+
+| largura | fileiras da barra | altura | destinos | overflow horizontal |
+| --- | ---: | ---: | ---: | --- |
+| 1440 | 1 | 128px | 13 | não |
+| 1280 | 1 | 128px | 13 | não |
+| 768 | 2 (3×2) | 221px | 13 | não |
+| 390 | menu | 40px | 13 | não |
+
+`h1` em x=288 em todas as rotas de configuração — o mesmo de `/dashboard` e `/pacientes`. As treze
+rotas respondem 200, com o heading certo e sem "Sem acesso"; `/equipe` e `/financeiro` são as duas
+únicas sem a barra, por serem módulos com entrada própria na navegação global.
+
+Colunas fixas (3 em `sm`, 6 em `xl`) em vez de `auto-fit`: com largura mínima o navegador cabia
+cinco colunas em 1440px e jogava a sexta categoria sozinha numa fileira, com um vazio ao lado.
+3 e 6 dividem seis grupos exatamente.
+
+**O diálogo de 2FA não foi aberto no preview.** Clicar em "Ativar TOTP" cria um fator TOTP na
+conta de teste, e o preview não expõe ao cliente qual projeto Supabase usa (a autenticação passa
+por Server Action), então não deu para confirmar isolamento da produção no momento da revisão.
+Estrutura coberta por `security-dialog.test.tsx`; a verificação ao vivo fica pendente de
+confirmação de que o Supabase de preview é descartável.
+
 ### Pendência conhecida na aba
 
 `procedimentos/procedures-manager.tsx` e `recursos/resources-manager.tsx` ainda montam a lista com
