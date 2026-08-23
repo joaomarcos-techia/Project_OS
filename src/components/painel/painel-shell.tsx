@@ -1,6 +1,5 @@
 'use client';
 
-import { LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 
@@ -8,11 +7,10 @@ import {
   MobileNavButton,
   ShellScrim,
   ShellSidebar,
-  SidebarFootButton,
+  SidebarUserMenu,
   SideNavDisabled,
   SideNavGroupLabel,
   SideNavLink,
-  ThemeFootToggle,
   Wordmark,
 } from '@/components/shared/shell-chrome';
 import { resolvePageLayout } from '@/components/shared/page-layout';
@@ -118,34 +116,21 @@ export function PainelShell({
             })}
           </nav>
 
-          <div className="flex flex-col gap-1 border-t border-border p-(--sp-3)">
-            {/* Identidade do usuário — o topbar foi aposentado (decisão do founder:
-                tudo na sidebar, como no /admin) */}
-            <div className="flex items-center gap-2.5 px-(--sp-3) py-2">
-              {/* Avatar em tinta clara com a letra na primária, como a referência:
-                  o disco azul sólido puxava o olho para o rodapé, que é o canto
-                  menos acionável da tela. */}
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-(--primary-soft) text-(length:--fs-sm) font-semibold text-(--primary-active) dark:text-fg">
-                {userInitials}
-              </span>
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-(length:--fs-sm) leading-tight font-semibold">
-                  {userName}
-                </span>
-                {userRole ? (
-                  <span className="text-(length:--fs-xs) leading-tight text-fg-subtle">
-                    {userRole}
-                  </span>
-                ) : null}
-              </span>
-            </div>
-            <ThemeFootToggle theme={theme} onToggle={toggle} />
-            <form action="/logout" method="post">
-              <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
-            </form>
-            <span className="px-0.5 font-mono text-[10px] leading-normal text-fg-subtle">
-              Qoro — operação sem vazamento.
-            </span>
+          {/* Rodapé de um elemento só, como a referência. Tema e Sair não
+              sumiram: viraram itens do menu do usuário, que é onde ação de conta
+              é procurada. O form fica FORA do menu porque o conteúdo dele é
+              renderizado num Portal; o botão o alcança por `form=id`. */}
+          <div className="border-t border-border p-(--sp-2)">
+            <form id="painel-logout" action="/logout" method="post" className="hidden" />
+            <SidebarUserMenu
+              userName={userName}
+              userRole={userRole}
+              initials={userInitials}
+              theme={theme}
+              onToggleTheme={toggle}
+              accountHref="/account/security"
+              logoutFormId="painel-logout"
+            />
           </div>
         </ShellSidebar>
 

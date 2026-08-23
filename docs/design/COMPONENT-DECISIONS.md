@@ -25,7 +25,9 @@ Registro exigido pelo Contract §6: onde a UX operacional venceu a referência v
 | 2026-08-23 | Financeiro | Badge `Vencido` | Prop `overdue` no `PaymentStatusBadge` | "Vencido" não é estado armazenado: o Financial deriva de `due_date` vs hoje no fuso da clínica (`dunning-candidates.ts`). A regra continua lá; aqui só a apresentação |
 | 2026-08-23 | Sidebar (todas) | Item ativo sem nenhum destaque aparente | Ativo por **contraste + peso**, sem preenchimento | A referência distingue por contraste (na tela de Pacientes, "Pacientes" é visivelmente mais escuro que "Documentos"), mas o briefing §9 exige estado ativo identificável. Contraste sozinho seria cor-apenas (WCAG 1.4.1); o peso é o segundo sinal, e o `aria-current` já cobre o leitor de tela |
 | 2026-08-23 | Sidebar (todas) | Sem bloco de identidade da clínica | **Removido** por decisão do founder | Eu havia mantido por §30 (multi-tenant, o usuário precisa saber qual clínica está ativa). O founder decidiu remover. Consequência aceita: o nome da clínica deixa de aparecer no shell — segue disponível em Configurações → Perfil da clínica. Props `clinicName`/`clinicPlan` do `PainelShell` removidos junto |
-| 2026-08-23 | Sidebar (todas) | Sem toggle de tema, sem "Sair", sem assinatura | Os três mantidos | São funcionalidade, não decoração. A referência é um mockup e não mostra tudo (Contract §6) |
+| 2026-08-23 | Sidebar (todas) | Sem toggle de tema, sem "Sair", sem assinatura | **Tema e Sair viraram menu; assinatura removida** | Decisão do founder após ver o preview. Eu havia mantido os três por §30. Funcionalidade preservada: tema e logout viraram itens do menu do usuário; só a assinatura, que é decorativa, saiu. Fluxo mudou (dois cliques em vez de um), com aprovação explícita |
+| 2026-08-23 | `/configuracoes` | — | Pílula azul do submenu removida | Inconsistência que a Wave 2 criou: com o menu primário quieto, a pílula do submenu invertia a hierarquia. Mesma regra agora nos dois (§37) |
+| 2026-08-23 | `/admin` | — | Rodapé antigo mantido | Fora de escopo desta rodada. É um console visualmente distinto e o `SidebarUserMenu` é compartilhado, então adotar depois é uma linha |
 
 ---
 

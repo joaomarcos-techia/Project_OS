@@ -1,10 +1,18 @@
 'use client';
 
-import { Laptop, Menu, Moon, Sun } from 'lucide-react';
+import { ChevronsUpDown, Laptop, LogOut, Menu, Moon, ShieldCheck, Sun } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 import { Logo } from './logo';
 import type { ThemePreference } from './use-theme';
@@ -186,9 +194,7 @@ export function ThemeFootToggle({
   theme: ThemePreference;
   onToggle: () => void;
 }) {
-  const label =
-    theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
-  const icon = theme === 'dark' ? <Moon /> : theme === 'system' ? <Laptop /> : <Sun />;
+  const { label, icon } = themeFace(theme);
 
   return (
     <SidebarFootButton
@@ -198,6 +204,101 @@ export function ThemeFootToggle({
       label={label}
       trailing={<span className="font-mono text-(length:--fs-2xs) text-fg-subtle">⌘\</span>}
     />
+  );
+}
+
+/** Rotulo e icone do ciclo de tema — compartilhado pelo menu e pelo botao solto. */
+function themeFace(theme: ThemePreference) {
+  if (theme === 'dark') return { label: 'Tema escuro', icon: <Moon /> };
+  if (theme === 'system') return { label: 'Tema do sistema', icon: <Laptop /> };
+  return { label: 'Tema claro', icon: <Sun /> };
+}
+
+/**
+ * Bloco de usuario do rodape — agora o gatilho de um menu.
+ *
+ * Antes, tema e "Sair" eram duas linhas soltas embaixo do nome, deixando quatro
+ * elementos disputando um canto que a referencia resolve com um. Eles nao
+ * sumiram: viraram itens do menu, que e onde acao de conta e procurada.
+ *
+ * O logout continua sendo submit de <form> POST (nunca GET: logout e mutacao).
+ * O form vive fora do menu e o botao o alcanca por `form=id`, porque o conteudo
+ * do menu e renderizado num Portal e um form aninhado no item quebraria a
+ * composicao do Radix.
+ */
+export function SidebarUserMenu({
+  userName,
+  userRole,
+  initials,
+  theme,
+  onToggleTheme,
+  accountHref,
+  logoutFormId,
+}: {
+  userName: string;
+  userRole?: string;
+  initials: string;
+  theme: ThemePreference;
+  onToggleTheme: () => void;
+  accountHref?: string;
+  logoutFormId: string;
+}) {
+  const face = themeFace(theme);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex min-h-(--hit-target) w-full items-center gap-2.5 rounded-(--r-md) px-(--sp-3) py-2 text-left transition-colors duration-(--dur-fast) hover:bg-surface-hover"
+        >
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-(--primary-soft) text-(length:--fs-sm) font-semibold text-(--primary-active) dark:text-fg">
+            {initials}
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-(length:--fs-sm) leading-tight font-semibold">
+              {userName}
+            </span>
+            {userRole ? (
+              <span className="truncate text-(length:--fs-xs) leading-tight text-fg-subtle">
+                {userRole}
+              </span>
+            ) : null}
+          </span>
+          <ChevronsUpDown aria-hidden="true" className="ml-auto size-4 shrink-0 text-fg-subtle" />
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent side="top" align="start" className="w-(--sidebar-w)">
+        {accountHref ? (
+          <DropdownMenuItem asChild>
+            <Link href={accountHref}>
+              <ShieldCheck />
+              Seguranca da conta
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem
+          // Sem o preventDefault o menu fecha a cada clique, e o tema cicla por
+          // tres estados — reabrir a cada passo seria hostil.
+          onSelect={(event) => {
+            event.preventDefault();
+            onToggleTheme();
+          }}
+        >
+          {face.icon}
+          {face.label}
+          <DropdownMenuShortcut>&#8984;&#92;</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild danger>
+          <button type="submit" form={logoutFormId}>
+            <LogOut />
+            Sair
+          </button>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

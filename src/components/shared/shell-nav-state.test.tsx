@@ -8,7 +8,7 @@ vi.mock('next/link', () => ({
   default: (props: ComponentProps<'a'>) => <a {...props} />,
 }));
 
-import { ShellSidebar, SideNavLink } from './shell-chrome';
+import { ShellSidebar, SidebarUserMenu, SideNavLink } from './shell-chrome';
 
 afterEach(cleanup);
 
@@ -52,5 +52,30 @@ describe('ancoragem do chrome da sidebar', () => {
     const aside = container.querySelector('aside');
     expect(aside?.className).toContain('overflow-hidden');
     expect(aside?.className).not.toContain('overflow-y-auto');
+  });
+});
+
+describe('menu do usuário no rodapé', () => {
+  const base = {
+    userName: 'Olívia Owner',
+    userRole: 'Dono(a)',
+    initials: 'OO',
+    theme: 'light' as const,
+    onToggleTheme: () => {},
+    logoutFormId: 'painel-logout',
+  };
+
+  it('mostra nome e cargo no gatilho, sem exigir abrir o menu', () => {
+    render(<SidebarUserMenu {...base} />);
+    expect(screen.getByRole('button', { name: /Olívia Owner/ })).toBeTruthy();
+    expect(screen.getByText('Dono(a)')).toBeTruthy();
+  });
+
+  it('não deixa tema nem Sair soltos no rodapé', () => {
+    // O conteudo do menu so existe depois de abrir: se aparecesse aqui, seriam
+    // linhas soltas de novo, que e exatamente o que a mudanca removeu.
+    render(<SidebarUserMenu {...base} />);
+    expect(screen.queryByText('Tema claro')).toBeNull();
+    expect(screen.queryByText('Sair')).toBeNull();
   });
 });

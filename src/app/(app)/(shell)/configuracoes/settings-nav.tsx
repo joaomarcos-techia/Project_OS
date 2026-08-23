@@ -37,8 +37,12 @@ export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
                       className={cn(
                         'flex h-(--hit-target) shrink-0 items-center whitespace-nowrap rounded-(--r-md) px-2.5 text-(length:--fs-sm) font-medium',
                         'transition-[background-color,color] duration-(--dur-fast) focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
+                        // Mesma regra da navegação principal: contraste e peso,
+                        // sem preenchimento. Com o menu primário quieto, a
+                        // pílula azul aqui invertia a hierarquia — o submenu
+                        // gritava mais alto que a navegação que o contém.
                         active
-                          ? 'bg-primary-soft text-(--primary-active) dark:text-primary-200'
+                          ? 'font-medium text-fg'
                           : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
                       )}
                     >
