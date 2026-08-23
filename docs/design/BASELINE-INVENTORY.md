@@ -560,15 +560,27 @@ revisou o preview e cortou: quem abre Configurações quer editar a clínica, n�
 
 | O que saiu | O que entrou |
 | --- | --- |
-| `settings-nav.tsx` antigo — `<aside>` em grade `13.5rem` | `settings-nav.tsx` — barra horizontal de dois níveis, no `layout.tsx` |
+| `settings-nav.tsx` antigo — `<aside>` em grade `13.5rem` | `settings-nav.tsx` — diretório horizontal completo, no `layout.tsx` |
 | Hub em linhas + visão geral (`settings-item.tsx`) | `page.tsx` volta a redirecionar, agora para o Perfil da clínica |
 | `settings-status.ts`, `settings-data.ts` | — (os status viviam nas linhas; sem linhas, sem casa) |
 | Modo de página `form` (960px) | Todas as rotas na mesma régua que `/dashboard` |
 | `enroll-flow.tsx` | `security-dialog.tsx` — ativação do TOTP em diálogo |
 
-**Nível 1** são as seis categorias; clicar leva à primeira configuração de cada uma. **Nível 2** só
-aparece quando a categoria tem mais de um destino. Juntos alcançam os treze destinos sem rolagem
-horizontal — a barra quebra linha em vez de rolar. Abaixo de `sm`, um menu.
+Os treze destinos ficam visíveis o tempo todo, agrupados por categoria numa grade que quebra
+linha (`auto-fit, minmax(11rem, 1fr)`) — a coluna antiga deitada na horizontal. Abaixo de `sm`,
+um menu.
+
+Houve uma versão intermediária de dois níveis: seis categorias em cima, os destinos da categoria
+ativa embaixo. Ela **reprovou na revisão** e o motivo está medido: na página inicial da seção
+(Perfil) a categoria Clínica tem um item só, então a barra mostrava seis palavras e nada mais —
+onze destinos que a coluna antiga listava o tempo todo sumiram da tela. Densidade não vale
+esconder configuração numa tela de configurações.
+
+A trilha `Configurações › X` voltou às dez sub-páginas (o botão "Voltar" não: ele levava ao
+Perfil, não "de volta"). E `/account/security`, que é um dos treze mas vive fora de
+`/configuracoes`, monta a barra por conta própria — sem isso, chegar lá pela barra era um beco
+sem saída. `/equipe` e `/financeiro` seguem sem ela de propósito: são módulos com entrada
+própria na navegação global, não configurações.
 
 ### Larguras
 

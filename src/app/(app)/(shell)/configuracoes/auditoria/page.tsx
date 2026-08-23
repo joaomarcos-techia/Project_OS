@@ -17,7 +17,7 @@ export default async function AuditoriaPage() {
   const gate = await pageGate([PERMISSIONS.EXPORT_AUDIT]);
   if (!gate.allowed) {
     return (
-      <PageNoAccess
+      <PageNoAccess crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Auditoria' }]}
         title="Auditoria"
         description="Seu perfil não tem permissão para exportar a trilha de auditoria da clínica. Fale com um gestor se precisar de acesso."
       />

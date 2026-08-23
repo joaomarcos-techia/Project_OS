@@ -31,6 +31,7 @@ export default async function SugestoesPage() {
   return (
     <>
       <PageHeader
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Sugestões' }]}
         title="Sugestões"
         description="Envie ideias, melhorias ou bugs diretamente para o time da Qoro."
       />

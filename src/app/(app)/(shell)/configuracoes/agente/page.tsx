@@ -19,7 +19,7 @@ export default async function AgentSettingsPage() {
   const gate = await pageGate([PERMISSIONS.MANAGE_AGENT]);
   if (!gate.allowed) {
     return (
-      <PageNoAccess
+      <PageNoAccess crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Agente de IA' }]}
         title="Agente de IA"
         description="Seu perfil não tem permissão para gerenciar o Agente de IA. Fale com um gestor se precisar de acesso."
       />

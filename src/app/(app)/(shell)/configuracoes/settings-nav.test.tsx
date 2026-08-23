@@ -26,51 +26,59 @@ const groups: SettingsNavGroup[] = [
   { label: 'Produto', items: [{ label: 'Sugestões', href: '/configuracoes/sugestoes' }] },
 ];
 
-const desktop = () => screen.getByRole('navigation', { name: 'Configurações' }).firstElementChild!;
+/** A grade desktop; o menu de tela estreita é o irmão seguinte. */
+const directory = () =>
+  screen.getByRole('navigation', { name: 'Configurações' }).firstElementChild as HTMLElement;
 
 describe('SettingsNav', () => {
-  it('marca a categoria da rota atual e leva cada uma ao seu primeiro destino', () => {
-    pathname.current = '/configuracoes/procedimentos';
-    render(<SettingsNav groups={groups} />);
-
-    const categorias = within(desktop().firstElementChild as HTMLElement).getAllByRole('link');
-    expect(categorias.map((link) => link.textContent)).toEqual(['Clínica', 'Agenda', 'Produto']);
-    expect(categorias.map((link) => link.getAttribute('href'))).toEqual([
-      '/configuracoes/perfil',
-      '/configuracoes/horarios',
-      '/configuracoes/sugestoes',
-    ]);
-    expect(categorias[1]!.getAttribute('aria-current')).toBe('true');
-    expect(categorias[0]!.getAttribute('aria-current')).toBeNull();
-  });
-
-  it('abre o segundo nível com o item atual marcado', () => {
-    pathname.current = '/configuracoes/procedimentos';
-    render(<SettingsNav groups={groups} />);
-
-    const atual = within(desktop() as HTMLElement).getByRole('link', { name: 'Procedimentos' });
-    expect(atual.getAttribute('aria-current')).toBe('page');
-    expect(
-      within(desktop() as HTMLElement).getByRole('link', { name: 'Salas e equipamentos' }),
-    ).toBeTruthy();
-  });
-
-  /** Sub-linha com um item só é ruído: a categoria já disse onde se está. */
-  it('não desenha o segundo nível quando a categoria tem um destino só', () => {
+  /**
+   * O ponto da barra. Uma versão anterior mostrava só as categorias e revelava
+   * os itens de uma por vez — na página inicial da seção isso significava
+   * NENHUM destino visível, porque Clínica tem um item só.
+   */
+  it('mostra todos os destinos o tempo todo, na ordem do mapa', () => {
     pathname.current = '/configuracoes/perfil';
     render(<SettingsNav groups={groups} />);
 
     expect(
-      within(desktop() as HTMLElement).queryByRole('link', { name: 'Perfil da clínica' }),
-    ).toBeNull();
+      within(directory())
+        .getAllByRole('link')
+        .map((a) => a.getAttribute('href')),
+    ).toEqual([
+      '/configuracoes/perfil',
+      '/configuracoes/horarios',
+      '/configuracoes/procedimentos',
+      '/configuracoes/recursos',
+      '/configuracoes/sugestoes',
+    ]);
   });
 
-  it('cai na primeira categoria quando a rota não pertence a nenhuma', () => {
-    pathname.current = '/configuracoes';
+  it('agrupa por categoria e dá o nome do grupo à lista', () => {
+    pathname.current = '/configuracoes/perfil';
     render(<SettingsNav groups={groups} />);
 
-    const categorias = within(desktop().firstElementChild as HTMLElement).getAllByRole('link');
-    expect(categorias[0]!.getAttribute('aria-current')).toBe('true');
+    const agenda = within(directory()).getByRole('list', { name: 'Agenda' });
+    expect(within(agenda).getAllByRole('link')).toHaveLength(3);
+    // Rótulo de grupo não é heading: a barra vem antes do <h1> da página.
+    expect(within(directory()).queryAllByRole('heading')).toHaveLength(0);
+  });
+
+  it('marca só o destino da rota atual', () => {
+    pathname.current = '/configuracoes/procedimentos';
+    render(<SettingsNav groups={groups} />);
+
+    const links = within(directory()).getAllByRole('link');
+    const marcados = links.filter((a) => a.getAttribute('aria-current') === 'page');
+    expect(marcados.map((a) => a.textContent)).toEqual(['Procedimentos']);
+  });
+
+  it('anuncia a configuração aberta no gatilho da tela estreita', () => {
+    pathname.current = '/configuracoes/recursos';
+    render(<SettingsNav groups={groups} />);
+
+    expect(screen.getByRole('button', { name: /Salas e equipamentos/u }).textContent).toContain(
+      'Salas e equipamentos',
+    );
   });
 
   it('não renderiza nada quando a pessoa não enxerga nenhuma configuração', () => {

@@ -22,7 +22,7 @@ export default async function PerfilPage() {
   if (!user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)) {
     return (
       <div>
-        <PageHeader title="Perfil da clínica" />
+        <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Perfil da clínica' }]} title="Perfil da clínica" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para editar os dados da clínica.
         </Alert>
@@ -37,7 +37,7 @@ export default async function PerfilPage() {
   if (!profile) {
     return (
       <div>
-        <PageHeader title="Perfil da clínica" />
+        <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Perfil da clínica' }]} title="Perfil da clínica" />
         <Alert variant="danger" title="Clínica não encontrada">
           Não foi possível carregar os dados da clínica.
         </Alert>
@@ -47,7 +47,7 @@ export default async function PerfilPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Perfil da clínica' }]}
         title="Perfil da clínica"
         description="Dados que aparecem no cabeçalho do receituário e dos documentos."
       />

@@ -3,6 +3,7 @@
 import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useId } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -21,69 +22,66 @@ export function isSettingsItemActive(pathname: string, href: string): boolean {
 }
 
 /**
- * Navegação das configurações — horizontal, em dois níveis, no topo de toda
- * página da seção. Não há barra lateral interna: o Qoro já tem UMA navegação
- * global, e empilhar outra hierarquia permanente ao lado dela transforma "onde
- * eu configuro isso?" em duas perguntas.
+ * Navegação das configurações — o diretório completo, no topo de toda página da
+ * seção. É ela que faz o papel de hub.
  *
- * Nível 1 são as categorias; clicar leva à primeira configuração da categoria.
- * Nível 2 só aparece quando a categoria tem mais de um destino — mostrar uma
- * sub-linha com um item só é ruído. Juntos, os dois níveis alcançam os treze
- * destinos sem esconder nenhum atrás de rolagem.
+ * Todos os treze destinos ficam visíveis o tempo todo, agrupados por categoria.
+ * Isto é deliberado e custa altura: a versão anterior mostrava só as seis
+ * categorias e revelava os itens de uma por vez, e o efeito prático foi
+ * configurações sumirem da tela — na página inicial da seção (Perfil), a
+ * categoria Clínica tem um item só, então não havia nada abaixo das categorias.
+ * Descoberta rápida vem antes de economia de pixel numa tela de ajustes.
  *
- * Abaixo de `sm` os dois níveis viram um menu: seis categorias em linha
- * quebrariam em três fileiras e comeriam um terço da tela antes do conteúdo.
- * Só uma das formas existe na árvore de acessibilidade por vez (`display:none`).
+ * Horizontal, e não uma coluna: o Qoro já tem UMA navegação lateral, e empilhar
+ * outra hierarquia permanente ao lado dela transforma "onde eu configuro isso?"
+ * em duas perguntas.
+ *
+ * Abaixo de `sm` o diretório vira menu — seis colunas viram seis fileiras e
+ * comeriam a tela inteira antes do conteúdo. Só uma das formas existe na árvore
+ * de acessibilidade por vez (`display:none` remove a outra).
  */
 export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
   const pathname = usePathname();
+  const uid = useId();
   if (groups.length === 0) return null;
 
-  const activeGroup =
-    groups.find((group) => group.items.some((item) => isSettingsItemActive(pathname, item.href))) ??
-    groups[0]!;
-  const activeItem = activeGroup.items.find((item) => isSettingsItemActive(pathname, item.href));
+  const activeItem = groups
+    .flatMap((group) => group.items)
+    .find((item) => isSettingsItemActive(pathname, item.href));
 
   return (
     <nav aria-label="Configurações" className="mb-(--sp-5) min-w-0">
-      <div className="hidden sm:block">
-        <div className="flex max-w-full flex-wrap gap-0.5 border-b border-border">
-          {groups.map((group) => {
-            const active = group === activeGroup;
-            return (
-              <Link
-                key={group.label}
-                href={group.items[0]!.href}
-                aria-current={active ? 'true' : undefined}
-                className={cn(
-                  'relative rounded-t-(--r-sm) px-3.5 py-2.5 text-(length:--fs-body-sm) font-medium whitespace-nowrap',
-                  'transition-colors duration-(--dur-fast) focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
-                  'after:absolute after:right-2 after:-bottom-px after:left-2 after:h-0.5 after:bg-primary after:transition-opacity',
-                  active
-                    ? 'text-primary after:opacity-100'
-                    : 'text-fg-muted after:opacity-0 hover:text-fg',
-                )}
+      <div className="hidden grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-x-(--sp-5) gap-y-(--sp-4) border-b border-border pb-(--sp-4) sm:grid">
+        {groups.map((group, index) => {
+          // Rótulo de grupo como texto + `aria-labelledby`, não <h2>: a barra
+          // vem ANTES do <h1> da página, e seis h2 aqui inverteriam o esqueleto
+          // de títulos que o leitor de tela usa para navegar.
+          const labelId = `${uid}-${index}`;
+          return (
+            <div key={group.label} className="min-w-0">
+              <p
+                id={labelId}
+                className="mb-1.5 text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase"
               >
                 {group.label}
-              </Link>
-            );
-          })}
-        </div>
-
-        {activeGroup.items.length > 1 ? (
-          <div className="mt-(--sp-3) flex flex-wrap gap-x-(--sp-4) gap-y-1.5 px-1">
-            {activeGroup.items.map((item) => (
-              <SubItem key={item.href} item={item} active={item === activeItem} />
-            ))}
-          </div>
-        ) : null}
+              </p>
+              <ul aria-labelledby={labelId} className="flex flex-col gap-1">
+                {group.items.map((item) => (
+                  <li key={item.href} className="min-w-0">
+                    <NavItem item={item} active={item === activeItem} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
 
       <div className="sm:hidden">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="subtle" size="sm" className="w-full justify-between">
-              {activeItem?.label ?? activeGroup.label}
+              {activeItem?.label ?? 'Configurações'}
               <ChevronDown aria-hidden="true" className="size-4 text-fg-subtle" />
             </Button>
           </DropdownMenuTrigger>
@@ -115,17 +113,17 @@ export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
 }
 
 /**
- * Item do segundo nível. Ativo por contraste e peso, sem preenchimento: é a
- * mesma regra da navegação principal, e a pílula azul que existia aqui gritava
- * mais alto que o menu que a contém.
+ * Ativo por contraste e peso, sem preenchimento — mesma regra da navegação
+ * principal. A pílula azul que existia aqui gritava mais alto que o menu que a
+ * contém.
  */
-function SubItem({ item, active }: { item: SettingsNavItem; active: boolean }) {
+function NavItem({ item, active }: { item: SettingsNavItem; active: boolean }) {
   return (
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'rounded-(--r-sm) py-0.5 text-(length:--fs-body-sm) whitespace-nowrap',
+        'block truncate rounded-(--r-sm) text-(length:--fs-body-sm)',
         'transition-colors duration-(--dur-fast) focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
         active ? 'font-medium text-fg' : 'text-fg-muted hover:text-fg',
       )}
