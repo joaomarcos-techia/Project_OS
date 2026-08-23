@@ -4,13 +4,16 @@
  * tenant-scoped; faturamento exige view:financial (gate no loader). Ocupação usa
  * o slot-resolver canônico (ver data.ts), nunca contagem ingênua.
  */
-import { FileDown } from 'lucide-react';
+import { CalendarCheck, FileDown } from 'lucide-react';
 import Link from 'next/link';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PanelCard } from '@/components/ui/panel-card';
+import { StackedBar } from '@/components/ui/stacked-bar';
 import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
@@ -94,11 +97,14 @@ export default async function RelatoriosPage({
           hint={`${data.noShow.faltou} falta(s) de ${data.noShow.atendido + data.noShow.faltou} com desfecho`}
         />
 
+        {/* Card montado à mão porque a barra de ocupação não cabe no StatCard —
+            mas rótulo, valor e nota seguem os mesmos degraus de tipografia, para
+            não destoar dos vizinhos da fileira. */}
         <Card data-slot="stat-card" className="flex flex-col gap-2.5 p-(--card-pad)">
-          <span className="font-mono text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+          <span className="text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
             Ocupação
           </span>
-          <span className="font-mono text-(length:--fs-h2) leading-none font-medium tracking-(--tracking-tight) tabular-nums">
+          <span className="text-(length:--fs-h2) leading-none font-semibold tracking-(--tracking-tight) tabular-nums">
             {pct(data.ocupacao.taxa)}
           </span>
           <div className="h-2 w-full overflow-hidden rounded-full bg-viz-track">
@@ -117,26 +123,33 @@ export default async function RelatoriosPage({
         </Card>
       </MetricStrip>
 
-      {/* Volume de atendimentos */}
-      <Card role="region" aria-label="Volume de atendimentos" className="mt-(--sp-4)">
-        <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-x-8 gap-y-4 p-(--card-pad)">
-          {(
-            [
-              ['Total no período', data.noShow.total],
-              ['Atendidos', data.noShow.atendido],
-              ['Faltas', data.noShow.faltou],
-              ['Cancelados', data.noShow.cancelado],
-            ] as const
-          ).map(([label, value]) => (
-            <div key={label} className="flex flex-col gap-1">
-              <dt className="font-mono text-(length:--fs-2xs) tracking-(--tracking-label) text-fg-subtle uppercase">
-                {label}
-              </dt>
-              <dd className="font-mono text-xl font-medium tabular-nums">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Card>
+      {/* Volume de atendimentos — os três desfechos são partes do total, então
+          a barra empilhada responde "quanto de cada" numa olhada. A grade de
+          quatro números exigia dividir de cabeça para chegar na proporção, que
+          é a única coisa acionável aqui. */}
+      <PanelCard
+        title="Volume de atendimentos"
+        regionLabel="Volume de atendimentos"
+        meta={`${data.noShow.total} no período`}
+        className="mt-(--sp-4)"
+      >
+        {data.noShow.total === 0 ? (
+          <EmptyState
+            variant="compact"
+            icon={<CalendarCheck />}
+            title="Nenhum atendimento com desfecho"
+            description="Atendidos, faltas e cancelamentos aparecem aqui quando houver movimento no período."
+          />
+        ) : (
+          <StackedBar
+            segments={[
+              { label: 'Atendidos', value: data.noShow.atendido, amount: data.noShow.atendido },
+              { label: 'Faltas', value: data.noShow.faltou, amount: data.noShow.faltou },
+              { label: 'Cancelados', value: data.noShow.cancelado, amount: data.noShow.cancelado },
+            ]}
+          />
+        )}
+      </PanelCard>
     </>
   );
 }

@@ -145,18 +145,29 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
         }
       />
 
+      {/* O saldo vem primeiro e maior: é a resposta, e o resto são as parcelas
+          que a compõem. A ordem anterior obrigava a somar de cabeça para chegar
+          no número que a pessoa abriu a tela para ver. */}
       <MetricStrip className="mb-(--sp-4)">
-        <StatCard label="A receber" value={formatBRL(flow.receber)} />
-        <StatCard label="A pagar" value={formatBRL(flow.pagar)} />
+        <StatCard
+          emphasis
+          label="Saldo do mês"
+          value={formatBRL(flow.saldoHoje)}
+          valueTone={flow.saldoHoje >= 0 ? 'positive' : 'negative'}
+        />
         <StatCard label="Recebido no mês" value={formatBRL(flow.recebidoHoje)} />
+        <StatCard
+          label="A receber"
+          value={formatBRL(flow.receber)}
+          valueTone={flow.receber > 0 ? 'warning' : 'default'}
+          hint="pendências em aberto"
+        />
         <StatCard label="Pago no mês" value={formatBRL(flow.pagoHoje)} />
         <StatCard
-          label="Saldo do mês"
-          value={
-            <span className={flow.saldoHoje >= 0 ? 'text-success-600' : 'text-danger-600'}>
-              {formatBRL(flow.saldoHoje)}
-            </span>
-          }
+          label="A pagar"
+          value={formatBRL(flow.pagar)}
+          valueTone={flow.pagar > 0 ? 'warning' : 'default'}
+          hint="contas em aberto"
         />
       </MetricStrip>
 

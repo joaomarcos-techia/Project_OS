@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import type {
   CaixaItem,
@@ -203,9 +203,14 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    expect(screen.getByLabelText(/A receber: R\$\s*375,00/)).toBeTruthy();
-    expect(screen.getByLabelText(/Recebido hoje: R\$\s*200,00/)).toBeTruthy();
-    expect(screen.getByLabelText(/A pagar: R\$\s*1\.000,00/)).toBeTruthy();
+    // Os totais saíram do `Metric` local (que combinava rótulo e valor num
+    // aria-label de <div>, frágil e geralmente ignorado por leitor de tela) para
+    // o StatCard, onde rótulo e valor são elementos irmãos lidos em sequência.
+    // A asserção passa a ser sobre o texto visível, que é o que existe.
+    const metrics = screen.getByRole('region', { name: 'Métricas principais' });
+    expect(within(metrics).getByText(/R\$\s*375,00/)).toBeTruthy();
+    expect(within(metrics).getByText(/R\$\s*200,00/)).toBeTruthy();
+    expect(within(metrics).getByText(/R\$\s*1\.000,00/)).toBeTruthy();
   });
 
   it('mostra pendências de faturamento apenas quando a fila possui itens', () => {

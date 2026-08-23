@@ -14,6 +14,13 @@
 | 2026-08-23 | `DataTable` | `TableWrap`, `TableScroll`, `TableFoot`, `TablePager` | Serviram, mas cada rota recopiava o cerco e escrevia a contagem de um jeito | Moldura fina. **Não recebe `columns`/`rows`** — o conteúdo segue sendo `TableHeader`/`TableBody` na página, para não virar componente de 30 props |
 | 2026-08-23 | `FilterBar` | `ui/table-toolbar.tsx` | Não serviu: a toolbar vive DENTRO da moldura da tabela; a referência filtra no nível da página | Coexistem, com fronteira explícita no JSDoc de cada um |
 | 2026-08-23 | `Avatar` | — | Nada equivalente no repo | Criado. Iniciais, não foto: o sistema não guarda retrato de paciente |
+| 2026-08-23 | `MetricStrip` | o próprio | Servia, mas colava os cards com `gap-px` sobre a borda | **Reescrito, não substituído.** Cards separados por gap; as 5 telas que já usavam herdaram o visual da referência de uma vez |
+| 2026-08-23 | `StatCard` | o próprio | API derivava a cor da direção e não expressava "despesa subindo é ruim" | `tone` semântico + `emphasis` + `valueTone`. Dois chamadores migrados |
+| 2026-08-23 | `BarChart` | `dashboard/_components/revenue-chart.tsx` | Era específico do dashboard e sem rótulo sobre a barra | Extraído. `RevenueChart` virou casca fina. **Sem biblioteca**: recharts custaria ~100kB para desenhar `div` com altura percentual |
+| 2026-08-23 | `StackedBar` | — | Nada equivalente | Criado e **adotado em `/relatorios`**, onde a grade de 4 números virou proporção |
+| 2026-08-23 | `BreakdownList` | — | Nada equivalente | Criado e **adotado em `/caixa`** (recebimentos por forma), agrupando dado já carregado — sem query nova |
+| 2026-08-23 | `SummaryList` | — | Nada equivalente | Criado. Adoção prevista no drawer de fechamento do Caixa (Wave 6) |
+| 2026-08-23 | `Metric` (local em `caixa-view.tsx`) | `StatCard` | Era duplicata: rótulo uppercase + valor tabular | **Removido**, substituído por `StatCard` |
 
 ---
 
@@ -35,6 +42,8 @@ Registro exigido pelo Contract §6: onde a UX operacional venceu a referência v
 | 2026-08-23 | `/pacientes` | Colunas de CPF, telefone, idade, sexo, último atendimento, próximo e profissional | Só nome + e-mail | **A lista não descriptografa** (decisão de privacidade 5.13): `PatientListItem` expõe `id`, `nome`, `email`, `deletedAt` e nada mais. Trazer os campos da referência exigiria decifrar a lista inteira a cada página — mudança de regra, não de UI |
 | 2026-08-23 | `/pacientes` | Coluna de status `Ativo`/`Inativo` | Omitida | Na lista ativa todos seriam "Ativo" e na lixeira todos "Inativo": uma coluna de badges idênticos é ruído. O `PatientStatusBadge` existe para onde o estado varia |
 | 2026-08-23 | `/documentos` | Badge de tipo colorido | Ícone + rótulo no `EntityCell` | O badge repetia a mesma cor em toda linha e não distinguia nada. A referência usa tile de ícone, que carrega o tipo sem gastar cor |
+| 2026-08-23 | `/financeiro` | Painéis "por serviço", "por profissional" e "formas de recebimento" | Nenhum criado | Não existe query agregada por serviço nem por profissional. Construir a UI exigiria inventar o dado (§39) ou escrever query nova, que é backend, não UI |
+| 2026-08-23 | Dashboard | Barra de "hoje" destacada em outra cor | Todas iguais | O eixo já traz o dia e a última coluna é sempre hoje — pintar diferente gastava significado de cor para repetir o que a posição dizia |
 
 ---
 

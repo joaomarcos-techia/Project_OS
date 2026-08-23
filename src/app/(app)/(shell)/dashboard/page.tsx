@@ -129,6 +129,7 @@ export default async function DashboardPage() {
       {/* ---- stat tiles (dados reais) ---- */}
       <MetricStrip>
         <StatCard
+          emphasis
           label="Consultas hoje"
           value={d.consultasHoje}
           hint={`${d.finalizadas} finalizadas`}
@@ -151,12 +152,14 @@ export default async function DashboardPage() {
             <StatCard
               label="A receber"
               value={formatBRL(flow.receber)}
+              valueTone={flow.receber > 0 ? 'warning' : 'default'}
               hint="pendências em aberto"
               icon={<Wallet />}
             />
             <StatCard
               label="Faturado hoje"
               value={formatBRL(flow.recebidoHoje)}
+              valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
               hint="recebido hoje"
               icon={<Banknote />}
             />

@@ -12,6 +12,10 @@ import type {
 } from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
+import { BreakdownList } from '@/components/ui/breakdown-list';
+import { MetricStrip } from '@/components/ui/metric-strip';
+import { PanelCard } from '@/components/ui/panel-card';
+import { StatCard } from '@/components/ui/stat-card';
 import { formatBRL } from '@/lib/format';
 import { uuidv4 } from '@/lib/ui/uuid';
 
@@ -108,24 +112,62 @@ export function CaixaView({
   const totalRecebidoHoje = pagosHoje.reduce((total, item) => total + item.valorPago, 0);
   const totalAPagar = aPagar.reduce((total, item) => total + outstandingBalance(item), 0);
 
+  /**
+   * Agrupa o que JÁ está carregado — `pagosHoje` traz `paymentMethod` por
+   * lançamento. Não é query nova nem regra nova: é a mesma soma do "Recebido
+   * hoje", quebrada por forma, que é a pergunta seguinte de quem fecha o caixa.
+   */
+  const recebimentosPorForma = Object.entries(
+    pagosHoje.reduce<Record<string, number>>((acc, item) => {
+      const forma = item.paymentMethod?.trim() || 'Não informado';
+      acc[forma] = (acc[forma] ?? 0) + item.valorPago;
+      return acc;
+    }, {}),
+  )
+    .sort(([, a], [, b]) => b - a)
+    .map(([forma, valor]) => ({
+      label: forma,
+      value: formatBRL(valor),
+      percent: totalRecebidoHoje === 0 ? 0 : (valor / totalRecebidoHoje) * 100,
+    }));
+
   return (
     <>
       <PageHeader
         crumbs={[{ label: 'Gestão' }, { label: 'Caixa' }]}
         title="Caixa"
         description="Receba, pague e revise exceções financeiras sem sair da fila operacional."
-        actions={
-          <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 text-right">
-            <Metric label="A receber" value={formatBRL(totalPendente)} tone="text-warning-600" />
-            <Metric
-              label="Recebido hoje"
-              value={formatBRL(totalRecebidoHoje)}
-              tone="text-success-600"
-            />
-            <Metric label="A pagar" value={formatBRL(totalAPagar)} tone="text-danger-600" />
-          </div>
-        }
       />
+
+      {/* As três métricas saíram do slot de ações do header: ação e indicador não
+          são a mesma coisa, e amontoá-las lá fazia número parecer botão. */}
+      <MetricStrip className="mb-(--sp-4)">
+        <StatCard
+          label="A receber"
+          value={formatBRL(totalPendente)}
+          valueTone={totalPendente > 0 ? 'warning' : 'default'}
+        />
+        <StatCard
+          label="Recebido hoje"
+          value={formatBRL(totalRecebidoHoje)}
+          valueTone={totalRecebidoHoje > 0 ? 'positive' : 'default'}
+        />
+        <StatCard
+          label="A pagar"
+          value={formatBRL(totalAPagar)}
+          valueTone={totalAPagar > 0 ? 'warning' : 'default'}
+        />
+      </MetricStrip>
+
+      {recebimentosPorForma.length > 0 ? (
+        <PanelCard
+          title="Recebimentos por forma"
+          meta={formatBRL(totalRecebidoHoje)}
+          className="mb-(--sp-4)"
+        >
+          <BreakdownList items={recebimentosPorForma} />
+        </PanelCard>
+      ) : null}
 
       {pendencias.length > 0 || collectionCases.length > 0 ? (
         <div className="mb-5 grid gap-3 xl:grid-cols-2">
@@ -196,15 +238,6 @@ export function CaixaView({
         onEstorno={onEstorno}
       />
     </>
-  );
-}
-
-function Metric({ label, value, tone }: { label: string; value: string; tone: string }) {
-  return (
-    <div aria-label={`${label}: ${value}`}>
-      <div className="font-mono text-[10.5px] tracking-wide text-fg-subtle uppercase">{label}</div>
-      <div className={`font-mono font-semibold tabular-nums ${tone}`}>{value}</div>
-    </div>
   );
 }
 

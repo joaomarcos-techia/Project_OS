@@ -75,6 +75,7 @@ export default async function AdminDashboardPage() {
           value={formatPct(m.monthlyGrowthPct)}
           delta={{
             direction: m.monthlyGrowthPct >= 0 ? 'up' : 'down',
+            tone: m.monthlyGrowthPct >= 0 ? 'positive' : 'negative',
             label: m.monthlyGrowthPct >= 0 ? 'líquido positivo' : 'em queda',
           }}
         />
