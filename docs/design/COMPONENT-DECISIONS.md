@@ -47,6 +47,9 @@ Registro exigido pelo Contract §6: onde a UX operacional venceu a referência v
 | 2026-08-23 | `/documentos` | Badge de tipo colorido | Ícone + rótulo no `EntityCell` | O badge repetia a mesma cor em toda linha e não distinguia nada. A referência usa tile de ícone, que carrega o tipo sem gastar cor |
 | 2026-08-23 | `/financeiro` | Painéis "por serviço", "por profissional" e "formas de recebimento" | Nenhum criado | Não existe query agregada por serviço nem por profissional. Construir a UI exigiria inventar o dado (§39) ou escrever query nova, que é backend, não UI |
 | 2026-08-23 | Dashboard | Barra de "hoje" destacada em outra cor | Todas iguais | O eixo já traz o dia e a última coluna é sempre hoje — pintar diferente gastava significado de cor para repetir o que a posição dizia |
+| 2026-08-23 | Caixa | Barra "Caixa aberto" e drawer "Fechar caixa" | Nada | Não existe abertura/fechamento de caixa no domínio — o /caixa é fila de recebimento e pagamento, não sessão de terminal. A tela da referência descreve outro produto |
+| 2026-08-23 | Conversas IA | Bolha do agente em azul, igual à da equipe | **Orchid** (`--ai-tint`/`--ai-border`) + badge | A referência não distingue agente de humano; aqui distingue, e é a decisão que o founder tomou em §Design tokens. Numa conversa em que os dois escrevem no mesmo fio, saber quem falou muda o que a pessoa faz em seguida |
+| 2026-08-23 | Conversas IA | Três painéis (lista · thread · contexto) | Dois (thread · contexto) | A lista de conversas é rota própria (`/conversas`), não painel. Fundi-los mudaria navegação, não aparência — Contract §5 |
 
 ---
 

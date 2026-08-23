@@ -27,14 +27,17 @@ const CONN_BADGE: Record<RealtimeState, { tone: 'green' | 'amber' | 'gray'; labe
   connecting: { tone: 'gray', label: 'Conectando…' },
 };
 
+/**
+ * Cabeçalho de coluna do board. Título em texto de leitura com a contagem ao
+ * lado, como na referência — o uppercase mono de 10.5px lia como etiqueta de
+ * sistema, não como o nome de uma fila que a recepção acompanha o dia inteiro.
+ */
 function ColumnTitle({ children, count }: { children: React.ReactNode; count?: number | null }) {
   return (
-    <div className="mb-2 flex items-center justify-between px-1">
-      <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.09em] text-fg-subtle">
-        {children}
-      </span>
+    <div className="mb-(--sp-3) flex items-center gap-2 px-1">
+      <h2 className="text-(length:--fs-subsection) font-semibold text-fg">{children}</h2>
       {count != null ? (
-        <span className="rounded-full bg-surface-inset px-2 py-0.5 text-xs text-fg-muted">
+        <span className="min-w-5 rounded-full bg-surface-inset px-1.5 py-0.5 text-center text-(length:--fs-xs) font-medium text-fg-muted tabular-nums">
           {count}
         </span>
       ) : null}

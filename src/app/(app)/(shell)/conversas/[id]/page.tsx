@@ -164,17 +164,26 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
                   >
                     <div
                       className={cn(
-                        'max-w-[min(42rem,85%)] rounded-(--r-md) px-3.5 py-2.5 text-(length:--fs-sm) whitespace-pre-wrap',
-                        m.author === 'patient' && 'bg-surface-inset text-fg',
-                        m.author === 'agent' &&
-                          'bg-info-50 text-fg dark:bg-[color-mix(in_oklch,var(--info-500)_14%,transparent)]',
-                        m.author === 'human' && 'bg-primary text-on-primary',
+                        'max-w-[min(42rem,85%)] rounded-(--r-lg) border px-3.5 py-2.5 text-(length:--fs-sm) whitespace-pre-wrap',
+                        // Entrada: superfície com borda, como a referência.
+                        m.author === 'patient' && 'border-border bg-surface text-fg',
+                        // Agente em orchid — é AQUI que o marcador de IA ganha
+                        // função: numa conversa em que o agente e a equipe
+                        // escrevem no mesmo fio, saber quem falou muda o que a
+                        // pessoa faz em seguida. Em azul, igual à equipe, essa
+                        // distinção some.
+                        m.author === 'agent' && 'border-(--ai-border) bg-(--ai-tint) text-fg',
+                        m.author === 'human' && 'border-transparent bg-primary text-on-primary',
                       )}
                     >
                       {m.text}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-(length:--fs-xs) text-fg-subtle">
-                      <span>{AUTHOR_LABEL[m.author]}</span>
+                      {m.author === 'agent' ? (
+                        <Badge tone="ai">{AUTHOR_LABEL[m.author]}</Badge>
+                      ) : (
+                        <span>{AUTHOR_LABEL[m.author]}</span>
+                      )}
                       <span>·</span>
                       <time className="tabular-nums" dateTime={m.createdAt}>
                         {new Date(m.createdAt).toLocaleString('pt-BR')}

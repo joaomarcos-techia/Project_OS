@@ -14,6 +14,7 @@ import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PanelCard } from '@/components/ui/panel-card';
 import { StackedBar } from '@/components/ui/stacked-bar';
+import { SummaryList } from '@/components/ui/summary-list';
 import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
@@ -85,9 +86,10 @@ export default async function RelatoriosPage({
       <MetricStrip>
         {canFinancial ? (
           <StatCard
+            emphasis
             label="Faturamento (recebido)"
             value={brl(data.faturamento.recebido)}
-            hint={`Pago: ${brl(data.faturamento.pago)} · Saldo: ${brl(data.faturamento.saldo)}`}
+            valueTone={data.faturamento.recebido > 0 ? 'positive' : 'default'}
           />
         ) : null}
 
@@ -122,6 +124,30 @@ export default async function RelatoriosPage({
           </span>
         </Card>
       </MetricStrip>
+
+      {/* Recebido, pago e saldo estavam concatenados num `hint` de uma linha só,
+          o que obrigava a ler três valores monetários numa frase e impedia
+          alinhar as casas decimais. */}
+      {canFinancial ? (
+        <PanelCard
+          title="Resultado do período"
+          regionLabel="Resultado do período"
+          className="mt-(--sp-4)"
+        >
+          <SummaryList
+            rows={[
+              { label: 'Recebido', value: brl(data.faturamento.recebido) },
+              { label: 'Pago', value: brl(data.faturamento.pago) },
+              {
+                label: 'Saldo',
+                value: brl(data.faturamento.saldo),
+                emphasis: true,
+                tone: data.faturamento.saldo >= 0 ? 'positive' : 'negative',
+              },
+            ]}
+          />
+        </PanelCard>
+      ) : null}
 
       {/* Volume de atendimentos — os três desfechos são partes do total, então
           a barra empilhada responde "quanto de cada" numa olhada. A grade de
