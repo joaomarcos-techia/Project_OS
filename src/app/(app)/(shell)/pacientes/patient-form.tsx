@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DateField } from '@/components/ui/date-field';
 import { Field } from '@/components/ui/field';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
@@ -114,33 +115,38 @@ export function PatientForm({
 
       {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 
-      <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Nome" htmlFor="patient-name">
-          <Input
-            id="patient-name"
-            name="nome"
-            required
-            maxLength={120}
-            value={draft.nome}
-            onChange={(event) => setDraftField('nome', event.target.value)}
-            disabled={pending}
-          />
-        </Field>
+      <FormSection label="Identificação">
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field label="Nome" htmlFor="patient-name">
+            <Input
+              id="patient-name"
+              name="nome"
+              required
+              maxLength={120}
+              value={draft.nome}
+              onChange={(event) => setDraftField('nome', event.target.value)}
+              disabled={pending}
+            />
+          </Field>
 
-        <Field label={`CPF${mode === 'edit' ? ' (em branco = manter)' : ''}`} htmlFor="patient-cpf">
-          <Input
-            id="patient-cpf"
-            name="cpf"
-            required={mode === 'create'}
-            inputMode="numeric"
-            maxLength={14}
-            placeholder="000.000.000-00"
-            value={cpf}
-            onChange={(e) => setCpf(maskCpf(e.target.value))}
-            disabled={pending}
-          />
-        </Field>
-      </div>
+          <Field
+            label={`CPF${mode === 'edit' ? ' (em branco = manter)' : ''}`}
+            htmlFor="patient-cpf"
+          >
+            <Input
+              id="patient-cpf"
+              name="cpf"
+              required={mode === 'create'}
+              inputMode="numeric"
+              maxLength={14}
+              placeholder="000.000.000-00"
+              value={cpf}
+              onChange={(e) => setCpf(maskCpf(e.target.value))}
+              disabled={pending}
+            />
+          </Field>
+        </div>
+      </FormSection>
 
       {mode === 'create' ? (
         <fieldset className="grid gap-3.5 rounded-(--r-md) border border-border p-4">
@@ -214,61 +220,65 @@ export function PatientForm({
         </fieldset>
       ) : null}
 
-      <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Telefone" htmlFor="patient-phone">
-          <Input
-            id="patient-phone"
-            name="telefone"
-            type="tel"
-            inputMode="tel"
-            maxLength={16}
-            placeholder="(11) 99999-9999"
-            value={telefone}
-            onChange={(e) => setTelefone(maskPhoneBR(e.target.value))}
-            disabled={pending}
-          />
-        </Field>
+      <FormSection label="Contato">
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field label="Telefone" htmlFor="patient-phone">
+            <Input
+              id="patient-phone"
+              name="telefone"
+              type="tel"
+              inputMode="tel"
+              maxLength={16}
+              placeholder="(11) 99999-9999"
+              value={telefone}
+              onChange={(e) => setTelefone(maskPhoneBR(e.target.value))}
+              disabled={pending}
+            />
+          </Field>
 
-        <Field label="E-mail" htmlFor="patient-email">
-          <Input
-            id="patient-email"
-            name="email"
-            type="email"
-            required={mode === 'create'}
-            maxLength={120}
-            value={draft.email}
-            onChange={(event) => setDraftField('email', event.target.value)}
-            disabled={pending}
-          />
-        </Field>
-      </div>
+          <Field label="E-mail" htmlFor="patient-email">
+            <Input
+              id="patient-email"
+              name="email"
+              type="email"
+              required={mode === 'create'}
+              maxLength={120}
+              value={draft.email}
+              onChange={(event) => setDraftField('email', event.target.value)}
+              disabled={pending}
+            />
+          </Field>
+        </div>
+      </FormSection>
 
-      <div className="grid gap-3.5 sm:grid-cols-2">
-        <Field label="Data de nascimento" htmlFor="patient-birth-date">
-          <DateField
-            id="patient-birth-date"
-            name="dataNascimento"
-            defaultValue={initial?.dataNascimento ?? ''}
-            disabled={pending}
-          />
-        </Field>
+      <FormSection label="Dados pessoais">
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <Field label="Data de nascimento" htmlFor="patient-birth-date">
+            <DateField
+              id="patient-birth-date"
+              name="dataNascimento"
+              defaultValue={initial?.dataNascimento ?? ''}
+              disabled={pending}
+            />
+          </Field>
 
-        <Field label="Sexo" htmlFor="patient-sex">
-          <Select
-            id="patient-sex"
-            name="sexo"
-            value={draft.sexo}
-            onChange={(event) => setDraftField('sexo', event.target.value)}
-            disabled={pending}
-          >
-            <option value="">—</option>
-            <option value="M">Masculino</option>
-            <option value="F">Feminino</option>
-            <option value="O">Outro</option>
-            <option value="N">Não informado</option>
-          </Select>
-        </Field>
-      </div>
+          <Field label="Sexo" htmlFor="patient-sex">
+            <Select
+              id="patient-sex"
+              name="sexo"
+              value={draft.sexo}
+              onChange={(event) => setDraftField('sexo', event.target.value)}
+              disabled={pending}
+            >
+              <option value="">—</option>
+              <option value="M">Masculino</option>
+              <option value="F">Feminino</option>
+              <option value="O">Outro</option>
+              <option value="N">Não informado</option>
+            </Select>
+          </Field>
+        </div>
+      </FormSection>
 
       <fieldset className="grid gap-3.5 rounded-(--r-md) border border-border p-4 sm:grid-cols-2">
         <legend className="px-1 text-sm font-medium text-fg-muted">

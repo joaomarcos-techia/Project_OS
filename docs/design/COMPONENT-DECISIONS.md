@@ -21,6 +21,9 @@
 | 2026-08-23 | `BreakdownList` | — | Nada equivalente | Criado e **adotado em `/caixa`** (recebimentos por forma), agrupando dado já carregado — sem query nova |
 | 2026-08-23 | `SummaryList` | — | Nada equivalente | Criado. Adoção prevista no drawer de fechamento do Caixa (Wave 6) |
 | 2026-08-23 | `Metric` (local em `caixa-view.tsx`) | `StatCard` | Era duplicata: rótulo uppercase + valor tabular | **Removido**, substituído por `StatCard` |
+| 2026-08-23 | `FormSection` | `ui/field.tsx`, `<fieldset>` solto no `patient-form` | O Field rotula UM campo; faltava o rótulo de GRUPO | Criado como `fieldset`+`legend` (não div+span): o leitor anuncia o grupo em cada campo. Adotado no drawer de documento e no formulário de paciente |
+| 2026-08-23 | `OptionCardGroup` | `ui/select.tsx`, `ui/segmented.tsx` | `<option>` não comporta descrição em duas linhas; o segmented é trilho de 2–4 itens curtos | Criado com `input[type=radio]` real. Adotado no tipo de documento |
+| 2026-08-23 | `ChipGroup` | `ui/segmented.tsx`, `ui/select.tsx` | — | **Não criado.** A referência usa chips para TIPO/DURAÇÃO/STATUS, campos que não existem aqui: duração vem do procedimento e status é derivado. Procedimento e profissional são listas dinâmicas, onde `Select` é o certo |
 
 ---
 
