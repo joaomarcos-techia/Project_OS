@@ -10,6 +10,10 @@
 | 2026-08-23 | Mapa semântico de status | `ui/badge.tsx`, `ui/status-badge.tsx` | Serviram: o `Badge` já tem os 7 tons e o `status-badge` já mapeava agendamento e pagamento | **Estendido**, não criado. `ProntuarioStatusBadge` e `PatientStatusBadge` novos; `PaymentStatusBadge` ganhou `overdue` |
 | 2026-08-23 | Papéis tipográficos | escala `--fs-*` existente | Serviu como escala crua; faltava a camada de papel que o plano pede | `--fs-page/section/subsection/body/caption` como aliases. Nenhum nome existente renomeado |
 | 2026-08-23 | Matriz de estados de campo | `fieldControlClassName` em `ui/input.tsx` | Serviu: já é compartilhado por Input/Textarea/Select/DateField | Estendido no lugar. A matriz vive num ponto só |
+| 2026-08-23 | `EntityCell` | `ui/table.tsx` (`TableCellStack`) | Serviu para a pilha de duas linhas, faltava o avatar | **Compõe** `TableCellStack` + `Avatar`; não reimplementa a pilha |
+| 2026-08-23 | `DataTable` | `TableWrap`, `TableScroll`, `TableFoot`, `TablePager` | Serviram, mas cada rota recopiava o cerco e escrevia a contagem de um jeito | Moldura fina. **Não recebe `columns`/`rows`** — o conteúdo segue sendo `TableHeader`/`TableBody` na página, para não virar componente de 30 props |
+| 2026-08-23 | `FilterBar` | `ui/table-toolbar.tsx` | Não serviu: a toolbar vive DENTRO da moldura da tabela; a referência filtra no nível da página | Coexistem, com fronteira explícita no JSDoc de cada um |
+| 2026-08-23 | `Avatar` | — | Nada equivalente no repo | Criado. Iniciais, não foto: o sistema não guarda retrato de paciente |
 
 ---
 
@@ -28,6 +32,9 @@ Registro exigido pelo Contract §6: onde a UX operacional venceu a referência v
 | 2026-08-23 | Sidebar (todas) | Sem toggle de tema, sem "Sair", sem assinatura | **Tema e Sair viraram menu; assinatura removida** | Decisão do founder após ver o preview. Eu havia mantido os três por §30. Funcionalidade preservada: tema e logout viraram itens do menu do usuário; só a assinatura, que é decorativa, saiu. Fluxo mudou (dois cliques em vez de um), com aprovação explícita |
 | 2026-08-23 | `/configuracoes` | — | Pílula azul do submenu removida | Inconsistência que a Wave 2 criou: com o menu primário quieto, a pílula do submenu invertia a hierarquia. Mesma regra agora nos dois (§37) |
 | 2026-08-23 | `/admin` | — | Rodapé antigo mantido | Fora de escopo desta rodada. É um console visualmente distinto e o `SidebarUserMenu` é compartilhado, então adotar depois é uma linha |
+| 2026-08-23 | `/pacientes` | Colunas de CPF, telefone, idade, sexo, último atendimento, próximo e profissional | Só nome + e-mail | **A lista não descriptografa** (decisão de privacidade 5.13): `PatientListItem` expõe `id`, `nome`, `email`, `deletedAt` e nada mais. Trazer os campos da referência exigiria decifrar a lista inteira a cada página — mudança de regra, não de UI |
+| 2026-08-23 | `/pacientes` | Coluna de status `Ativo`/`Inativo` | Omitida | Na lista ativa todos seriam "Ativo" e na lixeira todos "Inativo": uma coluna de badges idênticos é ruído. O `PatientStatusBadge` existe para onde o estado varia |
+| 2026-08-23 | `/documentos` | Badge de tipo colorido | Ícone + rótulo no `EntityCell` | O badge repetia a mesma cor em toda linha e não distinguia nada. A referência usa tile de ícone, que carrega o tipo sem gastar cor |
 
 ---
 
