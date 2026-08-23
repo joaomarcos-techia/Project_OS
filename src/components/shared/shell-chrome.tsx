@@ -82,9 +82,15 @@ export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * `nav:min-h-9` encolhe o item para 36px SÓ no desktop (o breakpoint é de
+ * largura, ≥900px). Abaixo dele a sidebar é drawer de toque e mantém os 40px de
+ * --hit-target. Isso tira 44px da lista e faz os 11 itens caberem sem rolagem
+ * até 720px de altura, sem custo de acessibilidade onde o dedo é o ponteiro.
+ */
 const itemBase = cn(
   'relative flex min-h-(--hit-target) items-center gap-3 rounded-(--r-md) px-(--sp-3) py-2 text-(length:--fs-sm)',
-  'mb-0.5 transition-colors duration-(--dur-fast)',
+  'nav:min-h-9 mb-0.5 transition-colors duration-(--dur-fast)',
 );
 
 export function SideNavLink({
@@ -269,7 +275,14 @@ export function SidebarUserMenu({
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent side="top" align="start" className="w-(--sidebar-w)">
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        // Largura do proprio gatilho (var do Radix), nao a da sidebar: o bloco
+        // do usuario vive dentro de um padding, entao casar com --sidebar-w
+        // fazia o menu vazar para fora da barra.
+        className="w-(--radix-dropdown-menu-trigger-width)"
+      >
         {accountHref ? (
           <DropdownMenuItem asChild>
             <Link href={accountHref}>
