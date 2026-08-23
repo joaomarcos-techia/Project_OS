@@ -29,6 +29,10 @@ export default async function LgpdOperationsPage({
     return (
       <>
         <PageHeader
+          crumbs={[
+            { label: 'Configurações', href: '/configuracoes' },
+            { label: 'Solicitações LGPD' },
+          ]}
           title="Solicitações LGPD"
           description="Responsável, prazo de resposta, tratamento e comunicação ao titular."
         />
@@ -63,6 +67,10 @@ export default async function LgpdOperationsPage({
   return (
     <>
       <PageHeader
+        crumbs={[
+          { label: 'Configurações', href: '/configuracoes' },
+          { label: 'Solicitações LGPD' },
+        ]}
         title="Solicitações LGPD"
         description="Priorize prazos, atribua responsáveis e registre cada etapa do atendimento ao titular."
       />

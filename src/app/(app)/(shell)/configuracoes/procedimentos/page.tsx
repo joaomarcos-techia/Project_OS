@@ -21,6 +21,7 @@ export default async function ProcedimentosPage() {
   const user = await requireUser();
   const clinicId = await requireClinicId();
 
+  const crumbs = [{ label: 'Configurações', href: '/configuracoes' }, { label: 'Procedimentos' }];
   const backLink = (
     <Link href="/configuracoes" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
       Voltar
@@ -30,16 +31,7 @@ export default async function ProcedimentosPage() {
   if (!user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES)) {
     return (
       <div>
-        <PageHeader
-          breadcrumb={
-            <>
-              <Link href="/configuracoes">Configurações</Link> <span className="sep">›</span>{' '}
-              <b>Procedimentos</b>
-            </>
-          }
-          title="Procedimentos"
-          actions={backLink}
-        />
+        <PageHeader crumbs={crumbs} title="Procedimentos" actions={backLink} />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar o catálogo de procedimentos.
         </Alert>
@@ -52,12 +44,7 @@ export default async function ProcedimentosPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb={
-          <>
-            <Link href="/configuracoes">Configurações</Link> <span className="sep">›</span>{' '}
-            <b>Procedimentos</b>
-          </>
-        }
+        crumbs={crumbs}
         title="Procedimentos"
         description="Catálogo de procedimentos com preço e duração — base da Agenda e do faturamento."
         actions={backLink}

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import AgendaImportLoading from './(app)/(shell)/agenda/importar/loading';
 import AssinaturaLoading from './(app)/(shell)/configuracoes/assinatura/loading';
+import ConfiguracoesLoading from './(app)/(shell)/configuracoes/loading';
 import ProcedimentosLoading from './(app)/(shell)/configuracoes/procedimentos/loading';
 import RecursosLoading from './(app)/(shell)/configuracoes/recursos/loading';
 import SugestoesLoading from './(app)/(shell)/configuracoes/sugestoes/loading';
@@ -16,7 +17,7 @@ import ModelosReceitaLoading from './(app)/(shell)/modelos-receita/loading';
 
 afterEach(cleanup);
 
-type SkeletonVariant = 'cards' | 'detail' | 'table';
+type SkeletonVariant = 'cards' | 'detail' | 'list' | 'table';
 
 const COVERAGE: Array<{
   route: string;
@@ -29,6 +30,12 @@ const COVERAGE: Array<{
     source: '(app)/(shell)/modelos-receita/loading.tsx',
     variant: 'table',
     Loading: ModelosReceitaLoading,
+  },
+  {
+    route: '/configuracoes',
+    source: '(app)/(shell)/configuracoes/loading.tsx',
+    variant: 'list',
+    Loading: ConfiguracoesLoading,
   },
   {
     route: '/configuracoes/assinatura',

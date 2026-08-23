@@ -15,12 +15,7 @@ export const dynamic = 'force-dynamic';
 export default async function RecursosPage() {
   const user = await requireUser();
   const clinicId = await requireClinicId();
-  const breadcrumb = (
-    <>
-      <Link href="/configuracoes">Configurações</Link> <span className="sep">›</span>{' '}
-      <b>Salas e equipamentos</b>
-    </>
-  );
+  const crumbs = [{ label: 'Configurações', href: '/configuracoes' }, { label: 'Recursos' }];
   const backLink = (
     <Link href="/configuracoes" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
       Voltar
@@ -36,7 +31,7 @@ export default async function RecursosPage() {
   ) {
     return (
       <div>
-        <PageHeader breadcrumb={breadcrumb} title="Salas e equipamentos" actions={backLink} />
+        <PageHeader crumbs={crumbs} title="Salas e equipamentos" actions={backLink} />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar recursos da agenda.
         </Alert>
@@ -48,7 +43,7 @@ export default async function RecursosPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb={breadcrumb}
+        crumbs={crumbs}
         title="Salas e equipamentos"
         description="Cadastre os recursos compartilhados usados nos atendimentos. O sistema impede reservas sobrepostas."
         actions={backLink}

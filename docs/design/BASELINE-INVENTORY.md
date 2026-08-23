@@ -545,5 +545,31 @@ Não é regressão do redesign: é um teste que apodrecia por data.
 | 5 | Formulários — FormSection, OptionCardGroup | 2.259 |
 | 6 e 7 | Consultório, Conversas IA (orchid), Relatórios | 2.259 |
 | 8 | Varredura de consistência + gate mecânico do contrato | 2.266 |
+| 9 | `/configuracoes` como Settings Hub — fim da sidebar interna | 2.278 |
 
 O gate mecânico vive em `src/app/design-contract.test.ts` e roda junto da suíte.
+
+## Wave 9 — `/configuracoes` (2026-08-23)
+
+A rota era um `redirect` para a primeira configuração acessível, com a navegação numa **barra
+lateral própria** ao lado da global. Duas hierarquias permanentes para responder uma pergunta só.
+
+| O que saiu | O que entrou |
+| --- | --- |
+| `configuracoes/layout.tsx` (grade `13.5rem` + `<aside>`) | Nada — as sub-rotas renderizam direto |
+| `settings-nav.tsx` (+ teste) | `settings-section-nav.tsx` — âncoras horizontais, menu abaixo de `sm` |
+| `redirect(firstSettingsHref(...))` | `page.tsx` — hub com visão geral e 6 seções |
+| — | `settings-item.tsx`, `settings-status.ts`, `settings-data.ts` |
+
+Status exibidos vêm de leitura real e só de quem pode vê-los: conexão do WhatsApp
+(`clinic_whatsapp_numbers`), cobrança (`subscriptions.billing_status`) e 2FA da conta
+(`listFactors`). Perfil da clínica e Agente de IA **não têm status** porque o domínio não guarda
+um — ver os desvios registrados em [COMPONENT-DECISIONS.md](COMPONENT-DECISIONS.md).
+
+### Achado fora do redesign
+
+`assinatura/page.tsx` tinha 10 sequências de UTF-8 relido como Latin-1 (`seguranÃ§a`,
+`Assinatura em configuraÃ§Ã£o`) — texto corrompido visível na tela de assinatura não provisionada.
+A mesma varredura achou `ProntuÃ¡rio` num regex de `e2e/production-permission-lifecycle.spec.ts`,
+que por isso nunca casava com o heading real. Ambos corrigidos; nenhum outro arquivo do repo tem
+o padrão.

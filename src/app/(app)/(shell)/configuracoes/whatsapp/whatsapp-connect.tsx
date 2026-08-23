@@ -251,7 +251,7 @@ export function WhatsappConnect({
       ) : null}
 
       <PageHeader
-        crumbs={[{ label: 'Configurações' }, { label: 'WhatsApp' }]}
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'WhatsApp' }]}
         title="WhatsApp da clínica"
         description="Gerencie o canal usado pelo Agente de IA para atender pacientes."
       />

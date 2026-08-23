@@ -7,7 +7,7 @@ import { Skeleton, SkeletonCard, SkeletonTable } from './skeleton';
 export function PageSkeleton({
   variant = 'table',
 }: {
-  variant?: 'table' | 'cards' | 'stats-table' | 'stats-cards' | 'board' | 'detail';
+  variant?: 'table' | 'cards' | 'list' | 'stats-table' | 'stats-cards' | 'board' | 'detail';
 }) {
   const header = (
     <div className="mb-(--sp-5) flex flex-col gap-2.5">
@@ -33,6 +33,19 @@ export function PageSkeleton({
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
+          </div>
+        </div>
+      );
+    case 'list':
+      // Seções empilhadas em coluna única — o hub de configurações. Grade de
+      // cards aqui deslocaria o conteúdo ao trocar o esqueleto pela página.
+      return (
+        <div aria-busy="true">
+          {header}
+          <div className="flex flex-col gap-(--sp-6)">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} lines={3} />
+            ))}
           </div>
         </div>
       );

@@ -17,6 +17,7 @@ export default async function AssinaturaPage() {
     return (
       <>
         <PageHeader
+          crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Assinatura' }]}
           title="Assinatura"
           description="Compare planos, acompanhe limites e altere sua assinatura com segurança."
         />
@@ -35,12 +36,13 @@ export default async function AssinaturaPage() {
     return (
       <>
         <PageHeader
+          crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Assinatura' }]}
           title="Assinatura"
-          description="Compare planos, acompanhe limites e altere sua assinatura com seguranÃ§a."
+          description="Compare planos, acompanhe limites e altere sua assinatura com segurança."
         />
         <EmptyState
-          title="Assinatura em configuraÃ§Ã£o"
-          description="Esta clÃ­nica ainda nÃ£o possui uma assinatura provisionada. AlteraÃ§Ãµes de plano ficam indisponÃ­veis atÃ© a conclusÃ£o do provisionamento."
+          title="Assinatura em configuração"
+          description="Esta clínica ainda não possui uma assinatura provisionada. Alterações de plano ficam indisponíveis até a conclusão do provisionamento."
         />
       </>
     );
@@ -49,6 +51,7 @@ export default async function AssinaturaPage() {
   return (
     <>
       <PageHeader
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Assinatura' }]}
         title="Assinatura"
         description="Compare planos, acompanhe limites e altere sua assinatura com segurança."
       />

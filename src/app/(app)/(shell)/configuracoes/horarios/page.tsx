@@ -23,12 +23,7 @@ export default async function HorariosPage() {
   const user = await requireUser();
   const clinicId = await requireClinicId();
 
-  const breadcrumb = (
-    <>
-      <Link href="/configuracoes">Configurações</Link> <span className="sep">›</span>{' '}
-      <b>Horários</b>
-    </>
-  );
+  const crumbs = [{ label: 'Configurações', href: '/configuracoes' }, { label: 'Horários' }];
   const backLink = (
     <Link href="/configuracoes" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
       Voltar
@@ -38,7 +33,7 @@ export default async function HorariosPage() {
   if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {
     return (
       <div>
-        <PageHeader breadcrumb={breadcrumb} title="Horários" actions={backLink} />
+        <PageHeader crumbs={crumbs} title="Horários" actions={backLink} />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar horários de atendimento.
         </Alert>
@@ -62,7 +57,7 @@ export default async function HorariosPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb={breadcrumb}
+        crumbs={crumbs}
         title="Horários de atendimento"
         description="Disponibilidade semanal dos profissionais e feriados — base da agenda e dos horários livres."
         actions={backLink}

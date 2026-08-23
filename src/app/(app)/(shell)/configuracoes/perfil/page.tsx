@@ -22,11 +22,7 @@ export default async function PerfilPage() {
   const user = await requireUser();
   const clinicId = await requireClinicId();
 
-  const breadcrumb = (
-    <>
-      <Link href="/configuracoes">Configurações</Link> <span className="sep">›</span> <b>Perfil</b>
-    </>
-  );
+  const crumbs = [{ label: 'Configurações', href: '/configuracoes' }, { label: 'Perfil' }];
   const backLink = (
     <Link href="/configuracoes" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
       Voltar
@@ -36,7 +32,7 @@ export default async function PerfilPage() {
   if (!user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)) {
     return (
       <div>
-        <PageHeader breadcrumb={breadcrumb} title="Perfil da clínica" actions={backLink} />
+        <PageHeader crumbs={crumbs} title="Perfil da clínica" actions={backLink} />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para editar os dados da clínica.
         </Alert>
@@ -51,7 +47,7 @@ export default async function PerfilPage() {
   if (!profile) {
     return (
       <div>
-        <PageHeader breadcrumb={breadcrumb} title="Perfil da clínica" actions={backLink} />
+        <PageHeader crumbs={crumbs} title="Perfil da clínica" actions={backLink} />
         <Alert variant="danger" title="Clínica não encontrada">
           Não foi possível carregar os dados da clínica.
         </Alert>
@@ -62,7 +58,7 @@ export default async function PerfilPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb={breadcrumb}
+        crumbs={crumbs}
         title="Perfil da clínica"
         description="Dados que aparecem no cabeçalho do receituário e dos documentos."
         actions={backLink}

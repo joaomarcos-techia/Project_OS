@@ -24,6 +24,10 @@
 | 2026-08-23 | `FormSection` | `ui/field.tsx`, `<fieldset>` solto no `patient-form` | O Field rotula UM campo; faltava o rótulo de GRUPO | Criado como `fieldset`+`legend` (não div+span): o leitor anuncia o grupo em cada campo. Adotado no drawer de documento e no formulário de paciente |
 | 2026-08-23 | `OptionCardGroup` | `ui/select.tsx`, `ui/segmented.tsx` | `<option>` não comporta descrição em duas linhas; o segmented é trilho de 2–4 itens curtos | Criado com `input[type=radio]` real. Adotado no tipo de documento |
 | 2026-08-23 | `ChipGroup` | `ui/segmented.tsx`, `ui/select.tsx` | — | **Não criado.** A referência usa chips para TIPO/DURAÇÃO/STATUS, campos que não existem aqui: duração vem do procedimento e status é derivado. Procedimento e profissional são listas dinâmicas, onde `Select` é o certo |
+| 2026-08-23 | `SettingsItem` / `SettingsSection` | `ui/card.tsx`, `ui/panel-card.tsx`, `ui/summary-list.tsx`, `ui/entity-cell.tsx`, `ui/table.tsx` | O card é a moldura, não a linha; `SummaryList` é `<dl>` sem destino; `EntityCell` é célula de tabela. Nenhum entrega uma LINHA navegável com ícone, descrição e status | Criado **colocado na rota**, não no DS: 13 consumidores, todos aqui. Compõe `Card` + `Badge`; um card por seção, não por item |
+| 2026-08-23 | `SettingsSectionNav` | `ui/nav-tabs.tsx`, `ui/tabs.tsx`, `ui/segmented.tsx`, `ui/dropdown-menu.tsx` | `NavTabs` ativa por `usePathname` — aqui o destino é âncora na MESMA página; `Tabs` esconderia conteúdo que precisa ser rolável e indexável | Criado na rota, **reutilizando o vocabulário visual do `NavTabs`** (sublinhado, sem pílula) e o `DropdownMenu` do DS para a forma estreita |
+| 2026-08-23 | Mapa de status do hub (`settings-status.ts`) | `ui/status-badge.tsx` | Não serviu: as telas de detalhe já mapeiam os mesmos domínios com mais nuance (o WhatsApp distingue verificação pendente de canal mudo). Promover a leitura grossa ao DS criaria duas fontes de verdade | Mantido ao lado do hub, com teste próprio. O DS continua dono da cor (`Badge`); o hub, do rótulo curto |
+| 2026-08-23 | Busca de configurações | `ui/combobox.tsx`, `ui/popover.tsx` | — | **Não criada.** §19 do briefing autoriza pular: são 13 itens em 6 seções, todos visíveis sem rolar em desktop. Buscador aqui seria feature para parecer completo |
 
 ---
 
@@ -50,6 +54,9 @@ Registro exigido pelo Contract §6: onde a UX operacional venceu a referência v
 | 2026-08-23 | Caixa | Barra "Caixa aberto" e drawer "Fechar caixa" | Nada | Não existe abertura/fechamento de caixa no domínio — o /caixa é fila de recebimento e pagamento, não sessão de terminal. A tela da referência descreve outro produto |
 | 2026-08-23 | Conversas IA | Bolha do agente em azul, igual à da equipe | **Orchid** (`--ai-tint`/`--ai-border`) + badge | A referência não distingue agente de humano; aqui distingue, e é a decisão que o founder tomou em §Design tokens. Numa conversa em que os dois escrevem no mesmo fio, saber quem falou muda o que a pessoa faz em seguida |
 | 2026-08-23 | Conversas IA | Três painéis (lista · thread · contexto) | Dois (thread · contexto) | A lista de conversas é rota própria (`/conversas`), não painel. Fundi-los mudaria navegação, não aparência — Contract §5 |
+| 2026-08-23 | `/configuracoes` | Card de destaque "Perfil da clínica — Clínica configurada" | Sem status no Perfil | Não existe noção de perfil completo: no `ClinicProfileSchema` só `nome` é obrigatório; endereço, telefone, CNPJ e CNES são opcionais. Derivar "configurado" seria inventar regra de negócio para caber na imagem (§8 do briefing: não inventar status) |
+| 2026-08-23 | `/configuracoes` | Agente de IA com indicador `Ativo` / `Inativo` | Sem status | `ai_clinic_config` guarda comportamento (`canScheduleAnonymous`, `maxDaysAhead`, `canDisclosePaymentsViaAgent`), não um liga/desliga. O agente não tem estado ativo para reportar |
+| 2026-08-23 | `/configuracoes` | Status do WhatsApp | `Conectado` / `Não está recebendo` / `Não conectado`, **sem sondar a Meta** | META-001 proíbe apresentar como saudável um canal não revalidado. O hub reporta só o que está persistido e usa palavra que não promete saúde; a verificação no Graph continua em `/configuracoes/whatsapp`, que é onde se age sobre o resultado |
 
 ---
 
@@ -60,4 +67,6 @@ muda de lugar, fica registrado onde estava, onde ficou e por quê.
 
 | Data | Ação | Onde estava | Onde ficou | Motivo | Aprovação |
 | --- | --- | --- | --- | --- | --- |
-| _(a preencher)_ | | | | | |
+| 2026-08-23 | Navegação entre configurações | Barra lateral própria dentro de `/configuracoes` (`settings-nav.tsx` + `layout.tsx`) | Hub em `/configuracoes` + trilha de volta em cada sub-página | Segunda sidebar ao lado da global — decisão do founder (§1: "NÃO criar uma segunda sidebar"). Nenhuma rota mudou; o que era menu virou mapa | founder |
+| 2026-08-23 | Entrada em `/configuracoes` | `redirect` para a primeira configuração acessível | Página de hub | Quem abria Configurações caía dentro de um formulário sem ver o que existe. `firstSettingsHref()` ficou sem chamador e foi removido | founder |
+| 2026-08-23 | Trilha "Configurações" nas sub-páginas | Texto mudo (`crumbs`) ou ausente | Link para `/configuracoes` em todas as 10 | Sem a barra lateral, a trilha passa a ser o caminho de volta. `perfil`, `horarios`, `recursos` e `procedimentos` migraram do prop legado `breadcrumb` para `crumbs`; os botões "Voltar" foram mantidos como estavam | — |
