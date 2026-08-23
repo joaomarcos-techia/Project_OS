@@ -153,7 +153,7 @@ export function SideNavDisabled({
         {icon}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="font-mono text-[9.5px] tracking-[0.04em] text-fg-subtle uppercase">
+      <span className="font-mono text-(length:--fs-3xs) tracking-(--tracking-label) text-fg-subtle uppercase">
         {note}
       </span>
     </span>

@@ -8,7 +8,7 @@
  * esperando um humano; enterrá-la sob conversas ativas é o mesmo que não ter a
  * tela.
  */
-import { AlertTriangle, MessagesSquare, Search } from 'lucide-react';
+import { AlertTriangle, MessagesSquare } from 'lucide-react';
 import Link from 'next/link';
 
 import { listConversations } from '@/contexts/ai-agent/queries';
@@ -18,25 +18,13 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
+import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
-import { fieldControlClassName } from '@/components/ui/input';
+import { FilterBar, SearchField } from '@/components/ui/filter-bar';
+import { StatsInline } from '@/components/ui/stats-inline';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFoot,
-  TableFootInfo,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableScroll,
-  TableWrap,
-} from '@/components/ui/table';
-import { TablePager } from '@/components/ui/table-pager';
-import { TableToolbar } from '@/components/ui/table-toolbar';
-import { cn } from '@/lib/ui/cn';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 import { ConversasNoAccess } from './_components/no-access';
 import { ConversationAutoRefresh } from './_components/conversation-auto-refresh';
@@ -112,49 +100,64 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
         }
       />
 
-      <TableWrap>
-        <TableToolbar>
-          <form className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <span className="relative block min-w-52 flex-1 sm:max-w-90">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-subtle"
-              />
-              <input
-                name="q"
-                defaultValue={sp.q ?? ''}
-                placeholder="Buscar por paciente ou telefone…"
-                aria-label="Buscar conversas por nome do paciente ou telefone"
-                className={cn(fieldControlClassName, 'pl-9')}
-              />
-            </span>
-            <Select
-              name="status"
-              defaultValue={status ?? ''}
-              aria-label="Filtrar por status"
-              className="max-w-52"
-            >
-              <option value="">Todos os status</option>
-              <option value="handoff">Aguardando humano</option>
-              <option value="active">Agente respondendo</option>
-              <option value="closed">Encerradas</option>
-              <option value="abandoned">Abandonadas</option>
-            </Select>
-            <Select
-              name="sla"
-              defaultValue={overdueOnly ? 'overdue' : ''}
-              aria-label="Filtrar por SLA"
-            >
-              <option value="">Todos os prazos</option>
-              <option value="overdue">SLA vencido</option>
-            </Select>
-            <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Filtrar
-            </button>
-          </form>
-        </TableToolbar>
+      {/* A contagem de "aguardando humano" saiu do rodapé da paginação: é
+          métrica da fila, não detalhe de página, e no rodapé só aparecia depois
+          de rolar a tabela inteira. */}
+      <StatsInline
+        className="mb-(--sp-3)"
+        items={[
+          {
+            label: `${result.total.toLocaleString('pt-BR')} conversa${result.total === 1 ? '' : 's'}`,
+          },
+          ...(aguardando > 0
+            ? [{ label: `${aguardando} aguardando humano`, tone: 'attention' as const }]
+            : []),
+        ]}
+      />
 
-        {result.items.length === 0 ? (
+      <FilterBar>
+        <form className="flex min-w-0 flex-1 flex-wrap items-center gap-(--sp-2)">
+          <SearchField
+            name="q"
+            defaultValue={sp.q ?? ''}
+            placeholder="Buscar por paciente ou telefone…"
+            aria-label="Buscar conversas por nome do paciente ou telefone"
+            className="sm:max-w-90"
+          />
+          <Select
+            name="status"
+            defaultValue={status ?? ''}
+            aria-label="Filtrar por status"
+            className="max-w-52"
+          >
+            <option value="">Todos os status</option>
+            <option value="handoff">Aguardando humano</option>
+            <option value="active">Agente respondendo</option>
+            <option value="closed">Encerradas</option>
+            <option value="abandoned">Abandonadas</option>
+          </Select>
+          <Select
+            name="sla"
+            defaultValue={overdueOnly ? 'overdue' : ''}
+            aria-label="Filtrar por SLA"
+          >
+            <option value="">Todos os prazos</option>
+            <option value="overdue">SLA vencido</option>
+          </Select>
+          <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            Filtrar
+          </button>
+        </form>
+      </FilterBar>
+
+      <DataTable
+        total={result.items.length === 0 ? 0 : result.total}
+        page={page}
+        pageCount={totalPages}
+        pageSize={result.pageSize}
+        unit={{ one: 'conversa', many: 'conversas' }}
+        hrefFor={(p) => `/conversas${qstring(sp, { page: String(p) })}`}
+        empty={
           <EmptyState
             icon={<MessagesSquare />}
             title={filtrando ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa ainda'}
@@ -164,98 +167,77 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                 : 'Quando um paciente escrever no WhatsApp da clínica, a conversa aparece aqui.'
             }
           />
-        ) : (
-          <>
-            <TableScroll>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Paciente</TableHead>
-                    <TableHead>Última mensagem</TableHead>
-                    <TableHead className="w-44">Status</TableHead>
-                    <TableHead className="w-52">Atendimento</TableHead>
-                    <TableHead className="w-40">Atualizada</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {result.items.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="p-0">
-                        <Link
-                          href={`/conversas/${c.id}`}
-                          className="block px-3.5 py-(--cell-py) font-medium"
-                        >
-                          {c.patientDisplayName ?? c.maskedPhone ?? 'Contato desconhecido'}
-                          {c.intentAtual ? (
-                            <span className="ml-2 text-(length:--fs-xs) font-normal text-fg-subtle">
-                              {c.intentAtual}
-                            </span>
-                          ) : null}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="max-w-100 truncate text-fg-muted">
-                        {c.lastMessagePreview ?? '—'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge tone={STATUS_TONE[c.status]} dot>
-                          {STATUS_LABEL[c.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {c.handoff ? (
-                          <div className="flex flex-col gap-0.5 text-xs">
-                            <span
-                              className={
-                                c.handoff.overdue
-                                  ? 'font-semibold text-danger-700'
-                                  : 'text-fg-muted'
-                              }
-                            >
-                              {c.handoff.overdue ? (
-                                <AlertTriangle className="mr-1 inline size-3.5" />
-                              ) : null}
-                              {c.handoff.overdue
-                                ? 'SLA vencido'
-                                : `Até ${new Date(c.handoff.dueAt).toLocaleTimeString('pt-BR', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}`}
-                            </span>
-                            <span className="text-fg-subtle">
-                              {c.handoff.assignedToUserId
-                                ? (assigneeNames.get(c.handoff.assignedToUserId) ??
-                                  'Responsável atribuído')
-                                : 'Sem responsável'}
-                              {c.handoff.priority === 'urgent' ? ' · urgente' : ''}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-fg-subtle">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-fg-muted">
-                        {new Date(c.lastMessageAt).toLocaleString('pt-BR')}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableScroll>
-            <TableFoot>
-              <TableFootInfo>
-                Página {page} de {totalPages} · {result.total} conversa
-                {result.total === 1 ? '' : 's'}
-                {aguardando > 0 ? ` · ${aguardando} aguardando humano nesta página` : ''}
-              </TableFootInfo>
-              <TablePager
-                page={page}
-                pageCount={totalPages}
-                hrefFor={(p) => `/conversas${qstring(sp, { page: String(p) })}`}
-              />
-            </TableFoot>
-          </>
-        )}
-      </TableWrap>
+        }
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>Paciente</TableHead>
+            <TableHead>Última mensagem</TableHead>
+            <TableHead className="w-44">Status</TableHead>
+            <TableHead className="w-52">Atendimento</TableHead>
+            <TableHead className="w-40">Atualizada</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {result.items.map((c) => (
+            <TableRow key={c.id}>
+              <TableCell className="p-0">
+                <Link
+                  href={`/conversas/${c.id}`}
+                  className="block px-3.5 py-(--cell-py) font-medium"
+                >
+                  {c.patientDisplayName ?? c.maskedPhone ?? 'Contato desconhecido'}
+                  {c.intentAtual ? (
+                    <span className="ml-2 text-(length:--fs-xs) font-normal text-fg-subtle">
+                      {c.intentAtual}
+                    </span>
+                  ) : null}
+                </Link>
+              </TableCell>
+              <TableCell className="max-w-100 truncate text-fg-muted">
+                {c.lastMessagePreview ?? '—'}
+              </TableCell>
+              <TableCell>
+                <Badge tone={STATUS_TONE[c.status]} dot>
+                  {STATUS_LABEL[c.status]}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {c.handoff ? (
+                  <div className="flex flex-col gap-0.5 text-xs">
+                    <span
+                      className={
+                        c.handoff.overdue ? 'font-semibold text-danger-700' : 'text-fg-muted'
+                      }
+                    >
+                      {c.handoff.overdue ? (
+                        <AlertTriangle className="mr-1 inline size-3.5" />
+                      ) : null}
+                      {c.handoff.overdue
+                        ? 'SLA vencido'
+                        : `Até ${new Date(c.handoff.dueAt).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}`}
+                    </span>
+                    <span className="text-fg-subtle">
+                      {c.handoff.assignedToUserId
+                        ? (assigneeNames.get(c.handoff.assignedToUserId) ?? 'Responsável atribuído')
+                        : 'Sem responsável'}
+                      {c.handoff.priority === 'urgent' ? ' · urgente' : ''}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-fg-subtle">—</span>
+                )}
+              </TableCell>
+              <TableCell className="text-fg-muted">
+                {new Date(c.lastMessageAt).toLocaleString('pt-BR')}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </DataTable>
     </>
   );
 }

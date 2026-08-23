@@ -26,7 +26,7 @@ export function CheckinStrip({
   if (cards.length === 0) return null;
   return (
     <div className="mb-4 rounded-lg border border-border bg-surface-2 p-3">
-      <p className="mb-2 font-mono text-[10.5px] font-medium uppercase tracking-[0.09em] text-fg-subtle">
+      <p className="mb-2 font-mono text-(length:--fs-3xs) font-medium uppercase tracking-(--tracking-label) text-fg-subtle">
         A chegar hoje · {cards.length}
       </p>
       <div className="flex gap-2 overflow-x-auto pb-1">

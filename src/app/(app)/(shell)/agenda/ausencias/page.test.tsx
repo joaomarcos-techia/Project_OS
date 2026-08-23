@@ -130,9 +130,13 @@ describe('/agenda/ausencias pagination', () => {
     expect(redirect).toHaveBeenCalledWith('/agenda/ausencias');
   });
 
-  it('usa a tabela, o pager e numerais tabulares canônicos do design system', () => {
-    expect(pageSource).toContain('<TableWrap>');
-    expect(pageSource).toContain('<TablePager');
-    expect(pageSource).toContain('className="tabular-nums"');
+  it('usa a moldura canônica do design system, não uma montada à mão', () => {
+    // A moldura (scroll, rodapé, contagem, paginação) mudou de mão: era montada
+    // aqui e passou a viver no DataTable. A asserção acompanha — e a segunda
+    // metade é a que importa, porque impede a volta do cerco copiado por rota,
+    // que era o que fazia a contagem divergir entre telas.
+    expect(pageSource).toContain('<DataTable');
+    expect(pageSource).not.toContain('<TableFoot');
+    expect(pageSource).not.toContain('<TablePager');
   });
 });

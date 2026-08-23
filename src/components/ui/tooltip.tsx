@@ -23,7 +23,7 @@ export function TooltipContent({
       <TooltipPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          'z-(--z-tooltip) animate-menu-in rounded-(--r-sm) bg-secondary px-2.5 py-1.5 text-[11px] whitespace-nowrap text-secondary-fg shadow-md',
+          'z-(--z-tooltip) animate-menu-in rounded-(--r-sm) bg-secondary px-2.5 py-1.5 text-(length:--fs-2xs) whitespace-nowrap text-secondary-fg shadow-md',
           className,
         )}
         {...props}

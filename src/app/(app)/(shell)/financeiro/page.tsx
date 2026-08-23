@@ -16,26 +16,21 @@ import type {
 } from '@/contexts/financial/types';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { FilterBar } from '@/components/ui/filter-bar';
 import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import {
-  Table,
   TableBody,
   TableCell,
   TableCellStack,
-  TableFoot,
-  TableFootInfo,
   TableHead,
   TableHeader,
   TableRow,
-  TableScroll,
-  TableWrap,
 } from '@/components/ui/table';
-import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
-import { TablePager } from '@/components/ui/table-pager';
 import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
@@ -171,99 +166,88 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
         />
       </MetricStrip>
 
-      <TableWrap>
-        <TableToolbar>
-          <form className="flex flex-wrap items-center gap-2">
-            <Select
-              name="tipo"
-              defaultValue={tipoFilter ?? ''}
-              aria-label="Filtrar por tipo"
-              className="min-w-36"
-            >
-              <option value="">Todos os tipos</option>
-              <option value="receber">A receber</option>
-              <option value="pagar">A pagar</option>
-            </Select>
-            <Select
-              name="status"
-              defaultValue={statusFilter ?? ''}
-              aria-label="Filtrar por status"
-              className="min-w-36"
-            >
-              <option value="">Todos os status</option>
-              <option value="pendente">Pendente</option>
-              <option value="parcial">Parcial</option>
-              <option value="pago">Pago</option>
-              <option value="cancelado">Cancelado</option>
-              <option value="estornado">Estornado</option>
-            </Select>
-            <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Filtrar
-            </button>
-          </form>
-          <TableToolbarSpacer />
-        </TableToolbar>
-        {lancamentos.length === 0 ? (
+      <FilterBar>
+        <form className="flex flex-wrap items-center gap-2">
+          <Select
+            name="tipo"
+            defaultValue={tipoFilter ?? ''}
+            aria-label="Filtrar por tipo"
+            className="min-w-36"
+          >
+            <option value="">Todos os tipos</option>
+            <option value="receber">A receber</option>
+            <option value="pagar">A pagar</option>
+          </Select>
+          <Select
+            name="status"
+            defaultValue={statusFilter ?? ''}
+            aria-label="Filtrar por status"
+            className="min-w-36"
+          >
+            <option value="">Todos os status</option>
+            <option value="pendente">Pendente</option>
+            <option value="parcial">Parcial</option>
+            <option value="pago">Pago</option>
+            <option value="cancelado">Cancelado</option>
+            <option value="estornado">Estornado</option>
+          </Select>
+          <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            Filtrar
+          </button>
+        </form>
+      </FilterBar>
+
+      <DataTable
+        total={lancamentos.length === 0 ? 0 : lancamentosResult.total}
+        page={page}
+        pageCount={totalPages}
+        pageSize={lancamentosResult.pageSize}
+        unit={{ one: 'lançamento', many: 'lançamentos' }}
+        hrefFor={(targetPage) => financeiroPageHref(paginationFilters, targetPage)}
+        empty={
           <EmptyState
             title="Nenhum lançamento"
             description="Ajuste os filtros ou crie um lançamento."
           />
-        ) : (
-          <>
-            <TableScroll>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Vencimento</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead numeric>Valor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lancamentos.map((l: LancamentoSummary) => (
-                    <TableRow key={l.id}>
-                      <TableCell>
-                        <TableCellStack
-                          main={l.descricao}
-                          sub={`${l.tipo === 'receber' ? 'A receber' : 'A pagar'} · criado ${formatDatePt(l.createdAt)}`}
-                        />
-                      </TableCell>
-                      <TableCell className="text-fg-muted">{formatDatePt(l.dueDate)}</TableCell>
-                      <TableCell>
-                        <Badge tone={STATUS_TONE[l.status]} dot>
-                          {STATUS_LABEL[l.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell
-                        numeric
-                        className={cn(
-                          'font-medium',
-                          l.tipo === 'receber' ? 'text-success-700' : 'text-danger-700',
-                        )}
-                      >
-                        {l.tipo === 'receber' ? '+' : '−'}
-                        {formatBRL(l.valor)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableScroll>
-            <TableFoot>
-              <TableFootInfo>
-                Página {page} de {totalPages} · {lancamentosResult.total} lançamento
-                {lancamentosResult.total === 1 ? '' : 's'}
-              </TableFootInfo>
-              <TablePager
-                page={page}
-                pageCount={totalPages}
-                hrefFor={(targetPage) => financeiroPageHref(paginationFilters, targetPage)}
-              />
-            </TableFoot>
-          </>
-        )}
-      </TableWrap>
+        }
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>Descrição</TableHead>
+            <TableHead>Vencimento</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead numeric>Valor</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {lancamentos.map((l: LancamentoSummary) => (
+            <TableRow key={l.id}>
+              <TableCell>
+                <TableCellStack
+                  main={l.descricao}
+                  sub={`${l.tipo === 'receber' ? 'A receber' : 'A pagar'} · criado ${formatDatePt(l.createdAt)}`}
+                />
+              </TableCell>
+              <TableCell className="text-fg-muted">{formatDatePt(l.dueDate)}</TableCell>
+              <TableCell>
+                <Badge tone={STATUS_TONE[l.status]} dot>
+                  {STATUS_LABEL[l.status]}
+                </Badge>
+              </TableCell>
+              <TableCell
+                numeric
+                className={cn(
+                  'font-medium',
+                  l.tipo === 'receber' ? 'text-success-700' : 'text-danger-700',
+                )}
+              >
+                {l.tipo === 'receber' ? '+' : '−'}
+                {formatBRL(l.valor)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </DataTable>
     </>
   );
 }

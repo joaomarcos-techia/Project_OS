@@ -98,12 +98,12 @@ export function PainelShell({
                                   ? 'conversa aguardando atendimento'
                                   : 'conversas aguardando atendimento'
                               }`}
-                              className="grid min-w-4.5 place-items-center rounded-full bg-danger-600 px-1 text-[10px] font-semibold text-white"
+                              className="grid min-w-4.5 place-items-center rounded-full bg-danger-600 px-1 text-(length:--fs-3xs) font-semibold text-(--text-inverse)"
                             >
                               {handoffCount > 9 ? '9+' : handoffCount}
                             </span>
                           ) : m.badge ? (
-                            <span className="grid min-w-4.5 place-items-center rounded-full bg-(--primary-soft) px-1 text-[10px] font-semibold text-(--primary-active) dark:text-fg">
+                            <span className="grid min-w-4.5 place-items-center rounded-full bg-(--primary-soft) px-1 text-(length:--fs-3xs) font-semibold text-(--primary-active) dark:text-fg">
                               {m.badge}
                             </span>
                           ) : undefined

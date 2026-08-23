@@ -41,7 +41,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         <ShellSidebar open={navOpen}>
           <div className="flex items-center justify-between pr-(--sp-5)">
             <Wordmark />
-            <span className="rounded-(--r-xs) bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
+            <span className="rounded-(--r-xs) bg-secondary px-1.5 py-0.5 font-mono text-(length:--fs-3xs) font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
               Admin
             </span>
           </div>
@@ -53,7 +53,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </span>
             <span className="flex min-w-0 flex-col">
               <span className="text-(length:--fs-sm) leading-tight font-semibold">Plataforma</span>
-              <span className="font-mono text-[10px] text-fg-subtle">Console multi-tenant</span>
+              <span className="font-mono text-(length:--fs-3xs) text-fg-subtle">Console multi-tenant</span>
             </span>
           </div>
 
@@ -64,7 +64,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <form action="/logout" method="post">
               <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
             </form>
-            <span className="px-0.5 font-mono text-[10px] leading-normal text-fg-subtle">
+            <span className="px-0.5 font-mono text-(length:--fs-3xs) leading-normal text-fg-subtle">
               super_admin — toda ação auditada.
             </span>
           </div>

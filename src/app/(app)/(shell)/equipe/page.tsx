@@ -144,7 +144,7 @@ export default async function EquipePage() {
                         <span className="flex items-center gap-2.5">
                           <span
                             aria-hidden="true"
-                            className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-semibold text-on-primary"
+                            className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-(length:--fs-3xs) font-semibold text-on-primary"
                           >
                             {initials(e.nome)}
                           </span>

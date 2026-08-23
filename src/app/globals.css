@@ -194,6 +194,9 @@
   --fs-sm: 13.5px;
   --fs-xs: 12px;
   --fs-2xs: 11px;
+  /* Degrau mínimo — contador de badge e etiqueta auxiliar. Existe para que
+     esses casos parem de virar text-[9.5px]/text-[10px] soltos. */
+  --fs-3xs: 10px;
   --tracking-tight: -0.02em;
   --tracking-label: 0.08em;
 
@@ -205,6 +208,7 @@
   --fs-body: var(--fs-base);
   --fs-body-sm: var(--fs-sm);
   --fs-caption: var(--fs-xs);
+  --fs-micro: var(--fs-3xs);
 
   /* Spacing — base 4px (consumido pelo CSS legado e pelos primitivos) */
   --sp-1: 4px;
