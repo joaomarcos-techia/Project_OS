@@ -5,10 +5,12 @@ import { listFactors } from '@/lib/auth/mfa';
 import { requireUser } from '@/lib/auth/tenant-context';
 import { mustHaveMFA } from '@/lib/auth/policies';
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 
-import { EnrollFlow } from './enroll-flow';
+import { TotpSetupDialog } from './security-dialog';
 import { UnenrollForm } from './unenroll-form';
 
 export const dynamic = 'force-dynamic';
@@ -29,11 +31,7 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
   return (
     <div>
       <PageHeader
-        breadcrumb={
-          <>
-            Conta <span className="sep">›</span> <b>Segurança</b>
-          </>
-        }
+        crumbs={[{ label: 'Conta' }, { label: 'Segurança' }]}
         title="Segurança da conta"
         description="Autenticação em duas etapas (TOTP) da sua conta."
         actions={
@@ -43,7 +41,7 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
         }
       />
 
-      <div className="stack" style={{ maxWidth: 640 }}>
+      <div className="flex max-w-160 flex-col gap-(--sp-4)">
         {forced && required && verified.length === 0 ? (
           <Alert variant="danger">
             MFA é OBRIGATÓRIO para a role <b>{user.role}</b>. Ative TOTP abaixo antes de continuar.
@@ -64,19 +62,41 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
           </Alert>
         ) : null}
 
-        <div className="cardblock wrap-pad">
-          <h4 className="mb-3 text-sm font-semibold">TOTP (Authy / Google Authenticator)</h4>
-          {verified.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              <p className="text-sm">✅ TOTP ativo ({verified.length} factor).</p>
-              {verified.map((f) => (
-                <UnenrollForm key={f.id} factorId={f.id} />
-              ))}
-            </div>
-          ) : (
-            <EnrollFlow />
-          )}
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Autenticação em duas etapas</CardTitle>
+            <CardDescription>
+              Um código de 6 dígitos gerado no seu celular, além da senha.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {verified.length > 0 ? (
+              <div className="flex flex-col gap-(--sp-4)">
+                <div className="flex flex-wrap items-center gap-(--sp-3)">
+                  <Badge tone="green" dot>
+                    Ativo
+                  </Badge>
+                  <p className="text-(length:--fs-body-sm) text-fg-muted">
+                    TOTP ativo ({verified.length} factor). O código é pedido a cada login.
+                  </p>
+                </div>
+                {verified.map((f) => (
+                  <UnenrollForm key={f.id} factorId={f.id} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-start gap-(--sp-4)">
+                <div className="flex flex-wrap items-center gap-(--sp-3)">
+                  <Badge tone="gray">Inativo</Badge>
+                  <p className="text-(length:--fs-body-sm) text-fg-muted">
+                    Sua conta está protegida apenas pela senha.
+                  </p>
+                </div>
+                <TotpSetupDialog />
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

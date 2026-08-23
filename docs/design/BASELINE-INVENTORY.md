@@ -554,17 +554,28 @@ O gate mecânico vive em `src/app/design-contract.test.ts` e roda junto da suít
 A rota era um `redirect` para a primeira configuração acessível, com a navegação numa **barra
 lateral própria** ao lado da global. Duas hierarquias permanentes para responder uma pergunta só.
 
+A primeira tentativa trocou isso por um hub em linhas na própria `/configuracoes`. O founder
+revisou o preview e cortou: quem abre Configurações quer editar a clínica, não ler um índice.
+**A barra virou o hub.**
+
 | O que saiu | O que entrou |
 | --- | --- |
-| `configuracoes/layout.tsx` (grade `13.5rem` + `<aside>`) | Nada — as sub-rotas renderizam direto |
-| `settings-nav.tsx` (+ teste) | `settings-section-nav.tsx` — âncoras horizontais, menu abaixo de `sm` |
-| `redirect(firstSettingsHref(...))` | `page.tsx` — hub com visão geral e 6 seções |
-| — | `settings-item.tsx`, `settings-status.ts`, `settings-data.ts` |
+| `settings-nav.tsx` antigo — `<aside>` em grade `13.5rem` | `settings-nav.tsx` — barra horizontal de dois níveis, no `layout.tsx` |
+| Hub em linhas + visão geral (`settings-item.tsx`) | `page.tsx` volta a redirecionar, agora para o Perfil da clínica |
+| `settings-status.ts`, `settings-data.ts` | — (os status viviam nas linhas; sem linhas, sem casa) |
+| Modo de página `form` (960px) | Todas as rotas na mesma régua que `/dashboard` |
+| `enroll-flow.tsx` | `security-dialog.tsx` — ativação do TOTP em diálogo |
 
-Status exibidos vêm de leitura real e só de quem pode vê-los: conexão do WhatsApp
-(`clinic_whatsapp_numbers`), cobrança (`subscriptions.billing_status`) e 2FA da conta
-(`listFactors`). Perfil da clínica e Agente de IA **não têm status** porque o domínio não guarda
-um — ver os desvios registrados em [COMPONENT-DECISIONS.md](COMPONENT-DECISIONS.md).
+**Nível 1** são as seis categorias; clicar leva à primeira configuração de cada uma. **Nível 2** só
+aparece quando a categoria tem mais de um destino. Juntos alcançam os treze destinos sem rolagem
+horizontal — a barra quebra linha em vez de rolar. Abaixo de `sm`, um menu.
+
+### Larguras
+
+`/configuracoes`, `/equipe` e `/modelos-receita` rodavam em `--page-maxw: 960px` (modo `form`)
+enquanto o resto do app roda em 1440px. O efeito medido no preview: o `h1` de Configurações
+começava em **x=400**, o de Pacientes em **x=288** — 112px de recuo a mais, na mesma sidebar.
+O modo `form` foi removido; os formulários de dentro já se limitam sozinhos.
 
 ### Achado fora do redesign
 
@@ -573,3 +584,12 @@ um — ver os desvios registrados em [COMPONENT-DECISIONS.md](COMPONENT-DECISION
 A mesma varredura achou `ProntuÃ¡rio` num regex de `e2e/production-permission-lifecycle.spec.ts`,
 que por isso nunca casava com o heading real. Ambos corrigidos; nenhum outro arquivo do repo tem
 o padrão.
+
+### Pendência conhecida na aba
+
+`procedimentos/procedures-manager.tsx` e `recursos/resources-manager.tsx` ainda montam a lista com
+`.listrows`/`.listrow` do `app-shell.css` e um `<select>` cru em vez do `Select` do DS. Não é a
+mesma classe de problema que o resto da wave: `.cardblock` e o `Card` do DS renderizam idênticos
+(mesmo `--r-lg`, mesma borda, mesmo fundo — só 24px contra 20px de padding), mas as linhas de
+lista não têm equivalente e trocá-las mexe na estrutura, não no estilo. Fica para uma passada
+própria.

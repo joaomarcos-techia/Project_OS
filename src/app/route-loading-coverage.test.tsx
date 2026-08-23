@@ -17,7 +17,7 @@ import ModelosReceitaLoading from './(app)/(shell)/modelos-receita/loading';
 
 afterEach(cleanup);
 
-type SkeletonVariant = 'cards' | 'detail' | 'list' | 'table';
+type SkeletonVariant = 'cards' | 'detail' | 'table';
 
 const COVERAGE: Array<{
   route: string;
@@ -34,7 +34,7 @@ const COVERAGE: Array<{
   {
     route: '/configuracoes',
     source: '(app)/(shell)/configuracoes/loading.tsx',
-    variant: 'list',
+    variant: 'detail',
     Loading: ConfiguracoesLoading,
   },
   {

@@ -324,10 +324,6 @@
   --page-maxw: 1440px;
 }
 
-[data-page-layout='form'] {
-  --page-maxw: 960px;
-}
-
 [data-page-layout='read'] {
   --page-maxw: 1120px;
 }
