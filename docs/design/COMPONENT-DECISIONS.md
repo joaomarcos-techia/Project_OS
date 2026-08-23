@@ -23,6 +23,9 @@ Registro exigido pelo Contract §6: onde a UX operacional venceu a referência v
 | 2026-08-23 | Caixa | Badge `Aberto` / `Fechado` | Nada | Não existe enum de status de caixa no domínio. Deixado para a Wave 6, quando a tela for feita e a fonte do estado ficar clara |
 | 2026-08-23 | Pacientes | Badge `Ativo` / `Inativo` | Derivado de `deletedAt` | Paciente não tem enum de status; o que existe é soft delete. O badge traduz sem criar estado novo |
 | 2026-08-23 | Financeiro | Badge `Vencido` | Prop `overdue` no `PaymentStatusBadge` | "Vencido" não é estado armazenado: o Financial deriva de `due_date` vs hoje no fuso da clínica (`dunning-candidates.ts`). A regra continua lá; aqui só a apresentação |
+| 2026-08-23 | Sidebar (todas) | Item ativo sem nenhum destaque aparente | Ativo por **contraste + peso**, sem preenchimento | A referência distingue por contraste (na tela de Pacientes, "Pacientes" é visivelmente mais escuro que "Documentos"), mas o briefing §9 exige estado ativo identificável. Contraste sozinho seria cor-apenas (WCAG 1.4.1); o peso é o segundo sinal, e o `aria-current` já cobre o leitor de tela |
+| 2026-08-23 | Sidebar (todas) | Sem bloco de identidade da clínica | Bloco mantido, sem cartão | O sistema é multi-tenant e o usuário precisa saber qual clínica está ativa (§30 não remove funcionalidade). Perdeu borda e fundo para parar de competir com a navegação |
+| 2026-08-23 | Sidebar (todas) | Sem toggle de tema, sem "Sair", sem assinatura | Os três mantidos | São funcionalidade, não decoração. A referência é um mockup e não mostra tudo (Contract §6) |
 
 ---
 

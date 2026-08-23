@@ -61,15 +61,15 @@ export function ShellSidebar({ open, children }: { open: boolean; children: Reac
 
 export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="mb-2 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+    <span className="mb-1.5 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
       {children}
     </span>
   );
 }
 
 const itemBase = cn(
-  'relative flex min-h-(--hit-target) items-center gap-2.5 rounded-(--r-md) px-(--sp-3) py-2 text-(length:--fs-sm)',
-  'mb-0.5 transition-colors duration-(--dur-fast)',
+  'relative flex min-h-(--hit-target) items-center gap-3 rounded-(--r-md) px-(--sp-3) py-2 text-(length:--fs-sm)',
+  'mb-1 transition-colors duration-(--dur-fast)',
 );
 
 export function SideNavLink({
@@ -94,17 +94,16 @@ export function SideNavLink({
       aria-current={active ? 'page' : undefined}
       className={cn(
         itemBase,
-        active
-          ? 'bg-(--primary-soft) font-medium text-(--primary-active) dark:text-fg'
-          : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
+        // Ativo sem preenchimento: a referencia distingue por CONTRASTE e PESO,
+        // e a pilula azul anterior gritava mais alto que o conteudo da pagina.
+        // Dois sinais nao-cromaticos (cor do texto + peso) atendem 1.4.1 junto
+        // com o aria-current; hover mantem o fundo porque e transitorio e some.
+        active ? 'font-medium text-fg' : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
       )}
     >
       <span
         aria-hidden="true"
-        className={cn(
-          'shrink-0 [&>svg]:size-4.5',
-          active ? 'text-primary dark:text-fg' : 'text-fg-subtle',
-        )}
+        className={cn('shrink-0 [&>svg]:size-5', active ? 'text-fg' : 'text-fg-subtle')}
       >
         {icon}
       </span>
@@ -129,7 +128,7 @@ export function SideNavDisabled({
       aria-disabled="true"
       className={cn(itemBase, 'cursor-not-allowed text-fg-muted opacity-60')}
     >
-      <span aria-hidden="true" className="shrink-0 text-fg-subtle [&>svg]:size-4.5">
+      <span aria-hidden="true" className="shrink-0 text-fg-subtle [&>svg]:size-5">
         {icon}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>

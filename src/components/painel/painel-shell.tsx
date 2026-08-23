@@ -74,17 +74,21 @@ export function PainelShell({
         <ShellSidebar open={navOpen}>
           <Wordmark />
 
-          {/* Identidade do tenant — o usuário sempre sabe qual clínica está ativa */}
-          <div className="mx-(--sp-4) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
-            <span className="grid size-8 shrink-0 place-items-center rounded-(--r-sm) bg-primary">
-              <LogoIcon size={16} strong="#fff" soft="rgba(255,255,255,.55)" />
+          {/* Identidade do tenant — o usuário sempre sabe qual clínica está ativa.
+              A referência não tem este bloco, mas o sistema é multi-tenant e a
+              informação não pode sumir (§30). Perdeu o cartão: sem borda e sem
+              fundo, ele para de competir com a navegação e vira legenda do
+              wordmark, que é o papel real dele. */}
+          <div className="mx-(--sp-3) flex items-center gap-2.5 px-(--sp-2)">
+            <span className="grid size-7 shrink-0 place-items-center rounded-(--r-sm) bg-primary">
+              <LogoIcon size={14} strong="#fff" soft="rgba(255,255,255,.55)" />
             </span>
             <span className="flex min-w-0 flex-col">
-              <span className="truncate text-(length:--fs-sm) leading-tight font-semibold">
+              <span className="truncate text-(length:--fs-sm) leading-tight font-medium">
                 {clinicName}
               </span>
               {clinicPlan ? (
-                <span className="font-mono text-[10px] tracking-(--tracking-label) text-fg-subtle uppercase">
+                <span className="text-[10px] tracking-(--tracking-label) text-fg-subtle uppercase">
                   {clinicPlan}
                 </span>
               ) : null}
@@ -96,7 +100,7 @@ export function PainelShell({
               const mods = MODULES.filter((m) => m.group === g);
               if (!mods.length) return null;
               return (
-                <div key={g} className="mt-(--sp-5) first:mt-(--sp-2)">
+                <div key={g} className="mt-(--sp-6) first:mt-(--sp-2)">
                   <SideNavGroupLabel>{g}</SideNavGroupLabel>
                   {mods.map((m) =>
                     m.soon || !m.href ? (
@@ -140,15 +144,18 @@ export function PainelShell({
             {/* Identidade do usuário — o topbar foi aposentado (decisão do founder:
                 tudo na sidebar, como no /admin) */}
             <div className="flex items-center gap-2.5 px-(--sp-3) py-2">
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-(length:--fs-2xs) font-semibold text-on-primary">
+              {/* Avatar em tinta clara com a letra na primária, como a referência:
+                  o disco azul sólido puxava o olho para o rodapé, que é o canto
+                  menos acionável da tela. */}
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-(--primary-soft) text-(length:--fs-sm) font-semibold text-(--primary-active) dark:text-fg">
                 {userInitials}
               </span>
               <span className="flex min-w-0 flex-col">
-                <span className="truncate text-(length:--fs-sm) leading-tight font-medium">
+                <span className="truncate text-(length:--fs-sm) leading-tight font-semibold">
                   {userName}
                 </span>
                 {userRole ? (
-                  <span className="text-(length:--fs-2xs) leading-tight text-fg-subtle">
+                  <span className="text-(length:--fs-xs) leading-tight text-fg-subtle">
                     {userRole}
                   </span>
                 ) : null}
