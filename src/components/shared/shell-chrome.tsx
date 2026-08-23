@@ -43,12 +43,19 @@ export function ShellScrim({ show, onClick }: { show: boolean; onClick: () => vo
   );
 }
 
-/** Moldura da sidebar: off-canvas no mobile, coluna sticky no desktop. */
+/**
+ * Moldura da sidebar: off-canvas no mobile, coluna sticky no desktop.
+ *
+ * `overflow-hidden` aqui e `overflow-y-auto` no <nav> de dentro: antes a barra
+ * inteira rolava, entao o wordmark e o bloco do usuario saiam de vista junto com
+ * a lista. Agora o chrome fica ancorado e so a navegacao rola — e ela so rola em
+ * viewport curta, porque a lista foi ajustada para caber inteira em 900px.
+ */
 export function ShellSidebar({ open, children }: { open: boolean; children: ReactNode }) {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-(--z-drawer) flex w-(--sidebar-w) flex-col gap-(--sp-4) overflow-y-auto border-r border-border bg-surface pt-(--sp-5)',
+        'fixed inset-y-0 left-0 z-(--z-drawer) flex w-(--sidebar-w) flex-col gap-(--sp-4) overflow-hidden border-r border-border bg-surface pt-(--sp-5)',
         'transition-transform duration-(--dur-slow) ease-out',
         'nav:sticky nav:top-0 nav:z-(--z-sticky) nav:h-dvh nav:translate-x-0',
         open ? 'translate-x-0 shadow-(--elev-modal) nav:shadow-none' : '-translate-x-full',
@@ -61,7 +68,7 @@ export function ShellSidebar({ open, children }: { open: boolean; children: Reac
 
 export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="mb-1.5 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+    <span className="mb-1 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
       {children}
     </span>
   );
@@ -69,7 +76,7 @@ export function SideNavGroupLabel({ children }: { children: ReactNode }) {
 
 const itemBase = cn(
   'relative flex min-h-(--hit-target) items-center gap-3 rounded-(--r-md) px-(--sp-3) py-2 text-(length:--fs-sm)',
-  'mb-1 transition-colors duration-(--dur-fast)',
+  'mb-0.5 transition-colors duration-(--dur-fast)',
 );
 
 export function SideNavLink({
@@ -202,7 +209,7 @@ export function Wordmark() {
       aria-label="Qoro — início"
       className="flex min-h-(--hit-target) items-center px-(--sp-5)"
     >
-      <Logo className="h-7 w-auto" />
+      <Logo className="h-8 w-auto" />
     </Link>
   );
 }

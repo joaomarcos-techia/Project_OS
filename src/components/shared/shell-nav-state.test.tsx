@@ -8,7 +8,7 @@ vi.mock('next/link', () => ({
   default: (props: ComponentProps<'a'>) => <a {...props} />,
 }));
 
-import { SideNavLink } from './shell-chrome';
+import { ShellSidebar, SideNavLink } from './shell-chrome';
 
 afterEach(cleanup);
 
@@ -37,5 +37,20 @@ describe('estado ativo da navegação lateral', () => {
     const cls = screen.getByRole('link').className;
     expect(cls).toContain('hover:bg-surface-hover');
     expect(cls).toContain('text-fg-muted');
+  });
+});
+
+describe('ancoragem do chrome da sidebar', () => {
+  it('não rola a barra inteira: o wordmark e o rodapé ficam fixos', () => {
+    // Antes o <aside> tinha overflow-y-auto e levava wordmark e bloco do usuario
+    // embora junto com a lista. O scroll agora pertence so ao <nav>.
+    const { container } = render(
+      <ShellSidebar open={false}>
+        <span>conteudo</span>
+      </ShellSidebar>,
+    );
+    const aside = container.querySelector('aside');
+    expect(aside?.className).toContain('overflow-hidden');
+    expect(aside?.className).not.toContain('overflow-y-auto');
   });
 });

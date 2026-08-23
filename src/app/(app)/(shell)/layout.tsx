@@ -59,7 +59,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           cliente, então não há polling nem payload de fila para quem não pode
           ver conversa. A action reautoriza por conta própria. */}
       {user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS) ? <HandoffWatcher /> : null}
-      <PainelShell userName={id.userName} userRole={id.userRole} clinicName={id.clinicName}>
+      <PainelShell userName={id.userName} userRole={id.userRole}>
         {children}
       </PainelShell>
     </>

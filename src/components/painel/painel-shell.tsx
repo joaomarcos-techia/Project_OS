@@ -21,7 +21,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { useOpenHandoffCount } from './handoff-store';
-import { Icon, LogoIcon } from './icons';
+import { Icon } from './icons';
 import { GROUPS, MODULES } from './modules';
 
 /**
@@ -31,14 +31,10 @@ import { GROUPS, MODULES } from './modules';
  */
 export function PainelShell({
   children,
-  clinicName = 'Qoro',
-  clinicPlan,
   userName = 'Você',
   userRole = '',
 }: {
   children: ReactNode;
-  clinicName?: string;
-  clinicPlan?: string;
   userName?: string;
   userRole?: string;
 }) {
@@ -74,33 +70,15 @@ export function PainelShell({
         <ShellSidebar open={navOpen}>
           <Wordmark />
 
-          {/* Identidade do tenant — o usuário sempre sabe qual clínica está ativa.
-              A referência não tem este bloco, mas o sistema é multi-tenant e a
-              informação não pode sumir (§30). Perdeu o cartão: sem borda e sem
-              fundo, ele para de competir com a navegação e vira legenda do
-              wordmark, que é o papel real dele. */}
-          <div className="mx-(--sp-3) flex items-center gap-2.5 px-(--sp-2)">
-            <span className="grid size-7 shrink-0 place-items-center rounded-(--r-sm) bg-primary">
-              <LogoIcon size={14} strong="#fff" soft="rgba(255,255,255,.55)" />
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-(length:--fs-sm) leading-tight font-medium">
-                {clinicName}
-              </span>
-              {clinicPlan ? (
-                <span className="text-[10px] tracking-(--tracking-label) text-fg-subtle uppercase">
-                  {clinicPlan}
-                </span>
-              ) : null}
-            </span>
-          </div>
-
-          <nav className="flex-1 px-(--sp-3)" aria-label="Navegação principal">
+          <nav
+            className="min-h-0 flex-1 overflow-y-auto px-(--sp-3)"
+            aria-label="Navegação principal"
+          >
             {GROUPS.map((g) => {
               const mods = MODULES.filter((m) => m.group === g);
               if (!mods.length) return null;
               return (
-                <div key={g} className="mt-(--sp-6) first:mt-(--sp-2)">
+                <div key={g} className="mt-(--sp-5) first:mt-(--sp-2)">
                   <SideNavGroupLabel>{g}</SideNavGroupLabel>
                   {mods.map((m) =>
                     m.soon || !m.href ? (
