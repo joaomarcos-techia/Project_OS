@@ -25,3 +25,28 @@ export function channelStatus(input: { connected: boolean; degraded: boolean }):
   if (input.degraded) return { tone: 'red', label: 'Não está recebendo' };
   return { tone: 'gray', label: 'Não conectado' };
 }
+
+/** Espelha o enum `subscription_billing_status` (C13). */
+export type SubscriptionBillingStatus = 'trial' | 'active' | 'past_due' | 'cancelled';
+
+const SUBSCRIPTION: Record<SubscriptionBillingStatus, SettingsStatus> = {
+  trial: { tone: 'blue', label: 'Em teste' },
+  active: { tone: 'green', label: 'Ativa' },
+  // past_due pede ação (o pagamento do Qoro falhou) — âmbar, não vermelho: a
+  // assinatura ainda não foi cortada, o ciclo de dunning está correndo.
+  past_due: { tone: 'amber', label: 'Pagamento pendente' },
+  cancelled: { tone: 'gray', label: 'Cancelada' },
+};
+
+/**
+ * Status da assinatura do Qoro para o card de Gestão.
+ *
+ * `null` quando a clínica ainda não tem assinatura provisionada — o card
+ * simplesmente não mostra selo, em vez de inventar um estado. A tela de detalhe
+ * é quem distingue plano, limites e cobrança pendente; aqui é uma palavra.
+ */
+export function subscriptionStatus(
+  status: SubscriptionBillingStatus | null,
+): SettingsStatus | null {
+  return status ? SUBSCRIPTION[status] : null;
+}
