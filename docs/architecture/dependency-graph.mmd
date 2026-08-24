@@ -44,6 +44,7 @@ flowchart LR
     lib_messaging["messaging"]
     lib_observability["observability"]
     lib_outbox["outbox"]
+    lib_payments["payments"]
     lib_pdf["pdf"]
     lib_platform_announcements["platform-announcements"]
     lib_platform_settings["platform-settings"]
@@ -107,10 +108,12 @@ flowchart LR
   app__app_ --> lib_db
   app__app_ --> lib_env
   app__app_ --> lib_format
+  app__app_ --> lib_http
   app__app_ --> lib_idempotency
   app__app_ --> lib_impersonation
   app__app_ --> lib_masks
   app__app_ --> lib_observability
+  app__app_ --> lib_payments
   app__app_ --> lib_pdf
   app__app_ --> lib_platform_announcements
   app__app_ --> lib_realtime
@@ -132,6 +135,7 @@ flowchart LR
   app_api --> lib_messaging
   app_api --> lib_observability
   app_api --> lib_outbox
+  app_api --> lib_payments
   app_api --> lib_platform_settings
   app_api --> lib_storage
   app_error --> component_shared
@@ -168,12 +172,11 @@ flowchart LR
   context_billing --> context_ai_agent
   context_billing --> context_scheduling
   context_billing --> context_tenancy
-  context_billing --> lib_auth
   context_billing --> lib_crypto
   context_billing --> lib_db
-  context_billing --> lib_env
   context_billing --> lib_observability
   context_billing --> lib_outbox
+  context_billing --> lib_payments
   context_billing --> lib_tenant_access
   context_clinical --> context_identity
   context_clinical --> context_patient
@@ -229,6 +232,7 @@ flowchart LR
   context_onboarding --> lib_env
   context_onboarding --> lib_observability
   context_onboarding --> lib_outbox
+  context_onboarding --> lib_payments
   context_patient --> context_tenancy
   context_patient --> lib_agent
   context_patient --> lib_audit
@@ -320,6 +324,9 @@ flowchart LR
   lib_outbox --> lib_env
   lib_outbox --> lib_idempotency
   lib_outbox --> lib_observability
+  lib_payments --> lib_auth
+  lib_payments --> lib_env
+  lib_payments --> lib_observability
   lib_platform_announcements --> lib_db
   lib_platform_settings --> lib_db
   lib_realtime --> lib_auth

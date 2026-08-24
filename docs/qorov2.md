@@ -19,7 +19,7 @@ Sub-fase só é "verde" com **todos**:
 FUNCIONAL        lint · typecheck · test · build · test:e2e
 ARQUITETURA      arch:check · arch:db-check · check:migrations · check:registry:strict
 COMPLEXIDADE     arch:graphs --check verde: 0 ciclos + zero acoplamento novo não commitado (§11)
-REGRESSÃO        1966 testes de baseline verdes + Regression Matrix (§0.4)
+REGRESSÃO        baseline de testes verde (2295 em 24/08; o número sobe — o que vale é zero regressão) + Regression Matrix (§0.4)
 ANTI-ESCOPO      nenhuma mudança fora do gap mapeado (§0.5)
 SCOPE FREEZE     nenhum requisito novo incorporado na camada (§0.8)
 BUDGET           ≤25 arquivos · ≤1500 linhas · ≤2 contexts, senão split (§0.6)
@@ -125,7 +125,7 @@ lint ✅ · typecheck ✅ · **1966 testes** ✅ · build ✅ @ `d414191`.
 ## 5. CAMADA 1 (P0) — Cobrança de paciente + sinal
 Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcionais** por sub-fase; **gates transversais (§8–§17) valem para cada uma**.
 
-- **1.0 Adapter:** extrair p/ `src/lib/payments/asaas`, `createAsaasClient(cred)`. Sem migração. Baseline inteiro verde (23 testes de webhook). Zero comportamento novo.
+- **1.0 Adapter:** ✅ **CONCLUÍDA (24/08)** — `src/lib/payments/asaas` + `createAsaasClient(credential)`; breaker por credencial; client do Qoro singleton com leitura tardia de env. Sem migração, zero comportamento novo. 11 call-sites repontados, +5 testes de fábrica, `onboarding` perdeu uma exceção `boundaries`. Gates: 257 arquivos / **2295 testes** ✅ · build ✅ · arch:check/db-check/graphs ✅ · registry/migrations/observability ✅.
 - **1.1 Credencial:** `clinic_payment_accounts` (cifrada, `hasApiKey`, token da clínica); painel `configuracoes/pagamentos`; validação no save; auto-config do webhook. unit/integration/contract/e2e/audit.
 - **1.2 Política:** `clinic_deposit_policy` (off, 50%, janela 24h) + consent `politica_cancelamento`. unit/contract. Flag off = idêntico.
 - **1.3 Charges+hold:** context `payments` + `patient_charges`; colunas `deposit_*`/`hold_expires_at`; cron de expiração. unit/integration/contract/smoke. Máquina de estados congelada intocada.

@@ -1,9 +1,9 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 623,
-    "elements": 52,
-    "importEdges": 264,
+    "modules": 670,
+    "elements": 53,
+    "importEdges": 270,
     "moduleCycles": 0,
     "events": 57,
     "eventsWithoutConsumer": 43
@@ -46,7 +46,7 @@
       "id": "app:(app)",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 30,
+      "fanOut": 32,
       "dependsOn": [
         "app:(admin)",
         "component:admin",
@@ -69,10 +69,12 @@
         "lib:db",
         "lib:env",
         "lib:format",
+        "lib:http",
         "lib:idempotency",
         "lib:impersonation",
         "lib:masks",
         "lib:observability",
+        "lib:payments",
         "lib:pdf",
         "lib:platform-announcements",
         "lib:realtime",
@@ -84,7 +86,7 @@
       "id": "app:api",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 18,
+      "fanOut": 19,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -102,6 +104,7 @@
         "lib:messaging",
         "lib:observability",
         "lib:outbox",
+        "lib:payments",
         "lib:platform-settings",
         "lib:storage"
       ]
@@ -218,17 +221,16 @@
       "id": "context:billing",
       "kind": "context",
       "fanIn": 5,
-      "fanOut": 10,
+      "fanOut": 9,
       "dependsOn": [
         "context:ai-agent",
         "context:scheduling",
         "context:tenancy",
-        "lib:auth",
         "lib:crypto",
         "lib:db",
-        "lib:env",
         "lib:observability",
         "lib:outbox",
+        "lib:payments",
         "lib:tenant-access"
       ]
     },
@@ -320,7 +322,7 @@
       "id": "context:onboarding",
       "kind": "context",
       "fanIn": 3,
-      "fanOut": 10,
+      "fanOut": 11,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -331,7 +333,8 @@
         "lib:db",
         "lib:env",
         "lib:observability",
-        "lib:outbox"
+        "lib:outbox",
+        "lib:payments"
       ]
     },
     {
@@ -516,7 +519,7 @@
     {
       "id": "lib:http",
       "kind": "lib",
-      "fanIn": 3,
+      "fanIn": 4,
       "fanOut": 5,
       "dependsOn": [
         "lib:audit",
@@ -578,7 +581,7 @@
     {
       "id": "lib:observability",
       "kind": "lib",
-      "fanIn": 20,
+      "fanIn": 21,
       "fanOut": 2,
       "dependsOn": [
         "lib:env",
@@ -594,6 +597,17 @@
         "lib:db",
         "lib:env",
         "lib:idempotency",
+        "lib:observability"
+      ]
+    },
+    {
+      "id": "lib:payments",
+      "kind": "lib",
+      "fanIn": 4,
+      "fanOut": 3,
+      "dependsOn": [
+        "lib:auth",
+        "lib:env",
         "lib:observability"
       ]
     },

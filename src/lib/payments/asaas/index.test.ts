@@ -13,7 +13,13 @@ vi.mock('@/lib/env', () => ({
 }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
 
-import { __testing__, asaasProvider, BillingProviderError } from './index';
+import {
+  __testing__,
+  asaasProvider,
+  BillingCircuitOpenError,
+  BillingProviderError,
+  createAsaasClient,
+} from './index';
 
 beforeEach(() => {
   __testing__.resetCircuit();
@@ -249,5 +255,78 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
       'https://sandbox.asaas.com/api/v3/payments?externalReference=plan-change%3A00000000-0000-0000-0000-000000000001&limit=1',
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+});
+
+describe('createAsaasClient — uma instância por credencial', () => {
+  it('usa a chave da própria credencial, não a do env', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'cus_1' }));
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await clinica.createCustomer({ name: 'Paciente', email: 'paciente@example.test' });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(request.headers).toEqual(expect.objectContaining({ access_token: 'chave-da-clinica' }));
+  });
+
+  it('mantém o circuit breaker isolado entre credenciais', async () => {
+    const contaA = createAsaasClient({ apiKey: 'chave-a' });
+    const contaB = createAsaasClient({ apiKey: 'chave-b' });
+
+    // 3 falhas indeterminadas (POST não re-tenta) abrem o breaker da conta A.
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        contaA.createCustomer({ name: 'A', email: 'a@example.test' }),
+      ).rejects.toBeInstanceOf(Error);
+    }
+    fetchMock.mockResolvedValue(Response.json({ id: 'cus_b' }));
+
+    // A continua barrada pelo próprio circuito...
+    await expect(contaA.createCustomer({ name: 'A', email: 'a@example.test' })).rejects.toThrow(
+      BillingCircuitOpenError,
+    );
+    // ...e B, que nunca falhou, segue chamando o Asaas normalmente.
+    await expect(contaB.createCustomer({ name: 'B', email: 'b@example.test' })).resolves.toEqual({
+      customerId: 'cus_b',
+    });
+  });
+
+  it('cai no ASAAS_BASE_URL do env quando a credencial não traz baseUrl', async () => {
+    // `mockImplementation` (e não `mockResolvedValue`): o corpo de um Response só
+    // pode ser lido uma vez, e este teste faz duas chamadas.
+    fetchMock.mockImplementation(() => Response.json({ id: 'cus_1' }));
+    const semBase = createAsaasClient({ apiKey: 'k' });
+    const comBase = createAsaasClient({ apiKey: 'k', baseUrl: 'https://api.asaas.com/v3' });
+
+    await semBase.createCustomer({ name: 'X', email: 'x@example.test' });
+    await comBase.createCustomer({ name: 'X', email: 'x@example.test' });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://sandbox.asaas.com/api/v3/customers');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://api.asaas.com/v3/customers');
+  });
+
+  it('sem webhookToken, nenhum token é aceito — inclusive o do env', () => {
+    const semToken = createAsaasClient({ apiKey: 'k' });
+    const comToken = createAsaasClient({ apiKey: 'k', webhookToken: 'token-da-clinica' });
+
+    expect(semToken.validateWebhookToken('webhook-token')).toBe(false);
+    expect(semToken.validateWebhookToken(null)).toBe(false);
+    expect(comToken.validateWebhookToken('token-da-clinica')).toBe(true);
+    expect(comToken.validateWebhookToken('webhook-token')).toBe(false);
+  });
+
+  it('lê credencial em função a CADA request (leitura tardia, como o client do env)', async () => {
+    fetchMock.mockImplementation(() => Response.json({ id: 'cus_1' }));
+    const chaves = ['primeira', 'segunda'];
+    const rotativo = createAsaasClient({ apiKey: () => chaves.shift() ?? 'esgotada' });
+
+    await rotativo.createCustomer({ name: 'X', email: 'x@example.test' });
+    await rotativo.createCustomer({ name: 'X', email: 'x@example.test' });
+
+    const primeira = (fetchMock.mock.calls[0] as [string, RequestInit])[1];
+    const segunda = (fetchMock.mock.calls[1] as [string, RequestInit])[1];
+    expect(primeira.headers).toEqual(expect.objectContaining({ access_token: 'primeira' }));
+    expect(segunda.headers).toEqual(expect.objectContaining({ access_token: 'segunda' }));
   });
 });

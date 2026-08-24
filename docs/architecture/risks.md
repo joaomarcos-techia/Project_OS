@@ -57,12 +57,15 @@ de verdade, então o resultado histórico continua correto — mas por sorte, n�
 mútuo pré-existente + código novo é o cenário clássico de ciclo acidental. O `--check` do
 `arch:graphs` é o alarme.
 
-## R4 · Adapter Asaas é single-account — `MÉDIA`
+## R4 · Adapter Asaas é single-account — `RESOLVIDO (sub-fase 1.0)`
 
-**Evidência:** `src/contexts/billing/internal/providers/asaas.ts` lê `env.ASAAS_API_KEY` direto.
+**Evidência do achado:** `src/contexts/billing/internal/providers/asaas.ts` lia `env.ASAAS_API_KEY` direto.
 
-**Consequência:** cobrar paciente com a chave **da clínica** (modelo B do ADR-049) exige parametrizar
-o cliente por credencial. É a sub-fase 1.0, isolada de propósito.
+**Resolução:** o adapter virou `src/lib/payments/asaas` com `createAsaasClient(credential)`. O client do
+Qoro (`asaasProvider`) é um singleton de módulo que lê o env por função — leitura tardia idêntica à de
+antes. Cada credencial tem **circuit breaker próprio**: a conta A cair não abre o circuito da conta B.
+Efeito colateral bom, visível no `arch-metrics.json`: `context:billing` perdeu as arestas para
+`lib:auth` e `lib:env`, e `onboarding` deixou de precisar da exceção `boundaries` para o adapter.
 
 ## R5 · Não existe handler de `no_show` — `MÉDIA`
 

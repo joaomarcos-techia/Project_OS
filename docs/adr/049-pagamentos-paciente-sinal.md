@@ -143,6 +143,14 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
 - **Migrações:** nenhuma.
 - **Testes:** contract tests do adapter; **rodar baseline inteiro** — os 1966 testes (inclui os 23 do webhook de assinatura) e o build **têm que continuar verdes**.
 - **Aceite:** zero mudança de comportamento; baseline 100% verde; `pnpm arch:check`/`arch:db-check` verdes.
+- **EXECUTADA em 2026-08-24.** `src/lib/payments/asaas` (`index.ts`) expõe `createAsaasClient(credential)`;
+  `asaasProvider` continua exportado como singleton do client do Qoro, com as credenciais lidas **por função**
+  (leitura tardia de env preservada — `assertBillingRuntimeReady()` segue rodando a cada request).
+  Circuit breaker é **por instância de credencial**. `credential.baseUrl` omitido cai em `env.ASAAS_BASE_URL`;
+  `credential.webhookToken` omitido faz `validateWebhookToken` retornar sempre `false`. O timeout continua
+  vindo do env (política do Qoro, não da conta). 11 call-sites repontados; `onboarding` deixou de precisar da
+  exceção `boundaries` para o adapter. Gates: 257 arquivos / 2295 testes ✅, build ✅, arch:* ✅.
+  **Não feito de propósito (fica para 1.1):** validação de `apiKey` vazia — ver D10 no discovery log.
 
 ### 1.1 — Credencial da clínica (Modelo B)
 - **Escopo:** tabela `clinic_payment_accounts`; painel `configuracoes/pagamentos` (papel financeiro/dono); validação no save (`getMyAccount` do Asaas); **auto-configuração do webhook** na conta da clínica via API Asaas; indicador `hasApiKey` (write-only).
