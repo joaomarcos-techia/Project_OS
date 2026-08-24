@@ -126,6 +126,11 @@ export default async function DashboardPage() {
         description="Agenda, atendimento e indicadores essenciais para decidir o próximo passo."
       />
 
+      {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
+          tela — e no rodapé ninguém a encontrava. Não polui o dashboard maduro
+          porque o componente se remove sozinho quando os passos terminam. */}
+      <ActivationChecklist data={checklist} />
+
       {/* ---- stat tiles (dados reais) ---- */}
       <MetricStrip>
         <StatCard
@@ -248,12 +253,6 @@ export default async function DashboardPage() {
           ) : null}
         </div>
       </div>
-
-      {!checklist.complete ? (
-        <div className="mt-(--sp-4)">
-          <ActivationChecklist data={checklist} />
-        </div>
-      ) : null}
     </>
   );
 }

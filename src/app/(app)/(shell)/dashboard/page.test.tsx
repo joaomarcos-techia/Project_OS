@@ -110,7 +110,7 @@ describe('DashboardPage', () => {
     getProfileNames.mockResolvedValue(new Map([['user-1', 'Ana Costa']]));
   });
 
-  it('prioriza métricas, gráfico e agenda antes do checklist sem placeholders ou auto-refresh', async () => {
+  it('abre pelo checklist de ativação e segue por métricas, gráfico e agenda', async () => {
     const { container } = render(await DashboardPage());
     const content = container.textContent ?? '';
 
@@ -122,7 +122,10 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('link', { name: 'Atualizar' })).toBeNull();
     expect(content.indexOf('Consultas hoje')).toBeLessThan(content.indexOf('Faturamento'));
     expect(content.indexOf('Faturamento')).toBeLessThan(content.indexOf('Próximos na agenda'));
-    expect(content.indexOf('Próximos na agenda')).toBeLessThan(content.indexOf('Primeiros passos'));
+    // A ordem virou: enquanto a ativação não fecha, ela vem primeiro. No
+    // rodapé o operador não a encontrava — e o bloco some sozinho quando os
+    // passos terminam, então não custa nada ao dashboard maduro.
+    expect(content.indexOf('Primeiros passos')).toBeLessThan(content.indexOf('Consultas hoje'));
   });
 
   it('usa o EmptyState compacto canônico nos três vazios reais', async () => {

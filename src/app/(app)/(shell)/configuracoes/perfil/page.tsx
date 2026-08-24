@@ -22,7 +22,13 @@ export default async function PerfilPage() {
   if (!user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)) {
     return (
       <div>
-        <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Perfil da clínica' }]} title="Perfil da clínica" />
+        <PageHeader
+          crumbs={[
+            { label: 'Configurações', href: '/configuracoes' },
+            { label: 'Perfil da clínica' },
+          ]}
+          title="Perfil da clínica"
+        />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para editar os dados da clínica.
         </Alert>
@@ -37,7 +43,13 @@ export default async function PerfilPage() {
   if (!profile) {
     return (
       <div>
-        <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Perfil da clínica' }]} title="Perfil da clínica" />
+        <PageHeader
+          crumbs={[
+            { label: 'Configurações', href: '/configuracoes' },
+            { label: 'Perfil da clínica' },
+          ]}
+          title="Perfil da clínica"
+        />
         <Alert variant="danger" title="Clínica não encontrada">
           Não foi possível carregar os dados da clínica.
         </Alert>
@@ -47,11 +59,15 @@ export default async function PerfilPage() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Perfil da clínica' }]}
+      <PageHeader
+        crumbs={[
+          { label: 'Configurações', href: '/configuracoes' },
+          { label: 'Perfil da clínica' },
+        ]}
         title="Perfil da clínica"
         description="Dados que aparecem no cabeçalho do receituário e dos documentos."
       />
-      <div className="stack" style={{ maxWidth: 560 }}>
+      <div className="flex max-w-190 flex-col gap-(--sp-4)">
         <PerfilForm initial={profile} />
         {professionalProfile ? <ProfessionalCredentialForm initial={professionalProfile} /> : null}
       </div>

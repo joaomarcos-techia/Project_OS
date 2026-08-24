@@ -1,5 +1,6 @@
 'use client';
 
+import { Stethoscope } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 
@@ -12,8 +13,24 @@ import type { ProcedureSummary } from '@/contexts/scheduling/types';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DestructiveAction } from '@/components/ui/destructive-action';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Field } from '@/components/ui/field';
+import { FilterBar, SearchField } from '@/components/ui/filter-bar';
 import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableCellStack,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroll,
+  TableWrap,
+} from '@/components/ui/table';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 type Editing = { id: string | null } | null;
@@ -120,148 +137,183 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
   }
 
   return (
-    <div className="stack" style={{ maxWidth: 760 }}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+    <div className="flex max-w-190 flex-col gap-(--sp-4)">
+      <FilterBar className="mb-0">
+        <SearchField
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por código, descrição ou categoria"
-          className="max-w-xs"
+          aria-label="Buscar procedimento"
         />
-        <label className="flex items-center gap-1.5 text-sm text-fg-muted">
-          <input
-            type="checkbox"
+        <label className="flex cursor-pointer items-center gap-2 text-(length:--fs-body-sm) text-fg-muted">
+          <Checkbox
             checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-            className="size-4"
+            onCheckedChange={(value) => setShowInactive(value === true)}
           />
           Mostrar inativos
         </label>
-        <Button type="button" size="sm" onClick={startNew}>
+        <Button type="button" onClick={startNew}>
           Novo procedimento
         </Button>
-      </div>
+      </FilterBar>
 
       {editing ? (
-        <div className="cardblock wrap-pad flex flex-col gap-3">
-          <h4 className="text-sm font-semibold">
+        <Card className="flex flex-col gap-(--sp-4) p-(--card-pad)">
+          <h2 className="text-(length:--fs-subsection) font-semibold">
             {editing.id ? 'Editar procedimento' : 'Novo procedimento'}
-          </h4>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              placeholder="Código * (ex: CONS)"
-              maxLength={40}
-            />
-            <Input
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              placeholder="Categoria (opcional)"
-              maxLength={60}
-            />
-          </div>
-          <Input
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Descrição * (ex: Consulta)"
-            maxLength={160}
-          />
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-fg-muted">Valor padrão (R$)</span>
+          </h2>
+          {/* Rótulo de verdade em cada campo: antes o placeholder fazia as vezes
+              de label e sumia ao digitar — quem revisava o formulário preenchido
+              perdia a referência do que era cada caixa (P-17). */}
+          <div className="grid gap-(--sp-4) sm:grid-cols-2">
+            <Field label="Código" htmlFor="proc-codigo" required>
               <Input
+                id="proc-codigo"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+                placeholder="CONS"
+                maxLength={40}
+              />
+            </Field>
+            <Field label="Categoria" htmlFor="proc-categoria">
+              <Input
+                id="proc-categoria"
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                maxLength={60}
+              />
+            </Field>
+          </div>
+          <Field label="Descrição" htmlFor="proc-descricao" required>
+            <Input
+              id="proc-descricao"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              placeholder="Consulta"
+              maxLength={160}
+            />
+          </Field>
+          <div className="grid gap-(--sp-4) sm:grid-cols-2">
+            <Field label="Valor padrão (R$)" htmlFor="proc-valor">
+              <Input
+                id="proc-valor"
                 value={valor}
                 onChange={(e) => setValor(e.target.value)}
                 placeholder="0,00"
                 inputMode="decimal"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-fg-muted">Duração (min)</span>
+            </Field>
+            <Field label="Duração (min)" htmlFor="proc-duracao">
               <Input
+                id="proc-duracao"
                 value={duracao}
                 onChange={(e) => setDuracao(e.target.value)}
                 placeholder="30"
                 inputMode="numeric"
               />
-            </label>
+            </Field>
           </div>
           <div className="flex gap-2">
-            <Button type="button" size="sm" loading={busy} onClick={save}>
+            <Button type="button" loading={busy} onClick={save}>
               Salvar
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(null)}>
+            <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
               Cancelar
             </Button>
           </div>
-        </div>
+        </Card>
       ) : null}
 
-      {filtered.length === 0 ? (
-        <p className="text-sm text-fg-muted">
-          Nenhum procedimento. Clique em “Novo procedimento” para cadastrar o catálogo (necessário
-          para criar atendimentos na Agenda).
-        </p>
-      ) : (
-        <div className="cardblock">
-          <div className="listrows">
-            {filtered.map((p) => (
-              <div key={p.id} className="listrow">
-                <div className="lr-main">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-fg-subtle">{p.codigo}</span>
-                    <span className="font-medium">{p.descricao}</span>
-                    {p.categoria ? (
-                      <span className="text-xs text-fg-subtle">{p.categoria}</span>
-                    ) : null}
-                    <span className="text-xs text-fg-muted">
-                      {brl(p.valorPadrao)} · {p.duracaoPadraoMin}min
-                    </span>
-                    {!p.ativo ? <Badge tone="gray">inativo</Badge> : null}
-                  </div>
-                </div>
-                <div className="lr-end flex gap-2">
-                  <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(p)}>
-                    Editar
-                  </Button>
-                  {p.ativo ? (
-                    <DestructiveAction
-                      trigger={
-                        <Button type="button" size="sm" variant="ghost" disabled={busy}>
-                          Desativar
+      <TableWrap>
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={<Stethoscope />}
+            title="Nenhum procedimento no catálogo"
+            description="A Agenda precisa de pelo menos um para criar atendimentos."
+            action={
+              <Button type="button" size="sm" onClick={startNew}>
+                Novo procedimento
+              </Button>
+            }
+          />
+        ) : (
+          <TableScroll>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Procedimento</TableHead>
+                  <TableHead numeric>Valor</TableHead>
+                  <TableHead numeric>Duração</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-mono text-(length:--fs-xs) text-fg-subtle">
+                      {p.codigo}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <TableCellStack main={p.descricao} sub={p.categoria ?? undefined} />
+                        {!p.ativo ? <Badge tone="gray">Inativo</Badge> : null}
+                      </div>
+                    </TableCell>
+                    <TableCell numeric>{brl(p.valorPadrao)}</TableCell>
+                    <TableCell numeric>{p.duracaoPadraoMin} min</TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEdit(p)}
+                        >
+                          Editar
                         </Button>
-                      }
-                      title={`Desativar “${p.descricao}”`}
-                      description="O procedimento deixa de aparecer em novos agendamentos. Atendimentos existentes não são alterados."
-                      confirmLabel="Desativar procedimento"
-                      cancelLabel="Manter ativo"
-                      disabled={busy}
-                      action={async () => {
-                        await deactivateProcedure(p.id, uuidv4());
-                        router.refresh();
-                      }}
-                      onError={(error) =>
-                        toast.error(error instanceof Error ? error.message : 'Erro ao desativar.')
-                      }
-                    />
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => reactivate(p)}
-                      disabled={busy}
-                    >
-                      Reativar
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+                        {p.ativo ? (
+                          <DestructiveAction
+                            trigger={
+                              <Button type="button" size="sm" variant="ghost" disabled={busy}>
+                                Desativar
+                              </Button>
+                            }
+                            title={`Desativar “${p.descricao}”`}
+                            description="O procedimento deixa de aparecer em novos agendamentos. Atendimentos existentes não são alterados."
+                            confirmLabel="Desativar procedimento"
+                            cancelLabel="Manter ativo"
+                            disabled={busy}
+                            action={async () => {
+                              await deactivateProcedure(p.id, uuidv4());
+                              router.refresh();
+                            }}
+                            onError={(error) =>
+                              toast.error(
+                                error instanceof Error ? error.message : 'Erro ao desativar.',
+                              )
+                            }
+                          />
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => reactivate(p)}
+                            disabled={busy}
+                          >
+                            Reativar
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableScroll>
+        )}
+      </TableWrap>
     </div>
   );
 }
