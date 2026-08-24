@@ -34,7 +34,7 @@ const COVERAGE: Array<{
   {
     route: '/configuracoes',
     source: '(app)/(shell)/configuracoes/loading.tsx',
-    variant: 'detail',
+    variant: 'cards',
     Loading: ConfiguracoesLoading,
   },
   {

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import type { ComponentProps } from 'react';
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/link', () => ({
@@ -77,5 +77,29 @@ describe('menu do usuário no rodapé', () => {
     render(<SidebarUserMenu {...base} />);
     expect(screen.queryByText('Tema claro')).toBeNull();
     expect(screen.queryByText('Sair')).toBeNull();
+  });
+
+  /**
+   * O Perfil da clínica só existe no menu para quem tem `manage:settings` — o
+   * layout do shell decide isso e simplesmente não passa o destino.
+   */
+  it('só oferece o perfil da clínica quando o shell informa o destino', async () => {
+    const abrir = () => {
+      const gatilho = screen.getByRole('button', { name: /Olívia Owner/ });
+      gatilho.focus();
+      fireEvent.keyDown(gatilho, { key: 'Enter' });
+    };
+
+    const { unmount } = render(<SidebarUserMenu {...base} />);
+    abrir();
+    expect(await screen.findByRole('menuitem', { name: 'Sair' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Perfil da clínica' })).toBeNull();
+    unmount();
+
+    render(<SidebarUserMenu {...base} clinicSettingsHref="/configuracoes/perfil" />);
+    abrir();
+    expect(
+      (await screen.findByRole('menuitem', { name: 'Perfil da clínica' })).getAttribute('href'),
+    ).toBe('/configuracoes/perfil');
   });
 });

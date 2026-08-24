@@ -554,33 +554,43 @@ O gate mecânico vive em `src/app/design-contract.test.ts` e roda junto da suít
 A rota era um `redirect` para a primeira configuração acessível, com a navegação numa **barra
 lateral própria** ao lado da global. Duas hierarquias permanentes para responder uma pergunta só.
 
-A primeira tentativa trocou isso por um hub em linhas na própria `/configuracoes`. O founder
-revisou o preview e cortou: quem abre Configurações quer editar a clínica, não ler um índice.
-**A barra virou o hub.**
+Chegou ao desenho atual por quatro revisões do founder, e vale registrar as que foram descartadas
+porque cada uma ensinou algo:
 
-| O que saiu | O que entrou |
+| Tentativa | Por que caiu |
 | --- | --- |
-| `settings-nav.tsx` antigo — `<aside>` em grade `13.5rem` | `settings-nav.tsx` — diretório horizontal completo, no `layout.tsx` |
-| Hub em linhas + visão geral (`settings-item.tsx`) | `page.tsx` volta a redirecionar, agora para o Perfil da clínica |
-| `settings-status.ts`, `settings-data.ts` | — (os status viviam nas linhas; sem linhas, sem casa) |
-| Modo de página `form` (960px) | Todas as rotas na mesma régua que `/dashboard` |
-| `enroll-flow.tsx` | `security-dialog.tsx` — ativação do TOTP em diálogo |
+| Hub em linhas em `/configuracoes` | "Quem abre Configurações quer editar a clínica, não ler um índice" |
+| Barra de dois níveis (6 categorias + itens da ativa) | Na página inicial da seção, Clínica tinha um item só — a barra mostrava seis palavras e escondia onze destinos |
+| Diretório agrupado com os 13 destinos sempre visíveis | Forma de rodapé de site colada no topo; nenhuma outra tela do app tinha aquilo, e vinha ANTES do título da página |
 
-Os treze destinos ficam visíveis o tempo todo, agrupados por categoria numa grade que quebra
-linha (`auto-fit, minmax(11rem, 1fr)`) — a coluna antiga deitada na horizontal. Abaixo de `sm`,
-um menu.
+O desenho final segue o padrão do Asaas, escolhido pelo founder num preview lado a lado:
+**categorias como abas com ícone no topo, e o conteúdo de cada categoria como cards.**
 
-Houve uma versão intermediária de dois níveis: seis categorias em cima, os destinos da categoria
-ativa embaixo. Ela **reprovou na revisão** e o motivo está medido: na página inicial da seção
-(Perfil) a categoria Clínica tem um item só, então a barra mostrava seis palavras e nada mais —
-onze destinos que a coluna antiga listava o tempo todo sumiram da tela. Densidade não vale
-esconder configuração numa tela de configurações.
+```
+/configuracoes            redireciona para a 1ª categoria acessível
+/configuracoes/agenda     Horários · Procedimentos · Salas e equipamentos
+/configuracoes/canais-ia  WhatsApp (com status real) · Agente de IA
+/configuracoes/gestao     Equipe · Financeiro · Assinatura
+/configuracoes/seguranca  LGPD · Auditoria · Segurança da conta
+/configuracoes/produto    Sugestões
+```
 
-A trilha `Configurações › X` voltou às dez sub-páginas (o botão "Voltar" não: ele levava ao
-Perfil, não "de volta"). E `/account/security`, que é um dos treze mas vive fora de
-`/configuracoes`, monta a barra por conta própria — sem isso, chegar lá pela barra era um beco
-sem saída. `/equipe` e `/financeiro` seguem sem ela de propósito: são módulos com entrada
-própria na navegação global, não configurações.
+As doze rotas de destino não mudaram de lugar. As cinco rotas de categoria são cascas finas sobre
+`SettingsCategoryPage`; quem decide o que aparece é o mesmo mapa que desenha as abas.
+
+### Três restrições que a implementação impôs
+
+**Ícone não atravessa a fronteira RSC.** Cada categoria carrega um `LucideIcon`, que é um
+componente React e não é serializável como prop de servidor para cliente. A barra (client) importa
+`SETTINGS_NAVIGATION` e recebe do servidor apenas `visibleHrefs: string[]` — as strings que decidem
+o que aparece.
+
+**Sem fallback na aba ativa.** `/configuracoes/perfil` chega pelo menu do rodapé da sidebar e não
+pertence a categoria nenhuma. Marcar a primeira aba ali diria ao operador que ele está num lugar
+onde não está.
+
+**Categoria sem destino visível responde 404.** Se a aba não foi desenhada para aquela pessoa, a
+rota não existe para ela — página vazia seria pior que ausência.
 
 ### Larguras
 
@@ -588,6 +598,33 @@ própria na navegação global, não configurações.
 enquanto o resto do app roda em 1440px. O efeito medido no preview: o `h1` de Configurações
 começava em **x=400**, o de Pacientes em **x=288** — 112px de recuo a mais, na mesma sidebar.
 O modo `form` foi removido; os formulários de dentro já se limitam sozinhos.
+
+### Telas internas fora do DS antigo
+
+Quatro arquivos concentravam o legado, com ZERO uso do `Field` — e um deles era a tela que se
+abria por padrão:
+
+| arquivo | cardblock | label cru | h4 | Field |
+| --- | ---: | ---: | ---: | ---: |
+| `perfil-form.tsx` | 2 | 5 | 2 | 0 |
+| `professional-credential-form.tsx` | 1 | 3 | 1 | 0 |
+| `procedures-manager.tsx` | 2 | 3 | 1 | 0 |
+| `resources-manager.tsx` | 2 | 1 | 0 | 0 |
+
+`agente`, `horarios` e `lgpd` já tinham migrado — daí a aba parecer costurada de dois sistemas.
+Hoje não sobra `cardblock`, `stack`, `listrows` nem `style` inline em nenhuma tela de
+configurações. A migração expôs P-17 em Procedimentos e Recursos (código, descrição, categoria,
+nome e tipo eram identificados só pelo placeholder, que some ao digitar) e um
+`bg-surface-subtle` que nunca existiu como token — a moldura da logo estava sem fundo desde sempre.
+
+### Perfil da clínica e 2FA
+
+`Perfil da clínica` saiu das abas e vive no menu do rodapé da sidebar, ao lado de `Segurança da
+conta`; só aparece com `manage:settings` — o layout do shell decide e simplesmente não passa o
+destino. A ativação do TOTP virou diálogo (`security-dialog.tsx`), absorvendo `enroll-flow.tsx`.
+A rota `/account/security` permanece: o middleware a libera pré-MFA e `postLoginRedirect` manda o
+super_admin sem 2FA para lá. A REMOÇÃO do fator continua na página, porque exige AAL2 e comunica
+falha por redirect com query param.
 
 ### Achado fora do redesign
 
@@ -597,34 +634,9 @@ A mesma varredura achou `ProntuÃ¡rio` num regex de `e2e/production-permission-
 que por isso nunca casava com o heading real. Ambos corrigidos; nenhum outro arquivo do repo tem
 o padrão.
 
-### Verificação no preview
-
-| largura | fileiras da barra | altura | destinos | overflow horizontal |
-| --- | ---: | ---: | ---: | --- |
-| 1440 | 1 | 128px | 13 | não |
-| 1280 | 1 | 128px | 13 | não |
-| 768 | 2 (3×2) | 221px | 13 | não |
-| 390 | menu | 40px | 13 | não |
-
-`h1` em x=288 em todas as rotas de configuração — o mesmo de `/dashboard` e `/pacientes`. As treze
-rotas respondem 200, com o heading certo e sem "Sem acesso"; `/equipe` e `/financeiro` são as duas
-únicas sem a barra, por serem módulos com entrada própria na navegação global.
-
-Colunas fixas (3 em `sm`, 6 em `xl`) em vez de `auto-fit`: com largura mínima o navegador cabia
-cinco colunas em 1440px e jogava a sexta categoria sozinha numa fileira, com um vazio ao lado.
-3 e 6 dividem seis grupos exatamente.
-
-**O diálogo de 2FA não foi aberto no preview.** Clicar em "Ativar TOTP" cria um fator TOTP na
-conta de teste, e o preview não expõe ao cliente qual projeto Supabase usa (a autenticação passa
-por Server Action), então não deu para confirmar isolamento da produção no momento da revisão.
-Estrutura coberta por `security-dialog.test.tsx`; a verificação ao vivo fica pendente de
-confirmação de que o Supabase de preview é descartável.
-
 ### Pendência conhecida na aba
 
-`procedimentos/procedures-manager.tsx` e `recursos/resources-manager.tsx` ainda montam a lista com
-`.listrows`/`.listrow` do `app-shell.css` e um `<select>` cru em vez do `Select` do DS. Não é a
-mesma classe de problema que o resto da wave: `.cardblock` e o `Card` do DS renderizam idênticos
-(mesmo `--r-lg`, mesma borda, mesmo fundo — só 24px contra 20px de padding), mas as linhas de
-lista não têm equivalente e trocá-las mexe na estrutura, não no estilo. Fica para uma passada
-própria.
+Nenhuma no CSS. O que resta é a verificação ao vivo do diálogo de 2FA: clicar em "Ativar TOTP"
+cria um fator TOTP na conta de teste, e o preview não expõe ao cliente qual projeto Supabase usa
+(a autenticação passa por Server Action), então não deu para confirmar isolamento da produção.
+Estrutura coberta por `security-dialog.test.tsx`.

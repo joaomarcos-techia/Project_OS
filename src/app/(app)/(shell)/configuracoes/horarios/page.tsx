@@ -23,7 +23,7 @@ export default async function HorariosPage() {
   if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {
     return (
       <div>
-        <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Horários' }]} title="Horários" />
+        <PageHeader crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Horários' }]} title="Horários" />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar horários de atendimento.
         </Alert>
@@ -46,7 +46,7 @@ export default async function HorariosPage() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Horários' }]}
+      <PageHeader crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Horários' }]}
         title="Horários de atendimento"
         description="Disponibilidade semanal dos profissionais e feriados — base da agenda e dos horários livres."
       />

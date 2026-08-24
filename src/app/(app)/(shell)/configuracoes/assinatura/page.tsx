@@ -17,7 +17,7 @@ export default async function AssinaturaPage() {
     return (
       <>
         <PageHeader
-          crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Assinatura' }]}
+          crumbs={[{ label: 'Gestão', href: '/configuracoes/gestao' }, { label: 'Assinatura' }]}
           title="Assinatura"
           description="Compare planos, acompanhe limites e altere sua assinatura com segurança."
         />
@@ -36,7 +36,7 @@ export default async function AssinaturaPage() {
     return (
       <>
         <PageHeader
-          crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Assinatura' }]}
+          crumbs={[{ label: 'Gestão', href: '/configuracoes/gestao' }, { label: 'Assinatura' }]}
           title="Assinatura"
           description="Compare planos, acompanhe limites e altere sua assinatura com segurança."
         />
@@ -51,7 +51,7 @@ export default async function AssinaturaPage() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Assinatura' }]}
+        crumbs={[{ label: 'Gestão', href: '/configuracoes/gestao' }, { label: 'Assinatura' }]}
         title="Assinatura"
         description="Compare planos, acompanhe limites e altere sua assinatura com segurança."
       />

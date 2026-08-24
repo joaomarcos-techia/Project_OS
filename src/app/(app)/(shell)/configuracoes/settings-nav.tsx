@@ -3,80 +3,66 @@
 import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useId } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/ui/cn';
 
-import type { SettingsNavGroup, SettingsNavItem } from './settings-navigation';
-
-export function isSettingsItemActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+import { SETTINGS_NAVIGATION, groupOf } from './settings-navigation';
 
 /**
- * Navegação das configurações — o diretório completo, no topo de toda página da
- * seção. É ela que faz o papel de hub.
+ * Abas das configurações — uma por categoria, no topo de toda página da seção.
  *
- * Todos os treze destinos ficam visíveis o tempo todo, agrupados por categoria.
- * Isto é deliberado e custa altura: a versão anterior mostrava só as seis
- * categorias e revelava os itens de uma por vez, e o efeito prático foi
- * configurações sumirem da tela — na página inicial da seção (Perfil), a
- * categoria Clínica tem um item só, então não havia nada abaixo das categorias.
- * Descoberta rápida vem antes de economia de pixel numa tela de ajustes.
- *
- * Horizontal, e não uma coluna: o Qoro já tem UMA navegação lateral, e empilhar
- * outra hierarquia permanente ao lado dela transforma "onde eu configuro isso?"
- * em duas perguntas.
- *
- * Abaixo de `sm` o diretório vira menu — seis colunas viram seis fileiras e
- * comeriam a tela inteira antes do conteúdo. Só uma das formas existe na árvore
- * de acessibilidade por vez (`display:none` remove a outra).
+ * Recebe apenas os hrefs que a pessoa pode abrir, e não os grupos inteiros, por
+ * uma razão de arquitetura e não de gosto: cada categoria carrega um ícone, que
+ * é um COMPONENTE React e não atravessa a fronteira servidor→cliente como prop.
+ * O mapa é importado aqui e filtrado localmente; o servidor manda só a lista de
+ * strings que decidem o que aparece.
  */
-export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
+export function SettingsNav({ visibleHrefs }: { visibleHrefs: string[] }) {
   const pathname = usePathname();
-  const uid = useId();
+  const permitido = new Set(visibleHrefs);
+
+  const groups = SETTINGS_NAVIGATION.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => permitido.has(item.href)),
+  })).filter((group) => group.items.length > 0);
+
   if (groups.length === 0) return null;
 
-  const activeItem = groups
-    .flatMap((group) => group.items)
-    .find((item) => isSettingsItemActive(pathname, item.href));
+  // Sem fallback para a primeira aba: `/configuracoes/perfil` chega pelo menu
+  // do rodapé e não pertence a categoria nenhuma. Marcar `Agenda` ali seria
+  // dizer ao operador que ele está num lugar onde não está.
+  const active = groupOf(groups, pathname);
 
   return (
-    <nav aria-label="Configurações" className="mb-(--sp-5) min-w-0">
-      {/* Colunas fixas, nao `auto-fit`: com largura minima o navegador cabia
-          cinco colunas em 1440px e jogava a sexta categoria sozinha para uma
-          segunda fileira, com um vazio do lado. 3 ou 6 divide os seis grupos
-          exatamente, em qualquer largura. */}
-      <div className="hidden gap-x-(--sp-5) gap-y-(--sp-4) border-b border-border pb-(--sp-4) sm:grid sm:grid-cols-3 xl:grid-cols-6">
-        {groups.map((group, index) => {
-          // Rótulo de grupo como texto + `aria-labelledby`, não <h2>: a barra
-          // vem ANTES do <h1> da página, e seis h2 aqui inverteriam o esqueleto
-          // de títulos que o leitor de tela usa para navegar.
-          const labelId = `${uid}-${index}`;
+    <nav aria-label="Configurações" className="mb-(--sp-6) min-w-0">
+      <div className="hidden flex-wrap gap-0.5 border-b border-border sm:flex">
+        {groups.map((group) => {
+          const Icon = group.icon;
+          const on = group === active;
           return (
-            <div key={group.label} className="min-w-0">
-              <p
-                id={labelId}
-                className="mb-1.5 text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase"
-              >
-                {group.label}
-              </p>
-              <ul aria-labelledby={labelId} className="flex flex-col gap-1">
-                {group.items.map((item) => (
-                  <li key={item.href} className="min-w-0">
-                    <NavItem item={item} active={item === activeItem} />
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <Link
+              key={group.id}
+              href={`/configuracoes/${group.id}`}
+              aria-current={on ? 'page' : undefined}
+              className={cn(
+                'relative inline-flex items-center gap-2 rounded-t-(--r-sm) px-3 py-3 text-(length:--fs-body-sm) font-medium whitespace-nowrap',
+                'transition-colors duration-(--dur-fast) focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
+                'after:absolute after:right-2.5 after:-bottom-px after:left-2.5 after:h-0.5 after:rounded-t-full after:bg-primary after:transition-opacity',
+                on
+                  ? 'text-primary after:opacity-100'
+                  : 'text-fg-muted after:opacity-0 hover:text-fg',
+              )}
+            >
+              <Icon aria-hidden="true" className="size-4 shrink-0" />
+              {group.label}
+            </Link>
           );
         })}
       </div>
@@ -85,54 +71,29 @@ export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="subtle" size="sm" className="w-full justify-between">
-              {activeItem?.label ?? 'Configurações'}
+              {active?.label ?? 'Configurações'}
               <ChevronDown aria-hidden="true" className="size-4 text-fg-subtle" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="max-h-[70vh] w-(--radix-dropdown-menu-trigger-width) overflow-y-auto"
-          >
-            {groups.map((group) => (
-              <div key={group.label}>
-                <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-                {group.items.map((item) => (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <Link
-                      href={item.href}
-                      aria-current={item === activeItem ? 'page' : undefined}
-                      className={cn(item === activeItem && 'font-medium text-fg')}
-                    >
-                      {item.label}
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
-              </div>
-            ))}
+          <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
+            {groups.map((group) => {
+              const Icon = group.icon;
+              return (
+                <DropdownMenuItem key={group.id} asChild>
+                  <Link
+                    href={`/configuracoes/${group.id}`}
+                    aria-current={group === active ? 'page' : undefined}
+                    className={cn(group === active && 'font-medium text-fg')}
+                  >
+                    <Icon />
+                    {group.label}
+                  </Link>
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </nav>
-  );
-}
-
-/**
- * Ativo por contraste e peso, sem preenchimento — mesma regra da navegação
- * principal. A pílula azul que existia aqui gritava mais alto que o menu que a
- * contém.
- */
-function NavItem({ item, active }: { item: SettingsNavItem; active: boolean }) {
-  return (
-    <Link
-      href={item.href}
-      aria-current={active ? 'page' : undefined}
-      className={cn(
-        'block truncate rounded-(--r-sm) text-(length:--fs-body-sm)',
-        'transition-colors duration-(--dur-fast) focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
-        active ? 'font-medium text-fg' : 'text-fg-muted hover:text-fg',
-      )}
-    >
-      {item.label}
-    </Link>
   );
 }

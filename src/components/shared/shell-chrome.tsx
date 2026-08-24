@@ -1,6 +1,15 @@
 'use client';
 
-import { ChevronsUpDown, Laptop, LogOut, Menu, Moon, ShieldCheck, Sun } from 'lucide-react';
+import {
+  Building2,
+  ChevronsUpDown,
+  Laptop,
+  LogOut,
+  Menu,
+  Moon,
+  ShieldCheck,
+  Sun,
+} from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -239,6 +248,7 @@ export function SidebarUserMenu({
   theme,
   onToggleTheme,
   accountHref,
+  clinicSettingsHref,
   logoutFormId,
 }: {
   userName: string;
@@ -247,6 +257,12 @@ export function SidebarUserMenu({
   theme: ThemePreference;
   onToggleTheme: () => void;
   accountHref?: string;
+  /**
+   * Perfil da clinica. So chega aqui com `manage:settings` — administrar a
+   * identidade da clinica e capacidade de gestor, e por isso o destino vive
+   * neste menu em vez de ocupar uma aba que todo mundo ve.
+   */
+  clinicSettingsHref?: string;
   logoutFormId: string;
 }) {
   const face = themeFace(theme);
@@ -283,11 +299,19 @@ export function SidebarUserMenu({
         // fazia o menu vazar para fora da barra.
         className="w-(--radix-dropdown-menu-trigger-width)"
       >
+        {clinicSettingsHref ? (
+          <DropdownMenuItem asChild>
+            <Link href={clinicSettingsHref}>
+              <Building2 />
+              Perfil da clínica
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         {accountHref ? (
           <DropdownMenuItem asChild>
             <Link href={accountHref}>
               <ShieldCheck />
-              Seguranca da conta
+              Segurança da conta
             </Link>
           </DropdownMenuItem>
         ) : null}

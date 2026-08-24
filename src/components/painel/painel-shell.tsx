@@ -31,10 +31,13 @@ export function PainelShell({
   children,
   userName = 'Você',
   userRole = '',
+  clinicSettingsHref,
 }: {
   children: ReactNode;
   userName?: string;
   userRole?: string;
+  /** Só vem preenchido para quem tem `manage:settings` (ver o layout do shell). */
+  clinicSettingsHref?: string;
 }) {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
@@ -129,6 +132,7 @@ export function PainelShell({
               theme={theme}
               onToggleTheme={toggle}
               accountHref="/account/security"
+              {...(clinicSettingsHref ? { clinicSettingsHref } : {})}
               logoutFormId="painel-logout"
             />
           </div>

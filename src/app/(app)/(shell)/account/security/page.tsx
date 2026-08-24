@@ -36,17 +36,17 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
   // ela. A barra é montada aqui à mão pelo mesmo mapa, com o mesmo filtro de
   // permissão. Em sessão pré-MFA (super_admin em AAL1) sobram só os destinos
   // sem permissão exigida — degrada, não quebra.
-  const settingsGroups = visibleSettingsNavigation(
+  const settingsHrefs = visibleSettingsNavigation(
     user.permissions,
     user.isSuperAdmin && user.aal === 'aal2',
-  );
+  ).flatMap((group) => group.items.map((item) => item.href));
 
   return (
     <div>
-      <SettingsNav groups={settingsGroups} />
+      <SettingsNav visibleHrefs={settingsHrefs} />
       <PageHeader
         crumbs={[
-          { label: 'Configurações', href: '/configuracoes' },
+          { label: 'Conformidade e segurança', href: '/configuracoes/seguranca' },
           { label: 'Segurança da conta' },
         ]}
         title="Segurança da conta"
