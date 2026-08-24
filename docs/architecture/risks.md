@@ -16,20 +16,23 @@ Código e artefatos gerados (`arch-metrics.json`, `context-map.mmd`). Cada risco
 
 ---
 
-## R1 · Feature flag por clínica não existe — `ALTA`
+## R1 · Feature flag por clínica não existe — `RESOLVIDO (2026-08-19)`
 
 **Evidência:** `src/lib/db/schema/infra/platform-settings.ts` — a tabela `platform_settings` é
 **global** ("flags/kill-switches GLOBAIS da plataforma (não-tenant)"), sem `clinic_id`, com allowlist
 de duas chaves (`proactive_jobs.enabled`, `ai_agent.mode`). Não há nenhum mecanismo de flag por tenant.
 
-**Consequência:** o `qorov2.md` §0.7 lista "Feature Flags · por clínica" como arquitetura protegida
-**existente**, e o §18 prevê rollout `1 → 5 → 25% → 100%`. Nenhum dos dois tem suporte hoje. O gating
-por clínica que existe na prática é **coluna booleana em tabela do próprio domínio** (é assim que o
-ADR-049 propõe `clinic_deposit_policy.enabled`).
+**Consequência (achado original):** o `qorov2.md` §0.7 listava "Feature Flags · por clínica" como
+arquitetura protegida **existente**, e o §18 previa rollout `1 → 5 → 25% → 100%`. Nenhum dos dois tinha
+suporte. O gating por clínica que existe na prática é **coluna booleana em tabela do próprio domínio**.
 
-**Decisão pendente (antes da sub-fase 1.2):** ou (a) aceitar o padrão atual — booleano por domínio +
-lista manual de clínicas na onda, ajustando o §18; ou (b) criar mecanismo de flag por tenant, o que
-exige **ADR próprio** (é arquitetura protegida nova, §0.7).
+**Decisão (2026-08-19):** adotado (a) — o gate por clínica é **coluna booleana no schema do próprio
+domínio**, default `false` (`clinic_deposit_policy.enabled`, já previsto no ADR-049). O `qorov2.md` §0.7
+passou a descrever os dois mecanismos reais (global via `platform_settings`, por clínica via coluna) e o
+§18 virou **ondas nominais por clínica**, sem percentual. Rollback = `enabled = false`, sem deploy.
+
+Flag genérica por tenant fica adiada até existir base de clientes que torne rollout percentual
+significativo — e exigirá **ADR próprio** (§0.7).
 
 ## R2 · `arch:check` roda praticamente cego — `ALTA`
 
@@ -142,7 +145,6 @@ catálogo onde `publishEvent` roda. Gera arestas `lib:db → context:*` no grafo
 
 | Quando | ADR | Motivo |
 | --- | --- | --- |
-| antes de **1.2** | flag por clínica **ou** emenda ao §18 | R1 — o mecanismo assumido não existe |
 | P1 (Camada 2) | integração Memed | dependência externa com contrato, custo e requisito regulatório (spike 2.2.0 antes) |
 | P2 (Camada 3) | conselho genérico (`crm` → `conselho/registro/uf`) | destrava psicólogo; mexe em identidade profissional |
 | P2 (Camada 3) | pacote/mensalidade por paciente | cobrança recorrente de paciente — modelo novo de receita |

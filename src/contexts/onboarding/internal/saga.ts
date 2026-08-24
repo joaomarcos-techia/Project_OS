@@ -25,6 +25,12 @@ import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
+import {
+  asaasProvider,
+  BillingCircuitOpenError,
+  BillingProviderError,
+  BillingProviderUnreachableError,
+} from '@/lib/payments/asaas';
 
 /* eslint-disable boundaries/element-types -- saga de provisionamento: onboarding
    orquestra tenancy+identity+billing+ai (ADR-027). Escrita type-safe via schema. */
@@ -33,12 +39,6 @@ import { profiles } from '@/contexts/identity/schema';
 import { aiClinicConfig } from '@/contexts/ai-agent/schema';
 import { billingCustomers, subscriptions } from '@/contexts/billing/schema';
 import { BILLING_EVENTS } from '@/contexts/billing/events';
-import {
-  asaasProvider,
-  BillingCircuitOpenError,
-  BillingProviderError,
-  BillingProviderUnreachableError,
-} from '@/contexts/billing/internal/providers/asaas';
 /* eslint-enable boundaries/element-types */
 
 import { clinicInvites } from '../schema';

@@ -13,7 +13,7 @@ vi.mock('@/lib/env', () => ({
 }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
 
-import { __testing__, asaasProvider, BillingProviderError } from './asaas';
+import { __testing__, asaasProvider, BillingProviderError } from './index';
 
 beforeEach(() => {
   __testing__.resetCircuit();

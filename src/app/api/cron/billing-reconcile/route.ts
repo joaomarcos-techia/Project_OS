@@ -16,7 +16,7 @@ import { dbAdmin } from '@/lib/db';
 import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
-import { asaasProvider, BillingProviderError } from '@/contexts/billing/internal/providers/asaas';
+import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { applyScheduledPlanChange } from '@/contexts/billing/internal/plan-changes';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {

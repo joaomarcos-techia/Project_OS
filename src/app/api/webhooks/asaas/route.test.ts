@@ -12,7 +12,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type * as AsaasProviderModule from '@/contexts/billing/internal/providers/asaas';
+import type * as AsaasProviderModule from '@/lib/payments/asaas';
 
 const { transactionMock, getPayment, validateWebhookToken, emit } = vi.hoisted(() => ({
   transactionMock: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('@/lib/env', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   assertBillingWebhookReady: () => {},
 }));
-vi.mock('@/contexts/billing/internal/providers/asaas', async (orig) => {
+vi.mock('@/lib/payments/asaas', async (orig) => {
   const actual = await orig<typeof AsaasProviderModule>();
   return {
     ...actual,
@@ -74,7 +74,7 @@ import {
   markInvoiceRefunded,
   syncInvoiceFromProviderPayment,
 } from '@/contexts/billing/internal/subscriptions';
-import { BillingProviderError } from '@/contexts/billing/internal/providers/asaas';
+import { BillingProviderError } from '@/lib/payments/asaas';
 
 import { POST } from './route';
 

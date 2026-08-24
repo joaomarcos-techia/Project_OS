@@ -69,8 +69,10 @@ Estimar antes: **arquivos · linhas · contexts**. Excedeu **qualquer** limite �
 | RLS / Multi-tenancy | `lib/db/rls.ts`, `withTenant`, `tenantIdRef` | tudo tenant-scoped; `dbAdmin` só allowlist |
 | Audit Trail | `lib/audit` | ações sensíveis auditadas |
 | Idempotency | `lib/idempotency`, `external_reference` | handlers idempotentes |
-| Feature Flags | por clínica | feature nova nasce off |
+| Feature Flags (global) | `platform_settings` (`lib/platform-settings`) | kill-switch de plataforma; allowlist de chaves; escrita só por super-admin auditada |
+| Gate por clínica | **coluna booleana no schema do próprio domínio**, default `false` (ex.: `clinic_deposit_policy.enabled`) | feature nova nasce off por clínica |
 > Burlar qualquer um exige **ADR próprio aprovado** — nunca como efeito colateral.
+> **Não existe flag genérica por tenant** (D1, Camada -1). Criar uma exige ADR próprio, e só se justifica quando houver clínicas suficientes para rollout percentual significar algo. Até lá, o gate por clínica é a coluna do domínio.
 
 ### 0.8 SCOPE FREEZE + Discovery Log
 Iniciada a camada, **nenhum requisito novo entra nela**. Todo achado vai para o **Discovery Log** (`docs/discovery-log.md`) e é movido para **próxima camada** ou **backlog**. Exceção única: **bug crítico · vulnerabilidade crítica · risco financeiro crítico** (entra com registro + mini-ADR).
@@ -188,7 +190,15 @@ Validar em **vazio · populado (`seed:dev`) · volume (restore anonimizado)**, c
 Concluído só com: **ADR · docs · fluxograma · runbook (`docs/runbooks/`)** atualizados.
 
 ## 18. Rollout progressivo
-`interna → 1 clínica piloto (psiquiatra) → 5 → 25% → 100%`. Avanço só com observabilidade sem anomalia + zero incidente por N dias. Rollback = desligar flag na onda.
+**Ondas nominais, por clínica** — não percentuais (D1: não há flag por tenant, e com uma piloto "25%" não quer dizer nada):
+```
+onda 0  clínica interna de testes
+onda 1  1 clínica piloto (psiquiatra)
+onda 2  próximas clínicas, lista explícita
+onda 3  todas
+```
+Cada onda = ligar a coluna do domínio (`clinic_deposit_policy.enabled = true`) nas clínicas **nomeadas** da onda. Avanço só com observabilidade sem anomalia + zero incidente por N dias.
+**Rollback = `enabled = false` na clínica** — efeito imediato, sem deploy, sem migração reversa.
 
 ---
 

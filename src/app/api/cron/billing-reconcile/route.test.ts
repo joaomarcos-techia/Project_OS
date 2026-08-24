@@ -48,7 +48,7 @@ vi.mock('@/lib/db', () => ({
     update: () => ({ set: () => ({ where: async () => {} }) }),
   },
 }));
-vi.mock('@/contexts/billing/internal/providers/asaas', () => ({
+vi.mock('@/lib/payments/asaas', () => ({
   asaasProvider: { listSubscriptionPayments, getPayment, updateSubscription },
   // BILLING-002 — a rota distingue 404 (cobranca removida) de indisponibilidade.
   BillingProviderError: class BillingProviderError extends Error {
@@ -71,7 +71,7 @@ vi.mock('@/contexts/billing/internal/subscriptions', () => ({
   syncInvoiceFromProviderPayment,
 }));
 
-import { BillingProviderError } from '@/contexts/billing/internal/providers/asaas';
+import { BillingProviderError } from '@/lib/payments/asaas';
 
 import { GET } from './route';
 

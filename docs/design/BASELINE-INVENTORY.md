@@ -634,6 +634,22 @@ A mesma varredura achou `ProntuÃ¡rio` num regex de `e2e/production-permission-
 que por isso nunca casava com o heading real. Ambos corrigidos; nenhum outro arquivo do repo tem
 o padrão.
 
+### Verificação no preview
+
+As dezessete rotas da seção respondem 200, com o heading certo, sem "Sem acesso", e **a categoria
+correta marcada em cada uma** — inclusive `/account/security`, que vive fora de `/configuracoes` e
+monta a barra por conta própria, e `/configuracoes/perfil`, que corretamente não marca aba nenhuma.
+
+| largura | fileiras da barra | altura | abas | overflow horizontal |
+| --- | ---: | ---: | ---: | --- |
+| 1440 | 1 | 46px | 5 | não |
+| 1280 | 1 | 46px | 5 | não |
+| 768 | 1 | 46px | 5 | não |
+| 390 | menu | 40px | 5 | não |
+
+A barra saiu de 128px (diretório agrupado) para 46px. `h1` em x=288 em todas as rotas — o mesmo
+de `/dashboard` e `/pacientes`.
+
 ### Pendência conhecida na aba
 
 Nenhuma no CSS. O que resta é a verificação ao vivo do diálogo de 2FA: clicar em "Ativar TOTP"

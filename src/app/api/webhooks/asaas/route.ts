@@ -38,7 +38,7 @@ import {
   asaasProvider,
   BillingProviderError,
   type ProviderPayment,
-} from '@/contexts/billing/internal/providers/asaas';
+} from '@/lib/payments/asaas';
 import { applyPaidUpgradeForPayment } from '@/contexts/billing/internal/plan-changes';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {

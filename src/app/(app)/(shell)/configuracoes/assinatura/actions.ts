@@ -9,7 +9,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { ensureUpgradePayment } from '@/contexts/billing/internal/plan-change-payment';
-import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
+import { asaasProvider } from '@/lib/payments/asaas';
 import {
   getSubscriptionReactivationContext,
   PlanChangeError,
