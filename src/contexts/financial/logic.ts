@@ -61,6 +61,49 @@ export function calcStatusPagamento(valor: number, valorPagoTotal: number): 'par
 }
 
 /** Tipo do lançamento de compensação (estorno) = oposto do original. */
+/**
+ * Como um lançamento NASCE quando já existe dinheiro alocado a ele
+ * (ADR-051 1.5b.2 — sinal pago antes do atendimento).
+ *
+ * Existe separado de `calcStatusPagamento` porque aquela função **nunca devolve
+ * `pendente`**: `calcStatusPagamento(200, 0)` responde `'parcial'`, o que estaria
+ * errado num lançamento sem nenhum pagamento. Ela assume que houve uma baixa;
+ * aqui o zero é um caso legítimo e frequente (a esmagadora maioria dos
+ * atendimentos não tem sinal).
+ */
+export function statusAoCriar(valor: number, valorPago: number): LancamentoStatus {
+  if (round2(valorPago) <= 0) return 'pendente';
+  return calcStatusPagamento(valor, valorPago);
+}
+
+/**
+ * Quanto de cada crédito é consumido, na ordem recebida, até cobrir o valor.
+ *
+ * Devolve alocação PARCIAL quando o crédito é maior que o saldo restante — não
+ * se descarta a sobra nem se aloca mais do que o lançamento vale (invariante 4
+ * do ADR-051: `valorPago` só cresce por dinheiro recebido E alocado). Na 1.5b a
+ * sobra não acontece (o sinal é percentual do valor), mas ela passa a existir no
+ * dia em que houver reajuste de valor ou pagamento misto — e nesse dia o
+ * comportamento tem de ser previsível, não uma surpresa.
+ */
+export function allocateCreditsTo(
+  valor: number,
+  creditos: readonly { id: string; amount: number }[],
+): { allocations: { id: string; amount: number }[]; total: number } {
+  const teto = round2(valor);
+  const allocations: { id: string; amount: number }[] = [];
+  let total = 0;
+  for (const credito of creditos) {
+    const restante = round2(teto - total);
+    if (restante <= 0) break;
+    const usar = round2(Math.min(restante, round2(credito.amount)));
+    if (usar <= 0) continue;
+    allocations.push({ id: credito.id, amount: usar });
+    total = round2(total + usar);
+  }
+  return { allocations, total };
+}
+
 export function estornoTipoOposto(tipo: LancamentoTipo): LancamentoTipo {
   return tipo === 'receber' ? 'pagar' : 'receber';
 }
