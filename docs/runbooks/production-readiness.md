@@ -26,7 +26,7 @@ Use somente `PASS`, `FAIL`, `BLOCKED` ou `NOT TESTED`, com data, commit, ambient
 | Backup | execução recente e restore isolado comprovado |
 | Browser E2E | roles, billing, agenda, clínico, financeiro e admin no candidato |
 
-## Crons agendados (15)
+## Crons agendados (16)
 
 O gate `check:observability` exige que esta lista acompanhe `vercel.json`:
 
@@ -36,6 +36,7 @@ O gate `check:observability` exige que esta lista acompanhe `vercel.json`:
 - `/api/cron/cash-flow-rollup`
 - `/api/cron/metrics-rollup`
 - `/api/cron/financial-reconcile`
+- `/api/cron/payments-deposit`
 - `/api/cron/data-retention`
 - `/api/cron/invites-cleanup`
 - `/api/cron/billing-dunning`
@@ -45,6 +46,7 @@ O gate `check:observability` exige que esta lista acompanhe `vercel.json`:
 - `/api/cron/proactive-dunning`
 - `/api/cron/proactive-followup`
 - `/api/cron/proactive-waitlist`
+- `/api/cron/proactive-deposit-link`
 
 Confirme heartbeats/efeitos de cada grupo; presença no manifesto não prova execução.
 

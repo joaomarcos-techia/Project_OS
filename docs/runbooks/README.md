@@ -15,6 +15,8 @@ Canonical index — procedimentos operacionais atuais.
 | LGPD/Storage | [C5](c5-validation.md) |
 | Clínico/Storage | [C7](c7-validation.md) |
 | Proatividade/WhatsApp | [C14](c14-validation.md) |
+| Cobrança do paciente (conta da clínica) | [payment account connect](payment-account-connect.md) |
+| Assinatura do Qoro (webhook da nossa conta) | [asaas webhook assinatura](asaas-webhook-assinatura.md) |
 | Incidente de provider/segurança | [incident response](incident-response.md) |
 | Backup/restore | [disaster recovery](disaster-recovery.md) |
 

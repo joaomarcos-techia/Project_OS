@@ -26,6 +26,28 @@ código: se o acoplamento mudou, regenere com `pnpm arch:graphs` e commite o dif
 
 O CI executa todos acima exceto `format:check`; inclui também `pnpm audit --prod --audit-level high`. Thresholds Vitest atuais: lines 29%, functions 41%, branches 74%, statements 29%.
 
+## Verificações contra o provedor real (sandbox)
+
+```bash
+pnpm billing:live-check     # assinatura, na conta do Qoro
+pnpm payments:live-check    # cobrança de PACIENTE, com chave de clínica (modelo B)
+```
+
+Não rodam no CI (precisam de credencial). São o único jeito de pegar regra de
+provedor que a documentação não conta — o `payments:live-check` nasceu achando três:
+mínimo de R$ 5,00 por cobrança, `email` obrigatório no webhook, e restrições de
+formato no `authToken`. Depois achou uma quarta, que teria custado caro: **cobrança
+apagada NÃO devolve 404** — o Asaas responde 200 com `deleted: true` e o `status`
+congelado no que era antes. Rode-os **antes de qualquer release que toque pagamento**.
+
+`payments:live-check` recusa chave que não seja de sandbox: ele CRIA cobranças.
+
+Um passo pode aparecer como **`n/v`** (não verificável) em vez de `ok` ou `FALHA`:
+é o caso em que o ambiente não permite provar o caminho — hoje, o estorno de uma
+cobrança efetivamente paga, porque a conta de sandbox recusa simular recebimento.
+Ele não conta como falha (vermelho permanente treina todo mundo a ignorar vermelho)
+e **não vira verde** (check verde forjado é pior: passa a impressão de prova).
+
 ## Testes focados
 
 ```bash

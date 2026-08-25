@@ -4,7 +4,7 @@
 
 Reference — inventário verificado por `pnpm check:observability`.
 
-## Crons (15)
+## Crons (17)
 
 | Rota | Owner funcional |
 | --- | --- |
@@ -14,6 +14,7 @@ Reference — inventário verificado por `pnpm check:observability`.
 | `/api/cron/cash-flow-rollup` | financial |
 | `/api/cron/metrics-rollup` | observabilidade |
 | `/api/cron/financial-reconcile` | financial |
+| `/api/cron/payments-deposit` | payments |
 | `/api/cron/data-retention` | plataforma |
 | `/api/cron/invites-cleanup` | onboarding |
 | `/api/cron/billing-dunning` | billing |
@@ -23,6 +24,7 @@ Reference — inventário verificado por `pnpm check:observability`.
 | `/api/cron/proactive-dunning` | financial/messaging |
 | `/api/cron/proactive-followup` | AI/messaging |
 | `/api/cron/proactive-waitlist` | scheduling/messaging |
+| `/api/cron/proactive-deposit-link` | payments/messaging |
 
 Horários vivem exclusivamente em `vercel.json`. Autorização comum em `withCron`; heartbeats ficam em `cron_heartbeats`.
 
