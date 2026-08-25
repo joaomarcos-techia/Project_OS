@@ -1,0 +1,173 @@
+/**
+ * Webhook Asaas do PACIENTE (ADR-049 1.4). Irmão do `/api/webhooks/asaas`, que é
+ * da conta do Qoro (assinatura) — este é da conta DA CLÍNICA (sinal).
+ *
+ * MODELO DE CONFIANÇA (o mesmo "A2", e vale repetir porque é o que sustenta tudo):
+ * o Asaas não assina o corpo. A única prova é um token compartilhado. Logo o corpo
+ * é uma NOTIFICAÇÃO, não um dado: dele saem apenas identificadores. Status e valor
+ * vêm de `getPayment()` **com a chave daquela clínica** — quem tiver o token não
+ * consegue fazer a API do Asaas mentir. Sem isso, um `PAYMENT_RECEIVED` forjado
+ * confirmaria um agendamento sem ninguém ter pago.
+ *
+ * O que é diferente do webhook de assinatura, e por quê:
+ *   - **cada clínica tem sua URL** (`/patient/<webhook_ref>`) e seu token. Uma
+ *     conta é de um cliente; o token não pode ser compartilhado entre clínicas;
+ *   - o `ref` é ENDEREÇO, não segredo, e **não é o `clinic_id`** — id de tenant em
+ *     URL pública vira oráculo de enumeração;
+ *   - **404 para todo ref que não resolve**, sem distinguir "não existe" de "sem
+ *     token": distinguir transformaria a rota num oráculo de refs válidos;
+ *   - dedup por `(clinic_id, asaas_event_id)`: os emissores são N contas
+ *     diferentes, e nada garante que dois provedores nunca repitam um id.
+ *
+ * Ordem inviolável (a mesma do irmão):
+ *   0. size guard → 413.
+ *   1. resolver o ref → 404 se não resolver.
+ *   2. validar token da CLÍNICA (constant-time) → 401.
+ *   3. parse → só ids → 400 sem `body.id`.
+ *   4. getPayment FORA de transação (tx atravessando HTTP prende conexão).
+ *   5. transação: dedup + conciliação + evento, atômicos.
+ *   6. 200 sempre que aceito; ≠2xx faz o Asaas re-entregar.
+ */
+import { buildRequestContext } from '@/lib/audit/request-context';
+import { captureBackgroundError } from '@/lib/observability/capture';
+import { runWithContext } from '@/lib/observability/context';
+import { metrics } from '@/lib/observability/metrics';
+import { resolvePatientWebhookAccount } from '@/lib/payments/account-store';
+import { safeEqual } from '@/lib/auth/secret-compare';
+import type { ProviderPayment } from '@/lib/payments/asaas';
+
+import { markDepositPaid } from '@/contexts/payments/internal/charge-store';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
+
+const MAX_WEBHOOK_BYTES = 1_000_000;
+const FLOW = 'payments.webhook';
+
+/**
+ * Status do provider → ação. Mesma tabela do webhook de assinatura, de propósito:
+ * se os dois discordarem, um desfaz o outro. O `event` do corpo é só rótulo.
+ */
+function isPaid(status: string): boolean {
+  return status === 'RECEIVED' || status === 'CONFIRMED' || status === 'RECEIVED_IN_CASH';
+}
+
+export async function POST(
+  req: Request,
+  context: { params: Promise<{ ref: string }> },
+): Promise<Response> {
+  const { requestId } = buildRequestContext(req.headers);
+  return runWithContext({ requestId, flow: FLOW }, () => handlePatientWebhook(req, context));
+}
+
+async function handlePatientWebhook(
+  req: Request,
+  context: { params: Promise<{ ref: string }> },
+): Promise<Response> {
+  // 0. size guard — antes de qualquer trabalho.
+  const contentLength = Number(req.headers.get('content-length') ?? '0');
+  if (Number.isFinite(contentLength) && contentLength > MAX_WEBHOOK_BYTES) {
+    metrics.emit('payments.webhook.oversized', { contentLength });
+    return new Response('payload too large', { status: 413 });
+  }
+
+  const { ref } = await context.params;
+  // Formato antes do banco: um `ref` que nem parece uuid não merece uma query.
+  if (!/^[0-9a-fA-F-]{36}$/.test(ref)) {
+    metrics.emit('payments.webhook.unknown_ref', {});
+    return new Response('not found', { status: 404 });
+  }
+
+  const raw = await req.text();
+  if (Buffer.byteLength(raw, 'utf8') > MAX_WEBHOOK_BYTES) {
+    return new Response('payload too large', { status: 413 });
+  }
+
+  // 1. resolver a clínica. 404 para TODO caso que não resolve — não existe, conta
+  // inativa, sem chave ou sem token dão a mesma resposta.
+  const account = await resolvePatientWebhookAccount(ref);
+  if (!account) {
+    metrics.emit('payments.webhook.unknown_ref', {});
+    return new Response('not found', { status: 404 });
+  }
+
+  // 2. token DESTA clínica, constant-time.
+  if (!safeEqual(req.headers.get('asaas-access-token'), account.webhookToken)) {
+    metrics.emit('payments.webhook.invalid_token', { clinicId: account.clinicId });
+    return new Response('invalid token', { status: 401 });
+  }
+
+  // 3. parse — só identificadores.
+  let parsed: ReturnType<typeof account.client.parseWebhook>;
+  try {
+    parsed = account.client.parseWebhook(raw);
+  } catch (err) {
+    metrics.emit('payments.webhook.unparseable', {
+      clinicId: account.clinicId,
+      code: err instanceof Error ? err.name : 'unknown',
+    });
+    return new Response('bad request', { status: 400 });
+  }
+
+  metrics.emit('payments.webhook.received', {
+    clinicId: account.clinicId,
+    event: parsed.event,
+  });
+
+  if (!parsed.paymentId) {
+    return Response.json({ received: true }, { status: 200 });
+  }
+
+  // 4. verify — a fonte da verdade, fora da transação. `attempts: 1` mantém o teto
+  // dentro do maxDuration; não re-tentar aqui é seguro porque o Asaas re-entrega
+  // em ≠2xx.
+  const t0 = Date.now();
+  let payment: ProviderPayment;
+  try {
+    payment = await account.client.getPayment(parsed.paymentId, { attempts: 1 });
+    metrics.emit('payments.webhook.verify', {
+      clinicId: account.clinicId,
+      duration_ms: Date.now() - t0,
+      outcome: 'ok',
+    });
+  } catch (err) {
+    metrics.emit('payments.webhook.verify', {
+      clinicId: account.clinicId,
+      duration_ms: Date.now() - t0,
+      outcome: err instanceof Error ? err.name : 'unknown',
+    });
+    // 500 (não 4xx): corpo que não confere é anomalia que merece re-entrega.
+    return new Response('verification failed', { status: 500 });
+  }
+
+  // Só o pagamento REAL decide. `PENDING`, `OVERDUE` e afins não movem nada aqui:
+  // quem libera a vaga não paga é a expiração do hold.
+  if (!isPaid(payment.status)) {
+    metrics.emit('payments.webhook.ignored', {
+      clinicId: account.clinicId,
+      status: payment.status,
+    });
+    return Response.json({ received: true }, { status: 200 });
+  }
+
+  // 5. dedup + conciliação + evento, atômicos.
+  try {
+    const outcome = await markDepositPaid({
+      clinicId: account.clinicId,
+      providerPaymentId: payment.paymentId,
+      asaasEventId: parsed.eventId,
+      eventType: parsed.event,
+      paidAt: new Date(),
+      // ADR-051 — vem do `getPayment` (fonte da verdade), nunca do corpo do
+      // webhook: é ele que vira a forma de pagamento da baixa no Caixa.
+      billingType: payment.billingType,
+    });
+    metrics.emit('payments.webhook.processed', { clinicId: account.clinicId, outcome });
+    return Response.json({ received: true, outcome }, { status: 200 });
+  } catch (err) {
+    captureBackgroundError(err, { flow: FLOW });
+    metrics.emit('payments.webhook.error', { clinicId: account.clinicId, error: err });
+    return new Response('internal', { status: 500 });
+  }
+}
