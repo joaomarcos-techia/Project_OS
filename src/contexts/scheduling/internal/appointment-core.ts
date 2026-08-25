@@ -90,7 +90,16 @@ function transitionPayload(
     case SCHEDULING_EVENTS.CANCELLED:
       return {
         eventType,
-        payload: { ...base, fromStatus: appt.status, toStatus: target, cancelReason, reason },
+        payload: {
+          ...base,
+          fromStatus: appt.status,
+          toStatus: target,
+          cancelReason,
+          reason,
+          // ADR-049 1.5: quem julga a janela de estorno é o Payments, no worker.
+          // O instante do cancelamento tem de viajar com o evento.
+          cancelledAt: new Date().toISOString(),
+        },
       };
     case SCHEDULING_EVENTS.NO_SHOW:
       return {
@@ -669,6 +678,7 @@ export async function rescheduleCore(
             toStatus: 'cancelado',
             cancelReason: 'reschedule' as const,
             reason: data.reason ?? null,
+            cancelledAt: new Date().toISOString(),
           },
           idempotencyKey: `${idempotencyKey}:cancelled`,
           correlationId,

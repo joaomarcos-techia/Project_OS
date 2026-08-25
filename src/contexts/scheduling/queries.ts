@@ -85,6 +85,8 @@ export function toAppointmentSummary(row: AppointmentRow): AppointmentSummary {
     createdVia: row.createdVia,
     urgencia: row.urgencia,
     faturamentoPendente: row.faturamentoPendente,
+    depositStatus: row.depositStatus,
+    holdExpiresAt: toIso(row.holdExpiresAt),
     observacoes: row.observacoes ?? null,
     rescheduledFromAppointmentId: row.rescheduledFromAppointmentId ?? null,
     recurrenceSeriesId: row.recurrenceSeriesId ?? null,

@@ -346,6 +346,13 @@ export interface SchedulableResourceDTO {
 
 export type AppointmentStatusDTO = (typeof APPOINTMENT_STATES)[number];
 
+/**
+ * ADR-049 — dimensao do SINAL, ORTOGONAL ao `status` (migration 0085). Um
+ * agendamento pode estar `agendado` com sinal pendente, pago ou vencido; quem
+ * move `status` continua sendo so a maquina de estados.
+ */
+export type AppointmentDepositStatusDTO = 'none' | 'pending' | 'paid' | 'expired' | 'refunded';
+
 /** Non-sensitive appointment projection (lists, audit, events, API). */
 export interface AppointmentSummary {
   id: string;
@@ -378,6 +385,14 @@ export interface AppointmentSummary {
   createdVia: CreatedVia;
   urgencia: boolean;
   faturamentoPendente: boolean;
+  /**
+   * ADR-049 1.6b — estado do sinal. As colunas existem desde a 0085, mas nao
+   * subiam para a projecao: a recepcao nao tinha como saber que a vaga estava
+   * SEGURADA aguardando pagamento, nem ate quando.
+   */
+  depositStatus: AppointmentDepositStatusDTO;
+  /** Ate quando a vaga fica segurada. Nao-nulo somente em `pending` (CHECK 0085). */
+  holdExpiresAt: string | null;
   observacoes: string | null;
   rescheduledFromAppointmentId: string | null;
   recurrenceSeriesId: string | null;

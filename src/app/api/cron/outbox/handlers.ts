@@ -66,4 +66,38 @@ import '@/contexts/ai-agent/proactive-jobs/internal/handlers/prontuario-signed';
 // "Oferta enviada" sem que nada tivesse sido enviado.
 import '@/contexts/ai-agent/proactive-jobs/internal/handlers/waitlist-offered';
 
+// ADR-049 1.3 — Payments criou a cobrança do sinal → a AGENDA segura a vaga.
+// O Payments não escreve `appointments` (regra R3); a projeção mora no Scheduling.
+import '@/contexts/scheduling/internal/handlers/patient-charge-created';
+
+// ADR-049 1.4 — sinal PAGO → a agenda confirma o agendamento (agendado→confirmado,
+// pela máquina congelada). Pagamento sobre agendamento já cancelado/expirado NÃO
+// ressuscita a vaga: registra e deixa para o estorno da 1.5.
+import '@/contexts/scheduling/internal/handlers/patient-charge-paid';
+
+// ADR-049 1.5 — ramos A e C. DETACHED nos dois: o corpo fala com o Asaas, e
+// chamada externa dentro da TX do worker prende conexão do pool.
+//   faltou     → sinal pago vira taxa retida; sinal não pago tem o LINK MORTO
+//                (senão a falta ainda gera pagamento dias depois);
+//   cancelado  → dentro da janela devolve; fora dela retém; sem pagamento, mata
+//                o link — inclusive o `deposit_expired`, cuja cobrança ficava
+//                `pending` para sempre porque a varredura só mexia na agenda.
+import '@/contexts/payments/internal/handlers/appointment-no-show';
+import '@/contexts/payments/internal/handlers/appointment-cancelled';
+// ADR-049 1.5 — desfecho da cobrança projetado na agenda (R3: o Payments publica,
+// a agenda escreve a própria coluna).
+import '@/contexts/scheduling/internal/handlers/patient-charge-closed';
+
+// ADR-049 1.6a — link do sinal pronto → entrega ao paciente pela fila C14.
+// A IA segue read-only em cobrança: o SISTEMA gera e a fila envia por template
+// aprovado; não há LLM em nenhum ponto deste caminho.
+import '@/contexts/ai-agent/proactive-jobs/internal/handlers/patient-charge-link-ready';
+
+// ADR-051 1.5b.1 — o dinheiro do paciente contado no FINANCIAL, que e a fonte da
+// verdade financeira. Eventos PROPRIOS do credito (`patient_credit.*`), e nao os
+// da cobranca: `patient_charge.paid`/`.closed` ja tem dono no Scheduling, e os
+// dois pares significam coisas diferentes para dominios diferentes.
+import '@/contexts/financial/internal/handlers/patient-credit-granted';
+import '@/contexts/financial/internal/handlers/patient-credit-released';
+
 export {};

@@ -725,6 +725,7 @@ export async function createDoctorAbsence(
                 toStatus: 'cancelado',
                 cancelReason: 'doctor_absence',
                 reason: data.reason,
+                cancelledAt: new Date().toISOString(),
               },
               idempotencyKey: `${idempotencyKey}:${appointment.id}:cancelled`,
               correlationId: ctx.correlationId ?? null,
