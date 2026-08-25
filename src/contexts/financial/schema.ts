@@ -185,6 +185,76 @@ export const lancamentos = pgTable(
 export type LancamentoRow = typeof lancamentos.$inferSelect;
 export type LancamentoInsert = typeof lancamentos.$inferInsert;
 
+// --- patient_credits (ADR-051 1.5b.1) ------------------------------------
+
+export const patientCreditKind = pgEnum('patient_credit_kind', ['deposit', 'remaining_payment']);
+export const patientCreditStatus = pgEnum('patient_credit_status', [
+  'available',
+  'allocated',
+  'refunded',
+  'retained',
+]);
+
+/**
+ * Dinheiro do paciente que chegou ANTES de existir a obrigacao (ADR-051 D3).
+ *
+ * O sinal e pago quando o agendamento e marcado; o `lancamento` do atendimento
+ * so nasce quando ele e concluido. `payment_transactions` nao serve para isso —
+ * `lancamento_id` e NOT NULL, ou seja, baixa nao existe sem lancamento. O credito
+ * e a representacao do intervalo entre as duas coisas.
+ *
+ * Mora no FINANCIAL, e nao no Payments, porque e ele a fonte da verdade
+ * financeira: `patient_charges` descreve tentativas de cobranca num gateway,
+ * nao obrigacoes. E quem le os creditos no faturamento le a PROPRIA tabela —
+ * e isso que mantem o Financial independente do modelo interno do Payments.
+ *
+ * `patientChargeId` NAO tem FK de proposito: e chave de idempotencia opaca vinda
+ * de outro context (ver a migration 0088).
+ */
+export const patientCredits = pgTable(
+  'patient_credits',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    patientId: uuid('patient_id'),
+    appointmentId: uuid('appointment_id'),
+    patientChargeId: uuid('patient_charge_id').notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    allocatedAmount: numeric('allocated_amount', { precision: 12, scale: 2 })
+      .notNull()
+      .default('0'),
+    allocatedLancamentoId: uuid('allocated_lancamento_id').references(() => lancamentos.id, {
+      onDelete: 'set null',
+    }),
+    kind: patientCreditKind('kind').notNull().default('deposit'),
+    status: patientCreditStatus('status').notNull().default('available'),
+    paymentMethod: text('payment_method').references(() => paymentMethods.code),
+    grantedAt: timestamp('granted_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    clinicIdx: index('patient_credits_clinic_idx').on(t.clinicId),
+    availableAppointmentIdx: index('patient_credits_available_appointment_idx').on(t.appointmentId),
+    chargeUniq: uniqueIndex('patient_credits_charge_uniq').on(t.clinicId, t.patientChargeId),
+    amountChk: check('patient_credits_amount_chk', sql`${t.amount} > 0`),
+    allocatedChk: check(
+      'patient_credits_allocated_chk',
+      sql`${t.allocatedAmount} >= 0 AND ${t.allocatedAmount} <= ${t.amount}`,
+    ),
+  }),
+);
+
+export type PatientCreditRow = typeof patientCredits.$inferSelect;
+export type PatientCreditInsert = typeof patientCredits.$inferInsert;
+
 // --- payment_transactions (ledger financeiro imutavel) -------------------
 
 export const paymentTransactions = pgTable(

@@ -1,0 +1,161 @@
+/**
+ * Créditos do paciente (ADR-051 1.5b.1) — dinheiro que chegou ANTES da obrigação.
+ *
+ * **Invariantes que este arquivo existe para sustentar** (ADR-051 §2.1):
+ *   1. `patient_charges` nunca é ledger financeiro — ele fica no Payments;
+ *   2. todo dinheiro confirmado antes de existir um lançamento existe aqui;
+ *   3. o lançamento do atendimento representa o valor BRUTO;
+ *   4. `valorPago` só cresce por dinheiro comprovadamente recebido e alocado.
+ *
+ * A tabela é do FINANCIAL de propósito: quem lê os créditos no faturamento lê a
+ * própria tabela, e é isso que mantém o Financial independente do modelo interno
+ * do Payments.
+ *
+ * Idempotência por CONSTRAINT, não por `if (!existe)`: o worker do outbox entrega
+ * at-least-once, e duas execuções simultâneas do mesmo evento não podem gerar
+ * dois créditos — isso daria baixa em dobro por um pagamento só. Quem garante é
+ * o `UNIQUE (clinic_id, patient_charge_id)` + `onConflictDoNothing`.
+ */
+import 'server-only';
+
+import { and, eq, sql } from 'drizzle-orm';
+
+import type { Tx } from '@/lib/db';
+
+import { patientCredits, type PatientCreditRow } from '../schema';
+
+export interface GrantCreditInput {
+  clinicId: string;
+  patientChargeId: string;
+  appointmentId: string;
+  patientId: string | null;
+  amount: number;
+  kind: 'deposit' | 'remaining_payment';
+  paymentMethod: string | null;
+  grantedAt: Date;
+}
+
+/**
+ * Registra o crédito. Devolve `false` quando o `UNIQUE` barrou — outra entrega
+ * chegou primeiro, e isso é sucesso, não erro.
+ */
+export async function grantCredit(tx: Tx, input: GrantCreditInput): Promise<boolean> {
+  const rows = await tx
+    .insert(patientCredits)
+    .values({
+      clinicId: input.clinicId,
+      patientId: input.patientId,
+      appointmentId: input.appointmentId,
+      patientChargeId: input.patientChargeId,
+      amount: input.amount.toFixed(2),
+      allocatedAmount: '0',
+      kind: input.kind,
+      status: 'available',
+      paymentMethod: input.paymentMethod,
+      grantedAt: input.grantedAt,
+    })
+    .onConflictDoNothing()
+    .returning({ id: patientCredits.id });
+  return rows.length > 0;
+}
+
+export type ReleaseOutcome = 'released' | 'not_found' | 'already_resolved';
+
+/**
+ * Tira o crédito de `available` sem alocá-lo: o dinheiro voltou ao paciente
+ * (`refunded`) ou ficou com a clínica sem atendimento (`retained`).
+ *
+ * `WHERE status = 'available'` é a trava. Um crédito **já alocado** não pode ser
+ * liberado: o dinheiro dele virou `valorPago` de um lançamento, e desfazer isso
+ * por aqui deixaria o recebível quitado sem lastro. Esse caso é estorno de
+ * lançamento, um caminho que já existe no Financial e tem regra própria.
+ */
+export async function releaseCredit(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    patientChargeId: string;
+    disposition: 'refunded' | 'retained';
+    releasedAt: Date;
+  },
+): Promise<ReleaseOutcome> {
+  const [existing] = await tx
+    .select({ id: patientCredits.id, status: patientCredits.status })
+    .from(patientCredits)
+    .where(
+      and(
+        eq(patientCredits.clinicId, input.clinicId),
+        eq(patientCredits.patientChargeId, input.patientChargeId),
+      ),
+    )
+    .limit(1);
+  // Cobrança paga ANTES da 1.5b.1 subir não tem crédito. Não é erro: é a janela
+  // de deploy, e falhar aqui prenderia o evento num laço de retentativa.
+  if (!existing) return 'not_found';
+  if (existing.status !== 'available') return 'already_resolved';
+
+  const updated = await tx
+    .update(patientCredits)
+    .set({
+      status: input.disposition,
+      releasedAt: input.releasedAt,
+      updatedAt: sql`now()`,
+    })
+    .where(and(eq(patientCredits.id, existing.id), eq(patientCredits.status, 'available')))
+    .returning({ id: patientCredits.id });
+  return updated.length > 0 ? 'released' : 'already_resolved';
+}
+
+/**
+ * Créditos disponíveis de um agendamento, mais antigo primeiro.
+ *
+ * Ordem por `granted_at` para a alocação ser determinística: com dois créditos e
+ * um saldo que só cobre um, qual é consumido não pode depender da ordem que o
+ * Postgres devolveu.
+ */
+export async function listAvailableCredits(
+  tx: Tx,
+  clinicId: string,
+  appointmentId: string,
+): Promise<PatientCreditRow[]> {
+  return tx
+    .select()
+    .from(patientCredits)
+    .where(
+      and(
+        eq(patientCredits.clinicId, clinicId),
+        eq(patientCredits.appointmentId, appointmentId),
+        eq(patientCredits.status, 'available'),
+      ),
+    )
+    .orderBy(patientCredits.grantedAt);
+}
+
+/**
+ * Marca o crédito como consumido por um lançamento.
+ *
+ * `WHERE status = 'available'` de novo: sob reentrega do `appointment.completed`,
+ * o segundo passo não pode alocar o mesmo dinheiro duas vezes.
+ */
+export async function allocateCredit(
+  tx: Tx,
+  input: { clinicId: string; creditId: string; lancamentoId: string; amount: number },
+): Promise<boolean> {
+  const rows = await tx
+    .update(patientCredits)
+    .set({
+      status: 'allocated',
+      allocatedAmount: input.amount.toFixed(2),
+      allocatedLancamentoId: input.lancamentoId,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(patientCredits.id, input.creditId),
+        eq(patientCredits.clinicId, input.clinicId),
+        eq(patientCredits.status, 'available'),
+      ),
+    )
+    .returning({ id: patientCredits.id });
+  return rows.length > 0;
+}
