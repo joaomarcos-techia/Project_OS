@@ -17,6 +17,10 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 
 **Última verificação contra o repositório:** 2026-08-25 · branch `feat/qorov2-pagamentos`
 
+**Versionamento local (2026-08-25):** as sub-fases 1.1–1.6b estão separadas em 20 commits
+revisáveis, de `4c97166` a `4e660cb`, sobre o commit já existente da 1.0 (`56e2fda`). A branch
+local ainda não foi publicada; nenhum `push` ou deploy foi executado nesta rodada.
+
 ### Sub-fases da Camada 1
 
 | Sub-fase | Estado | Confirmado por |
