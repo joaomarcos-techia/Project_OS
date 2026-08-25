@@ -219,6 +219,17 @@ const config = [
       'src/contexts/scheduling/reminder-candidates.ts',
       'src/contexts/financial/dunning-candidates.ts',
       'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
+      // ADR-049 1.3b: mesma forma, para o sinal. `deposit-candidates` é o
+      // read-model do Scheduling ("quem ainda pode ser cobrado"); `deposit-scan`
+      // lê as clínicas que ligaram a política — tabela do próprio Payments, sem
+      // clinic_id de request. Ambos read-only, bound por LIMIT; a cobrança em si
+      // volta para withTenant. Também na allowlist do arch:db-check.
+      'src/contexts/scheduling/deposit-candidates.ts',
+      'src/contexts/payments/internal/deposit-scan.ts',
+      // ADR-049 1.3: varredura de holds vencidos. Read-only cross-tenant, bound
+      // por LIMIT; o CANCELAMENTO de cada agendamento volta para withTenant e passa
+      // pela máquina de estados congelada (applyTransition).
+      'src/contexts/scheduling/internal/deposit-hold.ts',
       // WAIT-001: mesma forma — o SCAN de ofertas de lista de espera vencidas é
       // cross-tenant e devolve só ids; a liberação/repasse de cada uma roda em
       // withTenant, sob RLS. O privilégio descobre o trabalho, não o executa.

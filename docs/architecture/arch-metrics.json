@@ -1,12 +1,12 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 670,
-    "elements": 53,
-    "importEdges": 270,
+    "modules": 706,
+    "elements": 54,
+    "importEdges": 293,
     "moduleCycles": 0,
-    "events": 57,
-    "eventsWithoutConsumer": 43
+    "events": 64,
+    "eventsWithoutConsumer": 42
   },
   "elements": [
     {
@@ -46,7 +46,7 @@
       "id": "app:(app)",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 32,
+      "fanOut": 33,
       "dependsOn": [
         "app:(admin)",
         "component:admin",
@@ -62,6 +62,7 @@
         "context:messaging",
         "context:onboarding",
         "context:patient",
+        "context:payments",
         "context:scheduling",
         "context:tenancy",
         "lib:audit",
@@ -86,7 +87,7 @@
       "id": "app:api",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 19,
+      "fanOut": 20,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -94,6 +95,7 @@
         "context:financial",
         "context:messaging",
         "context:patient",
+        "context:payments",
         "context:scheduling",
         "lib:audit",
         "lib:auth",
@@ -194,12 +196,13 @@
       "id": "context:ai-agent",
       "kind": "context",
       "fanIn": 6,
-      "fanOut": 19,
+      "fanOut": 20,
       "dependsOn": [
         "context:clinical",
         "context:financial",
         "context:messaging",
         "context:patient",
+        "context:payments",
         "context:scheduling",
         "context:tenancy",
         "lib:agent",
@@ -268,9 +271,10 @@
     {
       "id": "context:financial",
       "kind": "context",
-      "fanIn": 5,
-      "fanOut": 9,
+      "fanIn": 6,
+      "fanOut": 11,
       "dependsOn": [
+        "context:payments",
         "context:scheduling",
         "context:tenancy",
         "lib:audit",
@@ -278,6 +282,7 @@
         "lib:db",
         "lib:financial",
         "lib:idempotency",
+        "lib:observability",
         "lib:outbox",
         "lib:validation"
       ]
@@ -340,7 +345,7 @@
     {
       "id": "context:patient",
       "kind": "context",
-      "fanIn": 6,
+      "fanIn": 7,
       "fanOut": 11,
       "dependsOn": [
         "context:tenancy",
@@ -357,6 +362,27 @@
       ]
     },
     {
+      "id": "context:payments",
+      "kind": "context",
+      "fanIn": 6,
+      "fanOut": 13,
+      "dependsOn": [
+        "context:financial",
+        "context:patient",
+        "context:scheduling",
+        "context:tenancy",
+        "lib:audit",
+        "lib:auth",
+        "lib:crypto",
+        "lib:db",
+        "lib:env",
+        "lib:http",
+        "lib:observability",
+        "lib:outbox",
+        "lib:payments"
+      ]
+    },
+    {
       "id": "context:platform-admin",
       "kind": "context",
       "fanIn": 0,
@@ -366,11 +392,12 @@
     {
       "id": "context:scheduling",
       "kind": "context",
-      "fanIn": 7,
-      "fanOut": 10,
+      "fanIn": 8,
+      "fanOut": 11,
       "dependsOn": [
         "context:financial",
         "context:identity",
+        "context:payments",
         "context:tenancy",
         "lib:agent",
         "lib:audit",
@@ -384,7 +411,7 @@
     {
       "id": "context:tenancy",
       "kind": "context",
-      "fanIn": 15,
+      "fanIn": 16,
       "fanOut": 6,
       "dependsOn": [
         "lib:audit",
@@ -418,7 +445,7 @@
     {
       "id": "lib:audit",
       "kind": "lib",
-      "fanIn": 16,
+      "fanIn": 18,
       "fanOut": 4,
       "dependsOn": [
         "lib:auth",
@@ -430,7 +457,7 @@
     {
       "id": "lib:auth",
       "kind": "lib",
-      "fanIn": 20,
+      "fanIn": 21,
       "fanOut": 6,
       "dependsOn": [
         "context:identity",
@@ -454,7 +481,7 @@
     {
       "id": "lib:crypto",
       "kind": "lib",
-      "fanIn": 9,
+      "fanIn": 11,
       "fanOut": 1,
       "dependsOn": [
         "lib:env"
@@ -463,8 +490,8 @@
     {
       "id": "lib:db",
       "kind": "lib",
-      "fanIn": 25,
-      "fanOut": 13,
+      "fanIn": 27,
+      "fanOut": 14,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -475,6 +502,7 @@
         "context:messaging",
         "context:onboarding",
         "context:patient",
+        "context:payments",
         "context:scheduling",
         "context:tenancy",
         "lib:env",
@@ -494,7 +522,7 @@
     {
       "id": "lib:env",
       "kind": "lib",
-      "fanIn": 18,
+      "fanIn": 19,
       "fanOut": 0,
       "dependsOn": []
     },
@@ -519,7 +547,7 @@
     {
       "id": "lib:http",
       "kind": "lib",
-      "fanIn": 4,
+      "fanIn": 5,
       "fanOut": 5,
       "dependsOn": [
         "lib:audit",
@@ -581,7 +609,7 @@
     {
       "id": "lib:observability",
       "kind": "lib",
-      "fanIn": 21,
+      "fanIn": 23,
       "fanOut": 2,
       "dependsOn": [
         "lib:env",
@@ -591,7 +619,7 @@
     {
       "id": "lib:outbox",
       "kind": "lib",
-      "fanIn": 11,
+      "fanIn": 12,
       "fanOut": 4,
       "dependsOn": [
         "lib:db",
@@ -603,10 +631,13 @@
     {
       "id": "lib:payments",
       "kind": "lib",
-      "fanIn": 4,
-      "fanOut": 3,
+      "fanIn": 5,
+      "fanOut": 6,
       "dependsOn": [
+        "lib:audit",
         "lib:auth",
+        "lib:crypto",
+        "lib:db",
         "lib:env",
         "lib:observability"
       ]

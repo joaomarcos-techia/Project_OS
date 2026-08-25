@@ -108,6 +108,19 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // number-store): upsert/desativa o número + audita em audit_events via
     // service_role. F-01 proíbe dbAdmin no contexto; a escrita do owner mora aqui.
     'src/lib/messaging/connection-store.ts',
+    // ADR-049 1.1 — seam privilegiado de ESCRITA da conta de pagamento da clinica
+    // (irmao direto do connection-store). `clinic_payment_accounts.api_key_encrypted`
+    // esta FORA do grant de `authenticated` (0080), entao `withTenant` (SET LOCAL ROLE
+    // authenticated) nao consegue escrever por construcao. Comando estreito, sempre
+    // com WHERE clinic_id, e audita na MESMA tx.
+    'src/lib/payments/account-store.ts',
+    // ADR-049 1.3b — varredura do sinal: lê as clínicas que ligaram a política
+    // (tabela do próprio Payments, cross-tenant como os crons financeiros). A
+    // cobrança em si volta para withTenant.
+    'src/contexts/payments/internal/deposit-scan.ts',
+    // ADR-049 1.3 — varredura de holds vencidos (scan cross-tenant read-only);
+    // o cancelamento de cada um volta para withTenant + applyTransition.
+    'src/contexts/scheduling/internal/deposit-hold.ts',
     'src/app/api/cron/patient-hard-delete/route.ts',
     'src/app/api/cron/audit-partitions/route.ts',
     // C9 — crons financeiros: scan cross-tenant (reconcile) + rollup do caixa.
@@ -138,6 +151,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // por LIMIT; writes per-clínica continuam via withTenant. Mesma justificativa
     // dos crons C9/C13. (Os crons proactive-* NUNCA tocam dbAdmin: só estes 3.)
     'src/contexts/scheduling/reminder-candidates.ts',
+    // ADR-049 1.3b — irmão do reminder-candidates: read-model privilegiado que
+    // lista agendamentos elegíveis a sinal em várias clínicas num scan só.
+    'src/contexts/scheduling/deposit-candidates.ts',
     'src/contexts/financial/dunning-candidates.ts',
     // WAIT-001 — mesma forma: o SCAN de ofertas vencidas é cross-tenant e só
     // devolve ids; a liberação/repasse de cada uma roda em withTenant, sob RLS.

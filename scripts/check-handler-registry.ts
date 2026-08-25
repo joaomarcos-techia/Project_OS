@@ -46,6 +46,10 @@ const strict = process.argv.includes('--strict') || process.env.NODE_ENV === 'pr
  * REMOVA a entrada daqui no mesmo PR (o gate falha se esquecer).
  */
 const PRODUCER_AHEAD = new Set<string>([
+  // ADR-049 — `payments.patient_charge.failed` fica sem consumidor por DESENHO: é
+  // sinal de observabilidade (métrica + poison pill), e o worker marca `skipped`,
+  // que é terminal legítimo. (`created` saiu daqui ao ganhar handler no Scheduling.)
+  'payments.patient_charge.failed',
   // C10 — callback de entrega atualiza a mensagem e emite métrica; não há
   // consumidor assíncrono enquanto não existir projeção de status.
   'messaging.outbound.status_updated',
@@ -62,8 +66,8 @@ const PRODUCER_AHEAD = new Set<string>([
   // (scheduling.appointment.created saiu daqui: C13 Billing ativou handler de metering)
   'scheduling.appointment.confirmed',
   'scheduling.appointment.checked_in',
-  'scheduling.appointment.cancelled',
-  'scheduling.appointment.no_show',
+  // (scheduling.appointment.cancelled e .no_show saíram daqui: ADR-049 1.5 ligou
+  // os handlers de estorno/retenção do Payments — F-14.)
   'scheduling.appointment.rescheduled',
   'scheduling.appointment.corrected',
   'scheduling.doctor_absence.created',

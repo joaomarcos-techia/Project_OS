@@ -11,6 +11,7 @@ flowchart LR
   context_messaging["messaging"]
   context_onboarding["onboarding"]
   context_patient["patient"]
+  context_payments["payments"]
   context_platform_admin["platform-admin"]
   context_scheduling["scheduling"]
   context_tenancy["tenancy"]
@@ -21,14 +22,19 @@ flowchart LR
   context_messaging -->|"1 evento"| context_ai_agent
   context_patient -->|"2 eventos"| context_patient
   context_patient -->|"2 eventos"| context_scheduling
+  context_payments -->|"1 evento"| context_ai_agent
+  context_payments -->|"2 eventos"| context_financial
+  context_payments -->|"3 eventos"| context_scheduling
   context_scheduling -->|"1 evento"| context_ai_agent
   context_scheduling -->|"1 evento"| context_billing
   context_scheduling -->|"1 evento"| context_clinical
   context_scheduling -->|"1 evento"| context_financial
+  context_scheduling -->|"2 eventos"| context_payments
   context_ai_agent -.->|import| context_clinical
   context_ai_agent -.->|import| context_financial
   context_ai_agent -.->|import| context_messaging
   context_ai_agent -.->|import| context_patient
+  context_ai_agent -.->|import| context_payments
   context_ai_agent -.->|import| context_scheduling
   context_ai_agent -.->|import| context_tenancy
   context_billing -.->|import| context_ai_agent
@@ -39,6 +45,7 @@ flowchart LR
   context_clinical -.->|import| context_scheduling
   context_clinical -.->|import| context_tenancy
   context_feedback -.->|import| context_tenancy
+  context_financial -.->|import| context_payments
   context_financial -.->|import| context_scheduling
   context_financial -.->|import| context_tenancy
   context_identity -.->|import| context_tenancy
@@ -49,6 +56,11 @@ flowchart LR
   context_onboarding -.->|import| context_identity
   context_onboarding -.->|import| context_tenancy
   context_patient -.->|import| context_tenancy
+  context_payments -.->|import| context_financial
+  context_payments -.->|import| context_patient
+  context_payments -.->|import| context_scheduling
+  context_payments -.->|import| context_tenancy
   context_scheduling -.->|import| context_financial
   context_scheduling -.->|import| context_identity
+  context_scheduling -.->|import| context_payments
   context_scheduling -.->|import| context_tenancy

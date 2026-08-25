@@ -21,6 +21,7 @@ flowchart LR
     context_messaging["messaging"]
     context_onboarding["onboarding"]
     context_patient["patient"]
+    context_payments["payments"]
     context_platform_admin["platform-admin"]
     context_scheduling["scheduling"]
     context_tenancy["tenancy"]
@@ -101,6 +102,7 @@ flowchart LR
   app__app_ --> context_messaging
   app__app_ --> context_onboarding
   app__app_ --> context_patient
+  app__app_ --> context_payments
   app__app_ --> context_scheduling
   app__app_ --> context_tenancy
   app__app_ --> lib_audit
@@ -125,6 +127,7 @@ flowchart LR
   app_api --> context_financial
   app_api --> context_messaging
   app_api --> context_patient
+  app_api --> context_payments
   app_api --> context_scheduling
   app_api --> lib_audit
   app_api --> lib_auth
@@ -154,6 +157,7 @@ flowchart LR
   context_ai_agent --> context_financial
   context_ai_agent --> context_messaging
   context_ai_agent --> context_patient
+  context_ai_agent --> context_payments
   context_ai_agent --> context_scheduling
   context_ai_agent --> context_tenancy
   context_ai_agent --> lib_agent
@@ -193,6 +197,7 @@ flowchart LR
   context_clinical --> lib_tenant_access
   context_feedback --> context_tenancy
   context_feedback --> lib_db
+  context_financial --> context_payments
   context_financial --> context_scheduling
   context_financial --> context_tenancy
   context_financial --> lib_audit
@@ -200,6 +205,7 @@ flowchart LR
   context_financial --> lib_db
   context_financial --> lib_financial
   context_financial --> lib_idempotency
+  context_financial --> lib_observability
   context_financial --> lib_outbox
   context_financial --> lib_validation
   context_identity --> context_tenancy
@@ -244,8 +250,22 @@ flowchart LR
   context_patient --> lib_observability
   context_patient --> lib_outbox
   context_patient --> lib_storage
+  context_payments --> context_financial
+  context_payments --> context_patient
+  context_payments --> context_scheduling
+  context_payments --> context_tenancy
+  context_payments --> lib_audit
+  context_payments --> lib_auth
+  context_payments --> lib_crypto
+  context_payments --> lib_db
+  context_payments --> lib_env
+  context_payments --> lib_http
+  context_payments --> lib_observability
+  context_payments --> lib_outbox
+  context_payments --> lib_payments
   context_scheduling --> context_financial
   context_scheduling --> context_identity
+  context_scheduling --> context_payments
   context_scheduling --> context_tenancy
   context_scheduling --> lib_agent
   context_scheduling --> lib_audit
@@ -286,6 +306,7 @@ flowchart LR
   lib_db --> context_messaging
   lib_db --> context_onboarding
   lib_db --> context_patient
+  lib_db --> context_payments
   lib_db --> context_scheduling
   lib_db --> context_tenancy
   lib_db --> lib_env
@@ -324,7 +345,10 @@ flowchart LR
   lib_outbox --> lib_env
   lib_outbox --> lib_idempotency
   lib_outbox --> lib_observability
+  lib_payments --> lib_audit
   lib_payments --> lib_auth
+  lib_payments --> lib_crypto
+  lib_payments --> lib_db
   lib_payments --> lib_env
   lib_payments --> lib_observability
   lib_platform_announcements --> lib_db
