@@ -13,6 +13,7 @@ import {
   type RecurrenceSeriesSummary,
 } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
+import type { DepositStatus } from '@/components/ui/status-badge';
 import {
   listAppointmentRecoveryKinds,
   type AppointmentRecoveryKind,
@@ -45,6 +46,13 @@ export interface AgendaAppt {
    */
   recurrenceSeriesId: string | null;
   recurrenceOccurrence: number | null;
+  /**
+   * ADR-049 1.6b — estado do sinal. Sem isto a recepcao nao sabia que a vaga
+   * estava SEGURADA aguardando pagamento, nem que seria cancelada sozinha.
+   */
+  depositStatus: DepositStatus;
+  /** Ate quando a vaga fica segurada (ISO). Nao-nulo somente em `pending`. */
+  holdExpiresAt: string | null;
 }
 export interface ProcedureOption {
   id: string;
@@ -178,6 +186,8 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     recoveryKinds: listAppointmentRecoveryKinds(a.status),
     recurrenceSeriesId: a.recurrenceSeriesId,
     recurrenceOccurrence: a.recurrenceOccurrence,
+    depositStatus: a.depositStatus,
+    holdExpiresAt: a.holdExpiresAt,
   }));
 
   // UX-003 — total e estado das séries presentes na faixa. Sem o total,

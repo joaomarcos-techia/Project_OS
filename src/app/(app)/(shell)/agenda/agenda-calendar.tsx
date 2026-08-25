@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-import { AppointmentStatusBadge } from '@/components/ui/status-badge';
+import { AppointmentStatusBadge, DepositStatusBadge } from '@/components/ui/status-badge';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/ui/cn';
@@ -204,6 +204,23 @@ function DayView({ data }: { data: AgendaData }) {
               <span className="min-w-0 truncate font-medium">{a.pacienteNome}</span>
               <span className="text-xs text-fg-subtle">{a.medicoNome}</span>
               <AppointmentStatusBadge status={a.status} />
+              {/*
+                ADR-049 1.6b — o sinal é dimensão ORTOGONAL ao status, então vem
+                como badge próprio ao lado, não substituindo. `none` não renderiza
+                nada: sinal desligado é o caso da maioria das clínicas, e um
+                rótulo em toda consulta treinaria o operador a não olhar.
+                O prazo entra no `title` porque é o que decide se ainda dá para
+                agir — vaga pendente vira cancelamento sozinha quando ele passa.
+              */}
+              <span
+                title={
+                  a.depositStatus === 'pending' && a.holdExpiresAt
+                    ? `Vaga segurada até ${hora(a.holdExpiresAt, data.tz)}`
+                    : undefined
+                }
+              >
+                <DepositStatusBadge status={a.depositStatus} />
+              </span>
               {/* UX-003 — o vínculo com a série vira visível e acionável aqui. */}
               {a.recurrenceSeriesId && seriesById.get(a.recurrenceSeriesId) ? (
                 <RecurrenceSeriesDialog

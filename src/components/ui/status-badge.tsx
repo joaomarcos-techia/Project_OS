@@ -38,6 +38,35 @@ export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }
   );
 }
 
+/**
+ * ADR-049 — estado do SINAL do agendamento. Dimensao ORTOGONAL ao status: um
+ * agendamento pode estar `agendado` com sinal pendente, pago ou vencido.
+ *
+ * `none` nao tem badge de proposito. A grande maioria das clinicas nao usa
+ * sinal, e um rotulo "sem sinal" em toda consulta seria ruido que treina o
+ * operador a nao olhar — e ai ele tambem nao olha quando importa.
+ */
+export type DepositStatus = 'none' | 'pending' | 'paid' | 'expired' | 'refunded';
+
+const DEPOSIT: Record<Exclude<DepositStatus, 'none'>, { tone: Tone; label: string }> = {
+  // Ambar, e nao cinza: a vaga esta SEGURADA e vai ser cancelada se ninguem
+  // pagar. E o unico estado em que a recepcao ainda pode agir.
+  pending: { tone: 'amber', label: 'Sinal pendente' },
+  paid: { tone: 'green', label: 'Sinal pago' },
+  expired: { tone: 'gray', label: 'Sinal vencido' },
+  refunded: { tone: 'blue', label: 'Sinal estornado' },
+};
+
+export function DepositStatusBadge({ status }: { status: DepositStatus }) {
+  if (status === 'none') return null;
+  const { tone, label } = DEPOSIT[status];
+  return (
+    <Badge tone={tone} dot>
+      {label}
+    </Badge>
+  );
+}
+
 export type PaymentStatus = 'pendente' | 'pago' | 'parcial' | 'cancelado' | 'estornado';
 
 const PAYMENT: Record<PaymentStatus, { tone: Tone; label: string }> = {
