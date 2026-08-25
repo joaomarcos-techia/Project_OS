@@ -265,6 +265,11 @@ const EnvSchema = z
     // aprovado na Meta vem do ambiente; sem ele o job falha com
     // `template_not_configured` em vez de enviar algo não aprovado.
     META_TEMPLATE_WAITLIST_OFFER_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // ADR-049 1.6a — link do sinal. Este template carrega uma URL DE PAGAMENTO,
+    // então ele precisa ser aprovado na Meta com esse conteúdo em mente. Sem a
+    // variável configurada o job falha com `template_not_configured` e fica
+    // visível — nunca envia texto livre nem link fora de template aprovado.
+    META_TEMPLATE_DEPOSIT_LINK_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Idioma BCP-47 dos templates (default pt_BR).
     META_TEMPLATE_LANG: z.preprocess(
       emptyToUndefined,

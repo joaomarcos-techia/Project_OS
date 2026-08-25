@@ -20,9 +20,10 @@ describe('catálogo de templates proativos', () => {
     (kind) => [kind, PROACTIVE_TEMPLATE_BODIES[kind]] as const,
   );
 
-  it('cobre os quatro tipos proativos', () => {
-    expect(entries).toHaveLength(4);
+  it('cobre todos os tipos proativos', () => {
+    expect(entries).toHaveLength(5);
     expect([...PROACTIVE_TEMPLATE_KINDS].sort()).toEqual([
+      'deposit_link',
       'dunning',
       'followup',
       'reminder',

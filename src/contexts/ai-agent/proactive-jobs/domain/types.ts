@@ -44,6 +44,26 @@ export const FollowupPayloadSchema = z.object({
 export type FollowupPayload = z.infer<typeof FollowupPayloadSchema>;
 
 /**
+ * ADR-049 1.6a — link do sinal a caminho do paciente.
+ *
+ * `chargeId` e a chave do ciclo, e o payload **nao carrega o link**: ele e
+ * resolvido no send-time por `paymentsApiV1.getPayableCharge`, que devolve
+ * `null` se a cobranca ja tiver sido paga, estornada ou expirada. Guardar o link
+ * aqui deixaria uma URL de pagamento em repouso numa fila que operador e worker
+ * leem — e ainda por cima uma que pode estar obsoleta na hora do envio.
+ */
+export const DepositLinkPayloadSchema = z.object({
+  patientId: uuid,
+  chargeId: uuid,
+  appointmentId: uuid,
+  /** Valor do sinal, em reais — entra no texto da mensagem. */
+  amount: z.number().positive(),
+  /** Prazo para pagar. E o que da urgencia a mensagem, e o que a torna honesta. */
+  holdExpiresAt: z.string().datetime(),
+});
+export type DepositLinkPayload = z.infer<typeof DepositLinkPayloadSchema>;
+
+/**
  * WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º elegível da fila.
  *
  * `waitlistEntryId` é a chave do ciclo: o guard de send-time confirma que a
@@ -65,13 +85,15 @@ export const PROACTIVE_PAYLOAD_SCHEMAS = {
   dunning: DunningPayloadSchema,
   followup: FollowupPayloadSchema,
   waitlist_offer: WaitlistOfferPayloadSchema,
+  deposit_link: DepositLinkPayloadSchema,
 } satisfies Record<ProactiveJobType, z.ZodTypeAny>;
 
 export type ProactivePayload =
   | ReminderPayload
   | DunningPayload
   | FollowupPayload
-  | WaitlistOfferPayload;
+  | WaitlistOfferPayload
+  | DepositLinkPayload;
 
 /** Resultado da política de envio (suppression/consent/contato). */
 export interface ProactivePolicyResult {

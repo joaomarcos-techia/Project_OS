@@ -25,12 +25,14 @@ import {
 } from '@/contexts/messaging';
 import { patientApiV1 } from '@/contexts/patient';
 import { schedulingApiV1 } from '@/contexts/scheduling';
+import { paymentsApiV1 } from '@/contexts/payments';
 /* eslint-enable boundaries/element-types */
 import { metrics } from '@/lib/observability/metrics';
 import { BACKOFF_FAIL, backoffDelayMs } from '@/lib/outbox/backoff';
 
 import {
   PROACTIVE_PAYLOAD_SCHEMAS,
+  type DepositLinkPayload,
   type DunningPayload,
   type FollowupPayload,
   type ReminderPayload,
@@ -40,7 +42,7 @@ import * as repo from '../infra/repository';
 import type { ClaimedJob } from '../infra/repository';
 import { TemplateNotConfiguredError, buildProactiveTemplate } from '../infra/templates';
 import type { ProactiveJobType } from '../schema';
-import { evaluateProactivePolicy } from './policy';
+import { evaluateProactivePolicy, suppressionPurposeFor } from './policy';
 
 export interface BatchSummary {
   type: ProactiveJobType;
@@ -91,10 +93,30 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
   const { phone, nome } = contact!;
 
   // 4. template + envio (chave ESTÁVEL = job.id).
+  //
+  // O link do sinal é resolvido AQUI, no send-time, e não veio no payload: link
+  // de pagamento não fica em repouso numa fila que operador e worker leem — e o
+  // que estava certo no enfileiramento pode não estar mais agora. O seam devolve
+  // `null` se a cobrança já foi paga, estornada, cancelada ou expirou, e mandar
+  // link de cobrança já paga é o pior desfecho desta fase.
+  let extra: { invoiceUrl?: string } | undefined;
+  if (type === 'deposit_link') {
+    const charge = await paymentsApiV1.getPayableCharge(
+      clinicId,
+      (payload as DepositLinkPayload).chargeId,
+    );
+    if (!charge) {
+      await repo.cancel(clinicId, id, leaseToken, 'charge_not_payable');
+      metrics.emit('proactive.job.cancelled', { ...log, reason: 'charge_not_payable' });
+      return 'cancelled';
+    }
+    extra = { invoiceUrl: charge.invoiceUrl };
+  }
+
   let body: OutboundBody;
   try {
     const tz = await resolveTz(clinicId, tzCache);
-    const t = buildProactiveTemplate(type, payload, nome, tz);
+    const t = buildProactiveTemplate(type, payload, nome, tz, extra);
     body = {
       kind: 'template',
       templateName: t.templateName,
@@ -116,9 +138,9 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
       toNumber: phone!,
       idempotencyKey: id,
       body,
-      // Mesmo mapeamento da política de supressão: a oferta de vaga é contato
-      // proativo de agendamento, então respeita o opt-out de `followup`.
-      purpose: type === 'dunning' ? 'billing' : type === 'waitlist_offer' ? 'followup' : type,
+      // MESMA função da política de supressão, e não uma cópia: bloquear por um
+      // propósito e registrar outro faria o opt-out do paciente nunca casar.
+      purpose: suppressionPurposeFor(type),
     });
     if (
       res.status === 'accepted' ||
@@ -151,7 +173,12 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
 async function sendTimeGuard(
   type: ProactiveJobType,
   clinicId: string,
-  payload: ReminderPayload | DunningPayload | WaitlistOfferPayload | { patientId: string },
+  payload:
+    | ReminderPayload
+    | DunningPayload
+    | WaitlistOfferPayload
+    | DepositLinkPayload
+    | { patientId: string },
 ): Promise<string | null> {
   if (type === 'reminder') {
     const appt = await schedulingApiV1.lookupAppointment(
@@ -187,6 +214,20 @@ async function sendTimeGuard(
     }
     const released = await schedulingApiV1.lookupAppointment(clinicId, offer.releasedAppointmentId);
     if (!released || released.status !== 'cancelado') return 'waitlist_slot_unavailable';
+    return null;
+  }
+  if (type === 'deposit_link') {
+    // A pergunta AQUI é sobre a agenda: o paciente já confirmou por outro
+    // caminho, ou já cancelou? Mandar link de sinal para quem cancelou é pedir
+    // dinheiro por uma consulta que não vai acontecer.
+    //
+    // Se a COBRANÇA ainda é pagável é outra pergunta, e ela é respondida no
+    // passo do template — onde o link precisa ser resolvido de qualquer forma.
+    const appt = await schedulingApiV1.lookupAppointment(
+      clinicId,
+      (payload as DepositLinkPayload).appointmentId,
+    );
+    if (!appt || appt.status !== 'agendado') return 'appointment_inactive';
     return null;
   }
   if (type === 'followup') {

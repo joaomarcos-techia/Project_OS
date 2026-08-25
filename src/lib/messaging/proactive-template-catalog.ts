@@ -20,7 +20,12 @@
 import { env } from '@/lib/env';
 
 /** Espelha `ProactiveJobType` sem importar o contexto (fronteira de arquitetura). */
-export type ProactiveTemplateKind = 'reminder' | 'dunning' | 'waitlist_offer' | 'followup';
+export type ProactiveTemplateKind =
+  | 'reminder'
+  | 'dunning'
+  | 'waitlist_offer'
+  | 'followup'
+  | 'deposit_link';
 
 export interface ProactiveTemplateDefinition {
   kind: ProactiveTemplateKind;
@@ -78,6 +83,26 @@ export const PROACTIVE_TEMPLATE_BODIES: Record<
       'Quer ficar com esse horário? Responda SIM para confirmar.',
     example: ['Maria Silva', '18/08', '09:00', 'Dra. Ana Costa'],
   },
+  deposit_link: {
+    // ADR-049 1.6a — o link do sinal. `{{4}}` é uma URL de pagamento no CORPO, e
+    // não um botão: o `MetaCloudProvider.sendTemplate` monta somente
+    // `components: [{ type: 'body' }]`, então um template com botão passaria a
+    // falhar no envio. O WhatsApp já transforma URL em link clicável.
+    //
+    // O corpo NÃO termina na variável de propósito (regra da Meta), e a frase
+    // depois dela também é a mais importante: dizer o que acontece se não pagar.
+    // Pedir pagamento sem informar o prazo nem a consequência é pressão, não
+    // informação — e aqui a consequência é a pessoa perder a consulta.
+    //
+    // `{{2}}` chega só com o número (`moneyFmt`), por isso o "R$ " é literal.
+    // Não cita procedimento nem especialidade: em saúde mental isso é dado
+    // sensível, e a mensagem chega num aparelho que outras pessoas podem ver.
+    body:
+      'Oi {{1}}! Para garantir o seu horário, falta o pagamento do sinal de R$ {{2}}.\n\n' +
+      'Você tem até {{3}} para pagar neste link: {{4}}\n\n' +
+      'Depois desse prazo o horário volta a ficar disponível para outras pessoas.',
+    example: ['Maria Silva', '150,00', '26/08 às 14:00', 'https://www.asaas.com/i/abc123'],
+  },
   followup: {
     // O de maior risco de a Meta reclassificar como MARKETING. A redação
     // enquadra como acompanhamento clínico, não como oferta.
@@ -99,6 +124,7 @@ function configuredName(kind: ProactiveTemplateKind): string | undefined {
   if (kind === 'reminder') return env.META_TEMPLATE_CONFIRMATION_REMINDER_ID;
   if (kind === 'dunning') return env.META_TEMPLATE_DUNNING_FRIENDLY_ID;
   if (kind === 'waitlist_offer') return env.META_TEMPLATE_WAITLIST_OFFER_ID;
+  if (kind === 'deposit_link') return env.META_TEMPLATE_DEPOSIT_LINK_ID;
   return env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
 }
 
@@ -107,6 +133,7 @@ export const PROACTIVE_TEMPLATE_KINDS: readonly ProactiveTemplateKind[] = [
   'dunning',
   'waitlist_offer',
   'followup',
+  'deposit_link',
 ] as const;
 
 /**
@@ -123,7 +150,13 @@ export function listProactiveTemplateDefinitions(): ProactiveTemplateDefinition[
   for (const kind of PROACTIVE_TEMPLATE_KINDS) {
     const name = configuredName(kind);
     if (!name) continue;
-    definitions.push({ kind, name, category: 'UTILITY', languageCode, ...PROACTIVE_TEMPLATE_BODIES[kind] });
+    definitions.push({
+      kind,
+      name,
+      category: 'UTILITY',
+      languageCode,
+      ...PROACTIVE_TEMPLATE_BODIES[kind],
+    });
   }
   return definitions;
 }
