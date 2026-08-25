@@ -74,6 +74,11 @@ a cada push e quebra o webhook em silêncio.
 - Produção: `https://app.qoro.dev/api/webhooks/asaas`
 - Preview de branch: `https://project-os-git-<branch-com-hifens>-clinic-os-v2-s-projects.vercel.app/api/webhooks/asaas`
 
+Se o Preview mantiver **Vercel Authentication**, o provedor precisa receber a URL com
+`?x-vercel-protection-bypass=<VERCEL_AUTOMATION_BYPASS_SECRET>`. A presença da variável no runtime
+não libera chamadas externas sozinha: o valor precisa acompanhar a requisição. Nunca registrar o
+valor real neste runbook, em logs ou em evidências.
+
 ## Diagnóstico
 
 ```bash

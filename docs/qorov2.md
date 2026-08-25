@@ -77,16 +77,19 @@ end-to-end com banco · Product Acceptance.
 
 | # | O quê | Estado |
 | --- | --- | --- |
-| E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED** — a env local tem o id, mas falta clínica + destinatário controlado para provar um envio real. Presença de configuração não é entrega |
-| E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`; restauração real ainda não foi entregue nem reabriu invoice (**D36**) |
-| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **FAIL** — `POST` sem token em produção chega à rota (`401`); o alias de preview responde `302` para o SSO da Vercel, logo o Asaas não alcança o webhook. Separação de banco/origem ainda não foi provada (**D37**) |
+| E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED** — o gestor informado resolve para a Clínica A (`f71713ed-6bd4-4656-b634-071811268d39`), mas em dev ela não tem número WhatsApp ativo. Também falta um destinatário controlado; o número conectado à Meta seria o remetente, não o destinatário |
+| E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`; restauração real ainda não foi entregue nem reabriu invoice (**D36**). O evento penalizado informado pertence a outra conta sandbox e não prova E2 (**D38**) |
+| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PARTIAL** — sem bypass o Preview continua na proteção da Vercel; com `x-vercel-protection-bypass` a mesma rota alcança a aplicação e devolve o `401 invalid token` do Qoro. O bloqueio de borda foi removido, mas o token do Preview diverge do token local e nenhuma entrega do Asaas nem isolamento entre bancos foi provado (**D37/D38**) |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PARTIAL** — a chave atual passou `pnpm payments:live-check` (**11/11**, limpeza ok, 1 caso PIX/cartão declarado não verificável); sem a chave anterior não é possível provar que ela foi revogada |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
-do webhook pela API do Asaas; `POST` público sem token nos aliases de produção e preview. Nenhuma
-mensagem foi enviada e nenhum webhook foi recriado. **Não avançar tratando E1–E3 como verdes:** o
-próximo passo é fornecer um destinatário controlado, recriar/reativar o webhook sandbox e liberar uma
-rota de preview alcançável pelo provedor; depois repetir as três jornadas pelo comportamento.
+do webhook pela API do Asaas; probes do Preview sem bypass, com bypass sem token e com bypass + token
+local; consultas tenant-scoped do status da Clínica A. O pagamento do evento penalizado devolve `404`
+quando consultado com a chave sandbox local, portanto é de outra conta. Na conta local, o único webhook
+continua apontando para produção, `enabled=true`, `interrupted=true`, `NON_SEQUENTIALLY`, com
+`PAYMENT_RESTORED` e dezenas de eventos extras. Nenhuma mensagem foi enviada e nenhum webhook foi
+recriado. **Não avançar tratando E1–E3 como verdes:** falta conectar a conta/número corretos, fornecer
+um destinatário controlado, alinhar o token do Preview e provar as três jornadas pelo comportamento.
 
 ### Discoveries que ainda governam decisões
 
@@ -107,7 +110,8 @@ rota de preview alcançável pelo provedor; depois repetir as três jornadas pel
 | D34 | ADR-051 D6 mandava o Payments calcular o saldo; pagamento em dinheiro na recepção não apareceria | **resolvido** — saldo vem do `financial`; sub-fase dividida em 3a/3b para caber no §0.6 |
 | D35 | O link do **restante** é criado e **não é entregue** — a copy do template do sinal não serve depois do atendimento | aberto — vira **1.6c**. Mitigado: a lacuna é contável por métrica, não silenciosa |
 | D36 | Webhook sandbox de assinatura inclui `PAYMENT_RESTORED`, mas está interrompido e diverge da lista canônica de eventos | **bloqueante externo** — recriar com a lista do runbook e provar delete → cancelled → restore → open |
-| D37 | Alias de preview do webhook responde com SSO da Vercel | **bloqueante externo** — o provedor precisa alcançar a rota sem sessão; depois provar que o evento persiste somente no ambiente de preview |
+| D37 | Bypass da proteção do Preview | **parcial** — o query param chega à aplicação; falta alinhar o token do webhook e provar escrita somente no banco de preview |
+| D38 | Evento penalizado veio de outra conta Asaas | **bloqueante externo** — a conta local não encontra o pagamento; não usar esse evento como prova do webhook de assinatura nem misturar a rota global com a rota por clínica |
 
 ### D32 — jornada, não componente
 
@@ -142,9 +146,11 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 
 ### Próximo passo
 
-**Fechar E1–E3 com evidência comportamental.** Hoje E1 está `BLOCKED` por falta de destinatário
-controlado, E2 está `FAIL` porque o webhook sandbox está interrompido e E3 está `FAIL` porque o
-preview exige SSO da Vercel. Depois, executar a **1.6c** (D35) e só então iniciar o **1.H**.
+**Fechar E1–E3 com evidência comportamental.** Hoje E1 está `BLOCKED` porque a Clínica A não tem
+WhatsApp ativo em dev e falta destinatário controlado; E2 está `FAIL` porque o webhook sandbox da
+conta local está interrompido; E3 está `PARTIAL` porque o bypass já alcança a aplicação, mas o token
+do Preview diverge e o evento informado veio de outra conta Asaas. Depois, executar a **1.6c** (D35)
+e só então iniciar o **1.H**.
 
 **1.H — Hardening.** Quando a 1.6c e as dependências externas estiverem verdes, não adicionar feature:
 provar que a Camada 1 aguenta o mundo real.
