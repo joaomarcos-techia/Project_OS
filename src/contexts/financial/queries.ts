@@ -165,6 +165,55 @@ export async function listPendingByPatient(
   });
 }
 
+/**
+ * Saldo em aberto do recebível de um atendimento (ADR-051 1.5b.3a).
+ *
+ * **Por que este seam existe:** o Payments precisa saber quanto ainda falta para
+ * decidir se cobra o restante — e essa resposta é do FINANCIAL, que é a fonte da
+ * verdade. Se o Payments calculasse por conta própria (valor do procedimento
+ * menos o que ELE recebeu), um pagamento feito em dinheiro na recepção e lançado
+ * no Caixa não apareceria: o paciente receberia um link cobrando algo que já
+ * pagou. É o pior desfecho possível desta fase.
+ *
+ * `null` quando não há recebível do atendimento — e `null` significa **não
+ * cobrar**, o mesmo modo de falha seguro do `resolveDepositAmount`.
+ *
+ * Estados terminais (`cancelado`, `estornado`) são excluídos: não há saldo a
+ * perseguir num lançamento que deixou de existir como obrigação.
+ */
+export async function getAppointmentBalance(
+  clinicId: string,
+  appointmentId: string,
+): Promise<{ lancamentoId: string; valor: number; valorPago: number; saldo: number } | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({
+        id: lancamentos.id,
+        valor: lancamentos.valor,
+        valorPago: lancamentos.valorPago,
+      })
+      .from(lancamentos)
+      .where(
+        and(
+          eq(lancamentos.clinicId, clinicId),
+          eq(lancamentos.appointmentId, appointmentId),
+          eq(lancamentos.tipo, 'receber'),
+          inArray(lancamentos.status, ['pendente', 'parcial']),
+        ),
+      )
+      .limit(1);
+    if (!row) return null;
+    const valor = Number(row.valor);
+    const valorPago = Number(row.valorPago);
+    return {
+      lancamentoId: row.id,
+      valor,
+      valorPago,
+      saldo: Math.round((valor - valorPago + Number.EPSILON) * 100) / 100,
+    };
+  });
+}
+
 // --- Caixa -----------------------------------------------------------------
 
 export interface CaixaLancamentos {
