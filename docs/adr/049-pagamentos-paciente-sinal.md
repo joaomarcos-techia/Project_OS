@@ -157,35 +157,195 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
 - **Migrações:** `clinic_payment_accounts` + RLS + índices `clinic_id`.
 - **Testes:** unit (cripto/mascaramento/`hasApiKey`), integration (validação Asaas — sandbox), contract (schema Zod do form), e2e (conectar/desconectar conta), audit.
 - **Aceite:** chave nunca retorna; conexão inválida rejeitada no save; auditoria registra.
+- **EXECUTADA em 2026-08-24.** Migration **0081** (não 0080 — número já ocupado). O write-only é do
+  **Postgres**: `api_key_encrypted`/`api_key_hash` ficam fora do `GRANT SELECT` de `authenticated`,
+  então `withTenant` não consegue nem ler nem escrever o segredo — a escrita mora no seam privilegiado
+  `src/lib/payments/account-store.ts` (mesmo padrão do `connection-store` da mensageria), que grava e
+  audita na MESMA tx. `hasApiKey` é derivado de `active` graças ao CHECK `active = false OR
+  api_key_encrypted IS NOT NULL` — o indicador não toca a coluna do segredo. Desconectar **apaga** a
+  chave. Validação: `getMyAccount({attempts:1})` antes de gravar; provedor indisponível NÃO grava.
+  Permissão: `manage:financial` na página, na action e no item de menu (o `pageGate` do repo é ANY —
+  exigir duas permissões criaria 'tela visível, ação recusada').
+- **MOVIDO PARA 1.4:** auto-configuração do webhook na conta da clínica. O endpoint
+  `/api/webhooks/asaas/patient/[ref]` nasce só na 1.4; registrar a URL antes faria o Asaas bater em 404
+  e marcar o webhook como interrompido — estado que não se reverte pelo painel.
+- **Runbook:** [payment-account-connect](../runbooks/payment-account-connect.md).
 
 ### 1.2 — Política de sinal e cancelamento
 - **Escopo:** tabela `clinic_deposit_policy` + tela de configuração; novo `consentPurpose` ('politica_cancelamento'); feature flag por clínica (default off).
 - **Migrações:** `clinic_deposit_policy` + enum de consent estendido.
 - **Testes:** unit das regras (percentual 1..100, aplicabilidade 1ª/retorno, janela de cancelamento), contract.
 - **Aceite:** flag off = comportamento atual idêntico (nenhuma regressão).
+- **EXECUTADA em 2026-08-24.** Migration **0082**. `clinic_deposit_policy` tem `clinic_id` como PK (a política é
+  do tenant, não histórico) e é ESCRITA PELO CAMINHO TENANT (`auditedMutation` → `withTenant` → RLS) — diferente
+  da credencial: sem segredo, quem isola é a RLS, e o seam privilegiado fica reservado a quem guarda chave.
+  As regras vivem em `payments/policy.ts`, PURAS e sem I/O: `resolveDepositAmount` (null = não cobra, para todo
+  caso duvidoso — cobrança indevida custa mais que não cobrar) e `isRefundableCancellation` (data inválida ⇒
+  não estorna; devolver dinheiro é decisão positiva). CHECKs no banco impedem estado MORTO: ligada sem escopo,
+  percentual 0, janela absurda.
+- **`politica_cancelamento` entrou no enum `consent_purpose`, mas NÃO no `ConsentType`** (patient/types.ts): o
+  primeiro é o que pode existir na tabela; o segundo é o que o usuário liga/desliga na ficha. Aceite de fluxo
+  não pode virar toggle. O helper interno passou a aceitar `StoredConsentPurpose` (superconjunto).
 
 ### 1.3 — Cobrança de paciente + hold no agendamento
 - **Escopo:** context `payments` + `patient_charges`; colunas de hold em `appointments`; criação da cobrança do sinal no agendamento (PIX/cartão) via `createAsaasClient(chave da clínica)`; cron de expiração de hold (`agendado→cancelado`, devolve slot à waitlist).
 - **Migrações:** `patient_charges`; colunas aditivas em `appointments`; evento outbox.
 - **Testes:** unit (cálculo do sinal, TTL do hold), integration (generateInvoice sandbox), contract (eventos), smoke do cron de expiração.
 - **Aceite:** hold expira e cancela corretamente; idempotência por `external_reference`.
+- **PARCIAL / BLOQUEADA em 2026-08-24.** Entregue: migration **0083** (`patient_charges`), contratos de evento e o resolvedor
+  `getClinicAsaasClient` (cache por `key_version` — sem ele o circuit breaker por conta não existiria).
+- **LACUNA DESTE ADR (D15):** `POST /payments` do Asaas exige `customer`. Este ADR descreve a cobrança como se ela pudesse ser
+  criada só com valor + referência. Na prática são necessários: (a) um mapa paciente → `customerId` na conta DA CLÍNICA e
+  (b) envio de PII do paciente (nome, provavelmente CPF) para essa conta. Nenhum dos dois está desenhado aqui, e o
+  `patientApiV1` não tem seam que devolva nome/CPF decifrados — `cpfMatchesPatient` apenas VERIFICA, por desenho.
+  Retomar a 1.3 exige **ADR complementar** cobrindo o mapa, o mínimo de PII e a base legal do tratamento.
+- **CONCLUÍDA em 2026-08-24.** Gatilho: **cron-scan** (`/api/cron/payments-deposit`, 15 min), e não handler de evento —
+  `scheduling.appointment.created` já tem dono (metering do Billing) e o registry do outbox aceita 1 handler por evento.
+  O mesmo tick cobra e expira. Hold vive em `appointments.deposit_status`/`hold_expires_at` (migration 0085), dimensão
+  ORTOGONAL — a máquina de estados segue congelada e a expiração cancela via `applyTransition`, com motivo próprio
+  `deposit_expired`. CHECK `pending ⇔ hold_expires_at IS NOT NULL` impede a varredura tocar em quem já pagou.
+- **RESOLVIDO por [ADR-050](050-identidade-de-pagamento-do-paciente.md)** (aprovado em 2026-08-24): mapa
+  `patient_payment_customers` por clínica · PII mínima (nome + CPF) · seam `patientApiV1.getPaymentIdentity`
+  · customer criado preguiçosamente na primeira cobrança · sem CPF válido, **não cobra**. A IA continua
+  read-only em cobrança.
 
 ### 1.4 — Conciliação (webhook de paciente)
 - **Escopo:** rota `/api/webhooks/asaas/patient/[ref]`; resolução clínica→credencial; `getPayment` com a chave da clínica; sinal pago → `assertTransition(agendado→confirmado)`.
 - **Migrações:** dedup de webhook de paciente (tabela/coluna).
 - **Testes:** integration + contract **espelhando os 23 testes** do webhook de assinatura (token inválido, corpo forjado, dedup, out-of-order, 404, timeout).
 - **Aceite:** corpo não confiável nunca decide (só `getPayment`); replay seguro; token da clínica validado constant-time.
+- **EXECUTADA em 2026-08-24.** Migration **0086**. Decisões que o ADR não detalhava e ficaram travadas aqui:
+  (a) o `ref` da URL é `webhook_ref` (uuid random por conta), **não** o `clinic_id` — id de tenant em URL pública é oráculo de
+  enumeração; (b) **404 uniforme** para ref inexistente, conta inativa ou sem token — distinguir daria um oráculo de refs válidos;
+  (c) dedup em tabela PRÓPRIA `patient_webhook_events` por `(clinic_id, asaas_event_id)`, e não na `processed_webhooks` do billing,
+  porque lá a chave assume emissor único e aqui são N contas Asaas; (d) o token do webhook é **gerado por nós** a cada conexão
+  (o Asaas nunca devolve o `authToken`, só um indicador), cifrado por tenant e apagado no disconnect.
+- **Auto-configuração do webhook** (que veio da 1.1): best-effort com **falha visível**. Se o registro no Asaas falhar, a conexão
+  continua válida (a chave é boa) mas `webhook_configured_at` fica nulo — e a tela avisa que as cobranças serão criadas e nunca
+  conciliadas. O estado ruim seria o intermediário invisível.
 
 ### 1.5 — Falta, restante e reembolso
-- **Escopo:** handler de `scheduling.appointment.no_show` → sinal vira receita retida (taxa), sem débito; handler de `appointment.completed` → cobrança do restante **por link** (Asaas) ou recebível presencial; handler de cancelamento com antecedência → refund do sinal.
-- **Migrações:** nenhuma (ou índice de apoio).
-- **Testes:** unit (retido vs restante vs refund conforme a janela), integration (refund/geração do link do restante em sandbox), **E2E completo (abaixo)**.
-- **Aceite:** faltou → sinal retido e recebível do restante NÃO criado; comparece → restante cobrado e conciliado; cancelou a tempo → sinal estornado.
+
+> **Esta sub-fase foi DIVIDIDA na execução (25/08).** O ramo do restante violava o orçamento §0.6
+> (3 contexts) e acionava a parada por **risco financeiro**; ver **D19** no
+> [discovery log](../discovery-log.md). Ramos A e C entraram como **1.5a**; o restante virou **1.5b**,
+> bloqueada até haver ADR complementar.
+
+#### 1.5a — Falta e estorno (entregue)
+- **Escopo:** handler de `scheduling.appointment.no_show` → sinal pago vira receita retida (taxa),
+  sem débito; handler de `scheduling.appointment.cancelled` → dentro da janela **estorna**, fora dela
+  retém, e **sem pagamento apaga o link no gateway**.
+- **Migrações:** nenhuma.
+- **Decisões tomadas na execução (não previstas neste ADR):**
+  - **Retenção é DERIVADA, não gravada.** Não existe status `retained`: "sinal retido" é
+    `patient_charges.paid` + agendamento `faltou`/`cancelado`. Gravá-lo denormalizaria um fato que
+    passaria a mentir quando a agenda fosse reaberta (`recovery-policy`: `faltou → agendado`).
+  - **Um evento novo, não três.** `payments.patient_charge.closed` carrega `outcome`
+    (`refunded` | `cancelled` | `expired`), porque o consumidor e a coluna projetada são os mesmos e o
+    registry do outbox é 1 handler por evento.
+  - **Handlers DETACHED.** O corpo chama o Asaas; chamada externa dentro da TX do worker prende
+    conexão do pool — a mesma razão pela qual a criação da cobrança (1.3) roda fora de transação.
+  - **`cancelledAt` no contrato de `cancelled`** (opcional, por causa da janela de deploy). A regra é
+    de ANTECEDÊNCIA: julgá-la com o relógio do worker faria o paciente perder o sinal por atraso de
+    fila nossa.
+  - **Motivos que devolvem sem olhar a janela:** `doctor_absence`, `patient_deceased`,
+    `patient_deleted`, `reschedule`. O último porque remarcar cria agendamento novo, que a varredura
+    da 1.3 cobra — sem devolver o primeiro, o paciente pagaria **dois sinais pela mesma consulta**
+    (**D23**).
+  - **Sempre olhar antes de agir.** Todo movimento irreversível no gateway é precedido de
+    `getPayment` — mesma doutrina do `findPaymentByExternalReference`. Sem isso, uma reentrega do
+    worker estornaria duas vezes.
+  - **Estorno tem forma de pagamento.** O Asaas devolve apenas **PIX e cartão** — sinal pago em
+    boleto (ou marcado como recebido em dinheiro) não tem estorno automático. A guarda
+    `REFUNDABLE_BILLING_TYPES` degrada esse caso para tarefa visível (`refund_skipped`) em vez de
+    400 em laço de retentativa, e **não** marca `refunded` — dizer que o paciente recebeu de volta
+    sem ter devolvido seria pior que não devolver (**D24**).
+- **Corrigido no caminho:** a varredura de expiração (1.3) cancelava o agendamento mas **nunca fechava
+  `patient_charges`** — a linha ficava `pending` para sempre e o link seguia pagável (**D22**). E
+  `tryConfigureWebhook` montava a URL por template string: `APP_BASE_URL` com barra no fim gerava
+  `https://host//api/webhooks/...`, ou seja, conexão "bem-sucedida" e **nenhuma** conciliação
+  (**D26**).
+- **Testes:** +62 (2436 → **2498**): unit das regras de dinheiro, fiação dos handlers, projeção
+  monotônica, e o adapter. `payments:live-check` **11/11**, com o estorno de sinal pago por
+  PIX/cartão marcado `n/v` — exige pagamento real na página do Asaas, e o resumo final reporta o
+  não-verificado ao lado do verde, para cobertura imaginária não passar por cobertura.
+- **Aceite:** faltou → sinal retido, link morto se não pago; cancelou a tempo → estornado; cancelou
+  tarde → retido.
+
+#### 1.5b — Restante (DESENHADA — ver ADR-051)
+
+- **Por que parou (D19):** (a) `scheduling.appointment.completed` **já tem dono** — o handler de
+  faturamento do Financial — e o registry é 1:1; (b) esse handler cria `lancamentos` com o **valor
+  CHEIO** e `valorPago: '0'`, então cobrar o restante por fora **duplica receita** no Caixa da
+  clínica; (c) conciliar isso exigia o context `financial`, levando a sub-fase a **3 contexts** e
+  estourando o §0.6.
+- **Destravada por [ADR-051](051-conciliacao-sinal-e-recebivel.md) (25/08).** O problema real não era
+  "como cobrar os outros 50%", e sim **como representar o mesmo dinheiro em dois bounded contexts**.
+  A decisão: `financial` é a fonte da verdade (`lancamentos` = obrigação), `patient_charges` é
+  **instrumento de cobrança**, e o sinal pago vira **crédito antecipado do agendamento** — o recebível
+  nasce pelo valor **bruto** e o crédito entra como `valorPago`, deixando `status = 'parcial'`.
+- **A Parede 1 caiu sem cron-scan:** o handler de `completed` continua sendo **um só**; ele apenas
+  passa a consultar créditos da **própria** tabela do Financial. Por isso a 1.5b.2 é de **1 context**.
+- **Escopo real:** 1.5b.0 (este ADR) → 1.5b.1 (crédito + evento) → 1.5b.2 (faturamento consciente do
+  crédito) → 1.5b.3 (scan do restante) → 1.5b.5 (falta/cancelamento liberando o crédito). Nenhuma
+  passa de 2 contexts.
 
 ### 1.6 — Notificação e UI
-- **Escopo:** envio do link/QR do sinal no WhatsApp (sistema, não IA); status de pagamento na agenda/consultório.
-- **Testes:** unit (template), e2e da jornada, smoke `smoke:conversas`.
-- **Aceite:** paciente recebe o link; status visível pra recepção.
+
+> **DIVIDIDA na execução (25/08).** Juntas, notificação e agenda dariam **3 contexts**
+> (`payments` + `ai-agent` + `scheduling`), estourando o §0.6.
+
+#### 1.6a — Link no WhatsApp (entregue)
+
+- **Escopo:** entrega do link do sinal ao paciente. `payments` + `ai-agent` = 2 contexts.
+- **Migração:** **0087** — valor `deposit_link` no enum `proactive_job_type` (aditivo; mesma
+  compatibilidade transacional documentada na 0014).
+- **O que estava quebrado:** desde a 1.3 a cobrança nascia e o `invoice_url` ficava guardado em
+  `patient_charges` sem que nada o entregasse. O hold vencia, a varredura cancelava o agendamento, e
+  o paciente perdia a consulta **sem nunca ter recebido como pagar**. Anti-no-show que produzia
+  no-show.
+- **Decisões da execução:**
+  - **Fila C14, não caminho paralelo.** Lease, backoff, janela 8-20h local, supressão, consentimento,
+    dedup e at-most-once no Meta já estavam resolvidos lá. Reimplementar isso pior, num caminho que
+    manda **link de pagamento** para paciente, seria a pior troca possível.
+  - **Evento próprio (`payments.patient_charge.link_ready`).** O `created` já é do Scheduling — mas a
+    razão não é só a restrição 1:1: `invoiceUrl` é nullable, então "a cobrança existe" e "existe um
+    link que o paciente consegue abrir" são fatos diferentes, e só o segundo justifica uma mensagem.
+  - **O link não viaja.** Nem no evento, nem no job. Resolvido no send-time por
+    `paymentsApiV1.getPayableCharge`, que devolve `null` se a cobrança já foi paga, estornada,
+    cancelada ou expirou. **A guarda mora no seam, não no chamador**: quem entrega a mensagem não pode
+    ser o responsável por lembrar de perguntar se ela ainda faz sentido.
+  - **Propósito de supressão unificado.** O mapeamento tipo → propósito estava **duplicado** entre a
+    política (que bloqueia) e o envio (que registra). Virou `suppressionPurposeFor`: divergir faria
+    bloquear por um propósito e gravar outro, e o opt-out registrado depois nunca casaria com o que
+    foi enviado antes. `deposit_link` reusa `reminder` — é **transacional** (o paciente marcou e perde
+    a vaga se não pagar), não é dívida; e propósito novo nasceria sem os opt-outs já registrados.
+  - **A IA continua read-only em cobrança (ADR-023).** Não há LLM em nenhum ponto do caminho.
+- **Dependência externa declarada:** o template precisa ser aprovado na Meta
+  (`META_TEMPLATE_DEPOSIT_LINK_ID`). Sem ele o job falha com `template_not_configured` — visível, e
+  **nunca** cai para texto livre ou link fora de template aprovado.
+- **Aceite:** paciente com telefone e sem opt-out recebe o link dentro da janela; cobrança já paga
+  não gera mensagem.
+
+#### 1.6b — Status na agenda (entregue)
+
+- **Escopo:** `deposit_status` e `hold_expires_at` sobem para o `AppointmentSummary` e aparecem na
+  agenda. `scheduling` (+ app) = 1 context.
+- **Migração:** nenhuma. As colunas existem desde a **0085** — o que faltava era o mapeamento.
+- **O que estava quebrado:** `toAppointmentSummary` simplesmente não lia as duas colunas. Mesmo
+  formato do **D32**: a camada de baixo correta, o produto inexistente, o dado parando no meio do
+  caminho. O mapeamento é manual, campo a campo, e nada avisa quando um campo novo é esquecido — daí
+  o teste de projeção nascer junto.
+- **Decisões da execução:**
+  - **Badge ao lado do status, não no lugar dele.** O sinal é dimensão ORTOGONAL (a 0085 é explícita),
+    e um agendamento pode estar `agendado` com sinal pago. Fundir os dois apagaria uma das duas
+    informações.
+  - **`none` não renderiza nada.** Sinal desligado é o caso da maioria das clínicas (default `false`
+    desde a 1.2); um rótulo "sem sinal" em toda consulta treinaria o operador a ignorar aquela região
+    da tela — e aí ele também ignora quando importa.
+  - **`pending` é âmbar e carrega o prazo.** É o único estado em que a recepção ainda pode agir: a
+    vaga vira cancelamento sozinha quando o hold vence. Os demais já são desfecho.
+- **Aceite:** recepção vê o estado do sinal e, quando pendente, até quando a vaga está segurada.
 
 ### E2E de aceite da Camada 1 (cenário exigido)
 ```

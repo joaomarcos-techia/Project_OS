@@ -17,6 +17,9 @@ Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras d
 | `claims_version` contra drift JWT | Accepted | [ADR-009](009-claims-drift-mitigation.md) |
 | SECURITY DEFINER somente como seam mínimo auditado | Accepted | [ADR-010](010-security-definer-patterns.md) |
 | Outbox transacional at-least-once | Accepted | [ADR-011](011-outbox-audit-idempotency-patterns.md) |
+| Cobrança de paciente e sinal anti-no-show | Accepted | [ADR-049](049-pagamentos-paciente-sinal.md) |
+| Identidade de pagamento do paciente (customer Asaas por clínica) | Accepted | [ADR-050](050-identidade-de-pagamento-do-paciente.md) |
+| `financial` é a fonte da verdade; `patient_charges` é instrumento de cobrança; crédito antecipado concilia os dois | **Implementado (1.5b)** | [ADR-051](051-conciliacao-sinal-e-recebivel.md) |
 | PII/clínico cifrado por tenant | Accepted | [security](../security/model.md) |
 | Prontuário assinado imutável; retenção legal sobre anonimização | Accepted | [patient/clinical](../domains/patient-clinical-lgpd.md) |
 | Meta Cloud API é o único messaging provider funcional | Accepted | [ADR-020](020-messaging-provider-patterns.md) |
