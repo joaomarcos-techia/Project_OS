@@ -18,6 +18,15 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'token',
   'api_key',
   'apikey',
+  // ADR-049: a chave Asaas da clínica trafega como `apiKeyEncrypted`/`apiKeyHash`
+  // entre a action e o seam de escrita. O ciphertext e o HMAC não são a chave em
+  // claro, mas fora da coluna protegida (grant service_role-only, migration 0081)
+  // eles perdem a barreira que os protege — e audit_events/telemetria são
+  // exatamente 'fora'. Redigir aqui é a rede para o erro que ainda não foi cometido.
+  'apikeyencrypted',
+  'api_key_encrypted',
+  'apikeyhash',
+  'api_key_hash',
   'authorization',
   'access_token',
   'accesstoken',

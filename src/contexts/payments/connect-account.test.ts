@@ -1,0 +1,174 @@
+/**
+ * Conexão da conta Asaas da clínica (connectPaymentAccount / disconnectPaymentAccount).
+ * I/O mockado (auth + adapter + cripto + seam de persistência).
+ *
+ * O que estes testes protegem, e que nenhum tipo protege:
+ *   - a chave em claro NÃO chega ao banco, à métrica nem ao retorno;
+ *   - chave recusada e Asaas indisponível são erros DIFERENTES — e nenhum dos
+ *     dois grava (guardar chave não verificada é o bug que a validação existe
+ *     para impedir);
+ *   - o gate de permissão roda ANTES de tocar no segredo ou chamar o provedor.
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as AsaasModule from '@/lib/payments/asaas';
+
+const mocks = vi.hoisted(() => ({
+  getMyAccount: vi.fn(),
+  createAsaasClient: vi.fn(),
+  requireCachedPermission: vi.fn(async () => {}),
+}));
+
+vi.mock('@/lib/auth/tenant-context', () => ({
+  requireUser: vi.fn(async () => ({ userId: 'user-1' })),
+  requireCachedPermission: mocks.requireCachedPermission,
+  requireClinicId: vi.fn(async () => 'clinic-1'),
+}));
+vi.mock('@/lib/audit/request-context-from-headers', () => ({
+  requestContext: vi.fn(async () => ({
+    ip: null,
+    userAgent: null,
+    requestId: 'r',
+    correlationId: 'r',
+  })),
+}));
+// Ciphertext/hash fixos que NÃO embutem o plaintext — é isso que torna a asserção
+// "a chave em claro não vazou" verificável de verdade.
+vi.mock('@/lib/crypto', () => ({
+  encryptForTenant: vi.fn(async () => 'CIPHERTEXT_BLOB'),
+  hashForLookup: vi.fn(async () => 'HASH_BLOB'),
+}));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
+// As classes de erro precisam ser as REAIS (o código usa `instanceof`); só a
+// fábrica do client é trocada.
+vi.mock('@/lib/payments/asaas', async (importActual) => {
+  const actual = await importActual<typeof AsaasModule>();
+  return { ...actual, createAsaasClient: mocks.createAsaasClient };
+});
+vi.mock('@/lib/payments/account-store', () => ({
+  upsertPaymentAccount: vi.fn(async () => ({ id: 'acc-1', changed: true })),
+  deactivatePaymentAccount: vi.fn(async () => ({ changed: true })),
+}));
+vi.mock('./queries', () => ({
+  getPaymentAccountStatus: vi.fn(async () => ({
+    provider: 'asaas',
+    hasApiKey: true,
+    accountName: 'Clínica Exemplo',
+    keyVersion: 1,
+    connectedAt: '2026-08-24T00:00:00.000Z',
+  })),
+}));
+
+import { metrics } from '@/lib/observability/metrics';
+import {
+  BillingCircuitOpenError,
+  BillingProviderError,
+  BillingProviderUnreachableError,
+} from '@/lib/payments/asaas';
+import { deactivatePaymentAccount, upsertPaymentAccount } from '@/lib/payments/account-store';
+
+import { connectPaymentAccount, disconnectPaymentAccount } from './actions';
+import { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
+
+const SECRET = '$aact_chave_secreta_da_clinica';
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.requireCachedPermission.mockImplementation(async () => {});
+  mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: null });
+  mocks.createAsaasClient.mockReturnValue({ getMyAccount: mocks.getMyAccount });
+});
+
+describe('connectPaymentAccount', () => {
+  it('valida no Asaas com a chave recebida e grava apenas o ciphertext', async () => {
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(mocks.createAsaasClient).toHaveBeenCalledWith({ apiKey: SECRET });
+    // attempts:1 — o operador está na tela; retry longo viraria meio minuto de espera.
+    expect(mocks.getMyAccount).toHaveBeenCalledWith({ attempts: 1 });
+
+    const [args] = vi.mocked(upsertPaymentAccount).mock.calls[0]!;
+    expect(args.apiKeyEncrypted).toBe('CIPHERTEXT_BLOB');
+    expect(args.apiKeyHash).toBe('HASH_BLOB');
+    expect(args.accountName).toBe('Clínica Exemplo');
+    expect(JSON.stringify(args)).not.toContain(SECRET);
+  });
+
+  it('não expõe a chave na métrica nem no retorno', async () => {
+    const result = await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(JSON.stringify(result)).not.toContain(SECRET);
+    const [name, fields] = vi.mocked(metrics.emit).mock.calls[0]!;
+    expect(name).toBe('payments.account.connected');
+    expect(JSON.stringify(fields)).not.toContain(SECRET);
+    expect(fields).toEqual({ clinicId: 'clinic-1', changed: true });
+  });
+
+  it('chave recusada pelo Asaas (4xx) NÃO grava nada', async () => {
+    mocks.getMyAccount.mockRejectedValue(
+      new BillingProviderError('asaas GET /myAccount → HTTP 401', 'billing_provider_error', 401, [
+        'invalid_apiKey',
+      ]),
+    );
+
+    await expect(connectPaymentAccount({ apiKey: SECRET })).rejects.toBeInstanceOf(
+      PaymentCredentialRejectedError,
+    );
+    expect(upsertPaymentAccount).not.toHaveBeenCalled();
+  });
+
+  it('Asaas indisponível NÃO grava — chave não verificada não entra no banco', async () => {
+    mocks.getMyAccount.mockRejectedValue(new BillingProviderUnreachableError('timeout'));
+
+    await expect(connectPaymentAccount({ apiKey: SECRET })).rejects.toBeInstanceOf(
+      PaymentProviderUnavailableError,
+    );
+    expect(upsertPaymentAccount).not.toHaveBeenCalled();
+  });
+
+  it('circuito aberto é tratado como indisponibilidade, não como chave errada', async () => {
+    mocks.getMyAccount.mockRejectedValue(new BillingCircuitOpenError());
+
+    await expect(connectPaymentAccount({ apiKey: SECRET })).rejects.toBeInstanceOf(
+      PaymentProviderUnavailableError,
+    );
+    expect(upsertPaymentAccount).not.toHaveBeenCalled();
+  });
+
+  it('sem permissão: nem o Asaas é chamado, nem a chave é cifrada', async () => {
+    const authError = Object.assign(new Error('forbidden'), { name: 'AuthError' });
+    mocks.requireCachedPermission.mockRejectedValue(authError);
+
+    await expect(connectPaymentAccount({ apiKey: SECRET })).rejects.toBe(authError);
+    expect(mocks.createAsaasClient).not.toHaveBeenCalled();
+    expect(upsertPaymentAccount).not.toHaveBeenCalled();
+  });
+
+  it('chave malformada é barrada antes de qualquer chamada externa', async () => {
+    await expect(connectPaymentAccount({ apiKey: 'chave com espaco' })).rejects.toThrow();
+    expect(mocks.createAsaasClient).not.toHaveBeenCalled();
+    expect(upsertPaymentAccount).not.toHaveBeenCalled();
+  });
+});
+
+describe('disconnectPaymentAccount', () => {
+  it('delega ao seam privilegiado e emite métrica sem dado sensível', async () => {
+    await disconnectPaymentAccount();
+
+    expect(deactivatePaymentAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId: 'clinic-1', userId: 'user-1' }),
+    );
+    expect(metrics.emit).toHaveBeenCalledWith('payments.account.disconnected', {
+      clinicId: 'clinic-1',
+      changed: true,
+    });
+  });
+
+  it('exige a mesma permissão do connect', async () => {
+    const authError = Object.assign(new Error('forbidden'), { name: 'AuthError' });
+    mocks.requireCachedPermission.mockRejectedValue(authError);
+
+    await expect(disconnectPaymentAccount()).rejects.toBe(authError);
+    expect(deactivatePaymentAccount).not.toHaveBeenCalled();
+  });
+});
