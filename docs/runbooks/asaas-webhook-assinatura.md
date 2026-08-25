@@ -91,8 +91,20 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://app.qoro.dev/api/webhoo
 | 404 | a rota não está neste deploy |
 | 401 com HTML da Vercel | **Deployment Protection** ligada: o Asaas nunca chega na rota |
 
-Um webhook marcado **interrupted** pelo Asaas **não se reativa pelo painel** — precisa ser recriado.
-E o `authToken` nunca é devolvido pela API: o único indicador é `hasAuthToken`.
+Um webhook marcado **interrupted** pode ser reativado pelo painel ou pela API, **depois** de corrigir
+a causa-raiz:
+
+```http
+PUT /v3/webhooks/<id>
+Content-Type: application/json
+
+{ "interrupted": false }
+```
+
+O update pode responder `200` e a fila voltar a interromper assim que tentar entregar os pendentes;
+por isso o aceite é o log do painel mostrando resposta **HTTP 200** do Qoro, não apenas
+`interrupted=false` no primeiro GET. Os logs de entrega existem somente no painel e o `authToken`
+nunca é devolvido pela API: o único indicador é `hasAuthToken`.
 
 ```sql
 SELECT asaas_event_id, event_type, clinic_id, created_at
