@@ -153,7 +153,12 @@ export type AsaasBillingType = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'UNDEFINED';
 
 export interface CreateCustomerInput {
   name: string;
-  email: string;
+  /**
+   * Opcional desde o ADR-050: o customer de PACIENTE viaja com o mínimo (nome +
+   * CPF) e não leva e-mail. O Asaas exige `name`; o resto é complemento. Billing
+   * (assinatura da clínica) continua enviando normalmente.
+   */
+  email?: string | null;
   cpfCnpj?: string | null;
   phone?: string | null;
 }
@@ -218,6 +223,27 @@ export interface ProviderPayment {
   subscriptionId: string | null;
   billingType: string | null;
   externalReference: string | null;
+  /**
+   * A cobranca foi REMOVIDA da conta (ADR-049 1.5). Verificado ao vivo em
+   * 2026-08-24, e nada intuitivo: `DELETE /payments/{id}` responde 200, mas o
+   * `GET` seguinte **tambem responde 200** — com o `status` ORIGINAL (`PENDING`)
+   * e este campo em `true`. Nao existe 404 aqui.
+   *
+   * Sem expor isto, cobranca apagada e indistinguivel de cobranca viva, e o
+   * sistema entregaria ao paciente um link que ele nao consegue pagar.
+   */
+  deleted: boolean;
+}
+
+/**
+ * Resultado de um estorno. O Asaas devolve o objeto do REFUND (não o do
+ * pagamento), por isso `status` aqui é o status do estorno — não confundir com
+ * `ProviderPayment.status`, que é o da cobrança.
+ */
+export interface ProviderRefund {
+  refundId: string | null;
+  status: string;
+  value: number;
 }
 
 export interface ProviderSubscription {
@@ -242,6 +268,28 @@ export interface ParsedWebhook {
   eventId: string; // chave de dedup — sempre do provider (`body.id`)
   event: string; // rótulo da notificação; NÃO decide transição (o status real decide)
   paymentId: string | null;
+}
+
+export interface CreateWebhookInput {
+  /** Rótulo que aparece no painel do Asaas da clínica. */
+  name: string;
+  url: string;
+  /**
+   * OBRIGATÓRIO pelo Asaas (verificado ao vivo: sem ele, `invalid_email`). É para
+   * onde o Asaas avisa quando o webhook começa a falhar. Usamos o e-mail da
+   * PRÓPRIA conta da clínica — quem é dono da conta é quem precisa saber.
+   */
+  email: string;
+  /** Token que o Asaas passará a enviar no header `asaas-access-token`. */
+  authToken: string;
+  /** Eventos assinados. Só os de pagamento — nada de assinatura/transferência. */
+  events: readonly string[];
+}
+
+/** Identificação mínima da conta. Sem CPF/CNPJ: PII de terceiro não entra no Qoro. */
+export interface AsaasAccountInfo {
+  name: string | null;
+  email: string | null;
 }
 
 export interface PaymentProvider {
@@ -284,6 +332,53 @@ export interface PaymentProvider {
     externalReference: string,
     opts?: { attempts?: number },
   ): Promise<ProviderPayment | null>;
+  /**
+   * `POST /payments/{id}/refund` — devolve o dinheiro ao paciente (ADR-049 1.5,
+   * ramo C: cancelamento dentro da janela).
+   *
+   * **Sem retry**, como todo POST aqui: o Asaas não tem idempotency-key nativa e
+   * um segundo POST às cegas é um segundo estorno. Quem chama verifica o estado
+   * com `getPayment` ANTES (mesma doutrina do `findPaymentByExternalReference`).
+   *
+   * `value` omitido = estorno total. Estorno parcial existe na API, mas nenhum
+   * caminho do Qoro o usa hoje — o sinal é devolvido inteiro ou não é devolvido.
+   */
+  refundPayment(
+    asaasPaymentId: string,
+    opts?: { value?: number; description?: string },
+  ): Promise<ProviderRefund>;
+  /**
+   * `DELETE /payments/{id}` — remove uma cobrança **ainda não paga**.
+   *
+   * É o que impede o pior desfecho do ramo A/C: agendamento cancelado ou marcado
+   * como falta com o link do sinal ainda vivo, e o paciente pagando por uma vaga
+   * que não existe mais. O Asaas recusa remover cobrança já recebida — por isso o
+   * chamador confere o status antes, e trata 404 como "já não existe".
+   */
+  cancelPayment(asaasPaymentId: string): Promise<{ deleted: boolean }>;
+  /**
+   * `GET /myAccount` — prova que a credencial existe, é válida e é da conta que o
+   * operador pensa que é. É o único jeito barato de reprovar uma chave errada ANTES
+   * de ela virar cobrança falhando em produção.
+   *
+   * Tolerante por desenho: qualquer 2xx significa credencial boa. Os campos são
+   * opcionais porque o formato do payload é do Asaas, não nosso — se ele mudar de
+   * nome amanhã, a validação continua funcionando e só o rótulo da tela fica nulo.
+   */
+  getMyAccount(opts?: { attempts?: number }): Promise<AsaasAccountInfo>;
+  /**
+   * Registra o webhook na conta. Devolve o id criado pelo Asaas.
+   *
+   * Regras do provedor descobertas AO VIVO (2026-08-24), porque nenhuma delas
+   * estava óbvia na documentação: `sendType` é obrigatório · `email` é obrigatório
+   * · o `authToken` precisa de **≥32 caracteres** e **não pode ter mais de 4
+   * iguais consecutivos**.
+   *
+   * O `authToken` é enviado e **nunca devolvido** pela API — o painel do Asaas
+   * expõe apenas um indicador de que existe. Por isso o token é guardado do nosso
+   * lado (cifrado): não há de onde relê-lo depois.
+   */
+  createWebhook(input: CreateWebhookInput): Promise<{ webhookId: string }>;
   /** Lança se o corpo não trouxer `body.id` (chave de dedup do provider). */
   parseWebhook(raw: string): ParsedWebhook;
   /** Valida o header `asaas-access-token` em constant-time. */
@@ -432,7 +527,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     async createCustomer(input) {
       const body = {
         name: input.name,
-        email: input.email,
+        email: input.email ?? undefined,
         cpfCnpj: input.cpfCnpj ?? undefined,
         mobilePhone: input.phone ?? undefined,
       };
@@ -538,6 +633,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         subscriptionId: asStr(r.subscription),
         billingType: asStr(r.billingType),
         externalReference: asStr(r.externalReference),
+        deleted: r.deleted === true,
       };
     },
 
@@ -590,6 +686,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
           subscriptionId: asStr(p.subscription) ?? id,
           billingType: asStr(p.billingType),
           externalReference: asStr(p.externalReference),
+          deleted: p.deleted === true,
         };
       });
     },
@@ -608,6 +705,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         subscriptionId: asStr(r.subscription),
         billingType: asStr(r.billingType),
         externalReference: asStr(r.externalReference),
+        deleted: r.deleted === true,
       };
     },
 
@@ -628,7 +726,56 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         subscriptionId: asStr(p.subscription),
         billingType: asStr(p.billingType),
         externalReference: asStr(p.externalReference),
+        deleted: p.deleted === true,
       };
+    },
+
+    async refundPayment(id, opts) {
+      const body: Record<string, unknown> = {};
+      if (opts?.value !== undefined) body.value = opts.value;
+      if (opts?.description !== undefined) body.description = opts.description;
+      const r = (await request(
+        'POST',
+        `/payments/${encodeURIComponent(id)}/refund`,
+        body,
+      )) as Record<string, unknown>;
+      metrics.emit('billing.asaas.payment_refunded', { paymentId: id });
+      return {
+        refundId: asStr(r.id),
+        status: asStr(r.status) ?? 'UNKNOWN',
+        value: asNum(r.value),
+      };
+    },
+
+    async cancelPayment(id) {
+      const r = (await request('DELETE', `/payments/${encodeURIComponent(id)}`)) as Record<
+        string,
+        unknown
+      > | null;
+      metrics.emit('billing.asaas.payment_cancelled', { paymentId: id });
+      // O Asaas devolve `{ deleted: true, id }`. Um 204 (corpo vazio) também é
+      // sucesso — a cobrança deixou de existir, que é a única coisa que importa.
+      return { deleted: r === null ? true : r.deleted !== false };
+    },
+
+    async createWebhook(input) {
+      const body = {
+        name: input.name,
+        url: input.url,
+        email: input.email,
+        enabled: true,
+        interrupted: false,
+        authToken: input.authToken,
+        sendType: 'SEQUENTIALLY',
+        events: input.events,
+      };
+      const r = (await request('POST', '/webhooks', body)) as Record<string, unknown>;
+      return { webhookId: String(r.id ?? '') };
+    },
+
+    async getMyAccount(opts) {
+      const res = (await request('GET', '/myAccount', undefined, opts)) as Record<string, unknown>;
+      return { name: asStr(res.name), email: asStr(res.email) };
     },
 
     parseWebhook(raw) {

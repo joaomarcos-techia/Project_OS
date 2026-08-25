@@ -89,6 +89,9 @@ describe('listSubscriptionPayments', () => {
           subscriptionId: 'sub_1',
           billingType: 'CREDIT_CARD',
           externalReference: null,
+          // 1.5: o Asaas responde 200 para cobrança apagada, com o status
+          // congelado — `deleted` é o único campo que diz a verdade.
+          deleted: false,
         },
       ],
     );
@@ -328,5 +331,118 @@ describe('createAsaasClient — uma instância por credencial', () => {
     const segunda = (fetchMock.mock.calls[1] as [string, RequestInit])[1];
     expect(primeira.headers).toEqual(expect.objectContaining({ access_token: 'primeira' }));
     expect(segunda.headers).toEqual(expect.objectContaining({ access_token: 'segunda' }));
+  });
+});
+
+describe('getMyAccount — validação de credencial', () => {
+  it('consulta /myAccount com a chave da própria credencial', async () => {
+    fetchMock.mockImplementation(() => Response.json({ name: 'Clínica X', email: 'c@x.test' }));
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await expect(clinica.getMyAccount()).resolves.toEqual({
+      name: 'Clínica X',
+      email: 'c@x.test',
+    });
+
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/myAccount');
+    expect(request.method).toBe('GET');
+    expect(request.headers).toEqual(expect.objectContaining({ access_token: 'chave-da-clinica' }));
+  });
+
+  it('tolera payload sem os campos esperados (o formato é do Asaas, não nosso)', async () => {
+    fetchMock.mockImplementation(() => Response.json({ algoNovo: 123 }));
+
+    await expect(createAsaasClient({ apiKey: 'k' }).getMyAccount()).resolves.toEqual({
+      name: null,
+      email: null,
+    });
+  });
+
+  it('propaga 401 como erro definitivo, sem re-tentar', async () => {
+    fetchMock.mockImplementation(() =>
+      Response.json({ errors: [{ code: 'invalid_apiKey' }] }, { status: 401 }),
+    );
+
+    const error = await createAsaasClient({ apiKey: 'errada' })
+      .getMyAccount({ attempts: 1 })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(BillingProviderError);
+    expect((error as BillingProviderError).providerErrorCodes).toEqual(['invalid_apiKey']);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('estorno e cancelamento de cobrança (ADR-049 1.5)', () => {
+  it('estorna pelo endpoint de refund, com a chave da própria clínica', async () => {
+    fetchMock.mockImplementation(() =>
+      Response.json({ id: 'ref_1', status: 'REFUNDED', value: 150 }),
+    );
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await expect(clinica.refundPayment('pay_1')).resolves.toEqual({
+      refundId: 'ref_1',
+      status: 'REFUNDED',
+      value: 150,
+    });
+
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/payments/pay_1/refund');
+    expect(request.method).toBe('POST');
+    expect(request.headers).toEqual(expect.objectContaining({ access_token: 'chave-da-clinica' }));
+    // Estorno TOTAL por padrão: nenhum caminho do Qoro devolve sinal pela metade.
+    expect(JSON.parse(String(request.body))).toEqual({});
+  });
+
+  it('NÃO re-tenta o estorno: um segundo POST seria um segundo estorno', async () => {
+    fetchMock.mockImplementation(() => new Response(null, { status: 502 }));
+
+    await expect(createAsaasClient({ apiKey: 'k' }).refundPayment('pay_1')).rejects.toBeInstanceOf(
+      Error,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('escapa o id na URL (id do provedor nunca é concatenado cru)', async () => {
+    fetchMock.mockImplementation(() => Response.json({ deleted: true }));
+
+    await createAsaasClient({ apiKey: 'k' }).cancelPayment('pay/../../admin');
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/payments/pay%2F..%2F..%2Fadmin');
+  });
+
+  it('remove a cobrança não paga pelo DELETE', async () => {
+    fetchMock.mockImplementation(() => Response.json({ deleted: true, id: 'pay_1' }));
+
+    await expect(createAsaasClient({ apiKey: 'k' }).cancelPayment('pay_1')).resolves.toEqual({
+      deleted: true,
+    });
+
+    const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://sandbox.asaas.com/api/v3/payments/pay_1');
+    expect(request.method).toBe('DELETE');
+  });
+
+  it('204 sem corpo também é remoção bem-sucedida', async () => {
+    fetchMock.mockImplementation(() => new Response(null, { status: 204 }));
+
+    await expect(createAsaasClient({ apiKey: 'k' }).cancelPayment('pay_1')).resolves.toEqual({
+      deleted: true,
+    });
+  });
+
+  it('404 sobe com httpStatus — é assim que o chamador sabe que já não existe', async () => {
+    fetchMock.mockImplementation(() =>
+      Response.json({ errors: [{ code: 'not_found' }] }, { status: 404 }),
+    );
+
+    const error = await createAsaasClient({ apiKey: 'k' })
+      .cancelPayment('pay_sumiu')
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(BillingProviderError);
+    expect((error as BillingProviderError).httpStatus).toBe(404);
   });
 });

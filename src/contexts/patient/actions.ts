@@ -56,6 +56,7 @@ import {
   patientRelationships,
   patients,
   suppressionList,
+  type StoredConsentPurpose,
 } from './schema';
 import {
   ConsentInputSchema,
@@ -154,7 +155,9 @@ async function appendConsentDecision(
   input: {
     clinicId: string;
     patientId: string;
-    purpose: ConsentType;
+    // Superconjunto de `ConsentType`: este helper também grava aceites de fluxo
+    // (ex.: `politica_cancelamento`), que não são toggles da ficha do paciente.
+    purpose: StoredConsentPurpose;
     channel: Channel | null;
     granted: boolean;
     recordedBy: string;
@@ -695,7 +698,7 @@ async function carryForwardMergedConsentDecisions(
   }
   const byPurpose = new Map<
     string,
-    { purpose: ConsentType; channel: Channel | null; grants: boolean[] }
+    { purpose: StoredConsentPurpose; channel: Channel | null; grants: boolean[] }
   >();
   for (const decision of latest.values()) {
     const key = `${decision.purpose}:${decision.channel ?? 'none'}`;

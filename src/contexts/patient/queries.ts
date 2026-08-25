@@ -15,7 +15,13 @@ import { and, desc, eq, ilike, inArray, isNull, type SQL, sql } from 'drizzle-or
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
-import { decryptForTenant, hashForLookup, normalizeCpf, normalizePhone } from '@/lib/crypto';
+import {
+  decryptForTenant,
+  hashForLookup,
+  normalizeCpf,
+  normalizePhone,
+  validateCpf,
+} from '@/lib/crypto';
 
 import {
   patientAddresses,
@@ -371,6 +377,40 @@ export async function listPatientRelationships(
  * usado em listas; é 1 read por job no send-time. Retorna null se o paciente
  * não existe / foi soft-deleted (RLS via withTenant garante o tenant).
  */
+/**
+ * ADR-050 — identidade MÍNIMA para criar o customer de pagamento na conta Asaas
+ * da clínica: nome + CPF, e nada mais.
+ *
+ * Por que este seam existe e não uma leitura direta do Payments: decifrar PII é
+ * responsabilidade de quem é dono do dado. O Payments pede o que precisa por um
+ * contrato nomeado — e o nome do método diz para QUE serve, então fica auditável
+ * quem chamou e por quê. Não é um `getDecryptedPatient` genérico.
+ *
+ * Devolve `null` quando o paciente não existe, está inativo, ou o CPF guardado não
+ * passa em `validateCpf`. **`null` significa NÃO COBRAR** — nunca "cobrar sem
+ * identificar o pagador" (ADR-050 D6).
+ */
+export async function getPaymentIdentity(
+  clinicId: string,
+  patientId: string,
+): Promise<{ nome: string; cpf: string } | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ nome: patients.nome, cpfEncrypted: patients.cpfEncrypted })
+      .from(patients)
+      .where(and(eq(patients.id, patientId), patientsActiveFilter()))
+      .limit(1);
+    if (!row?.cpfEncrypted) return null;
+
+    const cpf = normalizeCpf(await decryptForTenant(clinicId, row.cpfEncrypted));
+    // CPF inválido no cadastro (legado, importação) reprova AQUI, sem gastar uma
+    // chamada ao gateway para tomar 400 — e sem cobrar às cegas.
+    if (!validateCpf(cpf)) return null;
+
+    return { nome: row.nome, cpf };
+  });
+}
+
 export async function getProactiveContact(
   clinicId: string,
   patientId: string,

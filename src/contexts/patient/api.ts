@@ -20,7 +20,12 @@ import {
   createLgpdRequestIntake,
   createPatientCore,
 } from './internal/patient-core';
-import { findPatientByPhone, getAddressForDocument, getProactiveContact } from './queries';
+import {
+  findPatientByPhone,
+  getAddressForDocument,
+  getPaymentIdentity,
+  getProactiveContact,
+} from './queries';
 import type { CreatePatientInput, PatientSummary, ProactiveContact } from './types';
 
 export interface PatientApiV1 {
@@ -38,6 +43,17 @@ export interface PatientApiV1 {
    */
   getAddressForDocument(clinicId: string, patientId: string): Promise<string | null>;
   cpfMatchesPatient(clinicId: string, patientId: string, cpf: string): Promise<boolean>;
+  /**
+   * ADR-050 — identidade MÍNIMA (nome + CPF) para criar o customer de pagamento na
+   * conta Asaas DA CLÍNICA. `null` = não identificável ⇒ **não cobrar**.
+   *
+   * É o único seam que devolve CPF decifrado, e devolve só para esta finalidade.
+   * `cpfMatchesPatient` continua sendo o caminho de VERIFICAÇÃO e não muda.
+   */
+  getPaymentIdentity(
+    clinicId: string,
+    patientId: string,
+  ): Promise<{ nome: string; cpf: string } | null>;
   createPatientAsAgent(
     ctx: AgentActorCtx,
     input: CreatePatientInput,
@@ -54,6 +70,7 @@ export interface PatientApiV1 {
 export const patientApiV1: PatientApiV1 = {
   findByPhone: (clinicId, phone) => findPatientByPhone(clinicId, phone),
   getProactiveContact: (clinicId, patientId) => getProactiveContact(clinicId, patientId),
+  getPaymentIdentity: (clinicId, patientId) => getPaymentIdentity(clinicId, patientId),
   getAddressForDocument: (clinicId, patientId) => getAddressForDocument(clinicId, patientId),
   cpfMatchesPatient: (clinicId, patientId, cpf) => cpfMatchesPatient(clinicId, patientId, cpf),
   createPatientAsAgent: (ctx, input, idempotencyKey) =>
