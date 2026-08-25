@@ -33,8 +33,22 @@ describe('navegação das configurações', () => {
     expect(visible.map((item) => item.href)).not.toContain('/configuracoes/perfil');
   });
 
+  /**
+   * ADR-049: a conta que recebe o dinheiro do paciente é destino de `manage:financial`,
+   * a MESMA permissão do gate da página e da Server Action. Se alguém afrouxar aqui,
+   * o item aparece para um perfil que a ação vai recusar.
+   */
+  it('anuncia Pagamentos apenas para quem tem manage:financial', () => {
+    expect(items([PERMISSIONS.MANAGE_FINANCIAL]).map((i) => i.href)).toContain(
+      '/configuracoes/pagamentos',
+    );
+    expect(items([PERMISSIONS.MANAGE_SETTINGS]).map((i) => i.href)).not.toContain(
+      '/configuracoes/pagamentos',
+    );
+  });
+
   it('permite o bypass somente na sessão super-admin AAL2 já validada pelo layout', () => {
-    expect(items([], true)).toHaveLength(12);
+    expect(items([], true)).toHaveLength(13);
   });
 
   /**

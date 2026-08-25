@@ -1,0 +1,169 @@
+'use client';
+
+/**
+ * Painel da conta Asaas da clínica.
+ *
+ * Cuidados com o segredo NO CLIENTE (o servidor já tem os dele):
+ *   - o campo é `type="password"` — chave de API é ombro-espiável e vaza em
+ *     screenshot de suporte, que é como esse tipo de credencial costuma vazar
+ *     de verdade;
+ *   - `autoComplete="off"` e `spellCheck={false}`: gerenciador de senha e
+ *     corretor não devem tocar numa chave de terceiro;
+ *   - o valor é limpo do estado assim que a ação retorna — sucesso OU falha. O
+ *     campo não guarda a chave "para tentar de novo";
+ *   - nada é ecoado de volta: o servidor só devolve `hasApiKey`, nunca a chave.
+ */
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { CircleCheck, KeyRound } from 'lucide-react';
+
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import type { PaymentAccountStatusDTO } from '@/contexts/payments';
+import { formatDatePt } from '@/lib/format';
+
+import { connectPaymentAccountAction, disconnectPaymentAccountAction } from './actions';
+
+interface Props {
+  status: PaymentAccountStatusDTO;
+}
+
+export function PaymentAccountPanel({ status }: Props) {
+  const router = useRouter();
+  const [apiKey, setApiKey] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleConnect(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = apiKey;
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const result = await connectPaymentAccountAction(value);
+      // Limpa SEMPRE, inclusive no erro: a chave não fica pendurada no estado do
+      // componente enquanto o operador lê a mensagem.
+      setApiKey('');
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setNotice(
+        result.data.accountName
+          ? `Conta conectada: ${result.data.accountName}.`
+          : 'Conta conectada.',
+      );
+      router.refresh();
+    });
+  }
+
+  function handleDisconnect() {
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const result = await disconnectPaymentAccountAction();
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setNotice('Conta desconectada. A chave foi apagada do sistema.');
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Pagamentos"
+        description="Conecte a conta Asaas da clínica. O dinheiro do paciente cai direto nela — o Qoro não fica com o valor em nenhum momento."
+      />
+
+      {error ? <Alert variant="danger">{error}</Alert> : null}
+      {notice ? <Alert variant="success">{notice}</Alert> : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound aria-hidden="true" className="size-5" />
+            Conta Asaas
+          </CardTitle>
+          <CardDescription>
+            A chave é guardada cifrada e nunca é exibida de volta — nem para você, nem para o
+            suporte. Para trocá-la, basta enviar a nova.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="flex flex-col gap-4">
+          {status.hasApiKey && !status.webhookConfigured ? (
+            <Alert variant="warning" title="Aviso de pagamento não configurado">
+              A conta está conectada, mas o Asaas não confirmou o registro do aviso automático de
+              pagamento. Sem ele o sistema cria a cobrança e{' '}
+              <b>nunca fica sabendo que o paciente pagou</b> — o horário seria liberado mesmo com o
+              sinal pago. Envie a chave novamente para tentar de novo; se persistir, chame o
+              suporte.
+            </Alert>
+          ) : null}
+
+          {status.hasApiKey ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge tone="green">
+                <CircleCheck aria-hidden="true" className="size-4" />
+                Conectada
+              </Badge>
+              {status.accountName ? (
+                <span className="text-(length:--fs-sm)">{status.accountName}</span>
+              ) : null}
+              {status.connectedAt ? (
+                <span className="text-(length:--fs-sm) text-fg-muted">
+                  desde {formatDatePt(status.connectedAt)}
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <Alert variant="info">
+              Nenhuma conta conectada. Enquanto isso, a clínica não consegue cobrar o paciente pelo
+              sistema.
+            </Alert>
+          )}
+
+          <form className="flex flex-col gap-4" onSubmit={handleConnect}>
+            <Field
+              label={status.hasApiKey ? 'Trocar a chave de API' : 'Chave de API do Asaas'}
+              htmlFor="asaas-api-key"
+              hint="Encontre em Asaas → Configurações → Integrações → Chave de API."
+            >
+              <Input
+                id="asaas-api-key"
+                name="asaas-api-key"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                value={apiKey}
+                disabled={pending}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Cole aqui a chave da conta da clínica"
+              />
+            </Field>
+
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" disabled={pending || apiKey.trim().length === 0}>
+                {status.hasApiKey ? 'Trocar chave' : 'Conectar conta'}
+              </Button>
+              {status.hasApiKey ? (
+                <Button type="button" variant="ghost" disabled={pending} onClick={handleDisconnect}>
+                  Desconectar
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

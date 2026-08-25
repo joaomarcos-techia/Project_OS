@@ -127,6 +127,14 @@ export const SETTINGS_NAVIGATION: SettingsNavGroup[] = [
         permission: PERMISSIONS.VIEW_FINANCIAL,
       },
       {
+        label: 'Pagamentos',
+        description: 'Conta que recebe o dinheiro do paciente. O valor vai direto para a clínica.',
+        href: '/configuracoes/pagamentos',
+        icon: Wallet,
+        cta: 'Conectar',
+        permission: PERMISSIONS.MANAGE_FINANCIAL,
+      },
+      {
         label: 'Assinatura',
         description: 'Plano, limites de uso e cobrança do Qoro.',
         href: '/configuracoes/assinatura',
