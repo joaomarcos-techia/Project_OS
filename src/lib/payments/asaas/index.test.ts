@@ -263,7 +263,9 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
 
 describe('criação de webhook', () => {
   it('envia todos os campos obrigatórios do contrato v3 do Asaas', async () => {
-    fetchMock.mockResolvedValue(Response.json({ id: 'wh_1' }));
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(Response.json({ id: 'wh_1' }));
     const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
 
     await expect(
@@ -276,7 +278,13 @@ describe('criação de webhook', () => {
       }),
     ).resolves.toEqual({ webhookId: 'wh_1' });
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'https://sandbox.asaas.com/api/v3/webhooks?offset=0&limit=100',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
       'https://sandbox.asaas.com/api/v3/webhooks',
       expect.objectContaining({
         method: 'POST',
@@ -293,6 +301,92 @@ describe('criação de webhook', () => {
         }),
       }),
     );
+  });
+
+  it('atualiza a mesma rota quando o webhook já existe', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: 'wh_existing',
+              name: 'Qoro — cobranca de paciente',
+              url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-antigo',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'wh_existing' }));
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await expect(
+      clinica.createWebhook({
+        name: 'Qoro — cobranca de paciente',
+        url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-atual',
+        email: 'gestor@example.test',
+        authToken: 'token-atual-com-mais-de-32-caracteres',
+        events: ['PAYMENT_RECEIVED'],
+      }),
+    ).resolves.toEqual({ webhookId: 'wh_existing' });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://sandbox.asaas.com/api/v3/webhooks/wh_existing',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          name: 'Qoro — cobranca de paciente',
+          url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=segredo-atual',
+          enabled: true,
+          interrupted: false,
+          authToken: 'token-atual-com-mais-de-32-caracteres',
+          sendType: 'SEQUENTIALLY',
+          events: ['PAYMENT_RECEIVED'],
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('converge por PUT quando outro request cria o webhook entre GET e POST', async () => {
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(
+        Response.json(
+          { errors: [{ code: 'invalid_object', description: 'conflito' }] },
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: 'wh_raced',
+              name: 'Qoro — cobranca de paciente',
+              url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'wh_raced' }));
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await expect(
+      clinica.createWebhook({
+        name: 'Qoro — cobranca de paciente',
+        url: 'https://preview.qoro.test/api/webhooks/asaas/patient/ref-1',
+        email: 'gestor@example.test',
+        authToken: 'token-atual-com-mais-de-32-caracteres',
+        events: ['PAYMENT_RECEIVED'],
+      }),
+    ).resolves.toEqual({ webhookId: 'wh_raced' });
+
+    expect(fetchMock.mock.calls.map(([, init]) => (init as RequestInit).method)).toEqual([
+      'GET',
+      'POST',
+      'GET',
+      'PUT',
+    ]);
   });
 });
 

@@ -197,9 +197,9 @@ describe('connectPaymentAccount', () => {
 
     expect(result.webhookConfigurationIssue).toEqual({
       code: 'asaas_webhook_rejected',
-      location: 'API do Asaas, durante POST /webhooks',
+      location: 'API do Asaas, durante a configuração do webhook',
       message:
-        'O Asaas recusou o registro do webhook (HTTP 400; código(s): invalid_webhook_url). A chave já havia sido aceita em GET /myAccount.',
+        'O Asaas recusou a criação ou atualização do webhook (HTTP 400; código(s): invalid_webhook_url). A chave já havia sido aceita em GET /myAccount.',
     });
     expect(JSON.stringify(result)).not.toContain('corpo interno');
   });
@@ -212,7 +212,7 @@ describe('connectPaymentAccount', () => {
     expect(result.webhookConfigurationIssue).toEqual(
       expect.objectContaining({
         code: 'asaas_webhook_unavailable',
-        location: expect.stringContaining('POST /webhooks'),
+        location: expect.stringContaining('configuração do webhook'),
       }),
     );
     expect(JSON.stringify(result)).not.toContain('timeout interno');

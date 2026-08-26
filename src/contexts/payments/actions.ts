@@ -257,8 +257,8 @@ async function tryConfigureWebhook(
       return fail(
         {
           code: 'asaas_webhook_rejected',
-          location: 'API do Asaas, durante POST /webhooks',
-          message: `O Asaas recusou o registro do webhook${details ? ` (${details})` : ''}. A chave já havia sido aceita em GET /myAccount.`,
+          location: 'API do Asaas, durante a configuração do webhook',
+          message: `O Asaas recusou a criação ou atualização do webhook${details ? ` (${details})` : ''}. A chave já havia sido aceita em GET /myAccount.`,
         },
         error,
       );
@@ -270,9 +270,9 @@ async function tryConfigureWebhook(
       return fail(
         {
           code: 'asaas_webhook_unavailable',
-          location: 'Comunicação Qoro → Asaas, durante POST /webhooks',
+          location: 'Comunicação Qoro → Asaas, durante a configuração do webhook',
           message:
-            'O Asaas não confirmou o registro por indisponibilidade, timeout ou falha de rede.',
+            'O Asaas não confirmou a configuração por indisponibilidade, timeout ou falha de rede.',
         },
         error,
       );
@@ -280,8 +280,9 @@ async function tryConfigureWebhook(
     return fail(
       {
         code: 'qoro_webhook_unexpected',
-        location: 'Qoro, durante a confirmação de POST /webhooks',
-        message: 'O registro falhou de forma inesperada. Use o código abaixo para localizar o log.',
+        location: 'Qoro, durante a confirmação da configuração do webhook',
+        message:
+          'A configuração falhou de forma inesperada. Use o código abaixo para localizar o log.',
       },
       error,
     );

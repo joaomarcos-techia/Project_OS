@@ -368,7 +368,8 @@ export interface PaymentProvider {
    */
   getMyAccount(opts?: { attempts?: number }): Promise<AsaasAccountInfo>;
   /**
-   * Registra o webhook na conta. Devolve o id criado pelo Asaas.
+   * Configura o webhook na conta. Se a mesma rota já existir, atualiza o recurso
+   * em vez de repetir o POST que o Asaas rejeita como `invalid_object`.
    *
    * Regras do provedor confirmadas na documentação e AO VIVO (2026-08-26):
    * `apiVersion`, `sendType` e `email` são obrigatórios · o `authToken` precisa de
@@ -521,6 +522,50 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       }
     }
     throw lastErr;
+  }
+
+  function webhookTarget(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      // O bypass de Preview pode ser rotacionado. A identidade operacional do
+      // webhook é origem + rota; a query será substituída pelo valor atual no PUT.
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return null;
+    }
+  }
+
+  async function findExistingWebhook(input: CreateWebhookInput): Promise<string | null> {
+    const desiredTarget = webhookTarget(input.url);
+    if (!desiredTarget) return null;
+
+    // O Asaas permite no máximo 10 webhooks por conta. O limite 100 mantém a
+    // busca em uma chamada e segue o máximo documentado do endpoint.
+    const response = (await request('GET', '/webhooks?offset=0&limit=100', undefined, {
+      attempts: 1,
+    })) as { data?: unknown };
+    const webhooks = Array.isArray(response.data) ? response.data : [];
+    for (const raw of webhooks) {
+      if (!raw || typeof raw !== 'object') continue;
+      const webhook = raw as Record<string, unknown>;
+      if (asStr(webhook.name) !== input.name) continue;
+      const existingUrl = asStr(webhook.url);
+      const id = asStr(webhook.id);
+      if (existingUrl && id && webhookTarget(existingUrl) === desiredTarget) return id;
+    }
+    return null;
+  }
+
+  async function updateWebhook(id: string, input: CreateWebhookInput): Promise<void> {
+    await request('PUT', `/webhooks/${encodeURIComponent(id)}`, {
+      name: input.name,
+      url: input.url,
+      enabled: true,
+      interrupted: false,
+      authToken: input.authToken,
+      sendType: 'SEQUENTIALLY',
+      events: input.events,
+    });
   }
 
   const client: AsaasClient = {
@@ -759,6 +804,12 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     },
 
     async createWebhook(input) {
+      const existingId = await findExistingWebhook(input);
+      if (existingId) {
+        await updateWebhook(existingId, input);
+        return { webhookId: existingId };
+      }
+
       const body = {
         name: input.name,
         url: input.url,
@@ -770,8 +821,26 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         sendType: 'SEQUENTIALLY',
         events: input.events,
       };
-      const r = (await request('POST', '/webhooks', body)) as Record<string, unknown>;
-      return { webhookId: String(r.id ?? '') };
+      try {
+        const r = (await request('POST', '/webhooks', body)) as Record<string, unknown>;
+        return { webhookId: String(r.id ?? '') };
+      } catch (error) {
+        // Duas conexões concorrentes podem listar "nenhum", e uma delas criar o
+        // recurso antes do POST da outra. Nesse conflito específico, relê e
+        // converge por PUT; outros 400 continuam subindo sem serem mascarados.
+        if (
+          error instanceof BillingProviderError &&
+          error.httpStatus === 400 &&
+          error.providerErrorCodes.includes('invalid_object')
+        ) {
+          const racedId = await findExistingWebhook(input);
+          if (racedId) {
+            await updateWebhook(racedId, input);
+            return { webhookId: racedId };
+          }
+        }
+        throw error;
+      }
     },
 
     async getMyAccount(opts) {

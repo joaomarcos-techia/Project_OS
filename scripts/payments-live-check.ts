@@ -19,7 +19,7 @@ import { randomBytes } from 'node:crypto';
 
 import './_env';
 
-import { createAsaasClient, type AsaasClient } from '@/lib/payments/asaas';
+import { createAsaasClient, type AsaasClient, type CreateWebhookInput } from '@/lib/payments/asaas';
 
 const BASE_URL = process.env.ASAAS_BASE_URL ?? 'https://sandbox.asaas.com/api/v3';
 
@@ -305,8 +305,9 @@ async function main(): Promise<void> {
   }
 
   console.log('\n=== D17 — registro do webhook (nunca validado até agora) ===');
+  let webhookInput: CreateWebhookInput | null = null;
   await step('createWebhook', async () => {
-    const created = await client.createWebhook({
+    webhookInput = {
       name: `Qoro live check ${stamp}`,
       url: `https://example.invalid/api/webhooks/asaas/patient/${crypto.randomUUID()}`,
       // E-mail da PRÓPRIA conta: é para onde o Asaas avisa se o webhook falhar.
@@ -315,11 +316,23 @@ async function main(): Promise<void> {
       // de 4 iguais consecutivos (as duas regras foram descobertas AQUI).
       authToken: randomBytes(32).toString('base64url'),
       events: ['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'PAYMENT_REFUNDED', 'PAYMENT_OVERDUE'],
-    });
+    };
+    const created = await client.createWebhook(webhookInput);
     if (!created.webhookId) throw new Error('sem id no retorno');
     webhookId = created.webhookId;
     return `webhookId=${created.webhookId}`;
   });
+
+  const existingWebhookInput = webhookInput;
+  if (webhookId && existingWebhookInput) {
+    await step('reconfigura webhook existente', async () => {
+      const configured = await client.createWebhook(existingWebhookInput);
+      if (configured.webhookId !== webhookId) {
+        throw new Error('criou outro webhook em vez de atualizar o existente');
+      }
+      return `webhookId=${configured.webhookId} atualizado sem duplicar`;
+    });
+  }
 
   // Limpeza NÃO entra na contagem de falhas: o sandbox tolera lixo, mas um passo
   // de faxina reprovando uma verificação que passou seria ruído puro.
