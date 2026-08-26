@@ -79,8 +79,8 @@ end-to-end com banco · Product Acceptance.
 | --- | --- | --- |
 | E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED** — o gestor informado resolve para a Clínica A (`f71713ed-6bd4-4656-b634-071811268d39`), mas em dev ela não tem número WhatsApp ativo. Também falta um destinatário controlado; o número conectado à Meta seria o remetente, não o destinatário |
 | E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`; restauração real ainda não foi entregue nem reabriu invoice (**D36**). O evento penalizado informado pertence a outra conta sandbox e não prova E2 (**D38**) |
-| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **FAIL externo / PASS em código** — o auto-registro agora acrescenta o bypass somente em Preview protegido e falha visivelmente se o segredo estiver ausente. Lint, typecheck, build e 2647 testes passaram. Continua `FAIL` no ambiente porque a branch remota está em `034b410`, sem a UI/rota por clínica, e o webhook manual permanece interrompido na rota global (**D37–D41**) |
-| E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PARTIAL** — a chave atual passou `pnpm payments:live-check` (**11/11**, limpeza ok, 1 caso PIX/cartão declarado não verificável); sem a chave anterior não é possível provar que ela foi revogada |
+| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS operacional / PARTIAL na origem** — o probe real devolve `302 /sso-api` sem bypass e chega à aplicação (`405`) com bypass. O auto-registro da segunda conexão (`key_version=2`) não criou o recurso, mas o mesmo `POST /webhooks` executado de forma guardada criou `/patient/<ref>` ativo e não interrompido; o banco foi marcado somente após o GET de confirmação. Uma entrega imitada com token real e cobrança `PENDING` recebeu `200` e foi corretamente ignorada após `getPayment`. Falta uma entrega originada pelo Asaas após pagamento real e explicar a falha anterior do auto-registro (**D37–D41**) |
+| E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**11/11**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
 do webhook pela API do Asaas; probes do Preview sem bypass, com bypass sem token e com bypass + token
@@ -89,10 +89,14 @@ com `ASAAS_API_KEY_DEV`, mas pertence à conta de `ASAAS_CLINIC_SANDBOX_KEY`. O 
 reativado de forma guardada pela API (`200`, `enabled=true`, `interrupted=false`) e voltou logo depois
 a `interrupted=true`, durante o retry dos pendentes. Ele assina nove eventos e aponta para a rota global
 `/api/webhooks/asaas`, embora a conta seja a sandbox de clínica. Separadamente, o webhook da conta de
-assinatura continua apontando para produção e interrompido. Nenhuma mensagem foi enviada e nenhum
-webhook foi recriado. **Não avançar tratando E1–E3 como verdes:** falta conectar a conta de clínica
-pelo sistema — que gera `/patient/<ref>` + token próprios —, conectar o número Meta, fornecer um
-destinatário controlado e provar as três jornadas pelo comportamento.
+assinatura continua apontando para produção e interrompido. Nenhuma mensagem foi enviada. Depois do
+deploy de `b0074e3`, a conta da Clínica A foi conectada pelo sistema; a tentativa automática não criou
+o webhook. O mesmo registro foi então executado de forma guardada contra o sandbox: o Asaas confirmou
+o `/patient/<ref>` ativo, o banco recebeu `webhook_configured_at`, e uma entrega imitada com o token
+real respondeu `200` sem aceitar como pago um pagamento ainda `PENDING`. O webhook global antigo segue
+interrompido e não deve ser reativado. **Não avançar tratando E1–E3 como integralmente verdes:** falta
+entrega originada pelo Asaas, conectar o número Meta, fornecer destinatário controlado e provar as três
+jornadas pelo comportamento.
 
 ### Discoveries que ainda governam decisões
 
@@ -113,11 +117,12 @@ destinatário controlado e provar as três jornadas pelo comportamento.
 | D34 | ADR-051 D6 mandava o Payments calcular o saldo; pagamento em dinheiro na recepção não apareceria | **resolvido** — saldo vem do `financial`; sub-fase dividida em 3a/3b para caber no §0.6 |
 | D35 | O link do **restante** é criado e **não é entregue** — a copy do template do sinal não serve depois do atendimento | aberto — vira **1.6c**. Mitigado: a lacuna é contável por métrica, não silenciosa |
 | D36 | Webhook sandbox de assinatura inclui `PAYMENT_RESTORED`, mas está interrompido e diverge da lista canônica de eventos | **bloqueante externo** — atualizar com a lista do runbook, reativar e provar delete → cancelled → restore → open |
-| D37 | Bypass da proteção do Preview | **parcial** — o query param chega à aplicação; falta alinhar o token do webhook e provar escrita somente no banco de preview |
+| D37 | Bypass da proteção do Preview | **resolvido na borda** — probe real: sem bypass, `302 /sso-api`; com bypass, `405` da rota do Qoro (o teste usou `GET` de propósito em endpoint somente `POST`). Isso não prova que a variável recém-adicionada já esteja disponível ao processo do deploy atual |
 | D38 | Evento penalizado veio da conta sandbox de clínica | **bloqueante externo** — `ASAAS_CLINIC_SANDBOX_KEY` encontra o webhook; ele não prova assinatura e não pode usar a rota global |
 | D39 | Reativação via API não corrige causa-raiz | **vigente** — `PUT interrupted=false` funciona, mas a fila voltou a interromper no retry; corrigir rota/token antes de reativar novamente |
-| D40 | Preview está atrás do código local | **bloqueante externo** — remoto `034b410` não tem `/configuracoes/pagamentos` nem `/api/webhooks/asaas/patient/<ref>`; publicar a branch antes de conectar a conta |
-| D41 | Auto-registro de paciente não carregava bypass | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param |
+| D40 | Preview está atrás do código local | **resolvido** — remoto `b0074e3` contém `/configuracoes/pagamentos` e `/api/webhooks/asaas/patient/<ref>`; a UI já persistiu a conta da Clínica A |
+| D41 | Auto-registro de paciente não carregava bypass | **resolvido em código / causa anterior aberta** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. A segunda conexão gravou `key_version=2`, mas não criou o recurso. A repetição manual do mesmo contrato criou e validou o webhook, então payload, token, rota e Asaas estão funcionais; falta o log da tentativa automática para fechar a causa |
+| D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 
 ### D32 — jornada, não componente
 
@@ -154,10 +159,9 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 
 **Fechar E1–E3 com evidência comportamental.** Hoje E1 está `BLOCKED` porque a Clínica A não tem
 WhatsApp ativo em dev e falta destinatário controlado; E2 está `FAIL` porque o webhook sandbox da
-conta local está interrompido; E3 está `FAIL` porque a fila da conta de clínica foi reativada pela API
-e voltou a interromper ao entregar pendências na rota global errada. A branch remota ainda está em
-`034b410`, sem a UI e sem a rota por clínica. Obter autorização de `push`, aguardar o deploy do Preview
-e só então conectar a conta da clínica e reativar uma vez. Depois, executar a **1.6c** (D35) e só então
+conta local está interrompido; E3 está operacionalmente configurado, mas ainda requer uma entrega
+originada pelo Asaas e o log da tentativa automática anterior. Não reativar o webhook global antigo.
+Depois, executar a **1.6c** (D35) e só então
 iniciar o **1.H**.
 
 **1.H — Hardening.** Quando a 1.6c e as dependências externas estiverem verdes, não adicionar feature:
