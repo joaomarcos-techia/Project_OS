@@ -28,7 +28,7 @@ aplicada no banco dev e o deploy correspondente concluiu com sucesso no Preview.
 | 1.1 Credencial por clínica | ✅ | migration 0081 aplicada; `clinic_payment_accounts` com grant por coluna |
 | 1.2 Política de sinal | ✅ | migration 0082; `payments/policy.ts` (funções puras) |
 | 1.3 Charges + hold | ✅ | migrations 0083–0085; cron `/api/cron/payments-deposit` |
-| 1.4 Webhook do paciente | ✅ **corrigido tecnicamente (D47)** | `0089` aplicada; grants/RLS validados; Preview respondeu `200 unknown_charge` e o replay do mesmo evento respondeu `200 ignored`. Falta somente o E2E de negócio com charge criada pelo Qoro |
+| 1.4 Webhook do paciente | ✅ **corrigido e provado no negócio (D47–D48)** | `0089` aplicada; grants/RLS validados; E2E no Preview criou sinal de R$ 75,00, recebeu `PAYMENT_RECEIVED` real do Asaas e confirmou a consulta |
 | 1.5a Falta / cancelamento / estorno | ✅ | `payments/internal/charge-closeout.ts` + 26 testes; sem migração |
 | **1.5b Restante** | ✅ **runtime completo** — 1.5b.1 · 1.5b.2 · 1.5b.3a · 1.5b.3b | migration 0088; `credit-store` + 2 handlers; `remainder-charge` + `remainder-scan`; seam `getAppointmentBalance` |
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
@@ -38,10 +38,11 @@ aplicada no banco dev e o deploy correspondente concluiu com sucesso no Preview.
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.6c** (entrega do link do restante, D35), **1.H** (hardening)
-e **1.S** (estabilização). Os demais trechos existem em código e estão verdes em unit/integração — mas
-**nenhum E2E completo da jornada de negócio nem cenário destrutivo/de concorrência foi executado
-ainda**. O E2E técnico do D47 cobre rota + Asaas + RLS/dedup, mas não substitui o aceite da camada
-(D32).
+e **1.S** (estabilização). O E2E real do sinal passou no Preview até
+`charge → pagamento sandbox → webhook Asaas → crédito → CONFIRMADO`, mas a entrega do link por
+WhatsApp não foi exercitada: a Clínica A não possui conexão Meta ativa. Também não foram executados
+os ramos destrutivos/de concorrência de 1.H. Portanto o aceite integral da camada continua parcial
+(D32), sem apagar a evidência real já obtida.
 
 ### Gates — resultado REAL da última execução completa
 
@@ -143,7 +144,8 @@ e provar as três jornadas pelo comportamento.
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
 | D45 | Reconexão ainda repetia `POST /webhooks` para uma rota já cadastrada | **resolvido em código e provado com `assaasapi`** — reprodução controlada confirmou `HTTP 400 invalid_object` com “já existe uma configuração para os eventos com os mesmos atributos”. O adapter agora lista, identifica a mesma origem+rota sem depender da query de bypass e converge por `PUT`, inclusive sob corrida GET→POST. O live check criou e reconfigurou o mesmo ID sem duplicar |
 | D46 | Token do webhook global diverge entre local e Preview | **bloqueante externo confirmado** — `POST {}` com bypass chegou à rota `/api/webhooks/asaas`, mas recebeu `401 invalid token`; como a rejeição ocorre antes do parse e do banco, o probe não criou eventos nem alterou estado. Alinhar `ASAAS_WEBHOOK_TOKEN` no escopo Preview e refazer deploy antes de reconfigurar o webhook sandbox de assinatura |
-| D47 | `patient_webhook_events` era somente leitura para a role real do webhook | **resolvido e provado no Preview** — a `0086` dizia “service_role-only”, mas `markDepositPaid()` usa `withTenant`, que faz `SET LOCAL ROLE authenticated`. A `0089` adicionou somente `INSERT` + policy tenant-scoped e manteve `UPDATE`/`DELETE` revogados. Validação conectada com rollback passou; deploy `ed83c90` passou; E2E controlado devolveu `unknown_charge` e replay `ignored`, com dedup exatamente 1 e limpeza 0 resíduos |
+| D47 | `patient_webhook_events` era somente leitura para a role real do webhook | **resolvido e provado no Preview** — a `0086` dizia “service_role-only”, mas `markDepositPaid()` usa `withTenant`, que faz `SET LOCAL ROLE authenticated`. A `0089` adicionou somente `INSERT` + policy tenant-scoped e manteve `UPDATE`/`DELETE` revogados. Validação conectada com rollback passou; deploy `ed83c90` passou; E2E controlado devolveu `unknown_charge` e replay `ignored`, com dedup exatamente 1 e limpeza 0 resíduos. No E2E real, `PAYMENT_RECEIVED` gravou dedup e moveu a cobrança para `paid` sem erro de permissão |
+| D48 | Webhook habilitado continuava sem entregar após os 401/500 anteriores | **resolvido operacionalmente no sandbox e causa comprovada** — `enabled=true` e `interrupted=false` não removem a penalização de entrega. `POST /webhooks/{id}/removeBackoff` devolveu 204; em seguida o Asaas entregou os eventos pendentes e a cobrança criada pelo Qoro foi conciliada. O webhook permanece apontando para o Preview, com bypass, token próprio e `PAYMENT_RECEIVED` habilitado |
 
 ### D32 — jornada, não componente
 
@@ -166,10 +168,12 @@ atendido → financial cria lançamento BRUTO (200) e aplica o crédito (100) �
         → paciente paga → webhook → credit.granted → financial dá baixa → saldo 0, pago
 ```
 
-> ⚠️ **O E2E de aceite da Camada 1 continua NÃO executado.** Os três ramos existem em código e têm
-> teste unitário/integração, mas **nenhum foi exercitado ponta a ponta contra banco + worker**. É
-> exatamente o que o D32 alerta: cada peça verde não prova a jornada. Executar isso é escopo do
-> **1.H**, e até lá o aceite da camada não pode ser declarado.
+> ⚠️ **O E2E real do caminho feliz do sinal foi executado em 26/08/2026, mas o aceite integral da
+> Camada 1 continua parcial.** Evidência: agendamento de R$ 150,00 → cobrança única de R$ 75,00 →
+> `Sinal pendente` → confirmação sandbox `RECEIVED_IN_CASH` → webhook real `PAYMENT_RECEIVED` →
+> cobrança `paid` + crédito único `available` de R$ 75,00 → agenda `Confirmado` + `Sinal pago`.
+> O trecho WhatsApp → paciente não foi executado porque a Clínica A tem zero conexões Meta ativas;
+> os ramos A/B/C completos e os cenários de concorrência continuam no **1.H**.
 
 ### Handoff
 
@@ -178,13 +182,13 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 
 ### Próximo passo
 
-**Executar o teste real do fundador no Preview:** criar a cobrança pelo Qoro, pagar no sandbox e
-confirmar a transição de `patient_charges`, o evento de pagamento e a projeção no agendamento. O D47
-já passou em E2E controlado; este teste restante prova a jornada de negócio. Em seguida, fechar E1–E3
-com evidência comportamental. Hoje E1 está `BLOCKED` porque a Clínica A não tem
-WhatsApp ativo em dev e falta destinatário controlado; E2 está `FAIL` porque o webhook sandbox da
-conta de assinatura está interrompido, aponta para produção e o token do Preview diverge do local;
-E3 passou tecnicamente, mas ainda requer o teste real com cobrança criada pelo Qoro.
+**Fechar E1 com evidência comportamental:** conectar à Clínica A um número Meta de teste e um
+destinatário controlado, aprovar/configurar `META_TEMPLATE_DEPOSIT_LINK_ID` e então exercitar
+`deposit_link → WhatsApp → abertura do invoiceUrl`. O caminho posterior já passou no teste real:
+cobrança criada pelo Qoro, pagamento sandbox, webhook, crédito e projeção `Confirmado`/`Sinal pago`.
+Hoje E1 está `BLOCKED` porque a Clínica A tem zero conexões Meta ativas; E2 continua separado, pois o
+webhook sandbox da conta de assinatura aponta para outro ambiente/token; E3 está `PASS` para o sinal
+da conta da clínica após a remoção do backoff.
 Não reativar nenhum webhook global antigo antes de alinhar ambiente, chave e token.
 Depois, executar a **1.6c** (D35) e só então
 iniciar o **1.H**.
