@@ -17,8 +17,8 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 
 **Última verificação contra o repositório:** 2026-08-26 · branch `feat/qorov2-pagamentos`
 
-**Versionamento (2026-08-26):** a branch está publicada até `cc8a23d`. A migration `0089` foi
-aplicada no banco dev e validada; a correção ainda aguarda commit, deploy e prova no Preview.
+**Versionamento (2026-08-26):** a correção foi publicada em `ed83c90`; a migration `0089` está
+aplicada no banco dev e o deploy correspondente concluiu com sucesso no Preview.
 
 ### Sub-fases da Camada 1
 
@@ -28,7 +28,7 @@ aplicada no banco dev e validada; a correção ainda aguarda commit, deploy e pr
 | 1.1 Credencial por clínica | ✅ | migration 0081 aplicada; `clinic_payment_accounts` com grant por coluna |
 | 1.2 Política de sinal | ✅ | migration 0082; `payments/policy.ts` (funções puras) |
 | 1.3 Charges + hold | ✅ | migrations 0083–0085; cron `/api/cron/payments-deposit` |
-| 1.4 Webhook do paciente | ⚠️ **PARTIAL (D47)** | a `0089` foi aplicada em dev; grants e RLS passaram em validação conectada com rollback. Falta publicar e provar o retry HTTP 200 no Preview |
+| 1.4 Webhook do paciente | ✅ **corrigido tecnicamente (D47)** | `0089` aplicada; grants/RLS validados; Preview respondeu `200 unknown_charge` e o replay do mesmo evento respondeu `200 ignored`. Falta somente o E2E de negócio com charge criada pelo Qoro |
 | 1.5a Falta / cancelamento / estorno | ✅ | `payments/internal/charge-closeout.ts` + 26 testes; sem migração |
 | **1.5b Restante** | ✅ **runtime completo** — 1.5b.1 · 1.5b.2 · 1.5b.3a · 1.5b.3b | migration 0088; `credit-store` + 2 handlers; `remainder-charge` + `remainder-scan`; seam `getAppointmentBalance` |
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
@@ -38,10 +38,10 @@ aplicada no banco dev e validada; a correção ainda aguarda commit, deploy e pr
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.6c** (entrega do link do restante, D35), **1.H** (hardening)
-e **1.S** (estabilização), além de publicar e provar a correção do webhook em **D47**. Os demais
-trechos existem em código e estão verdes em unit/integração — mas
-**nenhum cenário destrutivo, de concorrência ou E2E com banco foi executado ainda**, e é neles que o
-aceite da camada se prova (D32).
+e **1.S** (estabilização). Os demais trechos existem em código e estão verdes em unit/integração — mas
+**nenhum E2E completo da jornada de negócio nem cenário destrutivo/de concorrência foi executado
+ainda**. O E2E técnico do D47 cobre rota + Asaas + RLS/dedup, mas não substitui o aceite da camada
+(D32).
 
 ### Gates — resultado REAL da última execução completa
 
@@ -79,7 +79,7 @@ end-to-end com banco · Product Acceptance.
 | --- | --- | --- |
 | E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED** — a variável do template do sinal está presente no ambiente local, mas o gestor informado resolve para a Clínica A (`f71713ed-6bd4-4656-b634-071811268d39`) e a consulta de 26/08 confirma `0` números WhatsApp cadastrados/ativos/conectados em dev. Também falta um destinatário controlado; o número conectado à Meta seria o remetente, não o destinatário |
 | E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`, aponta para `app.qoro.dev` e assina 44 eventos em vez dos 7 do runbook. Um `POST {}` inofensivo ao Preview passou pela proteção da Vercel, mas recebeu `401 invalid token` da rota global: o `ASAAS_WEBHOOK_TOKEN` local não coincide com o deploy. Não reativar até alinhar URL, chave e token no Preview (**D36**, **D46**) |
-| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS na configuração / PARTIAL no processamento (D47)** — o webhook do paciente está ativo e na rota Preview correta. A `0089` foi aplicada no banco dev; validação conectada provou `INSERT` no próprio tenant, bloqueio cross-tenant, `UPDATE/DELETE` revogados e zero resíduos. Falta o deploy e um retry no Preview; como o pagamento real não pertence a `patient_charges`, o resultado esperado é `200 unknown_charge`. O E2E com cobrança criada pelo Qoro fica pendente |
+| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS técnico / PARTIAL na jornada real** — webhook ativo na rota Preview; `0089` aplicada. Validação conectada provou own-tenant `INSERT`, bloqueio cross-tenant, `UPDATE/DELETE` revogados e zero resíduos. E2E controlado contra Preview + Asaas sandbox: primeira entrega `200 unknown_charge`, replay `200 ignored`, dedup 1 em ambos; a fixture sintética foi removida e o resíduo ficou 0. Falta cobrança criada pelo Qoro + pagamento real para provar conciliação, evento e projeção no agendamento |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**12/12**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
@@ -106,10 +106,13 @@ um probe sem efeitos colaterais provou que o Preview alcança a rota global, mas
 Depois, uma entrega real na rota de paciente provou URL, bypass, token e chave corretos até o Asaas,
 mas expôs o D47 ao iniciar a transação: a tabela de dedup era somente leitura para a role usada por
 `withTenant`. A transação reverteu inteira (`dedupCount=0`) e não existe charge do Qoro para o payment,
-portanto nenhum agendamento ou lançamento foi alterado.
-**Não avançar tratando E1–E3 como integralmente verdes:** falta aplicar a `0089` e obter HTTP 200 no
-retry do Asaas, alinhar o ambiente do webhook de assinatura, conectar o número Meta, fornecer
-destinatário controlado e provar as três jornadas pelo comportamento.
+portanto nenhum agendamento ou lançamento foi alterado. A `0089` foi aplicada depois; a validação
+conectada provou os grants e a RLS. No deploy `ed83c90`, um E2E controlado contra o Preview e o Asaas
+sandbox retornou `200 unknown_charge`; o replay do mesmo evento retornou `200 ignored`, a cardinalidade
+do dedup permaneceu 1 e a limpeza removeu a única linha sintética, com resíduo 0.
+**Não avançar tratando E1–E3 como integralmente verdes:** falta o teste com charge criada pelo Qoro,
+alinhar o ambiente do webhook de assinatura, conectar o número Meta, fornecer destinatário controlado
+e provar as três jornadas pelo comportamento.
 
 ### Discoveries que ainda governam decisões
 
@@ -140,7 +143,7 @@ destinatário controlado e provar as três jornadas pelo comportamento.
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
 | D45 | Reconexão ainda repetia `POST /webhooks` para uma rota já cadastrada | **resolvido em código e provado com `assaasapi`** — reprodução controlada confirmou `HTTP 400 invalid_object` com “já existe uma configuração para os eventos com os mesmos atributos”. O adapter agora lista, identifica a mesma origem+rota sem depender da query de bypass e converge por `PUT`, inclusive sob corrida GET→POST. O live check criou e reconfigurou o mesmo ID sem duplicar |
 | D46 | Token do webhook global diverge entre local e Preview | **bloqueante externo confirmado** — `POST {}` com bypass chegou à rota `/api/webhooks/asaas`, mas recebeu `401 invalid token`; como a rejeição ocorre antes do parse e do banco, o probe não criou eventos nem alterou estado. Alinhar `ASAAS_WEBHOOK_TOKEN` no escopo Preview e refazer deploy antes de reconfigurar o webhook sandbox de assinatura |
-| D47 | `patient_webhook_events` era somente leitura para a role real do webhook | **fix aplicado em dev / Preview pendente** — a `0086` dizia “service_role-only”, mas `markDepositPaid()` usa `withTenant`, que faz `SET LOCAL ROLE authenticated`. A `0089` adicionou somente `INSERT` + policy tenant-scoped e manteve `UPDATE`/`DELETE` revogados. Validação conectada com rollback: own-tenant permitido, cross-tenant bloqueado, zero resíduos. Falta deploy + retry HTTP 200 para restaurar 1.4/E3 |
+| D47 | `patient_webhook_events` era somente leitura para a role real do webhook | **resolvido e provado no Preview** — a `0086` dizia “service_role-only”, mas `markDepositPaid()` usa `withTenant`, que faz `SET LOCAL ROLE authenticated`. A `0089` adicionou somente `INSERT` + policy tenant-scoped e manteve `UPDATE`/`DELETE` revogados. Validação conectada com rollback passou; deploy `ed83c90` passou; E2E controlado devolveu `unknown_charge` e replay `ignored`, com dedup exatamente 1 e limpeza 0 resíduos |
 
 ### D32 — jornada, não componente
 
@@ -175,13 +178,13 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 
 ### Próximo passo
 
-**Publicar e provar a `0089` no Preview.** Reentregar o evento real deve retornar `200 unknown_charge`,
-pois o pagamento recebido não tem linha em `patient_charges`; depois o fundador executará uma cobrança
-criada pelo Qoro para provar a conciliação real. Em seguida, fechar E1–E3 com evidência comportamental.
-Hoje E1 está `BLOCKED` porque a Clínica A não tem
+**Executar o teste real do fundador no Preview:** criar a cobrança pelo Qoro, pagar no sandbox e
+confirmar a transição de `patient_charges`, o evento de pagamento e a projeção no agendamento. O D47
+já passou em E2E controlado; este teste restante prova a jornada de negócio. Em seguida, fechar E1–E3
+com evidência comportamental. Hoje E1 está `BLOCKED` porque a Clínica A não tem
 WhatsApp ativo em dev e falta destinatário controlado; E2 está `FAIL` porque o webhook sandbox da
 conta de assinatura está interrompido, aponta para produção e o token do Preview diverge do local;
-E3 está configurado e ativo; a `0089` já está no banco dev, mas requer deploy + retry HTTP 200.
+E3 passou tecnicamente, mas ainda requer o teste real com cobrança criada pelo Qoro.
 Não reativar nenhum webhook global antigo antes de alinhar ambiente, chave e token.
 Depois, executar a **1.6c** (D35) e só então
 iniciar o **1.H**.
