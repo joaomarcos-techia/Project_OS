@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   requireCachedPermission: vi.fn(async () => {}),
   env: {
     DATABASE_URL: 'postgres://user:pass@localhost:5432/test',
-    APP_BASE_URL: 'https://preview.qoro.test',
+    APP_BASE_URL: 'https://preview.qoro.test' as string | undefined,
     NODE_ENV: 'production' as const,
     VERCEL_ENV: 'preview' as 'preview' | 'production' | 'development' | undefined,
     VERCEL_AUTOMATION_BYPASS_SECRET: 'preview-bypass-secret' as string | undefined,
@@ -89,7 +89,7 @@ const SECRET = '$aact_chave_secreta_da_clinica';
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireCachedPermission.mockImplementation(async () => {});
-  mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: null });
+  mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: 'ops@qoro.test' });
   mocks.createAsaasClient.mockReturnValue({ getMyAccount: mocks.getMyAccount });
   mocks.createWebhook.mockResolvedValue({ webhookId: 'webhook-1' });
   mocks.getWebhookSetupTarget.mockResolvedValue({
@@ -98,6 +98,8 @@ beforeEach(() => {
     webhookToken: 'webhook-token-da-clinica-com-32-chars',
     client: { createWebhook: mocks.createWebhook },
   });
+  vi.mocked(upsertPaymentAccount).mockResolvedValue({ id: 'acc-1', changed: true });
+  mocks.env.APP_BASE_URL = 'https://preview.qoro.test';
   mocks.env.VERCEL_ENV = 'preview';
   mocks.env.VERCEL_AUTOMATION_BYPASS_SECRET = 'preview-bypass-secret';
 });
@@ -121,7 +123,9 @@ describe('connectPaymentAccount', () => {
     const result = await connectPaymentAccount({ apiKey: SECRET });
 
     expect(JSON.stringify(result)).not.toContain(SECRET);
-    const [name, fields] = vi.mocked(metrics.emit).mock.calls[0]!;
+    const [name, fields] = vi
+      .mocked(metrics.emit)
+      .mock.calls.find(([event]) => event === 'payments.account.connected')!;
     expect(name).toBe('payments.account.connected');
     expect(JSON.stringify(fields)).not.toContain(SECRET);
     expect(fields).toEqual({ clinicId: 'clinic-1', changed: true });
@@ -141,13 +145,87 @@ describe('connectPaymentAccount', () => {
   });
 
   it('não registra webhook condenado quando o Preview protegido está sem bypass', async () => {
-    mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: 'ops@qoro.test' });
     mocks.env.VERCEL_AUTOMATION_BYPASS_SECRET = undefined;
 
-    await connectPaymentAccount({ apiKey: SECRET });
+    const result = await connectPaymentAccount({ apiKey: SECRET });
 
     expect(mocks.createWebhook).not.toHaveBeenCalled();
     expect(mocks.markWebhookConfigured).not.toHaveBeenCalled();
+    expect(result.webhookConfigurationIssue).toEqual(
+      expect.objectContaining({
+        code: 'qoro_missing_preview_bypass',
+        location: expect.stringContaining('Configuração do Qoro'),
+      }),
+    );
+  });
+
+  it('informa quando APP_BASE_URL está ausente e onde a falha ocorreu', async () => {
+    mocks.env.APP_BASE_URL = undefined;
+
+    const result = await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(mocks.createWebhook).not.toHaveBeenCalled();
+    expect(result.webhookConfigurationIssue).toEqual({
+      code: 'qoro_missing_app_base_url',
+      location: 'Configuração do Qoro, antes de chamar o Asaas',
+      message: 'APP_BASE_URL não está disponível no runtime deste deploy.',
+    });
+  });
+
+  it('informa quando a conta Asaas não devolve o e-mail exigido pelo webhook', async () => {
+    mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: null });
+
+    const result = await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(mocks.createWebhook).not.toHaveBeenCalled();
+    expect(result.webhookConfigurationIssue).toEqual(
+      expect.objectContaining({
+        code: 'asaas_missing_account_email',
+        location: expect.stringContaining('GET /myAccount'),
+      }),
+    );
+  });
+
+  it('mostra HTTP e códigos seguros quando o Asaas recusa POST /webhooks', async () => {
+    mocks.createWebhook.mockRejectedValue(
+      new BillingProviderError('corpo interno', 'billing_provider_error', 400, [
+        'invalid_webhook_url',
+      ]),
+    );
+
+    const result = await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(result.webhookConfigurationIssue).toEqual({
+      code: 'asaas_webhook_rejected',
+      location: 'API do Asaas, durante POST /webhooks',
+      message:
+        'O Asaas recusou o registro do webhook (HTTP 400; código(s): invalid_webhook_url). A chave já havia sido aceita em GET /myAccount.',
+    });
+    expect(JSON.stringify(result)).not.toContain('corpo interno');
+  });
+
+  it('distingue indisponibilidade durante POST /webhooks de recusa da chave', async () => {
+    mocks.createWebhook.mockRejectedValue(new BillingProviderUnreachableError('timeout interno'));
+
+    const result = await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(result.webhookConfigurationIssue).toEqual(
+      expect.objectContaining({
+        code: 'asaas_webhook_unavailable',
+        location: expect.stringContaining('POST /webhooks'),
+      }),
+    );
+    expect(JSON.stringify(result)).not.toContain('timeout interno');
+  });
+
+  it('não cria webhook duplicado ao reenviar a mesma chave já configurada', async () => {
+    vi.mocked(upsertPaymentAccount).mockResolvedValue({ id: 'acc-1', changed: false });
+
+    const result = await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(mocks.createWebhook).not.toHaveBeenCalled();
+    expect(result.webhookConfigured).toBe(true);
+    expect(result.webhookConfigurationIssue).toBeNull();
   });
 
   it('não anexa bypass fora do Preview', async () => {

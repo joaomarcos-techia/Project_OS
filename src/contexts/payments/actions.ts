@@ -59,9 +59,11 @@ import { clinicDepositPolicy } from './schema';
 import {
   ConnectPaymentAccountSchema,
   SaveDepositPolicySchema,
+  type ConnectPaymentAccountResult,
   type ConnectPaymentAccountInput,
   type DepositPolicyDTO,
   type PaymentAccountStatusDTO,
+  type PaymentWebhookConfigurationIssue,
   type SaveDepositPolicyInput,
 } from './types';
 
@@ -153,16 +155,80 @@ function buildPatientWebhookUrl(baseUrl: string, webhookRef: string): string | n
 async function tryConfigureWebhook(
   clinicId: string,
   accountEmail: string | null,
-): Promise<boolean> {
+): Promise<{ ok: true; issue: null } | { ok: false; issue: PaymentWebhookConfigurationIssue }> {
+  const fail = (
+    issue: PaymentWebhookConfigurationIssue,
+    error?: unknown,
+  ): { ok: false; issue: PaymentWebhookConfigurationIssue } => {
+    metrics.emit('payments.webhook.configure_failed', {
+      clinicId,
+      code: issue.code,
+      location: issue.location,
+      ...(error === undefined ? {} : { error }),
+    });
+    return { ok: false, issue };
+  };
+
   const baseUrl = env.APP_BASE_URL;
-  if (!baseUrl) return false;
+  if (!baseUrl) {
+    return fail({
+      code: 'qoro_missing_app_base_url',
+      location: 'Configuração do Qoro, antes de chamar o Asaas',
+      message: 'APP_BASE_URL não está disponível no runtime deste deploy.',
+    });
+  }
   // O Asaas exige um e-mail de contato para o webhook. Sem ele não dá para
   // registrar — e forjar um endereço nosso na conta de um cliente seria pior.
-  if (!accountEmail) return false;
-  const target = await getWebhookSetupTarget(clinicId);
-  if (!target) return false;
-  const webhookUrl = buildPatientWebhookUrl(baseUrl, target.webhookRef);
-  if (!webhookUrl) return false;
+  if (!accountEmail) {
+    return fail({
+      code: 'asaas_missing_account_email',
+      location: 'Conta Asaas, após GET /myAccount e antes de POST /webhooks',
+      message: 'A conta Asaas não retornou o e-mail de contato exigido para registrar o webhook.',
+    });
+  }
+
+  let target: Awaited<ReturnType<typeof getWebhookSetupTarget>>;
+  try {
+    target = await getWebhookSetupTarget(clinicId);
+  } catch (error) {
+    return fail(
+      {
+        code: 'qoro_webhook_unexpected',
+        location: 'Banco/criptografia do Qoro, ao preparar o webhook',
+        message: 'O Qoro não conseguiu reler a conta e o token recém-salvos.',
+      },
+      error,
+    );
+  }
+  if (!target) {
+    return fail({
+      code: 'qoro_payment_account_unavailable',
+      location: 'Banco do Qoro, antes de chamar o Asaas',
+      message: 'A conta recém-salva não pôde ser preparada para o registro do webhook.',
+    });
+  }
+
+  if (env.VERCEL_ENV === 'preview' && !env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+    return fail({
+      code: 'qoro_missing_preview_bypass',
+      location: 'Configuração do Qoro, antes de chamar o Asaas',
+      message: 'VERCEL_AUTOMATION_BYPASS_SECRET não está disponível no runtime deste Preview.',
+    });
+  }
+
+  let webhookUrl: string;
+  try {
+    webhookUrl = buildPatientWebhookUrl(baseUrl, target.webhookRef)!;
+  } catch (error) {
+    return fail(
+      {
+        code: 'qoro_invalid_app_base_url',
+        location: 'Configuração do Qoro, antes de chamar o Asaas',
+        message: 'APP_BASE_URL deste deploy não é uma origem HTTPS válida.',
+      },
+      error,
+    );
+  }
 
   try {
     await target.client.createWebhook({
@@ -178,10 +244,47 @@ async function tryConfigureWebhook(
     });
     await markWebhookConfigured(clinicId);
     metrics.emit('payments.webhook.configured', { clinicId });
-    return true;
-  } catch (err) {
-    metrics.emit('payments.webhook.configure_failed', { clinicId, error: err });
-    return false;
+    return { ok: true, issue: null };
+  } catch (error) {
+    if (error instanceof BillingProviderError) {
+      const providerCodes = error.providerErrorCodes.slice(0, 5);
+      const details = [
+        error.httpStatus === null ? null : `HTTP ${error.httpStatus}`,
+        providerCodes.length === 0 ? null : `código(s): ${providerCodes.join(', ')}`,
+      ]
+        .filter((part): part is string => part !== null)
+        .join('; ');
+      return fail(
+        {
+          code: 'asaas_webhook_rejected',
+          location: 'API do Asaas, durante POST /webhooks',
+          message: `O Asaas recusou o registro do webhook${details ? ` (${details})` : ''}. A chave já havia sido aceita em GET /myAccount.`,
+        },
+        error,
+      );
+    }
+    if (
+      error instanceof BillingProviderUnreachableError ||
+      error instanceof BillingCircuitOpenError
+    ) {
+      return fail(
+        {
+          code: 'asaas_webhook_unavailable',
+          location: 'Comunicação Qoro → Asaas, durante POST /webhooks',
+          message:
+            'O Asaas não confirmou o registro por indisponibilidade, timeout ou falha de rede.',
+        },
+        error,
+      );
+    }
+    return fail(
+      {
+        code: 'qoro_webhook_unexpected',
+        location: 'Qoro, durante a confirmação de POST /webhooks',
+        message: 'O registro falhou de forma inesperada. Use o código abaixo para localizar o log.',
+      },
+      error,
+    );
   }
 }
 
@@ -194,7 +297,7 @@ async function tryConfigureWebhook(
  */
 export async function connectPaymentAccount(
   input: ConnectPaymentAccountInput,
-): Promise<PaymentAccountStatusDTO> {
+): Promise<ConnectPaymentAccountResult> {
   const user = await requireUser();
   await requirePaymentAdmin();
   const data = ConnectPaymentAccountSchema.parse(input);
@@ -221,14 +324,21 @@ export async function connectPaymentAccount(
     requestContext: ctx,
   });
 
-  // Depois de gravar: sem conta persistida não há `webhook_ref` para apontar.
-  await tryConfigureWebhook(clinicId, accountEmail);
+  // Reenviar a MESMA chave com webhook já confirmado é um no-op real. Além de
+  // poupar uma chamada, impede criar webhooks duplicados com o mesmo token.
+  const unchangedStatus = result.changed ? null : await getPaymentAccountStatus(clinicId);
+  const webhookResult = unchangedStatus?.webhookConfigured
+    ? { ok: true as const, issue: null }
+    : await tryConfigureWebhook(clinicId, accountEmail);
 
   // Sem chave, sem hash, sem nome de conta: só o suficiente para ver adoção e
   // investigar volume. `changed:false` = reenvio da mesma chave.
   metrics.emit('payments.account.connected', { clinicId, changed: result.changed });
 
-  return getPaymentAccountStatus(clinicId);
+  const status = unchangedStatus?.webhookConfigured
+    ? unchangedStatus
+    : await getPaymentAccountStatus(clinicId);
+  return { ...status, webhookConfigurationIssue: webhookResult.issue };
 }
 
 /**

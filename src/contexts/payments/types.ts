@@ -56,6 +56,31 @@ export interface PaymentAccountStatusDTO {
   connectedAt: string | null;
 }
 
+/**
+ * Falha segura e acionável do passo 2 da conexão: registrar o webhook.
+ *
+ * A chave nunca aparece aqui. `message` só pode ser construída pelo servidor a
+ * partir de códigos/HTTP já sanitizados pelo adapter do Asaas.
+ */
+export interface PaymentWebhookConfigurationIssue {
+  code:
+    | 'qoro_missing_app_base_url'
+    | 'qoro_invalid_app_base_url'
+    | 'asaas_missing_account_email'
+    | 'qoro_payment_account_unavailable'
+    | 'qoro_missing_preview_bypass'
+    | 'asaas_webhook_rejected'
+    | 'asaas_webhook_unavailable'
+    | 'qoro_webhook_unexpected';
+  location: string;
+  message: string;
+}
+
+/** Resultado específico da conexão: conta salva + desfecho do webhook. */
+export interface ConnectPaymentAccountResult extends PaymentAccountStatusDTO {
+  webhookConfigurationIssue: PaymentWebhookConfigurationIssue | null;
+}
+
 export const EMPTY_PAYMENT_ACCOUNT: PaymentAccountStatusDTO = {
   provider: 'asaas',
   hasApiKey: false,

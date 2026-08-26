@@ -45,16 +45,16 @@ aceite da camada se prova (D32).
 
 ### Gates — resultado REAL da última execução completa
 
-Executados em 2026-08-26, após o suporte ao bypass no auto-registro do webhook de paciente.
+Executados em 2026-08-26, após tornar o erro do auto-registro explícito na tela.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2647** (287 arquivos) |
+| Testes | `pnpm test` | ✅ **2654** (288 arquivos) |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1067 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1068 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
@@ -73,7 +73,7 @@ O equivalente para `clinic_payment_accounts` (**D13**) continua pendente, no 1.H
 **Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · `test:simulation` · Financial Integrity
 end-to-end com banco · Product Acceptance.
 
-### Dependências externas — validação comportamental (2026-08-25)
+### Dependências externas — validação comportamental (2026-08-26)
 
 | # | O quê | Estado |
 | --- | --- | --- |
@@ -123,6 +123,7 @@ jornadas pelo comportamento.
 | D40 | Preview está atrás do código local | **resolvido** — remoto `b0074e3` contém `/configuracoes/pagamentos` e `/api/webhooks/asaas/patient/<ref>`; a UI já persistiu a conta da Clínica A |
 | D41 | Auto-registro de paciente não carregava bypass | **resolvido em código / causa anterior aberta** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. A segunda conexão gravou `key_version=2`, mas não criou o recurso. A repetição manual do mesmo contrato criou e validou o webhook, então payload, token, rota e Asaas estão funcionais; falta o log da tentativa automática para fechar a causa |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
+| D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 
 ### D32 — jornada, não componente
 

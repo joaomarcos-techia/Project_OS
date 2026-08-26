@@ -24,7 +24,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
-import type { PaymentAccountStatusDTO } from '@/contexts/payments';
+import type {
+  PaymentAccountStatusDTO,
+  PaymentWebhookConfigurationIssue,
+} from '@/contexts/payments';
 import { formatDatePt } from '@/lib/format';
 
 import { connectPaymentAccountAction, disconnectPaymentAccountAction } from './actions';
@@ -38,6 +41,7 @@ export function PaymentAccountPanel({ status }: Props) {
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [webhookIssue, setWebhookIssue] = useState<PaymentWebhookConfigurationIssue | null>(null);
   const [pending, startTransition] = useTransition();
 
   function handleConnect(event: React.FormEvent<HTMLFormElement>) {
@@ -45,6 +49,7 @@ export function PaymentAccountPanel({ status }: Props) {
     const value = apiKey;
     setError(null);
     setNotice(null);
+    setWebhookIssue(null);
     startTransition(async () => {
       const result = await connectPaymentAccountAction(value);
       // Limpa SEMPRE, inclusive no erro: a chave não fica pendurada no estado do
@@ -52,6 +57,11 @@ export function PaymentAccountPanel({ status }: Props) {
       setApiKey('');
       if (!result.ok) {
         setError(result.message);
+        return;
+      }
+      setWebhookIssue(result.data.webhookConfigurationIssue);
+      if (result.data.webhookConfigurationIssue) {
+        router.refresh();
         return;
       }
       setNotice(
@@ -66,6 +76,7 @@ export function PaymentAccountPanel({ status }: Props) {
   function handleDisconnect() {
     setError(null);
     setNotice(null);
+    setWebhookIssue(null);
     startTransition(async () => {
       const result = await disconnectPaymentAccountAction();
       if (!result.ok) {
@@ -100,13 +111,38 @@ export function PaymentAccountPanel({ status }: Props) {
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4">
-          {status.hasApiKey && !status.webhookConfigured ? (
-            <Alert variant="warning" title="Aviso de pagamento não configurado">
-              A conta está conectada, mas o Asaas não confirmou o registro do aviso automático de
-              pagamento. Sem ele o sistema cria a cobrança e{' '}
-              <b>nunca fica sabendo que o paciente pagou</b> — o horário seria liberado mesmo com o
-              sinal pago. Envie a chave novamente para tentar de novo; se persistir, chame o
-              suporte.
+          {webhookIssue || (status.hasApiKey && !status.webhookConfigured) ? (
+            <Alert variant="warning" title="Webhook de pagamento não configurado">
+              <div className="flex flex-col gap-2 text-pretty">
+                <p>
+                  A chave foi aceita e a conta foi salva, mas falhou a etapa que registra o aviso
+                  automático de pagamento. Sem esse webhook, o sistema não confirma o sinal pago.
+                </p>
+                {webhookIssue ? (
+                  <>
+                    <p>
+                      <b>Onde ocorreu:</b> {webhookIssue.location}.
+                    </p>
+                    <p>
+                      <b>Motivo:</b> {webhookIssue.message}
+                    </p>
+                    <p>
+                      <b>Código para suporte:</b> <code>{webhookIssue.code}</code>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      <b>Onde ocorreu:</b> entre o Qoro e o Asaas, na operação{' '}
+                      <code>POST /webhooks</code>. A confirmação do Asaas não foi registrada.
+                    </p>
+                    <p>
+                      Reenvie a chave para repetir somente essa configuração. A nova tentativa
+                      mostrará o local, o motivo e um código técnico seguro.
+                    </p>
+                  </>
+                )}
+              </div>
             </Alert>
           ) : null}
 

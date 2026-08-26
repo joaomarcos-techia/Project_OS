@@ -14,6 +14,7 @@ import {
   saveDepositPolicy,
 } from '@/contexts/payments/actions';
 import type {
+  ConnectPaymentAccountResult,
   DepositPolicyDTO,
   PaymentAccountStatusDTO,
   SaveDepositPolicyInput,
@@ -23,7 +24,7 @@ import { fail, ok, type ActionResult } from './pagamentos-types';
 
 export async function connectPaymentAccountAction(
   apiKey: string,
-): Promise<ActionResult<PaymentAccountStatusDTO>> {
+): Promise<ActionResult<ConnectPaymentAccountResult>> {
   try {
     return ok(await connectPaymentAccount({ apiKey }));
   } catch (err) {

@@ -25,9 +25,11 @@ export {
   ConnectPaymentAccountSchema,
   EMPTY_PAYMENT_ACCOUNT,
   SaveDepositPolicySchema,
+  type ConnectPaymentAccountResult,
   type ConnectPaymentAccountInput,
   type DepositPolicyDTO,
   type PaymentAccountStatusDTO,
+  type PaymentWebhookConfigurationIssue,
   type SaveDepositPolicyInput,
 } from './types';
 export { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
