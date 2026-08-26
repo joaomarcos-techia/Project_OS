@@ -25,7 +25,7 @@ local ainda não foi publicada; nenhum `push` ou deploy foi executado nesta roda
 
 | Sub-fase | Estado | Confirmado por |
 | --- | --- | --- |
-| 1.0 Adapter Asaas | ✅ | `src/lib/payments/asaas/index.ts` + 23 testes |
+| 1.0 Adapter Asaas | ✅ | `src/lib/payments/asaas/index.ts` + 24 testes |
 | 1.1 Credencial por clínica | ✅ | migration 0081 aplicada; `clinic_payment_accounts` com grant por coluna |
 | 1.2 Política de sinal | ✅ | migration 0082; `payments/policy.ts` (funções puras) |
 | 1.3 Charges + hold | ✅ | migrations 0083–0085; cron `/api/cron/payments-deposit` |
@@ -45,13 +45,13 @@ aceite da camada se prova (D32).
 
 ### Gates — resultado REAL da última execução completa
 
-Executados em 2026-08-26, após tornar o erro do auto-registro explícito na tela.
+Executados em 2026-08-26, após corrigir o contrato v3 do auto-registro do webhook.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2654** (288 arquivos) |
+| Testes | `pnpm test` | ✅ **2655** (288 arquivos) |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos |
 | dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1068 arquivos) |
@@ -79,7 +79,7 @@ end-to-end com banco · Product Acceptance.
 | --- | --- | --- |
 | E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED** — o gestor informado resolve para a Clínica A (`f71713ed-6bd4-4656-b634-071811268d39`), mas em dev ela não tem número WhatsApp ativo. Também falta um destinatário controlado; o número conectado à Meta seria o remetente, não o destinatário |
 | E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`; restauração real ainda não foi entregue nem reabriu invoice (**D36**). O evento penalizado informado pertence a outra conta sandbox e não prova E2 (**D38**) |
-| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS operacional / PARTIAL na origem** — o probe real devolve `302 /sso-api` sem bypass e chega à aplicação (`405`) com bypass. O auto-registro da segunda conexão (`key_version=2`) não criou o recurso, mas o mesmo `POST /webhooks` executado de forma guardada criou `/patient/<ref>` ativo e não interrompido; o banco foi marcado somente após o GET de confirmação. Uma entrega imitada com token real e cobrança `PENDING` recebeu `200` e foi corretamente ignorada após `getPayment`. Falta uma entrega originada pelo Asaas após pagamento real e explicar a falha anterior do auto-registro (**D37–D41**) |
+| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS operacional / PARTIAL no E2E** — o probe real devolve `302 /sso-api` sem bypass e chega à aplicação (`405`) com bypass. A causa do `HTTP 400 invalid_object` no auto-registro foi fechada: o payload omitia o `apiVersion` obrigatório no contrato atual do `POST /webhooks`; `apiVersion: 3` foi adicionado e aceito pelo sandbox no `payments:live-check`. Uma entrega imitada com token real e cobrança `PENDING` recebeu `200` e foi corretamente ignorada após `getPayment`. Falta somente uma entrega originada pelo Asaas após pagamento real (**D37–D44**) |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**11/11**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
@@ -91,9 +91,11 @@ a `interrupted=true`, durante o retry dos pendentes. Ele assina nove eventos e a
 `/api/webhooks/asaas`, embora a conta seja a sandbox de clínica. Separadamente, o webhook da conta de
 assinatura continua apontando para produção e interrompido. Nenhuma mensagem foi enviada. Depois do
 deploy de `b0074e3`, a conta da Clínica A foi conectada pelo sistema; a tentativa automática não criou
-o webhook. O mesmo registro foi então executado de forma guardada contra o sandbox: o Asaas confirmou
-o `/patient/<ref>` ativo, o banco recebeu `webhook_configured_at`, e uma entrega imitada com o token
-real respondeu `200` sem aceitar como pago um pagamento ainda `PENDING`. O webhook global antigo segue
+o webhook. O diagnóstico seguro mostrou `HTTP 400 invalid_object`, e a comparação com o contrato atual
+do Asaas encontrou o campo obrigatório ausente: `apiVersion`. Com `apiVersion: 3`, o sandbox aceitou o
+registro no `payments:live-check` e a limpeza removeu o recurso sintético. O `/patient/<ref>` registrado
+manualmente segue ativo, o banco possui `webhook_configured_at`, e uma entrega imitada com o token real
+respondeu `200` sem aceitar como pago um pagamento ainda `PENDING`. O webhook global antigo segue
 interrompido e não deve ser reativado. **Não avançar tratando E1–E3 como integralmente verdes:** falta
 entrega originada pelo Asaas, conectar o número Meta, fornecer destinatário controlado e provar as três
 jornadas pelo comportamento.
@@ -121,9 +123,10 @@ jornadas pelo comportamento.
 | D38 | Evento penalizado veio da conta sandbox de clínica | **bloqueante externo** — `ASAAS_CLINIC_SANDBOX_KEY` encontra o webhook; ele não prova assinatura e não pode usar a rota global |
 | D39 | Reativação via API não corrige causa-raiz | **vigente** — `PUT interrupted=false` funciona, mas a fila voltou a interromper no retry; corrigir rota/token antes de reativar novamente |
 | D40 | Preview está atrás do código local | **resolvido** — remoto `b0074e3` contém `/configuracoes/pagamentos` e `/api/webhooks/asaas/patient/<ref>`; a UI já persistiu a conta da Clínica A |
-| D41 | Auto-registro de paciente não carregava bypass | **resolvido em código / causa anterior aberta** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. A segunda conexão gravou `key_version=2`, mas não criou o recurso. A repetição manual do mesmo contrato criou e validou o webhook, então payload, token, rota e Asaas estão funcionais; falta o log da tentativa automática para fechar a causa |
+| D41 | Auto-registro de paciente não carregava bypass | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. O erro posterior já alcançava a API do Asaas e tinha outra causa, fechada em **D44** |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
+| D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
 
 ### D32 — jornada, não componente
 

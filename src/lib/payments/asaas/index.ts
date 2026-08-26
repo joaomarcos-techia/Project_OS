@@ -115,6 +115,7 @@ class CircuitBreaker {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const ASAAS_USER_AGENT = 'ClinicaOS/1.0 (billing-integration)';
+const ASAAS_WEBHOOK_API_VERSION = 3;
 // O Asaas usa códigos como `invalid_creditCard`. Aceita somente letras,
 // `_` e `-`: preserva o identificador diagnóstico sem permitir CPF, PAN ou
 // qualquer outro valor numérico refletido pelo provedor.
@@ -369,10 +370,9 @@ export interface PaymentProvider {
   /**
    * Registra o webhook na conta. Devolve o id criado pelo Asaas.
    *
-   * Regras do provedor descobertas AO VIVO (2026-08-24), porque nenhuma delas
-   * estava óbvia na documentação: `sendType` é obrigatório · `email` é obrigatório
-   * · o `authToken` precisa de **≥32 caracteres** e **não pode ter mais de 4
-   * iguais consecutivos**.
+   * Regras do provedor confirmadas na documentação e AO VIVO (2026-08-26):
+   * `apiVersion`, `sendType` e `email` são obrigatórios · o `authToken` precisa de
+   * **≥32 caracteres** e **não pode ter mais de 4 iguais consecutivos**.
    *
    * O `authToken` é enviado e **nunca devolvido** pela API — o painel do Asaas
    * expõe apenas um indicador de que existe. Por isso o token é guardado do nosso
@@ -765,6 +765,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         email: input.email,
         enabled: true,
         interrupted: false,
+        apiVersion: ASAAS_WEBHOOK_API_VERSION,
         authToken: input.authToken,
         sendType: 'SEQUENTIALLY',
         events: input.events,

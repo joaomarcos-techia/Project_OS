@@ -261,6 +261,41 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
   });
 });
 
+describe('criação de webhook', () => {
+  it('envia todos os campos obrigatórios do contrato v3 do Asaas', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'wh_1' }));
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await expect(
+      clinica.createWebhook({
+        name: 'Qoro — cobrança de paciente',
+        url: 'https://example.test/api/webhooks/asaas/patient/ref-1',
+        email: 'gestor@example.test',
+        authToken: 'token-seguro-com-mais-de-32-caracteres',
+        events: ['PAYMENT_RECEIVED'],
+      }),
+    ).resolves.toEqual({ webhookId: 'wh_1' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox.asaas.com/api/v3/webhooks',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Qoro — cobrança de paciente',
+          url: 'https://example.test/api/webhooks/asaas/patient/ref-1',
+          email: 'gestor@example.test',
+          enabled: true,
+          interrupted: false,
+          apiVersion: 3,
+          authToken: 'token-seguro-com-mais-de-32-caracteres',
+          sendType: 'SEQUENTIALLY',
+          events: ['PAYMENT_RECEIVED'],
+        }),
+      }),
+    );
+  });
+});
+
 describe('createAsaasClient — uma instância por credencial', () => {
   it('usa a chave da própria credencial, não a do env', async () => {
     fetchMock.mockResolvedValue(Response.json({ id: 'cus_1' }));
