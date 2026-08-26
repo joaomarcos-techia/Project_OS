@@ -15,8 +15,18 @@ import type * as AsaasModule from '@/lib/payments/asaas';
 
 const mocks = vi.hoisted(() => ({
   getMyAccount: vi.fn(),
+  createWebhook: vi.fn(),
   createAsaasClient: vi.fn(),
+  getWebhookSetupTarget: vi.fn(),
+  markWebhookConfigured: vi.fn(),
   requireCachedPermission: vi.fn(async () => {}),
+  env: {
+    DATABASE_URL: 'postgres://user:pass@localhost:5432/test',
+    APP_BASE_URL: 'https://preview.qoro.test',
+    NODE_ENV: 'production' as const,
+    VERCEL_ENV: 'preview' as 'preview' | 'production' | 'development' | undefined,
+    VERCEL_AUTOMATION_BYPASS_SECRET: 'preview-bypass-secret' as string | undefined,
+  },
 }));
 
 vi.mock('@/lib/auth/tenant-context', () => ({
@@ -39,6 +49,7 @@ vi.mock('@/lib/crypto', () => ({
   hashForLookup: vi.fn(async () => 'HASH_BLOB'),
 }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
+vi.mock('@/lib/env', () => ({ env: mocks.env }));
 // As classes de erro precisam ser as REAIS (o código usa `instanceof`); só a
 // fábrica do client é trocada.
 vi.mock('@/lib/payments/asaas', async (importActual) => {
@@ -48,11 +59,14 @@ vi.mock('@/lib/payments/asaas', async (importActual) => {
 vi.mock('@/lib/payments/account-store', () => ({
   upsertPaymentAccount: vi.fn(async () => ({ id: 'acc-1', changed: true })),
   deactivatePaymentAccount: vi.fn(async () => ({ changed: true })),
+  getWebhookSetupTarget: mocks.getWebhookSetupTarget,
+  markWebhookConfigured: mocks.markWebhookConfigured,
 }));
 vi.mock('./queries', () => ({
   getPaymentAccountStatus: vi.fn(async () => ({
     provider: 'asaas',
     hasApiKey: true,
+    webhookConfigured: true,
     accountName: 'Clínica Exemplo',
     keyVersion: 1,
     connectedAt: '2026-08-24T00:00:00.000Z',
@@ -77,6 +91,15 @@ beforeEach(() => {
   mocks.requireCachedPermission.mockImplementation(async () => {});
   mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: null });
   mocks.createAsaasClient.mockReturnValue({ getMyAccount: mocks.getMyAccount });
+  mocks.createWebhook.mockResolvedValue({ webhookId: 'webhook-1' });
+  mocks.getWebhookSetupTarget.mockResolvedValue({
+    clinicId: 'clinic-1',
+    webhookRef: '11111111-1111-4111-8111-111111111111',
+    webhookToken: 'webhook-token-da-clinica-com-32-chars',
+    client: { createWebhook: mocks.createWebhook },
+  });
+  mocks.env.VERCEL_ENV = 'preview';
+  mocks.env.VERCEL_AUTOMATION_BYPASS_SECRET = 'preview-bypass-secret';
 });
 
 describe('connectPaymentAccount', () => {
@@ -102,6 +125,39 @@ describe('connectPaymentAccount', () => {
     expect(name).toBe('payments.account.connected');
     expect(JSON.stringify(fields)).not.toContain(SECRET);
     expect(fields).toEqual({ clinicId: 'clinic-1', changed: true });
+  });
+
+  it('inclui o bypass somente no webhook de Preview protegido', async () => {
+    mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: 'ops@qoro.test' });
+
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(mocks.createWebhook).toHaveBeenCalledOnce();
+    const [input] = mocks.createWebhook.mock.calls[0] as [{ url: string }];
+    const url = new URL(input.url);
+    expect(url.pathname).toBe('/api/webhooks/asaas/patient/11111111-1111-4111-8111-111111111111');
+    expect(url.searchParams.get('x-vercel-protection-bypass')).toBe('preview-bypass-secret');
+    expect(mocks.markWebhookConfigured).toHaveBeenCalledWith('clinic-1');
+  });
+
+  it('não registra webhook condenado quando o Preview protegido está sem bypass', async () => {
+    mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: 'ops@qoro.test' });
+    mocks.env.VERCEL_AUTOMATION_BYPASS_SECRET = undefined;
+
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    expect(mocks.createWebhook).not.toHaveBeenCalled();
+    expect(mocks.markWebhookConfigured).not.toHaveBeenCalled();
+  });
+
+  it('não anexa bypass fora do Preview', async () => {
+    mocks.getMyAccount.mockResolvedValue({ name: 'Clínica Exemplo', email: 'ops@qoro.test' });
+    mocks.env.VERCEL_ENV = 'production';
+
+    await connectPaymentAccount({ apiKey: SECRET });
+
+    const [input] = mocks.createWebhook.mock.calls[0] as [{ url: string }];
+    expect(new URL(input.url).search).toBe('');
   });
 
   it('chave recusada pelo Asaas (4xx) NÃO grava nada', async () => {

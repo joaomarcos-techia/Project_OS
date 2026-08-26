@@ -45,13 +45,13 @@ aceite da camada se prova (D32).
 
 ### Gates — resultado REAL da última execução completa
 
-Executados em 2026-08-25, após a 1.5b e a mitigação do D35.
+Executados em 2026-08-26, após o suporte ao bypass no auto-registro do webhook de paciente.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2643** (287 arquivos) |
+| Testes | `pnpm test` | ✅ **2647** (287 arquivos) |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos |
 | dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1067 arquivos) |
@@ -59,7 +59,7 @@ Executados em 2026-08-25, após a 1.5b e a mitigação do D35.
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
 | Observabilidade | `pnpm check:observability` | ✅ 17 crons coerentes |
-| Asaas ao vivo | `pnpm payments:live-check` | ✅ 11/11 + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
+| Asaas ao vivo | `pnpm payments:live-check` | ✅ 11/11 em 2026-08-26, limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
 Migrations **0081–0088** aplicadas e verificadas no banco de **dev**. Nenhuma aplicada em produção.
@@ -79,7 +79,7 @@ end-to-end com banco · Product Acceptance.
 | --- | --- | --- |
 | E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED** — o gestor informado resolve para a Clínica A (`f71713ed-6bd4-4656-b634-071811268d39`), mas em dev ela não tem número WhatsApp ativo. Também falta um destinatário controlado; o número conectado à Meta seria o remetente, não o destinatário |
 | E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`; restauração real ainda não foi entregue nem reabriu invoice (**D36**). O evento penalizado informado pertence a outra conta sandbox e não prova E2 (**D38**) |
-| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **FAIL** — o bypass alcança a aplicação, mas o webhook da conta de clínica aponta para a rota global de assinatura. `PUT { interrupted: false }` respondeu `200` e a API confirmou a fila ativa; no retry dos pendentes ela voltou a `interrupted=true`. Além disso, a branch remota está em `034b410` e não contém a UI nem a rota por clínica que só existem localmente (**D37–D40**) |
+| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **FAIL externo / PASS em código** — o auto-registro agora acrescenta o bypass somente em Preview protegido e falha visivelmente se o segredo estiver ausente. Lint, typecheck, build e 2647 testes passaram. Continua `FAIL` no ambiente porque a branch remota está em `034b410`, sem a UI/rota por clínica, e o webhook manual permanece interrompido na rota global (**D37–D41**) |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PARTIAL** — a chave atual passou `pnpm payments:live-check` (**11/11**, limpeza ok, 1 caso PIX/cartão declarado não verificável); sem a chave anterior não é possível provar que ela foi revogada |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
@@ -117,6 +117,7 @@ destinatário controlado e provar as três jornadas pelo comportamento.
 | D38 | Evento penalizado veio da conta sandbox de clínica | **bloqueante externo** — `ASAAS_CLINIC_SANDBOX_KEY` encontra o webhook; ele não prova assinatura e não pode usar a rota global |
 | D39 | Reativação via API não corrige causa-raiz | **vigente** — `PUT interrupted=false` funciona, mas a fila voltou a interromper no retry; corrigir rota/token antes de reativar novamente |
 | D40 | Preview está atrás do código local | **bloqueante externo** — remoto `034b410` não tem `/configuracoes/pagamentos` nem `/api/webhooks/asaas/patient/<ref>`; publicar a branch antes de conectar a conta |
+| D41 | Auto-registro de paciente não carregava bypass | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param |
 
 ### D32 — jornada, não componente
 

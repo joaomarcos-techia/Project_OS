@@ -163,6 +163,11 @@ o `ref` e o token **não** são legíveis pela aplicação nem exibidos na tela.
 O registro no Asaas é automático, mas **best-effort**. Se falhar, a conexão continua válida e a tela
 mostra um aviso amarelo. Confira:
 
+Em Preview com Vercel Authentication, o auto-registro acrescenta
+`x-vercel-protection-bypass` à URL usando `VERCEL_AUTOMATION_BYPASS_SECRET`. Se o segredo estiver
+ausente, o sistema **não registra** uma URL condenada a 401: mantém `webhook_configured_at` nulo e
+deixa a falha visível na tela. Produção nunca recebe esse query param.
+
 ```sql
 SELECT active, webhook_configured_at
 FROM clinic_payment_accounts WHERE clinic_id = '<uuid>';
@@ -428,14 +433,6 @@ de crédito ou Pix"*).
 
 ## Ainda não existe (não procure)
 
-- Auto-configuração do webhook na conta da clínica — foi movida para a **1.4**, junto com o endpoint
-  `/api/webhooks/asaas/patient/[ref]` que ela aponta. Registrar antes deixaria o Asaas batendo em 404
-  e marcaria o webhook como interrompido (estado que não se reverte pelo painel).
-- **Cobrança do RESTANTE** após o paciente comparecer — **1.5b, desenhada mas não implementada**.
-  A arquitetura está no [ADR-051](../adr/051-conciliacao-sinal-e-recebivel.md): `financial` é a fonte
-  da verdade, `patient_charges` é instrumento de cobrança, e o sinal pago vira **crédito antecipado
-  do agendamento**. Até isso existir, o recebível do atendimento nasce pelo valor CHEIO e **não
-  desconta o sinal** — a clínica precisa saber disso ao conferir o Caixa (**D19**).
 - **Transferir o sinal ao remarcar** — hoje devolve-se e cobra-se de novo (**D23**).
 - **Sinal em outras telas além da Agenda** (Consultório, ficha do paciente) — a 1.6b cobriu a
   **Agenda**; as demais entram conforme necessidade.

@@ -40,6 +40,17 @@ describe('env validation (C1 contract)', () => {
     expect(parsed.DATABASE_URL).toContain('postgres://');
   });
 
+  it('aceita o segredo opcional de bypass da Vercel', () => {
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        VERCEL_ENV: 'preview',
+        VERCEL_AUTOMATION_BYPASS_SECRET: 'segredo-de-preview',
+      }),
+    );
+    expect(parsed.VERCEL_AUTOMATION_BYPASS_SECRET).toBe('segredo-de-preview');
+  });
+
   it('treats empty strings as undefined for optional fields', () => {
     const parsed = loadEnv(
       asEnv({

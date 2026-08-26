@@ -18,7 +18,7 @@ Canonical — mapa sem valores. `src/lib/env.ts` é o contrato executável.
 | Banco | `DATABASE_URL`, `DATABASE_URL_PROD`, `DATABASE_URL_RUNTIME` |
 | Supabase público | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
 | Supabase privilegiado | `SUPABASE_SECRET_KEY` (aliases legados ainda aceitos) |
-| Ambiente/log | `NODE_ENV`, `VERCEL_ENV`, `APP_BASE_URL`, `LOG_LEVEL`, `SUPABASE_PROJECT_ENV` |
+| Ambiente/log | `NODE_ENV`, `VERCEL_ENV`, `APP_BASE_URL`, `VERCEL_AUTOMATION_BYPASS_SECRET`, `LOG_LEVEL`, `SUPABASE_PROJECT_ENV` |
 | Auth | `LOGIN_HASH_PEPPER`, `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` |
 | Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
 | Cron/outbox | `CRON_SECRET`, `CRON_SECRET_DESTRUCTIVE`, `OUTBOX_*` |
@@ -40,6 +40,8 @@ O loader aceita somente os aliases DEV declarados em `src/lib/env.ts` e os norma
 
 - `DATABASE_URL`, URL/chave pública Supabase são exigidas no carregamento comum.
 - produção exige separação/validação adicional de banco.
+- Preview com Vercel Authentication exige `VERCEL_AUTOMATION_BYPASS_SECRET` para o auto-registro de
+  webhooks de paciente; o valor vai somente no query param server-to-server enviado ao Asaas.
 - backends `env` e `gcp` de crypto exigem conjuntos diferentes de secrets.
 - providers opcionais falham quando a ação correspondente é chamada sem configuração.
 

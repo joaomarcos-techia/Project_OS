@@ -123,6 +123,24 @@ const WEBHOOK_EVENTS = [
   'PAYMENT_OVERDUE',
 ] as const;
 
+function buildPatientWebhookUrl(baseUrl: string, webhookRef: string): string | null {
+  const url = new URL(
+    buildApplicationUrl(baseUrl, `/api/webhooks/asaas/patient/${webhookRef}`, {
+      allowInsecureLocalhost: env.NODE_ENV !== 'production',
+    }),
+  );
+
+  if (env.VERCEL_ENV === 'preview') {
+    // Preview protegido rejeita o Asaas na borda antes de a rota validar o token
+    // por clínica. Ausente, falha visível (webhookConfigured=false) em vez de
+    // registrar no provider uma URL condenada a entrar em penalty loop.
+    if (!env.VERCEL_AUTOMATION_BYPASS_SECRET) return null;
+    url.searchParams.set('x-vercel-protection-bypass', env.VERCEL_AUTOMATION_BYPASS_SECRET);
+  }
+
+  return url.toString();
+}
+
 /**
  * Registra o webhook na conta da clínica.
  *
@@ -143,6 +161,8 @@ async function tryConfigureWebhook(
   if (!accountEmail) return false;
   const target = await getWebhookSetupTarget(clinicId);
   if (!target) return false;
+  const webhookUrl = buildPatientWebhookUrl(baseUrl, target.webhookRef);
+  if (!webhookUrl) return false;
 
   try {
     await target.client.createWebhook({
@@ -151,9 +171,7 @@ async function tryConfigureWebhook(
       // fim gerava `https://host//api/webhooks/...`, e o webhook nascia apontando
       // para um caminho que nao existe. O sintoma seria o pior possivel — conexao
       // "bem-sucedida", cobrancas criadas, e NENHUMA conciliada.
-      url: buildApplicationUrl(baseUrl, `/api/webhooks/asaas/patient/${target.webhookRef}`, {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
+      url: webhookUrl,
       email: accountEmail,
       authToken: target.webhookToken,
       events: WEBHOOK_EVENTS,
