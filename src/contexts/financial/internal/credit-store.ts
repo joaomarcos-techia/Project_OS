@@ -36,10 +36,10 @@ export interface GrantCreditInput {
 }
 
 /**
- * Registra o crédito. Devolve `false` quando o `UNIQUE` barrou — outra entrega
- * chegou primeiro, e isso é sucesso, não erro.
+ * Registra o crédito. Devolve o id criado, ou `null` quando o `UNIQUE` barrou —
+ * outra entrega chegou primeiro, e isso é sucesso, não erro.
  */
-export async function grantCredit(tx: Tx, input: GrantCreditInput): Promise<boolean> {
+export async function grantCredit(tx: Tx, input: GrantCreditInput): Promise<string | null> {
   const rows = await tx
     .insert(patientCredits)
     .values({
@@ -56,7 +56,7 @@ export async function grantCredit(tx: Tx, input: GrantCreditInput): Promise<bool
     })
     .onConflictDoNothing()
     .returning({ id: patientCredits.id });
-  return rows.length > 0;
+  return rows[0]?.id ?? null;
 }
 
 export type ReleaseOutcome = 'released' | 'not_found' | 'already_resolved';

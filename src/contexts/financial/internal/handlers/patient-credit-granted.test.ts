@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   registerHandler: vi.fn(),
   grantCredit: vi.fn(),
+  applyCreditToExistingReceivable: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -22,6 +23,9 @@ vi.mock('@/contexts/payments', () => ({
   PAYMENTS_EVENTS: { CREDIT_GRANTED: 'payments.patient_credit.granted' },
 }));
 vi.mock('../credit-store', () => ({ grantCredit: mocks.grantCredit }));
+vi.mock('../credit-allocation', () => ({
+  applyCreditToExistingReceivable: mocks.applyCreditToExistingReceivable,
+}));
 
 import { metrics } from '@/lib/observability/metrics';
 import { PoisonPillError } from '@/lib/outbox/errors';
@@ -54,7 +58,11 @@ const run = (over: Record<string, unknown> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.grantCredit.mockResolvedValue(true);
+  mocks.grantCredit.mockResolvedValue('credit-1');
+  mocks.applyCreditToExistingReceivable.mockResolvedValue({
+    outcome: 'deferred',
+    reason: 'receivable_not_open',
+  });
 });
 
 describe('handler de crédito concedido', () => {
@@ -88,13 +96,14 @@ describe('handler de crédito concedido', () => {
   });
 
   it('reentrega (UNIQUE barrou) conclui em silêncio, com métrica', async () => {
-    mocks.grantCredit.mockResolvedValue(false);
+    mocks.grantCredit.mockResolvedValue(null);
 
     await expect(run()).resolves.toBeUndefined();
     const emitted = vi
       .mocked(metrics.emit)
       .mock.calls.find((c) => c[0] === 'financial.patient_credit.granted');
     expect(emitted?.[1]).toMatchObject({ created: false });
+    expect(mocks.applyCreditToExistingReceivable).not.toHaveBeenCalled();
   });
 
   it('crédito do RESTANTE chega com o kind próprio', async () => {
@@ -103,6 +112,34 @@ describe('handler de crédito concedido', () => {
     expect(mocks.grantCredit).toHaveBeenCalledWith(
       'TX',
       expect.objectContaining({ kind: 'remaining_payment' }),
+    );
+  });
+
+  it('recebível existente recebe o crédito na mesma transação', async () => {
+    mocks.applyCreditToExistingReceivable.mockResolvedValue({
+      outcome: 'applied',
+      lancamentoId: 'lanc-1',
+      transactionId: 'tx-1',
+      appliedAmount: 150,
+      unappliedAmount: 0,
+      status: 'pago',
+    });
+
+    await run({ kind: 'remaining_payment' });
+
+    expect(mocks.applyCreditToExistingReceivable).toHaveBeenCalledWith('TX', {
+      clinicId: 'clinic-1',
+      appointmentId: 'apt-1',
+      creditId: 'credit-1',
+      patientChargeId: 'charge-1',
+      amount: 150,
+      paymentMethod: 'pix',
+      paidAt: new Date('2026-08-25T12:00:00.000Z'),
+      correlationId: 'evt-1',
+    });
+    expect(metrics.emit).toHaveBeenCalledWith(
+      'financial.patient_credit.granted',
+      expect.objectContaining({ allocation: 'applied', appliedAmount: 150 }),
     );
   });
 

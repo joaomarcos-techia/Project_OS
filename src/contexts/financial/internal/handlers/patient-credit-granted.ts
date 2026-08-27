@@ -10,10 +10,10 @@
  * dinheiro que precisa ser alocado*.
  *
  * **Não cria lançamento.** Criar o recebível de R$ 200 quando o sinal de R$ 100
- * é pago inventaria uma obrigação por um atendimento que ainda não aconteceu — e
- * teria de ser desfeita em falta e cancelamento. O lançamento nasce no
- * `appointment.completed`, pelo valor BRUTO, e é lá que o crédito é aplicado
- * (invariante 3 do ADR-051).
+ * é pago inventaria uma obrigação por um atendimento que ainda não aconteceu.
+ * Se o recebível já existe — caso normal do pagamento do restante — aplica o
+ * crédito nele na mesma TX; caso contrário, deixa `available` para o handler de
+ * `appointment.completed` consumir depois (ADR-051 D4).
  *
  * Idempotente por constraint: `UNIQUE (clinic_id, patient_charge_id)`.
  */
@@ -26,6 +26,7 @@ import { registerHandler } from '@/lib/outbox/registry';
 import { PAYMENTS_EVENTS, type PatientCreditGrantedPayload } from '@/contexts/payments';
 /* eslint-enable boundaries/element-types */
 
+import { applyCreditToExistingReceivable } from '../credit-allocation';
 import { grantCredit } from '../credit-store';
 
 async function registerCredit(ctx: {
@@ -34,7 +35,7 @@ async function registerCredit(ctx: {
   payload: PatientCreditGrantedPayload;
   eventId: string;
 }): Promise<void> {
-  const { tx, clinicId, payload } = ctx;
+  const { tx, clinicId, payload, eventId } = ctx;
 
   // Defesa: clinicId do payload tem de bater com o contexto RLS do worker.
   // Mesma guarda do `faturarAtendimento` — aqui vale ainda mais, porque o que
@@ -46,7 +47,7 @@ async function registerCredit(ctx: {
     );
   }
 
-  const created = await grantCredit(tx, {
+  const creditId = await grantCredit(tx, {
     clinicId,
     patientChargeId: payload.chargeId,
     appointmentId: payload.appointmentId,
@@ -57,13 +58,34 @@ async function registerCredit(ctx: {
     grantedAt: new Date(payload.paidAt),
   });
 
+  const allocation = creditId
+    ? await applyCreditToExistingReceivable(tx, {
+        clinicId,
+        appointmentId: payload.appointmentId,
+        creditId,
+        patientChargeId: payload.chargeId,
+        amount: payload.amount,
+        paymentMethod: payload.paymentMethod,
+        paidAt: new Date(payload.paidAt),
+        correlationId: eventId,
+      })
+    : null;
+
   metrics.emit('financial.patient_credit.granted', {
     clinicId,
     appointmentId: payload.appointmentId,
     chargeId: payload.chargeId,
     amount: payload.amount,
     // `false` = outra entrega chegou primeiro. Sucesso, não erro.
-    created,
+    created: creditId !== null,
+    allocation: allocation?.outcome ?? 'duplicate',
+    ...(allocation?.outcome === 'deferred' ? { reason: allocation.reason } : {}),
+    ...(allocation?.outcome === 'applied'
+      ? {
+          appliedAmount: allocation.appliedAmount,
+          unappliedAmount: allocation.unappliedAmount,
+        }
+      : {}),
   });
 }
 

@@ -93,7 +93,7 @@ beforeEach(() => {
 
 describe('grantCredit — um crédito por cobrança', () => {
   it('grava o crédito disponível, sem alocação', async () => {
-    await expect(grantCredit(stubTx(), grantInput)).resolves.toBe(true);
+    await expect(grantCredit(stubTx(), grantInput)).resolves.toBe('cred-1');
 
     expect(calls.values).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -109,7 +109,7 @@ describe('grantCredit — um crédito por cobrança', () => {
 
   it('reentrega do worker NÃO cria segundo crédito (UNIQUE barrou)', async () => {
     // Sem isto a clínica receberia baixa em dobro por um pagamento só.
-    await expect(grantCredit(stubTx({ inserted: [] }), grantInput)).resolves.toBe(false);
+    await expect(grantCredit(stubTx({ inserted: [] }), grantInput)).resolves.toBeNull();
   });
 
   it('valor vai como decimal de 2 casas — dinheiro nunca vira float na coluna', async () => {

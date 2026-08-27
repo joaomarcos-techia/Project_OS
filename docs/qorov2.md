@@ -36,34 +36,37 @@ O Preview do commit `3035383` concluiu com sucesso na Vercel.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 DEV · D33 cobertura de handlers ✅ 16 testes; demais grupos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · três ramos banco+worker ✅ 7/7 · D33 ✅ · matriz residual pendente |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
 `charge → pagamento sandbox → webhook Asaas → crédito → CONFIRMADO`, mas a entrega do link por
 WhatsApp não foi exercitada: a conexão Meta da Clínica A foi concluída no Preview, mas o template do
 restante segue em análise na Meta e ainda falta confirmar um destinatário controlado com consentimento
-de cobrança. Também não foram executados
-os ramos destrutivos/de concorrência de 1.H. Portanto o aceite integral da camada continua parcial
+de cobrança. Os três ramos financeiros e parte substancial da matriz destrutiva/de concorrência de
+1.H já passaram de forma controlada contra banco e worker; ainda faltam os casos residuais listados
+abaixo e as dependências externas. Portanto o aceite integral da camada continua parcial
 (D32), sem apagar a evidência real já obtida. Para a **1.6c**, a única lacuna é o E2E real Meta.
 
 ### Gates — resultado REAL da última execução completa
 
-Executados em 2026-08-27, após implementar a 1.6c.
+Executados em 2026-08-27, após o hardening financeiro e a correção D49.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2696** (295 arquivos), incluindo unit/integration da 1.6c, regressão do sinal e hardening D33 |
+| Testes | `pnpm test` | ✅ **2702** (296 arquivos), incluindo 1.6c, regressão do sinal, D33 e aplicação do restante no recebível |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1077 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1081 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
 | Observabilidade | `pnpm check:observability` | ✅ 18 crons coerentes |
 | Worker/Smoke C14 | `pnpm smoke:c14` | ✅ 8/8, banco dev, fixtures removidas, sem envio Meta |
+| RLS/concorrência financeira | `pnpm smoke:payments-financial` | ✅ 10/10, banco dev, fixtures removidas |
+| Três ramos banco+worker | `pnpm smoke:payments-journey` | ✅ 7/7, usuário/fixtures removidos, sem Asaas/Meta |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
@@ -74,16 +77,24 @@ pré-migration e advisory lock; `pg_enum`, `_schema_version` e o cast do novo va
 PostgreSQL não oferece `down` aditivo seguro para enum; rollback operacional reverte o código e deixa
 o valor inerte, sem recriar tipo/tabela.
 
-**Isolamento multi-tenant de `patient_credits` provado no banco de dev** (não só a policy declarada):
-como `authenticated`, a clínica A grava para si, é **bloqueada por RLS** ao gravar para B, é bloqueada
-sem contexto de clínica, e enxerga 0 linhas de B. `authenticated` tem `INSERT, SELECT, UPDATE` e
-**não tem DELETE** — crédito é registro financeiro; liberar é mudar `status`, não apagar linha.
+**Isolamento e concorrência financeira provados no banco de dev** por
+`pnpm smoke:payments-financial` (**10/10**, fixtures removidas): `patient_credits` usa ENABLE+FORCE
+RLS; A não lê, insere nem altera B; `authenticated` não apaga ledger; oito grants concorrentes geram
+um crédito; duas alocações consomem uma vez; sobrealocação cai no CHECK; crédito alocado não é
+liberado; duas liberações produzem um terminal. Tudo terminou com resíduo zero.
 O equivalente para `clinic_payment_accounts` (**D13**) passou no 1.H: smoke real no banco DEV com
 **5/5** checks provou ENABLE+FORCE RLS, leitura própria, invisibilidade cross-tenant, bloqueio de
 alteração da conta alheia, segredo sem grant e cleanup com zero resíduos.
 
-**Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · `test:simulation` · Financial Integrity
-end-to-end com banco · Product Acceptance.
+O **E2E controlado dos três ramos** passou por `pnpm smoke:payments-journey` (**7/7**) com Postgres e
+worker reais, sem Asaas/Meta: A falta reteve o crédito e não criou restante; B conciliou dois webhooks
+concorrentes em uma baixa, alocou o restante e fechou o ledger em R$ 200; C aceitou um único
+fechamento concorrente e projetou cobrança, crédito e agenda como `refunded`. O teste revelou e
+corrigiu o **D49**. Usuário Auth e todas as fixtures foram removidos, resíduo zero.
+
+**Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · `test:simulation` de 30 dias · corrida
+pagamento×expiração do hold com banco · falhas externas controladas adicionais · Product Acceptance
+humano. Transporte real Asaas e entrega real Meta continuam separados dos E2E controlados.
 
 ### Dependências externas — validação comportamental (2026-08-26)
 
@@ -94,6 +105,17 @@ end-to-end com banco · Product Acceptance.
 | E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS técnico / PARTIAL na jornada real** — webhook ativo na rota Preview; `0089` aplicada. Validação conectada provou own-tenant `INSERT`, bloqueio cross-tenant, `UPDATE/DELETE` revogados e zero resíduos. E2E controlado contra Preview + Asaas sandbox: primeira entrega `200 unknown_charge`, replay `200 ignored`, dedup 1 em ambos; a fixture sintética foi removida e o resíduo ficou 0. Falta cobrança criada pelo Qoro + pagamento real para provar conciliação, evento e projeção no agendamento |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**12/12**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
 | E5 | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **BLOCKED externo** — código, catálogo, builder, cron, integração controlada, deploy Preview e conexão Meta da Clínica A estão verdes; o template segue em análise e falta confirmar destinatário controlado com consentimento de cobrança. O E2E real Meta da 1.6c não foi simulado nem marcado como verde |
+
+#### Ações exclusivamente manuais / decisões do fundador
+
+| Ação | Por que não pode ser automatizada | Estado |
+| --- | --- | --- |
+| Aprovar os templates Meta de sinal/restante e indicar destinatário controlado com consentimento | Aprovação e destinatário pertencem à conta/pessoa real na Meta | **PENDENTE** — avisar quando `APPROVED`; não exige novo deploy |
+| Rotacionar a chave sandbox do Asaas exposta no chat | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave | **PENDENTE (E4)** |
+| Decidir a política de boleto para sinal | Opções incompatíveis: restringir o sinal a PIX/cartão ou desabilitar boleto na conta; muda conversão e operação | **DECISÃO NECESSÁRIA (D24)** |
+| Definir o desfecho de chargeback/“recebimento em dinheiro desfeito” antes da consulta | Falta regra de produto: reabrir cobrança/hold e retirar confirmação, ou manter agenda e criar pendência humana. Assinar eventos sem essa decisão só cria ruído | **DECISÃO NECESSÁRIA (D27)** |
+| Definir o destino de eventual excedente de um link de restante desatualizado | O código já impede `valor_pago > valor` e preserva o excedente, mas só o produto pode escolher entre estorno, crédito futuro ou pendência humana | **DECISÃO NECESSÁRIA antes do rollout (D50)** |
+| Alinhar o webhook global de assinatura no ambiente correto antes de reativá-lo | Envolve URL, token e chave do ambiente no painel/API do Asaas; reativar sem corrigir a causa repete a penalização | **PENDENTE externo (E2/D36/D46)** |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
 do webhook pela API do Asaas; probes do Preview sem bypass, com bypass sem token e com bypass + token
@@ -151,6 +173,8 @@ e provar as três jornadas pelo comportamento.
 | D39 | Reativação via API não corrige causa-raiz | **vigente** — `PUT interrupted=false` funciona, mas a fila voltou a interromper no retry; corrigir rota/token antes de reativar novamente |
 | D40 | Preview está atrás do código local | **resolvido** — remoto `b0074e3` contém `/configuracoes/pagamentos` e `/api/webhooks/asaas/patient/<ref>`; a UI já persistiu a conta da Clínica A |
 | D41 | Auto-registro de paciente não carregava bypass | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. O erro posterior já alcançava a API do Asaas e tinha outra causa, fechada em **D44** |
+| D49 | Restante pago virava crédito, mas não baixava o recebível já existente | **resolvido no 1.H** — aplicação atômica limitada ao saldo atualiza `valor_pago`, ledger e evento; unitários e E2E banco+worker 7/7 verdes |
+| D50 | Baixa manual pode tornar um link do restante maior que o saldo atual | **mitigado** — aplicação limitada ao saldo, excedente preservado/observável; destino econômico exige decisão do fundador antes do rollout |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -209,19 +233,18 @@ como real. O próximo passo de código é o **1.H**.
 **1.H — Hardening.** Sem adicionar feature:
 provar que a Camada 1 aguenta o mundo real.
 
-Cenários a executar e **registrar aqui com o resultado real**. O D13 foi concluído; os demais seguem
-pendentes:
+Cenários a executar e **registrar aqui com o resultado real**:
 
 | Grupo | Cenários |
 | --- | --- |
-| Concorrência | pagamento no instante em que o hold expira · dois workers · cron concorrente · duplo pagamento |
-| Idempotência | webhook duplicado · fora de ordem · replay de outbox · retry pós-timeout · POST perdido · refund duplicado · cancel duplicado |
-| Crédito (novo, 1.5b) | crédito duplicado · crédito alocado duas vezes · restante cobrado duas vezes · crédito liberado após alocação |
-| Multi-tenant | clínica A concilia cobrança de B · `ref` forjada · token inválido · **RLS cross-tenant de `clinic_payment_accounts` (D13 ✅ 5/5 DEV)** e de `patient_credits` |
+| Concorrência | ✅ dois workers/cron concorrente · ✅ duplo webhook/pagamento · ✅ grant/alocação/liberação concorrentes · ⬜ pagamento no instante em que o hold expira |
+| Idempotência | ✅ webhook duplicado/replay · ✅ refund/close duplicado · ✅ lease/retry/link obsoleto em unit/integration · ⬜ POST perdido e retry pós-timeout no E2E banco |
+| Crédito (novo, 1.5b) | ✅ crédito duplicado · ✅ alocado duas vezes · ✅ liberado após alocação bloqueado · ✅ restante pago alocado (D49) · ⬜ restante criado duas vezes no banco real |
+| Multi-tenant | ✅ `clinic_payment_accounts` 5/5 · ✅ `patient_credits` no smoke 10/10 · ✅ `ref` forjada/token inválido em contrato · ⬜ conciliação A→cobrança B no banco real |
 | Ciclo de vida | cobrança paga antes do `deposit_link` sair · cobrança cancelada antes do send-time · job obsoleto · reagendamento/recovery · pagamento tardio |
 | Externo | Asaas fora · Meta fora · banco lento · troca de credencial da clínica |
 | Cobertura | **D33 ✅** — 13/13 handlers auditados possuem teste direto; 5 gaps receberam 16 testes de projeção financeira, metering e cancelamento por ciclo de vida |
-| Produto | **E2E dos três ramos com banco + worker** — o aceite da Camada 1 (D32) |
+| Produto | ✅ **E2E controlado dos três ramos com banco + worker 7/7**; transporte real Asaas e Meta permanecem evidências externas separadas |
 
 Depois: **1.S**. A Camada 2 só começa com `1.H ✅ + 1.S ✅`.
 
@@ -379,7 +402,7 @@ Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcion
     inalterada · multi-tenancy ✅ (`clinicId` do worker + seam tenant-scoped).
   - **Evidência:** Unit ✅ · Integration controlada ✅
     (`link_ready → remainder_link → getPayableCharge → template → send`) · Contract/Worker Smoke ✅
-    (2.696 testes/295 arquivos; `smoke:c14` 8/8; todos os gates verdes) · **E2E real Meta =
+    (2.702 testes/296 arquivos; `smoke:c14` 8/8; todos os gates verdes) · **E2E real Meta =
     PENDENTE/BLOCKED externo (E5)**. Não houve mock classificado como E2E real.
 
 **1.H HARDENING:** destrutivo · concorrência (duplo pagamento, webhook duplicado/out-of-order, hold expira no instante do pagamento) · idempotência (replay, retry pós-timeout) · multi-tenant (A concilia cobrança de B, `ref` forjada) · inválidos. Aceite: cada cenário com teste + Security/Chaos/Financial/Load/Simulation verdes.

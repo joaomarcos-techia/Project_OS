@@ -76,7 +76,7 @@ pnpm check:migrations && pnpm check:registry:strict && pnpm check:observability
 pnpm payments:live-check   # sandbox real do Asaas; rode antes de qualquer release de pagamento
 ```
 
-Baseline verificada em 27/08 (confira de novo após qualquer mudança): **2696 testes**, build exit 0,
+Baseline verificada em 27/08 (confira de novo após qualquer mudança): **2702 testes**, build exit 0,
 0 ciclos, 18 crons.
 `pnpm format:check` está **vermelho na baseline** (131 arquivos pré-existentes, D9) — não é regressão
 sua, mas **formate os arquivos que você tocar**.
@@ -123,7 +123,7 @@ próprio configurado por `META_TEMPLATE_REMAINDER_LINK_ID`; e `suppressionPurpos
 único `billing`. Cron próprio registrado no `vercel.json`; nenhuma fila, integração Meta, evento ou
 caminho de LLM paralelo foi criado.
 
-Evidência: 2.696 testes/295 arquivos, integração controlada do evento até o seam de envio, regressão
+Evidência: 2.702 testes/296 arquivos, integração controlada do evento até o seam de envio, regressão
 do `deposit_link`, `smoke:c14` 8/8, migration validada em modelo vazio e banco populado com rollback,
 depois aplicada e verificada em dev e produção com backup/lock, todos os gates técnicos verdes e
 Preview do commit `3035383` concluído com sucesso na Vercel. A conexão Meta da Clínica A também foi
@@ -150,13 +150,25 @@ Resolva também, dentro do 1.H:
 - **D33 ✅** — a varredura confirmou teste direto nos 13 handlers de
   Payments/Financial/Scheduling/Billing. Os 5 gaps receberam 16 testes: projeções de faturamento na
   agenda, metering de agendamento/conversa e cancelamento financeiro após exclusão/falecimento.
+- **RLS/concorrência financeira ✅** — `pnpm smoke:payments-financial` passou **10/10** no DEV:
+  isolamento de `patient_credits`, ledger sem DELETE, grant/alocação/liberação concorrentes,
+  sobrealocação bloqueada e cleanup zero.
+- **E2E controlado dos três ramos ✅** — `pnpm smoke:payments-journey` passou **7/7** com banco e worker
+  reais, sem Asaas/Meta. A=falta retida; B=restante conciliado e recebível pago; C=estorno projetado.
+  O teste encontrou e fechou o **D49**: o crédito do restante existia, mas não baixava o lançamento.
 - **D27** — `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` não têm tratamento.
   São os dois caminhos em que dinheiro dado como recebido **volta atrás**. Assinar o evento sem
   tratar é só ruído: entregue o par (assinatura + handler) junto.
 - **D24** — sinal pago em **boleto** não tem estorno automático (o Asaas só estorna PIX/cartão), e
   boleto leva 1–3 dias para compensar contra um hold de 24h. Decisão de produto: restringir o
   `billingType` do sinal, ou desligar boleto na conta. **Pergunte ao fundador.**
-- **E2E dos três ramos com banco + worker** — é o aceite da Camada 1.
+- **E2E dos três ramos com banco + worker ✅ 7/7** — continuar somente com a matriz residual:
+  corrida pagamento×expiração, POST perdido/retry pós-timeout e cross-tenant banco real restante.
+
+Ações que exigem exclusivamente o fundador estão registradas no `qorov2.md`: aprovação dos
+templates/destinatário Meta, rotação da chave sandbox exposta, decisão D24 sobre boleto e decisão D27
+sobre o estado da agenda/cobrança quando dinheiro confirmado volta atrás. O D50 também precisa de
+política para eventual excedente de um link do restante que ficou desatualizado após baixa manual.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
