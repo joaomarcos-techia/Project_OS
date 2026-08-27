@@ -153,17 +153,23 @@ Resolva também, dentro do 1.H:
 - **RLS/concorrência financeira ✅** — `pnpm smoke:payments-financial` passou **10/10** no DEV:
   isolamento de `patient_credits`, ledger sem DELETE, grant/alocação/liberação concorrentes,
   sobrealocação bloqueada e cleanup zero.
-- **E2E controlado dos três ramos ✅** — `pnpm smoke:payments-journey` passou **7/7** com banco e worker
-  reais, sem Asaas/Meta. A=falta retida; B=restante conciliado e recebível pago; C=estorno projetado.
-  O teste encontrou e fechou o **D49**: o crédito do restante existia, mas não baixava o lançamento.
+- **Jornada controlada ✅** — `pnpm smoke:payments-journey` passou **11/11** com banco e worker reais,
+  sem Asaas/Meta. A=falta retida; B=restante conciliado e recebível pago; C=estorno projetado;
+  D=pagamento×hold expirado sem ressuscitar a vaga ou duplicar crédito. Também provou uma única
+  cobrança/link do restante sob concorrência e bloqueio da conciliação A→B. O lote anterior encontrou
+  e fechou o **D49**: o crédito do restante existia, mas não baixava o lançamento.
 - **D27** — `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` não têm tratamento.
   São os dois caminhos em que dinheiro dado como recebido **volta atrás**. Assinar o evento sem
   tratar é só ruído: entregue o par (assinatura + handler) junto.
 - **D24** — sinal pago em **boleto** não tem estorno automático (o Asaas só estorna PIX/cartão), e
   boleto leva 1–3 dias para compensar contra um hold de 24h. Decisão de produto: restringir o
   `billingType` do sinal, ou desligar boleto na conta. **Pergunte ao fundador.**
-- **E2E dos três ramos com banco + worker ✅ 7/7** — continuar somente com a matriz residual:
-  corrida pagamento×expiração, POST perdido/retry pós-timeout e cross-tenant banco real restante.
+- **Matriz focada ✅ 138/138** — POST perdido/retry, send-time obsoleto, pagamento tardio,
+  reagendamento, Asaas fora e Meta fora/backoff estão verdes em unit/integration. Não chamar isso de
+  E2E externo.
+- **Matriz DB ✅ 11/11** — corrida pagamento×expiração, restante concorrente e cross-tenant banco
+  real foram fechados. Restam load, simulação de 30 dias, banco lento controlado e POST perdido com
+  banco + provedor controlado.
 
 Ações que exigem exclusivamente o fundador estão registradas no `qorov2.md`: aprovação dos
 templates/destinatário Meta, rotação da chave sandbox exposta, decisão D24 sobre boleto e decisão D27

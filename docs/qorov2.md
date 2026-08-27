@@ -18,9 +18,10 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 **Última verificação contra o repositório:** 2026-08-27 · branch `feat/qorov2-pagamentos`
 
 **Versionamento (2026-08-27):** a 1.6c está nos commits publicados `15cb9c3` (código) e `3035383`
-(registro da migration). A migration `0090` foi aplicada e verificada em dev e produção; o migrador
-de produção gerou backup de 2.793.832 bytes, adquiriu e liberou o advisory lock e registrou `DONE`.
-O Preview do commit `3035383` concluiu com sucesso na Vercel.
+(registro da migration). O hardening financeiro/D49 está em `a7717e7`, com Preview Vercel verde, e
+a matriz concorrente ampliada em `3112bb2`. A migration `0090` foi aplicada e verificada em dev e
+produção; o migrador gerou backup de 2.793.832 bytes, adquiriu/liberou o advisory lock e registrou
+`DONE`.
 
 ### Sub-fases da Camada 1
 
@@ -36,7 +37,7 @@ O Preview do commit `3035383` concluiu com sucesso na Vercel.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · três ramos banco+worker ✅ 7/7 · D33 ✅ · matriz residual pendente |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker ✅ 11/11 · 138 testes focados ✅ · load/simulação e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -66,7 +67,8 @@ Executados em 2026-08-27, após o hardening financeiro e a correção D49.
 | Observabilidade | `pnpm check:observability` | ✅ 18 crons coerentes |
 | Worker/Smoke C14 | `pnpm smoke:c14` | ✅ 8/8, banco dev, fixtures removidas, sem envio Meta |
 | RLS/concorrência financeira | `pnpm smoke:payments-financial` | ✅ 10/10, banco dev, fixtures removidas |
-| Três ramos banco+worker | `pnpm smoke:payments-journey` | ✅ 7/7, usuário/fixtures removidos, sem Asaas/Meta |
+| Jornada banco+worker | `pnpm smoke:payments-journey` | ✅ 11/11, dois tenants/usuários sintéticos removidos, sem Asaas/Meta |
+| Matriz focada de ciclo de vida | `pnpm vitest run <7 arquivos>` | ✅ 138/138: POST perdido, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
@@ -86,15 +88,20 @@ O equivalente para `clinic_payment_accounts` (**D13**) passou no 1.H: smoke real
 **5/5** checks provou ENABLE+FORCE RLS, leitura própria, invisibilidade cross-tenant, bloqueio de
 alteração da conta alheia, segredo sem grant e cleanup com zero resíduos.
 
-O **E2E controlado dos três ramos** passou por `pnpm smoke:payments-journey` (**7/7**) com Postgres e
+O **E2E controlado da jornada** passou por `pnpm smoke:payments-journey` (**11/11**) com Postgres e
 worker reais, sem Asaas/Meta: A falta reteve o crédito e não criou restante; B conciliou dois webhooks
 concorrentes em uma baixa, alocou o restante e fechou o ledger em R$ 200; C aceitou um único
-fechamento concorrente e projetou cobrança, crédito e agenda como `refunded`. O teste revelou e
-corrigiu o **D49**. Usuário Auth e todas as fixtures foram removidos, resíduo zero.
+fechamento concorrente e projetou cobrança, crédito e agenda como `refunded`; D correu pagamento
+contra expiração do hold sem ressuscitar a vaga nem duplicar dinheiro; dois inserts de restante
+produziram uma cobrança/um `link_ready`; e a clínica A não conciliou a cobrança da B. O teste revelou
+e corrigiu o **D49** no lote anterior. Dois usuários Auth e todas as fixtures foram removidos, resíduo
+zero.
 
-**Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · `test:simulation` de 30 dias · corrida
-pagamento×expiração do hold com banco · falhas externas controladas adicionais · Product Acceptance
-humano. Transporte real Asaas e entrega real Meta continuam separados dos E2E controlados.
+**Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · `test:simulation` de 30 dias ·
+recuperação de POST perdido com banco + provedor controlado · banco lento controlado · Product
+Acceptance humano. A recuperação de POST perdido, Asaas indisponível, Meta indisponível/backoff e
+os estados obsoletos no send-time estão verdes em 138 testes focados, mas não foram promovidos a E2E
+externo. Transporte real Asaas e entrega real Meta continuam separados dos E2E controlados.
 
 ### Dependências externas — validação comportamental (2026-08-26)
 
@@ -237,12 +244,12 @@ Cenários a executar e **registrar aqui com o resultado real**:
 
 | Grupo | Cenários |
 | --- | --- |
-| Concorrência | ✅ dois workers/cron concorrente · ✅ duplo webhook/pagamento · ✅ grant/alocação/liberação concorrentes · ⬜ pagamento no instante em que o hold expira |
+| Concorrência | ✅ dois workers/cron concorrente · ✅ duplo webhook/pagamento · ✅ grant/alocação/liberação concorrentes · ✅ pagamento no instante em que o hold expira |
 | Idempotência | ✅ webhook duplicado/replay · ✅ refund/close duplicado · ✅ lease/retry/link obsoleto em unit/integration · ⬜ POST perdido e retry pós-timeout no E2E banco |
-| Crédito (novo, 1.5b) | ✅ crédito duplicado · ✅ alocado duas vezes · ✅ liberado após alocação bloqueado · ✅ restante pago alocado (D49) · ⬜ restante criado duas vezes no banco real |
-| Multi-tenant | ✅ `clinic_payment_accounts` 5/5 · ✅ `patient_credits` no smoke 10/10 · ✅ `ref` forjada/token inválido em contrato · ⬜ conciliação A→cobrança B no banco real |
-| Ciclo de vida | cobrança paga antes do `deposit_link` sair · cobrança cancelada antes do send-time · job obsoleto · reagendamento/recovery · pagamento tardio |
-| Externo | Asaas fora · Meta fora · banco lento · troca de credencial da clínica |
+| Crédito (novo, 1.5b) | ✅ crédito duplicado · ✅ alocado duas vezes · ✅ liberado após alocação bloqueado · ✅ restante pago alocado (D49) · ✅ restante criado duas vezes no banco real |
+| Multi-tenant | ✅ `clinic_payment_accounts` 5/5 · ✅ `patient_credits` no smoke 10/10 · ✅ `ref` forjada/token inválido em contrato · ✅ conciliação A→cobrança B no banco real |
+| Ciclo de vida | ✅ cobrança paga/cancelada antes do send-time · ✅ job obsoleto · ✅ reagendamento/recovery · ✅ pagamento tardio; unit/integration + jornada DB |
+| Externo | ✅ Asaas fora em contrato · ✅ Meta fora/retry em worker · ⬜ banco lento controlado · ✅ troca/reenvio de credencial em contrato |
 | Cobertura | **D33 ✅** — 13/13 handlers auditados possuem teste direto; 5 gaps receberam 16 testes de projeção financeira, metering e cancelamento por ciclo de vida |
 | Produto | ✅ **E2E controlado dos três ramos com banco + worker 7/7**; transporte real Asaas e Meta permanecem evidências externas separadas |
 
