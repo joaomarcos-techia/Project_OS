@@ -125,10 +125,11 @@ caminho de LLM paralelo foi criado.
 
 Evidência: 2.680 testes/290 arquivos, integração controlada do evento até o seam de envio, regressão
 do `deposit_link`, `smoke:c14` 8/8, migration validada em modelo vazio e banco populado com rollback,
-depois aplicada e verificada em dev e produção com backup/lock, e todos os gates técnicos verdes.
-**Única pendência da 1.6c: E2E real Meta**, bloqueado por conexão
-Meta/destinatário controlado e aprovação/configuração do template externo. Não confundir integração
-controlada com entrega real no WhatsApp.
+depois aplicada e verificada em dev e produção com backup/lock, todos os gates técnicos verdes e
+Preview do commit `3035383` concluído com sucesso na Vercel. A conexão Meta da Clínica A também foi
+concluída no Preview. **Única pendência da 1.6c: E2E real Meta**, bloqueado pela aprovação do template
+externo e pela confirmação de um destinatário controlado com consentimento de cobrança. Não confundir
+integração controlada com entrega real no WhatsApp.
 
 ### 6.3 · 1.H — Hardening
 

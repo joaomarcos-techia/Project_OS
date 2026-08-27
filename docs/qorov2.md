@@ -17,10 +17,10 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 
 **Última verificação contra o repositório:** 2026-08-27 · branch `feat/qorov2-pagamentos`
 
-**Versionamento (2026-08-27):** a 1.6c está no commit local `15cb9c3`. A migration `0090` foi aplicada
-e verificada em dev e produção; o migrador de produção gerou backup de 2.793.832 bytes, adquiriu e
-liberou o advisory lock e registrou `DONE`. O código ainda não teve push/deploy; o último Preview
-publicado continua em `ed83c90`.
+**Versionamento (2026-08-27):** a 1.6c está nos commits publicados `15cb9c3` (código) e `3035383`
+(registro da migration). A migration `0090` foi aplicada e verificada em dev e produção; o migrador
+de produção gerou backup de 2.793.832 bytes, adquiriu e liberou o advisory lock e registrou `DONE`.
+O Preview do commit `3035383` concluiu com sucesso na Vercel.
 
 ### Sub-fases da Camada 1
 
@@ -41,8 +41,9 @@ publicado continua em `ed83c90`.
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
 `charge → pagamento sandbox → webhook Asaas → crédito → CONFIRMADO`, mas a entrega do link por
-WhatsApp não foi exercitada: a Clínica A não possui conexão Meta ativa nem destinatário controlado,
-e o template do restante ainda depende de aprovação/configuração externa. Também não foram executados
+WhatsApp não foi exercitada: a conexão Meta da Clínica A foi concluída no Preview, mas o template do
+restante segue em análise na Meta e ainda falta confirmar um destinatário controlado com consentimento
+de cobrança. Também não foram executados
 os ramos destrutivos/de concorrência de 1.H. Portanto o aceite integral da camada continua parcial
 (D32), sem apagar a evidência real já obtida. Para a **1.6c**, a única lacuna é o E2E real Meta.
 
@@ -86,11 +87,11 @@ end-to-end com banco · Product Acceptance.
 
 | # | O quê | Estado |
 | --- | --- | --- |
-| E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED** — a variável do template do sinal está presente no ambiente local, mas o gestor informado resolve para a Clínica A (`f71713ed-6bd4-4656-b634-071811268d39`) e a consulta de 26/08 confirma `0` números WhatsApp cadastrados/ativos/conectados em dev. Também falta um destinatário controlado; o número conectado à Meta seria o remetente, não o destinatário |
+| E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED parcial** — a conexão Meta da Clínica A foi concluída no Preview em 27/08; ainda falta confirmar o template do sinal no ambiente publicado e um destinatário controlado com consentimento. O número conectado à Meta é o remetente, não o destinatário |
 | E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`, aponta para `app.qoro.dev` e assina 44 eventos em vez dos 7 do runbook. Um `POST {}` inofensivo ao Preview passou pela proteção da Vercel, mas recebeu `401 invalid token` da rota global: o `ASAAS_WEBHOOK_TOKEN` local não coincide com o deploy. Não reativar até alinhar URL, chave e token no Preview (**D36**, **D46**) |
 | E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS técnico / PARTIAL na jornada real** — webhook ativo na rota Preview; `0089` aplicada. Validação conectada provou own-tenant `INSERT`, bloqueio cross-tenant, `UPDATE/DELETE` revogados e zero resíduos. E2E controlado contra Preview + Asaas sandbox: primeira entrega `200 unknown_charge`, replay `200 ignored`, dedup 1 em ambos; a fixture sintética foi removida e o resíduo ficou 0. Falta cobrança criada pelo Qoro + pagamento real para provar conciliação, evento e projeção no agendamento |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**12/12**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
-| E5 | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **BLOCKED externo** — código, catálogo, builder, cron e integração controlada estão verdes; a Clínica A segue sem conexão Meta ativa/destinatário controlado. O E2E real Meta da 1.6c não foi simulado nem marcado como verde |
+| E5 | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **BLOCKED externo** — código, catálogo, builder, cron, integração controlada, deploy Preview e conexão Meta da Clínica A estão verdes; o template segue em análise e falta confirmar destinatário controlado com consentimento de cobrança. O E2E real Meta da 1.6c não foi simulado nem marcado como verde |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
 do webhook pela API do Asaas; probes do Preview sem bypass, com bypass sem token e com bypass + token
@@ -191,17 +192,17 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 
 ### Próximo passo
 
-**Fechar E1 com evidência comportamental:** conectar à Clínica A um número Meta de teste e um
+**Fechar E1 com evidência comportamental:** usar a conexão Meta já concluída na Clínica A, confirmar um
 destinatário controlado, aprovar/configurar `META_TEMPLATE_DEPOSIT_LINK_ID` e então exercitar
 `deposit_link → WhatsApp → abertura do invoiceUrl`. O caminho posterior já passou no teste real:
 cobrança criada pelo Qoro, pagamento sandbox, webhook, crédito e projeção `Confirmado`/`Sinal pago`.
-Hoje E1 está `BLOCKED` porque a Clínica A tem zero conexões Meta ativas; E2 continua separado, pois o
-webhook sandbox da conta de assinatura aponta para outro ambiente/token; E3 está `PASS` para o sinal
-da conta da clínica após a remoção do backoff.
+Hoje E1 continua `BLOCKED` somente até confirmar template, destinatário controlado e consentimento;
+E2 continua separado, pois o webhook sandbox da conta de assinatura aponta para outro ambiente/token;
+E3 está `PASS` para o sinal da conta da clínica após a remoção do backoff.
 Não reativar nenhum webhook global antigo antes de alinhar ambiente, chave e token.
-O código da **1.6c** está verde; quando houver conexão Meta e destinatário controlado, executar o E2E
-real de `remainder_link` sem reclassificar teste mockado como real. O próximo passo de código é o
-**1.H**.
+O código e o Preview da **1.6c** estão verdes; quando o template for aprovado e houver destinatário
+controlado com consentimento, executar o E2E real de `remainder_link` sem reclassificar teste mockado
+como real. O próximo passo de código é o **1.H**.
 
 **1.H — Hardening.** Sem adicionar feature:
 provar que a Camada 1 aguenta o mundo real.
