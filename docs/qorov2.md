@@ -36,7 +36,7 @@ O Preview do commit `3035383` concluiu com sucesso na Vercel.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS de `clinic_payment_accounts` ✅ 5/5 no banco DEV; demais grupos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 DEV · D33 cobertura de handlers ✅ 16 testes; demais grupos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -55,10 +55,10 @@ Executados em 2026-08-27, após implementar a 1.6c.
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2680** (290 arquivos), incluindo unit/integration da 1.6c e regressão do sinal |
+| Testes | `pnpm test` | ✅ **2696** (295 arquivos), incluindo unit/integration da 1.6c, regressão do sinal e hardening D33 |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1071 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1077 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
@@ -142,7 +142,7 @@ e provar as três jornadas pelo comportamento.
 | D30 | Config do webhook de assinatura só existia no painel | mitigado — [runbook](runbooks/asaas-webhook-assinatura.md) é a cópia versionada |
 | D31 | Mapa `job type → suppression purpose` estava duplicado | **resolvido** — `suppressionPurposeFor` é fonte única. `deposit_link` → `reminder`. **Não duplicar de novo** |
 | D32 | **Regra de processo:** sub-fase verde não prova jornada verde | vigente — ver abaixo |
-| D33 | `appointment-completed.ts` (cria TODO recebível do Caixa) não tinha nenhum teste | **resolvido** — 13 testes. Varrer outros handlers de dinheiro no **1.H** |
+| D33 | `appointment-completed.ts` (cria TODO recebível do Caixa) não tinha nenhum teste | **resolvido no 1.H** — além dos 13 testes originais, a varredura confirmou teste direto em todos os 13 handlers de Payments/Financial/Scheduling/Billing; os 5 gaps receberam 16 testes focados |
 | D34 | ADR-051 D6 mandava o Payments calcular o saldo; pagamento em dinheiro na recepção não apareceria | **resolvido** — saldo vem do `financial`; sub-fase dividida em 3a/3b para caber no §0.6 |
 | D35 | O link do **restante** era criado e não entregue; a copy do sinal não serve depois do atendimento | **resolvido em código (1.6c)** — `remainder_link` usa a fila C14, lookup no send-time e template próprio. E2E real Meta permanece **BLOCKED externo (E5)** |
 | D36 | Webhook sandbox de assinatura inclui `PAYMENT_RESTORED`, mas está interrompido, aponta para produção e diverge da lista canônica de eventos | **bloqueante externo** — configurar no Preview com os 7 eventos do runbook e só reativar depois de alinhar chave/token; então provar delete → cancelled → restore → open |
@@ -220,7 +220,7 @@ pendentes:
 | Multi-tenant | clínica A concilia cobrança de B · `ref` forjada · token inválido · **RLS cross-tenant de `clinic_payment_accounts` (D13 ✅ 5/5 DEV)** e de `patient_credits` |
 | Ciclo de vida | cobrança paga antes do `deposit_link` sair · cobrança cancelada antes do send-time · job obsoleto · reagendamento/recovery · pagamento tardio |
 | Externo | Asaas fora · Meta fora · banco lento · troca de credencial da clínica |
-| Cobertura | **varrer outros handlers de dinheiro sem teste** (D33 mostrou que o mais crítico não tinha nenhum) |
+| Cobertura | **D33 ✅** — 13/13 handlers auditados possuem teste direto; 5 gaps receberam 16 testes de projeção financeira, metering e cancelamento por ciclo de vida |
 | Produto | **E2E dos três ramos com banco + worker** — o aceite da Camada 1 (D32) |
 
 Depois: **1.S**. A Camada 2 só começa com `1.H ✅ + 1.S ✅`.
@@ -379,7 +379,7 @@ Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcion
     inalterada · multi-tenancy ✅ (`clinicId` do worker + seam tenant-scoped).
   - **Evidência:** Unit ✅ · Integration controlada ✅
     (`link_ready → remainder_link → getPayableCharge → template → send`) · Contract/Worker Smoke ✅
-    (2.680 testes/290 arquivos; `smoke:c14` 8/8; todos os gates verdes) · **E2E real Meta =
+    (2.696 testes/295 arquivos; `smoke:c14` 8/8; todos os gates verdes) · **E2E real Meta =
     PENDENTE/BLOCKED externo (E5)**. Não houve mock classificado como E2E real.
 
 **1.H HARDENING:** destrutivo · concorrência (duplo pagamento, webhook duplicado/out-of-order, hold expira no instante do pagamento) · idempotência (replay, retry pós-timeout) · multi-tenant (A concilia cobrança de B, `ref` forjada) · inválidos. Aceite: cada cenário com teste + Security/Chaos/Financial/Load/Simulation verdes.
