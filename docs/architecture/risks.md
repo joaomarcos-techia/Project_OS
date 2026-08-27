@@ -122,7 +122,7 @@ simulação de 30 dias; o ferramental de carga continua pendente, e `dependency-
 | Gate | Encaminhamento |
 | --- | --- |
 | §11 Complexidade | `dependency-cruiser` **cortado**; fan-in/out sai do `arch:graphs`. Exigível desde 1.0 |
-| §10 Performance/Carga | exigível a partir de **1.4**, com `autocannon`; exige decidir ambiente-alvo (nunca produção) |
+| §10 Performance/Carga | exigível a partir de **1.4**, com `autocannon`; bloqueado até provisionar ambiente scratch isolado (`RESTORE_TARGET_URL`; nunca Preview, produção ou DEV compartilhado) |
 | §14 Clinic Simulation | ✅ `pnpm test:simulation`, harness próprio sem dependência nova; 30 dias verdes no **1.H** |
 
 ## R11 · O evento é contrato, mas o barrel é que o entrega — `BAIXA`

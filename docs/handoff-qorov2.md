@@ -153,11 +153,12 @@ Resolva também, dentro do 1.H:
 - **RLS/concorrência financeira ✅** — `pnpm smoke:payments-financial` passou **10/10** no DEV:
   isolamento de `patient_credits`, ledger sem DELETE, grant/alocação/liberação concorrentes,
   sobrealocação bloqueada e cleanup zero.
-- **Jornada controlada ✅** — `pnpm smoke:payments-journey` passou **11/11** com banco e worker reais,
+- **Jornada controlada ✅** — `pnpm smoke:payments-journey` passou **12/12** com banco e worker reais,
   sem Asaas/Meta. A=falta retida; B=restante conciliado e recebível pago; C=estorno projetado;
   D=pagamento×hold expirado sem ressuscitar a vaga ou duplicar crédito. Também provou uma única
-  cobrança/link do restante sob concorrência e bloqueio da conciliação A→B. O lote anterior encontrou
-  e fechou o **D49**: o crédito do restante existia, mas não baixava o lançamento.
+  cobrança/link do restante sob concorrência, bloqueio da conciliação A→B e timeout real de banco
+  seguido de retry sem duplicar recebível. O lote anterior encontrou e fechou o **D49**: o crédito do
+  restante existia, mas não baixava o lançamento.
 - **Simulação 30 dias ✅** — `pnpm test:simulation` passou com 30 agendamentos, 38 cobranças, 62
   webhooks duplicados/fora de ordem, 3 ticks, paralelismo 4 e cleanup zero. A primeira execução achou o
   **D51** (`lancamento` inicial `pago` sem `paid_at`); o handler foi corrigido e a repetição terminou sem
@@ -171,14 +172,18 @@ Resolva também, dentro do 1.H:
 - **Matriz focada ✅ 138/138** — POST perdido/retry, send-time obsoleto, pagamento tardio,
   reagendamento, Asaas fora e Meta fora/backoff estão verdes em unit/integration. Não chamar isso de
   E2E externo.
-- **Matriz DB ✅ 11/11 + simulação ✅** — corrida pagamento×expiração, restante concorrente,
-  cross-tenant e 30 dias acumulados no banco real foram fechados. Restam load, banco lento controlado
-  e POST perdido com banco + provedor controlado.
+- **Matriz DB ✅ 12/12 + POST recovery ✅ + simulação ✅** — corrida pagamento×expiração, restante
+  concorrente, cross-tenant, timeout/retry e 30 dias acumulados no banco real foram fechados. O
+  `pnpm smoke:payments-post-recovery` provou 1 POST aceito com resposta perdida, recuperação por GET,
+  uma única cobrança/eventos e cleanup zero usando provedor local. Resta o gate de carga, bloqueado
+  até existir ambiente scratch isolado (`RESTORE_TARGET_URL`; nunca Preview/prod/DEV
+  compartilhado).
 
 Ações que exigem exclusivamente o fundador estão registradas no `qorov2.md`: aprovação dos
 templates/destinatário Meta, rotação da chave sandbox exposta, decisão D24 sobre boleto e decisão D27
 sobre o estado da agenda/cobrança quando dinheiro confirmado volta atrás. O D50 também precisa de
-política para eventual excedente de um link do restante que ficou desatualizado após baixa manual.
+política para eventual excedente de um link do restante que ficou desatualizado após baixa manual;
+o gate de carga precisa de um scratch isolado informado por `RESTORE_TARGET_URL`.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
