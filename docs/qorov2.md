@@ -37,7 +37,7 @@ produção; o migrador gerou backup de 2.793.832 bytes, adquiriu/liberou o advis
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker ✅ 11/11 · 138 testes focados ✅ · load/simulação e externos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker ✅ 11/11 · simulação 30 dias ✅ · 138 testes focados ✅ · load e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -51,7 +51,7 @@ abaixo e as dependências externas. Portanto o aceite integral da camada continu
 
 ### Gates — resultado REAL da última execução completa
 
-Executados em 2026-08-27, após o hardening financeiro e a correção D49.
+Executados em 2026-08-27, após o hardening financeiro, a correção D51 e a simulação de 30 dias.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
@@ -60,7 +60,7 @@ Executados em 2026-08-27, após o hardening financeiro e a correção D49.
 | Testes | `pnpm test` | ✅ **2702** (296 arquivos), incluindo 1.6c, regressão do sinal, D33 e aplicação do restante no recebível |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1081 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1082 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
@@ -68,6 +68,7 @@ Executados em 2026-08-27, após o hardening financeiro e a correção D49.
 | Worker/Smoke C14 | `pnpm smoke:c14` | ✅ 8/8, banco dev, fixtures removidas, sem envio Meta |
 | RLS/concorrência financeira | `pnpm smoke:payments-financial` | ✅ 10/10, banco dev, fixtures removidas |
 | Jornada banco+worker | `pnpm smoke:payments-journey` | ✅ 11/11, dois tenants/usuários sintéticos removidos, sem Asaas/Meta |
+| Simulação 30 dias | `pnpm test:simulation` | ✅ 30 agendamentos · 38 cobranças · 62 webhooks · 3 ticks · zero retry/falha · cleanup zero, sem Asaas/Meta |
 | Matriz focada de ciclo de vida | `pnpm vitest run <7 arquivos>` | ✅ 138/138: POST perdido, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
@@ -97,8 +98,15 @@ produziram uma cobrança/um `link_ready`; e a clínica A não conciliou a cobran
 e corrigiu o **D49** no lote anterior. Dois usuários Auth e todas as fixtures foram removidos, resíduo
 zero.
 
-**Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · `test:simulation` de 30 dias ·
-recuperação de POST perdido com banco + provedor controlado · banco lento controlado · Product
+O **Clinic Simulation** passou por `pnpm test:simulation` no banco DEV com o worker real e paralelismo
+4: 30 dias/agendamentos em ordem mista, 38 cobranças, 62 entregas webhook incluindo duplicadas e fora
+de ordem, 8 atendimentos concluídos, 8 faltas, 7 estornos e 7 expirações. Os 8 recebíveis terminaram
+quitados, o ledger fechou em R$ 800,00, e não restaram cobrança duplicada, órfão, hold, evento ativo ou
+fixture. A primeira execução revelou o **D51** (`pago` sem `paid_at`); após a correção, a repetição
+processou tudo em 3 ticks, sem retry/falha, e removeu clínica e usuário sintéticos com resíduo zero.
+
+**Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · recuperação de POST perdido com banco +
+provedor controlado · banco lento controlado · Product
 Acceptance humano. A recuperação de POST perdido, Asaas indisponível, Meta indisponível/backoff e
 os estados obsoletos no send-time estão verdes em 138 testes focados, mas não foram promovidos a E2E
 externo. Transporte real Asaas e entrega real Meta continuam separados dos E2E controlados.
@@ -182,6 +190,7 @@ e provar as três jornadas pelo comportamento.
 | D41 | Auto-registro de paciente não carregava bypass | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. O erro posterior já alcançava a API do Asaas e tinha outra causa, fechada em **D44** |
 | D49 | Restante pago virava crédito, mas não baixava o recebível já existente | **resolvido no 1.H** — aplicação atômica limitada ao saldo atualiza `valor_pago`, ledger e evento; unitários e E2E banco+worker 7/7 verdes |
 | D50 | Baixa manual pode tornar um link do restante maior que o saldo atual | **mitigado** — aplicação limitada ao saldo, excedente preservado/observável; destino econômico exige decisão do fundador antes do rollout |
+| D51 | Atendimento totalmente coberto por créditos falhava ao criar o recebível `pago` sem `paid_at` | **resolvido no 1.H** — handler grava `paid_at` atomicamente quando o status inicial é `pago`; unitário 13/13 e simulação real de 30 dias verdes |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -251,7 +260,7 @@ Cenários a executar e **registrar aqui com o resultado real**:
 | Ciclo de vida | ✅ cobrança paga/cancelada antes do send-time · ✅ job obsoleto · ✅ reagendamento/recovery · ✅ pagamento tardio; unit/integration + jornada DB |
 | Externo | ✅ Asaas fora em contrato · ✅ Meta fora/retry em worker · ⬜ banco lento controlado · ✅ troca/reenvio de credencial em contrato |
 | Cobertura | **D33 ✅** — 13/13 handlers auditados possuem teste direto; 5 gaps receberam 16 testes de projeção financeira, metering e cancelamento por ciclo de vida |
-| Produto | ✅ **E2E controlado dos três ramos com banco + worker 7/7**; transporte real Asaas e Meta permanecem evidências externas separadas |
+| Produto | ✅ **E2E controlado dos três ramos com banco + worker 11/11** · ✅ simulação de 30 dias; transporte real Asaas e Meta permanecem evidências externas separadas |
 
 Depois: **1.S**. A Camada 2 só começa com `1.H ✅ + 1.S ✅`.
 
@@ -458,6 +467,11 @@ Nenhum cenário gera: **cobrança duplicada · estorno duplicado · recebimento 
 > **Exigível no `1.H`** — antes de 1.3–1.5 não existe `patient_charges`, webhook de paciente nem handler de `no_show`: não há o que simular. Sem dependência nova (tsx + seeds + `worker:once`, no molde dos `smoke:*`).
 
 Harness `test:simulation` (reusa seeds + geradores de evento) simulando **30 dias de operação**: agendamentos, faltas, pagamentos, cancelamentos, reembolsos, webhooks (inclusive duplicados/out-of-order). **Validar consistência final** (Financial Integrity §13 + agenda↔financeiro + sem órfão/hold preso). Pega bugs que só aparecem com eventos acumulados.
+
+**Resultado 2026-08-27: ✅ VERDE.** `pnpm test:simulation` executou 30 agendamentos/38 cobranças/62
+webhooks no Postgres DEV e drenou o worker real em 3 ticks com paralelismo 4. A execução inicial
+encontrou o D51; a repetição após o fix fechou 8 recebíveis/R$ 800,00 de ledger sem retry, falha,
+duplicata, órfão ou hold preso e confirmou cleanup com resíduo zero. Não houve chamada ao Asaas/Meta.
 
 ## 15. Gate — Product Acceptance
 Percorrer a jornada como **secretária·médico·dono·paciente**: nº de cliques · clareza · tempo · chance de erro humano. *(Usabilidade real exige usuário real → confirmada na piloto da Fase 2 do rollout §18.)*

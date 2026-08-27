@@ -158,6 +158,10 @@ Resolva também, dentro do 1.H:
   D=pagamento×hold expirado sem ressuscitar a vaga ou duplicar crédito. Também provou uma única
   cobrança/link do restante sob concorrência e bloqueio da conciliação A→B. O lote anterior encontrou
   e fechou o **D49**: o crédito do restante existia, mas não baixava o lançamento.
+- **Simulação 30 dias ✅** — `pnpm test:simulation` passou com 30 agendamentos, 38 cobranças, 62
+  webhooks duplicados/fora de ordem, 3 ticks, paralelismo 4 e cleanup zero. A primeira execução achou o
+  **D51** (`lancamento` inicial `pago` sem `paid_at`); o handler foi corrigido e a repetição terminou sem
+  retry/falha, sem Asaas/Meta.
 - **D27** — `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` não têm tratamento.
   São os dois caminhos em que dinheiro dado como recebido **volta atrás**. Assinar o evento sem
   tratar é só ruído: entregue o par (assinatura + handler) junto.
@@ -167,9 +171,9 @@ Resolva também, dentro do 1.H:
 - **Matriz focada ✅ 138/138** — POST perdido/retry, send-time obsoleto, pagamento tardio,
   reagendamento, Asaas fora e Meta fora/backoff estão verdes em unit/integration. Não chamar isso de
   E2E externo.
-- **Matriz DB ✅ 11/11** — corrida pagamento×expiração, restante concorrente e cross-tenant banco
-  real foram fechados. Restam load, simulação de 30 dias, banco lento controlado e POST perdido com
-  banco + provedor controlado.
+- **Matriz DB ✅ 11/11 + simulação ✅** — corrida pagamento×expiração, restante concorrente,
+  cross-tenant e 30 dias acumulados no banco real foram fechados. Restam load, banco lento controlado
+  e POST perdido com banco + provedor controlado.
 
 Ações que exigem exclusivamente o fundador estão registradas no `qorov2.md`: aprovação dos
 templates/destinatário Meta, rotação da chave sandbox exposta, decisão D24 sobre boleto e decisão D27

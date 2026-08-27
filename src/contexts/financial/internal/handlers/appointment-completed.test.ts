@@ -190,7 +190,11 @@ describe('faturamento com sinal já pago (ADR-051 1.5b.2)', () => {
 
     await run();
 
-    expect(lancamento()).toMatchObject({ valorPago: '200.00', status: 'pago' });
+    expect(lancamento()).toMatchObject({
+      valorPago: '200.00',
+      status: 'pago',
+      paidAt: expect.anything(),
+    });
   });
 
   it('crédito MAIOR que o valor não infla o valorPago', async () => {
@@ -200,7 +204,11 @@ describe('faturamento com sinal já pago (ADR-051 1.5b.2)', () => {
 
     await run({ valor: 200 });
 
-    expect(lancamento()).toMatchObject({ valorPago: '200.00', status: 'pago' });
+    expect(lancamento()).toMatchObject({
+      valorPago: '200.00',
+      status: 'pago',
+      paidAt: expect.anything(),
+    });
     expect(mocks.allocateCredit).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ amount: 200 }),

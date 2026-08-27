@@ -55,6 +55,7 @@
     "smoke:payments-rls": "tsx --conditions=react-server scripts/smoke-payments-rls.ts",
     "smoke:payments-financial": "tsx --conditions=react-server scripts/smoke-payments-financial-hardening.ts",
     "smoke:payments-journey": "cross-env OUTBOX_BATCH_SIZE=10 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-payments-journey.ts",
+    "test:simulation": "cross-env OUTBOX_BATCH_SIZE=50 OUTBOX_PARALLELISM=4 tsx --conditions=react-server scripts/simulate-payments-30-days.ts",
     "billing:card-live-check": "tsx --conditions=react-server scripts/asaas-card-live-check.ts",
     "billing:live-roundtrip": "tsx --conditions=react-server scripts/asaas-live-roundtrip.ts",
     "email:live-check": "tsx --conditions=react-server scripts/resend-live-check.ts",

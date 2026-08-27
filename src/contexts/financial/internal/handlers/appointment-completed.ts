@@ -117,6 +117,7 @@ async function faturarAtendimento(ctx: {
     valorBruto,
     creditos.map((c) => ({ id: c.id, amount: Number(c.amount) })),
   );
+  const status = statusAoCriar(valorBruto, creditoAplicado);
 
   const [row] = await tx
     .insert(lancamentos)
@@ -130,7 +131,11 @@ async function faturarAtendimento(ctx: {
       // faturou o valor cheio — faturamento e recebimento são coisas distintas.
       valor: valorBruto.toFixed(2),
       valorPago: creditoAplicado.toFixed(2),
-      status: statusAoCriar(valorBruto, creditoAplicado),
+      status,
+      // O schema exige `paid_at` para todo lançamento já criado como pago.
+      // Isso ocorre quando os créditos recebidos antes do atendimento cobrem
+      // integralmente o valor bruto.
+      paidAt: status === 'pago' ? sql`now()` : null,
       dueDate: todayInTz(tz),
       patientId: payload.patientId,
       appointmentId: payload.appointmentId,
