@@ -5,7 +5,8 @@
  * Não chama Asaas nem Meta:
  *   A) falta com sinal pago -> crédito retained, sem restante;
  *   B) restante pago -> webhook concorrente, crédito alocado e recebível pago;
- *   C) refund já confirmado no seam -> cobrança, agenda e crédito refunded.
+ *   C) refund já confirmado no seam -> cobrança, agenda e crédito refunded;
+ *   D) pagamento concorrente com expiração -> vaga não ressuscita e dinheiro fecha uma vez.
  *
  * O que fica fora por definição: transporte real Asaas e entrega real Meta.
  */
@@ -13,7 +14,7 @@ import { assertDevContext } from './_env';
 
 import { randomUUID } from 'node:crypto';
 
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { dbAdmin } from '@/lib/db';
@@ -25,7 +26,12 @@ import { lancamentos, patientCredits, paymentTransactions } from '@/contexts/fin
 import { patients } from '@/contexts/patient';
 import { SCHEDULING_EVENTS, appointments, procedures } from '@/contexts/scheduling';
 import { patientCharges } from '@/contexts/payments/schema';
-import { closeCharge, markDepositPaid } from '@/contexts/payments/internal/charge-store';
+import {
+  closeCharge,
+  insertRemainderCharge,
+  markDepositPaid,
+} from '@/contexts/payments/internal/charge-store';
+import { applyTransition } from '@/contexts/scheduling/internal/appointment-core';
 
 // Catálogo + registry de handlers do worker real.
 import '@/lib/db/schema';
@@ -39,24 +45,35 @@ const results: Result[] = [];
 const runId = randomUUID();
 const stamp = runId.replaceAll('-', '').slice(0, 12);
 const clinicId = randomUUID();
+const otherClinicId = randomUUID();
 const patientId = randomUUID();
+const otherPatientId = randomUUID();
 const procedureId = randomUUID();
+const otherProcedureId = randomUUID();
 const appointmentA = randomUUID();
 const appointmentB = randomUUID();
 const appointmentC = randomUUID();
+const appointmentD = randomUUID();
+const appointmentE = randomUUID();
+const otherAppointment = randomUUID();
 
 const chargeA = randomUUID();
 const chargeBDeposit = randomUUID();
 const chargeBRemainder = randomUUID();
 const chargeC = randomUUID();
+const chargeD = randomUUID();
+const otherCharge = randomUUID();
 const creditA = randomUUID();
 const creditBDeposit = randomUUID();
 const creditC = randomUUID();
 const lancamentoB = randomUUID();
 
 const providerPaymentB = `pay_hardening_${stamp}`;
+const providerPaymentD = `pay_hold_race_${stamp}`;
+const otherProviderPayment = `pay_other_tenant_${stamp}`;
 const supabase = createAdminClient();
 let doctorId: string | null = null;
+let otherDoctorId: string | null = null;
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -87,13 +104,25 @@ function scheduledAt(daysAgo: number, hour: number): Date {
   return date;
 }
 
+function scheduledIn(daysAhead: number, hour: number): Date {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + daysAhead);
+  date.setUTCHours(hour, 0, 0, 0);
+  return date;
+}
+
 async function createFixtures(): Promise<void> {
   await dbAdmin.execute(sql`
     INSERT INTO clinics (id, slug, nome, endereco, status, timezone)
-    VALUES (
-      ${clinicId}, ${`h1-journey-${stamp}`}, '1.H Jornada Sintética',
-      'Fixture sintética', 'active', 'America/Sao_Paulo'
-    )
+    VALUES
+      (
+        ${clinicId}, ${`h1-journey-${stamp}`}, '1.H Jornada Sintética',
+        'Fixture sintética', 'active', 'America/Sao_Paulo'
+      ),
+      (
+        ${otherClinicId}, ${`h1-other-${stamp}`}, '1.H Tenant Sintético B',
+        'Fixture sintética', 'active', 'America/Sao_Paulo'
+      )
   `);
 
   const created = await supabase.auth.admin.createUser({
@@ -106,9 +135,21 @@ async function createFixtures(): Promise<void> {
   }
   doctorId = created.data.user.id;
 
+  const otherCreated = await supabase.auth.admin.createUser({
+    email: `h1-other-${stamp}@smoke.local`,
+    password: randomUUID(),
+    email_confirm: true,
+  });
+  if (otherCreated.error || !otherCreated.data.user) {
+    throw otherCreated.error ?? new Error('não foi possível criar médico sintético B');
+  }
+  otherDoctorId = otherCreated.data.user.id;
+
   await dbAdmin.execute(sql`
     INSERT INTO profiles (id, clinic_id, nome, role, ativo)
-    VALUES (${doctorId}, ${clinicId}, 'Dra. Hardening', 'doctor'::role_enum, true)
+    VALUES
+      (${doctorId}, ${clinicId}, 'Dra. Hardening', 'doctor'::role_enum, true),
+      (${otherDoctorId}, ${otherClinicId}, 'Dr. Tenant B', 'doctor'::role_enum, true)
   `);
 
   await withTenant(clinicId, async (tx) => {
@@ -162,6 +203,21 @@ async function createFixtures(): Promise<void> {
         status: 'cancelado',
         depositStatus: 'paid',
       },
+      {
+        ...base,
+        id: appointmentD,
+        scheduledAt: scheduledIn(10, 15),
+        status: 'agendado',
+        depositStatus: 'pending',
+        holdExpiresAt: scheduledAt(1, 12),
+      },
+      {
+        ...base,
+        id: appointmentE,
+        scheduledAt: scheduledAt(1, 16),
+        status: 'atendido',
+        depositStatus: 'paid',
+      },
     ]);
 
     await tx.insert(patientCharges).values([
@@ -209,6 +265,19 @@ async function createFixtures(): Promise<void> {
         amount: '100.00',
         externalReference: `deposit:${appointmentC}`,
         paidAt: scheduledAt(2, 12),
+      },
+      {
+        id: chargeD,
+        clinicId,
+        appointmentId: appointmentD,
+        patientId,
+        kind: 'deposit',
+        status: 'pending',
+        amount: '100.00',
+        providerPaymentId: providerPaymentD,
+        invoiceUrl: 'https://example.invalid/hold-race',
+        externalReference: `deposit:${appointmentD}`,
+        holdExpiresAt: scheduledAt(1, 12),
       },
     ]);
 
@@ -268,6 +337,54 @@ async function createFixtures(): Promise<void> {
       amount: '100.00',
     });
   });
+
+  await withTenant(otherClinicId, async (tx) => {
+    await tx.insert(procedures).values({
+      id: otherProcedureId,
+      clinicId: otherClinicId,
+      codigo: `H1B-${stamp.slice(0, 6)}`,
+      descricao: 'Consulta sintética do tenant B',
+      valorPadrao: '150.00',
+      duracaoPadraoMin: 30,
+    });
+    await tx.insert(patients).values({
+      id: otherPatientId,
+      clinicId: otherClinicId,
+      nome: 'Paciente Sintético Tenant B',
+      cpfEncrypted: 'fixture-sem-pii',
+      cpfHash: randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64),
+    });
+    await tx.insert(appointments).values({
+      id: otherAppointment,
+      clinicId: otherClinicId,
+      doctorId: otherDoctorId!,
+      patientId: otherPatientId,
+      procedureId: otherProcedureId,
+      scheduledAt: scheduledIn(8, 14),
+      durationMin: 30,
+      status: 'agendado',
+      valor: '150.00',
+      depositStatus: 'pending',
+      holdExpiresAt: scheduledIn(1, 14),
+      snapshotProcedureName: 'Consulta sintética do tenant B',
+      snapshotProcedureValor: '150.00',
+      snapshotProcedureDuracaoMin: 30,
+      snapshotDoctorNome: 'Dr. Tenant B',
+    });
+    await tx.insert(patientCharges).values({
+      id: otherCharge,
+      clinicId: otherClinicId,
+      appointmentId: otherAppointment,
+      patientId: otherPatientId,
+      kind: 'deposit',
+      status: 'pending',
+      amount: '75.00',
+      providerPaymentId: otherProviderPayment,
+      invoiceUrl: 'https://example.invalid/other-tenant',
+      externalReference: `deposit:${otherAppointment}`,
+      holdExpiresAt: scheduledIn(1, 14),
+    });
+  });
 }
 
 async function runWorkersUntil(label: string, condition: () => Promise<boolean>): Promise<void> {
@@ -285,22 +402,31 @@ async function runWorkersUntil(label: string, condition: () => Promise<boolean>)
 }
 
 async function cleanup(): Promise<void> {
-  for (const table of ['outbox', 'idempotency_keys', 'audit_events'] as const) {
-    await dbAdmin.execute(sql`DELETE FROM ${sql.raw(table)} WHERE clinic_id = ${clinicId}`);
+  for (const fixtureClinicId of [clinicId, otherClinicId]) {
+    for (const table of ['outbox', 'idempotency_keys', 'audit_events'] as const) {
+      await dbAdmin.execute(
+        sql`DELETE FROM ${sql.raw(table)} WHERE clinic_id = ${fixtureClinicId}`,
+      );
+    }
+    await dbAdmin.execute(
+      sql`DELETE FROM patient_webhook_events WHERE clinic_id = ${fixtureClinicId}`,
+    );
+    await dbAdmin.execute(sql`DELETE FROM patient_credits WHERE clinic_id = ${fixtureClinicId}`);
+    await dbAdmin.execute(
+      sql`DELETE FROM payment_transactions WHERE clinic_id = ${fixtureClinicId}`,
+    );
+    await dbAdmin.execute(sql`DELETE FROM patient_charges WHERE clinic_id = ${fixtureClinicId}`);
+    await dbAdmin.execute(sql`DELETE FROM lancamentos WHERE clinic_id = ${fixtureClinicId}`);
+    await dbAdmin.execute(sql`DELETE FROM appointments WHERE clinic_id = ${fixtureClinicId}`);
+    await dbAdmin.execute(sql`DELETE FROM patients WHERE clinic_id = ${fixtureClinicId}`);
+    await dbAdmin.execute(sql`DELETE FROM procedures WHERE clinic_id = ${fixtureClinicId}`);
+    await dbAdmin.execute(sql`DELETE FROM profiles WHERE clinic_id = ${fixtureClinicId}`);
+    await dbAdmin.execute(sql`DELETE FROM clinics WHERE id = ${fixtureClinicId}`);
   }
-  await dbAdmin.execute(sql`DELETE FROM patient_webhook_events WHERE clinic_id = ${clinicId}`);
-  await dbAdmin.execute(sql`DELETE FROM patient_credits WHERE clinic_id = ${clinicId}`);
-  await dbAdmin.execute(sql`DELETE FROM payment_transactions WHERE clinic_id = ${clinicId}`);
-  await dbAdmin.execute(sql`DELETE FROM patient_charges WHERE clinic_id = ${clinicId}`);
-  await dbAdmin.execute(sql`DELETE FROM lancamentos WHERE clinic_id = ${clinicId}`);
-  await dbAdmin.execute(sql`DELETE FROM appointments WHERE clinic_id = ${clinicId}`);
-  await dbAdmin.execute(sql`DELETE FROM patients WHERE clinic_id = ${clinicId}`);
-  await dbAdmin.execute(sql`DELETE FROM procedures WHERE clinic_id = ${clinicId}`);
-  if (doctorId) await dbAdmin.execute(sql`DELETE FROM profiles WHERE id = ${doctorId}`);
-  await dbAdmin.execute(sql`DELETE FROM clinics WHERE id = ${clinicId}`);
 
-  if (doctorId) {
-    const removed = await supabase.auth.admin.deleteUser(doctorId);
+  for (const fixtureDoctorId of [doctorId, otherDoctorId]) {
+    if (!fixtureDoctorId) continue;
+    const removed = await supabase.auth.admin.deleteUser(fixtureDoctorId);
     if (removed.error) throw removed.error;
   }
 
@@ -310,18 +436,27 @@ async function cleanup(): Promise<void> {
     infraRows: number;
   }>(sql`
     SELECT
-      (SELECT count(*)::int FROM clinics WHERE id = ${clinicId}) AS clinics,
+      (SELECT count(*)::int FROM clinics
+        WHERE id IN (${clinicId}, ${otherClinicId})) AS clinics,
       (
-        (SELECT count(*) FROM patient_credits WHERE clinic_id = ${clinicId}) +
-        (SELECT count(*) FROM payment_transactions WHERE clinic_id = ${clinicId}) +
-        (SELECT count(*) FROM patient_charges WHERE clinic_id = ${clinicId}) +
-        (SELECT count(*) FROM lancamentos WHERE clinic_id = ${clinicId}) +
-        (SELECT count(*) FROM appointments WHERE clinic_id = ${clinicId}) +
-        (SELECT count(*) FROM patients WHERE clinic_id = ${clinicId})
+        (SELECT count(*) FROM patient_credits
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId})) +
+        (SELECT count(*) FROM payment_transactions
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId})) +
+        (SELECT count(*) FROM patient_charges
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId})) +
+        (SELECT count(*) FROM lancamentos
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId})) +
+        (SELECT count(*) FROM appointments
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId})) +
+        (SELECT count(*) FROM patients
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId}))
       )::int AS "domainRows",
       (
-        (SELECT count(*) FROM outbox WHERE clinic_id = ${clinicId}) +
-        (SELECT count(*) FROM patient_webhook_events WHERE clinic_id = ${clinicId})
+        (SELECT count(*) FROM outbox
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId})) +
+        (SELECT count(*) FROM patient_webhook_events
+          WHERE clinic_id IN (${clinicId}, ${otherClinicId}))
       )::int AS "infraRows"
   `);
   assert(
@@ -512,7 +647,108 @@ async function main(): Promise<void> {
       assert(state[0]?.lancamentoCount === 0, 'cancelamento criou recebível indevido');
     });
 
-    await step('6 outbox: eventos da fixture terminaram sem falha/retry pendente', async () => {
+    await step('6 corrida hold×pagamento: ambos os fatos fecham uma vez', async () => {
+      const [, paymentOutcome] = await Promise.all([
+        withTenant(clinicId, async (tx) => {
+          await applyTransition(tx, {
+            clinicId,
+            appointmentId: appointmentD,
+            target: 'cancelado',
+            transitionedBy: null,
+            actorType: 'system',
+            reason: 'sinal não pago dentro do prazo',
+            cancelReason: 'deposit_expired',
+            clientKey: `deposit-expired:${appointmentD}`,
+            correlationId: null,
+          });
+          await tx
+            .update(appointments)
+            .set({ depositStatus: 'expired', holdExpiresAt: null, updatedAt: sql`now()` })
+            .where(and(eq(appointments.id, appointmentD), eq(appointments.clinicId, clinicId)));
+        }),
+        markDepositPaid({
+          clinicId,
+          providerPaymentId: providerPaymentD,
+          asaasEventId: `evt-hold-race-${stamp}`,
+          eventType: 'PAYMENT_RECEIVED',
+          paidAt: new Date(),
+          billingType: 'PIX',
+        }),
+      ]);
+      assert(paymentOutcome === 'paid', `pagamento concorrente devolveu ${paymentOutcome}`);
+
+      // Seam posterior ao gateway: no caso real, o handler confirma o PIX no Asaas
+      // antes de fechar. Aqui a devolução já confirmada evita qualquer chamada externa.
+      const closed = await closeCharge({
+        clinicId,
+        chargeId: chargeD,
+        from: 'paid',
+        outcome: 'refunded',
+        kind: 'deposit',
+        appointmentId: appointmentD,
+        amount: 100,
+        closedAt: new Date(),
+      });
+      assert(closed, 'pagamento tardio não foi fechado como refunded');
+    });
+
+    await step(
+      '7 corrida hold×pagamento: worker não ressuscita a vaga nem duplica crédito',
+      async () => {
+        await runWorkersUntil('corrida hold×pagamento', async () => {
+          const rows = await dbAdmin.execute<{ credit: string; deposit: string }>(sql`
+          SELECT
+            (SELECT status::text FROM patient_credits
+              WHERE patient_charge_id = ${chargeD}) AS credit,
+            (SELECT deposit_status::text FROM appointments
+              WHERE id = ${appointmentD}) AS deposit
+        `);
+          return rows[0]?.credit === 'refunded' && rows[0]?.deposit === 'refunded';
+        });
+
+        const state = await dbAdmin.execute<{
+          appointmentStatus: string;
+          depositStatus: string;
+          chargeStatus: string;
+          creditCount: number;
+          creditStatus: string;
+          cancellationEvents: number;
+          paidEvents: number;
+          closedEvents: number;
+        }>(sql`
+        SELECT
+          (SELECT status::text FROM appointments WHERE id = ${appointmentD}) AS "appointmentStatus",
+          (SELECT deposit_status::text FROM appointments WHERE id = ${appointmentD}) AS "depositStatus",
+          (SELECT status::text FROM patient_charges WHERE id = ${chargeD}) AS "chargeStatus",
+          (SELECT count(*)::int FROM patient_credits
+            WHERE patient_charge_id = ${chargeD}) AS "creditCount",
+          (SELECT status::text FROM patient_credits
+            WHERE patient_charge_id = ${chargeD}) AS "creditStatus",
+          (SELECT count(*)::int FROM outbox
+            WHERE clinic_id = ${clinicId}
+              AND event_type = 'scheduling.appointment.cancelled'
+              AND payload->>'appointmentId' = ${appointmentD}) AS "cancellationEvents",
+          (SELECT count(*)::int FROM outbox
+            WHERE clinic_id = ${clinicId}
+              AND event_type = 'payments.patient_charge.paid'
+              AND payload->>'chargeId' = ${chargeD}) AS "paidEvents",
+          (SELECT count(*)::int FROM outbox
+            WHERE clinic_id = ${clinicId}
+              AND event_type = 'payments.patient_charge.closed'
+              AND payload->>'chargeId' = ${chargeD}) AS "closedEvents"
+      `);
+        assert(state[0]?.appointmentStatus === 'cancelado', 'pagamento tardio ressuscitou a vaga');
+        assert(state[0]?.depositStatus === 'refunded', 'agenda não projetou o estorno tardio');
+        assert(state[0]?.chargeStatus === 'refunded', 'cobrança tardia não terminou refunded');
+        assert(state[0]?.creditCount === 1, `houve ${state[0]?.creditCount} créditos tardios`);
+        assert(state[0]?.creditStatus === 'refunded', 'crédito tardio não foi liberado');
+        assert(state[0]?.cancellationEvents === 1, 'corrida duplicou o cancelamento');
+        assert(state[0]?.paidEvents === 1, 'corrida duplicou o pagamento');
+        assert(state[0]?.closedEvents === 1, 'corrida duplicou o fechamento');
+      },
+    );
+
+    await step('8 outbox: eventos da fixture terminaram sem falha/retry pendente', async () => {
       const rows = await dbAdmin.execute<{ failed: number; pending: number }>(sql`
         SELECT
           count(*) FILTER (WHERE status = 'failed')::int AS failed,
@@ -523,9 +759,76 @@ async function main(): Promise<void> {
       assert(rows[0]?.failed === 0, `${rows[0]?.failed} evento(s) failed`);
       assert(rows[0]?.pending === 0, `${rows[0]?.pending} evento(s) ainda pendente(s)`);
     });
+
+    await step('9 restante concorrente: uma cobrança e um link_ready no banco real', async () => {
+      const outcomes = await Promise.all([
+        insertRemainderCharge({
+          clinicId,
+          appointmentId: appointmentE,
+          patientId,
+          amount: 80,
+          providerPaymentId: `pay-remainder-a-${stamp}`,
+          invoiceUrl: 'https://example.invalid/remainder-a',
+        }),
+        insertRemainderCharge({
+          clinicId,
+          appointmentId: appointmentE,
+          patientId,
+          amount: 80,
+          providerPaymentId: `pay-remainder-b-${stamp}`,
+          invoiceUrl: 'https://example.invalid/remainder-b',
+        }),
+      ]);
+      assert(outcomes.filter(Boolean).length === 1, `inserts vencedores: ${outcomes}`);
+
+      const rows = await dbAdmin.execute<{ charges: number; events: number }>(sql`
+        SELECT
+          (SELECT count(*)::int FROM patient_charges
+            WHERE clinic_id = ${clinicId}
+              AND appointment_id = ${appointmentE}
+              AND kind = 'remainder') AS charges,
+          (SELECT count(*)::int FROM outbox
+            WHERE clinic_id = ${clinicId}
+              AND event_type = 'payments.patient_charge.link_ready'
+              AND payload->>'appointmentId' = ${appointmentE}) AS events
+      `);
+      assert(rows[0]?.charges === 1, `foram criadas ${rows[0]?.charges} cobranças`);
+      assert(rows[0]?.events === 1, `foram publicados ${rows[0]?.events} link_ready`);
+    });
+
+    await step('10 multi-tenant: clínica A não concilia cobrança da B', async () => {
+      const outcome = await markDepositPaid({
+        clinicId,
+        providerPaymentId: otherProviderPayment,
+        asaasEventId: `evt-cross-tenant-${stamp}`,
+        eventType: 'PAYMENT_RECEIVED',
+        paidAt: new Date(),
+        billingType: 'PIX',
+      });
+      assert(outcome === 'unknown_charge', `conciliação cross-tenant devolveu ${outcome}`);
+
+      const rows = await dbAdmin.execute<{
+        status: string;
+        paidEvents: number;
+        credits: number;
+      }>(sql`
+        SELECT
+          (SELECT status::text FROM patient_charges WHERE id = ${otherCharge}) AS status,
+          (SELECT count(*)::int FROM outbox
+            WHERE clinic_id = ${otherClinicId}
+              AND event_type = 'payments.patient_charge.paid'
+              AND payload->>'chargeId' = ${otherCharge}) AS "paidEvents",
+          (SELECT count(*)::int FROM patient_credits
+            WHERE clinic_id = ${otherClinicId}
+              AND patient_charge_id = ${otherCharge}) AS credits
+      `);
+      assert(rows[0]?.status === 'pending', 'A alterou a cobrança da clínica B');
+      assert(rows[0]?.paidEvents === 0, 'A publicou pagamento para a clínica B');
+      assert(rows[0]?.credits === 0, 'A criou crédito para a clínica B');
+    });
   } finally {
     await cleanup();
-    console.log('[OK]   7 cleanup: zero fixtures da jornada e usuário sintético removido');
+    console.log('[OK]   11 cleanup: zero fixtures da jornada e usuários sintéticos removidos');
   }
 
   const failed = results.filter((result) => !result.ok);
