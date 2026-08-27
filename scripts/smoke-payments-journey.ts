@@ -7,6 +7,7 @@
  *   B) restante pago -> webhook concorrente, crédito alocado e recebível pago;
  *   C) refund já confirmado no seam -> cobrança, agenda e crédito refunded;
  *   D) pagamento concorrente com expiração -> vaga não ressuscita e dinheiro fecha uma vez.
+ *   E) lock de banco força statement_timeout -> outbox retenta e cria um único recebível.
  *
  * O que fica fora por definição: transporte real Asaas e entrega real Meta.
  */
@@ -55,6 +56,7 @@ const appointmentB = randomUUID();
 const appointmentC = randomUUID();
 const appointmentD = randomUUID();
 const appointmentE = randomUUID();
+const appointmentF = randomUUID();
 const otherAppointment = randomUUID();
 
 const chargeA = randomUUID();
@@ -217,6 +219,13 @@ async function createFixtures(): Promise<void> {
         scheduledAt: scheduledAt(1, 16),
         status: 'atendido',
         depositStatus: 'paid',
+      },
+      {
+        ...base,
+        id: appointmentF,
+        scheduledAt: scheduledAt(1, 17),
+        status: 'atendido',
+        depositStatus: 'none',
       },
     ]);
 
@@ -760,7 +769,129 @@ async function main(): Promise<void> {
       assert(rows[0]?.pending === 0, `${rows[0]?.pending} evento(s) ainda pendente(s)`);
     });
 
-    await step('9 restante concorrente: uma cobrança e um link_ready no banco real', async () => {
+    await step('9 banco lento: timeout retenta e recupera sem duplicar recebível', async () => {
+      const queue = await dbAdmin.execute<{ active: number }>(sql`
+        SELECT count(*)::int AS active
+          FROM outbox
+         WHERE status IN ('pending', 'processing')
+      `);
+      assert(
+        queue[0]?.active === 0,
+        `cenário de timeout exige fila DEV vazia; existem ${queue[0]?.active} evento(s) ativo(s)`,
+      );
+
+      const idempotencyKey = `h1-db-timeout:${appointmentF}`;
+      await withTenant(clinicId, (tx) =>
+        publishEvent(tx, {
+          clinicId,
+          eventType: SCHEDULING_EVENTS.COMPLETED,
+          payload: {
+            appointmentId: appointmentF,
+            clinicId,
+            doctorId: doctorId!,
+            patientId,
+            procedureId,
+            unitId: null,
+            valor: 200,
+            snapshotProcedureName: 'Consulta sintética',
+            snapshotDoctorNome: 'Dra. Hardening',
+            scheduledAt: scheduledAt(1, 17).toISOString(),
+          },
+          idempotencyKey,
+        }),
+      );
+
+      const startedAt = Date.now();
+      const firstTick = await dbAdmin.transaction(async (lockTx) => {
+        // O FK do lançamento precisa de KEY SHARE neste agendamento. FOR UPDATE
+        // mantém a linha incompatível até o handler atingir seu statement_timeout.
+        await lockTx.execute(sql`
+          SELECT id FROM appointments
+           WHERE id = ${appointmentF} AND clinic_id = ${clinicId}
+           FOR UPDATE
+        `);
+        return runOutboxOnce({ batchSize: 1, parallelism: 1 });
+      });
+      const timeoutDurationMs = Date.now() - startedAt;
+
+      assert(firstTick.failed === 1, `primeiro tick não falhou: ${JSON.stringify(firstTick)}`);
+      assert(firstTick.processed === 0, 'evento lento foi marcado processed antes de recuperar');
+      assert(
+        timeoutDurationMs >= 4_000 && timeoutDurationMs < 20_000,
+        `statement_timeout fora da janela esperada: ${timeoutDurationMs}ms`,
+      );
+
+      const retryState = await dbAdmin.execute<{
+        status: string;
+        attempts: number;
+        lastError: string | null;
+      }>(sql`
+        SELECT status::text, attempts, last_error AS "lastError"
+          FROM outbox
+         WHERE clinic_id = ${clinicId}
+           AND event_type = ${SCHEDULING_EVENTS.COMPLETED}
+           AND idempotency_key = ${idempotencyKey}
+      `);
+      assert(retryState[0]?.status === 'pending', 'timeout não devolveu o evento para pending');
+      assert(
+        retryState[0]?.attempts === 1,
+        `timeout consumiu ${retryState[0]?.attempts} tentativas`,
+      );
+      assert(Boolean(retryState[0]?.lastError), 'timeout ficou sem erro observável no outbox');
+
+      await runWorkersUntil('recuperação do banco lento', async () => {
+        const rows = await dbAdmin.execute<{ processed: boolean; lancamentos: number }>(sql`
+          SELECT
+            EXISTS(
+              SELECT 1 FROM outbox
+               WHERE clinic_id = ${clinicId}
+                 AND event_type = ${SCHEDULING_EVENTS.COMPLETED}
+                 AND idempotency_key = ${idempotencyKey}
+                 AND status = 'processed'
+            ) AS processed,
+            (SELECT count(*)::int FROM lancamentos
+              WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentF}) AS lancamentos
+        `);
+        return rows[0]?.processed === true && rows[0]?.lancamentos === 1;
+      });
+
+      const finalState = await dbAdmin.execute<{
+        status: string;
+        attempts: number;
+        lancamentos: number;
+        active: number;
+      }>(sql`
+        SELECT
+          (SELECT status::text FROM outbox
+            WHERE clinic_id = ${clinicId}
+              AND event_type = ${SCHEDULING_EVENTS.COMPLETED}
+              AND idempotency_key = ${idempotencyKey}) AS status,
+          (SELECT attempts FROM outbox
+            WHERE clinic_id = ${clinicId}
+              AND event_type = ${SCHEDULING_EVENTS.COMPLETED}
+              AND idempotency_key = ${idempotencyKey}) AS attempts,
+          (SELECT count(*)::int FROM lancamentos
+            WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentF}) AS lancamentos,
+          (SELECT count(*)::int FROM outbox
+            WHERE clinic_id = ${clinicId}
+              AND status IN ('pending', 'processing')) AS active
+      `);
+      assert(finalState[0]?.status === 'processed', 'evento não ficou processed após o retry');
+      assert(
+        finalState[0]?.attempts === 2,
+        `recuperação usou ${finalState[0]?.attempts} tentativas`,
+      );
+      assert(
+        finalState[0]?.lancamentos === 1,
+        `foram criados ${finalState[0]?.lancamentos} recebíveis`,
+      );
+      assert(
+        finalState[0]?.active === 0,
+        `fila ficou com ${finalState[0]?.active} evento(s) ativo(s)`,
+      );
+    });
+
+    await step('10 restante concorrente: uma cobrança e um link_ready no banco real', async () => {
       const outcomes = await Promise.all([
         insertRemainderCharge({
           clinicId,
@@ -796,7 +927,7 @@ async function main(): Promise<void> {
       assert(rows[0]?.events === 1, `foram publicados ${rows[0]?.events} link_ready`);
     });
 
-    await step('10 multi-tenant: clínica A não concilia cobrança da B', async () => {
+    await step('11 multi-tenant: clínica A não concilia cobrança da B', async () => {
       const outcome = await markDepositPaid({
         clinicId,
         providerPaymentId: otherProviderPayment,
@@ -828,7 +959,7 @@ async function main(): Promise<void> {
     });
   } finally {
     await cleanup();
-    console.log('[OK]   11 cleanup: zero fixtures da jornada e usuários sintéticos removidos');
+    console.log('[OK]   12 cleanup: zero fixtures da jornada e usuários sintéticos removidos');
   }
 
   const failed = results.filter((result) => !result.ok);
