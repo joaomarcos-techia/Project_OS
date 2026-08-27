@@ -17,9 +17,10 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 
 **Última verificação contra o repositório:** 2026-08-27 · branch `feat/qorov2-pagamentos`
 
-**Versionamento (2026-08-27):** a 1.6c está implementada e validada no working tree. A migration
-`0090` ainda não foi aplicada persistentemente nem houve deploy; o último Preview publicado continua
-em `ed83c90` com a `0089` aplicada no banco dev.
+**Versionamento (2026-08-27):** a 1.6c está no commit local `15cb9c3`. A migration `0090` foi aplicada
+e verificada em dev e produção; o migrador de produção gerou backup de 2.793.832 bytes, adquiriu e
+liberou o advisory lock e registrou `DONE`. O código ainda não teve push/deploy; o último Preview
+publicado continua em `ed83c90`.
 
 ### Sub-fases da Camada 1
 
@@ -65,10 +66,12 @@ Executados em 2026-08-27, após implementar a 1.6c.
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
-Migrations **0081–0089** aplicadas e verificadas no banco de **dev**. A `0090` foi validada sem
-persistência: banco populado (2 jobs), `up → rollback → up` verde e modelo vazio temporário aceitou
-`remainder_link`. PostgreSQL não oferece `down` aditivo seguro para enum; rollback operacional reverte
-o código e deixa o valor inerte, sem recriar tipo/tabela. Nenhuma migration foi aplicada em produção.
+Migrations **0081–0090** aplicadas e verificadas no banco de **dev**. Antes da aplicação, a `0090` foi
+validada sem persistência: banco populado (2 jobs), `up → rollback → up` verde e modelo vazio temporário
+aceitou `remainder_link`. Em 27/08, a `0090` também foi aplicada e verificada em **produção** com backup
+pré-migration e advisory lock; `pg_enum`, `_schema_version` e o cast do novo valor retornaram verdes.
+PostgreSQL não oferece `down` aditivo seguro para enum; rollback operacional reverte o código e deixa
+o valor inerte, sem recriar tipo/tabela.
 
 **Isolamento multi-tenant de `patient_credits` provado no banco de dev** (não só a policy declarada):
 como `authenticated`, a clínica A grava para si, é **bloqueada por RLS** ao gravar para B, é bloqueada

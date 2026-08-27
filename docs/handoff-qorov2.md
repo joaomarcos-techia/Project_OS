@@ -125,7 +125,8 @@ caminho de LLM paralelo foi criado.
 
 Evidência: 2.680 testes/290 arquivos, integração controlada do evento até o seam de envio, regressão
 do `deposit_link`, `smoke:c14` 8/8, migration validada em modelo vazio e banco populado com rollback,
-e todos os gates técnicos verdes. **Única pendência da 1.6c: E2E real Meta**, bloqueado por conexão
+depois aplicada e verificada em dev e produção com backup/lock, e todos os gates técnicos verdes.
+**Única pendência da 1.6c: E2E real Meta**, bloqueado por conexão
 Meta/destinatário controlado e aprovação/configuração do template externo. Não confundir integração
 controlada com entrega real no WhatsApp.
 
