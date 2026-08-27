@@ -36,7 +36,7 @@ O Preview do commit `3035383` concluiu com sucesso na Vercel.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | ⬜ | — |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS de `clinic_payment_accounts` ✅ 5/5 no banco DEV; demais grupos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -78,7 +78,9 @@ o valor inerte, sem recriar tipo/tabela.
 como `authenticated`, a clínica A grava para si, é **bloqueada por RLS** ao gravar para B, é bloqueada
 sem contexto de clínica, e enxerga 0 linhas de B. `authenticated` tem `INSERT, SELECT, UPDATE` e
 **não tem DELETE** — crédito é registro financeiro; liberar é mudar `status`, não apagar linha.
-O equivalente para `clinic_payment_accounts` (**D13**) continua pendente, no 1.H.
+O equivalente para `clinic_payment_accounts` (**D13**) passou no 1.H: smoke real no banco DEV com
+**5/5** checks provou ENABLE+FORCE RLS, leitura própria, invisibilidade cross-tenant, bloqueio de
+alteração da conta alheia, segredo sem grant e cleanup com zero resíduos.
 
 **Não executados ainda** (pertencem ao 1.H/1.S): `test:load` · `test:simulation` · Financial Integrity
 end-to-end com banco · Product Acceptance.
@@ -131,7 +133,7 @@ e provar as três jornadas pelo comportamento.
 | --- | --- | --- |
 | D2 | `arch:check` roda sem `--ts-config` (enxerga menos arestas que o real) | aberto — `arch:graphs` cobre com tsConfig |
 | D9 | `format:check` vermelho na baseline (131 arquivos) | aberto — PR de formatação isolado |
-| D13 | RLS cross-tenant de `clinic_payment_accounts` sem teste (exige banco) | **1.H** |
+| D13 | RLS cross-tenant de `clinic_payment_accounts` sem teste (exige banco) | **resolvido no 1.H** — `pnpm smoke:payments-rls` ✅ 5/5 no banco DEV, fixtures removidas e resíduo 0 |
 | D19 | Bloqueio da 1.5b | **encaminhado** → ADR-051 |
 | D24 | Estorno só funciona para PIX/cartão; boleto não compensa dentro do hold de 24h | parcial — guarda existe; restringir `billingType` é decisão de produto (**1.H**) |
 | D25 | Reagendamento devolve o sinal (não transfere) — brecha: remarcar em cima da hora escapa da taxa | encaminhado — decisão de produto |
@@ -207,14 +209,15 @@ como real. O próximo passo de código é o **1.H**.
 **1.H — Hardening.** Sem adicionar feature:
 provar que a Camada 1 aguenta o mundo real.
 
-Cenários a executar e **registrar aqui com o resultado real** (nenhum foi executado ainda):
+Cenários a executar e **registrar aqui com o resultado real**. O D13 foi concluído; os demais seguem
+pendentes:
 
 | Grupo | Cenários |
 | --- | --- |
 | Concorrência | pagamento no instante em que o hold expira · dois workers · cron concorrente · duplo pagamento |
 | Idempotência | webhook duplicado · fora de ordem · replay de outbox · retry pós-timeout · POST perdido · refund duplicado · cancel duplicado |
 | Crédito (novo, 1.5b) | crédito duplicado · crédito alocado duas vezes · restante cobrado duas vezes · crédito liberado após alocação |
-| Multi-tenant | clínica A concilia cobrança de B · `ref` forjada · token inválido · **RLS cross-tenant de `clinic_payment_accounts` (D13)** e de `patient_credits` |
+| Multi-tenant | clínica A concilia cobrança de B · `ref` forjada · token inválido · **RLS cross-tenant de `clinic_payment_accounts` (D13 ✅ 5/5 DEV)** e de `patient_credits` |
 | Ciclo de vida | cobrança paga antes do `deposit_link` sair · cobrança cancelada antes do send-time · job obsoleto · reagendamento/recovery · pagamento tardio |
 | Externo | Asaas fora · Meta fora · banco lento · troca de credencial da clínica |
 | Cobertura | **varrer outros handlers de dinheiro sem teste** (D33 mostrou que o mais crítico não tinha nenhum) |

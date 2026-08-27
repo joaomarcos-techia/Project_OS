@@ -145,9 +145,8 @@ duplicado · crédito alocado duas vezes · restante cobrado duas vezes**.
 
 Resolva também, dentro do 1.H:
 
-- **D13** — RLS cross-tenant de `clinic_payment_accounts` sem teste. Modelo pronto: o mesmo teste já
-  foi feito para `patient_credits` (documentado no `qorov2.md`) — rodar como `authenticated`, tentar
-  gravar para outra clínica, esperar bloqueio.
+- **D13 ✅** — `pnpm smoke:payments-rls` passou **5/5** no banco DEV: ENABLE+FORCE RLS, leitura própria,
+  invisibilidade e alteração cross-tenant bloqueadas, segredo sem grant e cleanup com zero resíduos.
 - **D33** — **varra os outros handlers de dinheiro atrás de cobertura zero.** O handler que cria
   *todo* recebível do Caixa não tinha nenhum teste; presuma que não é o único.
 - **D27** — `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` não têm tratamento.

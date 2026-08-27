@@ -52,6 +52,7 @@
     "seed:c15": "tsx --conditions=react-server scripts/seed-c15-test.ts",
     "billing:live-check": "tsx --conditions=react-server scripts/asaas-live-check.ts",
     "payments:live-check": "tsx --conditions=react-server scripts/payments-live-check.ts",
+    "smoke:payments-rls": "tsx --conditions=react-server scripts/smoke-payments-rls.ts",
     "billing:card-live-check": "tsx --conditions=react-server scripts/asaas-card-live-check.ts",
     "billing:live-roundtrip": "tsx --conditions=react-server scripts/asaas-live-roundtrip.ts",
     "email:live-check": "tsx --conditions=react-server scripts/resend-live-check.ts",
