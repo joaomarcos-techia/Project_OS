@@ -32,9 +32,11 @@ export type SuppressionPurpose = 'reminder' | 'followup' | 'billing' | 'marketin
  *   - `deposit_link` → `reminder`: é TRANSACIONAL. O paciente acabou de marcar e
  *     perde a vaga se não pagar; não é cobrança de dívida (`billing`, que exige
  *     opt-in), é a conclusão de um ato que ele mesmo iniciou.
+ *   - `remainder_link` → `billing`: é o saldo pendente de um atendimento que já
+ *     aconteceu e respeita o mesmo consentimento/opt-out da cobrança amigável.
  */
 export function suppressionPurposeFor(type: ProactiveJobType): SuppressionPurpose {
-  if (type === 'dunning') return 'billing';
+  if (type === 'dunning' || type === 'remainder_link') return 'billing';
   if (type === 'waitlist_offer' || type === 'followup') return 'followup';
   return 'reminder'; // reminder + deposit_link
 }
@@ -57,7 +59,7 @@ export function evaluateProactivePolicy(
   ) {
     return { allowed: false, reason: 'suppressed' };
   }
-  if (type === 'dunning' && (!contact.cobrancaWhatsapp || contact.consentRevoked)) {
+  if (purpose === 'billing' && (!contact.cobrancaWhatsapp || contact.consentRevoked)) {
     return { allowed: false, reason: 'no_consent' };
   }
   return { allowed: true };

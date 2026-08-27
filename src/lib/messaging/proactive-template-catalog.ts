@@ -25,7 +25,8 @@ export type ProactiveTemplateKind =
   | 'dunning'
   | 'waitlist_offer'
   | 'followup'
-  | 'deposit_link';
+  | 'deposit_link'
+  | 'remainder_link';
 
 export interface ProactiveTemplateDefinition {
   kind: ProactiveTemplateKind;
@@ -103,6 +104,16 @@ export const PROACTIVE_TEMPLATE_BODIES: Record<
       'Depois desse prazo o horário volta a ficar disponível para outras pessoas.',
     example: ['Maria Silva', '150,00', '26/08 às 14:00', 'https://www.asaas.com/i/abc123'],
   },
+  remainder_link: {
+    // D35 / 1.6c — o atendimento já ocorreu: não há hold, reserva ou confirmação
+    // de vaga. Não cita procedimento, pois a mensagem pode aparecer em um
+    // aparelho compartilhado. A URL fica no corpo, como no template do sinal.
+    body:
+      'Oi {{1}}! Sobre o atendimento já realizado, há um valor restante de R$ {{2}} ' +
+      'pendente de pagamento.\n\nVocê pode realizar o pagamento por este link: {{3}}\n\n' +
+      'Se você já pagou, desconsidere esta mensagem.',
+    example: ['Maria Silva', '80,00', 'https://www.asaas.com/i/restante123'],
+  },
   followup: {
     // O de maior risco de a Meta reclassificar como MARKETING. A redação
     // enquadra como acompanhamento clínico, não como oferta.
@@ -125,6 +136,7 @@ function configuredName(kind: ProactiveTemplateKind): string | undefined {
   if (kind === 'dunning') return env.META_TEMPLATE_DUNNING_FRIENDLY_ID;
   if (kind === 'waitlist_offer') return env.META_TEMPLATE_WAITLIST_OFFER_ID;
   if (kind === 'deposit_link') return env.META_TEMPLATE_DEPOSIT_LINK_ID;
+  if (kind === 'remainder_link') return env.META_TEMPLATE_REMAINDER_LINK_ID;
   return env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
 }
 
@@ -134,6 +146,7 @@ export const PROACTIVE_TEMPLATE_KINDS: readonly ProactiveTemplateKind[] = [
   'waitlist_offer',
   'followup',
   'deposit_link',
+  'remainder_link',
 ] as const;
 
 /**

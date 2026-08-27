@@ -53,9 +53,10 @@ const inserted = () => mocks.insertJobTx.mock.calls[0]![1] as Record<string, unk
 
 beforeEach(() => {
   mocks.insertJobTx.mockClear();
+  vi.mocked(metrics.emit).mockClear();
 });
 
-describe('handler do link do sinal', () => {
+describe('handler dos links de pagamento', () => {
   it('registra-se no evento público do Payments', () => {
     expect(registration[0]).toBe('payments.patient_charge.link_ready');
   });
@@ -100,18 +101,29 @@ describe('handler do link do sinal', () => {
     expect((inserted().scheduledFor as Date).getTime()).toBeGreaterThanOrEqual(before);
   });
 
-  it('cobrança do RESTANTE não entra nesta fila (não tem hold nem prazo)', async () => {
+  it('remainder vira remainder_link sem URL nem prazo de hold', async () => {
     await run({ kind: 'remainder' });
 
-    expect(mocks.insertJobTx).not.toHaveBeenCalled();
+    expect(inserted()).toEqual(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        type: 'remainder_link',
+        dedupKey: 'remainder_link:charge-1',
+        payload: {
+          patientId: 'pac-1',
+          chargeId: 'charge-1',
+          appointmentId: 'apt-1',
+          amount: 150,
+        },
+      }),
+    );
+    expect(JSON.stringify(inserted())).not.toMatch(/https?:\/\/|holdExpiresAt/);
   });
 
-  it('a lacuna do restante é CONTÁVEL, não silenciosa (1.6c)', async () => {
-    // O link do restante existe em `patient_charges` e ninguém o entrega ainda.
-    // A diferença entre um gap conhecido e um bug é alguém conseguir vê-lo — é a
-    // lição do D32 aplicada de propósito.
-    await run({ kind: 'remainder' });
+  it('kind desconhecido não é tratado como restante e mantém skipped_kind observável', async () => {
+    await run({ kind: 'legacy_unknown' });
 
+    expect(mocks.insertJobTx).not.toHaveBeenCalled();
     expect(
       vi
         .mocked(metrics.emit)

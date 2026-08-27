@@ -76,7 +76,8 @@ pnpm check:migrations && pnpm check:registry:strict && pnpm check:observability
 pnpm payments:live-check   # sandbox real do Asaas; rode antes de qualquer release de pagamento
 ```
 
-Baseline atual (confira, não confie): **2643 testes**, build exit 0, 0 ciclos, 17 crons.
+Baseline verificada em 27/08 (confira de novo após qualquer mudança): **2680 testes**, build exit 0,
+0 ciclos, 18 crons.
 `pnpm format:check` está **vermelho na baseline** (131 arquivos pré-existentes, D9) — não é regressão
 sua, mas **formate os arquivos que você tocar**.
 
@@ -113,32 +114,20 @@ Valide **pelo comportamento**, não por inspeção: um `deposit_link` que sai de
 `PAYMENT_RESTORED` que reabre uma fatura cancelada; um webhook de preview que não bate em produção.
 Registre o resultado real no `qorov2.md`.
 
-### 6.2 · Sub-fase 1.6c — entrega do link do RESTANTE (D35)
+### 6.2 · Sub-fase 1.6c — entrega do link do RESTANTE (D35) ✅
 
-**O problema:** a 1.5b.3 cria a cobrança do restante e publica `payments.patient_charge.link_ready`,
-mas `ai-agent/proactive-jobs/internal/handlers/patient-charge-link-ready.ts` ignora
-`kind !== 'deposit'`. O link existe em `patient_charges.invoice_url` e **ninguém o entrega**. Hoje há
-uma métrica (`proactive.deposit_link.skipped_kind`) que torna a lacuna contável, não silenciosa.
+**Implementada e verde em 27/08.** A migration aditiva **0090** inclui `remainder_link` no enum C14;
+o consumidor de `payments.patient_charge.link_ready` roteia pelo `kind`; payload/job não carregam URL
+nem hold; o worker resolve `paymentsApiV1.getPayableCharge` no send-time; o builder escolhe o template
+próprio configurado por `META_TEMPLATE_REMAINDER_LINK_ID`; e `suppressionPurposeFor` mantém o propósito
+único `billing`. Cron próprio registrado no `vercel.json`; nenhuma fila, integração Meta, evento ou
+caminho de LLM paralelo foi criado.
 
-**Por que não foi feito junto:** a copy do template do sinal diz *"para garantir o seu horário"* com
-prazo de hold — errada depois do atendimento.
-
-**Como resolver** (2 contexts: `payments` + `ai-agent`):
-
-1. migration aditiva: valor `remainder_link` no enum `proactive_job_type` (siga o modelo da **0087**,
-   que documenta a compatibilidade transacional de `ALTER TYPE ... ADD VALUE`);
-2. `RemainderLinkPayloadSchema` em `proactive-jobs/domain/types.ts` + entrada em
-   `PROACTIVE_PAYLOAD_SCHEMAS`;
-3. corpo no catálogo compartilhado `src/lib/messaging/proactive-template-catalog.ts` — **sem botão**
-   (o provider monta só `components: [{ type: 'body' }]`), sem abrir nem fechar o corpo com variável,
-   e **sem citar procedimento** (dado sensível em saúde mental);
-4. `META_TEMPLATE_REMAINDER_LINK_ID` em `src/lib/env.ts` + `docs/development/environment.md`;
-5. branch no `buildProactiveTemplate` + `suppressionPurposeFor` (**não duplique o mapa** — D31);
-6. cron próprio (`processProactiveBatch` reivindica por tipo, então tipo sem cron nunca sai da fila) +
-   entrada no `vercel.json` + `docs/c16/c16-inventory.md` + `docs/runbooks/production-readiness.md`,
-   senão `check:observability` reprova;
-7. o link continua sendo resolvido no **send-time** por `paymentsApiV1.getPayableCharge` — **nunca**
-   no payload do job.
+Evidência: 2.680 testes/290 arquivos, integração controlada do evento até o seam de envio, regressão
+do `deposit_link`, `smoke:c14` 8/8, migration validada em modelo vazio e banco populado com rollback,
+e todos os gates técnicos verdes. **Única pendência da 1.6c: E2E real Meta**, bloqueado por conexão
+Meta/destinatário controlado e aprovação/configuração do template externo. Não confundir integração
+controlada com entrega real no WhatsApp.
 
 ### 6.3 · 1.H — Hardening
 

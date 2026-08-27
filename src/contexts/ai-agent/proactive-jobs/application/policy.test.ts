@@ -33,13 +33,13 @@ describe('evaluateProactivePolicy (C14 — matriz por tipo)', () => {
       suppressedWhatsapp: true,
       suppressedWhatsappPurposes: ['all'],
     };
-    for (const t of ['reminder', 'dunning', 'followup'] as const) {
+    for (const t of ['reminder', 'dunning', 'followup', 'remainder_link'] as const) {
       expect(evaluateProactivePolicy(t, supp)).toEqual({ allowed: false, reason: 'suppressed' });
     }
   });
 
   it('bloqueia qualquer mensagem proativa para paciente falecido', () => {
-    for (const type of ['reminder', 'dunning', 'followup'] as const) {
+    for (const type of ['reminder', 'dunning', 'followup', 'remainder_link'] as const) {
       expect(evaluateProactivePolicy(type, { ...base, deceased: true })).toEqual({
         allowed: false,
         reason: 'deceased',
@@ -53,6 +53,10 @@ describe('evaluateProactivePolicy (C14 — matriz por tipo)', () => {
       suppressedWhatsappPurposes: ['billing'],
     };
     expect(evaluateProactivePolicy('dunning', billingOnly)).toEqual({
+      allowed: false,
+      reason: 'suppressed',
+    });
+    expect(evaluateProactivePolicy('remainder_link', billingOnly)).toEqual({
       allowed: false,
       reason: 'suppressed',
     });
@@ -97,6 +101,9 @@ describe('suppressionPurposeFor — propósito de supressão por tipo', () => {
     // 1.6a — TRANSACIONAL: o paciente acabou de marcar e perde a vaga se não
     // pagar. Não é cobrança de dívida (`billing`, que exige opt-in).
     ['deposit_link', 'reminder'],
+    // 1.6c — saldo posterior ao atendimento tem a mesma finalidade de billing
+    // do dunning; nenhum propósito novo nasce sem os opt-outs existentes.
+    ['remainder_link', 'billing'],
   ] as const)('%s → %s', (type, purpose) => {
     expect(suppressionPurposeFor(type)).toBe(purpose);
   });
@@ -121,5 +128,18 @@ describe('suppressionPurposeFor — propósito de supressão por tipo', () => {
       allowed: false,
       reason: 'no_consent',
     });
+  });
+
+  it('link do restante respeita consentimento e opt-out de billing', () => {
+    expect(
+      evaluateProactivePolicy('remainder_link', {
+        ...base,
+        suppressedWhatsappPurposes: ['billing'],
+      }),
+    ).toEqual({ allowed: false, reason: 'suppressed' });
+    expect(evaluateProactivePolicy('remainder_link', { ...base, cobrancaWhatsapp: false })).toEqual(
+      { allowed: false, reason: 'no_consent' },
+    );
+    expect(evaluateProactivePolicy('remainder_link', base)).toEqual({ allowed: true });
   });
 });

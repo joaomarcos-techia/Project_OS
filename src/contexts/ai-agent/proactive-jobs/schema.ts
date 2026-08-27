@@ -56,6 +56,8 @@ export const proactiveJobType = pgEnum('proactive_job_type', [
   // ADR-049 1.6a — link do sinal (migration 0087). Aditivo: nenhum job antigo
   // muda de tipo, e nada enfileira este valor sem o handler ligado.
   'deposit_link',
+  // D35 / 1.6c — saldo restante após o atendimento (migration 0090).
+  'remainder_link',
 ]);
 export const proactiveJobStatus = pgEnum('proactive_job_status', [
   'pending',

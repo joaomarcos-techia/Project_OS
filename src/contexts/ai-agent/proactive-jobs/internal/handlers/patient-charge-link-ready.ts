@@ -1,5 +1,5 @@
 /**
- * ADR-049 1.6a consumer: link do sinal pronto → mensagem ao paciente.
+ * ADR-049 / D35 consumer: link pagável pronto → mensagem ao paciente.
  *
  * Reage a `payments.patient_charge.link_ready`. Este era o elo que faltava desde
  * a 1.3: a cobrança era criada, o `invoice_url` ficava guardado em
@@ -32,56 +32,49 @@ import type { Tx } from '@/lib/db';
 import { PAYMENTS_EVENTS, type PatientChargeLinkReadyPayload } from '@/contexts/payments';
 /* eslint-enable boundaries/element-types */
 
-import type { DepositLinkPayload } from '../../domain/types';
+import type { DepositLinkPayload, RemainderLinkPayload } from '../../domain/types';
 import { insertJobTx } from '../../infra/repository';
 
-async function enqueueDepositLink(ctx: {
+async function enqueuePaymentLink(ctx: {
   tx: Tx;
   clinicId: string;
   payload: PatientChargeLinkReadyPayload;
   eventId: string;
 }): Promise<void> {
   const { tx, clinicId, payload } = ctx;
+  // O schema do evento fecha os valores conhecidos; o check continua fail-closed
+  // para replay legado/corrompido que chegue à borda sem passar pelo catálogo.
+  const kind: string = payload.kind;
 
-  // Só o SINAL é entregue por esta fila. O restante (1.5b) tem outra natureza —
-  // não segura vaga, não tem prazo de hold, e a copy do template diz "para
-  // garantir seu horário", o que estaria errado depois do atendimento.
-  //
-  // ⚠️ **LACUNA CONHECIDA (1.6c).** A cobrança do restante É criada e o link
-  // fica em `patient_charges.invoice_url`, mas **ninguém o entrega ao paciente**
-  // automaticamente. Até a 1.6c existir, quem envia é a clínica, pelo painel —
-  // ou a régua de dunning, quando o recebível vencer.
-  //
-  // A métrica existe para que essa lacuna seja CONTÁVEL em vez de silenciosa: é
-  // exatamente o formato do D32 (peça verde, jornada incompleta), e a diferença
-  // entre um gap conhecido e um bug é alguém conseguir vê-lo.
-  if (payload.kind !== 'deposit') {
+  if (kind !== 'deposit' && kind !== 'remainder') {
     metrics.emit('proactive.deposit_link.skipped_kind', {
       clinicId,
       chargeId: payload.chargeId,
-      kind: payload.kind,
+      kind,
     });
     return;
   }
 
-  const job: DepositLinkPayload = {
+  const type = kind === 'deposit' ? 'deposit_link' : 'remainder_link';
+  const identity = {
     patientId: payload.patientId,
     chargeId: payload.chargeId,
     appointmentId: payload.appointmentId,
     amount: payload.amount,
-    holdExpiresAt: payload.holdExpiresAt,
   };
+  const job: DepositLinkPayload | RemainderLinkPayload =
+    kind === 'deposit' ? { ...identity, holdExpiresAt: payload.holdExpiresAt } : identity;
 
   await insertJobTx(tx, {
     clinicId,
-    type: 'deposit_link',
+    type,
     scheduledFor: new Date(),
     payload: job,
-    dedupKey: `deposit_link:${payload.chargeId}`,
+    dedupKey: `${type}:${payload.chargeId}`,
   });
 }
 
 registerHandler<PatientChargeLinkReadyPayload>(
   PAYMENTS_EVENTS.CHARGE_LINK_READY,
-  enqueueDepositLink,
+  enqueuePaymentLink,
 );

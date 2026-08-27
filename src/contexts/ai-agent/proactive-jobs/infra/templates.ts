@@ -13,6 +13,7 @@ import type {
   DunningPayload,
   FollowupPayload,
   ReminderPayload,
+  RemainderLinkPayload,
   WaitlistOfferPayload,
 } from '../domain/types';
 import type { ProactiveJobType } from '../schema';
@@ -77,8 +78,11 @@ const moneyFmt = new Intl.NumberFormat('pt-BR', {
  * modo de falha ruim seria o oposto — a mensagem SAIR com "pague neste link:"
  * seguido de nada, para um paciente que perde a consulta se não pagar.
  */
-function requireInvoiceUrl(url: string | undefined): string {
-  if (!url) throw new Error('[c14] deposit_link exige invoiceUrl resolvido no send-time');
+function requireInvoiceUrl(
+  type: 'deposit_link' | 'remainder_link',
+  url: string | undefined,
+): string {
+  if (!url) throw new Error(`[c14] ${type} exige invoiceUrl resolvido no send-time`);
   return url;
 }
 
@@ -94,7 +98,9 @@ function envName(type: ProactiveJobType): string {
           ? env.META_TEMPLATE_WAITLIST_OFFER_ID
           : type === 'deposit_link'
             ? env.META_TEMPLATE_DEPOSIT_LINK_ID
-            : env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
+            : type === 'remainder_link'
+              ? env.META_TEMPLATE_REMAINDER_LINK_ID
+              : env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
   if (!name) throw new TemplateNotConfiguredError(type);
   return name;
 }
@@ -110,7 +116,8 @@ export function buildProactiveTemplate(
     | DunningPayload
     | FollowupPayload
     | WaitlistOfferPayload
-    | DepositLinkPayload,
+    | DepositLinkPayload
+    | RemainderLinkPayload,
   patientNome: string,
   tz: string,
   /**
@@ -149,7 +156,14 @@ export function buildProactiveTemplate(
       patientNome,
       moneyFmt.format(p.amount),
       `${dataLocalBr(p.holdExpiresAt, tz)} às ${horarioLocal(p.holdExpiresAt, tz)}`,
-      requireInvoiceUrl(extra?.invoiceUrl),
+      requireInvoiceUrl(type, extra?.invoiceUrl),
+    ];
+  } else if (type === 'remainder_link') {
+    const p = payload as RemainderLinkPayload;
+    variables = [
+      patientNome,
+      moneyFmt.format(p.amount),
+      requireInvoiceUrl(type, extra?.invoiceUrl),
     ];
   } else {
     const p = payload as FollowupPayload;

@@ -64,6 +64,21 @@ export const DepositLinkPayloadSchema = z.object({
 export type DepositLinkPayload = z.infer<typeof DepositLinkPayloadSchema>;
 
 /**
+ * D35 / 1.6c — link do restante após o atendimento.
+ *
+ * Não há prazo de hold: a consulta já aconteceu. Como no sinal, o link não fica
+ * no job; o worker o resolve no send-time pelo seam do Payments.
+ */
+export const RemainderLinkPayloadSchema = z.object({
+  patientId: uuid,
+  chargeId: uuid,
+  appointmentId: uuid,
+  /** Saldo restante referente ao atendimento, em reais. */
+  amount: z.number().positive(),
+});
+export type RemainderLinkPayload = z.infer<typeof RemainderLinkPayloadSchema>;
+
+/**
  * WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º elegível da fila.
  *
  * `waitlistEntryId` é a chave do ciclo: o guard de send-time confirma que a
@@ -86,6 +101,7 @@ export const PROACTIVE_PAYLOAD_SCHEMAS = {
   followup: FollowupPayloadSchema,
   waitlist_offer: WaitlistOfferPayloadSchema,
   deposit_link: DepositLinkPayloadSchema,
+  remainder_link: RemainderLinkPayloadSchema,
 } satisfies Record<ProactiveJobType, z.ZodTypeAny>;
 
 export type ProactivePayload =
@@ -93,7 +109,8 @@ export type ProactivePayload =
   | DunningPayload
   | FollowupPayload
   | WaitlistOfferPayload
-  | DepositLinkPayload;
+  | DepositLinkPayload
+  | RemainderLinkPayload;
 
 /** Resultado da política de envio (suppression/consent/contato). */
 export interface ProactivePolicyResult {

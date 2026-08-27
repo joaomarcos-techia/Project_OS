@@ -21,11 +21,12 @@ describe('catálogo de templates proativos', () => {
   );
 
   it('cobre todos os tipos proativos', () => {
-    expect(entries).toHaveLength(5);
+    expect(entries).toHaveLength(6);
     expect([...PROACTIVE_TEMPLATE_KINDS].sort()).toEqual([
       'deposit_link',
       'dunning',
       'followup',
+      'remainder_link',
       'reminder',
       'waitlist_offer',
     ]);
@@ -63,9 +64,20 @@ describe('catálogo de templates proativos', () => {
     for (const sample of def.example) expect(sample.trim(), kind).not.toBe('');
   });
 
-  it('mantém o "R$" literal no corpo da cobrança', () => {
+  it('mantém o "R$" literal no corpo das cobranças', () => {
     // `moneyFmt` formata só o número; sem o literal o paciente veria "150,00".
     expect(PROACTIVE_TEMPLATE_BODIES.dunning.body).toContain('R$ {{3}}');
+    expect(PROACTIVE_TEMPLATE_BODIES.remainder_link.body).toContain('R$ {{2}}');
+  });
+
+  it('copy do restante fala do atendimento ocorrido sem linguagem de reserva', () => {
+    const body = PROACTIVE_TEMPLATE_BODIES.remainder_link.body;
+
+    expect(body).toContain('atendimento já realizado');
+    expect(body).toContain('valor restante');
+    expect(body).toContain('pendente de pagamento');
+    expect(body).toContain('link');
+    expect(body).not.toMatch(/garant|reserv|horário|vaga|hold|confirm/iu);
   });
 });
 

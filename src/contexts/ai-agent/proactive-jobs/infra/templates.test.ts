@@ -12,6 +12,7 @@ import type {
   DunningPayload,
   FollowupPayload,
   ReminderPayload,
+  RemainderLinkPayload,
   WaitlistOfferPayload,
 } from '../domain/types';
 
@@ -29,6 +30,7 @@ vi.mock('@/lib/env', async (importActual) => {
       META_TEMPLATE_WAITLIST_OFFER_ID: 'lista_espera_oferta',
       META_TEMPLATE_FOLLOWUP_RETURN_ID: 'retorno_consulta',
       META_TEMPLATE_DEPOSIT_LINK_ID: 'sinal_link_pagamento',
+      META_TEMPLATE_REMAINDER_LINK_ID: 'restante_link_pagamento',
       META_TEMPLATE_LANG: 'pt_BR',
     },
   };
@@ -69,6 +71,12 @@ const PAYLOADS = {
     amount: 150,
     holdExpiresAt: '2026-08-18T12:00:00.000Z',
   } as unknown as DepositLinkPayload,
+  remainder_link: {
+    patientId: '22222222-2222-2222-2222-222222222222',
+    chargeId: '66666666-6666-6666-6666-666666666666',
+    appointmentId: '44444444-4444-4444-4444-444444444444',
+    amount: 80,
+  } as unknown as RemainderLinkPayload,
 } as const;
 
 /**
@@ -77,6 +85,7 @@ const PAYLOADS = {
  */
 const EXTRAS: Partial<Record<keyof typeof PAYLOADS, { invoiceUrl?: string }>> = {
   deposit_link: { invoiceUrl: 'https://www.asaas.com/i/abc123' },
+  remainder_link: { invoiceUrl: 'https://www.asaas.com/i/restante123' },
 };
 
 /**
@@ -91,7 +100,7 @@ describe('templates proativos — copy × ordem das variáveis', () => {
   const kinds = [...PROACTIVE_TEMPLATE_KINDS];
 
   it('exercita todos os tipos do catálogo', () => {
-    expect(kinds).toHaveLength(5);
+    expect(kinds).toHaveLength(6);
   });
 
   it.each(kinds)('%s: o corpo declara tantas variáveis quanto o builder envia', (kind) => {
@@ -128,5 +137,37 @@ describe('templates proativos — copy × ordem das variáveis', () => {
       TZ,
     );
     expect(followupSemMedico.variables[1]).toBe('seu médico');
+  });
+
+  it('separa semanticamente os templates do sinal e do restante', () => {
+    const deposit = buildProactiveTemplate(
+      'deposit_link',
+      PAYLOADS.deposit_link,
+      'Maria Silva',
+      TZ,
+      EXTRAS.deposit_link,
+    );
+    const remainder = buildProactiveTemplate(
+      'remainder_link',
+      PAYLOADS.remainder_link,
+      'Maria Silva',
+      TZ,
+      EXTRAS.remainder_link,
+    );
+
+    expect(deposit.templateName).toBe('sinal_link_pagamento');
+    expect(remainder.templateName).toBe('restante_link_pagamento');
+    expect(remainder.variables).toEqual([
+      'Maria Silva',
+      '80,00',
+      'https://www.asaas.com/i/restante123',
+    ]);
+    expect(remainder.templateName).not.toBe(deposit.templateName);
+  });
+
+  it('remainder_link exige o invoiceUrl resolvido no send-time', () => {
+    expect(() =>
+      buildProactiveTemplate('remainder_link', PAYLOADS.remainder_link, 'Maria Silva', TZ),
+    ).toThrow('remainder_link exige invoiceUrl resolvido no send-time');
   });
 });

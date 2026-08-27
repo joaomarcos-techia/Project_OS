@@ -15,10 +15,11 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Última verificação contra o repositório:** 2026-08-26 · branch `feat/qorov2-pagamentos`
+**Última verificação contra o repositório:** 2026-08-27 · branch `feat/qorov2-pagamentos`
 
-**Versionamento (2026-08-26):** a correção foi publicada em `ed83c90`; a migration `0089` está
-aplicada no banco dev e o deploy correspondente concluiu com sucesso no Preview.
+**Versionamento (2026-08-27):** a 1.6c está implementada e validada no working tree. A migration
+`0090` ainda não foi aplicada persistentemente nem houve deploy; o último Preview publicado continua
+em `ed83c90` com a `0089` aplicada no banco dev.
 
 ### Sub-fases da Camada 1
 
@@ -33,37 +34,41 @@ aplicada no banco dev e o deploy correspondente concluiu com sucesso no Preview.
 | **1.5b Restante** | ✅ **runtime completo** — 1.5b.1 · 1.5b.2 · 1.5b.3a · 1.5b.3b | migration 0088; `credit-store` + 2 handlers; `remainder-charge` + `remainder-scan`; seam `getAppointmentBalance` |
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
-| **1.6c Entrega do link do RESTANTE** | ⬜ **lacuna conhecida (D35)** | a cobrança nasce e o link fica em `patient_charges`; **ninguém o entrega**. Métrica `proactive.deposit_link.skipped_kind` conta os casos |
+| **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
 | 1.H Hardening | ⬜ | — |
 | 1.S Stabilization | ⬜ | — |
 
-**A Camada 1 NÃO terminou.** Faltam **1.6c** (entrega do link do restante, D35), **1.H** (hardening)
-e **1.S** (estabilização). O E2E real do sinal passou no Preview até
+**A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
 `charge → pagamento sandbox → webhook Asaas → crédito → CONFIRMADO`, mas a entrega do link por
-WhatsApp não foi exercitada: a Clínica A não possui conexão Meta ativa. Também não foram executados
+WhatsApp não foi exercitada: a Clínica A não possui conexão Meta ativa nem destinatário controlado,
+e o template do restante ainda depende de aprovação/configuração externa. Também não foram executados
 os ramos destrutivos/de concorrência de 1.H. Portanto o aceite integral da camada continua parcial
-(D32), sem apagar a evidência real já obtida.
+(D32), sem apagar a evidência real já obtida. Para a **1.6c**, a única lacuna é o E2E real Meta.
 
 ### Gates — resultado REAL da última execução completa
 
-Executados em 2026-08-26, após corrigir o contrato v3 do auto-registro do webhook.
+Executados em 2026-08-27, após implementar a 1.6c.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2659** (289 arquivos), incluindo regressão de grants do webhook |
+| Testes | `pnpm test` | ✅ **2680** (290 arquivos), incluindo unit/integration da 1.6c e regressão do sinal |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1068 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1071 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
-| Observabilidade | `pnpm check:observability` | ✅ 17 crons coerentes |
+| Observabilidade | `pnpm check:observability` | ✅ 18 crons coerentes |
+| Worker/Smoke C14 | `pnpm smoke:c14` | ✅ 8/8, banco dev, fixtures removidas, sem envio Meta |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
-Migrations **0081–0088** aplicadas e verificadas no banco de **dev**. Nenhuma aplicada em produção.
+Migrations **0081–0089** aplicadas e verificadas no banco de **dev**. A `0090` foi validada sem
+persistência: banco populado (2 jobs), `up → rollback → up` verde e modelo vazio temporário aceitou
+`remainder_link`. PostgreSQL não oferece `down` aditivo seguro para enum; rollback operacional reverte
+o código e deixa o valor inerte, sem recriar tipo/tabela. Nenhuma migration foi aplicada em produção.
 
 **Isolamento multi-tenant de `patient_credits` provado no banco de dev** (não só a policy declarada):
 como `authenticated`, a clínica A grava para si, é **bloqueada por RLS** ao gravar para B, é bloqueada
@@ -82,6 +87,7 @@ end-to-end com banco · Product Acceptance.
 | E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL** — a API do sandbox mostra o evento na assinatura, porém o webhook está `interrupted=true`, aponta para `app.qoro.dev` e assina 44 eventos em vez dos 7 do runbook. Um `POST {}` inofensivo ao Preview passou pela proteção da Vercel, mas recebeu `401 invalid token` da rota global: o `ASAAS_WEBHOOK_TOKEN` local não coincide com o deploy. Não reativar até alinhar URL, chave e token no Preview (**D36**, **D46**) |
 | E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS técnico / PARTIAL na jornada real** — webhook ativo na rota Preview; `0089` aplicada. Validação conectada provou own-tenant `INSERT`, bloqueio cross-tenant, `UPDATE/DELETE` revogados e zero resíduos. E2E controlado contra Preview + Asaas sandbox: primeira entrega `200 unknown_charge`, replay `200 ignored`, dedup 1 em ambos; a fixture sintética foi removida e o resíduo ficou 0. Falta cobrança criada pelo Qoro + pagamento real para provar conciliação, evento e projeção no agendamento |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**12/12**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
+| E5 | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **BLOCKED externo** — código, catálogo, builder, cron e integração controlada estão verdes; a Clínica A segue sem conexão Meta ativa/destinatário controlado. O E2E real Meta da 1.6c não foi simulado nem marcado como verde |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
 do webhook pela API do Asaas; probes do Preview sem bypass, com bypass sem token e com bypass + token
@@ -132,7 +138,7 @@ e provar as três jornadas pelo comportamento.
 | D32 | **Regra de processo:** sub-fase verde não prova jornada verde | vigente — ver abaixo |
 | D33 | `appointment-completed.ts` (cria TODO recebível do Caixa) não tinha nenhum teste | **resolvido** — 13 testes. Varrer outros handlers de dinheiro no **1.H** |
 | D34 | ADR-051 D6 mandava o Payments calcular o saldo; pagamento em dinheiro na recepção não apareceria | **resolvido** — saldo vem do `financial`; sub-fase dividida em 3a/3b para caber no §0.6 |
-| D35 | O link do **restante** é criado e **não é entregue** — a copy do template do sinal não serve depois do atendimento | aberto — vira **1.6c**. Mitigado: a lacuna é contável por métrica, não silenciosa |
+| D35 | O link do **restante** era criado e não entregue; a copy do sinal não serve depois do atendimento | **resolvido em código (1.6c)** — `remainder_link` usa a fila C14, lookup no send-time e template próprio. E2E real Meta permanece **BLOCKED externo (E5)** |
 | D36 | Webhook sandbox de assinatura inclui `PAYMENT_RESTORED`, mas está interrompido, aponta para produção e diverge da lista canônica de eventos | **bloqueante externo** — configurar no Preview com os 7 eventos do runbook e só reativar depois de alinhar chave/token; então provar delete → cancelled → restore → open |
 | D37 | Bypass da proteção do Preview | **resolvido na borda** — probe real: sem bypass, `302 /sso-api`; com bypass, `405` da rota do Qoro (o teste usou `GET` de propósito em endpoint somente `POST`). Isso não prova que a variável recém-adicionada já esteja disponível ao processo do deploy atual |
 | D38 | Evento penalizado veio da conta sandbox de clínica | **bloqueante externo** — `ASAAS_CLINIC_SANDBOX_KEY` encontra o webhook; ele não prova assinatura e não pode usar a rota global |
@@ -190,10 +196,11 @@ Hoje E1 está `BLOCKED` porque a Clínica A tem zero conexões Meta ativas; E2 c
 webhook sandbox da conta de assinatura aponta para outro ambiente/token; E3 está `PASS` para o sinal
 da conta da clínica após a remoção do backoff.
 Não reativar nenhum webhook global antigo antes de alinhar ambiente, chave e token.
-Depois, executar a **1.6c** (D35) e só então
-iniciar o **1.H**.
+O código da **1.6c** está verde; quando houver conexão Meta e destinatário controlado, executar o E2E
+real de `remainder_link` sem reclassificar teste mockado como real. O próximo passo de código é o
+**1.H**.
 
-**1.H — Hardening.** Quando a 1.6c e as dependências externas estiverem verdes, não adicionar feature:
+**1.H — Hardening.** Sem adicionar feature:
 provar que a Camada 1 aguenta o mundo real.
 
 Cenários a executar e **registrar aqui com o resultado real** (nenhum foi executado ainda):
@@ -347,7 +354,26 @@ Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcion
   - **1.5b.4** — absorvida pela 1.5b.1 (o crédito do restante usa o MESMO `patient_credit.granted`).
 - **1.6a Link no WhatsApp:** ✅ **CONCLUÍDA (25/08)** — o elo que faltava desde a 1.3: a cobrança nascia, o `invoice_url` ficava guardado, e **ninguém o entregava**; o hold vencia e o paciente perdia a consulta sem nunca ter recebido como pagar — anti-no-show que produzia no-show. Entra na **fila C14** (`deposit_link`, migration **0087**) em vez de abrir caminho paralelo: lease, backoff, janela 8-20h, supressão, consentimento, dedup e at-most-once no Meta já estavam resolvidos lá. **A IA segue read-only em cobrança** — não há LLM em ponto nenhum do caminho. Evento próprio `payments.patient_charge.link_ready` (o `created` já é do Scheduling, e os dois fatos são diferentes: `invoiceUrl` é nullable, então pode haver cobrança **sem** link). **O link não viaja no payload nem no job**: é resolvido no send-time por `paymentsApiV1.getPayableCharge`, que devolve `null` se a cobrança já foi paga/estornada/expirada — a guarda mora no seam, não no chamador. O typecheck expôs um mapeamento de propósito de supressão **duplicado** entre política e envio; virou função única (`suppressionPurposeFor`), porque divergir faria bloquear por um propósito e registrar outro, e o opt-out do paciente nunca casaria. `deposit_link` reusa o propósito `reminder`: é transacional (o paciente marcou e perde a vaga se não pagar), **não** é dívida — e propósito novo nasceria sem os opt-outs já registrados. **Dependência externa declarada:** o template precisa ser aprovado na Meta (`META_TEMPLATE_DEPOSIT_LINK_ID`); sem ele o job falha visível, nunca cai para texto livre.
 - **1.6b Status na agenda:** ✅ **CONCLUÍDA (25/08)** — **sem migração**: as colunas existem desde a **0085**, e mesmo assim a recepção não via nada, porque `toAppointmentSummary` não as mapeava. Mesmo formato do **D32** — camada de baixo correta, produto inexistente, dado parando no meio do caminho. `AppointmentSummary` ganhou `depositStatus` + `holdExpiresAt`, e a agenda um `DepositStatusBadge` **ao lado** do status, não no lugar dele: o sinal é dimensão ORTOGONAL (a 0085 é explícita nisso), e um agendamento pode estar `agendado` com sinal pago. `none` **não renderiza nada** — sinal desligado é o caso da maioria das clínicas, e rótulo em toda consulta treinaria o operador a não olhar a região da tela justamente quando importa. `pending` é âmbar e carrega o prazo no `title`: é o único estado em que a recepção ainda pode agir, porque a vaga vira cancelamento sozinha quando ele passa. 1 context (`scheduling` + app). **+12 testes**, incluindo a trava contra o mapeamento manual esquecer campo de novo.
-- **1.6c Entrega do link do restante:** ⬜ **pendente (D35)** — a 1.5b.3 cria a cobrança e publica `link_ready`, mas o handler da fila C14 só entrega `kind = 'deposit'`: a copy do template do sinal ("para garantir o seu horário", com prazo de hold) estaria **errada** depois do atendimento. Exige tipo de job próprio (`remainder_link`), migration do enum, template aprovado na Meta e branch no builder — `payments` + `ai-agent`, 2 contexts. **Até lá o link existe e não sai sozinho**: quem envia é a clínica pelo painel, ou a régua de dunning quando o recebível vencer. A lacuna é **contável** (`proactive.deposit_link.skipped_kind`), não silenciosa — é a lição do D32 aplicada de propósito.
+- **1.6c Entrega do link do restante:** ✅ **IMPLEMENTADA (27/08, D35)** — o mesmo
+  `payments.patient_charge.link_ready` agora roteia `deposit → deposit_link` e
+  `remainder → remainder_link`; tipos realmente desconhecidos continuam no
+  `proactive.deposit_link.skipped_kind`. A migration aditiva **0090** amplia o enum da fila C14 e o
+  cron `/api/cron/proactive-remainder-link` reivindica o novo tipo, reutilizando lease, janela 8–20h,
+  retry/backoff, dedup, suppression, consentimento e a idempotency key estável do job. O payload do
+  restante carrega apenas ids + valor: **não guarda `invoiceUrl` nem hold**. Imediatamente antes de
+  montar a mensagem, o worker chama `paymentsApiV1.getPayableCharge`; retorno `null` cancela com
+  `charge_not_payable`, cobrindo paga, estornada, cancelada, expirada ou sem link. O builder tem branch
+  explícita e template `remainder_link` próprio, que diz que o atendimento já ocorreu e não fala em
+  garantir/reservar horário. `suppressionPurposeFor` segue fonte única; o restante reutiliza `billing`
+  e o respectivo consentimento/opt-out. Nenhuma IA/LLM entrou no fluxo e não houve nova fila, mecanismo
+  Meta ou evento.
+  - **Regression Matrix:** Payments ✅ (seam preservado) · WhatsApp/C14 ✅ · AI Agent/messaging ✅
+    (infraestrutura apenas, sem LLM) · Financial ✅ indireto/inalterado · Scheduling ✅ origem
+    inalterada · multi-tenancy ✅ (`clinicId` do worker + seam tenant-scoped).
+  - **Evidência:** Unit ✅ · Integration controlada ✅
+    (`link_ready → remainder_link → getPayableCharge → template → send`) · Contract/Worker Smoke ✅
+    (2.680 testes/290 arquivos; `smoke:c14` 8/8; todos os gates verdes) · **E2E real Meta =
+    PENDENTE/BLOCKED externo (E5)**. Não houve mock classificado como E2E real.
 
 **1.H HARDENING:** destrutivo · concorrência (duplo pagamento, webhook duplicado/out-of-order, hold expira no instante do pagamento) · idempotência (replay, retry pós-timeout) · multi-tenant (A concilia cobrança de B, `ref` forjada) · inválidos. Aceite: cada cenário com teste + Security/Chaos/Financial/Load/Simulation verdes.
 

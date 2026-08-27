@@ -36,6 +36,7 @@ import {
   type DunningPayload,
   type FollowupPayload,
   type ReminderPayload,
+  type RemainderLinkPayload,
   type WaitlistOfferPayload,
 } from '../domain/types';
 import * as repo from '../infra/repository';
@@ -94,16 +95,16 @@ async function processOne(job: ClaimedJob, tzCache: Map<string, string>): Promis
 
   // 4. template + envio (chave ESTÁVEL = job.id).
   //
-  // O link do sinal é resolvido AQUI, no send-time, e não veio no payload: link
+  // O link de pagamento é resolvido AQUI, no send-time, e não veio no payload:
   // de pagamento não fica em repouso numa fila que operador e worker leem — e o
   // que estava certo no enfileiramento pode não estar mais agora. O seam devolve
   // `null` se a cobrança já foi paga, estornada, cancelada ou expirou, e mandar
   // link de cobrança já paga é o pior desfecho desta fase.
   let extra: { invoiceUrl?: string } | undefined;
-  if (type === 'deposit_link') {
+  if (type === 'deposit_link' || type === 'remainder_link') {
     const charge = await paymentsApiV1.getPayableCharge(
       clinicId,
-      (payload as DepositLinkPayload).chargeId,
+      (payload as DepositLinkPayload | RemainderLinkPayload).chargeId,
     );
     if (!charge) {
       await repo.cancel(clinicId, id, leaseToken, 'charge_not_payable');
@@ -178,6 +179,7 @@ async function sendTimeGuard(
     | DunningPayload
     | WaitlistOfferPayload
     | DepositLinkPayload
+    | RemainderLinkPayload
     | { patientId: string },
 ): Promise<string | null> {
   if (type === 'reminder') {
@@ -228,6 +230,11 @@ async function sendTimeGuard(
       (payload as DepositLinkPayload).appointmentId,
     );
     if (!appt || appt.status !== 'agendado') return 'appointment_inactive';
+    return null;
+  }
+  if (type === 'remainder_link') {
+    // A consulta já ocorreu; a elegibilidade é exclusivamente da cobrança e é
+    // revalidada por `getPayableCharge` imediatamente antes de montar o template.
     return null;
   }
   if (type === 'followup') {

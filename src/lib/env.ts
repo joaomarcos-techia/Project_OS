@@ -275,6 +275,8 @@ const EnvSchema = z
     // variável configurada o job falha com `template_not_configured` e fica
     // visível — nunca envia texto livre nem link fora de template aprovado.
     META_TEMPLATE_DEPOSIT_LINK_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // D35 / 1.6c — saldo restante após atendimento. Copy distinta do sinal.
+    META_TEMPLATE_REMAINDER_LINK_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Idioma BCP-47 dos templates (default pt_BR).
     META_TEMPLATE_LANG: z.preprocess(
       emptyToUndefined,

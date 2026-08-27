@@ -30,6 +30,7 @@ vi.mock('@/contexts/messaging', () => ({
   NumberNotConnectedError: class extends Error {},
 }));
 vi.mock('@/contexts/patient', () => ({ patientApiV1: { getProactiveContact: vi.fn() } }));
+vi.mock('@/contexts/payments', () => ({ paymentsApiV1: { getPayableCharge: vi.fn() } }));
 vi.mock('@/contexts/financial', () => ({ financialApiV1: { getLancamento: vi.fn() } }));
 vi.mock('@/contexts/clinical', () => ({ clinicalApiV1: { getFollowupState: vi.fn() } }));
 vi.mock('@/contexts/scheduling', () => ({
@@ -45,10 +46,12 @@ import { financialApiV1 } from '@/contexts/financial';
 import { clinicalApiV1 } from '@/contexts/clinical';
 import { messagingApiV1 } from '@/contexts/messaging';
 import { patientApiV1 } from '@/contexts/patient';
+import { paymentsApiV1 } from '@/contexts/payments';
 import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 
 import * as repo from '../infra/repository';
+import { buildProactiveTemplate } from '../infra/templates';
 import { processProactiveBatch } from './process';
 
 const U = '11111111-1111-1111-1111-111111111111';
@@ -81,6 +84,19 @@ const followupPayload = {
   doctorNome: 'Dr X',
   returnDate: '2026-09-10',
 };
+const depositPayload = {
+  patientId: U,
+  chargeId: U,
+  appointmentId: U,
+  amount: 150,
+  holdExpiresAt: '2026-08-26T17:00:00.000Z',
+};
+const remainderPayload = {
+  patientId: U,
+  chargeId: U,
+  appointmentId: U,
+  amount: 80,
+};
 // WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º da fila.
 const RELEASED = '22222222-2222-2222-2222-222222222222';
 const waitlistPayload = {
@@ -99,6 +115,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(repo.getClinicTimezone).mockResolvedValue('America/Sao_Paulo');
   vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue(okContact);
+  vi.mocked(paymentsApiV1.getPayableCharge).mockResolvedValue({
+    chargeId: U,
+    appointmentId: U,
+    amount: 80,
+    invoiceUrl: 'https://www.asaas.com/i/current-link',
+    holdExpiresAt: null,
+  });
   vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'confirmado' } as never);
   vi.mocked(financialApiV1.getLancamento).mockResolvedValue({ status: 'pendente' } as never);
   vi.mocked(clinicalApiV1.getFollowupState).mockResolvedValue({
@@ -229,6 +252,119 @@ describe('WAIT-001 — oferta da lista de espera', () => {
 });
 
 describe('processProactiveBatch (C14 §14.6)', () => {
+  it('1.6c: remainder_link resolve cobrança no send-time e envia pelo template próprio', async () => {
+    claim({
+      id: 'j-restante',
+      clinicId: 'c1',
+      type: 'remainder_link',
+      payload: remainderPayload,
+      attempts: 1,
+    });
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const summary = await processProactiveBatch('remainder_link');
+
+    expect(summary.sent).toBe(1);
+    expect(paymentsApiV1.getPayableCharge).toHaveBeenCalledWith('c1', U);
+    expect(buildProactiveTemplate).toHaveBeenCalledWith(
+      'remainder_link',
+      remainderPayload,
+      'Maria',
+      'America/Sao_Paulo',
+      { invoiceUrl: 'https://www.asaas.com/i/current-link' },
+    );
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j-restante', purpose: 'billing' }),
+    );
+    expect(schedulingApiV1.lookupAppointment).not.toHaveBeenCalled();
+  });
+
+  it('1.6c: cobrança paga/estornada/inválida antes do worker não envia', async () => {
+    claim({
+      id: 'j-restante',
+      clinicId: 'c1',
+      type: 'remainder_link',
+      payload: remainderPayload,
+      attempts: 1,
+    });
+    vi.mocked(paymentsApiV1.getPayableCharge).mockResolvedValue(null);
+
+    const summary = await processProactiveBatch('remainder_link');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j-restante', 'lease-1', 'charge_not_payable');
+    expect(buildProactiveTemplate).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('regressão: deposit_link mantém guard de agenda e template do sinal', async () => {
+    claim({
+      id: 'j-sinal',
+      clinicId: 'c1',
+      type: 'deposit_link',
+      payload: depositPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({ status: 'agendado' } as never);
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const summary = await processProactiveBatch('deposit_link');
+
+    expect(summary.sent).toBe(1);
+    expect(buildProactiveTemplate).toHaveBeenCalledWith(
+      'deposit_link',
+      depositPayload,
+      'Maria',
+      'America/Sao_Paulo',
+      { invoiceUrl: 'https://www.asaas.com/i/current-link' },
+    );
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j-sinal', purpose: 'reminder' }),
+    );
+  });
+
+  it('retry mantém a chave estável do job para o at-most-once no Meta', async () => {
+    claim({
+      id: 'j-restante',
+      clinicId: 'c1',
+      type: 'remainder_link',
+      payload: remainderPayload,
+      attempts: 1,
+    });
+    vi.mocked(messagingApiV1.sendText)
+      .mockResolvedValueOnce({
+        id: 'o1',
+        status: 'failed',
+        providerMessageId: null,
+        deduped: false,
+      })
+      .mockResolvedValueOnce({
+        id: 'o1',
+        status: 'accepted',
+        providerMessageId: 'w',
+        deduped: true,
+      });
+
+    await processProactiveBatch('remainder_link');
+    await processProactiveBatch('remainder_link');
+
+    expect(messagingApiV1.sendText).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(messagingApiV1.sendText).mock.calls.map(([input]) => input.idempotencyKey),
+    ).toEqual(['j-restante', 'j-restante']);
+    expect(repo.finalizeSent).toHaveBeenCalledTimes(1);
+  });
+
   it('T1: reminder de consulta ativa, contato OK, Meta aceita → sent', async () => {
     claim({ id: 'j1', clinicId: 'c1', type: 'reminder', payload: reminderPayload, attempts: 1 });
     vi.mocked(messagingApiV1.sendText).mockResolvedValue({
