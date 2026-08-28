@@ -258,6 +258,13 @@ estorna. Unit 3/3 e `smoke:payments-journey` 13/13 provaram terminal, agenda ven
 excluída, replay idêntico, dois tenants e zero mutação/fixture. A resposta operacional está no runbook;
 automatizar o desfecho ainda exigiria regra/ADR complementar.
 
+**Decisão em 2026-08-28 — D50:** quando um pagamento de restante exceder o saldo atual, aplicar
+somente até o saldo e **estornar exatamente o excedente**. A guarda atual já preserva o valor em
+`unappliedAmount`; a decisão não está implementada. O recorte deve persistir intenção idempotente
+antes do POST, consultar pagamento/estornos depois de timeout em vez de retry cego, registrar
+movimento compensatório append-only após confirmação e manter pendência humana se o gateway não
+devolver o dinheiro. Detalhamento e testes pendentes: `docs/qorov2.md` §§20.3 e 20.7.
+
 ## 6. Plano de execução (contexts verificados)
 
 **EXECUTADA em 2026-08-25**, depois da 1.6. As invariantes da §2.1 valem e estão cobertas por teste.
@@ -283,6 +290,8 @@ agora segue P0–P10 em `docs/qorov2.md`, incluindo D52, carga, Product Acceptan
 - **Autoridade sobre valor/vencimento de cobrança de ASSINATURA** (`PAYMENT_UPDATED`) — questão
   separada, registrada como **D29**. `invoices` é insert-only hoje, e sincronizar antes de decidir
   quem manda seria escolher por omissão.
-- **Chargeback e "recebido em dinheiro" desfeito** (D27) — continuam no `1.H`.
+- **Chargeback e "recebido em dinheiro" desfeito** (D27) — a recomendação da §20.2 do
+  `qorov2.md` mantém o fato clínico imutável e usa disputa/movimentos compensatórios no Financial,
+  mas ainda exige confirmação do fundador e ADR complementar antes do código.
 - **Cobrança presencial** (o paciente paga na recepção): representável pelo mesmo crédito, mas a
   entrada pela UI é escopo da 2.x.

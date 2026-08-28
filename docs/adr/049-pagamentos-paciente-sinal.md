@@ -260,6 +260,11 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
     `REFUNDABLE_BILLING_TYPES` degrada esse caso para tarefa visível (`refund_skipped`) em vez de
     400 em laço de retentativa, e **não** marca `refunded` — dizer que o paciente recebeu de volta
     sem ter devolvido seria pior que não devolver (**D24**).
+  - **Decisão de produto D24 em 2026-08-28:** sinal e restante serão oferecidos somente por **PIX e
+    cartão**. `billingType: UNDEFINED` não cumpre essa regra, e `POST /payments` não aceita dois
+    tipos simultâneos. A implementação continua pendente de um spike/recorte do Checkout Asaas com
+    `billingTypes: ["PIX", "CREDIT_CARD"]`, preservando webhook, idempotência, hold, restante e
+    lookup no send-time. Desabilitar boleto manualmente na conta não será a trava do produto.
 - **Corrigido no caminho:** a varredura de expiração (1.3) cancelava o agendamento mas **nunca fechava
   `patient_charges`** — a linha ficava `pending` para sempre e o link seguia pagável (**D22**). E
   `tryConfigureWebhook` montava a URL por template string: `APP_BASE_URL` com barra no fim gerava
@@ -363,8 +368,9 @@ Ramo C (cancela a tempo): sinal ESTORNADO
 
 **Estado em 2026-08-27:** Build · Lint · Typecheck · Unit · Integration · Contract · Smoke · E2E
 financeiro controlado · `arch:check`/`arch:db-check` estão verdes; 2.702 testes passam sem regressão.
-A Camada 1 **ainda não está aprovada**: faltam E2E Meta real, `PAYMENT_RESTORED`, estorno real
-PIX/cartão, carga/restore em scratch, `test:e2e`, Product Acceptance e as decisões D24/D27/D50. A fila
+A Camada 1 **ainda não está aprovada**: faltam E2E Meta real, correção D54 + `PAYMENT_RESTORED`,
+estorno real PIX/cartão, carga/restore em scratch, `test:e2e`, Product Acceptance, implementação das
+decisões D24/D50 e confirmação/implementação D27. A fila
 executável e a evidência atual estão em `docs/qorov2.md` P0–P10. Proibido concluir com código sem teste,
 migration sem volume, endpoint/fluxo sem E2E, warning ignorado ou evidência externa presumida.
 
