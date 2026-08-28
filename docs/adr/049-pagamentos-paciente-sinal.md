@@ -368,7 +368,7 @@ Ramo C (cancela a tempo): sinal ESTORNADO
 
 **Estado em 2026-08-27:** Build · Lint · Typecheck · Unit · Integration · Contract · Smoke · E2E
 financeiro controlado · `arch:check`/`arch:db-check` estão verdes; 2.702 testes passam sem regressão.
-A Camada 1 **ainda não está aprovada**: faltam E2E Meta real, correção D54 + `PAYMENT_RESTORED`,
+A Camada 1 **ainda não está aprovada**: faltam E2E Meta real, prova sandbox D54/D55 com `PAYMENT_RESTORED`,
 estorno real PIX/cartão, carga/restore em scratch, `test:e2e`, Product Acceptance, implementação das
 decisões D24/D50 e confirmação/implementação D27. A fila
 executável e a evidência atual estão em `docs/qorov2.md` P0–P10. Proibido concluir com código sem teste,

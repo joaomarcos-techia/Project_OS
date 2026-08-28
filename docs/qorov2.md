@@ -34,6 +34,13 @@ erro, recolhe sua visibilidade e documenta o tratamento seguro de artefatos E2E.
 2.707 testes, build e gates arquiteturais/operacionais passaram; não houve migration nem mudança de
 contrato.
 
+O hardening D54/D55 em `8c0ae7a` corrige o round-trip da cobrança de assinatura: a rota global agora
+reconhece o contrato real `200 + deleted:true`, cancela a invoice e reabre por CAS quando
+`getPayment()` confirma que a mesma cobrança voltou a existir. `cancelled` continua terminal na
+máquina genérica; a exceção fica confinada ao seam autoritativo, com timeline `invoice.restored`,
+métrica e replay idempotente. Código, 73 testes focados, suíte integral, build e gates estão verdes; o
+sandbox real continua E2.
+
 O primeiro passe do P9 executou oito cenários Playwright locais, somente leitura e sem artefatos
 intencionais: os cinco cenários públicos passaram; os três autenticados não produziram aceite válido
 (login permaneceu na tela, uma navegação dinâmica excedeu o timeout e outra não concluiu a troca de
@@ -65,7 +72,7 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · 138 testes focados ✅ · Playwright público local 5/5 ✅ · autenticado BLOCKED por D53/rotação · D24/D50 decididos mas não implementados · D27 aguardando confirmação · D54, carga, Product Acceptance e externos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · D54/D55 código ✅ 73/73 · Playwright público local 5/5 ✅ · autenticado BLOCKED por D53/rotação · D24/D50 decididos mas não implementados · D27 aguardando confirmação · carga, Product Acceptance e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -79,17 +86,17 @@ abaixo e as dependências externas. Portanto o aceite integral da camada continu
 
 ### Gates — resultado REAL da última execução completa
 
-Executados novamente em 2026-08-28, após o hardening financeiro, D51–D53, a simulação de 30 dias e os
-cenários controlados de timeout/retry e recuperação de POST perdido.
+Executados novamente em 2026-08-28, após o hardening financeiro, D51–D55, a simulação de 30 dias e os
+cenários controlados de timeout/retry, recuperação de POST perdido e restauração de invoice.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2707** (297 arquivos), incluindo 1.6c, regressão do sinal, D33, D52, D53 e aplicação do restante no recebível |
+| Testes | `pnpm test` | ✅ **2717** (298 arquivos), incluindo 1.6c, regressão do sinal, D33, D52–D55 e aplicação do restante no recebível |
 | Build | `pnpm build` | ✅ exit 0 |
-| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1022 arquivos) |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1086 arquivos) |
+| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1023 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1087 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
@@ -100,6 +107,7 @@ cenários controlados de timeout/retry e recuperação de POST perdido.
 | Recuperação de POST perdido | `pnpm smoke:payments-post-recovery` | ✅ provedor local aceitou 1 POST e perdeu a resposta; retry fez 2 GETs, recuperou 1 cobrança/2 eventos, sem duplicata e com cleanup zero |
 | Simulação 30 dias | `pnpm test:simulation` | ✅ 30 agendamentos · 38 cobranças · 62 webhooks · 3 ticks · zero retry/falha · cleanup zero, sem Asaas/Meta |
 | Matriz focada de ciclo de vida | `pnpm vitest run <7 arquivos>` | ✅ 138/138: POST perdido, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta |
+| Webhook de assinatura D54/D55 | `pnpm vitest run <4 arquivos>` | ✅ 73/73: `deleted:true`, restore, pago fora de ordem, CAS e replay |
 | Playwright local somente leitura | 2 specs, 8 cenários, `E2E_MUTATION=0`, sem trace/vídeo | **PARTIAL: 5/8** — 5 públicos ✅; 3 autenticados sem aceite válido. D53 corrigido em código; rerun exige credencial descartável rotacionada |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
@@ -158,6 +166,7 @@ processou tudo em 3 ticks, sem retry/falha, e removeu clínica e usuário sinté
 | D51 — recebível já pago sem `paid_at` | unitário 13/13 + simulação 30 dias; `c480e44` | ADR-051: valor bruto + pagamento comprovado/alocado |
 | D52 — crédito antigo permanecia invisível em `available` | `ca94839`; route 3/3 + jornada DEV 13/13: terminal, agenda vencida, futuro, replay e cross-tenant | ADR-051 §5: detector no reconcile existente, somente leitura, sem decidir destino do dinheiro |
 | D53 — senha permanecia no DOM e podia entrar no snapshot de erro Playwright | artefatos locais removidos, auth storage ausente; helper 3/3 + regressão de login 10/10 | hardening local do login/teste; limpa após captura do submit e após erro, sem novo contrato/ADR nem armazenar/repetir a credencial |
+| D54/D55 — delete/restore da assinatura não fechavam o round-trip | route + decisão pura + sincronizador 73/73; suíte 2.717; sandbox pendente E2 | Billing segue dono da invoice; `getPayment` decide, CAS/audit impedem duplicata e nenhuma aresta genérica `cancelled → open` foi aberta |
 | Operação acumulada | `test:simulation`: 30 agendamentos, 38 cobranças, 62 webhooks, 3 ticks, ledger R$ 800 e zero órfão/hold/fixture | ADR-049/051; não chamou Asaas/Meta |
 | Entrega do restante 1.6c | unit/integration/contract, `smoke:c14` 8/8, 2.704 testes, migration 0090 | ADR-011 + [ADR-020](adr/020-messaging-provider-patterns.md): mesma C14/Meta, lookup no send-time, sem LLM |
 
@@ -171,7 +180,7 @@ objeto do teste.
 | --- | --- | --- | --- | --- |
 | P0 | **Publicar/observar o lote** — push ✅; observação Vercel bloqueada | Commit D53 `281cd9c` confirmado no remoto; após este commit documental, confirmar novamente o HEAD remoto. Falta sessão/CLI Vercel autenticada para observar o deployment terminal e casar SHA. O `302` do alias prova somente proteção/alcance. Não incluir `financeiro.md` | **BLOCKED de evidência:** Preview terminal do HEAD publicado; depois smoke HTTP somente leitura se aplicável | §0.3 DoD; [handoff](handoff-qorov2.md) |
 | P1 | **Templates Meta e destinatário controlado** — manual para aprovação/consentimento; execução técnica automatizável depois | Confirmar `APPROVED` e idioma dos templates `deposit_link` e `remainder_link`, IDs já configurados no ambiente publicado, conexão Meta saudável e telefone de destino com consentimento. Não enviar texto livre nem usar Z-API como fallback | E2E real 1.6a: `link_ready → deposit_link → Meta → WhatsApp`; E2E real 1.6c: `link_ready → remainder_link → lookup atual → Meta`. Registrar message id, job terminal e ausência de duplicata; não expor telefone/link | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md) |
-| P2 | **Webhook global de assinatura** — lacuna de código D54 + configuração manual externa | Primeiro corrigir D54: hoje `cancelled` é terminal e `PAYMENT_RESTORED` verificado como `PENDING` é ignorado. Depois, no ambiente correto, alinhar URL + `ASAAS_WEBHOOK_TOKEN` + conta; configurar somente os 7 eventos canônicos e `sendType` do runbook; só então remover backoff/reativar uma vez. Não reutilizar a rota de paciente | Unit/integração da reabertura estrita; depois fluxo sandbox real `delete → cancelled → restore → open`, HTTP 200, duas linhas de dedup e estado final reconciliado. D36/D46/D54 só fecham com comportamento | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D36, D39, D46, D54; §20.5 |
+| P2 | **Webhook global de assinatura** — código D54/D55 verde; configuração/prova manual externa | No ambiente correto, alinhar URL + `ASAAS_WEBHOOK_TOKEN` + conta; configurar somente os 7 eventos canônicos e `sendType` do runbook; só então remover backoff/reativar uma vez. Não reutilizar a rota de paciente | **Código:** 73/73 + suíte/gates verdes. **Pendente:** sandbox real `delete → cancelled → restore → open`, HTTP 200, duas linhas de dedup e estado final reconciliado. D36/D46 só fecham com comportamento | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D39, D46, D54, D55; §20.5 |
 | P3 | **Rotação da chave sandbox exposta** — manual na conta Asaas | Revogar a chave antiga no Asaas, gerar outra sem colá-la em chat/log, atualizar apenas o secret store/fluxo de conexão correto e reconectar a clínica. Depois invalidar qualquer sessão/local secret antigo | `payments:live-check` 12/12 com a chave nova, cleanup confirmado; nenhuma credencial em diff/log | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
 | P4 | **D24 — somente PIX/cartão no sinal e restante** — decisão tomada; implementação pendente | A decisão de produto é impedir boleto. O endpoint atual de cobrança aceita um único `billingType`; `UNDEFINED` delega os meios à conta e não garante a restrição. Fazer spike/ADR curto para migrar a criação pagável ao Checkout Asaas com `billingTypes: ["PIX", "CREDIT_CARD"]`, preservando identidade, webhook, link, hold e idempotência. Não usar “desabilitar boleto na conta” como trava do produto | Unit/contract do novo payload; sandbox confirmando que a página oferece somente PIX/cartão; regressão de criação, webhook, hold e restante; estorno real controlado nos dois meios | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [Checkout Asaas](https://docs.asaas.com/reference/criar-novo-checkout); §20.1 |
 | P5 | **D27 — chargeback e dinheiro desfeito** — recomendação definida; confirmação do fundador + ADR complementar | Manter agenda/prontuário imutáveis; colocar o dinheiro em disputa sem nova cobrança automática; no desfecho, Financial registra movimento compensatório append-only e reabre/recompõe somente o saldo financeiro. `PAYMENT_RECEIVED_IN_CASH_UNDONE` é reversão efetiva, não disputa. Payments observa o gateway; Financial é dono do ledger; Scheduling não inventa transição clínica | Solicitado→disputa→ganho/perda, dinheiro desfeito, duplicado/out-of-order, replay, cross-tenant, antes/depois do atendimento, crédito alocado/não alocado, sem valor negativo nem cobrança dupla | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §7; [ADR-049](adr/049-pagamentos-paciente-sinal.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); §20.2 |
@@ -190,7 +199,7 @@ objeto do teste.
 | `pnpm restore:test` em volume | **NÃO EXECUTADO / BLOCKED** | `RESTORE_TARGET_URL` scratch + dump anonimizado |
 | E2E Meta `deposit_link` | **BLOCKED externo** | template aprovado, conexão saudável e destinatário consentido |
 | E2E Meta `remainder_link` | **BLOCKED externo** | mesmas pré-condições; cobrança ainda pagável no send-time |
-| `PAYMENT_RESTORED` da assinatura | **FAIL/BLOCKED por código + externo (D54/D36/D46)** | corrigir a reabertura de `cancelled`; alinhar webhook/token/ambiente; executar restore real controlado |
+| `PAYMENT_RESTORED` da assinatura | **Código PASS / E2E real BLOCKED externo (D36/D46)** | alinhar webhook/token/ambiente e executar delete/restore real controlado |
 | Estorno real do sinal pago por PIX/cartão | **NÃO VERIFICADO (`n/v`)** | pagamento sandbox controlado por PIX/cartão e estorno observado |
 | Product Acceptance por persona | **NÃO EXECUTADO** | roteiro P9 com pessoas/contas controladas |
 | `pnpm format:check` global | **FAIL na baseline (D9)** | PR exclusivamente mecânico; nenhuma mudança semântica; toda suíte depois |
@@ -216,7 +225,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | # | O quê | Estado |
 | --- | --- | --- |
 | E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED parcial** — a conexão Meta da Clínica A foi concluída no Preview em 27/08; ainda falta confirmar o template do sinal no ambiente publicado e um destinatário controlado com consentimento. O número conectado à Meta é o remetente, não o destinatário |
-| E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **FAIL por código + configuração externa** — além do webhook interrompido e do token divergente (D36/D46), a inspeção de 28/08 encontrou D54: `decideProviderSync` devolve `local_terminal:cancelled`, portanto a rota aceita/deduplica o evento, mas não reabre a invoice. Corrigir e testar D54 antes de reativá-lo/alinhá-lo; depois exigir o round-trip real, não apenas HTTP 200 |
+| E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **Código PASS / comportamento externo ainda FAIL-BLOCKED** — D54/D55 corrigiram restauração por CAS e `200 + deleted:true`, com 73/73 e suíte/gates verdes. O webhook segue interrompido/token divergente (D36/D46). Alinhar e exigir o round-trip real; HTTP 200 isolado não basta |
 | E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS comportamental para o webhook de paciente** — webhook ativo na rota Preview; `0089` aplicada. Além do contrato e da validação RLS, uma cobrança criada pelo Qoro recebeu `PAYMENT_RECEIVED` real do sandbox, gravou dedup/crédito uma vez e projetou agenda `Confirmado` + `Sinal pago`. Isso não valida o webhook global de assinatura (E2) nem a entrega Meta (E1/E5) |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**12/12**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
 | E5 | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **BLOCKED externo** — código, catálogo, builder, cron, integração controlada, deploy Preview e conexão Meta da Clínica A estão verdes; o template segue em análise e falta confirmar destinatário controlado com consentimento de cobrança. O E2E real Meta da 1.6c não foi simulado nem marcado como verde |
@@ -284,7 +293,7 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D33 | `appointment-completed.ts` (cria TODO recebível do Caixa) não tinha nenhum teste | **resolvido no 1.H** — além dos 13 testes originais, a varredura confirmou teste direto em todos os 13 handlers de Payments/Financial/Scheduling/Billing; os 5 gaps receberam 16 testes focados |
 | D34 | ADR-051 D6 mandava o Payments calcular o saldo; pagamento em dinheiro na recepção não apareceria | **resolvido** — saldo vem do `financial`; sub-fase dividida em 3a/3b para caber no §0.6 |
 | D35 | O link do **restante** era criado e não entregue; a copy do sinal não serve depois do atendimento | **resolvido em código (1.6c)** — `remainder_link` usa a fila C14, lookup no send-time e template próprio. E2E real Meta permanece **BLOCKED externo (E5)** |
-| D36 | Webhook sandbox de assinatura inclui `PAYMENT_RESTORED`, mas está interrompido, aponta para produção e diverge da lista canônica de eventos | **bloqueante externo depois de D54** — configurar no Preview com os 7 eventos do runbook e só reativar depois de alinhar chave/token; então provar delete → cancelled → restore → open |
+| D36 | Webhook sandbox de assinatura inclui `PAYMENT_RESTORED`, mas está interrompido, aponta para produção e diverge da lista canônica de eventos | **bloqueante externo; código D54/D55 verde** — configurar no Preview com os 7 eventos do runbook e só reativar depois de alinhar chave/token; então provar delete → cancelled → restore → open |
 | D37 | Bypass da proteção do Preview | **resolvido na borda** — probe real: sem bypass, `302 /sso-api`; com bypass, `405` da rota do Qoro (o teste usou `GET` de propósito em endpoint somente `POST`). Isso não prova que a variável recém-adicionada já esteja disponível ao processo do deploy atual |
 | D38 | Evento penalizado veio da conta sandbox de clínica | **bloqueante externo** — `ASAAS_CLINIC_SANDBOX_KEY` encontra o webhook; ele não prova assinatura e não pode usar a rota global |
 | D39 | Reativação via API não corrige causa-raiz | **vigente** — `PUT interrupted=false` funciona, mas a fila voltou a interromper no retry; corrigir rota/token antes de reativar novamente |
@@ -295,7 +304,8 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D51 | Atendimento totalmente coberto por créditos falhava ao criar o recebível `pago` sem `paid_at` | **resolvido no 1.H** — handler grava `paid_at` atomicamente quando o status inicial é `pago`; unitário 13/13 e simulação real de 30 dias verdes |
 | D52 | ADR-051 §5 exige tratar crédito `available` órfão; a simulação terminou sem órfãos, mas não provava estados envelhecidos fora do cenário modelado | **resolvido como detector em `ca94839`** — `financial-reconcile` observa 30d + consulta vencida, agrega terminal/agenda ativa/vínculo ausente e alerta sem mover dinheiro. Route 3/3 + jornada DEV 13/13; operação no runbook |
 | D53 | Snapshot de falha do Playwright podia reter a senha digitada porque o formulário mantinha o campo preenchido durante/depois da tentativa de login | **corrigido em código; operação manual pendente** — artefatos locais foram eliminados e não havia auth storage; o formulário limpa a senha no tick seguinte à captura do submit e após cada novo estado de erro, recolhendo sua visibilidade. Rotacionar a conta descartável, atualizar somente o secret E2E e repetir os 3 cenários autenticados sem artefatos antes de reabilitar captura sanitizada |
-| D54 | `PAYMENT_RESTORED` não reabre a invoice apesar do runbook exigir isso | **bloqueante de código descoberto em 28/08** — `cancelled` é terminal na state machine e `decideProviderSync` retorna `local_terminal:cancelled` antes de considerar o provedor novamente `PENDING`. Criar transição estrita, auditada e idempotente somente para restauração autoritativamente confirmada; unit/integration antes do sandbox real |
+| D54 | `PAYMENT_RESTORED` não reabria a invoice apesar do runbook exigir isso | **resolvido em código em 28/08** — a máquina genérica mantém `cancelled` terminal; o sincronizador reabre somente quando `getPayment` confirma a mesma cobrança viva/pagável, por CAS, timeline e métrica. PENDING abre; pago/overdue seguem o caminho único existente; replay não duplica. E2 externo pendente |
+| D55 | Webhook global ignorava o contrato real `GET 200 + deleted:true` já descoberto no D20 | **resolvido em código em 28/08** — pagamento deletado não é materializado nem guiado pelo status antigo; a rota localiza a invoice e sincroniza `{ exists:false }`. 404 continua suportado e evento sem prova não cancela. Sandbox real conjunto pendente em E2 |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -740,12 +750,13 @@ Um `HTTP 200`, o painel mostrar `enabled=true` ou `interrupted=false` **não pro
 prova é o mesmo pagamento atravessar os dois estados no Asaas e a mesma invoice atravessar os dois
 estados no Qoro.
 
-Existe agora um bloqueio anterior, **D54**: `cancelled` é terminal na máquina de estados e
-`decideProviderSync` devolve `local_terminal:cancelled`. Assim, a implementação atual pode aceitar e
-deduplicar `PAYMENT_RESTORED`, consultar a cobrança novamente como `PENDING` e ainda deixar a invoice
-cancelada. Corrigir D54 vem antes do teste externo.
+O bloqueio de código **D54** foi corrigido: `cancelled` continua terminal na máquina genérica, mas o
+sincronizador reabre por CAS quando `getPayment()` confirma que a mesma cobrança voltou a existir em
+estado pagável. Se ela já estiver paga ou vencida por entrega fora de ordem, o caminho único existente
+aplica `paid`/`overdue` depois da reabertura. O D55 também foi fechado: remoção com
+`200 + deleted:true` é tratada como `{ exists:false }`, sem confiar no status antigo.
 
-Depois do fix unitário/integrado:
+Código: 73/73 focados, suíte integral, build e gates verdes. Falta a prova externa:
 
 1. escolher **um** ambiente controlado e seu banco correspondente; usar alias estável;
 2. alinhar o `ASAAS_WEBHOOK_TOKEN` do runtime com o `authToken` do webhook da conta Asaas do Qoro;
@@ -773,9 +784,9 @@ Depois do fix unitário/integrado:
 | auditoria/outbox | uma transição por fato, nenhuma duplicata |
 | reconcile seguinte | sem divergência Asaas↔Qoro |
 
-Esse teste muta sandbox e banco. Executá-lo exige autorização explícita, conta/ambiente controlados e
-D54 corrigido; um POST inventado diretamente na rota não substitui a prova, pois o handler consulta o
-Asaas como fonte da verdade.
+Esse teste muta sandbox e banco. Executá-lo exige autorização explícita e conta/ambiente controlados;
+um POST inventado diretamente na rota não substitui a prova, pois o handler consulta o Asaas como
+fonte da verdade.
 
 ### 20.6 Quais testes bloqueiam o quê
 
@@ -784,13 +795,13 @@ Asaas como fonte da verdade.
 | D24 PIX/cartão implementado e provado | **sim** | não | hoje boleto continua tecnicamente alcançável |
 | D27 chargeback confirmado, implementado e testado | **sim** | não | dinheiro recebido pode voltar atrás sem compensação |
 | D50 estorno do excedente + sandbox | **sim** | não | o dinheiro é preservado, mas ainda não devolvido |
-| D54 + `PAYMENT_RESTORED` real | **sim** para correção de Billing/assinatura | não | HTTP 200 atual não reabre invoice cancelada |
+| `PAYMENT_RESTORED` real (D54/D55 já verdes em código) | **sim** para aceite externo de Billing/assinatura | não | falta provar o round-trip no sandbox configurado |
 | E2E Meta de sinal/restante | **sim** para rollout da entrega WhatsApp; código 1.6c já está verde | não | prova do transporte externo continua pendente |
 | `test:load` + `restore:test` em scratch | **sim** para o 1.H formal e rollout | não | concorrência em volume ainda não foi medida |
 | Playwright autenticado + aceite por persona | **sim** para 1.S/rollout | não | os três cenários autenticados não produziram aceite válido |
 | rotação de credenciais/templates/destinatário | **sim** nos testes externos correspondentes | não | depende de autoridade humana e não pode ser simulado como E2E real |
 
-Portanto, os pendentes **não impedem** escrever ADRs, corrigir D54, implementar D24/D27/D50 nem iniciar
+Portanto, os pendentes **não impedem** escrever ADRs, implementar D24/D27/D50 nem iniciar
 um spike documental de TISS. Eles impedem declarar `1.H ✅`, iniciar `1.S` como concluída e liberar o
 rollout financeiro como totalmente provado.
 
@@ -799,7 +810,7 @@ rollout financeiro como totalmente provado.
 Ordem recomendada, em mudanças pequenas e revisáveis:
 
 1. o fundador confirma ou ajusta a regra de chargeback da §20.2;
-2. corrigir D54 e passar unit/integration antes de mexer no webhook externo;
+2. alinhar o webhook externo e provar D54/D55 no sandbox, sem nova mudança de código se o round-trip passar;
 3. atualizar ADR-049 e implementar D24 (PIX/cartão), com sandbox e regressão;
 4. atualizar ADR-051 e implementar D50 (estorno parcial idempotente), com ledger e sandbox;
 5. criar ADR complementar e implementar D27 (disputa, perda, reversão e dinheiro desfeito), mantendo

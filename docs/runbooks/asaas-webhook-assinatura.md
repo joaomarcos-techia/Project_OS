@@ -39,15 +39,15 @@ de terceiro não é memória confiável (**D30**).
 
 ### Por que `PAYMENT_RESTORED` não é opcional
 
-> **Bloqueio atual (D54, 2026-08-28):** a configuração do evento é necessária, mas ainda não
-> suficiente. A state machine torna `invoice.cancelled` terminal e `decideProviderSync` devolve
-> `local_terminal:cancelled`; portanto, o runtime atual pode aceitar/deduplicar a restauração sem
-> reabrir a invoice. Corrigir D54 com unit/integration e só depois executar a prova real abaixo.
+> **Código corrigido (D54/D55, 2026-08-28):** `cancelled` continua terminal na state machine
+> genérica. O seam do provedor reabre por CAS somente quando `getPayment()` confirma que a mesma
+> cobrança voltou a existir; `200 + deleted:true` cancela sem confiar no status antigo. Unit,
+> integração, fora de ordem e replay estão verdes. A prova real abaixo ainda é obrigatória.
 
 É uma porta de mão única, e a única das três recomendações que fecha inconsistência **permanente**:
 
-1. alguém apaga a cobrança no painel → `PAYMENT_DELETED` → o `GET` dá 404 → a rota **cancela a
-   invoice**;
+1. alguém apaga a cobrança no painel → `PAYMENT_DELETED` → o `GET` dá 404 **ou**
+   `200 + deleted:true` → a rota **cancela a invoice**;
 2. alguém restaura → **nada acontece** se o evento não estiver assinado;
 3. o `billing-reconcile` (diário) não salva: ele só revisita `['open','overdue']`. Invoice
    `cancelled` **nunca é revisitada**.
