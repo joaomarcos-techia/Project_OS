@@ -8,6 +8,7 @@
  *   C) refund já confirmado no seam -> cobrança, agenda e crédito refunded;
  *   D) pagamento concorrente com expiração -> vaga não ressuscita e dinheiro fecha uma vez.
  *   E) lock de banco força statement_timeout -> outbox retenta e cria um único recebível.
+ *   F) reconcile detecta crédito antigo órfão sem mover dinheiro nem sinalizar consulta futura.
  *
  * O que fica fora por definição: transporte real Asaas e entrega real Meta.
  */
@@ -22,6 +23,8 @@ import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 import { runOutboxOnce } from '@/lib/outbox/worker';
+
+import { scanOrphanCredits } from '@/app/api/cron/financial-reconcile/orphan-credit-scan';
 
 import { lancamentos, patientCredits, paymentTransactions } from '@/contexts/financial/schema';
 import { patients } from '@/contexts/patient';
@@ -57,7 +60,11 @@ const appointmentC = randomUUID();
 const appointmentD = randomUUID();
 const appointmentE = randomUUID();
 const appointmentF = randomUUID();
+const orphanTerminalAppointment = randomUUID();
+const orphanStaleAppointment = randomUUID();
+const futureCreditAppointment = randomUUID();
 const otherAppointment = randomUUID();
+const otherOrphanAppointment = randomUUID();
 
 const chargeA = randomUUID();
 const chargeBDeposit = randomUUID();
@@ -68,7 +75,16 @@ const otherCharge = randomUUID();
 const creditA = randomUUID();
 const creditBDeposit = randomUUID();
 const creditC = randomUUID();
+const orphanTerminalCredit = randomUUID();
+const orphanStaleCredit = randomUUID();
+const futureCredit = randomUUID();
+const otherOrphanCredit = randomUUID();
 const lancamentoB = randomUUID();
+
+const orphanTerminalCharge = randomUUID();
+const orphanStaleCharge = randomUUID();
+const futureCreditCharge = randomUUID();
+const otherOrphanCharge = randomUUID();
 
 const providerPaymentB = `pay_hardening_${stamp}`;
 const providerPaymentD = `pay_hold_race_${stamp}`;
@@ -227,6 +243,27 @@ async function createFixtures(): Promise<void> {
         status: 'atendido',
         depositStatus: 'none',
       },
+      {
+        ...base,
+        id: orphanTerminalAppointment,
+        scheduledAt: scheduledAt(45, 18),
+        status: 'cancelado',
+        depositStatus: 'paid',
+      },
+      {
+        ...base,
+        id: orphanStaleAppointment,
+        scheduledAt: scheduledAt(45, 19),
+        status: 'agendado',
+        depositStatus: 'paid',
+      },
+      {
+        ...base,
+        id: futureCreditAppointment,
+        scheduledAt: scheduledIn(10, 18),
+        status: 'agendado',
+        depositStatus: 'paid',
+      },
     ]);
 
     await tx.insert(patientCharges).values([
@@ -338,6 +375,39 @@ async function createFixtures(): Promise<void> {
         kind: 'deposit',
         status: 'available',
       },
+      {
+        id: orphanTerminalCredit,
+        clinicId,
+        patientId,
+        appointmentId: orphanTerminalAppointment,
+        patientChargeId: orphanTerminalCharge,
+        amount: '100.00',
+        kind: 'deposit',
+        status: 'available',
+        grantedAt: scheduledAt(45, 8),
+      },
+      {
+        id: orphanStaleCredit,
+        clinicId,
+        patientId,
+        appointmentId: orphanStaleAppointment,
+        patientChargeId: orphanStaleCharge,
+        amount: '100.00',
+        kind: 'deposit',
+        status: 'available',
+        grantedAt: scheduledAt(45, 8),
+      },
+      {
+        id: futureCredit,
+        clinicId,
+        patientId,
+        appointmentId: futureCreditAppointment,
+        patientChargeId: futureCreditCharge,
+        amount: '100.00',
+        kind: 'deposit',
+        status: 'available',
+        grantedAt: scheduledAt(45, 8),
+      },
     ]);
     await tx.insert(paymentTransactions).values({
       clinicId,
@@ -363,23 +433,35 @@ async function createFixtures(): Promise<void> {
       cpfEncrypted: 'fixture-sem-pii',
       cpfHash: randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64),
     });
-    await tx.insert(appointments).values({
-      id: otherAppointment,
+    const otherBase = {
       clinicId: otherClinicId,
       doctorId: otherDoctorId!,
       patientId: otherPatientId,
       procedureId: otherProcedureId,
-      scheduledAt: scheduledIn(8, 14),
       durationMin: 30,
-      status: 'agendado',
       valor: '150.00',
-      depositStatus: 'pending',
-      holdExpiresAt: scheduledIn(1, 14),
       snapshotProcedureName: 'Consulta sintética do tenant B',
       snapshotProcedureValor: '150.00',
       snapshotProcedureDuracaoMin: 30,
       snapshotDoctorNome: 'Dr. Tenant B',
-    });
+    } as const;
+    await tx.insert(appointments).values([
+      {
+        ...otherBase,
+        id: otherAppointment,
+        scheduledAt: scheduledIn(8, 14),
+        status: 'agendado',
+        depositStatus: 'pending',
+        holdExpiresAt: scheduledIn(1, 14),
+      },
+      {
+        ...otherBase,
+        id: otherOrphanAppointment,
+        scheduledAt: scheduledAt(45, 14),
+        status: 'faltou',
+        depositStatus: 'paid',
+      },
+    ]);
     await tx.insert(patientCharges).values({
       id: otherCharge,
       clinicId: otherClinicId,
@@ -392,6 +474,17 @@ async function createFixtures(): Promise<void> {
       invoiceUrl: 'https://example.invalid/other-tenant',
       externalReference: `deposit:${otherAppointment}`,
       holdExpiresAt: scheduledIn(1, 14),
+    });
+    await tx.insert(patientCredits).values({
+      id: otherOrphanCredit,
+      clinicId: otherClinicId,
+      patientId: otherPatientId,
+      appointmentId: otherOrphanAppointment,
+      patientChargeId: otherOrphanCharge,
+      amount: '75.00',
+      kind: 'deposit',
+      status: 'available',
+      grantedAt: scheduledAt(45, 8),
     });
   });
 }
@@ -957,9 +1050,50 @@ async function main(): Promise<void> {
       assert(rows[0]?.paidEvents === 0, 'A publicou pagamento para a clínica B');
       assert(rows[0]?.credits === 0, 'A criou crédito para a clínica B');
     });
+
+    await step('12 D52: detector encontra órfãos e ignora crédito de consulta futura', async () => {
+      const scan = () =>
+        dbAdmin.transaction(async (tx) => {
+          await tx.execute(sql`RESET ROLE`);
+          return scanOrphanCredits(tx);
+        });
+      const first = await scan();
+      const replay = await scan();
+      assert(
+        JSON.stringify(replay) === JSON.stringify(first),
+        'replay do detector mudou o resultado',
+      );
+
+      const own = first.filter((group) => group.clinicId === clinicId);
+      const other = first.filter((group) => group.clinicId === otherClinicId);
+      assert(
+        own.reduce((total, group) => total + group.count, 0) === 2,
+        `clínica A deveria ter 2 órfãos detectados: ${JSON.stringify(own)}`,
+      );
+      assert(
+        own.some((group) => group.appointmentStatus === 'cancelado' && group.count === 1),
+        'terminal cancelado não foi detectado',
+      );
+      assert(
+        own.some((group) => group.appointmentStatus === 'agendado' && group.count === 1),
+        'agenda vencida sem desfecho não foi detectada',
+      );
+      assert(
+        other.some((group) => group.appointmentStatus === 'faltou' && group.count === 1),
+        'scan cross-tenant não detectou o órfão da clínica B',
+      );
+
+      const untouched = await dbAdmin.execute<{ count: number }>(sql`
+        SELECT count(*)::int AS count
+          FROM patient_credits
+         WHERE id IN (${orphanTerminalCredit}, ${orphanStaleCredit}, ${futureCredit}, ${otherOrphanCredit})
+           AND status = 'available'
+      `);
+      assert(untouched[0]?.count === 4, 'detector alterou dinheiro/estado de crédito');
+    });
   } finally {
     await cleanup();
-    console.log('[OK]   12 cleanup: zero fixtures da jornada e usuários sintéticos removidos');
+    console.log('[OK]   13 cleanup: zero fixtures da jornada e usuários sintéticos removidos');
   }
 
   const failed = results.filter((result) => !result.ok);
