@@ -48,7 +48,9 @@ test.describe('navegação autenticada', () => {
       { label: 'Agenda', heading: 'Agenda' },
       { label: 'Caixa', heading: 'Caixa' },
       { label: 'Financeiro', heading: 'Financeiro' },
-      { label: 'Configurações', heading: 'Configurações' },
+      // `/configuracoes` é apenas um redirect para a primeira categoria
+      // acessível; para este usuário, a categoria inicial é Agenda.
+      { label: 'Configurações', heading: 'Agenda' },
     ];
 
     for (const destination of destinations) {
@@ -58,7 +60,11 @@ test.describe('navegação autenticada', () => {
       ).toBeVisible({ timeout: 30_000 });
     }
 
-    await page.getByRole('link', { name: 'Sugestões', exact: true }).first().click();
+    await page.getByRole('link', { name: 'Produto', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Produto', exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.getByRole('link', { name: 'Sugestões', exact: true }).click();
     await expect(page).toHaveURL(/\/configuracoes\/sugestoes(?:\?|$)/, { timeout: 30_000 });
     await expect(page.getByRole('heading', { name: 'Sugestões', exact: true })).toBeVisible({
       timeout: 30_000,

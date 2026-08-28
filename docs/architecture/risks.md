@@ -115,14 +115,15 @@ com decisão do fundador sobre o destino (reintroduzir os ADRs citados ou limpar
 
 **Evidência original:** `dependency-cruiser`, `k6`/`autocannon` e `test:simulation` não estavam no
 `package.json`. Em 2026-08-27, `test:simulation` foi implementado sem dependência nova e passou a
-simulação de 30 dias; o ferramental de carga continua pendente, e `dependency-cruiser` foi cortado.
+simulação de 30 dias. Em 2026-08-28, `restore:test` passou contra PostgreSQL local isolado e o alvo foi
+removido; o app scratch e o ferramental de carga continuam pendentes. `dependency-cruiser` foi cortado.
 
 **Consequência e encaminhamento (emenda aprovada em 2026-08-19):**
 
 | Gate | Encaminhamento |
 | --- | --- |
 | §11 Complexidade | `dependency-cruiser` **cortado**; fan-in/out sai do `arch:graphs`. Exigível desde 1.0 |
-| §10 Performance/Carga | exigível a partir de **1.4**, com `autocannon`; bloqueado até provisionar ambiente scratch isolado (`RESTORE_TARGET_URL`; nunca Preview, produção ou DEV compartilhado) |
+| §10 Performance/Carga | exigível a partir de **1.4**, com `autocannon`; restore isolado ✅, app scratch + harness ainda pendentes; nunca executar contra Preview, produção ou DEV compartilhado |
 | §14 Clinic Simulation | ✅ `pnpm test:simulation`, harness próprio sem dependência nova; 30 dias verdes no **1.H** |
 
 ## R11 · O evento é contrato, mas o barrel é que o entrega — `BAIXA`

@@ -72,7 +72,7 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · D54/D55 código ✅ 73/73 · Playwright público local 5/5 ✅ · autenticado BLOCKED por D53/rotação · D24/D50 decididos mas não implementados · D27 aguardando confirmação · carga, Product Acceptance e externos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore isolado ✅ · D54/D55 código ✅ 73/73 · Playwright Preview read-only ✅ 8/8 com sessão única · D24/D50 decididos mas não implementados · D27 aguardando confirmação · carga, Product Acceptance e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -108,8 +108,9 @@ cenários controlados de timeout/retry, recuperação de POST perdido e restaura
 | Simulação 30 dias | `pnpm test:simulation` | ✅ 30 agendamentos · 38 cobranças · 62 webhooks · 3 ticks · zero retry/falha · cleanup zero, sem Asaas/Meta |
 | Matriz focada de ciclo de vida | `pnpm vitest run <7 arquivos>` | ✅ 138/138: POST perdido, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta |
 | Webhook de assinatura D54/D55 | `pnpm vitest run <4 arquivos>` | ✅ 73/73: `deleted:true`, restore, pago fora de ordem, CAS e replay |
-| Playwright local somente leitura | 2 specs, 8 cenários, `E2E_MUTATION=0`, sem trace/vídeo | **PARTIAL: 5/8** — 5 públicos ✅; 3 autenticados sem aceite válido. D53 corrigido em código; rerun exige credencial descartável rotacionada |
-| Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
+| Restore isolado | `pnpm restore:test backups/prod-pre-migration-2026-08-27T04-49-51.sql` | ✅ PostgreSQL local descartável na porta 55439: 117 tabelas, 83 policies, âncoras 3/41/48/1095; servidor parado e diretório removido após a prova |
+| Playwright Preview somente leitura | 2 specs, 8 cenários, `E2E_AUTH_REUSE=1`, `E2E_MUTATION=0` | ✅ **8/8** com uma autenticação: 5 fronteiras públicas, 25 rotas estáticas HTTP 200, paciente dinâmico visitado, conversas vazias aceitas e navegação principal; estado autenticado e artefatos temporários removidos |
+| Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 reexecutados em 2026-08-28, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
 Migrations **0081–0090** aplicadas e verificadas no banco de **dev**. Antes da aplicação, a `0090` foi
@@ -186,17 +187,17 @@ objeto do teste.
 | P5 | **D27 — chargeback e dinheiro desfeito** — recomendação definida; confirmação do fundador + ADR complementar | Manter agenda/prontuário imutáveis; colocar o dinheiro em disputa sem nova cobrança automática; no desfecho, Financial registra movimento compensatório append-only e reabre/recompõe somente o saldo financeiro. `PAYMENT_RECEIVED_IN_CASH_UNDONE` é reversão efetiva, não disputa. Payments observa o gateway; Financial é dono do ledger; Scheduling não inventa transição clínica | Solicitado→disputa→ganho/perda, dinheiro desfeito, duplicado/out-of-order, replay, cross-tenant, antes/depois do atendimento, crédito alocado/não alocado, sem valor negativo nem cobrança dupla | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §7; [ADR-049](adr/049-pagamentos-paciente-sinal.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); §20.2 |
 | P6 | **D50 — excedente após baixa manual** — decisão tomada: estornar o excedente; implementação pendente | Estornar exatamente `unappliedAmount`, sem reduzir o valor legítimo já alocado. Criar intenção idempotente antes do POST, não repetir cegamente em timeout, reconciliar pelo gateway/webhook e lançar o movimento compensatório no Financial. Se o estorno não puder ser realizado, abrir alerta/pendência humana sem perder o crédito | Corrida baixa manual×pagamento do link, pagamento duplicado, timeout e read-back, retry, excedente integral/parcial, saldo insuficiente no gateway, ledger/auditoria e E2E banco+worker+sandbox | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estorno Asaas](https://docs.asaas.com/reference/estornar-cobranca); D50; §20.3 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
-| P8 | **Carga e restore em volume** — scratch externo necessário; harness ainda não existe | Provisionar Postgres/app scratch isolado e fornecer `RESTORE_TARGET_URL`; restaurar dump anonimizado. Só então adicionar `autocannon` como dependência de desenvolvimento e `test:load` com guards fail-closed contra Preview/prod/DEV compartilhado, thresholds e cleanup | appointment 500, webhook 1.000, WhatsApp jobs 5.000 com Meta fake, reconcile em lote e outbox saturado; P95/P99/SLO, zero deadlock/race/duplicata. Executar também `restore:test` e validar contagens | §10 Performance; §16 Migração; `restore:test`; R10 em [riscos](architecture/risks.md) |
-| P9 | **Playwright e Product Acceptance** — PARTIAL / D53 | Passe local read-only: 5/5 rotas públicas verdes; 3 autenticadas sem aceite (login parado, timeout dinâmico e navegação sem troca de rota). O artefato de falha que reteve a senha foi apagado e o login agora limpa o campo depois que o submit captura os dados e após erro. **Ação manual exclusiva:** rotacionar a credencial descartável e atualizar o secret E2E sem compartilhá-lo. Depois repetir primeiro os 3 casos autenticados, sem trace/vídeo/screenshot; só reabilitar artefatos sanitizados após sucesso. Em seguida rodar a suíte no HEAD publicado e percorrer secretária, médico, dono e paciente | Helper 3/3, regressão focada 10/10 e suíte 2.707/2.707; ainda faltam rerun autenticado, `test:e2e` integral no HEAD publicado, checklist por persona e E2E Asaas/Meta aplicável. Não classificar smoke DB, os 5 públicos ou as três falhas inconclusivas como UX/aceite integral | §0.2; §15 Product Acceptance; cenário de aceite do [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53; [guia E2E](../e2e/README.md) |
+| P8 | **Carga e restore em volume** — restore ✅; harness de carga pendente | Em 28/08 foi criado um PostgreSQL local isolado, restaurado o dump real, validada a integridade e destruído o alvo. Falta implementar `test:load` com app scratch, provider Meta fake, confirmação explícita e guards fail-closed contra Preview/prod/DEV compartilhado | **Restore PASS:** 117 tabelas, 83 policies; âncoras clinics=3, patients=41, appointments=48, audit_events=1095; zero resíduo local. **Carga pendente:** appointment 500, webhook 1.000, WhatsApp jobs 5.000, reconcile/outbox; P95/P99, deadlock/race/dedup | §10 Performance; §16 Migração; `restore:test`; R10 em [riscos](architecture/risks.md) |
+| P9 | **Playwright automatizado ✅ / Product Acceptance humano pendente** — D53+D56 | No Preview, os 8 casos read-only passaram com uma única sessão: 5 fronteiras públicas, 25 rotas estáticas, rotas dinâmicas existentes e navegação principal. O contrato foi alinhado ao redirect canônico de Configurações e à categoria Produto. Auth state e artefatos temporários foram removidos após o passe. Falta somente percorrer secretária, médico, dono e paciente como aceite de produto | Helper 3/3, regressão focada 10/10, suíte 2.717/2.717 e Playwright Preview 8/8. Os E2E mutáveis/externos aplicáveis permanecem nos itens próprios; não executar a matriz destrutiva inteira contra Preview | §0.2; §15 Product Acceptance; cenário de aceite do [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56; [guia E2E](../e2e/README.md) |
 | P10 | **1.S Stabilization** — automático após P1–P9 e decisões | Corrigir somente bugs encontrados; atualizar ADR-049/051, Discovery Log, runbooks, grafos e este mapa; remover dívida criada pela Camada 1. Reexecutar todos os gates, smokes, simulation, E2E e checks de migration. Observar Preview antes do rollout nominal | zero bug alto aberto; suíte/gates 100% verdes; rollback `clinic_deposit_policy.enabled=false` provado; matriz de regressão e rollout por clínica assinados | §0.3 DoD; §18 Rollout; ADR-049 §9 |
 
 ### Testes explicitamente não verdes / não executados
 
 | Teste | Estado atual | Para ficar verde |
 | --- | --- | --- |
-| `pnpm test:e2e` | **PARTIAL local: 5 públicos PASS / 3 autenticados sem aceite** | rotacionar credencial descartável; rerun autenticado sem artefatos; depois suíte integral no HEAD publicado com fixtures seguras |
-| `test:load` | **NÃO IMPLEMENTADO / BLOCKED** | scratch isolado + harness `autocannon` de P8 |
-| `pnpm restore:test` em volume | **NÃO EXECUTADO / BLOCKED** | `RESTORE_TARGET_URL` scratch + dump anonimizado |
+| Playwright read-only (2 specs) | ✅ **PASS Preview: 8/8 com sessão única** | repetir no novo HEAD publicado quando houver mudança de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
+| `test:load` | **NÃO IMPLEMENTADO** | app/banco scratch isolados + harness `autocannon` guardado de P8; o restore do banco já foi provado |
+| `pnpm restore:test` em volume | ✅ **PASS em scratch local descartável** | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido |
 | E2E Meta `deposit_link` | **BLOCKED externo** | template aprovado, conexão saudável e destinatário consentido |
 | E2E Meta `remainder_link` | **BLOCKED externo** | mesmas pré-condições; cobrança ainda pagável no send-time |
 | `PAYMENT_RESTORED` da assinatura | **Código PASS / E2E real BLOCKED externo (D36/D46)** | alinhar webhook/token/ambiente e executar delete/restore real controlado |
@@ -240,7 +241,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | Confirmar a proposta de chargeback da §20.2 | A recomendação preserva o registro clínico e isola a reversão no financeiro; é preciso confirmação antes da ADR e do código porque define cobrança, comunicação e operação da clínica | **CONFIRMAÇÃO NECESSÁRIA (D27)** |
 | Estornar eventual excedente de um link de restante desatualizado | A decisão foi tomada em 28/08: devolver somente o excedente, com idempotência e lançamento compensatório, sem desfazer o valor legítimo da consulta | **DECIDIDO; implementação/testes P6 pendentes (D50)** |
 | Alinhar o webhook global de assinatura no ambiente correto antes de reativá-lo | Envolve URL, token e chave do ambiente no painel/API do Asaas; reativar sem corrigir a causa repete a penalização | **PENDENTE externo (E2/D36/D46)** |
-| Provisionar um banco/ambiente scratch isolado para `test:load` e fornecer `RESTORE_TARGET_URL` | A carga prevista cria até 5.000 jobs e não pode atingir Preview, produção ou DEV compartilhado; não há Docker/Podman nem alvo scratch disponível nesta máquina | **PENDENTE externo para fechar o gate de carga do 1.H** |
+| Executar Product Acceptance por persona | Julgamento de operação/UX requer uma pessoa agir como secretária, médico, dono e paciente; o Playwright read-only não substitui esse aceite | **PENDENTE humano (P9)** — automação Preview read-only 8/8 já verde |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
 do webhook pela API do Asaas; probes do Preview sem bypass, com bypass sem token e com bypass + token
@@ -303,9 +304,10 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D50 | Baixa manual pode tornar um link do restante maior que o saldo atual | **decisão tomada em 28/08** — estornar apenas o excedente; guarda atual preserva o dinheiro, mas orquestração idempotente, ledger, reconciliação e testes P6 ainda são bloqueantes |
 | D51 | Atendimento totalmente coberto por créditos falhava ao criar o recebível `pago` sem `paid_at` | **resolvido no 1.H** — handler grava `paid_at` atomicamente quando o status inicial é `pago`; unitário 13/13 e simulação real de 30 dias verdes |
 | D52 | ADR-051 §5 exige tratar crédito `available` órfão; a simulação terminou sem órfãos, mas não provava estados envelhecidos fora do cenário modelado | **resolvido como detector em `ca94839`** — `financial-reconcile` observa 30d + consulta vencida, agrega terminal/agenda ativa/vínculo ausente e alerta sem mover dinheiro. Route 3/3 + jornada DEV 13/13; operação no runbook |
-| D53 | Snapshot de falha do Playwright podia reter a senha digitada porque o formulário mantinha o campo preenchido durante/depois da tentativa de login | **corrigido em código; operação manual pendente** — artefatos locais foram eliminados e não havia auth storage; o formulário limpa a senha no tick seguinte à captura do submit e após cada novo estado de erro, recolhendo sua visibilidade. Rotacionar a conta descartável, atualizar somente o secret E2E e repetir os 3 cenários autenticados sem artefatos antes de reabilitar captura sanitizada |
+| D53 | Snapshot de falha do Playwright podia reter a senha digitada porque o formulário mantinha o campo preenchido durante/depois da tentativa de login | **corrigido em código; proteção verificada** — artefatos locais e auth storage foram eliminados; o formulário limpa a senha no tick seguinte à captura e após erro. A credencial atual foi aceita pelo Supabase sem ser impressa. As novas execuções permaneceram sem artefatos autenticados retidos |
 | D54 | `PAYMENT_RESTORED` não reabria a invoice apesar do runbook exigir isso | **resolvido em código em 28/08** — a máquina genérica mantém `cancelled` terminal; o sincronizador reabre somente quando `getPayment` confirma a mesma cobrança viva/pagável, por CAS, timeline e métrica. PENDING abre; pago/overdue seguem o caminho único existente; replay não duplica. E2 externo pendente |
 | D55 | Webhook global ignorava o contrato real `GET 200 + deleted:true` já descoberto no D20 | **resolvido em código em 28/08** — pagamento deletado não é materializado nem guiado pelo status antigo; a rota localiza a invoice e sincroniza `{ exists:false }`. 404 continua suportado e evento sem prova não cancela. Sandbox real conjunto pendente em E2 |
+| D56 | Os specs read-only tratavam `/configuracoes` como tela e esperavam “Sugestões” na primeira categoria, mas a rota é um redirect e o link pertence à categoria Produto | **resolvido nos contratos E2E em 28/08** — o inventário usa `/configuracoes/agenda`; a jornada aceita o heading da primeira categoria, entra explicitamente em Produto e só então abre Sugestões. Preview read-only 8/8 com sessão única e regressão local 2.717/2.717; nenhuma mudança de produto |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -536,15 +538,15 @@ Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcion
     PENDENTE/BLOCKED externo (E5)**. Não houve mock classificado como E2E real.
 
 **1.H HARDENING:** 🟡 concorrência, idempotência, multi-tenant, banco lento, POST perdido, Financial
-Integrity e Simulation estão verdes conforme a matriz canônica. Faltam P1–P9: decisões financeiras,
-borda Meta/Asaas, carga/restore isolados, Playwright e Product Acceptance. Aceite continua sendo cada
+Integrity, Simulation e restore isolado estão verdes conforme a matriz canônica. Faltam P1–P9: decisões financeiras,
+borda Meta/Asaas, carga, Playwright e Product Acceptance. Aceite continua sendo cada
 cenário com evidência real + Security/Chaos/Financial/Load/Simulation verdes.
 
 **1.S STABILIZATION:** ⬜ só começa depois dos bloqueios/decisões de 1.H. Executar P10: corrigir bugs
 encontrados sem feature nova, atualizar ADR-049/ADR-051 (inclusive evidências históricas hoje
 desatualizadas), Discovery Log, runbooks e grafos; executar `lint`, `typecheck`, `test`, `build`,
 `test:e2e`, gates arquiteturais, smokes de pagamentos/C14, `payments:live-check`, simulation, load e
-restore quando o scratch existir. Aceite: zero bug alto aberto, nenhuma evidência pendente tratada como
+restore quando houver novo dump/migration relevante. Aceite: zero bug alto aberto, nenhuma evidência pendente tratada como
 verde, rollback por clínica provado e suíte 100% verde.
 
 **E2E de aceite:** `agenda(on)→aceita política→link 50%→paga→webhook→CONFIRMADO`; A(falta)=retido/restante não criado · B(comparece)=restante conciliado · C(cancela a tempo)=estornado.
@@ -571,7 +573,7 @@ Mesmos gates + `O.H`/`O.S`. **O-1** wizard (módulo→atribuição do Qoro→mé
 RLS · cross-tenant · permission escalation · **webhook forgery (espelhar os 23)** · rate limiting · sensitive data exposure · LGPD (consent do sinal, hard-delete cobre `patient_charges`). Reusa `arch:db-check`, `lib/auth/*`, cripto.
 
 ## 10. Gate — Performance & Carga
-> **Exigível a partir de 1.4** (antes disso não há endpoint novo para medir). Ferramenta: **`autocannon`** (npm) — `k6` descartado por ser binário fora do npm. Alvo obrigatório: scratch isolado restaurado por `restore:test`; **nunca Preview, produção ou DEV compartilhado**. Estado atual: P8 `BLOCKED`, pois não há Docker/Podman nem `RESTORE_TARGET_URL`.
+> **Exigível a partir de 1.4** (antes disso não há endpoint novo para medir). Ferramenta: **`autocannon`** (npm) — `k6` descartado por ser binário fora do npm. Alvo obrigatório: scratch isolado restaurado por `restore:test`; **nunca Preview, produção ou DEV compartilhado**. Estado atual: o restore P8 passou em PostgreSQL local descartável; falta o app scratch e o harness `test:load` guardado.
 
 **SLOs:** API P95<500ms · P99<1s · webhook<2s · job<30s · query<100ms.
 **Load (NET-NEW `test:load` via k6/autocannon):** appointment 500 · webhook 1000 · WhatsApp 5000 · reconcile em lote · outbox saturado → sem erro/deadlock/race. Números = **SLO-alvo a calibrar** ao volume projetado × fator de segurança.
@@ -740,9 +742,16 @@ Passo a passo:
    erros, deadlocks e duplicatas;
 8. rodar `restore:test`, validar integridade e cleanup; depois destruir/resetar o alvo descartável.
 
-**Ação manual exclusiva:** provisionar o alvo isolado e disponibilizar sua URL de forma segura.
-Depois disso, harness, execução, validação e documentação podem ser automatizados. A dependência de
-desenvolvimento de carga só deve ser adicionada após essa confirmação.
+**Evidência de 28/08:** um cluster PostgreSQL 17 local e isolado foi criado fora do workspace, o dump
+`prod-pre-migration-2026-08-27T04-49-51.sql` foi restaurado por `restore:test`, e as âncoras retornaram
+117 tabelas, 83 policies, 3 clínicas, 41 pacientes, 48 agendamentos e 1095 eventos de auditoria. Os
+erros de objetos exclusivos do Supabase (`auth`, `extensions` e roles gerenciadas) foram tolerados pelo
+runbook; as âncoras obrigatórias passaram. O servidor foi parado, a porta ficou indisponível e o
+diretório foi removido, portanto nenhum dado restaurado permaneceu na máquina.
+
+**Pendente técnico, não ação manual:** construir o app scratch e o harness `test:load` guardado. Uma
+ação humana só será necessária se o harness não puder usar infraestrutura local isolada e precisar de
+um projeto/branch remoto dedicado ou de autorização operacional adicional.
 
 ### 20.5 Como provar o webhook global de assinatura (`PAYMENT_RESTORED`)
 
@@ -803,8 +812,8 @@ fonte da verdade.
 | D50 estorno do excedente + sandbox | **sim** | não | o dinheiro é preservado, mas ainda não devolvido |
 | `PAYMENT_RESTORED` real (D54/D55 já verdes em código) | **sim** para aceite externo de Billing/assinatura | não | falta provar o round-trip no sandbox configurado |
 | E2E Meta de sinal/restante | **sim** para rollout da entrega WhatsApp; código 1.6c já está verde | não | prova do transporte externo continua pendente |
-| `test:load` + `restore:test` em scratch | **sim** para o 1.H formal e rollout | não | concorrência em volume ainda não foi medida |
-| Playwright autenticado + aceite por persona | **sim** para 1.S/rollout | não | os três cenários autenticados não produziram aceite válido |
+| `test:load` em app scratch | **sim** para o 1.H formal e rollout | não | restore já passou; concorrência em volume ainda não foi medida |
+| Product Acceptance por persona | **sim** para 1.S/rollout | não | Playwright read-only passou 8/8; resta o julgamento humano de operação/UX |
 | rotação de credenciais/templates/destinatário | **sim** nos testes externos correspondentes | não | depende de autoridade humana e não pode ser simulado como E2E real |
 
 Portanto, os pendentes **não impedem** escrever ADRs, implementar D24/D27/D50 nem iniciar
@@ -823,7 +832,7 @@ Ordem recomendada, em mudanças pequenas e revisáveis:
    no máximo Payments + Financial por recorte;
 6. executar os testes reais controlados: `PAYMENT_RESTORED`, estorno PIX/cartão e E2E Meta quando o
    template/destinatário estiverem disponíveis;
-7. provisionar scratch, executar carga/restore e repetir Playwright/Product Acceptance;
+7. implementar app/harness de carga sobre scratch isolado; restore e Playwright read-only já passaram;
 8. executar 1.S: suíte completa, build, arquitetura, migrations, observabilidade, smokes, simulation,
    documentação, Preview e rollback por clínica.
 

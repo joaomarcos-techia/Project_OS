@@ -11,7 +11,8 @@ const READ_ONLY_ROUTES = [
   '/caixa',
   '/financeiro',
   '/financeiro/fornecedores',
-  '/configuracoes',
+  // `/configuracoes` é somente um redirect; o inventário valida a tela canônica.
+  '/configuracoes/agenda',
   '/configuracoes/assinatura',
   '/configuracoes/horarios',
   '/configuracoes/perfil',
