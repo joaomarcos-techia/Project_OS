@@ -249,6 +249,10 @@ intermediário (crédito não alocado) que hoje não existe.
 **Risco residual:** crédito `available` órfão — sinal pago cujo agendamento nunca chega a `atendido`
 nem a `faltou`/`cancelado`. Precisa de varredura de conciliação no `1.H`.
 
+**Estado em 2026-08-27:** a simulação de 30 dias terminou sem órfãos nos caminhos modelados, mas não
+existe evidência de detector para créditos envelhecidos fora do cenário. O risco permanece aberto como
+**D52/P7**; zero órfão numa simulação não substitui reconciliação operacional.
+
 ## 6. Plano de execução (contexts verificados)
 
 **EXECUTADA em 2026-08-25**, depois da 1.6. As invariantes da §2.1 valem e estão cobertas por teste.
@@ -261,12 +265,13 @@ nem a `faltou`/`cancelado`. Precisa de varredura de conciliação no `1.H`.
 | **1.5b.3a** ✅ | `financial` | seam `getAppointmentBalance` — o saldo é do Financial, não conta do Payments (**D34**) |
 | **1.5b.3b** ✅ | `payments` + `scheduling` | read-model de concluídos + `createRemainderCharge` + varredura no cron `payments-deposit` |
 | **1.5b.4** | — | **absorvida pela 1.5b.1**: o crédito do restante é alocado direto ao lançamento já existente — mesmo mecanismo, estado diferente do recebível |
-| **E2E financeiro** | ⬜ **1.H** | os três ramos do aceite, com banco + worker. **Não executado** — os ramos existem em código e em teste unitário, o que o D32 avisa não bastar |
+| **E2E financeiro** ✅ | `payments` + `financial` + `scheduling` por eventos | `smoke:payments-journey` 12/12: ramos A/B/C, concorrência, timeout/retry e isolamento; `test:simulation` validou 30 dias. A borda Meta real permanece fora desta evidência |
 
 Nenhuma sub-fase passa de **2 contexts**, e a 1.5b.2 é de **1** — o §0.6 volta a ser respeitado, que
 era metade do bloqueio do D19.
 
-**Ordem acordada:** `1.6 → 1.5b.1 → 1.5b.2 → 1.5b.3 → E2E financeiro`.
+**Ordem executada:** `1.6 → 1.5b.1 → 1.5b.2 → 1.5b.3 → E2E financeiro`. O fechamento da Camada 1
+agora segue P0–P10 em `docs/qorov2.md`, incluindo D52, carga, Product Acceptance e externos.
 
 ## 7. O que este ADR NÃO decide
 

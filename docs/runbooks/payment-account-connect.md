@@ -360,6 +360,27 @@ paciente paga 100  → patient_credits(100) → lancamento(valorPago 200, pago)
 O recebível **sempre nasce pelo valor bruto** (200, nunca 100): faturamento e recebimento são coisas
 distintas, e um recebível líquido apagaria quanto o atendimento faturou.
 
+### Entrega automática do link do restante (1.6c)
+
+```text
+patient_charge(kind=remainder) → payments.patient_charge.link_ready
+                               → C14 job remainder_link
+                               → paymentsApiV1.getPayableCharge no send-time
+                               → template Meta remainder_link
+                               → WhatsApp
+```
+
+O job guarda somente ids + valor; **não** persiste `invoiceUrl`. Se a cobrança for paga, estornada,
+cancelada, expirada ou estiver sem link antes do worker, `getPayableCharge` devolve `null` e o job
+termina `charge_not_payable` sem enviar. O template do restante comunica atendimento já realizado e
+saldo pendente; nunca fala em garantir/reservar horário. Usa o propósito central de suppression
+`billing` e exige consentimento de cobrança.
+
+Pré-requisito externo: template `remainder_link` aprovado e configurado em
+`META_TEMPLATE_REMAINDER_LINK_ID`, conexão Meta saudável e destinatário controlado consentido. Sem
+template, falha visível como `template_not_configured`; não existe fallback para texto livre. A prova
+real permanece P1 no `qorov2.md`; unit/integration/smoke não são classificados como E2E Meta.
+
 ### "Por que este atendimento não gerou cobrança do restante?"
 
 | Métrica | O que aconteceu |

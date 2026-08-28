@@ -272,7 +272,7 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
 - **Aceite:** faltou → sinal retido, link morto se não pago; cancelou a tempo → estornado; cancelou
   tarde → retido.
 
-#### 1.5b — Restante (DESENHADA — ver ADR-051)
+#### 1.5b — Restante (DESENHADA E EXECUTADA — ver ADR-051)
 
 - **Por que parou (D19):** (a) `scheduling.appointment.completed` **já tem dono** — o handler de
   faturamento do Financial — e o registry é 1:1; (b) esse handler cria `lancamentos` com o **valor
@@ -360,7 +360,13 @@ Ramo C (cancela a tempo): sinal ESTORNADO
 ```
 
 ## 7. Critérios de aprovação da Camada 1 (portão)
-Build ✅ · Lint ✅ · Typecheck ✅ · Unit ✅ · Integration ✅ · Contract ✅ · Smoke ✅ · E2E ✅ · `arch:check`/`arch:db-check` ✅ · **nenhum** dos 1966 testes de baseline regrediu. Proibido concluir com: código sem teste, migration sem validação, endpoint sem teste, fluxo sem E2E, feature flag sem cobertura, warning ignorado, ou TODO sem justificativa.
+
+**Estado em 2026-08-27:** Build · Lint · Typecheck · Unit · Integration · Contract · Smoke · E2E
+financeiro controlado · `arch:check`/`arch:db-check` estão verdes; 2.702 testes passam sem regressão.
+A Camada 1 **ainda não está aprovada**: faltam E2E Meta real, `PAYMENT_RESTORED`, estorno real
+PIX/cartão, carga/restore em scratch, `test:e2e`, Product Acceptance e as decisões D24/D27/D50. A fila
+executável e a evidência atual estão em `docs/qorov2.md` P0–P10. Proibido concluir com código sem teste,
+migration sem volume, endpoint/fluxo sem E2E, warning ignorado ou evidência externa presumida.
 
 ## 8. Riscos e mitigação
 - **Refactor do adapter quebrar billing** → 1.0 isolada com baseline inteiro como rede; feature nova só em cima disso.

@@ -178,12 +178,15 @@ Resolva também, dentro do 1.H:
   uma única cobrança/eventos e cleanup zero usando provedor local. Resta o gate de carga, bloqueado
   até existir ambiente scratch isolado (`RESTORE_TARGET_URL`; nunca Preview/prod/DEV
   compartilhado).
+- **D52 🟡** — o ADR-051 §5 exige tratar crédito `available` envelhecido. A simulação terminou sem
+  órfãos, mas ainda falta auditar todos os terminais e provar/implementar detector idempotente no
+  Financial; não mova dinheiro automaticamente sem regra aprovada.
 
-Ações que exigem exclusivamente o fundador estão registradas no `qorov2.md`: aprovação dos
-templates/destinatário Meta, rotação da chave sandbox exposta, decisão D24 sobre boleto e decisão D27
-sobre o estado da agenda/cobrança quando dinheiro confirmado volta atrás. O D50 também precisa de
-política para eventual excedente de um link do restante que ficou desatualizado após baixa manual;
-o gate de carga precisa de um scratch isolado informado por `RESTORE_TARGET_URL`.
+O `qorov2.md` agora contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite.
+Ações exclusivamente do fundador: templates/destinatário Meta, rotação da chave exposta, decisões
+D24/D27/D50 e provisionamento do scratch `RESTORE_TARGET_URL`. Testes ainda não verdes: `test:e2e`,
+`test:load`, `restore:test` em volume, E2E Meta sinal/restante, `PAYMENT_RESTORED`, estorno real
+PIX/cartão e Product Acceptance.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
@@ -191,9 +194,10 @@ o gate de carga precisa de um scratch isolado informado por `RESTORE_TARGET_URL`
 
 ### 6.4 · 1.S — Stabilization
 
-Corrigir bugs do hardening · remover dívida da própria camada · atualizar docs, runbooks e diagramas
-(`pnpm arch:graphs`) · reexecutar a suíte completa · validar Clinic Simulation, Financial Integrity e
-Product Acceptance · preparar rollout progressivo.
+Só começar depois dos bloqueios/decisões de 1.H. Executar P10 do `qorov2.md`: corrigir apenas bugs,
+sincronizar ADR-049/051, Discovery Log, runbooks e grafos; reexecutar suíte, Playwright, gates,
+smokes, live-check, simulation, load/restore quando houver scratch e Product Acceptance. Aceite: zero
+bug alto, rollback por clínica provado e nenhuma evidência externa presumida.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
 
@@ -238,7 +242,7 @@ NPS · modalidade online · convênio/TISS · NFS-e (via parceiro) · psicologia
   cobre com tsConfig.
 - **D9** — `format:check` vermelho na baseline (131 arquivos). PR de formatação isolado, fora de
   qualquer camada.
-- **D25** — reagendamento **devolve** o sinal em vez de transferi-lo, e isso abre a brecha de remarcar
+- **D23** — reagendamento **devolve** o sinal em vez de transferi-lo, e isso abre a brecha de remarcar
   em cima da hora para escapar da taxa. Decisão de produto pendente.
 - **D30** — a lista de eventos do webhook de assinatura vive em
   `docs/runbooks/asaas-webhook-assinatura.md`, que é a **especificação canônica**. O alvo futuro é
@@ -249,12 +253,11 @@ NPS · modalidade online · convênio/TISS · NFS-e (via parceiro) · psicologia
 
 ## 9. Estado do repositório
 
-Branch **`feat/qorov2-pagamentos`**, com ~102 arquivos modificados/novos **sem commit**. O fundador
-pediu para commitar em branch separada da `main` — ela já é. Quando ele autorizar, quebre em commits
-**por sub-fase**, não num bloco único.
-
-**Não commite documentação em horário comercial sem autorização**: commit dispara redeploy na Vercel
-e pode afetar usuários em produção.
+Branch **`feat/qorov2-pagamentos`**. Hardening recente: `c480e44`, `88e7a4a` e `079f3f0`; os dois
+últimos ainda precisam de push/Preview (P0). O worktree contém somente `financeiro.md` não rastreado
+do usuário, além da consolidação documental corrente até ela ser commitada. Nunca inclua
+`financeiro.md`. O fundador já autorizou push/deploy desta branch; ainda assim, confirme HEAD remoto e
+deployment terminal em vez de inferir publicação pelo commit local.
 
 ## 10. Ao terminar cada sub-fase, responda neste formato
 
