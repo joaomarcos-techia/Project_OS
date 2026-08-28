@@ -187,6 +187,8 @@ Resolva também, dentro do 1.H:
   autenticados sem aceite conclusivo. Um snapshot de erro reteve a senha que permanecia no DOM; o
   artefato foi apagado, não havia auth storage e o login agora limpa o campo após a captura do submit e
   após erro, recolhendo sua visibilidade (helper 3/3; regressão focada 10/10; suíte 2.707/2.707).
+  O runtime está no commit publicado `281cd9c`; a observação commit-specific do Preview continua
+  bloqueada por ausência de sessão/CLI Vercel autenticada.
   **Antes do rerun:** o fundador rotaciona a conta
   descartável e atualiza somente o secret E2E, sem compartilhar o valor. Repetir os 3 casos sem
   trace/vídeo/screenshot; só depois executar a suíte integral no HEAD publicado e Product Acceptance.

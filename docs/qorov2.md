@@ -29,6 +29,11 @@ somente depois do horário da consulta, separa terminal/agenda vencida/vínculo 
 heartbeat e não move dinheiro. `smoke:payments-journey` provou terminal, consulta futura, replay e
 dois tenants no banco DEV.
 
+O hardening D53 está em `281cd9c`: remove a senha do DOM depois que o submit captura os dados e após
+erro, recolhe sua visibilidade e documenta o tratamento seguro de artefatos E2E. Lint, typecheck,
+2.707 testes, build e gates arquiteturais/operacionais passaram; não houve migration nem mudança de
+contrato.
+
 O primeiro passe do P9 executou oito cenários Playwright locais, somente leitura e sem artefatos
 intencionais: os cinco cenários públicos passaram; os três autenticados não produziram aceite válido
 (login permaneceu na tela, uma navegação dinâmica excedeu o timeout e outra não concluiu a troca de
@@ -38,8 +43,8 @@ logo após o submit capturar os dados e novamente após erro, recolhendo a visib
 P9 autenticado repetido antes de qualquer classificação verde; não atribuir as três falhas a regressão
 de produto sem nova execução isolada.
 
-**Publicação do lote atual:** `git push` e `git ls-remote` confirmaram o commit de runtime
-`ca94839c8d0a4cb21f324bdf85e5bb287d2a7e11` no remoto antes deste fechamento documental. O alias
+**Publicação do lote atual:** `git push` e `git ls-remote` confirmaram o commit
+`281cd9cec11b1e782b5e56437d46e5db55ee525d` no remoto antes deste fechamento documental. O alias
 Preview responde `302` pela proteção da Vercel,
 portanto está alcançável; porém a sessão de navegador não estava disponível, o Vercel CLI não está
 instalado e o GitHub CLI local não está autenticado. O SHA implantado não foi observável: deployment
@@ -164,7 +169,7 @@ objeto do teste.
 
 | Ordem | Pendência / autoridade | Como deve ser feita | Teste/evidência ainda pendente | Referência |
 | --- | --- | --- | --- | --- |
-| P0 | **Publicar/observar o lote** — runtime push ✅; observação Vercel bloqueada | Commit `ca94839` confirmado no remoto; após qualquer commit documental, confirmar novamente o HEAD remoto. Falta sessão/CLI Vercel autenticada para observar o deployment terminal e casar SHA. O `302` do alias prova somente proteção/alcance. Não incluir `financeiro.md` | **BLOCKED de evidência:** Preview terminal do commit de runtime `ca94839`; depois smoke HTTP somente leitura se aplicável | §0.3 DoD; [handoff](handoff-qorov2.md) |
+| P0 | **Publicar/observar o lote** — push ✅; observação Vercel bloqueada | Commit D53 `281cd9c` confirmado no remoto; após este commit documental, confirmar novamente o HEAD remoto. Falta sessão/CLI Vercel autenticada para observar o deployment terminal e casar SHA. O `302` do alias prova somente proteção/alcance. Não incluir `financeiro.md` | **BLOCKED de evidência:** Preview terminal do HEAD publicado; depois smoke HTTP somente leitura se aplicável | §0.3 DoD; [handoff](handoff-qorov2.md) |
 | P1 | **Templates Meta e destinatário controlado** — manual para aprovação/consentimento; execução técnica automatizável depois | Confirmar `APPROVED` e idioma dos templates `deposit_link` e `remainder_link`, IDs já configurados no ambiente publicado, conexão Meta saudável e telefone de destino com consentimento. Não enviar texto livre nem usar Z-API como fallback | E2E real 1.6a: `link_ready → deposit_link → Meta → WhatsApp`; E2E real 1.6c: `link_ready → remainder_link → lookup atual → Meta`. Registrar message id, job terminal e ausência de duplicata; não expor telefone/link | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md) |
 | P2 | **Webhook global de assinatura** — manual/externo para URL, token e chave | No ambiente correto, alinhar URL + `ASAAS_WEBHOOK_TOKEN` + conta; configurar somente os 7 eventos canônicos e `sendType` do runbook; só então remover backoff/reativar uma vez. Não reutilizar a rota de paciente | Fluxo real `delete → cancelled → restore → open` com `PAYMENT_RESTORED`; HTTP 200 e estado final reconciliado. D36/D46 só fecham com comportamento | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D36, D39, D46 |
 | P3 | **Rotação da chave sandbox exposta** — manual na conta Asaas | Revogar a chave antiga no Asaas, gerar outra sem colá-la em chat/log, atualizar apenas o secret store/fluxo de conexão correto e reconectar a clínica. Depois invalidar qualquer sessão/local secret antigo | `payments:live-check` 12/12 com a chave nova, cleanup confirmado; nenhuma credencial em diff/log | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
