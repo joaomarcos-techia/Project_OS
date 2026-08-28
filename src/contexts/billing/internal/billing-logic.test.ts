@@ -118,6 +118,7 @@ describe('state machine (monotônica; webhook fora de ordem)', () => {
     expect(canTransitionInvoice('overdue', 'paid')).toBe(true);
     expect(canTransitionInvoice('paid', 'overdue')).toBe(false);
     expect(canTransitionInvoice('cancelled', 'paid')).toBe(false);
+    expect(canTransitionInvoice('cancelled', 'open')).toBe(false);
     expect(canTransitionInvoice('paid', 'paid')).toBe(true); // idempotente
   });
   it('billing: reativação comercial pode sair de cancelled', () => {

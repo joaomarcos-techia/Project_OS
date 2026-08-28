@@ -87,6 +87,7 @@ const PAYMENT = {
   subscriptionId: 'sub_1',
   billingType: 'PIX',
   externalReference: null,
+  deleted: false,
 };
 
 /** tx falso com dedup real: o 1º insert de um eventId ganha, os seguintes perdem. */
@@ -344,6 +345,76 @@ describe('BILLING-002 — update e delete do painel', () => {
     // Delete NUNCA vira estorno.
     expect(markInvoiceRefunded).not.toHaveBeenCalled();
     expect(markInvoicePaid).not.toHaveBeenCalled();
+  });
+
+  it('PAYMENT_DELETED com 200 + deleted:true também cancela a invoice', async () => {
+    // Contrato real do Asaas: cobrança removida preserva o status antigo e
+    // responde 200. Ignorar `deleted` deixaria a invoice aberta para sempre.
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'PENDING', deleted: true });
+
+    const res = await post({
+      id: 'evt_del_200',
+      event: 'PAYMENT_DELETED',
+      payment: { id: 'pay_1' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(ensureInvoiceForPayment).not.toHaveBeenCalled();
+    const [, , , provider, opts] = vi.mocked(syncInvoiceFromProviderPayment).mock.calls[0]!;
+    expect(provider).toEqual({ exists: false });
+    expect(opts).toMatchObject({ providerConfirmedMissing: true });
+    expect(markInvoiceRefunded).not.toHaveBeenCalled();
+  });
+
+  it('PAYMENT_RESTORED consulta o estado atual e envia cobrança viva ao sincronizador', async () => {
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'PENDING', deleted: false });
+
+    const res = await post({
+      id: 'evt_restore',
+      event: 'PAYMENT_RESTORED',
+      payment: { id: 'pay_1' },
+    });
+
+    expect(res.status).toBe(200);
+    const [, , , provider] = vi.mocked(syncInvoiceFromProviderPayment).mock.calls[0]!;
+    expect(provider).toMatchObject({ exists: true, status: 'open' });
+  });
+
+  it('PAYMENT_RESTORED fora de ordem já pago segue até markInvoicePaid', async () => {
+    vi.mocked(syncInvoiceFromProviderPayment).mockResolvedValueOnce({
+      action: { kind: 'restore', status: 'open', amountChanged: false },
+      invoice: {
+        id: 'inv-1',
+        clinicId: 'clinic-1',
+        status: 'open',
+        dueDate: '2026-08-24',
+        totalAmount: '199.00',
+      },
+    } as never);
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'RECEIVED', deleted: false });
+
+    const res = await post({
+      id: 'evt_restore_paid',
+      event: 'PAYMENT_RESTORED',
+      payment: { id: 'pay_1' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(markInvoicePaid).toHaveBeenCalledWith(
+      expect.anything(),
+      'clinic-1',
+      expect.objectContaining({ status: 'open' }),
+      expect.objectContaining({ idemSuffix: 'evt_restore_paid' }),
+    );
+  });
+
+  it('replay de PAYMENT_RESTORED é deduplicado antes da segunda transição', async () => {
+    const body = { id: 'evt_restore_dup', event: 'PAYMENT_RESTORED', payment: { id: 'pay_1' } };
+
+    await post(body);
+    await post(body);
+
+    expect(syncInvoiceFromProviderPayment).toHaveBeenCalledTimes(1);
   });
 
   it('404 em evento que NÃO alega remoção continua sendo 500 (anomalia)', async () => {

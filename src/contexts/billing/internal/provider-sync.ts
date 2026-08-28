@@ -56,8 +56,24 @@ export type ProviderSyncAction =
     }
   /** O provedor confirma um estado terminal que o local ainda não tem. */
   | { kind: 'terminalize'; status: InvoiceStatus }
+  /**
+   * Uma cobrança antes removida voltou a existir no provedor. A invoice abre
+   * primeiro; o caller ainda aplica `paid`/`overdue` pelo caminho único já
+   * existente quando esse for o estado autoritativo atual.
+   */
+  | {
+      kind: 'restore';
+      status: 'open';
+      dueDate?: string;
+      totalCents?: number;
+      amountChanged: boolean;
+    }
   /** Sem confirmação autoritativa: marca para revisão humana, não decide. */
   | { kind: 'flag_divergence'; reason: string };
+
+function restorableProviderStatus(status: InvoiceStatus | null | undefined): boolean {
+  return status === 'open' || status === 'overdue' || status === 'paid';
+}
 
 /**
  * Decide a reconciliação. `providerConfirmedMissing` distingue "o GET devolveu
@@ -69,12 +85,33 @@ export function decideProviderSync(
   provider: ProviderInvoiceState,
   opts: { providerConfirmedMissing: boolean } = { providerConfirmedMissing: false },
 ): ProviderSyncAction {
-  // 1. Terminal local vence sempre. Um evento atrasado não reabre nada.
+  // 1. A única exceção ao terminal `cancelled`: a MESMA cobrança voltou a
+  // existir no getPayment autoritativo. Não depende do rótulo do webhook — ele
+  // é só notificação — e não aceita estado desconhecido/refunded. Restauramos
+  // primeiro para `open`; o caller aplica paid/overdue pelo caminho único.
+  if (
+    local.status === 'cancelled' &&
+    provider.exists &&
+    restorableProviderStatus(provider.status)
+  ) {
+    const dueChanged = typeof provider.dueDate === 'string' && provider.dueDate !== local.dueDate;
+    const amountChanged =
+      typeof provider.totalCents === 'number' && provider.totalCents !== local.totalCents;
+    return {
+      kind: 'restore',
+      status: 'open',
+      ...(dueChanged ? { dueDate: provider.dueDate as string } : {}),
+      ...(amountChanged ? { totalCents: provider.totalCents as number } : {}),
+      amountChanged,
+    };
+  }
+
+  // 2. Outros terminais locais vencem sempre. Um evento atrasado não regride.
   if (!MUTABLE.has(local.status)) {
     return { kind: 'noop', reason: `local_terminal:${local.status}` };
   }
 
-  // 2. Pagamento sumiu do provedor.
+  // 3. Pagamento sumiu do provedor.
   if (!provider.exists) {
     if (!opts.providerConfirmedMissing) {
       // O corpo do webhook não é prova. Sem o 404 do GET autoritativo, não se
@@ -84,12 +121,12 @@ export function decideProviderSync(
     return { kind: 'terminalize', status: 'cancelled' };
   }
 
-  // 3. O provedor já está num estado terminal que o local não alcançou.
+  // 4. O provedor já está num estado terminal que o local não alcançou.
   if (provider.status && !MUTABLE.has(provider.status)) {
     return { kind: 'terminalize', status: provider.status };
   }
 
-  // 4. Divergência de data/valor numa invoice ainda aberta.
+  // 5. Divergência de data/valor numa invoice ainda aberta.
   const dueChanged = typeof provider.dueDate === 'string' && provider.dueDate !== local.dueDate;
   const amountChanged =
     typeof provider.totalCents === 'number' && provider.totalCents !== local.totalCents;
