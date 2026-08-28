@@ -72,7 +72,7 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore isolado ✅ · D54/D55 código ✅ 73/73 · Playwright Preview read-only ✅ 8/8 com sessão única · D24/D50 decididos mas não implementados · D27 aguardando confirmação · carga, Product Acceptance e externos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore isolado ✅ · D54/D55 código ✅ 73/73 · Playwright Preview read-only ✅ 8/8 com sessão única · D24/D27/D50 decididos mas não implementados · carga, Product Acceptance e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -184,7 +184,7 @@ objeto do teste.
 | P2 | **Webhook global de assinatura** — código D54/D55 verde; configuração/prova manual externa | No ambiente correto, alinhar URL + `ASAAS_WEBHOOK_TOKEN` + conta; configurar somente os 7 eventos canônicos e `sendType` do runbook; só então remover backoff/reativar uma vez. Não reutilizar a rota de paciente | **Código:** 73/73 + suíte/gates verdes. **Pendente:** sandbox real `delete → cancelled → restore → open`, HTTP 200, duas linhas de dedup e estado final reconciliado. D36/D46 só fecham com comportamento | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D39, D46, D54, D55; §20.5 |
 | P3 | **Rotação da chave sandbox exposta** — manual na conta Asaas | Revogar a chave antiga no Asaas, gerar outra sem colá-la em chat/log, atualizar apenas o secret store/fluxo de conexão correto e reconectar a clínica. Depois invalidar qualquer sessão/local secret antigo | `payments:live-check` 12/12 com a chave nova, cleanup confirmado; nenhuma credencial em diff/log | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
 | P4 | **D24 — somente PIX/cartão no sinal e restante** — spike externo ✅; implementação pendente | O sandbox aceitou Checkout `DETACHED` com `billingTypes: ["PIX", "CREDIT_CARD"]`, devolveu link hospedado e permitiu cancelamento. Porém, duas criações com a mesma `externalReference` produziram dois IDs, e `GET /checkouts/{id}` / listagem por referência devolveram 404; o índice oficial só documenta criação e cancelamento. Fazer split D24a–c: intenção local/lease idempotente, identidade `checkout` separada de `payment`, eventos `CHECKOUT_*` verificados e só então trocar sinal/restante. Não usar “desabilitar boleto na conta” como trava do produto | **PASS:** contrato/sandbox de criação, dupla permitida e cleanup. **Pendente:** migration + unit/contract; E2E sandbox pago para descobrir/correlacionar o `payment.id`; regressão de criação, webhook, hold, send-time e restante; estorno real nos dois meios | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [Checkout Asaas](https://docs.asaas.com/reference/criar-novo-checkout); [eventos Checkout](https://docs.asaas.com/docs/eventos-para-checkout); D57; §20.1 |
-| P5 | **D27 — chargeback e dinheiro desfeito** — recomendação definida; confirmação do fundador + ADR complementar | Manter agenda/prontuário imutáveis; colocar o dinheiro em disputa sem nova cobrança automática; no desfecho, Financial registra movimento compensatório append-only e reabre/recompõe somente o saldo financeiro. `PAYMENT_RECEIVED_IN_CASH_UNDONE` é reversão efetiva, não disputa. Payments observa o gateway; Financial é dono do ledger; Scheduling não inventa transição clínica | Solicitado→disputa→ganho/perda, dinheiro desfeito, duplicado/out-of-order, replay, cross-tenant, antes/depois do atendimento, crédito alocado/não alocado, sem valor negativo nem cobrança dupla | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §7; [ADR-049](adr/049-pagamentos-paciente-sinal.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); §20.2 |
+| P5 | **D27 — chargeback e dinheiro desfeito** — regra confirmada pelo fundador; ADR complementar + implementação pendentes | Manter agenda/prontuário imutáveis; colocar o dinheiro em disputa sem nova cobrança automática; no desfecho, Financial registra movimento compensatório append-only e reabre/recompõe somente o saldo financeiro. `PAYMENT_RECEIVED_IN_CASH_UNDONE` é reversão efetiva, não disputa. Payments observa o gateway; Financial é dono do ledger; Scheduling não inventa transição clínica | Solicitado→disputa→ganho/perda, dinheiro desfeito, duplicado/out-of-order, replay, cross-tenant, antes/depois do atendimento, crédito alocado/não alocado, sem valor negativo nem cobrança dupla | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §7; [ADR-049](adr/049-pagamentos-paciente-sinal.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); §20.2 |
 | P6 | **D50 — excedente após baixa manual** — decisão tomada: estornar o excedente; implementação pendente | Estornar exatamente `unappliedAmount`, sem reduzir o valor legítimo já alocado. Criar intenção idempotente antes do POST, não repetir cegamente em timeout, reconciliar pelo gateway/webhook e lançar o movimento compensatório no Financial. Se o estorno não puder ser realizado, abrir alerta/pendência humana sem perder o crédito | Corrida baixa manual×pagamento do link, pagamento duplicado, timeout e read-back, retry, excedente integral/parcial, saldo insuficiente no gateway, ledger/auditoria e E2E banco+worker+sandbox | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estorno Asaas](https://docs.asaas.com/reference/estornar-cobranca); D50; §20.3 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
 | P8 | **Carga e restore em volume** — restore ✅; harness de carga pendente | Em 28/08 foi criado um PostgreSQL local isolado, restaurado o dump real, validada a integridade e destruído o alvo. Falta implementar `test:load` com app scratch, provider Meta fake, confirmação explícita e guards fail-closed contra Preview/prod/DEV compartilhado | **Restore PASS:** 117 tabelas, 83 policies; âncoras clinics=3, patients=41, appointments=48, audit_events=1095; zero resíduo local. **Carga pendente:** appointment 500, webhook 1.000, WhatsApp jobs 5.000, reconcile/outbox; P95/P99, deadlock/race/dedup | §10 Performance; §16 Migração; `restore:test`; R10 em [riscos](architecture/risks.md) |
@@ -238,7 +238,6 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | --- | --- | --- |
 | Aprovar os templates Meta de sinal/restante e indicar destinatário controlado com consentimento | Aprovação e destinatário pertencem à conta/pessoa real na Meta | **PENDENTE (P1)** — avisar quando `APPROVED`; só exige redeploy se o ID configurado no ambiente mudar |
 | Rotacionar a chave sandbox do Asaas exposta no chat | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave | **PENDENTE (E4)** |
-| Confirmar a proposta de chargeback da §20.2 | A recomendação preserva o registro clínico e isola a reversão no financeiro; é preciso confirmação antes da ADR e do código porque define cobrança, comunicação e operação da clínica | **CONFIRMAÇÃO NECESSÁRIA (D27)** |
 | Concluir dois Checkouts temporários no sandbox — um por PIX e outro por cartão | A etapa acontece na página hospedada do Asaas e exige a ação do pagador; não há navegador controlável disponível nesta sessão. O agente cria links de 10 minutos somente quando o usuário estiver pronto | **PENDENTE (D24/D57)** — depois de cada pagamento, o agente consulta a correlação sanitizada, valida eventos/estado, estorna quando suportado e limpa as fixtures |
 | Alinhar o webhook global de assinatura no ambiente correto antes de reativá-lo | Envolve URL, token e chave do ambiente no painel/API do Asaas; reativar sem corrigir a causa repete a penalização | **PENDENTE externo (E2/D36/D46)** |
 | Executar Product Acceptance por persona | Julgamento de operação/UX requer uma pessoa agir como secretária, médico, dono e paciente; o Playwright read-only não substitui esse aceite | **PENDENTE humano (P9)** — automação Preview read-only 8/8 já verde |
@@ -286,7 +285,7 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D19 | Bloqueio da 1.5b | **encaminhado** → ADR-051 |
 | D24 | Estorno só funciona para PIX/cartão; boleto não compensa dentro do hold de 24h | **decisão tomada; spike externo PASS em 28/08** — Checkout restringe os métodos corretamente, mas não é idempotente por `externalReference` e não expõe consulta pública comprovada. Implementação exige o split D24a–c de D57 antes de remover `UNDEFINED` |
 | D23 | Reagendamento devolve o sinal (não transfere) — brecha: remarcar em cima da hora escapa da taxa | encaminhado — decisão de produto/ADR próprio em 2.x; hoje estornar+recobrar evita duplicidade |
-| D27 | `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` sem tratamento | **proposta na §20.2 aguardando confirmação** — clínico imutável, disputa financeira e movimentos compensatórios append-only |
+| D27 | `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` sem tratamento | **regra confirmada pelo fundador em 28/08; código pendente** — clínico imutável, disputa financeira sem nova cobrança automática e movimentos compensatórios append-only; formalizar no ADR complementar antes da implementação |
 | D29 | Ninguém tem autoridade declarada sobre valor/vencimento de cobrança de assinatura | backlog — [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8). **Não implementar sync de `amount`/`dueDate` sem decidir A ou B: fazer isso é escolher B por omissão** |
 | D30 | Config do webhook de assinatura só existia no painel | mitigado — [runbook](runbooks/asaas-webhook-assinatura.md) é a cópia versionada |
 | D31 | Mapa `job type → suppression purpose` estava duplicado | **resolvido** — `suppressionPurposeFor` é fonte única. `deposit_link` → `reminder`. **Não duplicar de novo** |
@@ -696,6 +695,8 @@ funcionando de ponta a ponta; o comportamento da assinatura SaaS do Qoro não mu
 
 ### 20.2 Chargeback — recomendação clínica e financeira (D27)
 
+**Decisão confirmada pelo fundador em 28/08/2026.**
+
 **Recomendação:** um chargeback altera o estado do **dinheiro**, não reescreve o fato clínico. Não
 apagar prontuário, não voltar atendimento concluído para “não atendido” e não cancelar
 automaticamente uma consulta apenas porque a contestação começou.
@@ -717,9 +718,9 @@ usar somente o mínimo necessário após revisão humana. O Asaas documenta os
 [fluxo dos eventos](https://docs.asaas.com/docs/webhook-para-cobrancas) e a
 [abertura de disputa com evidências](https://docs.asaas.com/reference/criar-disputa-de-chargeback).
 
-Antes do código, o fundador deve **confirmar esta recomendação**. Depois, um ADR complementar deve
-fixar: estados, eventos, comunicação, ownership e ledger. Payments observa o Asaas; Financial registra
-os movimentos compensatórios; Scheduling preserva o fato clínico e não decide o valor devido.
+Antes do código, um ADR complementar deve fixar estados, eventos, comunicação, ownership e ledger.
+Payments observa o Asaas; Financial registra os movimentos compensatórios; Scheduling preserva o
+fato clínico e não decide o valor devido.
 
 ### 20.3 Excedente pago — decisão tomada: estorno parcial (D50)
 
@@ -849,7 +850,7 @@ rollout financeiro como totalmente provado.
 
 Ordem recomendada, em mudanças pequenas e revisáveis:
 
-1. o fundador confirma ou ajusta a regra de chargeback da §20.2;
+1. ✅ regra de chargeback da §20.2 confirmada pelo fundador em 28/08;
 2. alinhar o webhook externo e provar D54/D55 no sandbox, sem nova mudança de código se o round-trip passar;
 3. atualizar ADR-049 e implementar D24 (PIX/cartão), com sandbox e regressão;
 4. atualizar ADR-051 e implementar D50 (estorno parcial idempotente), com ledger e sandbox;

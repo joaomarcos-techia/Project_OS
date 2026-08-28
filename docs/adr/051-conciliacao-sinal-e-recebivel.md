@@ -290,8 +290,8 @@ agora segue P0–P10 em `docs/qorov2.md`, incluindo D52, carga, Product Acceptan
 - **Autoridade sobre valor/vencimento de cobrança de ASSINATURA** (`PAYMENT_UPDATED`) — questão
   separada, registrada como **D29**. `invoices` é insert-only hoje, e sincronizar antes de decidir
   quem manda seria escolher por omissão.
-- **Chargeback e "recebido em dinheiro" desfeito** (D27) — a recomendação da §20.2 do
-  `qorov2.md` mantém o fato clínico imutável e usa disputa/movimentos compensatórios no Financial,
-  mas ainda exige confirmação do fundador e ADR complementar antes do código.
+- **Chargeback e "recebido em dinheiro" desfeito** (D27) — a regra da §20.2 do `qorov2.md` foi
+  confirmada pelo fundador em 2026-08-28: mantém o fato clínico imutável e usa
+  disputa/movimentos compensatórios no Financial. Ainda exige ADR complementar antes do código.
 - **Cobrança presencial** (o paciente paga na recepção): representável pelo mesmo crédito, mas a
   entrada pela UI é escopo da 2.x.
