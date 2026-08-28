@@ -15,7 +15,7 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Última verificação contra o repositório:** 2026-08-27 · branch `feat/qorov2-pagamentos`
+**Última verificação contra o repositório:** 2026-08-28 · branch `feat/qorov2-pagamentos`
 
 **Versionamento (2026-08-27):** a 1.6c está nos commits publicados `15cb9c3` (código) e `3035383`
 (registro da migration). O hardening financeiro/D49 está em `a7717e7`, com Preview Vercel verde, e
@@ -28,6 +28,15 @@ O detector D52 está em `ca94839`: o `financial-reconcile` observa créditos `av
 somente depois do horário da consulta, separa terminal/agenda vencida/vínculo ausente, emite métrica e
 heartbeat e não move dinheiro. `smoke:payments-journey` provou terminal, consulta futura, replay e
 dois tenants no banco DEV.
+
+O primeiro passe do P9 executou oito cenários Playwright locais, somente leitura e sem artefatos
+intencionais: os cinco cenários públicos passaram; os três autenticados não produziram aceite válido
+(login permaneceu na tela, uma navegação dinâmica excedeu o timeout e outra não concluiu a troca de
+rota). Durante o diagnóstico, o snapshot de falha reteve a senha ainda presente no DOM. O diretório de
+resultados foi eliminado, não havia estado de autenticação persistido e o login passou a limpar o campo
+logo após o submit capturar os dados e novamente após erro, recolhendo a visibilidade (**D53**). A credencial descartável precisa ser rotacionada e o
+P9 autenticado repetido antes de qualquer classificação verde; não atribuir as três falhas a regressão
+de produto sem nova execução isolada.
 
 **Publicação do lote atual:** `git push` e `git ls-remote` confirmaram o commit de runtime
 `ca94839c8d0a4cb21f324bdf85e5bb287d2a7e11` no remoto antes deste fechamento documental. O alias
@@ -51,7 +60,7 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · 138 testes focados ✅ · carga, decisões financeiras, Playwright/Product Acceptance e externos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · 138 testes focados ✅ · Playwright público local 5/5 ✅ · autenticado BLOCKED por D53/rotação · carga, decisões financeiras, Product Acceptance e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -65,17 +74,17 @@ abaixo e as dependências externas. Portanto o aceite integral da camada continu
 
 ### Gates — resultado REAL da última execução completa
 
-Executados em 2026-08-27, após o hardening financeiro, a correção D51, a simulação de 30 dias e os
+Executados novamente em 2026-08-28, após o hardening financeiro, D51–D53, a simulação de 30 dias e os
 cenários controlados de timeout/retry e recuperação de POST perdido.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2704** (296 arquivos), incluindo 1.6c, regressão do sinal, D33, D52 e aplicação do restante no recebível |
+| Testes | `pnpm test` | ✅ **2707** (297 arquivos), incluindo 1.6c, regressão do sinal, D33, D52, D53 e aplicação do restante no recebível |
 | Build | `pnpm build` | ✅ exit 0 |
-| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1020 arquivos) |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1084 arquivos) |
+| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1022 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1086 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
@@ -86,6 +95,7 @@ cenários controlados de timeout/retry e recuperação de POST perdido.
 | Recuperação de POST perdido | `pnpm smoke:payments-post-recovery` | ✅ provedor local aceitou 1 POST e perdeu a resposta; retry fez 2 GETs, recuperou 1 cobrança/2 eventos, sem duplicata e com cleanup zero |
 | Simulação 30 dias | `pnpm test:simulation` | ✅ 30 agendamentos · 38 cobranças · 62 webhooks · 3 ticks · zero retry/falha · cleanup zero, sem Asaas/Meta |
 | Matriz focada de ciclo de vida | `pnpm vitest run <7 arquivos>` | ✅ 138/138: POST perdido, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta |
+| Playwright local somente leitura | 2 specs, 8 cenários, `E2E_MUTATION=0`, sem trace/vídeo | **PARTIAL: 5/8** — 5 públicos ✅; 3 autenticados sem aceite válido. D53 corrigido em código; rerun exige credencial descartável rotacionada |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 em 2026-08-26 com `assaasapi`, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
@@ -142,6 +152,7 @@ processou tudo em 3 ticks, sem retry/falha, e removeu clínica e usuário sinté
 | POST aceito com resposta perdida | `smoke:payments-post-recovery`: 1 POST, 2 GETs, 1 cobrança e 2 eventos, cleanup zero | ADR-011 + [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md): `externalReference` e customer por clínica |
 | D51 — recebível já pago sem `paid_at` | unitário 13/13 + simulação 30 dias; `c480e44` | ADR-051: valor bruto + pagamento comprovado/alocado |
 | D52 — crédito antigo permanecia invisível em `available` | `ca94839`; route 3/3 + jornada DEV 13/13: terminal, agenda vencida, futuro, replay e cross-tenant | ADR-051 §5: detector no reconcile existente, somente leitura, sem decidir destino do dinheiro |
+| D53 — senha permanecia no DOM e podia entrar no snapshot de erro Playwright | artefatos locais removidos, auth storage ausente; helper 3/3 + regressão de login 10/10 | hardening local do login/teste; limpa após captura do submit e após erro, sem novo contrato/ADR nem armazenar/repetir a credencial |
 | Operação acumulada | `test:simulation`: 30 agendamentos, 38 cobranças, 62 webhooks, 3 ticks, ledger R$ 800 e zero órfão/hold/fixture | ADR-049/051; não chamou Asaas/Meta |
 | Entrega do restante 1.6c | unit/integration/contract, `smoke:c14` 8/8, 2.704 testes, migration 0090 | ADR-011 + [ADR-020](adr/020-messaging-provider-patterns.md): mesma C14/Meta, lookup no send-time, sem LLM |
 
@@ -162,14 +173,14 @@ objeto do teste.
 | P6 | **D50 — excedente após baixa manual** — decisão financeira do fundador + ADR-051 complementar | Escolher exatamente um destino: estorno, crédito futuro ou pendência humana. Manter `valorPago ≤ valor`; nunca descartar dinheiro nem aplicar acima do saldo. Se envolver Payments + Financial, separar decisão, movimento no gateway e ledger por eventos | Corrida baixa manual×pagamento do link, pagamento duplicado, retry, excedente integral/parcial, ledger e auditoria; E2E banco+worker | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; D50 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
 | P8 | **Carga e restore em volume** — scratch externo necessário; harness ainda não existe | Provisionar Postgres/app scratch isolado e fornecer `RESTORE_TARGET_URL`; restaurar dump anonimizado. Só então adicionar `autocannon` como dependência de desenvolvimento e `test:load` com guards fail-closed contra Preview/prod/DEV compartilhado, thresholds e cleanup | appointment 500, webhook 1.000, WhatsApp jobs 5.000 com Meta fake, reconcile em lote e outbox saturado; P95/P99/SLO, zero deadlock/race/duplicata. Executar também `restore:test` e validar contagens | §10 Performance; §16 Migração; `restore:test`; R10 em [riscos](architecture/risks.md) |
-| P9 | **Playwright e Product Acceptance** — automação + validação humana | Rodar `pnpm test:e2e` em alvo controlado; depois percorrer secretária, médico, dono e paciente, registrando cliques, clareza, tempo e erro humano. Não classificar smoke DB como UX | `test:e2e` verde no HEAD publicado; checklist por persona; E2E real Asaas/Meta onde aplicável. O estorno PIX/cartão continua pendente até pagamento real controlado | §0.2; §15 Product Acceptance; cenário de aceite do [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7 |
+| P9 | **Playwright e Product Acceptance** — PARTIAL / D53 | Passe local read-only: 5/5 rotas públicas verdes; 3 autenticadas sem aceite (login parado, timeout dinâmico e navegação sem troca de rota). O artefato de falha que reteve a senha foi apagado e o login agora limpa o campo depois que o submit captura os dados e após erro. **Ação manual exclusiva:** rotacionar a credencial descartável e atualizar o secret E2E sem compartilhá-lo. Depois repetir primeiro os 3 casos autenticados, sem trace/vídeo/screenshot; só reabilitar artefatos sanitizados após sucesso. Em seguida rodar a suíte no HEAD publicado e percorrer secretária, médico, dono e paciente | Helper 3/3, regressão focada 10/10 e suíte 2.707/2.707; ainda faltam rerun autenticado, `test:e2e` integral no HEAD publicado, checklist por persona e E2E Asaas/Meta aplicável. Não classificar smoke DB, os 5 públicos ou as três falhas inconclusivas como UX/aceite integral | §0.2; §15 Product Acceptance; cenário de aceite do [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53; [guia E2E](../e2e/README.md) |
 | P10 | **1.S Stabilization** — automático após P1–P9 e decisões | Corrigir somente bugs encontrados; atualizar ADR-049/051, Discovery Log, runbooks, grafos e este mapa; remover dívida criada pela Camada 1. Reexecutar todos os gates, smokes, simulation, E2E e checks de migration. Observar Preview antes do rollout nominal | zero bug alto aberto; suíte/gates 100% verdes; rollback `clinic_deposit_policy.enabled=false` provado; matriz de regressão e rollout por clínica assinados | §0.3 DoD; §18 Rollout; ADR-049 §9 |
 
 ### Testes explicitamente não verdes / não executados
 
 | Teste | Estado atual | Para ficar verde |
 | --- | --- | --- |
-| `pnpm test:e2e` | **NÃO EXECUTADO neste lote** | alvo controlado, HEAD publicado e fixtures seguras |
+| `pnpm test:e2e` | **PARTIAL local: 5 públicos PASS / 3 autenticados sem aceite** | rotacionar credencial descartável; rerun autenticado sem artefatos; depois suíte integral no HEAD publicado com fixtures seguras |
 | `test:load` | **NÃO IMPLEMENTADO / BLOCKED** | scratch isolado + harness `autocannon` de P8 |
 | `pnpm restore:test` em volume | **NÃO EXECUTADO / BLOCKED** | `RESTORE_TARGET_URL` scratch + dump anonimizado |
 | E2E Meta `deposit_link` | **BLOCKED externo** | template aprovado, conexão saudável e destinatário consentido |
@@ -278,6 +289,7 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D50 | Baixa manual pode tornar um link do restante maior que o saldo atual | **mitigado** — aplicação limitada ao saldo, excedente preservado/observável; destino econômico exige decisão do fundador antes do rollout |
 | D51 | Atendimento totalmente coberto por créditos falhava ao criar o recebível `pago` sem `paid_at` | **resolvido no 1.H** — handler grava `paid_at` atomicamente quando o status inicial é `pago`; unitário 13/13 e simulação real de 30 dias verdes |
 | D52 | ADR-051 §5 exige tratar crédito `available` órfão; a simulação terminou sem órfãos, mas não provava estados envelhecidos fora do cenário modelado | **resolvido como detector em `ca94839`** — `financial-reconcile` observa 30d + consulta vencida, agrega terminal/agenda ativa/vínculo ausente e alerta sem mover dinheiro. Route 3/3 + jornada DEV 13/13; operação no runbook |
+| D53 | Snapshot de falha do Playwright podia reter a senha digitada porque o formulário mantinha o campo preenchido durante/depois da tentativa de login | **corrigido em código; operação manual pendente** — artefatos locais foram eliminados e não havia auth storage; o formulário limpa a senha no tick seguinte à captura do submit e após cada novo estado de erro, recolhendo sua visibilidade. Rotacionar a conta descartável, atualizar somente o secret E2E e repetir os 3 cenários autenticados sem artefatos antes de reabilitar captura sanitizada |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -324,9 +336,11 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 ### Próximo passo
 
 Seguir os itens ainda abertos de **P0 → P10**. Imediatamente: observar na Vercel o deployment terminal
-do `ca94839` (P0) quando houver sessão/CLI autenticada e executar Playwright/Product Acceptance
-automatizável de P9 em alvo controlado. O detector P7 já está verde; P8 continua bloqueado até existir
-scratch isolado. Em paralelo, o fundador resolve apenas as entradas manuais P1–P6/P8. Não reativar
+do HEAD (P0) quando houver sessão/CLI autenticada. Para P9, o fundador primeiro rotaciona a credencial
+descartável que apareceu em artefato local e atualiza o secret sem compartilhá-lo; então a automação
+repete os três cenários autenticados sem trace/vídeo/screenshot, isola qualquer falha restante e roda a
+suíte integral no HEAD publicado. O detector P7 já está verde; P8 continua bloqueado até existir scratch
+isolado. Em paralelo, o fundador resolve apenas as entradas manuais P1–P6/P8 e a rotação D53. Não reativar
 webhook global antigo antes de alinhar ambiente, chave e token; não enviar WhatsApp real sem template
 aprovado, destinatário controlado, consentimento e autorização explícita.
 
@@ -568,9 +582,11 @@ duplicata, órfão ou hold preso e confirmou cleanup com resíduo zero. Não hou
 ## 15. Gate — Product Acceptance
 Percorrer a jornada como **secretária·médico·dono·paciente**: nº de cliques · clareza · tempo · chance de erro humano. *(Usabilidade real exige usuário real → confirmada na piloto da Fase 2 do rollout §18.)*
 
-**Estado atual:** `NÃO EXECUTADO` (P9). Registrar uma linha por persona com cenário, conta/tenant
-controlado, resultado, tempo, erro observado e evidência; separar falha de produto, código, ambiente e
-provedor. A pessoa paciente inclui recebimento/abertura dos links Meta reais quando P1 estiver liberado.
+**Estado atual:** `PARTIAL` (P9). A automação pública local passou 5/5; três cenários autenticados não
+produziram aceite e precisam de rerun após a rotação D53. A validação humana por persona continua
+`NÃO EXECUTADA`. Registrar uma linha por persona com cenário, conta/tenant controlado, resultado, tempo,
+erro observado e evidência; separar falha de produto, código, ambiente e provedor. A pessoa paciente
+inclui recebimento/abertura dos links Meta reais quando P1 estiver liberado.
 
 ## 16. Gate — Migração
 Validar em **vazio · populado (`seed:dev`) · volume (restore anonimizado)**, com **Up→Down→Up** + consistência. Reusa `check:migrations`, `db:backup:prod`, `restore:test`.

@@ -19,7 +19,7 @@ Depois dele, leia:
 
 | Arquivo | Para quê |
 | --- | --- |
-| `docs/discovery-log.md` | os achados D1–D52, com destino e status |
+| `docs/discovery-log.md` | os achados D1–D53, com destino e status |
 | `docs/adr/049-pagamentos-paciente-sinal.md` | arquitetura do sinal anti-no-show |
 | `docs/adr/050-identidade-de-pagamento-do-paciente.md` | PII mínima que vai para o Asaas |
 | `docs/adr/051-conciliacao-sinal-e-recebivel.md` | **as 4 invariantes financeiras**, na §2.1 |
@@ -76,7 +76,7 @@ pnpm check:migrations && pnpm check:registry:strict && pnpm check:observability
 pnpm payments:live-check   # sandbox real do Asaas; rode antes de qualquer release de pagamento
 ```
 
-Baseline verificada em 27/08 (confira de novo após qualquer mudança): **2704 testes**, build exit 0,
+Baseline verificada em 28/08 (confira de novo após qualquer mudança): **2707 testes**, build exit 0,
 0 ciclos, 18 crons.
 `pnpm format:check` está **vermelho na baseline** (131 arquivos pré-existentes, D9) — não é regressão
 sua, mas **formate os arquivos que você tocar**.
@@ -183,10 +183,18 @@ Resolva também, dentro do 1.H:
   mover dinheiro. Unit 3/3 e jornada DEV 13/13 provaram terminal, agenda vencida, consulta futura
   excluída, replay, cross-tenant e cleanup zero. O desfecho econômico continua manual até regra
   aprovada.
+- **P9 PARTIAL / D53** — o passe Playwright local read-only teve 5/5 cenários públicos verdes e 3
+  autenticados sem aceite conclusivo. Um snapshot de erro reteve a senha que permanecia no DOM; o
+  artefato foi apagado, não havia auth storage e o login agora limpa o campo após a captura do submit e
+  após erro, recolhendo sua visibilidade (helper 3/3; regressão focada 10/10; suíte 2.707/2.707).
+  **Antes do rerun:** o fundador rotaciona a conta
+  descartável e atualiza somente o secret E2E, sem compartilhar o valor. Repetir os 3 casos sem
+  trace/vídeo/screenshot; só depois executar a suíte integral no HEAD publicado e Product Acceptance.
 
 O `qorov2.md` agora contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite.
-Ações exclusivamente do fundador: templates/destinatário Meta, rotação da chave exposta, decisões
-D24/D27/D50 e provisionamento do scratch `RESTORE_TARGET_URL`. Testes ainda não verdes: `test:e2e`,
+Ações exclusivamente do fundador: templates/destinatário Meta, rotação da chave exposta, rotação da
+credencial descartável D53, decisões D24/D27/D50 e provisionamento do scratch `RESTORE_TARGET_URL`.
+Testes ainda não verdes: rerun autenticado/`test:e2e` integral,
 `test:load`, `restore:test` em volume, E2E Meta sinal/restante, `PAYMENT_RESTORED`, estorno real
 PIX/cartão e Product Acceptance.
 

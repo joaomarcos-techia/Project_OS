@@ -30,7 +30,10 @@ pnpm test:e2e
 ```
 
 Os artefatos de falha (trace, vídeo e relatório) são locais e ficam ignorados
-no Git.
+no Git, mas podem registrar o DOM e os valores digitados. Use somente credenciais
+descartáveis. Depois de uma falha de autenticação, mantenha `E2E_ARTIFACTS=0`,
+remova os artefatos gerados e rotacione a credencial antes de repetir. Nunca
+publique, anexe ou abra trace/relatório autenticado sem sanitização.
 
 Para uma auditoria autenticada ampla contra ambiente remoto, reutilize uma única
 sessão. Assim cada spec não consome uma nova tentativa de login nem aciona o

@@ -1,7 +1,7 @@
 'use client';
 
 import { Eye, EyeOff } from 'lucide-react';
-import { Suspense, useActionState, useState } from 'react';
+import { Suspense, useActionState, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { Alert } from '@/components/ui/alert';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/shared/logo';
 import { AuthScreenSkeleton } from '@/components/shared/auth-screen-skeleton';
 import { loginAction, type LoginActionState } from './actions';
+import { clearPasswordField, clearPasswordFieldAfterSubmit } from './clear-password-field';
 import { ForgotPasswordForm } from './forgot-password-form';
 
 const INITIAL: LoginActionState = { error: null };
@@ -36,6 +37,18 @@ function LoginScreen() {
   const reason = params.get('reason');
   const [state, formAction, pending] = useActionState(loginAction, INITIAL);
   const [showPw, setShowPw] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (!state.error) return;
+    clearPasswordField(formRef.current);
+    setShowPw(false);
+  }, [state]);
+
+  const handleSubmit = () => {
+    clearPasswordFieldAfterSubmit(formRef.current);
+    setShowPw(false);
+  };
 
   return (
     <main className="grid min-h-screen bg-surface lg:grid-cols-2">
@@ -61,7 +74,12 @@ function LoginScreen() {
               </Alert>
             ) : null}
 
-            <form action={formAction} className="mt-6 flex flex-col gap-4">
+            <form
+              ref={formRef}
+              action={formAction}
+              onSubmit={handleSubmit}
+              className="mt-6 flex flex-col gap-4"
+            >
               <Field label="Email" htmlFor="email">
                 <Input
                   id="email"
