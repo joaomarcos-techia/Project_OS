@@ -417,11 +417,44 @@ SELECT valor, valor_pago, status FROM lancamentos WHERE appointment_id = '<uuid>
 `retained` é a taxa de no-show do ponto de vista financeiro. Na `patient_charges` a retenção continua
 **derivada** (`paid` + agendamento morto) — os dois não se contradizem: são objetos diferentes.
 
-**Crédito `available` órfão** (atendimento que nunca concluiu nem morreu) é o estado a vigiar:
+**Crédito `available` órfão** é vigiado pelo `/api/cron/financial-reconcile`. O detector considera
+somente créditos com 30+ dias quando a consulta já passou ou o vínculo está ausente; uma consulta
+futura não alerta só porque o sinal foi pago cedo.
 
 ```sql
-SELECT * FROM patient_credits WHERE status = 'available' AND granted_at < now() - interval '30 days';
+SELECT
+  c.id,
+  c.clinic_id,
+  c.appointment_id,
+  c.kind,
+  c.amount,
+  c.granted_at,
+  a.status AS appointment_status,
+  a.scheduled_at
+FROM patient_credits c
+LEFT JOIN appointments a ON a.id = c.appointment_id
+WHERE c.status = 'available'
+  AND c.granted_at < now() - interval '30 days'
+  AND (a.id IS NULL OR a.scheduled_at < now())
+ORDER BY c.granted_at;
 ```
+
+Observabilidade:
+
+- `financial.reconcile.run` sempre inclui `orphanCredits` e `orphanClinics`;
+- quando existe ao menos um caso, `financial.reconcile.orphan_credit_detected` separa `terminal`,
+  `staleActive` e `missingAppointment`, sem registrar paciente, telefone ou link de pagamento;
+- o scan é somente leitura e idempotente. Replay não cria pendência, evento, baixa ou estorno.
+
+Ao encontrar um caso:
+
+1. em `terminal`, verifique a cadeia do outbox e o estado autoritativo da cobrança; evento perdido pode
+   ter impedido `refunded`/`retained`/`allocated`;
+2. em `staleActive`, corrija o desfecho pela máquina de estados do Scheduling — nunca por `UPDATE`
+   direto;
+3. em `missingAppointment`, trate como incidente de integridade e preserve a linha financeira;
+4. não altere `patient_credits` manualmente e não escolha entre estorno/retenção/alocação sem a regra
+   econômica aprovada. O detector D52 torna o caso visível; não decide o dinheiro.
 
 ## Verificar a integração de verdade
 

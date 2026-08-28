@@ -19,7 +19,7 @@ Depois dele, leia:
 
 | Arquivo | Para quê |
 | --- | --- |
-| `docs/discovery-log.md` | os 35 achados (D1–D35), com destino e status |
+| `docs/discovery-log.md` | os achados D1–D52, com destino e status |
 | `docs/adr/049-pagamentos-paciente-sinal.md` | arquitetura do sinal anti-no-show |
 | `docs/adr/050-identidade-de-pagamento-do-paciente.md` | PII mínima que vai para o Asaas |
 | `docs/adr/051-conciliacao-sinal-e-recebivel.md` | **as 4 invariantes financeiras**, na §2.1 |
@@ -76,7 +76,7 @@ pnpm check:migrations && pnpm check:registry:strict && pnpm check:observability
 pnpm payments:live-check   # sandbox real do Asaas; rode antes de qualquer release de pagamento
 ```
 
-Baseline verificada em 27/08 (confira de novo após qualquer mudança): **2702 testes**, build exit 0,
+Baseline verificada em 27/08 (confira de novo após qualquer mudança): **2704 testes**, build exit 0,
 0 ciclos, 18 crons.
 `pnpm format:check` está **vermelho na baseline** (131 arquivos pré-existentes, D9) — não é regressão
 sua, mas **formate os arquivos que você tocar**.
@@ -123,7 +123,7 @@ próprio configurado por `META_TEMPLATE_REMAINDER_LINK_ID`; e `suppressionPurpos
 único `billing`. Cron próprio registrado no `vercel.json`; nenhuma fila, integração Meta, evento ou
 caminho de LLM paralelo foi criado.
 
-Evidência: 2.702 testes/296 arquivos, integração controlada do evento até o seam de envio, regressão
+Evidência: 2.704 testes/296 arquivos, integração controlada do evento até o seam de envio, regressão
 do `deposit_link`, `smoke:c14` 8/8, migration validada em modelo vazio e banco populado com rollback,
 depois aplicada e verificada em dev e produção com backup/lock, todos os gates técnicos verdes e
 Preview do commit `3035383` concluído com sucesso na Vercel. A conexão Meta da Clínica A também foi
@@ -153,7 +153,7 @@ Resolva também, dentro do 1.H:
 - **RLS/concorrência financeira ✅** — `pnpm smoke:payments-financial` passou **10/10** no DEV:
   isolamento de `patient_credits`, ledger sem DELETE, grant/alocação/liberação concorrentes,
   sobrealocação bloqueada e cleanup zero.
-- **Jornada controlada ✅** — `pnpm smoke:payments-journey` passou **12/12** com banco e worker reais,
+- **Jornada controlada ✅** — `pnpm smoke:payments-journey` passou **13/13** com banco e worker reais,
   sem Asaas/Meta. A=falta retida; B=restante conciliado e recebível pago; C=estorno projetado;
   D=pagamento×hold expirado sem ressuscitar a vaga ou duplicar crédito. Também provou uma única
   cobrança/link do restante sob concorrência, bloqueio da conciliação A→B e timeout real de banco
@@ -172,15 +172,17 @@ Resolva também, dentro do 1.H:
 - **Matriz focada ✅ 138/138** — POST perdido/retry, send-time obsoleto, pagamento tardio,
   reagendamento, Asaas fora e Meta fora/backoff estão verdes em unit/integration. Não chamar isso de
   E2E externo.
-- **Matriz DB ✅ 12/12 + POST recovery ✅ + simulação ✅** — corrida pagamento×expiração, restante
+- **Matriz DB ✅ 13/13 + POST recovery ✅ + simulação ✅** — corrida pagamento×expiração, restante
   concorrente, cross-tenant, timeout/retry e 30 dias acumulados no banco real foram fechados. O
   `pnpm smoke:payments-post-recovery` provou 1 POST aceito com resposta perdida, recuperação por GET,
   uma única cobrança/eventos e cleanup zero usando provedor local. Resta o gate de carga, bloqueado
   até existir ambiente scratch isolado (`RESTORE_TARGET_URL`; nunca Preview/prod/DEV
   compartilhado).
-- **D52 🟡** — o ADR-051 §5 exige tratar crédito `available` envelhecido. A simulação terminou sem
-  órfãos, mas ainda falta auditar todos os terminais e provar/implementar detector idempotente no
-  Financial; não mova dinheiro automaticamente sem regra aprovada.
+- **D52 ✅ detector** — `ca94839` integrou ao `financial-reconcile` um scan somente leitura para
+  crédito `available` com 30+ dias e consulta já vencida/vínculo ausente. Emite métrica/heartbeat sem
+  mover dinheiro. Unit 3/3 e jornada DEV 13/13 provaram terminal, agenda vencida, consulta futura
+  excluída, replay, cross-tenant e cleanup zero. O desfecho econômico continua manual até regra
+  aprovada.
 
 O `qorov2.md` agora contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite.
 Ações exclusivamente do fundador: templates/destinatário Meta, rotação da chave exposta, decisões
@@ -253,11 +255,13 @@ NPS · modalidade online · convênio/TISS · NFS-e (via parceiro) · psicologia
 
 ## 9. Estado do repositório
 
-Branch **`feat/qorov2-pagamentos`**. Hardening recente: `c480e44`, `88e7a4a` e `079f3f0`; os dois
-últimos ainda precisam de push/Preview (P0). O worktree contém somente `financeiro.md` não rastreado
-do usuário, além da consolidação documental corrente até ela ser commitada. Nunca inclua
-`financeiro.md`. O fundador já autorizou push/deploy desta branch; ainda assim, confirme HEAD remoto e
-deployment terminal em vez de inferir publicação pelo commit local.
+Branch **`feat/qorov2-pagamentos`**. Hardening recente: `c480e44`, `88e7a4a`, `079f3f0`, `01a7b5f`
+e `ca94839`. `git push` + `git ls-remote` confirmaram o commit de runtime `ca94839` no remoto antes
+deste fechamento documental; o alias Preview responde pela proteção Vercel, mas o SHA implantado permanece **BLOCKED de observação** sem
+sessão/CLI autenticada. O worktree contém somente `financeiro.md` não rastreado do usuário, além da
+consolidação documental corrente até ela ser commitada. Nunca inclua `financeiro.md`. O fundador já
+autorizou push/deploy desta branch; ainda assim, confirme deployment terminal em vez de inferir
+publicação pela existência do commit remoto.
 
 ## 10. Ao terminar cada sub-fase, responda neste formato
 

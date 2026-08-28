@@ -247,11 +247,16 @@ assume "50/50" nem "uma cobrança". Falta e cancelamento ficam triviais: o créd
 intermediário (crédito não alocado) que hoje não existe.
 
 **Risco residual:** crédito `available` órfão — sinal pago cujo agendamento nunca chega a `atendido`
-nem a `faltou`/`cancelado`. Precisa de varredura de conciliação no `1.H`.
+nem a `faltou`/`cancelado`. A detecção faz parte da conciliação; o destino econômico não pode ser
+inferido sem o estado autoritativo do pagamento e uma regra aprovada.
 
-**Estado em 2026-08-27:** a simulação de 30 dias terminou sem órfãos nos caminhos modelados, mas não
-existe evidência de detector para créditos envelhecidos fora do cenário. O risco permanece aberto como
-**D52/P7**; zero órfão numa simulação não substitui reconciliação operacional.
+**Estado em 2026-08-27 — D52/P7 detectado:** `ca94839` integrou ao `financial-reconcile` um scan
+cross-tenant somente leitura. Ele considera crédito com 30+ dias somente quando a consulta já venceu
+ou o vínculo está ausente, agrega por clínica/status e emite
+`financial.reconcile.orphan_credit_detected` + contagens no heartbeat. Não aloca, libera, retém nem
+estorna. Unit 3/3 e `smoke:payments-journey` 13/13 provaram terminal, agenda vencida, consulta futura
+excluída, replay idêntico, dois tenants e zero mutação/fixture. A resposta operacional está no runbook;
+automatizar o desfecho ainda exigiria regra/ADR complementar.
 
 ## 6. Plano de execução (contexts verificados)
 
@@ -265,7 +270,7 @@ existe evidência de detector para créditos envelhecidos fora do cenário. O ri
 | **1.5b.3a** ✅ | `financial` | seam `getAppointmentBalance` — o saldo é do Financial, não conta do Payments (**D34**) |
 | **1.5b.3b** ✅ | `payments` + `scheduling` | read-model de concluídos + `createRemainderCharge` + varredura no cron `payments-deposit` |
 | **1.5b.4** | — | **absorvida pela 1.5b.1**: o crédito do restante é alocado direto ao lançamento já existente — mesmo mecanismo, estado diferente do recebível |
-| **E2E financeiro** ✅ | `payments` + `financial` + `scheduling` por eventos | `smoke:payments-journey` 12/12: ramos A/B/C, concorrência, timeout/retry e isolamento; `test:simulation` validou 30 dias. A borda Meta real permanece fora desta evidência |
+| **E2E financeiro** ✅ | `payments` + `financial` + `scheduling` por eventos | `smoke:payments-journey` 13/13: ramos A/B/C, concorrência, timeout/retry, isolamento e detector D52; `test:simulation` validou 30 dias. A borda Meta real permanece fora desta evidência |
 
 Nenhuma sub-fase passa de **2 contexts**, e a 1.5b.2 é de **1** — o §0.6 volta a ser respeitado, que
 era metade do bloqueio do D19.
