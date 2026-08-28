@@ -220,12 +220,12 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | Track O — onboarding self-serve | Estado não foi revalidado neste lote de pagamentos. Antes de executar O-1/O-2/O-3/O-4, fazer auditoria própria, ADR/scope freeze e gates `O.H`/`O.S`; não é permissão para misturar onboarding em 1.H |
 | Camadas 2–4 | Permanecem congeladas até `1.H ✅ + 1.S ✅`. A ordem continua: recibo → spike Memed → integração/template/recuperação → P2/P3, cada uma com `.H/.S` |
 
-### Dependências externas — validação comportamental (atualizado em 2026-08-27)
+### Dependências externas — validação comportamental (atualizado em 2026-08-28)
 
 | # | O quê | Estado |
 | --- | --- | --- |
 | E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **BLOCKED parcial** — a conexão Meta da Clínica A foi concluída no Preview em 27/08; ainda falta confirmar o template do sinal no ambiente publicado e um destinatário controlado com consentimento. O número conectado à Meta é o remetente, não o destinatário |
-| E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **Código PASS / comportamento externo ainda FAIL-BLOCKED** — D54/D55 corrigiram restauração por CAS e `200 + deleted:true`, com 73/73 e suíte/gates verdes. O webhook segue interrompido/token divergente (D36/D46). Alinhar e exigir o round-trip real; HTTP 200 isolado não basta |
+| E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **Código PASS / comportamento externo ainda FAIL-BLOCKED** — D54/D55 corrigiram restauração por CAS e `200 + deleted:true`, com 73/73 e suíte/gates verdes. Reteste após `a01299e`: POST vazio com bypass atravessou a proteção do Preview e recebeu `401 invalid token` da rota, sem escrever no banco. O D46 persiste: alinhar `ASAAS_WEBHOOK_TOKEN` no Preview, redeployar e então exigir o round-trip real; HTTP 200 isolado não basta |
 | E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS comportamental para o webhook de paciente** — webhook ativo na rota Preview; `0089` aplicada. Além do contrato e da validação RLS, uma cobrança criada pelo Qoro recebeu `PAYMENT_RECEIVED` real do sandbox, gravou dedup/crédito uma vez e projetou agenda `Confirmado` + `Sinal pago`. Isso não valida o webhook global de assinatura (E2) nem a entrega Meta (E1/E5) |
 | E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | **PENDENTE** — a chave foi exposta novamente em 2026-08-26. Ela responde `GET /myAccount` e passou `pnpm payments:live-check` (**12/12**, limpeza ok, 1 caso PIX/cartão declarado não verificável), mas deve ser revogada e substituída depois do diagnóstico |
 | E5 | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **BLOCKED externo** — código, catálogo, builder, cron, integração controlada, deploy Preview e conexão Meta da Clínica A estão verdes; o template segue em análise e falta confirmar destinatário controlado com consentimento de cobrança. O E2E real Meta da 1.6c não foi simulado nem marcado como verde |
@@ -310,7 +310,7 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
 | D45 | Reconexão ainda repetia `POST /webhooks` para uma rota já cadastrada | **resolvido em código e provado com `assaasapi`** — reprodução controlada confirmou `HTTP 400 invalid_object` com “já existe uma configuração para os eventos com os mesmos atributos”. O adapter agora lista, identifica a mesma origem+rota sem depender da query de bypass e converge por `PUT`, inclusive sob corrida GET→POST. O live check criou e reconfigurou o mesmo ID sem duplicar |
-| D46 | Token do webhook global diverge entre local e Preview | **bloqueante externo confirmado** — `POST {}` com bypass chegou à rota `/api/webhooks/asaas`, mas recebeu `401 invalid token`; como a rejeição ocorre antes do parse e do banco, o probe não criou eventos nem alterou estado. Alinhar `ASAAS_WEBHOOK_TOKEN` no escopo Preview e refazer deploy antes de reconfigurar o webhook sandbox de assinatura |
+| D46 | Token do webhook global diverge entre local e Preview | **bloqueante externo reconfirmado após `a01299e`** — `POST {}` com bypass chegou à rota `/api/webhooks/asaas`, mas recebeu `401 invalid token`; como a rejeição ocorre antes do parse e do banco, o probe não criou eventos nem alterou estado. Não há sessão/token Vercel disponível nesta máquina para mudar o secret remotamente. Alinhar `ASAAS_WEBHOOK_TOKEN` no escopo Preview e refazer deploy antes de reconfigurar o webhook sandbox de assinatura |
 | D47 | `patient_webhook_events` era somente leitura para a role real do webhook | **resolvido e provado no Preview** — a `0086` dizia “service_role-only”, mas `markDepositPaid()` usa `withTenant`, que faz `SET LOCAL ROLE authenticated`. A `0089` adicionou somente `INSERT` + policy tenant-scoped e manteve `UPDATE`/`DELETE` revogados. Validação conectada com rollback passou; deploy `ed83c90` passou; E2E controlado devolveu `unknown_charge` e replay `ignored`, com dedup exatamente 1 e limpeza 0 resíduos. No E2E real, `PAYMENT_RECEIVED` gravou dedup e moveu a cobrança para `paid` sem erro de permissão |
 | D48 | Webhook habilitado continuava sem entregar após os 401/500 anteriores | **resolvido operacionalmente no sandbox e causa comprovada** — `enabled=true` e `interrupted=false` não removem a penalização de entrega. `POST /webhooks/{id}/removeBackoff` devolveu 204; em seguida o Asaas entregou os eventos pendentes e a cobrança criada pelo Qoro foi conciliada. O webhook permanece apontando para o Preview, com bypass, token próprio e `PAYMENT_RECEIVED` habilitado |
 
@@ -757,6 +757,12 @@ aplica `paid`/`overdue` depois da reabertura. O D55 também foi fechado: remoç�
 `200 + deleted:true` é tratada como `{ exists:false }`, sem confiar no status antigo.
 
 Código: 73/73 focados, suíte integral, build e gates verdes. Falta a prova externa:
+
+Reteste de 28/08 após `a01299e`: o POST vazio com bypass chegou à rota do Qoro, mas o token carregado
+no ambiente local recebeu `401 invalid token`. Nenhuma cobrança foi criada e nenhuma linha foi escrita.
+O próximo passo é exclusivamente operacional: tornar `ASAAS_WEBHOOK_TOKEN` do Preview igual ao token
+que será configurado no webhook sandbox e refazer o deploy. Depois disso, a execução abaixo pode ser
+automatizada sem o fundador operar o painel.
 
 1. escolher **um** ambiente controlado e seu banco correspondente; usar alias estável;
 2. alinhar o `ASAAS_WEBHOOK_TOKEN` do runtime com o `authToken` do webhook da conta Asaas do Qoro;
