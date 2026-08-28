@@ -262,9 +262,14 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
     sem ter devolvido seria pior que não devolver (**D24**).
   - **Decisão de produto D24 em 2026-08-28:** sinal e restante serão oferecidos somente por **PIX e
     cartão**. `billingType: UNDEFINED` não cumpre essa regra, e `POST /payments` não aceita dois
-    tipos simultâneos. A implementação continua pendente de um spike/recorte do Checkout Asaas com
-    `billingTypes: ["PIX", "CREDIT_CARD"]`, preservando webhook, idempotência, hold, restante e
-    lookup no send-time. Desabilitar boleto manualmente na conta não será a trava do produto.
+    tipos simultâneos. O spike sandbox confirmou Checkout `DETACHED` com
+    `billingTypes: ["PIX", "CREDIT_CARD"]`, link hospedado e cancelamento. Também confirmou que
+    `externalReference` **não é trava de unicidade**: duas chamadas criaram dois IDs; consulta por ID
+    e listagem por referência não estão expostas no contrato público testado. O webhook documentado
+    identifica `checkout.id`, enquanto o runtime atual depende de `payment.id`. Portanto a execução
+    foi separada em D24a intenção/lease, D24b identidade+webhook e D24c troca de sinal/restante. O
+    E2E sandbox pago deve provar a correlação Checkout→Payment antes do rollout. Desabilitar boleto
+    manualmente na conta não será a trava do produto (D57).
 - **Corrigido no caminho:** a varredura de expiração (1.3) cancelava o agendamento mas **nunca fechava
   `patient_charges`** — a linha ficava `pending` para sempre e o link seguia pagável (**D22**). E
   `tryConfigureWebhook` montava a URL por template string: `APP_BASE_URL` com barra no fim gerava
