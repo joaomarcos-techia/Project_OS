@@ -62,6 +62,16 @@ condicional e o stack coincide com o bug oficial do App Router em Server Compone
 [PR #95368](https://github.com/vercel/next.js/pull/95368)). O projeto está em React 19.2.6; sem sessão de
 navegador disponível e sem recorrência observada, fica como **D60 monitorado**, fora do lote financeiro.
 
+**P8 carga concluído em 29/08:** `pnpm test:load` usa o build real e um PostgreSQL 17 TLS efêmero,
+criado fora do workspace. O DEV fornece somente o schema por `pg_dump --schema-only`; todos os dados e
+escritas são sintéticos e locais. Guardas exigem `LOAD_TEST_CONFIRM=LOCAL_SCRATCH_ONLY`, recusam
+Preview/produção/DEV compartilhado e bloqueiam qualquer HTTP externo; somente a chamada Meta é
+substituída por provider falso auditável. O ensaio passou com 500 consultas, 5.000 jobs C14, 1.000
+webhooks assinados, 5.000 eventos de outbox, reconcile concorrente, 100 amostras SQL, zero duplicata,
+retry, falha ou deadlock e cleanup integral. Durante o ensaio, **D61** revelou que um `timestamptz` de
+query SQL crua podia chegar como string PostgreSQL e ser rejeitado pelo payload Zod do job; a fronteira
+agora normaliza `Date|string` para ISO e possui regressão direta.
+
 O hardening D53 está em `281cd9c`: remove a senha do DOM depois que o submit captura os dados e após
 erro, recolhe sua visibilidade e documenta o tratamento seguro de artefatos E2E. Lint, typecheck,
 2.707 testes, build e gates arquiteturais/operacionais passaram; não houve migration nem mudança de
@@ -105,7 +115,7 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore isolado ✅ · D54/D55 código ✅ 73/73 · Playwright Preview read-only ✅ 8/8 · D24/D27/D50 código + regressão + DEV/PROD ✅ · carga, Product Acceptance e externos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 código ✅ 73/73 · Playwright Preview read-only ✅ 8/8 · D24/D27/D50 código + regressão + DEV/PROD ✅ · Product Acceptance e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -119,18 +129,18 @@ abaixo e as dependências externas. Portanto o aceite integral da camada continu
 
 ### Gates — resultado REAL da última execução completa
 
-Executados novamente em 2026-08-29 sobre o worktree D24/D58/D50/D27. A migration 0092 foi autorizada e
-aplicada em DEV; o smoke conectado passou 5/5 e removeu todas as fixtures. `0091` + `0092` foram
-aplicadas/verificadas em produção, e os gates integrais abaixo foram repetidos depois da operação.
+Executados novamente em 2026-08-29 sobre o worktree P8/D61. As migrations `0091` + `0092` já estavam
+aplicadas/verificadas em DEV e produção; o novo lote acrescentou somente o harness scratch e a
+normalização de timestamp do reminder. Os gates integrais abaixo foram repetidos depois da carga.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2790** (307 arquivos), incluindo D24/D58, D50, D27, 1.6c e regressão integral |
+| Testes | `pnpm test` | ✅ **2797** (309 arquivos), incluindo P8 guards, D61, D24/D58, D50, D27, 1.6c e regressão integral |
 | Build | `pnpm build` | ✅ exit 0 |
-| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1041 arquivos) |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1108 arquivos) |
+| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1044 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1114 arquivos) |
 | Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
 | Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 67 ⇔ registry 25; 42 producer-ahead |
@@ -143,6 +153,7 @@ aplicadas/verificadas em produção, e os gates integrais abaixo foram repetidos
 | Matriz focada de ciclo de vida | `pnpm vitest run <7 arquivos>` | ✅ 138/138: POST perdido, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta |
 | Webhook de assinatura D54/D55 | `pnpm vitest run <4 arquivos>` | ✅ 73/73: `deleted:true`, restore, pago fora de ordem, CAS e replay |
 | Restore isolado | `pnpm restore:test backups/prod-pre-migration-2026-08-27T04-49-51.sql` | ✅ PostgreSQL local descartável na porta 55439: 117 tabelas, 83 policies, âncoras 3/41/48/1095; servidor parado e diretório removido após a prova |
+| Carga P8 scratch-only | `LOAD_TEST_CONFIRM=LOCAL_SCRATCH_ONLY pnpm test:load` após `pnpm build` | ✅ 500 consultas; C14 5.000/5.000, P99 2,35s; webhook 1.000/1.000 `2xx`, P99 235,73ms; outbox 5.000 uma vez, P99 1,47s; reconcile 20/20, P99 36,14ms; SQL P99 3,18ms; zero deadlock/duplicata/retry/falha; PostgreSQL parado e temp removido |
 | Playwright Preview somente leitura | 2 specs, 8 cenários, `E2E_AUTH_REUSE=1`, `E2E_MUTATION=0` | ✅ **8/8** com uma autenticação: 5 fronteiras públicas, 25 rotas estáticas HTTP 200, paciente dinâmico visitado, conversas vazias aceitas e navegação principal; estado autenticado e artefatos temporários removidos |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 reexecutados em 2026-08-28, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | Checkout/gerações DB | `pnpm smoke:payments-checkout-db` | ✅ 5/5 em DEV: RLS/grants, claim idempotente, dívida única, cross-tenant, ativação/send-time; cleanup zero |
@@ -228,7 +239,7 @@ objeto do teste.
 | P5 | **D27 — chargeback e dinheiro desfeito** — código + ADR + DEV/PROD ✅; externo parcial | Payments normaliza o objeto autoritativo de chargeback; Financial bloqueia crédito em disputa, libera no ganho e, na perda, cria ajuste append-only + refund ligado à baixa original, reabrindo somente o saldo. Agenda/prontuário não mudam e nenhum novo link nasce automaticamente | **PASS:** classificação, monotonicidade, replay, out-of-order, perda alocada/não alocada, linha histórica ambígua, handlers, webhook, migration `0092` DEV+PROD, smoke 5/5 e pós-verificação 7/7. **Pendente:** chargeback sandbox real controlado | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); §20.2 |
 | P6 | **D50 — excedente após baixa manual** — código + DEV/PROD ✅; sandbox pendente | `patient_refund_intents` nasce antes do POST; envia exatamente `unappliedAmount`; timeout posterior fica `confirmation_pending` e só read-back/webhook confirma. O Financial registra somente a parte não alocada e mantém pendência humana em recusa | **PASS:** valor exato, 4xx, timeout sem POST duplicado, read-back, recusa, replay, webhook, reconcile, handlers, migration `0092` DEV+PROD, smoke 5/5 e pós-verificação 7/7. **Pendente:** estorno real requer Checkout pago após reCAPTCHA | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estorno Asaas](https://docs.asaas.com/reference/estornar-cobranca); D50; §20.3 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
-| P8 | **Carga e restore em volume** — restore ✅; harness de carga pendente | Em 28/08 foi criado um PostgreSQL local isolado, restaurado o dump real, validada a integridade e destruído o alvo. Falta implementar `test:load` com app scratch, provider Meta fake, confirmação explícita e guards fail-closed contra Preview/prod/DEV compartilhado | **Restore PASS:** 117 tabelas, 83 policies; âncoras clinics=3, patients=41, appointments=48, audit_events=1095; zero resíduo local. **Carga pendente:** appointment 500, webhook 1.000, WhatsApp jobs 5.000, reconcile/outbox; P95/P99, deadlock/race/dedup | §10 Performance; §16 Migração; `restore:test`; R10 em [riscos](architecture/risks.md) |
+| P8 | ✅ **Carga e restore em volume** | Restore real e carga usam PostgreSQL 17 local descartável. `test:load` extrai somente o schema DEV, sobe app real no scratch TLS, substitui Meta antes da rede, bloqueia demais HTTP externos e exige confirmação/guards fail-closed. Nenhuma escrita foi feita em DEV, Preview ou produção | **PASS:** restore 117 tabelas/83 policies e zero resíduo; carga 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile 20 chamadas e 100 queries. Todos os SLOs verdes, zero deadlock/duplicata/retry/falha e cleanup integral | §10 Performance; §16 Migração; `test:load`; `restore:test`; D61; R10 em [riscos](architecture/risks.md) |
 | P9 | **Playwright automatizado ✅ / Product Acceptance humano pendente** — D53+D56 | No Preview, os 8 casos read-only passaram com uma única sessão: 5 fronteiras públicas, 25 rotas estáticas, rotas dinâmicas existentes e navegação principal. O contrato foi alinhado ao redirect canônico de Configurações e à categoria Produto. Auth state e artefatos temporários foram removidos após o passe. Falta somente percorrer secretária, médico, dono e paciente como aceite de produto | Helper 3/3, regressão focada 10/10, suíte 2.717/2.717 e Playwright Preview 8/8. Os E2E mutáveis/externos aplicáveis permanecem nos itens próprios; não executar a matriz destrutiva inteira contra Preview | §0.2; §15 Product Acceptance; cenário de aceite do [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56; [guia E2E](../e2e/README.md) |
 | P10 | **1.S Stabilization** — automático após P1–P9 e decisões | Corrigir somente bugs encontrados; atualizar ADR-049/051, Discovery Log, runbooks, grafos e este mapa; remover dívida criada pela Camada 1. Reexecutar todos os gates, smokes, simulation, E2E e checks de migration. Observar Preview antes do rollout nominal | zero bug alto aberto; suíte/gates 100% verdes; rollback `clinic_deposit_policy.enabled=false` provado; matriz de regressão e rollout por clínica assinados | §0.3 DoD; §18 Rollout; ADR-049 §9 |
 
@@ -237,7 +248,7 @@ objeto do teste.
 | Teste | Estado atual | Para ficar verde |
 | --- | --- | --- |
 | Playwright read-only (2 specs) | ✅ **PASS Preview `8052de3`: 8/8 com sessão única em 2,2 min** | repetir no novo HEAD publicado quando houver mudança de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
-| `test:load` | **NÃO IMPLEMENTADO** | app/banco scratch isolados + harness `autocannon` guardado de P8; o restore do banco já foi provado |
+| `test:load` | ✅ **PASS local scratch-only em 29/08** | repetir após mudança relevante em C14, webhook, outbox/reconcile, schema ou SLO; exige build atual, PostgreSQL 17 local e confirmação exata |
 | `pnpm restore:test` em volume | ✅ **PASS em scratch local descartável** | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido |
 | Checkout Asaas PIX + cartão (D24) | 🟡 **PASS contrato/DOM; pagamento BLOCKED por reCAPTCHA externo** | `payments:checkout-e2e` cria o Checkout, valida a UI e preenche PIX/cartão com dados sintéticos; em headless, o Asaas devolveu `success=false` e `recaptchaV2Enabled=true` para ambos. Toda fixture foi cancelada. Falta somente resolver o desafio humano no modo interativo para provar Checkout→cobrança e estorno |
 | `smoke:payments-money-db` (D50/D27) | ✅ **PASS DEV 5/5 + PROD verificada 7/7** | repetir somente após mudança nas migrations/contratos; a execução em DEV terminou com cleanup zero e a produção foi verificada em transação read-only após backup, lock e migrator `DONE` |
@@ -355,6 +366,7 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D58 | Checkout expira em no máximo 24h, mas o restante atual promete 7 dias | **resolvido em código/DEV/PROD em 29/08.** Gerações idempotentes de até 24h preservam 7 dias sobre a mesma `patient_charge`; somente a atual fornece link e a renovação publica `link_ready` controlado. Unit, migration 0091 DEV+PROD, smoke 5/5 e pós-verificação 7/7 verdes |
 | D59 | Rotação da senha de produção deixou Functions antigas autenticando com a credencial revogada | **recuperado em 29/08** — Sentry registrou falhas nos quatro crons às 11:30–11:31 BRT; após atualizar o env e redeployar, health estrito respondeu 200/tudo `ok` e heartbeats read-only provaram `success` dos quatro jobs às 11:45–11:46. Não foi falha das queries nem dos smokes locais |
 | D60 | Preview registrou uma vez `Rendered more hooks than during the previous render` ao navegar pelo redirect de `/configuracoes` | **monitorado, sem correção neste lote** — nenhum hook condicional foi encontrado, lint/test/build estão verdes e o stack `Router/useMemo` coincide com o bug oficial Next.js #63121 corrigido no canary pelo React sync #95368. Browser indisponível para reprodução atual; reabrir se houver recorrência e então testar upgrade/workaround direcionado, sem misturar ao Financial |
+| D61 | Candidatos de reminder de SQL cru podiam entregar `scheduled_at` como string PostgreSQL em vez de `Date`, fazendo o job falhar como `invalid_payload` somente no runtime real | **resolvido no P8 em 29/08** — a fronteira `listReminderCandidates` aceita `Date|string`, valida e sempre publica ISO UTC; valor inválido falha alto. Regressão direta 3/3, C14 real 5.000/5.000 no scratch e suíte 2.797/2.797 verdes |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -401,11 +413,9 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 ### Próximo passo
 
 Seguir os itens ainda abertos de **P0 → P10**. Imediatamente: observar na Vercel o deployment terminal
-do HEAD (P0) quando houver sessão/CLI autenticada. Para P9, o fundador primeiro rotaciona a credencial
-descartável que apareceu em artefato local e atualiza o secret sem compartilhá-lo; então a automação
-repete os três cenários autenticados sem trace/vídeo/screenshot, isola qualquer falha restante e roda a
-suíte integral no HEAD publicado. O detector P7 já está verde; P8 continua bloqueado até existir scratch
-isolado. Em paralelo, o fundador resolve apenas as entradas manuais P1–P6/P8 e a rotação D53. Não reativar
+ do HEAD (P0) quando houver sessão/CLI autenticada. Para P9, o fundador percorre o Product Acceptance
+ por persona; a automação read-only já passou 8/8 e deve ser repetida depois de novo lote executável.
+ P7 e P8 estão verdes. Em paralelo, o fundador resolve apenas as entradas manuais P1–P6. Não reativar
 webhook global antigo antes de alinhar ambiente, chave e token; não enviar WhatsApp real sem template
 aprovado, destinatário controlado, consentimento e autorização explícita.
 
@@ -620,10 +630,10 @@ Mesmos gates + `O.H`/`O.S`. **O-1** wizard (módulo→atribuição do Qoro→mé
 RLS · cross-tenant · permission escalation · **webhook forgery (espelhar os 23)** · rate limiting · sensitive data exposure · LGPD (consent do sinal, hard-delete cobre `patient_charges`). Reusa `arch:db-check`, `lib/auth/*`, cripto.
 
 ## 10. Gate — Performance & Carga
-> **Exigível a partir de 1.4** (antes disso não há endpoint novo para medir). Ferramenta: **`autocannon`** (npm) — `k6` descartado por ser binário fora do npm. Alvo obrigatório: scratch isolado restaurado por `restore:test`; **nunca Preview, produção ou DEV compartilhado**. Estado atual: o restore P8 passou em PostgreSQL local descartável; falta o app scratch e o harness `test:load` guardado.
+> **Exigível a partir de 1.4** (antes disso não há endpoint novo para medir). Ferramenta: **`autocannon`** (npm) — `k6` descartado por ser binário fora do npm. Alvo obrigatório: scratch isolado; **nunca Preview, produção ou DEV compartilhado**. Estado atual: restore e `test:load` P8 passaram em PostgreSQL local descartável, com app real, Meta falso e guards fail-closed.
 
 **SLOs:** API P95<500ms · P99<1s · webhook<2s · job<30s · query<100ms.
-**Load (NET-NEW `test:load` via k6/autocannon):** appointment 500 · webhook 1000 · WhatsApp 5000 · reconcile em lote · outbox saturado → sem erro/deadlock/race. Números = **SLO-alvo a calibrar** ao volume projetado × fator de segurança.
+**Load (`test:load` via autocannon):** appointment 500 · webhook 1000 · WhatsApp 5000 · reconcile em lote · outbox saturado → sem erro/deadlock/race. Resultado de 29/08: todos os SLOs passaram; repetir após mudança relevante de runtime/schema/SLO.
 
 ## 11. Gate — Complexidade
 Nenhuma alteração pode aumentar acoplamento, ciclos ou fan-in/out excessivo. Ferramenta: **`pnpm arch:graphs --check`** (Camada -1) — usa o `madge` já instalado e calcula fan-in/out por elemento. **`dependency-cruiser` foi CORTADO**: regra declarativa de dependência já é feita pelo `eslint-plugin-boundaries`, e uma segunda config das mesmas regras só cria divergência. **Exigível desde 1.0. Aceite:** `--check` verde (0 ciclos; nenhuma aresta nova sem o diff do snapshot commitado no mesmo PR).
@@ -793,8 +803,9 @@ estados, eventos, ownership e ledger. A rota consulta `GET /payments/{id}`, proj
 libera o bloqueio sem duplicar receita; na perda, registra `patient_credit_adjustments` e uma
 `payment_transactions(kind=refund)` ligada à baixa original, reduzindo somente `valor_pago`. A
 migration 0092 faz backfill apenas 1:1; linha histórica ambígua abre conciliação manual. Unit,
-contrato, handlers, webhook, lint, typecheck, 2.790 testes e build passaram. Falta autorização para
-aplicar a 0092 e executar o smoke DB 5/5; chargeback sandbox real é evidência externa posterior.
+contrato, handlers, webhook, lint, typecheck e build passaram. A 0092 está aplicada em DEV e produção;
+smoke DEV 5/5 e pós-verificação PROD 7/7 estão verdes. Chargeback sandbox real é evidência externa
+posterior.
 
 ### 20.3 Excedente pago — decisão tomada: estorno parcial (D50)
 
@@ -834,19 +845,20 @@ Pode ser chamado de “DEV” apenas se for **outra instância descartável**, i
 aceitáveis: projeto/branch de banco dedicado no Supabase ou Postgres local/Docker dedicado. Um schema
 separado dentro do mesmo banco não isola pool, CPU, locks ou I/O e não satisfaz o gate.
 
-Passo a passo:
+Implementação final de `test:load`:
 
-1. provisionar banco e, de preferência, app scratch com nomes inequívocos;
-2. usar credenciais descartáveis e entregar a URL somente por secret store/variável local, nunca no
-   chat ou no Git;
-3. manter Asaas e Meta reais desligados; carga usa provider fake controlado;
-4. restaurar um dump **anonimizado** e validar contagens antes do teste;
-5. fornecer `RESTORE_TARGET_URL` ao processo do teste;
-6. implementar `test:load` com confirmação explícita e guards que recusem produção, Preview e o DEV
-   compartilhado;
-7. executar appointment 500, webhook 1.000, WhatsApp jobs 5.000, reconcile/outbox, medir P95/P99,
-   erros, deadlocks e duplicatas;
-8. rodar `restore:test`, validar integridade e cleanup; depois destruir/resetar o alvo descartável.
+1. exigir build atual e `LOAD_TEST_CONFIRM=LOCAL_SCRATCH_ONLY`;
+2. validar que a origem do schema não coincide com produção, não possui sinal de produção/Preview e
+   usa TLS; usar essa origem somente em `pg_dump --schema-only`;
+3. criar diretório temporário, certificado próprio, cluster PostgreSQL 17 TLS e banco com prefixo
+   `clinicaos_load_`, todos locais e descartáveis;
+4. restaurar o schema e inserir apenas fixtures sintéticas;
+5. iniciar `next start` real com ambiente allowlisted, segredos sintéticos, Asaas desligado e preload que
+   intercepta somente Meta `/messages`; qualquer outro HTTP externo falha alto;
+6. executar os volumes/concorrência, exigir respostas `2xx` concluídas — não apenas requests iniciados —
+   e validar estado persistido, leases, attempts, dedup e IDs do provider;
+7. medir P95/P99 e comparar com os SLOs do §10;
+8. no `finally`, encerrar app/SQL, parar PostgreSQL e remover somente o temp validado.
 
 **Evidência de 28/08:** um cluster PostgreSQL 17 local e isolado foi criado fora do workspace, o dump
 `prod-pre-migration-2026-08-27T04-49-51.sql` foi restaurado por `restore:test`, e as âncoras retornaram
@@ -855,14 +867,17 @@ erros de objetos exclusivos do Supabase (`auth`, `extensions` e roles gerenciada
 runbook; as âncoras obrigatórias passaram. O servidor foi parado, a porta ficou indisponível e o
 diretório foi removido, portanto nenhum dado restaurado permaneceu na máquina.
 
-**Pendente técnico, não ação manual:** construir o app scratch e o harness `test:load` guardado. Uma
-ação humana só será necessária se o harness não puder usar infraestrutura local isolada e precisar de
-um projeto/branch remoto dedicado ou de autorização operacional adicional.
+**Evidência de carga de 29/08:** 500 candidatos produziram 500 jobs; 50 foram enviados pelo endpoint real
+e os 4.950 restantes pelo worker C14 real. Total: 5.000 mensagens, 5.000 outbounds, 5.000 chamadas Meta
+falsas únicas, `attempts=1`, replay concorrente sem novo envio, zero cancelado/retry/falha. Os 1.000
+webhooks Meta assinados terminaram `2xx` e criaram 1.000 quarentenas (P95 125,14ms; P99 235,73ms).
+Outbox: 5.000/5.000 `skipped`, uma tentativa cada, 12/12 crons `2xx`, P99 1,47s. Reconcile: 20/20
+`2xx`, P95 33,45ms e P99 36,14ms. SQL: 100 amostras, P95 2,22ms e P99 3,18ms. C14 P99 de batch
+2,35s. Zero deadlock. O servidor foi parado e o diretório temporário removido.
 
-**Split obrigatório em 29/08:** o worktree financeiro atual já agrega D24/D58, D50 e D27 e deve ser
-revisado/publicado como lote fechado antes de receber P8. O harness de carga será o próximo lote técnico
-isolado; misturá-lo agora ampliaria um diff já extenso, dificultaria rollback e violaria a regra de
-mudança pequena/revisável. Isso não transforma P8 em tarefa manual do fundador.
+**Ação manual:** nenhuma para repetir o P8 na máquina já preparada. É necessário ter PostgreSQL 17
+local e um build atual; o operador apenas fornece a confirmação exata. Não apontar o comando a outro
+banco nem copiar credenciais para argumentos/logs.
 
 ### 20.5 Como provar o webhook global de assinatura (`PAYMENT_RESTORED`)
 
@@ -923,7 +938,7 @@ fonte da verdade.
 | D50 estorno do excedente + sandbox | **código + DB DEV/PROD PASS; externo pendente** | não | 0092/smoke 5/5 passaram em DEV e a pós-verificação PROD passou 7/7; estorno real depende de Checkout pago |
 | `PAYMENT_RESTORED` real (D54/D55 já verdes em código) | **sim** para aceite externo de Billing/assinatura | não | falta provar o round-trip no sandbox configurado |
 | E2E Meta de sinal/restante | **sim** para rollout da entrega WhatsApp; código 1.6c já está verde | não | prova do transporte externo continua pendente |
-| `test:load` em app scratch | **sim** para o 1.H formal e rollout | não | restore já passou; concorrência em volume ainda não foi medida |
+| `test:load` em app scratch | ✅ **PASS; não é mais pendência** | não | carga local descartável mediu C14/webhook/outbox/reconcile/SQL, SLOs, dedup e deadlocks; cleanup integral |
 | Product Acceptance por persona | **sim** para 1.S/rollout | não | Playwright read-only passou 8/8; resta o julgamento humano de operação/UX |
 | rotação de credenciais/templates/destinatário | **sim** nos testes externos correspondentes | não | depende de autoridade humana e não pode ser simulado como E2E real |
 
@@ -967,13 +982,15 @@ nova cobrança local ou retry cego de `POST /checkouts`.
 3. **concluído:** backup + migrador com advisory lock aplicaram `0091` e `0092`; `DONE`, lock liberado,
    credencial efêmera removida e nenhum sentinel criado;
 4. **concluído:** nova rotação confirmada e verificação de produção 7/7 em transação read-only;
-5. **concluído:** bateria integral repetida — lint, typecheck, 2.790 testes, build, arquitetura sem ciclos,
+5. **concluído:** bateria integral repetida — lint, typecheck, 2.797 testes, build, arquitetura sem ciclos,
    migrations, registry e observabilidade verdes; documentação e diff revisados sem incluir credenciais;
 6. **concluído:** commit financeiro `8052de3` enviado à branch; Vercel terminal `success` e Preview
    read-only 8/8 no mesmo SHA, com artefatos autenticados removidos;
-7. **ações manuais posteriores:** resolver o reCAPTCHA no PIX e cartão; fornecer chargeback sandbox
+7. **concluído:** P8 `test:load` scratch-only passou em todos os volumes/SLOs, sem duplicata, retry,
+   falha, deadlock ou resíduo; D61 foi corrigido e coberto;
+8. **ações manuais posteriores:** resolver o reCAPTCHA no PIX e cartão; fornecer chargeback sandbox
    controlado, se o Asaas permitir; concluir Meta, webhook de assinatura e Product Acceptance;
-8. executar 1.S após os gates externos/operacionais correspondentes.
+9. executar 1.S após os gates externos/operacionais correspondentes.
 
 #### O que não bloqueia a implementação do Financial
 
@@ -982,8 +999,8 @@ nova cobrança local ou retry cego de `POST /checkouts`.
   D24/D50/D27;
 - **E2E Meta de sinal/restante:** bloqueia afirmar entrega real por WhatsApp, não a contabilidade nem
   a conciliação do Financial;
-- **Product Acceptance por persona e `test:load`:** gates de hardening/rollout, não pré-requisitos para
-  implementar os três gaps financeiros;
+- **Product Acceptance por persona:** gate humano de hardening/rollout, não pré-requisito para
+  implementar os três gaps financeiros. O `test:load` automatizado já está verde;
 - **reCAPTCHA do Checkout:** bloqueia apenas o pagamento E2E totalmente autônomo. Contratos, banco,
   worker, idempotência e limpeza continuam automatizáveis.
 
@@ -994,7 +1011,7 @@ migrations 0091/0092 estão aplicadas, o smoke DEV passou 5/5 com cleanup zero e
 passou 7/7 em transação read-only. Portanto, o fechamento técnico automático desse recorte está verde.
 O pagamento real que parar exclusivamente no reCAPTCHA permanece `BLOCKED externo/manual`; chargeback
 real e estorno real também não podem ser inferidos de mocks. A **Camada 1 inteira** só fecha depois dos
-gates adicionais de Billing, Meta, carga, Product Acceptance e 1.S.
+gates adicionais de Billing, Meta, Product Acceptance e 1.S; carga não é mais bloqueio.
 
 ### 20.8 TISS: o que pode começar agora e qual “sistema” está citado
 

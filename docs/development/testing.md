@@ -87,6 +87,25 @@ Os objetos JSON impressos pelos specs financeiro e WhatsApp ainda contêm flags/
 
 Existem smokes C3–C14, onboarding, admin, conversas e jornadas. Muitos escrevem no banco DEV; leia guard/cleanup do script antes. `ai:live-check`, `ai:adversarial`, `billing:*`, `email:live-check` e `wa:*` atingem providers e podem gerar custo/efeito externo.
 
+## Carga local descartável
+
+`test:load` exige um build atual e PostgreSQL 17 local. O DEV é usado **somente** como origem de
+`pg_dump --schema-only`; todas as fixtures, tráfego e escritas ficam num cluster PostgreSQL TLS criado
+sob o diretório temporário do sistema. Meta é substituído por provider falso e qualquer outro HTTP
+externo é bloqueado. O guard recusa produção, Preview, DEV compartilhado como destino e confirmação
+ausente/incorreta.
+
+```powershell
+pnpm build
+$env:LOAD_TEST_CONFIRM = 'LOCAL_SCRATCH_ONLY'
+pnpm test:load
+Remove-Item Env:LOAD_TEST_CONFIRM
+```
+
+Aceite P8: 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile concorrente, 100
+amostras SQL, SLOs do `qorov2.md`, zero duplicata/retry/falha/deadlock e cleanup confirmado. Nunca
+reduza os guards nem aponte o harness a Preview, produção ou DEV compartilhado.
+
 ## Níveis de prova
 
 - Unitário/integração local: contrato e regra determinística.

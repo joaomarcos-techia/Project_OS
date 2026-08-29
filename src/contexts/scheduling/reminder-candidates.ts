@@ -33,6 +33,20 @@ export interface ReminderCandidate {
   timezone: string;
 }
 
+/**
+ * Raw `execute()` does not carry Drizzle column metadata. Depending on the
+ * postgres-js connection/type cache, timestamptz can therefore arrive as a
+ * `Date` or as PostgreSQL text (`2026-08-30 12:00:00+00`). The C14 payload is a
+ * JSON contract and always requires RFC 3339/ISO; normalize at this boundary.
+ */
+function scheduledAtIso(value: Date | string): string {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('[scheduling] reminder candidate returned invalid scheduled_at');
+  }
+  return parsed.toISOString();
+}
+
 /** Consultas ativas cuja data local é amanhã (limite p/ bound do scan). */
 export async function listReminderCandidates(limit = 500): Promise<ReminderCandidate[]> {
   const rows = (await dbAdmin.execute(
@@ -76,8 +90,10 @@ export async function listReminderCandidates(limit = 500): Promise<ReminderCandi
     clinicId: r.clinic_id,
     appointmentId: r.appointment_id,
     patientId: r.patient_id,
-    scheduledAt: r.scheduled_at instanceof Date ? r.scheduled_at.toISOString() : r.scheduled_at,
+    scheduledAt: scheduledAtIso(r.scheduled_at),
     doctorNome: r.doctor_nome,
     timezone: r.timezone,
   }));
 }
+
+export const __internal = { scheduledAtIso };

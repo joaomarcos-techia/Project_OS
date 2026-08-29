@@ -163,42 +163,41 @@ Resolva também, dentro do 1.H:
   webhooks duplicados/fora de ordem, 3 ticks, paralelismo 4 e cleanup zero. A primeira execução achou o
   **D51** (`lancamento` inicial `pago` sem `paid_at`); o handler foi corrigido e a repetição terminou sem
   retry/falha, sem Asaas/Meta.
-- **D27** — `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` não têm tratamento.
-  São os dois caminhos em que dinheiro dado como recebido **volta atrás**. Assinar o evento sem
-  tratar é só ruído: entregue o par (assinatura + handler) junto.
-- **D24** — sinal pago em **boleto** não tem estorno automático (o Asaas só estorna PIX/cartão), e
-  boleto leva 1–3 dias para compensar contra um hold de 24h. Decisão de produto: restringir o
-  `billingType` do sinal, ou desligar boleto na conta. **Pergunte ao fundador.**
+- **D24/D58 ✅ código + DEV/PROD** — Checkout hospedado restringe sinal/restante a PIX/cartão;
+  intenção/lease evita POST duplicado e gerações de até 24h preservam os 7 dias do restante. Migrations
+  0091/0092, smokes DEV 5/5 e pós-verificação PROD 7/7 verdes. Falta somente pagamento sandbox após
+  reCAPTCHA humano.
+- **D27 ✅ código + DEV/PROD** — chargeback e dinheiro desfeito usam estado autoritativo monotônico,
+  bloqueio/liberação do crédito e compensação append-only sem regredir agenda/prontuário. Falta somente
+  chargeback sandbox controlado.
 - **Matriz focada ✅ 138/138** — POST perdido/retry, send-time obsoleto, pagamento tardio,
   reagendamento, Asaas fora e Meta fora/backoff estão verdes em unit/integration. Não chamar isso de
   E2E externo.
 - **Matriz DB ✅ 13/13 + POST recovery ✅ + simulação ✅** — corrida pagamento×expiração, restante
   concorrente, cross-tenant, timeout/retry e 30 dias acumulados no banco real foram fechados. O
   `pnpm smoke:payments-post-recovery` provou 1 POST aceito com resposta perdida, recuperação por GET,
-  uma única cobrança/eventos e cleanup zero usando provedor local. Resta o gate de carga, bloqueado
-  até existir ambiente scratch isolado (`RESTORE_TARGET_URL`; nunca Preview/prod/DEV
-  compartilhado).
+  uma única cobrança/eventos e cleanup zero usando provedor local.
+- **P8 carga/restore ✅** — `pnpm test:load` usa build real, PostgreSQL 17 TLS efêmero, schema-only do
+  DEV, fixtures sintéticas, Meta falso e bloqueio de rede externa. Passou com 500 consultas, 5.000 jobs
+  C14, 1.000 webhooks, outbox 5.000, reconcile/SQL dentro dos SLOs, zero deadlock/duplicata/retry/falha
+  e cleanup integral. O ensaio encontrou e fechou **D61** (normalização `timestamptz` para ISO no
+  reminder).
 - **D52 ✅ detector** — `ca94839` integrou ao `financial-reconcile` um scan somente leitura para
   crédito `available` com 30+ dias e consulta já vencida/vínculo ausente. Emite métrica/heartbeat sem
   mover dinheiro. Unit 3/3 e jornada DEV 13/13 provaram terminal, agenda vencida, consulta futura
   excluída, replay, cross-tenant e cleanup zero. O desfecho econômico continua manual até regra
   aprovada.
-- **P9 PARTIAL / D53** — o passe Playwright local read-only teve 5/5 cenários públicos verdes e 3
-  autenticados sem aceite conclusivo. Um snapshot de erro reteve a senha que permanecia no DOM; o
-  artefato foi apagado, não havia auth storage e o login agora limpa o campo após a captura do submit e
-  após erro, recolhendo sua visibilidade (helper 3/3; regressão focada 10/10; suíte 2.707/2.707).
-  O runtime está no commit publicado `281cd9c`; a observação commit-specific do Preview continua
-  bloqueada por ausência de sessão/CLI Vercel autenticada.
-  **Antes do rerun:** o fundador rotaciona a conta
-  descartável e atualiza somente o secret E2E, sem compartilhar o valor. Repetir os 3 casos sem
-  trace/vídeo/screenshot; só depois executar a suíte integral no HEAD publicado e Product Acceptance.
+- **P9 automação ✅ / Product Acceptance humano pendente** — Preview read-only passou 8/8 com uma
+  sessão: fronteiras públicas, 25 rotas, paciente dinâmico, conversas vazias e navegação principal.
+  Auth state e artefatos foram removidos. D53 e D56 estão fechados; falta somente percorrer as personas
+  como aceite humano de operação/UX.
 
-O `qorov2.md` agora contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite.
-Ações exclusivamente do fundador: templates/destinatário Meta, rotação da chave exposta, rotação da
-credencial descartável D53, decisões D24/D27/D50 e provisionamento do scratch `RESTORE_TARGET_URL`.
-Testes ainda não verdes: rerun autenticado/`test:e2e` integral,
-`test:load`, `restore:test` em volume, E2E Meta sinal/restante, `PAYMENT_RESTORED`, estorno real
-PIX/cartão e Product Acceptance.
+O `qorov2.md` contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite.
+Ações exclusivamente do fundador: templates/destinatário Meta, rotação da chave sandbox exposta,
+resolver reCAPTCHA de PIX/cartão, fornecer chargeback controlado quando possível, alinhar o webhook
+global de assinatura e executar Product Acceptance. Testes externos ainda não verdes: E2E Meta
+sinal/restante, `PAYMENT_RESTORED`, pagamento/estorno real PIX/cartão, chargeback real e Product
+Acceptance. Restore, carga e Playwright read-only já estão verdes.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
@@ -208,7 +207,7 @@ PIX/cartão e Product Acceptance.
 
 Só começar depois dos bloqueios/decisões de 1.H. Executar P10 do `qorov2.md`: corrigir apenas bugs,
 sincronizar ADR-049/051, Discovery Log, runbooks e grafos; reexecutar suíte, Playwright, gates,
-smokes, live-check, simulation, load/restore quando houver scratch e Product Acceptance. Aceite: zero
+smokes, live-check, simulation, load/restore local e Product Acceptance. Aceite: zero
 bug alto, rollback por clínica provado e nenhuma evidência externa presumida.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**

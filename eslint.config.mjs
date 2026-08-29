@@ -124,8 +124,8 @@ const config = [
 
   // C1 db guard #1: `postgres` driver may ONLY be imported by:
   //   - src/lib/db/index.ts (canonical pool factory for the app)
-  //   - scripts/db-migrate-prod.ts, scripts/delete-test-clinics-prod.ts and
-  //     scripts/reset-prod-data.ts
+  //   - scripts/db-migrate-prod.ts, scripts/delete-test-clinics-prod.ts,
+  //     scripts/reset-prod-data.ts and the P8 disposable load runners
   //     (each needs a dedicated one-shot connection against DATABASE_URL_PROD;
   //     src/lib/db is bound to env.DATABASE_URL at boot and can't target a
   //     different URL).
@@ -137,6 +137,10 @@ const config = [
       'src/lib/db/index.ts',
       'scripts/db-migrate-prod.ts',
       'scripts/delete-test-clinics-prod.ts',
+      // P8: conexões one-shot exclusivamente contra PostgreSQL loopback criado
+      // pelo próprio harness. Guardas recusam Preview/prod/DEV compartilhado.
+      'scripts/load-test.ts',
+      'scripts/load-test-seed-runner.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
