@@ -29,8 +29,8 @@ somente depois do horário da consulta, separa terminal/agenda vencida/vínculo 
 heartbeat e não move dinheiro. `smoke:payments-journey` provou terminal, consulta futura, replay e
 dois tenants no banco DEV.
 
-**Lote financeiro atual ainda não commitado/publicado:** D24/D58, D50 e D27 estão implementados no
-worktree. D24 usa Checkout hospedado restrito a PIX/cartão, com gerações diárias sobre uma única
+**Lote financeiro publicado em `8052de3`:** D24/D58, D50 e D27 estão implementados e enviados para
+`feat/qorov2-pagamentos`. D24 usa Checkout hospedado restrito a PIX/cartão, com gerações diárias sobre uma única
 dívida. As migrations `0091` e `0092` estão aplicadas em DEV; os smokes conectados passaram 5/5, com
 cleanup zero. D50 persiste a intenção antes do estorno, não repete POST incerto e confirma por
 read-back/webhook. D27 segue a [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md), mantém o
@@ -42,7 +42,11 @@ imediatamente. A credencial seguinte, preparada para a verificação read-only, 
 no chat, removida sem leitura e rotacionada por confirmação humana. Com `DATABASE_URL_PROD` atualizada no
 ambiente, a verificação independente passou **7/7** dentro de transação read-only: `_schema_version` e
 journal, enums, tabelas/colunas, FORCE RLS/policies, grants append-only, índices/constraints e ausência
-do advisory lock 4242.
+do advisory lock 4242. A Vercel concluiu o Preview do mesmo SHA com `success` às 12:10 BRT. O smoke
+Playwright somente leitura passou **8/8 em 2,2 min**: 25 rotas autenticadas HTTP 200, rota dinâmica de
+paciente renderizada, conversa vazia aceita, fronteiras públicas protegidas e navegação principal sem
+erro. Auth state, relatório e resultados locais foram removidos; `financeiro.md` permaneceu fora do
+commit.
 
 **Incidente pós-rotação (29/08):** entre 11:30 e 11:31 BRT, quatro crons do deployment de produção
 anterior falharam com `password authentication failed for user "postgres"`, pois ainda executavam com a
@@ -216,7 +220,7 @@ objeto do teste.
 
 | Ordem | Pendência / autoridade | Como deve ser feita | Teste/evidência ainda pendente | Referência |
 | --- | --- | --- | --- | --- |
-| P0 | ✅ **Publicar/observar o lote** — concluído em 28/08 | Commit `99289f5` confirmado no remoto e deployment Vercel terminal `success`, casado ao mesmo SHA. O Preview read-only foi reexecutado com uma única sessão e passou 8/8; auth state e artefatos temporários foram removidos. `financeiro.md` permaneceu fora do commit | **PASS:** Git remoto, Vercel e smoke Preview observados; repetir somente após novo lote executável | §0.3 DoD; [handoff](handoff-qorov2.md); D56 |
+| P0 | ✅ **Publicar/observar o lote** — repetido em 29/08 | Commit financeiro `8052de3` confirmado no remoto e deployment Vercel terminal `success`, casado ao mesmo SHA. O Preview read-only foi reexecutado com uma única sessão e passou 8/8 em 2,2 min; auth state e artefatos temporários foram removidos. `financeiro.md` permaneceu fora do commit | **PASS:** Git remoto, Vercel e smoke Preview observados; repetir somente após novo lote executável | §0.3 DoD; [handoff](handoff-qorov2.md); D56 |
 | P1 | **Templates Meta e destinatário controlado** — manual para aprovação/consentimento; execução técnica automatizável depois | Confirmar `APPROVED` e idioma dos templates `deposit_link` e `remainder_link`, IDs já configurados no ambiente publicado, conexão Meta saudável e telefone de destino com consentimento. Não enviar texto livre nem usar Z-API como fallback | E2E real 1.6a: `link_ready → deposit_link → Meta → WhatsApp`; E2E real 1.6c: `link_ready → remainder_link → lookup atual → Meta`. Registrar message id, job terminal e ausência de duplicata; não expor telefone/link | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md) |
 | P2 | **Webhook global de assinatura** — código D54/D55 verde; configuração/prova manual externa | No ambiente correto, alinhar URL + `ASAAS_WEBHOOK_TOKEN` + conta; configurar somente os 7 eventos canônicos e `sendType` do runbook; só então remover backoff/reativar uma vez. Não reutilizar a rota de paciente | **Código:** 73/73 + suíte/gates verdes. **Pendente:** sandbox real `delete → cancelled → restore → open`, HTTP 200, duas linhas de dedup e estado final reconciliado. D36/D46 só fecham com comportamento | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D39, D46, D54, D55; §20.5 |
 | P3 | **Rotação da chave sandbox exposta** — manual na conta Asaas | Revogar a chave antiga no Asaas, gerar outra sem colá-la em chat/log, atualizar apenas o secret store/fluxo de conexão correto e reconectar a clínica. Depois invalidar qualquer sessão/local secret antigo | `payments:live-check` 12/12 com a chave nova, cleanup confirmado; nenhuma credencial em diff/log | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
@@ -232,7 +236,7 @@ objeto do teste.
 
 | Teste | Estado atual | Para ficar verde |
 | --- | --- | --- |
-| Playwright read-only (2 specs) | ✅ **PASS Preview: 8/8 com sessão única** | repetir no novo HEAD publicado quando houver mudança de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
+| Playwright read-only (2 specs) | ✅ **PASS Preview `8052de3`: 8/8 com sessão única em 2,2 min** | repetir no novo HEAD publicado quando houver mudança de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
 | `test:load` | **NÃO IMPLEMENTADO** | app/banco scratch isolados + harness `autocannon` guardado de P8; o restore do banco já foi provado |
 | `pnpm restore:test` em volume | ✅ **PASS em scratch local descartável** | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido |
 | Checkout Asaas PIX + cartão (D24) | 🟡 **PASS contrato/DOM; pagamento BLOCKED por reCAPTCHA externo** | `payments:checkout-e2e` cria o Checkout, valida a UI e preenche PIX/cartão com dados sintéticos; em headless, o Asaas devolveu `success=false` e `recaptchaV2Enabled=true` para ambos. Toda fixture foi cancelada. Falta somente resolver o desafio humano no modo interativo para provar Checkout→cobrança e estorno |
@@ -965,7 +969,8 @@ nova cobrança local ou retry cego de `POST /checkouts`.
 4. **concluído:** nova rotação confirmada e verificação de produção 7/7 em transação read-only;
 5. **concluído:** bateria integral repetida — lint, typecheck, 2.790 testes, build, arquitetura sem ciclos,
    migrations, registry e observabilidade verdes; documentação e diff revisados sem incluir credenciais;
-6. publicar/deployar somente com autorização e observar o SHA do Preview;
+6. **concluído:** commit financeiro `8052de3` enviado à branch; Vercel terminal `success` e Preview
+   read-only 8/8 no mesmo SHA, com artefatos autenticados removidos;
 7. **ações manuais posteriores:** resolver o reCAPTCHA no PIX e cartão; fornecer chargeback sandbox
    controlado, se o Asaas permitir; concluir Meta, webhook de assinatura e Product Acceptance;
 8. executar 1.S após os gates externos/operacionais correspondentes.
