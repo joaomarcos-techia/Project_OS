@@ -75,15 +75,29 @@ export async function applyCreditToExistingReceivable(
   const newPaid = round2(valorPago + appliedAmount);
   const newStatus = calcStatusPagamento(valor, newPaid);
 
+  const [payment] = await tx
+    .insert(paymentTransactions)
+    .values({
+      clinicId: input.clinicId,
+      lancamentoId: receivable.id,
+      kind: 'payment',
+      amount: appliedAmount.toFixed(2),
+      paymentMethod: input.paymentMethod,
+      occurredAt: input.paidAt,
+    })
+    .returning({ id: paymentTransactions.id });
+  if (!payment) throw new Error(`ledger não registrou a baixa do crédito ${input.creditId}`);
+
   const consumed = await allocateCredit(tx, {
     clinicId: input.clinicId,
     creditId: input.creditId,
     lancamentoId: receivable.id,
+    paymentTransactionId: payment.id,
     amount: appliedAmount,
   });
   if (!consumed) {
-    // O crédito acabou de ser inserido nesta TX. Se já não está disponível,
-    // prosseguir deixaria `valorPago` sem lastro; abortar faz o worker retentar.
+    // Tudo roda na mesma TX: o INSERT do ledger e o UPDATE do recebível também
+    // caem se outra entrega já tiver consumido o crédito.
     throw new Error(`crédito ${input.creditId} não estava disponível para alocação`);
   }
 
@@ -100,19 +114,6 @@ export async function applyCreditToExistingReceivable(
   if (updated.length === 0) {
     throw new Error(`lançamento ${receivable.id} desapareceu durante a alocação`);
   }
-
-  const [payment] = await tx
-    .insert(paymentTransactions)
-    .values({
-      clinicId: input.clinicId,
-      lancamentoId: receivable.id,
-      kind: 'payment',
-      amount: appliedAmount.toFixed(2),
-      paymentMethod: input.paymentMethod,
-      occurredAt: input.paidAt,
-    })
-    .returning({ id: paymentTransactions.id });
-  if (!payment) throw new Error(`ledger não registrou a baixa do crédito ${input.creditId}`);
 
   await publishEvent(tx, {
     clinicId: input.clinicId,

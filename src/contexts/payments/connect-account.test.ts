@@ -137,10 +137,24 @@ describe('connectPaymentAccount', () => {
     await connectPaymentAccount({ apiKey: SECRET });
 
     expect(mocks.createWebhook).toHaveBeenCalledOnce();
-    const [input] = mocks.createWebhook.mock.calls[0] as [{ url: string }];
+    const [input] = mocks.createWebhook.mock.calls[0] as [{ url: string; events: string[] }];
     const url = new URL(input.url);
     expect(url.pathname).toBe('/api/webhooks/asaas/patient/11111111-1111-4111-8111-111111111111');
     expect(url.searchParams.get('x-vercel-protection-bypass')).toBe('preview-bypass-secret');
+    expect(input.events).toEqual([
+      'PAYMENT_RECEIVED',
+      'PAYMENT_CONFIRMED',
+      'PAYMENT_REFUNDED',
+      'PAYMENT_PARTIALLY_REFUNDED',
+      'PAYMENT_REFUND_IN_PROGRESS',
+      'PAYMENT_REFUND_DENIED',
+      'PAYMENT_OVERDUE',
+      'PAYMENT_RECEIVED_IN_CASH_UNDONE',
+      'PAYMENT_CHARGEBACK_REQUESTED',
+      'PAYMENT_CHARGEBACK_DISPUTE',
+      'PAYMENT_AWAITING_CHARGEBACK_REVERSAL',
+      'CHECKOUT_PAID',
+    ]);
     expect(mocks.markWebhookConfigured).toHaveBeenCalledWith('clinic-1');
   });
 

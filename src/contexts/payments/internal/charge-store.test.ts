@@ -221,7 +221,10 @@ describe('findPayableCharge — só devolve link que ainda dá para pagar', () =
     appointmentId: CHARGE.appointmentId,
     amount: '150.00',
     invoiceUrl: 'https://www.asaas.com/i/abc123',
-    holdExpiresAt: new Date('2026-08-26T17:00:00.000Z'),
+    holdExpiresAt: new Date('2099-08-26T17:00:00.000Z'),
+    providerCheckoutId: 'checkout-1',
+    checkoutExpiresAt: new Date('2099-08-26T17:00:00.000Z'),
+    collectionExpiresAt: new Date('2099-09-01T17:00:00.000Z'),
   };
 
   it('devolve a cobrança pendente com o link', async () => {
@@ -232,7 +235,7 @@ describe('findPayableCharge — só devolve link que ainda dá para pagar', () =
       appointmentId: CHARGE.appointmentId,
       amount: 150,
       invoiceUrl: 'https://www.asaas.com/i/abc123',
-      holdExpiresAt: new Date('2026-08-26T17:00:00.000Z'),
+      holdExpiresAt: new Date('2099-08-26T17:00:00.000Z'),
     });
   });
 
@@ -246,6 +249,25 @@ describe('findPayableCharge — só devolve link que ainda dá para pagar', () =
 
   it('cobrança sem link não vira mensagem — não há o que o paciente abrir', async () => {
     stubTx({ charge: [{ ...PAGAVEL, invoiceUrl: null }] });
+
+    await expect(findPayableCharge('clinic-1', CHARGE.id)).resolves.toBeNull();
+  });
+
+  it('link de geração expirada não é entregue', async () => {
+    stubTx({
+      charge: [
+        {
+          ...PAGAVEL,
+          checkoutExpiresAt: new Date('2020-01-01T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    await expect(findPayableCharge('clinic-1', CHARGE.id)).resolves.toBeNull();
+  });
+
+  it('cobrança sem identidade de Checkout não reutiliza link legado UNDEFINED', async () => {
+    stubTx({ charge: [{ ...PAGAVEL, providerCheckoutId: null }] });
 
     await expect(findPayableCharge('clinic-1', CHARGE.id)).resolves.toBeNull();
   });

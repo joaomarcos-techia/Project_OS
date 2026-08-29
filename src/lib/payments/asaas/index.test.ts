@@ -89,6 +89,7 @@ describe('listSubscriptionPayments', () => {
           subscriptionId: 'sub_1',
           billingType: 'CREDIT_CARD',
           externalReference: null,
+          checkoutSessionId: null,
           // 1.5: o Asaas responde 200 para cobrança apagada, com o status
           // congelado — `deleted` é o único campo que diz a verdade.
           deleted: false,
@@ -258,6 +259,192 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
       'https://sandbox.asaas.com/api/v3/payments?externalReference=plan-change%3A00000000-0000-0000-0000-000000000001&limit=1',
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+});
+
+describe('Checkout hospedado de paciente (D24)', () => {
+  it('cria somente PIX/cartão, avulso e com customer já cadastrado', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        id: 'checkout_1',
+        status: 'ACTIVE',
+        link: 'https://sandbox.asaas.com/checkoutSession/show?id=checkout_1',
+        externalReference: 'remainder:appointment-1:g1',
+      }),
+    );
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await expect(
+      clinica.createCheckout({
+        customerId: 'cus_1',
+        value: 75,
+        description: 'Restante do atendimento',
+        externalReference: 'remainder:appointment-1:g1',
+        minutesToExpire: 1_440,
+        callback: {
+          successUrl: 'https://qoro.example/pagamento/sucesso',
+          cancelUrl: 'https://qoro.example/pagamento/cancelado',
+          expiredUrl: 'https://qoro.example/pagamento/expirado',
+        },
+      }),
+    ).resolves.toEqual({
+      checkoutId: 'checkout_1',
+      status: 'ACTIVE',
+      link: 'https://sandbox.asaas.com/checkoutSession/show?id=checkout_1',
+      externalReference: 'remainder:appointment-1:g1',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox.asaas.com/api/v3/checkouts',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          customer: 'cus_1',
+          billingTypes: ['PIX', 'CREDIT_CARD'],
+          chargeTypes: ['DETACHED'],
+          minutesToExpire: 1_440,
+          externalReference: 'remainder:appointment-1:g1',
+          callback: {
+            successUrl: 'https://qoro.example/pagamento/sucesso',
+            cancelUrl: 'https://qoro.example/pagamento/cancelado',
+            expiredUrl: 'https://qoro.example/pagamento/expirado',
+          },
+          items: [
+            {
+              name: 'Restante do atendimento',
+              description: 'Restante do atendimento',
+              quantity: 1,
+              value: 75,
+            },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it.each([9, 1_441, 10.5])('rejeita expiração inválida (%s) antes da rede', async (minutes) => {
+    const clinica = createAsaasClient({ apiKey: 'k' });
+
+    await expect(
+      clinica.createCheckout({
+        customerId: 'cus_1',
+        value: 10,
+        description: 'Sinal do agendamento',
+        externalReference: 'deposit:appointment-1:g1',
+        minutesToExpire: minutes,
+        callback: {
+          successUrl: 'https://qoro.example/sucesso',
+          cancelUrl: 'https://qoro.example/cancelado',
+          expiredUrl: 'https://qoro.example/expirado',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'checkout_expiration_invalid' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('cancela sem retry e escapa o id do Checkout', async () => {
+    fetchMock.mockResolvedValue(Response.json({ id: 'checkout_1', status: 'CANCELED' }));
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).cancelCheckout('checkout/../../admin'),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox.asaas.com/api/v3/checkouts/checkout%2F..%2F..%2Fadmin/cancel',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('resolve a cobrança autoritativa pelo checkoutSession', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        data: [
+          {
+            id: 'pay_1',
+            status: 'RECEIVED',
+            value: 75,
+            dueDate: '2026-08-30',
+            invoiceUrl: 'https://asaas.test/i/pay_1',
+            billingType: 'PIX',
+            externalReference: 'remainder:appointment-1:g1',
+            checkoutSession: 'checkout_1',
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+      }),
+    ).resolves.toEqual({
+      paymentId: 'pay_1',
+      status: 'RECEIVED',
+      value: 75,
+      dueDate: '2026-08-30',
+      invoiceUrl: 'https://asaas.test/i/pay_1',
+      subscriptionId: null,
+      billingType: 'PIX',
+      externalReference: 'remainder:appointment-1:g1',
+      checkoutSessionId: 'checkout_1',
+      deleted: false,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox.asaas.com/api/v3/payments?checkoutSession=checkout_1&limit=10&offset=0',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('não aceita uma cobrança de outra sessão retornada pelo provider', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ data: [{ id: 'pay_other', checkoutSession: 'checkout_other' }] }),
+    );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).findPaymentByCheckoutSession('checkout_1', {
+        attempts: 1,
+      }),
+    ).resolves.toBeNull();
+  });
+});
+
+describe('parseWebhook — identidade mínima de Checkout', () => {
+  it('extrai checkout.id sem confiar em status ou valor do evento', () => {
+    const client = createAsaasClient({ apiKey: 'k' });
+
+    expect(
+      client.parseWebhook(
+        JSON.stringify({
+          id: 'evt_checkout_paid',
+          event: 'CHECKOUT_PAID',
+          checkout: { id: 'checkout_1', status: 'PAID', value: 999_999 },
+        }),
+      ),
+    ).toEqual({
+      eventId: 'evt_checkout_paid',
+      event: 'CHECKOUT_PAID',
+      paymentId: null,
+      checkoutId: 'checkout_1',
+    });
+  });
+
+  it('extrai checkoutSession de evento de cobrança para correlação', () => {
+    const client = createAsaasClient({ apiKey: 'k' });
+
+    expect(
+      client.parseWebhook(
+        JSON.stringify({
+          id: 'evt_payment_received',
+          event: 'PAYMENT_RECEIVED',
+          payment: { id: 'pay_1', checkoutSession: 'checkout_1', status: 'RECEIVED' },
+        }),
+      ),
+    ).toEqual({
+      eventId: 'evt_payment_received',
+      event: 'PAYMENT_RECEIVED',
+      paymentId: 'pay_1',
+      checkoutId: 'checkout_1',
+    });
   });
 });
 
@@ -504,6 +691,24 @@ describe('getMyAccount — validação de credencial', () => {
 });
 
 describe('estorno e cancelamento de cobrança (ADR-049 1.5)', () => {
+  it('expõe o estado autoritativo do objeto chargeback no GET da cobrança', async () => {
+    fetchMock.mockImplementation(() =>
+      Response.json({
+        id: 'pay_1',
+        status: 'CONFIRMED',
+        value: 100,
+        chargeback: { status: 'IN_DISPUTE', reason: 'COMMERCIAL_DISAGREEMENT' },
+      }),
+    );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).getPayment('pay_1', { attempts: 1 }),
+    ).resolves.toMatchObject({
+      chargebackStatus: 'IN_DISPUTE',
+      chargebackReason: 'COMMERCIAL_DISAGREEMENT',
+    });
+  });
+
   it('estorna pelo endpoint de refund, com a chave da própria clínica', async () => {
     fetchMock.mockImplementation(() =>
       Response.json({ id: 'ref_1', status: 'REFUNDED', value: 150 }),
@@ -531,6 +736,36 @@ describe('estorno e cancelamento de cobrança (ADR-049 1.5)', () => {
       Error,
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('lista estornos para read-back sem repetir o POST', async () => {
+    fetchMock.mockImplementation(() =>
+      Response.json({
+        data: [
+          { id: 'ref_1', status: 'DONE', value: 30 },
+          { id: 'ref_2', status: 'PENDING', value: '10.50' },
+        ],
+      }),
+    );
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).listPaymentRefunds('pay/1', { attempts: 1 }),
+    ).resolves.toEqual([
+      { refundId: 'ref_1', status: 'DONE', value: 30 },
+      { refundId: 'ref_2', status: 'PENDING', value: 10.5 },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox.asaas.com/api/v3/payments/pay%2F1/refunds?offset=0&limit=100',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('tolera lista de estornos sem data', async () => {
+    fetchMock.mockImplementation(() => Response.json({ unexpected: true }));
+
+    await expect(
+      createAsaasClient({ apiKey: 'k' }).listPaymentRefunds('pay_1', { attempts: 1 }),
+    ).resolves.toEqual([]);
   });
 
   it('escapa o id na URL (id do provedor nunca é concatenado cru)', async () => {

@@ -270,6 +270,11 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
     foi separada em D24a intenção/lease, D24b identidade+webhook e D24c troca de sinal/restante. O
     E2E sandbox pago deve provar a correlação Checkout→Payment antes do rollout. Desabilitar boleto
     manualmente na conta não será a trava do produto (D57).
+  - **Decisão D58 em 2026-08-29:** o restante preserva sua janela de **7 dias**. Como cada Checkout
+    expira em no máximo 24 horas, Payments mantém uma única `patient_charge` e registra gerações de
+    Checkout com identidade, lease e estado próprios. Só a geração corrente fornece o link; ao
+    expirar, uma nova geração idempotente substitui a anterior e publica outro `link_ready`. Isso não
+    cria outra dívida/recebível e não autoriza retry cego de `POST /checkouts`.
 - **Corrigido no caminho:** a varredura de expiração (1.3) cancelava o agendamento mas **nunca fechava
   `patient_charges`** — a linha ficava `pending` para sempre e o link seguia pagável (**D22**). E
   `tryConfigureWebhook` montava a URL por template string: `APP_BASE_URL` com barra no fim gerava
@@ -371,13 +376,13 @@ Ramo C (cancela a tempo): sinal ESTORNADO
 
 ## 7. Critérios de aprovação da Camada 1 (portão)
 
-**Estado em 2026-08-27:** Build · Lint · Typecheck · Unit · Integration · Contract · Smoke · E2E
-financeiro controlado · `arch:check`/`arch:db-check` estão verdes; 2.702 testes passam sem regressão.
-A Camada 1 **ainda não está aprovada**: faltam E2E Meta real, prova sandbox D54/D55 com `PAYMENT_RESTORED`,
-estorno real PIX/cartão, carga/restore em scratch, `test:e2e`, Product Acceptance, implementação das
-decisões D24/D27/D50 e implementação D27. A fila
-executável e a evidência atual estão em `docs/qorov2.md` P0–P10. Proibido concluir com código sem teste,
-migration sem volume, endpoint/fluxo sem E2E, warning ignorado ou evidência externa presumida.
+**Estado em 2026-08-29:** Build · Lint · Typecheck · Unit · Integration · Contract e arquitetura estão
+verdes; 2.790 testes passam sem regressão. D24/D58, D50 e D27 estão implementados no worktree. A
+Camada 1 **ainda não está aprovada**: a migration 0092/smoke DB aguardam autorização; faltam E2E Meta
+real, prova sandbox D54/D55 com `PAYMENT_RESTORED`, pagamento/estorno real PIX+cartão, chargeback
+controlado, carga, Product Acceptance e estabilização. A fila executável e a evidência atual estão em
+`docs/qorov2.md` P0–P10. Proibido concluir com código sem teste, migration sem volume, endpoint/fluxo
+sem E2E, warning ignorado ou evidência externa presumida.
 
 ## 8. Riscos e mitigação
 - **Refactor do adapter quebrar billing** → 1.0 isolada com baseline inteiro como rede; feature nova só em cima disso.

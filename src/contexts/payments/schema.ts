@@ -28,8 +28,10 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 import { timestampsPattern, uuidPk } from '@/lib/db/types';
 
@@ -122,6 +124,33 @@ export const patientChargeStatus = pgEnum('patient_charge_status', [
 
 export const patientChargeKind = pgEnum('patient_charge_kind', ['deposit', 'remainder']);
 
+export const patientCheckoutGenerationStatus = pgEnum('patient_checkout_generation_status', [
+  'creating',
+  'active',
+  'creation_unknown',
+  'paid',
+  'cancelled',
+  'expired',
+  'failed',
+]);
+
+export const patientRefundIntentStatus = pgEnum('patient_refund_intent_status', [
+  'pending',
+  'submitting',
+  'confirmation_pending',
+  'confirmed',
+  'failed',
+]);
+
+export const patientChargeDisputeStatus = pgEnum('patient_charge_dispute_status', [
+  'requested',
+  'in_dispute',
+  'awaiting_reversal',
+  'reversed',
+  'lost',
+  'cash_undone',
+]);
+
 /**
  * A cobrança do PACIENTE na conta Asaas da clínica. Não confundir com `invoices`
  * (billing), que é a assinatura da clínica na conta do Qoro.
@@ -146,6 +175,12 @@ export const patientCharges = pgTable(
     provider: text('provider').notNull().default('asaas'),
     /** Id da cobrança no Asaas. Público (não é credencial). */
     providerPaymentId: text('provider_payment_id'),
+    /** Geração corrente do Checkout hospedado; não é a dívida nem o payment. */
+    providerCheckoutId: text('provider_checkout_id'),
+    checkoutGeneration: integer('checkout_generation').notNull().default(0),
+    checkoutExpiresAt: timestamp('checkout_expires_at', { withTimezone: true }),
+    /** Fim da promessa de cobrança; pode abranger várias gerações de até 24h. */
+    collectionExpiresAt: timestamp('collection_expires_at', { withTimezone: true }),
     /** Link hospedado do Asaas — é o que o paciente abre. Nunca vai para evento/log. */
     invoiceUrl: text('invoice_url'),
     externalReference: text('external_reference').notNull(),
@@ -153,6 +188,8 @@ export const patientCharges = pgTable(
     paidAt: timestamp('paid_at', { withTimezone: true }),
     expiredAt: timestamp('expired_at', { withTimezone: true }),
     refundedAt: timestamp('refunded_at', { withTimezone: true }),
+    /** Projeção operacional do chargeback; o fato clínico permanece intocado. */
+    disputeStatus: patientChargeDisputeStatus('dispute_status'),
     /** Código estável do provedor, já sanitizado. Nunca o corpo bruto. */
     failureCode: text('failure_code'),
     ...timestampsPattern(),
@@ -168,10 +205,117 @@ export const patientCharges = pgTable(
       t.clinicId,
       t.externalReference,
     ),
+    providerCheckoutUniq: uniqueIndex('patient_charges_provider_checkout_uniq')
+      .on(t.clinicId, t.providerCheckoutId)
+      .where(sql`${t.providerCheckoutId} is not null`),
+    providerPaymentUniq: uniqueIndex('patient_charges_provider_payment_uniq')
+      .on(t.clinicId, t.providerPaymentId)
+      .where(sql`${t.providerPaymentId} is not null`),
+    checkoutRenewalIdx: index('patient_charges_checkout_renewal_idx')
+      .on(t.checkoutExpiresAt, t.collectionExpiresAt)
+      .where(sql`${t.status} = 'pending' and ${t.providerCheckoutId} is not null`),
   }),
 );
 
 export type PatientChargeRow = typeof patientCharges.$inferSelect;
+
+/**
+ * Histórico operacional dos links hospedados de uma cobrança.
+ *
+ * O lease torna o POST exclusivo; `creation_unknown` é terminal para retry
+ * automático porque o Asaas não oferece consulta/idempotency-key de Checkout.
+ */
+export const patientCheckoutGenerations = pgTable(
+  'patient_checkout_generations',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    patientChargeId: uuid('patient_charge_id')
+      .notNull()
+      .references(() => patientCharges.id, { onDelete: 'cascade' }),
+    generation: integer('generation').notNull(),
+    externalReference: text('external_reference').notNull(),
+    status: patientCheckoutGenerationStatus('status').notNull().default('creating'),
+    providerCheckoutId: text('provider_checkout_id'),
+    checkoutUrl: text('checkout_url'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    leaseUntil: timestamp('lease_until', { withTimezone: true }),
+    attemptedAt: timestamp('attempted_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    failureCode: text('failure_code'),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    chargeGenerationUniq: unique('patient_checkout_generations_charge_generation_uniq').on(
+      t.patientChargeId,
+      t.generation,
+    ),
+    externalReferenceUniq: unique('patient_checkout_generations_external_reference_uniq').on(
+      t.clinicId,
+      t.externalReference,
+    ),
+    providerCheckoutUniq: uniqueIndex('patient_checkout_generations_provider_checkout_uniq')
+      .on(t.clinicId, t.providerCheckoutId)
+      .where(sql`${t.providerCheckoutId} is not null`),
+    oneOpenUniq: uniqueIndex('patient_checkout_generations_one_open_uniq')
+      .on(t.patientChargeId)
+      .where(sql`${t.status} in ('creating', 'active', 'creation_unknown')`),
+    renewalIdx: index('patient_checkout_generations_renewal_idx')
+      .on(t.expiresAt)
+      .where(sql`${t.status} = 'active'`),
+  }),
+);
+
+export type PatientCheckoutGenerationRow = typeof patientCheckoutGenerations.$inferSelect;
+
+// --- patient_refund_intents (D50) -----------------------------------------
+
+/**
+ * Intenção persistida antes do POST de estorno parcial.
+ *
+ * `submitting`/`confirmation_pending` nunca voltam automaticamente a `pending`:
+ * um timeout pode esconder um POST aceito e repetir seria devolver duas vezes.
+ */
+export const patientRefundIntents = pgTable(
+  'patient_refund_intents',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    patientChargeId: uuid('patient_charge_id')
+      .notNull()
+      .references(() => patientCharges.id, { onDelete: 'restrict' }),
+    purpose: text('purpose').notNull().default('excess'),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    status: patientRefundIntentStatus('status').notNull().default('pending'),
+    providerPaymentId: text('provider_payment_id').notNull(),
+    providerRefundId: text('provider_refund_id'),
+    baselineRefundedAmount: numeric('baseline_refunded_amount', { precision: 12, scale: 2 }),
+    attemptedAt: timestamp('attempted_at', { withTimezone: true }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    failureCode: text('failure_code'),
+    sourceEventId: uuid('source_event_id').notNull(),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    chargePurposeUniq: unique('patient_refund_intents_charge_purpose_uniq').on(
+      t.clinicId,
+      t.patientChargeId,
+      t.purpose,
+    ),
+    sourceEventUniq: unique('patient_refund_intents_source_event_uniq').on(
+      t.clinicId,
+      t.sourceEventId,
+    ),
+    providerRefundUniq: uniqueIndex('patient_refund_intents_provider_refund_uniq')
+      .on(t.clinicId, t.providerRefundId)
+      .where(sql`${t.providerRefundId} is not null`),
+    reconcileIdx: index('patient_refund_intents_reconcile_idx')
+      .on(t.updatedAt)
+      .where(sql`${t.status} in ('submitting', 'confirmation_pending')`),
+  }),
+);
+
+export type PatientRefundIntentRow = typeof patientRefundIntents.$inferSelect;
 
 // --- patient_payment_customers (ADR-050) -------------------------------------
 

@@ -1,11 +1,11 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 710,
+    "modules": 719,
     "elements": 54,
     "importEdges": 293,
     "moduleCycles": 0,
-    "events": 64,
+    "events": 67,
     "eventsWithoutConsumer": 42
   },
   "elements": [

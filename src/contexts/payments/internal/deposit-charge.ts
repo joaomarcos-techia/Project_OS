@@ -39,13 +39,8 @@ import { patientApiV1 } from '@/contexts/patient';
 import type { PatientChargeFailedPayload } from '../events';
 import { resolveDepositAmount } from '../policy';
 import { getDepositPolicy } from '../queries';
-import {
-  depositExternalReference,
-  findChargeByAppointment,
-  findPaymentCustomer,
-  insertDepositCharge,
-  linkPaymentCustomer,
-} from './charge-store';
+import { findChargeByAppointment, findPaymentCustomer, linkPaymentCustomer } from './charge-store';
+import { createInitialHostedCheckout, resolveCheckoutWindow } from './hosted-checkout';
 
 /** Janela do hold (ADR-049). Fixa: é promessa ao paciente, não configuração. */
 const HOLD_HOURS = 24;
@@ -62,18 +57,6 @@ const HOLD_HOURS = 24;
  * um erro por agendamento. Não cobrar é o mesmo desfecho, sem o ruído.
  */
 const MIN_GATEWAY_AMOUNT = 5;
-
-const DEFAULT_TZ = 'America/Sao_Paulo';
-
-/** 'YYYY-MM-DD' na timezone da clínica — formato de `dueDate` do Asaas. */
-function dateInTz(value: Date, tz: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(value);
-}
 
 /**
  * O hold nunca pode ultrapassar o horário da consulta: segurar uma vaga até depois
@@ -169,6 +152,14 @@ export async function createDepositCharge(ctx: {
     return;
   }
 
+  const now = new Date();
+  const scheduledAt = new Date(payload.scheduledAt);
+  const holdExpiresAt = resolveHoldExpiry(now, scheduledAt);
+  if (!resolveCheckoutWindow(now, holdExpiresAt)) {
+    metrics.emit('payments.deposit.skipped_checkout_window', { clinicId, appointmentId });
+    return;
+  }
+
   const client = await getClinicAsaasClient(clinicId);
   if (!client) {
     // Política ligada e conta não conectada: a tela já avisa, mas o operador
@@ -184,49 +175,25 @@ export async function createDepositCharge(ctx: {
     return;
   }
 
-  const now = new Date();
-  const scheduledAt = new Date(payload.scheduledAt);
-  const holdExpiresAt = resolveHoldExpiry(now, scheduledAt);
-  const externalReference = depositExternalReference(appointmentId);
-
   try {
     const customerId = await ensureCustomer({ client, clinicId, patientId, ...identity });
 
-    // SEMPRE procura antes de criar. O Asaas não tem idempotency-key nativa: se um
-    // POST anterior criou a cobrança e só a resposta se perdeu, criar de novo
-    // cobraria o paciente duas vezes — o pior desfecho possível aqui. O custo é um
-    // GET por cobrança nova; a alternativa era deixar essa proteção depender de o
-    // chamador lembrar de pedi-la.
-    const recovered = await client.findPaymentByExternalReference(externalReference, {
-      attempts: 1,
-    });
-
-    const payment =
-      recovered ??
-      (await client.generateInvoice({
-        customerId,
-        value: amount,
-        dueDate: dateInTz(holdExpiresAt, DEFAULT_TZ),
-        // Descrição GENÉRICA de propósito (ADR-050 D2): o nome do procedimento é
-        // dado sensível em saúde mental e não vai para a fatura de terceiro.
-        description: 'Sinal do agendamento',
-        // UNDEFINED = o paciente escolhe PIX ou cartão na página do Asaas.
-        billingType: 'UNDEFINED',
-        externalReference,
-      }));
-
-    const inserted = await insertDepositCharge({
+    const outcome = await createInitialHostedCheckout({
+      client,
       clinicId,
       appointmentId,
       patientId,
+      customerId,
+      kind: 'deposit',
       amount,
-      providerPaymentId: payment.paymentId,
-      invoiceUrl: payment.invoiceUrl,
+      // Genérica de propósito (ADR-050 D2): procedimento é dado sensível.
+      description: 'Sinal do agendamento',
       holdExpiresAt,
+      collectionExpiresAt: holdExpiresAt,
+      now,
     });
 
-    // `null` = outra entrega ganhou a corrida e já publicou o evento.
-    if (inserted) {
+    if (outcome === 'created') {
       metrics.emit('payments.deposit.created', { clinicId, appointmentId, amount });
     }
   } catch (err) {

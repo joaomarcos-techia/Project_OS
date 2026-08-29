@@ -209,6 +209,29 @@ export interface GenerateInvoiceInput {
   externalReference?: string;
 }
 
+/** Checkout hospedado e avulso: o Asaas coleta o meio, nunca o Qoro. */
+export interface CreateCheckoutInput {
+  /** Customer já cadastrado na conta Asaas da clínica. */
+  customerId: string;
+  value: number;
+  description: string;
+  externalReference: string;
+  /** Contrato do Asaas: entre 10 minutos e 24 horas. */
+  minutesToExpire: number;
+  callback: {
+    successUrl: string;
+    cancelUrl: string;
+    expiredUrl: string;
+  };
+}
+
+export interface ProviderCheckout {
+  checkoutId: string;
+  status: string;
+  link: string | null;
+  externalReference: string | null;
+}
+
 export interface ProviderPayment {
   paymentId: string;
   status: string; // PENDING|RECEIVED|OVERDUE|REFUNDED|CONFIRMED...
@@ -224,6 +247,11 @@ export interface ProviderPayment {
   subscriptionId: string | null;
   billingType: string | null;
   externalReference: string | null;
+  /** Checkout hospedado que originou a cobrança, quando houver. */
+  checkoutSessionId: string | null;
+  /** Estado autoritativo do objeto `chargeback`, quando a cobrança está em disputa. */
+  chargebackStatus?: string | null;
+  chargebackReason?: string | null;
   /**
    * A cobranca foi REMOVIDA da conta (ADR-049 1.5). Verificado ao vivo em
    * 2026-08-24, e nada intuitivo: `DELETE /payments/{id}` responde 200, mas o
@@ -269,6 +297,8 @@ export interface ParsedWebhook {
   eventId: string; // chave de dedup — sempre do provider (`body.id`)
   event: string; // rótulo da notificação; NÃO decide transição (o status real decide)
   paymentId: string | null;
+  /** Identidade segura para consulta autoritativa de cobranças do Checkout. */
+  checkoutId: string | null;
 }
 
 export interface CreateWebhookInput {
@@ -315,6 +345,10 @@ export interface PaymentProvider {
     },
   ): Promise<void>;
   generateInvoice(input: GenerateInvoiceInput): Promise<ProviderPayment>;
+  /** Cria uma página hospedada limitada, por contrato, a PIX e cartão. */
+  createCheckout(input: CreateCheckoutInput): Promise<ProviderCheckout>;
+  /** Cancela uma geração de Checkout que ainda não deve aceitar pagamento. */
+  cancelCheckout(asaasCheckoutId: string): Promise<void>;
   getSubscription(asaasSubscriptionId: string): Promise<ProviderSubscription>;
   /** Recupera uma assinatura criada por tentativa anterior após timeout de POST. */
   findSubscriptionByExternalReference(
@@ -333,6 +367,11 @@ export interface PaymentProvider {
     externalReference: string,
     opts?: { attempts?: number },
   ): Promise<ProviderPayment | null>;
+  /** Resolve a cobrança criada por uma sessão de Checkout sem confiar no webhook. */
+  findPaymentByCheckoutSession(
+    asaasCheckoutId: string,
+    opts?: { attempts?: number },
+  ): Promise<ProviderPayment | null>;
   /**
    * `POST /payments/{id}/refund` — devolve o dinheiro ao paciente (ADR-049 1.5,
    * ramo C: cancelamento dentro da janela).
@@ -348,6 +387,16 @@ export interface PaymentProvider {
     asaasPaymentId: string,
     opts?: { value?: number; description?: string },
   ): Promise<ProviderRefund>;
+  /**
+   * Read-back autoritativo dos estornos de uma cobranca.
+   *
+   * D50 usa esta consulta depois do POST (ou de um timeout) para nunca repetir
+   * cegamente uma devolucao que o Asaas pode ja ter aceitado.
+   */
+  listPaymentRefunds(
+    asaasPaymentId: string,
+    opts?: { attempts?: number },
+  ): Promise<ProviderRefund[]>;
   /**
    * `DELETE /payments/{id}` — remove uma cobrança **ainda não paga**.
    *
@@ -391,6 +440,17 @@ function asNum(v: unknown): number {
 }
 function asStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+function chargebackFields(
+  value: Record<string, unknown>,
+): Pick<ProviderPayment, 'chargebackStatus' | 'chargebackReason'> {
+  if (!value.chargeback || typeof value.chargeback !== 'object') return {};
+  const chargeback = value.chargeback as Record<string, unknown>;
+  return {
+    chargebackStatus: asStr(chargeback.status),
+    chargebackReason: asStr(chargeback.reason),
+  };
 }
 
 // --- credencial ------------------------------------------------------------
@@ -678,8 +738,52 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         subscriptionId: asStr(r.subscription),
         billingType: asStr(r.billingType),
         externalReference: asStr(r.externalReference),
+        checkoutSessionId: asStr(r.checkoutSession),
+        ...chargebackFields(r),
         deleted: r.deleted === true,
       };
+    },
+
+    async createCheckout(input) {
+      if (
+        !Number.isInteger(input.minutesToExpire) ||
+        input.minutesToExpire < 10 ||
+        input.minutesToExpire > 1_440
+      ) {
+        throw new BillingProviderError(
+          'Checkout exige expiração entre 10 e 1440 minutos.',
+          'checkout_expiration_invalid',
+        );
+      }
+
+      const r = (await request('POST', '/checkouts', {
+        customer: input.customerId,
+        billingTypes: ['PIX', 'CREDIT_CARD'],
+        chargeTypes: ['DETACHED'],
+        minutesToExpire: input.minutesToExpire,
+        externalReference: input.externalReference,
+        callback: input.callback,
+        items: [
+          {
+            name: input.description,
+            description: input.description,
+            quantity: 1,
+            value: input.value,
+          },
+        ],
+      })) as Record<string, unknown>;
+
+      return {
+        checkoutId: String(r.id),
+        status: asStr(r.status) ?? 'UNKNOWN',
+        link: asStr(r.link),
+        externalReference: asStr(r.externalReference),
+      };
+    },
+
+    async cancelCheckout(id) {
+      await request('POST', `/checkouts/${encodeURIComponent(id)}/cancel`);
+      metrics.emit('billing.asaas.checkout_cancelled', { checkoutId: id });
     },
 
     async getSubscription(id) {
@@ -731,6 +835,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
           subscriptionId: asStr(p.subscription) ?? id,
           billingType: asStr(p.billingType),
           externalReference: asStr(p.externalReference),
+          checkoutSessionId: asStr(p.checkoutSession),
           deleted: p.deleted === true,
         };
       });
@@ -750,6 +855,8 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         subscriptionId: asStr(r.subscription),
         billingType: asStr(r.billingType),
         externalReference: asStr(r.externalReference),
+        checkoutSessionId: asStr(r.checkoutSession),
+        ...chargebackFields(r),
         deleted: r.deleted === true,
       };
     },
@@ -771,6 +878,35 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         subscriptionId: asStr(p.subscription),
         billingType: asStr(p.billingType),
         externalReference: asStr(p.externalReference),
+        checkoutSessionId: asStr(p.checkoutSession),
+        deleted: p.deleted === true,
+      };
+    },
+
+    async findPaymentByCheckoutSession(checkoutId, opts) {
+      const query = new URLSearchParams({ checkoutSession: checkoutId, limit: '10', offset: '0' });
+      const r = (await request('GET', `/payments?${query.toString()}`, undefined, opts)) as {
+        data?: unknown;
+      };
+      const payments = Array.isArray(r.data) ? r.data : [];
+      const exact = payments.find(
+        (payment) =>
+          payment &&
+          typeof payment === 'object' &&
+          asStr((payment as Record<string, unknown>).checkoutSession) === checkoutId,
+      );
+      if (!exact || typeof exact !== 'object') return null;
+      const p = exact as Record<string, unknown>;
+      return {
+        paymentId: String(p.id),
+        status: asStr(p.status) ?? 'UNKNOWN',
+        value: asNum(p.value),
+        dueDate: asStr(p.dueDate) ?? '',
+        invoiceUrl: asStr(p.invoiceUrl),
+        subscriptionId: asStr(p.subscription),
+        billingType: asStr(p.billingType),
+        externalReference: asStr(p.externalReference),
+        checkoutSessionId: asStr(p.checkoutSession),
         deleted: p.deleted === true,
       };
     },
@@ -790,6 +926,27 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         status: asStr(r.status) ?? 'UNKNOWN',
         value: asNum(r.value),
       };
+    },
+
+    async listPaymentRefunds(id, opts) {
+      const r = (await request(
+        'GET',
+        `/payments/${encodeURIComponent(id)}/refunds?offset=0&limit=100`,
+        undefined,
+        opts,
+      )) as { data?: unknown };
+      const refunds = Array.isArray(r.data) ? r.data : [];
+      return refunds.flatMap((raw) => {
+        if (!raw || typeof raw !== 'object') return [];
+        const refund = raw as Record<string, unknown>;
+        return [
+          {
+            refundId: asStr(refund.id),
+            status: asStr(refund.status) ?? 'UNKNOWN',
+            value: asNum(refund.value),
+          },
+        ];
+      });
     },
 
     async cancelPayment(id) {
@@ -851,6 +1008,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
     parseWebhook(raw) {
       const body = JSON.parse(raw) as Record<string, unknown>;
       const payment = (body.payment ?? {}) as Record<string, unknown>;
+      const checkout = (body.checkout ?? {}) as Record<string, unknown>;
       const event = String(body.event ?? '');
       // A2: `body.id` (evt_...) é OBRIGATÓRIO. Antes, na ausência dele, a chave de
       // dedup era sintetizada como `${event}:${paymentId}:${status}` — o que (a) é
@@ -866,7 +1024,12 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
           400,
         );
       }
-      return { eventId, event, paymentId: asStr(payment.id) };
+      return {
+        eventId,
+        event,
+        paymentId: asStr(payment.id),
+        checkoutId: asStr(checkout.id) ?? asStr(payment.checkoutSession),
+      };
     },
 
     validateWebhookToken(token) {

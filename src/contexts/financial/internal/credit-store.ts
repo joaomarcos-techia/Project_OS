@@ -18,7 +18,7 @@
  */
 import 'server-only';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 
@@ -126,6 +126,7 @@ export async function listAvailableCredits(
         eq(patientCredits.clinicId, clinicId),
         eq(patientCredits.appointmentId, appointmentId),
         eq(patientCredits.status, 'available'),
+        or(isNull(patientCredits.disputeStatus), eq(patientCredits.disputeStatus, 'reversed')),
       ),
     )
     .orderBy(patientCredits.grantedAt);
@@ -139,7 +140,14 @@ export async function listAvailableCredits(
  */
 export async function allocateCredit(
   tx: Tx,
-  input: { clinicId: string; creditId: string; lancamentoId: string; amount: number },
+  input: {
+    clinicId: string;
+    creditId: string;
+    lancamentoId: string;
+    /** Presente nos caminhos novos; nulo apenas para dados/smokes anteriores à 0092. */
+    paymentTransactionId?: string;
+    amount: number;
+  },
 ): Promise<boolean> {
   const rows = await tx
     .update(patientCredits)
@@ -147,6 +155,9 @@ export async function allocateCredit(
       status: 'allocated',
       allocatedAmount: input.amount.toFixed(2),
       allocatedLancamentoId: input.lancamentoId,
+      ...(input.paymentTransactionId
+        ? { allocatedPaymentTransactionId: input.paymentTransactionId }
+        : {}),
       updatedAt: sql`now()`,
     })
     .where(
@@ -154,6 +165,7 @@ export async function allocateCredit(
         eq(patientCredits.id, input.creditId),
         eq(patientCredits.clinicId, input.clinicId),
         eq(patientCredits.status, 'available'),
+        or(isNull(patientCredits.disputeStatus), eq(patientCredits.disputeStatus, 'reversed')),
       ),
     )
     .returning({ id: patientCredits.id });

@@ -73,6 +73,9 @@ flowchart LR
   context_financial --> ev_financial_lancamento_estornado
   ev_financial_lancamento_paid["financial.lancamento.paid"]
   context_financial --> ev_financial_lancamento_paid
+  ev_financial_patient_refund_requested["financial.patient_refund.requested"]
+  context_financial --> ev_financial_patient_refund_requested
+  ev_financial_patient_refund_requested --> context_payments
   ev_messaging_inbound_received["messaging.inbound.received"]
   context_messaging --> ev_messaging_inbound_received
   ev_messaging_inbound_received --> context_ai_agent
@@ -126,6 +129,12 @@ flowchart LR
   ev_payments_patient_credit_released["payments.patient_credit.released"]
   context_payments --> ev_payments_patient_credit_released
   ev_payments_patient_credit_released --> context_financial
+  ev_payments_patient_payment_risk_changed["payments.patient_payment.risk_changed"]
+  context_payments --> ev_payments_patient_payment_risk_changed
+  ev_payments_patient_payment_risk_changed --> context_financial
+  ev_payments_patient_refund_confirmed["payments.patient_refund.confirmed"]
+  context_payments --> ev_payments_patient_refund_confirmed
+  ev_payments_patient_refund_confirmed --> context_financial
   ev_scheduling_appointment_cancelled["scheduling.appointment.cancelled"]
   context_scheduling --> ev_scheduling_appointment_cancelled
   ev_scheduling_appointment_cancelled --> context_payments

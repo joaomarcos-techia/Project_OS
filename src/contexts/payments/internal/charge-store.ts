@@ -12,7 +12,7 @@
  */
 import 'server-only';
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
@@ -26,7 +26,12 @@ import {
   type PatientCreditGrantedPayload,
   type PatientCreditReleasedPayload,
 } from '../events';
-import { patientCharges, patientPaymentCustomers, patientWebhookEvents } from '../schema';
+import {
+  patientCharges,
+  patientCheckoutGenerations,
+  patientPaymentCustomers,
+  patientWebhookEvents,
+} from '../schema';
 
 /**
  * `billingType` do gateway → código do catálogo `payment_methods` (ADR-051).
@@ -53,6 +58,14 @@ export function depositExternalReference(appointmentId: string): string {
 /** Referência determinística do RESTANTE (ADR-051 1.5b.3). */
 export function remainderExternalReference(appointmentId: string): string {
   return `remainder:${appointmentId}`;
+}
+
+/** Uma identidade nova por link, sem transformar o link em uma nova dívida. */
+export function checkoutGenerationExternalReference(
+  chargeExternalReference: string,
+  generation: number,
+): string {
+  return `${chargeExternalReference}:g${generation}`;
 }
 
 /** Cobrança já existente para o agendamento, se houver. */
@@ -117,6 +130,517 @@ export async function linkPaymentCustomer(input: {
       .onConflictDoNothing(),
   );
   return (await findPaymentCustomer(input.clinicId, input.patientId)) ?? input.providerCustomerId;
+}
+
+// --- Checkout hospedado (D24/D57/D58) ---------------------------------------
+
+export type InitialCheckoutClaim =
+  | {
+      state: 'claimed';
+      chargeId: string;
+      generationId: string;
+      generation: number;
+      externalReference: string;
+      expiresAt: Date;
+    }
+  | { state: 'existing'; chargeId: string };
+
+/**
+ * Persiste a dívida e adquire o lease ANTES de `POST /checkouts`.
+ *
+ * Quem perde a UNIQUE nunca chama o gateway. Se o processo cair depois do POST,
+ * a linha existente também impede retry cego: sem um GET de Checkout no contrato
+ * público, duplicar um recurso pagável seria pior que exigir reconciliação.
+ */
+export async function claimInitialCheckoutCharge(input: {
+  clinicId: string;
+  appointmentId: string;
+  patientId: string;
+  kind: 'deposit' | 'remainder';
+  amount: number;
+  holdExpiresAt: Date | null;
+  collectionExpiresAt: Date;
+  checkoutExpiresAt: Date;
+  leaseUntil: Date;
+}): Promise<InitialCheckoutClaim> {
+  return withTenant(input.clinicId, async (tx) => {
+    const chargeExternalReference =
+      input.kind === 'deposit'
+        ? depositExternalReference(input.appointmentId)
+        : remainderExternalReference(input.appointmentId);
+    const generation = 1;
+    const externalReference = checkoutGenerationExternalReference(
+      chargeExternalReference,
+      generation,
+    );
+
+    const [charge] = await tx
+      .insert(patientCharges)
+      .values({
+        clinicId: input.clinicId,
+        appointmentId: input.appointmentId,
+        patientId: input.patientId,
+        kind: input.kind,
+        status: 'pending',
+        amount: input.amount.toFixed(2),
+        provider: 'asaas',
+        externalReference: chargeExternalReference,
+        holdExpiresAt: input.holdExpiresAt,
+        checkoutGeneration: generation,
+        collectionExpiresAt: input.collectionExpiresAt,
+      })
+      .onConflictDoNothing()
+      .returning({ id: patientCharges.id });
+
+    if (!charge) {
+      const [existing] = await tx
+        .select({ id: patientCharges.id })
+        .from(patientCharges)
+        .where(
+          and(
+            eq(patientCharges.appointmentId, input.appointmentId),
+            eq(patientCharges.kind, input.kind),
+          ),
+        )
+        .limit(1);
+      if (!existing) {
+        throw new Error('[payments] conflito de cobrança sem linha recuperável');
+      }
+      return { state: 'existing', chargeId: existing.id };
+    }
+
+    const [generationRow] = await tx
+      .insert(patientCheckoutGenerations)
+      .values({
+        clinicId: input.clinicId,
+        patientChargeId: charge.id,
+        generation,
+        externalReference,
+        status: 'creating',
+        expiresAt: input.checkoutExpiresAt,
+        leaseUntil: input.leaseUntil,
+      })
+      .returning({ id: patientCheckoutGenerations.id });
+
+    if (!generationRow) {
+      throw new Error('[payments] geração inicial de Checkout não foi persistida');
+    }
+
+    return {
+      state: 'claimed',
+      chargeId: charge.id,
+      generationId: generationRow.id,
+      generation,
+      externalReference,
+      expiresAt: input.checkoutExpiresAt,
+    };
+  });
+}
+
+/** Ativa a geração e publica os eventos somente depois de receber id + link. */
+export async function activateCheckoutGeneration(input: {
+  clinicId: string;
+  chargeId: string;
+  generationId: string;
+  generation: number;
+  providerCheckoutId: string;
+  checkoutUrl: string;
+  expiresAt: Date;
+  activatedAt: Date;
+}): Promise<boolean> {
+  return withTenant(input.clinicId, async (tx) => {
+    const [charge] = await tx
+      .select({
+        id: patientCharges.id,
+        status: patientCharges.status,
+        appointmentId: patientCharges.appointmentId,
+        patientId: patientCharges.patientId,
+        kind: patientCharges.kind,
+        amount: patientCharges.amount,
+        holdExpiresAt: patientCharges.holdExpiresAt,
+        collectionExpiresAt: patientCharges.collectionExpiresAt,
+        checkoutGeneration: patientCharges.checkoutGeneration,
+      })
+      .from(patientCharges)
+      .where(eq(patientCharges.id, input.chargeId))
+      .limit(1)
+      .for('update');
+    if (
+      !charge ||
+      charge.status !== 'pending' ||
+      charge.checkoutGeneration !== input.generation ||
+      !charge.patientId
+    ) {
+      return false;
+    }
+
+    const [generation] = await tx
+      .select({ status: patientCheckoutGenerations.status })
+      .from(patientCheckoutGenerations)
+      .where(
+        and(
+          eq(patientCheckoutGenerations.id, input.generationId),
+          eq(patientCheckoutGenerations.patientChargeId, input.chargeId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (generation?.status !== 'creating') return false;
+
+    await tx
+      .update(patientCheckoutGenerations)
+      .set({
+        status: 'active',
+        providerCheckoutId: input.providerCheckoutId,
+        checkoutUrl: input.checkoutUrl,
+        expiresAt: input.expiresAt,
+        leaseUntil: null,
+        resolvedAt: input.activatedAt,
+        failureCode: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(patientCheckoutGenerations.id, input.generationId));
+
+    await tx
+      .update(patientCharges)
+      .set({
+        providerCheckoutId: input.providerCheckoutId,
+        invoiceUrl: input.checkoutUrl,
+        checkoutExpiresAt: input.expiresAt,
+        failureCode: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(patientCharges.id, input.chargeId));
+
+    const amount = Number(charge.amount);
+    const eventExpiry = charge.holdExpiresAt ?? charge.collectionExpiresAt ?? input.expiresAt;
+    if (charge.kind === 'deposit' && input.generation === 1) {
+      const created: PatientChargeCreatedPayload = {
+        chargeId: charge.id,
+        clinicId: input.clinicId,
+        appointmentId: charge.appointmentId,
+        patientId: charge.patientId,
+        kind: 'deposit',
+        amount,
+        holdExpiresAt: eventExpiry.toISOString(),
+      };
+      await publishEvent(tx, {
+        clinicId: input.clinicId,
+        eventType: PAYMENTS_EVENTS.CHARGE_CREATED,
+        payload: created,
+        idempotencyKey: charge.id,
+      });
+    }
+
+    const linkReady: PatientChargeLinkReadyPayload = {
+      chargeId: charge.id,
+      clinicId: input.clinicId,
+      appointmentId: charge.appointmentId,
+      patientId: charge.patientId,
+      kind: charge.kind,
+      amount,
+      holdExpiresAt: eventExpiry.toISOString(),
+    };
+    await publishEvent(tx, {
+      clinicId: input.clinicId,
+      eventType: PAYMENTS_EVENTS.CHARGE_LINK_READY,
+      payload: linkReady,
+      idempotencyKey: `charge-link:${charge.id}:g${input.generation}`,
+    });
+
+    return true;
+  });
+}
+
+/** Registra falha sem jamais persistir corpo/descrição do provider. */
+export async function markCheckoutCreationIssue(input: {
+  clinicId: string;
+  chargeId: string;
+  generationId: string;
+  outcome: 'failed' | 'creation_unknown';
+  failureCode: string;
+  resolvedAt: Date;
+}): Promise<void> {
+  await withTenant(input.clinicId, async (tx) => {
+    await tx
+      .update(patientCheckoutGenerations)
+      .set({
+        status: input.outcome,
+        leaseUntil: null,
+        resolvedAt: input.resolvedAt,
+        failureCode: input.failureCode,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(patientCheckoutGenerations.id, input.generationId),
+          eq(patientCheckoutGenerations.patientChargeId, input.chargeId),
+          eq(patientCheckoutGenerations.status, 'creating'),
+        ),
+      );
+
+    await tx
+      .update(patientCharges)
+      .set({
+        ...(input.outcome === 'failed' ? { status: 'failed' as const } : {}),
+        failureCode: input.failureCode,
+        updatedAt: sql`now()`,
+      })
+      .where(and(eq(patientCharges.id, input.chargeId), eq(patientCharges.status, 'pending')));
+  });
+}
+
+export interface RemainderCheckoutRenewalCandidate {
+  chargeId: string;
+  appointmentId: string;
+  patientId: string;
+  amount: number;
+  generation: number;
+  providerCheckoutId: string;
+  collectionExpiresAt: Date;
+}
+
+/** Links vencidos dentro da promessa de 7 dias, tenant-scoped. */
+export async function listRemainderCheckoutRenewalCandidates(
+  clinicId: string,
+  now: Date,
+  limit: number,
+): Promise<RemainderCheckoutRenewalCandidate[]> {
+  const rows = await withTenant(clinicId, (tx) =>
+    tx
+      .select({
+        chargeId: patientCharges.id,
+        appointmentId: patientCharges.appointmentId,
+        patientId: patientCharges.patientId,
+        amount: patientCharges.amount,
+        generation: patientCharges.checkoutGeneration,
+        providerCheckoutId: patientCharges.providerCheckoutId,
+        collectionExpiresAt: patientCharges.collectionExpiresAt,
+      })
+      .from(patientCharges)
+      .where(
+        and(
+          eq(patientCharges.kind, 'remainder'),
+          eq(patientCharges.status, 'pending'),
+          isNull(patientCharges.providerPaymentId),
+          lte(patientCharges.checkoutExpiresAt, now),
+          gt(patientCharges.collectionExpiresAt, now),
+        ),
+      )
+      .limit(limit),
+  );
+  return rows.flatMap((row) =>
+    row.patientId && row.providerCheckoutId && row.collectionExpiresAt
+      ? [
+          {
+            chargeId: row.chargeId,
+            appointmentId: row.appointmentId,
+            patientId: row.patientId,
+            amount: Number(row.amount),
+            generation: row.generation,
+            providerCheckoutId: row.providerCheckoutId,
+            collectionExpiresAt: row.collectionExpiresAt,
+          },
+        ]
+      : [],
+  );
+}
+
+export type CheckoutRenewalClaim =
+  | {
+      state: 'claimed';
+      chargeId: string;
+      generationId: string;
+      generation: number;
+      externalReference: string;
+    }
+  | { state: 'lost' };
+
+/** Troca a geração expirada por um lease novo; um único worker vence. */
+export async function claimRemainderCheckoutRenewal(input: {
+  clinicId: string;
+  candidate: RemainderCheckoutRenewalCandidate;
+  checkoutExpiresAt: Date;
+  leaseUntil: Date;
+  now: Date;
+}): Promise<CheckoutRenewalClaim> {
+  return withTenant(input.clinicId, async (tx) => {
+    const [charge] = await tx
+      .select({
+        id: patientCharges.id,
+        status: patientCharges.status,
+        kind: patientCharges.kind,
+        providerPaymentId: patientCharges.providerPaymentId,
+        providerCheckoutId: patientCharges.providerCheckoutId,
+        checkoutGeneration: patientCharges.checkoutGeneration,
+        checkoutExpiresAt: patientCharges.checkoutExpiresAt,
+        collectionExpiresAt: patientCharges.collectionExpiresAt,
+        externalReference: patientCharges.externalReference,
+      })
+      .from(patientCharges)
+      .where(eq(patientCharges.id, input.candidate.chargeId))
+      .limit(1)
+      .for('update');
+    if (
+      !charge ||
+      charge.status !== 'pending' ||
+      charge.kind !== 'remainder' ||
+      charge.providerPaymentId !== null ||
+      charge.providerCheckoutId !== input.candidate.providerCheckoutId ||
+      charge.checkoutGeneration !== input.candidate.generation ||
+      !charge.checkoutExpiresAt ||
+      charge.checkoutExpiresAt.getTime() > input.now.getTime() ||
+      !charge.collectionExpiresAt ||
+      charge.collectionExpiresAt.getTime() <= input.now.getTime()
+    ) {
+      return { state: 'lost' };
+    }
+
+    const expired = await tx
+      .update(patientCheckoutGenerations)
+      .set({
+        status: 'expired',
+        leaseUntil: null,
+        resolvedAt: input.now,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(patientCheckoutGenerations.patientChargeId, charge.id),
+          eq(patientCheckoutGenerations.generation, charge.checkoutGeneration),
+          eq(patientCheckoutGenerations.status, 'active'),
+        ),
+      )
+      .returning({ id: patientCheckoutGenerations.id });
+    if (expired.length === 0) return { state: 'lost' };
+
+    const generation = charge.checkoutGeneration + 1;
+    const externalReference = checkoutGenerationExternalReference(
+      charge.externalReference,
+      generation,
+    );
+    const [generationRow] = await tx
+      .insert(patientCheckoutGenerations)
+      .values({
+        clinicId: input.clinicId,
+        patientChargeId: charge.id,
+        generation,
+        externalReference,
+        status: 'creating',
+        expiresAt: input.checkoutExpiresAt,
+        leaseUntil: input.leaseUntil,
+      })
+      .returning({ id: patientCheckoutGenerations.id });
+    if (!generationRow) throw new Error('[payments] renovação de Checkout não persistida');
+
+    await tx
+      .update(patientCharges)
+      .set({
+        providerCheckoutId: null,
+        invoiceUrl: null,
+        checkoutGeneration: generation,
+        checkoutExpiresAt: null,
+        failureCode: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(patientCharges.id, charge.id));
+
+    return {
+      state: 'claimed',
+      chargeId: charge.id,
+      generationId: generationRow.id,
+      generation,
+      externalReference,
+    };
+  });
+}
+
+export interface RemainderCheckoutExpiryCandidate {
+  chargeId: string;
+  providerPaymentId: string | null;
+  providerCheckoutId: string;
+}
+
+/** Candidatos cujo prazo total acabou; o caller verifica/cancela no provider. */
+export async function listRemainderCheckoutExpiryCandidates(
+  clinicId: string,
+  now: Date,
+  limit: number,
+): Promise<RemainderCheckoutExpiryCandidate[]> {
+  const rows = await withTenant(clinicId, (tx) =>
+    tx
+      .select({
+        chargeId: patientCharges.id,
+        providerPaymentId: patientCharges.providerPaymentId,
+        providerCheckoutId: patientCharges.providerCheckoutId,
+      })
+      .from(patientCharges)
+      .where(
+        and(
+          eq(patientCharges.kind, 'remainder'),
+          eq(patientCharges.status, 'pending'),
+          lte(patientCharges.collectionExpiresAt, now),
+        ),
+      )
+      .limit(limit),
+  );
+  return rows.flatMap((row) =>
+    row.providerCheckoutId
+      ? [
+          {
+            chargeId: row.chargeId,
+            providerPaymentId: row.providerPaymentId,
+            providerCheckoutId: row.providerCheckoutId,
+          },
+        ]
+      : [],
+  );
+}
+
+/** Fecha somente o instrumento após cleanup; o recebível Financial fica aberto. */
+export async function expireRemainderCheckoutCollection(input: {
+  clinicId: string;
+  chargeId: string;
+  expiredAt: Date;
+}): Promise<boolean> {
+  return withTenant(input.clinicId, async (tx) => {
+    const [expired] = await tx
+      .update(patientCharges)
+      .set({
+        status: 'expired',
+        providerCheckoutId: null,
+        invoiceUrl: null,
+        checkoutExpiresAt: null,
+        expiredAt: input.expiredAt,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(patientCharges.id, input.chargeId),
+          eq(patientCharges.kind, 'remainder'),
+          eq(patientCharges.status, 'pending'),
+          lte(patientCharges.collectionExpiresAt, input.expiredAt),
+        ),
+      )
+      .returning({ id: patientCharges.id });
+    if (!expired) return false;
+
+    await tx
+      .update(patientCheckoutGenerations)
+      .set({
+        status: 'expired',
+        leaseUntil: null,
+        resolvedAt: input.expiredAt,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(patientCheckoutGenerations.patientChargeId, expired.id),
+          eq(patientCheckoutGenerations.status, 'active'),
+        ),
+      );
+    return true;
+  });
 }
 
 export interface InsertDepositChargeInput {
@@ -254,6 +778,8 @@ export async function markDepositPaid(input: {
   paidAt: Date;
   /** Do `getPayment` — vira a forma de pagamento da baixa no Financial. */
   billingType?: string | null;
+  /** Do `getPayment`, nunca do corpo do webhook. */
+  checkoutSessionId?: string | null;
 }): Promise<ReconcileOutcome> {
   return withTenant(input.clinicId, async (tx) => {
     const dedup = await tx
@@ -267,6 +793,17 @@ export async function markDepositPaid(input: {
       .returning({ id: patientWebhookEvents.id });
     if (dedup.length === 0) return 'ignored';
 
+    let checkoutChargeId: string | null = null;
+    if (input.checkoutSessionId) {
+      const [generation] = await tx
+        .select({ patientChargeId: patientCheckoutGenerations.patientChargeId })
+        .from(patientCheckoutGenerations)
+        .where(eq(patientCheckoutGenerations.providerCheckoutId, input.checkoutSessionId))
+        .limit(1);
+      if (!generation) return 'unknown_charge';
+      checkoutChargeId = generation.patientChargeId;
+    }
+
     const [charge] = await tx
       .select({
         id: patientCharges.id,
@@ -275,20 +812,55 @@ export async function markDepositPaid(input: {
         patientId: patientCharges.patientId,
         kind: patientCharges.kind,
         amount: patientCharges.amount,
+        providerPaymentId: patientCharges.providerPaymentId,
       })
       .from(patientCharges)
-      .where(eq(patientCharges.providerPaymentId, input.providerPaymentId))
+      .where(
+        checkoutChargeId
+          ? eq(patientCharges.id, checkoutChargeId)
+          : eq(patientCharges.providerPaymentId, input.providerPaymentId),
+      )
       .limit(1);
     if (!charge) return 'unknown_charge';
+    if (charge.providerPaymentId && charge.providerPaymentId !== input.providerPaymentId) {
+      return 'unknown_charge';
+    }
     if (charge.status === 'paid') return 'already_paid';
 
     const updated = await tx
       .update(patientCharges)
-      .set({ status: 'paid', paidAt: input.paidAt, holdExpiresAt: null, updatedAt: sql`now()` })
-      .where(and(eq(patientCharges.id, charge.id), eq(patientCharges.status, 'pending')))
+      .set({
+        status: 'paid',
+        providerPaymentId: input.providerPaymentId,
+        paidAt: input.paidAt,
+        holdExpiresAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(patientCharges.id, charge.id),
+          eq(patientCharges.status, 'pending'),
+          or(
+            isNull(patientCharges.providerPaymentId),
+            eq(patientCharges.providerPaymentId, input.providerPaymentId),
+          ),
+        ),
+      )
       .returning({ id: patientCharges.id });
     // Perdeu a corrida para outra entrega: o evento já foi publicado por ela.
     if (updated.length === 0) return 'already_paid';
+
+    if (input.checkoutSessionId) {
+      await tx
+        .update(patientCheckoutGenerations)
+        .set({ status: 'paid', resolvedAt: input.paidAt, leaseUntil: null, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(patientCheckoutGenerations.patientChargeId, charge.id),
+            eq(patientCheckoutGenerations.providerCheckoutId, input.checkoutSessionId),
+          ),
+        );
+    }
 
     const payload: PatientChargePaidPayload = {
       chargeId: charge.id,
@@ -341,6 +913,7 @@ export interface OpenCharge {
   kind: 'deposit' | 'remainder';
   amount: number;
   providerPaymentId: string | null;
+  providerCheckoutId: string | null;
 }
 
 /**
@@ -362,6 +935,7 @@ export async function findOpenCharge(
         kind: patientCharges.kind,
         amount: patientCharges.amount,
         providerPaymentId: patientCharges.providerPaymentId,
+        providerCheckoutId: patientCharges.providerCheckoutId,
       })
       .from(patientCharges)
       .where(
@@ -378,6 +952,7 @@ export async function findOpenCharge(
     kind: row.kind,
     amount: Number(row.amount),
     providerPaymentId: row.providerPaymentId,
+    providerCheckoutId: row.providerCheckoutId,
   };
 }
 
@@ -486,13 +1061,25 @@ export async function findPayableCharge(
         amount: patientCharges.amount,
         invoiceUrl: patientCharges.invoiceUrl,
         holdExpiresAt: patientCharges.holdExpiresAt,
+        providerCheckoutId: patientCharges.providerCheckoutId,
+        checkoutExpiresAt: patientCharges.checkoutExpiresAt,
+        collectionExpiresAt: patientCharges.collectionExpiresAt,
       })
       .from(patientCharges)
       .where(and(eq(patientCharges.id, chargeId), eq(patientCharges.status, 'pending')))
       .limit(1),
   );
   const row = rows[0];
-  if (!row?.invoiceUrl) return null;
+  const now = Date.now();
+  if (
+    !row?.invoiceUrl ||
+    !row.providerCheckoutId ||
+    !row.checkoutExpiresAt ||
+    row.checkoutExpiresAt.getTime() <= now ||
+    (row.collectionExpiresAt && row.collectionExpiresAt.getTime() <= now)
+  ) {
+    return null;
+  }
   return {
     chargeId: row.id,
     appointmentId: row.appointmentId,

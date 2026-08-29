@@ -100,4 +100,9 @@ import '@/contexts/ai-agent/proactive-jobs/internal/handlers/patient-charge-link
 import '@/contexts/financial/internal/handlers/patient-credit-granted';
 import '@/contexts/financial/internal/handlers/patient-credit-released';
 
+// D50 — Financial detecta excedente; Payments executa o estorno fora da TX do worker.
+import '@/contexts/payments/internal/handlers/excess-refund-requested';
+import '@/contexts/financial/internal/handlers/excess-refund-confirmed';
+import '@/contexts/financial/internal/handlers/patient-payment-risk-changed';
+
 export {};

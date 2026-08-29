@@ -14,6 +14,8 @@ vi.mock('server-only', () => ({}));
 vi.mock('drizzle-orm', () => ({
   and: (...args: unknown[]) => ({ and: args }),
   eq: (col: unknown, val: unknown) => ({ eq: [col, val] }),
+  isNull: (col: unknown) => ({ isNull: col }),
+  or: (...args: unknown[]) => ({ or: args }),
   sql: Object.assign(() => 'NOW', { raw: () => 'NOW' }),
 }));
 vi.mock('../schema', () => ({
@@ -23,6 +25,7 @@ vi.mock('../schema', () => ({
     patientChargeId: 'pc.patient_charge_id',
     appointmentId: 'pc.appointment_id',
     status: 'pc.status',
+    disputeStatus: 'pc.dispute_status',
     grantedAt: 'pc.granted_at',
   },
 }));
@@ -225,10 +228,13 @@ describe('listAvailableCredits', () => {
 
     await listAvailableCredits(tx, CLINIC, 'apt-1');
 
-    const cond = calls.where.mock.calls[0]![0] as { and: Array<{ eq: unknown[] }> };
-    const valores = cond.and.map((c) => c.eq[1]);
+    const cond = calls.where.mock.calls[0]![0] as {
+      and: Array<{ eq?: unknown[]; or?: unknown[] }>;
+    };
+    const valores = cond.and.flatMap((c) => (c.eq ? [c.eq[1]] : []));
     expect(valores).toContain(CLINIC);
     expect(valores).toContain('apt-1');
     expect(valores).toContain('available');
+    expect(cond.and.some((c) => c.or)).toBe(true);
   });
 });

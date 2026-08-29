@@ -19,13 +19,11 @@ const mocks = vi.hoisted(() => ({
   findChargeByAppointment: vi.fn(),
   findPaymentCustomer: vi.fn(),
   linkPaymentCustomer: vi.fn(),
-  insertRemainderCharge: vi.fn(),
+  createInitialHostedCheckout: vi.fn(),
   getClinicAsaasClient: vi.fn(),
   getPaymentIdentity: vi.fn(),
   getAppointmentBalance: vi.fn(),
   createCustomer: vi.fn(),
-  generateInvoice: vi.fn(),
-  findPaymentByExternalReference: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -41,11 +39,12 @@ vi.mock('@/contexts/financial', () => ({
 }));
 vi.mock('../queries', () => ({ getDepositPolicy: mocks.getDepositPolicy }));
 vi.mock('./charge-store', () => ({
-  remainderExternalReference: (id: string) => `remainder:${id}`,
   findChargeByAppointment: mocks.findChargeByAppointment,
   findPaymentCustomer: mocks.findPaymentCustomer,
   linkPaymentCustomer: mocks.linkPaymentCustomer,
-  insertRemainderCharge: mocks.insertRemainderCharge,
+}));
+vi.mock('./hosted-checkout', () => ({
+  createInitialHostedCheckout: mocks.createInitialHostedCheckout,
 }));
 // Erros REAIS (o código usa `instanceof`); só o client é trocado.
 vi.mock('@/lib/payments/asaas', async (importActual) => {
@@ -94,61 +93,37 @@ beforeEach(() => {
   });
   mocks.getClinicAsaasClient.mockResolvedValue({
     createCustomer: mocks.createCustomer,
-    generateInvoice: mocks.generateInvoice,
-    findPaymentByExternalReference: mocks.findPaymentByExternalReference,
   });
   mocks.getPaymentIdentity.mockResolvedValue({ nome: 'Maria Silva', cpf: '24971563792' });
   mocks.findPaymentCustomer.mockResolvedValue('cus_1');
-  mocks.findPaymentByExternalReference.mockResolvedValue(null);
-  mocks.generateInvoice.mockResolvedValue({
-    paymentId: 'pay_rest',
-    invoiceUrl: 'https://www.asaas.com/i/rest',
-  });
-  mocks.insertRemainderCharge.mockResolvedValue(true);
+  mocks.createInitialHostedCheckout.mockResolvedValue('created');
 });
 
 describe('cobra o saldo que o FINANCIAL informa', () => {
   it('cobra exatamente o saldo, não o valor do procedimento', async () => {
     await run();
 
-    expect(mocks.generateInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({ value: 100, externalReference: `remainder:${APPOINTMENT}` }),
+    expect(mocks.createInitialHostedCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 100, kind: 'remainder', customerId: 'cus_1' }),
     );
   });
 
   it('a descrição é genérica — procedimento é dado sensível', async () => {
     await run();
 
-    const arg = mocks.generateInvoice.mock.calls[0]![0] as { description: string };
+    const arg = mocks.createInitialHostedCheckout.mock.calls[0]![0] as { description: string };
     expect(arg.description).toBe('Restante do atendimento');
     expect(arg.description).not.toMatch(/psiqui|consulta|terapia/i);
   });
 
-  it('grava a cobrança com o saldo e o link', async () => {
+  it('preserva a janela de cobrança de 7 dias na mesma dívida', async () => {
     await run();
 
-    expect(mocks.insertRemainderCharge).toHaveBeenCalledWith({
-      clinicId: CLINIC,
-      appointmentId: APPOINTMENT,
-      patientId: PATIENT,
-      amount: 100,
-      providerPaymentId: 'pay_rest',
-      invoiceUrl: 'https://www.asaas.com/i/rest',
-    });
-  });
-
-  it('SEMPRE procura no gateway antes de criar (POST perdido não cobra 2x)', async () => {
-    mocks.findPaymentByExternalReference.mockResolvedValue({
-      paymentId: 'pay_recuperada',
-      invoiceUrl: 'https://www.asaas.com/i/rec',
-    });
-
-    await run();
-
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
-    expect(mocks.insertRemainderCharge).toHaveBeenCalledWith(
-      expect.objectContaining({ providerPaymentId: 'pay_recuperada' }),
-    );
+    const arg = mocks.createInitialHostedCheckout.mock.calls[0]![0] as {
+      now: Date;
+      collectionExpiresAt: Date;
+    };
+    expect(arg.collectionExpiresAt.getTime() - arg.now.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
   });
 });
 
@@ -173,7 +148,7 @@ describe('o padrão é NÃO cobrar', () => {
     await run();
 
     expect(mocks.getAppointmentBalance).not.toHaveBeenCalled();
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 
   it('procura a cobrança pelo kind `remainder`, não pelo sinal', async () => {
@@ -189,7 +164,7 @@ describe('o padrão é NÃO cobrar', () => {
 
     await run();
 
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
     expect(emitted('payments.remainder.skipped_no_balance')).toHaveLength(1);
   });
 
@@ -203,7 +178,7 @@ describe('o padrão é NÃO cobrar', () => {
 
     await run();
 
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 
   it('saldo abaixo do mínimo do gateway vira métrica, não poison pill', async () => {
@@ -217,7 +192,7 @@ describe('o padrão é NÃO cobrar', () => {
 
     await run();
 
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
     expect(emitted('payments.remainder.skipped_below_minimum')).toHaveLength(1);
   });
 
@@ -234,27 +209,30 @@ describe('o padrão é NÃO cobrar', () => {
 
     await run();
 
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
     expect(emitted('payments.remainder.skipped_no_identity')).toHaveLength(1);
   });
 });
 
 describe('falhas do gateway', () => {
   it('4xx é poison pill: retentar repete a recusa', async () => {
-    mocks.generateInvoice.mockRejectedValue(new BillingProviderError('recusou', 'x', 400));
+    mocks.createInitialHostedCheckout.mockRejectedValue(
+      new BillingProviderError('recusou', 'x', 400),
+    );
 
     await expect(run()).rejects.toBeInstanceOf(PoisonPillError);
-    expect(mocks.insertRemainderCharge).not.toHaveBeenCalled();
   });
 
   it('indeterminado sobe para o worker retentar', async () => {
-    mocks.generateInvoice.mockRejectedValue(new BillingProviderUnreachableError('timeout'));
+    mocks.createInitialHostedCheckout.mockRejectedValue(
+      new BillingProviderUnreachableError('timeout'),
+    );
 
     await expect(run()).rejects.toBeInstanceOf(BillingProviderUnreachableError);
   });
 
-  it('corrida perdida no insert não emite métrica de criação', async () => {
-    mocks.insertRemainderCharge.mockResolvedValue(false);
+  it('corrida perdida no claim não emite métrica de criação', async () => {
+    mocks.createInitialHostedCheckout.mockResolvedValue('existing');
 
     await run();
 

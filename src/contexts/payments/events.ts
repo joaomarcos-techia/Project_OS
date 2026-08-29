@@ -83,6 +83,10 @@ export const PAYMENTS_EVENTS = {
    * inferir o fato economico a partir do nome de um evento de outro context.
    */
   CREDIT_RELEASED: 'payments.patient_credit.released',
+  /** D50: o provider confirmou a devolução do excedente não alocado. */
+  EXCESS_REFUND_CONFIRMED: 'payments.patient_refund.confirmed',
+  /** D27: estado financeiro autoritativo do chargeback/dinheiro desfeito. */
+  PATIENT_PAYMENT_RISK_CHANGED: 'payments.patient_payment.risk_changed',
 } as const;
 
 const uuid = z.string().uuid();
@@ -189,6 +193,34 @@ export const PatientCreditReleasedSchema = z.object({
 });
 export type PatientCreditReleasedPayload = z.infer<typeof PatientCreditReleasedSchema>;
 
+export const ExcessRefundConfirmedSchema = z.object({
+  clinicId: uuid,
+  appointmentId: uuid,
+  chargeId: uuid,
+  refundIntentId: uuid,
+  amount: z.number().positive(),
+  confirmedAt: z.string().datetime(),
+});
+export type ExcessRefundConfirmedPayload = z.infer<typeof ExcessRefundConfirmedSchema>;
+
+export const PatientPaymentRiskChangedSchema = z.object({
+  clinicId: uuid,
+  appointmentId: uuid,
+  chargeId: uuid,
+  amount: z.number().positive(),
+  state: z.enum([
+    'requested',
+    'in_dispute',
+    'awaiting_reversal',
+    'reversed',
+    'lost',
+    'cash_undone',
+  ]),
+  reason: z.string().max(80).nullable(),
+  changedAt: z.string().datetime(),
+});
+export type PatientPaymentRiskChangedPayload = z.infer<typeof PatientPaymentRiskChangedSchema>;
+
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_PAID, PatientChargePaidSchema);
 registerEventSchema(PAYMENTS_EVENTS.CREDIT_GRANTED, PatientCreditGrantedSchema);
 registerEventSchema(PAYMENTS_EVENTS.CREDIT_RELEASED, PatientCreditReleasedSchema);
@@ -196,3 +228,5 @@ registerEventSchema(PAYMENTS_EVENTS.CHARGE_LINK_READY, PatientChargeLinkReadySch
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_CLOSED, PatientChargeClosedSchema);
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_CREATED, PatientChargeCreatedSchema);
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_FAILED, PatientChargeFailedSchema);
+registerEventSchema(PAYMENTS_EVENTS.EXCESS_REFUND_CONFIRMED, ExcessRefundConfirmedSchema);
+registerEventSchema(PAYMENTS_EVENTS.PATIENT_PAYMENT_RISK_CHANGED, PatientPaymentRiskChangedSchema);

@@ -29,13 +29,8 @@ import { patientApiV1 } from '@/contexts/patient';
 
 import type { PatientChargeFailedPayload } from '../events';
 import { getDepositPolicy } from '../queries';
-import {
-  findChargeByAppointment,
-  findPaymentCustomer,
-  insertRemainderCharge,
-  linkPaymentCustomer,
-  remainderExternalReference,
-} from './charge-store';
+import { findChargeByAppointment, findPaymentCustomer, linkPaymentCustomer } from './charge-store';
+import { createInitialHostedCheckout } from './hosted-checkout';
 
 /**
  * Mesmo mínimo do sinal (verificado ao vivo em 2026-08-24). Um saldo de R$ 3,00
@@ -46,17 +41,6 @@ const MIN_GATEWAY_AMOUNT = 5;
 
 /** Prazo do link do restante. Diferente do sinal: aqui não há vaga a segurar. */
 const REMAINDER_DUE_DAYS = 7;
-
-const DEFAULT_TZ = 'America/Sao_Paulo';
-
-function dateInTz(value: Date, tz: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(value);
-}
 
 export interface RemainderChargeInput {
   appointmentId: string;
@@ -117,8 +101,8 @@ export async function createRemainderCharge(ctx: {
     return;
   }
 
-  const externalReference = remainderExternalReference(appointmentId);
-  const dueDate = new Date(Date.now() + REMAINDER_DUE_DAYS * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const collectionExpiresAt = new Date(now.getTime() + REMAINDER_DUE_DAYS * 24 * 60 * 60 * 1000);
 
   try {
     const existingCustomer = await findPaymentCustomer(clinicId, patientId);
@@ -132,35 +116,21 @@ export async function createRemainderCharge(ctx: {
         ).customerId,
       }));
 
-    // SEMPRE procura antes de criar — o Asaas não tem idempotency-key nativa, e
-    // um POST cuja resposta se perdeu cobraria o paciente duas vezes.
-    const recovered = await client.findPaymentByExternalReference(externalReference, {
-      attempts: 1,
-    });
-
-    const payment =
-      recovered ??
-      (await client.generateInvoice({
-        customerId,
-        value: balance.saldo,
-        dueDate: dateInTz(dueDate, DEFAULT_TZ),
-        // Genérica de propósito (ADR-050 D2): nome de procedimento é dado
-        // sensível em saúde mental e não vai para a fatura.
-        description: 'Restante do atendimento',
-        billingType: 'UNDEFINED',
-        externalReference,
-      }));
-
-    const inserted = await insertRemainderCharge({
+    const outcome = await createInitialHostedCheckout({
+      client,
       clinicId,
       appointmentId,
       patientId,
+      customerId,
+      kind: 'remainder',
       amount: balance.saldo,
-      providerPaymentId: payment.paymentId,
-      invoiceUrl: payment.invoiceUrl,
+      description: 'Restante do atendimento',
+      holdExpiresAt: null,
+      collectionExpiresAt,
+      now,
     });
 
-    if (inserted) {
+    if (outcome === 'created') {
       metrics.emit('payments.remainder.created', {
         clinicId,
         appointmentId,

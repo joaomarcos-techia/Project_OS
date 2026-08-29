@@ -14,6 +14,11 @@ const mocks = vi.hoisted(() => ({
   markDepositPaid: vi.fn(),
   parseWebhook: vi.fn(),
   getPayment: vi.fn(),
+  findPaymentByCheckoutSession: vi.fn(),
+  listPaymentRefunds: vi.fn(),
+  reconcileRefundIntentsForPayment: vi.fn(),
+  classifyPatientPaymentRisk: vi.fn(),
+  reconcilePatientPaymentRisk: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -28,6 +33,13 @@ vi.mock('@/lib/audit/request-context', () => ({
 vi.mock('@/lib/payments/account-store', () => ({ resolvePatientWebhookAccount: mocks.resolve }));
 vi.mock('@/contexts/payments/internal/charge-store', () => ({
   markDepositPaid: mocks.markDepositPaid,
+}));
+vi.mock('@/contexts/payments/internal/excess-refund', () => ({
+  reconcileRefundIntentsForPayment: mocks.reconcileRefundIntentsForPayment,
+}));
+vi.mock('@/contexts/payments/internal/patient-payment-risk', () => ({
+  classifyPatientPaymentRisk: mocks.classifyPatientPaymentRisk,
+  reconcilePatientPaymentRisk: mocks.reconcilePatientPaymentRisk,
 }));
 
 import { metrics } from '@/lib/observability/metrics';
@@ -56,6 +68,7 @@ beforeEach(() => {
     eventId: 'evt_1',
     event: 'PAYMENT_RECEIVED',
     paymentId: 'pay_1',
+    checkoutId: null,
   });
   mocks.getPayment.mockResolvedValue({
     paymentId: 'pay_1',
@@ -66,12 +79,29 @@ beforeEach(() => {
     subscriptionId: null,
     billingType: 'PIX',
     externalReference: 'deposit:apt-1',
+    checkoutSessionId: null,
+    deleted: false,
   });
   mocks.resolve.mockResolvedValue({
     clinicId: 'clinic-1',
     webhookToken: TOKEN,
-    client: { parseWebhook: mocks.parseWebhook, getPayment: mocks.getPayment },
+    client: {
+      parseWebhook: mocks.parseWebhook,
+      getPayment: mocks.getPayment,
+      findPaymentByCheckoutSession: mocks.findPaymentByCheckoutSession,
+      listPaymentRefunds: mocks.listPaymentRefunds,
+    },
   });
+  mocks.findPaymentByCheckoutSession.mockResolvedValue(null);
+  mocks.listPaymentRefunds.mockResolvedValue([]);
+  mocks.reconcileRefundIntentsForPayment.mockImplementation(
+    async (input: { loadRefunds: () => Promise<unknown> }) => {
+      await input.loadRefunds();
+      return 0;
+    },
+  );
+  mocks.classifyPatientPaymentRisk.mockReturnValue(null);
+  mocks.reconcilePatientPaymentRisk.mockResolvedValue('changed');
   mocks.markDepositPaid.mockResolvedValue('paid');
 });
 
@@ -111,10 +141,78 @@ describe('token da clínica', () => {
     mocks.resolve.mockResolvedValue({
       clinicId: 'clinic-2',
       webhookToken: 'token-da-clinica-2',
-      client: { parseWebhook: mocks.parseWebhook, getPayment: mocks.getPayment },
+      client: {
+        parseWebhook: mocks.parseWebhook,
+        getPayment: mocks.getPayment,
+        findPaymentByCheckoutSession: mocks.findPaymentByCheckoutSession,
+        listPaymentRefunds: mocks.listPaymentRefunds,
+      },
     });
     const res = await POST(request({ token: TOKEN }), params());
     expect(res.status).toBe(401);
+    expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+  });
+});
+
+describe('estorno e risco financeiro', () => {
+  it('evento de estorno confirma D50 somente após read-back do provider', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_refund',
+      event: 'PAYMENT_PARTIALLY_REFUNDED',
+      paymentId: 'pay_1',
+      checkoutId: null,
+    });
+    mocks.getPayment.mockResolvedValue({
+      paymentId: 'pay_1',
+      status: 'REFUNDED',
+      value: 150,
+      dueDate: '2026-09-01',
+      invoiceUrl: null,
+      subscriptionId: null,
+      billingType: 'PIX',
+      externalReference: null,
+    });
+    const refunds = [{ refundId: 'ref_1', status: 'REFUNDED', value: 50 }];
+    mocks.listPaymentRefunds.mockResolvedValue(refunds);
+    mocks.reconcileRefundIntentsForPayment.mockImplementation(
+      async (input: { loadRefunds: () => Promise<unknown> }) => {
+        await input.loadRefunds();
+        return 1;
+      },
+    );
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(200);
+    expect(mocks.listPaymentRefunds).toHaveBeenCalledWith('pay_1', { attempts: 1 });
+    expect(mocks.reconcileRefundIntentsForPayment).toHaveBeenCalledWith({
+      clinicId: 'clinic-1',
+      providerPaymentId: 'pay_1',
+      loadRefunds: expect.any(Function),
+    });
+    expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+  });
+
+  it('chargeback usa o pagamento verificado e não entra no fluxo de baixa', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_cb',
+      event: 'PAYMENT_CHARGEBACK_DISPUTE',
+      paymentId: 'pay_1',
+      checkoutId: null,
+    });
+    mocks.classifyPatientPaymentRisk.mockReturnValue('in_dispute');
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(200);
+    expect(mocks.reconcilePatientPaymentRisk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clinicId: 'clinic-1',
+        providerPaymentId: 'pay_1',
+        asaasEventId: 'evt_cb',
+        state: 'in_dispute',
+      }),
+    );
     expect(mocks.markDepositPaid).not.toHaveBeenCalled();
   });
 });
@@ -144,6 +242,7 @@ describe('tamanho e formato', () => {
       eventId: 'evt_1',
       event: 'PAYMENT_CREATED',
       paymentId: null,
+      checkoutId: null,
     });
     const res = await POST(request(), params());
     expect(res.status).toBe(200);
@@ -216,7 +315,58 @@ describe('conciliação', () => {
       // verdade), NUNCA do corpo do webhook: é ela que vira a forma da baixa no
       // Caixa, e o corpo é forjável por quem tiver o token.
       billingType: 'PIX',
+      checkoutSessionId: null,
     });
+  });
+
+  it('CHECKOUT_PAID resolve a cobrança pela sessão antes de conciliar', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_checkout_paid',
+      event: 'CHECKOUT_PAID',
+      paymentId: null,
+      checkoutId: 'checkout-1',
+    });
+    mocks.findPaymentByCheckoutSession.mockResolvedValue({
+      paymentId: 'pay-checkout-1',
+      status: 'RECEIVED',
+      value: 150,
+      dueDate: '2026-09-01',
+      invoiceUrl: null,
+      subscriptionId: null,
+      billingType: 'CREDIT_CARD',
+      externalReference: 'deposit:apt-1:g1',
+      checkoutSessionId: 'checkout-1',
+      deleted: false,
+    });
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(200);
+    expect(mocks.getPayment).not.toHaveBeenCalled();
+    expect(mocks.findPaymentByCheckoutSession).toHaveBeenCalledWith('checkout-1', {
+      attempts: 1,
+    });
+    expect(mocks.markDepositPaid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerPaymentId: 'pay-checkout-1',
+        checkoutSessionId: 'checkout-1',
+        billingType: 'CREDIT_CARD',
+      }),
+    );
+  });
+
+  it('CHECKOUT_PAID ainda não consultável devolve 500 para reentrega', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_checkout_paid',
+      event: 'CHECKOUT_PAID',
+      paymentId: null,
+      checkoutId: 'checkout-1',
+    });
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(500);
+    expect(mocks.markDepositPaid).not.toHaveBeenCalled();
   });
 
   it('RECEIVED_IN_CASH também conta como pago', async () => {

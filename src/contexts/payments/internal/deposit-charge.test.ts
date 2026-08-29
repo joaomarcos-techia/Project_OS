@@ -15,13 +15,12 @@ const mocks = vi.hoisted(() => ({
   findChargeByAppointment: vi.fn(),
   findPaymentCustomer: vi.fn(),
   linkPaymentCustomer: vi.fn(),
-  insertDepositCharge: vi.fn(),
+  createInitialHostedCheckout: vi.fn(),
+  resolveCheckoutWindow: vi.fn(),
   getClinicAsaasClient: vi.fn(),
   getPaymentIdentity: vi.fn(),
   listPatientAppointments: vi.fn(),
   createCustomer: vi.fn(),
-  generateInvoice: vi.fn(),
-  findPaymentByExternalReference: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -37,11 +36,13 @@ vi.mock('@/contexts/scheduling', () => ({
 }));
 vi.mock('../queries', () => ({ getDepositPolicy: mocks.getDepositPolicy }));
 vi.mock('./charge-store', () => ({
-  depositExternalReference: (id: string) => `deposit:${id}`,
   findChargeByAppointment: mocks.findChargeByAppointment,
   findPaymentCustomer: mocks.findPaymentCustomer,
   linkPaymentCustomer: mocks.linkPaymentCustomer,
-  insertDepositCharge: mocks.insertDepositCharge,
+}));
+vi.mock('./hosted-checkout', () => ({
+  createInitialHostedCheckout: mocks.createInitialHostedCheckout,
+  resolveCheckoutWindow: mocks.resolveCheckoutWindow,
 }));
 // Erros REAIS (o código usa `instanceof`); só o client é trocado.
 vi.mock('@/lib/payments/asaas', async (importActual) => {
@@ -101,22 +102,13 @@ beforeEach(() => {
     async (i: { providerCustomerId: string }) => i.providerCustomerId,
   );
   mocks.createCustomer.mockResolvedValue({ customerId: 'cus_1' });
-  mocks.generateInvoice.mockResolvedValue({
-    paymentId: 'pay_1',
-    status: 'PENDING',
-    value: 150,
-    dueDate: '2026-09-01',
-    invoiceUrl: 'https://asaas.test/i/pay_1',
-    subscriptionId: null,
-    billingType: 'UNDEFINED',
-    externalReference: `deposit:${APPOINTMENT}`,
+  mocks.resolveCheckoutWindow.mockReturnValue({
+    minutesToExpire: 1_440,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
   });
-  mocks.findPaymentByExternalReference.mockResolvedValue(null);
-  mocks.insertDepositCharge.mockResolvedValue({ chargeId: 'charge-1' });
+  mocks.createInitialHostedCheckout.mockResolvedValue('created');
   mocks.getClinicAsaasClient.mockResolvedValue({
     createCustomer: mocks.createCustomer,
-    generateInvoice: mocks.generateInvoice,
-    findPaymentByExternalReference: mocks.findPaymentByExternalReference,
   });
 });
 
@@ -124,23 +116,22 @@ describe('caminho feliz', () => {
   it('cobra o percentual da política e grava a cobrança', async () => {
     await run();
 
-    const [invoice] = mocks.generateInvoice.mock.calls[0]!;
-    expect(invoice.value).toBe(150);
-    expect(invoice.customerId).toBe('cus_1');
-    expect(invoice.externalReference).toBe(`deposit:${APPOINTMENT}`);
-    // UNDEFINED = o paciente escolhe PIX ou cartão na página do Asaas.
-    expect(invoice.billingType).toBe('UNDEFINED');
-    expect(mocks.insertDepositCharge).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 150, providerPaymentId: 'pay_1' }),
+    expect(mocks.createInitialHostedCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'cus_1',
+        amount: 150,
+        kind: 'deposit',
+        description: 'Sinal do agendamento',
+      }),
     );
   });
 
   it('NUNCA manda o nome do procedimento para a fatura (dado sensível)', async () => {
     await run();
 
-    const [invoice] = mocks.generateInvoice.mock.calls[0]!;
-    expect(invoice.description).toBe('Sinal do agendamento');
-    expect(JSON.stringify(invoice)).not.toContain('psiquiátrica');
+    const [checkout] = mocks.createInitialHostedCheckout.mock.calls[0]!;
+    expect(checkout.description).toBe('Sinal do agendamento');
+    expect(JSON.stringify(checkout)).not.toContain('psiquiátrica');
   });
 
   it('manda ao gateway só nome e CPF — nada de e-mail ou telefone', async () => {
@@ -158,14 +149,14 @@ describe('caminho feliz', () => {
     await run();
 
     expect(mocks.createCustomer).not.toHaveBeenCalled();
-    expect(mocks.generateInvoice.mock.calls[0]![0].customerId).toBe('cus_existente');
+    expect(mocks.createInitialHostedCheckout.mock.calls[0]![0].customerId).toBe('cus_existente');
   });
 });
 
 describe('o padrão é NÃO cobrar', () => {
   it('agendamento sem paciente', async () => {
     await run({ patientId: null });
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 
   it('política desligada', async () => {
@@ -180,7 +171,7 @@ describe('o padrão é NÃO cobrar', () => {
 
     await run();
 
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 
   it('clínica sem conta Asaas conectada — e registra a métrica para o operador ver', async () => {
@@ -188,7 +179,7 @@ describe('o padrão é NÃO cobrar', () => {
 
     await run();
 
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
     expect(metrics.emit).toHaveBeenCalledWith(
       'payments.deposit.skipped_no_account',
       expect.objectContaining({ clinicId: CLINIC }),
@@ -201,7 +192,7 @@ describe('o padrão é NÃO cobrar', () => {
     await run();
 
     expect(mocks.createCustomer).not.toHaveBeenCalled();
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
     expect(metrics.emit).toHaveBeenCalledWith(
       'payments.deposit.skipped_no_identity',
       expect.objectContaining({ clinicId: CLINIC }),
@@ -210,7 +201,7 @@ describe('o padrão é NÃO cobrar', () => {
 
   it('valor do procedimento igual a zero', async () => {
     await run({ valor: 0 });
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 
   it('sinal abaixo do mínimo do gateway (R$ 5,00) não vira cobrança', async () => {
@@ -218,7 +209,7 @@ describe('o padrão é NÃO cobrar', () => {
     // handler trataria como poison pill. Melhor não cobrar do que errar em loop.
     await run({ valor: 8 });
 
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
     expect(metrics.emit).toHaveBeenCalledWith(
       'payments.deposit.skipped_below_minimum',
       expect.objectContaining({ amount: 4 }),
@@ -227,7 +218,20 @@ describe('o padrão é NÃO cobrar', () => {
 
   it('exatamente no mínimo ainda cobra', async () => {
     await run({ valor: 10 }); // 50% = R$ 5,00
-    expect(mocks.generateInvoice).toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).toHaveBeenCalled();
+  });
+
+  it('consulta com menos de 10 minutos não cria Checkout inválido', async () => {
+    mocks.resolveCheckoutWindow.mockReturnValue(null);
+
+    await run();
+
+    expect(mocks.getClinicAsaasClient).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
+    expect(metrics.emit).toHaveBeenCalledWith(
+      'payments.deposit.skipped_checkout_window',
+      expect.objectContaining({ appointmentId: APPOINTMENT }),
+    );
   });
 });
 
@@ -238,35 +242,11 @@ describe('idempotência', () => {
     await run();
 
     expect(mocks.getClinicAsaasClient).not.toHaveBeenCalled();
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
+    expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
   });
 
-  it('SEMPRE procura a cobrança antes de criar — nunca cobra duas vezes', async () => {
-    mocks.findPaymentByExternalReference.mockResolvedValue({
-      paymentId: 'pay_recuperado',
-      status: 'PENDING',
-      value: 150,
-      dueDate: '2026-09-01',
-      invoiceUrl: 'https://asaas.test/i/pay_recuperado',
-      subscriptionId: null,
-      billingType: 'UNDEFINED',
-      externalReference: `deposit:${APPOINTMENT}`,
-    });
-
-    await run();
-
-    expect(mocks.findPaymentByExternalReference).toHaveBeenCalledWith(`deposit:${APPOINTMENT}`, {
-      attempts: 1,
-    });
-    // Recuperou: NÃO cria uma segunda cobrança no gateway.
-    expect(mocks.generateInvoice).not.toHaveBeenCalled();
-    expect(mocks.insertDepositCharge).toHaveBeenCalledWith(
-      expect.objectContaining({ providerPaymentId: 'pay_recuperado' }),
-    );
-  });
-
-  it('corrida perdida no insert não emite métrica de cobrança criada', async () => {
-    mocks.insertDepositCharge.mockResolvedValue(null);
+  it('corrida perdida no claim não emite métrica de cobrança criada', async () => {
+    mocks.createInitialHostedCheckout.mockResolvedValue('existing');
 
     await run();
 
@@ -276,7 +256,7 @@ describe('idempotência', () => {
 
 describe('falhas do gateway', () => {
   it('recusa 4xx vira poison pill — retentar repetiria a mesma recusa', async () => {
-    mocks.generateInvoice.mockRejectedValue(
+    mocks.createInitialHostedCheckout.mockRejectedValue(
       new BillingProviderError('recusado', 'billing_provider_error', 400, ['invalid_customer']),
     );
 
@@ -287,12 +267,11 @@ describe('falhas do gateway', () => {
       'payments.deposit.failed',
       expect.objectContaining({ failureCode: 'invalid_customer' }),
     );
-    expect(mocks.insertDepositCharge).not.toHaveBeenCalled();
   });
 
   it('falha indeterminada sobe para o worker retentar', async () => {
     const unreachable = new BillingProviderUnreachableError('timeout');
-    mocks.generateInvoice.mockRejectedValue(unreachable);
+    mocks.createInitialHostedCheckout.mockRejectedValue(unreachable);
 
     await expect(run()).rejects.toBe(unreachable);
   });

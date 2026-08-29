@@ -42,5 +42,7 @@ export type {
   PatientChargeLinkReadyPayload,
   PatientChargeFailedPayload,
   PatientChargePaidPayload,
+  ExcessRefundConfirmedPayload,
+  PatientPaymentRiskChangedPayload,
 } from './events';
 export { paymentsApiV1, type PayableCharge, type PaymentsApiV1 } from './api';

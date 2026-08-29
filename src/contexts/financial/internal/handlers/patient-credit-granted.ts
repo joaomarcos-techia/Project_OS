@@ -20,6 +20,7 @@
 import type { Tx } from '@/lib/db';
 import { metrics } from '@/lib/observability/metrics';
 import { PoisonPillError } from '@/lib/outbox/errors';
+import { publishEvent } from '@/lib/outbox/publish';
 import { registerHandler } from '@/lib/outbox/registry';
 
 /* eslint-disable boundaries/element-types -- evento + tipo são o contrato PÚBLICO do Payments (mesma exceção dos demais handlers que consomem contratos de vizinhos). */
@@ -28,6 +29,9 @@ import { PAYMENTS_EVENTS, type PatientCreditGrantedPayload } from '@/contexts/pa
 
 import { applyCreditToExistingReceivable } from '../credit-allocation';
 import { grantCredit } from '../credit-store';
+import { EXCESS_REFUND_PENDING_REASON } from '../patient-credit-adjustment';
+import { FINANCIAL_EVENTS } from '../../events';
+import { faturamentoPendencias } from '../../schema';
 
 async function registerCredit(ctx: {
   tx: Tx;
@@ -70,6 +74,42 @@ async function registerCredit(ctx: {
         correlationId: eventId,
       })
     : null;
+
+  if (allocation?.outcome === 'applied' && allocation.unappliedAmount > 0) {
+    await tx
+      .insert(faturamentoPendencias)
+      .values({
+        clinicId,
+        appointmentId: payload.appointmentId,
+        motivo: EXCESS_REFUND_PENDING_REASON,
+        valor: allocation.unappliedAmount.toFixed(2),
+        status: 'aberta',
+      })
+      .onConflictDoUpdate({
+        target: faturamentoPendencias.appointmentId,
+        set: {
+          motivo: EXCESS_REFUND_PENDING_REASON,
+          valor: allocation.unappliedAmount.toFixed(2),
+          status: 'aberta',
+          resolvedAt: null,
+          resolvedBy: null,
+        },
+      });
+
+    await publishEvent(tx, {
+      clinicId,
+      eventType: FINANCIAL_EVENTS.EXCESS_REFUND_REQUESTED,
+      payload: {
+        clinicId,
+        appointmentId: payload.appointmentId,
+        chargeId: payload.chargeId,
+        amount: allocation.unappliedAmount,
+        requestedAt: payload.paidAt,
+      },
+      idempotencyKey: `excess-refund-requested:${payload.chargeId}`,
+      correlationId: eventId,
+    });
+  }
 
   metrics.emit('financial.patient_credit.granted', {
     clinicId,

@@ -260,10 +260,14 @@ automatizar o desfecho ainda exigiria regra/ADR complementar.
 
 **Decisão em 2026-08-28 — D50:** quando um pagamento de restante exceder o saldo atual, aplicar
 somente até o saldo e **estornar exatamente o excedente**. A guarda atual já preserva o valor em
-`unappliedAmount`; a decisão não está implementada. O recorte deve persistir intenção idempotente
-antes do POST, consultar pagamento/estornos depois de timeout em vez de retry cego, registrar
-movimento compensatório append-only após confirmação e manter pendência humana se o gateway não
-devolver o dinheiro. Detalhamento e testes pendentes: `docs/qorov2.md` §§20.3 e 20.7.
+`unappliedAmount`. A implementação D50 persiste `patient_refund_intents` antes do POST, envia somente
+o `value` excedente e nunca repete cegamente uma submissão de resultado incerto. A confirmação usa
+`GET /payments/{id}/refunds`, por webhook ou reconcile; somente então publica
+`payments.patient_refund.confirmed`. O Financial registra `excess_refund` em
+`patient_credit_adjustments`, aumenta apenas `unallocated_reversed_amount` e resolve a pendência. Um
+4xx termina em `failed`; timeout após o POST fica `confirmation_pending` para leitura autoritativa.
+Migration e smoke: `0092_patient_money_adjustments.sql` e `smoke:payments-money-db`. Estado dos gates
+e pendências externas: `docs/qorov2.md` §§20.3 e 20.7.
 
 ## 6. Plano de execução (contexts verificados)
 
@@ -290,8 +294,8 @@ agora segue P0–P10 em `docs/qorov2.md`, incluindo D52, carga, Product Acceptan
 - **Autoridade sobre valor/vencimento de cobrança de ASSINATURA** (`PAYMENT_UPDATED`) — questão
   separada, registrada como **D29**. `invoices` é insert-only hoje, e sincronizar antes de decidir
   quem manda seria escolher por omissão.
-- **Chargeback e "recebido em dinheiro" desfeito** (D27) — a regra da §20.2 do `qorov2.md` foi
-  confirmada pelo fundador em 2026-08-28: mantém o fato clínico imutável e usa
-  disputa/movimentos compensatórios no Financial. Ainda exige ADR complementar antes do código.
+- **Chargeback e "recebido em dinheiro" desfeito** (D27) — decidido na
+  [ADR-052](052-risco-e-reversao-de-pagamento-do-paciente.md): mantém o fato clínico imutável,
+  bloqueia dinheiro em disputa e usa movimentos compensatórios append-only no Financial.
 - **Cobrança presencial** (o paciente paga na recepção): representável pelo mesmo crédito, mas a
   entrada pela UI é escopo da 2.x.

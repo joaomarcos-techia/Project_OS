@@ -37,6 +37,11 @@ import { safeEqual } from '@/lib/auth/secret-compare';
 import type { ProviderPayment } from '@/lib/payments/asaas';
 
 import { markDepositPaid } from '@/contexts/payments/internal/charge-store';
+import { reconcileRefundIntentsForPayment } from '@/contexts/payments/internal/excess-refund';
+import {
+  classifyPatientPaymentRisk,
+  reconcilePatientPaymentRisk,
+} from '@/contexts/payments/internal/patient-payment-risk';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,6 +49,12 @@ export const maxDuration = 30;
 
 const MAX_WEBHOOK_BYTES = 1_000_000;
 const FLOW = 'payments.webhook';
+const REFUND_EVENTS = new Set([
+  'PAYMENT_REFUNDED',
+  'PAYMENT_PARTIALLY_REFUNDED',
+  'PAYMENT_REFUND_IN_PROGRESS',
+  'PAYMENT_REFUND_DENIED',
+]);
 
 /**
  * Status do provider → ação. Mesma tabela do webhook de assinatura, de propósito:
@@ -115,17 +126,24 @@ async function handlePatientWebhook(
     event: parsed.event,
   });
 
-  if (!parsed.paymentId) {
-    return Response.json({ received: true }, { status: 200 });
-  }
-
   // 4. verify — a fonte da verdade, fora da transação. `attempts: 1` mantém o teto
   // dentro do maxDuration; não re-tentar aqui é seguro porque o Asaas re-entrega
   // em ≠2xx.
   const t0 = Date.now();
-  let payment: ProviderPayment;
+  let payment: ProviderPayment | null;
   try {
-    payment = await account.client.getPayment(parsed.paymentId, { attempts: 1 });
+    if (parsed.paymentId) {
+      payment = await account.client.getPayment(parsed.paymentId, { attempts: 1 });
+    } else if (parsed.event === 'CHECKOUT_PAID' && parsed.checkoutId) {
+      payment = await account.client.findPaymentByCheckoutSession(parsed.checkoutId, {
+        attempts: 1,
+      });
+      // O evento pode chegar antes de a listagem refletir a cobrança. 500 pede
+      // reentrega; aceitar 200 aqui perderia definitivamente a confirmação.
+      if (!payment) throw new Error('[payments] Checkout pago ainda sem cobrança consultável');
+    } else {
+      return Response.json({ received: true }, { status: 200 });
+    }
     metrics.emit('payments.webhook.verify', {
       clinicId: account.clinicId,
       duration_ms: Date.now() - t0,
@@ -139,6 +157,64 @@ async function handlePatientWebhook(
     });
     // 500 (não 4xx): corpo que não confere é anomalia que merece re-entrega.
     return new Response('verification failed', { status: 500 });
+  }
+
+  // D50: o evento apenas acorda a reconciliação. A confirmação vem de
+  // GET /payments/{id}/refunds, nunca do status carregado no webhook.
+  if (parsed.paymentId && REFUND_EVENTS.has(parsed.event)) {
+    const providerPaymentId = parsed.paymentId;
+    try {
+      const confirmed = await reconcileRefundIntentsForPayment({
+        clinicId: account.clinicId,
+        providerPaymentId,
+        loadRefunds: () =>
+          account.client.listPaymentRefunds(providerPaymentId, {
+            attempts: 1,
+          }),
+      });
+      metrics.emit('payments.webhook.refund_reconciled', {
+        clinicId: account.clinicId,
+        confirmed,
+      });
+    } catch (err) {
+      captureBackgroundError(err, { flow: FLOW });
+      metrics.emit('payments.webhook.refund_reconcile_error', {
+        clinicId: account.clinicId,
+        error: err,
+      });
+      return new Response('verification failed', { status: 500 });
+    }
+  }
+
+  // D27: disputa e reversão são fatos do dinheiro. A consulta/prontuário não
+  // entra neste caminho; o Financial projeta o alerta ou a compensação.
+  const riskState = classifyPatientPaymentRisk(parsed.event, payment);
+  if (riskState) {
+    try {
+      const outcome = await reconcilePatientPaymentRisk({
+        clinicId: account.clinicId,
+        providerPaymentId: payment.paymentId,
+        asaasEventId: parsed.eventId,
+        eventType: parsed.event,
+        state: riskState,
+        reason: payment.chargebackReason ?? null,
+        changedAt: new Date(),
+      });
+      metrics.emit('payments.webhook.risk_processed', {
+        clinicId: account.clinicId,
+        state: riskState,
+        outcome,
+      });
+      return Response.json({ received: true, outcome }, { status: 200 });
+    } catch (err) {
+      captureBackgroundError(err, { flow: FLOW });
+      metrics.emit('payments.webhook.risk_error', {
+        clinicId: account.clinicId,
+        state: riskState,
+        error: err,
+      });
+      return new Response('internal', { status: 500 });
+    }
   }
 
   // Só o pagamento REAL decide. `PENDING`, `OVERDUE` e afins não movem nada aqui:
@@ -162,6 +238,7 @@ async function handlePatientWebhook(
       // ADR-051 — vem do `getPayment` (fonte da verdade), nunca do corpo do
       // webhook: é ele que vira a forma de pagamento da baixa no Caixa.
       billingType: payment.billingType,
+      checkoutSessionId: payment.checkoutSessionId,
     });
     metrics.emit('payments.webhook.processed', { clinicId: account.clinicId, outcome });
     return Response.json({ received: true, outcome }, { status: 200 });

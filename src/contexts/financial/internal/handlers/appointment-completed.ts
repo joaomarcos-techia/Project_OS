@@ -156,10 +156,24 @@ async function faturarAtendimento(ctx: {
   // recebível dizendo "R$ 100 pagos" com o crédito ainda `available`, livre para
   // ser alocado de novo em outro lançamento.
   for (const alloc of allocations) {
+    const [payment] = await tx
+      .insert(paymentTransactions)
+      .values({
+        clinicId,
+        lancamentoId: row.id,
+        kind: 'payment',
+        amount: alloc.amount.toFixed(2),
+        paymentMethod: creditos.find((c) => c.id === alloc.id)?.paymentMethod ?? null,
+        // `createdBy` nulo: quem deu a baixa foi o worker, não uma pessoa.
+      })
+      .returning({ id: paymentTransactions.id });
+    if (!payment) throw new Error(`ledger não registrou a baixa do crédito ${alloc.id}`);
+
     const consumed = await allocateCredit(tx, {
       clinicId,
       creditId: alloc.id,
       lancamentoId: row.id,
+      paymentTransactionId: payment.id,
       amount: alloc.amount,
     });
     // Corrida: outra transação alocou primeiro. Sob `UNIQUE(appointment_id)` no
@@ -168,14 +182,6 @@ async function faturarAtendimento(ctx: {
     if (!consumed) {
       throw new Error(`crédito ${alloc.id} não estava disponível ao alocar em ${row.id}`);
     }
-    await tx.insert(paymentTransactions).values({
-      clinicId,
-      lancamentoId: row.id,
-      kind: 'payment',
-      amount: alloc.amount.toFixed(2),
-      paymentMethod: creditos.find((c) => c.id === alloc.id)?.paymentMethod ?? null,
-      // `createdBy` nulo: quem deu a baixa foi o worker, não uma pessoa.
-    });
   }
 
   // Resolve qualquer pendência aberta deste atendimento (recuperação de falha anterior).

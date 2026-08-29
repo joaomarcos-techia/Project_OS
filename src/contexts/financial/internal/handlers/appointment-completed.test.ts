@@ -38,7 +38,7 @@ vi.mock('../credit-store', () => ({
 }));
 vi.mock('../../schema', () => ({
   lancamentos: { __t: 'lancamentos', appointmentId: 'l.appointment_id', id: 'l.id' },
-  paymentTransactions: { __t: 'payment_transactions' },
+  paymentTransactions: { __t: 'payment_transactions', id: 'pt.id' },
   faturamentoPendencias: { __t: 'faturamento_pendencias', appointmentId: 'fp.appointment_id' },
 }));
 vi.mock('drizzle-orm', () => ({
@@ -77,7 +77,7 @@ function stubTx(opts: { lancamentoRow?: unknown[] } = {}) {
         }
         if (table.__t === 'payment_transactions') {
           mocks.paymentValues(v);
-          return Promise.resolve(undefined) as never;
+          return { returning: async () => [{ id: 'tx-1' }] };
         }
         mocks.pendenciaValues(v);
         return { onConflictDoUpdate: async () => undefined };
@@ -181,6 +181,7 @@ describe('faturamento com sinal já pago (ADR-051 1.5b.2)', () => {
       clinicId: 'clinic-1',
       creditId: 'cred-1',
       lancamentoId: 'lanc-1',
+      paymentTransactionId: 'tx-1',
       amount: 100,
     });
   });

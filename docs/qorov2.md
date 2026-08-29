@@ -15,7 +15,7 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Última verificação contra o repositório:** 2026-08-28 · branch `feat/qorov2-pagamentos`
+**Última verificação contra o repositório:** 2026-08-29 · branch `feat/qorov2-pagamentos`
 
 **Versionamento (2026-08-27):** a 1.6c está nos commits publicados `15cb9c3` (código) e `3035383`
 (registro da migration). O hardening financeiro/D49 está em `a7717e7`, com Preview Vercel verde, e
@@ -28,6 +28,35 @@ O detector D52 está em `ca94839`: o `financial-reconcile` observa créditos `av
 somente depois do horário da consulta, separa terminal/agenda vencida/vínculo ausente, emite métrica e
 heartbeat e não move dinheiro. `smoke:payments-journey` provou terminal, consulta futura, replay e
 dois tenants no banco DEV.
+
+**Lote financeiro atual ainda não commitado/publicado:** D24/D58, D50 e D27 estão implementados no
+worktree. D24 usa Checkout hospedado restrito a PIX/cartão, com gerações diárias sobre uma única
+dívida. As migrations `0091` e `0092` estão aplicadas em DEV; os smokes conectados passaram 5/5, com
+cleanup zero. D50 persiste a intenção antes do estorno, não repete POST incerto e confirma por
+read-back/webhook. D27 segue a [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md), mantém o
+fato clínico e compensa o ledger append-only. Lint, typecheck, build, 307 arquivos/2.790 testes,
+migrations, registry e boundaries estão verdes. Após confirmação humana da rotação da credencial e da
+atualização dos consumidores, `0091` + `0092` foram aplicadas em produção: backup pré-migration de
+2.834.598 bytes, advisory lock 4242 adquirido/liberado e migrador `DONE`. A credencial DPAPI foi removida
+imediatamente. A credencial seguinte, preparada para a verificação read-only, foi novamente publicada
+no chat, removida sem leitura e rotacionada por confirmação humana. Com `DATABASE_URL_PROD` atualizada no
+ambiente, a verificação independente passou **7/7** dentro de transação read-only: `_schema_version` e
+journal, enums, tabelas/colunas, FORCE RLS/policies, grants append-only, índices/constraints e ausência
+do advisory lock 4242.
+
+**Incidente pós-rotação (29/08):** entre 11:30 e 11:31 BRT, quatro crons do deployment de produção
+anterior falharam com `password authentication failed for user "postgres"`, pois ainda executavam com a
+credencial antiga. Após o redeploy, `app.qoro.dev/api/health?strict=1` respondeu `200` com todas as seis
+dependências `ok`; a consulta read-only aos heartbeats provou novas execuções `success` de
+`proactive-dunning`, `proactive-followup`, `proactive-reminders` e `financial-reconcile` entre 11:45 e
+11:46 BRT. O incidente está **RECUPERADO**; não foi causado pelos smokes locais.
+
+Separadamente, um único evento antigo no Preview registrou `Rendered more hooks than during the previous
+render` ao navegar pelo redirect `/configuracoes → /configuracoes/agenda`. A auditoria não encontrou hook
+condicional e o stack coincide com o bug oficial do App Router em Server Component redirects
+([Next.js #63121](https://github.com/vercel/next.js/issues/63121), corrigido no canary pelo sync de React
+[PR #95368](https://github.com/vercel/next.js/pull/95368)). O projeto está em React 19.2.6; sem sessão de
+navegador disponível e sem recorrência observada, fica como **D60 monitorado**, fora do lote financeiro.
 
 O hardening D53 está em `281cd9c`: remove a senha do DOM depois que o submit captura os dados e após
 erro, recolhe sua visibilidade e documenta o tratamento seguro de artefatos E2E. Lint, typecheck,
@@ -72,7 +101,7 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA** — E2E real Meta bloqueado externamente | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; integração controlada verde |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore isolado ✅ · D54/D55 código ✅ 73/73 · Playwright Preview read-only ✅ 8/8 com sessão única · D24/D27/D50 decididos mas não implementados · carga, Product Acceptance e externos pendentes |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore isolado ✅ · D54/D55 código ✅ 73/73 · Playwright Preview read-only ✅ 8/8 · D24/D27/D50 código + regressão + DEV/PROD ✅ · carga, Product Acceptance e externos pendentes |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -86,20 +115,21 @@ abaixo e as dependências externas. Portanto o aceite integral da camada continu
 
 ### Gates — resultado REAL da última execução completa
 
-Executados novamente em 2026-08-28, após o hardening financeiro, D51–D55, a simulação de 30 dias e os
-cenários controlados de timeout/retry, recuperação de POST perdido e restauração de invoice.
+Executados novamente em 2026-08-29 sobre o worktree D24/D58/D50/D27. A migration 0092 foi autorizada e
+aplicada em DEV; o smoke conectado passou 5/5 e removeu todas as fixtures. `0091` + `0092` foram
+aplicadas/verificadas em produção, e os gates integrais abaixo foram repetidos depois da operação.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2717** (298 arquivos), incluindo 1.6c, regressão do sinal, D33, D52–D55 e aplicação do restante no recebível |
+| Testes | `pnpm test` | ✅ **2790** (307 arquivos), incluindo D24/D58, D50, D27, 1.6c e regressão integral |
 | Build | `pnpm build` | ✅ exit 0 |
-| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1023 arquivos) |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1087 arquivos) |
-| Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 64 eventos |
+| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1041 arquivos) |
+| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1108 arquivos) |
+| Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos |
 | Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
-| Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 64 ⇔ registry 22; 42 producer-ahead |
+| Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 67 ⇔ registry 25; 42 producer-ahead |
 | Observabilidade | `pnpm check:observability` | ✅ 18 crons coerentes |
 | Worker/Smoke C14 | `pnpm smoke:c14` | ✅ 8/8, banco dev, fixtures removidas, sem envio Meta |
 | RLS/concorrência financeira | `pnpm smoke:payments-financial` | ✅ 10/10, banco dev, fixtures removidas |
@@ -111,9 +141,16 @@ cenários controlados de timeout/retry, recuperação de POST perdido e restaura
 | Restore isolado | `pnpm restore:test backups/prod-pre-migration-2026-08-27T04-49-51.sql` | ✅ PostgreSQL local descartável na porta 55439: 117 tabelas, 83 policies, âncoras 3/41/48/1095; servidor parado e diretório removido após a prova |
 | Playwright Preview somente leitura | 2 specs, 8 cenários, `E2E_AUTH_REUSE=1`, `E2E_MUTATION=0` | ✅ **8/8** com uma autenticação: 5 fronteiras públicas, 25 rotas estáticas HTTP 200, paciente dinâmico visitado, conversas vazias aceitas e navegação principal; estado autenticado e artefatos temporários removidos |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 reexecutados em 2026-08-28, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
+| Checkout/gerações DB | `pnpm smoke:payments-checkout-db` | ✅ 5/5 em DEV: RLS/grants, claim idempotente, dívida única, cross-tenant, ativação/send-time; cleanup zero |
+| D50/D27 DB | `pnpm smoke:payments-money-db` | ✅ **5/5 em DEV**: estrutura/RLS/grants, intenção concorrente idempotente, D50 exato/replay, disputa/reversão, perda/replay/cross-tenant; cleanup zero |
+| Migrations PROD `0091` + `0092` | `pnpm db:migrate:prod` + verificação read-only | ✅ backup 2.834.598 bytes · lock adquirido/liberado · `DONE` · sem sentinel · pós-verificação **7/7**: versions/journal, enums, tabelas/colunas, RLS/policies, grants, índices/constraints e lock ausente |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
-Migrations **0081–0090** aplicadas e verificadas no banco de **dev**. Antes da aplicação, a `0090` foi
+Migrations **0081–0092** aplicadas e verificadas no banco de **dev**. A `0092` passou o smoke conectado
+5/5, incluindo RLS/grants, concorrência, replay e isolamento cross-tenant. Após a rotação da credencial,
+`0091` e `0092` foram aplicadas juntas em produção com backup, advisory lock e `DONE`; o arquivo DPAPI
+foi removido. A verificação SQL pós-migration independente passou 7/7 em transação read-only. Antes da
+aplicação, a `0090` foi
 validada sem persistência: banco populado (2 jobs), `up → rollback → up` verde e modelo vazio temporário
 aceitou `remainder_link`. Em 27/08, a `0090` também foi aplicada e verificada em **produção** com backup
 pré-migration e advisory lock; `pg_enum`, `_schema_version` e o cast do novo valor retornaram verdes.
@@ -183,9 +220,9 @@ objeto do teste.
 | P1 | **Templates Meta e destinatário controlado** — manual para aprovação/consentimento; execução técnica automatizável depois | Confirmar `APPROVED` e idioma dos templates `deposit_link` e `remainder_link`, IDs já configurados no ambiente publicado, conexão Meta saudável e telefone de destino com consentimento. Não enviar texto livre nem usar Z-API como fallback | E2E real 1.6a: `link_ready → deposit_link → Meta → WhatsApp`; E2E real 1.6c: `link_ready → remainder_link → lookup atual → Meta`. Registrar message id, job terminal e ausência de duplicata; não expor telefone/link | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md) |
 | P2 | **Webhook global de assinatura** — código D54/D55 verde; configuração/prova manual externa | No ambiente correto, alinhar URL + `ASAAS_WEBHOOK_TOKEN` + conta; configurar somente os 7 eventos canônicos e `sendType` do runbook; só então remover backoff/reativar uma vez. Não reutilizar a rota de paciente | **Código:** 73/73 + suíte/gates verdes. **Pendente:** sandbox real `delete → cancelled → restore → open`, HTTP 200, duas linhas de dedup e estado final reconciliado. D36/D46 só fecham com comportamento | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D39, D46, D54, D55; §20.5 |
 | P3 | **Rotação da chave sandbox exposta** — manual na conta Asaas | Revogar a chave antiga no Asaas, gerar outra sem colá-la em chat/log, atualizar apenas o secret store/fluxo de conexão correto e reconectar a clínica. Depois invalidar qualquer sessão/local secret antigo | `payments:live-check` 12/12 com a chave nova, cleanup confirmado; nenhuma credencial em diff/log | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
-| P4 | **D24 — somente PIX/cartão no sinal e restante** — spike externo ✅; implementação pendente | O sandbox aceitou Checkout `DETACHED` com `billingTypes: ["PIX", "CREDIT_CARD"]`, devolveu link hospedado e permitiu cancelamento. Porém, duas criações com a mesma `externalReference` produziram dois IDs, e `GET /checkouts/{id}` / listagem por referência devolveram 404; o índice oficial só documenta criação e cancelamento. Fazer split D24a–c: intenção local/lease idempotente, identidade `checkout` separada de `payment`, eventos `CHECKOUT_*` verificados e só então trocar sinal/restante. Não usar “desabilitar boleto na conta” como trava do produto | **PASS:** contrato/sandbox de criação, dupla permitida e cleanup. **Pendente:** migration + unit/contract; E2E sandbox pago para descobrir/correlacionar o `payment.id`; regressão de criação, webhook, hold, send-time e restante; estorno real nos dois meios | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [Checkout Asaas](https://docs.asaas.com/reference/criar-novo-checkout); [eventos Checkout](https://docs.asaas.com/docs/eventos-para-checkout); D57; §20.1 |
-| P5 | **D27 — chargeback e dinheiro desfeito** — regra confirmada pelo fundador; ADR complementar + implementação pendentes | Manter agenda/prontuário imutáveis; colocar o dinheiro em disputa sem nova cobrança automática; no desfecho, Financial registra movimento compensatório append-only e reabre/recompõe somente o saldo financeiro. `PAYMENT_RECEIVED_IN_CASH_UNDONE` é reversão efetiva, não disputa. Payments observa o gateway; Financial é dono do ledger; Scheduling não inventa transição clínica | Solicitado→disputa→ganho/perda, dinheiro desfeito, duplicado/out-of-order, replay, cross-tenant, antes/depois do atendimento, crédito alocado/não alocado, sem valor negativo nem cobrança dupla | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §7; [ADR-049](adr/049-pagamentos-paciente-sinal.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); §20.2 |
-| P6 | **D50 — excedente após baixa manual** — decisão tomada: estornar o excedente; implementação pendente | Estornar exatamente `unappliedAmount`, sem reduzir o valor legítimo já alocado. Criar intenção idempotente antes do POST, não repetir cegamente em timeout, reconciliar pelo gateway/webhook e lançar o movimento compensatório no Financial. Se o estorno não puder ser realizado, abrir alerta/pendência humana sem perder o crédito | Corrida baixa manual×pagamento do link, pagamento duplicado, timeout e read-back, retry, excedente integral/parcial, saldo insuficiente no gateway, ledger/auditoria e E2E banco+worker+sandbox | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estorno Asaas](https://docs.asaas.com/reference/estornar-cobranca); D50; §20.3 |
+| P4 | **D24 — somente PIX/cartão no sinal e restante** — código + DEV/PROD ✅; externo parcial | Checkout `DETACHED` usa somente `PIX` + `CREDIT_CARD`. A dívida local é única; gerações de até 24h preservam a janela do restante por 7 dias, com lease, estado incerto e lookup somente da geração atual. `CHECKOUT_PAID` correlaciona sessão→payment antes da baixa | **PASS:** adapter/contrato/unit, migration `0091` DEV+PROD, smoke DB 5/5, pós-verificação PROD 7/7, suíte/build/gates. **Pendente:** resolver o reCAPTCHA uma vez por método para provar pagamento real→webhook→ledger→estorno | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; D57/D58; §20.1 |
+| P5 | **D27 — chargeback e dinheiro desfeito** — código + ADR + DEV/PROD ✅; externo parcial | Payments normaliza o objeto autoritativo de chargeback; Financial bloqueia crédito em disputa, libera no ganho e, na perda, cria ajuste append-only + refund ligado à baixa original, reabrindo somente o saldo. Agenda/prontuário não mudam e nenhum novo link nasce automaticamente | **PASS:** classificação, monotonicidade, replay, out-of-order, perda alocada/não alocada, linha histórica ambígua, handlers, webhook, migration `0092` DEV+PROD, smoke 5/5 e pós-verificação 7/7. **Pendente:** chargeback sandbox real controlado | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); §20.2 |
+| P6 | **D50 — excedente após baixa manual** — código + DEV/PROD ✅; sandbox pendente | `patient_refund_intents` nasce antes do POST; envia exatamente `unappliedAmount`; timeout posterior fica `confirmation_pending` e só read-back/webhook confirma. O Financial registra somente a parte não alocada e mantém pendência humana em recusa | **PASS:** valor exato, 4xx, timeout sem POST duplicado, read-back, recusa, replay, webhook, reconcile, handlers, migration `0092` DEV+PROD, smoke 5/5 e pós-verificação 7/7. **Pendente:** estorno real requer Checkout pago após reCAPTCHA | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estorno Asaas](https://docs.asaas.com/reference/estornar-cobranca); D50; §20.3 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
 | P8 | **Carga e restore em volume** — restore ✅; harness de carga pendente | Em 28/08 foi criado um PostgreSQL local isolado, restaurado o dump real, validada a integridade e destruído o alvo. Falta implementar `test:load` com app scratch, provider Meta fake, confirmação explícita e guards fail-closed contra Preview/prod/DEV compartilhado | **Restore PASS:** 117 tabelas, 83 policies; âncoras clinics=3, patients=41, appointments=48, audit_events=1095; zero resíduo local. **Carga pendente:** appointment 500, webhook 1.000, WhatsApp jobs 5.000, reconcile/outbox; P95/P99, deadlock/race/dedup | §10 Performance; §16 Migração; `restore:test`; R10 em [riscos](architecture/risks.md) |
 | P9 | **Playwright automatizado ✅ / Product Acceptance humano pendente** — D53+D56 | No Preview, os 8 casos read-only passaram com uma única sessão: 5 fronteiras públicas, 25 rotas estáticas, rotas dinâmicas existentes e navegação principal. O contrato foi alinhado ao redirect canônico de Configurações e à categoria Produto. Auth state e artefatos temporários foram removidos após o passe. Falta somente percorrer secretária, médico, dono e paciente como aceite de produto | Helper 3/3, regressão focada 10/10, suíte 2.717/2.717 e Playwright Preview 8/8. Os E2E mutáveis/externos aplicáveis permanecem nos itens próprios; não executar a matriz destrutiva inteira contra Preview | §0.2; §15 Product Acceptance; cenário de aceite do [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56; [guia E2E](../e2e/README.md) |
@@ -198,7 +235,8 @@ objeto do teste.
 | Playwright read-only (2 specs) | ✅ **PASS Preview: 8/8 com sessão única** | repetir no novo HEAD publicado quando houver mudança de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
 | `test:load` | **NÃO IMPLEMENTADO** | app/banco scratch isolados + harness `autocannon` guardado de P8; o restore do banco já foi provado |
 | `pnpm restore:test` em volume | ✅ **PASS em scratch local descartável** | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido |
-| Checkout Asaas PIX + cartão (D24) | ✅ **PASS parcial de contrato/sandbox** | criação `ACTIVE`, link presente, métodos exatos e cancelamento `CANCELED`; falta pagamento controlado para provar a correlação Checkout→cobrança e o método efetivamente escolhido |
+| Checkout Asaas PIX + cartão (D24) | 🟡 **PASS contrato/DOM; pagamento BLOCKED por reCAPTCHA externo** | `payments:checkout-e2e` cria o Checkout, valida a UI e preenche PIX/cartão com dados sintéticos; em headless, o Asaas devolveu `success=false` e `recaptchaV2Enabled=true` para ambos. Toda fixture foi cancelada. Falta somente resolver o desafio humano no modo interativo para provar Checkout→cobrança e estorno |
+| `smoke:payments-money-db` (D50/D27) | ✅ **PASS DEV 5/5 + PROD verificada 7/7** | repetir somente após mudança nas migrations/contratos; a execução em DEV terminou com cleanup zero e a produção foi verificada em transação read-only após backup, lock e migrator `DONE` |
 | E2E Meta `deposit_link` | **BLOCKED externo** | template aprovado, conexão saudável e destinatário consentido |
 | E2E Meta `remainder_link` | **BLOCKED externo** | mesmas pré-condições; cobrança ainda pagável no send-time |
 | `PAYMENT_RESTORED` da assinatura | **Código PASS / E2E real BLOCKED externo (D36/D46)** | alinhar webhook/token/ambiente e executar delete/restore real controlado |
@@ -238,9 +276,11 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | --- | --- | --- |
 | Aprovar os templates Meta de sinal/restante e indicar destinatário controlado com consentimento | Aprovação e destinatário pertencem à conta/pessoa real na Meta | **PENDENTE (P1)** — avisar quando `APPROVED`; só exige redeploy se o ID configurado no ambiente mudar |
 | Rotacionar a chave sandbox do Asaas exposta no chat | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave | **PENDENTE (E4)** |
-| Concluir dois Checkouts temporários no sandbox — um por PIX e outro por cartão | A etapa acontece na página hospedada do Asaas e exige a ação do pagador; não há navegador controlável disponível nesta sessão. O agente cria links de 10 minutos somente quando o usuário estiver pronto | **PENDENTE (D24/D57)** — depois de cada pagamento, o agente consulta a correlação sanitizada, valida eventos/estado, estorna quando suportado e limpa as fixtures |
+| Resolver o reCAPTCHA de dois Checkouts sandbox — um PIX e um cartão | O Playwright já cria o Checkout, abre a página, seleciona o método, preenche os dados sintéticos, correlaciona a cobrança e executa a limpeza. O Asaas, porém, ativa reCAPTCHA v2 contra o navegador automatizado; esse desafio não deve ser burlado por código | **PENDENTE (D24/D57)** — executar os comandos PowerShell da §20.1, resolver somente o CAPTCHA e clicar em pagar. O runner confirma/estorna ou remove a fixture sem imprimir PII/segredos |
 | Alinhar o webhook global de assinatura no ambiente correto antes de reativá-lo | Envolve URL, token e chave do ambiente no painel/API do Asaas; reativar sem corrigir a causa repete a penalização | **PENDENTE externo (E2/D36/D46)** |
 | Executar Product Acceptance por persona | Julgamento de operação/UX requer uma pessoa agir como secretária, médico, dono e paciente; o Playwright read-only não substitui esse aceite | **PENDENTE humano (P9)** — automação Preview read-only 8/8 já verde |
+| Rotacionar novamente a senha do banco de produção e atualizar todos os consumidores | A credencial usada na migration foi rotacionada corretamente, mas a sucessora foi publicada no chat antes da verificação; continuar com ela seria risco crítico | ✅ **CONFIRMADO PELO FUNDADOR**; a credencial exposta não foi usada, o DPAPI foi removido sem leitura e o env atualizado foi usado somente em transação read-only |
+| Verificação read-only de `0091` + `0092` em produção | Era necessário provar o estado posterior sem inferi-lo do `DONE` | ✅ **7/7** — versions/journal, enums, tabelas/colunas, FORCE RLS/policies, grants, índices/constraints e advisory lock liberado |
 
 **Evidência executada:** `payments:live-check` real contra sandbox; consulta sanitizada de configuração
 do webhook pela API do Asaas; probes do Preview sem bypass, com bypass sem token e com bypass + token
@@ -283,9 +323,9 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D9 | `format:check` vermelho na baseline (131 arquivos) | aberto — PR de formatação isolado |
 | D13 | RLS cross-tenant de `clinic_payment_accounts` sem teste (exige banco) | **resolvido no 1.H** — `pnpm smoke:payments-rls` ✅ 5/5 no banco DEV, fixtures removidas e resíduo 0 |
 | D19 | Bloqueio da 1.5b | **encaminhado** → ADR-051 |
-| D24 | Estorno só funciona para PIX/cartão; boleto não compensa dentro do hold de 24h | **decisão tomada; spike externo PASS em 28/08** — Checkout restringe os métodos corretamente, mas não é idempotente por `externalReference` e não expõe consulta pública comprovada. Implementação exige o split D24a–c de D57 antes de remover `UNDEFINED` |
+| D24 | Estorno só funciona para PIX/cartão; boleto não compensa dentro do hold de 24h | **resolvido em código/DEV em 29/08** — Checkout restringe os métodos, e a falta de idempotência do provider é contida por intenção/lease local antes do POST. Migration 0091 e smoke DEV 5/5 verdes; pagamento real PIX/cartão ainda bloqueado no reCAPTCHA humano |
 | D23 | Reagendamento devolve o sinal (não transfere) — brecha: remarcar em cima da hora escapa da taxa | encaminhado — decisão de produto/ADR próprio em 2.x; hoje estornar+recobrar evita duplicidade |
-| D27 | `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` sem tratamento | **regra confirmada pelo fundador em 28/08; código pendente** — clínico imutável, disputa financeira sem nova cobrança automática e movimentos compensatórios append-only; formalizar no ADR complementar antes da implementação |
+| D27 | `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` sem tratamento | **resolvido em código e banco em 29/08 pela ADR-052** — estados autoritativos e monotônicos, crédito bloqueado/liberado, perda append-only ligada à baixa e saldo recomposto sem mutação clínica. Unit/contrato/regressão, migration 0092 DEV+PROD, smoke 5/5 e pós-verificação 7/7 verdes; resta somente prova externa controlada |
 | D29 | Ninguém tem autoridade declarada sobre valor/vencimento de cobrança de assinatura | backlog — [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8). **Não implementar sync de `amount`/`dueDate` sem decidir A ou B: fazer isso é escolher B por omissão** |
 | D30 | Config do webhook de assinatura só existia no painel | mitigado — [runbook](runbooks/asaas-webhook-assinatura.md) é a cópia versionada |
 | D31 | Mapa `job type → suppression purpose` estava duplicado | **resolvido** — `suppressionPurposeFor` é fonte única. `deposit_link` → `reminder`. **Não duplicar de novo** |
@@ -300,14 +340,17 @@ destinatário controlado e o webhook global de assinatura alinhado/provado por `
 | D40 | Preview está atrás do código local | **resolvido** — remoto `b0074e3` contém `/configuracoes/pagamentos` e `/api/webhooks/asaas/patient/<ref>`; a UI já persistiu a conta da Clínica A |
 | D41 | Auto-registro de paciente não carregava bypass | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. O erro posterior já alcançava a API do Asaas e tinha outra causa, fechada em **D44** |
 | D49 | Restante pago virava crédito, mas não baixava o recebível já existente | **resolvido no 1.H** — aplicação atômica limitada ao saldo atualiza `valor_pago`, ledger e evento; unitários e E2E banco+worker 7/7 verdes |
-| D50 | Baixa manual pode tornar um link do restante maior que o saldo atual | **decisão tomada em 28/08** — estornar apenas o excedente; guarda atual preserva o dinheiro, mas orquestração idempotente, ledger, reconciliação e testes P6 ainda são bloqueantes |
+| D50 | Baixa manual pode tornar um link do restante maior que o saldo atual | **resolvido em código e banco em 29/08; sandbox pendente** — intenção antes do POST, valor exato, timeout sem retry cego, read-back/webhook, ajuste append-only e pendência humana. Unit/contrato/regressão, migration 0092 DEV+PROD, smoke 5/5 e pós-verificação 7/7 verdes; estorno real depende do Checkout pago |
 | D51 | Atendimento totalmente coberto por créditos falhava ao criar o recebível `pago` sem `paid_at` | **resolvido no 1.H** — handler grava `paid_at` atomicamente quando o status inicial é `pago`; unitário 13/13 e simulação real de 30 dias verdes |
 | D52 | ADR-051 §5 exige tratar crédito `available` órfão; a simulação terminou sem órfãos, mas não provava estados envelhecidos fora do cenário modelado | **resolvido como detector em `ca94839`** — `financial-reconcile` observa 30d + consulta vencida, agrega terminal/agenda ativa/vínculo ausente e alerta sem mover dinheiro. Route 3/3 + jornada DEV 13/13; operação no runbook |
 | D53 | Snapshot de falha do Playwright podia reter a senha digitada porque o formulário mantinha o campo preenchido durante/depois da tentativa de login | **corrigido em código; proteção verificada** — artefatos locais e auth storage foram eliminados; o formulário limpa a senha no tick seguinte à captura e após erro. A credencial atual foi aceita pelo Supabase sem ser impressa. As novas execuções permaneceram sem artefatos autenticados retidos |
 | D54 | `PAYMENT_RESTORED` não reabria a invoice apesar do runbook exigir isso | **resolvido em código em 28/08** — a máquina genérica mantém `cancelled` terminal; o sincronizador reabre somente quando `getPayment` confirma a mesma cobrança viva/pagável, por CAS, timeline e métrica. PENDING abre; pago/overdue seguem o caminho único existente; replay não duplica. E2 externo pendente |
 | D55 | Webhook global ignorava o contrato real `GET 200 + deleted:true` já descoberto no D20 | **resolvido em código em 28/08** — pagamento deletado não é materializado nem guiado pelo status antigo; a rota localiza a invoice e sincroniza `{ exists:false }`. 404 continua suportado e evento sem prova não cancela. Sandbox real conjunto pendente em E2 |
 | D56 | Os specs read-only tratavam `/configuracoes` como tela e esperavam “Sugestões” na primeira categoria, mas a rota é um redirect e o link pertence à categoria Produto | **resolvido nos contratos E2E em 28/08** — o inventário usa `/configuracoes/agenda`; a jornada aceita o heading da primeira categoria, entra explicitamente em Produto e só então abre Sugestões. Preview read-only 8/8 com sessão única e regressão local 2.717/2.717; nenhuma mudança de produto |
-| D57 | Checkout Asaas restringe PIX/cartão, mas não preserva a idempotência atual de criação | **descoberto e provado no sandbox em 28/08.** Criação `DETACHED` com os dois meios retornou `ACTIVE` + link; cancelamento retornou `CANCELED`. Duas criações com a mesma `externalReference` geraram dois IDs. `GET /checkouts/{id}` e listagem por referência retornaram 404, e o índice oficial só expõe criar/cancelar. O webhook usa `checkout.id`, não o `payment.id` que hoje ancora cobrança, verificação, closeout e estorno. D24 foi dividido em intenção/adapter, identidade+webhook e troca do fluxo; migration/contrato aguardam autorização explícita e o E2E pago precisa provar a correlação real |
+| D57 | Checkout Asaas restringe PIX/cartão, mas não preserva a idempotência atual de criação | **resolvido em código/DEV em 29/08.** Intenção + lease local antecedem o POST, timeout não repete criação e `checkoutSession` correlaciona o payment autoritativo no webhook. O runner preenche cartão e PIX, mas o Asaas exige reCAPTCHA humano; todas as fixtures incompletas são canceladas |
+| D58 | Checkout expira em no máximo 24h, mas o restante atual promete 7 dias | **resolvido em código/DEV/PROD em 29/08.** Gerações idempotentes de até 24h preservam 7 dias sobre a mesma `patient_charge`; somente a atual fornece link e a renovação publica `link_ready` controlado. Unit, migration 0091 DEV+PROD, smoke 5/5 e pós-verificação 7/7 verdes |
+| D59 | Rotação da senha de produção deixou Functions antigas autenticando com a credencial revogada | **recuperado em 29/08** — Sentry registrou falhas nos quatro crons às 11:30–11:31 BRT; após atualizar o env e redeployar, health estrito respondeu 200/tudo `ok` e heartbeats read-only provaram `success` dos quatro jobs às 11:45–11:46. Não foi falha das queries nem dos smokes locais |
+| D60 | Preview registrou uma vez `Rendered more hooks than during the previous render` ao navegar pelo redirect de `/configuracoes` | **monitorado, sem correção neste lote** — nenhum hook condicional foi encontrado, lint/test/build estão verdes e o stack `Router/useMemo` coincide com o bug oficial Next.js #63121 corrigido no canary pelo React sync #95368. Browser indisponível para reprodução atual; reabrir se houver recorrência e então testar upgrade/workaround direcionado, sem misturar ao Financial |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -684,11 +727,32 @@ Qoro hoje persiste `payment.id`, valida o estado com `getPayment` e localiza a c
    gates, regressão do sinal/restante e o E2E sandbox controlado;
 6. manter assinatura SaaS e demais usos de `generateInvoice` inalterados.
 
-**Prova ainda dependente do pagador controlado:** concluir um Checkout uma vez por PIX e uma vez por
-cartão para capturar, de forma sanitizada, a sequência real `CHECKOUT_*` + `PAYMENT_*`, a correlação
-entre `checkout.id`, `externalReference` e `payment.id`, e depois validar o estorno. Sem isso, o código
-pode ser construído com contratos/unitários, mas a reconciliação externa não pode ser declarada
-verde.
+**Prova ainda dependente do pagador controlado:** `payments:checkout-e2e` automatiza criação, seleção
+de método, preenchimento sintético, consulta por `payments?checkoutSession=...`, confirmação sandbox,
+validação e limpeza. A tentativa headless real chegou ao `POST /checkoutSession/pay`, mas o Asaas
+respondeu `success=false` e ativou `recaptchaV2Enabled=true` tanto para cartão quanto para PIX. Assim,
+o único passo humano restante é resolver o CAPTCHA e clicar em pagar no modo interativo, uma vez por
+método. Não burlar o CAPTCHA nem classificar o contrato/DOM como pagamento E2E verde.
+
+No PowerShell, com a chave sandbox já configurada no `.env.local`:
+
+```powershell
+# Cartão — os dados fictícios são preenchidos pelo runner.
+$env:ASAAS_CHECKOUT_E2E = 'ALLOW_SANDBOX_PAYMENT'
+$env:ASAAS_CHECKOUT_E2E_INTERACTIVE = '1'
+$env:ASAAS_CHECKOUT_E2E_METHOD = 'CREDIT_CARD'
+pnpm payments:checkout-e2e
+
+# PIX — repetir depois que o primeiro processo terminar.
+$env:ASAAS_CHECKOUT_E2E_METHOD = 'PIX'
+pnpm payments:checkout-e2e
+
+Remove-Item Env:ASAAS_CHECKOUT_E2E, Env:ASAAS_CHECKOUT_E2E_INTERACTIVE, Env:ASAAS_CHECKOUT_E2E_METHOD
+```
+
+O operador não informa cartão, CPF, endereço ou valor. Ele apenas resolve o reCAPTCHA na janela e
+clica em pagar. Se nenhum pagamento surgir, o Checkout é cancelado; se surgir uma cobrança pendente,
+ela é removida; se o Sandbox a liquidar, o runner faz um único POST de estorno, sem retry cego.
 
 **Aceite:** nenhuma cobrança de paciente criada pelo Qoro oferece boleto; PIX e cartão continuam
 funcionando de ponta a ponta; o comportamento da assinatura SaaS do Qoro não muda.
@@ -718,17 +782,23 @@ usar somente o mínimo necessário após revisão humana. O Asaas documenta os
 [fluxo dos eventos](https://docs.asaas.com/docs/webhook-para-cobrancas) e a
 [abertura de disputa com evidências](https://docs.asaas.com/reference/criar-disputa-de-chargeback).
 
-Antes do código, um ADR complementar deve fixar estados, eventos, comunicação, ownership e ledger.
-Payments observa o Asaas; Financial registra os movimentos compensatórios; Scheduling preserva o
-fato clínico e não decide o valor devido.
+**Implementação de 29/08:** a [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md) fixou
+estados, eventos, ownership e ledger. A rota consulta `GET /payments/{id}`, projeta
+`patient_charges.dispute_status` monotonicamente e publica
+`payments.patient_payment.risk_changed`. O Financial impede alocação durante a disputa; no ganho,
+libera o bloqueio sem duplicar receita; na perda, registra `patient_credit_adjustments` e uma
+`payment_transactions(kind=refund)` ligada à baixa original, reduzindo somente `valor_pago`. A
+migration 0092 faz backfill apenas 1:1; linha histórica ambígua abre conciliação manual. Unit,
+contrato, handlers, webhook, lint, typecheck, 2.790 testes e build passaram. Falta autorização para
+aplicar a 0092 e executar o smoke DB 5/5; chargeback sandbox real é evidência externa posterior.
 
 ### 20.3 Excedente pago — decisão tomada: estorno parcial (D50)
 
 Se o paciente pagar um link antigo por valor maior que o saldo atual, devolver **somente o excedente**.
 Exemplo: link de R$ 100,00, saldo atual de R$ 60,00 → aplicar R$ 60,00 e estornar R$ 40,00.
 
-O código já impede `valorPago > valor` e expõe `unappliedAmount`; ainda não executa o destino econômico.
-O fechamento correto é:
+O código impede `valorPago > valor`, expõe `unappliedAmount` e agora executa o destino econômico pelo
+seguinte fluxo:
 
 1. travar o recebível e calcular `aplicado = mínimo(pago, saldo)` e `excedente = pago - aplicado`;
 2. persistir uma intenção de estorno com chave idempotente antes da chamada externa;
@@ -740,9 +810,15 @@ O fechamento correto é:
 6. se o gateway recusar ou não houver saldo disponível, manter o valor observável e abrir tarefa
    humana, sem apagar crédito nem fingir sucesso.
 
-O adapter já aceita `refundPayment(..., { value })`; faltam a intenção idempotente, a orquestração,
-o evento/ledger, a reconciliação e os testes de corrida. Atualizar a
-[ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) antes de implementar.
+**Implementação de 29/08:** `patient_refund_intents` é persistida antes do POST; somente o vencedor
+`pending → submitting` chama o Asaas. A baseline de estornos é lida antes do envio. Resposta incerta
+fica `confirmation_pending` e nunca repete POST; webhook e cron consultam
+`GET /payments/{id}/refunds`. Só a confirmação publica `payments.patient_refund.confirmed`, e o
+Financial registra `excess_refund` append-only sem reduzir a parte legitimamente alocada. Recusa 4xx
+fica `failed`, mantém pendência humana e emite métrica sanitizada. Unitários cobrem valor exato,
+timeout, replay, 4xx, estorno negado, read-back e handlers; a regressão integral passou 2.790/2.790.
+A 0092 e o smoke DB já passaram em DEV, e a produção foi migrada/verificada; falta somente provar o
+estorno sandbox depois do pagamento bloqueado pelo reCAPTCHA.
 
 ### 20.4 Banco scratch — o DEV atual não serve
 
@@ -778,6 +854,11 @@ diretório foi removido, portanto nenhum dado restaurado permaneceu na máquina.
 **Pendente técnico, não ação manual:** construir o app scratch e o harness `test:load` guardado. Uma
 ação humana só será necessária se o harness não puder usar infraestrutura local isolada e precisar de
 um projeto/branch remoto dedicado ou de autorização operacional adicional.
+
+**Split obrigatório em 29/08:** o worktree financeiro atual já agrega D24/D58, D50 e D27 e deve ser
+revisado/publicado como lote fechado antes de receber P8. O harness de carga será o próximo lote técnico
+isolado; misturá-lo agora ampliaria um diff já extenso, dificultaria rollback e violaria a regra de
+mudança pequena/revisável. Isso não transforma P8 em tarefa manual do fundador.
 
 ### 20.5 Como provar o webhook global de assinatura (`PAYMENT_RESTORED`)
 
@@ -833,41 +914,82 @@ fonte da verdade.
 
 | Pendência | Fecha Camada 1 / rollout financeiro? | Impede discovery TISS? | Motivo |
 | --- | --- | --- | --- |
-| D24 PIX/cartão implementado e provado | **sim** | não | hoje boleto continua tecnicamente alcançável |
-| D27 chargeback confirmado, implementado e testado | **sim** | não | dinheiro recebido pode voltar atrás sem compensação |
-| D50 estorno do excedente + sandbox | **sim** | não | o dinheiro é preservado, mas ainda não devolvido |
+| D24 PIX/cartão implementado e provado | **código/DEV PASS; externo pendente** | não | boleto foi removido do produto; falta pagamento real após reCAPTCHA |
+| D27 chargeback confirmado, implementado e testado | **código + DB DEV/PROD PASS; externo pendente** | não | 0092/smoke 5/5 passaram em DEV e a pós-verificação PROD passou 7/7; sandbox real depende de chargeback controlado |
+| D50 estorno do excedente + sandbox | **código + DB DEV/PROD PASS; externo pendente** | não | 0092/smoke 5/5 passaram em DEV e a pós-verificação PROD passou 7/7; estorno real depende de Checkout pago |
 | `PAYMENT_RESTORED` real (D54/D55 já verdes em código) | **sim** para aceite externo de Billing/assinatura | não | falta provar o round-trip no sandbox configurado |
 | E2E Meta de sinal/restante | **sim** para rollout da entrega WhatsApp; código 1.6c já está verde | não | prova do transporte externo continua pendente |
 | `test:load` em app scratch | **sim** para o 1.H formal e rollout | não | restore já passou; concorrência em volume ainda não foi medida |
 | Product Acceptance por persona | **sim** para 1.S/rollout | não | Playwright read-only passou 8/8; resta o julgamento humano de operação/UX |
 | rotação de credenciais/templates/destinatário | **sim** nos testes externos correspondentes | não | depende de autoridade humana e não pode ser simulado como E2E real |
 
-Portanto, os pendentes **não impedem** escrever ADRs, implementar D24/D27/D50 nem iniciar
-um spike documental de TISS. Eles impedem declarar `1.H ✅`, iniciar `1.S` como concluída e liberar o
-rollout financeiro como totalmente provado.
+Portanto, os pendentes **não impediram** ADRs, D24/D27/D50 nem impedem iniciar um spike documental de
+TISS. Eles ainda impedem declarar `1.H ✅`, concluir `1.S` e liberar o rollout financeiro como
+totalmente provado.
 
 ### 20.7 O que falta para fechar o financeiro
 
-Ordem recomendada, em mudanças pequenas e revisáveis:
+**Diagnóstico em 29/08/2026:** D24/D58, D50 e D27 estão completos em código, tipagem, unitários,
+contratos, regressão e banco DEV. `0091` + `0092` estão aplicadas em DEV e seus smokes conectados
+passaram 5/5 com cleanup zero. Após a rotação da credencial, o migrador aplicou `0091` + `0092` em
+produção com backup de 2.834.598 bytes, advisory lock adquirido/liberado e `DONE`. A verificação SQL
+pós-migration passou 7/7 em transação read-only. O fechamento técnico automático de D24/D58, D50 e D27
+está verde; as provas externas manuais permanecem separadas da qualidade do código e do banco.
 
-1. ✅ regra de chargeback da §20.2 confirmada pelo fundador em 28/08;
-2. alinhar o webhook externo e provar D54/D55 no sandbox, sem nova mudança de código se o round-trip passar;
-3. atualizar ADR-049 e implementar D24 (PIX/cartão), com sandbox e regressão;
-4. atualizar ADR-051 e implementar D50 (estorno parcial idempotente), com ledger e sandbox;
-5. criar ADR complementar e implementar D27 (disputa, perda, reversão e dinheiro desfeito), mantendo
-   no máximo Payments + Financial por recorte;
-6. executar os testes reais controlados: `PAYMENT_RESTORED`, estorno PIX/cartão e E2E Meta quando o
-   template/destinatário estiverem disponíveis;
-7. implementar app/harness de carga sobre scratch isolado; restore e Playwright read-only já passaram;
-8. executar 1.S: suíte completa, build, arquitetura, migrations, observabilidade, smokes, simulation,
-   documentação, Preview e rollback por clínica.
+| Bloco | Estado real | O que falta para ficar verde |
+| --- | --- | --- |
+| **D24/D58 — somente PIX/cartão por 7 dias** | **Código + DB DEV + PROD verdes.** Checkout hospedado, intenção/lease, estado incerto, correlação `checkoutSession`, gerações e renovação implementados; smoke 5/5; pós-verificação 7/7 | somente prova externa: executar uma vez PIX e cartão no runner interativo, resolvendo o reCAPTCHA |
+| **D50 — excedente após baixa manual** | **Código + DB DEV + PROD verdes.** Intenção antes do POST, valor exato, timeout sem retry cego, reconcile/webhook, evento e ajuste append-only; smoke 5/5; pós-verificação 7/7 | somente prova externa: pagar um Checkout sandbox e observar estorno parcial real |
+| **D27 — chargeback/dinheiro desfeito** | **Código + ADR-052 + DB DEV + PROD verdes.** Estado autoritativo/monotônico, bloqueio de crédito, ganho, perda e dinheiro desfeito compensam somente o Financial; smoke 5/5; pós-verificação 7/7 | somente prova externa: criar chargeback sandbox controlado quando o provider/fixture permitir |
 
-Há duas linhas diferentes que não devem ser confundidas:
+#### Decisão D58 confirmada — prazo do restante
 
-- **Financial de pagamentos do paciente:** D24, D27 e D50;
-- **Billing da assinatura que a clínica paga ao Qoro:** D54 + webhook global de assinatura.
+O código atual dá **7 dias** ao link do restante (`REMAINDER_DUE_DAYS = 7`). O Checkout hospedado do
+Asaas aceita `minutesToExpire` entre 10 e **1.440 minutos**, portanto no máximo **24 horas**. Trocar
+`UNDEFINED` por Checkout sem decidir isso reduziria silenciosamente uma regra de 7 dias para 1 dia.
 
-As duas precisam estar corretas para a Camada 1 inteira ficar verde.
+**Decisão confirmada em 29/08:** preservar os 7 dias e modelar gerações de Checkout sem criar outra
+`patient_charge`. Cada geração dura no máximo 24 horas, tem identidade/lease/estado próprios e
+substitui o link anterior. A dívida local e o recebível continuam únicos; a renovação diária publica
+um novo `payments.patient_charge.link_ready`, cuja deduplicação inclui a geração. Links de gerações
+anteriores nunca são retornados por `getPayableCharge`. Não haverá redução silenciosa da promessa,
+nova cobrança local ou retry cego de `POST /checkouts`.
+
+#### Ordem de execução atual
+
+1. **concluído:** autorização recebida; `0092` aplicada em DEV e `smoke:payments-money-db` verde 5/5,
+   com cleanup zero;
+2. **concluído por confirmação humana:** senha de produção rotacionada e consumidores atualizados;
+3. **concluído:** backup + migrador com advisory lock aplicaram `0091` e `0092`; `DONE`, lock liberado,
+   credencial efêmera removida e nenhum sentinel criado;
+4. **concluído:** nova rotação confirmada e verificação de produção 7/7 em transação read-only;
+5. **concluído:** bateria integral repetida — lint, typecheck, 2.790 testes, build, arquitetura sem ciclos,
+   migrations, registry e observabilidade verdes; documentação e diff revisados sem incluir credenciais;
+6. publicar/deployar somente com autorização e observar o SHA do Preview;
+7. **ações manuais posteriores:** resolver o reCAPTCHA no PIX e cartão; fornecer chargeback sandbox
+   controlado, se o Asaas permitir; concluir Meta, webhook de assinatura e Product Acceptance;
+8. executar 1.S após os gates externos/operacionais correspondentes.
+
+#### O que não bloqueia a implementação do Financial
+
+- **D54/D55 + `PAYMENT_RESTORED`:** Billing da assinatura que a clínica paga ao Qoro. O código está
+  verde; falta alinhar token/webhook e provar o round-trip externo. Bloqueia a Camada 1 inteira, não
+  D24/D50/D27;
+- **E2E Meta de sinal/restante:** bloqueia afirmar entrega real por WhatsApp, não a contabilidade nem
+  a conciliação do Financial;
+- **Product Acceptance por persona e `test:load`:** gates de hardening/rollout, não pré-requisitos para
+  implementar os três gaps financeiros;
+- **reCAPTCHA do Checkout:** bloqueia apenas o pagamento E2E totalmente autônomo. Contratos, banco,
+  worker, idempotência e limpeza continuam automatizáveis.
+
+#### Critério objetivo de fechamento
+
+O **código e os bancos DEV/PROD** do Financial de pagamentos do paciente cobrem D24, D50 e D27: as
+migrations 0091/0092 estão aplicadas, o smoke DEV passou 5/5 com cleanup zero e a pós-verificação PROD
+passou 7/7 em transação read-only. Portanto, o fechamento técnico automático desse recorte está verde.
+O pagamento real que parar exclusivamente no reCAPTCHA permanece `BLOCKED externo/manual`; chargeback
+real e estorno real também não podem ser inferidos de mocks. A **Camada 1 inteira** só fecha depois dos
+gates adicionais de Billing, Meta, carga, Product Acceptance e 1.S.
 
 ### 20.8 TISS: o que pode começar agora e qual “sistema” está citado
 

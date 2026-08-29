@@ -18,12 +18,13 @@ flowchart LR
   context_ai_agent -->|"1 evento"| context_ai_agent
   context_ai_agent -->|"1 evento"| context_billing
   context_clinical -->|"1 evento"| context_ai_agent
+  context_financial -->|"1 evento"| context_payments
   context_financial -->|"2 eventos"| context_scheduling
   context_messaging -->|"1 evento"| context_ai_agent
   context_patient -->|"2 eventos"| context_patient
   context_patient -->|"2 eventos"| context_scheduling
   context_payments -->|"1 evento"| context_ai_agent
-  context_payments -->|"2 eventos"| context_financial
+  context_payments -->|"4 eventos"| context_financial
   context_payments -->|"3 eventos"| context_scheduling
   context_scheduling -->|"1 evento"| context_ai_agent
   context_scheduling -->|"1 evento"| context_billing

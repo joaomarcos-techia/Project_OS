@@ -181,10 +181,39 @@ async function voidCharge(args: {
 }): Promise<void> {
   const { client, clinicId, appointmentId, charge } = args;
 
-  if (charge.providerPaymentId && client) {
+  let checkoutPaymentId = charge.providerPaymentId;
+  if (!checkoutPaymentId && charge.providerCheckoutId && client) {
+    try {
+      const checkoutPayment = await client.findPaymentByCheckoutSession(charge.providerCheckoutId, {
+        attempts: 1,
+      });
+      if (checkoutPayment && !checkoutPayment.deleted) {
+        if (SETTLED_STATUSES.has(checkoutPayment.status)) {
+          metrics.emit('payments.deposit.void_blocked_paid', {
+            clinicId,
+            appointmentId,
+            chargeId: charge.id,
+            providerStatus: checkoutPayment.status,
+          });
+          throw new ChargeNotSettledYetError(appointmentId);
+        }
+        checkoutPaymentId = checkoutPayment.paymentId;
+      }
+    } catch (err) {
+      if (err instanceof ChargeNotSettledYetError) throw err;
+      rethrowGatewayError(err, {
+        clinicId,
+        appointmentId,
+        chargeId: charge.id,
+        op: 'consulta_do_checkout',
+      });
+    }
+  }
+
+  if (checkoutPaymentId && client) {
     let payment = null;
     try {
-      payment = await client.getPayment(charge.providerPaymentId, { attempts: 1 });
+      payment = await client.getPayment(checkoutPaymentId, { attempts: 1 });
     } catch (err) {
       if (!isNotFound(err)) {
         rethrowGatewayError(err, {
@@ -216,7 +245,7 @@ async function voidCharge(args: {
 
     if (live) {
       try {
-        await client.cancelPayment(charge.providerPaymentId);
+        await client.cancelPayment(checkoutPaymentId);
       } catch (err) {
         if (!isNotFound(err)) {
           rethrowGatewayError(err, {
@@ -228,7 +257,22 @@ async function voidCharge(args: {
         }
       }
     }
-  } else if (charge.providerPaymentId && !client) {
+  }
+
+  if (charge.providerCheckoutId && client) {
+    try {
+      await client.cancelCheckout(charge.providerCheckoutId);
+    } catch (err) {
+      if (!isNotFound(err)) {
+        rethrowGatewayError(err, {
+          clinicId,
+          appointmentId,
+          chargeId: charge.id,
+          op: 'cancelamento_do_checkout',
+        });
+      }
+    }
+  } else if ((charge.providerPaymentId || charge.providerCheckoutId) && !client) {
     // Conta desconectada: o link continua vivo no Asaas e não temos como apagá-lo.
     // Fecha o registro mesmo assim (ele TEM de refletir o agendamento) e deixa o
     // órfão visível — corrigir exige a chave, que só a clínica tem.

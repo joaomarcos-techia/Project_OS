@@ -638,6 +638,20 @@
       "when": 1788041700000,
       "tag": "0090_proactive_remainder_link",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1788128100000,
+      "tag": "0091_patient_checkout_generations",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1788214500000,
+      "tag": "0092_patient_money_adjustments",
+      "breakpoints": true
     }
   ]
 }

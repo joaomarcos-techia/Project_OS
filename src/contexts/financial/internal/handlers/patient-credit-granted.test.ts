@@ -14,17 +14,22 @@ const mocks = vi.hoisted(() => ({
   registerHandler: vi.fn(),
   grantCredit: vi.fn(),
   applyCreditToExistingReceivable: vi.fn(),
+  publishEvent: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
 vi.mock('@/lib/outbox/registry', () => ({ registerHandler: mocks.registerHandler }));
+vi.mock('@/lib/outbox/publish', () => ({ publishEvent: mocks.publishEvent }));
 vi.mock('@/contexts/payments', () => ({
   PAYMENTS_EVENTS: { CREDIT_GRANTED: 'payments.patient_credit.granted' },
 }));
 vi.mock('../credit-store', () => ({ grantCredit: mocks.grantCredit }));
 vi.mock('../credit-allocation', () => ({
   applyCreditToExistingReceivable: mocks.applyCreditToExistingReceivable,
+}));
+vi.mock('../../schema', () => ({
+  faturamentoPendencias: { appointmentId: 'fp.appointment_id' },
 }));
 
 import { metrics } from '@/lib/observability/metrics';
@@ -149,6 +154,43 @@ describe('handler de crédito concedido', () => {
     expect(mocks.grantCredit).toHaveBeenCalledWith(
       'TX',
       expect.objectContaining({ patientId: null }),
+    );
+  });
+
+  it('excedente abre pendência e publica pedido do valor exato', async () => {
+    mocks.applyCreditToExistingReceivable.mockResolvedValue({
+      outcome: 'applied',
+      lancamentoId: 'lanc-1',
+      transactionId: 'tx-1',
+      appliedAmount: 100,
+      unappliedAmount: 50,
+      status: 'pago',
+    });
+    const pending = vi.fn();
+    const tx = {
+      insert: () => ({
+        values: pending,
+      }),
+    };
+    pending.mockReturnValue({ onConflictDoUpdate: async () => undefined });
+
+    await handler({
+      tx,
+      clinicId: 'clinic-1',
+      payload: payload({ kind: 'remaining_payment' }),
+      eventId: 'evt-1',
+    });
+
+    expect(pending).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'apt-1', valor: '50.00', status: 'aberta' }),
+    );
+    expect(mocks.publishEvent).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: 'financial.patient_refund.requested',
+        idempotencyKey: 'excess-refund-requested:charge-1',
+        payload: expect.objectContaining({ chargeId: 'charge-1', amount: 50 }),
+      }),
     );
   });
 });

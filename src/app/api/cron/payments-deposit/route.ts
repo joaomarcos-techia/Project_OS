@@ -38,7 +38,9 @@ import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 
 import { runDepositScan } from '@/contexts/payments/internal/deposit-scan';
+import { runExcessRefundReconcile } from '@/contexts/payments/internal/excess-refund-reconcile';
 import { runRemainderScan } from '@/contexts/payments/internal/remainder-scan';
+import { runRemainderCheckoutRenewal } from '@/contexts/payments/internal/remainder-checkout-renewal';
 import { expireDepositHolds } from '@/contexts/scheduling/internal/deposit-hold';
 
 export const runtime = 'nodejs';
@@ -56,26 +58,36 @@ export const GET = withCron(
     // `allSettled`: nenhuma das três metades pode depender do sucesso das outras.
     // Deixar vaga presa por causa de um problema no gateway seria o pior dos
     // mundos, e o restante não pode parar porque o sinal falhou.
-    const [scan, expiry, remainder] = await Promise.allSettled([
+    const [scan, expiry, remainder, renewal, refunds] = await Promise.allSettled([
       runDepositScan(),
       expireDepositHolds(),
       runRemainderScan(),
+      runRemainderCheckoutRenewal(),
+      runExcessRefundReconcile(),
     ]);
 
     const charged = scan.status === 'fulfilled' ? scan.value : null;
     const expired = expiry.status === 'fulfilled' ? expiry.value : null;
     const remaining = remainder.status === 'fulfilled' ? remainder.value : null;
+    const renewed = renewal.status === 'fulfilled' ? renewal.value : null;
+    const refundReconcile = refunds.status === 'fulfilled' ? refunds.value : null;
     if (charged) metrics.emit('payments.deposit.scan', charged);
     if (expired) metrics.emit('scheduling.deposit_hold.expired', expired);
     if (remaining) metrics.emit('payments.remainder.scan', remaining);
+    if (renewed) metrics.emit('payments.remainder.renewal', renewed);
+    if (refundReconcile) metrics.emit('payments.excess_refund.reconcile', refundReconcile);
 
     // Uma das metades ter falhado é erro do tick: o heartbeat precisa dizer isso,
     // senão o painel mostra "ok" enquanto metade do ciclo está parada.
-    const failures = [scan, expiry, remainder].filter((r) => r.status === 'rejected');
+    const failures = [scan, expiry, remainder, renewal, refunds].filter(
+      (r) => r.status === 'rejected',
+    );
     const body = {
       charge: charged,
       expiry: expired,
       remainder: remaining,
+      renewal: renewed,
+      refunds: refundReconcile,
       failures: failures.length,
     };
     if (failures.length > 0) {
@@ -92,6 +104,8 @@ export const GET = withCron(
       charged: charged?.charged ?? 0,
       expired: expired?.cancelled ?? 0,
       remainder: remaining?.charged ?? 0,
+      renewed: renewed?.renewed ?? 0,
+      refundsConfirmed: refundReconcile?.confirmed ?? 0,
     });
     return Response.json({ ok: true, ...body }, { status: 200 });
   },
