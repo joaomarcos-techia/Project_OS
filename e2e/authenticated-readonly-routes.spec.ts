@@ -12,6 +12,7 @@ const READ_ONLY_ROUTES = [
   '/financeiro',
   '/financeiro/fornecedores',
   '/configuracoes',
+  '/configuracoes/agente',
   '/configuracoes/assinatura',
   '/configuracoes/horarios',
   '/configuracoes/perfil',

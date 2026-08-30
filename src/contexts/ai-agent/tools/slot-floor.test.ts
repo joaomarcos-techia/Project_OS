@@ -78,8 +78,10 @@ describe('list_slots pede o piso ao Scheduling', () => {
   it('passa notBefore ≈ agora + antecedência mínima', async () => {
     listSlots.mockResolvedValue([]);
     const before = Date.now();
+    const dateFrom = new Date(before + 24 * 60 * 60_000).toISOString();
+    const dateTo = new Date(before + 7 * 24 * 60 * 60_000).toISOString();
     await getTool('list_slots')!.handler(
-      { date_from: '2026-08-14T00:00:00-03:00', date_to: '2026-08-20T00:00:00-03:00' },
+      { date_from: dateFrom, date_to: dateTo },
       ctx,
     );
     const notBefore = lastNotBefore();

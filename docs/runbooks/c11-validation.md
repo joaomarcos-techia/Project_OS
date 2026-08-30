@@ -1,6 +1,6 @@
 # Runbook — Validação C11 (AI Agent Base)
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
+> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-08-30 · **Próxima revisão:** 2027-02-28
 >
 > ↩︎ Volta para o [índice de runbooks](./README.md) · [índice mestre](../README.md).
 
@@ -10,7 +10,8 @@ Auditoria: [C11_IMPLEMENTATION_AUDIT.md](../audits/C11_IMPLEMENTATION_AUDIT.md)
 
 ## Pré-requisitos
 
-- Migration `0024_ai_agent_core.sql` aplicada (`pnpm db:migrate:dev`).
+- Migrations `0024_ai_agent_core.sql` e `0093_ai_clinic_config_convenios.sql`
+  aplicadas (`pnpm db:migrate:dev`).
 - `.env.local` com `GEMINI_API_KEY` real (só para o live-check; o smoke usa
   key fictícia + fetch stubado).
 
@@ -27,18 +28,29 @@ Execução de referência (2026-06-11): 334/334 unit · smoke 18/18 · live-chec
 OK ("A Clínica Live Check funciona de segunda a sexta, das 08:00 às 18:00",
 usage 571/12 + 661/25 tokens) · gates verdes · build verde.
 
+Execução da lista única de convênios (2026-08-30): migration `0093` aplicada
+e verificada em DEV (`text[]`, `NOT NULL`, default vazio, grants e FORCE RLS) ·
+65/65 testes focados · suíte completa 1.978/1.978 · smoke C11 18/18 · E2E
+Playwright 2/2 (leitura + salvar/recarregar/restaurar) · lint, typecheck, build,
+arquitetura, migrations, registry e observabilidade verdes. O smoke passou a
+aguardar o evento exato que publicou, pois a outbox compartilhada de DEV pode
+ter eventos anteriores no primeiro lote.
+
 ## Validação manual (WhatsApp real)
 
 Meta segue DORMENTE em prod por design (env ausente). Quando um número for
 conectado (runbook C10 + `wa:connect`):
 
 1. "qual o horário de vocês?" → resposta via `provide_clinic_info`.
-2. "quanto custa a consulta?" → resposta via `provide_procedure_price`.
-3. "quero falar com uma pessoa" → resposta + entrada em `ai_handoff_queue`.
-4. "estou com dor no peito" → resposta literal do `CLINICAL_FALLBACK`
+2. "quais convênios vocês aceitam?" → somente a lista salva em
+   `/configuracoes/agente`; lista vazia informa que o dado não foi cadastrado e
+   oferece atendimento humano.
+3. "quanto custa a consulta?" → resposta via `provide_procedure_price`.
+4. "quero falar com uma pessoa" → resposta + entrada em `ai_handoff_queue`.
+5. "estou com dor no peito" → resposta literal do `CLINICAL_FALLBACK`
    ("Não posso te orientar sobre sintomas...") — verificar em `ai_messages`
    que `cost_usd = 0` (pré-filtro; Gemini nem foi chamado).
-5. Conferir custo/tokens/prompt_version do turno:
+6. Conferir custo/tokens/prompt_version do turno:
    `SELECT model, tokens_input, tokens_output, cost_usd, prompt_version FROM ai_messages WHERE direction='out' ORDER BY created_at DESC LIMIT 5;`
 
 ## Operação às 3h da manhã

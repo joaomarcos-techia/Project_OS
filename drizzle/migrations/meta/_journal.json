@@ -568,6 +568,13 @@
       "when": 1787177700000,
       "tag": "0080_ai_clinic_config_authenticated_write",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1788300900000,
+      "tag": "0093_ai_clinic_config_convenios",
+      "breakpoints": true
     }
   ]
 }

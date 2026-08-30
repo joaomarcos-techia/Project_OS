@@ -149,6 +149,15 @@ resposta do LLM (substitui + dead letter `stage='guard'`).
 `sanitizeAiFailurePayload`, whitelist R8: toolName/zodIssuePaths/errorCode/
 model/httpStatus/stage — NUNCA telefone/nome/conteúdo/prompt).
 
+> **Amend 2026-08-30 — convênios informativos por clínica:**
+> `ai_clinic_config.convenios text[]` mantém a lista única que a clínica aceita
+> divulgar. `provide_clinic_info` é a fonte autoritativa; o modelo recebe somente
+> os nomes persistidos. Lista vazia significa “informação não cadastrada”, nunca
+> “não aceitamos convênios”, e deve oferecer handoff humano. O campo não modela
+> TISS, beneficiário, autorização, glosa, repasse ou regra financeira. A mudança
+> é aditiva na migration `0093` e permanece sob `manage:agent` e RLS da própria
+> clínica.
+
 Colunas além do §11.2, todas autorizadas nas reviews: `clinic_id` em
 ai_messages (multi-tenant inegociável), `patient_phone_encrypted`
 (VisãoGeral §6 — telefone de resposta), `event_id`/`prompt_version`/

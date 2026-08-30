@@ -49,6 +49,7 @@ export async function getAgentConfig(): Promise<AgentConfigDTO> {
     maxDaysAhead: row.maxDaysAhead,
     canDisclosePaymentsViaAgent: row.canDisclosePaymentsViaAgent,
     especialidades: row.especialidades ?? [],
+    convenios: row.convenios,
     updatedAt: row.updatedAt?.toISOString() ?? null,
   };
 }
@@ -91,6 +92,7 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
         maxDaysAhead: data.maxDaysAhead,
         canDisclosePaymentsViaAgent: data.canDisclosePaymentsViaAgent,
         especialidades: data.especialidades,
+        convenios: data.convenios,
       })
       .onConflictDoUpdate({
         target: aiClinicConfig.clinicId,
@@ -99,6 +101,7 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
           maxDaysAhead: data.maxDaysAhead,
           canDisclosePaymentsViaAgent: data.canDisclosePaymentsViaAgent,
           especialidades: data.especialidades,
+          convenios: data.convenios,
           updatedAt: sql`now()`,
         },
       })
@@ -118,6 +121,7 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
             maxDaysAhead: before.maxDaysAhead,
             canDisclosePaymentsViaAgent: before.canDisclosePaymentsViaAgent,
             especialidades: before.especialidades ?? [],
+            convenios: before.convenios,
           }
         : null,
       after: data,
@@ -133,6 +137,7 @@ export async function updateAgentConfig(input: AgentConfigInput): Promise<AgentC
       maxDaysAhead: saved.maxDaysAhead,
       canDisclosePaymentsViaAgent: saved.canDisclosePaymentsViaAgent,
       especialidades: saved.especialidades ?? [],
+      convenios: saved.convenios,
       updatedAt: saved.updatedAt?.toISOString() ?? null,
     },
   };

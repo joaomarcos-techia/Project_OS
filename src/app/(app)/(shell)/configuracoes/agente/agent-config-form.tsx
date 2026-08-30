@@ -29,6 +29,7 @@ export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
     initial.canDisclosePaymentsViaAgent,
   );
   const [especialidades, setEspecialidades] = useState(initial.especialidades.join(', '));
+  const [convenios, setConvenios] = useState(initial.convenios.join(', '));
 
   function save() {
     startTransition(async () => {
@@ -37,6 +38,10 @@ export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
         maxDaysAhead: Number(maxDaysAhead),
         canDisclosePaymentsViaAgent: canDisclosePayments,
         especialidades: especialidades
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        convenios: convenios
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean),
@@ -83,6 +88,20 @@ export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
           />
           <span id="agent-especialidades-help" className="text-(length:--fs-xs) text-fg-subtle">
             O agente usa esta lista ao responder o que a clínica atende.
+          </span>
+        </Field>
+
+        <Field label="Convênios aceitos" htmlFor="agent-convenios">
+          <Input
+            id="agent-convenios"
+            value={convenios}
+            onChange={(event) => setConvenios(event.target.value)}
+            placeholder="Ex.: Unimed, Bradesco Saúde, SulAmérica"
+            aria-describedby="agent-convenios-help"
+          />
+          <span id="agent-convenios-help" className="text-(length:--fs-xs) text-fg-subtle">
+            Separe por vírgula. O agente informa somente os convênios desta lista; se ficar vazio,
+            ele dirá que a informação ainda não foi cadastrada.
           </span>
         </Field>
 

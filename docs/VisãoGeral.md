@@ -1144,7 +1144,7 @@ Layout: kanban 3 colunas em `/app/consultorio`:
 - `ai_messages` (conversation_id, direction: in|out, content_encrypted, intent, tokens_used, cost_usd, model, created_at, expires_at) — TTL 30 dias
 - `ai_intents` (intent_id, name, description, schema_input, action_handler)
 - `ai_conversation_memory` (conversation_id, memory_jsonb, last_intent, fallback_count) — TTL 30 dias
-- `ai_clinic_config` (clinic_id, working_hours, especialidades_atendidas, can_schedule_anonymous, max_days_ahead, message_template_overrides)
+- `ai_clinic_config` (clinic_id, working_hours, especialidades_atendidas, convenios, can_schedule_anonymous, max_days_ahead, message_template_overrides)
 - `ai_proactive_jobs` (id, clinic_id, type: reminder|dunning|followup, scheduled_for, payload, status)
 - `ai_handoff_queue` (conversation_id, reason, assigned_to, resolved_at)
 
@@ -1193,7 +1193,7 @@ Layout: kanban 3 colunas em `/app/consultorio`:
 
 **Regras de negócio:**
 - 🔒 **Prompt sistema é código, não DB.** Mudança = git commit + deploy. Evita prompt injection e drift.
-- 🔒 **Parâmetros operacionais ficam em DB** (`ai_clinic_config`) — horários, especialidades, max_days_ahead, mensagens custom
+- 🔒 **Parâmetros operacionais ficam em DB** (`ai_clinic_config`) — horários, especialidades, convênios informativos, max_days_ahead, mensagens custom. A lista de convênios não implementa TISS, carteirinha, autorização, glosa ou regra financeira.
 - 🔒 **Sem triagem clínica.** Resposta padrão pra perguntas clínicas: "Não posso te orientar sobre sintomas. Vou marcar pra você falar com o médico."
 - 🔒 **Stateless por mensagem**: cada call ao LLM inclui contexto completo. Sem cache global de agente entre tenants.
 - 🔒 **Circuit breaker pro Gemini**: se Gemini cai, agente degrada pra "Recebi sua mensagem, atendente responde em breve" + alerta interno.
@@ -1545,7 +1545,7 @@ A IA do ClinicaOS é **um sistema multi-agente operacional** (não conversaciona
 
 **Decisões fundamentais:**
 
-🔒 **Agente único, prompt no código** — não há "agente customizado por clínica". Todos clientes usam o mesmo prompt sistema. Parâmetros operacionais (horários, especialidades) vivem em `ai_clinic_config` no DB.
+🔒 **Agente único, prompt no código** — não há "agente customizado por clínica". Todos clientes usam o mesmo prompt sistema. Parâmetros operacionais (horários, especialidades e convênios informativos) vivem em `ai_clinic_config` no DB.
 
 🔒 **Stateless por mensagem** — cada call ao LLM tem todo o contexto necessário. Sem cache global de agente. Isolamento entre tenants = perfeito.
 

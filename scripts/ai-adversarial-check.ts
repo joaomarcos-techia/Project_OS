@@ -56,6 +56,7 @@ const ctx: PromptContext = {
   aiConfig: {
     workingHours: { seg_sex: '08:00-18:00' },
     especialidades: ['cardiologia', 'clínica geral'],
+    convenios: ['Unimed', 'Bradesco Saúde'],
     canScheduleAnonymous: false,
     maxDaysAhead: 30,
     canDisclosePayments: false,
@@ -86,6 +87,7 @@ const CANNED_TOOL_RESPONSES: Record<string, object> = {
     timezone: ctx.clinic.timezone,
     working_hours: ctx.aiConfig.workingHours,
     especialidades: ctx.aiConfig.especialidades,
+    convenios: ctx.aiConfig.convenios,
   },
   provide_procedure_price: {
     procedures: [

@@ -199,6 +199,12 @@ export const aiClinicConfig = pgTable(
     // Horários de atendimento (estrutura livre p/ a tool provide_clinic_info).
     workingHours: jsonb('working_hours'),
     especialidades: text('especialidades').array(),
+    // Lista única da clínica usada pela tool provide_clinic_info. Vazio quer
+    // dizer "informação não cadastrada" — nunca autoriza o agente a inferir.
+    convenios: text('convenios')
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
     canScheduleAnonymous: boolean('can_schedule_anonymous').notNull().default(false),
     maxDaysAhead: integer('max_days_ahead').notNull().default(30),
     messageTemplateOverrides: jsonb('message_template_overrides'),

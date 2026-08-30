@@ -16,6 +16,8 @@ export interface PromptClinicInfo {
 export interface PromptAiConfig {
   workingHours: unknown;
   especialidades: string[] | null;
+  /** Lista única de convênios aceitos; vazio = informação não cadastrada. */
+  convenios: string[];
   canScheduleAnonymous: boolean;
   maxDaysAhead: number;
   /** C12: opt-in p/ divulgar valores de cobrança via agente (list_pending_payments). */
