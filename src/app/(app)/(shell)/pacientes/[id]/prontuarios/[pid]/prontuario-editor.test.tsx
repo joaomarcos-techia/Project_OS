@@ -59,6 +59,19 @@ afterEach(() => {
 });
 
 describe('ProntuarioEditor — autosave', () => {
+  it('oferece o template de Psiquiatria com campos clínicos específicos', () => {
+    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Template' }), {
+      target: { value: 'psiquiatria' },
+    });
+
+    expect(screen.getByText('História clínica e psicossocial (S)')).toBeTruthy();
+    expect(screen.getByText('Exame físico, estado mental e risco (O)')).toBeTruthy();
+    expect(screen.getByText('Plano terapêutico e de segurança (P)')).toBeTruthy();
+    expect(screen.getByPlaceholderText(/risco de suicídio.*tentativas anteriores/iu)).toBeTruthy();
+  });
+
   it('NÃO salva antes do debounce; salva 10s após digitar (com conteúdo + rowVersion)', async () => {
     render(<ProntuarioEditor prontuario={makeProntuario()} />);
     type('dor de cabeça');
