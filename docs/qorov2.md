@@ -231,7 +231,7 @@ objeto do teste.
 
 | Ordem | Pendência / autoridade | Como deve ser feita | Teste/evidência ainda pendente | Referência |
 | --- | --- | --- | --- | --- |
-| P0 | ✅ **Publicar/observar o lote** — repetido em 29/08 | Commit financeiro `8052de3` confirmado no remoto e deployment Vercel terminal `success`, casado ao mesmo SHA. O Preview read-only foi reexecutado com uma única sessão e passou 8/8 em 2,2 min; auth state e artefatos temporários foram removidos. `financeiro.md` permaneceu fora do commit | **PASS:** Git remoto, Vercel e smoke Preview observados; repetir somente após novo lote executável | §0.3 DoD; [handoff](handoff-qorov2.md); D56 |
+| P0 | ✅ **Publicar/observar o lote** — repetido em 29/08 | Commit executável `8bf193e` confirmado no remoto e deployment Vercel terminal `success`, casado ao mesmo SHA. O Preview read-only foi reexecutado com uma única sessão e passou 8/8 em 1,8 min; 25 rotas estáticas responderam 200, rotas dinâmicas e navegação permaneceram íntegras, e o auth state/artefatos gerados foram removidos. `financeiro.md` permaneceu fora do commit | **PASS:** Git remoto, Vercel e smoke Preview observados no HEAD com P8/D61; repetir somente após novo lote executável | §0.3 DoD; [handoff](handoff-qorov2.md); D56; D61 |
 | P1 | **Templates Meta e destinatário controlado** — manual para aprovação/consentimento; execução técnica automatizável depois | Confirmar `APPROVED` e idioma dos templates `deposit_link` e `remainder_link`, IDs já configurados no ambiente publicado, conexão Meta saudável e telefone de destino com consentimento. Não enviar texto livre nem usar Z-API como fallback | E2E real 1.6a: `link_ready → deposit_link → Meta → WhatsApp`; E2E real 1.6c: `link_ready → remainder_link → lookup atual → Meta`. Registrar message id, job terminal e ausência de duplicata; não expor telefone/link | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md) |
 | P2 | **Webhook global de assinatura** — código D54/D55 verde; configuração/prova manual externa | No ambiente correto, alinhar URL + `ASAAS_WEBHOOK_TOKEN` + conta; configurar somente os 7 eventos canônicos e `sendType` do runbook; só então remover backoff/reativar uma vez. Não reutilizar a rota de paciente | **Código:** 73/73 + suíte/gates verdes. **Pendente:** sandbox real `delete → cancelled → restore → open`, HTTP 200, duas linhas de dedup e estado final reconciliado. D36/D46 só fecham com comportamento | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D39, D46, D54, D55; §20.5 |
 | P3 | **Rotação da chave sandbox exposta** — manual na conta Asaas | Revogar a chave antiga no Asaas, gerar outra sem colá-la em chat/log, atualizar apenas o secret store/fluxo de conexão correto e reconectar a clínica. Depois invalidar qualquer sessão/local secret antigo | `payments:live-check` 12/12 com a chave nova, cleanup confirmado; nenhuma credencial em diff/log | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
@@ -247,7 +247,7 @@ objeto do teste.
 
 | Teste | Estado atual | Para ficar verde |
 | --- | --- | --- |
-| Playwright read-only (2 specs) | ✅ **PASS Preview `8052de3`: 8/8 com sessão única em 2,2 min** | repetir no novo HEAD publicado quando houver mudança de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
+| Playwright read-only (2 specs) | ✅ **PASS Preview `8bf193e`: 8/8 com sessão única em 1,8 min** | repetir no novo HEAD publicado quando houver mudança executável de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
 | `test:load` | ✅ **PASS local scratch-only em 29/08** | repetir após mudança relevante em C14, webhook, outbox/reconcile, schema ou SLO; exige build atual, PostgreSQL 17 local e confirmação exata |
 | `pnpm restore:test` em volume | ✅ **PASS em scratch local descartável** | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido |
 | Checkout Asaas PIX + cartão (D24) | 🟡 **PASS contrato/DOM; pagamento BLOCKED por reCAPTCHA externo** | `payments:checkout-e2e` cria o Checkout, valida a UI e preenche PIX/cartão com dados sintéticos; em headless, o Asaas devolveu `success=false` e `recaptchaV2Enabled=true` para ambos. Toda fixture foi cancelada. Falta somente resolver o desafio humano no modo interativo para provar Checkout→cobrança e estorno |
@@ -984,8 +984,9 @@ nova cobrança local ou retry cego de `POST /checkouts`.
 4. **concluído:** nova rotação confirmada e verificação de produção 7/7 em transação read-only;
 5. **concluído:** bateria integral repetida — lint, typecheck, 2.797 testes, build, arquitetura sem ciclos,
    migrations, registry e observabilidade verdes; documentação e diff revisados sem incluir credenciais;
-6. **concluído:** commit financeiro `8052de3` enviado à branch; Vercel terminal `success` e Preview
-   read-only 8/8 no mesmo SHA, com artefatos autenticados removidos;
+6. **concluído:** commit executável `8bf193e` enviado à branch; Vercel terminal `success` e Preview
+   read-only 8/8 em 1,8 min no mesmo SHA, com 25 rotas estáticas HTTP 200 e artefatos autenticados
+   gerados pela execução removidos;
 7. **concluído:** P8 `test:load` scratch-only passou em todos os volumes/SLOs, sem duplicata, retry,
    falha, deadlock ou resíduo; D61 foi corrigido e coberto;
 8. **ações manuais posteriores:** resolver o reCAPTCHA no PIX e cartão; fornecer chargeback sandbox
