@@ -34,7 +34,10 @@ e verificada em DEV (`text[]`, `NOT NULL`, default vazio, grants e FORCE RLS) ·
 Playwright 2/2 (leitura + salvar/recarregar/restaurar) · lint, typecheck, build,
 arquitetura, migrations, registry e observabilidade verdes. O smoke passou a
 aguardar o evento exato que publicou, pois a outbox compartilhada de DEV pode
-ter eventos anteriores no primeiro lote.
+ter eventos anteriores no primeiro lote. Em PROD, a `0093` foi aplicada depois
+de backup de 2.868.108 bytes e sob advisory lock; a verificação somente-leitura
+confirmou uma aplicação, 3/3 configurações sem nulos, default vazio, grants e
+FORCE RLS preservados.
 
 ## Validação manual (WhatsApp real)
 
