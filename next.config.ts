@@ -6,12 +6,18 @@ import './src/lib/env';
 import type { NextConfig } from 'next';
 
 import { buildContentSecurityPolicy } from './src/lib/http/content-security-policy';
+import { CLINIC_LOGO_ACTION_BODY_SIZE_LIMIT } from './src/lib/storage/clinic-logo-policy';
 
 /** Política base, exportada para o teste de não-regressão do Embedded Signup. */
 export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(undefined);
 
-const nextConfig: NextConfig = {
+export const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // O upload de logo aceita 4 MB. A margem cobre o envelope multipart sem
+    // ultrapassar o teto de 4,5 MB das Vercel Functions.
+    serverActions: { bodySizeLimit: CLINIC_LOGO_ACTION_BODY_SIZE_LIMIT },
+  },
   // Evita que o dev server bloqueie recursos Next quando a suíte E2E usa
   // 127.0.0.1 em vez de localhost. Esta opção só é aplicada em desenvolvimento.
   allowedDevOrigins: ['127.0.0.1', 'localhost'],

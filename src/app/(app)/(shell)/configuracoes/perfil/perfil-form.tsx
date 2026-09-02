@@ -9,9 +9,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { maskCnpj, maskPhoneBR } from '@/lib/masks';
+import { CLINIC_LOGO_MAX_BYTES, CLINIC_LOGO_MAX_LABEL } from '@/lib/storage/clinic-logo-policy';
 
-const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB (espelha CLINIC_LOGO_MAX_BYTES)
-const MAX_LOGO_LABEL = '5 MB';
 const ACCEPT = 'image/png,image/jpeg,image/webp';
 // Requisito de dimensão: uma logo minúscula fica pixelada/quebrada no receituário.
 const MIN_LOGO_PX = 64;
@@ -40,8 +39,8 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
     if (!ACCEPT.split(',').includes(file.type)) {
       return toast.error('Formato inválido. Use PNG, JPG ou WEBP.');
     }
-    if (file.size > MAX_LOGO_BYTES) {
-      return toast.error(`Imagem muito grande (máx. ${MAX_LOGO_LABEL}).`);
+    if (file.size > CLINIC_LOGO_MAX_BYTES) {
+      return toast.error(`Imagem muito grande (máx. ${CLINIC_LOGO_MAX_LABEL}).`);
     }
     // Valida a DIMENSÃO antes de subir (o servidor já valida tipo+tamanho; a
     // dimensão só dá pra checar no cliente carregando a imagem). Só sobe se passar.
@@ -184,7 +183,7 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
               ) : null}
             </div>
             <span className="text-xs text-fg-subtle">
-              PNG, JPG ou WEBP · mín. {MIN_LOGO_PX}×{MIN_LOGO_PX}px · até {MAX_LOGO_LABEL}.
+              PNG, JPG ou WEBP · mín. {MIN_LOGO_PX}×{MIN_LOGO_PX}px · até {CLINIC_LOGO_MAX_LABEL}.
             </span>
           </div>
         </div>
