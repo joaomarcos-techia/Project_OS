@@ -214,18 +214,20 @@ Resolva também, dentro do 1.H:
   mover dinheiro. Unit 3/3 e jornada DEV 13/13 provaram terminal, agenda vencida, consulta futura
   excluída, replay, cross-tenant e cleanup zero. O desfecho econômico continua manual até regra
   aprovada.
-- **P9 técnico-normativo ✅ local / publicação pendente** — em 04/09, 150/150 testes focados e a matriz
+- **P9 técnico-normativo ✅ publicado e revalidado** — em 04/09, 150/150 testes focados e a matriz
   visual Preview 8/8/72 estados cobriram Agenda, clínica, RBAC/tenant, mensagens e nove rotas em quatro
   viewports/dois temas. O passe encontrou D60 recorrente (`Link → página de redirect`) e D70 (data do
-  Dashboard fora do fuso); ambos foram corrigidos localmente e o E2E autenticado do código novo passou
-  sem `pageerror`. Publicar/repetir no Preview e observar Sentry. Percepção humana vai para a clínica
+  Dashboard fora do fuso); ambos foram publicados em `42cd114`. O deployment terminou `success`, a
+  navegação autenticada do Preview passou 6/6 e a matriz pós-deploy passou 8/8/72 sem `pageerror`.
+  Auth state e capturas foram removidos. Percepção humana vai para a clínica
   piloto e bloqueia somente expandir a onda, não iniciar 1.S.
 
 O `qorov2.md` contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite. Não há
 Product Acceptance encenado pendente para o fundador: a parte objetiva foi executada e a percepção
 fica para usuários reais na clínica piloto. O E2E Meta, o chargeback tenant, `PAYMENT_RESTORED`, D69,
 restore e carga estão verdes. O refund D50 continua `PENDING` no provider e a mensagem de suporte já
-foi enviada; não repetir POST. A ação imediata é publicar D60/D70, repetir Preview e observar Sentry.
+foi enviada; não repetir POST. D60/D70 estão publicados e revalidados; 1.S pode começar enquanto a D50
+permanece em observação externa.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
@@ -233,7 +235,7 @@ foi enviada; não repetir POST. A ação imediata é publicar D60/D70, repetir P
 
 ### 6.4 · 1.S — Stabilization
 
-Começar depois de publicar/reobservar D60/D70. Executar P10 do `qorov2.md`: corrigir apenas bugs,
+Começar agora. Executar P10 do `qorov2.md`: corrigir apenas bugs,
 sincronizar ADR-049/051, Discovery Log, runbooks e grafos; reexecutar suíte, Playwright, gates,
 smokes, live-check, simulation, load/restore local e Product Acceptance técnico. Aceite: zero
 bug alto, rollback por clínica provado e nenhuma evidência externa presumida.

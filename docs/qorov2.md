@@ -60,8 +60,9 @@ redirect `/configuracoes → /configuracoes/agenda`, com recorrência reportada 
 encontrou hook condicional e o stack coincide com o bug oficial do App Router em redirects
 ([Next.js #78396](https://github.com/vercel/next.js/issues/78396), corrigido no upstream pelo sync de React
 [PR #95368](https://github.com/vercel/next.js/pull/95368)). O shell agora liga diretamente à primeira
-categoria autorizada e os E2E falham em qualquer `pageerror`; **D60 está corrigido localmente e aguarda
-publicação/observação no Preview**, fora do lote financeiro.
+categoria autorizada e os E2E falham em qualquer `pageerror`. O commit `42cd114` chegou a deployment
+Vercel `success`; o Preview pós-deploy passou 6/6 na navegação e 8/8/72 estados visuais sem `pageerror`.
+**D60 está fechado**, com apenas monitoramento passivo de recorrência no Sentry, fora do lote financeiro.
 
 **P8 carga concluído em 29/08:** `pnpm test:load` usa o build real e um PostgreSQL 17 TLS efêmero,
 criado fora do workspace. O DEV fornece somente o schema por `pg_dump --schema-only`; todos os dados e
@@ -128,7 +129,7 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA E ENTREGUE** | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; Meta aceitou e o operador confirmou a chegada ao aparelho |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 externo ✅ · Playwright Preview read-only ✅ 8/8 · matriz visual ✅ 8/8/72 estados · Product Acceptance técnico-normativo ✅ 150/150 · D24/D27 código+externo ✅ · D50 aguarda estado terminal do provider · D60/D70 aguardam publicação/observação |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST perdido controlado ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 externo ✅ · Playwright Preview read-only ✅ 8/8 · matriz visual pós-deploy ✅ 8/8/72 estados · Product Acceptance técnico-normativo ✅ 150/150 · D24/D27 código+externo ✅ · D60/D70 publicados/revalidados ✅ · D50 aguarda estado terminal do provider |
 | 1.S Stabilization | ⬜ | — |
 
 **A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
@@ -261,7 +262,7 @@ objeto do teste.
 | P6 | **D50 — estorno parcial enviado; provider ainda `PENDING`** | Em 01/09 o Checkout de R$ 20 foi pago por cartão e o webhook tenant marcou a charge `paid`. O Financial alocou somente R$ 10 ao saldo e publicou o excedente. Uma única intenção, baseline zero, executou um único POST parcial de R$ 10. Novo readback em **04/09** confirmou pagamento `CONFIRMED`, recebível `pago` em R$ 20, duas baixas somando R$ 20, uma intenção `confirmation_pending` de R$ 10, baseline zero e um único refund `PENDING` de R$ 10 | **PASS:** pagamento, webhook, correlação, valor exato, persist-before-POST, ausência de duplicata, fingerprint e separação entre contas. **Pendente exclusivamente no provider/suporte:** aguardar o refund existente; nunca repetir POST. Quando virar `DONE`, fazer readback → ledger → replay → cleanup. A UI mostra a exceção no Caixa, mas não a palavra `DONE` (D72) | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estornos Asaas](https://docs.asaas.com/docs/refunds); D50/D72; §20.3 e §20.9 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
 | P8 | ✅ **Carga e restore em volume** | Restore real e carga usam PostgreSQL 17 local descartável. `test:load` extrai somente o schema DEV, sobe app real no scratch TLS, substitui Meta antes da rede, bloqueia demais HTTP externos e exige confirmação/guards fail-closed. Nenhuma escrita foi feita em DEV, Preview ou produção | **PASS:** restore 117 tabelas/83 policies e zero resíduo; carga 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile 20 chamadas e 100 queries. Todos os SLOs verdes, zero deadlock/duplicata/retry/falha e cleanup integral | §10 Performance; §16 Migração; `test:load`; `restore:test`; D61; R10 em [riscos](architecture/risks.md) |
-| P9 | **Product Acceptance técnico-normativo executado; correções aguardam publicação** — D53/D56/D60/D70/D71 | Em 04/09 o agente cruzou o fluxo real do Qoro com CFM/ANPD e executou 150 testes focados de Agenda, prontuário, autorização, isolamento, templates e pagamentos; o Preview passou 8/8 na matriz visual (72 estados) esperando headings reais e capturando `pageerror`. A auditoria encontrou D60 recorrente e D70; ambos foram corrigidos localmente e o E2E autenticado do código novo passou. Teste humano de usabilidade deixa de ser encenado pelo fundador e passa a ser observação da clínica piloto | **PARTIAL até publicar/reexecutar no Preview:** código local e testes verdes; depois do deploy, repetir navegação/visual e observar Sentry. A validação humana de percepção não bloqueia iniciar 1.S; bloqueia avançar da clínica piloto para ondas seguintes se revelar problema alto/médio | §0.2; §15; CFM/ANPD; [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56/D60/D70/D71; [guia E2E](../e2e/README.md) |
+| P9 | ✅ **Product Acceptance técnico-normativo publicado e revalidado** — D53/D56/D60/D70/D71 | Em 04/09 o agente cruzou o fluxo real do Qoro com CFM/ANPD e executou 150 testes focados de Agenda, prontuário, autorização, isolamento, templates e pagamentos. A auditoria encontrou D60 recorrente e D70; ambos foram corrigidos e publicados em `42cd114`. O deployment terminou `success`, a navegação Preview passou 6/6 e a matriz pós-deploy passou 8/8/72 estados esperando headings reais e capturando `pageerror`. Auth state e capturas foram removidos. Teste humano de usabilidade deixa de ser encenado pelo fundador e passa a ser observação da clínica piloto | **PASS técnico-normativo:** código, suíte integral, build/gates e Preview verdes. Manter monitoramento passivo do Sentry. A validação humana de percepção não bloqueia iniciar 1.S; bloqueia avançar da clínica piloto para ondas seguintes se revelar problema alto/médio | §0.2; §15; CFM/ANPD; [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56/D60/D70/D71; [guia E2E](../e2e/README.md) |
 | P10 | **1.S Stabilization** — automático após P1–P9 e decisões | Corrigir somente bugs encontrados; atualizar ADR-049/051, Discovery Log, runbooks, grafos e este mapa; remover dívida criada pela Camada 1. Reexecutar todos os gates, smokes, simulation, E2E e checks de migration. Observar Preview antes do rollout nominal. **Pré-evidência já verde:** rollback por clínica 55/55 com `enabled=false` | zero bug alto aberto; suíte/gates 100% verdes; rollback `clinic_deposit_policy.enabled=false` provado; matriz de regressão e rollout por clínica assinados | §0.3 DoD; §18 Rollout; ADR-049 §9 |
 
 ### Testes explicitamente não verdes / não executados
@@ -277,7 +278,7 @@ objeto do teste.
 | E2E Meta `remainder_link` | ✅ **PASS até o aparelho** | mesmo encadeamento real com template distinto de restante e cobrança pagável no send-time; o operador confirmou a mensagem e o link no aparelho. O link expirou após o cleanup intencional |
 | `PAYMENT_RESTORED` da assinatura | ✅ **PASS externo na conta alvo** | `qoro dev` foi criado com os sete eventos canônicos; a mesma cobrança passou por delete/restore, a mesma invoice por `open → cancelled → open`, replay não duplicou e o runner limpou provider+banco |
 | Estorno real do sinal pago por PIX/cartão | **Cartão PASS; PIX histórico PARTIAL** | o PIX pertence à conta Sandbox anterior e não é mais acessível pela credencial atual; registrar como resíduo externo, sem contaminar a prova tenant atual |
-| Product Acceptance por persona | **TÉCNICO-NORMATIVO PASS; publicação/observação PARTIAL; usabilidade humana DEFERRED para piloto** | publicar D60/D70, repetir Preview e observar Sentry; na onda 1 colher percepção real de dono/secretária/médico/paciente, sem pedir ao fundador que finja experiência clínica |
+| Product Acceptance por persona | **TÉCNICO-NORMATIVO PASS local + Preview; usabilidade humana DEFERRED para piloto** | D60/D70 publicados e revalidados; manter observação passiva do Sentry. Na onda 1 colher percepção real de dono/secretária/médico/paciente, sem pedir ao fundador que finja experiência clínica |
 | `pnpm format:check` global | **FAIL na baseline (D9)** | PR exclusivamente mecânico; nenhuma mudança semântica; toda suíte depois |
 
 POST perdido e banco lento estão verdes em E2E controlado com banco; Asaas indisponível,
@@ -314,7 +315,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | Rotacionar a chave sandbox do Asaas exposta no chat | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave | ✅ **NÃO EXECUTAR POR DECISÃO DO FUNDADOR (E4)** — risco residual do Sandbox aceito em 03/09; reabrir somente nas condições registradas em P3 |
 | Resolver o PIX da conta Sandbox anterior | A conta antiga exigia ação humana e depois deixou de ser a conta-alvo | **ENCERRADO COMO `NOT COMPLETED`:** o operador confirmou que nada foi estornado, removeu webhook/chaves e não localizou mais a cobrança. Não recuperar nem recolocar essa credencial. Se útil, criar amanhã uma fixture PIX nova na conta atual |
 | Alinhar o webhook global de assinatura no ambiente correto | O secret efetivo do runtime Preview só pode ser alterado por quem possui acesso ao projeto Vercel | ✅ **FEITO E PROVADO:** chave/token/Preview alinhados; `qoro dev` criado na conta alvo; readback, delete/restore, replay e cleanup passaram |
-| Observar usabilidade por persona na clínica piloto | Julgamento de percepção exige secretária/médico/paciente reais; web, agente e Playwright não podem fabricar experiência vivida | **DEFERRED PARA A ONDA 1, não é ação manual agora nem bloqueio de 1.S.** O aceite técnico-normativo foi executado pelo agente; falta publicar/reobservar D60/D70 |
+| Observar usabilidade por persona na clínica piloto | Julgamento de percepção exige secretária/médico/paciente reais; web, agente e Playwright não podem fabricar experiência vivida | **DEFERRED PARA A ONDA 1, não é ação manual agora nem bloqueio de 1.S.** O aceite técnico-normativo e sua prova pós-deploy foram executados pelo agente |
 | Rotacionar novamente a senha do banco de produção e atualizar todos os consumidores | A credencial usada na migration foi rotacionada corretamente, mas a sucessora foi publicada no chat antes da verificação; continuar com ela seria risco crítico | ✅ **CONFIRMADO PELO FUNDADOR**; a credencial exposta não foi usada, o DPAPI foi removido sem leitura e o env atualizado foi usado somente em transação read-only |
 | Verificação read-only de `0091` + `0092` em produção | Era necessário provar o estado posterior sem inferi-lo do `DONE` | ✅ **7/7** — versions/journal, enums, tabelas/colunas, FORCE RLS/policies, grants, índices/constraints e advisory lock liberado |
 
@@ -377,7 +378,7 @@ global da conta alvo.
 | D57 | Checkout Asaas restringe PIX/cartão, mas não preserva a idempotência atual de criação | **resolvido em código/DEV/PROD e provado externamente em 30/08.** Intenção + lease local antecedem o POST, timeout não repete criação e `checkoutSession` correlaciona o payment autoritativo no webhook. O runner correlacionou pagamentos reais PIX/cartão após o único passo humano do reCAPTCHA e agora exige readback terminal do cleanup |
 | D58 | Checkout expira em no máximo 24h, mas o restante atual promete 7 dias | **resolvido em código/DEV/PROD em 29/08.** Gerações idempotentes de até 24h preservam 7 dias sobre a mesma `patient_charge`; somente a atual fornece link e a renovação publica `link_ready` controlado. Unit, migration 0091 DEV+PROD, smoke 5/5 e pós-verificação 7/7 verdes |
 | D59 | Rotação da senha de produção deixou Functions antigas autenticando com a credencial revogada | **recuperado em 29/08** — Sentry registrou falhas nos quatro crons às 11:30–11:31 BRT; após atualizar o env e redeployar, health estrito respondeu 200/tudo `ok` e heartbeats read-only provaram `success` dos quatro jobs às 11:45–11:46. Não foi falha das queries nem dos smokes locais |
-| D60 | Preview registrou `Rendered more hooks than during the previous render` ao navegar pelo redirect de `/configuracoes`, com recorrência reportada em 04/09 | **workaround implementado localmente; publicação/observação pendentes** — nenhum hook condicional foi encontrado e o stack `Router/useMemo` coincide com o bug oficial Next.js #78396 corrigido no upstream pelo React sync #95368. O shell deriva pela permissão e liga diretamente à primeira categoria, sem passar pela página que apenas redireciona; E2E autenticado percorreu a navegação sem `pageerror` e a suíte integral/build/gates estão verdes. Publicar, repetir no Preview e observar Sentry, sem misturar ao Financial |
+| D60 | Preview registrou `Rendered more hooks than during the previous render` ao navegar pelo redirect de `/configuracoes`, com recorrência reportada em 04/09 | **resolvido, publicado e revalidado** — nenhum hook condicional foi encontrado e o stack `Router/useMemo` coincide com o bug oficial Next.js #78396 corrigido no upstream pelo React sync #95368. O shell deriva pela permissão e liga diretamente à primeira categoria, sem passar pela página que apenas redireciona. O deployment `42cd114` terminou `success`; Preview 6/6 na navegação e 8/8/72 na matriz visual, sem `pageerror`. Manter observação passiva do Sentry, sem misturar ao Financial |
 | D61 | Candidatos de reminder de SQL cru podiam entregar `scheduled_at` como string PostgreSQL em vez de `Date`, fazendo o job falhar como `invalid_payload` somente no runtime real | **resolvido no P8 em 29/08** — a fronteira `listReminderCandidates` aceita `Date|string`, valida e sempre publica ISO UTC; valor inválido falha alto. Regressão direta 3/3, C14 real 5.000/5.000 no scratch e suíte 2.797/2.797 verdes |
 | D62 | Fixture de chargeback global não provava a jornada tenant | **RESOLVIDO E LIMPO em 02/09, sem mocks** — a cobrança `remainder` tenant-scoped da Clínica A pagou, foi alocada, recebeu chargeback e terminou `REFUNDED/DONE` + `refunded/lost`. Os três fatos monotônicos atravessaram os handlers financeiros reais; a perda reabriu o saldo com ledger append-only, sem alterar o fato clínico. Replay 0/3. O cleanup revalidou a evidência e a conta, removeu 16 linhas da fixture em transação, preservou os eventos de webhook e não chamou o provider |
 | D63 | Checkout hospedado rejeita `customer` de paciente sem endereço completo | **resolvido em 31/08** — probe sandbox isolou o contrato: com customer nome/CPF, HTTP 400 pediu endereço/número/CEP/bairro/cidade; sem `customer`/`customerData`, Checkout `ACTIVE`. Sinal, restante e renovação agora deixam o pagador preencher a página hospedada, preservam o gate local de CPF e não enviam PII no POST. 92 testes focados + suíte 2.812/2.812; [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md) emendada |
@@ -435,8 +436,8 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 Seguir apenas os itens ainda abertos de **P6 → P10**. P0, P1, P2, P4, P5, P7 e P8 estão verdes; P3
 foi encerrado por decisão consciente e D69 foi limpo. A mensagem sobre o refund D50 `PENDING` já foi
 enviada; quando o provider responder ou mudar para `DONE`, executar apenas readback, ledger, replay e
-cleanup, sem repetir POST. O Product Acceptance técnico-normativo foi executado; publicar D60/D70,
-repetir o Preview e então iniciar P10/1.S. A percepção de uso será colhida na clínica piloto antes de
+cleanup, sem repetir POST. O Product Acceptance técnico-normativo e o pós-deploy D60/D70 estão verdes;
+iniciar P10/1.S. A percepção de uso será colhida na clínica piloto antes de
 expandir o rollout; nenhum envio real deve ser repetido sem necessidade.
 
 **1.H — Hardening.** Sem adicionar feature:
@@ -617,11 +618,11 @@ Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcion
     classificado como E2E real.
 
 **1.H HARDENING:** 🟡 concorrência, idempotência, multi-tenant, banco lento, POST perdido, Financial
-Integrity, Simulation, carga, restore isolado, Playwright read-only, Meta, D27 e restore global estão
-verdes conforme a matriz canônica. Restam o estado terminal externo da D50 e publicar/observar no
-Preview as correções D60/D70 encontradas pelo Product Acceptance técnico de P9; a percepção humana
-fica para a clínica piloto. P3 foi encerrado por decisão consciente sobre o Sandbox. Aceite continua
-sendo cada cenário com evidência real + Security/Chaos/Financial/Load/Simulation verdes.
+Integrity, Simulation, carga, restore isolado, Playwright read-only, Meta, D27, restore global e o
+Product Acceptance técnico de P9 estão verdes conforme a matriz canônica. Resta somente o estado
+terminal externo da D50; a percepção humana fica para a clínica piloto. P3 foi encerrado por decisão
+consciente sobre o Sandbox. Aceite continua sendo cada cenário com evidência real +
+Security/Chaos/Financial/Load/Simulation verdes.
 
 **1.S STABILIZATION:** ⬜ só começa depois dos bloqueios/decisões de 1.H. Executar P10: corrigir bugs
 encontrados sem feature nova, atualizar ADR-049/ADR-051 (inclusive evidências históricas hoje
@@ -681,8 +682,8 @@ duplicata, órfão ou hold preso e confirmou cleanup com resíduo zero. Não hou
 ## 15. Gate — Product Acceptance
 Percorrer a jornada como **secretária·médico·dono·paciente**: nº de cliques · clareza · tempo · chance de erro humano. *(Usabilidade real exige usuário real → confirmada na piloto da Fase 2 do rollout §18.)*
 
-**Estado atual em 04/09/2026:** `PARTIAL` somente porque D60/D70 ainda precisam ser publicados e
-reobservados no Preview. A parte que pode ser avaliada objetivamente pelo agente foi executada:
+**Estado atual em 04/09/2026:** `PASS técnico-normativo`. D60/D70 foram publicados no commit
+`42cd114` e reobservados no Preview. A parte que pode ser avaliada objetivamente pelo agente foi executada:
 
 - **critérios clínico-documentais:** prontuário cronológico, identificação/autoria, guarda, sigilo e
   acesso do paciente foram confrontados com o
@@ -705,9 +706,10 @@ reobservados no Preview. A parte que pode ser avaliada objetivamente pelo agente
   `PENDING`, e o estado técnico não é exposto literalmente na UI (D72).
 
 Achados: D60 (corrida App Router em Link → redirect) e D70 (dia do Dashboard fora do fuso da clínica)
-foram corrigidos localmente; D71 corrigiu o falso verde do harness visual. O E2E local autenticado do
-código novo percorreu Agenda, Caixa, Financeiro, Configurações, Produto e Sugestões sem `pageerror`.
-Após publicação, repetir o mesmo passe no Preview e observar Sentry.
+foram corrigidos e publicados; D71 corrigiu o falso verde do harness visual. O E2E autenticado do
+Preview percorreu Agenda, Caixa, Financeiro, Configurações, Produto e Sugestões 6/6 sem `pageerror`.
+A matriz pós-deploy passou 8/8/72 e a inspeção confirmou Dashboard no fuso e Configurações canônica.
+Artefatos e auth state foram removidos; resta apenas monitoramento passivo de recorrência no Sentry.
 
 **Limite honesto:** pesquisa web, código e navegador permitem aceite técnico/normativo; não provam que
 uma secretária ou médico real considera a tela intuitiva. Essa percepção será colhida na onda 1 com a
@@ -1112,14 +1114,14 @@ fonte da verdade.
 | `PAYMENT_RESTORED` real (D54/D55) | ✅ **PASS externo de Billing/assinatura** | não | `qoro dev` foi criado na conta alvo; delete/restore, invoice cancelada/reaberta, replay e cleanup foram provados pelo runner |
 | E2E Meta de sinal/restante | ✅ **PASS até o aparelho** | não | transporte aplicação → C14 → Meta, message ids, jobs terminais, replay e chegada das duas mensagens com links foram confirmados. Os links expiraram depois do cleanup intencional |
 | `test:load` em app scratch | ✅ **PASS; não é mais pendência** | não | carga local descartável mediu C14/webhook/outbox/reconcile/SQL, SLOs, dedup e deadlocks; cleanup integral |
-| Product Acceptance técnico-normativo | **sim; PASS local, falta publicação/observação de D60/D70** | não | 150/150 focados, navegação local sem `pageerror` e matriz visual Preview 8/8/72 estados; publicar e repetir |
+| Product Acceptance técnico-normativo | ✅ **PASS local + deployment + Preview** | não | 150/150 focados, deployment `42cd114` `success`, navegação autenticada 6/6 sem `pageerror` e matriz visual pós-deploy 8/8/72 estados |
 | Usabilidade humana por persona | **não para iniciar 1.S; sim para expandir após a onda piloto** | não | percepção de secretária/médico reais não pode ser fabricada pelo agente nem pelo fundador; colher na clínica piloto |
 | rotação da chave sandbox exposta | **risco aceito temporariamente pelo fundador** | não | não bloqueia o sandbox, mas continua pendente por higiene operacional; templates, conexão e destinatário já permitiram o E2E real até `accepted` |
 
 Portanto, os pendentes **não impediram** ADRs, D24/D27/D50 nem impedem iniciar um spike documental de
-TISS. O refund D50 ainda precisa chegar a estado terminal no provider. Para iniciar 1.S, falta publicar
-e reobservar D60/D70; a percepção humana será validada na clínica piloto e bloqueia a expansão do
-rollout, não o começo da estabilização.
+TISS. O refund D50 ainda precisa chegar a estado terminal no provider. D60/D70 já foram publicados e
+reobservados, então 1.S pode começar; a percepção humana será validada na clínica piloto e bloqueia a
+expansão do rollout, não o começo da estabilização.
 
 ### 20.7 O que falta para fechar o financeiro
 
@@ -1183,10 +1185,10 @@ nova cobrança local ou retry cego de `POST /checkouts`.
 13. **concluído em 03/09:** D69 recebeu autorização própria. Dry-run identificou exatamente quatro
     `checkout_sessions` e quatro `tenant_provisioning` históricos, sem clínica ativa; backup local,
     advisory lock, transação e pós-check removeram 4 + 4 e confirmaram zero resíduo;
-14. **concluído localmente em 04/09:** Product Acceptance técnico-normativo executou 150/150 testes,
-    E2E visual Preview 8/8/72 estados e detectou/corrigiu D60/D70; o E2E autenticado do código novo
-    passou sem `pageerror`. Publicar e repetir no Preview;
-15. iniciar 1.S após a publicação/observação. A usabilidade humana passa para a clínica piloto e não
+14. **concluído localmente e no Preview em 04/09:** Product Acceptance técnico-normativo executou
+    150/150 testes, publicou D60/D70 em `42cd114`, passou 6/6 na navegação autenticada e 8/8/72 na
+    matriz visual pós-deploy sem `pageerror`; artefatos autenticados foram removidos;
+15. iniciar 1.S. A usabilidade humana passa para a clínica piloto e não
     deve ser encenada pelo fundador.
 
 #### O que não bloqueia a implementação do Financial
@@ -1208,8 +1210,8 @@ passou 7/7 em transação read-only. Portanto, o fechamento técnico automático
 O pagamento real PIX/cartão foi provado. O cleanup PIX da conta Sandbox anterior não ocorreu e ficou
 `NOT COMPLETED` depois da remoção do webhook e das chaves antigas. Provider, webhook tenant, Payments,
 Financial, replay e cleanup do chargeback D62 foram provados sem mocks. Billing restore e Meta também
-estão verdes. A **Camada 1 inteira** só fecha depois do estado terminal/cleanup da D50, da publicação e
-observação das correções do Product Acceptance técnico (D60/D70) e de 1.S; a percepção humana é gate
+estão verdes. A **Camada 1 inteira** só fecha depois do estado terminal/cleanup da D50 e de 1.S;
+D60/D70 e o Product Acceptance técnico já estão publicados/revalidados. A percepção humana é gate
 para expandir além da clínica piloto. Carga não é mais bloqueio.
 
 ### 20.8 TISS: o que pode começar agora e qual “sistema” está citado
