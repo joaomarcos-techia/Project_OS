@@ -112,6 +112,7 @@ export default async function DashboardPage() {
     : new Map<string, string>();
 
   const hoje = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: tz,
     weekday: 'long',
     day: '2-digit',
     month: 'short',

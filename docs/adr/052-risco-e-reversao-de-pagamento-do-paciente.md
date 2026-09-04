@@ -104,4 +104,14 @@ seleção e revisão humana do mínimo necessário. Upload de evidências não f
 - unit: normalização, monotonicidade, replay, bloqueio/liberação e compensação;
 - integração DB: RLS, concorrência, D50, disputa, perda alocada, replay e cross-tenant;
 - contrato: nomes de eventos e objeto `chargeback` do Asaas;
-- externo: um chargeback sandbox real permanece dependente de fixture/provider controlados.
+- externo/provider: **PASS em 2026-09-01** — o Asaas disparou os eventos testáveis da fixture global;
+  o readback terminou `REFUNDED`, chargeback `DONE` e o classificador real devolveu `lost`;
+- externo/webhook tenant: **PASS em 2026-09-01** — a Clínica A convergiu dos quatro eventos antigos
+  para os 12 eventos canônicos, incluindo chargeback; o legado pausado foi removido (D67);
+- externo/jornada tenant: **PASS em 2026-09-02** — a fixture `remainder` da Clínica A atravessou
+  pagamento, webhook e `REFUNDED/DONE`; Payments convergiu para `refunded/lost`. Os três fatos de risco
+  foram processados uma vez pelos handlers reais. Financial criou uma compensação `refund` ligada à
+  baixa original e uma `chargeback_loss`, reabriu o recebível para R$ 10 e preservou o agendamento
+  `atendido`. Replay processou zero, manteve um ajuste e duas transações; nenhum evento alheio foi
+  tocado. O cleanup autorizado revalidou o estado, removeu 16 linhas sintéticas em uma transação,
+  preservou o audit do webhook, não chamou o provider e terminou com zero resíduo da fixture D62.

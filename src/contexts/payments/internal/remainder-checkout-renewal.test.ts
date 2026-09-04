@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   listExpiryCandidates: vi.fn(),
   expire: vi.fn(),
   listCandidates: vi.fn(),
-  findCustomer: vi.fn(),
   getClient: vi.fn(),
   renew: vi.fn(),
   findPaymentByCheckoutSession: vi.fn(),
@@ -24,7 +23,6 @@ vi.mock('./charge-store', () => ({
   expireRemainderCheckoutCollection: mocks.expire,
   listRemainderCheckoutExpiryCandidates: mocks.listExpiryCandidates,
   listRemainderCheckoutRenewalCandidates: mocks.listCandidates,
-  findPaymentCustomer: mocks.findCustomer,
   markDepositPaid: mocks.markPaid,
 }));
 vi.mock('./hosted-checkout', () => ({
@@ -50,7 +48,6 @@ beforeEach(() => {
   mocks.listExpiryCandidates.mockResolvedValue([]);
   mocks.expire.mockResolvedValue(true);
   mocks.listCandidates.mockResolvedValue([CANDIDATE]);
-  mocks.findCustomer.mockResolvedValue('cus-1');
   mocks.getClient.mockResolvedValue({
     findPaymentByCheckoutSession: mocks.findPaymentByCheckoutSession,
     getPayment: mocks.getPayment,
@@ -63,7 +60,7 @@ beforeEach(() => {
 });
 
 describe('runRemainderCheckoutRenewal', () => {
-  it('renova pelo customer da mesma clínica e contabiliza a geração', async () => {
+  it('renova a geração sem depender de customer pré-cadastrado', async () => {
     await expect(runRemainderCheckoutRenewal({ now: NOW })).resolves.toEqual({
       clinics: 1,
       candidates: 1,
@@ -75,7 +72,6 @@ describe('runRemainderCheckoutRenewal', () => {
     expect(mocks.renew).toHaveBeenCalledWith(
       expect.objectContaining({
         clinicId: 'clinic-1',
-        customerId: 'cus-1',
         candidate: CANDIDATE,
         now: NOW,
       }),

@@ -28,7 +28,7 @@
  */
 import { PoisonPillError } from '@/lib/outbox/errors';
 import { metrics } from '@/lib/observability/metrics';
-import { BillingProviderError, type AsaasClient } from '@/lib/payments/asaas';
+import { BillingProviderError } from '@/lib/payments/asaas';
 import { getClinicAsaasClient } from '@/lib/payments/account-store';
 
 /* eslint-disable boundaries/element-types -- evento + tipo são o contrato PÚBLICO do Scheduling, e `schedulingApiV1`/`patientApiV1` são as APIs internas públicas (M14) — mesma exceção dos demais handlers que consomem contratos de vizinhos. */
@@ -39,7 +39,7 @@ import { patientApiV1 } from '@/contexts/patient';
 import type { PatientChargeFailedPayload } from '../events';
 import { resolveDepositAmount } from '../policy';
 import { getDepositPolicy } from '../queries';
-import { findChargeByAppointment, findPaymentCustomer, linkPaymentCustomer } from './charge-store';
+import { findChargeByAppointment } from './charge-store';
 import { createInitialHostedCheckout, resolveCheckoutWindow } from './hosted-checkout';
 
 /** Janela do hold (ADR-049). Fixa: é promessa ao paciente, não configuração. */
@@ -79,33 +79,6 @@ async function isReturnVisit(
 ): Promise<boolean> {
   const previous = await schedulingApiV1.listPatientAppointments(clinicId, patientId, 2);
   return previous.some((appointment) => appointment.id !== appointmentId);
-}
-
-/**
- * Garante o customer do paciente na conta da clínica (ADR-050 D5: criação
- * preguiçosa — paciente que nunca é cobrado nunca vai para o Asaas).
- *
- * Só nome e CPF viajam. Nada de e-mail, telefone ou qualquer dado clínico.
- */
-async function ensureCustomer(args: {
-  client: AsaasClient;
-  clinicId: string;
-  patientId: string;
-  nome: string;
-  cpf: string;
-}): Promise<string> {
-  const existing = await findPaymentCustomer(args.clinicId, args.patientId);
-  if (existing) return existing;
-
-  const created = await args.client.createCustomer({
-    name: args.nome,
-    cpfCnpj: args.cpf,
-  });
-  return linkPaymentCustomer({
-    clinicId: args.clinicId,
-    patientId: args.patientId,
-    providerCustomerId: created.customerId,
-  });
 }
 
 /**
@@ -168,22 +141,18 @@ export async function createDepositCharge(ctx: {
     return;
   }
 
-  const identity = await patientApiV1.getPaymentIdentity(clinicId, patientId);
-  if (!identity) {
+  if (!(await patientApiV1.getPaymentIdentity(clinicId, patientId))) {
     // ADR-050 D6: sem CPF válido, NÃO cobra. Não se pede o dado ao paciente.
     metrics.emit('payments.deposit.skipped_no_identity', { clinicId, appointmentId });
     return;
   }
 
   try {
-    const customerId = await ensureCustomer({ client, clinicId, patientId, ...identity });
-
     const outcome = await createInitialHostedCheckout({
       client,
       clinicId,
       appointmentId,
       patientId,
-      customerId,
       kind: 'deposit',
       amount,
       // Genérica de propósito (ADR-050 D2): procedimento é dado sensível.

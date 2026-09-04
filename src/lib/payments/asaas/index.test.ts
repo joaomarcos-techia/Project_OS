@@ -263,7 +263,7 @@ describe('alteração de assinatura e recuperação de cobrança', () => {
 });
 
 describe('Checkout hospedado de paciente (D24)', () => {
-  it('cria somente PIX/cartão, avulso e com customer já cadastrado', async () => {
+  it('cria somente PIX/cartão, avulso e deixa os dados do pagador para o Checkout', async () => {
     fetchMock.mockResolvedValue(
       Response.json({
         id: 'checkout_1',
@@ -276,7 +276,6 @@ describe('Checkout hospedado de paciente (D24)', () => {
 
     await expect(
       clinica.createCheckout({
-        customerId: 'cus_1',
         value: 75,
         description: 'Restante do atendimento',
         externalReference: 'remainder:appointment-1:g1',
@@ -299,7 +298,6 @@ describe('Checkout hospedado de paciente (D24)', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          customer: 'cus_1',
           billingTypes: ['PIX', 'CREDIT_CARD'],
           chargeTypes: ['DETACHED'],
           minutesToExpire: 1_440,
@@ -327,7 +325,6 @@ describe('Checkout hospedado de paciente (D24)', () => {
 
     await expect(
       clinica.createCheckout({
-        customerId: 'cus_1',
         value: 10,
         description: 'Sinal do agendamento',
         externalReference: 'deposit:appointment-1:g1',

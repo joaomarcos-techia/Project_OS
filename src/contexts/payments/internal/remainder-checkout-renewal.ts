@@ -7,7 +7,6 @@ import { BillingProviderError } from '@/lib/payments/asaas';
 
 import {
   expireRemainderCheckoutCollection,
-  findPaymentCustomer,
   listRemainderCheckoutExpiryCandidates,
   listRemainderCheckoutRenewalCandidates,
   markDepositPaid,
@@ -126,20 +125,9 @@ export async function runRemainderCheckoutRenewal(opts?: {
 
     for (const candidate of candidates) {
       try {
-        const customerId = await findPaymentCustomer(clinicId, candidate.patientId);
-        if (!customerId) {
-          summary.failed += 1;
-          metrics.emit('payments.remainder.renewal_no_customer', {
-            clinicId,
-            chargeId: candidate.chargeId,
-          });
-          continue;
-        }
-
         const outcome = await renewRemainderHostedCheckout({
           client,
           clinicId,
-          customerId,
           candidate,
           now,
         });

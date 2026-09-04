@@ -96,6 +96,48 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://app.qoro.dev/api/webhoo
 | 404 | a rota não está neste deploy |
 | 401 com HTML da Vercel | **Deployment Protection** ligada: o Asaas nunca chega na rota |
 
+Um POST autenticado com corpo vazio devolver `400` prova somente Vercel + token. Ele **não prova** que
+`ASAAS_API_KEY`/`ASAAS_BASE_URL` do runtime pertencem à mesma conta que envia o webhook. A prova segura
+de account match usa internamente o id de uma cobrança real dessa conta em um evento controlado: a rota
+deve passar por `getPayment()` e devolver `200` (mesmo que depois ignore uma subscription desconhecida).
+`500` repetido nesse probe, após autenticação aceita, indica chave inválida/de outra conta ou base
+divergente. Nunca registrar o payment id nem a chave no diagnóstico.
+
+No desenvolvimento local existe uma distinção operacional importante: `scripts/_env.ts` e
+`normalizeDevelopmentAliases()` dão precedência a `ASAAS_API_KEY_DEV`, `ASAAS_BASE_URL_DEV` e
+`ASAAS_WEBHOOK_TOKEN_DEV`. Na Vercel, `NODE_ENV=production` também no Preview; por isso o runtime
+publicado ignora os aliases `_DEV` e lê somente `ASAAS_API_KEY`, `ASAAS_BASE_URL` e
+`ASAAS_WEBHOOK_TOKEN`. Para comparar contas, confronte o valor **efetivo** local (`*_DEV`, quando
+presente) com o nome canônico do Preview. Não copie por engano o valor canônico local antigo e nunca
+registre os valores na evidência.
+
+Evidência de 2026-09-01: após alinhar o valor efetivo `_DEV` no nome canônico do Preview, o bootstrap
+controlado passou por `getPayment()` e persistiu a invoice `open`. O DELETE seguinte foi aceito pelo
+Asaas, mas nenhum `PAYMENT_DELETED` chegou em 90 segundos nem nos minutos adicionais; o webhook
+continuava ativo, não interrompido e com o evento configurado. Nesse caso, não repetir às cegas: abrir
+**Integrações → Logs de Webhooks**, pois o Asaas disponibiliza os logs de entrega somente na interface,
+e registrar apenas ausência da tentativa ou status/erro sanitizado. A fixture deve ser limpa antes da
+investigação; o runner já garante esse cleanup.
+
+Correção de 2026-09-01: `ASAAS_API_KEY_DEV` apontava para outra conta Sandbox. O operador a substituiu
+pela conta alvo à qual tem acesso; `GET /myAccount` confirmou que a credencial global, a chave tenant
+local e a chave gravada para a Clínica A agora convergem. Por isso, o histórico de `qorodev` e das
+tentativas de DELETE na conta anterior não valida a configuração atual.
+
+Na conta alvo, `Qoro — cobranca de paciente` permanece ativo na rota tenant com 12 eventos. O recurso
+global `qoro dev`, removido por autorização anterior, foi recriado com nova autorização em 02/09 na
+rota global e com os sete eventos deste runbook. O runner confirmou por fingerprint a conta correta,
+executou `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`, provou replay idempotente e limpou
+a fixture no provider e no banco. O readback posterior confirmou exatamente dois webhooks: global
+ativo/não interrompido, 7 eventos e `NON_SEQUENTIALLY`; tenant ativo/não interrompido, 12 eventos e
+`SEQUENTIALLY`. Compartilhar a mesma conta entre Billing e pagamentos do paciente é tolerado somente
+neste Sandbox controlado; produção deve manter os donos do dinheiro separados.
+
+O pós-check também encontrou 4 `checkout_sessions` e 4 `tenant_provisioning` sintéticos históricos,
+sem clínica/subscription/billing customer ativa correspondente. Não pertencem à execução atual, que
+começou e terminou com zero fixture ativa. Tratar como D69 e não apagar sem autorização, backup,
+guardas por ID e pós-verificação próprios.
+
 Um webhook marcado **interrupted** pode ser reativado pelo painel ou pela API, **depois** de corrigir
 a causa-raiz:
 

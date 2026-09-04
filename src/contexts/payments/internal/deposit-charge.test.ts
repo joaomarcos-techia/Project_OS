@@ -13,14 +13,11 @@ import type * as AsaasModule from '@/lib/payments/asaas';
 const mocks = vi.hoisted(() => ({
   getDepositPolicy: vi.fn(),
   findChargeByAppointment: vi.fn(),
-  findPaymentCustomer: vi.fn(),
-  linkPaymentCustomer: vi.fn(),
   createInitialHostedCheckout: vi.fn(),
   resolveCheckoutWindow: vi.fn(),
   getClinicAsaasClient: vi.fn(),
   getPaymentIdentity: vi.fn(),
   listPatientAppointments: vi.fn(),
-  createCustomer: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -37,8 +34,6 @@ vi.mock('@/contexts/scheduling', () => ({
 vi.mock('../queries', () => ({ getDepositPolicy: mocks.getDepositPolicy }));
 vi.mock('./charge-store', () => ({
   findChargeByAppointment: mocks.findChargeByAppointment,
-  findPaymentCustomer: mocks.findPaymentCustomer,
-  linkPaymentCustomer: mocks.linkPaymentCustomer,
 }));
 vi.mock('./hosted-checkout', () => ({
   createInitialHostedCheckout: mocks.createInitialHostedCheckout,
@@ -97,19 +92,12 @@ beforeEach(() => {
   mocks.findChargeByAppointment.mockResolvedValue(null);
   mocks.listPatientAppointments.mockResolvedValue([{ id: APPOINTMENT }]);
   mocks.getPaymentIdentity.mockResolvedValue({ nome: 'Paciente Exemplo', cpf: '39053344705' });
-  mocks.findPaymentCustomer.mockResolvedValue(null);
-  mocks.linkPaymentCustomer.mockImplementation(
-    async (i: { providerCustomerId: string }) => i.providerCustomerId,
-  );
-  mocks.createCustomer.mockResolvedValue({ customerId: 'cus_1' });
   mocks.resolveCheckoutWindow.mockReturnValue({
     minutesToExpire: 1_440,
     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
   });
   mocks.createInitialHostedCheckout.mockResolvedValue('created');
-  mocks.getClinicAsaasClient.mockResolvedValue({
-    createCustomer: mocks.createCustomer,
-  });
+  mocks.getClinicAsaasClient.mockResolvedValue({});
 });
 
 describe('caminho feliz', () => {
@@ -118,7 +106,6 @@ describe('caminho feliz', () => {
 
     expect(mocks.createInitialHostedCheckout).toHaveBeenCalledWith(
       expect.objectContaining({
-        customerId: 'cus_1',
         amount: 150,
         kind: 'deposit',
         description: 'Sinal do agendamento',
@@ -134,22 +121,13 @@ describe('caminho feliz', () => {
     expect(JSON.stringify(checkout)).not.toContain('psiquiátrica');
   });
 
-  it('manda ao gateway só nome e CPF — nada de e-mail ou telefone', async () => {
+  it('valida a identidade local sem transmitir PII na criação do Checkout', async () => {
     await run();
 
-    expect(mocks.createCustomer).toHaveBeenCalledWith({
-      name: 'Paciente Exemplo',
-      cpfCnpj: '39053344705',
-    });
-  });
-
-  it('reusa o customer já mapeado em vez de criar outro', async () => {
-    mocks.findPaymentCustomer.mockResolvedValue('cus_existente');
-
-    await run();
-
-    expect(mocks.createCustomer).not.toHaveBeenCalled();
-    expect(mocks.createInitialHostedCheckout.mock.calls[0]![0].customerId).toBe('cus_existente');
+    expect(mocks.getPaymentIdentity).toHaveBeenCalledWith(CLINIC, PATIENT);
+    const [checkout] = mocks.createInitialHostedCheckout.mock.calls[0]!;
+    expect(checkout).not.toHaveProperty('customerId');
+    expect(JSON.stringify(checkout)).not.toMatch(/Paciente Exemplo|39053344705/);
   });
 });
 
@@ -191,7 +169,6 @@ describe('o padrão é NÃO cobrar', () => {
 
     await run();
 
-    expect(mocks.createCustomer).not.toHaveBeenCalled();
     expect(mocks.createInitialHostedCheckout).not.toHaveBeenCalled();
     expect(metrics.emit).toHaveBeenCalledWith(
       'payments.deposit.skipped_no_identity',

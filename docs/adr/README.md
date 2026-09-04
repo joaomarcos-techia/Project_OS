@@ -28,6 +28,7 @@ Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras d
 | Confirmação em dois turnos e segurança clínica | Accepted | [ADR-048](048-ai-agent-conversational-safety.md) |
 | Asaas-only, planos/preços separados, sem overage | Accepted | [billing](../billing/subscriptions.md) |
 | Trial 14d e convite mágico HMAC/versionado | Accepted | [onboarding](../onboarding-spec.md) |
+| Cadastro autônomo, atribuição e provisionamento pós-billing | Proposed | [ADR-053](053-cadastro-autonomo-seguro.md) |
 | Inadimplência bloqueia escrita, não login/leitura | Accepted | [billing](../billing/subscriptions.md) |
 | Sentry + logs + métricas + health/heartbeats | Accepted | [operations](../operations/deployment-observability.md) |
 

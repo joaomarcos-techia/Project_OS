@@ -31,11 +31,14 @@ export function PainelShell({
   children,
   userName = 'Você',
   userRole = '',
+  settingsHref,
   clinicSettingsHref,
 }: {
   children: ReactNode;
   userName?: string;
   userRole?: string;
+  /** Categoria inicial acessível; evita Link cliente para uma rota de redirect. */
+  settingsHref: string;
   /** Só vem preenchido para quem tem `manage:settings` (ver o layout do shell). */
   clinicSettingsHref?: string;
 }) {
@@ -81,14 +84,15 @@ export function PainelShell({
               return (
                 <div key={g} className="mt-(--sp-4) first:mt-(--sp-2)">
                   <SideNavGroupLabel>{g}</SideNavGroupLabel>
-                  {mods.map((m) =>
-                    m.soon || !m.href ? (
+                  {mods.map((m) => {
+                    const href = m.id === 'config' ? settingsHref : m.href;
+                    return m.soon || !href ? (
                       <SideNavDisabled key={m.id} icon={<Icon name={m.icon} />} label={m.label} />
                     ) : (
                       <SideNavLink
                         key={m.id}
-                        href={m.href}
-                        active={isActive(m.href)}
+                        href={href}
+                        active={isActive(href)}
                         icon={<Icon name={m.icon} />}
                         label={m.label}
                         trailing={
@@ -112,8 +116,8 @@ export function PainelShell({
                           ) : undefined
                         }
                       />
-                    ),
-                  )}
+                    );
+                  })}
                 </div>
               );
             })}

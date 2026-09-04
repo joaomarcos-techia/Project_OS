@@ -79,7 +79,6 @@ interface CheckoutClaim {
 async function provisionClaimedCheckout(input: {
   client: AsaasClient;
   clinicId: string;
-  customerId: string;
   amount: number;
   description: string;
   claim: CheckoutClaim;
@@ -88,7 +87,6 @@ async function provisionClaimedCheckout(input: {
   let checkout: ProviderCheckout;
   try {
     checkout = await input.client.createCheckout({
-      customerId: input.customerId,
       value: input.amount,
       description: input.description,
       externalReference: input.claim.externalReference,
@@ -166,7 +164,6 @@ export async function createInitialHostedCheckout(input: {
   clinicId: string;
   appointmentId: string;
   patientId: string;
-  customerId: string;
   kind: 'deposit' | 'remainder';
   amount: number;
   description: string;
@@ -195,7 +192,6 @@ export async function createInitialHostedCheckout(input: {
   return provisionClaimedCheckout({
     client: input.client,
     clinicId: input.clinicId,
-    customerId: input.customerId,
     amount: input.amount,
     description: input.description,
     claim,
@@ -209,7 +205,6 @@ export type RenewHostedCheckoutOutcome = 'created' | 'lost' | 'payment_exists' |
 export async function renewRemainderHostedCheckout(input: {
   client: AsaasClient;
   clinicId: string;
-  customerId: string;
   candidate: RemainderCheckoutRenewalCandidate;
   now?: Date;
 }): Promise<RenewHostedCheckoutOutcome> {
@@ -236,7 +231,6 @@ export async function renewRemainderHostedCheckout(input: {
   const outcome = await provisionClaimedCheckout({
     client: input.client,
     clinicId: input.clinicId,
-    customerId: input.customerId,
     amount: input.candidate.amount,
     description: 'Restante do atendimento',
     claim,

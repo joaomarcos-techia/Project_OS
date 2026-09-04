@@ -10,15 +10,15 @@ import { authenticate } from '../auth';
  * Ordem = ordem de revisão no GATE 3.
  */
 const ROUTES = [
-  { path: '/dashboard', slug: 'dashboard' },
-  { path: '/agenda', slug: 'agenda' },
-  { path: '/consultorio', slug: 'consultorio' },
-  { path: '/pacientes', slug: 'pacientes' },
-  { path: '/documentos', slug: 'documentos' },
-  { path: '/financeiro', slug: 'financeiro' },
-  { path: '/caixa', slug: 'caixa' },
-  { path: '/conversas', slug: 'conversas' },
-  { path: '/configuracoes', slug: 'configuracoes' },
+  { path: '/dashboard', slug: 'dashboard', heading: 'Visão operacional' },
+  { path: '/agenda', slug: 'agenda', heading: 'Agenda' },
+  { path: '/consultorio', slug: 'consultorio', heading: 'Consultório' },
+  { path: '/pacientes', slug: 'pacientes', heading: 'Pacientes' },
+  { path: '/documentos', slug: 'documentos', heading: 'Documentos' },
+  { path: '/financeiro', slug: 'financeiro', heading: 'Financeiro' },
+  { path: '/caixa', slug: 'caixa', heading: 'Caixa' },
+  { path: '/conversas', slug: 'conversas', heading: 'Conversas IA' },
+  { path: '/configuracoes/agenda', slug: 'configuracoes', heading: 'Agenda' },
 ] as const;
 
 const THEMES = ['light', 'dark'] as const;
@@ -41,6 +41,8 @@ test.describe('auditoria visual autenticada das rotas críticas', () => {
         localStorage.setItem('clinicaos-theme', preference);
       }, theme);
       await page.emulateMedia({ reducedMotion: 'reduce' });
+      const pageErrors: string[] = [];
+      page.on('pageerror', (error) => pageErrors.push(error.message));
       await authenticate(page);
 
       for (const route of ROUTES) {
@@ -49,6 +51,9 @@ test.describe('auditoria visual autenticada das rotas críticas', () => {
         expect(response!.status(), `${route.path} retornou erro de servidor`).toBeLessThan(500);
         await expect(page).not.toHaveURL(/\/login(?:\?|$)/u);
         await expect(page.locator('main')).toBeVisible();
+        await expect(page.getByRole('heading', { name: route.heading, exact: true })).toBeVisible({
+          timeout: 30_000,
+        });
         await expect(page.getByText('Sem acesso', { exact: true })).toHaveCount(0);
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(page.locator('html')).toHaveClass(
@@ -107,6 +112,8 @@ test.describe('auditoria visual autenticada das rotas críticas', () => {
             contentType: 'application/json',
           });
       }
+
+      expect(pageErrors).toEqual([]);
     });
   }
 });

@@ -51,7 +51,6 @@ function run() {
     clinicId: 'clinic-1',
     appointmentId: 'appointment-1',
     patientId: 'patient-1',
-    customerId: 'cus_1',
     kind: 'remainder',
     amount: 75,
     description: 'Restante do atendimento',
@@ -65,7 +64,6 @@ function renew() {
   return renewRemainderHostedCheckout({
     client: client(),
     clinicId: 'clinic-1',
-    customerId: 'cus_1',
     candidate: {
       chargeId: 'charge-1',
       appointmentId: 'appointment-1',
@@ -138,7 +136,6 @@ describe('createInitialHostedCheckout', () => {
       mocks.createCheckout.mock.invocationCallOrder[0]!,
     );
     expect(mocks.createCheckout).toHaveBeenCalledWith({
-      customerId: 'cus_1',
       value: 75,
       description: 'Restante do atendimento',
       externalReference: 'remainder:appointment-1:g1',

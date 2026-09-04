@@ -11,17 +11,34 @@
  */
 import './_env';
 
+import { access, mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
 import { chromium, type Page } from '@playwright/test';
 
+import {
+  classifyCheckoutCleanup,
+  hasCheckoutRefundInFlight,
+  retainCheckoutForChargeback,
+  type CheckoutCleanupRefund,
+} from '@/lib/test/asaas-checkout-cleanup';
+import { fingerprintAsaasAccount } from '@/lib/test/asaas-account-provenance';
+
 const OPT_IN_VALUE = 'ALLOW_SANDBOX_PAYMENT';
+const CHARGEBACK_OPT_IN_VALUE = 'RETAIN_PAID_CARD_FOR_ASAAS';
+const CHARGEBACK_FIXTURE_PATH = path.resolve(
+  process.cwd(),
+  '.playwright',
+  'asaas-chargeback-fixture.json',
+);
 const ALLOWED_API_HOSTS = new Set(['api-sandbox.asaas.com', 'sandbox.asaas.com']);
 const CHECKOUT_VALUE = 10;
 const CHECKOUT_EXPIRATION_MINUTES = 10;
 const PAYMENT_POLL_ATTEMPTS = 30;
 const INTERACTIVE_PAYMENT_POLL_ATTEMPTS = 270;
 const PAYMENT_POLL_INTERVAL_MS = 2_000;
+const REFUND_POLL_ATTEMPTS = 15;
 const SETTLED_STATUSES = new Set(['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']);
-const REFUNDED_STATUSES = new Set(['REFUNDED', 'REFUND_REQUESTED', 'REFUND_IN_PROGRESS']);
 
 const SYNTHETIC_CUSTOMER = {
   name: 'Paciente E2E Checkout',
@@ -53,6 +70,7 @@ type CheckoutResponse = {
 type PaymentSummary = {
   id: string;
   status: string;
+  value?: number;
   billingType: string;
   deleted?: boolean;
   checkoutSession?: string | null;
@@ -108,6 +126,51 @@ function checkoutMethod(): CheckoutMethod {
     throw new Error('[asaas-checkout-e2e] ASAAS_CHECKOUT_E2E_METHOD deve ser CREDIT_CARD ou PIX.');
   }
   return value;
+}
+
+async function assertNoRetainedChargebackFixture(): Promise<void> {
+  try {
+    await access(CHARGEBACK_FIXTURE_PATH);
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'ENOENT'
+    ) {
+      return;
+    }
+    throw error;
+  }
+  throw new Error(
+    '[asaas-checkout-e2e] ja existe uma fixture de chargeback local; finalize-a antes de criar outra.',
+  );
+}
+
+async function persistChargebackFixture(
+  checkout: CheckoutResponse,
+  payment: PaymentSummary,
+  accountFingerprint: string,
+): Promise<void> {
+  await mkdir(path.dirname(CHARGEBACK_FIXTURE_PATH), { recursive: true });
+  await writeFile(
+    CHARGEBACK_FIXTURE_PATH,
+    `${JSON.stringify(
+      {
+        purpose: 'asaas-sandbox-chargeback',
+        version: 2,
+        accountFingerprint,
+        checkoutId: checkout.id,
+        paymentId: payment.id,
+        paymentStatus: payment.status,
+        billingType: payment.billingType,
+        value: payment.value ?? CHECKOUT_VALUE,
+        retainedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    )}\n`,
+    { encoding: 'utf8', flag: 'wx' },
+  );
 }
 
 function endpoint(baseUrl: URL, path: string): URL {
@@ -191,6 +254,59 @@ async function refundPayment(apiBaseUrl: URL, apiKey: string, paymentId: string)
     method: 'POST',
     body: JSON.stringify({ description: 'Cleanup automatico do E2E Checkout Sandbox' }),
   });
+}
+
+async function listPaymentRefunds(
+  apiBaseUrl: URL,
+  apiKey: string,
+  paymentId: string,
+): Promise<CheckoutCleanupRefund[]> {
+  const result = await asaasRequest<{ data?: unknown[] }>(
+    apiBaseUrl,
+    apiKey,
+    `/payments/${paymentId}/refunds?offset=0&limit=100`,
+  );
+  if (!Array.isArray(result.data)) return [];
+
+  return result.data.flatMap((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+    const refund = raw as JsonObject;
+    if (typeof refund.status !== 'string' || typeof refund.value !== 'number') return [];
+    return [{ status: refund.status, value: refund.value }];
+  });
+}
+
+async function waitForRefundCompletion(
+  apiBaseUrl: URL,
+  apiKey: string,
+  paymentId: string,
+  expectedRefundValue: number,
+): Promise<void> {
+  for (let attempt = 0; attempt < REFUND_POLL_ATTEMPTS; attempt += 1) {
+    const [payment, refunds] = await Promise.all([
+      getPayment(apiBaseUrl, apiKey, paymentId),
+      listPaymentRefunds(apiBaseUrl, apiKey, paymentId),
+    ]);
+    const readback = classifyCheckoutCleanup({
+      paymentStatus: payment.status,
+      paymentDeleted: payment.deleted === true,
+      expectedRefundValue,
+      refunds,
+    });
+    if (readback.state === 'complete') return;
+    if (readback.state === 'pending-critical-action') {
+      throw new Error(
+        '[asaas-checkout-e2e] cleanup bloqueado: o estorno aguarda autorizacao de acao critica no painel Asaas Sandbox.',
+      );
+    }
+    if (attempt < REFUND_POLL_ATTEMPTS - 1) {
+      await new Promise((resolve) => setTimeout(resolve, PAYMENT_POLL_INTERVAL_MS));
+    }
+  }
+
+  throw new Error(
+    '[asaas-checkout-e2e] cleanup nao confirmado: o provider ainda nao concluiu o estorno.',
+  );
 }
 
 async function confirmSandboxPayment(
@@ -323,13 +439,31 @@ async function cleanupFixture(
   }
 
   const current = await getPayment(apiBaseUrl, apiKey, payment.id);
-  if (current.deleted || REFUNDED_STATUSES.has(current.status)) {
+  const existingRefunds = await listPaymentRefunds(apiBaseUrl, apiKey, current.id);
+  const existingReadback = classifyCheckoutCleanup({
+    paymentStatus: current.status,
+    paymentDeleted: current.deleted === true,
+    expectedRefundValue: current.value ?? CHECKOUT_VALUE,
+    refunds: existingRefunds,
+  });
+  if (existingReadback.state === 'complete') {
     console.log('[asaas-checkout-e2e] cleanup: cobranca ja estava encerrada.');
+    return;
+  }
+  if (existingReadback.state === 'pending-critical-action') {
+    throw new Error(
+      '[asaas-checkout-e2e] cleanup bloqueado: o estorno aguarda autorizacao de acao critica no painel Asaas Sandbox.',
+    );
+  }
+  if (hasCheckoutRefundInFlight({ paymentStatus: current.status, refunds: existingRefunds })) {
+    await waitForRefundCompletion(apiBaseUrl, apiKey, current.id, current.value ?? CHECKOUT_VALUE);
+    console.log('[asaas-checkout-e2e] cleanup: estorno confirmado por readback.');
     return;
   }
   if (SETTLED_STATUSES.has(current.status)) {
     await refundPayment(apiBaseUrl, apiKey, current.id);
-    console.log('[asaas-checkout-e2e] cleanup: cobranca estornada.');
+    await waitForRefundCompletion(apiBaseUrl, apiKey, current.id, current.value ?? CHECKOUT_VALUE);
+    console.log('[asaas-checkout-e2e] cleanup: estorno confirmado por readback.');
     return;
   }
 
@@ -379,6 +513,13 @@ async function main(): Promise<void> {
   const { apiBaseUrl, apiKey } = assertSandboxConfiguration();
   const method = checkoutMethod();
   const interactive = interactiveMode();
+  const retainForChargeback = retainCheckoutForChargeback({
+    optIn: process.env.ASAAS_CHECKOUT_E2E_CHARGEBACK,
+    expectedOptIn: CHARGEBACK_OPT_IN_VALUE,
+    interactive,
+    method,
+  });
+  if (retainForChargeback) await assertNoRetainedChargebackFixture();
   const externalReference = `qoro-checkout-e2e-${Date.now()}`;
   const checkout = await createCheckout(apiBaseUrl, apiKey, externalReference);
   if (checkout.status !== 'ACTIVE' || !checkout.id || !checkout.link) {
@@ -386,6 +527,7 @@ async function main(): Promise<void> {
   }
 
   let payment: PaymentSummary | null = null;
+  let retained = false;
   const browser = await chromium.launch({ headless: !interactive });
   try {
     const page = await browser.newPage();
@@ -444,9 +586,31 @@ async function main(): Promise<void> {
     }
 
     console.log(`[asaas-checkout-e2e] PASS: Checkout hospedado criou ${method} correlacionado.`);
+    if (retainForChargeback) {
+      const account = await asaasRequest<{ email?: string | null }>(
+        apiBaseUrl,
+        apiKey,
+        '/myAccount',
+      );
+      await persistChargebackFixture(
+        checkout,
+        payment,
+        fingerprintAsaasAccount({ email: account.email ?? null }),
+      );
+      retained = true;
+      console.log(
+        '[asaas-checkout-e2e] fixture paga retida para chargeback; identificadores salvos somente em .playwright/asaas-chargeback-fixture.json.',
+      );
+    }
   } finally {
-    await browser.close();
-    await cleanupFixture(apiBaseUrl, apiKey, checkout.id, payment);
+    const results = await Promise.allSettled([
+      browser.close(),
+      retained ? Promise.resolve() : cleanupFixture(apiBaseUrl, apiKey, checkout.id, payment),
+    ]);
+    const cleanupFailure = results[1];
+    if (cleanupFailure?.status === 'rejected') throw cleanupFailure.reason;
+    const browserFailure = results[0];
+    if (browserFailure?.status === 'rejected') throw browserFailure.reason;
   }
 }
 

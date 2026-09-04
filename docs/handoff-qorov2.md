@@ -19,12 +19,43 @@ Depois dele, leia:
 
 | Arquivo | Para quê |
 | --- | --- |
-| `docs/discovery-log.md` | os achados D1–D53, com destino e status |
+| `docs/discovery-log.md` | Discovery Log canônico; inclui o D69 e o destino/status dos achados registrados |
 | `docs/adr/049-pagamentos-paciente-sinal.md` | arquitetura do sinal anti-no-show |
 | `docs/adr/050-identidade-de-pagamento-do-paciente.md` | PII mínima que vai para o Asaas |
 | `docs/adr/051-conciliacao-sinal-e-recebivel.md` | **as 4 invariantes financeiras**, na §2.1 |
 | `docs/runbooks/payment-account-connect.md` | operação do ciclo de cobrança do paciente |
 | `docs/runbooks/asaas-webhook-assinatura.md` | webhook da conta do Qoro (governa acesso ao produto) |
+
+### Atualização operacional de 02/09/2026
+
+O restante deste handoff contém histórico útil, mas qualquer estado divergente deve ceder ao bloco
+canônico e às seções 20–21 de `qorov2.md`:
+
+- D62 está **PASS integral e limpo**, sem mocks: `requested → in_dispute → lost`, compensação ligada à
+  baixa, `chargeback_loss` única, saldo reaberto, atendimento preservado e replay 0/3. O cleanup
+  autorizado removeu 16 linhas sintéticas sem chamar o provider, preservou audit e terminou em zero;
+- os runners novos guardam fingerprint não reversível da conta Asaas no manifesto e falham se a conta
+  atual divergir. Isso impede somar fixtures de contas Sandbox diferentes;
+- o PIX da conta antiga **não foi estornado**. O operador removeu webhook e chaves API dessa conta; a
+  cobrança não foi mais localizada e o cleanup histórico fica `NOT COMPLETED`. Não reintroduzir a
+  credencial; uma eventual prova PIX nova deve nascer tenant-scoped na conta alvo;
+- D50 permanece na conta alvo com um único refund parcial `PENDING`; readback de 04/09 confirmou a
+  mesma intenção/valor únicos. O Caixa mostra a exceção, mas não o status técnico `DONE` (D72). Não
+  repetir POST;
+- o webhook global `qoro dev` foi recriado na conta alvo com sete eventos/`NON_SEQUENTIALLY`; o runner
+  provou `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`, replay e cleanup. O pós-check
+  confirmou coexistência com o webhook tenant 12/`SEQUENTIALLY`;
+- D69 foi limpo em DEV com autorização específica, backup, advisory lock, transação e pós-check: 4
+  `checkout_sessions` + 4 `tenant_provisioning` removidos, zero resíduo e nenhum recurso externo/tenant
+  ativo tocado;
+- o E2E Meta de sinal e restante está **PASS até o aparelho**: as duas mensagens chegaram com links. Os
+  links estavam expirados porque os Checkouts já haviam sido cancelados pelo cleanup intencional;
+- o desenho completo do cadastro autônomo está em `qorov2.md` §21 e no **ADR-053 Proposed**, inclusive
+  a ponte `qoro.dev/comecar` para Google Ads. É **desenho não implementado**. Trial após readback
+  server-side da assinatura e `signup_completed` como conversão primária inicial já foram decididos;
+  falta provar o contrato do Checkout hospedado, fechar O-0 e obter autorização para APIs/infra;
+- gates do worktree: lint/typecheck/build verdes, 2.816 testes em 311 arquivos, zero ciclos,
+  `arch:db-check` zero findings, snapshots 54/293/0, migrations/registry/observabilidade verdes.
 
 ## 2. Regra de documentação — a mais importante deste handoff
 
@@ -106,13 +137,10 @@ O `pnpm build` demora ~10 min. Rode em background e siga trabalhando.
 
 ### 6.1 · Validar as dependências externas (PRIMEIRA COISA)
 
-O fundador reportou como resolvidas: template `deposit_link` na Meta, `PAYMENT_RESTORED` no webhook
-de assinatura, `APP_BASE_URL` por ambiente, e rotação da chave sandbox. **Nada disso é verificável
-pelo código** — são painéis de terceiros.
-
-Valide **pelo comportamento**, não por inspeção: um `deposit_link` que sai de verdade; um
-`PAYMENT_RESTORED` que reabre uma fatura cancelada; um webhook de preview que não bate em produção.
-Registre o resultado real no `qorov2.md`.
+As dependências externas aplicáveis foram validadas pelo comportamento: sinal e restante chegaram ao
+aparelho pelo pipeline real; `PAYMENT_RESTORED` reabriu a mesma invoice cancelada na conta Sandbox
+alvo; e o pós-check confirmou os webhooks global e tenant em rotas/contratos distintos no Preview.
+A rotação futura da chave Sandbox exposta permanece risco aceito, não evidência funcional pendente.
 
 ### 6.2 · Sub-fase 1.6c — entrega do link do RESTANTE (D35) ✅
 
@@ -127,9 +155,8 @@ Evidência: 2.704 testes/296 arquivos, integração controlada do evento até o 
 do `deposit_link`, `smoke:c14` 8/8, migration validada em modelo vazio e banco populado com rollback,
 depois aplicada e verificada em dev e produção com backup/lock, todos os gates técnicos verdes e
 Preview do commit `3035383` concluído com sucesso na Vercel. A conexão Meta da Clínica A também foi
-concluída no Preview. **Única pendência da 1.6c: E2E real Meta**, bloqueado pela aprovação do template
-externo e pela confirmação de um destinatário controlado com consentimento de cobrança. Não confundir
-integração controlada com entrega real no WhatsApp.
+concluída no Preview. Em 31/08 o provider aceitou sinal e restante, e em 02/09 o operador confirmou a
+chegada das duas mensagens ao aparelho com links. **A 1.6c está integralmente verde.**
 
 ### 6.3 · 1.H — Hardening
 
@@ -163,13 +190,13 @@ Resolva também, dentro do 1.H:
   webhooks duplicados/fora de ordem, 3 ticks, paralelismo 4 e cleanup zero. A primeira execução achou o
   **D51** (`lancamento` inicial `pago` sem `paid_at`); o handler foi corrigido e a repetição terminou sem
   retry/falha, sem Asaas/Meta.
-- **D24/D58 ✅ código + DEV/PROD** — Checkout hospedado restringe sinal/restante a PIX/cartão;
+- **D24/D58 ✅ código + DEV/PROD + Sandbox** — Checkout hospedado restringe sinal/restante a PIX/cartão;
   intenção/lease evita POST duplicado e gerações de até 24h preservam os 7 dias do restante. Migrations
-  0091/0092, smokes DEV 5/5 e pós-verificação PROD 7/7 verdes. Falta somente pagamento sandbox após
-  reCAPTCHA humano.
-- **D27 ✅ código + DEV/PROD** — chargeback e dinheiro desfeito usam estado autoritativo monotônico,
-  bloqueio/liberação do crédito e compensação append-only sem regredir agenda/prontuário. Falta somente
-  chargeback sandbox controlado.
+  0091/0092, smokes DEV 5/5 e pós-verificação PROD 7/7 verdes; PIX e cartão foram pagos no Sandbox. O
+  PIX da conta antiga não foi estornado e ficou `NOT COMPLETED`, sem recuperar a credencial.
+- **D27 ✅ integral e limpo** — chargeback e dinheiro desfeito usam estado autoritativo monotônico,
+  bloqueio/liberação do crédito e compensação append-only sem regredir agenda/prontuário. A prova
+  Sandbox tenant atravessou Payments/Financial, replay 0/3 e cleanup de 16 linhas sem resíduo.
 - **Matriz focada ✅ 138/138** — POST perdido/retry, send-time obsoleto, pagamento tardio,
   reagendamento, Asaas fora e Meta fora/backoff estão verdes em unit/integration. Não chamar isso de
   E2E externo.
@@ -187,17 +214,18 @@ Resolva também, dentro do 1.H:
   mover dinheiro. Unit 3/3 e jornada DEV 13/13 provaram terminal, agenda vencida, consulta futura
   excluída, replay, cross-tenant e cleanup zero. O desfecho econômico continua manual até regra
   aprovada.
-- **P9 automação ✅ / Product Acceptance humano pendente** — Preview read-only passou 8/8 com uma
-  sessão: fronteiras públicas, 25 rotas, paciente dinâmico, conversas vazias e navegação principal.
-  Auth state e artefatos foram removidos. D53 e D56 estão fechados; falta somente percorrer as personas
-  como aceite humano de operação/UX.
+- **P9 técnico-normativo ✅ local / publicação pendente** — em 04/09, 150/150 testes focados e a matriz
+  visual Preview 8/8/72 estados cobriram Agenda, clínica, RBAC/tenant, mensagens e nove rotas em quatro
+  viewports/dois temas. O passe encontrou D60 recorrente (`Link → página de redirect`) e D70 (data do
+  Dashboard fora do fuso); ambos foram corrigidos localmente e o E2E autenticado do código novo passou
+  sem `pageerror`. Publicar/repetir no Preview e observar Sentry. Percepção humana vai para a clínica
+  piloto e bloqueia somente expandir a onda, não iniciar 1.S.
 
-O `qorov2.md` contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite.
-Ações exclusivamente do fundador: templates/destinatário Meta, rotação da chave sandbox exposta,
-resolver reCAPTCHA de PIX/cartão, fornecer chargeback controlado quando possível, alinhar o webhook
-global de assinatura e executar Product Acceptance. Testes externos ainda não verdes: E2E Meta
-sinal/restante, `PAYMENT_RESTORED`, pagamento/estorno real PIX/cartão, chargeback real e Product
-Acceptance. Restore, carga e Playwright read-only já estão verdes.
+O `qorov2.md` contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite. Não há
+Product Acceptance encenado pendente para o fundador: a parte objetiva foi executada e a percepção
+fica para usuários reais na clínica piloto. O E2E Meta, o chargeback tenant, `PAYMENT_RESTORED`, D69,
+restore e carga estão verdes. O refund D50 continua `PENDING` no provider e a mensagem de suporte já
+foi enviada; não repetir POST. A ação imediata é publicar D60/D70, repetir Preview e observar Sentry.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
@@ -205,9 +233,9 @@ Acceptance. Restore, carga e Playwright read-only já estão verdes.
 
 ### 6.4 · 1.S — Stabilization
 
-Só começar depois dos bloqueios/decisões de 1.H. Executar P10 do `qorov2.md`: corrigir apenas bugs,
+Começar depois de publicar/reobservar D60/D70. Executar P10 do `qorov2.md`: corrigir apenas bugs,
 sincronizar ADR-049/051, Discovery Log, runbooks e grafos; reexecutar suíte, Playwright, gates,
-smokes, live-check, simulation, load/restore local e Product Acceptance. Aceite: zero
+smokes, live-check, simulation, load/restore local e Product Acceptance técnico. Aceite: zero
 bug alto, rollback por clínica provado e nenhuma evidência externa presumida.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
@@ -218,9 +246,13 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
 
 ### Track O — Onboarding self-serve
 
-- **O-1** wizard: módulo → atribuição do Qoro → média/mês → email+senha → plano → verificação →
-  entrou. Trial **7 dias**, preço **padrão**, psicologia marcada como "em breve".
-- **O-2** módulo → dashboard (**depende de P2**).
+- **Decisão de produto de 01/09/2026:** Qoro é produto único, sem seleção, gate ou dashboard por
+  especialidade. Especialidade profissional/clínica continua sendo dado operacional e não deve ser
+  apagada.
+- **O-1** wizard: atribuição do Qoro → média/mês → email+senha → plano → verificação → entrou. Trial
+  **7 dias** e preço **padrão**.
+- **O-2** onboarding concluído → dashboard único; dependências serão confirmadas na auditoria própria
+  do Track O.
 - **O-3** tour. · **O-4** Central de Documentação (Asaas/WhatsApp). · **O.H** / **O.S**.
 
 ### Camada 2 (P1)
@@ -267,8 +299,10 @@ NPS · modalidade online · convênio/TISS · NFS-e (via parceiro) · psicologia
 Branch **`feat/qorov2-pagamentos`**. Hardening recente: `c480e44`, `88e7a4a`, `079f3f0`, `01a7b5f`
 e `ca94839`. `git push` + `git ls-remote` confirmaram o commit de runtime `ca94839` no remoto antes
 deste fechamento documental; o alias Preview responde pela proteção Vercel, mas o SHA implantado permanece **BLOCKED de observação** sem
-sessão/CLI autenticada. O worktree contém somente `financeiro.md` não rastreado do usuário, além da
-consolidação documental corrente até ela ser commitada. Nunca inclua `financeiro.md`. O fundador já
+sessão/CLI autenticada. `financeiro.md` é trabalho não rastreado do usuário e nunca deve ser incluído.
+Enquanto o refund D50 não chegar a estado terminal, o runner operacional
+`scripts/tmp-run-patient-excess-refund-e2e.ts` permanece apenas no workspace para readback/cleanup e
+também fica fora do commit. O fundador já
 autorizou push/deploy desta branch; ainda assim, confirme deployment terminal em vez de inferir
 publicação pela existência do commit remoto.
 

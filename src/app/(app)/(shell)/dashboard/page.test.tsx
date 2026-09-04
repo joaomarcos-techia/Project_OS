@@ -128,6 +128,18 @@ describe('DashboardPage', () => {
     expect(content.indexOf('Primeiros passos')).toBeLessThan(content.indexOf('Consultas hoje'));
   });
 
+  it('formata Hoje no fuso da clínica durante a virada do dia em UTC', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-04T01:00:00.000Z'));
+
+    try {
+      render(await DashboardPage());
+      expect(screen.getByText('Hoje · quinta-feira, 03 de set. de 2026')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('usa o EmptyState compacto canônico nos três vazios reais', async () => {
     getDashboard.mockResolvedValue({ ...dashboard, proximos: [] });
     getCashFlowToday.mockResolvedValue({

@@ -17,13 +17,10 @@ import type * as AsaasModule from '@/lib/payments/asaas';
 const mocks = vi.hoisted(() => ({
   getDepositPolicy: vi.fn(),
   findChargeByAppointment: vi.fn(),
-  findPaymentCustomer: vi.fn(),
-  linkPaymentCustomer: vi.fn(),
   createInitialHostedCheckout: vi.fn(),
   getClinicAsaasClient: vi.fn(),
   getPaymentIdentity: vi.fn(),
   getAppointmentBalance: vi.fn(),
-  createCustomer: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -40,8 +37,6 @@ vi.mock('@/contexts/financial', () => ({
 vi.mock('../queries', () => ({ getDepositPolicy: mocks.getDepositPolicy }));
 vi.mock('./charge-store', () => ({
   findChargeByAppointment: mocks.findChargeByAppointment,
-  findPaymentCustomer: mocks.findPaymentCustomer,
-  linkPaymentCustomer: mocks.linkPaymentCustomer,
 }));
 vi.mock('./hosted-checkout', () => ({
   createInitialHostedCheckout: mocks.createInitialHostedCheckout,
@@ -91,11 +86,8 @@ beforeEach(() => {
     valorPago: 100,
     saldo: 100,
   });
-  mocks.getClinicAsaasClient.mockResolvedValue({
-    createCustomer: mocks.createCustomer,
-  });
+  mocks.getClinicAsaasClient.mockResolvedValue({});
   mocks.getPaymentIdentity.mockResolvedValue({ nome: 'Maria Silva', cpf: '24971563792' });
-  mocks.findPaymentCustomer.mockResolvedValue('cus_1');
   mocks.createInitialHostedCheckout.mockResolvedValue('created');
 });
 
@@ -104,7 +96,7 @@ describe('cobra o saldo que o FINANCIAL informa', () => {
     await run();
 
     expect(mocks.createInitialHostedCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 100, kind: 'remainder', customerId: 'cus_1' }),
+      expect.objectContaining({ amount: 100, kind: 'remainder' }),
     );
   });
 
@@ -240,24 +232,13 @@ describe('falhas do gateway', () => {
   });
 });
 
-describe('customer', () => {
-  it('reusa o customer já mapeado, sem criar outro no Asaas', async () => {
+describe('identidade do pagador', () => {
+  it('valida a identidade local sem transmitir PII na criação do Checkout', async () => {
     await run();
 
-    expect(mocks.createCustomer).not.toHaveBeenCalled();
-  });
-
-  it('cria o customer quando o paciente ainda não tem (sinal nunca cobrado)', async () => {
-    mocks.findPaymentCustomer.mockResolvedValue(null);
-    mocks.createCustomer.mockResolvedValue({ customerId: 'cus_novo' });
-    mocks.linkPaymentCustomer.mockResolvedValue('cus_novo');
-
-    await run();
-
-    // Só nome e CPF viajam (ADR-050 D2).
-    expect(mocks.createCustomer).toHaveBeenCalledWith({
-      name: 'Maria Silva',
-      cpfCnpj: '24971563792',
-    });
+    expect(mocks.getPaymentIdentity).toHaveBeenCalledWith(CLINIC, PATIENT);
+    const [checkout] = mocks.createInitialHostedCheckout.mock.calls[0]!;
+    expect(checkout).not.toHaveProperty('customerId');
+    expect(JSON.stringify(checkout)).not.toMatch(/Maria Silva|24971563792/);
   });
 });

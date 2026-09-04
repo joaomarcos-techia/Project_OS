@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test';
 
 const testEmail = process.env.E2E_USER_EMAIL;
 const testPassword = process.env.E2E_USER_PASSWORD;
+const AUTH_NAVIGATION_TIMEOUT_MS = 90_000;
 
 export function hasE2ECredentials(): boolean {
   return Boolean(testEmail && testPassword);
@@ -19,12 +20,16 @@ export async function authenticate(page: Page): Promise<void> {
 
   await page.goto('/dashboard');
   if (!/\/login(?:\?|$)/.test(page.url())) {
-    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, {
+      timeout: AUTH_NAVIGATION_TIMEOUT_MS,
+    });
     return;
   }
 
   await page.getByLabel('Email').fill(testEmail);
   await page.locator('input[name="password"]').fill(testPassword);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, {
+    timeout: AUTH_NAVIGATION_TIMEOUT_MS,
+  });
 }

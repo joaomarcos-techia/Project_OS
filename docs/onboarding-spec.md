@@ -8,6 +8,13 @@ Canonical — autenticação, equipe e provisionamento inicial.
 
 `src/lib/auth`, `src/contexts/identity`, `src/contexts/onboarding`, `src/app/(app)/join` e migrations relacionadas.
 
+O self-service futuro ainda não está implementado. Seu desenho de segurança, atribuição Google Ads,
+sessão anônima, e-mail verificado, Checkout hospedado e provisionamento pós-webhook está congelado em
+[Qoro v2 §21](qorov2.md#21-track-o--arquitetura-segura-do-cadastro-autônomo) e no
+[ADR-053 Proposed](adr/053-cadastro-autonomo-seguro.md). Até o aceite do ADR e os gates O-0–O.H, não
+tratar o fluxo atual por convite como cadastro público nem adicionar parâmetros de campanha ao token
+do convite.
+
 ## Roles e sessão
 
 Roles tenant: `owner`, `gestor`, `doctor`, `attendant`, `financial`. Role de plataforma: `super_admin`.
@@ -23,6 +30,13 @@ MFA AAL2 é obrigatório para super-admin. Gestor/financial sem MFA recebem orie
 3. Convite expira em 24 h e usa `version` para impedir concorrência/replay.
 4. `/join/[token]` coleta clínica, owner, plano e checkout.
 5. Trial criado: 14 dias.
+
+## Produto único — sem módulos por especialidade
+
+O onboarding atual e o futuro self-service provisionam o mesmo produto Qoro. Não existe seleção,
+feature gate, plano ou dashboard diferente por psiquiatria, psicologia ou outra especialidade.
+Especialidade permanece um dado clínico/operacional de profissionais, procedimentos, documentos e
+configuração informativa do agente; esta decisão não autoriza remover esses campos.
 
 ### `clinic_invites.step_state`
 

@@ -1,6 +1,6 @@
 # ADR-050 — Identidade de pagamento do paciente (customer Asaas por clínica)
 
-- **Status:** Aprovado (2026-08-24) — complementar ao [ADR-049](049-pagamentos-paciente-sinal.md)
+- **Status:** Aprovado (2026-08-24), emendado em 2026-08-31 — complementar ao [ADR-049](049-pagamentos-paciente-sinal.md)
 - **Data:** 2026-08-24
 - **Contexto do repo:** `feat/qorov2-pagamentos`, baseline verde (266 arquivos / 2362 testes ✅ · build ✅)
 - **Motivo:** o ADR-049 descreve a cobrança do paciente como se ela pudesse ser criada só com valor +
@@ -12,6 +12,29 @@
 
 > ⚠️ Precedência: **Código > Banco > Testes > Documentação.** Este ADR foi escrito lendo o código; se
 > algo divergir na implementação, atualizar aqui **antes** de prosseguir.
+
+## Emenda de 2026-08-31 — Checkout hospedado não recebe `customer`
+
+A migração D24 substituiu `POST /payments` por Checkout hospedado `DETACHED` para oferecer PIX e
+cartão na mesma página. Esse contrato muda a decisão operacional deste ADR para cobranças de paciente:
+
+- informar um `customer` incompleto em `POST /checkouts` foi recusado no sandbox com HTTP 400; o
+  Asaas exigiu endereço, número, CEP, bairro e cidade;
+- o mesmo Checkout, sem `customer` e sem `customerData`, foi aceito como `ACTIVE`; o pagador informa
+  os dados exigidos diretamente na página hospedada do Asaas;
+- portanto sinal, restante e renovação **não criam nem enviam `customer`**. Também não enviam nome,
+  CPF, telefone, e-mail ou endereço no POST do Checkout;
+- `patientApiV1.getPaymentIdentity` permanece como gate local: paciente inexistente, removido ou sem
+  CPF válido continua sem cobrança. O seam não virou payload de terceiro;
+- `externalReference`, geração e `checkoutSession` continuam fazendo a correlação e a idempotência;
+- `patient_payment_customers` permanece como estrutura histórica/dormente. Não há migration destrutiva
+  para removê-la neste ajuste focado;
+- assinatura SaaS e cobranças diretas que usam `POST /payments` não mudam e continuam com seu próprio
+  customer Asaas.
+
+Esta emenda **substitui D1, D2 e D5 somente no caminho de Checkout hospedado de paciente** e invalida a
+alternativa rejeitada “coletar CPF no checkout” para esse caminho. As decisões de ownership, gate de
+identidade, ausência de LLM e link hospedado continuam vigentes.
 
 ---
 

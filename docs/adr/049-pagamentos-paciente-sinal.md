@@ -204,10 +204,12 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
   O mesmo tick cobra e expira. Hold vive em `appointments.deposit_status`/`hold_expires_at` (migration 0085), dimensão
   ORTOGONAL — a máquina de estados segue congelada e a expiração cancela via `applyTransition`, com motivo próprio
   `deposit_expired`. CHECK `pending ⇔ hold_expires_at IS NOT NULL` impede a varredura tocar em quem já pagou.
-- **RESOLVIDO por [ADR-050](050-identidade-de-pagamento-do-paciente.md)** (aprovado em 2026-08-24): mapa
-  `patient_payment_customers` por clínica · PII mínima (nome + CPF) · seam `patientApiV1.getPaymentIdentity`
-  · customer criado preguiçosamente na primeira cobrança · sem CPF válido, **não cobra**. A IA continua
-  read-only em cobrança.
+- **RESOLVIDO por [ADR-050](050-identidade-de-pagamento-do-paciente.md)** (aprovado em 2026-08-24 e
+  emendado em 2026-08-31): o seam `patientApiV1.getPaymentIdentity` continua exigindo paciente/CPF
+  válido, mas o Checkout hospedado D24 não recebe `customer` nem PII. O pagador preenche os dados
+  diretamente na página do Asaas; `externalReference` + `checkoutSession` correlacionam a cobrança.
+  O mapa `patient_payment_customers` ficou histórico/dormente nesse caminho, sem remoção destrutiva. A
+  IA continua read-only em cobrança.
 
 ### 1.4 — Conciliação (webhook de paciente)
 - **Escopo:** rota `/api/webhooks/asaas/patient/[ref]`; resolução clínica→credencial; `getPayment` com a chave da clínica; sinal pago → `assertTransition(agendado→confirmado)`.
@@ -376,11 +378,13 @@ Ramo C (cancela a tempo): sinal ESTORNADO
 
 ## 7. Critérios de aprovação da Camada 1 (portão)
 
-**Estado em 2026-08-29:** Build · Lint · Typecheck · Unit · Integration · Contract e arquitetura estão
-verdes; 2.790 testes passam sem regressão. D24/D58, D50 e D27 estão implementados no worktree. A
-Camada 1 **ainda não está aprovada**: a migration 0092/smoke DB aguardam autorização; faltam E2E Meta
-real, prova sandbox D54/D55 com `PAYMENT_RESTORED`, pagamento/estorno real PIX+cartão, chargeback
-controlado, carga, Product Acceptance e estabilização. A fila executável e a evidência atual estão em
+**Estado em 2026-08-31:** Build · Lint · Typecheck · Unit · Integration · Contract e arquitetura estão
+verdes; 2.812 testes passam sem regressão. D24/D58, D50, D27 e D63 estão implementados; migrations
+0091/0092 foram aplicadas e verificadas em DEV e produção, e os smokes correspondentes passaram. O E2E
+Meta real de sinal e restante chegou a `accepted` com message id, replay zero e cleanup zero; falta
+confirmar `delivered/read` ou recebimento no aparelho. A Camada 1 **ainda não está aprovada**: faltam o
+round-trip sandbox D54/D55 com `PAYMENT_RESTORED`, estado terminal do estorno PIX, chargeback controlado,
+Product Acceptance e estabilização. A fila executável e a evidência atual estão em
 `docs/qorov2.md` P0–P10. Proibido concluir com código sem teste, migration sem volume, endpoint/fluxo
 sem E2E, warning ignorado ou evidência externa presumida.
 

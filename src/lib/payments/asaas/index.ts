@@ -211,8 +211,6 @@ export interface GenerateInvoiceInput {
 
 /** Checkout hospedado e avulso: o Asaas coleta o meio, nunca o Qoro. */
 export interface CreateCheckoutInput {
-  /** Customer já cadastrado na conta Asaas da clínica. */
-  customerId: string;
   value: number;
   description: string;
   externalReference: string;
@@ -757,7 +755,6 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       }
 
       const r = (await request('POST', '/checkouts', {
-        customer: input.customerId,
         billingTypes: ['PIX', 'CREDIT_CARD'],
         chargeTypes: ['DETACHED'],
         minutesToExpire: input.minutesToExpire,

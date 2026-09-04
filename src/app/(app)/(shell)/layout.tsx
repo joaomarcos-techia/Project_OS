@@ -16,6 +16,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getActiveAnnouncement } from '@/lib/platform-announcements';
 
 import { HandoffWatcher } from './_painel/handoff-watcher';
+import { firstSettingsHref, visibleSettingsNavigation } from './configuracoes/settings-navigation';
 
 import { stopImpersonationAction } from '../../(admin)/admin/actions/impersonation';
 
@@ -49,6 +50,14 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     redirect('/admin');
   }
 
+  // Avoid a client navigation to `/configuracoes`, whose page only performs a
+  // server redirect. That combination can trigger an intermittent App Router
+  // hook-order race. The shell already has the permissions needed to link
+  // directly to the first category this user can access.
+  const settingsHref = firstSettingsHref(
+    visibleSettingsNavigation(user.permissions, user.isSuperAdmin && user.aal === 'aal2'),
+  );
+
   return (
     <>
       {announcement ? <AnnouncementPopup announcement={announcement} /> : null}
@@ -62,6 +71,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
       <PainelShell
         userName={id.userName}
         userRole={id.userRole}
+        settingsHref={settingsHref}
         {...(user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)
           ? { clinicSettingsHref: '/configuracoes/perfil' }
           : {})}

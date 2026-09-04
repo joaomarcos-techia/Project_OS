@@ -29,7 +29,7 @@ import { patientApiV1 } from '@/contexts/patient';
 
 import type { PatientChargeFailedPayload } from '../events';
 import { getDepositPolicy } from '../queries';
-import { findChargeByAppointment, findPaymentCustomer, linkPaymentCustomer } from './charge-store';
+import { findChargeByAppointment } from './charge-store';
 import { createInitialHostedCheckout } from './hosted-checkout';
 
 /**
@@ -95,8 +95,7 @@ export async function createRemainderCharge(ctx: {
     return;
   }
 
-  const identity = await patientApiV1.getPaymentIdentity(clinicId, patientId);
-  if (!identity) {
+  if (!(await patientApiV1.getPaymentIdentity(clinicId, patientId))) {
     metrics.emit('payments.remainder.skipped_no_identity', { clinicId, appointmentId });
     return;
   }
@@ -105,23 +104,11 @@ export async function createRemainderCharge(ctx: {
   const collectionExpiresAt = new Date(now.getTime() + REMAINDER_DUE_DAYS * 24 * 60 * 60 * 1000);
 
   try {
-    const existingCustomer = await findPaymentCustomer(clinicId, patientId);
-    const customerId =
-      existingCustomer ??
-      (await linkPaymentCustomer({
-        clinicId,
-        patientId,
-        providerCustomerId: (
-          await client.createCustomer({ name: identity.nome, cpfCnpj: identity.cpf })
-        ).customerId,
-      }));
-
     const outcome = await createInitialHostedCheckout({
       client,
       clinicId,
       appointmentId,
       patientId,
-      customerId,
       kind: 'remainder',
       amount: balance.saldo,
       description: 'Restante do atendimento',
