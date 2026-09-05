@@ -131,9 +131,9 @@ rastreado do usuário e deve permanecer fora de qualquer commit.
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA E ENTREGUE** | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; Meta aceitou e o operador confirmou a chegada ao aparelho |
 | 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST indeterminado contido ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 externo ✅ · Playwright Preview read-only ✅ 8/8 · matriz visual pós-deploy ✅ 8/8/72 estados · Product Acceptance técnico-normativo ✅ 150/150 · D24/D27 código+externo ✅ · D60/D70 publicados/revalidados ✅ · D50 aguarda estado terminal do provider |
-| 1.S Stabilization | 🟡 **CÓDIGO/GATES VERDES; PUBLICAÇÃO PENDENTE — P10** | D73 worker órfão ✅ · D74 gate de POST alinhado ao Checkout ✅ · D75 isolamento dos harnesses ✅ · C14 9/9 ✅ · Financial 10/10 ✅ · jornada 13/13 ✅ · simulação 30 dias ✅ · lint/typecheck/build ✅ · 2.816/2.816 testes ✅ · arquitetura/operacionais ✅ · diff/formatação/segredos revisados ✅ · falta commit/push autorizado, deployment e smoke Preview do mesmo SHA |
+| 1.S Stabilization | ✅ **CONCLUÍDA — P10** | D73 worker órfão ✅ · D74 gate de POST alinhado ao Checkout ✅ · D75 isolamento dos harnesses ✅ · C14 9/9 ✅ · Financial 10/10 ✅ · jornada 13/13 ✅ · simulação 30 dias ✅ · lint/typecheck/build ✅ · 2.816/2.816 testes ✅ · arquitetura/operacionais ✅ · diff/formatação/segredos revisados ✅ · commit executável `4883372` publicado/deployado ✅ · Preview autenticado 6/6 sem `pageerror` ✅ |
 
-**A Camada 1 NÃO terminou.** Faltam **1.H** (hardening) e **1.S** (estabilização). O E2E real do sinal passou no Preview até
+**A Camada 1 NÃO terminou.** A **1.S está concluída**; falta somente o fechamento externo da **1.H/D50**. O E2E real do sinal passou no Preview até
 `charge → pagamento sandbox → webhook Asaas → crédito → CONFIRMADO`. Em 31/08, a entrega do link foi
 exercitada até o aceite real da Meta para sinal e restante: conexão ativa, templates distintos,
 `providerMessageId`, jobs terminais e replay zero; em 02/09 o operador confirmou a chegada das duas
@@ -265,7 +265,7 @@ objeto do teste.
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
 | P8 | ✅ **Carga e restore em volume** | Restore real e carga usam PostgreSQL 17 local descartável. `test:load` extrai somente o schema DEV, sobe app real no scratch TLS, substitui Meta antes da rede, bloqueia demais HTTP externos e exige confirmação/guards fail-closed. Nenhuma escrita foi feita em DEV, Preview ou produção | **PASS:** restore 117 tabelas/83 policies e zero resíduo; carga 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile 20 chamadas e 100 queries. Todos os SLOs verdes, zero deadlock/duplicata/retry/falha e cleanup integral | §10 Performance; §16 Migração; `test:load`; `restore:test`; D61; R10 em [riscos](architecture/risks.md) |
 | P9 | ✅ **Product Acceptance técnico-normativo publicado e revalidado** — D53/D56/D60/D70/D71 | Em 04/09 o agente cruzou o fluxo real do Qoro com CFM/ANPD e executou 150 testes focados de Agenda, prontuário, autorização, isolamento, templates e pagamentos. A auditoria encontrou D60 recorrente e D70; ambos foram corrigidos e publicados em `42cd114`. O deployment terminou `success`, a navegação Preview passou 6/6 e a matriz pós-deploy passou 8/8/72 estados esperando headings reais e capturando `pageerror`. Auth state e capturas foram removidos. Teste humano de usabilidade deixa de ser encenado pelo fundador e passa a ser observação da clínica piloto | **PASS técnico-normativo:** código, suíte integral, build/gates e Preview verdes. Manter monitoramento passivo do Sentry. A validação humana de percepção não bloqueia iniciar 1.S; bloqueia avançar da clínica piloto para ondas seguintes se revelar problema alto/médio | §0.2; §15; CFM/ANPD; [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56/D60/D70/D71; [guia E2E](../e2e/README.md) |
-| P10 | 🟡 **1.S com código e gates verdes; publicação pendente** — D73/D74/D75 | D73 encerra observavelmente eventos preservados cujo tenant já não existe, sem violar o audit do outbox; D74 substitui o contrato obsoleto de recuperação `/payments` pela contenção real de `POST /checkouts` indeterminado; D75 impede que harnesses globais confundam audit órfão com concorrência ativa. C14 9/9, Financial 10/10, jornada 13/13, contenção POST e simulação 30 dias passaram com cleanup zero. ADR-049/050/051, Discovery e runbooks foram reconciliados | **PASS local:** lint, typecheck, 2.816/2.816 testes em 311 arquivos, build, 0 ciclos, db-check, grafos, migrations, registry, observabilidade, diff, formatação e varredura do conteúdo adicionado. **Falta neste lote:** commit/push autorizado, deployment e smoke Preview do mesmo SHA. D50 continua dependência externa `PENDING`, sem novo POST | §0.3 DoD; §18 Rollout; ADR-049 §9; D73–D75 |
+| P10 | ✅ **1.S concluída** — D73/D74/D75 | D73 encerra observavelmente eventos preservados cujo tenant já não existe, sem violar o audit do outbox; D74 substitui o contrato obsoleto de recuperação `/payments` pela contenção real de `POST /checkouts` indeterminado; D75 impede que harnesses globais confundam audit órfão com concorrência ativa. C14 9/9, Financial 10/10, jornada 13/13, contenção POST e simulação 30 dias passaram com cleanup zero. ADR-049/050/051, Discovery e runbooks foram reconciliados | **PASS completo:** lint, typecheck, 2.816/2.816 testes em 311 arquivos, build, 0 ciclos, db-check, grafos, migrations, registry, observabilidade, diff, formatação e varredura do conteúdo adicionado. O commit executável `4883372` foi confirmado no remoto, teve deployment Vercel `CZJqTEXXeMoKYa9zwTfxBDGDGpwr` terminal `success` e smoke Preview autenticado 6/6 sem `pageerror`; auth state/artefato removidos. D50 continua dependência externa `PENDING`, sem novo POST | §0.3 DoD; §18 Rollout; ADR-049 §9; D73–D75 |
 
 ### Testes explicitamente não verdes / não executados
 
@@ -435,11 +435,11 @@ auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas s
 
 ### Próximo passo
 
-Seguir apenas os itens ainda abertos de **P6 → P10**. P0, P1, P2, P4, P5, P7 e P8 estão verdes; P3
+Seguir apenas o item ainda aberto **P6/D50**. P0, P1, P2, P4, P5, P7, P8, P9 e P10 estão verdes; P3
 foi encerrado por decisão consciente e D69 foi limpo. A mensagem sobre o refund D50 `PENDING` já foi
 enviada; quando o provider responder ou mudar para `DONE`, executar apenas readback, ledger, replay e
-cleanup, sem repetir POST. O Product Acceptance técnico-normativo e o pós-deploy D60/D70 estão verdes;
-iniciar P10/1.S. A percepção de uso será colhida na clínica piloto antes de
+cleanup, sem repetir POST. O Product Acceptance técnico-normativo, D60/D70 e a 1.S estão publicados e
+revalidados. A percepção de uso será colhida na clínica piloto antes de
 expandir o rollout; nenhum envio real deve ser repetido sem necessidade.
 
 **1.H — Hardening.** Sem adicionar feature:
@@ -626,11 +626,12 @@ terminal externo da D50; a percepção humana fica para a clínica piloto. P3 fo
 consciente sobre o Sandbox. Aceite continua sendo cada cenário com evidência real +
 Security/Chaos/Financial/Load/Simulation verdes.
 
-**1.S STABILIZATION:** 🟡 **CÓDIGO/GATES VERDES; PUBLICAÇÃO PENDENTE (P10)**. D73–D75 foram corrigidos;
+**1.S STABILIZATION:** ✅ **CONCLUÍDA (P10)**. D73–D75 foram corrigidos;
 C14/Financial, jornada, contenção de POST e simulação terminaram com cleanup zero. `lint`, `typecheck`,
-2.816/2.816 testes em 311 arquivos, `build` e gates arquiteturais/operacionais estão verdes. Falta somente
-receber autorização para commit/push/deploy e observar o mesmo SHA no Preview. O diff, a formatação e
-a varredura de segredos do conteúdo adicionado já foram revisados. Load e
+2.816/2.816 testes em 311 arquivos, `build` e gates arquiteturais/operacionais estão verdes. O diff, a
+formatação e a varredura de segredos do conteúdo adicionado foram revisados. O commit executável
+`4883372` foi publicado, chegou a deployment terminal `success` e passou 6/6 no Preview autenticado,
+sem `pageerror`; auth state e artefato foram removidos. Load e
 restore só se repetem com mudança de volume/schema relevante; não houve migration neste lote. Aceite:
 zero bug alto aberto, nenhuma evidência pendente tratada como verde, rollback por clínica provado e
 suíte 100% verde.
@@ -648,10 +649,10 @@ suíte 100% verde.
 - [x] `check:migrations`, `check:registry:strict` e `check:observability`.
 - [x] ADR-049/050/051, Discovery Log, handoff e runbooks reconciliados.
 - [x] Diff revisado, Prettier dos 18 arquivos verde, `git diff --check` verde e zero padrão de segredo no conteúdo adicionado.
-- [ ] Commit e push do lote — dependem de autorização explícita; arquivos locais do usuário ficam excluídos.
-- [ ] Deployment terminal do mesmo SHA no Preview.
-- [ ] Smoke autenticado no Preview do mesmo SHA, sem `pageerror`; remover auth state/artefatos ao terminar.
-- [ ] Marcar P10/1.S como concluído somente após os três itens de publicação acima.
+- [x] Commit e push do lote: `4883372`; arquivos locais do usuário ficaram excluídos.
+- [x] Deployment Vercel `CZJqTEXXeMoKYa9zwTfxBDGDGpwr` terminal `success` para o mesmo SHA.
+- [x] Smoke autenticado no Preview do mesmo SHA 6/6, sem `pageerror`; auth state/artefato removidos.
+- [x] P10/1.S concluído após código, gates, publicação e observação do Preview.
 
 **Gate independente da Camada 1:** D50 continua com um único refund externo `PENDING`; quando o provider
 confirmar `DONE`, executar somente readback, ledger, replay e cleanup, sem repetir o POST.
@@ -1235,7 +1236,7 @@ passou 7/7 em transação read-only. Portanto, o fechamento técnico automático
 O pagamento real PIX/cartão foi provado. O cleanup PIX da conta Sandbox anterior não ocorreu e ficou
 `NOT COMPLETED` depois da remoção do webhook e das chaves antigas. Provider, webhook tenant, Payments,
 Financial, replay e cleanup do chargeback D62 foram provados sem mocks. Billing restore e Meta também
-estão verdes. A **Camada 1 inteira** só fecha depois do estado terminal/cleanup da D50 e de 1.S;
+estão verdes. A **Camada 1 inteira** só fecha depois do estado terminal/cleanup da D50; a 1.S,
 D60/D70 e o Product Acceptance técnico já estão publicados/revalidados. A percepção humana é gate
 para expandir além da clínica piloto. Carga não é mais bloqueio.
 

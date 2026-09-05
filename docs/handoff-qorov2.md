@@ -56,13 +56,13 @@ canônico e às seções 20–21 de `qorov2.md`:
   falta provar o contrato do Checkout hospedado, fechar O-0 e obter autorização para APIs/infra;
 - gates do worktree: lint/typecheck/build verdes, 2.816 testes em 311 arquivos, zero ciclos,
   `arch:db-check` zero findings, snapshots 54/293/0, migrations/registry/observabilidade verdes.
-- P10/1.S está com código e gates locais verdes, aguardando publicação. D73 encerra `outbox` de tenant removido como
+- P10/1.S está concluído. D73 encerra `outbox` de tenant removido como
   `skipped_missing_clinic`; D74 alinhou o smoke de POST ao Checkout hospedado (`creation_unknown`, sem
   retry cego); D75 isolou jornada/simulação de audit órfão. C14 9/9, Financial 10/10, jornada 13/13,
   contenção de POST e simulação 30 dias passaram com cleanup zero; lint, typecheck, 2.816/2.816 testes,
   build, arquitetura, migrations, registry, observabilidade, revisão do diff, formatação e varredura
-  do conteúdo adicionado também passaram. Faltam commit/push autorizados, deployment e Preview deste
-  novo lote; não tratá-lo como publicado antes disso.
+  do conteúdo adicionado também passaram. O commit `4883372` foi confirmado no remoto, o deployment
+  Vercel terminou `success` e o Preview autenticado passou 6/6 sem `pageerror`; auth state/artefato foram removidos.
 
 ## 2. Regra de documentação — a mais importante deste handoff
 
@@ -243,11 +243,10 @@ permanece em observação externa.
 
 ### 6.4 · 1.S — Stabilization
 
-P10 está com código e gates locais verdes. D73–D75, smokes conectados, suíte integral, build, checks
-arquiteturais/operacionais, documentação e revisão do diff passaram. Falta autorização para
-commit/push/deploy e então observar o mesmo SHA no Preview. `payments:live-check`, load e restore não
-se repetem sem mudança relevante/autorização externa. Aceite: zero bug alto, rollback por clínica
-provado e nenhuma evidência externa presumida.
+P10 está concluído. D73–D75, smokes conectados, suíte integral, build, checks
+arquiteturais/operacionais, documentação, revisão do diff, publicação e Preview 6/6 passaram.
+`payments:live-check`, load e restore não se repetem sem mudança relevante/autorização externa. O
+único bloqueio da Camada 1 é o refund D50 ainda `PENDING` no provider; não repetir o POST.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
 

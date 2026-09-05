@@ -385,8 +385,8 @@ Meta real de sinal e restante foi aceito pelo provider e confirmado no aparelho 
 templates distintos, message ids, replay zero e cleanup. D54/D55 percorreram o round-trip real
 `PAYMENT_DELETED → PAYMENT_RESTORED`; o chargeback tenant D62 chegou a `REFUNDED/DONE`, atravessou o
 Financial e foi limpo. O Product Acceptance técnico-normativo e seu pós-deploy estão verdes. A Camada
-1 **ainda não está aprovada** somente porque a estabilização 1.S está em execução e o refund parcial
-D50 continua `PENDING` no Asaas; não repetir o POST. A fila executável e a evidência atual estão em
+1 **ainda não está aprovada** somente porque o refund parcial D50 continua `PENDING` no Asaas; a 1.S
+foi concluída e revalidada no Preview em `4883372`. Não repetir o POST. A fila executável e a evidência atual estão em
 `docs/qorov2.md` P0–P10. Proibido concluir com código sem teste, migration sem volume, endpoint/fluxo
 sem E2E, warning ignorado ou evidência externa presumida.
 
