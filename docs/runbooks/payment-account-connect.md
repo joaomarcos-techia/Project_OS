@@ -379,7 +379,9 @@ saldo pendente; nunca fala em garantir/reservar horário. Usa o propósito centr
 Pré-requisito externo: template `remainder_link` aprovado e configurado em
 `META_TEMPLATE_REMAINDER_LINK_ID`, conexão Meta saudável e destinatário controlado consentido. Sem
 template, falha visível como `template_not_configured`; não existe fallback para texto livre. A prova
-real permanece P1 no `qorov2.md`; unit/integration/smoke não são classificados como E2E Meta.
+real foi concluída em P1 do `qorov2.md`: sinal e restante atravessaram Checkout, `link_ready`, C14 e
+Meta, e chegaram ao aparelho. Unit/integration/smoke continuam não sendo classificados como E2E Meta;
+para repetir a prova externa, use o runner guardado e uma autorização explícita de envio real.
 
 ### "Por que este atendimento não gerou cobrança do restante?"
 
@@ -462,9 +464,11 @@ Ao encontrar um caso:
 pnpm payments:live-check
 ```
 
-Bate no sandbox do Asaas e exercita o caminho inteiro do paciente: valida credencial, cria
-customer só com nome+CPF, gera a cobrança, prova a recuperação por `external_reference` (a defesa
-contra cobrar duas vezes) e registra o webhook. Recusa chave que não seja de sandbox.
+Bate no sandbox do Asaas e exercita as capacidades diretas do adapter: valida credencial, cria
+customer só com nome+CPF, gera cobrança por `/payments`, prova a recuperação dessa operação direta por
+`external_reference` e registra o webhook. Recusa chave que não seja de sandbox. Isso **não** substitui
+o fluxo atual de paciente por Checkout hospedado: `/checkouts` usa intenção/lease e
+`creation_unknown`, sem recuperação por referência nem retry cego.
 
 Desde a **1.5a** também exercita `cancelPayment` (matar o link), a recusa de estorno sobre cobrança
 não paga, e — com o dinheiro de fato recebido via `receiveInCash` — a **recusa de estorno por forma

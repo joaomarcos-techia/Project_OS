@@ -151,6 +151,7 @@ type ReservedRow = {
   payload: unknown;
   attempts: number;
   processing_started_at: Date;
+  clinic_exists: boolean;
 };
 
 async function processOne(): Promise<ProcessOneResult> {
@@ -160,10 +161,11 @@ async function processOne(): Promise<ProcessOneResult> {
   // mesma TX retorna o `now()` autoritativo via RETURNING.
   const reserved = await dbWorker.transaction<ReservedRow | null>(async (tx) => {
     const rows = await tx.execute<Omit<ReservedRow, 'processing_started_at'>>(sql`
-      SELECT id, clinic_id, event_type, payload, attempts
-        FROM outbox
-       WHERE status = 'pending' AND next_attempt_at <= now()
-       ORDER BY next_attempt_at, created_at
+      SELECT o.id, o.clinic_id, o.event_type, o.payload, o.attempts,
+             EXISTS (SELECT 1 FROM clinics c WHERE c.id = o.clinic_id) AS clinic_exists
+        FROM outbox o
+       WHERE o.status = 'pending' AND o.next_attempt_at <= now()
+       ORDER BY o.next_attempt_at, o.created_at
        LIMIT 1
        FOR UPDATE SKIP LOCKED
     `);
@@ -202,6 +204,15 @@ async function processOne(): Promise<ProcessOneResult> {
   });
   if (!reserved) return 'empty';
 
+  // `outbox` deliberately has no FK to clinics so the event remains as audit
+  // evidence after tenant deletion. Downstream tenant tables do have FKs; an
+  // event from a deleted clinic would otherwise burn every retry trying to
+  // insert work that can never become valid. Preserve the row and terminate it
+  // observably instead of converting expected lifecycle cleanup into an error.
+  if (!reserved.clinic_exists) {
+    return finalizeSkipped(reserved, 'missing_clinic');
+  }
+
   // F-03: an event that IS in the catalog (valid schema) but has NO registered
   // handler is a legitimate "producer ahead of consumer" event — NOT a failure.
   // Mark it terminally `skipped` (no retry, no circuit). A MISSING schema, by
@@ -210,7 +221,7 @@ async function processOne(): Promise<ProcessOneResult> {
   const schema = getEventSchema(reserved.event_type);
   const handler = getHandler(reserved.event_type);
   if (schema && !handler) {
-    return finalizeSkipped(reserved);
+    return finalizeSkipped(reserved, 'no_handler');
   }
 
   // === TX2 (withTenant authenticated) — handler ===
@@ -264,11 +275,15 @@ async function processOne(): Promise<ProcessOneResult> {
   return finalizeRetryOrFailed(reserved, handlerError);
 }
 
-async function finalizeSkipped(reserved: ReservedRow): Promise<'skipped' | 'failed'> {
-  // F-03: terminal no-op for a catalog event without a handler. Same race guard
-  // as the other finalizers — (status='processing' AND attempts=N) — so a janitor
-  // reclaim mid-flight does NOT double-write (it would flip status→pending or
-  // bump attempts, making this UPDATE match 0 rows → lost_race, no corruption).
+async function finalizeSkipped(
+  reserved: ReservedRow,
+  reason: 'missing_clinic' | 'no_handler',
+): Promise<'skipped' | 'failed'> {
+  // Terminal no-op for an event that cannot/should not be delivered. Same race
+  // guard as the other finalizers — (status='processing' AND attempts=N) — so a
+  // janitor reclaim mid-flight does NOT double-write (it would flip
+  // status→pending or bump attempts, making this UPDATE match 0 rows →
+  // lost_race, no corruption).
   const updated = await dbWorker
     .update(outbox)
     .set({
@@ -294,13 +309,17 @@ async function finalizeSkipped(reserved: ReservedRow): Promise<'skipped' | 'fail
     return 'failed';
   }
   // F-03 deploy-regression detector: a HANDLER that was expected but vanished in
-  // a deploy would surface here. `skipped_no_handler > 0` in prod is an anomaly
-  // to investigate (runbook c4-validation). Not counted as a failure.
-  metrics.emit('outbox.skipped_no_handler', {
-    clinicId: reserved.clinic_id,
-    eventType: reserved.event_type,
-    attempts: reserved.attempts,
-  });
+  // a deploy surfaces as `skipped_no_handler`. A removed tenant is classified
+  // separately because its historical event is expected to remain. Neither is
+  // counted as a worker failure.
+  metrics.emit(
+    reason === 'missing_clinic' ? 'outbox.skipped_missing_clinic' : 'outbox.skipped_no_handler',
+    {
+      clinicId: reserved.clinic_id,
+      eventType: reserved.event_type,
+      attempts: reserved.attempts,
+    },
+  );
   return 'skipped';
 }
 

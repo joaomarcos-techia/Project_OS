@@ -1,10 +1,10 @@
 /**
- * Hardening 1.H — recuperação de POST perdido com banco DEV e provedor local.
+ * Hardening 1.H — contenção de POST indeterminado com banco DEV e provedor local.
  *
- * O servidor HTTP sintético aceita o primeiro POST /payments, persiste a
- * cobrança em memória e derruba o socket antes da resposta. A segunda execução
- * precisa localizar a cobrança por externalReference, gravá-la uma vez no Qoro
- * e não repetir o POST. Não chama Asaas nem Meta.
+ * O servidor HTTP sintético aceita o primeiro POST /checkouts e derruba o socket
+ * antes da resposta. O Qoro precisa manter a dívida e a geração como
+ * `creation_unknown`, não publicar link e não repetir o POST. Não chama Asaas
+ * nem Meta.
  */
 import { assertDevContext } from './_env';
 
@@ -16,18 +16,6 @@ import { sql } from 'drizzle-orm';
 
 assertDevContext();
 
-interface StoredPayment {
-  id: string;
-  customer: string;
-  status: string;
-  value: number;
-  dueDate: string;
-  invoiceUrl: string;
-  billingType: string;
-  externalReference: string;
-  deleted: boolean;
-}
-
 const runId = randomUUID();
 const stamp = runId.replaceAll('-', '').slice(0, 12);
 const clinicId = randomUUID();
@@ -37,9 +25,8 @@ const appointmentId = randomUUID();
 const webhookRef = randomUUID();
 let doctorId: string | null = null;
 
-let payment: StoredPayment | null = null;
-let getPaymentsCount = 0;
-let postPaymentsCount = 0;
+let acceptedCheckout = false;
+let postCheckoutsCount = 0;
 let sawAccessToken = false;
 
 function assert(condition: boolean, message: string): asserts condition {
@@ -68,44 +55,37 @@ const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     sawAccessToken ||= typeof req.headers.access_token === 'string';
 
-    if (req.method === 'GET' && url.pathname === '/v3/payments') {
-      getPaymentsCount++;
-      const requestedRef = url.searchParams.get('externalReference');
-      json(res, 200, {
-        data: payment?.externalReference === requestedRef ? [payment] : [],
-        hasMore: false,
-        totalCount: payment?.externalReference === requestedRef ? 1 : 0,
-      });
-      return;
-    }
-
-    if (req.method === 'POST' && url.pathname === '/v3/payments') {
-      postPaymentsCount++;
+    if (req.method === 'POST' && url.pathname === '/v3/checkouts') {
+      postCheckoutsCount++;
       const body = await readJson(req);
       const externalReference = String(body.externalReference ?? '');
       assert(
-        externalReference === `deposit:${appointmentId}`,
+        externalReference === `deposit:${appointmentId}:g1`,
         'externalReference incorreta no POST',
       );
-      assert(body.description === 'Sinal do agendamento', 'descrição da cobrança não é genérica');
+      assert(
+        JSON.stringify(body.billingTypes) === JSON.stringify(['PIX', 'CREDIT_CARD']),
+        'Checkout não ficou restrito a PIX/cartão',
+      );
+      assert(
+        JSON.stringify(body.chargeTypes) === JSON.stringify(['DETACHED']),
+        'Checkout não ficou avulso',
+      );
+      const items = Array.isArray(body.items) ? body.items : [];
+      const item = items[0] as Record<string, unknown> | undefined;
+      assert(items.length === 1, 'Checkout não recebeu exatamente um item');
+      assert(item?.name === 'Sinal do agendamento', 'descrição da cobrança não é genérica');
+      assert(item?.description === 'Sinal do agendamento', 'descrição do item não é genérica');
+      assert(item?.quantity === 1, 'quantidade do item não é unitária');
+      assert(item?.value === 100, `valor incorreto no Checkout: ${String(item?.value)}`);
       assert(
         JSON.stringify(body).includes('Consulta sintética') === false,
         'procedimento vazou no POST',
       );
+      assert(typeof body.callback === 'object', 'callbacks do Checkout ausentes');
 
-      payment = {
-        id: `pay_post_lost_${stamp}`,
-        customer: String(body.customer),
-        status: 'PENDING',
-        value: Number(body.value),
-        dueDate: String(body.dueDate),
-        invoiceUrl: `http://127.0.0.1/invoice/pay_post_lost_${stamp}`,
-        billingType: String(body.billingType),
-        externalReference,
-        deleted: false,
-      };
-
-      // O provedor criou a cobrança, mas a resposta nunca chegou ao Qoro.
+      // O provedor aceitou a criação, mas a resposta nunca chegou ao Qoro.
+      acceptedCheckout = true;
       req.socket.destroy();
       return;
     }
@@ -137,6 +117,9 @@ async function main(): Promise<void> {
   const baseUrl = await listen();
   process.env.ASAAS_BASE_URL = baseUrl;
   process.env.ASAAS_BASE_URL_DEV = baseUrl;
+  // O Checkout exige callbacks válidos. O smoke nunca os navega; usar a
+  // origem do servidor efêmero mantém toda URL e todo tráfego em localhost.
+  process.env.APP_BASE_URL = new URL(baseUrl).origin;
 
   // Imports dinâmicos são deliberados: env.ts precisa ler a URL do provedor
   // local antes de construir o client cacheado da clínica.
@@ -193,13 +176,13 @@ async function main(): Promise<void> {
     await dbAdmin.execute(sql`
       INSERT INTO clinics (id, slug, nome, endereco, status, timezone)
       VALUES (
-        ${clinicId}, ${`h1-post-recovery-${stamp}`}, '1.H POST Recovery',
+        ${clinicId}, ${`h1-post-unknown-${stamp}`}, '1.H POST Unknown',
         'Fixture sintética', 'active', 'America/Sao_Paulo'
       )
     `);
 
     const created = await supabase.auth.admin.createUser({
-      email: `h1-post-recovery-${stamp}@smoke.local`,
+      email: `h1-post-unknown-${stamp}@smoke.local`,
       password: randomUUID(),
       email_confirm: true,
     });
@@ -210,7 +193,7 @@ async function main(): Promise<void> {
 
     await dbAdmin.execute(sql`
       INSERT INTO profiles (id, clinic_id, nome, role, ativo)
-      VALUES (${doctorId}, ${clinicId}, 'Dra. POST Recovery', 'doctor'::role_enum, true)
+      VALUES (${doctorId}, ${clinicId}, 'Dra. POST Unknown', 'doctor'::role_enum, true)
     `);
 
     const cpf = '39053344705';
@@ -228,14 +211,14 @@ async function main(): Promise<void> {
         id: procedureId,
         clinicId,
         codigo: `POST-${stamp.slice(0, 6)}`,
-        descricao: 'Consulta sintética POST recovery',
+        descricao: 'Consulta sintética POST unknown',
         valorPadrao: '200.00',
         duracaoPadraoMin: 30,
       });
       await tx.insert(patients).values({
         id: patientId,
         clinicId,
-        nome: 'Paciente Sintético POST Recovery',
+        nome: 'Paciente Sintético POST Unknown',
         cpfEncrypted,
         cpfHash,
       });
@@ -249,10 +232,10 @@ async function main(): Promise<void> {
         durationMin: 30,
         status: 'agendado',
         valor: '200.00',
-        snapshotProcedureName: 'Consulta sintética POST recovery',
+        snapshotProcedureName: 'Consulta sintética POST unknown',
         snapshotProcedureValor: '200.00',
         snapshotProcedureDuracaoMin: 30,
-        snapshotDoctorNome: 'Dra. POST Recovery',
+        snapshotDoctorNome: 'Dra. POST Unknown',
       });
       await tx.insert(paymentSchema.clinicDepositPolicy).values({
         clinicId,
@@ -297,28 +280,38 @@ async function main(): Promise<void> {
       `primeiro POST não ficou indeterminado: ${errorDetail(firstError)}`,
     );
 
-    const afterLostPost = await dbAdmin.execute<{ charges: number }>(sql`
-      SELECT count(*)::int AS charges
-        FROM patient_charges
-       WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}
-    `);
-    assert(afterLostPost[0]?.charges === 0, 'Qoro gravou cobrança sem receber a resposta do POST');
-    assert(postPaymentsCount === 1, `provedor recebeu ${postPaymentsCount} POSTs`);
-
-    await createDepositCharge({ clinicId, appointment });
-    await createDepositCharge({ clinicId, appointment });
-
-    const state = await dbAdmin.execute<{
+    const afterLostPost = await dbAdmin.execute<{
       charges: number;
-      providerPaymentId: string | null;
+      chargeStatus: string | null;
+      chargeFailureCode: string | null;
+      providerCheckoutId: string | null;
+      invoiceUrl: string | null;
+      generations: number;
+      generationStatus: string | null;
+      generationFailureCode: string | null;
       createdEvents: number;
       linkEvents: number;
     }>(sql`
       SELECT
         (SELECT count(*)::int FROM patient_charges
           WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}) AS charges,
-        (SELECT provider_payment_id FROM patient_charges
-          WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}) AS "providerPaymentId",
+        (SELECT status::text FROM patient_charges
+          WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}) AS "chargeStatus",
+        (SELECT failure_code FROM patient_charges
+          WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}) AS "chargeFailureCode",
+        (SELECT provider_checkout_id FROM patient_charges
+          WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}) AS "providerCheckoutId",
+        (SELECT invoice_url FROM patient_charges
+          WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}) AS "invoiceUrl",
+        (SELECT count(*)::int FROM patient_checkout_generations g
+          JOIN patient_charges c ON c.id = g.patient_charge_id
+          WHERE c.clinic_id = ${clinicId} AND c.appointment_id = ${appointmentId}) AS generations,
+        (SELECT g.status::text FROM patient_checkout_generations g
+          JOIN patient_charges c ON c.id = g.patient_charge_id
+          WHERE c.clinic_id = ${clinicId} AND c.appointment_id = ${appointmentId}) AS "generationStatus",
+        (SELECT g.failure_code FROM patient_checkout_generations g
+          JOIN patient_charges c ON c.id = g.patient_charge_id
+          WHERE c.clinic_id = ${clinicId} AND c.appointment_id = ${appointmentId}) AS "generationFailureCode",
         (SELECT count(*)::int FROM outbox
           WHERE clinic_id = ${clinicId}
             AND event_type = 'payments.patient_charge.created'
@@ -328,17 +321,61 @@ async function main(): Promise<void> {
             AND event_type = 'payments.patient_charge.link_ready'
             AND payload->>'appointmentId' = ${appointmentId}) AS "linkEvents"
     `);
+    assert(acceptedCheckout, 'provedor local não aceitou a criação do Checkout');
+    assert(
+      afterLostPost[0]?.charges === 1,
+      'dívida local não foi preservada após POST indeterminado',
+    );
+    assert(afterLostPost[0]?.chargeStatus === 'pending', 'dívida local não permaneceu pendente');
+    assert(
+      afterLostPost[0]?.chargeFailureCode === 'checkout_creation_unknown',
+      `falha da dívida: ${afterLostPost[0]?.chargeFailureCode}`,
+    );
+    assert(afterLostPost[0]?.providerCheckoutId === null, 'Qoro inventou provider_checkout_id');
+    assert(afterLostPost[0]?.invoiceUrl === null, 'Qoro persistiu link sem receber resposta');
+    assert(afterLostPost[0]?.generations === 1, 'geração única não foi preservada');
+    assert(
+      afterLostPost[0]?.generationStatus === 'creation_unknown',
+      `estado da geração: ${afterLostPost[0]?.generationStatus}`,
+    );
+    assert(
+      afterLostPost[0]?.generationFailureCode === 'checkout_creation_unknown',
+      `falha da geração: ${afterLostPost[0]?.generationFailureCode}`,
+    );
+    assert(
+      afterLostPost[0]?.createdEvents === 0,
+      'evento created publicado sem Checkout confirmado',
+    );
+    assert(afterLostPost[0]?.linkEvents === 0, 'evento link_ready publicado sem link confirmado');
+    assert(postCheckoutsCount === 1, `provedor recebeu ${postCheckoutsCount} POSTs`);
+
+    await createDepositCharge({ clinicId, appointment });
+    await createDepositCharge({ clinicId, appointment });
+
+    const state = await dbAdmin.execute<{
+      charges: number;
+      generations: number;
+      events: number;
+    }>(sql`
+      SELECT
+        (SELECT count(*)::int FROM patient_charges
+          WHERE clinic_id = ${clinicId} AND appointment_id = ${appointmentId}) AS charges,
+        (SELECT count(*)::int FROM patient_checkout_generations g
+          JOIN patient_charges c ON c.id = g.patient_charge_id
+          WHERE c.clinic_id = ${clinicId} AND c.appointment_id = ${appointmentId}) AS generations,
+        (SELECT count(*)::int FROM outbox
+          WHERE clinic_id = ${clinicId}
+            AND payload->>'appointmentId' = ${appointmentId}) AS events
+    `);
 
     assert(sawAccessToken, 'client não enviou a credencial decifrada ao provedor local');
-    assert(getPaymentsCount === 2, `esperava 2 GETs de recuperação; vieram ${getPaymentsCount}`);
-    assert(postPaymentsCount === 1, `retry duplicou o POST: ${postPaymentsCount}`);
-    assert(state[0]?.charges === 1, `foram gravadas ${state[0]?.charges} cobranças locais`);
-    assert(state[0]?.providerPaymentId === payment?.id, 'Qoro não vinculou a cobrança recuperada');
-    assert(state[0]?.createdEvents === 1, `foram publicados ${state[0]?.createdEvents} created`);
-    assert(state[0]?.linkEvents === 1, `foram publicados ${state[0]?.linkEvents} link_ready`);
+    assert(postCheckoutsCount === 1, `retry duplicou o POST: ${postCheckoutsCount}`);
+    assert(state[0]?.charges === 1, `foram gravadas ${state[0]?.charges} dívidas locais`);
+    assert(state[0]?.generations === 1, `foram gravadas ${state[0]?.generations} gerações`);
+    assert(state[0]?.events === 0, `foram publicados ${state[0]?.events} eventos indevidos`);
 
     console.log(
-      '[OK] POST perdido: 1 criação no provedor · 2 GETs · 1 cobrança local · 2 eventos · sem duplicata',
+      '[OK] POST indeterminado: 1 Checkout aceito · 1 dívida/generação unknown · 0 links/eventos · 0 duplicata',
     );
   } finally {
     await cleanup();

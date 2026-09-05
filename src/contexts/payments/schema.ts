@@ -159,8 +159,8 @@ export const patientChargeDisputeStatus = pgEnum('patient_charge_dispute_status'
  * tabela — sem elas, uma reentrega do worker cobraria o paciente duas vezes:
  *   - `UNIQUE (appointment_id, kind)`: um sinal por agendamento;
  *   - `UNIQUE (clinic_id, external_reference)` com referência determinística
- *     (`deposit:<appointmentId>`), que também permite RECUPERAR do Asaas uma
- *     cobrança criada num POST que deu timeout.
+ *     (`deposit:<appointmentId>`), que impede uma segunda dívida mesmo quando a
+ *     criação do Checkout termina em estado indeterminado.
  */
 export const patientCharges = pgTable(
   'patient_charges',

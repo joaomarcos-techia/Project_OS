@@ -26,7 +26,7 @@ Depois dele, leia:
 | `docs/runbooks/payment-account-connect.md` | operação do ciclo de cobrança do paciente |
 | `docs/runbooks/asaas-webhook-assinatura.md` | webhook da conta do Qoro (governa acesso ao produto) |
 
-### Atualização operacional de 02/09/2026
+### Atualização operacional de 04/09/2026
 
 O restante deste handoff contém histórico útil, mas qualquer estado divergente deve ceder ao bloco
 canônico e às seções 20–21 de `qorov2.md`:
@@ -56,6 +56,13 @@ canônico e às seções 20–21 de `qorov2.md`:
   falta provar o contrato do Checkout hospedado, fechar O-0 e obter autorização para APIs/infra;
 - gates do worktree: lint/typecheck/build verdes, 2.816 testes em 311 arquivos, zero ciclos,
   `arch:db-check` zero findings, snapshots 54/293/0, migrations/registry/observabilidade verdes.
+- P10/1.S está com código e gates locais verdes, aguardando publicação. D73 encerra `outbox` de tenant removido como
+  `skipped_missing_clinic`; D74 alinhou o smoke de POST ao Checkout hospedado (`creation_unknown`, sem
+  retry cego); D75 isolou jornada/simulação de audit órfão. C14 9/9, Financial 10/10, jornada 13/13,
+  contenção de POST e simulação 30 dias passaram com cleanup zero; lint, typecheck, 2.816/2.816 testes,
+  build, arquitetura, migrations, registry, observabilidade, revisão do diff, formatação e varredura
+  do conteúdo adicionado também passaram. Faltam commit/push autorizados, deployment e Preview deste
+  novo lote; não tratá-lo como publicado antes disso.
 
 ## 2. Regra de documentação — a mais importante deste handoff
 
@@ -151,8 +158,8 @@ próprio configurado por `META_TEMPLATE_REMAINDER_LINK_ID`; e `suppressionPurpos
 único `billing`. Cron próprio registrado no `vercel.json`; nenhuma fila, integração Meta, evento ou
 caminho de LLM paralelo foi criado.
 
-Evidência: 2.704 testes/296 arquivos, integração controlada do evento até o seam de envio, regressão
-do `deposit_link`, `smoke:c14` 8/8, migration validada em modelo vazio e banco populado com rollback,
+Evidência: 2.816 testes/311 arquivos, integração controlada do evento até o seam de envio, regressão
+do `deposit_link`, `smoke:c14` 9/9, migration validada em modelo vazio e banco populado com rollback,
 depois aplicada e verificada em dev e produção com backup/lock, todos os gates técnicos verdes e
 Preview do commit `3035383` concluído com sucesso na Vercel. A conexão Meta da Clínica A também foi
 concluída no Preview. Em 31/08 o provider aceitou sinal e restante, e em 02/09 o operador confirmou a
@@ -197,13 +204,14 @@ Resolva também, dentro do 1.H:
 - **D27 ✅ integral e limpo** — chargeback e dinheiro desfeito usam estado autoritativo monotônico,
   bloqueio/liberação do crédito e compensação append-only sem regredir agenda/prontuário. A prova
   Sandbox tenant atravessou Payments/Financial, replay 0/3 e cleanup de 16 linhas sem resíduo.
-- **Matriz focada ✅ 138/138** — POST perdido/retry, send-time obsoleto, pagamento tardio,
+- **Matriz focada ✅ 138/138** — falha indeterminada/retry-safe, send-time obsoleto, pagamento tardio,
   reagendamento, Asaas fora e Meta fora/backoff estão verdes em unit/integration. Não chamar isso de
   E2E externo.
-- **Matriz DB ✅ 13/13 + POST recovery ✅ + simulação ✅** — corrida pagamento×expiração, restante
+- **Matriz DB ✅ 13/13 + contenção de POST ✅ + simulação ✅** — corrida pagamento×expiração, restante
   concorrente, cross-tenant, timeout/retry e 30 dias acumulados no banco real foram fechados. O
-  `pnpm smoke:payments-post-recovery` provou 1 POST aceito com resposta perdida, recuperação por GET,
-  uma única cobrança/eventos e cleanup zero usando provedor local.
+  `pnpm smoke:payments-post-recovery` provou 1 `POST /checkouts` aceito com resposta perdida, uma única
+  dívida/geração `creation_unknown`, nenhum link/evento, zero retry cego e cleanup zero usando provedor
+  local.
 - **P8 carga/restore ✅** — `pnpm test:load` usa build real, PostgreSQL 17 TLS efêmero, schema-only do
   DEV, fixtures sintéticas, Meta falso e bloqueio de rede externa. Passou com 500 consultas, 5.000 jobs
   C14, 1.000 webhooks, outbox 5.000, reconcile/SQL dentro dos SLOs, zero deadlock/duplicata/retry/falha
@@ -235,10 +243,11 @@ permanece em observação externa.
 
 ### 6.4 · 1.S — Stabilization
 
-Começar agora. Executar P10 do `qorov2.md`: corrigir apenas bugs,
-sincronizar ADR-049/051, Discovery Log, runbooks e grafos; reexecutar suíte, Playwright, gates,
-smokes, live-check, simulation, load/restore local e Product Acceptance técnico. Aceite: zero
-bug alto, rollback por clínica provado e nenhuma evidência externa presumida.
+P10 está com código e gates locais verdes. D73–D75, smokes conectados, suíte integral, build, checks
+arquiteturais/operacionais, documentação e revisão do diff passaram. Falta autorização para
+commit/push/deploy e então observar o mesmo SHA no Preview. `payments:live-check`, load e restore não
+se repetem sem mudança relevante/autorização externa. Aceite: zero bug alto, rollback por clínica
+provado e nenhuma evidência externa presumida.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
 

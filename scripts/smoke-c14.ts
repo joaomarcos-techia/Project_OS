@@ -9,7 +9,8 @@
  *   5  guard "pagou → não envia": lançamento pago sai de listDunningCandidates
  *   6  claimDue: CTE FOR UPDATE SKIP LOCKED + janela 8-20h local (AT TIME ZONE)
  *   7  followup via worker: prontuario.signed (needs_return) → job followup
- *   8  RLS: clínica B não vê os jobs da A
+ *   8  evento de clínica removida termina skipped sem queimar retries
+ *   9  RLS: clínica B não vê os jobs da A
  *
  * NÃO envia ao Meta (precisa de número conectado + templates aprovados — ver
  * docs/runbooks/c14-validation.md §4). Cobre toda a pipeline até o send.
@@ -26,6 +27,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { encryptForTenant, hashForLookup, normalizePhone } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
+import { outbox } from '@/lib/db/schema/infra/outbox';
+import { payloadHash } from '@/lib/idempotency/hash';
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -75,6 +78,8 @@ const supabase = createAdminClient();
 let doctorId = '';
 let procedureId = '';
 let patientId = '';
+const orphanEventId = randomUUID();
+const orphanClinicId = randomUUID();
 
 /** Instante UTC cuja DATA LOCAL (SP) é hoje + `addDays`, ao meio-dia local. */
 function localDatePlusUtc(addDays: number): Date {
@@ -402,8 +407,41 @@ async function main(): Promise<void> {
       assert(ok, 'followup job não foi criado pelo handler do worker');
     });
 
-    // 8 — RLS -----------------------------------------------------------------
-    await step('8 — RLS: clínica B não vê jobs da A', async () => {
+    // 8 — evento órfão --------------------------------------------------------
+    await step('8 — clínica removida → evento preservado e terminalmente skipped', async () => {
+      const payload = {
+        chargeId: randomUUID(),
+        patientId: randomUUID(),
+        appointmentId: randomUUID(),
+        kind: 'remainder',
+        amount: 10,
+      };
+      const oldDate = new Date('2000-01-01T00:00:00.000Z');
+      await dbAdmin.insert(outbox).values({
+        id: orphanEventId,
+        clinicId: orphanClinicId,
+        eventType: 'payments.patient_charge.link_ready',
+        payload,
+        payloadHash: payloadHash(payload),
+        idempotencyKey: `smoke:orphan:${orphanEventId.replaceAll('-', '')}`,
+        status: 'pending',
+        attempts: 0,
+        nextAttemptAt: oldDate,
+        createdAt: oldDate,
+      });
+
+      await runOutboxOnce({ batchSize: 1, parallelism: 1 });
+      const state = await dbAdmin.execute<{ status: string; attempts: number }>(sql`
+        SELECT status::text, attempts
+          FROM outbox
+         WHERE id = ${orphanEventId}::uuid
+      `);
+      assert(state[0]?.status === 'skipped', `evento órfão terminou ${state[0]?.status}`);
+      assert(state[0]?.attempts === 1, `evento órfão consumiu ${state[0]?.attempts} tentativas`);
+    });
+
+    // 9 — RLS -----------------------------------------------------------------
+    await step('9 — RLS: clínica B não vê jobs da A', async () => {
       const seenByB = await withTenant(CLINIC_B, async (tx) => {
         const rows = await tx
           .select({ id: aiProactiveJobs.id })
@@ -414,6 +452,7 @@ async function main(): Promise<void> {
       assert(seenByB === 0, `RLS furada: B viu ${seenByB} jobs da A`);
     });
   } finally {
+    await dbAdmin.execute(sql`DELETE FROM outbox WHERE id = ${orphanEventId}::uuid`);
     // outbox/idempotency/audit usam tenantId() sem FK; limpar por fixture antes
     // das clínicas para não deixar eventos órfãos no worker de desenvolvimento.
     for (const clinicId of [CLINIC_A, CLINIC_B]) {

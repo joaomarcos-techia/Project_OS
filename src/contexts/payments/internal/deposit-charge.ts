@@ -182,8 +182,9 @@ export async function createDepositCharge(ctx: {
         'deposit_rejected',
       );
     }
-    // Indeterminado (timeout/5xx/circuito aberto): sobe e o worker retenta com
-    // backoff. A retentativa entra pelo caminho de recuperação acima.
+    // Indeterminado (timeout/5xx/circuito aberto): sobe para observabilidade e
+    // eventual reentrega. A intenção `creation_unknown` já persistida impede que
+    // a reentrega faça outro POST cego.
     throw err;
   }
 }

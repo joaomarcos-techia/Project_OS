@@ -26,7 +26,10 @@ cartão na mesma página. Esse contrato muda a decisão operacional deste ADR pa
   CPF, telefone, e-mail ou endereço no POST do Checkout;
 - `patientApiV1.getPaymentIdentity` permanece como gate local: paciente inexistente, removido ou sem
   CPF válido continua sem cobrança. O seam não virou payload de terceiro;
-- `externalReference`, geração e `checkoutSession` continuam fazendo a correlação e a idempotência;
+- `externalReference` + geração garantem identidade/idempotência local; `checkoutSession` correlaciona o
+  pagamento depois que o provider o expõe. Se a resposta do POST se perde, a geração fica
+  `creation_unknown`: o contrato público não permite recuperá-la por referência e o Qoro não faz retry
+  cego;
 - `patient_payment_customers` permanece como estrutura histórica/dormente. Não há migration destrutiva
   para removê-la neste ajuste focado;
 - assinatura SaaS e cobranças diretas que usam `POST /payments` não mudam e continuam com seu próprio

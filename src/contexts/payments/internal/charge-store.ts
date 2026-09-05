@@ -50,7 +50,7 @@ export function toPaymentMethodCode(billingType: string | null | undefined): str
   return null;
 }
 
-/** Referência determinística — é ela que torna um POST perdido recuperável. */
+/** Identidade determinística da dívida, separada das gerações de Checkout. */
 export function depositExternalReference(appointmentId: string): string {
   return `deposit:${appointmentId}`;
 }

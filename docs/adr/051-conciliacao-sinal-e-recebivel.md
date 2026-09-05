@@ -281,7 +281,7 @@ e pendências externas: `docs/qorov2.md` §§20.3 e 20.7.
 | **1.5b.3a** ✅ | `financial` | seam `getAppointmentBalance` — o saldo é do Financial, não conta do Payments (**D34**) |
 | **1.5b.3b** ✅ | `payments` + `scheduling` | read-model de concluídos + `createRemainderCharge` + varredura no cron `payments-deposit` |
 | **1.5b.4** | — | **absorvida pela 1.5b.1**: o crédito do restante é alocado direto ao lançamento já existente — mesmo mecanismo, estado diferente do recebível |
-| **E2E financeiro** ✅ | `payments` + `financial` + `scheduling` por eventos | `smoke:payments-journey` 13/13: ramos A/B/C, concorrência, timeout/retry, isolamento e detector D52; `test:simulation` validou 30 dias. A borda Meta real permanece fora desta evidência |
+| **E2E financeiro** ✅ | `payments` + `financial` + `scheduling` por eventos | `smoke:payments-journey` 13/13: ramos A/B/C, concorrência, timeout/retry, isolamento e detector D52; `test:simulation` validou 30 dias. A borda Meta continua evidência separada: o runner real atravessou `link_ready → C14 → Meta` para sinal/restante e o operador confirmou ambas as mensagens no aparelho |
 
 Nenhuma sub-fase passa de **2 contexts**, e a 1.5b.2 é de **1** — o §0.6 volta a ser respeitado, que
 era metade do bloqueio do D19.

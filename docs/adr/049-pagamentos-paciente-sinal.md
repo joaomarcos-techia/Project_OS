@@ -378,13 +378,15 @@ Ramo C (cancela a tempo): sinal ESTORNADO
 
 ## 7. Critérios de aprovação da Camada 1 (portão)
 
-**Estado em 2026-08-31:** Build · Lint · Typecheck · Unit · Integration · Contract e arquitetura estão
-verdes; 2.812 testes passam sem regressão. D24/D58, D50, D27 e D63 estão implementados; migrations
+**Estado em 2026-09-04:** Build · Lint · Typecheck · Unit · Integration · Contract e arquitetura estão
+verdes; 2.816 testes passam sem regressão. D24/D58, D50, D27 e D63 estão implementados; migrations
 0091/0092 foram aplicadas e verificadas em DEV e produção, e os smokes correspondentes passaram. O E2E
-Meta real de sinal e restante chegou a `accepted` com message id, replay zero e cleanup zero; falta
-confirmar `delivered/read` ou recebimento no aparelho. A Camada 1 **ainda não está aprovada**: faltam o
-round-trip sandbox D54/D55 com `PAYMENT_RESTORED`, estado terminal do estorno PIX, chargeback controlado,
-Product Acceptance e estabilização. A fila executável e a evidência atual estão em
+Meta real de sinal e restante foi aceito pelo provider e confirmado no aparelho pelo operador, com
+templates distintos, message ids, replay zero e cleanup. D54/D55 percorreram o round-trip real
+`PAYMENT_DELETED → PAYMENT_RESTORED`; o chargeback tenant D62 chegou a `REFUNDED/DONE`, atravessou o
+Financial e foi limpo. O Product Acceptance técnico-normativo e seu pós-deploy estão verdes. A Camada
+1 **ainda não está aprovada** somente porque a estabilização 1.S está em execução e o refund parcial
+D50 continua `PENDING` no Asaas; não repetir o POST. A fila executável e a evidência atual estão em
 `docs/qorov2.md` P0–P10. Proibido concluir com código sem teste, migration sem volume, endpoint/fluxo
 sem E2E, warning ignorado ou evidência externa presumida.
 

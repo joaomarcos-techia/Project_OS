@@ -99,12 +99,13 @@ function errorDetail(error: unknown): string {
 async function assertCleanQueue(): Promise<void> {
   const rows = await dbAdmin.execute<{ active: number }>(sql`
     SELECT count(*)::int AS active
-      FROM outbox
-     WHERE status IN ('pending', 'processing')
+      FROM outbox o
+     WHERE o.status IN ('pending', 'processing')
+       AND EXISTS (SELECT 1 FROM clinics c WHERE c.id = o.clinic_id)
   `);
   assert(
     rows[0]?.active === 0,
-    `simulação exige fila DEV vazia; existem ${rows[0]?.active} evento(s) ativos de outra execução`,
+    `simulação exige fila DEV sem tenant ativo; existem ${rows[0]?.active} evento(s) concorrente(s)`,
   );
 }
 

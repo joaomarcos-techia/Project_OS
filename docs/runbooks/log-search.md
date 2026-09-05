@@ -18,6 +18,7 @@ message.event:"outbox.failed"
 message.event:"outbox.retry"
 message.event:"outbox.lost_race"
 message.event:"outbox.skipped_no_handler"
+message.event:"outbox.skipped_missing_clinic"
 ```
 
 Consultas acima são verificadas contra strings emitidas no código por `pnpm check:observability`. Acrescentar evento inexistente cria falsa cobertura e falha o gate.
