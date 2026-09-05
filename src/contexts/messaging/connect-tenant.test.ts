@@ -37,7 +37,7 @@ vi.mock('@/lib/crypto', () => ({
 }));
 vi.mock('./internal/meta-onboarding', () => ({
   exchangeCodeForToken: vi.fn(async () => 'SECRET_TOKEN_VALUE'),
-  validateTokenScopes: vi.fn(async () => {}),
+  validateTokenScopes: vi.fn(async () => ({ wabaIds: ['waba-1'] })),
   resolveWabaAndPhone: vi.fn(async () => ({
     wabaId: 'waba-1',
     phoneNumberId: 'phone-1',
@@ -93,8 +93,8 @@ describe('connectMyClinicWhatsapp', () => {
     const res = await connectMyClinicWhatsapp({
       code: 'CODE',
       registrationPin: '123456',
-      wabaHint: 'waba-1',
-      phoneHint: 'phone-1',
+      wabaId: 'waba-1',
+      phoneNumberId: 'phone-1',
     });
 
     // token em CLARO só vai para encryptForTenant
@@ -141,7 +141,7 @@ describe('connectMyClinicWhatsapp', () => {
     );
 
     await expect(
-      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
     ).rejects.toThrow();
     expect(upsertTenantConnection).not.toHaveBeenCalled();
     expect(onboarding.exchangeCodeForToken).not.toHaveBeenCalled();
@@ -153,7 +153,7 @@ describe('connectMyClinicWhatsapp', () => {
     );
 
     await expect(
-      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
     ).rejects.toMatchObject({
       name: 'MetaConnectError',
       code: 'META_AUTH_FAILED',
@@ -171,7 +171,7 @@ describe('connectMyClinicWhatsapp', () => {
     );
 
     await expect(
-      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
     ).rejects.toMatchObject({ name: 'MetaConnectError', code: 'META_AUTH_FAILED' });
 
     expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
@@ -187,9 +187,186 @@ describe('connectMyClinicWhatsapp', () => {
       Object.assign(new Error('dup'), { code: '23505' }),
     );
     await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
+    ).rejects.toMatchObject({
+      name: 'MetaConnectError',
+    });
+  });
+
+  // D78 — evento incompleto: sem `waba_id` não há resolução de menor privilégio.
+  it('evento sem waba_id → signup_incomplete auditado, sem tocar a Meta nem persistir', async () => {
+    await expect(
       connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456' }),
     ).rejects.toMatchObject({
       name: 'MetaConnectError',
+      code: 'META_AUTH_FAILED',
+      stage: 'signup_incomplete',
+    });
+
+    expect(onboarding.exchangeCodeForToken).not.toHaveBeenCalled();
+    expect(onboarding.resolveWabaAndPhone).not.toHaveBeenCalled();
+    expect(onboarding.registerPhoneNumber).not.toHaveBeenCalled();
+    expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
+    expect(upsertTenantConnection).not.toHaveBeenCalled();
+    expect(recordConnectionFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: 'signup_incomplete' }),
+    );
+  });
+
+  // D78 — a allowlist do próprio token precisa chegar ao resolver; é ela que
+  // impede adotar uma WABA que o cliente não outorgou.
+  it('repassa ao resolver a WABA do evento e a allowlist lida do token', async () => {
+    vi.mocked(onboarding.validateTokenScopes).mockResolvedValueOnce({
+      wabaIds: ['waba-1', 'waba-2'],
+    });
+
+    await connectMyClinicWhatsapp({
+      code: 'CODE',
+      registrationPin: '123456',
+      wabaId: 'waba-1',
+      phoneNumberId: 'phone-1',
+    });
+
+    expect(onboarding.resolveWabaAndPhone).toHaveBeenCalledWith(
+      'SECRET_TOKEN_VALUE',
+      { wabaId: 'waba-1', phoneNumberId: 'phone-1' },
+      { wabaIds: ['waba-1', 'waba-2'] },
+    );
+  });
+
+  // D78 — toda falha de resolução da WABA/telefone precisa parar ANTES de
+  // `register`, `subscribed_apps` e persistência. Um número escolhido por
+  // engano seria ativado e assinado na Meta antes de qualquer revisão humana.
+  it.each([
+    ['account', '[meta] a WABA informada não foi concedida a este app'],
+    ['account', '[meta] o número informado não pertence à WABA autorizada'],
+    ['phone_ambiguous', '[meta] a WABA autorizada tem mais de um número'],
+    ['provider_unavailable', '[meta] a Meta não respondeu de forma conclusiva sobre a WABA'],
+  ] as const)(
+    'resolução falha em %s → nenhum register, subscribe ou persistência',
+    async (stage, message) => {
+      vi.mocked(onboarding.resolveWabaAndPhone).mockRejectedValueOnce(
+        new MetaConnectError(message, { stage }),
+      );
+
+      await expect(
+        connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
+      ).rejects.toMatchObject({ name: 'MetaConnectError', stage });
+
+      expect(onboarding.registerPhoneNumber).not.toHaveBeenCalled();
+      expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
+      expect(upsertTenantConnection).not.toHaveBeenCalled();
+      expect(mocks.after).not.toHaveBeenCalled();
+      expect(recordConnectionFailure).toHaveBeenCalledWith(
+        expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: stage }),
+      );
+    },
+  );
+
+  // D78 — rate limit no meio da resolução não pode virar recusa de conta nem
+  // deixar efeito colateral na Meta.
+  it('rate limit (429) durante a resolução: nada é registrado, assinado ou salvo', async () => {
+    vi.mocked(onboarding.resolveWabaAndPhone).mockRejectedValueOnce(
+      new MetaConnectError('[meta] a Meta não respondeu de forma conclusiva sobre a WABA', {
+        stage: 'provider_unavailable',
+        graphStatus: 429,
+        graphCode: 4,
+      }),
+    );
+
+    const err = await connectMyClinicWhatsapp({
+      code: 'CODE',
+      registrationPin: '123456',
+      wabaId: 'waba-1',
+    }).catch((e) => e);
+
+    expect(err).toMatchObject({
+      name: 'MetaConnectError',
+      stage: 'provider_unavailable',
+      graphStatus: 429,
+      graphCode: 4,
+    });
+    expect(onboarding.registerPhoneNumber).not.toHaveBeenCalled();
+    expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
+    expect(upsertTenantConnection).not.toHaveBeenCalled();
+    expect(mocks.after).not.toHaveBeenCalled();
+    // A auditoria registra a etapa real: não é `account`.
+    expect(recordConnectionFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ errorStage: 'provider_unavailable' }),
+    );
+  });
+
+  /**
+   * D78 — cada etapa crítica precisa parar o fluxo com a SUA etapa de auditoria,
+   * sem executar as seguintes e sem persistir. Rate limit e resultado
+   * desconhecido não podem virar "recusa" nem sumir na telemetria.
+   */
+  describe('rate limit e indeterminação por etapa', () => {
+    const failAt = (
+      step: 'exchange' | 'validate' | 'resolve' | 'register' | 'subscribe',
+      stage: 'provider_rate_limited' | 'provider_unavailable' | 'provider_outcome_unknown',
+      graphStatus: number | null,
+    ) => {
+      const error = new MetaConnectError('[meta] graph', { stage, graphStatus, graphCode: 4 });
+      const target = {
+        exchange: onboarding.exchangeCodeForToken,
+        validate: onboarding.validateTokenScopes,
+        resolve: onboarding.resolveWabaAndPhone,
+        register: onboarding.registerPhoneNumber,
+        subscribe: onboarding.subscribeAppToWaba,
+      }[step];
+      vi.mocked(target).mockRejectedValueOnce(error);
+    };
+
+    it.each([
+      ['exchange', 'provider_rate_limited', 429],
+      ['validate', 'provider_rate_limited', 429],
+      ['resolve', 'provider_rate_limited', 429],
+      ['register', 'provider_rate_limited', 429],
+      ['subscribe', 'provider_rate_limited', 429],
+      ['validate', 'provider_unavailable', 503],
+      ['register', 'provider_outcome_unknown', 503],
+      ['subscribe', 'provider_outcome_unknown', null],
+    ] as const)('%s falha em %s: auditoria correta e nada persistido', async (step, stage, http) => {
+      failAt(step, stage, http);
+
+      const err = await connectMyClinicWhatsapp({
+        code: 'CODE',
+        registrationPin: '123456',
+        wabaId: 'waba-1',
+      }).catch((e) => e);
+
+      expect(err).toMatchObject({ name: 'MetaConnectError', code: 'META_AUTH_FAILED', stage });
+      expect(upsertTenantConnection).not.toHaveBeenCalled();
+      expect(mocks.after).not.toHaveBeenCalled();
+      expect(recordConnectionFailure).toHaveBeenCalledWith(
+        expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: stage }),
+      );
+    });
+
+    it('falha no register não chega a assinar o webhook nem a persistir', async () => {
+      failAt('register', 'provider_outcome_unknown', 503);
+
+      await expect(
+        connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
+      ).rejects.toMatchObject({ stage: 'provider_outcome_unknown' });
+
+      expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
+      expect(upsertTenantConnection).not.toHaveBeenCalled();
+    });
+
+    it('rate limit na troca de code não chega a validar escopos', async () => {
+      failAt('exchange', 'provider_rate_limited', 429);
+
+      await expect(
+        connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
+      ).rejects.toMatchObject({ stage: 'provider_rate_limited' });
+
+      expect(onboarding.validateTokenScopes).not.toHaveBeenCalled();
+      expect(onboarding.resolveWabaAndPhone).not.toHaveBeenCalled();
+      expect(onboarding.registerPhoneNumber).not.toHaveBeenCalled();
+      expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
+      expect(upsertTenantConnection).not.toHaveBeenCalled();
     });
   });
 
@@ -242,8 +419,8 @@ describe('connect — provisionamento dos templates', () => {
   const connectInput = {
     code: 'code-1',
     registrationPin: '123456',
-    wabaHint: 'waba-1',
-    phoneHint: 'phone-1',
+    wabaId: 'waba-1',
+    phoneNumberId: 'phone-1',
   };
 
   it('agenda o provisionamento para depois da resposta', async () => {

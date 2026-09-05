@@ -3,9 +3,10 @@
  *
  * Complementa `channel-health.test.ts`: lá se testa o VEREDITO a partir de um
  * probe pronto; aqui se testa a TRADUÇÃO das respostas reais do Graph em
- * outcomes — inclusive a distinção entre 4xx (negativa do provedor) e
- * 5xx/timeout (indeterminação nossa), que é o que impede o health de derrubar
- * todas as clínicas durante uma instabilidade da Meta.
+ * outcomes — inclusive a distinção entre uma negativa DOCUMENTADA (401/403/404
+ * ou código Meta de autorização) e indeterminação (5xx, timeout, rate limit,
+ * 400 sem código reconhecido), que é o que impede o health de derrubar todas as
+ * clínicas durante uma instabilidade ou um pico de tráfego da Meta.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -194,7 +195,7 @@ describe('probeMetaChannel — leitura do estado externo', () => {
     expect(evaluateChannelHealth(probe).verdict).toBe('indeterminate');
   });
 
-  it('9. Graph 4xx no debug_token → failed (o provedor negou)', async () => {
+  it('9. code 190 no debug_token → failed (negativa documentada de token)', async () => {
     fetchMock.mockResolvedValueOnce(res({ error: { code: 190 } }, false, 400));
 
     const probe = await probeMetaChannel(INPUT);
@@ -208,6 +209,47 @@ describe('probeMetaChannel — leitura do estado externo', () => {
     const probe = await probeMetaChannel(INPUT);
     expect(probe.token).toBe('unknown');
     expect(evaluateChannelHealth(probe).verdict).toBe('indeterminate');
+  });
+
+  // D78 — a regra antiga ("todo 4xx nega") marcava como quebrado todo canal
+  // sondado durante um pico de tráfego. Rate limit não é evidência de recusa.
+  it('D78: HTTP 429 no debug_token → unknown, NUNCA failed', async () => {
+    fetchMock.mockResolvedValueOnce(res({ error: { code: 4 } }, false, 429));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.token).toBe('unknown');
+    expect(evaluateChannelHealth(probe).verdict).toBe('indeterminate');
+  });
+
+  it('D78: rate limit no CORPO com HTTP 400 → waba unknown, não failed', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(VALID_TOKEN))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
+      .mockResolvedValueOnce(res({ error: { code: 80007 } }, false, 400));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.waba).toBe('unknown');
+    expect(evaluateChannelHealth(probe).verdict).not.toBe('broken');
+  });
+
+  it('D78: HTTP 400 sem código documentado → unknown (conservador)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(VALID_TOKEN))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
+      .mockResolvedValueOnce(res({ error: { code: 100 } }, false, 400));
+
+    expect((await probeMetaChannel(INPUT)).waba).toBe('unknown');
+  });
+
+  it('D78: HTTP 400 com 100/33 continua sendo negativa de acesso', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(VALID_TOKEN))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }))
+      .mockResolvedValueOnce(res({ error: { code: 100, error_subcode: 33 } }, false, 400));
+
+    const probe = await probeMetaChannel(INPUT);
+    expect(probe.waba).toBe('failed');
+    expect(evaluateChannelHealth(probe).reasons).toEqual(['waba_unreachable']);
   });
 
   it('11. resposta parcial: subscribed_apps cai em 500 após token/phone OK', async () => {

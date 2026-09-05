@@ -40,12 +40,124 @@ declare global {
   }
 }
 
+/** Ids do evento oficial. `wabaId` é obrigatório: o servidor não descobre a WABA. */
 interface SessionInfo {
-  wabaId?: string | undefined;
-  phoneId?: string | undefined;
+  wabaId: string;
+  phoneNumberId?: string | undefined;
 }
 
+/**
+ * Valores do `event`. A doc oficial modela o campo como `<FLOW_FINISH_TYPE>` e
+ * lista `ERROR` na mesma enum de `FINISH*`; outra página oficial mostra o erro
+ * chegando como `CANCEL` com `error_message`/`error_code`. As duas formas são
+ * suportadas de propósito — o contrato publicado é ambíguo neste ponto e
+ * escolher uma só faria a tela mentir na outra. Os `FINISH_*` de outros fluxos
+ * (app do WhatsApp Business, migração OBO, grant-only) não pertencem a esta
+ * configuração e não são tratados.
+ */
 type EmbeddedSignupEvent = 'CANCEL' | 'ERROR' | 'FINISH' | 'FINISH_ONLY_WABA';
+
+/**
+ * D78 — janela de tolerância entre os DOIS canais independentes do Embedded
+ * Signup: o callback do `FB.login` (SDK) e o `postMessage` do pop-up. A ordem
+ * entre eles não é garantida.
+ *
+ * Quando o callback volta SEM `code`, ainda não dá para saber se o cadastro nem
+ * começou ou se um `FINISH`/`CANCEL` está a caminho. Em vez de decidir na hora
+ * — o que produzia `SIGNUP_NOT_STARTED` para um fluxo que na verdade terminou —
+ * o veredito espera este intervalo curto. Qualquer evento que chegue antes do
+ * prazo resolve imediatamente e cancela o timer; o prazo só decide quando
+ * nenhum evento chegou. Curto o bastante para não deixar a tela parada e longo
+ * o bastante para absorver a diferença de entrega entre os dois canais.
+ */
+const SIGNUP_EVENT_GRACE_MS = 1_500;
+
+/**
+ * D78 — quiescência depois do desfecho. O pop-up pode emitir um `postMessage`
+ * atrasado depois de o desfecho já ser conhecido; enquanto este prazo não
+ * expira, nenhuma tentativa nova pode começar, então uma mensagem tardia da
+ * tentativa A só pode ser descartada, nunca atribuída à tentativa B.
+ */
+const SIGNUP_QUIESCE_MS = 3_000;
+
+/**
+ * D78 — timeout explícito de abandono. Enquanto a tentativa está em curso o
+ * fluxo fica travado (single-flight); se o pop-up for morto pelo sistema, o SDK
+ * pode nunca chamar o callback e a tela ficaria bloqueada até um reload. Este é
+ * o único caminho que libera o fluxo sem os dois canais quiescentes, e por isso
+ * é generoso: o Embedded Signup real leva poucos minutos, mas criar um
+ * portfólio do zero dentro do pop-up pode demorar bem mais.
+ */
+const SIGNUP_ABANDON_MS = 10 * 60_000;
+
+type SignupPhase =
+  /** Nenhuma tentativa em curso — a única fase em que `FB.login` pode ser chamado. */
+  | 'idle'
+  /** Pop-up aberto; nenhum desfecho conhecido ainda. */
+  | 'running'
+  /** Desfecho conhecido; aguardando os dois canais ficarem quiescentes. */
+  | 'closing';
+
+/**
+ * Estado de UMA tentativa de conexão. Vive num ref porque é atualizado por dois
+ * callbacks fora do React (SDK e `postMessage`) e por timers.
+ *
+ * **Limite de correlação, explicitamente.** `id` invalida apenas o que o Qoro
+ * consegue amarrar a uma tentativa: o callback do `FB.login` (capturado no
+ * closure daquela chamada) e os timers. O `postMessage` do Embedded Signup
+ * **não é correlacionável**: a documentação oficial não expõe, nas mensagens
+ * `FINISH`/`FINISH_ONLY_WABA`/`CANCEL`, nenhum identificador que também esteja
+ * disponível no callback do SDK (o `session_id` aparece só no formato de erro
+ * reportado). Inventar correlação seria pior do que não ter.
+ *
+ * A proteção contra sobreposição vem, portanto, do **single-flight**: só existe
+ * uma tentativa por vez, e a fase `closing` mantém o fluxo travado por
+ * `SIGNUP_QUIESCE_MS` além do retorno do callback. Mensagens fora da fase
+ * `running` são descartadas.
+ */
+interface SignupAttempt {
+  id: number;
+  phase: SignupPhase;
+  code: string | null;
+  session: SessionInfo | null;
+  settled: boolean;
+  connectStarted: boolean;
+  /** O callback do SDK já voltou sem `code` e aguarda a janela de tolerância. */
+  awaitingEvent: boolean;
+  /** O canal do SDK ficou quiescente (o callback retornou, com ou sem `code`). */
+  callbackReturned: boolean;
+  /** O prazo de quiescência do canal de `postMessage` expirou. */
+  quiesced: boolean;
+  timers: {
+    grace: ReturnType<typeof setTimeout> | null;
+    quiesce: ReturnType<typeof setTimeout> | null;
+    abandon: ReturnType<typeof setTimeout> | null;
+  };
+}
+
+function newAttempt(id: number): SignupAttempt {
+  return {
+    id,
+    phase: 'idle',
+    code: null,
+    session: null,
+    settled: false,
+    connectStarted: false,
+    awaitingEvent: false,
+    callbackReturned: false,
+    quiesced: false,
+    timers: { grace: null, quiesce: null, abandon: null },
+  };
+}
+
+/** `error_code` é texto cross-origin: só chega à tela como referência curta. */
+function sanitizeMetaErrorRef(value: unknown): string | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  const ref = String(value)
+    .replace(/[^A-Za-z0-9_-]/gu, '')
+    .slice(0, 32);
+  return ref.length > 0 ? ref : null;
+}
 
 // V13 (auditoria de segurança): allowlist EXATA de origens do postMessage. O
 // `endsWith('facebook.com')` anterior era burlável (ex.: `https://evil-facebook.com`
@@ -74,36 +186,122 @@ export function WhatsappConnect({
   const [sdkReady, setSdkReady] = useState(false);
   const [registrationPin, setRegistrationPin] = useState('');
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
-  const sessionInfo = useRef<SessionInfo | null>(null);
-  const oauthCode = useRef<string | null>(null);
+  /** Single-flight: enquanto true, PIN e botões de (re)conexão ficam travados. */
+  const [signupInFlight, setSignupInFlight] = useState(false);
   const registrationPinRef = useRef('');
-  const connectionStarted = useRef(false);
+  const attempt = useRef<SignupAttempt>(newAttempt(0));
 
   useEffect(() => {
     if (status.connected) setLocallyDisconnected(false);
   }, [status.connected]);
 
+  const clearTimer = useCallback((key: keyof SignupAttempt['timers']) => {
+    const pendingTimer = attempt.current.timers[key];
+    if (pendingTimer !== null) {
+      clearTimeout(pendingTimer);
+      attempt.current.timers[key] = null;
+    }
+  }, []);
+
+  const clearAllTimers = useCallback(() => {
+    clearTimer('grace');
+    clearTimer('quiesce');
+    clearTimer('abandon');
+  }, [clearTimer]);
+
+  // Timers não sobrevivem ao desmonte: disparariam em componente morto.
+  useEffect(() => clearAllTimers, [clearAllTimers]);
+
+  /** Libera o single-flight: a partir daqui um novo `FB.login` é permitido. */
+  const releaseSignupLock = useCallback(() => {
+    clearAllTimers();
+    attempt.current.phase = 'idle';
+    setSignupInFlight(false);
+  }, [clearAllTimers]);
+
+  /**
+   * Só libera com os DOIS canais quiescentes: o callback do SDK já retornou e o
+   * prazo de tolerância a `postMessage` atrasado expirou.
+   */
+  const releaseIfQuiescent = useCallback(() => {
+    const a = attempt.current;
+    if (a.phase !== 'closing' || !a.callbackReturned || !a.quiesced) return;
+    releaseSignupLock();
+  }, [releaseSignupLock]);
+
+  /**
+   * Desfecho conhecido: encerra a tentativa e começa a contar a quiescência.
+   *
+   * O timer de abandono NÃO é cancelado aqui. Cancelá-lo criava um deadlock: em
+   * `closing` a liberação exige `callbackReturned`, e um pop-up cujo callback
+   * nunca retorna (janela morta pelo sistema depois de um CANCEL/ERROR/FINISH
+   * incompleto) travava a tela até um reload. O abandono cobre `running` E
+   * `closing`; no segundo caso ele apenas destrava, sem tocar no desfecho.
+   */
+  const beginClosing = useCallback(() => {
+    const a = attempt.current;
+    if (a.phase !== 'running') return;
+    const attemptId = a.id;
+    a.phase = 'closing';
+    clearTimer('grace');
+    a.timers.quiesce = setTimeout(() => {
+      // Timer de tentativa antiga não pode liberar a tentativa atual.
+      if (attempt.current.id !== attemptId) return;
+      attempt.current.timers.quiesce = null;
+      attempt.current.quiesced = true;
+      releaseIfQuiescent();
+    }, SIGNUP_QUIESCE_MS);
+    releaseIfQuiescent();
+  }, [clearTimer, releaseIfQuiescent]);
+
+  /**
+   * Registra o desfecho terminal da tentativa. O primeiro a chegar vence: um
+   * callback atrasado do SDK não sobrescreve o motivo que o pop-up já explicou.
+   */
+  const settle = useCallback(
+    (code: string, message: string) => {
+      if (attempt.current.settled) return;
+      attempt.current.settled = true;
+      attempt.current.code = null;
+      attempt.current.session = null;
+      attempt.current.awaitingEvent = false;
+      setError({ code, message });
+      beginClosing();
+    },
+    [beginClosing],
+  );
+
   const connectCompletedSignup = useCallback(
-    (code: string, hint: SessionInfo) => {
-      if (connectionStarted.current) return;
-      connectionStarted.current = true;
-      oauthCode.current = null;
+    (code: string, session: SessionInfo) => {
+      if (attempt.current.connectStarted) return;
+      attempt.current.connectStarted = true;
+      attempt.current.code = null;
+      attempt.current.awaitingEvent = false;
+      // A action pode responder depois de o abandono já ter liberado o fluxo;
+      // sem o id, a resposta atrasada corromperia o estado da tentativa nova.
+      const attemptId = attempt.current.id;
+      beginClosing();
       startTransition(async () => {
         try {
           const r = await connectWhatsappAction({
             code,
             registrationPin: registrationPinRef.current,
-            wabaHint: hint.wabaId,
-            phoneHint: hint.phoneId,
+            wabaId: session.wabaId,
+            phoneNumberId: session.phoneNumberId,
           });
+          // Resposta obsoleta: a tentativa que a originou já foi encerrada e
+          // outra pode estar em curso. Descartada ANTES de qualquer efeito —
+          // nem erro na tela, nem `router.refresh()`, nem escrita no estado.
+          if (attempt.current.id !== attemptId) return;
           if (!r.ok) {
-            connectionStarted.current = false;
+            attempt.current.connectStarted = false;
             setError({ code: r.code, message: r.message });
             return;
           }
           router.refresh();
         } catch {
-          connectionStarted.current = false;
+          if (attempt.current.id !== attemptId) return;
+          attempt.current.connectStarted = false;
           setError({
             code: 'CONNECTION_FAILED',
             message: 'Não foi possível concluir a conexão. Tente novamente.',
@@ -111,7 +309,7 @@ export function WhatsappConnect({
         }
       });
     },
-    [router, startTransition],
+    [router, startTransition, beginClosing],
   );
 
   // Só o evento FINISH autoriza trocar o OAuth code por token. O callback do
@@ -124,35 +322,68 @@ export function WhatsappConnect({
         const parsed = JSON.parse(event.data) as {
           type?: string;
           event?: EmbeddedSignupEvent;
-          data?: { waba_id?: string; phone_number_id?: string };
+          data?: {
+            waba_id?: string;
+            phone_number_id?: string;
+            error_message?: string;
+            error_code?: string | number;
+          };
         };
         if (parsed?.type !== 'WA_EMBEDDED_SIGNUP') return;
+        // A mensagem NÃO carrega correlação com a tentativa (ver `SignupAttempt`).
+        // A fase é o que a contém: fora de `running` — ou seja, com o desfecho já
+        // conhecido, durante a quiescência, ou sem tentativa alguma — ela é
+        // descartada. Como nenhuma tentativa nova começa antes de `idle`, uma
+        // mensagem tardia da tentativa A nunca é atribuída à tentativa B.
+        if (attempt.current.phase !== 'running') return;
+        if (attempt.current.settled || attempt.current.connectStarted) return;
 
-        if (parsed.event === 'CANCEL') {
-          sessionInfo.current = null;
-          oauthCode.current = null;
-          setError({
-            code: 'CANCELLED',
-            message: 'Conexão cancelada. Nenhuma alteração foi feita.',
-          });
-          return;
-        }
-        if (parsed.event === 'ERROR') {
-          sessionInfo.current = null;
-          oauthCode.current = null;
-          setError({
-            code: 'META_SIGNUP_ERROR',
-            message: 'A Meta não concluiu a conexão. Tente novamente.',
-          });
+        if (parsed.event === 'CANCEL' || parsed.event === 'ERROR') {
+          // Duas formas oficiais do mesmo desfecho: `CANCEL` com `current_step`
+          // (o usuário desistiu) e erro reportado, que aparece ora como
+          // `CANCEL` + `error_message`/`error_code`, ora como `ERROR`. Chamar
+          // os dois de "cancelamento" era a lacuna de D78.
+          const ref = sanitizeMetaErrorRef(parsed.data?.error_code);
+          const metaInterrupted = parsed.event === 'ERROR' || !!parsed.data?.error_message || !!ref;
+          if (metaInterrupted) {
+            // O texto da Meta NÃO é reproduzido: é conteúdo cross-origin. Só a
+            // referência curta, que a própria doc destina ao suporte.
+            settle(
+              'META_SIGNUP_ERROR',
+              `A Meta interrompeu o cadastro do WhatsApp.${ref ? ` Referência da Meta: ${ref}.` : ''} Tente novamente e, se repetir, acione o suporte.`,
+            );
+            return;
+          }
+          settle('CANCELLED', 'Conexão cancelada. Nenhuma alteração foi feita.');
           return;
         }
         if (parsed.event === 'FINISH' || parsed.event === 'FINISH_ONLY_WABA') {
-          const hint = {
-            wabaId: parsed.data?.waba_id,
-            phoneId: parsed.data?.phone_number_id,
-          };
-          sessionInfo.current = hint;
-          if (oauthCode.current) connectCompletedSignup(oauthCode.current, hint);
+          const wabaId = parsed.data?.waba_id;
+          if (!wabaId) {
+            // Sem `waba_id` o servidor não tem como resolver a conta sem pedir
+            // permissão de portfólio: falha aqui, sem round-trip inútil.
+            settle(
+              'SIGNUP_INCOMPLETE',
+              'A Meta concluiu a janela sem informar a conta do WhatsApp Business. Refaça a conexão e selecione a conta e o número.',
+            );
+            return;
+          }
+          const session: SessionInfo = { wabaId, phoneNumberId: parsed.data?.phone_number_id };
+          attempt.current.session = session;
+          const code = attempt.current.code;
+          if (code) {
+            connectCompletedSignup(code, session);
+            return;
+          }
+          // O callback já tinha voltado sem `code` e estava na janela de
+          // tolerância: agora sabemos que o cadastro terminou e o que faltou
+          // foi a autorização — não é "não começou".
+          if (attempt.current.awaitingEvent) {
+            settle(
+              'AUTHORIZATION_MISSING',
+              'A Meta concluiu o cadastro, mas não devolveu a autorização. Tente novamente.',
+            );
+          }
         }
       } catch {
         /* ignore non-JSON postMessages */
@@ -160,7 +391,7 @@ export function WhatsappConnect({
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [connectCompletedSignup]);
+  }, [connectCompletedSignup, settle]);
 
   const initSdk = () => {
     if (!appId) return;
@@ -169,6 +400,10 @@ export function WhatsappConnect({
   };
 
   const launchSignup = () => {
+    // Single-flight. O `disabled` do botão não basta: um clique duplo dispara os
+    // dois handlers antes do re-render, e duas janelas simultâneas produziriam
+    // `postMessage` de duas origens sem nenhum jeito de saber a qual pertencem.
+    if (attempt.current.phase !== 'idle') return;
     setError(null);
     if (!/^\d{6}$/.test(registrationPin)) {
       setError({
@@ -182,21 +417,66 @@ export function WhatsappConnect({
       setError({ code: 'SDK', message: 'O SDK do Facebook não carregou. Recarregue a página.' });
       return;
     }
-    sessionInfo.current = null;
-    oauthCode.current = null;
-    connectionStarted.current = false;
+    // Tentativa nova não herda estado nem timer da anterior.
+    clearAllTimers();
+    const current = newAttempt(attempt.current.id + 1);
+    current.phase = 'running';
+    attempt.current = current;
+    setSignupInFlight(true);
+    current.timers.abandon = setTimeout(() => {
+      if (attempt.current.id !== current.id) return;
+      attempt.current.timers.abandon = null;
+      // Único caminho que destrava sem os dois canais quiescentes, e vale tanto
+      // em `running` quanto em `closing`. Se já existe desfecho — CANCELLED,
+      // META_SIGNUP_ERROR, SIGNUP_INCOMPLETE, AUTHORIZATION_MISSING — o `settle`
+      // é no-op e a mensagem original permanece: aqui só se destrava.
+      // Também não interfere numa Server Action em curso: o `pending` continua
+      // travando os botões enquanto ela não responde.
+      if (!attempt.current.settled && !attempt.current.connectStarted) {
+        settle(
+          'SIGNUP_TIMED_OUT',
+          'A janela da Meta ficou aberta por muito tempo sem concluir o cadastro. Feche-a e tente novamente.',
+        );
+      }
+      releaseSignupLock();
+    }, SIGNUP_ABANDON_MS);
     FB.login(
       (response) => {
+        // Callback atrasado de uma tentativa anterior não escreve nesta tela.
+        if (attempt.current.id !== current.id) return;
+        // O canal do SDK ficou quiescente, qualquer que tenha sido a resposta.
+        attempt.current.callbackReturned = true;
+        releaseIfQuiescent();
         const code = response?.authResponse?.code;
-        if (!code) {
-          setError({
-            code: 'CANCELLED',
-            message: 'Conexão cancelada. Nenhuma alteração foi feita.',
-          });
+        if (code) {
+          attempt.current.code = code;
+          const session = attempt.current.session;
+          if (session) connectCompletedSignup(code, session);
           return;
         }
-        oauthCode.current = code;
-        if (sessionInfo.current) connectCompletedSignup(code, sessionInfo.current);
+        // D78 — sem `code`, ainda não há veredito. O `postMessage` do pop-up
+        // pode chegar depois do callback; decidir agora produzia
+        // `SIGNUP_NOT_STARTED` para fluxos que na verdade terminaram.
+        if (attempt.current.settled || attempt.current.connectStarted) return;
+        if (attempt.current.session) {
+          settle(
+            'AUTHORIZATION_MISSING',
+            'A Meta concluiu o cadastro, mas não devolveu a autorização. Tente novamente.',
+          );
+          return;
+        }
+        attempt.current.awaitingEvent = true;
+        attempt.current.timers.grace = setTimeout(() => {
+          if (attempt.current.id !== current.id) return;
+          attempt.current.timers.grace = null;
+          // Passou a janela e nenhum evento chegou: a única coisa observável é
+          // que o cadastro não começou. NÃO afirmamos qual aviso a Meta exibiu
+          // dentro do pop-up — é cross-origin e o Qoro não o lê.
+          settle(
+            'SIGNUP_NOT_STARTED',
+            'A janela da Meta fechou sem iniciar o cadastro do WhatsApp e nenhum evento do Embedded Signup chegou. Se a janela exibiu algum aviso da Meta, envie-o ao suporte; caso contrário, tente novamente.',
+          );
+        }, SIGNUP_EVENT_GRACE_MS);
       },
       {
         config_id: configId,
@@ -232,6 +512,10 @@ export function WhatsappConnect({
       setDisconnecting(false);
     }
   };
+
+  // Trava única das superfícies de (re)conexão: pop-up aberto/fechando OU a
+  // Server Action em curso. Enquanto verdadeira, PIN e botões ficam desabilitados.
+  const signupBusy = pending || signupInFlight;
 
   const viewState =
     status.connected && !locallyDisconnected
@@ -284,7 +568,7 @@ export function WhatsappConnect({
             status={status}
             ready={ready}
             sdkReady={sdkReady}
-            pending={pending}
+            pending={signupBusy}
             registrationPin={registrationPin}
             onRegistrationPinChange={setPin}
             onReconnect={launchSignup}
@@ -295,7 +579,7 @@ export function WhatsappConnect({
           <DisconnectedView
             ready={ready}
             sdkReady={sdkReady}
-            pending={pending}
+            pending={signupBusy}
             registrationPin={registrationPin}
             onRegistrationPinChange={setPin}
             onConnect={launchSignup}

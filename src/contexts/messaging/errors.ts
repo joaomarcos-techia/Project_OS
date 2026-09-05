@@ -28,7 +28,33 @@ export class NumberNotConnectedError extends Error {
 export const META_CONNECT_FAILURE_STAGES = [
   'authorization',
   'permissions',
+  // D78 — o Embedded Signup terminou sem entregar a `waba_id` do evento oficial.
+  // Não é falha de autorização nem de conta: é evento incompleto do lado do
+  // cliente, e sem ele NÃO existe caminho de menor privilégio para descobrir a
+  // WABA (o antigo fallback por portfólio exigia `business_management`).
+  'signup_incomplete',
   'account',
+  // D78 — a WABA autorizada tem MAIS DE UM número e o evento não disse qual.
+  // Separado de `account` porque a ação do usuário é outra: não é "confirme a
+  // conta", é "escolha o número". Escolher por posição registraria, assinaria e
+  // persistiria um número que o cliente não selecionou.
+  'phone_ambiguous',
+  // D78 — a Meta não respondeu de forma conclusiva a uma LEITURA (timeout,
+  // rede, HTTP 5xx, 4xx sem código documentado). NÃO é negativa do provedor:
+  // tratar indeterminação como "conta não encontrada" foi a mesma classe de
+  // diagnóstico enganoso que o incidente expôs. Como só cobre GET, é seguro
+  // afirmar que nada foi alterado.
+  'provider_unavailable',
+  // D78 — a Meta recusou por excesso de chamadas (HTTP 429 ou código de
+  // throttling documentado). A requisição NÃO foi processada, então nada mudou;
+  // a orientação é aguardar, não revisar a conta. Vale para qualquer etapa.
+  'provider_rate_limited',
+  // D78 — indeterminação numa MUTAÇÃO (`POST /register`, `POST` ou `DELETE`
+  // /subscribed_apps). Timeout ou 5xx depois de um POST não diz se a operação
+  // foi aplicada do outro lado. Sem read-back não se pode afirmar "nada foi
+  // alterado" nem repetir o POST às cegas — é o mesmo princípio já adotado em
+  // pagamentos para POST indeterminado.
+  'provider_outcome_unknown',
   'phone_registration',
   'webhook_subscription',
   // Provisionamento de template no connect. Nunca aborta a conexao: so aparece
@@ -45,22 +71,36 @@ export class MetaConnectError extends Error {
   readonly httpStatus = 502;
   readonly stage: MetaConnectFailureStage;
   /**
-   * META-001 — status HTTP devolvido pelo Graph, ou `null` quando o Graph sequer
-   * respondeu (timeout/DNS/reset). O health precisa dessa distinção: 4xx é uma
-   * NEGATIVA do provedor (o canal está mesmo quebrado), enquanto 5xx/timeout é
-   * INDETERMINAÇÃO nossa. Tratar as duas igual degradaria a conexão de toda
-   * clínica sempre que a Meta tivesse instabilidade. Não é usado no connect —
-   * lá qualquer falha aborta do mesmo jeito.
+   * Status HTTP devolvido pelo Graph, ou `null` quando o Graph sequer respondeu
+   * (timeout/DNS/reset).
+   *
+   * D78 — o status SOZINHO não decide nada. A regra antiga "todo 4xx é negativa
+   * autoritativa" classificava `429 Too Many Requests` — rate limit temporário
+   * pelo [RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585#section-4) — como
+   * canal quebrado. A decisão passou para `classifyGraphFailure()`, que combina
+   * status, `graphCode` e `graphSubcode`.
    */
   readonly graphStatus: number | null;
+  /** `error.code` do corpo Graph. Numérico e não sensível. */
+  readonly graphCode: number | null;
+  /** `error.error_subcode` do corpo Graph, quando presente. */
+  readonly graphSubcode: number | null;
   constructor(
     message: string,
-    options?: { cause?: unknown; stage?: MetaConnectFailureStage; graphStatus?: number | null },
+    options?: {
+      cause?: unknown;
+      stage?: MetaConnectFailureStage;
+      graphStatus?: number | null;
+      graphCode?: number | null;
+      graphSubcode?: number | null;
+    },
   ) {
     super(message, options);
     this.name = 'MetaConnectError';
     this.stage = options?.stage ?? 'unknown';
     this.graphStatus = options?.graphStatus ?? null;
+    this.graphCode = options?.graphCode ?? null;
+    this.graphSubcode = options?.graphSubcode ?? null;
   }
 }
 

@@ -116,6 +116,391 @@ instalado e o GitHub CLI local não está autenticado. O SHA implantado não foi
 do HEAD = **BLOCKED de evidência**, não `PASS` nem falha de código. `financeiro.md` é trabalho não
 rastreado do usuário e deve permanecer fora de qualquer commit.
 
+### D78 — Embedded Signup indisponível para conta externa e contrato do token Meta
+
+**Estado em 05/09/2026: `CÓDIGO CORRIGIDO` + `BLOQUEADO NA META`.** O resolver foi reescrito para
+menor privilégio, a seleção de telefone deixou de aceitar posição em lista ambígua, rate limit e
+indeterminação deixaram de virar "recusa" em qualquer etapa do connect, e a corrida entre os dois
+canais do pop-up passou a ser modelada — inclusive o escape da fase `closing`, cujo deadlock foi
+corrigido nesta revisão. O incidente **não está resolvido**: nenhuma conta sem App Role atravessou
+`popup → login → code → FINISH → WABA/telefone → register → subscribed_apps → persistência` depois da
+mudança. O estado externo continua `NOT TESTED`.
+
+#### Causa raiz
+
+São **duas causas independentes**, e confundi-las foi o que travou o diagnóstico anterior.
+
+1. **Bloqueio externo (causa do erro que o cliente viu) — hipótese principal, NÃO confirmada.** O erro
+   `Recurso indisponível` apareceu dentro do diálogo OAuth da Meta, antes de qualquer `code` ou evento
+   `WA_EMBEDDED_SIGNUP`. A definição oficial de [níveis de acesso](https://developers.facebook.com/docs/graph-api/overview/access-levels)
+   é literal: *"As permissões com acesso padrão só podem ser solicitadas de usuários que têm uma função
+   no app solicitante"*. Isso explica a assimetria observada — conta interna com App Role passa, conta
+   do cliente sem App Role é barrada — e o painel mostra `public_profile` em "Pronto para teste", ou
+   seja, acesso **padrão**, num app em modo Live.
+
+   A mesma mensagem genérica também é emitida por outras pendências de plataforma. **Nada disso está
+   confirmado**: o repositório não observa o painel. Verificação da Empresa, Data Use Checkup e demais
+   ações exigidas são **itens a verificar** no roteiro abaixo, não fatos apurados.
+2. **Defeitos reais no código (independentes do bloqueio).** Mesmo com o login liberado, o connect
+   falharia ou — pior — acertaria a conta errada:
+   - `resolveWabaAndPhone()` caía em `GET /me/businesses → /{business-id}/owned_whatsapp_business_accounts`,
+     caminho de **portfólio empresarial** que depende de `business_management`. A configuração ativa
+     emite token de usuário do sistema com apenas os dois escopos WhatsApp, e no Graph API Explorer
+     `/me/businesses` não devolveu dado útil para esse token;
+   - a seleção de telefone terminava em `phones[0]` sempre que o `phone_number_id` do evento não fosse
+     encontrado ou não existisse — registrando, assinando e persistindo um número que o cliente não
+     escolheu;
+   - qualquer falha de rede era convertida em "o token não alcança a WABA", transformando instabilidade
+     da Meta em acusação de conta inexistente;
+   - o veredito da tela era decidido no callback do SDK, sem esperar o `postMessage` do pop-up.
+
+#### Hipóteses descartadas
+
+| Hipótese | Veredito |
+| --- | --- |
+| Redirecionamento errado do Qoro / popup mal configurado | **Descartada.** A URL observada é o diálogo OAuth legítimo do SDK, com `config_id` correto, `display=popup`, `response_type=code`, domínio `app.qoro.dev` e fallback para `/configuracoes/whatsapp`. O erro é renderizado pela Meta, não pelo Qoro |
+| O usuário cancelou | **Descartada como causa.** Era o sintoma do bug de diagnóstico: um callback sem `code` virava `CANCELLED` mesmo quando nenhum evento `WA_EMBEDDED_SIGNUP` havia chegado |
+| Faltam `whatsapp_business_management` / `whatsapp_business_messaging` | **Descartada.** Ambos foram aprovados em 11/08/2026 e são os únicos escopos da configuração ativa |
+| `business_management` é obrigatório para Embedded Signup | **Descartada para este produto.** A [App Review de Solution Partners](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/app-review) exige Advanced Access aos dois escopos WhatsApp e **não lista `business_management`**; o [sample oficial de Tech Provider](https://github.com/fbsamples/business-messaging-sample-tech-provider-app/blob/main/README.md) diz "At minimum, request: `whatsapp_business_management`, `whatsapp_business_messaging`" |
+| `/me/business_users` substitui `/me/businesses` | **Descartada.** Ele respondeu no Explorer, mas devolve associações usuário-do-sistema↔portfólio, semântica diferente de WABA. Trocar um pelo outro seria inventar contrato a partir do nome do endpoint |
+| `public_profile` é necessária para o perfil do WhatsApp (foto/bio/site) | **Descartada.** [Business Profiles](https://www.postman.com/meta/whatsapp-business-platform/folder/13382743-2e0565c0-6b03-4ced-ae8e-bf6534ef1125) usa `whatsapp_business_management`. `public_profile` é do usuário Facebook e o repositório não a consome; ela importa apenas por ser exigida pelo próprio diálogo de login |
+
+#### Decisão 1 — resolução da WABA por menor privilégio
+
+Adotada a **opção 1 (menor privilégio)**, com a descoberta que a Meta documenta para este tipo de
+token, e não com o fallback de portfólio.
+
+A doc [WABAs / manage-accounts](https://developers.facebook.com/docs/whatsapp/embedded-signup/manage-accounts/)
+diz, sobre o token devolvido pelo Embedded Signup: *"Each object in the `granular_scopes` array
+identifies the IDs of every WABA that has granted your app a given permission (`scope`)"*. O próprio
+`debug_token` — que o connect já chamava para validar escopos — carrega a lista de WABAs concedidas,
+sem `business_management`.
+
+- `waba_id` do evento `FINISH`/`FINISH_ONLY_WABA` é **obrigatório**. Ausente ⇒ falha específica,
+  sanitizada e auditada (`stage: signup_incomplete`), sem chamar a Meta e sem persistir nada;
+- `validateTokenScopes()` devolve `MetaTokenGrant { wabaIds }`, extraído de
+  `granular_scopes[scope=whatsapp_business_management].target_ids`;
+- `GET /me/businesses` e `/{business-id}/owned_whatsapp_business_accounts` foram **removidos**.
+  `REQUIRED_SCOPES` continua com os dois escopos WhatsApp e o runtime **não exige `business_management`**;
+- a doc diz que a WABA mais recente vem primeiro em `target_ids`. **Essa ordem não é usada para
+  escolher nada** — a lista serve só como allowlist.
+
+**O que cada verificação prova, e o que não prova.** Não são "duas provas independentes" em todos os
+casos:
+
+| Situação | Verificações efetivas | O que fica sem prova |
+| --- | --- | --- |
+| `target_ids` presente | allowlist do token **e** `GET /{waba-id}/phone_numbers` | — |
+| `target_ids` vazio ou ausente | apenas `GET /{waba-id}/phone_numbers` | O id continua vindo do evento no navegador. A chamada prova que o token **alcança** aquele asset; não prova que o cliente o **selecionou** |
+
+O `target_ids` vazio foi observado em campo e não corresponde à forma documentada. Quando ele falta, o
+gate de allowlist é pulado — nunca invertido: a ausência da lista jamais autoriza uma WABA, apenas
+deixa de recusá-la antecipadamente.
+
+#### Decisão 2 — seleção de telefone: nunca por posição
+
+O contrato anterior era `(preferPhoneId && phones.find(...)) || phones[0]`. O `||` colapsava dois casos
+distintos em "pega o primeiro". O contrato novo:
+
+| Entrada do evento | Números na WABA | Resultado |
+| --- | --- | --- |
+| `phone_number_id` presente e encontrado | qualquer | usa a correspondência **exata** |
+| `phone_number_id` presente e **não** encontrado | qualquer | falha (`account`). Nunca substitui pelo primeiro |
+| sem `phone_number_id` | zero | falha (`account`) — WABA sem número |
+| sem `phone_number_id` | exatamente um | usa esse número |
+| sem `phone_number_id` | mais de um | falha (`phone_ambiguous`) — o operador refaz escolhendo |
+
+Entradas sem `id` são descartadas **antes** de contar, para não fabricar ambiguidade. Nenhuma dessas
+falhas chega a `register`, `subscribed_apps` ou persistência — coberto por teste parametrizado.
+
+#### Decisão 3 — classificação de falha do Graph: o status HTTP não decide sozinho
+
+A revisão anterior deste documento dizia que "só uma NEGATIVA autoritativa do provedor (4xx)" contava.
+**Isso estava errado e foi corrigido.** `429 Too Many Requests` é rate limit temporário pelo
+[RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585#section-4), e a Meta transporta semântica
+transitória no corpo Graph mesmo respondendo `400`. A regra antiga vivia duplicada no connect e na
+sonda de saúde, e marcava canal quebrado durante um pico de tráfego.
+
+Existe agora **um único classificador**, `classifyGraphFailure()`, usado pelo connect e pela sonda. Ele
+recebe o sinal sanitizado (`graphStatus`, `graphCode`, `graphSubcode` — nunca token, URL com segredo ou
+corpo cru) e é **conservador por construção**: nada é negativa a menos que a documentação oficial diga
+que é.
+
+| Sinal | Classe | Fonte oficial |
+| --- | --- | --- |
+| `error.code` 4, 17, 341 | `rate_limited` | Graph API — [Handling errors](https://developers.facebook.com/docs/graph-api/guides/error-handling) |
+| `error.code` 80007, 130429, 133016 | `rate_limited` | Cloud API — [Error codes](https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes), tabela Throttling |
+| HTTP `429` | `rate_limited` | [RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585#section-4) |
+| `error.code` 2, 131016, 133004 | `indeterminate` | Graph API "Handling errors"; Cloud API "temporarily unavailable" |
+| `error.code` 0, 3, 10, 33, 102, 190, 200–299, 131005 | `denied` | Graph API "Handling errors"; Cloud API, tabela Authorization errors; 33 = "The business phone number has been deleted" |
+| `error.code` 100 **com** `error_subcode` 33 | `denied` | [Marketing API error reference](https://developers.facebook.com/docs/marketing-api/error-reference/) — token sem a permissão de usuário do sistema |
+| HTTP `401`, `403` | `denied` | Semântica HTTP: negativas de autorização |
+| HTTP `404` | `denied` (falha funcional da etapa) | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.5): o servidor não encontrou representação atual, e o status também pode ocultar a existência do recurso. **Não prova falta de permissão** — prova que o asset não está acessível por esta requisição. Fica fora de indeterminação porque o efeito prático é o mesmo (a etapa falhou), mas a causa não é reportada como "permissão negada" |
+| HTTP `400` sem código documentado | `indeterminate` | A Meta usa `400` para quase tudo, inclusive throttling — a classe não prova nada |
+| HTTP `5xx`, timeout, reset (`graphStatus: null`) | `indeterminate` | Sem resposta conclusiva |
+
+Ordem de avaliação: rate limit e transitório **vencem** a classe HTTP, porque a Meta devolve alguns
+deles com `400` — e um `429` carregando código da faixa de permissão continua sendo rate limit.
+
+Consequência deliberada: `error.code` 100 **sem** subcode deixou de ser negativa. É o preço da regra
+conservadora, e o custo é baixo — a resolução falha do mesmo jeito, nada é registrado, assinado ou
+persistido; só a mensagem passa a ser "a Meta não respondeu de forma conclusiva" em vez de acusar a
+conta. A verificação anti-sequestro forte (allowlist de `granular_scopes`) não depende de HTTP nenhum.
+
+**A classificação vale em TODAS as etapas do connect.** Correção posterior: ela estava aplicada só ao
+resolver de WABA e à sonda, então `429`, throttling no corpo, timeout e `5xx` na troca de code, na
+validação de escopos, no `POST /register` e no `POST /subscribed_apps` continuavam chegando à tela como
+"a Meta recusou". Agora ela vive dentro do próprio `graphFetch`, que é o único ponto por onde todas as
+chamadas passam.
+
+| Classe | Etapa reportada no connect | Sonda de saúde |
+| --- | --- | --- |
+| `denied` | **preserva a etapa funcional** (`authorization`, `permissions`, `account`, `phone_registration`, `webhook_subscription`) | `failed` |
+| `rate_limited` | `provider_rate_limited` | `unknown` |
+| `indeterminate` em `GET` | `provider_unavailable` | `unknown` |
+| `indeterminate` em `POST`/`DELETE` | `provider_outcome_unknown` | `unknown` |
+
+A separação por método é o ponto crítico. Num `GET` a indeterminação é inofensiva e a tela pode afirmar
+que nada foi alterado. Num `POST /register` ou `POST /subscribed_apps`, timeout ou `5xx` deixam o
+resultado externo **desconhecido**: a operação pode ter sido aplicada do outro lado. Não existe
+read-back nessas etapas, então a tela **não** promete "nada foi alterado" e **não** pede para repetir na
+hora — o mesmo princípio de POST indeterminado já adotado em pagamentos. Não foi implementado retry
+automático. Ela também **não** manda reabrir a tela: sem conexão persistida, `loadWhatsappStatus()` não
+tem o que sondar e nada diria sobre o estado do lado da Meta. A orientação é conferir o número no
+WhatsApp Manager ou acionar o suporte.
+
+Rate limit afirma menos do que a versão anterior deste documento dizia. O `429` prova throttling, mas o
+[RFC 6585](https://www.rfc-editor.org/rfc/rfc6585#section-4) não garante genericamente que todo `POST`
+assim classificado deixou de ser executado do outro lado. A mensagem passou a afirmar só o que é
+verificável localmente — **a conexão não foi salva** — e a orientar a aguardar.
+
+A distinção chega aos três lugares: mensagem na tela (`META_FAILURE_MESSAGES`), auditoria
+(`recordConnectionFailure({ errorStage })`) e log/observabilidade
+(`messaging.whatsapp.connection_failed`).
+
+#### Decisão 4 — corrida entre os dois canais e limite de correlação
+
+O Embedded Signup usa **dois canais independentes**: o callback do `FB.login` e o `postMessage` do
+pop-up. A ordem não é garantida, e o código decidia o veredito no callback — então um callback sem
+`code` que chegasse antes de um `FINISH` deixava a tela em `SIGNUP_NOT_STARTED` para sempre.
+
+**Limite de correlação, registrado explicitamente.** O `attempt.id` protege **apenas** o que o Qoro
+consegue amarrar a uma tentativa: o callback do `FB.login` (capturado no closure daquela chamada) e os
+timers. O `postMessage` **não é correlacionável** — a documentação oficial não expõe, em
+`FINISH`/`FINISH_ONLY_WABA`/`CANCEL`, nenhum identificador que também esteja disponível no callback do
+SDK (o `session_id` aparece só no formato de erro reportado). **Não se afirma que mensagens antigas são
+invalidadas pelo `id`**; elas não são.
+
+A contenção vem do **single-flight**, não da correlação:
+
+- só existe uma tentativa por vez. `launchSignup()` retorna imediatamente se a fase não for `idle` —
+  guarda **programática**, porque um clique duplo dispara os dois handlers antes do re-render e o
+  atributo `disabled` sozinho não barraria o segundo;
+- enquanto a tentativa está ativa, PIN, "Conectar WhatsApp" e "Reconectar WhatsApp" ficam desabilitados;
+- o `postMessage` só é aceito na fase `running`. Com o desfecho já conhecido (`closing`) ou sem
+  tentativa (`idle`), é descartado;
+- a liberação exige **os dois canais quiescentes**: o callback do SDK retornou **e** passou
+  `SIGNUP_QUIESCE_MS` (3 s) desde o desfecho. Só então uma nova tentativa pode começar.
+
+Risco residual, declarado: se o pop-up de uma tentativa sobreviver à liberação e emitir um evento
+**depois** de a tentativa seguinte começar, não há como distingui-lo. Não existe mecanismo oficial que
+elimine isso; o que a implementação garante é que nenhuma tentativa nova começa antes de a anterior
+estar terminal e quiescente.
+
+Timers, todos nomeados, cancelados no desmonte e ao iniciar nova tentativa:
+
+| Constante | Valor | Papel |
+| --- | --- | --- |
+| `SIGNUP_EVENT_GRACE_MS` | 1,5 s | Callback voltou sem `code`: espera um evento antes de decidir. Qualquer evento resolve e cancela o timer |
+| `SIGNUP_QUIESCE_MS` | 3 s | Desfecho conhecido: janela em que um `postMessage` atrasado ainda é descartado |
+| `SIGNUP_ABANDON_MS` | 10 min | Timeout explícito, ativo em `running` **e** em `closing`. Único caminho que libera sem os dois canais quiescentes — existe porque um pop-up morto pelo sistema pode nunca acionar o callback do SDK. Sem desfecho, encerra com `SIGNUP_TIMED_OUT`; **com** desfecho já registrado, apenas destrava e preserva a mensagem original |
+
+**Resposta da Server Action.** Ela é descartada por `attempt.id` antes de qualquer efeito — nem
+`setError`, nem `router.refresh()`, nem escrita de estado. Mas o que **garante** que uma resposta
+atrasada nunca encontre uma tentativa mais nova não é o id: é o `pending` da transição, que trava PIN e
+botões enquanto a action não responde, mesmo depois de o abandono ter liberado a fase. Quando a
+resposta chega, a transição já terminou. A checagem por id é defesa em profundidade, não a garantia
+principal — e é isso que o teste prova: com a action em curso e a fase já liberada, `FB.login` continua
+sendo chamado exatamente uma vez.
+
+**Correção do deadlock em `closing`.** A revisão anterior deste documento afirmava que o abandono já
+cobria essa fase — **não cobria**: `beginClosing()` cancelava o timer, e a liberação exige
+`callbackReturned`. Um `CANCEL`, `ERROR` ou `FINISH` sem `waba_id` seguido de um callback que nunca
+retorna travava PIN e botões até um reload da página. O timer deixou de ser cancelado ali e passou a
+valer nas duas fases; todos os timers guardam `attempt.id`, então nenhum timer antigo libera ou suja
+uma tentativa nova. Três testes com timers falsos cobrem os três eventos terminais, e a mutação que
+reintroduz o cancelamento faz 5 testes falharem.
+
+Ordens cobertas por teste: `code`→FINISH, FINISH→`code`, sem-`code`→FINISH, FINISH→sem-`code`,
+sem-`code`→nada, sem-`code`→CANCEL, CANCEL→sem-`code`, erro reportado nas duas ordens, evento `ERROR`,
+clique duplo, relançamento bloqueado com janela pendente, CANCEL antes do callback travando até o
+callback + quiescência, callback atrasado da tentativa anterior, `postMessage` fora da fase ativa e
+abandono. Dois testes são verificados por mutação: removendo o cleanup do desmonte, 13 falham;
+removendo a guarda de single-flight, o teste de clique duplo falha.
+
+#### Decisão 5 — contrato de `ERROR`/`CANCEL`: ambíguo na fonte oficial
+
+Registro de incerteza, porque a documentação oficial é **inconsistente entre páginas** e a versão em
+uso não pode ser fixada a partir do repositório:
+
+- a página de [implementação](https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/implementation)
+  modela o campo como `event: '<FLOW_FINISH_TYPE>'` e lista, na mesma enum, `FINISH`,
+  `FINISH_ONLY_WABA`, `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`, `FINISH_OBO_MIGRATION`,
+  `FINISH_GRANT_ONLY_API_ACCESS`, `CANCEL` **e `ERROR`**;
+- a mesma página mostra o erro reportado chegando como `event: 'CANCEL'` com
+  `error_message`/`error_code`/`session_id`/`timestamp`, e o abandono como `event: 'CANCEL'` com
+  `current_step`;
+- a página de [erros do fluxo](https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/errors/)
+  exibe `version: 3` no payload de `CANCEL`; a de implementação não exibe `version` em nenhum exemplo.
+
+**A afirmação anterior deste documento — "não existe evento `ERROR` publicado" — estava errada** e foi
+removida. As duas formas são suportadas de propósito, e o código não depende de `version`. Os `FINISH_*`
+de outros fluxos (app do WhatsApp Business, migração OBO, grant-only) não pertencem a esta configuração
+e não são tratados.
+
+Desfechos que a tela distingue, sem reproduzir o texto cross-origin do pop-up:
+
+| Código na tela | Condição observável |
+| --- | --- |
+| `SIGNUP_NOT_STARTED` | callback sem `code` e **nenhum** `WA_EMBEDDED_SIGNUP` dentro da janela de tolerância |
+| `CANCELLED` | `CANCEL` sem `error_message`/`error_code` (desistência humana) |
+| `META_SIGNUP_ERROR` | `CANCEL` com `error_message`/`error_code`, ou `ERROR`. Só a referência curta é exibida, sanitizada para `[A-Za-z0-9_-]{,32}` |
+| `SIGNUP_INCOMPLETE` | `FINISH`/`FINISH_ONLY_WABA` sem `waba_id` |
+| `AUTHORIZATION_MISSING` | `FINISH` válido, mas o `FB.login` não devolveu `code` |
+| `SIGNUP_TIMED_OUT` | `SIGNUP_ABANDON_MS` expirou **sem** desfecho — o pop-up nunca acionou o callback do SDK. Com desfecho já registrado, o abandono apenas destrava e não substitui a mensagem |
+
+A mensagem de `SIGNUP_NOT_STARTED` afirma apenas o que é observável — que nenhum evento chegou — e pede
+que o operador informe o aviso caso o pop-up tenha exibido algum. O Qoro **não** lê aquela janela.
+
+#### Decisão 6 — compatibilidade do payload da Server Action
+
+`wabaHint`/`phoneHint` foram renomeados para `wabaId`/`phoneNumberId`. Decisão: **manter a quebra, sem
+aliases**.
+
+A [doc de Server Actions do Next.js](https://nextjs.org/docs/app/guides/server-actions) é explícita:
+*"Each Server Action is identified by the action ID that is part of its build artifacts. New
+deployments typically generate new IDs (Next.js rotates them at most every 14 days, even when the
+source is unchanged), so a client still running the previous build may invoke an action ID that no
+longer exists."* A chamada de uma aba antiga falha na resolução do **id**, antes de o payload ser
+desserializado — aliases no schema nunca seriam alcançados. Aceitá-los criaria um segundo contrato
+permanente sem resolver nada.
+
+A recomendação da própria doc (*"Surface the error as a retry path in the UI rather than a hard failure,
+so a refresh recovers the user"*) já está atendida: a falha cai no `catch` do connect, que exibe
+`CONNECTION_FAILED` com "Tente novamente" e libera nova tentativa. A janela de risco é mínima — o fluxo
+sempre parte de um pop-up novo — e recarregar a página resolve.
+
+#### Arquivos alterados
+
+| Arquivo | Mudança |
+| --- | --- |
+| `src/contexts/messaging/internal/meta-onboarding.ts` | `MetaTokenGrant`; `validateTokenScopes` devolve as WABAs de `granular_scopes`; `resolveWabaAndPhone` com allowlist + `waba_id` obrigatório; remoção de `/me/businesses` e `/owned_whatsapp_business_accounts`; `pickPhone()` sem escolha por posição; `listWabaPhones()` delega a classificação; **classificação única dentro de `graphFetch`** (`classifySignal`/`classifyGraphFailure` + `failureStage`), cobrindo todas as etapas do connect e separando mutação de leitura; `graphFetch` extrai `error.code` e `error_subcode`; `outcomeFromGraphError` usa o mesmo classificador |
+| `src/contexts/messaging/actions.ts` | `wabaHint`/`phoneHint` → `wabaId`/`phoneNumberId`; falha `signup_incomplete` antes de qualquer chamada Meta; repasse do grant ao resolver |
+| `src/contexts/messaging/errors.ts` | estágios `signup_incomplete`, `phone_ambiguous`, `provider_unavailable`, `provider_rate_limited`, `provider_outcome_unknown`; `MetaConnectError` carrega `graphCode` e `graphSubcode` |
+| `src/contexts/messaging/internal/channel-health.ts` | comentário canônico alinhado: negativa é a **documentada**, não "todo 4xx" |
+| `src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.tsx` | máquina `idle/running/closing` com single-flight; `SIGNUP_EVENT_GRACE_MS`, `SIGNUP_QUIESCE_MS`, `SIGNUP_ABANDON_MS` ativo também em `closing` (correção do deadlock); `attempt.id` em todos os timers, e a resposta da Server Action descartada por id antes de qualquer efeito; timers cancelados no desmonte e em nova tentativa; desfecho terminal não sobrescrito; PIN e botões travados durante a tentativa; CANCEL com/sem erro; `ERROR` suportado; sanitização da referência da Meta |
+| `src/app/(app)/(shell)/configuracoes/whatsapp/wa-types.ts` | mensagens dos cinco estágios novos, com `provider_outcome_unknown` sem prometer "nada foi alterado" |
+| `+5 arquivos de teste` | `meta-onboarding.test.ts`, `meta-health-probe.test.ts`, `connect-tenant.test.ts`, `whatsapp-connect.test.tsx`, `wa-types.test.ts` |
+
+Sem migration, sem mudança de schema, sem alteração no painel Meta, sem chamada externa mutável.
+
+#### Gates — execução de 05/09/2026 (worktree `feat/qorov2-pagamentos`)
+
+| Gate | Comando | Resultado |
+| --- | --- | --- |
+| Testes focados (Meta + UI) | `vitest run meta-onboarding.test.ts meta-health-probe.test.ts connect-tenant.test.ts whatsapp-connect.test.tsx wa-types.test.ts` | ✅ **199/199 em 5 arquivos** (exit 0) |
+| Suíte integral | `pnpm test:coverage` | ✅ **2.959/2.959 em 311 arquivos**, thresholds atendidos (exit 0) |
+| Typecheck | `pnpm typecheck` | ✅ sem erro |
+| Lint integral | `pnpm lint` | ✅ sem erro |
+| Ciclos | `pnpm arch:check` | ✅ nenhum ciclo |
+| Snapshots de arquitetura | `pnpm arch:graphs --check` | ✅ em dia (54 elementos · 293 arestas · 0 ciclo · 67 eventos) |
+| Fronteira de DB | `pnpm arch:db-check` | ✅ 1.121 arquivos, 0 achados |
+| Migrations | `pnpm check:migrations` | ✅ nenhuma operação destrutiva não aprovada |
+| Observabilidade | `pnpm check:observability` | ✅ 18 crons coerentes |
+| Registry | `pnpm check:registry:strict` | ✅ catálogo (67) ⇔ registry (25) |
+| Build | `pnpm build` | ✅ compilado em 6,0 min (exit 0) |
+| Diff | `git diff --check` + releitura | ✅ limpo; sem segredo, log de debug ou teste desabilitado |
+| Formatação | `pnpm format:check` | ⚠️ **vermelho pré-existente** por CRLF no checkout Windows; o CI não roda este gate. Comparação com o HEAD, ambos normalizados para LF com `.prettierrc` + `.editorconfig`: **o mesmo conjunto de 4 arquivos** diverge antes e depois — zero drift novo |
+| **E2E Meta externo** | conta sem App Role | 🔴 **`NOT TESTED`** — depende do desbloqueio na Meta e de autorização explícita. Nenhum mock substitui esta prova |
+
+Os testes usam `fetch` e Server Action mockados: provam **regressão local**, não o provider.
+
+#### Corrigido em código vs. dependente da Meta
+
+**Corrigido em código (fechado):**
+
+- fallback incompatível com o token de usuário do sistema, removido; runtime não exige
+  `business_management`;
+- `waba_id` obrigatório, validado por allowlist do token (quando disponível) + `/phone_numbers`;
+- telefone nunca escolhido por posição em lista ambígua; id inexistente falha em vez de cair no primeiro;
+- classificador único de falha do Graph, agora dentro do `graphFetch` e portanto ativo em **todas** as
+  etapas do connect (troca de code, escopos, resolução, `/register`, `/subscribed_apps`) e na sonda:
+  `429`, códigos de throttling, `5xx`, timeout e `400` sem código documentado deixaram de virar
+  "recusa";
+- mutação indeterminada (`POST`/`DELETE`) separada de leitura indeterminada: `provider_outcome_unknown`
+  não promete "nada foi alterado" e não pede repetição imediata — sem retry automático;
+- deadlock da fase `closing` corrigido: o abandono cobre `running` e `closing`, destrava sem
+  substituir o desfecho já registrado e não deixa timer vivo no desmonte;
+- single-flight do Embedded Signup: uma tentativa por vez, PIN e botões travados, guarda programática
+  contra clique duplo, liberação só com os dois canais quiescentes;
+- corrida callback/`postMessage` modelada; três timers nomeados, cancelados no desmonte e em nova
+  tentativa; limite de correlação do `postMessage` documentado em vez de mascarado;
+- nenhuma persistência, registro ou assinatura após qualquer falha (teste parametrizado);
+- tela distingue cinco desfechos observáveis sem reproduzir texto cross-origin.
+
+**Dependente da Meta / App Review (aberto):**
+
+- Advanced Access de `public_profile` (hoje "Pronto para teste") para que uma conta sem App Role
+  consiga ver o diálogo de login;
+- verificar no painel se há pendência de Verificação da Empresa, Data Use Checkup ou outra ação
+  exigida — **nenhuma delas está confirmada**;
+- `whatsapp_business_manage_events` permanece sem uso no repositório e **não deve entrar na análise**;
+- `business_management` **não deve ser solicitada**: o código final não consulta portfólio. Ela só
+  passaria a fazer sentido se o produto voltasse a consultar o portfólio empresarial, e pedir permissão
+  sem uso atual demonstrável prejudica o App Review;
+- reteste com conta externa sem App Role.
+
+#### Roteiro de painel para o operador
+
+1. **Diagnosticar antes de submeter.** Em *Painel do app → Análise do app → Permissões e recursos*,
+   anote o nível de cada permissão: toda permissão exigida pelo diálogo de login precisa estar em
+   **Acesso avançado** para usuários sem função no app, inclusive `public_profile`. Depois, percorra
+   separadamente e anote o estado de cada item, sem presumir nenhum: **Verificação da Empresa**,
+   **Data Use Checkup**, e a lista de ações pendentes exibida na Caixa de entrada do painel.
+2. **Concluir o Advanced Access do fluxo realmente implementado.** Solicitar Acesso avançado apenas
+   para `public_profile` e manter os dois escopos WhatsApp já aprovados. **Não** incluir
+   `business_management` nem `whatsapp_business_manage_events`.
+3. **Justificativa e vídeo.** Gravar a jornada real: clínica em `/configuracoes/whatsapp` → Conectar →
+   login → seleção de WABA/número → tela conectada. Chamadas de teste demonstráveis:
+   `GET /{waba-id}/phone_numbers` e `POST /{waba-id}/subscribed_apps` com o token do Embedded Signup.
+4. **Não presumir efeito automático.** Adicionar uma permissão à análise **não** altera a configuração
+   ativa `2444333529395515` nem tokens já emitidos. A configuração só deve ser tocada **depois** da
+   aprovação, e apenas se o código passar a exigir a permissão nova — hoje ele não exige.
+5. **Desbloqueio temporário do cliente (opcional).** Adicionar o perfil pessoal do cliente como App Role
+   **Tester**, pedir que aceite o convite, testar e **remover a função depois**. Isso só prova o caminho
+   com função no app; não substitui o reteste externo. **Nunca** solicitar senha, código de autenticação
+   ou token ao cliente.
+
+#### Roteiro de reteste externo
+
+Executar com uma conta **sem nenhuma função no app** e registrar cada etapa separadamente. Só declarar
+D78 resolvido se as sete passarem:
+
+| # | Etapa | Evidência esperada |
+| --- | --- | --- |
+| 1 | popup abre e mostra o login | diálogo OAuth com o `config_id` da configuração ativa |
+| 2 | login conclui sem `Recurso indisponível` | avança para as telas do Embedded Signup |
+| 3 | `code` emitido | a tela entra em conexão; se não, o código exibido diz qual desfecho ocorreu |
+| 4 | evento `FINISH` com `waba_id` | conexão prossegue; se faltar, a tela mostra `SIGNUP_INCOMPLETE` |
+| 5 | WABA/telefone resolvidos | sem falha de `account`, `phone_ambiguous` ou `provider_unavailable` |
+| 6 | `register` + `subscribed_apps` | sem falha de `phone_registration`/`webhook_subscription` |
+| 7 | persistência | tela em "WhatsApp conectado" com número mascarado |
+
+Se a etapa 2 falhar de novo com a mesma mensagem, a causa é externa e o código não é o bloqueio; se
+falhar da etapa 3 em diante, há evidência nova de produto — e agora a tela informa **qual** desfecho
+ocorreu, em vez de dizer "cancelada". Contexto e brief original:
+[handoff D78](handoff-meta-embedded-signup.md), incluído no mesmo lote para preservar o link.
+
 ### Sub-fases da Camada 1
 
 | Sub-fase | Estado | Confirmado por |
@@ -390,6 +775,7 @@ global da conta alvo.
 | D67 | Webhook de paciente existente não convergiu após a ampliação do contrato D27/D50 | **RESOLVIDO em 01/09** — reparação guardada confirmou conta, `webhook_ref`, host/rota e estado; atualizou `Qoro — cobranca de paciente` para os 12 eventos canônicos, `SEQUENTIALLY`, ativo/não interrompido. O recurso global `qoro dev` foi removido naquele momento por autorização, mas a correção posterior da conta global mostrou que ele deverá ser recriado separadamente para Billing |
 | D68 | Estado do webhook foi inferido da identidade da conta e o histórico misturava duas contas | **CORRIGIDO em 02/09** — a auditoria da conta alvo confirmou exatamente um webhook tenant, 12 eventos, `enabled=true`, `interrupted=false`, além da entrega D62. PIX/alertas/401 pertenciam à conta antiga e nunca foram somados ao aceite. O operador confirmou que o PIX antigo não foi estornado e removeu webhook e chaves API dessa conta. Os manifests v2 agora guardam fingerprint não reversível da conta e os runners abortam se a identidade divergir |
 | D69 | O verificador amplo encontrou linhas órfãs de round-trip anteriores | ✅ **RESOLVIDO E LIMPO EM DEV em 03/09** — autorização separada recebida. O dry-run confirmou exatamente 4 `checkout_sessions` + 4 `tenant_provisioning`, ambas sem `clinic_id`, zero clínica ativa e somente a FK esperada. Após backup local ignorado pelo Git, a exclusão ocorreu sob advisory lock e transação; foram removidas exatamente 4 + 4 linhas. O pós-check e o verificador amplo retornaram `historicalRoundtripRows=0` e `billingRoundtripActiveFixtures=0` |
+| D78 | Conta externa recebe `Recurso indisponível` no OAuth do Embedded Signup; o fallback local pressupõe `/me/businesses`, mas a configuração emite token de usuário do sistema | **CÓDIGO CORRIGIDO em 05/09; BLOQUEADO NA META** — menor privilégio: `waba_id` do evento obrigatório, conferido contra a allowlist do próprio token (`debug_token → granular_scopes.target_ids`) e contra `/{waba-id}/phone_numbers`; `/me/businesses` removido e `business_management` **não** exigida no runtime. Telefone nunca é escolhido por posição. Classificação de falha do Graph agora vive dentro do `graphFetch` e vale em **todas** as etapas do connect: negativa documentada preserva a etapa funcional, rate limit vira `provider_rate_limited`, indeterminação em `GET` vira `provider_unavailable` e em `POST`/`DELETE` vira `provider_outcome_unknown` — sem prometer "nada foi alterado" nem repetir mutação às cegas. Embedded Signup é **single-flight** (o `postMessage` não é correlacionável) e o deadlock da fase `closing` foi corrigido: o abandono de 10 min cobre `running` e `closing`, destravando sem substituir o desfecho. Gates locais verdes (199/199 focados · 2.959/2.959 integrais). Falta o externo: Advanced Access de `public_profile` e verificação separada de Verificação da Empresa/Data Use Checkup no painel, mais reteste com conta sem App Role — `NOT TESTED`. Contexto: [handoff D78](handoff-meta-embedded-signup.md) |
 | D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
 | D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
 | D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
@@ -432,6 +818,9 @@ atendido → financial cria lançamento BRUTO (200) e aplica o crédito (100) �
 
 Para continuar em outra sessão, use **[docs/handoff-qorov2.md](handoff-qorov2.md)** — prompt
 auto-suficiente com processo, restrições, o que falta na Camada 1 e as ondas seguintes.
+
+Para tratar apenas o incidente de onboarding Meta D78, use o prompt
+**[docs/handoff-meta-embedded-signup.md](handoff-meta-embedded-signup.md)**.
 
 ### Próximo passo
 
