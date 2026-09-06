@@ -4,6 +4,13 @@
 > Este handoff separa configuração externa, contrato da Graph API e mudança de código; não pressupõe
 > que um teste mockado ou uma tela verde no painel prove a jornada do cliente.
 
+> **Atualização de 06/09/2026:** este arquivo preserva o brief que originou D78, mas as alternativas
+> das seções 4, 7 e 9 foram superadas pela implementação. O runtime atual exige `waba_id` do evento,
+> valida a allowlist de `debug_token` e `/{waba-id}/phone_numbers`, removeu o fallback
+> `/me/businesses` e não usa `business_management` nem `whatsapp_business_manage_events`. O operador
+> enviou para análise somente `public_profile`, mantendo na configuração ativa os dois escopos
+> WhatsApp já aprovados. O E2E com conta externa continua `NOT TESTED` até a decisão da Meta.
+
 ---
 
 Você é o Principal Engineer responsável por resolver o incidente **D78 — Meta WhatsApp Embedded

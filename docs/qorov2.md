@@ -150,8 +150,12 @@ já estava no painel; o runner só liberou o único refund autorizado após coma
 passou por `AWAITING_CRITICAL_ACTION_AUTHORIZATION` às 02:08:26 BRT e terminou `CANCELLED` às
 02:09:37 BRT. O Qoro não repetiu POST, marcou `failed`, manteve cobrança `paid` e crédito
 `available`; o readback final e o cleanup local passaram, preservando o histórico Sandbox. O runner
-não observa a UI do Asaas e, portanto, não confirma se o painel registrou o código humano. Não criar
-nova fixture: o caminho `DONE` está **BLOCKED** até diagnóstico do suporte/provedor.
+não observa a UI do Asaas, mas o operador confirmou depois que o painel mostrou sucesso ao aceitar o
+código Sandbox. Mesmo assim, a API terminou em `CANCELLED` e o saldo continuou subindo: cada PIX de
+teste foi creditado, enquanto nenhum refund chegou a `DONE` para ser considerado devolvido. Essa
+confirmação humana reforça uma inconsistência entre a ação crítica exibida e o estado terminal do
+provider; não prova que o refund foi concluído. Não criar nova fixture: o caminho `DONE` está
+**BLOCKED** até diagnóstico do suporte/provedor.
 
 ### D78 — Embedded Signup indisponível para conta externa e contrato do token Meta
 
@@ -609,7 +613,7 @@ suíte integral, build e checks arquiteturais/operacionais foram repetidos no wo
 | D50/D27/D77 DB | `pnpm smoke:payments-money-db` | ✅ **7/7 em DEV**: estrutura/RLS/grants, intenção concorrente, `CANCELLED` sem falso fechamento, `DONE` atômico + replay, D50 exato, disputa/reversão e perda/cross-tenant; cleanup zero |
 | P11 focado | `pnpm vitest run <7 arquivos>` | ✅ **104/104**: migration, closeout, webhook, reconciliador, descoberta de tenants, handler e intents antigos sem os contadores da 0094 |
 | Migration PROD `0094` | `SUPABASE_PROJECT_ENV=prod pnpm db:migrate:prod` + verificação read-only | ✅ backup **2.661.164 bytes** · advisory lock adquirido/liberado · `DONE` · pós-check **9/9**: version/journal, colunas, constraints, RLS/FORCE RLS, grants, dados existentes e lock ausente |
-| D77 externo pós-rollout | runner guardado de PIX na Clinic A Sandbox | ✅ **CANCELLED PASS / DONE BLOCKED**: duas fixtures isoladas liquidaram PIX e fizeram exatamente 1 refund cada, sem segundo POST no replay. Ambas terminaram `CANCELLED`; intenção `failed`, cobrança `paid` e crédito `available`. A última usou trava pré-POST com operador no painel e ficou 71 s em autorização crítica. Readback/reconcile e cleanup local passaram; histórico Sandbox preservado |
+| D77 externo pós-rollout | runner guardado de PIX na Clinic A Sandbox | ✅ **CANCELLED PASS / DONE BLOCKED**: duas fixtures isoladas liquidaram PIX e fizeram exatamente 1 refund cada, sem segundo POST no replay. Ambas terminaram `CANCELLED`; intenção `failed`, cobrança `paid` e crédito `available`. A última usou trava pré-POST com operador no painel e ficou 71 s em autorização crítica. O painel informou sucesso ao operador, mas a API cancelou o refund e o saldo continuou subindo com os PIX creditados. Readback/reconcile e cleanup local passaram; histórico Sandbox preservado |
 | D79 correlação do refund | `asaas/index` + `excess-refund` | ✅ adapter não confunde mais o id da cobrança com refund; fallback do baseline aceita id armazenado sem correspondência; regressões `CANCELLED` e `DONE` + suíte 2.977/2.977 verdes |
 | D50 focado + status preservado | `pnpm vitest run <6 arquivos>` + `STATUS_CLINICA_A_D50` | ✅ **29/29**; pagamento/webhook reais, R$ 10 alocados, um único POST parcial de R$ 10 e intenção `confirmation_pending`. Novo readback de 06/09 confirmou pagamento `CONFIRMED`, recebível R$ 20 pago, duas baixas/R$ 20, baseline zero e exatamente um refund de R$ 10 ainda `PENDING`; nenhum POST/cleanup |
 | D62 tenant + Financial + replay | `PROCESS_RETAINED_CLINICA_A_PATIENT_CHARGEBACK_RISK` | ✅ **3 fatos processados / replay 0 de 3**; conta vinculada por fingerprint, nenhuma fila alheia tocada, compensação ligada à baixa, `chargeback_loss` única, saldo reaberto e atendimento preservado |
@@ -755,7 +759,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | Indicar destinatário controlado para os templates Meta já aprovados | O telefone pertence à pessoa real e exige consentimento de cobrança | ✅ **FEITO em 31/08** — variável local presente, em E.164 e com consentimento confirmado pelo fundador; o valor não foi exposto. A conexão ativa do tenant continua sendo gate separado |
 | Rotacionar a chave sandbox do Asaas exposta no chat | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave | ✅ **NÃO EXECUTAR POR DECISÃO DO FUNDADOR (E4)** — risco residual do Sandbox aceito em 03/09; reabrir somente nas condições registradas em P3 |
 | Resolver o PIX da conta Sandbox anterior | A conta antiga exigia ação humana e depois deixou de ser a conta-alvo | **ENCERRADO COMO `NOT COMPLETED`:** o operador confirmou que nada foi estornado, removeu webhook/chaves e não localizou mais a cobrança. Não recuperar nem recolocar essa credencial. Se útil, criar amanhã uma fixture PIX nova na conta atual |
-| Autorizar os estornos das provas PIX na conta Sandbox atual | A confirmação de ação crítica exige interação humana autenticada no painel do titular | **EXECUTADO, MAS O PROVIDER CANCELOU:** na primeira prova, o operador informou o código recebido no celular. Na prova pós-D79, o runner foi pausado antes do único POST com o operador já no painel, mas não consegue observar se a UI registrou o código. Ambos os refunds terminaram `CANCELLED`; saldo, readback, replay e cleanup local passaram. Não repetir nem criar fixture antes do diagnóstico D80 |
+| Autorizar os estornos das provas PIX na conta Sandbox atual | A confirmação de ação crítica exige interação humana autenticada no painel do titular | **EXECUTADO, MAS O PROVIDER CANCELOU:** na primeira prova, o operador informou o código recebido no celular. Na prova pós-D79, o runner foi pausado antes do único POST com o operador já no painel; depois, o operador confirmou que a interface mostrou sucesso ao aceitar o código Sandbox. Mesmo assim, a API terminou `CANCELLED` e o saldo continuou subindo porque os PIX foram creditados sem refund `DONE`. Readback, replay e cleanup local passaram. Não repetir nem criar fixture antes do diagnóstico D80 |
 | Alinhar o webhook global de assinatura no ambiente correto | O secret efetivo do runtime Preview só pode ser alterado por quem possui acesso ao projeto Vercel | ✅ **FEITO E PROVADO:** chave/token/Preview alinhados; `qoro dev` criado na conta alvo; readback, delete/restore, replay e cleanup passaram |
 | Observar usabilidade por persona na clínica piloto | Julgamento de percepção exige secretária/médico/paciente reais; web, agente e Playwright não podem fabricar experiência vivida | **DEFERRED PARA A ONDA 1, não é ação manual agora nem bloqueio de 1.S.** O aceite técnico-normativo e sua prova pós-deploy foram executados pelo agente |
 | Rotacionar novamente a senha do banco de produção e atualizar todos os consumidores | A credencial usada na migration foi rotacionada corretamente, mas a sucessora foi publicada no chat antes da verificação; continuar com ela seria risco crítico | ✅ **CONFIRMADO PELO FUNDADOR**; a credencial exposta não foi usada, o DPAPI foi removido sem leitura e o env atualizado foi usado somente em transação read-only |
@@ -1881,8 +1885,10 @@ Uma nova tentativa controlada foi executada depois desse rollout. O runner valid
 fixture, liquidou o PIX e pausou antes do POST. Com o operador já no painel, liberou exatamente um
 refund: `AWAITING_CRITICAL_ACTION_AUTHORIZATION` às 02:08:26 BRT e `CANCELLED` às 02:09:37 BRT.
 Replay não criou outro refund; readback/reconcile manteve `failed/paid/available` e o cleanup local
-passou. Como o runner não observa a UI do Asaas, a confirmação visual do código humano precisa vir do
-operador. D80 bloqueia nova tentativa até diagnóstico do suporte; `DONE` externo segue `BLOCKED`.
+passou. Como o runner não observa a UI do Asaas, a confirmação visual veio do operador: o painel
+mostrou sucesso ao aceitar o código Sandbox. Ainda assim, a API encerrou o refund como `CANCELLED`, e
+o saldo continuou subindo com os PIX pagos porque nenhum estorno chegou a `DONE`. D80 bloqueia nova
+tentativa até diagnóstico do suporte; `DONE` externo segue `BLOCKED`.
 
 #### B. Provar o round-trip do webhook global de assinatura
 

@@ -64,8 +64,10 @@ canônico e às seções 20–21 de `qorov2.md`:
 - uma nova prova D77 pós-D79 usou saldo pré-validado e uma trava antes do POST, com o operador já no
   painel. Exatamente um refund foi liberado; ele ficou em `AWAITING_CRITICAL_ACTION_AUTHORIZATION` por
   71 segundos e terminou `CANCELLED`. Replay, `failed/paid/available`, readback e cleanup local
-  passaram. O runner não observa se a UI registrou o código informado. D80 está bloqueado no suporte
-  Asaas; não criar outra fixture nem repetir POST;
+  passaram. O runner não observa a UI, mas o operador confirmou depois que o painel mostrou sucesso
+  ao aceitar o código Sandbox. Apesar disso, a API terminou `CANCELLED` e o saldo continuou subindo
+  com os PIX creditados, pois nenhum refund chegou a `DONE`. D80 está bloqueado no suporte Asaas; não
+  criar outra fixture nem repetir POST;
 - D50 permanece na conta alvo com um único refund parcial `PENDING`; readback de 06/09 confirmou a
   mesma intenção/valor únicos. O Caixa mostra a exceção, mas não o status técnico `DONE` (D72). Não
   repetir POST;

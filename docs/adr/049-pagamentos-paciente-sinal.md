@@ -306,9 +306,10 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
   baseline passou a aceitar também id armazenado sem correspondência. Regressões `CANCELLED`/`DONE`
   e suíte 2.977/2.977 passaram. O commit `0181939` foi publicado, o deployment terminou `success` e
   o Preview passou 6/6. Uma segunda prova pós-rollout usou trava antes do POST e operador já no painel,
-  mas também terminou `CANCELLED` após 71 segundos em autorização crítica. Exatamente um refund,
-  replay sem duplicata, `failed/paid/available` e cleanup local passaram. D80 bloqueia o ramo externo
-  `DONE → refunded` até diagnóstico do Asaas; não repetir POST.
+  mas também terminou `CANCELLED` após 71 segundos em autorização crítica. O painel mostrou sucesso
+  ao aceitar o código Sandbox; isso não virou refund `DONE`, e o saldo continuou subindo com os PIX
+  pagos. Exatamente um refund, replay sem duplicata, `failed/paid/available` e cleanup local passaram.
+  D80 bloqueia o ramo externo `DONE → refunded` até diagnóstico do Asaas; não repetir POST.
 
 #### 1.5b — Restante (DESENHADA E EXECUTADA — ver ADR-051)
 
