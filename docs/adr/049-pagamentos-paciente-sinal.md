@@ -299,8 +299,13 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
   readback, inclusive se a política for desligada; intents pré-0094 com contadores nulos continuam
   conciliáveis pelo refund id, total confirmado ou status do pagamento. A migration 0094 foi aplicada
   em DEV e produção; o pós-check PROD passou 9/9, `f2c1b60` foi publicado no Preview e o smoke passou
-  6/6. A nova prova Sandbox fez exatamente um refund e o replay não o duplicou, mas o provider ainda
-  o mantém `PENDING`; terminal, reconciliação e cleanup continuam como gate externo.
+  6/6. A nova prova Sandbox fez exatamente um refund e o replay não o duplicou; em 06/09 o provider
+  terminou `CANCELLED`, o readback/reconcile preservou cobrança `paid` e crédito `available`, e o
+  cleanup local exato passou. A retomada revelou D79: o POST devolve o pagamento atualizado, não um
+  objeto de refund. O adapter deixou de persistir o id da cobrança como refund e o fallback por
+  baseline passou a aceitar também id armazenado sem correspondência. Regressões `CANCELLED`/`DONE`
+  e suíte 2.977/2.977 passaram. O commit `0181939` foi publicado, o deployment terminou `success` e
+  o Preview passou 6/6. O ramo externo `DONE → refunded` permanece `NOT TESTED`.
 
 #### 1.5b — Restante (DESENHADA E EXECUTADA — ver ADR-051)
 
@@ -391,17 +396,18 @@ Ramo C (cancela a tempo): sinal ESTORNADO
 
 ## 7. Critérios de aprovação da Camada 1 (portão)
 
-**Estado em 2026-09-05:** Build · Lint · Typecheck · Unit · Integration · Contract e arquitetura estão
-verdes; 2.975 testes passam sem regressão. D24/D58, D50, D27, D63 e P11/D77 estão implementados; migrations
+**Estado em 2026-09-06:** Build · Lint · Typecheck · Unit · Integration · Contract e arquitetura estão
+verdes; 2.977 testes passam sem regressão. D24/D58, D50, D27, D63 e P11/D77 estão implementados; migrations
 0091/0092 foram aplicadas e verificadas em DEV e produção, e os smokes correspondentes passaram. O E2E
 Meta real de sinal e restante foi aceito pelo provider e confirmado no aparelho pelo operador, com
 templates distintos, message ids, replay zero e cleanup. D54/D55 percorreram o round-trip real
 `PAYMENT_DELETED → PAYMENT_RESTORED`; o chargeback tenant D62 chegou a `REFUNDED/DONE`, atravessou o
 Financial e foi limpo. O Product Acceptance técnico-normativo e seu pós-deploy estão verdes. A Camada
-1 **ainda não está aprovada** porque o refund parcial D50 continua `PENDING` no Asaas e a nova prova
-P11/D77 também está `PENDING` no provider. O rollout D77 está concluído: 0094 em DEV/PROD, pós-check
-PROD 9/9, 104 testes focados, smoke 7/7 e Preview 6/6. O refund D77 foi criado exatamente uma vez e o
-replay não o duplicou; aguardar terminal, reconciliar e limpar. A 1.S/P10 foi concluída e revalidada no
+1 **ainda não está aprovada** porque o refund parcial D50 continua `PENDING` no Asaas e o caminho
+externo feliz `DONE` do P11/D77 segue `NOT TESTED`. O rollout D77 está concluído: 0094 em DEV/PROD,
+pós-check PROD 9/9, 104 testes focados, smoke 7/7 e Preview 6/6. O refund D77 foi criado exatamente uma
+vez, não duplicou no replay, terminou `CANCELLED` e foi reconciliado/limpo localmente sem falso
+fechamento. A 1.S/P10 foi concluída e revalidada no
 Preview em `4883372`. Não repetir nenhum POST externo. A
 fila executável e a evidência atual estão em `docs/qorov2.md` P0–P11. Proibido concluir com código sem teste, migration sem volume, endpoint/fluxo
 sem E2E, warning ignorado ou evidência externa presumida.

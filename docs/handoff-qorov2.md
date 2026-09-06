@@ -26,7 +26,7 @@ Depois dele, leia:
 | `docs/runbooks/payment-account-connect.md` | operação do ciclo de cobrança do paciente |
 | `docs/runbooks/asaas-webhook-assinatura.md` | webhook da conta do Qoro (governa acesso ao produto) |
 
-### Atualização operacional de 05/09/2026
+### Atualização operacional de 06/09/2026
 
 O restante deste handoff contém histórico útil, mas qualquer estado divergente deve ceder ao bloco
 canônico e às seções 20–21 de `qorov2.md`:
@@ -52,8 +52,15 @@ canônico e às seções 20–21 de `qorov2.md`:
   aplicada em produção com backup de 2.661.164 bytes, advisory lock e pós-check 9/9; focados 104/104,
   regressão integrada 2.975/2.975, money smoke 7/7, build e gates passaram. O commit `f2c1b60` foi
   enviado à branch, o deployment Preview terminou `success` e o smoke canônico passou 6/6. Uma nova
-  prova PIX fez exatamente um refund, o replay não criou outro e o provider permaneceu `PENDING`;
-  cobrança e crédito não foram fechados. Preservar o manifesto e não repetir POST;
+  prova PIX fez exatamente um refund e o replay não criou outro; em 06/09 o provider terminou
+  `CANCELLED`, o readback/reconcile preservou cobrança `paid` e crédito `available`, e o cleanup
+  local exato removeu fixture e manifesto sem apagar o histórico Sandbox;
+- a retomada D77 revelou o D79: `POST /payments/{id}/refund` devolve o pagamento atualizado, e o
+  adapter persistia o id da cobrança como se fosse refund. O adapter agora retorna `refundId=null` e
+  o reconciliador usa baseline quando o id salvo não encontra correspondência, inclusive em intents
+  antigas. Regressões `CANCELLED`/`DONE`, suíte 2.977/2.977, lint, typecheck, build e gates passaram.
+  O commit `0181939` foi enviado à branch, o deployment terminou `success` e o Preview passou 6/6;
+  o ramo externo `DONE → refunded` segue `NOT TESTED`;
 - D50 permanece na conta alvo com um único refund parcial `PENDING`; readback de 04/09 confirmou a
   mesma intenção/valor únicos. O Caixa mostra a exceção, mas não o status técnico `DONE` (D72). Não
   repetir POST;
@@ -218,7 +225,8 @@ Resolva também, dentro do 1.H:
   PIX da conta antiga não foi estornado e ficou `NOT COMPLETED`, sem recuperar a credencial. A nova
   prova PIX anterior da conta atual está paga; seu único refund terminou `CANCELLED` após autorização,
   sem devolução. P11/D77 foi publicado em DEV/PROD/Preview e a prova pós-rollout criou exatamente um
-  novo refund, sem duplicata no replay; o provider segue `PENDING`, sem falso fechamento.
+  novo refund, sem duplicata no replay; ele terminou `CANCELLED`, sem falso fechamento, e o cleanup
+  local passou. D79 corrige a correlação do formato real do POST; falta apenas o externo `DONE`.
 - **D27 ✅ integral e limpo** — chargeback e dinheiro desfeito usam estado autoritativo monotônico,
   bloqueio/liberação do crédito e compensação append-only sem regredir agenda/prontuário. A prova
   Sandbox tenant atravessou Payments/Financial, replay 0/3 e cleanup de 16 linhas sem resíduo.
@@ -253,8 +261,8 @@ Product Acceptance encenado pendente para o fundador: a parte objetiva foi execu
 fica para usuários reais na clínica piloto. O E2E Meta, o chargeback tenant, `PAYMENT_RESTORED`, D69,
 restore e carga estão verdes. O refund D50 continua `PENDING` no provider e a mensagem de suporte já
 foi enviada; não repetir POST. O P11/D77 está corrigido e validado em DEV/PROD/Preview. A nova prova
-Sandbox está `PARTIAL`: um refund foi criado, o replay não o duplicou e o provider segue `PENDING`.
-A Camada 1 aguarda os estados terminais e o cleanup de D77 e D50.
+Sandbox comprovou o ramo terminal `CANCELLED`, replay sem duplicata e cleanup local; o ramo `DONE`
+segue `NOT TESTED`. A Camada 1 aguarda essa prova feliz D77 e o terminal/cleanup de D50.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
@@ -266,9 +274,10 @@ P10 está concluído. D73–D75, smokes conectados, suíte integral, build, chec
 arquiteturais/operacionais, documentação, revisão do diff, publicação e Preview 6/6 passaram.
 O teste externo posterior abriu P11/D77; o corretivo foi aplicado em código/DEV/PROD e publicado no
 Preview. Ele não considera mais um POST 2xx como devolução antes de `DONE`/pagamento `REFUNDED`. A nova
-prova Sandbox confirmou exatamente um refund e replay sem duplicata, mas o provider segue `PENDING`.
-O refund D50 também segue `PENDING`. Não repetir nenhum dos POSTs externos; retomar somente readback,
-reconciliação e cleanup depois de estado terminal.
+prova Sandbox confirmou exatamente um refund, replay sem duplicata e `CANCELLED → failed/paid/available`,
+seguido de cleanup local. D79 corrige a correlação do id da cobrança retornado pelo POST, está publicado
+em `0181939` e passou no Preview 6/6. O refund D50 segue `PENDING`; não repetir esse POST. Uma nova prova D77 só pode ser enviada
+com autorização específica e operador já sincronizado no painel.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
 
