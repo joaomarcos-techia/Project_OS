@@ -268,6 +268,10 @@ export interface ProviderPayment {
  * `ProviderPayment.status`, que é o da cobrança.
  */
 export interface ProviderRefund {
+  /**
+   * O item de `refunds` pode não expor id. Nunca reutilize o id do pagamento
+   * retornado por `POST /refund` como se fosse o id do estorno.
+   */
   refundId: string | null;
   status: string;
   value: number;
@@ -919,9 +923,12 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       )) as Record<string, unknown>;
       metrics.emit('billing.asaas.payment_refunded', { paymentId: id });
       return {
-        refundId: asStr(r.id),
-        status: asStr(r.status) ?? 'UNKNOWN',
-        value: asNum(r.value),
+        // A resposta é o pagamento atualizado; `r.id` pertence à cobrança.
+        // O endpoint não fornece um identificador autoritativo do refund. A
+        // correlação forte vem do baseline persistido antes do POST + readback.
+        refundId: null,
+        status: 'PENDING',
+        value: opts?.value ?? asNum(r.value),
       };
     },
 

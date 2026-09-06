@@ -443,6 +443,55 @@ describe('D77 — estado terminal e closeout do sinal', () => {
     expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
   });
 
+  it('id da cobrança salvo pelo POST não bloqueia o fallback de baseline sem id de refund', async () => {
+    intent = pendingIntent({
+      purpose: 'deposit_closeout',
+      amount: '150.00',
+      providerRefundId: 'pay_1',
+      baselineRefundCount: 0,
+      baselineRejectedRefundCount: 0,
+    });
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: null, status: 'CANCELLED', value: 150 }],
+      }),
+    ).resolves.toBe('failed');
+
+    expect(intent).toMatchObject({ status: 'failed', failureCode: 'refund_cancelled' });
+    expect(mocks.closeChargeInTransaction).not.toHaveBeenCalled();
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
+  it('id da cobrança salvo pelo POST não bloqueia confirmação DONE sem id de refund', async () => {
+    intent = pendingIntent({
+      purpose: 'deposit_closeout',
+      amount: '150.00',
+      providerRefundId: 'pay_1',
+      baselineRefundedAmount: '0.00',
+      baselineRefundCount: 0,
+      baselineRejectedRefundCount: 0,
+    });
+    chargeKind = 'deposit';
+    chargeAmount = '150.00';
+
+    await expect(
+      confirmRefundIntentFromReadback({
+        clinicId: CLINIC,
+        intentId: INTENT,
+        refunds: [{ refundId: null, status: 'DONE', value: 150 }],
+      }),
+    ).resolves.toBe('confirmed');
+
+    expect(intent).toMatchObject({ status: 'confirmed' });
+    expect(mocks.closeChargeInTransaction).toHaveBeenCalledOnce();
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
   it('DONE fecha cobrança e libera crédito atomicamente pelo charge-store', async () => {
     intent = pendingIntent({ purpose: 'deposit_closeout', amount: '150.00' });
     chargeKind = 'deposit';

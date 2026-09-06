@@ -324,15 +324,15 @@ export async function confirmRefundIntentFromReadback(input: {
       totalConfirmed + 1e-9 >= baselineAmount + amount;
 
     if (!confirmed) {
-      const rejectedWithoutId =
-        intent.providerRefundId === null &&
+      const rejectedWithoutExactId =
+        exactRefund === undefined &&
         intent.baselineRefundCount !== null &&
         intent.baselineRejectedRefundCount !== null &&
         input.refunds.length > intent.baselineRefundCount &&
         rejectedRefundCount(input.refunds) > intent.baselineRejectedRefundCount;
       const rejected =
         (exactRefund !== undefined && REJECTED_REFUND_STATUSES.has(exactRefund.status)) ||
-        rejectedWithoutId;
+        rejectedWithoutExactId;
       if (!rejected) return 'pending';
 
       const rejectedRefund =

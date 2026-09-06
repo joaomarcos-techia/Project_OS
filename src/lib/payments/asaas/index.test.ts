@@ -708,13 +708,18 @@ describe('estorno e cancelamento de cobrança (ADR-049 1.5)', () => {
 
   it('estorna pelo endpoint de refund, com a chave da própria clínica', async () => {
     fetchMock.mockImplementation(() =>
-      Response.json({ id: 'ref_1', status: 'REFUNDED', value: 150 }),
+      Response.json({
+        id: 'pay_1',
+        status: 'RECEIVED',
+        value: 150,
+        refunds: [{ status: 'PENDING', value: 150 }],
+      }),
     );
     const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
 
     await expect(clinica.refundPayment('pay_1')).resolves.toEqual({
-      refundId: 'ref_1',
-      status: 'REFUNDED',
+      refundId: null,
+      status: 'PENDING',
       value: 150,
     });
 
