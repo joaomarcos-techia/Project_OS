@@ -73,10 +73,12 @@ canônico e às seções 20–22 de `qorov2.md`:
 - D50 permanece na conta alvo com um único refund parcial `PENDING`; readback independente de 06/09
   confirmou cobrança `CONFIRMED`, estado local `paid/confirmation_pending` e a mesma intenção/valor
   únicos. A consulta separada da D80 confirmou cobrança `RECEIVED` e refund `CANCELLED`: os estados
-  não estão misturados. D72 foi implementado localmente: o Caixa distingue espera, confirmação,
+  não estão misturados. D72 foi implementado e publicado: o Caixa distingue espera, confirmação,
   cancelamento sem devolução e falha sem expor ids do provider nem oferecer retry. Unit/UI 22/22,
   DEV conectado 1/1, E2E local autenticado `/caixa` 200/zero `pageerror`, suíte 2.989/2.989, build e
-  gates passaram; commit/push/deploy/Preview ainda não foram autorizados. Não repetir POST;
+  gates passaram. `b6f8194` está no remoto, o deployment terminou `success`, o Preview passou 6/6 e
+  a prova D72 específica passou com estado/valor visíveis, zero id do provider e zero `pageerror`;
+  auth state/artefato foram removidos. Não repetir POST;
 - o webhook global `qoro dev` foi recriado na conta alvo com sete eventos/`NON_SEQUENTIALLY`; o runner
   provou `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`, replay e cleanup. O pós-check
   confirmou coexistência com o webhook tenant 12/`SEQUENTIALLY`;
@@ -98,9 +100,9 @@ canônico e às seções 20–22 de `qorov2.md`:
   sem misturar com D72;
 - gates do worktree integrado: lint/typecheck/build verdes, 2.975 testes em 318 arquivos, zero ciclos,
   `arch:db-check` zero findings, snapshots 54/293/0/67, migrations/registry/observabilidade verdes.
-- gates locais após D72/ADR-054: lint/typecheck/build verdes, 2.989 testes em 319 arquivos, zero
+- gates finais de D72/ADR-054: lint/typecheck/build verdes, 2.989 testes em 319 arquivos, zero
   ciclos, `arch:db-check` zero findings, snapshots 54/293/0/67, migrations/registry/observabilidade e
-  formatação verdes; E2E local autenticado do Caixa passou sem `pageerror`;
+  formatação verdes; E2E local e Preview autenticado do Caixa passaram sem `pageerror`;
 - P10/1.S está concluído. D73 encerra `outbox` de tenant removido como
   `skipped_missing_clinic`; D74 alinhou o smoke de POST ao Checkout hospedado (`creation_unknown`, sem
   retry cego); D75 isolou jornada/simulação de audit órfão. C14 9/9, Financial 10/10, jornada 13/13,
@@ -305,8 +307,9 @@ em `0181939` e passou no Preview 6/6. A tentativa posterior com operador sincron
 `CANCELLED`; D80 exige suporte antes de qualquer nova fixture. O refund D50 segue `PENDING`; não
 repetir nenhum dos POSTs.
 
-D72 está verde localmente e torna esses estados legíveis no Caixa sem mudar dinheiro nem provider.
-Falta apenas publicar e executar o smoke autenticado no Preview, mediante autorização própria.
+D72 está verde, publicado e revalidado e torna esses estados legíveis no Caixa sem mudar dinheiro nem
+provider. Commit `b6f8194`, deployment `success`, smoke Preview 6/6 e prova específica `/caixa` PASS;
+auth state/artefato removidos.
 
 **Código da Camada 2 só começa com `1.H ✅ + 1.S ✅`; o spike documental 2.1.0 pode avançar sem
 alterar runtime nem contornar os gates externos.** O ledger não possui `payment_transaction.status`:

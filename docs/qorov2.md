@@ -164,12 +164,15 @@ em `confirmation_pending` e um único refund de R$ 10 `PENDING`. A D80 continua 
 `RECEIVED` e um único refund de R$ 10 `CANCELLED`. Logo, o `CANCELLED` observado pertence à prova
 D77/D80, não ao excedente D50. Nenhum POST, retry ou cleanup foi executado nesse readback.
 
-**D72 — estado do estorno no Caixa implementado localmente em 06/09:** o app passou a consumir um
+**D72 — estado do estorno no Caixa publicado e revalidado em 06/09:** o app passou a consumir um
 seam público tenant-scoped do Payments que reduz a intenção `excess` a quatro estados humanos:
 aguardando, confirmado, cancelado sem devolução e falha. O contrato não expõe payment/refund id nem
 erro bruto e a UI não oferece retry. Unit/UI 22/22, readback conectado DEV 1/1, E2E local autenticado
 `/caixa` 200 com a fixture D50, zero `pageerror`, suíte 2.989/2.989, lint, typecheck, build, arquitetura
-0 ciclos e gates operacionais verdes. Commit, push, deployment e Preview ainda não foram autorizados.
+0 ciclos e gates operacionais verdes. O commit `b6f8194` está no remoto; o deployment Vercel
+`ENo2AwGWJ69G6aXEoZeqEQfUrQQp` terminou `success` no mesmo SHA. O Preview passou no smoke canônico
+6/6 e na prova D72 específica: `/caixa` HTTP 200, estado `PENDING` e R$ 10 visíveis, nenhum id do
+provider e zero `pageerror`. Auth state e marcador do Playwright foram removidos.
 
 **Camada 2 iniciada somente como spike 2.1.0 em 06/09:** a auditoria regulatória mostrou que “recibo
 PDF” mistura comprovante não fiscal, recibo médico e documento fiscal. A [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md)
@@ -1191,7 +1194,8 @@ confirmar `DONE`, executar somente readback, ledger, replay e cleanup, sem repet
 - [x] Testes unitários/UI focados: 22/22; leitura conectada DEV da fixture D50: 1/1.
 - [x] E2E local autenticado: `/caixa` 200, copy/valor visíveis, zero id interno e zero `pageerror`.
 - [x] Suíte integral 2.989/2.989, lint, typecheck, build e gates arquiteturais/operacionais.
-- [ ] Commit, push, deployment e smoke autenticado no Preview — exigem autorização própria.
+- [x] Commit `b6f8194`, push, deployment Vercel `success`, smoke autenticado Preview 6/6 e prova D72
+  específica `/caixa` PASS; auth state/artefato removidos.
 
 Este corretivo não altera migration, webhook, refund, ledger ou estado externo. Ele torna visível a
 diferença que o readback D50 × D80 já provou e nunca oferece “tentar novamente” como atalho perigoso.
@@ -1272,8 +1276,9 @@ Percorrer a jornada como **secretária·médico·dono·paciente**: nº de clique
   temas), agora esperando o heading real e falhando em qualquer `pageerror`;
 - **observação real já disponível:** o operador confirmou anteriormente as mensagens Meta de sinal e
   restante no aparelho. O D50 aparece no Caixa como exceção aguardando estorno; o provider continua
-  `PENDING`. O corretivo D72 agora distingue localmente espera, confirmação, cancelamento sem
-  devolução e falha; publicação/Preview ainda não foram executados.
+  `PENDING`. O corretivo D72 distingue espera, confirmação, cancelamento sem devolução e falha e foi
+  publicado/revalidado no Preview: 6/6 canônico + `/caixa` específico PASS, sem id do provider ou
+  `pageerror`.
 
 Achados: D60 (corrida App Router em Link → redirect) e D70 (dia do Dashboard fora do fuso da clínica)
 foram corrigidos e publicados; D71 corrigiu o falso verde do harness visual. O E2E autenticado do
@@ -1723,7 +1728,7 @@ também terminou `CANCELLED`; o ramo externo `DONE` permanece `BLOCKED` pelo D80
 | Bloco | Estado real | O que falta para ficar verde |
 | --- | --- | --- |
 | **D24/D58 — somente PIX/cartão por 7 dias** | **Código + DB DEV + PROD + pagamentos externos verdes para criação/pagamento.** Checkout hospedado, intenção/lease, correlação, gerações e renovação implementados; smoke 5/5 e pós-verificação 7/7. Em 04/09 a conta atual confirmou `PIX/RECEIVED` | as provas de refund terminaram `CANCELLED`, sem devolução. As duas pós-rollout demonstraram proteção, replay e cleanup; a última foi sincronizada com o operador. Não repetir antes de diagnóstico do suporte D80 |
-| **D50 — excedente após baixa manual** | **Código + DB DEV/PROD + pagamento/webhook/POST parcial verdes.** Readback independente de 06/09: pagamento `CONFIRMED`; cobrança `paid`; recebível `pago` em R$ 20; duas baixas somando R$ 20; uma intenção `confirmation_pending` de R$ 10 com baseline zero; um único refund de R$ 10 ainda `PENDING`. D80 foi consultada à parte e retornou `RECEIVED` + `CANCELLED`; não há mistura | o pedido de diagnóstico já foi enviado ao suporte. Aguardar o refund D50 existente virar `DONE`; então o runner faz somente readback → confirmação → ledger → replay → cleanup. Não repetir POST. D72 já distingue os estados humanos no Caixa local; ainda falta publicar e observar no Preview |
+| **D50 — excedente após baixa manual** | **Código + DB DEV/PROD + pagamento/webhook/POST parcial verdes.** Readback independente de 06/09: pagamento `CONFIRMED`; cobrança `paid`; recebível `pago` em R$ 20; duas baixas somando R$ 20; uma intenção `confirmation_pending` de R$ 10 com baseline zero; um único refund de R$ 10 ainda `PENDING`. D80 foi consultada à parte e retornou `RECEIVED` + `CANCELLED`; não há mistura. D72 está publicado e mostra o estado humano no Caixa | o pedido de diagnóstico já foi enviado ao suporte. Aguardar o refund D50 existente virar `DONE`; então o runner faz somente readback → confirmação → ledger → replay → cleanup. Não repetir POST. A visibilidade Preview passou 6/6 + prova `/caixa` específica; isso não transforma `PENDING` em devolução |
 | **D27 — chargeback/dinheiro desfeito** | ✅ **Código + ADR-052 + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup verdes.** O provider terminou `REFUNDED/DONE`; a rota tenant marcou a cobrança `refunded/lost`; os três fatos reais de risco foram processados uma vez | nada funcional. O ledger provado continha compensação `refund`, `chargeback_loss`, saldo reaberto, atendimento preservado e replay 0/3; o cleanup removeu 16 linhas sintéticas, preservou audit de webhook e deixou zero resíduo da fixture |
 | **D77 — confirmação terminal do estorno do sinal** | ✅ **Código + DB DEV/PROD + Preview verdes; `CANCELLED` externo PASS.** Intenção antes do POST, claim concorrente, baseline, webhook/cron readback e fechamento atômico implementados. Duas provas pós-rollout criaram um refund cada, não duplicaram no replay, terminaram `failed/paid/available` e foram limpas localmente. D79 corrige a correlação do formato real | `DONE → refunded` está bloqueado pelo D80: a tentativa com runner pausado e operador no painel também foi cancelada. Abrir suporte; não repetir POST nem criar nova fixture |
 
@@ -1817,10 +1822,10 @@ terminal/cleanup da D50; a 1.S, D60/D70 e o Product Acceptance técnico já est�
 publicados/revalidados. A percepção humana é gate
 para expandir além da clínica piloto. Carga não é mais bloqueio.
 
-O corretivo D72 está implementado localmente e em validação: o Caixa passa a distinguir estorno
-aguardando confirmação, confirmado, cancelado sem devolução e falha, sem expor ids do provider e sem
-adicionar qualquer ação de retry. Isso melhora a operação, mas não transforma `PENDING` em `DONE` nem
-fecha os dois gates externos acima.
+O corretivo D72 está implementado, publicado e revalidado: o Caixa distingue estorno aguardando
+confirmação, confirmado, cancelado sem devolução e falha, sem expor ids do provider e sem adicionar
+qualquer ação de retry. O Preview passou 6/6 e a prova específica de `/caixa` passou com a D50. Isso
+melhora a operação, mas não transforma `PENDING` em `DONE` nem fecha os dois gates externos acima.
 
 ### 20.8 TISS: o que pode começar agora e qual “sistema” está citado
 
@@ -2812,7 +2817,7 @@ dados ou um estado inexistente produziria um documento enganoso.
 
 ### 22.2 Caminho recomendado
 
-1. **2.1A — comprovante não fiscal:** gerar um comprovante por pagamento confirmado, com aviso claro
+1. **2.1A — comprovante não fiscal:** gerar um comprovante por baixa `kind = 'payment'`, com aviso claro
    de que não substitui Receita Saúde, NFS-e ou documento fiscal. Ele atende conciliação/atendimento ao
    paciente sem prometer validade tributária inexistente.
 2. **2.1B — documento fiscal:** tratar Receita Saúde (prestador PF) e NFS-e/recibo de PJ como
@@ -2888,8 +2893,9 @@ antes do código.
 - [x] engine PDF, rota de referência, rate limit, RBAC e seams existentes auditados;
 - [x] ausência de `payment_transaction.status` e de pagador persistido registrada sem inferências;
 - [x] execução proposta em 2.1A.1/2.1A.2 para respeitar o budget por lote;
-- [x] ADR-054 criada como `Proposed`;
+- [x] ADR-054 criada e aceita para 2.1A;
 - [x] arquitetura, ameaças, privacidade, idempotência e matriz de testes propostas;
 - [x] decisão humana: 2.1A aprovada e recibo fiscal integral rejeitado para este slice;
 - [ ] revisão jurídico-contábil da copy e do enquadramento da primeira clínica piloto;
-- [ ] código, migration, testes, E2E e rollout — não iniciados antes da decisão.
+- [ ] código, migration, testes, E2E e rollout — não iniciados; aguardam os gates da Camada 1 e a
+  revisão jurídico-contábil definida acima.
