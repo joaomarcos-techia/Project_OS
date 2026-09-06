@@ -421,7 +421,7 @@ Sem migration, sem mudança de schema, sem alteração no painel Meta, sem chama
 | Registry | `pnpm check:registry:strict` | ✅ catálogo (67) ⇔ registry (25) |
 | Build | `pnpm build` | ✅ compilação otimizada concluída; etapa webpack em 2,4 min (exit 0) |
 | Diff | `git diff --check` + releitura | ✅ limpo; sem segredo, log de debug ou teste desabilitado |
-| Formatação | `pnpm format:check` + check normalizado do lote | ⚠️ o gate integral continua vermelho no baseline (133 arquivos, sobretudo CRLF/artefatos). Nos 60 arquivos formatáveis do lote integrado, cinco divergências já existiam no parent da branch e foram formatadas localmente; nenhum arquivo novo permanece divergente |
+| Formatação | `pnpm format:check` + check normalizado do lote | ⚠️ o gate integral continua vermelho no baseline (128 arquivos, sobretudo CRLF/artefatos). Nos 60 arquivos formatáveis do lote integrado, cinco divergências já existiam no parent da branch e foram formatadas localmente; nenhum arquivo novo permanece divergente |
 | **E2E Meta externo** | conta sem App Role | 🔴 **`NOT TESTED`** — depende do desbloqueio na Meta e de autorização explícita. Nenhum mock substitui esta prova |
 
 Os testes usam `fetch` e Server Action mockados: provam **regressão local**, não o provider.
