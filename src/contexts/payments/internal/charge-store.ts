@@ -14,6 +14,7 @@ import 'server-only';
 
 import { and, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 
+import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -978,56 +979,58 @@ export interface CloseChargeInput {
  * isso, cada reentrega republicaria o evento e a agenda reprojetaria um desfecho
  * que já foi superado por outro.
  */
-export async function closeCharge(input: CloseChargeInput): Promise<boolean> {
-  return withTenant(input.clinicId, async (tx) => {
-    const updated = await tx
-      .update(patientCharges)
-      .set({
-        status: input.outcome,
-        // O CHECK da 0085 vale para a agenda, mas a intenção é a mesma aqui:
-        // cobrança fechada não segura vaga nenhuma.
-        holdExpiresAt: null,
-        ...(input.outcome === 'refunded' ? { refundedAt: input.closedAt } : {}),
-        ...(input.outcome === 'expired' ? { expiredAt: input.closedAt } : {}),
-        updatedAt: sql`now()`,
-      })
-      .where(and(eq(patientCharges.id, input.chargeId), eq(patientCharges.status, input.from)))
-      .returning({ id: patientCharges.id });
-    if (updated.length === 0) return false;
+export async function closeChargeInTransaction(tx: Tx, input: CloseChargeInput): Promise<boolean> {
+  const updated = await tx
+    .update(patientCharges)
+    .set({
+      status: input.outcome,
+      // O CHECK da 0085 vale para a agenda, mas a intenção é a mesma aqui:
+      // cobrança fechada não segura vaga nenhuma.
+      holdExpiresAt: null,
+      ...(input.outcome === 'refunded' ? { refundedAt: input.closedAt } : {}),
+      ...(input.outcome === 'expired' ? { expiredAt: input.closedAt } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(and(eq(patientCharges.id, input.chargeId), eq(patientCharges.status, input.from)))
+    .returning({ id: patientCharges.id });
+  if (updated.length === 0) return false;
 
-    const payload: PatientChargeClosedPayload = {
-      chargeId: input.chargeId,
-      clinicId: input.clinicId,
-      appointmentId: input.appointmentId,
-      kind: input.kind,
-      outcome: input.outcome,
-      amount: input.amount,
-      closedAt: input.closedAt.toISOString(),
-    };
-    await publishEvent(tx, {
-      clinicId: input.clinicId,
-      eventType: PAYMENTS_EVENTS.CHARGE_CLOSED,
-      payload,
-      // A cobrança só fecha uma vez (o UPDATE monotônico garante), então a
-      // própria cobrança é a chave.
-      idempotencyKey: `charge-closed:${input.chargeId}`,
-    });
-
-    // ADR-051 — o dinheiro voltou ao paciente, então o crédito no Financial
-    // precisa sair de `available`. `cancelled`/`expired` não publicam: cobrança
-    // que nunca foi paga nunca virou crédito, não há o que liberar.
-    if (input.outcome === 'refunded') {
-      await publishReleased(tx, {
-        clinicId: input.clinicId,
-        chargeId: input.chargeId,
-        appointmentId: input.appointmentId,
-        amount: input.amount,
-        disposition: 'refunded',
-        releasedAt: input.closedAt,
-      });
-    }
-    return true;
+  const payload: PatientChargeClosedPayload = {
+    chargeId: input.chargeId,
+    clinicId: input.clinicId,
+    appointmentId: input.appointmentId,
+    kind: input.kind,
+    outcome: input.outcome,
+    amount: input.amount,
+    closedAt: input.closedAt.toISOString(),
+  };
+  await publishEvent(tx, {
+    clinicId: input.clinicId,
+    eventType: PAYMENTS_EVENTS.CHARGE_CLOSED,
+    payload,
+    // A cobrança só fecha uma vez (o UPDATE monotônico garante), então a
+    // própria cobrança é a chave.
+    idempotencyKey: `charge-closed:${input.chargeId}`,
   });
+
+  // ADR-051 — o dinheiro voltou ao paciente, então o crédito no Financial
+  // precisa sair de `available`. `cancelled`/`expired` não publicam: cobrança
+  // que nunca foi paga nunca virou crédito, não há o que liberar.
+  if (input.outcome === 'refunded') {
+    await publishReleased(tx, {
+      clinicId: input.clinicId,
+      chargeId: input.chargeId,
+      appointmentId: input.appointmentId,
+      amount: input.amount,
+      disposition: 'refunded',
+      releasedAt: input.closedAt,
+    });
+  }
+  return true;
+}
+
+export async function closeCharge(input: CloseChargeInput): Promise<boolean> {
+  return withTenant(input.clinicId, (tx) => closeChargeInTransaction(tx, input));
 }
 
 // --- entrega do link ao paciente (1.6a) --------------------------------------

@@ -38,6 +38,7 @@ import {
   releaseCreditAsRetained,
   type OpenCharge,
 } from './charge-store';
+import { requestDepositRefund } from './excess-refund';
 
 /**
  * Status do Asaas em que o dinheiro do paciente REALMENTE entrou. Só a partir
@@ -46,8 +47,8 @@ import {
  */
 const SETTLED_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 
-/** Status em que o estorno já aconteceu (ou está a caminho) na conta da clínica. */
-const REFUNDED_STATUSES = new Set(['REFUNDED', 'REFUND_REQUESTED', 'REFUND_IN_PROGRESS']);
+/** Estados não terminais: já existe estorno em curso, mas o dinheiro ainda não voltou. */
+const REFUND_IN_PROGRESS_STATUSES = new Set(['REFUND_REQUESTED', 'REFUND_IN_PROGRESS']);
 
 /**
  * Formas de pagamento que o Asaas sabe estornar pela API. Verificado ao vivo em
@@ -309,8 +310,9 @@ async function refundCharge(args: {
   clinicId: string;
   appointmentId: string;
   charge: OpenCharge;
+  sourceEventId: string;
 }): Promise<void> {
-  const { client, clinicId, appointmentId, charge } = args;
+  const { client, clinicId, appointmentId, charge, sourceEventId } = args;
 
   if (!client || !charge.providerPaymentId) {
     // Sem chave (conta desconectada) ou sem id no gateway não há como devolver.
@@ -330,57 +332,86 @@ async function refundCharge(args: {
     .getPayment(charge.providerPaymentId, { attempts: 1 })
     .catch((err: unknown) => rethrowGatewayError(err, gateway));
 
-  if (!REFUNDED_STATUSES.has(payment.status)) {
-    if (!SETTLED_STATUSES.has(payment.status)) {
-      // Nosso banco diz `paid`, o Asaas diz que não recebeu. Divergência que uma
-      // pessoa precisa olhar — estornar dinheiro que não entrou é pior que não
-      // estornar.
-      metrics.emit('payments.deposit.refund_skipped', {
+  if (payment.status === 'REFUNDED') {
+    // Fonte autoritativa: uma execução anterior (ou ação manual) concluiu o
+    // estorno. Fechar agora é seguro e não dispara um segundo POST.
+    const closed = await closeCharge({
+      clinicId,
+      chargeId: charge.id,
+      from: 'paid',
+      outcome: 'refunded',
+      kind: charge.kind,
+      appointmentId,
+      amount: charge.amount,
+      closedAt: new Date(),
+    });
+    if (closed) {
+      metrics.emit('payments.deposit.refunded', {
         clinicId,
         appointmentId,
         chargeId: charge.id,
-        reason: 'provider_nao_confirma_pagamento',
-        providerStatus: payment.status,
+        amount: charge.amount,
       });
-      return;
     }
-    if (!REFUNDABLE_BILLING_TYPES.has(payment.billingType ?? '')) {
-      // Pago por boleto ou marcado como recebido em dinheiro: a devolução existe,
-      // mas quem a faz é uma pessoa, pelo painel. Deixar a cobrança `paid` é o
-      // registro honesto — `refunded` diria que o paciente já recebeu de volta.
-      metrics.emit('payments.deposit.refund_skipped', {
-        clinicId,
-        appointmentId,
-        chargeId: charge.id,
-        reason: 'forma_de_pagamento_nao_estornavel',
-        billingType: payment.billingType,
-      });
-      return;
-    }
-    await client
-      .refundPayment(charge.providerPaymentId)
-      .catch((err: unknown) => rethrowGatewayError(err, gateway));
+    return;
   }
-  // `REFUNDED` sem passar pelo POST = uma execução anterior estornou e caiu antes
-  // de gravar. Segue para o fechamento em vez de estornar de novo.
 
-  const closed = await closeCharge({
-    clinicId,
-    chargeId: charge.id,
-    from: 'paid',
-    outcome: 'refunded',
-    kind: charge.kind,
-    appointmentId,
-    amount: charge.amount,
-    closedAt: new Date(),
-  });
-  if (closed) {
-    metrics.emit('payments.deposit.refunded', {
+  if (REFUND_IN_PROGRESS_STATUSES.has(payment.status)) {
+    // Sem correlação local não é seguro iniciar outro estorno em paralelo.
+    metrics.emit('payments.deposit.refund_skipped', {
       clinicId,
       appointmentId,
       chargeId: charge.id,
-      amount: charge.amount,
+      reason: 'provider_refund_in_progress',
+      providerStatus: payment.status,
     });
+    return;
+  }
+
+  if (!SETTLED_STATUSES.has(payment.status)) {
+    // Nosso banco diz `paid`, o Asaas diz que não recebeu. Divergência que uma
+    // pessoa precisa olhar — estornar dinheiro que não entrou é pior que não
+    // estornar.
+    metrics.emit('payments.deposit.refund_skipped', {
+      clinicId,
+      appointmentId,
+      chargeId: charge.id,
+      reason: 'provider_nao_confirma_pagamento',
+      providerStatus: payment.status,
+    });
+    return;
+  }
+  if (!REFUNDABLE_BILLING_TYPES.has(payment.billingType ?? '')) {
+    // Pago por boleto ou marcado como recebido em dinheiro: a devolução existe,
+    // mas quem a faz é uma pessoa, pelo painel. Deixar a cobrança `paid` é o
+    // registro honesto — `refunded` diria que o paciente já recebeu de volta.
+    metrics.emit('payments.deposit.refund_skipped', {
+      clinicId,
+      appointmentId,
+      chargeId: charge.id,
+      reason: 'forma_de_pagamento_nao_estornavel',
+      billingType: payment.billingType,
+    });
+    return;
+  }
+
+  let outcome: Awaited<ReturnType<typeof requestDepositRefund>>;
+  try {
+    outcome = await requestDepositRefund({
+      clinicId,
+      chargeId: charge.id,
+      amount: charge.amount,
+      sourceEventId,
+      client,
+    });
+  } catch (err) {
+    rethrowGatewayError(err, gateway);
+  }
+  if (outcome === 'failed') {
+    throw new PoisonPillError(
+      `estorno recusado ou cancelado no agendamento ${appointmentId}`,
+      'refund_failed',
+    );
   }
 }
 
@@ -420,8 +451,9 @@ export async function closeChargeForCancellation(ctx: {
   appointmentId: string;
   cancelReason: string;
   cancelledAt: Date;
+  sourceEventId: string;
 }): Promise<void> {
-  const { clinicId, appointmentId, cancelReason, cancelledAt } = ctx;
+  const { clinicId, appointmentId, cancelReason, cancelledAt, sourceEventId } = ctx;
   const charge = await findOpenCharge(clinicId, appointmentId);
   if (!charge) return;
 
@@ -442,7 +474,7 @@ export async function closeChargeForCancellation(ctx: {
   }
 
   if (ALWAYS_REFUND_REASONS.has(cancelReason)) {
-    await refundCharge({ client, clinicId, appointmentId, charge });
+    await refundCharge({ client, clinicId, appointmentId, charge, sourceEventId });
     return;
   }
 
@@ -472,5 +504,5 @@ export async function closeChargeForCancellation(ctx: {
     return;
   }
 
-  await refundCharge({ client, clinicId, appointmentId, charge });
+  await refundCharge({ client, clinicId, appointmentId, charge, sourceEventId });
 }

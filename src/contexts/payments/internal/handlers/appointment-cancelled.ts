@@ -34,5 +34,6 @@ registerDetachedHandler<AppointmentCancelledPayload>(SCHEDULING_EVENTS.CANCELLED
     appointmentId: ctx.payload.appointmentId,
     cancelReason: ctx.payload.cancelReason,
     cancelledAt: cancelledAt ? new Date(cancelledAt) : new Date(),
+    sourceEventId: ctx.eventId,
   });
 });

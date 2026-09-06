@@ -290,6 +290,8 @@ export const patientRefundIntents = pgTable(
     providerPaymentId: text('provider_payment_id').notNull(),
     providerRefundId: text('provider_refund_id'),
     baselineRefundedAmount: numeric('baseline_refunded_amount', { precision: 12, scale: 2 }),
+    baselineRefundCount: integer('baseline_refund_count'),
+    baselineRejectedRefundCount: integer('baseline_rejected_refund_count'),
     attemptedAt: timestamp('attempted_at', { withTimezone: true }),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     failureCode: text('failure_code'),

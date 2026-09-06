@@ -33,7 +33,11 @@ import './appointment-cancelled';
 // Capturado no LOAD do módulo: `clearAllMocks` apagaria o registro.
 const registration = mocks.registerDetachedHandler.mock.calls[0]!;
 
-type Handler = (ctx: { clinicId: string; payload: Record<string, unknown> }) => Promise<void>;
+type Handler = (ctx: {
+  clinicId: string;
+  payload: Record<string, unknown>;
+  eventId: string;
+}) => Promise<void>;
 const handler = registration[1] as Handler;
 
 const payload = (over: Record<string, unknown> = {}) => ({
@@ -62,19 +66,24 @@ describe('handler de agendamento cancelado', () => {
   });
 
   it('repassa o instante do cancelamento vindo do evento', async () => {
-    await handler({ clinicId: 'clinic-1', payload: payload() });
+    await handler({ clinicId: 'clinic-1', payload: payload(), eventId: 'event-1' });
 
     expect(mocks.closeChargeForCancellation).toHaveBeenCalledWith({
       clinicId: 'clinic-1',
       appointmentId: 'apt-1',
       cancelReason: 'user',
       cancelledAt: new Date('2026-08-20T12:00:00.000Z'),
+      sourceEventId: 'event-1',
     });
   });
 
   it('evento antigo sem `cancelledAt` degrada para o relógio, com métrica', async () => {
     const before = Date.now();
-    await handler({ clinicId: 'clinic-1', payload: payload({ cancelledAt: undefined }) });
+    await handler({
+      clinicId: 'clinic-1',
+      payload: payload({ cancelledAt: undefined }),
+      eventId: 'event-1',
+    });
 
     const arg = mocks.closeChargeForCancellation.mock.calls[0]![0] as { cancelledAt: Date };
     expect(arg.cancelledAt.getTime()).toBeGreaterThanOrEqual(before);
@@ -86,10 +95,14 @@ describe('handler de agendamento cancelado', () => {
   });
 
   it('usa o clinicId do worker (contexto RLS), não o do payload', async () => {
-    await handler({ clinicId: 'clinic-1', payload: payload({ clinicId: 'clinic-INTRUSA' }) });
+    await handler({
+      clinicId: 'clinic-1',
+      payload: payload({ clinicId: 'clinic-INTRUSA' }),
+      eventId: 'event-1',
+    });
 
     expect(mocks.closeChargeForCancellation).toHaveBeenCalledWith(
-      expect.objectContaining({ clinicId: 'clinic-1' }),
+      expect.objectContaining({ clinicId: 'clinic-1', sourceEventId: 'event-1' }),
     );
   });
 });

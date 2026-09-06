@@ -26,7 +26,7 @@ Depois dele, leia:
 | `docs/runbooks/payment-account-connect.md` | operação do ciclo de cobrança do paciente |
 | `docs/runbooks/asaas-webhook-assinatura.md` | webhook da conta do Qoro (governa acesso ao produto) |
 
-### Atualização operacional de 04/09/2026
+### Atualização operacional de 05/09/2026
 
 O restante deste handoff contém histórico útil, mas qualquer estado divergente deve ceder ao bloco
 canônico e às seções 20–21 de `qorov2.md`:
@@ -38,7 +38,20 @@ canônico e às seções 20–21 de `qorov2.md`:
   atual divergir. Isso impede somar fixtures de contas Sandbox diferentes;
 - o PIX da conta antiga **não foi estornado**. O operador removeu webhook e chaves API dessa conta; a
   cobrança não foi mais localizada e o cleanup histórico fica `NOT COMPLETED`. Não reintroduzir a
-  credencial; uma eventual prova PIX nova deve nascer tenant-scoped na conta alvo;
+  credencial;
+- em 04/09 nasceu uma prova PIX direta e isolada na conta Sandbox atual, vinculada por fingerprint:
+  cobrança de R$ 10 `RECEIVED` e exatamente um refund de R$ 10
+  inicialmente `AWAITING_CRITICAL_ACTION_AUTHORIZATION`. O operador informou o código recebido no
+  celular, mas o refund terminou `CANCELLED`; pagamento e valor continuam recebidos, apesar de saldo
+  suficiente. O manifesto `.playwright/asaas-pix-refund-fixture.json` está ignorado pelo Git e deve ser
+  preservado. Não executar segundo POST sem autorização. A prova revelou o D77 crítico;
+- em 05/09 o P11 corrigiu D77 em código e banco DEV. O closeout agora persiste uma intenção
+  `deposit_closeout` antes do POST, não fecha em estado intermediário, não repete resultado incerto,
+  trata `CANCELLED` como falha e só projeta `refunded` após refund `DONE` ou pagamento `REFUNDED`.
+  Confirmação, fechamento e liberação do crédito são atômicos e tenant-scoped. A migration 0094 foi
+  aplicada somente em DEV; focados 104/104, regressão 2.832/2.832, money smoke 7/7, Financial 10/10,
+  jornada 13/13, build e gates passaram. Produção, commit/push/deploy e nova prova PIX ainda exigem
+  autorização; nenhum POST externo foi feito neste lote;
 - D50 permanece na conta alvo com um único refund parcial `PENDING`; readback de 04/09 confirmou a
   mesma intenção/valor únicos. O Caixa mostra a exceção, mas não o status técnico `DONE` (D72). Não
   repetir POST;
@@ -54,7 +67,7 @@ canônico e às seções 20–21 de `qorov2.md`:
   a ponte `qoro.dev/comecar` para Google Ads. É **desenho não implementado**. Trial após readback
   server-side da assinatura e `signup_completed` como conversão primária inicial já foram decididos;
   falta provar o contrato do Checkout hospedado, fechar O-0 e obter autorização para APIs/infra;
-- gates do worktree: lint/typecheck/build verdes, 2.816 testes em 311 arquivos, zero ciclos,
+- gates do worktree: lint/typecheck/build verdes, 2.832 testes em 311 arquivos, zero ciclos,
   `arch:db-check` zero findings, snapshots 54/293/0, migrations/registry/observabilidade verdes.
 - P10/1.S está concluído. D73 encerra `outbox` de tenant removido como
   `skipped_missing_clinic`; D74 alinhou o smoke de POST ao Checkout hospedado (`creation_unknown`, sem
@@ -200,7 +213,10 @@ Resolva também, dentro do 1.H:
 - **D24/D58 ✅ código + DEV/PROD + Sandbox** — Checkout hospedado restringe sinal/restante a PIX/cartão;
   intenção/lease evita POST duplicado e gerações de até 24h preservam os 7 dias do restante. Migrations
   0091/0092, smokes DEV 5/5 e pós-verificação PROD 7/7 verdes; PIX e cartão foram pagos no Sandbox. O
-  PIX da conta antiga não foi estornado e ficou `NOT COMPLETED`, sem recuperar a credencial.
+  PIX da conta antiga não foi estornado e ficou `NOT COMPLETED`, sem recuperar a credencial. A nova
+  prova PIX da conta atual está paga; seu único refund terminou `CANCELLED` após autorização, sem
+  devolução. P11/D77 já persiste a intenção e aguarda estado terminal em código/DEV; faltam rollout e
+  nova prova Sandbox.
 - **D27 ✅ integral e limpo** — chargeback e dinheiro desfeito usam estado autoritativo monotônico,
   bloqueio/liberação do crédito e compensação append-only sem regredir agenda/prontuário. A prova
   Sandbox tenant atravessou Payments/Financial, replay 0/3 e cleanup de 16 linhas sem resíduo.
@@ -230,12 +246,13 @@ Resolva também, dentro do 1.H:
   Auth state e capturas foram removidos. Percepção humana vai para a clínica
   piloto e bloqueia somente expandir a onda, não iniciar 1.S.
 
-O `qorov2.md` contém a fila canônica **P0–P10**, com owner, procedimento, ADR e teste de aceite. Não há
+O `qorov2.md` contém a fila canônica **P0–P11**, com owner, procedimento, ADR e teste de aceite. Não há
 Product Acceptance encenado pendente para o fundador: a parte objetiva foi executada e a percepção
 fica para usuários reais na clínica piloto. O E2E Meta, o chargeback tenant, `PAYMENT_RESTORED`, D69,
 restore e carga estão verdes. O refund D50 continua `PENDING` no provider e a mensagem de suporte já
-foi enviada; não repetir POST. D60/D70 estão publicados e revalidados; 1.S pode começar enquanto a D50
-permanece em observação externa.
+foi enviada; não repetir POST. O P11/D77 está corrigido e validado em DEV, mas ainda precisa de
+migration 0094 em produção, publicação/Preview e nova prova Sandbox autorizada antes de fechar a
+Camada 1.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
@@ -245,8 +262,10 @@ permanece em observação externa.
 
 P10 está concluído. D73–D75, smokes conectados, suíte integral, build, checks
 arquiteturais/operacionais, documentação, revisão do diff, publicação e Preview 6/6 passaram.
-`payments:live-check`, load e restore não se repetem sem mudança relevante/autorização externa. O
-único bloqueio da Camada 1 é o refund D50 ainda `PENDING` no provider; não repetir o POST.
+O teste externo posterior abriu P11/D77; o corretivo está pronto em código/DEV e não considera mais
+um POST 2xx como devolução antes de `DONE`/pagamento `REFUNDED`. Faltam migration 0094 em produção,
+publicação/Preview e uma nova prova Sandbox autorizada. Além disso, o refund D50 segue `PENDING` no
+provider. Não repetir nenhum dos POSTs externos sem autorização específica.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
 
@@ -315,6 +334,12 @@ Enquanto o refund D50 não chegar a estado terminal, o runner operacional
 também fica fora do commit. O fundador já
 autorizou push/deploy desta branch; ainda assim, confirme deployment terminal em vez de inferir
 publicação pela existência do commit remoto.
+
+**Estado adicional de 05/09:** o histórico de migrations `0081–0092` foi reconciliado e publicado na
+`main` no commit `93da840`. A migration 0093 da `main` foi integrada localmente a esta branch e a 0094
+do P11 foi criada/aplicada somente em DEV. O lote P11 ainda não foi commitado, enviado ou deployado e
+a 0094 não foi aplicada em produção. `financeiro.md` e
+`scripts/tmp-run-patient-excess-refund-e2e.ts` continuam não rastreados e fora do escopo.
 
 ## 10. Ao terminar cada sub-fase, responda neste formato
 

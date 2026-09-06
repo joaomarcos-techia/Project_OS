@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   listClinics: vi.fn(),
   listCandidates: vi.fn(),
   getClient: vi.fn(),
+  getPayment: vi.fn(),
   listRefunds: vi.fn(),
   confirm: vi.fn(),
   emit: vi.fn(),
@@ -12,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
 vi.mock('@/lib/payments/account-store', () => ({ getClinicAsaasClient: mocks.getClient }));
-vi.mock('./deposit-scan', () => ({ listClinicsWithDepositEnabled: mocks.listClinics }));
+vi.mock('./deposit-scan', () => ({ listClinicsWithPendingRefundIntents: mocks.listClinics }));
 vi.mock('./excess-refund', () => ({
   listRefundIntentReconcileCandidates: mocks.listCandidates,
   confirmRefundIntentFromReadback: mocks.confirm,
@@ -27,9 +28,13 @@ beforeEach(() => {
     { id: 'intent-1', providerPaymentId: 'pay-1' },
     { id: 'intent-2', providerPaymentId: 'pay-2' },
   ]);
-  mocks.getClient.mockResolvedValue({ listPaymentRefunds: mocks.listRefunds });
-  mocks.listRefunds.mockResolvedValue([{ refundId: 'ref-1', status: 'REFUNDED', value: 30 }]);
-  mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  mocks.getClient.mockResolvedValue({
+    getPayment: mocks.getPayment,
+    listPaymentRefunds: mocks.listRefunds,
+  });
+  mocks.getPayment.mockResolvedValue({ status: 'RECEIVED' });
+  mocks.listRefunds.mockResolvedValue([{ refundId: 'ref-1', status: 'DONE', value: 30 }]);
+  mocks.confirm.mockResolvedValueOnce('confirmed').mockResolvedValueOnce('pending');
 });
 
 describe('runExcessRefundReconcile', () => {
@@ -42,13 +47,16 @@ describe('runExcessRefundReconcile', () => {
       failed: 0,
     });
     expect(mocks.listRefunds).toHaveBeenCalledTimes(2);
+    expect(mocks.getPayment).toHaveBeenCalledTimes(2);
     expect(mocks.listRefunds).toHaveBeenCalledWith('pay-1', { attempts: 1 });
-    expect(mocks.confirm).toHaveBeenCalledTimes(2);
+    expect(mocks.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ providerPaymentStatus: 'RECEIVED' }),
+    );
   });
 
   it('falha de uma intenção não impede reconciliar as demais', async () => {
     mocks.listRefunds.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce([]);
-    mocks.confirm.mockReset().mockResolvedValue(false);
+    mocks.confirm.mockReset().mockResolvedValue('pending');
 
     await expect(runExcessRefundReconcile()).resolves.toEqual({
       clinics: 1,

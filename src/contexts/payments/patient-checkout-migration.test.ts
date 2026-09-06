@@ -7,6 +7,11 @@ const PATH = 'drizzle/migrations/0091_patient_checkout_generations.sql';
 const migration = readFileSync(resolve(process.cwd(), PATH), 'utf8');
 const MONEY_PATH = 'drizzle/migrations/0092_patient_money_adjustments.sql';
 const moneyMigration = readFileSync(resolve(process.cwd(), MONEY_PATH), 'utf8');
+const REFUND_CONFIRMATION_PATH = 'drizzle/migrations/0094_patient_refund_terminal_confirmation.sql';
+const refundConfirmationMigration = readFileSync(
+  resolve(process.cwd(), REFUND_CONFIRMATION_PATH),
+  'utf8',
+);
 
 describe('0091 — gerações de Checkout de paciente', () => {
   it('é aditiva e preserva a dívida única em patient_charges', () => {
@@ -92,5 +97,34 @@ describe('0092 — estorno excedente e risco financeiro', () => {
       readFileSync(resolve(process.cwd(), 'drizzle/migrations/meta/_journal.json'), 'utf8'),
     ) as { entries?: Array<{ tag?: string }> };
     expect(journal.entries?.some(({ tag }) => tag === '0092_patient_money_adjustments')).toBe(true);
+  });
+});
+
+describe('0094 — confirmação terminal do estorno', () => {
+  it('amplia a intenção existente sem recriar tabela ou remover dados', () => {
+    expect(refundConfirmationMigration).toContain(
+      "CHECK (purpose IN ('excess', 'deposit_closeout'))",
+    );
+    expect(refundConfirmationMigration).toContain(
+      'ADD COLUMN IF NOT EXISTS baseline_refund_count integer',
+    );
+    expect(refundConfirmationMigration).toContain(
+      'ADD COLUMN IF NOT EXISTS baseline_rejected_refund_count integer',
+    );
+    expect(refundConfirmationMigration).not.toMatch(/DROP\s+(TABLE|COLUMN|TYPE)/i);
+    expect(refundConfirmationMigration).not.toMatch(/TRUNCATE/i);
+  });
+
+  it('protege contadores inválidos e está registrada no journal', () => {
+    expect(refundConfirmationMigration).toContain('patient_refund_intents_baseline_counts_chk');
+    expect(refundConfirmationMigration).toContain(
+      'baseline_rejected_refund_count <= baseline_refund_count',
+    );
+    const journal = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'drizzle/migrations/meta/_journal.json'), 'utf8'),
+    ) as { entries?: Array<{ tag?: string }> };
+    expect(
+      journal.entries?.some(({ tag }) => tag === '0094_patient_refund_terminal_confirmation'),
+    ).toBe(true);
   });
 });

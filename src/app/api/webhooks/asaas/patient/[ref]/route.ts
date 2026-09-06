@@ -171,6 +171,7 @@ async function handlePatientWebhook(
           account.client.listPaymentRefunds(providerPaymentId, {
             attempts: 1,
           }),
+        providerPaymentStatus: payment.status,
       });
       metrics.emit('payments.webhook.refund_reconciled', {
         clinicId: account.clinicId,

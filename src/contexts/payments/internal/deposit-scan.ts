@@ -62,6 +62,25 @@ export async function listClinicsWithDepositEnabled(limit: number): Promise<stri
   return rows.map((r) => r.clinic_id);
 }
 
+/**
+ * Clínicas com estorno já submetido e ainda sem desfecho terminal.
+ *
+ * Não reutiliza `listClinicsWithDepositEnabled`: desligar a política impede
+ * novas cobranças, mas nunca pode abandonar dinheiro que já entrou em processo
+ * de devolução.
+ */
+export async function listClinicsWithPendingRefundIntents(limit: number): Promise<string[]> {
+  const rows = await dbAdmin.execute<EnabledClinicRow>(sql`
+    SELECT DISTINCT clinic_id::text AS clinic_id
+    FROM patient_refund_intents
+    WHERE status IN ('submitting', 'confirmation_pending')
+      AND baseline_refunded_amount IS NOT NULL
+    ORDER BY clinic_id
+    LIMIT ${limit}
+  `);
+  return rows.map((r) => r.clinic_id);
+}
+
 export async function runDepositScan(opts?: {
   createdWithinHours?: number;
   maxClinics?: number;

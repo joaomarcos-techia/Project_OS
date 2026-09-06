@@ -15,6 +15,7 @@ import {
   applyPatientPaymentRisk,
   recordExcessRefund,
 } from '@/contexts/financial/internal/patient-credit-adjustment';
+import { confirmRefundIntentFromReadback } from '@/contexts/payments/internal/excess-refund';
 
 assertDevContext();
 
@@ -25,9 +26,11 @@ const procedureId = randomUUID();
 const excessAppointmentId = randomUUID();
 const disputeAppointmentId = randomUUID();
 const lossAppointmentId = randomUUID();
+const terminalAppointmentId = randomUUID();
 const excessChargeId = randomUUID();
 const disputeChargeId = randomUUID();
 const lossChargeId = randomUUID();
+const terminalChargeId = randomUUID();
 const excessCreditId = randomUUID();
 const disputeCreditId = randomUUID();
 const lossCreditId = randomUUID();
@@ -36,6 +39,8 @@ const lossLancamentoId = randomUUID();
 const excessPaymentId = randomUUID();
 const lossPaymentId = randomUUID();
 const refundIntentId = randomUUID();
+const depositRefundIntentId = randomUUID();
+const terminalRefundIntentId = randomUUID();
 const run = randomUUID().replaceAll('-', '');
 
 function assert(condition: boolean, message: string): asserts condition {
@@ -69,7 +74,12 @@ async function createFixtures(): Promise<void> {
     VALUES (${procedureId}, ${clinicA}, ${`MNY-${run.slice(0, 8)}`},
             'Procedimento sintético financeiro', 200, 30)
   `);
-  for (const appointmentId of [excessAppointmentId, disputeAppointmentId, lossAppointmentId]) {
+  for (const appointmentId of [
+    excessAppointmentId,
+    disputeAppointmentId,
+    lossAppointmentId,
+    terminalAppointmentId,
+  ]) {
     await dbAdmin.execute(sql`
       INSERT INTO appointments (
         id, clinic_id, doctor_id, patient_id, procedure_id, scheduled_at,
@@ -87,11 +97,22 @@ async function createFixtures(): Promise<void> {
     INSERT INTO patient_charges (
       id, clinic_id, appointment_id, patient_id, kind, status, amount,
       provider, provider_payment_id, external_reference, paid_at
-    ) VALUES (
-      ${excessChargeId}, ${clinicA}, ${excessAppointmentId}, ${patientId},
-      'remainder', 'paid', 130, 'asaas', ${`pay_${run.slice(0, 12)}`},
-      ${`remainder:${excessAppointmentId}`}, now()
-    )
+    ) VALUES
+      (
+        ${excessChargeId}, ${clinicA}, ${excessAppointmentId}, ${patientId},
+        'remainder', 'paid', 130, 'asaas', ${`pay_${run.slice(0, 12)}`},
+        ${`remainder:${excessAppointmentId}`}, now()
+      ),
+      (
+        ${disputeChargeId}, ${clinicA}, ${disputeAppointmentId}, ${patientId},
+        'deposit', 'paid', 40, 'asaas', ${`pay_${run.slice(12, 24)}`},
+        ${`deposit:${disputeAppointmentId}`}, now()
+      ),
+      (
+        ${terminalChargeId}, ${clinicA}, ${terminalAppointmentId}, ${patientId},
+        'deposit', 'paid', 50, 'asaas', ${`pay_${run.slice(20, 32)}`},
+        ${`deposit:${terminalAppointmentId}`}, now()
+      )
   `);
   await dbAdmin.execute(sql`
     INSERT INTO lancamentos (
@@ -167,7 +188,7 @@ async function main(): Promise<void> {
     assert(structure[0]?.adjustmentForced === true, 'RLS do ajuste não está forçada');
     assert(structure[0]?.intentDelete === false, 'authenticated pode apagar intenção');
     assert(structure[0]?.adjustmentDelete === false, 'authenticated pode apagar ajuste');
-    console.log('[OK] 1/5 estrutura, RLS e grants');
+    console.log('[OK] 1/7 estrutura, RLS e grants');
 
     const intentWinners = await Promise.all(
       Array.from({ length: 2 }, () =>
@@ -185,7 +206,100 @@ async function main(): Promise<void> {
       ),
     );
     assert(intentWinners.filter((rows) => rows.length === 1).length === 1, 'intenção duplicou');
-    console.log('[OK] 2/5 intenção idempotente sob concorrência');
+    console.log('[OK] 2/7 intenção idempotente sob concorrência');
+
+    await withTenant(clinicA, (tx) =>
+      tx.execute(sql`
+        INSERT INTO patient_refund_intents (
+          id, clinic_id, patient_charge_id, purpose, amount, status,
+          provider_payment_id, baseline_refunded_amount, baseline_refund_count,
+          baseline_rejected_refund_count, source_event_id
+        ) VALUES (
+          ${depositRefundIntentId}, ${clinicA}, ${disputeChargeId}, 'deposit_closeout', 40,
+          'confirmation_pending', ${`pay_${run.slice(12, 24)}`}, 0, 0, 0, ${randomUUID()}
+        )
+      `),
+    );
+    const cancelled = await confirmRefundIntentFromReadback({
+      clinicId: clinicA,
+      intentId: depositRefundIntentId,
+      refunds: [{ refundId: null, status: 'CANCELLED', value: 40 }],
+    });
+    const cancelledState = await dbAdmin.execute<{
+      chargeStatus: string;
+      intentStatus: string;
+      failureCode: string | null;
+    }>(sql`
+      SELECT pc.status::text AS "chargeStatus",
+             pri.status::text AS "intentStatus",
+             pri.failure_code AS "failureCode"
+        FROM patient_charges pc
+        JOIN patient_refund_intents pri ON pri.patient_charge_id = pc.id
+       WHERE pri.id = ${depositRefundIntentId}
+    `);
+    assert(cancelled === 'failed', 'CANCELLED não encerrou a intenção como falha');
+    assert(
+      cancelledState[0]?.chargeStatus === 'paid' &&
+        cancelledState[0]?.intentStatus === 'failed' &&
+        cancelledState[0]?.failureCode === 'refund_cancelled',
+      'CANCELLED projetou devolução inexistente',
+    );
+    const crossTenantIntent = await withTenant(clinicB, (tx) =>
+      tx.execute(sql`SELECT id FROM patient_refund_intents WHERE id = ${depositRefundIntentId}`),
+    );
+    assert(crossTenantIntent.length === 0, 'RLS expôs intenção a outro tenant');
+    console.log('[OK] 3/7 D77 mantém cobrança paga quando refund termina CANCELLED');
+
+    await withTenant(clinicA, (tx) =>
+      tx.execute(sql`
+        INSERT INTO patient_refund_intents (
+          id, clinic_id, patient_charge_id, purpose, amount, status,
+          provider_payment_id, provider_refund_id, baseline_refunded_amount,
+          baseline_refund_count, baseline_rejected_refund_count, source_event_id
+        ) VALUES (
+          ${terminalRefundIntentId}, ${clinicA}, ${terminalChargeId}, 'deposit_closeout', 50,
+          'confirmation_pending', ${`pay_${run.slice(20, 32)}`}, 'refund-terminal',
+          0, 0, 0, ${randomUUID()}
+        )
+      `),
+    );
+    const terminalFirst = await confirmRefundIntentFromReadback({
+      clinicId: clinicA,
+      intentId: terminalRefundIntentId,
+      refunds: [{ refundId: 'refund-terminal', status: 'DONE', value: 50 }],
+    });
+    const terminalReplay = await confirmRefundIntentFromReadback({
+      clinicId: clinicA,
+      intentId: terminalRefundIntentId,
+      refunds: [{ refundId: 'refund-terminal', status: 'DONE', value: 50 }],
+    });
+    const terminalState = await dbAdmin.execute<{
+      chargeStatus: string;
+      intentStatus: string;
+      refundEvents: number;
+    }>(sql`
+      SELECT pc.status::text AS "chargeStatus",
+             pri.status::text AS "intentStatus",
+             (
+               SELECT count(*)::int FROM outbox oe
+                WHERE oe.clinic_id = ${clinicA}
+                  AND oe.idempotency_key IN (
+                    ${`charge-closed:${terminalChargeId}`},
+                    ${`credit-released:${terminalChargeId}`}
+                  )
+             ) AS "refundEvents"
+        FROM patient_charges pc
+        JOIN patient_refund_intents pri ON pri.patient_charge_id = pc.id
+       WHERE pri.id = ${terminalRefundIntentId}
+    `);
+    assert(terminalFirst === 'confirmed' && terminalReplay === 'confirmed', 'DONE não confirmou');
+    assert(
+      terminalState[0]?.chargeStatus === 'refunded' &&
+        terminalState[0]?.intentStatus === 'confirmed' &&
+        terminalState[0]?.refundEvents === 2,
+      'DONE não fechou cobrança + crédito exatamente uma vez',
+    );
+    console.log('[OK] 4/7 DONE fecha cobrança e eventos atomicamente; replay é idempotente');
 
     const excessEvent = randomUUID();
     await withTenant(clinicA, (tx) =>
@@ -219,7 +333,7 @@ async function main(): Promise<void> {
     assert(replay === 'duplicate', 'replay D50 não foi deduplicado');
     assert(excess[0]?.reversed === '30.00', 'D50 não compensou exatamente 30');
     assert(excess[0]?.adjustments === 1, 'D50 criou mais de um ajuste');
-    console.log('[OK] 3/5 D50 exato e idempotente');
+    console.log('[OK] 5/7 D50 exato e idempotente');
 
     await withTenant(clinicA, (tx) =>
       applyPatientPaymentRisk(tx, {
@@ -259,7 +373,7 @@ async function main(): Promise<void> {
       listAvailableCredits(tx, clinicA, disputeAppointmentId),
     );
     assert(released.length === 1, 'disputa ganha não liberou o crédito');
-    console.log('[OK] 4/5 disputa bloqueia e reversão libera');
+    console.log('[OK] 6/7 disputa bloqueia e reversão libera');
 
     const lossEvent = randomUUID();
     const lossPayload = {
@@ -310,7 +424,7 @@ async function main(): Promise<void> {
       tx.execute(sql`SELECT id FROM patient_credit_adjustments WHERE clinic_id = ${clinicA}`),
     );
     assert(crossTenant.length === 0, 'RLS expôs ajuste a outro tenant');
-    console.log('[OK] 5/5 perda recompõe ledger, replay e cross-tenant');
+    console.log('[OK] 7/7 perda recompõe ledger, replay e cross-tenant');
   } finally {
     await cleanup();
     console.log('[OK] cleanup sem resíduos');

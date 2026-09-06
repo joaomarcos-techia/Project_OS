@@ -1,4 +1,11 @@
-/** D50 — estorno parcial do valor que não coube no recebível. */
+/**
+ * Intenções de estorno de cobranças do paciente (D50 + D77).
+ *
+ * O Asaas não oferece idempotency-key no POST de estorno. Por isso a intenção é
+ * persistida antes da chamada, o baseline autoritativo é gravado antes do POST e
+ * qualquer resultado indeterminado passa somente por read-back/webhook. Nunca há
+ * retry cego de POST.
+ */
 import 'server-only';
 
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
@@ -11,6 +18,7 @@ import {
   BillingCircuitOpenError,
   BillingProviderError,
   BillingProviderUnreachableError,
+  type AsaasClient,
   type ProviderRefund,
 } from '@/lib/payments/asaas';
 
@@ -20,10 +28,17 @@ import type { ExcessRefundRequestedPayload } from '@/contexts/financial';
 
 import { PAYMENTS_EVENTS, type ExcessRefundConfirmedPayload } from '../events';
 import { patientCharges, patientRefundIntents } from '../schema';
+import { closeChargeInTransaction } from './charge-store';
 
-const CONFIRMED_REFUND_STATUSES = new Set(['REFUNDED', 'DONE', 'CONFIRMED', 'COMPLETED']);
-const REJECTED_REFUND_STATUSES = new Set(['DENIED', 'REFUND_DENIED', 'FAILED']);
-const DESCRIPTION = 'Estorno de valor pago acima do saldo do atendimento';
+export type RefundIntentPurpose = 'excess' | 'deposit_closeout';
+export type RefundConfirmationOutcome = 'confirmed' | 'failed' | 'pending';
+type RefundRequestOutcome = 'submitted' | 'confirmed' | 'already_started' | 'failed';
+type RefundClient = Pick<AsaasClient, 'listPaymentRefunds' | 'refundPayment'>;
+
+const CONFIRMED_REFUND_STATUSES = new Set(['DONE']);
+const REJECTED_REFUND_STATUSES = new Set(['CANCELLED', 'DENIED', 'REFUND_DENIED', 'FAILED']);
+const EXCESS_DESCRIPTION = 'Estorno de valor pago acima do saldo do atendimento';
+const DEPOSIT_DESCRIPTION = 'Estorno do sinal do atendimento cancelado';
 
 export function confirmedRefundTotal(refunds: readonly ProviderRefund[]): number {
   return Number(
@@ -34,31 +49,70 @@ export function confirmedRefundTotal(refunds: readonly ProviderRefund[]): number
   );
 }
 
-interface ClaimedRefundIntent {
+export function rejectedRefundCount(refunds: readonly ProviderRefund[]): number {
+  return refunds.filter((refund) => REJECTED_REFUND_STATUSES.has(refund.status)).length;
+}
+
+interface RefundBaseline {
+  confirmedAmount: number;
+  refundCount: number;
+  rejectedCount: number;
+}
+
+function refundBaseline(refunds: readonly ProviderRefund[]): RefundBaseline {
+  return {
+    confirmedAmount: confirmedRefundTotal(refunds),
+    refundCount: refunds.length,
+    rejectedCount: rejectedRefundCount(refunds),
+  };
+}
+
+interface RefundIntentCandidate {
   id: string;
   providerPaymentId: string;
   amount: number;
+  purpose: RefundIntentPurpose;
+  status: 'pending' | 'submitting' | 'confirmation_pending' | 'confirmed' | 'failed';
 }
 
-async function claimRefundIntent(input: {
+function asPurpose(value: string): RefundIntentPurpose {
+  if (value === 'excess' || value === 'deposit_closeout') return value;
+  throw new Error(`[payments] propósito de estorno inválido: ${value}`);
+}
+
+/**
+ * Persiste e lê a identidade da intenção, mas ainda não a reivindica. Assim uma
+ * falha no GET do baseline deixa status=pending e o worker pode tentar novamente
+ * sem risco: nenhum POST aconteceu.
+ */
+async function ensureRefundIntent(input: {
   clinicId: string;
-  payload: ExcessRefundRequestedPayload;
+  chargeId: string;
+  purpose: RefundIntentPurpose;
+  amount: number;
   sourceEventId: string;
-}): Promise<ClaimedRefundIntent | null> {
+}): Promise<RefundIntentCandidate> {
   return withTenant(input.clinicId, async (tx) => {
     const [charge] = await tx
-      .select({ id: patientCharges.id, providerPaymentId: patientCharges.providerPaymentId })
+      .select({
+        id: patientCharges.id,
+        kind: patientCharges.kind,
+        providerPaymentId: patientCharges.providerPaymentId,
+      })
       .from(patientCharges)
       .where(
         and(
-          eq(patientCharges.id, input.payload.chargeId),
+          eq(patientCharges.id, input.chargeId),
           eq(patientCharges.clinicId, input.clinicId),
           eq(patientCharges.status, 'paid'),
         ),
       )
       .limit(1);
     if (!charge?.providerPaymentId) {
-      throw new Error(`[payments] cobrança paga sem payment id: ${input.payload.chargeId}`);
+      throw new Error(`[payments] cobrança paga sem payment id: ${input.chargeId}`);
+    }
+    if (input.purpose === 'deposit_closeout' && charge.kind !== 'deposit') {
+      throw new Error(`[payments] estorno de sinal recebeu cobrança ${charge.kind}`);
     }
 
     await tx
@@ -66,8 +120,8 @@ async function claimRefundIntent(input: {
       .values({
         clinicId: input.clinicId,
         patientChargeId: charge.id,
-        purpose: 'excess',
-        amount: input.payload.amount.toFixed(2),
+        purpose: input.purpose,
+        amount: input.amount.toFixed(2),
         status: 'pending',
         providerPaymentId: charge.providerPaymentId,
         sourceEventId: input.sourceEventId,
@@ -78,6 +132,7 @@ async function claimRefundIntent(input: {
       .select({
         id: patientRefundIntents.id,
         amount: patientRefundIntents.amount,
+        purpose: patientRefundIntents.purpose,
         providerPaymentId: patientRefundIntents.providerPaymentId,
         status: patientRefundIntents.status,
       })
@@ -86,62 +141,74 @@ async function claimRefundIntent(input: {
         and(
           eq(patientRefundIntents.clinicId, input.clinicId),
           eq(patientRefundIntents.patientChargeId, charge.id),
-          eq(patientRefundIntents.purpose, 'excess'),
+          eq(patientRefundIntents.purpose, input.purpose),
         ),
       )
       .limit(1);
-    if (!intent) throw new Error(`[payments] intenção de estorno não foi persistida`);
-    if (Number(intent.amount) !== input.payload.amount) {
+    if (!intent) throw new Error('[payments] intenção de estorno não foi persistida');
+    if (Number(intent.amount) !== input.amount) {
       throw new Error(`[payments] valor divergente na intenção de estorno ${intent.id}`);
     }
-    if (intent.status !== 'pending') return null;
+    if (intent.providerPaymentId !== charge.providerPaymentId) {
+      throw new Error(`[payments] payment id divergente na intenção de estorno ${intent.id}`);
+    }
 
-    const [claimed] = await tx
-      .update(patientRefundIntents)
-      .set({ status: 'submitting', attemptedAt: sql`now()`, updatedAt: sql`now()` })
-      .where(
-        and(eq(patientRefundIntents.id, intent.id), eq(patientRefundIntents.status, 'pending')),
-      )
-      .returning({ id: patientRefundIntents.id });
-    return claimed
-      ? {
-          id: intent.id,
-          providerPaymentId: intent.providerPaymentId,
-          amount: Number(intent.amount),
-        }
-      : null;
+    return {
+      id: intent.id,
+      providerPaymentId: intent.providerPaymentId,
+      amount: Number(intent.amount),
+      purpose: asPurpose(intent.purpose),
+      status: intent.status,
+    };
   });
 }
 
-async function storeRefundBaseline(input: {
+/**
+ * Somente um worker vence esta transição. O baseline e o estado submitting são
+ * gravados juntos; portanto todo estado que pode ter alcançado o POST também é
+ * elegível ao reconciliador.
+ */
+async function claimRefundIntentWithBaseline(input: {
   clinicId: string;
   intentId: string;
-  baseline: number;
-}): Promise<void> {
-  await withTenant(input.clinicId, (tx) =>
-    tx
+  baseline: RefundBaseline;
+}): Promise<boolean> {
+  return withTenant(input.clinicId, async (tx) => {
+    const [claimed] = await tx
       .update(patientRefundIntents)
-      .set({ baselineRefundedAmount: input.baseline.toFixed(2), updatedAt: sql`now()` })
+      .set({
+        status: 'submitting',
+        baselineRefundedAmount: input.baseline.confirmedAmount.toFixed(2),
+        baselineRefundCount: input.baseline.refundCount,
+        baselineRejectedRefundCount: input.baseline.rejectedCount,
+        attemptedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
       .where(
         and(
           eq(patientRefundIntents.id, input.intentId),
-          eq(patientRefundIntents.status, 'submitting'),
+          eq(patientRefundIntents.status, 'pending'),
         ),
-      ),
-  );
+      )
+      .returning({ id: patientRefundIntents.id });
+    return Boolean(claimed);
+  });
 }
 
 async function returnToPendingBeforePost(clinicId: string, intentId: string): Promise<void> {
   await withTenant(clinicId, (tx) =>
     tx
       .update(patientRefundIntents)
-      .set({ status: 'pending', attemptedAt: null, updatedAt: sql`now()` })
+      .set({
+        status: 'pending',
+        baselineRefundedAmount: null,
+        baselineRefundCount: null,
+        baselineRejectedRefundCount: null,
+        attemptedAt: null,
+        updatedAt: sql`now()`,
+      })
       .where(
-        and(
-          eq(patientRefundIntents.id, intentId),
-          eq(patientRefundIntents.status, 'submitting'),
-          sql`${patientRefundIntents.baselineRefundedAmount} is null`,
-        ),
+        and(eq(patientRefundIntents.id, intentId), eq(patientRefundIntents.status, 'submitting')),
       ),
   );
 }
@@ -170,42 +237,67 @@ async function markConfirmationPending(input: {
   );
 }
 
+function failureMetric(purpose: RefundIntentPurpose): string {
+  return purpose === 'excess' ? 'payments.excess_refund.failed' : 'payments.deposit.refund_failed';
+}
+
 async function markRefundFailed(input: {
   clinicId: string;
   intentId: string;
+  purpose: RefundIntentPurpose;
   failureCode: string;
 }): Promise<void> {
-  await withTenant(input.clinicId, (tx) =>
-    tx
+  const changed = await withTenant(input.clinicId, async (tx) => {
+    const [updated] = await tx
       .update(patientRefundIntents)
       .set({ status: 'failed', failureCode: input.failureCode, updatedAt: sql`now()` })
       .where(
         and(
           eq(patientRefundIntents.id, input.intentId),
-          inArray(patientRefundIntents.status, ['submitting', 'confirmation_pending']),
+          inArray(patientRefundIntents.status, ['pending', 'submitting', 'confirmation_pending']),
         ),
-      ),
-  );
-  metrics.emit('payments.excess_refund.failed', {
-    clinicId: input.clinicId,
-    intentId: input.intentId,
-    failureCode: input.failureCode,
+      )
+      .returning({ id: patientRefundIntents.id });
+    return Boolean(updated);
   });
+  if (changed) {
+    metrics.emit(failureMetric(input.purpose), {
+      clinicId: input.clinicId,
+      intentId: input.intentId,
+      failureCode: input.failureCode,
+    });
+  }
 }
 
+function rejectedFailureCode(refund: ProviderRefund | undefined): string {
+  return refund?.status === 'CANCELLED' ? 'refund_cancelled' : 'refund_denied';
+}
+
+/**
+ * Confirma exclusivamente por estado autoritativo do provider.
+ *
+ * - refund DONE: dinheiro devolvido;
+ * - payment REFUNDED: cobrança integralmente devolvida;
+ * - refund CANCELLED/negado: falha terminal;
+ * - qualquer outro estado: continua pendente.
+ */
 export async function confirmRefundIntentFromReadback(input: {
   clinicId: string;
   intentId: string;
   refunds: readonly ProviderRefund[];
+  providerPaymentStatus?: string | null;
   confirmedAt?: Date;
-}): Promise<boolean> {
+}): Promise<RefundConfirmationOutcome> {
   return withTenant(input.clinicId, async (tx) => {
     const [intent] = await tx
       .select({
         id: patientRefundIntents.id,
         patientChargeId: patientRefundIntents.patientChargeId,
         amount: patientRefundIntents.amount,
+        purpose: patientRefundIntents.purpose,
         baselineRefundedAmount: patientRefundIntents.baselineRefundedAmount,
+        baselineRefundCount: patientRefundIntents.baselineRefundCount,
+        baselineRejectedRefundCount: patientRefundIntents.baselineRejectedRefundCount,
         providerRefundId: patientRefundIntents.providerRefundId,
         status: patientRefundIntents.status,
       })
@@ -213,43 +305,58 @@ export async function confirmRefundIntentFromReadback(input: {
       .where(eq(patientRefundIntents.id, input.intentId))
       .for('update')
       .limit(1);
-    if (!intent || intent.status === 'failed') return false;
-    if (intent.status === 'confirmed') return true;
-    const baseline = Number(intent.baselineRefundedAmount ?? 0);
+    if (!intent) return 'pending';
+    if (intent.status === 'failed') return 'failed';
+    if (intent.status === 'confirmed') return 'confirmed';
+    if (intent.baselineRefundedAmount === null) return 'pending';
+
+    const purpose = asPurpose(intent.purpose);
+    const baselineAmount = Number(intent.baselineRefundedAmount);
     const amount = Number(intent.amount);
-    const idConfirmed =
-      intent.providerRefundId !== null &&
-      input.refunds.some(
-        (refund) =>
-          refund.refundId === intent.providerRefundId &&
-          CONFIRMED_REFUND_STATUSES.has(refund.status),
-      );
-    const idRejected =
-      intent.providerRefundId !== null &&
-      input.refunds.some(
-        (refund) =>
-          refund.refundId === intent.providerRefundId &&
-          REJECTED_REFUND_STATUSES.has(refund.status),
-      );
-    if (idRejected) {
-      await tx
+    const exactRefund =
+      intent.providerRefundId === null
+        ? undefined
+        : input.refunds.find((refund) => refund.refundId === intent.providerRefundId);
+    const totalConfirmed = confirmedRefundTotal(input.refunds);
+    const confirmed =
+      input.providerPaymentStatus === 'REFUNDED' ||
+      (exactRefund !== undefined && CONFIRMED_REFUND_STATUSES.has(exactRefund.status)) ||
+      totalConfirmed + 1e-9 >= baselineAmount + amount;
+
+    if (!confirmed) {
+      const rejectedWithoutId =
+        intent.providerRefundId === null &&
+        intent.baselineRefundCount !== null &&
+        intent.baselineRejectedRefundCount !== null &&
+        input.refunds.length > intent.baselineRefundCount &&
+        rejectedRefundCount(input.refunds) > intent.baselineRejectedRefundCount;
+      const rejected =
+        (exactRefund !== undefined && REJECTED_REFUND_STATUSES.has(exactRefund.status)) ||
+        rejectedWithoutId;
+      if (!rejected) return 'pending';
+
+      const rejectedRefund =
+        exactRefund ?? input.refunds.find((refund) => REJECTED_REFUND_STATUSES.has(refund.status));
+      const failureCode = rejectedFailureCode(rejectedRefund);
+      const [updated] = await tx
         .update(patientRefundIntents)
-        .set({ status: 'failed', failureCode: 'refund_denied', updatedAt: sql`now()` })
+        .set({ status: 'failed', failureCode, updatedAt: sql`now()` })
         .where(
           and(
             eq(patientRefundIntents.id, intent.id),
             inArray(patientRefundIntents.status, ['submitting', 'confirmation_pending']),
           ),
-        );
-      metrics.emit('payments.excess_refund.failed', {
-        clinicId: input.clinicId,
-        intentId: intent.id,
-        failureCode: 'refund_denied',
-      });
-      return false;
+        )
+        .returning({ id: patientRefundIntents.id });
+      if (updated) {
+        metrics.emit(failureMetric(purpose), {
+          clinicId: input.clinicId,
+          intentId: intent.id,
+          failureCode,
+        });
+      }
+      return 'failed';
     }
-    const totalConfirmed = confirmedRefundTotal(input.refunds);
-    if (!idConfirmed && totalConfirmed + 1e-9 < baseline + amount) return false;
 
     const confirmedAt = input.confirmedAt ?? new Date();
     const [updated] = await tx
@@ -262,14 +369,44 @@ export async function confirmRefundIntentFromReadback(input: {
         ),
       )
       .returning({ id: patientRefundIntents.id });
-    if (!updated) return false;
+    if (!updated) return 'pending';
 
     const [charge] = await tx
-      .select({ appointmentId: patientCharges.appointmentId })
+      .select({
+        appointmentId: patientCharges.appointmentId,
+        kind: patientCharges.kind,
+        amount: patientCharges.amount,
+      })
       .from(patientCharges)
       .where(eq(patientCharges.id, intent.patientChargeId))
       .limit(1);
     if (!charge) throw new Error(`[payments] cobrança do estorno ${intent.id} não existe`);
+
+    if (purpose === 'deposit_closeout') {
+      if (charge.kind !== 'deposit' || Number(charge.amount) !== amount) {
+        throw new Error(`[payments] intenção de estorno de sinal inválida: ${intent.id}`);
+      }
+      const closed = await closeChargeInTransaction(tx, {
+        clinicId: input.clinicId,
+        chargeId: intent.patientChargeId,
+        from: 'paid',
+        outcome: 'refunded',
+        kind: charge.kind,
+        appointmentId: charge.appointmentId,
+        amount,
+        closedAt: confirmedAt,
+      });
+      if (closed) {
+        metrics.emit('payments.deposit.refunded', {
+          clinicId: input.clinicId,
+          appointmentId: charge.appointmentId,
+          chargeId: intent.patientChargeId,
+          amount,
+        });
+      }
+      return 'confirmed';
+    }
+
     const payload: ExcessRefundConfirmedPayload = {
       clinicId: input.clinicId,
       appointmentId: charge.appointmentId,
@@ -284,15 +421,16 @@ export async function confirmRefundIntentFromReadback(input: {
       payload,
       idempotencyKey: `excess-refund-confirmed:${intent.id}`,
     });
-    return true;
+    return 'confirmed';
   });
 }
 
-/** Confirma por webhook usando apenas o read-back autoritativo do provider. */
+/** O webhook apenas acorda o read-back; o corpo nunca confirma o estorno. */
 export async function reconcileRefundIntentsForPayment(input: {
   clinicId: string;
   providerPaymentId: string;
   loadRefunds: () => Promise<readonly ProviderRefund[]>;
+  providerPaymentStatus?: string | null;
   confirmedAt?: Date;
 }): Promise<number> {
   const intentIds = await withTenant(input.clinicId, (tx) =>
@@ -308,89 +446,91 @@ export async function reconcileRefundIntentsForPayment(input: {
       ),
   );
   if (intentIds.length === 0) return 0;
+
   const refunds = await input.loadRefunds();
   let confirmed = 0;
   for (const intent of intentIds) {
-    if (
-      await confirmRefundIntentFromReadback({
-        clinicId: input.clinicId,
-        intentId: intent.id,
-        refunds,
-        ...(input.confirmedAt ? { confirmedAt: input.confirmedAt } : {}),
-      })
-    ) {
-      confirmed += 1;
-    }
+    const outcome = await confirmRefundIntentFromReadback({
+      clinicId: input.clinicId,
+      intentId: intent.id,
+      refunds,
+      ...(input.providerPaymentStatus !== undefined
+        ? { providerPaymentStatus: input.providerPaymentStatus }
+        : {}),
+      ...(input.confirmedAt ? { confirmedAt: input.confirmedAt } : {}),
+    });
+    if (outcome === 'confirmed') confirmed += 1;
   }
   return confirmed;
 }
 
-export async function requestExcessRefund(input: {
+async function requestRefund(input: {
   clinicId: string;
-  payload: ExcessRefundRequestedPayload;
+  chargeId: string;
+  amount: number;
+  purpose: RefundIntentPurpose;
   sourceEventId: string;
-}): Promise<'submitted' | 'already_started' | 'failed'> {
-  if (input.payload.clinicId !== input.clinicId) {
-    throw new Error('[payments] clinicId divergente no pedido de estorno');
-  }
-  const intent = await claimRefundIntent(input);
-  if (!intent) return 'already_started';
-  const client = await getClinicAsaasClient(input.clinicId);
+  description: string;
+  client?: RefundClient | null;
+}): Promise<RefundRequestOutcome> {
+  const intent = await ensureRefundIntent(input);
+  if (intent.status === 'confirmed') return 'confirmed';
+  if (intent.status === 'failed') return 'failed';
+  if (intent.status !== 'pending') return 'already_started';
+
+  const client =
+    input.client === undefined ? await getClinicAsaasClient(input.clinicId) : input.client;
   if (!client) {
     await markRefundFailed({
       clinicId: input.clinicId,
       intentId: intent.id,
+      purpose: intent.purpose,
       failureCode: 'payment_account_unavailable',
     });
     return 'failed';
   }
 
-  let baseline: number;
+  let baseline: RefundBaseline;
   try {
-    baseline = confirmedRefundTotal(
+    baseline = refundBaseline(
       await client.listPaymentRefunds(intent.providerPaymentId, { attempts: 1 }),
     );
-    await storeRefundBaseline({ clinicId: input.clinicId, intentId: intent.id, baseline });
   } catch (error) {
-    // Nenhum POST ocorreu: este único caso pode voltar com segurança para retry.
-    await returnToPendingBeforePost(input.clinicId, intent.id);
+    // A intenção segue pending: nenhum POST ocorreu e o retry continua seguro.
     throw error;
   }
 
-  let providerRefundId: string | null = null;
+  const claimed = await claimRefundIntentWithBaseline({
+    clinicId: input.clinicId,
+    intentId: intent.id,
+    baseline,
+  });
+  if (!claimed) return 'already_started';
+
   try {
     const refund = await client.refundPayment(intent.providerPaymentId, {
       value: intent.amount,
-      description: DESCRIPTION,
+      description: input.description,
     });
-    providerRefundId = refund.refundId;
     await markConfirmationPending({
       clinicId: input.clinicId,
       intentId: intent.id,
-      providerRefundId,
+      providerRefundId: refund.refundId,
     });
   } catch (error) {
     if (error instanceof BillingProviderError) {
       await markRefundFailed({
         clinicId: input.clinicId,
         intentId: intent.id,
+        purpose: intent.purpose,
         failureCode: error.providerErrorCodes[0] ?? `http_${error.httpStatus ?? 400}`,
       });
       return 'failed';
     }
     if (error instanceof BillingCircuitOpenError) {
-      // O breaker recusou antes do HTTP. O POST comprovadamente não aconteceu.
-      await withTenant(input.clinicId, (tx) =>
-        tx
-          .update(patientRefundIntents)
-          .set({
-            status: 'pending',
-            baselineRefundedAmount: null,
-            attemptedAt: null,
-            updatedAt: sql`now()`,
-          })
-          .where(eq(patientRefundIntents.id, intent.id)),
-      );
+      // O breaker recusou antes do HTTP; este é o único caso pós-claim em que
+      // voltar a pending e permitir uma nova tentativa é comprovadamente seguro.
+      await returnToPendingBeforePost(input.clinicId, intent.id);
       throw error;
     }
     await markConfirmationPending({
@@ -404,19 +544,59 @@ export async function requestExcessRefund(input: {
 
   try {
     const refunds = await client.listPaymentRefunds(intent.providerPaymentId, { attempts: 1 });
-    await confirmRefundIntentFromReadback({
+    const outcome = await confirmRefundIntentFromReadback({
       clinicId: input.clinicId,
       intentId: intent.id,
       refunds,
     });
+    if (outcome === 'confirmed' || outcome === 'failed') return outcome;
   } catch (error) {
-    metrics.emit('payments.excess_refund.readback_failed', {
-      clinicId: input.clinicId,
-      intentId: intent.id,
-      error,
-    });
+    metrics.emit(
+      intent.purpose === 'excess'
+        ? 'payments.excess_refund.readback_failed'
+        : 'payments.deposit.refund_readback_failed',
+      {
+        clinicId: input.clinicId,
+        intentId: intent.id,
+        error,
+      },
+    );
   }
   return 'submitted';
+}
+
+export async function requestExcessRefund(input: {
+  clinicId: string;
+  payload: ExcessRefundRequestedPayload;
+  sourceEventId: string;
+}): Promise<'submitted' | 'already_started' | 'failed'> {
+  if (input.payload.clinicId !== input.clinicId) {
+    throw new Error('[payments] clinicId divergente no pedido de estorno');
+  }
+  const outcome = await requestRefund({
+    clinicId: input.clinicId,
+    chargeId: input.payload.chargeId,
+    amount: input.payload.amount,
+    purpose: 'excess',
+    sourceEventId: input.sourceEventId,
+    description: EXCESS_DESCRIPTION,
+  });
+  return outcome === 'confirmed' ? 'submitted' : outcome;
+}
+
+/** Inicia o estorno integral do sinal sem projetar devolução antes de DONE. */
+export async function requestDepositRefund(input: {
+  clinicId: string;
+  chargeId: string;
+  amount: number;
+  sourceEventId: string;
+  client: RefundClient;
+}): Promise<RefundRequestOutcome> {
+  return requestRefund({
+    ...input,
+    purpose: 'deposit_closeout',
+    description: DEPOSIT_DESCRIPTION,
+  });
 }
 
 export interface RefundIntentReconcileCandidate {

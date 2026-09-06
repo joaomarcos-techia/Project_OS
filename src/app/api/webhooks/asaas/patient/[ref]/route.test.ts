@@ -189,6 +189,7 @@ describe('estorno e risco financeiro', () => {
       clinicId: 'clinic-1',
       providerPaymentId: 'pay_1',
       loadRefunds: expect.any(Function),
+      providerPaymentStatus: 'REFUNDED',
     });
     expect(mocks.markDepositPaid).not.toHaveBeenCalled();
   });

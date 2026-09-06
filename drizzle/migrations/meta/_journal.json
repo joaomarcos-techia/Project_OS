@@ -652,6 +652,20 @@
       "when": 1788214500000,
       "tag": "0092_patient_money_adjustments",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1788300900000,
+      "tag": "0093_ai_clinic_config_convenios",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1788560100000,
+      "tag": "0094_patient_refund_terminal_confirmation",
+      "breakpoints": true
     }
   ]
 }

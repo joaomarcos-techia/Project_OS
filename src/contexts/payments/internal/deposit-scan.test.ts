@@ -30,7 +30,7 @@ vi.mock('./deposit-charge', () => ({ createDepositCharge: mocks.createDepositCha
 
 import { metrics } from '@/lib/observability/metrics';
 
-import { runDepositScan } from './deposit-scan';
+import { listClinicsWithPendingRefundIntents, runDepositScan } from './deposit-scan';
 
 const candidate = (clinicId: string, appointmentId: string) => ({
   clinicId,
@@ -133,5 +133,14 @@ describe('runDepositScan', () => {
       createdWithinHours: 6,
       limit: 10,
     });
+  });
+});
+
+describe('reconciliação de estornos pendentes', () => {
+  it('descobre clínicas pelo trabalho pendente, sem depender da política ainda estar ligada', async () => {
+    mocks.execute.mockResolvedValue([{ clinic_id: 'clinic-refund' }]);
+
+    await expect(listClinicsWithPendingRefundIntents(50)).resolves.toEqual(['clinic-refund']);
+    expect(mocks.listDepositCandidates).not.toHaveBeenCalled();
   });
 });

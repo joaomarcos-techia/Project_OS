@@ -15,7 +15,7 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Última verificação contra o repositório e dependências controladas:** 2026-09-04 · branch `feat/qorov2-pagamentos`
+**Última verificação contra o repositório e dependências controladas:** 2026-09-05 · branch `feat/qorov2-pagamentos`
 
 **Versionamento (2026-08-27):** a 1.6c está nos commits publicados `15cb9c3` (código) e `3035383`
 (registro da migration). O hardening financeiro/D49 está em `a7717e7`, com Preview Vercel verde, e
@@ -510,15 +510,17 @@ ocorreu, em vez de dizer "cancelada". Contexto e brief original:
 | 1.2 Política de sinal | ✅ | migration 0082; `payments/policy.ts` (funções puras) |
 | 1.3 Charges + hold | ✅ | migrations 0083–0085; cron `/api/cron/payments-deposit` |
 | 1.4 Webhook do paciente | ✅ **corrigido e provado no negócio (D47–D48)** | `0089` aplicada; grants/RLS validados; E2E no Preview criou sinal de R$ 75,00, recebeu `PAYMENT_RECEIVED` real do Asaas e confirmou a consulta |
-| 1.5a Falta / cancelamento / estorno | ✅ | `payments/internal/charge-closeout.ts` + 26 testes; sem migração |
+| 1.5a Falta / cancelamento / estorno | 🟡 **D77 CORRIGIDO EM CÓDIGO/DEV; ROLLOUT PENDENTE** | P11 reutiliza `patient_refund_intents`, nunca fecha no 2xx, trata `CANCELLED` como falha e só projeta `refunded` após `DONE`/pagamento `REFUNDED`; migration 0094 e smoke DEV 7/7 verdes. Faltam produção, publicação e nova prova Sandbox autorizada |
 | **1.5b Restante** | ✅ **runtime completo** — 1.5b.1 · 1.5b.2 · 1.5b.3a · 1.5b.3b | migration 0088; `credit-store` + 2 handlers; `remainder-charge` + `remainder-scan`; seam `getAppointmentBalance` |
 | 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
 | 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
 | **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA E ENTREGUE** | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; Meta aceitou e o operador confirmou a chegada ao aparelho |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST indeterminado contido ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 externo ✅ · Playwright Preview read-only ✅ 8/8 · matriz visual pós-deploy ✅ 8/8/72 estados · Product Acceptance técnico-normativo ✅ 150/150 · D24/D27 código+externo ✅ · D60/D70 publicados/revalidados ✅ · D50 aguarda estado terminal do provider |
+| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST indeterminado contido ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 externo ✅ · Playwright Preview read-only ✅ 8/8 · matriz visual pós-deploy ✅ 8/8/72 estados · Product Acceptance técnico-normativo ✅ 150/150 · D27 externo ✅ · D60/D70 publicados/revalidados ✅ · D77 código/DEV ✅ · D50 aguarda provider · D77 rollout/prova externa pendentes |
 | 1.S Stabilization | ✅ **CONCLUÍDA — P10** | D73 worker órfão ✅ · D74 gate de POST alinhado ao Checkout ✅ · D75 isolamento dos harnesses ✅ · C14 9/9 ✅ · Financial 10/10 ✅ · jornada 13/13 ✅ · simulação 30 dias ✅ · lint/typecheck/build ✅ · 2.816/2.816 testes ✅ · arquitetura/operacionais ✅ · diff/formatação/segredos revisados ✅ · commit executável `4883372` publicado/deployado ✅ · Preview autenticado 6/6 sem `pageerror` ✅ |
 
-**A Camada 1 NÃO terminou.** A **1.S está concluída**; falta somente o fechamento externo da **1.H/D50**. O E2E real do sinal passou no Preview até
+**A Camada 1 NÃO terminou.** A **1.S/P10 está concluída** e o corretivo **P11/D77** está verde em
+código e banco DEV. Ainda faltam aplicar a 0094 em produção, publicar/revalidar o lote, executar uma
+nova prova Sandbox autorizada e concluir o fechamento externo da **1.H/D50**. O E2E real do sinal passou no Preview até
 `charge → pagamento sandbox → webhook Asaas → crédito → CONFIRMADO`. Em 31/08, a entrega do link foi
 exercitada até o aceite real da Meta para sinal e restante: conexão ativa, templates distintos,
 `providerMessageId`, jobs terminais e replay zero; em 02/09 o operador confirmou a chegada das duas
@@ -530,17 +532,16 @@ externa de recebimento foi fechada pela confirmação humana.
 
 ### Gates — resultado REAL da última execução completa
 
-Executados novamente em 2026-09-04 durante P10/1.S, após o fechamento/cleanup D62, a prova externa D54/D55/D66, a
-proteção de proveniência dos runners e a documentação do Track O. As migrations `0091` + `0092` já estavam
-aplicadas/verificadas em DEV e produção. Os smokes conectados abaixo preservam sua última execução
-válida; lint, typecheck, suíte integral, build e todos os checks arquiteturais/operacionais foram
-repetidos no worktree atual.
+Executados novamente em **2026-09-05** durante P11/D77. A migration `0094` foi aplicada somente em DEV,
+como autorizado; produção não foi tocada. Os smokes conectados de dinheiro, hardening financeiro e
+jornada foram repetidos contra DEV e terminaram com cleanup zero. Lint, typecheck, suíte integral,
+build e todos os checks arquiteturais/operacionais abaixo foram repetidos no worktree atual.
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
 | Lint | `pnpm lint` | ✅ |
 | Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test` | ✅ **2816** (311 arquivos), incluindo a regressão de fuso D70, 3 testes de proveniência de conta, D62/D27, D63, runner Meta, P8 guards, D61, D24/D58, D50, 1.6c e regressão integral |
+| Testes | `pnpm test` | ✅ **2832/2832** (311 arquivos), incluindo 17 testes do contrato terminal D50/D77, compatibilidade com intents pré-0094, concorrência e regressão integral |
 | Build | `pnpm build` | ✅ exit 0 |
 | Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1048 arquivos) |
 | dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1121 arquivos) |
@@ -560,7 +561,8 @@ repetidos no worktree atual.
 | Playwright Preview somente leitura | 2 specs, 8 cenários, `E2E_AUTH_REUSE=1`, `E2E_MUTATION=0` | ✅ **8/8** com uma autenticação: 5 fronteiras públicas, 25 rotas estáticas HTTP 200, paciente dinâmico visitado, conversas vazias aceitas e navegação principal; estado autenticado e artefatos temporários removidos |
 | Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 reexecutados em 2026-08-28, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
 | Checkout/gerações DB | `pnpm smoke:payments-checkout-db` | ✅ 5/5 em DEV: RLS/grants, claim idempotente, dívida única, cross-tenant, ativação/send-time; cleanup zero |
-| D50/D27 DB | `pnpm smoke:payments-money-db` | ✅ **5/5 em DEV**: estrutura/RLS/grants, intenção concorrente idempotente, D50 exato/replay, disputa/reversão, perda/replay/cross-tenant; cleanup zero |
+| D50/D27/D77 DB | `pnpm smoke:payments-money-db` | ✅ **7/7 em DEV**: estrutura/RLS/grants, intenção concorrente, `CANCELLED` sem falso fechamento, `DONE` atômico + replay, D50 exato, disputa/reversão e perda/cross-tenant; cleanup zero |
+| P11 focado | `pnpm vitest run <7 arquivos>` | ✅ **104/104**: migration, closeout, webhook, reconciliador, descoberta de tenants, handler e intents antigos sem os contadores da 0094 |
 | D50 focado + status preservado | `pnpm vitest run <6 arquivos>` + `STATUS_CLINICA_A_D50` | ✅ **29/29**; pagamento/webhook reais, R$ 10 alocados, um único POST parcial de R$ 10 e intenção `confirmation_pending`. Readback de 04/09 confirmou pagamento `CONFIRMED`, recebível R$ 20 pago, duas baixas/R$ 20 e exatamente um refund de R$ 10 ainda `PENDING` |
 | D62 tenant + Financial + replay | `PROCESS_RETAINED_CLINICA_A_PATIENT_CHARGEBACK_RISK` | ✅ **3 fatos processados / replay 0 de 3**; conta vinculada por fingerprint, nenhuma fila alheia tocada, compensação ligada à baixa, `chargeback_loss` única, saldo reaberto e atendimento preservado |
 | Cleanup D62 | `CLEANUP_RETAINED_CLINICA_A_PATIENT_CHARGEBACK` | ✅ preflight exato, provider `REFUNDED/DONE`, 16 linhas sintéticas removidas em transação, zero mutação no provider, auditoria de webhook preservada, manifesto removido e zero resíduo da fixture |
@@ -569,11 +571,14 @@ repetidos no worktree atual.
 | Migrations PROD `0091` + `0092` | `pnpm db:migrate:prod` + verificação read-only | ✅ backup 2.834.598 bytes · lock adquirido/liberado · `DONE` · sem sentinel · pós-verificação **7/7**: versions/journal, enums, tabelas/colunas, RLS/policies, grants, índices/constraints e lock ausente |
 | `pnpm format:check` | — | ❌ **vermelho na baseline** (131 arquivos pré-existentes, **D9**). Arquivos novos das camadas 1.x são formatados |
 
-Migrations **0081–0092** aplicadas e verificadas no banco de **dev**. A `0092` passou o smoke conectado
-5/5, incluindo RLS/grants, concorrência, replay e isolamento cross-tenant. Após a rotação da credencial,
+Migrations **0081–0094** aplicadas e verificadas no banco de **dev**. A `0094` passou o smoke conectado
+7/7, incluindo RLS/grants, concorrência, estados terminais, replay e isolamento cross-tenant. Após a rotação da credencial,
 `0091` e `0092` foram aplicadas juntas em produção com backup, advisory lock e `DONE`; o arquivo DPAPI
-foi removido. A verificação SQL pós-migration independente passou 7/7 em transação read-only. Antes da
-aplicação, a `0090` foi
+foi removido. A verificação SQL pós-migration independente passou 7/7 em transação read-only. Para a
+publicação de P11, **0094 permanece pendente em produção** e exige nova autorização com backup,
+advisory lock e pós-verificação. A migration `0093` foi integrada a esta branch a partir da `main`; o
+histórico `0081–0092` também foi reconciliado e publicado na `main` pelo commit `93da840`.
+Antes da aplicação, a `0090` foi
 validada sem persistência: banco populado (2 jobs), `up → rollback → up` verde e modelo vazio temporário
 aceitou `remainder_link`. Em 27/08, a `0090` também foi aplicada e verificada em **produção** com backup
 pré-migration e advisory lock; `pg_enum`, `_schema_version` e o cast do novo valor retornaram verdes.
@@ -644,13 +649,14 @@ objeto do teste.
 | P1 | ✅ **Meta real entregou sinal e restante** | Em 31/08 a Clínica A estava ativa/verificada no banco DEV/Preview. O runner controlado criou Checkouts reais, publicou os eventos próprios, gerou `deposit_link` e `remainder_link`, resolveu os links no send-time e recebeu `accepted` + `providerMessageId` para dois templates distintos. Replay encontrou zero jobs e o cleanup local/provider foi confirmado. Em 02/09 o operador confirmou que ambas as mensagens chegaram ao aparelho com os links | **PASS:** aplicação → C14 → Meta → aparelho, templates distintos, jobs terminais e at-most-once. Os links estavam expirados quando abertos porque o runner já havia cancelado os Checkouts no cleanup; isso é esperado e não prova pagamento pelo link | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md); D63/D64 |
 | P2 | ✅ **Webhook global e round-trip de restauração provados na conta alvo** | Em 02/09, após autorização explícita, o runner verificou por fingerprint que a credencial global e a fixture D50 pertencem à mesma conta Sandbox alvo; criou `qoro dev` na rota global do Preview, com token/bypass, API v3, sete eventos e `NON_SEQUENTIALLY`. A mesma cobrança sintética percorreu `open → cancelled → open` por eventos reais `PAYMENT_DELETED` e `PAYMENT_RESTORED` | **PASS:** readback do webhook, entrega provider→Preview, duas linhas de dedup, replay sem nova transição e cleanup exato no provider+banco. Pós-check confirmou coexistência com o webhook tenant de 12 eventos/`SEQUENTIALLY`. O mesmo Sandbox em dois papéis continua concessão exclusiva de teste | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D46, D54, D55, D65, D66; §20.5 |
 | P3 | ✅ **Rotação da chave sandbox não será executada** — decisão final do fundador em 03/09 | A credencial é exclusiva do Sandbox e o fundador aceitou conscientemente o risco residual. Isso deixa de ser pendência da Camada 1; o valor continua proibido em código, diff, log e documentação. Reabrir somente se a conta deixar de ser descartável, for compartilhada, promovida ou usada como evidência de longa duração | **DECISÃO ENCERRADA, não é teste nem bloqueio.** Continuam obrigatórios fingerprint da conta e separação absoluta de produção | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
-| P4 | **D24 — somente PIX/cartão no sinal e restante** — código + DEV/PROD ✅; pagamento externo ✅ | Checkout `DETACHED` usa somente `PIX` + `CREDIT_CARD`. Em 30/08 o runner criou pagamentos sandbox por cartão e PIX na conta anterior. Em 02/09 o operador confirmou que o PIX **não foi estornado**, removeu o webhook/chaves antigas e depois não encontrou mais a cobrança no painel. A fixture D62 da conta alvo usa cartão | **PASS:** adapter/contrato/unit, migration `0091` DEV+PROD, smoke/pós-verificação, suíte/build/gates e comportamento real dos dois métodos. O cleanup antigo fica `NOT COMPLETED`, sem recriar credencial. Amanhã pode ser criada uma fixture PIX nova, isolada e vinculada por fingerprint à conta alvo, como prova adicional — nunca como continuação do pagamento antigo | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [estornos Asaas](https://docs.asaas.com/docs/estornos); D57/D58; §20.1 |
+| P4 | **D24 — somente PIX/cartão no sinal e restante** — código + DEV/PROD ✅; pagamento externo ✅; estorno PIX assíncrono revelou D77 | Checkout `DETACHED` usa somente `PIX` + `CREDIT_CARD`. O PIX histórico da conta anterior continua `NOT COMPLETED`, sem reintroduzir credenciais. Em 04/09 uma prova isolada na conta atual confirmou cobrança `PIX` de R$ 10 em `RECEIVED`. O único refund foi aceito, aguardou ação crítica e terminou `CANCELLED`; o pagamento continua recebido e o saldo era suficiente | **PASS:** criação/pagamento PIX. **FAIL externo:** nenhum valor foi devolvido; não repetir POST sem nova autorização. O risco crítico D77 está corrigido em código/DEV pelo P11, mas a proteção só entra em produção após migration 0094, publicação e revalidação | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [estornos Asaas](https://docs.asaas.com/docs/estornos); D57/D58/D76/D77; §20.1 |
 | P5 | ✅ **D27 — jornada tenant completa e fixture removida** | Em 01/09 a fixture real de restante de R$ 10 foi paga por cartão na conta alvo. Depois do suporte disparar o chargeback, o provider terminou `REFUNDED/DONE`, a rota tenant marcou a `patient_charge` `refunded/lost` e publicou `requested`, `in_dispute`, `lost`. Em 02/09 o runner vinculou a fixture a um fingerprint da conta e executou somente esses handlers | **PASS:** identidade/proveniência, Asaas → Preview, dedup, Payments, compensação ligada à baixa, `chargeback_loss`, saldo reaberto, fato clínico preservado e replay 0/3. O cleanup autorizado validou as contagens, removeu 16 linhas sintéticas em uma transação, não chamou o provider, preservou o audit de webhook e terminou sem resíduo da fixture | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); D62, D68; §20.2 |
 | P6 | **D50 — estorno parcial enviado; provider ainda `PENDING`** | Em 01/09 o Checkout de R$ 20 foi pago por cartão e o webhook tenant marcou a charge `paid`. O Financial alocou somente R$ 10 ao saldo e publicou o excedente. Uma única intenção, baseline zero, executou um único POST parcial de R$ 10. Novo readback em **04/09** confirmou pagamento `CONFIRMED`, recebível `pago` em R$ 20, duas baixas somando R$ 20, uma intenção `confirmation_pending` de R$ 10, baseline zero e um único refund `PENDING` de R$ 10 | **PASS:** pagamento, webhook, correlação, valor exato, persist-before-POST, ausência de duplicata, fingerprint e separação entre contas. **Pendente exclusivamente no provider/suporte:** aguardar o refund existente; nunca repetir POST. Quando virar `DONE`, fazer readback → ledger → replay → cleanup. A UI mostra a exceção no Caixa, mas não a palavra `DONE` (D72) | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estornos Asaas](https://docs.asaas.com/docs/refunds); D50/D72; §20.3 e §20.9 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
 | P8 | ✅ **Carga e restore em volume** | Restore real e carga usam PostgreSQL 17 local descartável. `test:load` extrai somente o schema DEV, sobe app real no scratch TLS, substitui Meta antes da rede, bloqueia demais HTTP externos e exige confirmação/guards fail-closed. Nenhuma escrita foi feita em DEV, Preview ou produção | **PASS:** restore 117 tabelas/83 policies e zero resíduo; carga 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile 20 chamadas e 100 queries. Todos os SLOs verdes, zero deadlock/duplicata/retry/falha e cleanup integral | §10 Performance; §16 Migração; `test:load`; `restore:test`; D61; R10 em [riscos](architecture/risks.md) |
 | P9 | ✅ **Product Acceptance técnico-normativo publicado e revalidado** — D53/D56/D60/D70/D71 | Em 04/09 o agente cruzou o fluxo real do Qoro com CFM/ANPD e executou 150 testes focados de Agenda, prontuário, autorização, isolamento, templates e pagamentos. A auditoria encontrou D60 recorrente e D70; ambos foram corrigidos e publicados em `42cd114`. O deployment terminou `success`, a navegação Preview passou 6/6 e a matriz pós-deploy passou 8/8/72 estados esperando headings reais e capturando `pageerror`. Auth state e capturas foram removidos. Teste humano de usabilidade deixa de ser encenado pelo fundador e passa a ser observação da clínica piloto | **PASS técnico-normativo:** código, suíte integral, build/gates e Preview verdes. Manter monitoramento passivo do Sentry. A validação humana de percepção não bloqueia iniciar 1.S; bloqueia avançar da clínica piloto para ondas seguintes se revelar problema alto/médio | §0.2; §15; CFM/ANPD; [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56/D60/D70/D71; [guia E2E](../e2e/README.md) |
 | P10 | ✅ **1.S concluída** — D73/D74/D75 | D73 encerra observavelmente eventos preservados cujo tenant já não existe, sem violar o audit do outbox; D74 substitui o contrato obsoleto de recuperação `/payments` pela contenção real de `POST /checkouts` indeterminado; D75 impede que harnesses globais confundam audit órfão com concorrência ativa. C14 9/9, Financial 10/10, jornada 13/13, contenção POST e simulação 30 dias passaram com cleanup zero. ADR-049/050/051, Discovery e runbooks foram reconciliados | **PASS completo:** lint, typecheck, 2.816/2.816 testes em 311 arquivos, build, 0 ciclos, db-check, grafos, migrations, registry, observabilidade, diff, formatação e varredura do conteúdo adicionado. O commit executável `4883372` foi confirmado no remoto, teve deployment Vercel `CZJqTEXXeMoKYa9zwTfxBDGDGpwr` terminal `success` e smoke Preview autenticado 6/6 sem `pageerror`; auth state/artefato removidos. D50 continua dependência externa `PENDING`, sem novo POST | §0.3 DoD; §18 Rollout; ADR-049 §9; D73–D75 |
+| P11 | 🟡 **D77 — CÓDIGO/DEV VERDES; ROLLOUT EXTERNO PENDENTE** | `deposit_closeout` reutiliza `patient_refund_intents`: persiste antes do POST, grava baseline+contadores no claim atômico, não repete resposta incerta, trata `PENDING`/em progresso como não terminal e `CANCELLED` como falha. Só `DONE` ou pagamento `REFUNDED` confirma; intenção, `patient_charge.closed` e `patient_credit.released` fecham na mesma transação. Webhook e cron fazem readback; tenants com intenção em voo são descobertos mesmo se a política for desligada. Intents antigos sem os contadores continuam conciliáveis por refund id/valor/status | **PASS local/DEV:** migration 0094 aplicada somente em DEV; focados 104/104, suíte 2.832/2.832, money smoke 7/7, Financial 10/10, jornada 13/13, build e todos os gates verdes. **PENDENTE:** autorização para migration 0094 em produção com backup/lock/pós-check, commit+push+deploy e nova prova PIX Sandbox tenant-scoped; nenhum POST externo foi feito neste lote | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a; [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; D76/D77; migration 0094 |
 
 ### Testes explicitamente não verdes / não executados
 
@@ -659,12 +665,12 @@ objeto do teste.
 | Playwright read-only (2 specs) | ✅ **PASS Preview `8bf193e`: 8/8 com sessão única em 1,8 min** | repetir no novo HEAD publicado quando houver mudança executável de UI/rotas; a matriz mutável exige opt-ins e ambientes próprios |
 | `test:load` | ✅ **PASS local scratch-only em 29/08** | repetir após mudança relevante em C14, webhook, outbox/reconcile, schema ou SLO; exige build atual, PostgreSQL 17 local e confirmação exata |
 | `pnpm restore:test` em volume | ✅ **PASS em scratch local descartável** | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido |
-| Checkout Asaas PIX + cartão (D24) | **PASS comportamento real; cleanup PIX antigo `NOT COMPLETED`** | Cartão e PIX foram correlacionados no Sandbox anterior, mas nenhum estorno PIX foi confirmado e a cobrança não foi mais localizada após a remoção das credenciais. Não recriar acesso antigo. Se desejado, criar amanhã uma fixture PIX nova e tenant-scoped na conta alvo, com pagamento manual e cleanup controlado |
-| `smoke:payments-money-db` (D50/D27) | ✅ **PASS DEV 5/5 + PROD verificada 7/7** | repetir somente após mudança nas migrations/contratos; a execução em DEV terminou com cleanup zero e a produção foi verificada em transação read-only após backup, lock e migrator `DONE` |
+| Checkout Asaas PIX + cartão (D24) | **PASS pagamento real; FAIL no estorno PIX terminal da nova fixture** | A conta/fingerprint e o pagamento `PIX/RECEIVED` foram provados. Após autorização com o código recebido no celular, o único refund terminou `CANCELLED`, não `DONE`; pagamento e valor permanecem recebidos. P11 corrige a projeção em código/DEV; não repetir POST antes do rollout e de nova autorização |
+| `smoke:payments-money-db` (D50/D27/D77) | ✅ **PASS DEV 7/7; PROD 0091/0092 verificada 7/7** | P11 repetiu estrutura/RLS, concorrência, `CANCELLED`, `DONE` atômico/replay, D50, disputa e perda com cleanup zero. A 0094 ainda precisa de migration/pós-check em produção |
 | E2E Meta `deposit_link` | ✅ **PASS até o aparelho** | Checkout real, `link_ready`, job, lookup, template de sinal, provider message id e replay 0 foram provados; o operador confirmou a mensagem e o link no aparelho. O link expirou após o cleanup intencional |
 | E2E Meta `remainder_link` | ✅ **PASS até o aparelho** | mesmo encadeamento real com template distinto de restante e cobrança pagável no send-time; o operador confirmou a mensagem e o link no aparelho. O link expirou após o cleanup intencional |
 | `PAYMENT_RESTORED` da assinatura | ✅ **PASS externo na conta alvo** | `qoro dev` foi criado com os sete eventos canônicos; a mesma cobrança passou por delete/restore, a mesma invoice por `open → cancelled → open`, replay não duplicou e o runner limpou provider+banco |
-| Estorno real do sinal pago por PIX/cartão | **Cartão PASS; PIX histórico PARTIAL** | o PIX pertence à conta Sandbox anterior e não é mais acessível pela credencial atual; registrar como resíduo externo, sem contaminar a prova tenant atual |
+| Estorno real do sinal pago por PIX/cartão | **Cartão PASS; PIX FAIL externo (`CANCELLED`)** | o PIX histórico continua `NOT COMPLETED`. Na conta atual, o operador autorizou com o código recebido no celular, mas o único refund terminou `CANCELLED`; o valor não voltou. O código D77 está corrigido em DEV; nova tentativa só após rollout e autorização explícita |
 | Product Acceptance por persona | **TÉCNICO-NORMATIVO PASS local + Preview; usabilidade humana DEFERRED para piloto** | D60/D70 publicados e revalidados; manter observação passiva do Sentry. Na onda 1 colher percepção real de dono/secretária/médico/paciente, sem pedir ao fundador que finja experiência clínica |
 | `pnpm format:check` global | **FAIL na baseline (D9)** | PR exclusivamente mecânico; nenhuma mudança semântica; toda suíte depois |
 
@@ -701,6 +707,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | Indicar destinatário controlado para os templates Meta já aprovados | O telefone pertence à pessoa real e exige consentimento de cobrança | ✅ **FEITO em 31/08** — variável local presente, em E.164 e com consentimento confirmado pelo fundador; o valor não foi exposto. A conexão ativa do tenant continua sendo gate separado |
 | Rotacionar a chave sandbox do Asaas exposta no chat | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave | ✅ **NÃO EXECUTAR POR DECISÃO DO FUNDADOR (E4)** — risco residual do Sandbox aceito em 03/09; reabrir somente nas condições registradas em P3 |
 | Resolver o PIX da conta Sandbox anterior | A conta antiga exigia ação humana e depois deixou de ser a conta-alvo | **ENCERRADO COMO `NOT COMPLETED`:** o operador confirmou que nada foi estornado, removeu webhook/chaves e não localizou mais a cobrança. Não recuperar nem recolocar essa credencial. Se útil, criar amanhã uma fixture PIX nova na conta atual |
+| Autorizar o estorno da nova prova PIX na conta Sandbox atual | A confirmação de ação crítica exige interação humana autenticada no painel do titular | **EXECUTADO, MAS O PROVIDER CANCELOU:** o operador informou o código recebido no celular. Readback com fingerprint correto mostrou refund `CANCELLED`, pagamento `RECEIVED` e saldo suficiente. Nenhum valor voltou. Não solicitar outro estorno sem autorização específica; manter o manifesto para diagnóstico D76/D77 |
 | Alinhar o webhook global de assinatura no ambiente correto | O secret efetivo do runtime Preview só pode ser alterado por quem possui acesso ao projeto Vercel | ✅ **FEITO E PROVADO:** chave/token/Preview alinhados; `qoro dev` criado na conta alvo; readback, delete/restore, replay e cleanup passaram |
 | Observar usabilidade por persona na clínica piloto | Julgamento de percepção exige secretária/médico/paciente reais; web, agente e Playwright não podem fabricar experiência vivida | **DEFERRED PARA A ONDA 1, não é ação manual agora nem bloqueio de 1.S.** O aceite técnico-normativo e sua prova pós-deploy foram executados pelo agente |
 | Rotacionar novamente a senha do banco de produção e atualizar todos os consumidores | A credencial usada na migration foi rotacionada corretamente, mas a sucessora foi publicada no chat antes da verificação; continuar com ela seria risco crítico | ✅ **CONFIRMADO PELO FUNDADOR**; a credencial exposta não foi usada, o DPAPI foi removido sem leitura e o env atualizado foi usado somente em transação read-only |
@@ -812,7 +819,7 @@ atendido → financial cria lançamento BRUTO (200) e aplica o crédito (100) �
 > O trecho aplicação → Meta foi executado para sinal e restante, com templates distintos, aceite do
 > provider, at-most-once, replay zero e cleanup; a chegada das duas mensagens ao aparelho foi
 > confirmada pelo operador. Os ramos A/B/C e os cenários de concorrência também passaram no banco+worker; os itens
-> ainda abertos estão na fila P1–P10 acima.
+> ainda abertos estão na fila P1–P11 acima.
 
 ### Handoff
 
@@ -824,12 +831,13 @@ Para tratar apenas o incidente de onboarding Meta D78, use o prompt
 
 ### Próximo passo
 
-Seguir apenas o item ainda aberto **P6/D50**. P0, P1, P2, P4, P5, P7, P8, P9 e P10 estão verdes; P3
-foi encerrado por decisão consciente e D69 foi limpo. A mensagem sobre o refund D50 `PENDING` já foi
-enviada; quando o provider responder ou mudar para `DONE`, executar apenas readback, ledger, replay e
-cleanup, sem repetir POST. O Product Acceptance técnico-normativo, D60/D70 e a 1.S estão publicados e
-revalidados. A percepção de uso será colhida na clínica piloto antes de
-expandir o rollout; nenhum envio real deve ser repetido sem necessidade.
+O código de **P11/D77** e a migration 0094 já estão verdes em DEV. O próximo passo executável exige
+autorização: aplicar 0094 em produção com backup/advisory lock/pós-check, commitar e publicar o lote,
+revalidar o Preview e só então criar uma nova prova PIX Sandbox tenant-scoped. Essa prova deve mostrar
+`POST aceito → estado não terminal sem fechar cobrança → DONE fecha uma vez`; se terminar `CANCELLED`,
+deve provar cobrança ainda `paid`, sem liberação falsa. Em paralelo, P6/D50 continua aguardando o
+refund já existente mudar de `PENDING`; quando isso ocorrer, executar apenas readback, ledger, replay e
+cleanup. Nenhum POST externo deve ser repetido sem autorização específica.
 
 **1.H — Hardening.** Sem adicionar feature:
 provar que a Camada 1 aguenta o mundo real.
@@ -974,6 +982,14 @@ Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcion
 - **1.3 Charges+hold:** ✅ **CONCLUÍDA (24/08; Checkout corrigido por D63 em 31/08)** — D15 resolvido por [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md); D16 (gatilho) resolvido com **cron-scan**. **Entregue e verde:** `patient_charges` (migration **0083**, dupla trava de idempotência: `UNIQUE(appointment_id, kind)` + `external_reference` determinístico), contratos de evento `payments.patient_charge.{created,failed}` (allowlist producer-ahead) e **resolvedor de client Asaas por clínica** com cache invalidado por `key_version` — é ele que preserva o circuit breaker por conta. O seam `patientApiV1.getPaymentIdentity` continua exigindo nome + CPF (`null` ⇒ não cobra), mas sinal, restante e renovação usam Checkout hospedado e, após D63, **não enviam `customer` nem PII**: o pagador completa os dados na página do Asaas. O mapa `patient_payment_customers` (migration **0084**) permanece histórico/dormente, sem remoção destrutiva. A intenção/lease nasce antes de `POST /checkouts`; falha indeterminada vira `creation_unknown` e bloqueia retry cego, enquanto 4xx é poison pill e a descrição permanece genérica. **Gatilho:** cron `/api/cron/payments-deposit` a cada 15 min (padrão de reminder/dunning; **auto-curável** nos casos retry-safe — `creation_unknown` exige reconciliação, não novo POST). O mesmo tick faz as duas pontas: cobra os agendamentos novos e **expira os holds vencidos**, cancelando pela máquina de estados CONGELADA (`applyTransition`, que já devolve a vaga à lista de espera) com motivo próprio `deposit_expired`. **Hold na agenda** = colunas aditivas `deposit_status`/`hold_expires_at` (migration **0085**) com CHECK `pending ⇔ tem prazo` — é ele que impede a varredura cancelar consulta de quem PAGOU. Ownership R3 respeitado: o Payments publica, o Scheduling projeta. Migrations **0081–0085 aplicadas em dev e verificadas no banco**.
 - **1.4 Webhook:** ✅ **CONCLUÍDA (24/08)** — `/api/webhooks/asaas/patient/[ref]` com **23 testes espelhando os 23** do webhook de assinatura. `ref` é **endereço, não segredo**, e **não é o `clinic_id`** (id de tenant em URL pública vira oráculo de enumeração); **404 para todo ref que não resolve**, sem distinguir inexistente de sem-token. Token POR CLÍNICA, gerado por nós (32 bytes), cifrado, validado constant-time; trocar de conta invalida o anterior. `getPayment` com a chave DAQUELA clínica decide — o corpo só traz ids. Dedup em tabela própria por `(clinic_id, asaas_event_id)`: os emissores são N contas e nada garante ids únicos entre elas. Conciliação **monotônica** (`WHERE status='pending'`) na mesma tx do dedup e do evento. Pago → `agendado→confirmado` via `applyTransition`; **pagamento sobre agendamento já cancelado NÃO ressuscita a vaga** (registra e deixa para o estorno da 1.5). Auto-config do webhook (adiada da 1.1) é best-effort **com falha visível**: `webhook_configured_at` nulo vira aviso na tela. Migration **0086**.
 - **1.5a Falta e estorno:** ✅ **CONCLUÍDA (25/08)** — ramos **A** (falta) e **C** (cancelamento) de ponta a ponta, sem migração. `no_show`/`cancelled` estavam livres no registry e ganharam handlers **DETACHED** no Payments (o corpo fala com o Asaas; chamada externa dentro da TX do worker prende conexão do pool). **Retenção é derivada, não gravada**: "sinal retido" é `patient_charges.paid` + agendamento morto — um status `retained` mentiria no dia em que a agenda for reaberta (`recovery-policy: faltou → agendado`). Adapter ganhou `refundPayment` e `cancelPayment`, ambos **sem retry** (POST sem idempotency-key nativa) e ambos precedidos de `getPayment` — a mesma doutrina do `findPaymentByExternalReference`. Um evento novo (`payments.patient_charge.closed`, com `outcome`) em vez de três, porque o consumidor e a coluna são os mesmos. `cancelledAt` entrou **opcional** no contrato de `cancelled`: a janela é regra de ANTECEDÊNCIA e julgá-la pelo relógio do worker faria o paciente perder o sinal por atraso de fila nossa. Corrigiu **D22** (cobrança presa em `pending` após o hold vencer, com link ainda pagável) e **D23** (reagendamento cobrando sinal duas vezes). **+62 testes** (2436 → **2498**); `payments:live-check` **11/11**, com o estorno de sinal pago por PIX/cartão honestamente marcado `n/v` — exige pagamento real na página do Asaas, e a contagem final reporta o não-verificado junto do verde. A verificação ao vivo achou **três defeitos que mock nenhum pegaria**: cobrança apagada responde **200 com `deleted: true`**, não 404 (**D20**); o estorno **só funciona para PIX e cartão**, então sinal pago em boleto não tem devolução automática (**D24**, guarda `REFUNDABLE_BILLING_TYPES`); e a faxina do próprio script **mentia**, deixando webhook para trás com `ok` na tela (**D25**). De quebra, corrigiu o **D26**: `APP_BASE_URL` com barra no fim gerava `https://host//api/webhooks/...` e o webhook nasceria apontando para lugar nenhum.
+- **Correção posterior da 1.5a (D77, implementada em DEV em 05/09):** a prova externa mostrou
+  `POST 2xx → autorização crítica → CANCELLED`, sem devolução. P11 ampliou a intenção D50 com o propósito
+  `deposit_closeout` e contadores de baseline na migration 0094. O 2xx apenas deixa a intenção em
+  `confirmation_pending`; `PENDING`, `REFUND_REQUESTED` e `REFUND_IN_PROGRESS` não fecham nem repetem
+  POST. `CANCELLED` falha observavelmente, e somente refund `DONE` ou pagamento autoritativamente
+  `REFUNDED` fecha a cobrança/libera o crédito, tudo na mesma transação tenant-scoped. Intents criados
+  antes da 0094 continuam conciliáveis. Focados 104/104, suíte 2.832/2.832 e smoke DEV 7/7 passaram;
+  produção, publicação e nova prova Sandbox permanecem pendentes de autorização.
 - **1.5b Restante:** ✅ **CONCLUÍDA EM RUNTIME (25/08; endurecida em 27/08)** — arquitetura em [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md). `financial` é a **fonte da verdade** (`lancamentos` = obrigação), `patient_charges` é **instrumento de cobrança**, e o sinal pago vira **crédito antecipado**. O recebível nasce pelo valor **BRUTO** (200), o crédito entra como `valorPago` (100) e o status vira `parcial`. A entrega Meta real é pendência da 1.6c/P1, não lacuna de runtime da 1.5b.
   - **1.5b.1 ✅ CONCLUÍDA (25/08)** — `payments` + `financial`. Migration **0088** (`patient_credits`, no **financial**). Tabela nova porque `payment_transactions.lancamento_id` é NOT NULL: baixa não existe sem lançamento, e o sinal é pago ANTES dele. **Sem FK para `patient_charges`** — o id é chave de idempotência opaca de outro context; FK amarraria a tabela financeira ao modelo físico do Payments, o acoplamento que o D1 recusa. Idempotência por `UNIQUE (clinic_id, patient_charge_id)`. Dois eventos **próprios do crédito**: `payments.patient_credit.granted` (publicado por `markDepositPaid` na MESMA tx do `charge.paid`) e `.released` **com `disposition` explícita** (`refunded` | `retained`) — os dois desfechos são economicamente opostos e inferir isso do nome do evento acoplaria o Financial ao vocabulário do gateway. `billingType` do `getPayment` vira código do catálogo (`pix`/`cartao_credito`; qualquer outro ⇒ `null`, porque baixa com forma inventada corrompe a conciliação). **Retenção agora fecha o crédito** — e isso NÃO contradiz a 1.5a: na `patient_charges` "retido" segue derivado, mas um crédito `available` é promessa sobre dinheiro futuro e deixá-lo assim faria um lançamento posterior absorver dinheiro já retido como taxa de falta. Handler tolera crédito inexistente (`not_found`) — é a janela de deploy, e lançar prenderia o evento em retentativa. **+58 testes.** Migration aplicada e verificada em dev (15 colunas, RLS enabled+forced, 5 constraints).
   - **1.5b.2 ✅ CONCLUÍDA (25/08)** — **`financial` sozinho, 1 context, sem migração e sem evento novo**. A Parede 1 do D19 caiu sem cron-scan: o handler de `scheduling.appointment.completed` continua **único dono** e apenas passou a ler créditos da **própria** tabela. Fluxo: `listAvailableCredits` → `allocateCreditsTo` (função PURA) → lançamento com `valor` **BRUTO** e `valorPago` = crédito aplicado → `allocateCredit` + linha em `payment_transactions` (a baixa fica no ledger, com a forma de pagamento de origem). Tudo na **mesma transação** do insert: se a alocação falhar, o lançamento cai junto — o oposto deixaria recebível dizendo "R$ 100 pagos" com o crédito ainda `available`, livre para ser contado de novo. Criada `statusAoCriar` porque `calcStatusPagamento(200, 0)` devolve **`parcial`**, não `pendente` — armadilha real, já que a maioria dos atendimentos não tem sinal. `allocateCreditsTo` nunca aloca além do valor do lançamento (invariante 4), o que cobre reajuste de valor para baixo depois do sinal pago. **Achado D33: o handler não tinha NENHUM teste** — é ele que cria todo recebível do Caixa. **+24 testes** (13 do handler, 11 das funções puras).
@@ -1042,6 +1058,36 @@ suíte 100% verde.
 - [x] Deployment Vercel `CZJqTEXXeMoKYa9zwTfxBDGDGpwr` terminal `success` para o mesmo SHA.
 - [x] Smoke autenticado no Preview do mesmo SHA 6/6, sem `pageerror`; auth state/artefato removidos.
 - [x] P10/1.S concluído após código, gates, publicação e observação do Preview.
+
+#### Checklist P11 / D77 — evidência local/DEV de 05/09
+
+- [x] Scope freeze respeitado: correção do fechamento prematuro do estorno; nenhum novo POST Asaas,
+  mudança de Meta, UI ou regra de valor.
+- [x] Budget respeitado: 23 arquivos do lote, menos de 1.500 linhas líquidas e apenas Payments mais
+  integração indireta com Financial/outbox existente; nenhuma dependência nova.
+- [x] Migration 0093 da `main` integrada; migration 0094 aditiva registrada e aplicada somente em DEV.
+- [x] Intenção `deposit_closeout` persistida antes do POST; baseline e contadores gravados no claim
+  atômico; somente um worker pode submeter.
+- [x] Resultado incerto não repete POST; `PENDING`/em progresso não fecham; `CANCELLED` falha;
+  somente refund `DONE` ou pagamento `REFUNDED` confirma.
+- [x] Confirmação da intenção, fechamento da cobrança, evento `closed` e liberação do crédito na mesma
+  transação tenant-scoped.
+- [x] Webhook tenant e cron fazem readback autoritativo; o cron descobre intenção em voo mesmo com a
+  política de sinal desligada.
+- [x] Compatibilidade com intents D50 anteriores à 0094: contadores nulos não impedem confirmação por
+  refund id, total `DONE` ou status `REFUNDED`; `CANCELLED` sem id/contadores permanece pendente em vez
+  de produzir falso terminal.
+- [x] Unit/contract/integration focados: 104/104; regressão integral: 2.832/2.832 em 311 arquivos.
+- [x] DEV conectado: `smoke:payments-money-db` 7/7, Financial 10/10 e jornada banco+worker 13/13,
+  todos com cleanup zero e sem Asaas/Meta.
+- [x] `lint`, `typecheck`, `build`, ciclos, dbAdmin, grafos, migrations, registry estrito,
+  observabilidade e `git diff --check` verdes.
+- [x] Histórico 0081–0092 reconciliado e publicado na `main` em `93da840`; arquivos locais do usuário
+  continuam fora do lote.
+- [ ] Aplicar 0094 em produção com autorização, backup, advisory lock e pós-verificação.
+- [ ] Commitar/publicar P11, observar deployment terminal e repetir smoke autenticado do Preview.
+- [ ] Com autorização específica, criar nova fixture PIX tenant-scoped e provar no provider os ramos
+  terminal `DONE` e/ou `CANCELLED`, sem retry cego.
 
 **Gate independente da Camada 1:** D50 continua com um único refund externo `PENDING`; quando o provider
 confirmar `DONE`, executar somente readback, ledger, replay e cleanup, sem repetir o POST.
@@ -1217,6 +1263,20 @@ foi confirmado pelo endpoint Sandbox e terminou `RECEIVED`; o primeiro estorno f
 curta janela de indisponibilidade do provider e a solicitação posterior foi aceita, mas sua execução
 ficou `AWAITING_CRITICAL_ACTION_AUTHORIZATION`. Portanto, pagamento real por ambos os métodos é
 `PASS`; cleanup do PIX é `PARTIAL`, não verde, até a autorização e o readback terminal.
+
+**Nova prova isolada na conta atual em 04/09:** após a remoção das credenciais da conta antiga, o mesmo
+runner foi executado com as variáveis DEV efetivas e guard de host Sandbox. O Checkout foi criado nessa
+conta, gerou uma cobrança `PIX` de R$ 10 correlacionada e o pagamento foi confirmado como `RECEIVED`.
+O readback guardou somente o fingerprint não reversível da conta e a identidade técnica da fixture em
+`.playwright/asaas-pix-refund-fixture.json`, ignorado pelo Git. A primeira tentativa de estorno recebeu
+`invalid_action`; uma única repetição guardada, depois de confirmar pagamento e ausência de refund, foi
+aceita. O readback seguinte encontrou exatamente um estorno de R$ 10 em
+`AWAITING_CRITICAL_ACTION_AUTHORIZATION`. O operador informou no painel o código recebido no celular,
+e o readback posterior — já com saldo disponível muito acima de R$ 10 — encontrou esse único refund
+em `CANCELLED`, enquanto a cobrança permaneceu `RECEIVED`. Pela semântica oficial, o valor não foi
+devolvido. Não executar outro POST sem autorização específica. Esta é uma prova direta do provider,
+não uma `patient_charge` tenant-scoped; o pagamento PIX está provado, mas o resultado assíncrono
+revelou o risco crítico D77 no closeout comum.
 
 No PowerShell, com a chave sandbox já configurada no `.env.local`:
 
@@ -1523,7 +1583,7 @@ fonte da verdade.
 
 | Pendência | Fecha Camada 1 / rollout financeiro? | Impede discovery TISS? | Motivo |
 | --- | --- | --- | --- |
-| D24 PIX/cartão implementado e provado | **código/DB/pagamento externo PASS; cleanup PIX antigo `NOT COMPLETED`** | não | boleto foi removido e os dois métodos pagaram. A cobrança antiga não foi mais localizada após remover webhook/chaves; não reabrir a conta para esse resíduo. Uma fixture PIX nova na conta alvo é prova adicional opcional |
+| D24 PIX/cartão implementado e provado | **código/DB/pagamento externo PASS; estorno PIX externo `CANCELLED`; D77 corrigido em DEV** | não | boleto foi removido e os dois métodos pagaram. A prova de 04/09 confirmou `PIX/RECEIVED`, mas o único refund terminou `CANCELLED`. Nenhum valor voltou. P11 só projeta `refunded` após estado terminal; faltam rollout e nova prova autorizada |
 | D27 chargeback confirmado, implementado e testado | ✅ **código + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup PASS** | não | D62 atravessou perda, compensação, saldo reaberto, fato clínico preservado e replay 0/3; 16 linhas sintéticas foram removidas sem mutação do provider e sem resíduo da fixture |
 | D50 estorno do excedente + sandbox | **código/DB/pagamento/webhook/POST parcial PASS; confirmação provider pendente** | não | saldo já está suficiente, mas o Asaas mantém um único refund de R$ 10 em `PENDING`; a hipótese de “Ações críticas” foi retirada. Suporte deve diagnosticar o refund existente antes de ledger/replay/cleanup |
 | `PAYMENT_RESTORED` real (D54/D55) | ✅ **PASS externo de Billing/assinatura** | não | `qoro dev` foi criado na conta alvo; delete/restore, invoice cancelada/reaberta, replay e cleanup foram provados pelo runner |
@@ -1540,18 +1600,20 @@ expansão do rollout, não o começo da estabilização.
 
 ### 20.7 O que falta para fechar o financeiro
 
-**Diagnóstico atualizado em 04/09/2026:** D24/D58, D50 e D27 estão completos em código, tipagem, unitários,
+**Diagnóstico atualizado em 05/09/2026:** D24/D58, D50 e D27 estão completos em código, tipagem, unitários,
 contratos, regressão e banco DEV. `0091` + `0092` estão aplicadas em DEV e seus smokes conectados
 passaram 5/5 com cleanup zero. Após a rotação da credencial, o migrador aplicou `0091` + `0092` em
 produção com backup de 2.834.598 bytes, advisory lock adquirido/liberado e `DONE`. A verificação SQL
-pós-migration passou 7/7 em transação read-only. O fechamento técnico automático de D24/D58, D50 e D27
-está verde; as provas externas manuais permanecem separadas da qualidade do código e do banco.
+pós-migration passou 7/7 em transação read-only. P11/D77 também está completo em código e DEV: 0094
+aplicada, 104/104 testes focados, regressão 2.832/2.832 e smoke 7/7. O fechamento técnico automático
+desse recorte está verde; rollout e provas externas permanecem separados da qualidade local/DEV.
 
 | Bloco | Estado real | O que falta para ficar verde |
 | --- | --- | --- |
-| **D24/D58 — somente PIX/cartão por 7 dias** | **Código + DB DEV + PROD + pagamentos externos verdes.** Checkout hospedado, intenção/lease, estado incerto, correlação `checkoutSession`, gerações e renovação implementados; smoke 5/5; pós-verificação 7/7; PIX e cartão reais sandbox correlacionados | nada bloqueante. O PIX da conta antiga não foi estornado e ficou `NOT COMPLETED` após remover webhook/chaves. Amanhã pode nascer uma fixture PIX nova e tenant-scoped na conta alvo como prova adicional opcional; não tentar retomar a cobrança antiga |
+| **D24/D58 — somente PIX/cartão por 7 dias** | **Código + DB DEV + PROD + pagamentos externos verdes para criação/pagamento.** Checkout hospedado, intenção/lease, correlação, gerações e renovação implementados; smoke 5/5 e pós-verificação 7/7. Em 04/09 a conta atual confirmou `PIX/RECEIVED` | o único refund da nova fixture terminou `CANCELLED` após autorização humana, sem devolução. Não repetir POST. A falha prematura revelada por essa prova foi corrigida pelo P11 em código/DEV; faltam o rollout e a nova prova terminal |
 | **D50 — excedente após baixa manual** | **Código + DB DEV/PROD + pagamento/webhook/POST parcial verdes.** Readback de 04/09: pagamento `CONFIRMED`; cobrança `paid`; recebível `pago` em R$ 20; duas baixas somando R$ 20; uma intenção `confirmation_pending` de R$ 10 com baseline zero; um único refund de R$ 10 ainda `PENDING` | o pedido de diagnóstico já foi enviado ao suporte. Aguardar o refund existente virar `DONE`; então o runner faz somente readback → confirmação → ledger → replay → cleanup. Não repetir POST. Na UI, consultar o cartão vermelho do Caixa; `DONE` não é exibido literalmente (D72) |
 | **D27 — chargeback/dinheiro desfeito** | ✅ **Código + ADR-052 + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup verdes.** O provider terminou `REFUNDED/DONE`; a rota tenant marcou a cobrança `refunded/lost`; os três fatos reais de risco foram processados uma vez | nada funcional. O ledger provado continha compensação `refund`, `chargeback_loss`, saldo reaberto, atendimento preservado e replay 0/3; o cleanup removeu 16 linhas sintéticas, preservou audit de webhook e deixou zero resíduo da fixture |
+| **D77 — confirmação terminal do estorno do sinal** | ✅ **Código + DB DEV verdes.** Intenção antes do POST, claim concorrente, baseline, webhook/cron readback, compatibilidade pré-0094 e fechamento financeiro atômico implementados. `CANCELLED` mantém a charge `paid`; `DONE` fecha uma vez | aplicar 0094 em produção com backup/lock/pós-check; commitar/publicar e revalidar Preview; depois executar nova prova PIX tenant-scoped autorizada. Não houve POST externo no P11 |
 
 #### Decisão D58 confirmada — prazo do restante
 
@@ -1621,12 +1683,15 @@ nova cobrança local ou retry cego de `POST /checkouts`.
 
 O **código e os bancos DEV/PROD** do Financial de pagamentos do paciente cobrem D24, D50 e D27: as
 migrations 0091/0092 estão aplicadas, o smoke DEV passou 5/5 com cleanup zero e a pós-verificação PROD
-passou 7/7 em transação read-only. Portanto, o fechamento técnico automático desse recorte está verde.
+passou 7/7 em transação read-only. O corretivo D77 está verde em código e DEV com a 0094 e smoke 7/7,
+mas ainda não foi aplicado/publicado em produção. Portanto, o fechamento técnico automático local/DEV
+está verde; o rollout do closeout continua parcial.
 O pagamento real PIX/cartão foi provado. O cleanup PIX da conta Sandbox anterior não ocorreu e ficou
 `NOT COMPLETED` depois da remoção do webhook e das chaves antigas. Provider, webhook tenant, Payments,
 Financial, replay e cleanup do chargeback D62 foram provados sem mocks. Billing restore e Meta também
-estão verdes. A **Camada 1 inteira** só fecha depois do estado terminal/cleanup da D50; a 1.S,
-D60/D70 e o Product Acceptance técnico já estão publicados/revalidados. A percepção humana é gate
+estão verdes. A **Camada 1 inteira** só fecha depois do rollout/prova externa de D77 e do estado
+terminal/cleanup da D50; a 1.S, D60/D70 e o Product Acceptance técnico já estão
+publicados/revalidados. A percepção humana é gate
 para expandir além da clínica piloto. Carga não é mais bloqueio.
 
 ### 20.8 TISS: o que pode começar agora e qual “sistema” está citado
@@ -1698,6 +1763,25 @@ do webhook, host/path sem query e corpo/resposta sanitizada. Como esse webhook l
 alvo, a correção segura era removê-lo/desabilitá-lo — não ensinar o runtime atual a aceitar seu token.
 Em 02/09 o operador removeu o webhook e as chaves API antigas. Não recolocar essas chaves no Qoro para
 investigar; a validação residual será apenas visual no painel.
+
+#### A.1 Autorizar e limpar a nova prova PIX da conta atual
+
+Em 04/09 o agente criou, com autorização, uma fixture totalmente nova usando as variáveis DEV atuais.
+Ela não depende da conta antiga e não reutiliza qualquer webhook ou chave removida. O readback provou:
+
+1. fingerprint da credencial atual igual ao registrado no manifesto local;
+2. Checkout e cobrança correlacionados;
+3. `billingType=PIX`, valor de R$ 10 e pagamento `RECEIVED`;
+4. exatamente um refund de R$ 10 inicialmente em `AWAITING_CRITICAL_ACTION_AUTHORIZATION`;
+5. nenhum segundo POST permitido.
+
+O operador abriu a ação crítica e informou o código recebido no celular — o fluxo efetivo daquela
+conta, em vez do token genérico de Sandbox. A API então mudou o único refund para `CANCELLED`, manteve
+a cobrança `RECEIVED` e não devolveu o valor. Um `GET /finance/balance` confirmou saldo disponível
+muito superior ao estorno, eliminando insuficiência de saldo como causa. O manifesto ignorado
+`.playwright/asaas-pix-refund-fixture.json` foi preservado com o estado terminal. Não repetir o POST sem
+autorização específica. Antes de nova tentativa, publicar/revalidar D77 e decidir entre uma nova fixture guardada ou
+diagnóstico do suporte Asaas.
 
 #### B. Provar o round-trip do webhook global de assinatura
 

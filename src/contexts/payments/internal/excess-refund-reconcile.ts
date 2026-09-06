@@ -4,7 +4,7 @@ import 'server-only';
 import { metrics } from '@/lib/observability/metrics';
 import { getClinicAsaasClient } from '@/lib/payments/account-store';
 
-import { listClinicsWithDepositEnabled } from './deposit-scan';
+import { listClinicsWithPendingRefundIntents } from './deposit-scan';
 import {
   confirmRefundIntentFromReadback,
   listRefundIntentReconcileCandidates,
@@ -29,7 +29,7 @@ export async function runExcessRefundReconcile(opts?: {
     pending: 0,
     failed: 0,
   };
-  const clinicIds = await listClinicsWithDepositEnabled(opts?.maxClinics ?? 500);
+  const clinicIds = await listClinicsWithPendingRefundIntents(opts?.maxClinics ?? 500);
   summary.clinics = clinicIds.length;
 
   for (const clinicId of clinicIds) {
@@ -47,15 +47,18 @@ export async function runExcessRefundReconcile(opts?: {
 
     for (const candidate of candidates) {
       try {
+        const payment = await client.getPayment(candidate.providerPaymentId, { attempts: 1 });
         const refunds = await client.listPaymentRefunds(candidate.providerPaymentId, {
           attempts: 1,
         });
-        const confirmed = await confirmRefundIntentFromReadback({
+        const outcome = await confirmRefundIntentFromReadback({
           clinicId,
           intentId: candidate.id,
           refunds,
+          providerPaymentStatus: payment.status,
         });
-        if (confirmed) summary.confirmed += 1;
+        if (outcome === 'confirmed') summary.confirmed += 1;
+        else if (outcome === 'failed') summary.failed += 1;
         else summary.pending += 1;
       } catch (error) {
         summary.failed += 1;

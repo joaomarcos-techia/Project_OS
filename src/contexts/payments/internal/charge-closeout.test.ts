@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   lookupAppointment: vi.fn(),
   getPayment: vi.fn(),
   refundPayment: vi.fn(),
+  requestDepositRefund: vi.fn(),
   cancelPayment: vi.fn(),
 }));
 
@@ -35,6 +36,9 @@ vi.mock('./charge-store', () => ({
   closeCharge: mocks.closeCharge,
   releaseCreditAsRetained: mocks.releaseCreditAsRetained,
 }));
+vi.mock('./excess-refund', () => ({
+  requestDepositRefund: mocks.requestDepositRefund,
+}));
 // Erros REAIS (o código usa `instanceof` + `httpStatus`); só o client é trocado.
 vi.mock('@/lib/payments/asaas', async (importActual) => {
   const actual = await importActual<typeof AsaasModule>();
@@ -49,6 +53,7 @@ import { closeChargeForCancellation, closeChargeForNoShow } from './charge-close
 
 const CLINIC = 'clinic-1';
 const APPOINTMENT = 'apt-1';
+const EVENT = 'event-1';
 
 const POLICY = {
   enabled: true,
@@ -89,6 +94,7 @@ beforeEach(() => {
   mocks.getPayment.mockResolvedValue({ paymentId: 'pay_1', status: 'PENDING', deleted: false });
   mocks.cancelPayment.mockResolvedValue({ deleted: true });
   mocks.refundPayment.mockResolvedValue({ refundId: 'ref_1', status: 'REFUNDED', value: 150 });
+  mocks.requestDepositRefund.mockResolvedValue('submitted');
 });
 
 describe('ramo A — o paciente faltou', () => {
@@ -193,6 +199,7 @@ describe('ramo C — cancelamento com o sinal ainda pendente', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'deposit_expired',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
     expect(mocks.closeCharge).toHaveBeenCalledWith(
@@ -208,6 +215,7 @@ describe('ramo C — cancelamento com o sinal ainda pendente', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
     expect(mocks.cancelPayment).toHaveBeenCalledWith('pay_1');
@@ -230,19 +238,24 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
     });
   });
 
-  it('dentro da janela: estorna e fecha como refunded', async () => {
+  it('dentro da janela: solicita o estorno, mas não fecha antes da confirmação terminal', async () => {
     await closeChargeForCancellation({
       clinicId: CLINIC,
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
-    expect(mocks.refundPayment).toHaveBeenCalledWith('pay_1');
-    expect(mocks.closeCharge).toHaveBeenCalledWith(
-      expect.objectContaining({ from: 'paid', outcome: 'refunded' }),
-    );
-    expect(emitted('payments.deposit.refunded')).toHaveLength(1);
+    expect(mocks.requestDepositRefund).toHaveBeenCalledWith({
+      clinicId: CLINIC,
+      chargeId: 'charge-1',
+      amount: 150,
+      sourceEventId: EVENT,
+      client: expect.any(Object),
+    });
+    expect(mocks.closeCharge).not.toHaveBeenCalled();
+    expect(emitted('payments.deposit.refunded')).toHaveLength(0);
   });
 
   it('fora da janela: retém, sem estorno e sem escrita', async () => {
@@ -256,9 +269,10 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
-    expect(mocks.refundPayment).not.toHaveBeenCalled();
+    expect(mocks.requestDepositRefund).not.toHaveBeenCalled();
     expect(mocks.closeCharge).not.toHaveBeenCalled();
     expect(emitted('payments.deposit.retained')[0]?.[1]).toMatchObject({
       reason: 'cancelamento_fora_da_janela',
@@ -277,9 +291,10 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
         appointmentId: APPOINTMENT,
         cancelReason,
         cancelledAt: new Date(),
+        sourceEventId: EVENT,
       });
 
-      expect(mocks.refundPayment).toHaveBeenCalledWith('pay_1');
+      expect(mocks.requestDepositRefund).toHaveBeenCalledOnce();
       // Nem consulta a agenda: a janela não se aplica a estes motivos.
       expect(mocks.lookupAppointment).not.toHaveBeenCalled();
     },
@@ -291,9 +306,10 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'reschedule',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
-    expect(mocks.refundPayment).toHaveBeenCalledTimes(1);
+    expect(mocks.requestDepositRefund).toHaveBeenCalledTimes(1);
   });
 
   it('já estornado no Asaas: fecha sem POSTar um segundo estorno', async () => {
@@ -309,13 +325,41 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
-    expect(mocks.refundPayment).not.toHaveBeenCalled();
+    expect(mocks.requestDepositRefund).not.toHaveBeenCalled();
     expect(mocks.closeCharge).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'refunded' }),
     );
   });
+
+  it.each(['REFUND_REQUESTED', 'REFUND_IN_PROGRESS'])(
+    '%s ainda não fecha nem inicia outro estorno',
+    async (status) => {
+      mocks.getPayment.mockResolvedValue({
+        paymentId: 'pay_1',
+        status,
+        billingType: 'PIX',
+        deleted: false,
+      });
+
+      await closeChargeForCancellation({
+        clinicId: CLINIC,
+        appointmentId: APPOINTMENT,
+        cancelReason: 'user',
+        cancelledAt: new Date(),
+        sourceEventId: EVENT,
+      });
+
+      expect(mocks.requestDepositRefund).not.toHaveBeenCalled();
+      expect(mocks.closeCharge).not.toHaveBeenCalled();
+      expect(emitted('payments.deposit.refund_skipped')[0]?.[1]).toMatchObject({
+        reason: 'provider_refund_in_progress',
+        providerStatus: status,
+      });
+    },
+  );
 
   it('o gateway não confirma o pagamento: não estorna dinheiro que não entrou', async () => {
     mocks.getPayment.mockResolvedValue({ paymentId: 'pay_1', status: 'PENDING', deleted: false });
@@ -325,9 +369,10 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
-    expect(mocks.refundPayment).not.toHaveBeenCalled();
+    expect(mocks.requestDepositRefund).not.toHaveBeenCalled();
     expect(mocks.closeCharge).not.toHaveBeenCalled();
     expect(emitted('payments.deposit.refund_skipped')[0]?.[1]).toMatchObject({
       reason: 'provider_nao_confirma_pagamento',
@@ -350,9 +395,10 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
         appointmentId: APPOINTMENT,
         cancelReason: 'user',
         cancelledAt: new Date(),
+        sourceEventId: EVENT,
       });
 
-      expect(mocks.refundPayment).not.toHaveBeenCalled();
+      expect(mocks.requestDepositRefund).not.toHaveBeenCalled();
       expect(mocks.closeCharge).not.toHaveBeenCalled();
       expect(emitted('payments.deposit.refund_skipped')[0]?.[1]).toMatchObject({
         reason: 'forma_de_pagamento_nao_estornavel',
@@ -368,6 +414,7 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
     expect(mocks.closeCharge).not.toHaveBeenCalled();
@@ -384,24 +431,27 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
-    expect(mocks.refundPayment).not.toHaveBeenCalled();
+    expect(mocks.requestDepositRefund).not.toHaveBeenCalled();
     expect(emitted('payments.deposit.refund_skipped')[0]?.[1]).toMatchObject({
       reason: 'agendamento_nao_encontrado',
     });
   });
 
-  it('quando outra entrega fecha primeiro, não duplica a métrica de estorno', async () => {
-    mocks.closeCharge.mockResolvedValue(false);
+  it('confirmação feita pela intenção não fecha novamente no chamador', async () => {
+    mocks.requestDepositRefund.mockResolvedValue('confirmed');
 
     await closeChargeForCancellation({
       clinicId: CLINIC,
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
+    expect(mocks.closeCharge).not.toHaveBeenCalled();
     expect(emitted('payments.deposit.refunded')).toHaveLength(0);
   });
 
@@ -417,9 +467,10 @@ describe('ramo C — cancelamento com o sinal PAGO', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      sourceEventId: EVENT,
     });
 
-    expect(mocks.refundPayment).toHaveBeenCalledTimes(1);
+    expect(mocks.requestDepositRefund).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -435,34 +486,31 @@ describe('recusa do gateway — o que retenta e o que não retenta', () => {
   });
 
   it('4xx no estorno vira poison pill: retentar repetiria a mesma recusa', async () => {
-    mocks.refundPayment.mockRejectedValue(
-      new BillingProviderError('recusado', 'x', 400, ['invalid_object']),
-    );
+    mocks.requestDepositRefund.mockResolvedValue('failed');
 
     const err = await closeChargeForCancellation({
       clinicId: CLINIC,
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     }).catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(PoisonPillError);
     // Não marca `refunded`: o dinheiro NÃO voltou.
     expect(mocks.closeCharge).not.toHaveBeenCalled();
-    expect(emitted('payments.deposit.gateway_rejected')[0]?.[1]).toMatchObject({
-      status: 400,
-      code: 'invalid_object',
-    });
+    expect(mocks.requestDepositRefund).toHaveBeenCalledOnce();
   });
 
   it('429 NÃO é terminal — é o único 4xx que muda sozinho com o tempo', async () => {
-    mocks.refundPayment.mockRejectedValue(new BillingProviderError('rate', 'x', 429));
+    mocks.getPayment.mockRejectedValue(new BillingProviderError('rate', 'x', 429));
 
     const err = await closeChargeForCancellation({
       clinicId: CLINIC,
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     }).catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(BillingProviderError);
@@ -525,6 +573,7 @@ describe('retenção libera o crédito no Financial', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
     expect(mocks.releaseCreditAsRetained).toHaveBeenCalledTimes(1);
@@ -552,11 +601,11 @@ describe('retenção libera o crédito no Financial', () => {
       appointmentId: APPOINTMENT,
       cancelReason: 'user',
       cancelledAt: new Date(),
+      sourceEventId: EVENT,
     });
 
     expect(mocks.releaseCreditAsRetained).not.toHaveBeenCalled();
-    expect(mocks.closeCharge).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: 'refunded' }),
-    );
+    expect(mocks.requestDepositRefund).toHaveBeenCalledOnce();
+    expect(mocks.closeCharge).not.toHaveBeenCalled();
   });
 });
