@@ -144,7 +144,10 @@ describe('RBAC-001 — as duas capacidades do achado são reais e SEPARADAS', ()
     expect(actions).toContain('aiClinicConfig');
     expect(actions).toContain('canDisclosePaymentsViaAgent');
     expect(actions).toContain('maxDaysAhead');
+    expect(actions).toContain('convenios');
     expect(contextBuilder).toContain('aiClinicConfig');
+    const clinicInfoTool = read('src/contexts/ai-agent/tools/provide-clinic-info.ts');
+    expect(clinicInfoTool).toContain('config?.convenios ?? []');
   });
 
   it('a conexão do WhatsApp CONTINUA em manage:settings — as duas não se fundiram', () => {

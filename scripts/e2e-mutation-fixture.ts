@@ -180,12 +180,14 @@ async function cleanupFixtureIfPresent(): Promise<void> {
     throw error;
   }
 
+  const psychiatryPatientName = `[E2E] Psiquiatria ${fixture.runId}`;
+
   const patientRows = rows<IdRow>(
     await dbAdmin.execute(sql`
       SELECT id::text AS id
       FROM public.patients
       WHERE clinic_id = ${fixture.clinicId}::uuid
-        AND nome = ${fixture.patientName}
+        AND nome IN (${fixture.patientName}, ${psychiatryPatientName})
     `),
   );
   const patientIds = patientRows.map((row) => row.id);
@@ -203,10 +205,25 @@ async function cleanupFixtureIfPresent(): Promise<void> {
               )})
           `),
         );
+  const prontuarioRows =
+    patientIds.length === 0
+      ? []
+      : rows<IdRow>(
+          await dbAdmin.execute(sql`
+            SELECT id::text AS id
+            FROM public.prontuarios
+            WHERE clinic_id = ${fixture.clinicId}::uuid
+              AND patient_id IN (${sql.join(
+                patientIds.map((id) => sql`${id}::uuid`),
+                sql`, `,
+              )})
+          `),
+        );
   const resourceIds = [
     fixture.paymentId,
     ...patientIds,
     ...appointmentRows.map((row) => row.id),
+    ...prontuarioRows.map((row) => row.id),
   ].filter((id): id is string => Boolean(id));
 
   // Impede que um evento de teste pendente seja processado após remover sua entidade.
@@ -247,6 +264,14 @@ async function cleanupFixtureIfPresent(): Promise<void> {
 
   if (patientIds.length > 0) {
     await dbAdmin.execute(sql`
+      DELETE FROM public.prontuarios
+      WHERE clinic_id = ${fixture.clinicId}::uuid
+        AND patient_id IN (${sql.join(
+          patientIds.map((id) => sql`${id}::uuid`),
+          sql`, `,
+        )})
+    `);
+    await dbAdmin.execute(sql`
       DELETE FROM public.appointments
       WHERE clinic_id = ${fixture.clinicId}::uuid
         AND patient_id IN (${sql.join(
@@ -258,7 +283,7 @@ async function cleanupFixtureIfPresent(): Promise<void> {
   await dbAdmin.execute(sql`
     DELETE FROM public.patients
     WHERE clinic_id = ${fixture.clinicId}::uuid
-      AND nome = ${fixture.patientName}
+      AND nome IN (${fixture.patientName}, ${psychiatryPatientName})
   `);
   await dbAdmin.execute(sql`
     DELETE FROM public.procedures

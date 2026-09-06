@@ -137,8 +137,11 @@ async function connectNumber(clinicId: string, metaPhoneId: string, phone: strin
 
 async function seedAiConfig(clinicId: string): Promise<void> {
   await dbAdmin.execute(sql`
-    INSERT INTO ai_clinic_config (clinic_id, working_hours, especialidades, max_days_ahead)
-    VALUES (${clinicId}, ${'{"seg_sex":"08:00-18:00"}'}::jsonb, ARRAY['cardiologia'], 30)`);
+    INSERT INTO ai_clinic_config
+      (clinic_id, working_hours, especialidades, convenios, max_days_ahead)
+    VALUES
+      (${clinicId}, ${'{"seg_sex":"08:00-18:00"}'}::jsonb, ARRAY['cardiologia'],
+       ARRAY['Unimed Smoke', 'Bradesco Saúde Smoke'], 30)`);
 }
 
 async function seedProcedure(clinicId: string): Promise<void> {
@@ -160,7 +163,7 @@ function makeMsg(phoneId: string, from: string, text: string): ParsedInboundMess
   };
 }
 
-/** Entrega o inbound e roda 1 tick do worker. Retorna o eventId do turno. */
+/** Entrega o inbound e aguarda o worker processar exatamente esse evento. */
 async function deliverTurn(
   clinicId: string,
   phoneId: string,
@@ -174,11 +177,15 @@ async function deliverTurn(
         AND idempotency_key = ${`inbound:meta:${msg.providerMessageId}`}`,
   );
   const eventId = ev[0]!.id;
-  // Cada turno cria no máximo o inbound e o evento producer-ahead de conclusão.
-  // Reservar 10 slots com paralelismo 1 transformava oito leituras vazias no
-  // Supabase em ~60s extras por turno, mascarando a validação como timeout.
-  await runOutboxOnce({ batchSize: 2, parallelism: 1 });
-  return eventId;
+  // A outbox é global: em um DEV populado, eventos anteriores podem ocupar o
+  // primeiro lote. O smoke precisa aguardar o evento que acabou de publicar,
+  // sem pressupor que um único tick sempre o reivindicará.
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await runOutboxOnce({ batchSize: 2, parallelism: 1 });
+    if (await getProcessedAt(clinicId, eventId)) return eventId;
+  }
+
+  throw new Error(`worker não processou o evento ${eventId} após 6 ticks`);
 }
 
 // --- leitura de resultados --------------------------------------------------------
@@ -313,18 +320,22 @@ async function main(): Promise<void> {
   await tryStep('1 turno A1: tool provide_clinic_info → resposta enviada', async () => {
     setScript(
       () => gCall('provide_clinic_info', {}),
-      () => gText('ISOLATION-A1-RESPOSTA Funcionamos de segunda a sexta, das 8h às 18h.'),
+      () =>
+        gText(
+          'ISOLATION-A1-RESPOSTA Funcionamos de segunda a sexta, das 8h às 18h, e aceitamos Unimed Smoke e Bradesco Saúde Smoke.',
+        ),
     );
     evA1t1 = await deliverTurn(
       clinicA,
       phoneIdA,
       A1,
-      'ISOLATION-A1 qual o funcionamento de voces?',
+      'ISOLATION-A1 qual o funcionamento e quais convenios voces aceitam?',
     );
     assert((await getTurnOutcome(evA1t1)) === 'replied', 'outcome deveria ser replied');
     const sent = await getSentText(clinicA, evA1t1);
     assert(
-      sent === 'ISOLATION-A1-RESPOSTA Funcionamos de segunda a sexta, das 8h às 18h.',
+      sent ===
+        'ISOLATION-A1-RESPOSTA Funcionamos de segunda a sexta, das 8h às 18h, e aceitamos Unimed Smoke e Bradesco Saúde Smoke.',
       `resposta enviada inesperada: ${sent}`,
     );
     assert(await getProcessedAt(clinicA, evA1t1), 'inbound deveria estar processed');
@@ -332,6 +343,11 @@ async function main(): Promise<void> {
     const lastReq = geminiSeen.at(-1)!.text;
     assert(lastReq.includes('functionResponse'), 're-chamada deveria conter functionResponse');
     assert(lastReq.includes('Smoke C11 a'), 'tool deveria ter devolvido o nome real da clínica');
+    assert(lastReq.includes('Unimed Smoke'), 'functionResponse deveria conter os convênios reais');
+    assert(
+      lastReq.includes('Bradesco Saúde Smoke'),
+      'functionResponse deveria conter todos os convênios reais',
+    );
   });
 
   // 2. turno com tool provide_procedure_price (clinic A, contato 2)

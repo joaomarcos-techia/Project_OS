@@ -41,7 +41,7 @@ export async function updateClinicProfile(
 
 /**
  * Upload do logo (white-label do PDF). Gated por manage:settings; clinicId do
- * REQUEST (namespaceia o objeto). Valida MIME (png/jpeg/webp) + tamanho (≤512 KB)
+ * REQUEST (namespaceia o objeto). Valida MIME (png/jpeg/webp) + tamanho (≤4 MB)
  * server-side. Só HOSPEDA o arquivo e devolve a URL pública — a persistência em
  * clinics.logo_url ocorre no Salvar (updateClinicProfile), via o caminho seguro.
  */

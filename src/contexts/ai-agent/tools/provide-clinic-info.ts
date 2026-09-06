@@ -1,6 +1,6 @@
 /**
- * Tool provide_clinic_info (C11) — horário de funcionamento, endereço e
- * especialidades da clínica.
+ * Tool provide_clinic_info (C11) — horário de funcionamento, endereço,
+ * especialidades e convênios aceitos pela clínica.
  *
  * Lazy context (G3): busca os PRÓPRIOS dados quando o LLM pede — leitura de
  * `clinics` é single-table read da fundação tenancy via ctx.tx (precedente:
@@ -21,12 +21,15 @@ const OutputSchema = z.object({
   timezone: z.string(),
   working_hours: z.unknown().nullable(),
   especialidades: z.array(z.string()).nullable(),
+  // Vazio = informação não cadastrada. O prompt proíbe inferir ou traduzir
+  // isso como "a clínica não aceita convênios".
+  convenios: z.array(z.string()),
 });
 
 registerTool({
   name: 'provide_clinic_info',
   description:
-    'Retorna informações operacionais da clínica: nome, endereço, fuso horário, horários de funcionamento e especialidades atendidas. Use sempre que o paciente perguntar horário, endereço ou o que a clínica atende.',
+    'Retorna informações operacionais da clínica: nome, endereço, fuso horário, horários de funcionamento, especialidades e convênios aceitos. Use sempre que o paciente perguntar horário, endereço, o que a clínica atende ou quais convênios aceita. Se convenios vier vazio, a informação não foi cadastrada.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (_input, ctx) => {
@@ -46,6 +49,7 @@ registerTool({
       timezone: clinic.timezone ?? 'America/Sao_Paulo',
       working_hours: config?.workingHours ?? null,
       especialidades: config?.especialidades ?? null,
+      convenios: config?.convenios ?? [],
     };
   },
 });

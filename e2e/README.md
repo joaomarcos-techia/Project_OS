@@ -65,6 +65,12 @@ pnpm test:e2e
 Não use `E2E_MUTATION=1` contra Preview ou produção. Se uma execução for
 interrompida, a próxima execução mutável remove antes a fixture pendente.
 
+`agent-convenios.spec.ts` usa o mesmo opt-in e uma conta descartável com
+`manage:agent`. Ele salva uma lista controlada em `/configuracoes/agente`,
+recarrega a página para provar a persistência e restaura o valor anterior no
+`finally`. A resposta do agente pelo pipeline real, sem Meta/Gemini externos, é
+validada também por `pnpm smoke:c11`.
+
 ## Auditoria visual responsiva
 
 A matriz visual fica isolada dos specs de mutação e produção. Ela gera 40

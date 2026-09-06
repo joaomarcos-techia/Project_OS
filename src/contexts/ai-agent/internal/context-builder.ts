@@ -118,6 +118,7 @@ export async function buildContext(
     aiConfig: {
       workingHours: config?.workingHours ?? null,
       especialidades: config?.especialidades ?? null,
+      convenios: config?.convenios ?? [],
       canScheduleAnonymous: config?.canScheduleAnonymous ?? false,
       maxDaysAhead: config?.maxDaysAhead ?? 30,
       canDisclosePayments: config?.canDisclosePaymentsViaAgent ?? false,

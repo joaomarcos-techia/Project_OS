@@ -19,6 +19,8 @@ export const AgentConfigSchema = z.object({
    */
   canDisclosePaymentsViaAgent: z.boolean(),
   especialidades: z.array(z.string().trim().min(1).max(80)).max(20),
+  /** Convênios aceitos pela clínica; lista vazia significa não informado. */
+  convenios: z.array(z.string().trim().min(1).max(80)).max(40),
 });
 export type AgentConfigInput = z.infer<typeof AgentConfigSchema>;
 
@@ -33,4 +35,5 @@ export const AGENT_CONFIG_DEFAULTS: AgentConfigInput = {
   maxDaysAhead: 30,
   canDisclosePaymentsViaAgent: false,
   especialidades: [],
+  convenios: [],
 };

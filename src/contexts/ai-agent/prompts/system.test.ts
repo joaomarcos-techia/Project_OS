@@ -28,6 +28,7 @@ function makeCtx(overrides: Partial<PromptContext> = {}): PromptContext {
     aiConfig: {
       workingHours: { seg_sex: '08:00-18:00' },
       especialidades: ['cardiologia', 'dermatologia'],
+      convenios: ['Unimed', 'Bradesco Saúde'],
       canScheduleAnonymous: false,
       maxDaysAhead: 30,
       canDisclosePayments: false,
@@ -55,7 +56,9 @@ describe('sanitizePromptField', () => {
   });
 
   it('remove chaves, marcação e quebras de linha', () => {
-    expect(sanitizePromptField('Ana {clinic_endereco}\n<b>x</b>', 'x')).toBe('Ana clinic_endereco bx/b');
+    expect(sanitizePromptField('Ana {clinic_endereco}\n<b>x</b>', 'x')).toBe(
+      'Ana clinic_endereco bx/b',
+    );
   });
 
   it('trunca campo longo em vez de deixar o modelo ler um parágrafo', () => {
@@ -79,6 +82,7 @@ describe('interpolação em uma passada (F-19)', () => {
     aiConfig: {
       workingHours: null,
       especialidades: null,
+      convenios: [],
       canScheduleAnonymous: false,
       maxDaysAhead: 30,
       canDisclosePayments: false,
@@ -127,7 +131,9 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain(CLINICAL_FALLBACK);
     expect(prompt).toContain('cardiologia, dermatologia');
     expect(prompt).toContain('Maria (cadastrado)');
-    expect(prompt).toContain('Data e hora atual da clínica (America/Sao_Paulo): 13/08/2026 às 19:24');
+    expect(prompt).toContain(
+      'Data e hora atual da clínica (America/Sao_Paulo): 13/08/2026 às 19:24',
+    );
     expect(prompt).toContain('NUNCA use conhecimento próprio');
     expect(prompt).not.toContain('{clinic_name}'); // sem placeholder sobrando
   });
@@ -137,6 +143,13 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain('confirm_pending_action');
     expect(prompt).toContain('duas mensagens');
     expect(prompt).toContain('Nunca use confirm_pending_action na mesma mensagem');
+  });
+
+  it('obriga consulta autoritativa e não transforma lista vazia em negativa', () => {
+    const prompt = buildSystemPrompt(makeCtx());
+    expect(prompt).toContain('Para informar convênios, use provide_clinic_info');
+    expect(prompt).toContain('repita somente os nomes retornados em convenios');
+    expect(prompt).toContain('NUNCA deduza que uma lista vazia');
   });
 
   it('só inicia cadastro depois de a agenda informar que ele é necessário', () => {

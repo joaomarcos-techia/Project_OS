@@ -14,9 +14,9 @@ import { createAdminClient } from '@/lib/auth/supabase-admin';
 
 import { uploadStorageFile } from './clinical';
 
+export { CLINIC_LOGO_MAX_BYTES, CLINIC_LOGO_MAX_LABEL } from './clinic-logo-policy';
+
 export const CLINIC_LOGO_BUCKET = 'clinic-logos';
-export const CLINIC_LOGO_MAX_BYTES = 5 * 1024 * 1024; // 5 MB — cabe foto de celular.
-export const CLINIC_LOGO_MAX_LABEL = '5 MB';
 
 /** MIME aceitos → extensão. SVG fica de fora (script-injection + suporte fraco no @react-pdf). */
 export const CLINIC_LOGO_MIME: Record<string, string> = {

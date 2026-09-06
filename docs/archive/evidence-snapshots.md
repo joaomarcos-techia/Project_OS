@@ -32,6 +32,14 @@ O corpus adversarial de 50 entradas teve zero resposta final insegura no Gemini 
 - Alertas: health targets funcionam; estado das regras/canais Sentry e Better Stack não pôde ser lido/testado.
 - Playwright PROD read-only: três specs autenticadas passaram em 28,4 s. O médico sem `view:financial` não recebeu valores financeiros no dashboard/relatórios/PDF; o estado operacional do dashboard coincidiu com o banco; o médico sem `manage:settings` não recebeu metadados nem controles do WhatsApp. Dois `console.log` dos specs mantêm rótulos legados contraditórios e não são evidência semântica.
 
+## 2026-08-30 — convênios informativos do agente
+
+A migration `0093_ai_clinic_config_convenios.sql` foi aplicada em DEV e PROD. O registro da execução
+informa backup de 2.868.108 bytes, advisory lock, pós-verificação somente-leitura, 3/3 configurações
+sem nulos, default vazio, grants e FORCE RLS preservados. Na validação anterior ao rollout passaram
+65/65 testes focados, suíte 1.978/1.978, smoke C11 18/18 e Playwright 2/2. Esses números são evidência
+daquele candidato e não substituem a revalidação do código atual.
+
 ## Política de uso
 
 - Nunca converter `PASS` histórico em estado atual sem reexecutar.

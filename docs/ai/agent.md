@@ -46,6 +46,11 @@ Chamadas Gemini e Meta ficam fora de transações de negócio. Conversas, mensag
 
 - Não diagnosticar, interpretar exames, recomendar medicamento ou dar conduta clínica. Responder com fallback seguro e encaminhar a humano.
 - Não inventar horário, preço, política, paciente ou pagamento. Fatos vêm de tools.
+- Convênios divulgados vêm exclusivamente de `ai_clinic_config.convenios`. Lista vazia significa
+  informação não cadastrada e deve oferecer atendimento humano; não significa que a clínica não
+  aceita convênios.
+- A lista de convênios é apenas informativa. Ela não implementa TISS, carteirinha, autorização,
+  glosa, repasse ou regra financeira.
 - Data/hora usa timezone e instante fornecidos pela clínica, não conhecimento do modelo.
 - Uma mutation por mensagem; agendar/cancelar/reagendar exige dois turnos e confirmação explícita.
 - Pedido ambíguo pede clarificação; pedido por humano abre handoff.
