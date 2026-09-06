@@ -264,7 +264,9 @@ describe('probeMetaChannel — leitura do estado externo', () => {
   });
 
   it('sem wabaId local (linha legada) → não inventa veredito sobre a assinatura', async () => {
-    fetchMock.mockResolvedValueOnce(res(VALID_TOKEN)).mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
+    fetchMock
+      .mockResolvedValueOnce(res(VALID_TOKEN))
+      .mockResolvedValueOnce(res({ id: 'phone-1', status: 'CONNECTED' }));
 
     const probe = await probeMetaChannel({ ...INPUT, wabaId: null });
     expect(probe.waba).toBe('unknown');

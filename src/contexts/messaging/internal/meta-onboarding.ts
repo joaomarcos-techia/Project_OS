@@ -500,7 +500,12 @@ export async function ensureMessageTemplates(
   try {
     const res = await graphFetch<{ data?: Array<{ name?: string }> }>(
       `${encodeURIComponent(wabaId)}/message_templates`,
-      { method: 'GET', stage: 'template_provisioning', token, query: { fields: 'name', limit: '250' } },
+      {
+        method: 'GET',
+        stage: 'template_provisioning',
+        token,
+        query: { fields: 'name', limit: '250' },
+      },
     );
     existing = new Set((res.data ?? []).map((t) => t.name).filter((n): n is string => !!n));
   } catch {
@@ -690,9 +695,8 @@ export async function probeMetaChannel(input: {
       },
     );
     const review = account?.account_review_status;
-    probe.accountReview = typeof review === 'string' && review.toUpperCase() === 'REJECTED'
-      ? 'failed'
-      : 'ok';
+    probe.accountReview =
+      typeof review === 'string' && review.toUpperCase() === 'REJECTED' ? 'failed' : 'ok';
   } catch (err) {
     probe.accountReview = outcomeFromGraphError(err);
   }

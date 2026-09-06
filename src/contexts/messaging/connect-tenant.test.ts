@@ -327,22 +327,25 @@ describe('connectMyClinicWhatsapp', () => {
       ['validate', 'provider_unavailable', 503],
       ['register', 'provider_outcome_unknown', 503],
       ['subscribe', 'provider_outcome_unknown', null],
-    ] as const)('%s falha em %s: auditoria correta e nada persistido', async (step, stage, http) => {
-      failAt(step, stage, http);
+    ] as const)(
+      '%s falha em %s: auditoria correta e nada persistido',
+      async (step, stage, http) => {
+        failAt(step, stage, http);
 
-      const err = await connectMyClinicWhatsapp({
-        code: 'CODE',
-        registrationPin: '123456',
-        wabaId: 'waba-1',
-      }).catch((e) => e);
+        const err = await connectMyClinicWhatsapp({
+          code: 'CODE',
+          registrationPin: '123456',
+          wabaId: 'waba-1',
+        }).catch((e) => e);
 
-      expect(err).toMatchObject({ name: 'MetaConnectError', code: 'META_AUTH_FAILED', stage });
-      expect(upsertTenantConnection).not.toHaveBeenCalled();
-      expect(mocks.after).not.toHaveBeenCalled();
-      expect(recordConnectionFailure).toHaveBeenCalledWith(
-        expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: stage }),
-      );
-    });
+        expect(err).toMatchObject({ name: 'MetaConnectError', code: 'META_AUTH_FAILED', stage });
+        expect(upsertTenantConnection).not.toHaveBeenCalled();
+        expect(mocks.after).not.toHaveBeenCalled();
+        expect(recordConnectionFailure).toHaveBeenCalledWith(
+          expect.objectContaining({ errorCode: 'META_AUTH_FAILED', errorStage: stage }),
+        );
+      },
+    );
 
     it('falha no register não chega a assinar o webhook nem a persistir', async () => {
       failAt('register', 'provider_outcome_unknown', 503);
@@ -456,9 +459,7 @@ describe('connect — provisionamento dos templates', () => {
 
     // A conexão foi persistida e nenhuma falha foi registrada.
     expect(upsertTenantConnection).toHaveBeenCalledTimes(1);
-    await expect(
-      (mocks.after.mock.calls[0]![0] as () => Promise<void>)(),
-    ).resolves.toBeUndefined();
+    await expect((mocks.after.mock.calls[0]![0] as () => Promise<void>)()).resolves.toBeUndefined();
     expect(recordConnectionFailure).not.toHaveBeenCalled();
   });
 
