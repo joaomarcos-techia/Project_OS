@@ -305,7 +305,10 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
   objeto de refund. O adapter deixou de persistir o id da cobrança como refund e o fallback por
   baseline passou a aceitar também id armazenado sem correspondência. Regressões `CANCELLED`/`DONE`
   e suíte 2.977/2.977 passaram. O commit `0181939` foi publicado, o deployment terminou `success` e
-  o Preview passou 6/6. O ramo externo `DONE → refunded` permanece `NOT TESTED`.
+  o Preview passou 6/6. Uma segunda prova pós-rollout usou trava antes do POST e operador já no painel,
+  mas também terminou `CANCELLED` após 71 segundos em autorização crítica. Exatamente um refund,
+  replay sem duplicata, `failed/paid/available` e cleanup local passaram. D80 bloqueia o ramo externo
+  `DONE → refunded` até diagnóstico do Asaas; não repetir POST.
 
 #### 1.5b — Restante (DESENHADA E EXECUTADA — ver ADR-051)
 
@@ -404,10 +407,10 @@ templates distintos, message ids, replay zero e cleanup. D54/D55 percorreram o r
 `PAYMENT_DELETED → PAYMENT_RESTORED`; o chargeback tenant D62 chegou a `REFUNDED/DONE`, atravessou o
 Financial e foi limpo. O Product Acceptance técnico-normativo e seu pós-deploy estão verdes. A Camada
 1 **ainda não está aprovada** porque o refund parcial D50 continua `PENDING` no Asaas e o caminho
-externo feliz `DONE` do P11/D77 segue `NOT TESTED`. O rollout D77 está concluído: 0094 em DEV/PROD,
-pós-check PROD 9/9, 104 testes focados, smoke 7/7 e Preview 6/6. O refund D77 foi criado exatamente uma
-vez, não duplicou no replay, terminou `CANCELLED` e foi reconciliado/limpo localmente sem falso
-fechamento. A 1.S/P10 foi concluída e revalidada no
+externo feliz `DONE` do P11/D77 segue `BLOCKED` pelo D80. O rollout D77 está concluído: 0094 em DEV/PROD,
+pós-check PROD 9/9, 104 testes focados, smoke 7/7 e Preview 6/6. Cada uma das duas provas pós-rollout
+criou exatamente um refund, não duplicou no replay, terminou `CANCELLED` e foi reconciliada/limpa
+localmente sem falso fechamento. A 1.S/P10 foi concluída e revalidada no
 Preview em `4883372`. Não repetir nenhum POST externo. A
 fila executável e a evidência atual estão em `docs/qorov2.md` P0–P11. Proibido concluir com código sem teste, migration sem volume, endpoint/fluxo
 sem E2E, warning ignorado ou evidência externa presumida.

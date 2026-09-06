@@ -60,8 +60,13 @@ canônico e às seções 20–21 de `qorov2.md`:
   o reconciliador usa baseline quando o id salvo não encontra correspondência, inclusive em intents
   antigas. Regressões `CANCELLED`/`DONE`, suíte 2.977/2.977, lint, typecheck, build e gates passaram.
   O commit `0181939` foi enviado à branch, o deployment terminou `success` e o Preview passou 6/6;
-  o ramo externo `DONE → refunded` segue `NOT TESTED`;
-- D50 permanece na conta alvo com um único refund parcial `PENDING`; readback de 04/09 confirmou a
+  o ramo externo `DONE → refunded` segue sem evidência;
+- uma nova prova D77 pós-D79 usou saldo pré-validado e uma trava antes do POST, com o operador já no
+  painel. Exatamente um refund foi liberado; ele ficou em `AWAITING_CRITICAL_ACTION_AUTHORIZATION` por
+  71 segundos e terminou `CANCELLED`. Replay, `failed/paid/available`, readback e cleanup local
+  passaram. O runner não observa se a UI registrou o código informado. D80 está bloqueado no suporte
+  Asaas; não criar outra fixture nem repetir POST;
+- D50 permanece na conta alvo com um único refund parcial `PENDING`; readback de 06/09 confirmou a
   mesma intenção/valor únicos. O Caixa mostra a exceção, mas não o status técnico `DONE` (D72). Não
   repetir POST;
 - o webhook global `qoro dev` foi recriado na conta alvo com sete eventos/`NON_SEQUENTIALLY`; o runner
@@ -226,7 +231,8 @@ Resolva também, dentro do 1.H:
   prova PIX anterior da conta atual está paga; seu único refund terminou `CANCELLED` após autorização,
   sem devolução. P11/D77 foi publicado em DEV/PROD/Preview e a prova pós-rollout criou exatamente um
   novo refund, sem duplicata no replay; ele terminou `CANCELLED`, sem falso fechamento, e o cleanup
-  local passou. D79 corrige a correlação do formato real do POST; falta apenas o externo `DONE`.
+  local passou. D79 corrige a correlação do formato real do POST. Uma segunda prova pós-rollout,
+  sincronizada com o operador, também terminou `CANCELLED`; D80 bloqueia novo teste até o suporte.
 - **D27 ✅ integral e limpo** — chargeback e dinheiro desfeito usam estado autoritativo monotônico,
   bloqueio/liberação do crédito e compensação append-only sem regredir agenda/prontuário. A prova
   Sandbox tenant atravessou Payments/Financial, replay 0/3 e cleanup de 16 linhas sem resíduo.
@@ -261,8 +267,9 @@ Product Acceptance encenado pendente para o fundador: a parte objetiva foi execu
 fica para usuários reais na clínica piloto. O E2E Meta, o chargeback tenant, `PAYMENT_RESTORED`, D69,
 restore e carga estão verdes. O refund D50 continua `PENDING` no provider e a mensagem de suporte já
 foi enviada; não repetir POST. O P11/D77 está corrigido e validado em DEV/PROD/Preview. A nova prova
-Sandbox comprovou o ramo terminal `CANCELLED`, replay sem duplicata e cleanup local; o ramo `DONE`
-segue `NOT TESTED`. A Camada 1 aguarda essa prova feliz D77 e o terminal/cleanup de D50.
+Sandbox comprovou o ramo terminal `CANCELLED`, replay sem duplicata e cleanup local; uma repetição
+sincronizada teve o mesmo desfecho. O ramo `DONE` está `BLOCKED` pelo D80. A Camada 1 aguarda o
+diagnóstico do Asaas e o terminal/cleanup de D50.
 
 > **D32 é regra operacional:** sub-fase verde **não** prova jornada verde. 1.3, 1.4 e 1.5a fecharam
 > todas verdes e o produto não funcionava, porque nada entregava o link ao paciente. **Não marque o
@@ -276,8 +283,9 @@ O teste externo posterior abriu P11/D77; o corretivo foi aplicado em código/DEV
 Preview. Ele não considera mais um POST 2xx como devolução antes de `DONE`/pagamento `REFUNDED`. A nova
 prova Sandbox confirmou exatamente um refund, replay sem duplicata e `CANCELLED → failed/paid/available`,
 seguido de cleanup local. D79 corrige a correlação do id da cobrança retornado pelo POST, está publicado
-em `0181939` e passou no Preview 6/6. O refund D50 segue `PENDING`; não repetir esse POST. Uma nova prova D77 só pode ser enviada
-com autorização específica e operador já sincronizado no painel.
+em `0181939` e passou no Preview 6/6. A tentativa posterior com operador sincronizado também terminou
+`CANCELLED`; D80 exige suporte antes de qualquer nova fixture. O refund D50 segue `PENDING`; não
+repetir nenhum dos POSTs.
 
 **A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
 
