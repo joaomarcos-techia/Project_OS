@@ -309,7 +309,10 @@ O webhook de **assinatura** (conta do Qoro) permanece **intocado**.
   mas também terminou `CANCELLED` após 71 segundos em autorização crítica. O painel mostrou sucesso
   ao aceitar o código Sandbox; isso não virou refund `DONE`, e o saldo continuou subindo com os PIX
   pagos. Exatamente um refund, replay sem duplicata, `failed/paid/available` e cleanup local passaram.
-  D80 bloqueia o ramo externo `DONE → refunded` até diagnóstico do Asaas; não repetir POST.
+  D80 bloqueia o ramo externo `DONE → refunded` até diagnóstico do Asaas; não repetir POST. Um
+  readback independente posterior manteve essa cobrança `RECEIVED` com refund único `CANCELLED`,
+  enquanto a fixture D50 consultada separadamente permaneceu `CONFIRMED` com refund `PENDING`; não há
+  mistura entre os dois fluxos.
 
 #### 1.5b — Restante (DESENHADA E EXECUTADA — ver ADR-051)
 
@@ -413,6 +416,8 @@ pós-check PROD 9/9, 104 testes focados, smoke 7/7 e Preview 6/6. Cada uma das d
 criou exatamente um refund, não duplicou no replay, terminou `CANCELLED` e foi reconciliada/limpa
 localmente sem falso fechamento. A 1.S/P10 foi concluída e revalidada no
 Preview em `4883372`. Não repetir nenhum POST externo. A
+consulta independente de 06/09 confirmou D50 `CONFIRMED/PENDING` e D80 `RECEIVED/CANCELLED`, sem
+mistura de fixtures. A
 fila executável e a evidência atual estão em `docs/qorov2.md` P0–P11. Proibido concluir com código sem teste, migration sem volume, endpoint/fluxo
 sem E2E, warning ignorado ou evidência externa presumida.
 

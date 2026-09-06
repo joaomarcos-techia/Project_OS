@@ -157,6 +157,26 @@ confirmação humana reforça uma inconsistência entre a ação crítica exibid
 provider; não prova que o refund foi concluído. Não criar nova fixture: o caminho `DONE` está
 **BLOCKED** até diagnóstico do suporte/provedor.
 
+**Readback independente D50 × D80 em 06/09/2026:** duas consultas somente leitura, executadas contra
+a conta tenant-scoped da Clínica A, eliminaram a suspeita de mistura entre fixtures. A D50 continua
+com cobrança `CONFIRMED`, `patient_charge=paid`, recebível `pago` em R$ 20, intenção única de R$ 10
+em `confirmation_pending` e um único refund de R$ 10 `PENDING`. A D80 continua com cobrança
+`RECEIVED` e um único refund de R$ 10 `CANCELLED`. Logo, o `CANCELLED` observado pertence à prova
+D77/D80, não ao excedente D50. Nenhum POST, retry ou cleanup foi executado nesse readback.
+
+**D72 — estado do estorno no Caixa implementado localmente em 06/09:** o app passou a consumir um
+seam público tenant-scoped do Payments que reduz a intenção `excess` a quatro estados humanos:
+aguardando, confirmado, cancelado sem devolução e falha. O contrato não expõe payment/refund id nem
+erro bruto e a UI não oferece retry. Unit/UI 22/22, readback conectado DEV 1/1, E2E local autenticado
+`/caixa` 200 com a fixture D50, zero `pageerror`, suíte 2.989/2.989, lint, typecheck, build, arquitetura
+0 ciclos e gates operacionais verdes. Commit, push, deployment e Preview ainda não foram autorizados.
+
+**Camada 2 iniciada somente como spike 2.1.0 em 06/09:** a auditoria regulatória mostrou que “recibo
+PDF” mistura comprovante não fiscal, recibo médico e documento fiscal. A [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md)
+foi aceita pelo fundador em 06/09: primeiro um comprovante não fiscal por baixa, mantendo Receita
+Saúde (PF) e NFS-e/recibo de PJ como integrações separadas. Nenhum schema, endpoint ou PDF foi criado;
+a revisão jurídico-contábil e os gates de Camada 1 da §22 continuam obrigatórios antes do código.
+
 ### D78 — Embedded Signup indisponível para conta externa e contrato do token Meta
 
 **Estado em 05/09/2026: `CÓDIGO PUBLICADO NO PREVIEW` + `BLOQUEADO NA META`.** O resolver foi reescrito para
@@ -615,7 +635,7 @@ suíte integral, build e checks arquiteturais/operacionais foram repetidos no wo
 | Migration PROD `0094` | `SUPABASE_PROJECT_ENV=prod pnpm db:migrate:prod` + verificação read-only | ✅ backup **2.661.164 bytes** · advisory lock adquirido/liberado · `DONE` · pós-check **9/9**: version/journal, colunas, constraints, RLS/FORCE RLS, grants, dados existentes e lock ausente |
 | D77 externo pós-rollout | runner guardado de PIX na Clinic A Sandbox | ✅ **CANCELLED PASS / DONE BLOCKED**: duas fixtures isoladas liquidaram PIX e fizeram exatamente 1 refund cada, sem segundo POST no replay. Ambas terminaram `CANCELLED`; intenção `failed`, cobrança `paid` e crédito `available`. A última usou trava pré-POST com operador no painel e ficou 71 s em autorização crítica. O painel informou sucesso ao operador, mas a API cancelou o refund e o saldo continuou subindo com os PIX creditados. Readback/reconcile e cleanup local passaram; histórico Sandbox preservado |
 | D79 correlação do refund | `asaas/index` + `excess-refund` | ✅ adapter não confunde mais o id da cobrança com refund; fallback do baseline aceita id armazenado sem correspondência; regressões `CANCELLED` e `DONE` + suíte 2.977/2.977 verdes |
-| D50 focado + status preservado | `pnpm vitest run <6 arquivos>` + `STATUS_CLINICA_A_D50` | ✅ **29/29**; pagamento/webhook reais, R$ 10 alocados, um único POST parcial de R$ 10 e intenção `confirmation_pending`. Novo readback de 06/09 confirmou pagamento `CONFIRMED`, recebível R$ 20 pago, duas baixas/R$ 20, baseline zero e exatamente um refund de R$ 10 ainda `PENDING`; nenhum POST/cleanup |
+| D50 focado + status preservado | `pnpm vitest run <6 arquivos>` + `STATUS_CLINICA_A_D50` | ✅ **29/29**; pagamento/webhook reais, R$ 10 alocados, um único POST parcial de R$ 10 e intenção `confirmation_pending`. Readback independente de 06/09 confirmou pagamento `CONFIRMED`, `patient_charge=paid`, recebível R$ 20 pago, duas baixas/R$ 20, baseline zero e exatamente um refund de R$ 10 ainda `PENDING`; nenhum POST/cleanup. A consulta separada da D80 retornou `RECEIVED` + refund `CANCELLED`, provando que os estados não estão misturados |
 | D62 tenant + Financial + replay | `PROCESS_RETAINED_CLINICA_A_PATIENT_CHARGEBACK_RISK` | ✅ **3 fatos processados / replay 0 de 3**; conta vinculada por fingerprint, nenhuma fila alheia tocada, compensação ligada à baixa, `chargeback_loss` única, saldo reaberto e atendimento preservado |
 | Cleanup D62 | `CLEANUP_RETAINED_CLINICA_A_PATIENT_CHARGEBACK` | ✅ preflight exato, provider `REFUNDED/DONE`, 16 linhas sintéticas removidas em transação, zero mutação no provider, auditoria de webhook preservada, manifesto removido e zero resíduo da fixture |
 | Webhook global D54/D55/D66 | `pnpm billing:delete-restore-e2e` + verificador read-only | ✅ conta vinculada por fingerprint; `qoro dev` ativo com 7 eventos/`NON_SEQUENTIALLY`; `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`; replay idempotente e cleanup provider+banco |
@@ -703,7 +723,7 @@ objeto do teste.
 | P3 | ✅ **Rotação da chave sandbox não será executada** — decisão final do fundador em 03/09 | A credencial é exclusiva do Sandbox e o fundador aceitou conscientemente o risco residual. Isso deixa de ser pendência da Camada 1; o valor continua proibido em código, diff, log e documentação. Reabrir somente se a conta deixar de ser descartável, for compartilhada, promovida ou usada como evidência de longa duração | **DECISÃO ENCERRADA, não é teste nem bloqueio.** Continuam obrigatórios fingerprint da conta e separação absoluta de produção | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
 | P4 | **D24 — somente PIX/cartão no sinal e restante** — código + DEV/PROD ✅; pagamento externo ✅; estorno PIX assíncrono revelou D77 | Checkout `DETACHED` usa somente `PIX` + `CREDIT_CARD`. O PIX histórico da conta anterior continua `NOT COMPLETED`, sem reintroduzir credenciais. Em 04/09 uma prova isolada na conta atual confirmou cobrança `PIX` de R$ 10 em `RECEIVED`. O único refund foi aceito, aguardou ação crítica e terminou `CANCELLED`; o pagamento continua recebido e o saldo era suficiente | **PASS:** criação/pagamento PIX. **FAIL externo:** nenhum valor foi devolvido; não repetir POST sem nova autorização. O risco crítico D77 está corrigido em código/DEV pelo P11, mas a proteção só entra em produção após migration 0094, publicação e revalidação | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [estornos Asaas](https://docs.asaas.com/docs/estornos); D57/D58/D76/D77; §20.1 |
 | P5 | ✅ **D27 — jornada tenant completa e fixture removida** | Em 01/09 a fixture real de restante de R$ 10 foi paga por cartão na conta alvo. Depois do suporte disparar o chargeback, o provider terminou `REFUNDED/DONE`, a rota tenant marcou a `patient_charge` `refunded/lost` e publicou `requested`, `in_dispute`, `lost`. Em 02/09 o runner vinculou a fixture a um fingerprint da conta e executou somente esses handlers | **PASS:** identidade/proveniência, Asaas → Preview, dedup, Payments, compensação ligada à baixa, `chargeback_loss`, saldo reaberto, fato clínico preservado e replay 0/3. O cleanup autorizado validou as contagens, removeu 16 linhas sintéticas em uma transação, não chamou o provider, preservou o audit de webhook e terminou sem resíduo da fixture | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); D62, D68; §20.2 |
-| P6 | **D50 — estorno parcial enviado; provider ainda `PENDING`** | Em 01/09 o Checkout de R$ 20 foi pago por cartão e o webhook tenant marcou a charge `paid`. O Financial alocou somente R$ 10 ao saldo e publicou o excedente. Uma única intenção, baseline zero, executou um único POST parcial de R$ 10. Novo readback em **06/09** confirmou pagamento `CONFIRMED`, recebível `pago` em R$ 20, duas baixas somando R$ 20, uma intenção `confirmation_pending` de R$ 10, baseline zero e um único refund `PENDING` de R$ 10 | **PASS:** pagamento, webhook, correlação, valor exato, persist-before-POST, ausência de duplicata, fingerprint e separação entre contas. **Pendente exclusivamente no provider/suporte:** aguardar o refund existente; nunca repetir POST. Quando virar `DONE`, fazer readback → ledger → replay → cleanup. A UI mostra a exceção no Caixa, mas não a palavra `DONE` (D72) | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estornos Asaas](https://docs.asaas.com/docs/refunds); D50/D72; §20.3 e §20.9 |
+| P6 | **D50 — estorno parcial enviado; provider ainda `PENDING`** | Em 01/09 o Checkout de R$ 20 foi pago por cartão e o webhook tenant marcou a charge `paid`. O Financial alocou somente R$ 10 ao saldo e publicou o excedente. Uma única intenção, baseline zero, executou um único POST parcial de R$ 10. Readback independente em **06/09** confirmou pagamento `CONFIRMED`, `patient_charge=paid`, recebível `pago` em R$ 20, duas baixas somando R$ 20, uma intenção `confirmation_pending` de R$ 10, baseline zero e um único refund `PENDING` de R$ 10; D80 foi consultada separadamente e é a fixture `CANCELLED` | **PASS:** pagamento, webhook, correlação, valor exato, persist-before-POST, ausência de duplicata, fingerprint e separação entre contas/fixtures. **Pendente exclusivamente no provider/suporte:** aguardar o refund existente; nunca repetir POST. Quando virar `DONE`, fazer readback → ledger → replay → cleanup. D72 distingue os estados no Caixa localmente; publicação pendente | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estornos Asaas](https://docs.asaas.com/docs/estornos); D50/D72; §20.3 e §20.9 |
 | P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
 | P8 | ✅ **Carga e restore em volume** | Restore real e carga usam PostgreSQL 17 local descartável. `test:load` extrai somente o schema DEV, sobe app real no scratch TLS, substitui Meta antes da rede, bloqueia demais HTTP externos e exige confirmação/guards fail-closed. Nenhuma escrita foi feita em DEV, Preview ou produção | **PASS:** restore 117 tabelas/83 policies e zero resíduo; carga 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile 20 chamadas e 100 queries. Todos os SLOs verdes, zero deadlock/duplicata/retry/falha e cleanup integral | §10 Performance; §16 Migração; `test:load`; `restore:test`; D61; R10 em [riscos](architecture/risks.md) |
 | P9 | ✅ **Product Acceptance técnico-normativo publicado e revalidado** — D53/D56/D60/D70/D71 | Em 04/09 o agente cruzou o fluxo real do Qoro com CFM/ANPD e executou 150 testes focados de Agenda, prontuário, autorização, isolamento, templates e pagamentos. A auditoria encontrou D60 recorrente e D70; ambos foram corrigidos e publicados em `42cd114`. O deployment terminou `success`, a navegação Preview passou 6/6 e a matriz pós-deploy passou 8/8/72 estados esperando headings reais e capturando `pageerror`. Auth state e capturas foram removidos. Teste humano de usabilidade deixa de ser encenado pelo fundador e passa a ser observação da clínica piloto | **PASS técnico-normativo:** código, suíte integral, build/gates e Preview verdes. Manter monitoramento passivo do Sentry. A validação humana de percepção não bloqueia iniciar 1.S; bloqueia avançar da clínica piloto para ondas seguintes se revelar problema alto/médio | §0.2; §15; CFM/ANPD; [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56/D60/D70/D71; [guia E2E](../e2e/README.md) |
@@ -908,7 +928,8 @@ Cenários a executar e **registrar aqui com o resultado real**:
 | Cobertura | **D33 ✅** — 13/13 handlers auditados possuem teste direto; 5 gaps receberam 16 testes de projeção financeira, metering e cancelamento por ciclo de vida |
 | Produto | ✅ **E2E controlado dos três ramos + D52 com banco/worker 13/13** · ✅ POST indeterminado contido · ✅ simulação de 30 dias; transporte real Asaas e Meta permanecem evidências externas separadas |
 
-Depois: **1.S**. A Camada 2 só começa com `1.H ✅ + 1.S ✅`.
+Depois: **1.S**. A implementação da Camada 2 só começa com `1.H ✅ + 1.S ✅`; discovery/ADR
+reversíveis podem antecipar dúvidas regulatórias sem alterar runtime ou contornar gates externos.
 
 ---
 
@@ -1160,6 +1181,21 @@ suíte 100% verde.
 **Gate independente da Camada 1:** D50 continua com um único refund externo `PENDING`; quando o provider
 confirmar `DONE`, executar somente readback, ledger, replay e cleanup, sem repetir o POST.
 
+#### Checklist corretivo 1.S / D72 — estado humano do estorno no Caixa
+
+- [x] Payments mantém a leitura tenant-scoped e expõe somente estado sanitizado, valor e
+  identidade do atendimento; nenhum id/erro bruto do Asaas atravessa o contrato público.
+- [x] `pending`, `submitting` e `confirmation_pending` são exibidos como aguardando confirmação.
+- [x] `confirmed`, `failed/refund_cancelled` e demais falhas possuem branches humanas explícitas.
+- [x] O Caixa compõe o seam público sem JOIN cross-context nem nova regra financeira.
+- [x] Testes unitários/UI focados: 22/22; leitura conectada DEV da fixture D50: 1/1.
+- [x] E2E local autenticado: `/caixa` 200, copy/valor visíveis, zero id interno e zero `pageerror`.
+- [x] Suíte integral 2.989/2.989, lint, typecheck, build e gates arquiteturais/operacionais.
+- [ ] Commit, push, deployment e smoke autenticado no Preview — exigem autorização própria.
+
+Este corretivo não altera migration, webhook, refund, ledger ou estado externo. Ele torna visível a
+diferença que o readback D50 × D80 já provou e nunca oferece “tentar novamente” como atalho perigoso.
+
 **E2E de aceite:** `agenda(on)→aceita política→link 50%→paga→webhook→CONFIRMADO`; A(falta)=retido/restante não criado · B(comparece)=restante conciliado · C(cancela a tempo)=estornado.
 
 ---
@@ -1170,7 +1206,11 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
 ---
 
 ## 7. Camadas 2–4 (mesmos gates + `.H`/`.S`)
-- **P1:** 2.1 recibo PDF · **2.2.0 SPIKE Memed** (validar **contrato · custos · requisitos regulatórios · dependência comercial** ANTES de qualquer código — integração externa não começa sem o spike passar) → 2.2 Memed · 2.3 template psiquiátrico · 2.4 recuperação falta/retorno · **2.H·2.S**.
+- **P1:** **2.1.0 spike regulatório de documento de pagamento** → 2.1 comprovante/recibo conforme
+  [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) · **2.2.0 SPIKE Memed** (validar
+  **contrato · custos · requisitos regulatórios · dependência comercial** ANTES de qualquer código —
+  integração externa não começa sem o spike passar) → 2.2 Memed · 2.3 template psiquiátrico · 2.4
+  recuperação falta/retorno · **2.H·2.S**.
 - **P2:** conselho genérico (fundação; psicologia clínica desacoplada) · pacote/mensalidade · O-2 · **3.H·3.S**.
 - **P3:** NPS · modalidade online · convênio/TISS · NFS-e (parceiro) · psicologia clínica completa.
 - **Adiado:** CRM/UTM/reativação · repasse.
@@ -1232,7 +1272,8 @@ Percorrer a jornada como **secretária·médico·dono·paciente**: nº de clique
   temas), agora esperando o heading real e falhando em qualquer `pageerror`;
 - **observação real já disponível:** o operador confirmou anteriormente as mensagens Meta de sinal e
   restante no aparelho. O D50 aparece no Caixa como exceção aguardando estorno; o provider continua
-  `PENDING`, e o estado técnico não é exposto literalmente na UI (D72).
+  `PENDING`. O corretivo D72 agora distingue localmente espera, confirmação, cancelamento sem
+  devolução e falha; publicação/Preview ainda não foram executados.
 
 Achados: D60 (corrida App Router em Link → redirect) e D70 (dia do Dashboard fora do fuso da clínica)
 foram corrigidos e publicados; D71 corrigiu o falso verde do harness visual. O E2E autenticado do
@@ -1682,7 +1723,7 @@ também terminou `CANCELLED`; o ramo externo `DONE` permanece `BLOCKED` pelo D80
 | Bloco | Estado real | O que falta para ficar verde |
 | --- | --- | --- |
 | **D24/D58 — somente PIX/cartão por 7 dias** | **Código + DB DEV + PROD + pagamentos externos verdes para criação/pagamento.** Checkout hospedado, intenção/lease, correlação, gerações e renovação implementados; smoke 5/5 e pós-verificação 7/7. Em 04/09 a conta atual confirmou `PIX/RECEIVED` | as provas de refund terminaram `CANCELLED`, sem devolução. As duas pós-rollout demonstraram proteção, replay e cleanup; a última foi sincronizada com o operador. Não repetir antes de diagnóstico do suporte D80 |
-| **D50 — excedente após baixa manual** | **Código + DB DEV/PROD + pagamento/webhook/POST parcial verdes.** Novo readback de 06/09: pagamento `CONFIRMED`; cobrança `paid`; recebível `pago` em R$ 20; duas baixas somando R$ 20; uma intenção `confirmation_pending` de R$ 10 com baseline zero; um único refund de R$ 10 ainda `PENDING` | o pedido de diagnóstico já foi enviado ao suporte. Aguardar o refund existente virar `DONE`; então o runner faz somente readback → confirmação → ledger → replay → cleanup. Não repetir POST. Na UI, consultar o cartão vermelho do Caixa; `DONE` não é exibido literalmente (D72) |
+| **D50 — excedente após baixa manual** | **Código + DB DEV/PROD + pagamento/webhook/POST parcial verdes.** Readback independente de 06/09: pagamento `CONFIRMED`; cobrança `paid`; recebível `pago` em R$ 20; duas baixas somando R$ 20; uma intenção `confirmation_pending` de R$ 10 com baseline zero; um único refund de R$ 10 ainda `PENDING`. D80 foi consultada à parte e retornou `RECEIVED` + `CANCELLED`; não há mistura | o pedido de diagnóstico já foi enviado ao suporte. Aguardar o refund D50 existente virar `DONE`; então o runner faz somente readback → confirmação → ledger → replay → cleanup. Não repetir POST. D72 já distingue os estados humanos no Caixa local; ainda falta publicar e observar no Preview |
 | **D27 — chargeback/dinheiro desfeito** | ✅ **Código + ADR-052 + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup verdes.** O provider terminou `REFUNDED/DONE`; a rota tenant marcou a cobrança `refunded/lost`; os três fatos reais de risco foram processados uma vez | nada funcional. O ledger provado continha compensação `refund`, `chargeback_loss`, saldo reaberto, atendimento preservado e replay 0/3; o cleanup removeu 16 linhas sintéticas, preservou audit de webhook e deixou zero resíduo da fixture |
 | **D77 — confirmação terminal do estorno do sinal** | ✅ **Código + DB DEV/PROD + Preview verdes; `CANCELLED` externo PASS.** Intenção antes do POST, claim concorrente, baseline, webhook/cron readback e fechamento atômico implementados. Duas provas pós-rollout criaram um refund cada, não duplicaram no replay, terminaram `failed/paid/available` e foram limpas localmente. D79 corrige a correlação do formato real | `DONE → refunded` está bloqueado pelo D80: a tentativa com runner pausado e operador no painel também foi cancelada. Abrir suporte; não repetir POST nem criar nova fixture |
 
@@ -1775,6 +1816,11 @@ estão verdes. A **Camada 1 inteira** só fecha depois da prova externa `DONE` d
 terminal/cleanup da D50; a 1.S, D60/D70 e o Product Acceptance técnico já estão
 publicados/revalidados. A percepção humana é gate
 para expandir além da clínica piloto. Carga não é mais bloqueio.
+
+O corretivo D72 está implementado localmente e em validação: o Caixa passa a distinguir estorno
+aguardando confirmação, confirmado, cancelado sem devolução e falha, sem expor ids do provider e sem
+adicionar qualquer ação de retry. Isso melhora a operação, mas não transforma `PENDING` em `DONE` nem
+fecha os dois gates externos acima.
 
 ### 20.8 TISS: o que pode começar agora e qual “sistema” está citado
 
@@ -2736,3 +2782,114 @@ dias; (b) a primeira campanha otimiza somente `signup_completed`, mantendo
 no Sandbox o contrato do Checkout recorrente hospedado e fechar o threat model O-0 antes de pedir
 autorização para migration/API/infra. Não misturar módulos por especialidade nem reutilizar o convite de
 14 dias como autorização anônima.
+
+---
+
+## 22. Camada 2 — 2.1 documento de pagamento: spike regulatório
+
+**Estado em 06/09/2026:** `2.1.0 DISCOVERY CONCLUÍDO; 2.1A APROVADA`; código de PDF **não iniciado**.
+A investigação produziu a [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md), aceita pelo
+fundador em 06/09 para comprovante não fiscal por baixa. Isso prepara a Camada 2 de forma reversível;
+não declara a Camada 1 encerrada, não contorna D50/D80 e não dispensa a revisão jurídico-contábil.
+
+### 22.1 Por que “recibo PDF” não é um requisito suficiente
+
+O nome antigo mistura comprovante operacional, recibo de despesa médica e documento fiscal. A Receita
+Federal informa que, desde 01/01/2025, médicos, psicólogos, dentistas, fisioterapeutas,
+fonoaudiólogos e terapeutas ocupacionais que prestam como pessoa física devem usar o Receita Saúde.
+Seu [Manual 2.1](https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/manuais/orientacao-tributaria/receita-saude-2.1.pdf)
+determina emissão na data do pagamento e um recibo por parcela. A
+[orientação de despesas médicas](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/malha-fiscal/antecipacao/despesas-medicas)
+exige descrição do serviço, nome/endereço/CPF ou CNPJ do prestador, responsável pelo pagamento,
+beneficiário, data e assinatura quando não for documento fiscal.
+
+O modelo atual tem `payment_transactions` append-only por movimento, clínica com CNPJ opcional,
+paciente com CPF cifrado e relações de responsável financeiro. A tabela de transações **não possui
+status**: `kind = 'payment'` é a baixa criada pelo Financial quando o valor recebido é reconhecido e
+alocado. O modelo não registra a natureza PF/PJ do emitente nem um snapshot do pagador efetivo por
+transação, razão social, assinatura/numeração fiscal ou vínculo com Receita Saúde/NFS-e. Inferir esses
+dados ou um estado inexistente produziria um documento enganoso.
+
+### 22.2 Caminho recomendado
+
+1. **2.1A — comprovante não fiscal:** gerar um comprovante por pagamento confirmado, com aviso claro
+   de que não substitui Receita Saúde, NFS-e ou documento fiscal. Ele atende conciliação/atendimento ao
+   paciente sem prometer validade tributária inexistente.
+2. **2.1B — documento fiscal:** tratar Receita Saúde (prestador PF) e NFS-e/recibo de PJ como
+   integrações próprias, depois de confirmar contrato, identidade legal, delegação, cancelamento e
+   retenção. Não usar scraping nem API presumida.
+3. Capturar/confirmar o **pagador real** no ato do recebimento; não presumir que seja o paciente,
+   responsável cadastrado, titular do cartão ou usuário logado. Beneficiário e pagador permanecem
+   distintos.
+4. Fazer snapshot imutável por `payment_transaction`. Estorno cria compensação/referência; nunca
+   reescreve o documento histórico como se o pagamento não tivesse existido.
+5. Gerar e baixar somente no servidor, com sessão, RBAC financeiro, `clinic_id` derivado do usuário,
+   RLS, auditoria, rate limit e sem URL pública previsível. CPF/endereço nunca entram em logs/Sentry.
+
+### 22.3 Decisão de produto
+
+- [x] **Aprovada em 06/09/2026:** 2.1A como “Comprovante de pagamento — não fiscal”, deixando Receita
+  Saúde e NFS-e como integrações separadas.
+- [x] **Rejeitada para este slice:** exigir recibo médico/fiscal já na 2.1. Esse caminho exige primeiro
+  definir PF/PJ,
+  provedor fiscal, identidade legal do emitente, pagador, beneficiário, assinatura/numeração,
+  cancelamento e retenção.
+
+O nome e a copy “não fiscal” ainda passam por revisão jurídico-contábil antes do rollout. A aprovação
+não autoriza chamar o comprovante de “recibo fiscal”.
+
+### 22.4 Contrato e testes planejados para 2.1A
+
+- **fonte da verdade:** um movimento positivo `payment_transactions.kind = 'payment'` já persistido
+  como baixa pelo Financial; a tabela não tem coluna `status` e nunca se aceita confirmação enviada
+  pelo browser;
+- **idempotência:** um snapshot por `clinic_id + payment_transaction_id + version`, protegido por
+  constraint e concorrência;
+- **multi-tenancy:** rota deriva tenant da sessão e o banco prova A → B negado;
+- **privacidade:** snapshot mínimo/cifrado, download autenticado, `Content-Disposition`, cache privado,
+  logs redigidos e sem dado clínico desnecessário;
+- **reversão:** comprovante referencia a compensação e não oculta o histórico;
+- **unit:** copy não fiscal, moeda/data, parcela, pagador diferente do beneficiário e estorno;
+- **integration DB:** snapshot, replay, concorrência, RLS/FORCE, grants e ledger append-only;
+- **contract/PDF:** texto extraído, metadados, nome de arquivo, ausência de ids/secrets e render visual;
+- **E2E:** dono/financeiro gera, baixa e repete; perfil sem permissão e tenant cruzado recebem negação;
+- **gates:** lint, typecheck, suíte, build, arquitetura, DB, migration, observabilidade, segurança e
+  Playwright. Produção/migration/deploy continuam exigindo autorização específica.
+
+### 22.5 Auditoria do terreno e split obrigatório
+
+A infraestrutura de PDF já está implementada com `@react-pdf/renderer` 4.5.1 e funções puras em
+`src/lib/pdf`; `/relatorios/pdf` fornece o padrão Node autenticado com rate limit, `no-store` e
+`Content-Disposition`. Portanto, 2.1A não adiciona engine nem dependência. O README dessa biblioteca,
+que ainda dizia “vazio”, foi reconciliado neste spike.
+
+O bloqueio real é dado e autoridade: o Financial conhece baixa/recebível/paciente, Tenancy expõe
+nome/endereço/CNPJ opcional e Patient possui identidade e responsável financeiro, mas não há snapshot
+do pagador efetivo. `patientApiV1.getPaymentIdentity` é deliberadamente restrito à cobrança Asaas e
+não será reaproveitado por conveniência. Como o Checkout hospedado coleta o pagador fora do Qoro,
+paciente, responsável cadastrado e titular do cartão continuam identidades não intercambiáveis.
+
+2.1A será executada em dois lotes, sem misturar com D72:
+
+1. **2.1A.1 contrato/snapshot — Financial + Patient:** seam documental estreito, confirmação explícita
+   do pagador, snapshot cifrado/minimizado e idempotência por baixa/versão. A aplicação compõe o perfil
+   público existente de Tenancy sem alterar seus internals.
+2. **2.1A.2 render/entrega — Financial + app/lib:** renderizador puro, rota Node, RBAC financeiro, rate
+   limit, auditoria, headers seguros, estado de compensação e ação no Caixa.
+
+Cada lote precisa confirmar sua própria estimativa `≤25 arquivos`, `≤1500 linhas` e `≤2 contexts`
+antes do código.
+
+### 22.6 Checklist 2.1.0
+
+- [x] fontes oficiais atuais da Receita Federal verificadas;
+- [x] diferença PF/PJ, pagamento/parcela, pagador/beneficiário e Dmed registrada;
+- [x] modelo atual auditado contra os campos mínimos;
+- [x] engine PDF, rota de referência, rate limit, RBAC e seams existentes auditados;
+- [x] ausência de `payment_transaction.status` e de pagador persistido registrada sem inferências;
+- [x] execução proposta em 2.1A.1/2.1A.2 para respeitar o budget por lote;
+- [x] ADR-054 criada como `Proposed`;
+- [x] arquitetura, ameaças, privacidade, idempotência e matriz de testes propostas;
+- [x] decisão humana: 2.1A aprovada e recibo fiscal integral rejeitado para este slice;
+- [ ] revisão jurídico-contábil da copy e do enquadramento da primeira clínica piloto;
+- [ ] código, migration, testes, E2E e rollout — não iniciados antes da decisão.

@@ -1,4 +1,5 @@
 import { listPatientCards } from '@/contexts/patient/queries';
+import { paymentsApiV1 } from '@/contexts/payments';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import {
@@ -57,6 +58,13 @@ export default async function CaixaPage() {
       listOpenCollectionCases(clinicId),
     ]),
   );
+  const excessRefundStatuses = await withQueryDeadline(
+    'caixa.excessRefundStatuses',
+    paymentsApiV1.listExcessRefundStatuses(
+      clinicId,
+      pendencias.map((item) => item.appointmentId),
+    ),
+  );
 
   // Caixa patient-first: resolve nomes via contexto patient (camada page — sem
   // JOIN cross-context; igual ao consultório).
@@ -91,6 +99,7 @@ export default async function CaixaPage() {
       pagosHoje={lancs.pagosHoje.map(enrich)}
       aPagar={pagaveis.map(enrich)}
       pendencias={pendencias}
+      excessRefundStatuses={excessRefundStatuses}
       collectionCases={collectionCases}
       methods={methods}
       paymentTransactions={paymentTransactions}

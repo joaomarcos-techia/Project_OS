@@ -23,13 +23,15 @@ Depois dele, leia:
 | `docs/adr/049-pagamentos-paciente-sinal.md` | arquitetura do sinal anti-no-show |
 | `docs/adr/050-identidade-de-pagamento-do-paciente.md` | PII mínima que vai para o Asaas |
 | `docs/adr/051-conciliacao-sinal-e-recebivel.md` | **as 4 invariantes financeiras**, na §2.1 |
+| `docs/adr/052-risco-e-reversao-de-pagamento-do-paciente.md` | chargeback e compensação financeira |
+| `docs/adr/054-documento-de-pagamento-e-recibo-fiscal.md` | spike 2.1: comprovante não fiscal versus Receita Saúde/NFS-e |
 | `docs/runbooks/payment-account-connect.md` | operação do ciclo de cobrança do paciente |
 | `docs/runbooks/asaas-webhook-assinatura.md` | webhook da conta do Qoro (governa acesso ao produto) |
 
 ### Atualização operacional de 06/09/2026
 
 O restante deste handoff contém histórico útil, mas qualquer estado divergente deve ceder ao bloco
-canônico e às seções 20–21 de `qorov2.md`:
+canônico e às seções 20–22 de `qorov2.md`:
 
 - D62 está **PASS integral e limpo**, sem mocks: `requested → in_dispute → lost`, compensação ligada à
   baixa, `chargeback_loss` única, saldo reaberto, atendimento preservado e replay 0/3. O cleanup
@@ -68,9 +70,13 @@ canônico e às seções 20–21 de `qorov2.md`:
   ao aceitar o código Sandbox. Apesar disso, a API terminou `CANCELLED` e o saldo continuou subindo
   com os PIX creditados, pois nenhum refund chegou a `DONE`. D80 está bloqueado no suporte Asaas; não
   criar outra fixture nem repetir POST;
-- D50 permanece na conta alvo com um único refund parcial `PENDING`; readback de 06/09 confirmou a
-  mesma intenção/valor únicos. O Caixa mostra a exceção, mas não o status técnico `DONE` (D72). Não
-  repetir POST;
+- D50 permanece na conta alvo com um único refund parcial `PENDING`; readback independente de 06/09
+  confirmou cobrança `CONFIRMED`, estado local `paid/confirmation_pending` e a mesma intenção/valor
+  únicos. A consulta separada da D80 confirmou cobrança `RECEIVED` e refund `CANCELLED`: os estados
+  não estão misturados. D72 foi implementado localmente: o Caixa distingue espera, confirmação,
+  cancelamento sem devolução e falha sem expor ids do provider nem oferecer retry. Unit/UI 22/22,
+  DEV conectado 1/1, E2E local autenticado `/caixa` 200/zero `pageerror`, suíte 2.989/2.989, build e
+  gates passaram; commit/push/deploy/Preview ainda não foram autorizados. Não repetir POST;
 - o webhook global `qoro dev` foi recriado na conta alvo com sete eventos/`NON_SEQUENTIALLY`; o runner
   provou `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`, replay e cleanup. O pós-check
   confirmou coexistência com o webhook tenant 12/`SEQUENTIALLY`;
@@ -83,8 +89,18 @@ canônico e às seções 20–21 de `qorov2.md`:
   a ponte `qoro.dev/comecar` para Google Ads. É **desenho não implementado**. Trial após readback
   server-side da assinatura e `signup_completed` como conversão primária inicial já foram decididos;
   falta provar o contrato do Checkout hospedado, fechar O-0 e obter autorização para APIs/infra;
+- a Camada 2 começou somente pelo spike regulatório 2.1.0, em `qorov2.md` §22 e na **ADR-054
+  Accepted**. Em 06/09 o fundador aprovou comprovante não fiscal por baixa; Receita Saúde para PF e
+  NFS-e/recibo de PJ permanecem integrações fiscais separadas. Nenhum PDF/schema/endpoint foi criado;
+  falta a revisão jurídico-contábil e o fechamento dos gates da Camada 1. A auditoria confirmou que a engine PDF, rota Node,
+  rate limit e RBAC já existem, mas não há pagador persistido nem `payment_transaction.status`; o
+  trabalho proposto foi dividido em 2.1A.1 (snapshot, Financial + Patient) e 2.1A.2 (render/entrega),
+  sem misturar com D72;
 - gates do worktree integrado: lint/typecheck/build verdes, 2.975 testes em 318 arquivos, zero ciclos,
   `arch:db-check` zero findings, snapshots 54/293/0/67, migrations/registry/observabilidade verdes.
+- gates locais após D72/ADR-054: lint/typecheck/build verdes, 2.989 testes em 319 arquivos, zero
+  ciclos, `arch:db-check` zero findings, snapshots 54/293/0/67, migrations/registry/observabilidade e
+  formatação verdes; E2E local autenticado do Caixa passou sem `pageerror`;
 - P10/1.S está concluído. D73 encerra `outbox` de tenant removido como
   `skipped_missing_clinic`; D74 alinhou o smoke de POST ao Checkout hospedado (`creation_unknown`, sem
   retry cego); D75 isolou jornada/simulação de audit órfão. C14 9/9, Financial 10/10, jornada 13/13,
@@ -289,7 +305,12 @@ em `0181939` e passou no Preview 6/6. A tentativa posterior com operador sincron
 `CANCELLED`; D80 exige suporte antes de qualquer nova fixture. O refund D50 segue `PENDING`; não
 repetir nenhum dos POSTs.
 
-**A Camada 2 só começa com `1.H ✅ + 1.S ✅`.**
+D72 está verde localmente e torna esses estados legíveis no Caixa sem mudar dinheiro nem provider.
+Falta apenas publicar e executar o smoke autenticado no Preview, mediante autorização própria.
+
+**Código da Camada 2 só começa com `1.H ✅ + 1.S ✅`; o spike documental 2.1.0 pode avançar sem
+alterar runtime nem contornar os gates externos.** O ledger não possui `payment_transaction.status`:
+o eventual comprovante 2.1A nasce de uma baixa `kind = 'payment'` já persistida pelo Financial.
 
 ## 7. Ondas seguintes (só depois da Camada 1 fechada)
 
@@ -308,7 +329,10 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
 
 ### Camada 2 (P1)
 
-- **2.1** recibo PDF.
+- **2.1.0** spike regulatório conforme `qorov2.md` §22/ADR-054: **concluído; 2.1A aprovada** como
+  comprovante não fiscal por baixa, separado de Receita Saúde/NFS-e.
+- **2.1** implementar em 2.1A.1/2.1A.2 somente depois dos gates da Camada 1; revisão
+  jurídico-contábil permanece gate de rollout.
 - **2.2.0 SPIKE Memed** — validar **contrato, custos, requisitos regulatórios e dependência
   comercial** ANTES de qualquer código. **Integração externa não começa sem o spike passar.**
 - **2.2** Memed (só se o spike passar) · **2.3** template psiquiátrico · **2.4** recuperação de

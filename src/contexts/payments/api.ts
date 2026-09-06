@@ -9,6 +9,7 @@
 import 'server-only';
 
 import { findPayableCharge, type PayableCharge } from './internal/charge-store';
+import { listExcessRefundStatuses, type ExcessRefundStatus } from './internal/refund-status';
 
 export interface PaymentsApiV1 {
   /**
@@ -24,10 +25,17 @@ export interface PaymentsApiV1 {
    * ficar em repouso numa fila que operador e worker leem.
    */
   getPayableCharge(clinicId: string, chargeId: string): Promise<PayableCharge | null>;
+
+  /** Estado sanitizado do estorno automático de excedente exibido no Caixa. */
+  listExcessRefundStatuses(
+    clinicId: string,
+    appointmentIds: readonly string[],
+  ): Promise<ExcessRefundStatus[]>;
 }
 
 export const paymentsApiV1: PaymentsApiV1 = {
   getPayableCharge: (clinicId, chargeId) => findPayableCharge(clinicId, chargeId),
+  listExcessRefundStatuses,
 };
 
-export type { PayableCharge };
+export type { ExcessRefundStatus, PayableCharge };

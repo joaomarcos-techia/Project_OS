@@ -15,6 +15,7 @@ import type {
   FaturamentoPendenciaDTO,
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
+import type { ExcessRefundStatus } from '@/contexts/payments';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('./actions', () => ({
@@ -91,6 +92,7 @@ const base = {
   pagosHoje: [] as CaixaItem[],
   aPagar: [] as CaixaItem[],
   pendencias: [] as FaturamentoPendenciaDTO[],
+  excessRefundStatuses: [] as ExcessRefundStatus[],
   collectionCases: [] as CollectionCaseDTO[],
   methods: METHODS,
   paymentTransactions: [] as PaymentTransactionSummary[],
@@ -227,6 +229,37 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     unmount();
     render(<CaixaView {...base} pendencias={[]} />);
     expect(screen.queryByText(/Atendimentos não faturados/)).toBeNull();
+  });
+
+  it.each([
+    ['waiting', /aguardando confirmação da devolução/i],
+    ['confirmed', /estorno confirmado pelo Asaas/i],
+    ['cancelled', /valor não foi devolvido/i],
+    ['failed', /não foi concluído/i],
+  ] as const)('explica o estado de estorno %s sem expor identificadores', (state, copy) => {
+    const pendingBilling: FaturamentoPendenciaDTO = {
+      id: 'fp-refund',
+      appointmentId: 'a-refund',
+      motivo: 'Pagamento acima do saldo aguardando estorno do excedente.',
+      valor: 10,
+      createdAt: '2026-09-06T00:00:00.000Z',
+    };
+    render(
+      <CaixaView
+        {...base}
+        pendencias={[pendingBilling]}
+        excessRefundStatuses={[
+          {
+            appointmentId: 'a-refund',
+            amount: 10,
+            state,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText(copy)).toBeTruthy();
+    expect(screen.queryByText(/pay_|refund id|provider/i)).toBeNull();
   });
 
   it('exibe fila humana de cobrança antiga com atraso e saldo residual', () => {

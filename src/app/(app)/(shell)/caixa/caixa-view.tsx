@@ -10,6 +10,7 @@ import type {
   PaymentMethodDTO,
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
+import type { ExcessRefundStatus } from '@/contexts/payments';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { BreakdownList } from '@/components/ui/breakdown-list';
@@ -33,6 +34,7 @@ export function CaixaView({
   pagosHoje,
   aPagar,
   pendencias,
+  excessRefundStatuses,
   collectionCases,
   methods,
   canOperate,
@@ -44,6 +46,7 @@ export function CaixaView({
   pagosHoje: CaixaItem[];
   aPagar: CaixaItem[];
   pendencias: FaturamentoPendenciaDTO[];
+  excessRefundStatuses: ExcessRefundStatus[];
   collectionCases: CollectionCaseDTO[];
   methods: PaymentMethodDTO[];
   paymentTransactions: PaymentTransactionSummary[];
@@ -64,6 +67,10 @@ export function CaixaView({
     }
     return indexed;
   }, [paymentTransactions]);
+  const excessRefundByAppointment = useMemo(
+    () => new Map(excessRefundStatuses.map((status) => [status.appointmentId, status])),
+    [excessRefundStatuses],
+  );
 
   const run = (fn: () => Promise<ActionResult<unknown>>) => {
     setError(null);
@@ -179,12 +186,19 @@ export function CaixaView({
               items={pendencias}
               getKey={(item) => item.id}
               renderItem={(item) => (
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <span className="text-pretty">{item.motivo}</span>
-                  {item.valor != null ? (
-                    <span className="shrink-0 font-medium tabular-nums">
-                      {formatBRL(item.valor)}
-                    </span>
+                <div className="grid gap-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <span className="text-pretty">{item.motivo}</span>
+                    {item.valor != null ? (
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {formatBRL(item.valor)}
+                      </span>
+                    ) : null}
+                  </div>
+                  {excessRefundByAppointment.has(item.appointmentId) ? (
+                    <ExcessRefundStatusLine
+                      status={excessRefundByAppointment.get(item.appointmentId)!}
+                    />
                   ) : null}
                 </div>
               )}
@@ -238,6 +252,22 @@ export function CaixaView({
         onEstorno={onEstorno}
       />
     </>
+  );
+}
+
+const EXCESS_REFUND_COPY: Record<ExcessRefundStatus['state'], string> = {
+  waiting: 'Estorno solicitado ao Asaas; aguardando confirmação da devolução.',
+  confirmed: 'Estorno confirmado pelo Asaas.',
+  cancelled: 'Estorno cancelado pelo Asaas; o valor não foi devolvido. Revise antes de nova ação.',
+  failed: 'Estorno automático não foi concluído. Revise antes de nova ação.',
+};
+
+function ExcessRefundStatusLine({ status }: { status: ExcessRefundStatus }) {
+  const tone = status.state === 'confirmed' ? 'text-success-700' : 'text-current';
+  return (
+    <p className={`text-pretty text-(length:--fs-xs) font-medium ${tone}`}>
+      {EXCESS_REFUND_COPY[status.state]} Valor: {formatBRL(status.amount)}.
+    </p>
   );
 }
 

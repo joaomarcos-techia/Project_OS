@@ -29,6 +29,7 @@ Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras d
 | Asaas-only, planos/preços separados, sem overage | Accepted | [billing](../billing/subscriptions.md) |
 | Trial 14d e convite mágico HMAC/versionado | Accepted | [onboarding](../onboarding-spec.md) |
 | Cadastro autônomo, atribuição e provisionamento pós-billing | Proposed | [ADR-053](053-cadastro-autonomo-seguro.md) |
+| Comprovante de pagamento separado de recibo fiscal/Receita Saúde | Accepted | [ADR-054](054-documento-de-pagamento-e-recibo-fiscal.md) |
 | Inadimplência bloqueia escrita, não login/leitura | Accepted | [billing](../billing/subscriptions.md) |
 | Sentry + logs + métricas + health/heartbeats | Accepted | [operations](../operations/deployment-observability.md) |
 
