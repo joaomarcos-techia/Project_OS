@@ -16,5 +16,6 @@ e2e/.mutation-fixture.json
 # Artefatos gerados/visuais: o formato é controlado pelo gerador ou pelo HTML
 # de demonstração, não pelo formatter do código executável.
 drizzle/migrations/meta/*.json
+evidence/**/*.json
 design_system/*.html
 docs/architecture/arch-metrics.json

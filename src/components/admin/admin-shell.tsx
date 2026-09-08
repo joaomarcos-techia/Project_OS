@@ -53,7 +53,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </span>
             <span className="flex min-w-0 flex-col">
               <span className="text-(length:--fs-sm) leading-tight font-semibold">Plataforma</span>
-              <span className="font-mono text-(length:--fs-3xs) text-fg-subtle">Console multi-tenant</span>
+              <span className="font-mono text-(length:--fs-3xs) text-fg-subtle">
+                Console multi-tenant
+              </span>
             </span>
           </div>
 

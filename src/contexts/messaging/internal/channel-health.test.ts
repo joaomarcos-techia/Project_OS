@@ -144,9 +144,7 @@ describe('evaluateChannelHealth — número fora do ar e conta reprovada', () =>
   it('conta reprovada aparece ANTES do número na ordem de causa', () => {
     // A conta é a causa mais fundamental: resolver o número não adianta se a
     // WABA foi reprovada.
-    const health = evaluateChannelHealth(
-      probe({ accountReview: 'failed', phoneStatus: 'failed' }),
-    );
+    const health = evaluateChannelHealth(probe({ accountReview: 'failed', phoneStatus: 'failed' }));
     expect(health.reasons).toEqual(['account_rejected', 'phone_not_connected']);
   });
 

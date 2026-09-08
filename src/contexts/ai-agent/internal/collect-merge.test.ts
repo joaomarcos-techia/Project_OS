@@ -74,7 +74,13 @@ describe('mergeCollectedFields — estagnação (F-02: a válvula de escape)', (
 describe('mergeCollectedFields — confirmação', () => {
   it('correção após o resumo derruba _confirmed (exige novo SIM)', () => {
     const r = mergeCollectedFields(
-      { nome: 'Ana Souza', cpf: '12345678909', telefone: '5511999990000', motivo: 'x', _confirmed: true },
+      {
+        nome: 'Ana Souza',
+        cpf: '12345678909',
+        telefone: '5511999990000',
+        motivo: 'x',
+        _confirmed: true,
+      },
       { nome: 'Ana Souza Lima' },
     );
     expect(r.data._confirmed).toBeUndefined();
@@ -82,14 +88,23 @@ describe('mergeCollectedFields — confirmação', () => {
 
   it('turno sem progresso PRESERVA _confirmed (não desfaz consentimento dado)', () => {
     const r = mergeCollectedFields(
-      { nome: 'Ana Souza', cpf: '12345678909', telefone: '5511999990000', motivo: 'x', _confirmed: true },
+      {
+        nome: 'Ana Souza',
+        cpf: '12345678909',
+        telefone: '5511999990000',
+        motivo: 'x',
+        _confirmed: true,
+      },
       {},
     );
     expect(r.data._confirmed).toBe(true);
   });
 
   it('preserva o serviço pendente através da coleta inteira', () => {
-    const r = mergeCollectedFields({ _pendingProcedureName: 'Harmonização Facial' }, { nome: 'Ana Souza' });
+    const r = mergeCollectedFields(
+      { _pendingProcedureName: 'Harmonização Facial' },
+      { nome: 'Ana Souza' },
+    );
     expect(r.data._pendingProcedureName).toBe('Harmonização Facial');
   });
 });

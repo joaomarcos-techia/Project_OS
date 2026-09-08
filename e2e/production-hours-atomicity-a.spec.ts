@@ -204,7 +204,9 @@ test.describe('produção: atomicidade de horários na Clínica A', () => {
       };
       page.on('response', responseListener);
       await page.getByRole('button', { name: 'Adicionar expediente' }).click();
-      await expect.poll(() => partialStatuses.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
+      await expect
+        .poll(() => partialStatuses.length, { timeout: 30_000 })
+        .toBeGreaterThanOrEqual(1);
       // DATA-006 — o expediente virou UMA unidade. Este spec foi escrito para
       // reproduzir o achado e afirmava duas Server Actions com `[200, 500]`; a
       // assercao agora e mais ESTRITA: uma unica chamada, e ela nao pode ser 500.

@@ -183,9 +183,9 @@ describe('decideTurnGuard — cadastro é conduzido pelo servidor', () => {
   );
 
   it('fora do cadastro, o mesmo texto volta a ser tratado como clínico', () => {
-    expect(decideTurnGuard({ text: 'dor nas costas', registrationStatus: 'not_started' }).kind).toBe(
-      'clinical_block',
-    );
+    expect(
+      decideTurnGuard({ text: 'dor nas costas', registrationStatus: 'not_started' }).kind,
+    ).toBe('clinical_block');
   });
 
   it('cadastro já concluído não isenta nada', () => {
@@ -196,10 +196,14 @@ describe('decideTurnGuard — cadastro é conduzido pelo servidor', () => {
 });
 
 describe('detectOperationalIntent', () => {
-  it.each(['quero marcar', 'tem horario amanha', 'quanto custa', 'qual o endereço', 'quero cancelar', 'preciso remarcar'])(
-    'reconhece: %s',
-    (t) => expect(detectOperationalIntent(t)).toBe(true),
-  );
+  it.each([
+    'quero marcar',
+    'tem horario amanha',
+    'quanto custa',
+    'qual o endereço',
+    'quero cancelar',
+    'preciso remarcar',
+  ])('reconhece: %s', (t) => expect(detectOperationalIntent(t)).toBe(true));
   it.each(['estou com dor', 'bom dia', 'obrigado', 'meu nome é Ana Souza'])(
     'não inventa intenção em: %s',
     (t) => expect(detectOperationalIntent(t)).toBe(false),

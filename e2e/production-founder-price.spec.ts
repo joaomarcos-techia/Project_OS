@@ -30,7 +30,10 @@ test.use({
 });
 
 const brl = (cents: number) =>
-  `R$ ${(cents / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/gu, '.')}`;
+  `R$ ${(cents / 100)
+    .toFixed(2)
+    .replace('.', ',')
+    .replace(/\B(?=(\d{3})+(?!\d))/gu, '.')}`;
 
 test.describe('produção: preço de fundador no link de onboarding', () => {
   test.describe.configure({ retries: 0 });
@@ -101,7 +104,10 @@ test.describe('produção: preço de fundador no link de onboarding', () => {
                   (select id from auth.users order by created_at limit 1),
                   now() + interval '1 day', ${tokenHash}, now(),
                   ${sql.json({
-                    owner: { nome: `E2E Fundador ${runId}`, email: `e2e-fundador-${runId}@example.test` },
+                    owner: {
+                      nome: `E2E Fundador ${runId}`,
+                      email: `e2e-fundador-${runId}@example.test`,
+                    },
                     clinic: {
                       cnpj: '05.418.239/0001-08',
                       nome: `E2E Fundador ${runId}`,
@@ -135,7 +141,10 @@ test.describe('produção: preço de fundador no link de onboarding', () => {
           timeout: 30_000,
         });
 
-        const anunciaFundador = await page.getByText(brl(clinica.founder_cents)).first().isVisible();
+        const anunciaFundador = await page
+          .getByText(brl(clinica.founder_cents))
+          .first()
+          .isVisible();
         expect(anunciaFundador, 'o card não mostra o preço de fundador').toBe(true);
 
         // O de tabela só pode existir riscado — nunca como valor cobrado.

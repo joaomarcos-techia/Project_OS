@@ -59,7 +59,6 @@ async function signInContext(
   );
 }
 
-
 test.describe('produção: negativa de cancelamento durante trial', () => {
   test.describe.configure({ retries: 0 });
 

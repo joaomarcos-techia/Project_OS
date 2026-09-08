@@ -85,7 +85,10 @@ function assert(cond: boolean, msg: string): void {
 type FetchFn = typeof globalThis.fetch;
 const realFetch: FetchFn = globalThis.fetch;
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 const G_USAGE = { promptTokenCount: 600, candidatesTokenCount: 60 };
 const gText = (t: string): Response =>
@@ -335,7 +338,9 @@ async function conversationRow(
   const r = await dbAdmin.execute<{ id: string; status: string; fallback_count: number }>(sql`
     SELECT id, status, fallback_count FROM ai_conversations
     WHERE clinic_id = ${clinicId} ORDER BY created_at DESC LIMIT 1`);
-  return r[0] ? { id: r[0].id, status: r[0].status, fallbackCount: Number(r[0].fallback_count) } : null;
+  return r[0]
+    ? { id: r[0].id, status: r[0].status, fallbackCount: Number(r[0].fallback_count) }
+    : null;
 }
 async function outboundCount(clinicId: string): Promise<number> {
   const r = await dbAdmin.execute<{ n: number }>(
@@ -381,9 +386,7 @@ async function backToAgent(clinicId: string): Promise<void> {
   const conv = await conversationRow(clinicId);
   if (!conv || conv.status !== 'handoff') return;
   await withTenant(clinicId, (tx) => returnToAgent(tx, clinicId, conv.id));
-  await dbAdmin.execute(
-    sql`UPDATE ai_conversations SET fallback_count = 0 WHERE id = ${conv.id}`,
-  );
+  await dbAdmin.execute(sql`UPDATE ai_conversations SET fallback_count = 0 WHERE id = ${conv.id}`);
 }
 
 /** Horário local da clínica (São Paulo, sem DST) alinhado a um slot real. */
@@ -476,9 +479,7 @@ async function main(): Promise<void> {
 
   // ---------------------------------------------------------------- F-02
   await tryStep('CV-10 cadastro: pedir humano no meio da coleta escapa do formulário', async () => {
-    setScript(() =>
-      gCall('prepare_appointment', { procedure_name: 'Harmonização Facial' }),
-    );
+    setScript(() => gCall('prepare_appointment', { procedure_name: 'Harmonização Facial' }));
     await say(clinic, 'quero marcar harmonização');
     assert(
       (await lastReply(clinic)).includes('nome completo'),
@@ -541,7 +542,10 @@ async function main(): Promise<void> {
       SELECT summary FROM ai_pending_actions
       WHERE conversation_id = ${conv!.id} AND status = 'pending' LIMIT 1`);
     assert(!!pa[0], 'resumo da ação pendente deveria existir');
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('Agendado!'));
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('Agendado!'),
+    );
     await say(clinic, 'sim');
     const appt = await latestAppt(clinic);
     assert(!!appt, 'consulta deveria ter sido criada');
@@ -553,14 +557,18 @@ async function main(): Promise<void> {
   await tryStep('CV-11 "depois de amanhã" marca D+2, não D+1 (F-04)', async () => {
     // O modelo propõe D+1 de propósito; o servidor tem de vencer.
     setScript(
-      () => gCall('prepare_appointment', {
-        procedure_name: 'Harmonização Facial',
-        scheduled_at: slotISO(1, 14),
-      }),
+      () =>
+        gCall('prepare_appointment', {
+          procedure_name: 'Harmonização Facial',
+          scheduled_at: slotISO(1, 14),
+        }),
       () => gText('Confirma?'),
     );
     await say(clinic, 'na verdade quero depois de amanhã às 15');
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('Marcado!'));
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('Marcado!'),
+    );
     await say(clinic, 'isso mesmo');
     const appt = await latestAppt(clinic);
     assert(!!appt, 'consulta deveria existir');
@@ -575,17 +583,21 @@ async function main(): Promise<void> {
   // ---------------------------------------------------------------- F-07
   await tryStep('CV-19 "ok e qual o endereço" NÃO confirma nada (F-07)', async () => {
     setScript(
-      () => gCall('prepare_appointment', {
-        procedure_name: 'Harmonização Facial',
-        scheduled_at: slotISO(4, 9),
-      }),
+      () =>
+        gCall('prepare_appointment', {
+          procedure_name: 'Harmonização Facial',
+          scheduled_at: slotISO(4, 9),
+        }),
       () => gText('Confirma?'),
     );
     await say(clinic, 'quero marcar dia 4 às 9');
     const antes = await apptCount(clinic);
     assert((await pendingActionCount(clinic)) === 1, 'deveria haver ação pendente');
 
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('resposta'));
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('resposta'),
+    );
     await say(clinic, 'ok e qual o endereço');
     assert(
       (await apptCount(clinic)) === antes,
@@ -597,7 +609,10 @@ async function main(): Promise<void> {
   await tryStep('regressão: "quero confirmar minha consulta" só PREPARA (F-07)', async () => {
     // Foi este caso que o smoke-c12 pegou e o teste unitário não cobria.
     const antes = await apptCount(clinic);
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('resposta'));
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('resposta'),
+    );
     await say(clinic, 'quero confirmar minha consulta');
     assert(
       (await apptCount(clinic)) === antes,
@@ -607,11 +622,17 @@ async function main(): Promise<void> {
 
   await tryStep('CV-12b "sim" sem ação pendente não executa nada (F-07)', async () => {
     // Consome a pendência que sobrou, para partir de um estado limpo.
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('ok'));
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('ok'),
+    );
     await say(clinic, 'sim');
     const antes = await apptCount(clinic);
     assert((await pendingActionCount(clinic)) === 0, 'não deveria sobrar pendência');
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('nada a confirmar'));
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('nada a confirmar'),
+    );
     const ev = await say(clinic, 'sim');
     assert((await apptCount(clinic)) === antes, '"sim" solto não pode criar consulta');
     assert((await outcomeOf(ev)) !== 'replied', 'turno sem pendência deveria cair em fallback');
@@ -699,7 +720,10 @@ async function main(): Promise<void> {
       !reply.includes('você prefere'),
       `não deveria perguntar: 03:00 não existe numa agenda 08–18. Veio: ${reply}`,
     );
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('Marcado!'));
+    setScript(
+      () => gCall('confirm_pending_action', {}),
+      () => gText('Marcado!'),
+    );
     await say(clinic, 'sim');
     const appt = await latestAppt(clinic);
     assert(!!appt, 'consulta deveria ter sido criada');
@@ -709,49 +733,61 @@ async function main(): Promise<void> {
     );
   });
 
-  await tryStep('CV-17b clínica noturna (14–22): a MESMA frase resolve para outro horário', async () => {
-    // Segunda clínica, mesma frase, agenda diferente. Se a decisão viesse de
-    // código e não da configuração, este cenário produziria 15:00 de novo.
-    const nightClinic = await createClinicNamed('noturna');
-    await seedNightClinic(nightClinic);
-    setScript(
-      () => gCall('prepare_appointment', { procedure_name: 'Harmonização Facial' }),
-      () => gText('Confirma?'),
-    );
-    await sayTo(nightClinic, NIGHT_PHONE_ID, NIGHT_PHONE, 'pode ser amanhã às 9');
-    const reply = await lastReply(nightClinic);
-    assert(
-      !reply.includes('você prefere'),
-      `não deveria perguntar: 09:00 não existe numa agenda 14–22. Veio: ${reply}`,
-    );
-    setScript(() => gCall('confirm_pending_action', {}), () => gText('Marcado!'));
-    await sayTo(nightClinic, NIGHT_PHONE_ID, NIGHT_PHONE, 'sim');
-    const appt = await latestAppt(nightClinic);
-    assert(!!appt, 'consulta deveria ter sido criada na clínica noturna');
-    assert(
-      localHourOf(appt!.at) === 21,
-      `deveria resolver para 21:00 na clínica noturna; veio ${localHourOf(appt!.at)}h`,
-    );
+  await tryStep(
+    'CV-17b clínica noturna (14–22): a MESMA frase resolve para outro horário',
+    async () => {
+      // Segunda clínica, mesma frase, agenda diferente. Se a decisão viesse de
+      // código e não da configuração, este cenário produziria 15:00 de novo.
+      const nightClinic = await createClinicNamed('noturna');
+      await seedNightClinic(nightClinic);
+      setScript(
+        () => gCall('prepare_appointment', { procedure_name: 'Harmonização Facial' }),
+        () => gText('Confirma?'),
+      );
+      await sayTo(nightClinic, NIGHT_PHONE_ID, NIGHT_PHONE, 'pode ser amanhã às 9');
+      const reply = await lastReply(nightClinic);
+      assert(
+        !reply.includes('você prefere'),
+        `não deveria perguntar: 09:00 não existe numa agenda 14–22. Veio: ${reply}`,
+      );
+      setScript(
+        () => gCall('confirm_pending_action', {}),
+        () => gText('Marcado!'),
+      );
+      await sayTo(nightClinic, NIGHT_PHONE_ID, NIGHT_PHONE, 'sim');
+      const appt = await latestAppt(nightClinic);
+      assert(!!appt, 'consulta deveria ter sido criada na clínica noturna');
+      assert(
+        localHourOf(appt!.at) === 21,
+        `deveria resolver para 21:00 na clínica noturna; veio ${localHourOf(appt!.at)}h`,
+      );
 
-    // ---- RLS: a clínica diurna não enxerga nada da noturna, e vice-versa.
-    const cruzado = await dbAdmin.execute<{ n: number }>(sql`
+      // ---- RLS: a clínica diurna não enxerga nada da noturna, e vice-versa.
+      const cruzado = await dbAdmin.execute<{ n: number }>(sql`
       SELECT count(*)::int AS n FROM appointments
       WHERE clinic_id = ${clinic} AND id = ${appt!.id}`);
-    assert(Number(cruzado[0]?.n) === 0, 'consulta da clínica B não pode aparecer sob a clínica A');
-
-    const isolada = await withTenant(clinic, async (tx) => {
-      const r = await tx.execute<{ n: number }>(
-        sql`SELECT count(*)::int AS n FROM appointments WHERE id = ${appt!.id}`,
+      assert(
+        Number(cruzado[0]?.n) === 0,
+        'consulta da clínica B não pode aparecer sob a clínica A',
       );
-      return Number(r[0]?.n ?? 0);
-    });
-    assert(isolada === 0, 'RLS deveria esconder a consulta da outra clínica sob withTenant');
 
-    const convCruzada = await dbAdmin.execute<{ n: number }>(sql`
+      const isolada = await withTenant(clinic, async (tx) => {
+        const r = await tx.execute<{ n: number }>(
+          sql`SELECT count(*)::int AS n FROM appointments WHERE id = ${appt!.id}`,
+        );
+        return Number(r[0]?.n ?? 0);
+      });
+      assert(isolada === 0, 'RLS deveria esconder a consulta da outra clínica sob withTenant');
+
+      const convCruzada = await dbAdmin.execute<{ n: number }>(sql`
       SELECT count(*)::int AS n FROM ai_conversations
       WHERE clinic_id = ${clinic} AND patient_phone_hash = ${await hashForLookup(NIGHT_PHONE)}`);
-    assert(Number(convCruzada[0]?.n) === 0, 'conversa da clínica B não pode existir sob a clínica A');
-  });
+      assert(
+        Number(convCruzada[0]?.n) === 0,
+        'conversa da clínica B não pode existir sob a clínica A',
+      );
+    },
+  );
 
   // ------------------------------------------------- sem vazamento clínico
   /**
@@ -775,18 +811,18 @@ async function main(): Promise<void> {
     const falhas = await dbAdmin.execute<{ payload: unknown }>(
       sql`SELECT payload FROM ai_agent_failures WHERE clinic_id = ${clinic}`,
     );
-    assert(
-      !JSON.stringify(falhas).includes('dor'),
-      'dead letter não pode carregar termo clínico',
-    );
+    assert(!JSON.stringify(falhas).includes('dor'), 'dead letter não pode carregar termo clínico');
   });
 
-  await tryStep('estado final consistente: nenhuma pendência órfã, nenhum inbound solto', async () => {
-    assert((await unprocessedInbound(clinic)) === 0, 'todo inbound deveria ter sido consumido');
-    const conv = await conversationRow(clinic);
-    assert(conv?.status === 'active', `conversa deveria estar ativa; veio ${conv?.status}`);
-    assert(await patientExists(clinic), 'o paciente criado na jornada deveria persistir');
-  });
+  await tryStep(
+    'estado final consistente: nenhuma pendência órfã, nenhum inbound solto',
+    async () => {
+      assert((await unprocessedInbound(clinic)) === 0, 'todo inbound deveria ter sido consumido');
+      const conv = await conversationRow(clinic);
+      assert(conv?.status === 'active', `conversa deveria estar ativa; veio ${conv?.status}`);
+      assert(await patientExists(clinic), 'o paciente criado na jornada deveria persistir');
+    },
+  );
 }
 
 // --- cleanup --------------------------------------------------------------------

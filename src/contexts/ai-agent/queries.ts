@@ -84,10 +84,7 @@ export interface PendingHandoff {
  * `resolvedAt IS NULL` é o mesmo predicado do dedup da fila: uma linha aberta é
  * exatamente uma espera não atendida.
  */
-export async function listOpenHandoffs(
-  clinicId: string,
-  limit = 20,
-): Promise<PendingHandoff[]> {
+export async function listOpenHandoffs(clinicId: string, limit = 20): Promise<PendingHandoff[]> {
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
       .select({

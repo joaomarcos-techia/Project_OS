@@ -22,7 +22,13 @@ export default async function RecursosPage() {
   ) {
     return (
       <div>
-        <PageHeader crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Salas e equipamentos' }]} title="Salas e equipamentos" />
+        <PageHeader
+          crumbs={[
+            { label: 'Agenda', href: '/configuracoes/agenda' },
+            { label: 'Salas e equipamentos' },
+          ]}
+          title="Salas e equipamentos"
+        />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar recursos da agenda.
         </Alert>
@@ -33,7 +39,11 @@ export default async function RecursosPage() {
   const resources = await listSchedulableResources(clinicId, false);
   return (
     <div>
-      <PageHeader crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Salas e equipamentos' }]}
+      <PageHeader
+        crumbs={[
+          { label: 'Agenda', href: '/configuracoes/agenda' },
+          { label: 'Salas e equipamentos' },
+        ]}
         title="Salas e equipamentos"
         description="Cadastre os recursos compartilhados usados nos atendimentos. O sistema impede reservas sobrepostas."
       />

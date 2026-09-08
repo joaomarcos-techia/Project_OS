@@ -21,7 +21,10 @@ export default async function ProcedimentosPage() {
   if (!user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES)) {
     return (
       <div>
-        <PageHeader crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Procedimentos' }]} title="Procedimentos" />
+        <PageHeader
+          crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Procedimentos' }]}
+          title="Procedimentos"
+        />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar o catálogo de procedimentos.
         </Alert>
@@ -33,7 +36,8 @@ export default async function ProcedimentosPage() {
 
   return (
     <div>
-      <PageHeader crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Procedimentos' }]}
+      <PageHeader
+        crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Procedimentos' }]}
         title="Procedimentos"
         description="Catálogo de procedimentos com preço e duração — base da Agenda e do faturamento."
       />

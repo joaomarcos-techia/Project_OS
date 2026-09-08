@@ -357,7 +357,10 @@ async function main(): Promise<void> {
     const evNome = await deliverTurn(clinicA, phoneIdA, NEW, 'João Smoke');
     assert((await outcomeOf(evNome)) === 'replied', 'nome deveria avançar a coleta no servidor');
     const evCpf = await deliverTurn(clinicA, phoneIdA, NEW, CPF);
-    assert((await outcomeOf(evCpf)) === 'replied', 'CPF válido deveria avançar a coleta no servidor');
+    assert(
+      (await outcomeOf(evCpf)) === 'replied',
+      'CPF válido deveria avançar a coleta no servidor',
+    );
     const evMotivo = await deliverTurn(clinicA, phoneIdA, NEW, 'consulta cardiologica');
     assert((await outcomeOf(evMotivo)) === 'replied', 'motivo deveria concluir a coleta');
     const ev = await deliverTurn(clinicA, phoneIdA, NEW, 'confirmo');

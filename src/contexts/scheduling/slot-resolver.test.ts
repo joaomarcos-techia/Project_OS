@@ -94,7 +94,10 @@ describe('filterSlotsFrom (F-03 — computeSlots é cego ao relógio)', () => {
     const tuesday = { date: '2026-06-02', weekday: 2 };
     const twoDays = computeSlots({
       days: [MONDAY, tuesday],
-      availabilities: [avail({ startMin: 480, endMin: 660 }), avail({ weekday: 2, startMin: 480, endMin: 660 })],
+      availabilities: [
+        avail({ startMin: 480, endMin: 660 }),
+        avail({ weekday: 2, startMin: 480, endMin: 660 }),
+      ],
       busy: [],
       holidays: [],
       slotMinutes: 60,

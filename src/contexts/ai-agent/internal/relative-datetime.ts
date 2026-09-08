@@ -99,10 +99,7 @@ function atLocalTime(date: CivilDate, minutes: number, timeZone: string): Date {
 }
 
 export function fold(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
 // --- gramática ----------------------------------------------------------------
@@ -366,7 +363,11 @@ export function resolveRequestedDateTime(args: ResolveArgs): ResolvedWhen {
         };
       }
     }
-    return { kind: 'instant', atIso: at.toISOString(), label: datePart?.label ?? 'no horário informado' };
+    return {
+      kind: 'instant',
+      atIso: at.toISOString(),
+      label: datePart?.label ?? 'no horário informado',
+    };
   }
 
   // Sem hora: janela. Data + período ("sexta de manhã"), data pura (o dia todo)
@@ -436,10 +437,16 @@ export function reconcileRequestedTime(args: {
   if (resolved.kind === 'ambiguous') {
     if (modelValid) {
       const t = modelAt.getTime();
-      const hit = resolved.candidatesIso.find((c) => Math.abs(new Date(c).getTime() - t) < MINUTE_MS);
+      const hit = resolved.candidatesIso.find(
+        (c) => Math.abs(new Date(c).getTime() - t) < MINUTE_MS,
+      );
       if (hit) return { mode: 'instant', atIso: hit };
     }
-    return { mode: 'candidates', candidatesIso: [...resolved.candidatesIso], label: resolved.label };
+    return {
+      mode: 'candidates',
+      candidatesIso: [...resolved.candidatesIso],
+      label: resolved.label,
+    };
   }
 
   return modelValid ? { mode: 'instant', atIso: modelAt.toISOString() } : { mode: 'none' };

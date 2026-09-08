@@ -385,7 +385,10 @@ test.describe('produção: recorrência de Agenda na Clínica A', () => {
       const seriesUiIndicator = (await page.getByText(/recorr|série/iu).count()) > 0;
       expect(seriesUiIndicator).toBe(true);
       // O badge "Serie N/M" abre o dialogo de cancelamento da serie.
-      await page.getByRole('button', { name: /^Série \d+\/\d+$/u }).first().click();
+      await page
+        .getByRole('button', { name: /^Série \d+\/\d+$/u })
+        .first()
+        .click();
       const seriesCancelControl =
         (await page.getByRole('button', { name: 'Cancelar série', exact: true }).count()) > 0;
       expect(seriesCancelControl).toBe(true);

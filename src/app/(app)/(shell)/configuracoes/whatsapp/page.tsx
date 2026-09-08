@@ -23,7 +23,8 @@ export default async function WhatsappSettingsPage() {
   const gate = await pageGate([PERMISSIONS.MANAGE_SETTINGS]);
   if (!gate.allowed) {
     return (
-      <PageNoAccess crumbs={[{ label: 'Canais e IA', href: '/configuracoes/canais-ia' }, { label: 'WhatsApp' }]}
+      <PageNoAccess
+        crumbs={[{ label: 'Canais e IA', href: '/configuracoes/canais-ia' }, { label: 'WhatsApp' }]}
         title="WhatsApp"
         description="Seu perfil não tem permissão para gerenciar as configurações da clínica. Fale com um gestor se precisar de acesso."
       />

@@ -181,7 +181,12 @@ describe('ambiguidade — o resolvedor NÃO escolhe; a agenda da clínica escolh
   it('tarde da noite, os dois candidatos rolam para amanhã', () => {
     const late = new Date('2026-08-14T01:09:00.000Z'); // 22:09 de 13/08 em SP
     expect(
-      resolveRequestedDateTime({ text: 'pode ser às 7', now: late, timeZone: TZ, maxDaysAhead: 30 }),
+      resolveRequestedDateTime({
+        text: 'pode ser às 7',
+        now: late,
+        timeZone: TZ,
+        maxDaysAhead: 30,
+      }),
     ).toEqual({
       kind: 'ambiguous',
       candidatesIso: ['2026-08-14T22:00:00.000Z', '2026-08-14T10:00:00.000Z'],
@@ -222,7 +227,12 @@ describe('períodos viram JANELA (a busca de slots desambigua com dados reais)',
   it('período já encerrado hoje rola para amanhã', () => {
     const lateFriday = new Date('2026-08-14T23:00:00.000Z'); // 20:00 local
     expect(
-      resolveRequestedDateTime({ text: 'de manhã', now: lateFriday, timeZone: TZ, maxDaysAhead: 30 }),
+      resolveRequestedDateTime({
+        text: 'de manhã',
+        now: lateFriday,
+        timeZone: TZ,
+        maxDaysAhead: 30,
+      }),
     ).toMatchObject({ kind: 'window', fromIso: '2026-08-15T11:00:00.000Z' });
   });
 });
@@ -289,9 +299,10 @@ describe('reconcileRequestedTime — precedência servidor × modelo', () => {
   const modelIso = '2026-08-15T17:00:00.000Z';
 
   it('instante do servidor VENCE o do modelo (o servidor conhece o fuso da clínica)', () => {
-    expect(
-      reconcileRequestedTime({ resolved: resolve('amanhã às 14'), modelIso }),
-    ).toEqual({ mode: 'instant', atIso: '2026-08-15T17:00:00.000Z' });
+    expect(reconcileRequestedTime({ resolved: resolve('amanhã às 14'), modelIso })).toEqual({
+      mode: 'instant',
+      atIso: '2026-08-15T17:00:00.000Z',
+    });
   });
 
   it('sem marcador de data, o modelo decide', () => {
@@ -302,9 +313,10 @@ describe('reconcileRequestedTime — precedência servidor × modelo', () => {
   });
 
   it('modelo DENTRO da janela do servidor é aceito (melhor dos dois)', () => {
-    expect(
-      reconcileRequestedTime({ resolved: resolve('amanhã à tarde'), modelIso }),
-    ).toEqual({ mode: 'instant', atIso: modelIso });
+    expect(reconcileRequestedTime({ resolved: resolve('amanhã à tarde'), modelIso })).toEqual({
+      mode: 'instant',
+      atIso: modelIso,
+    });
   });
 
   it('modelo FORA da janela é descartado — busca dentro da janela', () => {
@@ -316,9 +328,9 @@ describe('reconcileRequestedTime — precedência servidor × modelo', () => {
   });
 
   it('ambiguidade sem apoio do modelo devolve os candidatos para perguntar', () => {
-    expect(reconcileRequestedTime({ resolved: resolve('às 7'), modelIso: undefined })).toMatchObject(
-      { mode: 'candidates' },
-    );
+    expect(
+      reconcileRequestedTime({ resolved: resolve('às 7'), modelIso: undefined }),
+    ).toMatchObject({ mode: 'candidates' });
   });
 
   it('modelo que casa um dos candidatos resolve a ambiguidade', () => {

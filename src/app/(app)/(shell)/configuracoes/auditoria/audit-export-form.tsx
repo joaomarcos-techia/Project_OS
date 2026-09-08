@@ -57,7 +57,14 @@ export function AuditExportForm() {
 
   return (
     <>
-      <PageHeader crumbs={[{ label: 'Conformidade e segurança', href: '/configuracoes/seguranca' }, { label: 'Auditoria' }]} title="Auditoria" description="Exporte a trilha de ações da clínica em CSV." />
+      <PageHeader
+        crumbs={[
+          { label: 'Conformidade e segurança', href: '/configuracoes/seguranca' },
+          { label: 'Auditoria' },
+        ]}
+        title="Auditoria"
+        description="Exporte a trilha de ações da clínica em CSV."
+      />
       <Card className="flex max-w-190 flex-col gap-4 p-(--card-pad)">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="De" htmlFor="audit-from">
