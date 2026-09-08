@@ -16,6 +16,9 @@ export type MutationFixture = {
   paymentDescription: string;
   paymentAmount: string;
   doctorId?: string;
+  /** Segredo sintético e efêmero; existe somente no manifesto ignorado e é apagado no teardown. */
+  doctorPassword?: string;
+  doctorAvailabilityId?: string;
   procedureId?: string;
   paymentId?: string;
 };
