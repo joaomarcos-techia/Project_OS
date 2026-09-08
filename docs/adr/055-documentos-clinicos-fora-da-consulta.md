@@ -1,7 +1,7 @@
 # ADR-055 — Documentos clínicos centrados no paciente, com consulta opcional
 
-- **Status:** Accepted — decisão de produto em 2026-09-07; suporte de domínio parcial já existente;
-  entrada unificada de criação ainda não implementada
+- **Status:** Accepted — C2.0/C2.1 implementadas e validadas em DEV em 2026-09-08; rollout pendente
+  dos gates finais
 - **Data:** 2026-09-07
 - **Contextos:** clinical e patient; navegação composta somente na aplicação
 - **Relaciona:** [ADR-007](007-rls-implementation-patterns.md),
@@ -76,9 +76,31 @@ nome de outro profissional.
 2. **C2.1 — criação avulsa sem migration:** adicionar CTAs em `/documentos` e na ficha do paciente,
    reutilizando actions e schemas existentes. Uma migration só será proposta se o código provar uma
    lacuna real de origem/status — `appointment_id = null` já suporta o vínculo opcional.
-3. **C2.2 — prescrição regulada:** integrar Memed/SNCR somente depois do spike 2.2.0 e de contrato,
-   assinatura e estados autoritativos confirmados.
+3. **Track M — prescrição regulada externa:** integrar Memed/SNCR somente no fim do roadmap, depois
+   do spike 2.2.0 e com contrato, assinatura, capacidade regulatória e estados autoritativos
+   confirmados. Esta trilha não bloqueia `C2.H/C2.S` nem a criação clínica avulsa local.
 4. **C2.H/C2.S:** segurança e estabilização próprias, sem misturar com o comprovante financeiro 2.1A.
+
+## Implementação C2.0/C2.1 — 08/09/2026
+
+- `/documentos` ganhou uma entrada única **Novo documento**. A pessoa seleciona primeiro o paciente e
+  depois o artefato permitido pelo seu RBAC: prontuário, prescrição ou documento médico;
+- a ficha do paciente oferece os mesmos caminhos. Prescrição e documento abrem o builder existente
+  por deep link; prontuário abre a aba clínica e exige o clique explícito em **Novo prontuário**. Um
+  `GET` nunca cria registro;
+- os drawers, schemas, actions, PDFs e chaves de idempotência existentes foram reutilizados. Nenhuma
+  consulta artificial, tabela, dependência ou migration foi criada;
+- a busca do launcher deriva `clinicId` exclusivamente da sessão, limita e normaliza o termo, exclui
+  pacientes removidos/falecidos e exige `VIEW_PATIENT` mais ao menos uma permissão de criação;
+- as actions agora validam, dentro da mesma transação idempotente, que paciente, consulta opcional e
+  prontuário opcional pertencem à clínica e ao mesmo paciente. Paciente removido, falecido,
+  inexistente ou referência cruzada falha fechado antes de insert, PDF ou evento;
+- a UI continua sendo descoberta e conveniência. A proteção autoritativa permanece no backend; ids
+  recebidos do browser nunca definem tenant nem autoria.
+
+O lote ocupa exatamente **25 arquivos**, menos de 1.500 linhas e dois bounded contexts (`clinical` e
+`patient`; a camada `app` apenas compõe a navegação). O snapshot arquitetural permaneceu com 54
+elementos, 293 arestas de importação, zero ciclo, 67 eventos e 42 produtores ainda allowlisted.
 
 ## Testes mínimos
 
@@ -90,6 +112,20 @@ nome de outro profissional.
 - assinatura, imutabilidade, revisão e PDF permanecem iguais nos dois caminhos;
 - E2E por `/documentos`, ficha do paciente e Consultório prova que os três acessos convergem para o
   mesmo contrato, sem criar consulta fictícia.
+
+### Evidência executada
+
+- Unit/component/integration: **63/63 em 15 arquivos** no recorte C2.0/C2.1;
+- regressão integral: **3.040/3.040 em 329 arquivos**;
+- lint, typecheck, build, arquitetura, DB boundary, migrations, registry e observabilidade: **PASS**;
+- `arch:graphs --check`: **54/293/0/67**, sem ciclo novo;
+- E2E mutável conectado em DEV: **1/1 PASS** em Chromium contra o bundle de produção local. O
+  cenário criou prontuário, prescrição e dois documentos médicos pelos três pontos de entrada,
+  confirmou os três itens documentais no feed e preservou o vínculo real do Consultório;
+- teardown: **PASS / resíduo zero**. Cada PDF foi baixado do Storage antes da exclusão; depois,
+  arquivos, artefatos clínicos, prontuário, atendimento, paciente, disponibilidade, procedimento,
+  lançamento e usuário Auth sintéticos foram removidos com readback tenant-scoped;
+- Preview/produção: **não publicados** neste lote. Não inferir rollout a partir dos testes locais.
 
 ## Referências regulatórias
 

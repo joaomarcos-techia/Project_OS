@@ -151,6 +151,6 @@ catálogo onde `publishEvent` roda. Gera arestas `lib:db → context:*` no grafo
 
 | Quando | ADR | Motivo |
 | --- | --- | --- |
-| P1 (Camada 2) | integração Memed | dependência externa com contrato, custo e requisito regulatório (spike 2.2.0 antes) |
+| Track M (última) | integração Memed | dependência externa com contrato, custo e requisito regulatório; spike 2.2.0 concluído, runtime adiado até Camadas 2–4 e Track O estabilizadas |
 | P2 (Camada 3) | conselho genérico (`crm` → `conselho/registro/uf`) | destrava psicólogo; mexe em identidade profissional |
 | P2 (Camada 3) | pacote/mensalidade por paciente | cobrança recorrente de paciente — modelo novo de receita |

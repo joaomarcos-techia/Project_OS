@@ -1,15 +1,21 @@
-# ADR-056 — Spike 2.2.0 da integração Memed
+# ADR-056 — Spike 2.2.0 e adiamento da integração Memed
 
 ## Status
 
-Proposed — spike documental concluído em 2026-09-07; implementação bloqueada por dependências
-externas e regulatórias.
+Deferred — spike documental concluído em 2026-09-07; em 2026-09-08 a implementação foi movida para
+a Track M, última entrega do roadmap. Dependências externas e regulatórias continuam obrigatórias
+quando a trilha for reaberta.
 
 ## Contexto
 
-A Camada 2 prevê prescrição digital por meio da Memed. O Qoro já possui prescrição local, PDF,
+A Camada 2 previa prescrição digital por meio da Memed. O Qoro já possui prescrição local, PDF,
 criptografia por tenant e trilha clínica, mas isso não prova que o contrato atual comporte a Memed
 nem autoriza trocar silenciosamente o emissor de uma prescrição.
+
+Em 2026-09-08, o fundador decidiu retirar a implementação Memed do caminho crítico. O spike e suas
+restrições permanecem válidos, mas o runtime passa para a **Track M**, a ser executada somente depois
+das Camadas 2–4 e Track O concluídas e estabilizadas. Memed não bloqueia `2.H/2.S`, TISS, NFS-e,
+onboarding nem os fluxos locais de prontuário, prescrição e documentos.
 
 Este spike responde somente se existe um caminho arquitetural seguro. Ele não cria credenciais, não
 chama a API da Memed, não carrega o script externo, não altera CSP, schema ou runtime e não substitui
@@ -166,8 +172,8 @@ Mocks validam o código do Qoro, mas não contam como homologação ou E2E real 
 
 ## Resultado do spike
 
-**PARTIAL / BLOCKED externo.** A arquitetura é tecnicamente viável, mas ainda não existe base
-contratual, operacional e regulatória suficiente para autorizar código, migration ou carregamento do
-SDK. O próximo passo é obter as respostas dos gates externos. Enquanto isso, a prescrição local
-permanece o único caminho implementado e nenhuma capacidade regulada nova deve ser anunciada.
-
+**SPIKE CONCLUÍDO · RUNTIME DEFERRED / BLOCKED externo.** A arquitetura é tecnicamente viável, mas
+ainda não existe base contratual, operacional e regulatória suficiente para autorizar código,
+migration ou carregamento do SDK. A integração só será retomada na Track M, depois do restante do
+roadmap e da obtenção das respostas dos gates externos. Enquanto isso, a prescrição local permanece
+o único caminho implementado e nenhuma capacidade regulada nova deve ser anunciada.

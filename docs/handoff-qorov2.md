@@ -26,7 +26,7 @@ Depois dele, leia:
 | `docs/adr/052-risco-e-reversao-de-pagamento-do-paciente.md` | chargeback e compensação financeira |
 | `docs/adr/054-documento-de-pagamento-e-recibo-fiscal.md` | spike 2.1: comprovante não fiscal versus Receita Saúde/NFS-e |
 | `docs/adr/055-documentos-clinicos-fora-da-consulta.md` | documentos clínicos centrados no paciente, com consulta opcional |
-| `docs/adr/056-spike-integracao-memed.md` | spike 2.2.0: contrato, segurança, homologação e SNCR antes do SDK Memed |
+| `docs/adr/056-spike-integracao-memed.md` | spike 2.2.0 concluído; runtime Memed adiado para a Track M final |
 | `docs/adr/057-recuperacao-falta-retorno.md` | 2.4: retorno clínico existente e recuperação após falta implementada em DEV |
 | `docs/runbooks/payment-account-connect.md` | operação do ciclo de cobrança do paciente |
 | `docs/runbooks/asaas-webhook-assinatura.md` | webhook da conta do Qoro (governa acesso ao produto) |
@@ -103,11 +103,12 @@ canônico e às seções 20–24 de `qorov2.md`:
   rate limit e RBAC já existem, mas não há pagador persistido nem `payment_transaction.status`; o
   trabalho proposto foi dividido em 2.1A.1 (snapshot, Financial + Patient) e 2.1A.2 (render/entrega),
   sem misturar com D72;
-- o spike documental 2.2.0 foi concluído em 07/09 na **ADR-056 Proposed**. A Memed é tecnicamente
+- o spike documental 2.2.0 foi concluído em 07/09 na **ADR-056 Deferred**. A Memed é tecnicamente
   integrável por API backend + MdHub frontend, porém implementação, migration e SDK estão bloqueados
   até contrato/preço/SLA/LGPD, credenciais/homologação, readback ou webhook server-side,
   CSP/isolamento e capacidade real do SNCR serem confirmados. A prescrição local permanece o único
-  caminho implementado;
+  caminho implementado. Em 08/09, o fundador moveu o runtime Memed para a **Track M, última entrega
+  do roadmap**; ela não bloqueia `2.H/2.S`, Camadas 3–4, TISS, NFS-e ou Track O;
 - a auditoria de 07/09 reconciliou a **2.3**: o template psiquiátrico local já havia sido integrado em
   `e60f8f0`, está no catálogo/editor e possui Unit, componente e E2E mutável protegido. A suíte atual
   passou 2.989/2.989; após autorização, o E2E conectado DEV passou 1/1 em Chromium, com teardown e
@@ -134,6 +135,18 @@ canônico e às seções 20–24 de `qorov2.md`:
   build, arquitetura, migrations, registry, observabilidade, revisão do diff, formatação e varredura
   do conteúdo adicionado também passaram. O commit `4883372` foi confirmado no remoto, o deployment
   Vercel terminou `success` e o Preview autenticado passou 6/6 sem `pageerror`; auth state/artefato foram removidos.
+- em 08/09, **D88 fechou o incidente read-only do `cash-flow-rollup`**. Primário direto e session
+  pooler estavam read-write; 48/48 sessões do transaction pooler reutilizavam um único backend
+  Supavisor contaminado. Somente o PID ocioso e precisamente correlacionado foi encerrado. O
+  pós-check retornou 0/48 contaminadas e a única chamada autorizada ao cron respondeu HTTP 200,
+  `ok=true`, `rows=0`. Não houve migration, deploy, exclusão nem alteração de linha pelo probe;
+- **C2.0/C2.1 estão implementadas e validadas em DEV**: `/documentos` possui launcher tenant-scoped e a ficha
+  do paciente expõe prontuário, prescrição e documento médico avulsos, sempre reutilizando os
+  builders/actions existentes e sem criar consulta falsa. As actions validam paciente, consulta e
+  prontuário pelo mesmo tenant/paciente antes de qualquer efeito. Focused 63/63, suíte 3.040/3.040,
+  lint, typecheck, build e gates passaram. O E2E mutável passou 1/1 nos três pontos de entrada,
+  comprovou os PDFs no Storage e limpou DB/Auth/Storage com resíduo zero. Sem migration ou chamada
+  Asaas/Meta; rollout aguarda a repetição dos gates finais;
 
 ## 2. Regra de documentação — a mais importante deste handoff
 
@@ -364,12 +377,10 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
   Receita Saúde PF.
 - **2.1** implementar em 2.1A.1/2.1A.2 somente depois dos gates da Camada 1; revisão
   jurídico-contábil permanece gate de rollout.
-- **2.2.0 SPIKE Memed** — spike documental executado em 07/09 e registrado na
-  [ADR-056](adr/056-spike-integracao-memed.md): arquitetura tecnicamente viável, porém
-  **PARTIAL/BLOCKED externo**. Contrato/preço/SLA/LGPD, credenciais/homologação, readback ou webhook
-  server-side, CSP/isolamento e capacidade real do SNCR precisam ser confirmados antes de qualquer
-  código, migration ou carregamento do SDK.
-- **2.2** Memed (só se o spike passar) · **2.3 ✅** template psiquiátrico local já integrado no
+- **C2.0/C2.1 ✅ DEV:** entrada unificada de documentos clínicos avulsos em `/documentos` e na
+  ficha do paciente, com referências tenant/patient-scoped, sem migration. Unit/component/integration
+  63/63, regressão 3.040/3.040 e E2E mutável 1/1 com cleanup zero; rollout pendente dos gates finais.
+- **2.3 ✅** template psiquiátrico local já integrado no
   commit `e60f8f0`, com Unit/component PASS e E2E mutável conectado DEV 1/1 PASS, cleanup zero ·
   **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B** recuperação de falta em
   código/DEV, schema PROD e Preview, smoke C14 10/10; E2E Meta real pendente · **2.H** / **2.S**.
@@ -383,15 +394,26 @@ Conselho genérico (fundação, com psicologia clínica desacoplada) · pacote/m
 
 NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clínica completa.
 
+### Track M — Memed (última entrega)
+
+- **2.2.0 SPIKE concluído** em 07/09 e preservado na
+  [ADR-056](adr/056-spike-integracao-memed.md); arquitetura tecnicamente viável, mas
+  **DEFERRED/BLOCKED externo**.
+- Implementar 2.2 somente depois de Camadas 2–4 e Track O concluídas/estabilizadas e após confirmação
+  de contrato/preço/SLA/LGPD, credenciais/homologação, readback ou webhook server-side,
+  CSP/isolamento e capacidade real do SNCR.
+- A Track M não é pré-requisito para TISS, NFS-e, prontuário, prescrições locais ou `2.H/2.S`.
+
 ### Documentos clínicos fora da consulta
 
 - [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md) aceita em 07/09: documento clínico é
   centrado no paciente; consulta agendada é vínculo opcional.
 - O domínio já suporta prontuário manual, prescrição sem prontuário e documento médico sem consulta.
-  A lacuna é UI: `/documentos` lista, mas não cria; os drawers estão no Consultório/prontuário.
-- Entrega futura: CTAs em `/documentos` e Pacientes reutilizando actions/schemas existentes, sem
-  migration presumida. Clínica, paciente, autor, RBAC/RLS, criptografia, assinatura aplicável,
-  idempotência e auditoria continuam obrigatórios.
+  A lacuna de entrada foi fechada localmente: `/documentos` seleciona paciente/tipo e a ficha do
+  paciente abre os mesmos fluxos.
+- Implementação reutiliza actions/schemas/drawers existentes, sem migration. Clínica, paciente,
+  autor, RBAC/RLS, criptografia, assinatura aplicável, idempotência e auditoria continuam
+  obrigatórios. E2E mutável DEV passou 1/1 e comprovou Storage/cleanup; rollout ainda não foi executado.
 
 **Adiado, não esquecido:** CRM/UTM/reativação · repasse.
 
@@ -407,6 +429,9 @@ NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clí
 - **D9 — fechado em 08/09 (`804c071`)** — lote exclusivamente mecânico normalizou os 58 alvos de código/teste
   e ignorou 70 JSON de evidência gerada; todos os gates passaram, sem migration, deploy ou chamada
   externa.
+- **D88 — fechado em 08/09** — um único backend ocioso do Supavisor estava contaminado por estado de
+  sessão read-only; defaults e primário permaneciam read-write. Encerramento preciso do PID, probes
+  0/48 contaminados e cron HTTP 200. Monitorar recorrência; não encerrar pool de forma ampla.
 - **D23** — reagendamento **devolve** o sinal em vez de transferi-lo, e isso abre a brecha de remarcar
   em cima da hora para escapar da taxa. Decisão de produto pendente.
 - **D30** — a lista de eventos do webhook de assinatura vive em
@@ -432,6 +457,13 @@ o modo que cria o refund.
 `main` no commit `93da840`. A migration 0093 da `main` foi integrada à branch e a 0094 do P11 foi
 aplicada/verificada em DEV e produção. O lote P11 está commitado, enviado e implantado no Preview;
 `financeiro.md` e os dois runners temporários continuam não rastreados e fora do commit.
+
+**Estado local de 08/09:** a branch está dois commits à frente do remoto (`804c071` e `4d4e278`) e o
+lote C2.0/C2.1 permanece sem commit. O E2E mutável conectado DEV passou 1/1, com fixtures clínicas
+sintéticas tenant-scoped, PDFs reais no Storage e cleanup/readback zero. Preservar `financeiro.md`,
+`novaui.md` e os dois runners temporários não rastreados. Se os gates finais permanecerem verdes,
+estão autorizados commit/push/deploy e smoke autenticado no Preview. 2.1A.1 ainda exige a decisão de
+pagador/revisão jurídico-contábil; não repetir a chamada externa de D88.
 
 ## 10. Ao terminar cada sub-fase, responda neste formato
 

@@ -15,7 +15,7 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Última verificação contra o repositório e dependências controladas:** 2026-09-06 · branch `feat/qorov2-pagamentos`
+**Última verificação contra o repositório e dependências controladas:** 2026-09-08 · branch `feat/qorov2-pagamentos`
 
 **Versionamento (2026-08-27):** a 1.6c está nos commits publicados `15cb9c3` (código) e `3035383`
 (registro da migration). O hardening financeiro/D49 está em `a7717e7`, com Preview Vercel verde, e
@@ -194,12 +194,40 @@ credenciais/homologação, readback ou webhook server-side, hosts/política de C
 SNCR. Nenhum código, migration, segredo, SDK ou chamada ao provider foi criado. A prescrição local
 permanece o único caminho implementado.
 
+**Decisão de sequenciamento de 08/09:** a implementação runtime da Memed saiu do caminho crítico da
+Camada 2 e foi movida para a **Track M — última entrega do roadmap**. O spike, a ADR e os gates
+externos são preservados, mas a Memed não bloqueia `2.H/2.S`, Camadas 3–4, TISS, NFS-e, Track O ou
+os fluxos locais de prontuário, prescrição e documentos. A Track M só pode ser reaberta depois dessas
+entregas e da confirmação formal dos gates comerciais, técnicos, LGPD e regulatórios da ADR-056.
+
 **Decisões de produto de 07/09:** o [Asaas foi escolhido como parceiro de NFS-e](adr/054-documento-de-pagamento-e-recibo-fiscal.md)
 para clínicas PJ; o Qoro não construirá motor fiscal municipal. A Central de Documentação O-4 será uma
 área autenticada em `/documentacao`, separada do feed clínico `/documentos`. Também foi aceita a
 [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md): prontuários, prescrições e documentos
 médicos podem ser criados sem consulta agendada, mas nunca sem paciente, clínica, autoria, permissões
-e auditoria. O modelo já suporta os vínculos opcionais; falta expor a criação de forma coerente na UI.
+e auditoria.
+
+**C2.0/C2.1 implementadas e validadas em DEV em 08/09:** `/documentos` ganhou uma entrada única **Novo
+documento**, com busca tenant-scoped de paciente e roteamento explícito para prontuário, prescrição ou
+documento médico conforme RBAC. A ficha do paciente ganhou os mesmos atalhos; nenhum `GET` cria dado,
+nenhuma consulta artificial é criada e os drawers/actions/PDFs existentes foram reutilizados. O
+backend passou a validar paciente, consulta opcional e prontuário opcional dentro da mesma clínica e
+para o mesmo paciente, bloqueando também paciente removido/falecido antes de insert, PDF ou evento.
+Focused **63/63**, suíte **3.040/3.040**, lint, typecheck, build, migrations, registry,
+observabilidade e arquitetura **54/293/0/67** passaram. O E2E mutável conectado passou **1/1** no
+DEV: criou paciente, prontuário longitudinal, prescrição avulsa, documento avulso e documento pelo
+Consultório; comprovou os três PDFs no Storage antes do teardown e encerrou com resíduo zero. Não
+houve migration nem chamada Asaas/Meta. O rollout permanece condicionado à repetição dos gates
+após esta documentação.
+
+**D88 — `cash-flow-rollup` read-only remediado em produção em 08/09:** primário direto e session
+pooler estavam `recovery=false`, `default_transaction_read_only=off` e
+`transaction_read_only=off`, com probe de escrita sem alteração de dados aprovado. No transaction
+pooler, 48/48 amostras caíam no mesmo backend Supavisor contaminado com SQLSTATE `25006`. O PID foi
+correlacionado no primário como único `client backend` ocioso elegível; somente ele foi encerrado. O
+pós-check distribuiu 48 amostras por dois PIDs, com **0/48 contaminadas**. A única chamada autorizada
+a `/api/cron/cash-flow-rollup` retornou **HTTP 200**, `ok=true`, `rows=0`, janela de três dias. Não
+houve migration, deploy, exclusão, segunda chamada externa nem alteração de linha pelo probe.
 
 ### D78 — Embedded Signup indisponível para conta externa e contrato do token Meta
 
@@ -784,7 +812,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
 | D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
 | Track O — onboarding self-serve | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
-| Camadas 2–4 | Permanecem congeladas até `1.H ✅ + 1.S ✅`. A ordem continua: recibo → spike Memed → integração/template/recuperação → P2/P3, cada uma com `.H/.S` |
+| Camadas 2–4 | Permanecem congeladas até `1.H ✅ + 1.S ✅`. A ordem é: comprovante/recibo conforme + fechar recuperação → `2.H/2.S` → P2/P3, cada camada com `.H/.S`. A implementação Memed não bloqueia essa sequência e foi adiada para a Track M final |
 
 ### Dependências externas — validação comportamental (atualizado em 2026-09-01)
 
@@ -1045,9 +1073,11 @@ CAMADA -1  Architecture Review (C4 + grafos + riscos + ADRs) ..... ✅ CONCLUÍD
 CAMADA 0   Baseline ...................................... ✅ CONCLUÍDA
 CAMADA 1   1.0 adapter·1.1 credencial·[O-1]·1.2 política·1.3 charges+hold·
            1.4 webhook·1.5 falta/restante·1.6 UI·1.H hardening·1.S stabilization
-CAMADA 2   P1 (recibo · [2.2.0 spike Memed] Memed · template · recuperação) · 2.H · 2.S
+CAMADA 2   P1 (comprovante/recibo conforme · template local · recuperação) · 2.H · 2.S
 CAMADA 3   P2 (conselho genérico + O-2 + pacote/mensalidade) · 3.H · 3.S
 CAMADA 4   P3 (backlog)
+TRACK O    cadastro self-serve · onboarding · tour · documentação · O.H · O.S
+TRACK M    ÚLTIMA: integração Memed, somente após o roadmap anterior + gates externos da ADR-056
 ADIADO     CRM/UTM/reativação · repasse
 ```
 **Nenhuma camada libera a próxima sem `.H` E `.S` verdes.**
@@ -1232,14 +1262,16 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
 
 ## 7. Camadas 2–4 (mesmos gates + `.H`/`.S`)
 - **P1:** **2.1.0 spike regulatório de documento de pagamento** → 2.1 comprovante/recibo conforme
-  [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) · **2.2.0 SPIKE Memed** (validar
-  **contrato · custos · requisitos regulatórios · dependência comercial** ANTES de qualquer código —
-  integração externa não começa sem o spike passar) → 2.2 Memed · **2.3 ✅ template psiquiátrico
-  local (código/Unit/E2E controlado DEV 1/1 PASS, cleanup zero)** · **2.4A retorno existente com
+  [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) · **2.3 ✅ template psiquiátrico local
+  (código/Unit/E2E controlado DEV 1/1 PASS, cleanup zero)** · **2.4A retorno existente com
   smoke C14 DEV 9/9 PASS** · **2.4B recuperação de falta implementada e validada em DEV,
   smoke C14 10/10 PASS; rollout/E2E Meta pendentes** · **2.H·2.S**.
 - **P2:** conselho genérico (fundação; psicologia clínica desacoplada) · pacote/mensalidade · O-2 · **3.H·3.S**.
 - **P3:** NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clínica completa.
+- **Track M — última:** **2.2.0 spike Memed concluído**; implementação 2.2 adiada até todas as entregas
+  acima e a Track O estarem estabilizadas. Só reabrir com contrato, custos, LGPD, credenciais,
+  homologação, readback/webhook, CSP e capacidade regulatória confirmados conforme a
+  [ADR-056](adr/056-spike-integracao-memed.md).
 - **Adiado:** CRM/UTM/reativação · repasse.
 
 ---
@@ -1339,8 +1371,8 @@ Cada onda = ligar a coluna do domínio (`clinic_deposit_policy.enabled = true`) 
 ---
 
 ## 19. Rastreabilidade, riscos e rollback
-**Gap→camada→validação:** no-show → 1.3–1.5 (E2E A/B/C + §13 + §14) · gateway → 1.0–1.4 (webhook espelhado + §10 + §12) · recibo → 2.1 · controlado → 2.2 (após spike §7) · psiquiátrico → 2.3 · psicólogo bloqueado → 3.1 · onboarding → O-1.
-**Riscos:** refactor do adapter (1.0 isolada) · fricção do sinal (flag/%) · credencial de terceiro (cifra+write-only+papel+audit) · webhook forjado (A2) · concorrência/carga (§10+§12+1.H) · integridade financeira (§13) · **Memed estourar cronograma (spike §7 antes de integrar)** · scope creep (§0.8 freeze).
+**Gap→camada→validação:** no-show → 1.3–1.5 (E2E A/B/C + §13 + §14) · gateway → 1.0–1.4 (webhook espelhado + §10 + §12) · recibo → 2.1 · controlado/Memed → Track M final (após o roadmap anterior e os gates da ADR-056) · psiquiátrico → 2.3 · psicólogo bloqueado → 3.1 · onboarding → O-1.
+**Riscos:** refactor do adapter (1.0 isolada) · fricção do sinal (flag/%) · credencial de terceiro (cifra+write-only+papel+audit) · webhook forjado (A2) · concorrência/carga (§10+§12+1.H) · integridade financeira (§13) · **Memed só reentra após os gates externos e não bloqueia o cronograma principal** · scope creep (§0.8 freeze).
 **Rollback:** flag desliga; migrações aditivas; reverter = desligar flag + reverter migração + recuar onda.
 
 ---
@@ -1853,7 +1885,8 @@ melhora a operação, mas não transforma `PENDING` em `DONE` nem fecha os dois 
 ### 20.8 TISS: o que pode começar agora e qual “sistema” está citado
 
 O documento atual **não cita um fornecedor/intermediário de TISS**. O sistema externo nomeado é a
-**Memed**, mas ela aparece na Camada 2 para prescrição digital; não é a integração TISS descrita no P3.
+**Memed**, mas ela é uma futura integração de prescrição digital, agora reservada para a Track M
+final; não é a integração TISS descrita no P3 e não bloqueia seu discovery ou implementação.
 Se existe outro fornecedor pretendido, o nome precisa ser informado antes de desenhar o contrato.
 
 O TISS é o padrão obrigatório da ANS para troca de informações na saúde suplementar e envolve
@@ -2931,9 +2964,10 @@ antes do código.
 
 ## 23. Central de Documentação e documentos clínicos longitudinais
 
-**Estado em 07/09/2026:** `DECISÃO DE PRODUTO DOCUMENTADA; CÓDIGO NÃO INICIADO`. Esta seção expande o
-O-4 e registra a [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md). Não autoriza migration,
-deploy, integração Memed/SNCR ou mudança em documento já assinado.
+**Estado em 08/09/2026:** `C2.0/C2.1 IMPLEMENTADAS; UNIT/INTEGRATION/BUILD/E2E DEV VERDES;
+ROLLOUT PENDENTE DOS GATES FINAIS`. Esta seção expande o O-4 e registra a
+[ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md). A implementação não criou migration,
+deploy, integração Memed/SNCR nem mudança em documento já assinado.
 
 ### 23.1 Dois produtos com nomes próximos, mas dados completamente diferentes
 
@@ -3007,8 +3041,8 @@ apenas preenche os vínculos reais já existentes.
    exigem assinatura imediata;
 4. **C2.1 — UI sem migration presumida:** CTAs em `/documentos` e Pacientes, reutilizando actions,
    schemas, PDFs e idempotência atuais;
-5. **C2.2 — prescrição regulada:** Memed/SNCR somente depois do spike 2.2.0, assinatura e estados
-   autoritativos confirmados;
+5. **Track M — prescrição regulada externa:** Memed/SNCR somente no fim do roadmap, depois do spike
+   2.2.0 e com assinatura, capacidade regulatória e estados autoritativos confirmados;
 6. **O.H/C2.H e O.S/C2.S:** segurança e estabilização independentes.
 
 ### 23.5 Aceite e testes planejados
@@ -3021,6 +3055,49 @@ apenas preenche os vínculos reais já existentes.
 - documentação: artigos apontam para rotas reais, não expõem segredo/PII e registram versão;
 - regressão: prontuários e PDFs atuais continuam acessíveis, assinados e imutáveis.
 
+### 23.5.1 Implementação e evidência C2.0/C2.1
+
+O menor fluxo coerente foi entregue localmente:
+
+```text
+/documentos
+  → Novo documento
+  → busca tenant-scoped de paciente
+  → prontuário | prescrição | documento médico conforme RBAC
+  → ficha do paciente
+  → builder/action já existente
+```
+
+- prontuário abre a aba clínica do paciente e ainda exige a ação explícita **Novo prontuário**;
+- prescrição e documento médico abrem o drawer tipado existente; a emissão só ocorre no submit;
+- pacientes falecidos/removidos não aparecem na busca nem recebem novo artefato;
+- `clinicId` e autor vêm da sessão. O backend valida que paciente, consulta e prontuário opcionais
+  pertencem ao mesmo tenant e ao mesmo paciente, dentro da transação idempotente;
+- consultas e prontuários de outro paciente/tenant falham antes de qualquer insert, PDF ou evento;
+- `appointment_id = null` e `prontuario_id = null` continuam sendo os contratos existentes. Não há
+  agendamento fictício, schema novo, dependência nova ou migration.
+
+| Evidência | Resultado local de 08/09 |
+| --- | --- |
+| Recorte Unit/component/integration | ✅ 63/63 em 15 arquivos |
+| Suíte integral | ✅ 3.040/3.040 em 329 arquivos |
+| Lint, typecheck e build | ✅ PASS |
+| Arquitetura/DB boundary | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos; 0 findings |
+| Migrations/registry/observabilidade | ✅ PASS; nenhuma migration nova |
+| E2E mutável conectado DEV | ✅ 1/1 em Chromium contra `next start`; `/documentos`, ficha do paciente e Consultório; PDFs legíveis no Storage antes do cleanup; resíduo zero |
+| Preview/produção | ⏸️ ainda não publicado; Preview autorizado somente após todos os gates finais verdes; produção fora do escopo |
+
+Budget C2.0/C2.1: lote funcional com **25 arquivos**, menos de 1.500 linhas e dois bounded contexts
+(`clinical` e `patient`; `app` somente composição). A prova mutável foi autorizada depois e ficou em
+um slice de validação separado de **3 arquivos** (`spec`, manifesto e harness), sem ampliar o runtime
+nem os contexts. A Central de Documentação O-4 continua separada e não foi implementada por este lote.
+
+O E2E usa somente paciente, profissional, disponibilidade, procedimento e atendimento sintéticos
+tenant-scoped. A navegação do visualizador PDF é neutralizada no Chromium headless, mas a criação
+não é mockada: antes de apagar, o teardown baixa cada `pdf_storage_path` real do bucket clínico;
+depois remove os arquivos e comprova que não podem mais ser baixados. Banco, Auth e Storage terminam
+sem os identificadores do run.
+
 ### 23.6 Checklist da decisão
 
 - [x] `/documentacao` separado de `/documentos`;
@@ -3028,15 +3105,27 @@ apenas preenche os vínculos reais já existentes.
 - [x] Asaas registrado como parceiro de NFS-e na documentação da integração;
 - [x] modelo atual auditado: vínculos opcionais já existem e não exigem migration por princípio;
 - [x] invariantes de paciente, autoria, tenant, assinatura e auditoria registradas na ADR-055;
-- [ ] discovery detalhado O-4.0 e C2.0;
-- [ ] código, testes, E2E, rollout e documentação para usuários finais.
+- [x] discovery detalhado C2.0 e contrato de entrada clínica fechados;
+- [x] C2.1 implementada sem migration, consulta artificial ou novo builder;
+- [x] Unit, componentes, integração, regressão integral, build e gates arquiteturais verdes;
+- [x] E2E mutável conectado em DEV com fixture sintética tenant-scoped, prova real no Storage e
+  cleanup exato: 1/1 PASS, resíduo zero;
+- [ ] commit, push, deploy e smoke autenticado no Preview — autorizados se todos os gates finais
+  permanecerem verdes;
+- [ ] O-4.0/O-4.1: inventário editorial e shell `/documentacao`;
+- [ ] documentação para usuários finais e Product Acceptance humano.
 
-## 24. Camada 2 — 2.2.0 spike da integração Memed
+## 24. Spike histórico 2.2.0 — integração Memed adiada para a Track M final
 
-**Estado em 07/09/2026: PARTIAL / BLOCKED externo.** O spike documental foi executado e consolidado
+**Estado em 08/09/2026: SPIKE CONCLUÍDO · RUNTIME DEFERRED / BLOCKED externo.** O spike documental foi executado e consolidado
 na [ADR-056](adr/056-spike-integracao-memed.md). A integração é tecnicamente viável, mas código,
 migration, SDK e credenciais continuam deliberadamente não iniciados porque os contratos comercial,
 operacional, de segurança e regulatório ainda não foram confirmados.
+
+Por decisão de produto de 08/09, a implementação 2.2 foi retirada da Camada 2 e movida para a
+**Track M, obrigatoriamente a última entrega do roadmap**. Esta seção permanece como evidência e
+contrato de retomada. Nenhuma pendência Memed bloqueia `2.H/2.S`, as Camadas 3–4, TISS, NFS-e, o
+Track O ou o emissor local de prescrições.
 
 ### 24.1 O que a documentação oficial confirma
 
@@ -3141,6 +3230,8 @@ Mock não será classificado como homologação ou E2E real.
 - [x] risco de tratar evento frontend como autoridade registrado;
 - [x] gate separado para receituários controlados e SNCR registrado;
 - [x] ADR-056 e D83 criados;
+- [x] implementação retirada do caminho crítico da Camada 2 e movida para a Track M final;
+- [ ] Camadas 2–4 e Track O concluídas e estabilizadas antes da reabertura da Track M;
 - [ ] contrato comercial/LGPD/SLA e documentação técnica privada recebidos;
 - [ ] credenciais e homologação Memed disponíveis;
 - [ ] disponibilidade e cobertura real do SNCR confirmadas;
@@ -3193,8 +3284,8 @@ normativa de estrutura; não substitui revisão de conteúdo por psiquiatra da c
 
 ### 25.3 Limites e aceite restante
 
-O template local pode evoluir independentemente da Memed. A 2.2 trata emissão regulada de
-prescrição; a 2.3 trata documentação estruturada no prontuário. Uma não deve bloquear nem ser
+O template local pode evoluir independentemente da Memed. A futura Track M trata emissão regulada de
+prescrição externa; a 2.3 trata documentação estruturada no prontuário. Uma não bloqueia nem deve ser
 confundida com a outra.
 
 Antes da onda piloto, um psiquiatra deve avaliar linguagem, ordem dos campos e carga cognitiva com
@@ -3349,4 +3440,4 @@ confirmados pelo fundador.
 - [ ] template `qoro_no_show_followup` aprovado no Meta;
 - [x] commit/push/deploy e smoke autenticado no Preview — `6b9fdba`, Vercel `success`, 2/2 PASS;
 - [ ] E2E real Meta de `no_show_followup` com destinatário consentido;
-- [ ] rollout progressivo e estabilização 2.H/2.S.
+- [ ] rollout progressivo e estabilização 2.H/2.S; a Memed não é pré-requisito deste gate.
