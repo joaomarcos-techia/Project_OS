@@ -289,6 +289,36 @@ function buildEventGraph(): EventNode[] {
     }
   }
 
+  // Handlers 1:1 que precisam orquestrar mais de um contexto ficam na camada
+  // app. Cada participação lógica é declarada ao lado do registro como:
+  // `@event-consumer X_EVENTS.KEY context-name`. Isso mantém o grafo fiel sem
+  // inventar fan-out no registry nem atribuir ownership do app a um contexto.
+  const appFiles = walk(join(SRC_DIR, 'app'));
+  const contextNames = new Set(
+    readdirSync(join(SRC_DIR, 'contexts'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name),
+  );
+  for (const file of appFiles) {
+    const src = readFileSync(file, 'utf8');
+    for (const declaration of src.matchAll(/@event-consumer\s+(\S+)\s+([a-z0-9-]+)/g)) {
+      const ref = declaration[1];
+      const consumer = declaration[2];
+      if (ref === undefined || consumer === undefined) continue;
+      if (!contextNames.has(consumer)) {
+        throw new Error(`[arch:graphs] consumidor lógico desconhecido: ${consumer} (em ${file})`);
+      }
+      const type = resolveRef(ref, constants, file);
+      const node = events.get(type);
+      if (node === undefined) {
+        throw new Error(
+          `[arch:graphs] composição consome evento fora do catálogo: ${type} (${file})`,
+        );
+      }
+      if (!node.consumers.includes(consumer)) node.consumers.push(consumer);
+    }
+  }
+
   return [...events.values()]
     .map((e) => ({ ...e, consumers: [...e.consumers].sort() }))
     .sort((a, b) => a.type.localeCompare(b.type));

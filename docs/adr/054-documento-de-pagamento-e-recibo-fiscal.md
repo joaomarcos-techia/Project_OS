@@ -1,8 +1,8 @@
 # ADR-054 — Documento de pagamento e recibo fiscal da Camada 2
 
-- **Status:** Accepted — 2.1A aprovada em 2026-09-06; revisão jurídico-contábil permanece gate de
-  rollout
-- **Data:** 2026-09-06
+- **Status:** Accepted — 2.1A aprovada em 2026-09-06; Asaas escolhido em 2026-09-07 como parceiro de
+  NFS-e para clínicas PJ; revisão jurídico-contábil permanece gate de rollout
+- **Data:** 2026-09-06; atualizada em 2026-09-07
 - **Contextos:** financial, patient e tenancy, compostos somente na camada de aplicação e entregues
   em slices de no máximo dois bounded contexts
 - **Relaciona:** [ADR-007](007-rls-implementation-patterns.md),
@@ -32,6 +32,11 @@ Fontes primárias:
 - [Manual Receita Saúde 2.1](https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/manuais/orientacao-tributaria/receita-saude-2.1.pdf);
 - [Receita Federal — comprovação de despesas médicas](https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/malha-fiscal/antecipacao/despesas-medicas);
 - [Receita Federal — dados informados na Dmed](https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/perguntas-frequentes/dmed/o-que-informar-na-dmed).
+
+Fonte do parceiro fiscal escolhido:
+
+- [Asaas — fluxo de NFS-e pela API](https://docs.asaas.com/docs/notas-fiscais);
+- [Asaas — emissão e requisitos de NFS-e](https://www.asaas.com/nota-fiscal).
 
 ## Evidência do modelo atual
 
@@ -64,7 +69,9 @@ Fontes primárias:
 5. Para prestador pessoa física sujeito ao Receita Saúde, o Qoro não chama seu PDF de recibo fiscal e
    não substitui o serviço oficial. Uma futura automação depende de contrato oficial de integração ou
    delegação formal confirmada em spike próprio.
-6. Para clínica pessoa jurídica, recibo/NFS-e depende do regime e da integração fiscal escolhida. A
+6. Para clínica pessoa jurídica, o parceiro fiscal escolhido é o **Asaas**, usando sua API de NFS-e
+   vinculada à cobrança quando a conta da própria clínica estiver fiscalmente configurada e habilitada.
+   O Qoro não implementará motor municipal nem declarará sucesso antes da autorização da prefeitura. A
    Dmed é obrigação declaratória e não transforma, por si só, um PDF interno em documento fiscal.
 7. Geração e download serão server-side, tenant-scoped e autorizados por permissão financeira; o
    cliente nunca fornece `clinic_id`, valor, identidade do emitente ou estado do pagamento como
@@ -88,6 +95,18 @@ Decisão do fundador em 2026-09-06:
 
 A aprovação autoriza o desenho em dois lotes; não dispensa a revisão jurídico-contábil da copy e do
 enquadramento da clínica piloto antes do rollout.
+
+Decisão complementar do fundador em 2026-09-07:
+
+- **Aprovada — 2.1B/P3:** o Asaas será o parceiro de NFS-e das clínicas PJ. O Qoro orquestra a
+  configuração, agenda a nota vinculada à cobrança e projeta o resultado autoritativo recebido do
+  Asaas; a emissão continua pertencendo ao prestador e à autoridade fiscal;
+- **fora desse contrato:** NF-e de produto, motor fiscal próprio, integração direta com cada prefeitura
+  e substituição do Receita Saúde para prestadores PF;
+- a emissão é assíncrona: aceitar o POST não equivale a nota autorizada. O estado só fica emitido após
+  readback/webhook autoritativo do Asaas; erro ou cancelamento permanecem explícitos e auditáveis;
+- cada tenant usa a conta Asaas da própria clínica e sua configuração fiscal. Credenciais, serviço
+  municipal, alíquotas e identidade do emitente nunca são compartilhados entre clínicas.
 
 ## Auditoria técnica e divisão do trabalho
 
@@ -155,4 +174,5 @@ com a migration ou o contrato público da Camada 2.
 - editar o documento antigo após estorno: destrói a trilha histórica;
 - expor um link permanente sem autenticação: vaza dado financeiro e potencialmente dado de saúde;
 - integrar NFS-e/Receita Saúde por scraping ou API não confirmada: instável e incompatível com o
-  padrão de segurança do projeto.
+  padrão de segurança do projeto. Para NFS-e de clínica PJ, a API confirmada e escolhida é a do Asaas;
+  Receita Saúde PF permanece separado.

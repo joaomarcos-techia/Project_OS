@@ -30,6 +30,9 @@ Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras d
 | Trial 14d e convite mágico HMAC/versionado | Accepted | [onboarding](../onboarding-spec.md) |
 | Cadastro autônomo, atribuição e provisionamento pós-billing | Proposed | [ADR-053](053-cadastro-autonomo-seguro.md) |
 | Comprovante de pagamento separado de recibo fiscal/Receita Saúde | Accepted | [ADR-054](054-documento-de-pagamento-e-recibo-fiscal.md) |
+| Documento clínico centrado no paciente; consulta é vínculo opcional | Accepted (UI de criação pendente) | [ADR-055](055-documentos-clinicos-fora-da-consulta.md) |
+| Integração Memed depende de contrato, homologação, segurança frontend e SNCR real | Proposed / external gate | [ADR-056](056-spike-integracao-memed.md) |
+| Recuperação separa retorno clínico existente de contato após falta | Accepted (2.4A e 2.4B em código/DEV; rollout pendente) | [ADR-057](057-recuperacao-falta-retorno.md) |
 | Inadimplência bloqueia escrita, não login/leitura | Accepted | [billing](../billing/subscriptions.md) |
 | Sentry + logs + métricas + health/heartbeats | Accepted | [operations](../operations/deployment-observability.md) |
 

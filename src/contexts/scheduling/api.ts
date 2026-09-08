@@ -28,6 +28,7 @@ import {
   getAvailableSlots,
   getDoctorActiveCommitments,
   getWaitlistOfferState,
+  hasFutureEquivalentAppointment,
   hasSubsequentCompletedAppointment,
   listUpcomingPatientAppointments,
   listProcedures as listProceduresQuery,
@@ -101,6 +102,16 @@ export interface SchedulingApiV1 {
       doctorId?: string | null;
     },
   ): Promise<boolean>;
+  /** ADR-057 / 2.4B — remarcação futura ativa do mesmo procedimento. */
+  hasFutureEquivalentAppointment(
+    clinicId: string,
+    input: {
+      patientId: string;
+      procedureId: string;
+      after: Date;
+      excludeAppointmentId: string;
+    },
+  ): Promise<boolean>;
   createAppointment(
     input: CreateAppointmentInput,
     idempotencyKey: string,
@@ -165,6 +176,8 @@ export const schedulingApiV1: SchedulingApiV1 = {
   doctorActiveCommitments: (clinicId, doctorId) => getDoctorActiveCommitments(clinicId, doctorId),
   hasSubsequentCompletedAppointment: (clinicId, input) =>
     hasSubsequentCompletedAppointment(clinicId, input),
+  hasFutureEquivalentAppointment: (clinicId, input) =>
+    hasFutureEquivalentAppointment(clinicId, input),
   createAppointment: (input, idempotencyKey) => createAction(input, idempotencyKey),
   confirmAppointment: (id, idempotencyKey, reason) => confirmAction(id, idempotencyKey, reason),
   cancelAppointment: (id, idempotencyKey, reason) => cancelAction(id, idempotencyKey, reason),

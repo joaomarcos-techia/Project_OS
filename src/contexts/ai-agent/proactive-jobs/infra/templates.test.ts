@@ -11,6 +11,7 @@ import type {
   DepositLinkPayload,
   DunningPayload,
   FollowupPayload,
+  NoShowFollowupPayload,
   ReminderPayload,
   RemainderLinkPayload,
   WaitlistOfferPayload,
@@ -29,6 +30,7 @@ vi.mock('@/lib/env', async (importActual) => {
       META_TEMPLATE_DUNNING_FRIENDLY_ID: 'amigavel_cobranca',
       META_TEMPLATE_WAITLIST_OFFER_ID: 'lista_espera_oferta',
       META_TEMPLATE_FOLLOWUP_RETURN_ID: 'retorno_consulta',
+      META_TEMPLATE_NO_SHOW_FOLLOWUP_ID: 'qoro_no_show_followup',
       META_TEMPLATE_DEPOSIT_LINK_ID: 'sinal_link_pagamento',
       META_TEMPLATE_REMAINDER_LINK_ID: 'restante_link_pagamento',
       META_TEMPLATE_LANG: 'pt_BR',
@@ -64,6 +66,11 @@ const PAYLOADS = {
     patientId: '22222222-2222-2222-2222-222222222222',
     doctorNome: 'Ana Costa',
   } as unknown as FollowupPayload,
+  no_show_followup: {
+    patientId: '22222222-2222-2222-2222-222222222222',
+    appointmentId: '44444444-4444-4444-4444-444444444444',
+    noShowAt: '2026-09-04T15:00:00.000Z',
+  } as unknown as NoShowFollowupPayload,
   deposit_link: {
     patientId: '22222222-2222-2222-2222-222222222222',
     chargeId: '55555555-5555-5555-5555-555555555555',
@@ -100,7 +107,7 @@ describe('templates proativos — copy × ordem das variáveis', () => {
   const kinds = [...PROACTIVE_TEMPLATE_KINDS];
 
   it('exercita todos os tipos do catálogo', () => {
-    expect(kinds).toHaveLength(6);
+    expect(kinds).toHaveLength(7);
   });
 
   it.each(kinds)('%s: o corpo declara tantas variáveis quanto o builder envia', (kind) => {
@@ -169,5 +176,21 @@ describe('templates proativos — copy × ordem das variáveis', () => {
     expect(() =>
       buildProactiveTemplate('remainder_link', PAYLOADS.remainder_link, 'Maria Silva', TZ),
     ).toThrow('remainder_link exige invoiceUrl resolvido no send-time');
+  });
+
+  it('no_show_followup usa template próprio e somente o nome atual do paciente', () => {
+    const built = buildProactiveTemplate(
+      'no_show_followup',
+      PAYLOADS.no_show_followup,
+      'Maria Silva',
+      TZ,
+    );
+
+    expect(built).toEqual({
+      templateName: 'qoro_no_show_followup',
+      languageCode: 'pt_BR',
+      variables: ['Maria Silva'],
+    });
+    expect(built.templateName).not.toBe('retorno_consulta');
   });
 });

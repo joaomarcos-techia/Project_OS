@@ -33,13 +33,25 @@ describe('evaluateProactivePolicy (C14 — matriz por tipo)', () => {
       suppressedWhatsapp: true,
       suppressedWhatsappPurposes: ['all'],
     };
-    for (const t of ['reminder', 'dunning', 'followup', 'remainder_link'] as const) {
+    for (const t of [
+      'reminder',
+      'dunning',
+      'followup',
+      'no_show_followup',
+      'remainder_link',
+    ] as const) {
       expect(evaluateProactivePolicy(t, supp)).toEqual({ allowed: false, reason: 'suppressed' });
     }
   });
 
   it('bloqueia qualquer mensagem proativa para paciente falecido', () => {
-    for (const type of ['reminder', 'dunning', 'followup', 'remainder_link'] as const) {
+    for (const type of [
+      'reminder',
+      'dunning',
+      'followup',
+      'no_show_followup',
+      'remainder_link',
+    ] as const) {
       expect(evaluateProactivePolicy(type, { ...base, deceased: true })).toEqual({
         allowed: false,
         reason: 'deceased',
@@ -62,6 +74,7 @@ describe('evaluateProactivePolicy (C14 — matriz por tipo)', () => {
     });
     expect(evaluateProactivePolicy('reminder', billingOnly)).toEqual({ allowed: true });
     expect(evaluateProactivePolicy('followup', billingOnly)).toEqual({ allowed: true });
+    expect(evaluateProactivePolicy('no_show_followup', billingOnly)).toEqual({ allowed: true });
   });
 
   it('dunning exige opt-in cobranca_whatsapp não-revogado', () => {
@@ -80,6 +93,7 @@ describe('evaluateProactivePolicy (C14 — matriz por tipo)', () => {
     const noConsent = { ...base, cobrancaWhatsapp: false, consentRevoked: true };
     expect(evaluateProactivePolicy('reminder', noConsent)).toEqual({ allowed: true });
     expect(evaluateProactivePolicy('followup', noConsent)).toEqual({ allowed: true });
+    expect(evaluateProactivePolicy('no_show_followup', noConsent)).toEqual({ allowed: true });
   });
 });
 
@@ -96,6 +110,7 @@ describe('suppressionPurposeFor — propósito de supressão por tipo', () => {
     ['reminder', 'reminder'],
     ['dunning', 'billing'],
     ['followup', 'followup'],
+    ['no_show_followup', 'followup'],
     // Contato proativo de agendamento tem a mesma natureza do followup.
     ['waitlist_offer', 'followup'],
     // 1.6a — TRANSACIONAL: o paciente acabou de marcar e perde a vaga se não

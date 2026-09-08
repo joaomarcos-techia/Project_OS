@@ -35,6 +35,7 @@ import {
   type DepositLinkPayload,
   type DunningPayload,
   type FollowupPayload,
+  type NoShowFollowupPayload,
   type ReminderPayload,
   type RemainderLinkPayload,
   type WaitlistOfferPayload,
@@ -177,6 +178,8 @@ async function sendTimeGuard(
   payload:
     | ReminderPayload
     | DunningPayload
+    | FollowupPayload
+    | NoShowFollowupPayload
     | WaitlistOfferPayload
     | DepositLinkPayload
     | RemainderLinkPayload
@@ -236,6 +239,23 @@ async function sendTimeGuard(
     // A consulta já ocorreu; a elegibilidade é exclusivamente da cobrança e é
     // revalidada por `getPayableCharge` imediatamente antes de montar o template.
     return null;
+  }
+  if (type === 'no_show_followup') {
+    const recovery = payload as NoShowFollowupPayload;
+    const appointment = await schedulingApiV1.lookupAppointment(clinicId, recovery.appointmentId);
+    if (!appointment || appointment.status !== 'faltou') return 'no_show_reversed';
+    if (appointment.patientId !== recovery.patientId) return 'no_show_patient_mismatch';
+
+    const alreadyRescheduled = await schedulingApiV1.hasFutureEquivalentAppointment(clinicId, {
+      patientId: recovery.patientId,
+      procedureId: appointment.procedureId,
+      // A consulta equivalente pode ter sido marcada para antes das 10h e
+      // ainda assim provar que a recuperacao ja aconteceu. O marco correto e
+      // a falta que originou o job, nao o relogio do worker.
+      after: new Date(recovery.noShowAt),
+      excludeAppointmentId: recovery.appointmentId,
+    });
+    return alreadyRescheduled ? 'no_show_already_rescheduled' : null;
   }
   if (type === 'followup') {
     const followup = payload as FollowupPayload;

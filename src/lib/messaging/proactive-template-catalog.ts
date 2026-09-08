@@ -25,6 +25,7 @@ export type ProactiveTemplateKind =
   | 'dunning'
   | 'waitlist_offer'
   | 'followup'
+  | 'no_show_followup'
   | 'deposit_link'
   | 'remainder_link';
 
@@ -122,6 +123,14 @@ export const PROACTIVE_TEMPLATE_BODIES: Record<
       'Quer que a gente veja um horário nesta semana?',
     example: ['Maria Silva', 'Dra. Ana Costa'],
   },
+  no_show_followup: {
+    // ADR-057 / 2.4B — operação de agenda, sem procedimento, especialidade,
+    // diagnóstico, cobrança ou qualquer outro dado clínico/financeiro.
+    body:
+      'Oi, {{1}}. Vimos que não foi possível comparecer ao seu horário. ' +
+      'Se quiser remarcar, responda a esta mensagem e nossa equipe ajuda você.',
+    example: ['Maria'],
+  },
 };
 
 /** Quantas variáveis `{{n}}` distintas o corpo declara. */
@@ -135,9 +144,11 @@ function configuredName(kind: ProactiveTemplateKind): string | undefined {
   if (kind === 'reminder') return env.META_TEMPLATE_CONFIRMATION_REMINDER_ID;
   if (kind === 'dunning') return env.META_TEMPLATE_DUNNING_FRIENDLY_ID;
   if (kind === 'waitlist_offer') return env.META_TEMPLATE_WAITLIST_OFFER_ID;
+  if (kind === 'followup') return env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
+  if (kind === 'no_show_followup') return env.META_TEMPLATE_NO_SHOW_FOLLOWUP_ID;
   if (kind === 'deposit_link') return env.META_TEMPLATE_DEPOSIT_LINK_ID;
   if (kind === 'remainder_link') return env.META_TEMPLATE_REMAINDER_LINK_ID;
-  return env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
+  return undefined;
 }
 
 export const PROACTIVE_TEMPLATE_KINDS: readonly ProactiveTemplateKind[] = [
@@ -145,6 +156,7 @@ export const PROACTIVE_TEMPLATE_KINDS: readonly ProactiveTemplateKind[] = [
   'dunning',
   'waitlist_offer',
   'followup',
+  'no_show_followup',
   'deposit_link',
   'remainder_link',
 ] as const;

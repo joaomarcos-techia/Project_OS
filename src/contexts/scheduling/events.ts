@@ -149,6 +149,11 @@ export const AppointmentNoShowSchema = z.object({
   patientId: uuid.nullable(),
   fromStatus: statusEnum,
   toStatus: statusEnum,
+  /**
+   * ADR-057 / 2.4B. Opcional para manter eventos históricos válidos; somente
+   * eventos novos, que carregam o instante autoritativo, geram recuperação.
+   */
+  noShowAt: z.string().datetime().optional(),
 });
 export type AppointmentNoShowPayload = z.infer<typeof AppointmentNoShowSchema>;
 

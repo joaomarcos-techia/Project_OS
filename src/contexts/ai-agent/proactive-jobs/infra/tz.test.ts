@@ -6,6 +6,7 @@ import {
   clinicLocalHour,
   clinicLocalToUtc,
   localDateYMD,
+  nextWeekday,
 } from './tz';
 
 const SP = 'America/Sao_Paulo'; // UTC-3, sem DST desde 2019
@@ -28,6 +29,16 @@ describe('tz helpers (ADR-2: dias-calendário no tz da clínica)', () => {
   it('addCalendarDays soma/subtrai dias de calendário (cruza mês)', () => {
     expect(addCalendarDays('2026-06-30', 1)).toBe('2026-07-01');
     expect(addCalendarDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+
+  it.each([
+    ['2026-09-03', '2026-09-04'], // quinta -> sexta
+    ['2026-09-04', '2026-09-07'], // sexta -> segunda
+    ['2026-09-05', '2026-09-07'], // sábado -> segunda
+    ['2026-09-06', '2026-09-07'], // domingo -> segunda
+    ['2026-04-30', '2026-05-01'], // cruza mês
+  ])('nextWeekday(%s) -> %s', (from, expected) => {
+    expect(nextWeekday(from)).toBe(expected);
   });
 
   it('calendarDaysBetween conta dias de calendário, não horas decorridas', () => {

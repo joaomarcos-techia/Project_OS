@@ -21,11 +21,12 @@ describe('catálogo de templates proativos', () => {
   );
 
   it('cobre todos os tipos proativos', () => {
-    expect(entries).toHaveLength(6);
+    expect(entries).toHaveLength(7);
     expect([...PROACTIVE_TEMPLATE_KINDS].sort()).toEqual([
       'deposit_link',
       'dunning',
       'followup',
+      'no_show_followup',
       'remainder_link',
       'reminder',
       'waitlist_offer',
@@ -78,6 +79,17 @@ describe('catálogo de templates proativos', () => {
     expect(body).toContain('pendente de pagamento');
     expect(body).toContain('link');
     expect(body).not.toMatch(/garant|reserv|horário|vaga|hold|confirm/iu);
+  });
+
+  it('copy da recuperação de falta é operacional e não expõe conteúdo sensível', () => {
+    const body = PROACTIVE_TEMPLATE_BODIES.no_show_followup.body;
+
+    expect(body).toContain('não foi possível comparecer');
+    expect(body).toContain('remarcar');
+    expect(body).toContain('responda');
+    expect(body).not.toMatch(
+      /procedimento|especialidade|diagnóstico|tratamento|pagamento|sinal|estorno|dívida|valor|R\$/iu,
+    );
   });
 });
 

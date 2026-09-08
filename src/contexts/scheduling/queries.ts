@@ -466,6 +466,40 @@ export async function hasSubsequentCompletedAppointment(
 }
 
 /**
+ * ADR-057 / 2.4B — o paciente já remarcou o mesmo procedimento?
+ *
+ * A equivalência fica no Scheduling, não no worker de mensagens. Consideramos
+ * remarcação uma consulta futura ativa do mesmo paciente e procedimento.
+ */
+export async function hasFutureEquivalentAppointment(
+  clinicId: string,
+  input: {
+    patientId: string;
+    procedureId: string;
+    after: Date;
+    excludeAppointmentId: string;
+  },
+): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.patientId, input.patientId),
+          eq(appointments.procedureId, input.procedureId),
+          inArray(appointments.status, ['agendado', 'confirmado']),
+          gte(appointments.scheduledAt, input.after),
+          ne(appointments.id, input.excludeAppointmentId),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  });
+}
+
+/**
  * C8: instante de check-in (última transição → `chegou`) por appointment, para
  * o "tempo aguardando" da Sala de Espera. Lê o appointment_state_log (mesmo
  * contexto). Retorna mapa appointmentId → ISO.

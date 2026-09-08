@@ -29,6 +29,7 @@ export type SuppressionPurpose = 'reminder' | 'followup' | 'billing' | 'marketin
  * os opt-outs já registrados — ou seja, ressuscita contato de quem pediu para
  * não ser contatado:
  *   - `waitlist_offer` → `followup`: contato proativo de agendamento;
+ *   - `no_show_followup` → `followup`: recuperação operacional da agenda;
  *   - `deposit_link` → `reminder`: é TRANSACIONAL. O paciente acabou de marcar e
  *     perde a vaga se não pagar; não é cobrança de dívida (`billing`, que exige
  *     opt-in), é a conclusão de um ato que ele mesmo iniciou.
@@ -37,7 +38,9 @@ export type SuppressionPurpose = 'reminder' | 'followup' | 'billing' | 'marketin
  */
 export function suppressionPurposeFor(type: ProactiveJobType): SuppressionPurpose {
   if (type === 'dunning' || type === 'remainder_link') return 'billing';
-  if (type === 'waitlist_offer' || type === 'followup') return 'followup';
+  if (type === 'waitlist_offer' || type === 'followup' || type === 'no_show_followup') {
+    return 'followup';
+  }
   return 'reminder'; // reminder + deposit_link
 }
 

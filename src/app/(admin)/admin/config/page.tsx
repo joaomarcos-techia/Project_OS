@@ -184,6 +184,10 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
               },
               { label: 'Template dunning', ok: Boolean(env.META_TEMPLATE_DUNNING_FRIENDLY_ID) },
               { label: 'Template followup', ok: Boolean(env.META_TEMPLATE_FOLLOWUP_RETURN_ID) },
+              {
+                label: 'Template recuperação de falta',
+                ok: Boolean(env.META_TEMPLATE_NO_SHOW_FOLLOWUP_ID),
+              },
             ],
           },
           {
@@ -228,6 +232,12 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
       icon: RefreshCw,
       id: env.META_TEMPLATE_FOLLOWUP_RETURN_ID,
     },
+    {
+      label: 'Recuperação após falta',
+      desc: 'Convite operacional para remarcar no próximo dia útil',
+      icon: RefreshCw,
+      id: env.META_TEMPLATE_NO_SHOW_FOLLOWUP_ID,
+    },
   ];
 
   return (
@@ -260,7 +270,8 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                 title="Jobs proativos"
                 description={
                   <>
-                    Lembrete, dunning e followup. Desligado: nenhuma mensagem proativa sai.
+                    Lembrete, dunning, retorno e recuperação de falta. Desligado: nenhuma mensagem
+                    proativa sai.
                     {proactiveRow
                       ? ` · alterado ${formatDateTime(proactiveRow.updatedAt.toISOString())}`
                       : ' · default'}

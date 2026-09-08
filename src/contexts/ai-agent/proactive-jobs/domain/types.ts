@@ -43,6 +43,15 @@ export const FollowupPayloadSchema = z.object({
 });
 export type FollowupPayload = z.infer<typeof FollowupPayloadSchema>;
 
+/** ADR-057 / 2.4B — recuperação operacional no próximo dia útil após falta. */
+export const NoShowFollowupPayloadSchema = z.object({
+  patientId: uuid,
+  appointmentId: uuid,
+  /** Instante autoritativo da transição para `faltou`; agenda o próximo dia útil. */
+  noShowAt: z.string().datetime(),
+});
+export type NoShowFollowupPayload = z.infer<typeof NoShowFollowupPayloadSchema>;
+
 /**
  * ADR-049 1.6a — link do sinal a caminho do paciente.
  *
@@ -99,6 +108,7 @@ export const PROACTIVE_PAYLOAD_SCHEMAS = {
   reminder: ReminderPayloadSchema,
   dunning: DunningPayloadSchema,
   followup: FollowupPayloadSchema,
+  no_show_followup: NoShowFollowupPayloadSchema,
   waitlist_offer: WaitlistOfferPayloadSchema,
   deposit_link: DepositLinkPayloadSchema,
   remainder_link: RemainderLinkPayloadSchema,
@@ -108,6 +118,7 @@ export type ProactivePayload =
   | ReminderPayload
   | DunningPayload
   | FollowupPayload
+  | NoShowFollowupPayload
   | WaitlistOfferPayload
   | DepositLinkPayload
   | RemainderLinkPayload;

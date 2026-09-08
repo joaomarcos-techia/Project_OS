@@ -152,6 +152,7 @@ flowchart LR
   ev_scheduling_appointment_created --> context_billing
   ev_scheduling_appointment_no_show["scheduling.appointment.no_show"]
   context_scheduling --> ev_scheduling_appointment_no_show
+  ev_scheduling_appointment_no_show --> context_ai_agent
   ev_scheduling_appointment_no_show --> context_payments
   ev_scheduling_appointment_rescheduled["scheduling.appointment.rescheduled"]
   context_scheduling --> ev_scheduling_appointment_rescheduled

@@ -164,6 +164,12 @@ em `confirmation_pending` e um único refund de R$ 10 `PENDING`. A D80 continua 
 `RECEIVED` e um único refund de R$ 10 `CANCELLED`. Logo, o `CANCELLED` observado pertence à prova
 D77/D80, não ao excedente D50. Nenhum POST, retry ou cleanup foi executado nesse readback.
 
+**Readback D50 repetido em 07/09/2026:** o modo estritamente somente leitura
+`STATUS_CLINICA_A_D50` passou novamente. A conta, o pagamento e a fixture local continuam
+correlacionados; pagamento Asaas `CONFIRMED`, `patient_charge=paid`, recebível `pago` em R$ 20,
+duas baixas somando R$ 20, uma única intenção `confirmation_pending` de R$ 10 com baseline zero e
+exatamente um refund de R$ 10 ainda `PENDING`. O comando não fez POST, retry, reconcile nem cleanup.
+
 **D72 — estado do estorno no Caixa publicado e revalidado em 06/09:** o app passou a consumir um
 seam público tenant-scoped do Payments que reduz a intenção `excess` a quatro estados humanos:
 aguardando, confirmado, cancelado sem devolução e falha. O contrato não expõe payment/refund id nem
@@ -177,8 +183,23 @@ provider e zero `pageerror`. Auth state e marcador do Playwright foram removidos
 **Camada 2 iniciada somente como spike 2.1.0 em 06/09:** a auditoria regulatória mostrou que “recibo
 PDF” mistura comprovante não fiscal, recibo médico e documento fiscal. A [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md)
 foi aceita pelo fundador em 06/09: primeiro um comprovante não fiscal por baixa, mantendo Receita
-Saúde (PF) e NFS-e/recibo de PJ como integrações separadas. Nenhum schema, endpoint ou PDF foi criado;
+Saúde (PF) e NFS-e de PJ como integrações separadas. Em 07/09 o Asaas foi escolhido para a NFS-e de
+PJ. Nenhum schema, endpoint ou PDF foi criado;
 a revisão jurídico-contábil e os gates de Camada 1 da §22 continuam obrigatórios antes do código.
+
+**Spike Memed 2.2.0 executado em 07/09:** a documentação oficial e o código atual foram comparados na
+[ADR-056](adr/056-spike-integracao-memed.md). A arquitetura API backend + MdHub frontend é viável,
+mas o resultado é **PARTIAL / BLOCKED externo**: faltam contrato/preço/SLA/LGPD,
+credenciais/homologação, readback ou webhook server-side, hosts/política de CSP e capacidade real do
+SNCR. Nenhum código, migration, segredo, SDK ou chamada ao provider foi criado. A prescrição local
+permanece o único caminho implementado.
+
+**Decisões de produto de 07/09:** o [Asaas foi escolhido como parceiro de NFS-e](adr/054-documento-de-pagamento-e-recibo-fiscal.md)
+para clínicas PJ; o Qoro não construirá motor fiscal municipal. A Central de Documentação O-4 será uma
+área autenticada em `/documentacao`, separada do feed clínico `/documentos`. Também foi aceita a
+[ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md): prontuários, prescrições e documentos
+médicos podem ser criados sem consulta agendada, mas nunca sem paciente, clínica, autoria, permissões
+e auditoria. O modelo já suporta os vínculos opcionais; falta expor a criação de forma coerente na UI.
 
 ### D78 — Embedded Signup indisponível para conta externa e contrato do token Meta
 
@@ -1205,7 +1226,7 @@ diferença que o readback D50 × D80 já provou e nunca oferece “tentar novame
 ---
 
 ## 6. Track O — Onboarding self-serve
-Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá uma experiência única; o onboarding não pergunta módulo/especialidade, não exibe especialidade “em breve” e não roteia para dashboards diferentes. Isso não remove CRM/especialidade profissional, procedimentos, templates clínicos nem a lista de especialidades informada pelo agente. **O-1** wizard (atribuição do Qoro→média/mês→email+senha→plano→verificação→entrou; trial **7d**; preço **padrão**). **O-2** onboarding concluído→dashboard único, com dependências a confirmar na auditoria própria do Track O. **O-3** tour. **O-4** Central de Documentação (Asaas/WhatsApp).
+Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá uma experiência única; o onboarding não pergunta módulo/especialidade, não exibe especialidade “em breve” e não roteia para dashboards diferentes. Isso não remove CRM/especialidade profissional, procedimentos, templates clínicos nem a lista de especialidades informada pelo agente. **O-1** wizard (atribuição do Qoro→média/mês→email+senha→plano→verificação→entrou; trial **7d**; preço **padrão**). **O-2** onboarding concluído→dashboard único, com dependências a confirmar na auditoria própria do Track O. **O-3** tour. **O-4** Central de Documentação autenticada em `/documentacao`: primeiros passos, fluxos por papel, prontuário/documentos, financeiro, Asaas, Meta/WhatsApp, IA, segurança e troubleshooting. Ela não se confunde com `/documentos`, que contém documentos clínicos reais.
 
 ---
 
@@ -1213,10 +1234,12 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
 - **P1:** **2.1.0 spike regulatório de documento de pagamento** → 2.1 comprovante/recibo conforme
   [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) · **2.2.0 SPIKE Memed** (validar
   **contrato · custos · requisitos regulatórios · dependência comercial** ANTES de qualquer código —
-  integração externa não começa sem o spike passar) → 2.2 Memed · 2.3 template psiquiátrico · 2.4
-  recuperação falta/retorno · **2.H·2.S**.
+  integração externa não começa sem o spike passar) → 2.2 Memed · **2.3 ✅ template psiquiátrico
+  local (código/Unit/E2E controlado DEV 1/1 PASS, cleanup zero)** · **2.4A retorno existente com
+  smoke C14 DEV 9/9 PASS** · **2.4B recuperação de falta implementada e validada em DEV,
+  smoke C14 10/10 PASS; rollout/E2E Meta pendentes** · **2.H·2.S**.
 - **P2:** conselho genérico (fundação; psicologia clínica desacoplada) · pacote/mensalidade · O-2 · **3.H·3.S**.
-- **P3:** NPS · modalidade online · convênio/TISS · NFS-e (parceiro) · psicologia clínica completa.
+- **P3:** NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clínica completa.
 - **Adiado:** CRM/UTM/reativação · repasse.
 
 ---
@@ -2820,9 +2843,9 @@ dados ou um estado inexistente produziria um documento enganoso.
 1. **2.1A — comprovante não fiscal:** gerar um comprovante por baixa `kind = 'payment'`, com aviso claro
    de que não substitui Receita Saúde, NFS-e ou documento fiscal. Ele atende conciliação/atendimento ao
    paciente sem prometer validade tributária inexistente.
-2. **2.1B — documento fiscal:** tratar Receita Saúde (prestador PF) e NFS-e/recibo de PJ como
-   integrações próprias, depois de confirmar contrato, identidade legal, delegação, cancelamento e
-   retenção. Não usar scraping nem API presumida.
+2. **2.1B — documento fiscal:** para clínicas PJ, usar o Asaas como parceiro de NFS-e, vinculando a
+   nota à cobrança e acompanhando autorização/erro/cancelamento de forma assíncrona. Para prestador PF,
+   Receita Saúde permanece integração própria. Não usar scraping nem construir motor municipal.
 3. Capturar/confirmar o **pagador real** no ato do recebimento; não presumir que seja o paciente,
    responsável cadastrado, titular do cartão ou usuário logado. Beneficiário e pagador permanecem
    distintos.
@@ -2835,6 +2858,8 @@ dados ou um estado inexistente produziria um documento enganoso.
 
 - [x] **Aprovada em 06/09/2026:** 2.1A como “Comprovante de pagamento — não fiscal”, deixando Receita
   Saúde e NFS-e como integrações separadas.
+- [x] **Aprovada em 07/09/2026:** Asaas como parceiro fiscal de NFS-e para clínicas PJ; NF-e de produto,
+  Receita Saúde PF e motor municipal próprio ficam fora desse contrato.
 - [x] **Rejeitada para este slice:** exigir recibo médico/fiscal já na 2.1. Esse caminho exige primeiro
   definir PF/PJ,
   provedor fiscal, identidade legal do emitente, pagador, beneficiário, assinatura/numeração,
@@ -2896,6 +2921,429 @@ antes do código.
 - [x] ADR-054 criada e aceita para 2.1A;
 - [x] arquitetura, ameaças, privacidade, idempotência e matriz de testes propostas;
 - [x] decisão humana: 2.1A aprovada e recibo fiscal integral rejeitado para este slice;
+- [x] parceiro de NFS-e PJ escolhido: Asaas; contrato assíncrono e responsabilidades registrados na
+  ADR-054;
 - [ ] revisão jurídico-contábil da copy e do enquadramento da primeira clínica piloto;
 - [ ] código, migration, testes, E2E e rollout — não iniciados; aguardam os gates da Camada 1 e a
   revisão jurídico-contábil definida acima.
+
+---
+
+## 23. Central de Documentação e documentos clínicos longitudinais
+
+**Estado em 07/09/2026:** `DECISÃO DE PRODUTO DOCUMENTADA; CÓDIGO NÃO INICIADO`. Esta seção expande o
+O-4 e registra a [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md). Não autoriza migration,
+deploy, integração Memed/SNCR ou mudança em documento já assinado.
+
+### 23.1 Dois produtos com nomes próximos, mas dados completamente diferentes
+
+- **`/documentacao` — Central de Documentação:** conteúdo de ajuda sobre como configurar e usar o
+  Qoro. Não contém dados de paciente e não emite documentos clínicos;
+- **`/documentos` — Documentos clínicos:** feed tenant-scoped de prescrições, atestados, declarações,
+  pedidos de exame e encaminhamentos reais. Mantém RBAC, RLS, criptografia e auditoria clínica.
+
+O menu, títulos, busca e breadcrumbs devem preservar essa distinção. A Central de Documentação será
+autenticada no primeiro release; material público de marketing continua em `qoro.dev` e não expõe
+runbooks internos, configurações sensíveis, IDs, tokens ou dados de pacientes.
+
+### 23.2 Escopo da Central de Documentação O-4
+
+Estrutura inicial:
+
+1. **Primeiros passos:** acesso, papéis, permissões, onboarding, dashboard e conceitos do Qoro;
+2. **Fluxos por papel:** dono/gestor, secretaria, profissional clínico e financeiro;
+3. **Agenda e pacientes:** cadastro, agendamento, confirmação, cancelamento e busca;
+4. **Clínico:** criar, salvar, assinar, corrigir por adendo e localizar prontuários; prescrições,
+   atestados, declarações, pedidos de exame e encaminhamentos;
+5. **Financeiro:** baixa, sinal, restante, estorno, chargeback, comprovante não fiscal e estados que
+   exigem suporte;
+6. **Integrações:** Asaas de pagamentos/NFS-e, Meta/WhatsApp, IA e, quando aprovada, Memed;
+7. **Segurança e LGPD:** permissões, compartilhamento, exportação, retenção e exclusão;
+8. **Solução de problemas:** mensagens de erro por origem, estado operacional, ações seguras e quando
+   acionar suporte.
+
+Cada artigo terá audiência/papel, pré-requisitos, passos, resultado esperado, erros conhecidos,
+“última revisão” e links para o fluxo real. Conteúdo de provider precisa diferenciar configuração do
+Qoro, configuração externa e evidência observada — nunca afirmar que webhook, nota, pagamento ou
+mensagem funcionam apenas porque uma tela foi salva.
+
+### 23.3 Criação clínica sem consulta agendada
+
+A auditoria do código mostrou que o domínio já está preparado:
+
+- `prontuarios.appointment_id` é opcional e a ficha do paciente já cria prontuário manual;
+- `prescriptions.prontuario_id` é opcional;
+- `medical_documents` já depende de paciente, profissional e clínica, não de consulta;
+- `/documentos` hoje é somente leitura; prescrições/documentos são criados no Consultório ou dentro
+  de um prontuário.
+
+A decisão é completar a experiência existente:
+
+```text
+/documentos ou ficha do paciente
+        ↓
+Novo documento
+        ↓
+paciente + tipo documental
+        ↓
+builder tipado + credenciais/permissão
+        ↓
+rascunho, assinatura e emissão conforme o tipo
+        ↓
+feed da clínica e histórico do paciente
+```
+
+Consulta e prontuário são vínculos opcionais conforme o tipo; `clinic_id`, `patient_id` e autor são
+obrigatórios. O sistema não criará consulta artificial para justificar uma emissão e não permitirá
+documento órfão ou editor genérico que contorne regras de prescrição/atestado. Abrir pelo Consultório
+apenas preenche os vínculos reais já existentes.
+
+### 23.4 Entrega proposta
+
+1. **O-4.0 — arquitetura de conteúdo:** inventário das telas/integrações, taxonomia, busca, papéis e
+   ownership de atualização;
+2. **O-4.1 — shell `/documentacao`:** índice pesquisável, artigos versionados e navegação contextual;
+3. **C2.0 — contrato de criação avulsa:** auditar builders, permissões e tipos que aceitam rascunho ou
+   exigem assinatura imediata;
+4. **C2.1 — UI sem migration presumida:** CTAs em `/documentos` e Pacientes, reutilizando actions,
+   schemas, PDFs e idempotência atuais;
+5. **C2.2 — prescrição regulada:** Memed/SNCR somente depois do spike 2.2.0, assinatura e estados
+   autoritativos confirmados;
+6. **O.H/C2.H e O.S/C2.S:** segurança e estabilização independentes.
+
+### 23.5 Aceite e testes planejados
+
+- Unit: taxonomia/busca da ajuda; seleção de paciente/tipo; builders e copy por documento;
+- RBAC/RLS: perfil sem permissão e tenant A → B negados em leitura, criação, assinatura e download;
+- integração: com/sem `appointment_id`, idempotência, snapshots, criptografia e imutabilidade;
+- E2E: criar pela ficha do paciente, por `/documentos` e pelo Consultório e provar que os três caminhos
+  convergem para o mesmo contrato sem criar consulta fictícia;
+- documentação: artigos apontam para rotas reais, não expõem segredo/PII e registram versão;
+- regressão: prontuários e PDFs atuais continuam acessíveis, assinados e imutáveis.
+
+### 23.6 Checklist da decisão
+
+- [x] `/documentacao` separado de `/documentos`;
+- [x] categorias e contrato editorial inicial do O-4 definidos;
+- [x] Asaas registrado como parceiro de NFS-e na documentação da integração;
+- [x] modelo atual auditado: vínculos opcionais já existem e não exigem migration por princípio;
+- [x] invariantes de paciente, autoria, tenant, assinatura e auditoria registradas na ADR-055;
+- [ ] discovery detalhado O-4.0 e C2.0;
+- [ ] código, testes, E2E, rollout e documentação para usuários finais.
+
+## 24. Camada 2 — 2.2.0 spike da integração Memed
+
+**Estado em 07/09/2026: PARTIAL / BLOCKED externo.** O spike documental foi executado e consolidado
+na [ADR-056](adr/056-spike-integracao-memed.md). A integração é tecnicamente viável, mas código,
+migration, SDK e credenciais continuam deliberadamente não iniciados porque os contratos comercial,
+operacional, de segurança e regulatório ainda não foram confirmados.
+
+### 24.1 O que a documentação oficial confirma
+
+- a Memed combina API backend com o script frontend `MdHub`, sempre por HTTPS;
+- API key e secret ficam somente no backend; o browser recebe token transitório do prescritor;
+- token de prescritor não é estático e deve ser recuperado/renovado conforme o contrato;
+- novas inserções de prescritor exigem também CPF ou passaporte e data de nascimento;
+- emissão e exclusão produzem eventos do frontend exigidos na homologação;
+- produção depende de credenciais e avaliação/homologação do fornecedor;
+- tela cheia é o modo recomendado; embed exige no mínimo 820 × 700;
+- os novos receituários controlados eletrônicos dependem do SNCR. A previsão pública da Anvisa para
+  disponibilização em 30/09/2026 não é prova de capacidade disponível hoje.
+
+Fontes oficiais e data de consulta estão registradas na ADR-056.
+
+### 24.2 Lacunas confirmadas no Qoro atual
+
+1. `profiles` ainda não possui a identidade mínima completa exigida para cadastrar o prescritor na
+   Memed;
+2. Patient não expõe seam específico com os dados mínimos de prescrição;
+3. `prescriptions` não projeta provider, identidade externa, versão e estado autoritativo Memed;
+4. eventos do browser, sozinhos, não provam emissão ou exclusão no provider;
+5. o CSP atual não possui os hosts Memed e não deve ser aberto globalmente sem inventário;
+6. `controle_especial` local não pode ser anunciado como receituário controlado eletrônico regulado;
+7. preço, limites, SLA, suporte, LGPD, retenção, suboperadores e residência não constam de um contrato
+   da parceria Qoro.
+
+### 24.3 Arquitetura aprovada apenas como proposta
+
+```text
+sessão autenticada + tenant derivado no servidor
+        ↓
+RBAC + conselho + paciente + tipo permitido
+        ↓
+backend obtém token transitório do prescritor
+        ↓
+MdHub carrega uma vez; token não entra em URL/storage/log
+        ↓
+profissional emite/exclui
+        ↓
+evento frontend é somente sinal de sincronização
+        ↓
+backend faz readback ou valida webhook server-to-server
+        ↓
+projeção Clinical tenant-scoped, idempotente e auditável
+```
+
+A prescrição local permanece disponível como emissor explícito. O sistema não emitirá uma cópia
+local e outra Memed de forma silenciosa. Exclusão externa cria estado/tombstone auditável; não apaga
+o registro clínico. Receitas controladas terão gate separado de SNCR, assinatura, capacidade do
+provider, homologação e revisão jurídica.
+
+### 24.4 Ação manual necessária antes de implementar
+
+Solicitar formalmente à Memed:
+
+1. proposta de parceria/API com preço, franquia, limites, ambientes, SLA e suporte;
+2. DPA/LGPD com papéis, suboperadores, residência, retenção, descarte e incidentes;
+3. TTL, renovação, revogação e escopo dos tokens de prescritor;
+4. readback server-side ou webhook para emissão, exclusão, correção e reemissão;
+5. autenticação, assinatura, replay protection, retry e versionamento dos webhooks/eventos;
+6. hosts de API/script/frame/mídia para CSP em homologação e produção;
+7. semântica de prescritor atuando em múltiplas clínicas e identificadores externos;
+8. dados sintéticos, credenciais e checklist formal de homologação;
+9. suporte real ao SNCR e a cada tipo de receituário depois da disponibilização oficial.
+
+Sem essas respostas, criar schema ou carregar SDK seria adivinhar contrato externo e ampliar a
+superfície de segurança sem prova.
+
+Mensagem sugerida para o primeiro contato com a Memed:
+
+> Olá! Somos a Qoro, uma plataforma SaaS multi-tenant para clínicas, e estamos avaliando integrar a
+> prescrição digital Memed por API + MdHub. Precisamos da proposta comercial/parceria para
+> homologação e produção, incluindo preço, franquias, limites, SLA e suporte; DPA/LGPD com
+> suboperadores, residência, retenção e incidentes; documentação de TTL/rotação/revogação do token de
+> prescritor; readback server-side ou webhooks de emissão, exclusão, correção e reemissão, com
+> autenticação, retries e versionamento; lista completa de hosts de homologação/produção para CSP;
+> semântica de um prescritor atuando em múltiplas clínicas; e cobertura prevista do SNCR por tipo de
+> receituário. Também solicitamos credenciais e checklist de homologação com dados sintéticos. Podem
+> encaminhar esses materiais e indicar o contato técnico/comercial responsável?
+
+### 24.5 Testes que serão obrigatórios
+
+- Unit: routing local/Memed, loader single-flight, token ausente/expirado, mapping e logs sem
+  segredo/PII;
+- Integration: token → MdHub → evento → readback/webhook → projeção, inclusive replay, ordem
+  invertida e falha parcial;
+- RBAC/RLS: tenant A → B negado em consulta, emissão, sincronização e exclusão;
+- CSP/security: somente hosts aprovados; token fora de URL, storage e telemetria;
+- E2E controlado: homologação com prescritor/paciente sintéticos, emissão, PDF,
+  exclusão/correção e readback;
+- E2E real/regulatório: somente após homologação; controlados exigem prova adicional do SNCR e da
+  assinatura aplicável.
+
+Mock não será classificado como homologação ou E2E real.
+
+### 24.6 Checklist 2.2.0
+
+- [x] documentação oficial de arquitetura, token, eventos e homologação auditada;
+- [x] modelo e CSP atuais do Qoro comparados com os requisitos conhecidos;
+- [x] fronteiras Identity/Patient/Clinical e isolamento multi-tenant definidos;
+- [x] risco de tratar evento frontend como autoridade registrado;
+- [x] gate separado para receituários controlados e SNCR registrado;
+- [x] ADR-056 e D83 criados;
+- [ ] contrato comercial/LGPD/SLA e documentação técnica privada recebidos;
+- [ ] credenciais e homologação Memed disponíveis;
+- [ ] disponibilidade e cobertura real do SNCR confirmadas;
+- [ ] ADR de implementação aprovada com schema/contratos reais;
+- [ ] código, migrations, testes, E2E e rollout.
+
+## 25. Camada 2 — 2.3 template psiquiátrico: reconciliação da implementação existente
+
+**Estado em 07/09/2026: CÓDIGO/UNIT/E2E CONTROLADO DEV VERDES.** O roadmap tratava a
+2.3 como futura, mas o commit `e60f8f0` já havia adicionado a implementação. Esta reconciliação não
+criou comportamento novo: confirmou o que está no HEAD e impediu que a mesma entrega fosse refeita.
+
+### 25.1 O que está implementado
+
+- `src/contexts/clinical/templates/psiquiatria.ts` define um roteiro SOAP de Psiquiatria;
+- o registry `CLINICAL_TEMPLATES` o expõe com ID estável `psiquiatria`;
+- o editor de prontuário permite selecioná-lo e persiste o conteúdo pelo fluxo clínico existente;
+- o roteiro cobre queixa, história clínica/psicossocial, exame físico e do estado mental, avaliação
+  de risco, hipóteses/diferenciais, plano terapêutico/de segurança e observações;
+- identidade do paciente não é duplicada no corpo livre: continua no registro tenant-scoped do
+  paciente ao qual o prontuário está vinculado;
+- não existe LLM, decisão diagnóstica automática, módulo de Psiquiatria, tabela de template ou
+  dependência Memed nesse caminho;
+- o template é estrutura de documentação, não validação automática da qualidade do ato clínico.
+
+A comparação documental permanece coerente com a
+[Resolução CFM 2.057/2013](https://sistemas.cfm.org.br/normas/visualizar/resolucoes/BR/2013/2057),
+modificada pelas Resoluções 2.153/2016 e 2.165/2017, e com os campos mínimos de anamnese, exame do
+estado mental, hipóteses, exames, diagnóstico e conduta descritos na
+[2.153/2016](https://sistemas.cfm.org.br/normas/visualizar/resolucoes/BR/2016/2153). Isso é evidência
+normativa de estrutura; não substitui revisão de conteúdo por psiquiatra da clínica piloto.
+
+### 25.2 Evidência atual
+
+- commit de origem: `e60f8f0 feat(clinical): add psychiatry record template`;
+- unit do template: catálogo, chaves persistíveis sem duplicata e presença dos conteúdos clínicos;
+- teste de componente: seleção no editor e render dos campos específicos;
+- suíte integral de 07/09: **319 arquivos e 2.989 testes PASS**;
+- lint, typecheck, build, migrations, registry, observabilidade, `arch:check`, `arch:db-check` e
+  `arch:graphs --check`: **PASS**;
+- `e2e/psychiatry-template.spec.ts` cobre criação de paciente/prontuário, seleção, preenchimento,
+  salvamento e reload. Em 07/09 foi executado contra `127.0.0.1:3000`, com `E2E_MUTATION=1` e
+  fixture sintética tenant-scoped: **1/1 PASS em Chromium**;
+- a primeira chamada técnica encontrou `ERR_CONNECTION_REFUSED` porque o servidor local ainda não
+  estava ativo; ela não chegou ao fluxo clínico e seu teardown removeu a fixture. Com o servidor
+  DEV saudável, a repetição autorizada passou integralmente;
+- o teardown da execução verde registrou `fixture removida`; o readback posterior cobriu os dois
+  run IDs desta rodada, confirmou zero pacientes psiquiátricos sintéticos e ausência do manifesto
+  temporário.
+
+### 25.3 Limites e aceite restante
+
+O template local pode evoluir independentemente da Memed. A 2.2 trata emissão regulada de
+prescrição; a 2.3 trata documentação estruturada no prontuário. Uma não deve bloquear nem ser
+confundida com a outra.
+
+Antes da onda piloto, um psiquiatra deve avaliar linguagem, ordem dos campos e carga cognitiva com
+dados sintéticos. A revisão humana pode solicitar ajuste de copy, mas não deve transformar o template
+em diagnóstico obrigatório, checklist rígido de risco ou substituto do julgamento médico.
+
+### 25.4 Checklist 2.3
+
+- [x] template de Psiquiatria definido em código;
+- [x] catálogo público e editor integrados;
+- [x] campos persistidos pelo prontuário existente, sem schema paralelo;
+- [x] unit e componente presentes e verdes na suíte integral;
+- [x] E2E mutável protegido por localhost, opt-in e fixture sintética;
+- [x] ausência de LLM, módulo por especialidade e dependência Memed confirmada;
+- [x] referências normativas oficiais rechecadas em 07/09;
+- [x] autorização e reexecução do E2E mutável conectado em DEV — 1/1 PASS e cleanup zero em 07/09;
+- [ ] validação clínica/usabilidade com psiquiatra da onda piloto;
+- [ ] evidência de rollout/Preview desta subfase no SHA que vier a ser publicado.
+
+## 26. Camada 2 — 2.4 recuperação de falta/retorno
+
+**Estado em 07/09/2026: 2.4A VERDE; 2.4B CÓDIGO/UNIT/INTEGRATION/SMOKE DEV E MIGRATION PROD
+VERDES; PUBLICAÇÃO E E2E META REAL PENDENTES.** A política de uma mensagem no próximo dia útil às
+10h, sem conteúdo clínico/financeiro e com opt-out `followup`, foi aprovada. A migration 0095 foi
+aplicada e verificada em DEV e produção. O código ainda não foi publicado e nenhum envio Meta real
+foi executado porque o template permanece `IN_REVIEW`/“Em análise”.
+
+### 26.1 2.4A — retorno clínico existente
+
+O encadeamento atual é:
+
+```text
+prontuário assinado com needsReturn + returnDays
+        ↓
+clinical.prontuario.signed
+        ↓
+C14 agenda followup para returnDate - 2 dias, 18h local
+        ↓
+dedup followup:{prontuarioId}
+        ↓
+worker relê prontuário e agenda no send-time
+        ↓
+cancela se retorno não é mais necessário ou já ocorreu
+        ↓
+suppressionPurposeFor(followup) + template Meta + envio idempotente
+```
+
+Ele reutiliza outbox, lease, retry/backoff, janela 8–20h, contato atual, suppression e Messaging. O
+commit de origem é `91d43c8`. Em 07/09, 84 testes focados de evento/validação/policy/template/worker
+passaram; a suíte integral também permaneceu 2.989/2.989. Após autorização específica, o
+`pnpm smoke:c14` foi reexecutado em DEV e terminou **9 OK · 0 FAIL**. O passo 7 provou o encadeamento
+`clinical.prontuario.signed → outbox worker → followup`; os demais passos provaram consentimento,
+suppression, dedup, janela 8–20h, lease/SKIP LOCKED, tenant removido terminalmente ignorado e RLS.
+O cleanup posterior cobriu as duas tentativas da rodada e confirmou zero clínica, outbox,
+idempotency key e audit event para as quatro clínicas sintéticas. Entrega real do template de retorno
+até o aparelho continua sem evidência atual.
+
+### 26.2 2.4B — recuperação após falta implementada em DEV
+
+O fluxo agora reutiliza o evento existente e a mesma C14:
+
+```text
+scheduling.appointment.no_show(noShowAt)
+        ↓
+handler composto da aplicação
+        ├─ agenda no_show_followup em transação tenant-scoped curta
+        └─ preserva a consequência financeira existente em Payments
+        ↓
+próximo dia útil às 10h local · dedup no_show_followup:{appointmentId}
+        ↓
+worker relê falta + paciente + remarcação posterior à falta
+        ↓
+suppressionPurposeFor = followup · contato atual · janela C14
+        ↓
+template qoro_no_show_followup · Messaging/Meta
+```
+
+O payload guarda apenas `patientId`, `appointmentId` e o instante autoritativo `noShowAt`. O worker
+cancela sem contato se a falta foi corrigida, o paciente diverge ou existe consulta ativa equivalente
+marcada depois da falta. Usar `noShowAt` como marco também cobre uma remarcação para antes das 10h do
+dia de execução. Não há regra financeira, dado clínico, telefone, nome ou LLM no job.
+
+O outbox continua com registro 1:1. Um único handler na camada `app` compõe C14 e Payments; não há
+duplo consumidor no registry nem dependência circular. O grafo declara os dois efeitos lógicos e
+permanece com **0 ciclos**.
+
+Copy do template:
+
+> Oi, {{1}}. Vimos que não foi possível comparecer ao seu horário. Se quiser remarcar, responda a
+> esta mensagem e nossa equipe ajuda você.
+
+Configuração: categoria `Utility`, idioma `pt_BR`, nome `qoro_no_show_followup`, sem cabeçalho,
+rodapé ou botões. O runtime lê `META_TEMPLATE_NO_SHOW_FOLLOWUP_ID`. A variável já foi informada pelo
+fundador em Preview e produção, mas permanece inerte até o novo deploy. No fechamento desta etapa, o
+template ainda estava “Em análise” no Meta.
+
+### 26.3 Evidências e pendências manuais
+
+Evidência local/DEV concluída em 07/09:
+
+- migration aditiva `0095_proactive_no_show_followup.sql` aplicada em DEV e produção;
+- readback final: enum e `_schema_version` presentes uma vez; `clinics`, `outbox`,
+  `idempotency_keys` e `audit_events` zerados para os tenants sintéticos;
+- focused final: **29/29** em 4 arquivos;
+- suíte integral: **3.019/3.019** em 323 arquivos;
+- smoke C14 DEV: **10 OK · 0 FAIL**, com evento repetido → um job, horário local, remarcação,
+  isolamento RLS, lease/SKIP LOCKED e cleanup zero;
+- na repetição pré-publicação, o smoke revelou e corrigiu D87 no próprio harness: “amanhã” era somado
+  em UTC e podia saltar dois dias civis após 21h em São Paulo. Depois de usar os helpers canônicos de
+  data/fuso, a execução final voltou a **10 OK · 0 FAIL**;
+- todos os gates técnicos do lote passaram; grafo 54/293/0/67 e 42 eventos producer-ahead.
+- Prettier direcionado e `git diff --check` passaram. O `format:check` global permanece vermelho em
+  128 arquivos fora do diff 2.4B; nenhum arquivo desta entrega foi listado.
+- rollout de banco em produção: pré-check encontrou 95 migrations aplicadas e somente a 0095
+  pendente; o migrador oficial gerou backup de **2.695.585 bytes**, adquiriu/liberou o advisory lock
+  4242 e terminou sem sentinel de falha. O pós-check encontrou 96 migrations, marcador
+  `0095-proactive-no-show-followup` uma vez e `no_show_followup` no enum.
+
+O que ainda depende de execução ou dependência externa:
+
+1. no Meta, confirmar que `qoro_no_show_followup` está `APPROVED` no mesmo WABA conectado;
+2. publicar o lote autorizado na branch e aguardar o deploy;
+3. depois do deploy, executar smoke autenticado no Preview;
+4. quando o template for aprovado, executar o E2E Meta já autorizado com o destinatário consentido;
+5. observar o piloto. Feriados no cálculo de dia útil são melhoria futura, não lacuna desta versão.
+
+Não é necessária nova configuração da variável antes desses passos. Não fazer POST Meta nem testar
+em aparelho antes da aprovação do template; a autorização e o destinatário consentido já foram
+confirmados pelo fundador.
+
+### 26.4 Checklist 2.4
+
+- [x] fatos de retorno e falta separados por autoridade;
+- [x] fluxo de retorno 2.4A localizado e auditado;
+- [x] dedup, guardas de send-time, suppression e template do retorno confirmados;
+- [x] 84 testes focados e suíte integral verdes;
+- [x] smoke C14 conectado em DEV — 9/9 PASS e cleanup zero em 07/09;
+- [x] lacuna original de consumidor proativo do `no_show` confirmada;
+- [x] menor desenho C14 para 2.4B registrado na ADR-057;
+- [x] política de horário/copy de 2.4B aprovada pelo fundador;
+- [x] migration e código 2.4B autorizados em DEV;
+- [x] migration 0095 aplicada e verificada em DEV;
+- [x] migration 0095 aplicada e verificada em produção com backup, advisory lock e readback;
+- [x] Unit, Integration, RBAC/RLS e smoke C14 2.4B — 10/10 com cleanup zero;
+- [x] template próprio, suppression central, send-time guards e ausência de LLM validados;
+- [x] regressão de Payments no no-show e `followup` de retorno verde;
+- [x] arquitetura 0 ciclos e registry 1:1 preservados pelo handler composto;
+- [ ] E2E Meta real do template de retorno;
+- [ ] template `qoro_no_show_followup` aprovado no Meta;
+- [ ] commit/push/deploy e smoke autenticado no Preview;
+- [ ] E2E real Meta de `no_show_followup` com destinatário consentido;
+- [ ] rollout progressivo e estabilização 2.H/2.S.

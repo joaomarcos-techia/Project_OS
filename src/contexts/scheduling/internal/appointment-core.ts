@@ -109,6 +109,7 @@ function transitionPayload(
           patientId: appt.patientId ?? null,
           fromStatus: appt.status,
           toStatus: target,
+          noShowAt: new Date().toISOString(),
         },
       };
     default: // CONFIRMED / CHECKED_IN

@@ -12,6 +12,7 @@ import type {
   DepositLinkPayload,
   DunningPayload,
   FollowupPayload,
+  NoShowFollowupPayload,
   ReminderPayload,
   RemainderLinkPayload,
   WaitlistOfferPayload,
@@ -96,11 +97,13 @@ function envName(type: ProactiveJobType): string {
         ? env.META_TEMPLATE_DUNNING_FRIENDLY_ID
         : type === 'waitlist_offer'
           ? env.META_TEMPLATE_WAITLIST_OFFER_ID
-          : type === 'deposit_link'
-            ? env.META_TEMPLATE_DEPOSIT_LINK_ID
-            : type === 'remainder_link'
-              ? env.META_TEMPLATE_REMAINDER_LINK_ID
-              : env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
+          : type === 'followup'
+            ? env.META_TEMPLATE_FOLLOWUP_RETURN_ID
+            : type === 'no_show_followup'
+              ? env.META_TEMPLATE_NO_SHOW_FOLLOWUP_ID
+              : type === 'deposit_link'
+                ? env.META_TEMPLATE_DEPOSIT_LINK_ID
+                : env.META_TEMPLATE_REMAINDER_LINK_ID;
   if (!name) throw new TemplateNotConfiguredError(type);
   return name;
 }
@@ -115,6 +118,7 @@ export function buildProactiveTemplate(
     | ReminderPayload
     | DunningPayload
     | FollowupPayload
+    | NoShowFollowupPayload
     | WaitlistOfferPayload
     | DepositLinkPayload
     | RemainderLinkPayload,
@@ -165,10 +169,16 @@ export function buildProactiveTemplate(
       moneyFmt.format(p.amount),
       requireInvoiceUrl(type, extra?.invoiceUrl),
     ];
-  } else {
+  } else if (type === 'followup') {
     const p = payload as FollowupPayload;
     // "Oi {nome}, Dr {nome} pediu retorno. Quer marcar pra essa semana?"
     variables = [patientNome, p.doctorNome ?? 'seu médico'];
+  } else if (type === 'no_show_followup') {
+    // `no_show_followup`: só o nome atual do contato; nenhum dado clínico ou financeiro.
+    variables = [patientNome];
+  } else {
+    const unsupported: never = type;
+    throw new TemplateNotConfiguredError(unsupported);
   }
 
   return { templateName, languageCode, variables };

@@ -25,13 +25,16 @@ Depois dele, leia:
 | `docs/adr/051-conciliacao-sinal-e-recebivel.md` | **as 4 invariantes financeiras**, na §2.1 |
 | `docs/adr/052-risco-e-reversao-de-pagamento-do-paciente.md` | chargeback e compensação financeira |
 | `docs/adr/054-documento-de-pagamento-e-recibo-fiscal.md` | spike 2.1: comprovante não fiscal versus Receita Saúde/NFS-e |
+| `docs/adr/055-documentos-clinicos-fora-da-consulta.md` | documentos clínicos centrados no paciente, com consulta opcional |
+| `docs/adr/056-spike-integracao-memed.md` | spike 2.2.0: contrato, segurança, homologação e SNCR antes do SDK Memed |
+| `docs/adr/057-recuperacao-falta-retorno.md` | 2.4: retorno clínico existente e recuperação após falta implementada em DEV |
 | `docs/runbooks/payment-account-connect.md` | operação do ciclo de cobrança do paciente |
 | `docs/runbooks/asaas-webhook-assinatura.md` | webhook da conta do Qoro (governa acesso ao produto) |
 
 ### Atualização operacional de 06/09/2026
 
 O restante deste handoff contém histórico útil, mas qualquer estado divergente deve ceder ao bloco
-canônico e às seções 20–22 de `qorov2.md`:
+canônico e às seções 20–24 de `qorov2.md`:
 
 - D62 está **PASS integral e limpo**, sem mocks: `requested → in_dispute → lost`, compensação ligada à
   baixa, `chargeback_loss` única, saldo reaberto, atendimento preservado e replay 0/3. O cleanup
@@ -73,7 +76,9 @@ canônico e às seções 20–22 de `qorov2.md`:
 - D50 permanece na conta alvo com um único refund parcial `PENDING`; readback independente de 06/09
   confirmou cobrança `CONFIRMED`, estado local `paid/confirmation_pending` e a mesma intenção/valor
   únicos. A consulta separada da D80 confirmou cobrança `RECEIVED` e refund `CANCELLED`: os estados
-  não estão misturados. D72 foi implementado e publicado: o Caixa distingue espera, confirmação,
+  não estão misturados. Em 07/09, o modo estritamente somente leitura repetiu a correlação e manteve
+  exatamente um refund de R$ 10 `PENDING`, sem POST, retry, reconcile ou cleanup. D72 foi implementado
+  e publicado: o Caixa distingue espera, confirmação,
   cancelamento sem devolução e falha sem expor ids do provider nem oferecer retry. Unit/UI 22/22,
   DEV conectado 1/1, E2E local autenticado `/caixa` 200/zero `pageerror`, suíte 2.989/2.989, build e
   gates passaram. `b6f8194` está no remoto, o deployment terminou `success`, o Preview passou 6/6 e
@@ -98,6 +103,24 @@ canônico e às seções 20–22 de `qorov2.md`:
   rate limit e RBAC já existem, mas não há pagador persistido nem `payment_transaction.status`; o
   trabalho proposto foi dividido em 2.1A.1 (snapshot, Financial + Patient) e 2.1A.2 (render/entrega),
   sem misturar com D72;
+- o spike documental 2.2.0 foi concluído em 07/09 na **ADR-056 Proposed**. A Memed é tecnicamente
+  integrável por API backend + MdHub frontend, porém implementação, migration e SDK estão bloqueados
+  até contrato/preço/SLA/LGPD, credenciais/homologação, readback ou webhook server-side,
+  CSP/isolamento e capacidade real do SNCR serem confirmados. A prescrição local permanece o único
+  caminho implementado;
+- a auditoria de 07/09 reconciliou a **2.3**: o template psiquiátrico local já havia sido integrado em
+  `e60f8f0`, está no catálogo/editor e possui Unit, componente e E2E mutável protegido. A suíte atual
+  passou 2.989/2.989; após autorização, o E2E conectado DEV passou 1/1 em Chromium, com teardown e
+  readback de cleanup zero. A validação de linguagem/usabilidade continua para o psiquiatra da onda
+  piloto;
+- a **2.4B** foi aprovada e implementada em 07/09: `no_show` agenda um único
+  `no_show_followup` para o próximo dia útil às 10h, com guardas de falta/remarcação no send-time,
+  suppression central `followup`, template sem dado clínico/financeiro e a mesma C14. A migration
+  0095 foi aplicada em DEV e produção; em produção houve backup de 2.695.585 bytes, advisory lock e
+  readback 96/96. Focused 29/29, suíte 3.019/3.019 e smoke C14 10/10 passaram com cleanup zero. O
+  handler composto preserva o registry 1:1 e o grafo permanece sem ciclos. Commit/push/deploy e smoke
+  Preview estão autorizados e em execução; E2E Meta real está autorizado, mas aguarda o template sair
+  de “Em análise”;
 - gates do worktree integrado: lint/typecheck/build verdes, 2.975 testes em 318 arquivos, zero ciclos,
   `arch:db-check` zero findings, snapshots 54/293/0/67, migrations/registry/observabilidade verdes.
 - gates finais de D72/ADR-054: lint/typecheck/build verdes, 2.989 testes em 319 arquivos, zero
@@ -328,18 +351,28 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
   **7 dias** e preço **padrão**.
 - **O-2** onboarding concluído → dashboard único; dependências serão confirmadas na auditoria própria
   do Track O.
-- **O-3** tour. · **O-4** Central de Documentação (Asaas/WhatsApp). · **O.H** / **O.S**.
+- **O-3** tour. · **O-4** Central de Documentação autenticada em `/documentacao`, cobrindo primeiros
+  passos, papéis, fluxos, clínico, financeiro, Asaas/NFS-e, Meta/WhatsApp, IA, LGPD e troubleshooting.
+  Não confundir com `/documentos`, o feed de artefatos clínicos reais. · **O.H** / **O.S**.
 
 ### Camada 2 (P1)
 
 - **2.1.0** spike regulatório conforme `qorov2.md` §22/ADR-054: **concluído; 2.1A aprovada** como
   comprovante não fiscal por baixa, separado de Receita Saúde/NFS-e.
+- **Decisão fiscal de 07/09:** Asaas é o parceiro de NFS-e das clínicas PJ. Qoro orquestra
+  cobrança/nota e projeta somente estado autoritativo; não constrói motor municipal e não substitui
+  Receita Saúde PF.
 - **2.1** implementar em 2.1A.1/2.1A.2 somente depois dos gates da Camada 1; revisão
   jurídico-contábil permanece gate de rollout.
-- **2.2.0 SPIKE Memed** — validar **contrato, custos, requisitos regulatórios e dependência
-  comercial** ANTES de qualquer código. **Integração externa não começa sem o spike passar.**
-- **2.2** Memed (só se o spike passar) · **2.3** template psiquiátrico · **2.4** recuperação de
-  falta/retorno · **2.H** / **2.S**.
+- **2.2.0 SPIKE Memed** — spike documental executado em 07/09 e registrado na
+  [ADR-056](adr/056-spike-integracao-memed.md): arquitetura tecnicamente viável, porém
+  **PARTIAL/BLOCKED externo**. Contrato/preço/SLA/LGPD, credenciais/homologação, readback ou webhook
+  server-side, CSP/isolamento e capacidade real do SNCR precisam ser confirmados antes de qualquer
+  código, migration ou carregamento do SDK.
+- **2.2** Memed (só se o spike passar) · **2.3 ✅** template psiquiátrico local já integrado no
+  commit `e60f8f0`, com Unit/component PASS e E2E mutável conectado DEV 1/1 PASS, cleanup zero ·
+  **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B** recuperação de falta em
+  código/DEV e schema PROD, smoke C14 10/10, publicação e E2E Meta real pendentes · **2.H** / **2.S**.
 
 ### Camada 3 (P2)
 
@@ -348,7 +381,17 @@ Conselho genérico (fundação, com psicologia clínica desacoplada) · pacote/m
 
 ### Camada 4 (P3)
 
-NPS · modalidade online · convênio/TISS · NFS-e (via parceiro) · psicologia clínica completa.
+NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clínica completa.
+
+### Documentos clínicos fora da consulta
+
+- [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md) aceita em 07/09: documento clínico é
+  centrado no paciente; consulta agendada é vínculo opcional.
+- O domínio já suporta prontuário manual, prescrição sem prontuário e documento médico sem consulta.
+  A lacuna é UI: `/documentos` lista, mas não cria; os drawers estão no Consultório/prontuário.
+- Entrega futura: CTAs em `/documentos` e Pacientes reutilizando actions/schemas existentes, sem
+  migration presumida. Clínica, paciente, autor, RBAC/RLS, criptografia, assinatura aplicável,
+  idempotência e auditoria continuam obrigatórios.
 
 **Adiado, não esquecido:** CRM/UTM/reativação · repasse.
 

@@ -666,6 +666,13 @@
       "when": 1788560100000,
       "tag": "0094_patient_refund_terminal_confirmation",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1788783000000,
+      "tag": "0095_proactive_no_show_followup",
+      "breakpoints": true
     }
   ]
 }

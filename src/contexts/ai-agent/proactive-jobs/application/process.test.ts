@@ -37,6 +37,7 @@ vi.mock('@/contexts/scheduling', () => ({
   schedulingApiV1: {
     lookupAppointment: vi.fn(),
     lookupWaitlistOffer: vi.fn(),
+    hasFutureEquivalentAppointment: vi.fn(),
     hasSubsequentCompletedAppointment: vi.fn(),
   },
 }));
@@ -83,6 +84,11 @@ const followupPayload = {
   prontuarioId: U,
   doctorNome: 'Dr X',
   returnDate: '2026-09-10',
+};
+const noShowFollowupPayload = {
+  patientId: U,
+  appointmentId: U,
+  noShowAt: '2026-09-04T15:00:00.000Z',
 };
 const depositPayload = {
   patientId: U,
@@ -134,6 +140,7 @@ beforeEach(() => {
     signedAt: new Date('2026-06-10T12:00:00Z'),
   });
   vi.mocked(schedulingApiV1.hasSubsequentCompletedAppointment).mockResolvedValue(false);
+  vi.mocked(schedulingApiV1.hasFutureEquivalentAppointment).mockResolvedValue(false);
   vi.mocked(schedulingApiV1.lookupWaitlistOffer).mockResolvedValue({
     status: 'offered',
     patientId: U,
@@ -252,6 +259,126 @@ describe('WAIT-001 — oferta da lista de espera', () => {
 });
 
 describe('processProactiveBatch (C14 §14.6)', () => {
+  it('2.4B: falta ainda válida envia template próprio com propósito followup', async () => {
+    claim({
+      id: 'j-falta',
+      clinicId: 'c1',
+      type: 'no_show_followup',
+      payload: noShowFollowupPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+      status: 'faltou',
+      patientId: U,
+      procedureId: U,
+    } as never);
+    vi.mocked(messagingApiV1.sendText).mockResolvedValue({
+      id: 'o1',
+      status: 'accepted',
+      providerMessageId: 'w',
+      deduped: false,
+    });
+
+    const summary = await processProactiveBatch('no_show_followup');
+
+    expect(summary.sent).toBe(1);
+    expect(schedulingApiV1.hasFutureEquivalentAppointment).toHaveBeenCalledWith(
+      'c1',
+      expect.objectContaining({
+        patientId: U,
+        procedureId: U,
+        excludeAppointmentId: U,
+        after: new Date('2026-09-04T15:00:00.000Z'),
+      }),
+    );
+    expect(buildProactiveTemplate).toHaveBeenCalledWith(
+      'no_show_followup',
+      noShowFollowupPayload,
+      'Maria',
+      'America/Sao_Paulo',
+      undefined,
+    );
+    expect(messagingApiV1.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'j-falta', purpose: 'followup' }),
+    );
+  });
+
+  it('2.4B: falta corrigida antes do worker cancela sem contato', async () => {
+    claim({
+      id: 'j-falta',
+      clinicId: 'c1',
+      type: 'no_show_followup',
+      payload: noShowFollowupPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+      status: 'agendado',
+      patientId: U,
+      procedureId: U,
+    } as never);
+
+    const summary = await processProactiveBatch('no_show_followup');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith('c1', 'j-falta', 'lease-1', 'no_show_reversed');
+    expect(patientApiV1.getProactiveContact).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('2.4B: paciente divergente cancela sem procurar remarcação', async () => {
+    claim({
+      id: 'j-falta',
+      clinicId: 'c1',
+      type: 'no_show_followup',
+      payload: noShowFollowupPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+      status: 'faltou',
+      patientId: '22222222-2222-2222-2222-222222222222',
+      procedureId: U,
+    } as never);
+
+    const summary = await processProactiveBatch('no_show_followup');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith(
+      'c1',
+      'j-falta',
+      'lease-1',
+      'no_show_patient_mismatch',
+    );
+    expect(schedulingApiV1.hasFutureEquivalentAppointment).not.toHaveBeenCalled();
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
+  it('2.4B: remarcação equivalente existente cancela sem enviar', async () => {
+    claim({
+      id: 'j-falta',
+      clinicId: 'c1',
+      type: 'no_show_followup',
+      payload: noShowFollowupPayload,
+      attempts: 1,
+    });
+    vi.mocked(schedulingApiV1.lookupAppointment).mockResolvedValue({
+      status: 'faltou',
+      patientId: U,
+      procedureId: U,
+    } as never);
+    vi.mocked(schedulingApiV1.hasFutureEquivalentAppointment).mockResolvedValue(true);
+
+    const summary = await processProactiveBatch('no_show_followup');
+
+    expect(summary.cancelled).toBe(1);
+    expect(repo.cancel).toHaveBeenCalledWith(
+      'c1',
+      'j-falta',
+      'lease-1',
+      'no_show_already_rescheduled',
+    );
+    expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+  });
+
   it('1.6c: remainder_link resolve cobrança no send-time e envia pelo template próprio', async () => {
     claim({
       id: 'j-restante',

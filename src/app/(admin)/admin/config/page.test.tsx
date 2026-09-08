@@ -30,6 +30,7 @@ vi.mock('@/lib/env', () => ({
     META_TEMPLATE_CONFIRMATION_REMINDER_ID: 'reminder-template',
     META_TEMPLATE_DUNNING_FRIENDLY_ID: undefined,
     META_TEMPLATE_FOLLOWUP_RETURN_ID: 'followup-template',
+    META_TEMPLATE_NO_SHOW_FOLLOWUP_ID: 'no-show-template',
     META_TEMPLATE_LANG: 'pt_BR',
     ASAAS_API_KEY: 'asaas-secret-test',
     ASAAS_WEBHOOK_TOKEN: undefined,
@@ -260,7 +261,7 @@ describe('ConfigPage', () => {
     expect(screen.getByRole('region', { name: 'WhatsApp (Meta)' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Pagamentos (Asaas)' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Infra & segurança' })).toBeTruthy();
-    expect(screen.getAllByText('Configurado')).toHaveLength(9);
+    expect(screen.getAllByText('Configurado')).toHaveLength(10);
     expect(screen.getAllByText('Pendente')).toHaveLength(4);
     for (const secret of [
       'gemini-secret-test',
@@ -296,13 +297,15 @@ describe('ConfigPage', () => {
 
     const section = screen.getByRole('region', { name: 'Templates (Meta WhatsApp)' });
     expect(within(section).getByText('Idioma pt_BR')).toBeTruthy();
-    expect(within(section).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(section).getAllByRole('listitem')).toHaveLength(4);
     expect(within(section).getByText('Lembrete (confirmação)')).toBeTruthy();
     expect(within(section).getByText('Dunning (cobrança)')).toBeTruthy();
     expect(within(section).getByText('Follow-up (retorno)')).toBeTruthy();
+    expect(within(section).getByText('Recuperação após falta')).toBeTruthy();
     expect(within(section).getByText('reminder-template')).toBeTruthy();
     expect(within(section).getByText('followup-template')).toBeTruthy();
-    expect(within(section).getAllByText('Configurado')).toHaveLength(2);
+    expect(within(section).getByText('no-show-template')).toBeTruthy();
+    expect(within(section).getAllByText('Configurado')).toHaveLength(3);
     expect(within(section).getByText('Pendente')).toBeTruthy();
     expectNoLegacyStructures(container);
   });

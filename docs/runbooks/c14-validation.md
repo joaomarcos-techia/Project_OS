@@ -12,8 +12,8 @@ pnpm smoke:c14
 
 ## 2. O que o smoke prova
 
-O `smoke:c14` DEV cobre nove cenários: consentimento/suppression, dedup, reminders, dunning, follow-up,
-waitlist, fila humana, isolamento e encerramento de evento cujo tenant foi removido; ele **não cria cobrança de paciente**. O routing de pagamentos é coberto
+O `smoke:c14` DEV cobre dez cenários: consentimento/suppression, dedup, reminders, dunning, follow-up,
+recuperação após falta, waitlist, fila humana, isolamento e encerramento de evento cujo tenant foi removido; ele **não cria cobrança de paciente**. O routing de pagamentos é coberto
 separadamente pela integração controlada de `remainder-link.integration.test.ts` e pelos testes do
 worker: `deposit_link`/`remainder_link`, lookup no send-time e cancelamento de cobrança não pagável.
 Essas evidências percorrem a pipeline até o ponto de envio com Meta stubada; não são E2E real.
@@ -29,6 +29,19 @@ consentimento e uma entrega controlada. Exercite separadamente `deposit_link` e 
 registre message id + job terminal e prove ausência de duplicata sem expor telefone/link.
 `wa:send-template` envia mensagem real e exige autorização; ele prova o provider/template, mas o E2E
 da Camada 1 deve nascer de `link_ready` e atravessar o worker. Esse é o passo que o smoke não cobre.
+
+Para 2.4B, crie no mesmo WABA conectado um template de categoria **Utility**, idioma `pt_BR`, nome
+`qoro_no_show_followup`, sem cabeçalho, rodapé ou botões, e corpo:
+
+```text
+Oi, {{1}}. Vimos que não foi possível comparecer ao seu horário. Se quiser remarcar, responda a esta mensagem e nossa equipe ajuda você.
+```
+
+Use `Maria` como exemplo de `{{1}}`. Depois de `APPROVED`, configure o nome — não o ID numérico — em
+`META_TEMPLATE_NO_SHOW_FOLLOWUP_ID` no ambiente alvo e faça um novo deploy. A prova isolada autorizada
+é `pnpm wa:send-template --clinic <uuid> --to <e164> --type no_show_followup`; o E2E real exige que o
+job nasça de uma falta sintética/controlada e atravesse outbox, C14 e Messaging. Não execute nenhum
+dos dois contra a Meta sem autorização explícita e destinatário consentido.
 
 **Evidência vigente (31/08–02/09/2026):** o runner controlado criou as cobranças de sinal/restante,
 publicou `link_ready`, drenou C14, obteve dois `providerMessageId` distintos, confirmou replay zero e

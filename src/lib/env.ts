@@ -266,6 +266,9 @@ const EnvSchema = z
     ),
     META_TEMPLATE_DUNNING_FRIENDLY_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     META_TEMPLATE_FOLLOWUP_RETURN_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // ADR-057 / 2.4B — recuperação operacional após falta. Nome aprovado na
+    // Meta; não é template clínico do prontuário.
+    META_TEMPLATE_NO_SHOW_FOLLOWUP_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // WAIT-001 — oferta de vaga da lista de espera. Como os demais, o NOME
     // aprovado na Meta vem do ambiente; sem ele o job falha com
     // `template_not_configured` em vez de enviar algo não aprovado.

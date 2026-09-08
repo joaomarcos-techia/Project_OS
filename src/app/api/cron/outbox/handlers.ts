@@ -82,7 +82,10 @@ import '@/contexts/scheduling/internal/handlers/patient-charge-paid';
 //   cancelado  → dentro da janela devolve; fora dela retém; sem pagamento, mata
 //                o link — inclusive o `deposit_expired`, cuja cobrança ficava
 //                `pending` para sempre porque a varredura só mexia na agenda.
-import '@/contexts/payments/internal/handlers/appointment-no-show';
+// `no_show` já possui a consequência financeira acima e a ADR-057 acrescenta a
+// recuperação C14. O registry é 1:1, então o app compõe as duas fases num único
+// handler detached, preservando TX curta antes da chamada externa ao Asaas.
+import './appointment-no-show-handler';
 import '@/contexts/payments/internal/handlers/appointment-cancelled';
 // ADR-049 1.5 — desfecho da cobrança projetado na agenda (R3: o Payments publica,
 // a agenda escreve a própria coluna).

@@ -9,8 +9,10 @@
  *   5  guard "pagou → não envia": lançamento pago sai de listDunningCandidates
  *   6  claimDue: CTE FOR UPDATE SKIP LOCKED + janela 8-20h local (AT TIME ZONE)
  *   7  followup via worker: prontuario.signed (needs_return) → job followup
- *   8  evento de clínica removida termina skipped sem queimar retries
- *   9  RLS: clínica B não vê os jobs da A
+ *   8  no-show via worker: evento repetido → um job no próximo dia útil às 10h
+ *      + guarda tenant-scoped de remarcação equivalente
+ *   9  evento de clínica removida termina skipped sem queimar retries
+ *  10  RLS: clínica B não vê os jobs da A
  *
  * NÃO envia ao Meta (precisa de número conectado + templates aprovados — ver
  * docs/runbooks/c14-validation.md §4). Cobre toda a pipeline até o send.
@@ -34,7 +36,12 @@ import { publishEvent } from '@/lib/outbox/publish';
 
 import { patientApiV1, patientConsents, patients, suppressionList } from '@/contexts/patient';
 import { collectionCases, financialApiV1, lancamentos } from '@/contexts/financial';
-import { appointments, procedures } from '@/contexts/scheduling';
+import {
+  SCHEDULING_EVENTS,
+  appointments,
+  procedures,
+  schedulingApiV1,
+} from '@/contexts/scheduling';
 import { CLINICAL_EVENTS } from '@/contexts/clinical';
 
 import { aiProactiveJobs } from '@/contexts/ai-agent/proactive-jobs/schema';
@@ -43,7 +50,12 @@ import {
   enqueueRemindersDue,
 } from '@/contexts/ai-agent/proactive-jobs/application/enqueue';
 import { claimDue } from '@/contexts/ai-agent/proactive-jobs/infra/repository';
-import { clinicLocalHour } from '@/contexts/ai-agent/proactive-jobs/infra/tz';
+import {
+  addCalendarDays,
+  clinicLocalHour,
+  clinicLocalToUtc,
+  localDateYMD,
+} from '@/contexts/ai-agent/proactive-jobs/infra/tz';
 
 // Catálogo (event schemas) + registry de handlers (boot file do cron).
 import '@/lib/db/schema';
@@ -83,19 +95,20 @@ const orphanClinicId = randomUUID();
 
 /** Instante UTC cuja DATA LOCAL (SP) é hoje + `addDays`, ao meio-dia local. */
 function localDatePlusUtc(addDays: number): Date {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + addDays);
-  d.setUTCHours(15, 0, 0, 0); // 15:00Z = 12:00 BRT → mesma data local
-  return d;
+  const localDate = addCalendarDays(localDateYMD(TZ, new Date()), addDays);
+  return clinicLocalToUtc(TZ, localDate, 12);
 }
 
-async function jobsOfA(): Promise<Array<{ type: string; status: string; dedupKey: string }>> {
+async function jobsOfA(): Promise<
+  Array<{ type: string; status: string; dedupKey: string; scheduledFor: Date }>
+> {
   return withTenant(CLINIC_A, async (tx) => {
     const rows = await tx
       .select({
         type: aiProactiveJobs.type,
         status: aiProactiveJobs.status,
         dedupKey: aiProactiveJobs.dedupKey,
+        scheduledFor: aiProactiveJobs.scheduledFor,
       })
       .from(aiProactiveJobs)
       .where(eq(aiProactiveJobs.clinicId, CLINIC_A));
@@ -407,8 +420,133 @@ async function main(): Promise<void> {
       assert(ok, 'followup job não foi criado pelo handler do worker');
     });
 
-    // 8 — evento órfão --------------------------------------------------------
-    await step('8 — clínica removida → evento preservado e terminalmente skipped', async () => {
+    // 8 — no-show → C14 + dedup + guarda de remarcação -----------------------
+    await step(
+      '8 — no_show repetido → 1 job na segunda 10h; remarcação equivalente é detectada',
+      async () => {
+        const noShowAt = '2026-09-04T15:00:00.000Z'; // sexta, 12h BRT
+        const noShowProcedureId = await withTenant(CLINIC_A, async (tx) => {
+          const [procedure] = await tx
+            .insert(procedures)
+            .values({
+              clinicId: CLINIC_A,
+              codigo: 'C002',
+              descricao: 'Retorno smoke',
+              valorPadrao: '100.00',
+              duracaoPadraoMin: 30,
+            })
+            .returning({ id: procedures.id });
+          return procedure!.id;
+        });
+        const noShowAppointmentId = await withTenant(CLINIC_A, async (tx) => {
+          const [appointment] = await tx
+            .insert(appointments)
+            .values({
+              clinicId: CLINIC_A,
+              doctorId,
+              procedureId: noShowProcedureId,
+              patientId,
+              scheduledAt: new Date('2026-09-04T15:00:00.000Z'),
+              durationMin: 30,
+              status: 'faltou',
+              valor: '200.00',
+              snapshotProcedureName: 'Retorno smoke',
+              snapshotProcedureValor: '100.00',
+              snapshotProcedureDuracaoMin: 30,
+              snapshotDoctorNome: 'Dra. Smoke',
+            })
+            .returning({ id: appointments.id });
+          return appointment!.id;
+        });
+
+        for (const suffix of ['a', 'b']) {
+          await withTenant(CLINIC_A, (tx) =>
+            publishEvent(tx, {
+              clinicId: CLINIC_A,
+              eventType: SCHEDULING_EVENTS.NO_SHOW,
+              payload: {
+                clinicId: CLINIC_A,
+                appointmentId: noShowAppointmentId,
+                patientId,
+                fromStatus: 'confirmado',
+                toStatus: 'faltou',
+                noShowAt,
+              },
+              idempotencyKey: `smoke-no-show:${noShowAppointmentId}:${suffix}`,
+            }),
+          );
+        }
+
+        for (let i = 0; i < 8; i++) {
+          await runOutboxOnce({ batchSize: 10, parallelism: 1 });
+          const rows = (await jobsOfA()).filter(
+            (job) => job.dedupKey === `no_show_followup:${noShowAppointmentId}`,
+          );
+          if (rows.length === 1) break;
+        }
+        const recoveryJobs = (await jobsOfA()).filter(
+          (job) => job.dedupKey === `no_show_followup:${noShowAppointmentId}`,
+        );
+        assert(
+          recoveryJobs.length === 1,
+          `esperava 1 no_show_followup, veio ${recoveryJobs.length}`,
+        );
+        assert(recoveryJobs[0]!.type === 'no_show_followup', 'tipo do job de falta incorreto');
+        assert(
+          recoveryJobs[0]!.scheduledFor.toISOString() === '2026-09-07T13:00:00.000Z',
+          `horário inesperado: ${recoveryJobs[0]!.scheduledFor.toISOString()}`,
+        );
+
+        const guardAfter = new Date();
+        const futureAppointmentId = await withTenant(CLINIC_A, async (tx) => {
+          const [appointment] = await tx
+            .insert(appointments)
+            .values({
+              clinicId: CLINIC_A,
+              doctorId,
+              procedureId: noShowProcedureId,
+              patientId,
+              scheduledAt: new Date(Date.now() + 7 * 86_400_000),
+              durationMin: 30,
+              status: 'agendado',
+              valor: '200.00',
+              snapshotProcedureName: 'Retorno smoke',
+              snapshotProcedureValor: '100.00',
+              snapshotProcedureDuracaoMin: 30,
+              snapshotDoctorNome: 'Dra. Smoke',
+            })
+            .returning({ id: appointments.id });
+          return appointment!.id;
+        });
+        const rescheduled = await schedulingApiV1.hasFutureEquivalentAppointment(CLINIC_A, {
+          patientId,
+          procedureId: noShowProcedureId,
+          after: guardAfter,
+          excludeAppointmentId: noShowAppointmentId,
+        });
+        assert(rescheduled, 'remarcação futura equivalente deveria ser detectada');
+
+        await withTenant(CLINIC_A, (tx) =>
+          tx
+            .update(appointments)
+            .set({ status: 'cancelado' })
+            .where(eq(appointments.id, futureAppointmentId)),
+        );
+        const cancelledDoesNotCount = await schedulingApiV1.hasFutureEquivalentAppointment(
+          CLINIC_A,
+          {
+            patientId,
+            procedureId: noShowProcedureId,
+            after: guardAfter,
+            excludeAppointmentId: noShowAppointmentId,
+          },
+        );
+        assert(!cancelledDoesNotCount, 'remarcação cancelada não pode bloquear a recuperação');
+      },
+    );
+
+    // 9 — evento órfão --------------------------------------------------------
+    await step('9 — clínica removida → evento preservado e terminalmente skipped', async () => {
       const payload = {
         chargeId: randomUUID(),
         patientId: randomUUID(),
@@ -440,8 +578,8 @@ async function main(): Promise<void> {
       assert(state[0]?.attempts === 1, `evento órfão consumiu ${state[0]?.attempts} tentativas`);
     });
 
-    // 9 — RLS -----------------------------------------------------------------
-    await step('9 — RLS: clínica B não vê jobs da A', async () => {
+    // 10 — RLS ----------------------------------------------------------------
+    await step('10 — RLS: clínica B não vê jobs da A', async () => {
       const seenByB = await withTenant(CLINIC_B, async (tx) => {
         const rows = await tx
           .select({ id: aiProactiveJobs.id })
