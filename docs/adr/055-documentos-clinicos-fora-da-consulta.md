@@ -1,7 +1,7 @@
 # ADR-055 — Documentos clínicos centrados no paciente, com consulta opcional
 
-- **Status:** Accepted — C2.0/C2.1 implementadas e validadas em DEV em 2026-09-08; rollout pendente
-  dos gates finais
+- **Status:** Accepted — C2.0/C2.1 implementadas, validadas em DEV e publicadas no Preview em
+  2026-09-08; produção permanece fora do escopo
 - **Data:** 2026-09-07
 - **Contextos:** clinical e patient; navegação composta somente na aplicação
 - **Relaciona:** [ADR-007](007-rls-implementation-patterns.md),
@@ -125,7 +125,12 @@ elementos, 293 arestas de importação, zero ciclo, 67 eventos e 42 produtores a
 - teardown: **PASS / resíduo zero**. Cada PDF foi baixado do Storage antes da exclusão; depois,
   arquivos, artefatos clínicos, prontuário, atendimento, paciente, disponibilidade, procedimento,
   lançamento e usuário Auth sintéticos foram removidos com readback tenant-scoped;
-- Preview/produção: **não publicados** neste lote. Não inferir rollout a partir dos testes locais.
+- rollout: commits `985f5cf` (runtime) e `2723931` (E2E), consolidados pelo checkpoint documental
+  `7de40c1`; push confirmado, deployment Vercel `BKBWhi3k5iyFgUieQ2RfgsgQFidn` em `success`;
+- Preview autenticado somente leitura: **8/8 PASS** em Chromium. As 26 rotas estáticas retornaram
+  HTTP 200, `/documentos` renderizou no bundle publicado, a ficha dinâmica de paciente manteve a
+  sessão e não houve mutação. Auth state e artefatos locais foram removidos;
+- produção: **não publicada** por este lote e fora do escopo autorizado.
 
 ## Referências regulatórias
 

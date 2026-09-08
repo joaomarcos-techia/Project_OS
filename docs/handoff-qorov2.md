@@ -140,13 +140,14 @@ canônico e às seções 20–24 de `qorov2.md`:
   Supavisor contaminado. Somente o PID ocioso e precisamente correlacionado foi encerrado. O
   pós-check retornou 0/48 contaminadas e a única chamada autorizada ao cron respondeu HTTP 200,
   `ok=true`, `rows=0`. Não houve migration, deploy, exclusão nem alteração de linha pelo probe;
-- **C2.0/C2.1 estão implementadas e validadas em DEV**: `/documentos` possui launcher tenant-scoped e a ficha
+- **C2.0/C2.1 estão implementadas, validadas em DEV e publicadas no Preview**: `/documentos` possui launcher tenant-scoped e a ficha
   do paciente expõe prontuário, prescrição e documento médico avulsos, sempre reutilizando os
   builders/actions existentes e sem criar consulta falsa. As actions validam paciente, consulta e
   prontuário pelo mesmo tenant/paciente antes de qualquer efeito. Focused 63/63, suíte 3.040/3.040,
   lint, typecheck, build e gates passaram. O E2E mutável passou 1/1 nos três pontos de entrada,
   comprovou os PDFs no Storage e limpou DB/Auth/Storage com resíduo zero. Sem migration ou chamada
-  Asaas/Meta; rollout aguarda a repetição dos gates finais;
+  Asaas/Meta. Commits `985f5cf` e `2723931`, checkpoint `7de40c1`, Vercel `success` e smoke
+  autenticado Preview 8/8 com 26 rotas HTTP 200; produção fora do escopo;
 
 ## 2. Regra de documentação — a mais importante deste handoff
 
@@ -377,9 +378,10 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
   Receita Saúde PF.
 - **2.1** implementar em 2.1A.1/2.1A.2 somente depois dos gates da Camada 1; revisão
   jurídico-contábil permanece gate de rollout.
-- **C2.0/C2.1 ✅ DEV:** entrada unificada de documentos clínicos avulsos em `/documentos` e na
+- **C2.0/C2.1 ✅ DEV/PREVIEW:** entrada unificada de documentos clínicos avulsos em `/documentos` e na
   ficha do paciente, com referências tenant/patient-scoped, sem migration. Unit/component/integration
-  63/63, regressão 3.040/3.040 e E2E mutável 1/1 com cleanup zero; rollout pendente dos gates finais.
+  63/63, regressão 3.040/3.040, E2E mutável 1/1 com cleanup zero e Preview autenticado 8/8/26
+  rotas verdes; produção fora do escopo.
 - **2.3 ✅** template psiquiátrico local já integrado no
   commit `e60f8f0`, com Unit/component PASS e E2E mutável conectado DEV 1/1 PASS, cleanup zero ·
   **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B** recuperação de falta em
@@ -458,12 +460,13 @@ o modo que cria o refund.
 aplicada/verificada em DEV e produção. O lote P11 está commitado, enviado e implantado no Preview;
 `financeiro.md` e os dois runners temporários continuam não rastreados e fora do commit.
 
-**Estado local de 08/09:** a branch está dois commits à frente do remoto (`804c071` e `4d4e278`) e o
-lote C2.0/C2.1 permanece sem commit. O E2E mutável conectado DEV passou 1/1, com fixtures clínicas
-sintéticas tenant-scoped, PDFs reais no Storage e cleanup/readback zero. Preservar `financeiro.md`,
-`novaui.md` e os dois runners temporários não rastreados. Se os gates finais permanecerem verdes,
-estão autorizados commit/push/deploy e smoke autenticado no Preview. 2.1A.1 ainda exige a decisão de
-pagador/revisão jurídico-contábil; não repetir a chamada externa de D88.
+**Estado publicado de 08/09:** os commits de formatação/D9 e C2.0/C2.1 foram enviados até
+`7de40c1`. O deployment Vercel do mesmo SHA terminou `success`; o smoke autenticado somente leitura
+passou 8/8, com 26 rotas HTTP 200, paciente dinâmico visitado e nenhuma mutação. O E2E mutável DEV
+passou 1/1 com fixtures clínicas sintéticas tenant-scoped, PDFs reais no Storage e cleanup/readback
+zero. Auth state e artefatos do Preview foram removidos. Preservar `financeiro.md`, `novaui.md` e os
+dois runners temporários não rastreados. 2.1A.1 ainda exige a decisão de pagador/revisão
+jurídico-contábil; não repetir a chamada externa de D88. Produção não foi alterada por C2.1.
 
 ## 10. Ao terminar cada sub-fase, responda neste formato
 

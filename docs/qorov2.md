@@ -207,7 +207,7 @@ para clínicas PJ; o Qoro não construirá motor fiscal municipal. A Central de 
 médicos podem ser criados sem consulta agendada, mas nunca sem paciente, clínica, autoria, permissões
 e auditoria.
 
-**C2.0/C2.1 implementadas e validadas em DEV em 08/09:** `/documentos` ganhou uma entrada única **Novo
+**C2.0/C2.1 implementadas, validadas em DEV e publicadas no Preview em 08/09:** `/documentos` ganhou uma entrada única **Novo
 documento**, com busca tenant-scoped de paciente e roteamento explícito para prontuário, prescrição ou
 documento médico conforme RBAC. A ficha do paciente ganhou os mesmos atalhos; nenhum `GET` cria dado,
 nenhuma consulta artificial é criada e os drawers/actions/PDFs existentes foram reutilizados. O
@@ -217,8 +217,11 @@ Focused **63/63**, suíte **3.040/3.040**, lint, typecheck, build, migrations, r
 observabilidade e arquitetura **54/293/0/67** passaram. O E2E mutável conectado passou **1/1** no
 DEV: criou paciente, prontuário longitudinal, prescrição avulsa, documento avulso e documento pelo
 Consultório; comprovou os três PDFs no Storage antes do teardown e encerrou com resíduo zero. Não
-houve migration nem chamada Asaas/Meta. O rollout permanece condicionado à repetição dos gates
-após esta documentação.
+houve migration nem chamada Asaas/Meta. Os commits `985f5cf` e `2723931`, consolidados pelo
+checkpoint `7de40c1`, foram enviados; a Vercel concluiu o deployment
+`BKBWhi3k5iyFgUieQ2RfgsgQFidn` com `success`. O smoke autenticado somente leitura passou **8/8**:
+26 rotas HTTP 200, ficha dinâmica de paciente visitada, nenhuma mutação e artefatos removidos.
+Produção permaneceu fora do escopo.
 
 **D88 — `cash-flow-rollup` read-only remediado em produção em 08/09:** primário direto e session
 pooler estavam `recovery=false`, `default_transaction_read_only=off` e
@@ -2964,8 +2967,8 @@ antes do código.
 
 ## 23. Central de Documentação e documentos clínicos longitudinais
 
-**Estado em 08/09/2026:** `C2.0/C2.1 IMPLEMENTADAS; UNIT/INTEGRATION/BUILD/E2E DEV VERDES;
-ROLLOUT PENDENTE DOS GATES FINAIS`. Esta seção expande o O-4 e registra a
+**Estado em 08/09/2026:** `C2.0/C2.1 IMPLEMENTADAS; UNIT/INTEGRATION/BUILD/E2E DEV E PREVIEW VERDES;
+PRODUÇÃO FORA DO ESCOPO`. Esta seção expande o O-4 e registra a
 [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md). A implementação não criou migration,
 deploy, integração Memed/SNCR nem mudança em documento já assinado.
 
@@ -3085,7 +3088,7 @@ O menor fluxo coerente foi entregue localmente:
 | Arquitetura/DB boundary | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos; 0 findings |
 | Migrations/registry/observabilidade | ✅ PASS; nenhuma migration nova |
 | E2E mutável conectado DEV | ✅ 1/1 em Chromium contra `next start`; `/documentos`, ficha do paciente e Consultório; PDFs legíveis no Storage antes do cleanup; resíduo zero |
-| Preview/produção | ⏸️ ainda não publicado; Preview autorizado somente após todos os gates finais verdes; produção fora do escopo |
+| Preview/produção | ✅ Preview no SHA `7de40c1`: Vercel `success`, smoke autenticado 8/8, 26 rotas HTTP 200 e nenhuma mutação; ⏸️ produção fora do escopo |
 
 Budget C2.0/C2.1: lote funcional com **25 arquivos**, menos de 1.500 linhas e dois bounded contexts
 (`clinical` e `patient`; `app` somente composição). A prova mutável foi autorizada depois e ficou em
@@ -3110,8 +3113,8 @@ sem os identificadores do run.
 - [x] Unit, componentes, integração, regressão integral, build e gates arquiteturais verdes;
 - [x] E2E mutável conectado em DEV com fixture sintética tenant-scoped, prova real no Storage e
   cleanup exato: 1/1 PASS, resíduo zero;
-- [ ] commit, push, deploy e smoke autenticado no Preview — autorizados se todos os gates finais
-  permanecerem verdes;
+- [x] commit, push, deployment Vercel e smoke autenticado no Preview — `985f5cf`, `2723931` e
+  checkpoint `7de40c1`; Vercel `success`; 8/8 PASS e 26 rotas HTTP 200, sem mutação;
 - [ ] O-4.0/O-4.1: inventário editorial e shell `/documentacao`;
 - [ ] documentação para usuários finais e Product Acceptance humano.
 
