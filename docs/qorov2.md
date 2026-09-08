@@ -3216,11 +3216,11 @@ em diagnóstico obrigatório, checklist rígido de risco ou substituto do julgam
 
 ## 26. Camada 2 — 2.4 recuperação de falta/retorno
 
-**Estado em 07/09/2026: 2.4A VERDE; 2.4B CÓDIGO/UNIT/INTEGRATION/SMOKE DEV E MIGRATION PROD
-VERDES; PUBLICAÇÃO E E2E META REAL PENDENTES.** A política de uma mensagem no próximo dia útil às
-10h, sem conteúdo clínico/financeiro e com opt-out `followup`, foi aprovada. A migration 0095 foi
-aplicada e verificada em DEV e produção. O código ainda não foi publicado e nenhum envio Meta real
-foi executado porque o template permanece `IN_REVIEW`/“Em análise”.
+**Estado em 07/09/2026: 2.4A VERDE; 2.4B CÓDIGO/UNIT/INTEGRATION/SMOKE DEV, MIGRATION PROD E
+PREVIEW VERDES; E2E META REAL PENDENTE.** A política de uma mensagem no próximo dia útil às 10h,
+sem conteúdo clínico/financeiro e com opt-out `followup`, foi aprovada. A migration 0095 foi aplicada
+e verificada em DEV e produção. O código foi publicado na branch e validado no Preview; nenhum envio
+Meta real foi executado porque o template permanece `IN_REVIEW`/“Em análise”.
 
 ### 26.1 2.4A — retorno clínico existente
 
@@ -3288,8 +3288,8 @@ Copy do template:
 
 Configuração: categoria `Utility`, idioma `pt_BR`, nome `qoro_no_show_followup`, sem cabeçalho,
 rodapé ou botões. O runtime lê `META_TEMPLATE_NO_SHOW_FOLLOWUP_ID`. A variável já foi informada pelo
-fundador em Preview e produção, mas permanece inerte até o novo deploy. No fechamento desta etapa, o
-template ainda estava “Em análise” no Meta.
+fundador em Preview e produção. O runtime foi publicado no Preview, mas o envio permanece bloqueado
+de forma externa enquanto o template estiver “Em análise” no Meta.
 
 ### 26.3 Evidências e pendências manuais
 
@@ -3312,14 +3312,16 @@ Evidência local/DEV concluída em 07/09:
   pendente; o migrador oficial gerou backup de **2.695.585 bytes**, adquiriu/liberou o advisory lock
   4242 e terminou sem sentinel de falha. O pós-check encontrou 96 migrations, marcador
   `0095-proactive-no-show-followup` uma vez e `no_show_followup` no enum.
+- commit de código `6b9fdba` enviado à `feat/qorov2-pagamentos`; o deployment Vercel do mesmo SHA
+  terminou `success`;
+- smoke autenticado read-only no Preview: **2/2 PASS** em Chromium, 26 rotas estáticas com HTTP 200 e
+  rotas dinâmicas existentes preservando a sessão.
 
 O que ainda depende de execução ou dependência externa:
 
 1. no Meta, confirmar que `qoro_no_show_followup` está `APPROVED` no mesmo WABA conectado;
-2. publicar o lote autorizado na branch e aguardar o deploy;
-3. depois do deploy, executar smoke autenticado no Preview;
-4. quando o template for aprovado, executar o E2E Meta já autorizado com o destinatário consentido;
-5. observar o piloto. Feriados no cálculo de dia útil são melhoria futura, não lacuna desta versão.
+2. quando o template for aprovado, executar o E2E Meta já autorizado com o destinatário consentido;
+3. observar o piloto. Feriados no cálculo de dia útil são melhoria futura, não lacuna desta versão.
 
 Não é necessária nova configuração da variável antes desses passos. Não fazer POST Meta nem testar
 em aparelho antes da aprovação do template; a autorização e o destinatário consentido já foram
@@ -3344,6 +3346,6 @@ confirmados pelo fundador.
 - [x] arquitetura 0 ciclos e registry 1:1 preservados pelo handler composto;
 - [ ] E2E Meta real do template de retorno;
 - [ ] template `qoro_no_show_followup` aprovado no Meta;
-- [ ] commit/push/deploy e smoke autenticado no Preview;
+- [x] commit/push/deploy e smoke autenticado no Preview — `6b9fdba`, Vercel `success`, 2/2 PASS;
 - [ ] E2E real Meta de `no_show_followup` com destinatário consentido;
 - [ ] rollout progressivo e estabilização 2.H/2.S.

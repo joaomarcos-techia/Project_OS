@@ -118,9 +118,10 @@ canônico e às seções 20–24 de `qorov2.md`:
   suppression central `followup`, template sem dado clínico/financeiro e a mesma C14. A migration
   0095 foi aplicada em DEV e produção; em produção houve backup de 2.695.585 bytes, advisory lock e
   readback 96/96. Focused 29/29, suíte 3.019/3.019 e smoke C14 10/10 passaram com cleanup zero. O
-  handler composto preserva o registry 1:1 e o grafo permanece sem ciclos. Commit/push/deploy e smoke
-  Preview estão autorizados e em execução; E2E Meta real está autorizado, mas aguarda o template sair
-  de “Em análise”;
+  handler composto preserva o registry 1:1 e o grafo permanece sem ciclos. O commit `6b9fdba` foi
+  enviado à branch, o deployment Vercel terminou `success` e o smoke autenticado Preview passou 2/2,
+  com 26 rotas estáticas HTTP 200. E2E Meta real está autorizado, mas aguarda o template sair de “Em
+  análise”;
 - gates do worktree integrado: lint/typecheck/build verdes, 2.975 testes em 318 arquivos, zero ciclos,
   `arch:db-check` zero findings, snapshots 54/293/0/67, migrations/registry/observabilidade verdes.
 - gates finais de D72/ADR-054: lint/typecheck/build verdes, 2.989 testes em 319 arquivos, zero
@@ -372,7 +373,7 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
 - **2.2** Memed (só se o spike passar) · **2.3 ✅** template psiquiátrico local já integrado no
   commit `e60f8f0`, com Unit/component PASS e E2E mutável conectado DEV 1/1 PASS, cleanup zero ·
   **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B** recuperação de falta em
-  código/DEV e schema PROD, smoke C14 10/10, publicação e E2E Meta real pendentes · **2.H** / **2.S**.
+  código/DEV, schema PROD e Preview, smoke C14 10/10; E2E Meta real pendente · **2.H** / **2.S**.
 
 ### Camada 3 (P2)
 

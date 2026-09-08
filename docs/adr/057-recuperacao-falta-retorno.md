@@ -3,8 +3,8 @@
 ## Status
 
 Accepted — 2.4A reconciliada e 2.4B implementada em código/DEV em 07/09/2026. A migration 0095 foi
-aplicada e verificada em produção no mesmo dia; publicação do runtime e E2E Meta real permanecem
-pendentes.
+aplicada e verificada em produção no mesmo dia; o runtime foi publicado e validado no Preview. O E2E
+Meta real permanece pendente da aprovação externa do template.
 
 ## Contexto
 
@@ -139,8 +139,10 @@ estrutura foi validada estaticamente e nos bancos DEV e produção já populados
 - Prettier dos arquivos executáveis alterados e `git diff --check`: PASS. O `format:check` global
   continua vermelho em 128 arquivos fora do diff 2.4B; nenhum arquivo deste lote apareceu na lista;
 - grafo: 54 elementos, 293 arestas de import, 0 ciclos, 67 eventos e 42 producer-ahead;
-- nenhum POST Meta ou deploy foi executado; a única alteração de produção foi a migration 0095
-  autorizada e verificada acima.
+- nenhum POST Meta foi executado; a migration 0095 foi aplicada em produção e o commit `6b9fdba` teve
+  deployment Vercel `success` no Preview;
+- smoke autenticado read-only no Preview: 2/2 PASS em Chromium, 26 rotas estáticas HTTP 200 e rotas
+  dinâmicas existentes mantendo a sessão.
 
 ## Testes cobertos
 
@@ -158,11 +160,9 @@ estrutura foi validada estaticamente e nos bancos DEV e produção já populados
 ## Rollout pendente
 
 1. confirmar no Meta que `qoro_no_show_followup` está `APPROVED` no mesmo WABA conectado;
-2. publicar o lote já autorizado e aguardar o deploy;
-3. após o deploy, executar smoke autenticado do Preview;
-4. após `APPROVED`, executar o E2E Meta real já autorizado com destinatário consentido e dado
+2. após `APPROVED`, executar o E2E Meta real já autorizado com destinatário consentido e dado
    sintético;
-5. observar o piloto antes de considerar feriados no calendário de “dia útil”.
+3. observar o piloto antes de considerar feriados no calendário de “dia útil”.
 
-As variáveis adicionadas a Preview e produção permanecem inertes até o deploy. A aprovação externa do
-template e a entrega em aparelho são gates de rollout, não lacunas do código validado em DEV.
+As variáveis já estão configuradas e o Preview recebeu o novo runtime. A aprovação externa do template
+e a entrega em aparelho são os gates restantes de rollout, não lacunas do código validado.
