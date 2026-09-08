@@ -506,7 +506,7 @@ Sem migration, sem mudança de schema, sem alteração no painel Meta, sem chama
 | Registry | `pnpm check:registry:strict` | ✅ catálogo (67) ⇔ registry (25) |
 | Build | `pnpm build` | ✅ compilação otimizada concluída; etapa webpack em 2,4 min (exit 0) |
 | Diff | `git diff --check` + releitura | ✅ limpo; sem segredo, log de debug ou teste desabilitado |
-| Formatação | `pnpm format:check` + check normalizado do lote | ⚠️ o gate integral continua vermelho no baseline (128 arquivos, sobretudo CRLF/artefatos). Nos 60 arquivos formatáveis do lote integrado, cinco divergências já existiam no parent da branch e foram formatadas localmente; nenhum arquivo novo permanece divergente |
+| Formatação | `pnpm format:check` | ✅ baseline integral normalizada no lote D9 de 08/09; JSON gerado em `evidence/` ignorado por contrato e código/testes cobertos pelo gate |
 | **E2E Meta externo** | conta sem App Role | 🔴 **`NOT TESTED`** — a autorização operacional foi concedida, mas ainda depende do desbloqueio na Meta e de uma conta externa disponível. Nenhum mock substitui esta prova |
 
 Os testes usam `fetch` e Server Action mockados: provam **regressão local**, não o provider.
@@ -665,7 +665,7 @@ suíte integral, build e checks arquiteturais/operacionais foram repetidos no wo
 | Webhook global D54/D55/D66 | `pnpm billing:delete-restore-e2e` + verificador read-only | ✅ conta vinculada por fingerprint; `qoro dev` ativo com 7 eventos/`NON_SEQUENTIALLY`; `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`; replay idempotente e cleanup provider+banco |
 | Rollback por clínica | `pnpm vitest run policy deposit-charge deposit-scan remainder-charge` | ✅ **55/55**: `enabled=false` não cria sinal/restante e o scanner seleciona somente clínicas habilitadas |
 | Migrations PROD `0091` + `0092` | `pnpm db:migrate:prod` + verificação read-only | ✅ backup 2.834.598 bytes · lock adquirido/liberado · `DONE` · sem sentinel · pós-verificação **7/7**: versions/journal, enums, tabelas/colunas, RLS/policies, grants, índices/constraints e lock ausente |
-| `pnpm format:check` | — | ❌ **vermelho na baseline** (128 arquivos pré-existentes, **D9**). Todos os arquivos tocados neste lote passam no check direcionado |
+| `pnpm format:check` | — | ✅ **PASS global em 08/09** após o lote mecânico D9; 70 JSON de evidência gerada foram ignorados e os 58 alvos executáveis/testes foram normalizados |
 
 Migrations **0081–0094** aplicadas e verificadas no banco de **dev**. A `0094` passou o smoke conectado
 7/7, incluindo RLS/grants, concorrência, estados terminais, replay e isolamento cross-tenant. Após a rotação da credencial,
@@ -768,7 +768,7 @@ objeto do teste.
 | `PAYMENT_RESTORED` da assinatura | ✅ **PASS externo na conta alvo** | `qoro dev` foi criado com os sete eventos canônicos; a mesma cobrança passou por delete/restore, a mesma invoice por `open → cancelled → open`, replay não duplicou e o runner limpou provider+banco |
 | Estorno real do sinal pago por PIX/cartão | **Cartão PASS; PIX D77 `CANCELLED` PASS / `DONE` BLOCKED** | duas provas pós-rollout criaram um refund cada, sem repetição no replay, e terminaram `CANCELLED` mantendo cobrança `paid` e crédito `available`; cleanup local passou. A segunda foi sincronizada com o operador. Não criar outra fixture antes do diagnóstico D80 |
 | Product Acceptance por persona | **TÉCNICO-NORMATIVO PASS local + Preview; usabilidade humana DEFERRED para piloto** | D60/D70 publicados e revalidados; manter observação passiva do Sentry. Na onda 1 colher percepção real de dono/secretária/médico/paciente, sem pedir ao fundador que finja experiência clínica |
-| `pnpm format:check` global | **FAIL na baseline (D9)** | PR exclusivamente mecânico; nenhuma mudança semântica; toda suíte depois |
+| `pnpm format:check` global | ✅ **PASS — D9 fechada em 08/09** | 70 JSON gerados ignorados por contrato; 58 alvos de código/teste formatados; gates integrais verdes |
 
 POST indeterminado e banco lento estão verdes em E2E controlado com banco; Asaas indisponível,
 Meta indisponível/backoff e estados obsoletos no send-time estão verdes na matriz focada. Transporte
@@ -779,7 +779,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | Item | Estado e execução correta |
 | --- | --- |
 | D2 — `arch:check` sem tsconfig | Abrir mudança isolada de tooling: adicionar `--ts-config tsconfig.json`, comparar o grafo antes/depois, atualizar CI/docs e exigir 0 ciclos. `arch:graphs` mitiga hoje, mas não fecha o discovery |
-| D9 — 128 arquivos fora do Prettier | PR exclusivamente mecânico, separado de produto/pagamentos; formatar, revisar ausência de mudança semântica e rodar suíte/build/grafos completos |
+| D9 — formatação | **Fechado em 08/09 (`804c071`):** lote exclusivamente mecânico; 70 JSON de evidência gerada ignorados, 58 alvos de código/teste formatados e todos os gates executados |
 | D23 — transferir sinal no reagendamento | Hoje o sistema estorna e recobra, o que evita duplicidade. Transferência exige vínculo A→B e decisão sobre janela/taxa; desenhar para 2.x em ADR próprio, sem reabrir 1.5a |
 | D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
 | D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
@@ -838,7 +838,7 @@ global da conta alvo.
 | # | Assunto | Estado |
 | --- | --- | --- |
 | D2 | `arch:check` roda sem `--ts-config` (enxerga menos arestas que o real) | aberto — `arch:graphs` cobre com tsConfig |
-| D9 | `format:check` vermelho na baseline (128 arquivos) | aberto — PR de formatação isolado |
+| D9 | `format:check` vermelho na baseline (128 arquivos) | **resolvido em 08/09** — 70 JSON de evidência gerada ignorados, 58 alvos executáveis/testes normalizados e gate global verde |
 | D13 | RLS cross-tenant de `clinic_payment_accounts` sem teste (exige banco) | **resolvido no 1.H** — `pnpm smoke:payments-rls` ✅ 5/5 no banco DEV, fixtures removidas e resíduo 0 |
 | D19 | Bloqueio da 1.5b | **encaminhado** → ADR-051 |
 | D24 | Estorno só funciona para PIX/cartão; boleto não compensa dentro do hold de 24h | **resolvido em código/DEV/PROD e provado externamente em 30/08** — Checkout restringe os métodos, e a falta de idempotência do provider é contida por intenção/lease local antes do POST. Migration 0091, smoke DEV 5/5 e pós-verificação PROD 7/7 verdes; pagamentos reais PIX/cartão correlacionados. Cartão terminou `REFUNDED`; o PIX da conta antiga não foi estornado e foi encerrado como `NOT COMPLETED`, sem reintroduzir a credencial |
@@ -3306,8 +3306,9 @@ Evidência local/DEV concluída em 07/09:
   em UTC e podia saltar dois dias civis após 21h em São Paulo. Depois de usar os helpers canônicos de
   data/fuso, a execução final voltou a **10 OK · 0 FAIL**;
 - todos os gates técnicos do lote passaram; grafo 54/293/0/67 e 42 eventos producer-ahead.
-- Prettier direcionado e `git diff --check` passaram. O `format:check` global permanece vermelho em
-  128 arquivos fora do diff 2.4B; nenhum arquivo desta entrega foi listado.
+- Na fotografia do lote 2.4B, Prettier direcionado e `git diff --check` passaram, mas o
+  `format:check` global ainda encontrava 128 arquivos fora daquele diff. A dívida foi fechada depois,
+  em 08/09, pelo lote D9 `804c071`.
 - rollout de banco em produção: pré-check encontrou 95 migrations aplicadas e somente a 0095
   pendente; o migrador oficial gerou backup de **2.695.585 bytes**, adquiriu/liberou o advisory lock
   4242 e terminou sem sentinel de falha. O pós-check encontrou 96 migrations, marcador

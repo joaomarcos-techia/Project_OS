@@ -185,10 +185,9 @@ pnpm check:migrations && pnpm check:registry:strict && pnpm check:observability
 pnpm payments:live-check   # sandbox real do Asaas; rode antes de qualquer release de pagamento
 ```
 
-Baseline verificada em 28/08 (confira de novo após qualquer mudança): **2707 testes**, build exit 0,
-0 ciclos, 18 crons.
-`pnpm format:check` está **vermelho na baseline** (128 arquivos pré-existentes, D9) — não é regressão
-sua, mas **formate os arquivos que você tocar**.
+Baseline integral revalidada no fechamento da D9 em 08/09: **3.019 testes**, build exit 0,
+0 ciclos, 18 crons e `pnpm format:check` verde. Os JSON de evidência gerada sob `evidence/` ficam
+fora do Prettier por contrato; código e testes permanecem cobertos pelo gate.
 
 O `pnpm build` demora ~10 min. Rode em background e siga trabalhando.
 
@@ -405,8 +404,9 @@ NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clí
   explícita antes. Não bloqueia nada.
 - **D2** — `arch:check` roda sem `--ts-config` e enxerga menos arestas que o real; `arch:graphs`
   cobre com tsConfig.
-- **D9** — `format:check` vermelho na baseline (128 arquivos). PR de formatação isolado, fora de
-  qualquer camada.
+- **D9 — fechado em 08/09 (`804c071`)** — lote exclusivamente mecânico normalizou os 58 alvos de código/teste
+  e ignorou 70 JSON de evidência gerada; todos os gates passaram, sem migration, deploy ou chamada
+  externa.
 - **D23** — reagendamento **devolve** o sinal em vez de transferi-lo, e isso abre a brecha de remarcar
   em cima da hora para escapar da taxa. Decisão de produto pendente.
 - **D30** — a lista de eventos do webhook de assinatura vive em
