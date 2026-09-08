@@ -43,11 +43,13 @@ const KIND_LABEL: Record<Kind, string> = {
 export function PrescriptionDrawer({
   patientId,
   prontuarioId,
+  defaultOpen = false,
 }: {
   patientId: string;
   prontuarioId: string | null;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [meds, setMeds] = useState<MedRow[]>([emptyMed()]);
   const [observacoes, setObservacoes] = useState('');
   const [kind, setKind] = useState<Kind>('simples');

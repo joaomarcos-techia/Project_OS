@@ -49,8 +49,14 @@ const DOC_ICON: Record<MedicalDocumentType, ReactNode> = {
 };
 
 /** Emissão de documento médico em Drawer (atestado/exame/declaração/encaminhamento). */
-export function DocumentDrawer({ patientId }: { patientId: string }) {
-  const [open, setOpen] = useState(false);
+export function DocumentDrawer({
+  patientId,
+  defaultOpen = false,
+}: {
+  patientId: string;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const [type, setType] = useState<MedicalDocumentType>('atestado');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);

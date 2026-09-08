@@ -11,6 +11,8 @@ import type { ProntuarioSummary } from '@/contexts/clinical/types';
 import { cn } from '@/lib/ui/cn';
 
 import { NovoProntuarioButton } from './prontuarios/novo-prontuario-button';
+import { DocumentDrawer } from '../../consultorio/document-drawer';
+import { PrescriptionDrawer } from '../../consultorio/prescription-drawer';
 
 type ActivityItem = {
   key: string;
@@ -64,6 +66,8 @@ export function PatientClinicalActivity({
   canViewRecords,
   canViewDocuments,
   canCreateRecord,
+  canCreateDocuments,
+  initialCreate,
   deceased,
 }: {
   patientId: string;
@@ -72,6 +76,8 @@ export function PatientClinicalActivity({
   canViewRecords: boolean;
   canViewDocuments: boolean;
   canCreateRecord: boolean;
+  canCreateDocuments: boolean;
+  initialCreate: 'prescricao' | 'documento' | null;
   deceased: boolean;
 }) {
   const items = activityItems(
@@ -89,8 +95,22 @@ export function PatientClinicalActivity({
             Prontuários e documentos existentes, do mais recente para o mais antigo.
           </p>
         </div>
-        {canViewRecords && canCreateRecord && !deceased ? (
-          <NovoProntuarioButton patientId={patientId} />
+        {!deceased ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {canViewRecords && canCreateRecord ? (
+              <NovoProntuarioButton patientId={patientId} />
+            ) : null}
+            {canCreateDocuments ? (
+              <>
+                <PrescriptionDrawer
+                  patientId={patientId}
+                  prontuarioId={null}
+                  defaultOpen={initialCreate === 'prescricao'}
+                />
+                <DocumentDrawer patientId={patientId} defaultOpen={initialCreate === 'documento'} />
+              </>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

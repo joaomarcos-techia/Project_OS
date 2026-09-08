@@ -8,6 +8,16 @@ vi.mock('./prontuarios/novo-prontuario-button', () => ({
     <button type="button">Novo prontuário {patientId}</button>
   ),
 }));
+vi.mock('../../consultorio/prescription-drawer', () => ({
+  PrescriptionDrawer: ({ defaultOpen }: { defaultOpen?: boolean }) => (
+    <button type="button">Prescrição{defaultOpen ? ' aberta' : ''}</button>
+  ),
+}));
+vi.mock('../../consultorio/document-drawer', () => ({
+  DocumentDrawer: ({ defaultOpen }: { defaultOpen?: boolean }) => (
+    <button type="button">Documento{defaultOpen ? ' aberto' : ''}</button>
+  ),
+}));
 
 import type { ClinicalDocumentFeedItem } from '@/contexts/clinical/queries';
 import type { ProntuarioSummary } from '@/contexts/clinical/types';
@@ -53,6 +63,8 @@ describe('PatientClinicalActivity', () => {
         canViewRecords
         canViewDocuments
         canCreateRecord={false}
+        canCreateDocuments={false}
+        initialCreate={null}
         deceased={false}
       />,
     );
@@ -77,6 +89,8 @@ describe('PatientClinicalActivity', () => {
         canViewRecords
         canViewDocuments={false}
         canCreateRecord
+        canCreateDocuments
+        initialCreate="prescricao"
         deceased
       />,
     );
@@ -94,6 +108,8 @@ describe('PatientClinicalActivity', () => {
         canViewRecords={false}
         canViewDocuments
         canCreateRecord
+        canCreateDocuments={false}
+        initialCreate={null}
         deceased={false}
       />,
     );
@@ -111,11 +127,32 @@ describe('PatientClinicalActivity', () => {
         canViewRecords={false}
         canViewDocuments
         canCreateRecord={false}
+        canCreateDocuments={false}
+        initialCreate={null}
         deceased={false}
       />,
     );
 
     expect(screen.queryByText('Prontuário assinado')).toBeNull();
     expect(screen.getByText('Atestado')).not.toBeNull();
+  });
+
+  it('oferece emissão avulsa e abre somente o builder solicitado', () => {
+    render(
+      <PatientClinicalActivity
+        patientId="patient-1"
+        records={[]}
+        documents={[]}
+        canViewRecords={false}
+        canViewDocuments={false}
+        canCreateRecord={false}
+        canCreateDocuments
+        initialCreate="prescricao"
+        deceased={false}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Prescrição aberta' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Documento' })).toBeTruthy();
   });
 });

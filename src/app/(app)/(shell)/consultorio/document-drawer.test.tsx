@@ -16,6 +16,12 @@ function openDrawer() {
 }
 
 describe('DocumentDrawer', () => {
+  it('pode abrir diretamente a partir do hub do paciente', () => {
+    render(<DocumentDrawer patientId="00000000-0000-4000-8000-000000000001" defaultOpen />);
+
+    expect(screen.getByRole('heading', { name: 'Emitir documento' })).toBeTruthy();
+  });
+
   it('associa cada rótulo ao campo do tipo de documento selecionado', () => {
     openDrawer();
 

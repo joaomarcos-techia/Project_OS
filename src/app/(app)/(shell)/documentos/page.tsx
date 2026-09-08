@@ -12,7 +12,7 @@ import {
   listClinicalDocumentFeedPage,
   type ClinicalDocumentKind,
 } from '@/contexts/clinical/queries';
-import { PERMISSIONS } from '@/lib/auth/permissions';
+import { PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
 import { buttonVariants } from '@/components/ui/button';
@@ -26,8 +26,29 @@ import { StatsInline } from '@/components/ui/stats-inline';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 import { documentosPageHref, parseDocumentosPage, type DocumentosSearchParams } from './pagination';
+import { NewClinicalDocumentDrawer } from './new-clinical-document-drawer';
 
 export const dynamic = 'force-dynamic';
+
+interface DocumentosPageUser {
+  isSuperAdmin?: boolean;
+  aal?: string | null;
+  permissions: readonly string[];
+}
+
+/** Descoberta de UI; as Server Actions reaplicam os mesmos gates no backend. */
+export function documentosPageCapabilities(user: DocumentosPageUser) {
+  const has = (permission: Permission) =>
+    user.isSuperAdmin === true ? user.aal === 'aal2' : user.permissions.includes(permission);
+  const canSelectPatient = has(PERMISSIONS.VIEW_PATIENT);
+  const canCreateProntuario = canSelectPatient && has(PERMISSIONS.CREATE_PRONTUARIO);
+  const canCreateDocument = canSelectPatient && has(PERMISSIONS.CREATE_PRESCRIPTION);
+  return {
+    canCreateProntuario,
+    canCreateDocument,
+    canOpenLauncher: canCreateProntuario || canCreateDocument,
+  };
+}
 
 export default async function DocumentosPage({
   searchParams,
@@ -50,7 +71,8 @@ export default async function DocumentosPage({
       />
     );
   }
-  const { clinicId } = gate;
+  const { clinicId, user } = gate;
+  const capabilities = documentosPageCapabilities(user);
   const { q: rawSearch, tipo, page: rawPage } = await searchParams;
   const q = rawSearch?.trim().slice(0, 64) || undefined;
   const kind: ClinicalDocumentKind | undefined =
@@ -77,9 +99,17 @@ export default async function DocumentosPage({
   return (
     <>
       <PageHeader
+        actions={
+          capabilities.canOpenLauncher ? (
+            <NewClinicalDocumentDrawer
+              canCreateProntuario={capabilities.canCreateProntuario}
+              canCreateDocument={capabilities.canCreateDocument}
+            />
+          ) : undefined
+        }
         crumbs={[{ label: 'Clínico' }, { label: 'Documentos' }]}
         title="Documentos"
-        description="Receitas e documentos médicos emitidos na clínica."
+        description="Crie e consulte receitas e documentos médicos da clínica."
       />
 
       <StatsInline
@@ -133,7 +163,7 @@ export default async function DocumentosPage({
             description={
               filtrando
                 ? 'Ajuste a busca ou o filtro de tipo.'
-                : 'Receitas e documentos emitidos no Consultório aparecem aqui.'
+                : 'Crie um documento para um paciente ou consulte o histórico da clínica.'
             }
           />
         }

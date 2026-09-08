@@ -10,7 +10,8 @@ vi.mock('@/contexts/clinical/queries', () => ({ listClinicalDocumentFeedPage }))
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('next/navigation', () => ({ redirect }));
 
-import DocumentosPage from './page';
+import DocumentosPage, { documentosPageCapabilities } from './page';
+import { PERMISSIONS } from '@/lib/auth/permissions';
 
 const emptyPage = { items: [], total: 0, page: 1, pageSize: 50 };
 
@@ -69,5 +70,39 @@ describe('/documentos pagination', () => {
     await DocumentosPage({ searchParams: Promise.resolve({ page: '2' }) });
 
     expect(redirect).toHaveBeenCalledWith('/documentos');
+  });
+
+  it('só expõe a criação quando pode ver o paciente e criar o tipo', () => {
+    expect(
+      documentosPageCapabilities({
+        permissions: [PERMISSIONS.VIEW_PATIENT, PERMISSIONS.CREATE_PRESCRIPTION],
+      }),
+    ).toEqual({
+      canCreateProntuario: false,
+      canCreateDocument: true,
+      canOpenLauncher: true,
+    });
+    expect(documentosPageCapabilities({ permissions: [PERMISSIONS.CREATE_PRESCRIPTION] })).toEqual({
+      canCreateProntuario: false,
+      canCreateDocument: false,
+      canOpenLauncher: false,
+    });
+  });
+
+  it('mantém o step-up AAL2 no bypass do super-admin', () => {
+    expect(
+      documentosPageCapabilities({ isSuperAdmin: true, aal: 'aal1', permissions: [] }),
+    ).toEqual({
+      canCreateProntuario: false,
+      canCreateDocument: false,
+      canOpenLauncher: false,
+    });
+    expect(
+      documentosPageCapabilities({ isSuperAdmin: true, aal: 'aal2', permissions: [] }),
+    ).toEqual({
+      canCreateProntuario: true,
+      canCreateDocument: true,
+      canOpenLauncher: true,
+    });
   });
 });

@@ -44,6 +44,10 @@ import { decryptJson, encryptJson } from './internal/content-crypto';
 import { assertDoctorHasCrm, resolveDoctorSnapshot } from './internal/doctor';
 import { resolvePatientNome } from './internal/patient-ref';
 import { ensureMedicalDocumentPdf, ensurePrescriptionPdf } from './internal/pdf-pipeline';
+import {
+  assertAppointmentMatchesPatient,
+  assertProntuarioMatchesPatient,
+} from './internal/tenant-references';
 import { loadClinicEmitente } from './internal/whitelabel';
 import { getProntuarioOrThrow, toProntuarioDetail } from './queries';
 import { medicalDocuments, prescriptions, prontuarioVersions, prontuarios } from './schema';
@@ -117,7 +121,10 @@ export async function createProntuario(
     async (tx) => {
       // Ponto 2 / R9: 1 consulta = 1 prontuário. Se já existe para o appointment,
       // retorna o existente (abre, não duplica) — elimina corrida handler×manual.
+      await resolvePatientNome(tx, clinicId, data.patientId);
+
       if (data.appointmentId) {
+        await assertAppointmentMatchesPatient(tx, clinicId, data.appointmentId, data.patientId);
         const [existing] = await tx
           .select()
           .from(prontuarios)
@@ -433,7 +440,10 @@ export async function createPrescription(
     async (tx) => {
       const doctor = await resolveDoctorSnapshot(tx, user.userId);
       assertDoctorHasCrm(doctor); // R6: documento exige CRM
-      const patientNome = await resolvePatientNome(tx, data.patientId);
+      const patientNome = await resolvePatientNome(tx, clinicId, data.patientId);
+      if (data.prontuarioId) {
+        await assertProntuarioMatchesPatient(tx, clinicId, data.prontuarioId, data.patientId);
+      }
       // R8/G1: identificação LEGAL do emitente congelada na emissão (controle especial).
       const emitente = isControleEspecial ? await loadClinicEmitente(tx, clinicId) : null;
 
@@ -514,7 +524,7 @@ export async function createMedicalDocument(
     async (tx) => {
       const doctor = await resolveDoctorSnapshot(tx, user.userId);
       assertDoctorHasCrm(doctor);
-      const patientNome = await resolvePatientNome(tx, data.patientId);
+      const patientNome = await resolvePatientNome(tx, clinicId, data.patientId);
 
       const [row] = await tx
         .insert(medicalDocuments)

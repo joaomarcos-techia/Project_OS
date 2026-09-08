@@ -67,6 +67,7 @@ export function patientPageCapabilities(user: PatientPageUser) {
     canCreateProntuario: has(PERMISSIONS.CREATE_PRONTUARIO),
     canSignProntuario: has(PERMISSIONS.SIGN_PRONTUARIO),
     canViewDocuments: has(PERMISSIONS.VIEW_PRESCRIPTION),
+    canCreateDocuments: has(PERMISSIONS.CREATE_PRESCRIPTION),
   };
 }
 
@@ -114,7 +115,7 @@ export default async function PacienteDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; novo?: string }>;
 }) {
   // AUTHZ-001 — antes de `getPatientWithDecryptedFields`, que é O ponto de
   // decifragem: sem gate, um deny de `view:patient` ainda entregava CPF.
@@ -130,7 +131,7 @@ export default async function PacienteDetailPage({
   }
   const { clinicId, user } = gate;
   const { id } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, novo: rawCreate } = await searchParams;
   // F-11: validate the route param is a UUID before touching the DB / decrypt.
   // RLS + key derivation already prevent cross-tenant IDOR; this normalizes
   // malformed ids to a clean 404 instead of an unexpected query/error path.
@@ -153,8 +154,15 @@ export default async function PacienteDetailPage({
     canCreateProntuario,
     canSignProntuario,
     canViewDocuments,
+    canCreateDocuments,
   } = capabilities;
   const tab: Tab = rawTab === 'prontuarios' && canViewProntuario ? 'prontuarios' : 'dados';
+  const initialCreate =
+    canCreateDocuments &&
+    p.obitoEm == null &&
+    (rawCreate === 'prescricao' || rawCreate === 'documento')
+      ? rawCreate
+      : null;
 
   return (
     <>
@@ -191,6 +199,8 @@ export default async function PacienteDetailPage({
           canViewProntuario={canViewProntuario}
           canCreateProntuario={canCreateProntuario}
           canViewDocuments={canViewDocuments}
+          canCreateDocuments={canCreateDocuments}
+          initialCreate={initialCreate}
         />
       ) : null}
       {tab === 'prontuarios' ? (
@@ -245,6 +255,8 @@ export async function PatientClinicalActivityData({
   canViewProntuario,
   canViewDocuments,
   canCreateProntuario,
+  canCreateDocuments,
+  initialCreate,
   deceased,
 }: {
   clinicId: string;
@@ -252,9 +264,13 @@ export async function PatientClinicalActivityData({
   canViewProntuario: boolean;
   canViewDocuments: boolean;
   canCreateProntuario: boolean;
+  canCreateDocuments: boolean;
+  initialCreate: 'prescricao' | 'documento' | null;
   deceased: boolean;
 }) {
-  if (!canViewProntuario && !canViewDocuments) return null;
+  if (!canViewProntuario && !canViewDocuments && !canCreateProntuario && !canCreateDocuments) {
+    return null;
+  }
 
   const [prontuarios, documents] = await Promise.all([
     canViewProntuario ? listRecentProntuariosByPatient(clinicId, patientId) : Promise.resolve([]),
@@ -271,6 +287,8 @@ export async function PatientClinicalActivityData({
       canViewRecords={canViewProntuario}
       canViewDocuments={canViewDocuments}
       canCreateRecord={canCreateProntuario}
+      canCreateDocuments={canCreateDocuments}
+      initialCreate={initialCreate}
       deceased={deceased}
     />
   );
@@ -285,6 +303,8 @@ export async function DadosTab({
   canViewProntuario,
   canCreateProntuario,
   canViewDocuments,
+  canCreateDocuments,
+  initialCreate,
 }: {
   clinicId: string;
   patient: NonNullable<Awaited<ReturnType<typeof getPatientWithDecryptedFields>>>;
@@ -294,6 +314,8 @@ export async function DadosTab({
   canViewProntuario: boolean;
   canCreateProntuario: boolean;
   canViewDocuments: boolean;
+  canCreateDocuments: boolean;
+  initialCreate: 'prescricao' | 'documento' | null;
 }) {
   const [endereco, relationships, decisions] = await Promise.all([
     getPrincipalAddress(clinicId, p.id),
@@ -340,7 +362,7 @@ export async function DadosTab({
         aria-label="Contexto do paciente"
         className="flex min-w-0 flex-col gap-(--sp-4) xl:col-start-2 xl:row-start-1 xl:row-span-3"
       >
-        {canViewProntuario || canViewDocuments ? (
+        {canViewProntuario || canViewDocuments || canCreateProntuario || canCreateDocuments ? (
           <Suspense
             fallback={
               <div role="status" aria-label="Carregando atividade clínica">
@@ -355,6 +377,8 @@ export async function DadosTab({
               canViewProntuario={canViewProntuario}
               canViewDocuments={canViewDocuments}
               canCreateProntuario={canCreateProntuario}
+              canCreateDocuments={canCreateDocuments}
+              initialCreate={initialCreate}
               deceased={p.obitoEm != null}
             />
           </Suspense>

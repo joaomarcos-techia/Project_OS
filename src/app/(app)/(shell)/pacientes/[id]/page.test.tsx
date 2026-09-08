@@ -72,6 +72,8 @@ const dadosProps = {
   canViewProntuario: false,
   canCreateProntuario: false,
   canViewDocuments: false,
+  canCreateDocuments: false,
+  initialCreate: null,
 };
 
 describe('/pacientes/[id] CRM', () => {
@@ -115,6 +117,8 @@ describe('/pacientes/[id] CRM', () => {
       canViewProntuario: false,
       canViewDocuments: false,
       canCreateProntuario: false,
+      canCreateDocuments: false,
+      initialCreate: null,
       deceased: false,
     });
     expect(listRecentProntuariosByPatient).not.toHaveBeenCalled();
@@ -129,6 +133,8 @@ describe('/pacientes/[id] CRM', () => {
       canViewProntuario: true,
       canCreateProntuario: true,
       canViewDocuments: true,
+      canCreateDocuments: true,
+      initialCreate: null,
       deceased: false,
     });
 
@@ -153,6 +159,7 @@ describe('/pacientes/[id] CRM', () => {
       canCreateProntuario: false,
       canSignProntuario: false,
       canViewDocuments: false,
+      canCreateDocuments: false,
     });
   });
 
@@ -171,6 +178,7 @@ describe('/pacientes/[id] CRM', () => {
       canCreateProntuario: false,
       canSignProntuario: false,
       canViewDocuments: false,
+      canCreateDocuments: false,
     });
     expect(patientPageCapabilities({ isSuperAdmin: true, aal: 'aal2', permissions: [] })).toEqual({
       canEditPatient: true,
@@ -180,6 +188,7 @@ describe('/pacientes/[id] CRM', () => {
       canCreateProntuario: true,
       canSignProntuario: true,
       canViewDocuments: true,
+      canCreateDocuments: true,
     });
   });
 });
