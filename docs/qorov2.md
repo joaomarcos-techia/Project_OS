@@ -180,12 +180,14 @@ erro bruto e a UI não oferece retry. Unit/UI 22/22, readback conectado DEV 1/1,
 6/6 e na prova D72 específica: `/caixa` HTTP 200, estado `PENDING` e R$ 10 visíveis, nenhum id do
 provider e zero `pageerror`. Auth state e marcador do Playwright foram removidos.
 
-**Camada 2 iniciada somente como spike 2.1.0 em 06/09:** a auditoria regulatória mostrou que “recibo
-PDF” mistura comprovante não fiscal, recibo médico e documento fiscal. A [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md)
-foi aceita pelo fundador em 06/09: primeiro um comprovante não fiscal por baixa, mantendo Receita
-Saúde (PF) e NFS-e de PJ como integrações separadas. Em 07/09 o Asaas foi escolhido para a NFS-e de
-PJ. Nenhum schema, endpoint ou PDF foi criado;
-a revisão jurídico-contábil e os gates de Camada 1 da §22 continuam obrigatórios antes do código.
+**Camada 2 — 2.1A redirecionada em 09/09:** a proposta de comprovante individual da
+[ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) foi substituída pelo CSV mensal, não
+fiscal, da [ADR-058](adr/058-exportacao-financeira-contabilidade.md). O read model, rota segura e UI
+foram implementados e validados localmente/DEV sem migration: focused **23/23**, suíte integral
+**3.081/3.081**, smoke conectado somente leitura **PASS** (`2` movimentos, `703` bytes e zero
+mutação), lint, typecheck, build e todos os gates arquiteturais/operacionais verdes. Não houve chamada
+externa, commit, push ou deploy neste lote; rollout continua uma fase separada e não autorizada.
+Receita Saúde (PF) e NFS-e via Asaas (PJ) continuam fluxos fiscais separados.
 
 **Spike Memed 2.2.0 executado em 07/09:** a documentação oficial e o código atual foram comparados na
 [ADR-056](adr/056-spike-integracao-memed.md). A arquitetura API backend + MdHub frontend é viável,
@@ -815,7 +817,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
 | D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
 | Track O — onboarding self-serve | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
-| Camadas 2–4 | Permanecem congeladas até `1.H ✅ + 1.S ✅`. A ordem é: comprovante/recibo conforme + fechar recuperação → `2.H/2.S` → P2/P3, cada camada com `.H/.S`. A implementação Memed não bloqueia essa sequência e foi adiada para a Track M final |
+| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, e 2.4B aguarda a prova Meta real. Depois vêm `2.H/2.S` → P2/P3. Memed foi adiada para a Track M final |
 
 ### Dependências externas — validação comportamental (atualizado em 2026-09-01)
 
@@ -1076,7 +1078,7 @@ CAMADA -1  Architecture Review (C4 + grafos + riscos + ADRs) ..... ✅ CONCLUÍD
 CAMADA 0   Baseline ...................................... ✅ CONCLUÍDA
 CAMADA 1   1.0 adapter·1.1 credencial·[O-1]·1.2 política·1.3 charges+hold·
            1.4 webhook·1.5 falta/restante·1.6 UI·1.H hardening·1.S stabilization
-CAMADA 2   P1 (comprovante/recibo conforme · template local · recuperação) · 2.H · 2.S
+CAMADA 2   P1 (CSV contábil não fiscal · template local · recuperação) · 2.H · 2.S
 CAMADA 3   P2 (conselho genérico + O-2 + pacote/mensalidade) · 3.H · 3.S
 CAMADA 4   P3 (backlog)
 TRACK O    cadastro self-serve · onboarding · tour · documentação · O.H · O.S
@@ -1264,8 +1266,10 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
 ---
 
 ## 7. Camadas 2–4 (mesmos gates + `.H`/`.S`)
-- **P1:** **2.1.0 spike regulatório de documento de pagamento** → 2.1 comprovante/recibo conforme
-  [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) · **2.3 ✅ template psiquiátrico local
+- **P1:** **2.1A exportação financeira mensal para contabilidade**, não fiscal, sem PDF/migration,
+  conforme [ADR-058](adr/058-exportacao-financeira-contabilidade.md); código e DEV verdes com focused
+  23/23, suíte 3.081/3.081, smoke read-only e todos os gates; rollout não executado/não autorizado ·
+  **2.3 ✅ template psiquiátrico local
   (código/Unit/E2E controlado DEV 1/1 PASS, cleanup zero)** · **2.4A retorno existente com
   smoke C14 DEV 9/9 PASS** · **2.4B recuperação de falta implementada e validada em DEV,
   smoke C14 10/10 PASS; rollout/E2E Meta pendentes** · **2.H·2.S**.
@@ -2849,14 +2853,19 @@ autorização para migration/API/infra. Não misturar módulos por especialidade
 
 ---
 
-## 22. Camada 2 — 2.1 documento de pagamento: spike regulatório
+## 22. Camada 2 — 2.1 exportação financeira para contabilidade
 
-**Estado em 06/09/2026:** `2.1.0 DISCOVERY CONCLUÍDO; 2.1A APROVADA`; código de PDF **não iniciado**.
-A investigação produziu a [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md), aceita pelo
-fundador em 06/09 para comprovante não fiscal por baixa. Isso prepara a Camada 2 de forma reversível;
-não declara a Camada 1 encerrada, não contorna D50/D80 e não dispensa a revisão jurídico-contábil.
+**Estado em 09/09/2026:** `2.1A IMPLEMENTADA E VALIDADA EM CÓDIGO/DEV; FOCUSED 23/23; SUÍTE
+3.081/3.081; SMOKE CONECTADO READ-ONLY PASS; TODOS OS GATES VERDES; ROLLOUT NÃO EXECUTADO/NÃO
+AUTORIZADO`.
 
-### 22.1 Por que “recibo PDF” não é um requisito suficiente
+Por decisão do fundador em 09/09, o comprovante PDF individual proposto na
+[ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) foi substituído antes de existir schema
+ou runtime. A entrega correta para esta fase é o **CSV mensal de movimentação financeira para a
+contabilidade**, conforme a [ADR-058](adr/058-exportacao-financeira-contabilidade.md). Ele não tem
+valor fiscal e não substitui NFS-e, Receita Saúde, extrato bancário ou documento do Asaas.
+
+### 22.1 Por que o comprovante individual foi substituído
 
 O nome antigo mistura comprovante operacional, recibo de despesa médica e documento fiscal. A Receita
 Federal informa que, desde 01/01/2025, médicos, psicólogos, dentistas, fisioterapeutas,
@@ -2872,28 +2881,28 @@ paciente com CPF cifrado e relações de responsável financeiro. A tabela de tr
 status**: `kind = 'payment'` é a baixa criada pelo Financial quando o valor recebido é reconhecido e
 alocado. O modelo não registra a natureza PF/PJ do emitente nem um snapshot do pagador efetivo por
 transação, razão social, assinatura/numeração fiscal ou vínculo com Receita Saúde/NFS-e. Inferir esses
-dados ou um estado inexistente produziria um documento enganoso.
+dados ou um estado inexistente produziria um documento enganoso. Para a necessidade escolhida —
+enviar a movimentação do mês ao contador — capturar pagador e renderizar um PDF por baixa seria custo
+e risco sem benefício. O ledger financeiro já fornece uma fonte mais apropriada e auditável.
 
 ### 22.2 Caminho recomendado
 
-1. **2.1A — comprovante não fiscal:** gerar um comprovante por baixa `kind = 'payment'`, com aviso claro
-   de que não substitui Receita Saúde, NFS-e ou documento fiscal. Ele atende conciliação/atendimento ao
-   paciente sem prometer validade tributária inexistente.
+1. **2.1A — exportação para contabilidade:** CSV mensal detalhado de pagamentos e estornos do ledger,
+   com efeito no caixa explícito, fornecedor/CNPJ quando houver e sem dado clínico ou de paciente.
 2. **2.1B — documento fiscal:** para clínicas PJ, usar o Asaas como parceiro de NFS-e, vinculando a
    nota à cobrança e acompanhando autorização/erro/cancelamento de forma assíncrona. Para prestador PF,
    Receita Saúde permanece integração própria. Não usar scraping nem construir motor municipal.
-3. Capturar/confirmar o **pagador real** no ato do recebimento; não presumir que seja o paciente,
-   responsável cadastrado, titular do cartão ou usuário logado. Beneficiário e pagador permanecem
-   distintos.
-4. Fazer snapshot imutável por `payment_transaction`. Estorno cria compensação/referência; nunca
-   reescreve o documento histórico como se o pagamento não tivesse existido.
-5. Gerar e baixar somente no servidor, com sessão, RBAC financeiro, `clinic_id` derivado do usuário,
-   RLS, auditoria, rate limit e sem URL pública previsível. CPF/endereço nunca entram em logs/Sentry.
+3. Manter o relatório estritamente operacional: o contador interpreta o arquivo; o Qoro não o chama
+   de recibo nem declara que uma obrigação fiscal foi cumprida.
+4. Representar cada `payment_transaction` append-only. Estorno é nova linha vinculada à transação
+   original e não apaga o pagamento histórico.
+5. Gerar e baixar somente no servidor, com sessão, RBAC financeiro fresco, `clinic_id` derivado do
+   usuário, RLS, auditoria, rate limit e sem URL pública previsível.
 
 ### 22.3 Decisão de produto
 
-- [x] **Aprovada em 06/09/2026:** 2.1A como “Comprovante de pagamento — não fiscal”, deixando Receita
-  Saúde e NFS-e como integrações separadas.
+- [x] **Aprovada em 09/09/2026:** substituir o comprovante individual 2.1A pelo CSV mensal para
+  contabilidade, sem valor fiscal, PDF, snapshot de pagador ou migration.
 - [x] **Aprovada em 07/09/2026:** Asaas como parceiro fiscal de NFS-e para clínicas PJ; NF-e de produto,
   Receita Saúde PF e motor municipal próprio ficam fora desse contrato.
 - [x] **Rejeitada para este slice:** exigir recibo médico/fiscal já na 2.1. Esse caminho exige primeiro
@@ -2901,67 +2910,80 @@ dados ou um estado inexistente produziria um documento enganoso.
   provedor fiscal, identidade legal do emitente, pagador, beneficiário, assinatura/numeração,
   cancelamento e retenção.
 
-O nome e a copy “não fiscal” ainda passam por revisão jurídico-contábil antes do rollout. A aprovação
-não autoriza chamar o comprovante de “recibo fiscal”.
+O CSV não exige parecer jurídico para existir porque não faz declaração legal; a clínica deve validar
+com seu contador se as colunas atendem a rotina prática. Essa validação de usabilidade não autoriza
+chamar o arquivo de documento fiscal.
 
-### 22.4 Contrato e testes planejados para 2.1A
+### 22.4 Contrato implementado para 2.1A
 
-- **fonte da verdade:** um movimento positivo `payment_transactions.kind = 'payment'` já persistido
-  como baixa pelo Financial; a tabela não tem coluna `status` e nunca se aceita confirmação enviada
-  pelo browser;
-- **idempotência:** um snapshot por `clinic_id + payment_transaction_id + version`, protegido por
-  constraint e concorrência;
-- **multi-tenancy:** rota deriva tenant da sessão e o banco prova A → B negado;
-- **privacidade:** snapshot mínimo/cifrado, download autenticado, `Content-Disposition`, cache privado,
-  logs redigidos e sem dado clínico desnecessário;
-- **reversão:** comprovante referencia a compensação e não oculta o histórico;
-- **unit:** copy não fiscal, moeda/data, parcela, pagador diferente do beneficiário e estorno;
-- **integration DB:** snapshot, replay, concorrência, RLS/FORCE, grants e ledger append-only;
-- **contract/PDF:** texto extraído, metadados, nome de arquivo, ausência de ids/secrets e render visual;
-- **E2E:** dono/financeiro gera, baixa e repete; perfil sem permissão e tenant cruzado recebem negação;
-- **gates:** lint, typecheck, suíte, build, arquitetura, DB, migration, observabilidade, segurança e
-  Playwright. Produção/migration/deploy continuam exigindo autorização específica.
+- **fonte da verdade:** `payment_transactions` + `lancamentos`; pagamentos e estornos são linhas
+  distintas e nenhum valor/tenant vem do browser;
+- **período:** mês civil no fuso da clínica, convertido para intervalo UTC `[from, to)`;
+- **sinal:** `valor_movimento` positivo e `efeito_caixa` assinado para as quatro combinações entre
+  receber/pagar e payment/refund;
+- **multi-tenancy:** rota deriva tenant da sessão; a query executa em `withTenant` e repete
+  `clinic_id` nos joins. O teste de contrato verifica esses predicados e o smoke conectado exercitou o
+  tenant próprio; este lote não criou uma tentativa mutável cross-tenant;
+- **privacidade:** projeção não seleciona paciente, CPF, consulta, prontuário ou dado clínico;
+- **formato:** `;`, vírgula decimal, duas casas, CRLF, BOM UTF-8 e neutralização de fórmulas;
+- **completude:** teto 10.000 + uma linha de detecção; excesso responde 422, nunca trunca silencioso;
+- **acesso:** `requireFreshPermission(view:financial)`, rate limit por usuário/clínica, `attachment`,
+  `no-store`, `nosniff` e auditoria somente de metadados;
+- **unit/contract/UI:** 23/23 focados em 09/09, inclusive RBAC negativo, fuso, estorno, injeção CSV,
+  projeção sem PII e visibilidade condicional;
+- **integração DEV somente leitura:** `pnpm smoke:accounting-export` retornou `ok=true`, mês
+  `2026-09`, `rowCount=2`, `csvBytes=703` e `mutationCount=0`; nenhuma fixture, auditoria, escrita ou
+  chamada a provider foi criada;
+- **regressão:** suíte integral 3.081/3.081, lint, typecheck e build PASS;
+- **arquitetura/operação:** `arch:check`, `arch:db-check`, `arch:graphs --check` (54 elementos, 293
+  arestas, zero ciclos, 67 eventos e 42 producer-ahead allowlisted), `check:migrations`,
+  `check:registry:strict` e `check:observability` PASS;
+- **fronteira de rollout:** commit/push/deploy/Preview/produção não foram executados e continuam
+  exigindo autorização específica; isso não é pendência de código/DEV da 2.1A.
 
-### 22.5 Auditoria do terreno e split obrigatório
+### 22.5 Implementação local
 
-A infraestrutura de PDF já está implementada com `@react-pdf/renderer` 4.5.1 e funções puras em
-`src/lib/pdf`; `/relatorios/pdf` fornece o padrão Node autenticado com rate limit, `no-store` e
-`Content-Disposition`. Portanto, 2.1A não adiciona engine nem dependência. O README dessa biblioteca,
-que ainda dizia “vazio”, foi reconciliado neste spike.
+O read model `listAccountingMovements` consulta o ledger em `withTenant`, restringe transação,
+lançamento e fornecedor à clínica, ordena por instante/id e converte `numeric` na borda. O helper puro
+calcula sinais, mês/fuso e CSV. A rota `GET /relatorios/contabilidade.csv?mes=AAAA-MM` aplica autorização,
+limite, headers e auditoria. `/relatorios` exibe o seletor mensal somente para quem possui
+`view:financial` e explica a separação fiscal. O smoke conectado reutilizável está em
+`scripts/smoke-accounting-export.ts` e o comando canônico é `pnpm smoke:accounting-export`. Não houve
+migration, dependência, PDF, alteração de ledger, chamada externa ou dado de paciente.
 
-O bloqueio real é dado e autoridade: o Financial conhece baixa/recebível/paciente, Tenancy expõe
-nome/endereço/CNPJ opcional e Patient possui identidade e responsável financeiro, mas não há snapshot
-do pagador efetivo. `patientApiV1.getPaymentIdentity` é deliberadamente restrito à cobrança Asaas e
-não será reaproveitado por conveniência. Como o Checkout hospedado coleta o pagador fora do Qoro,
-paciente, responsável cadastrado e titular do cartão continuam identidades não intercambiáveis.
+As decisões e boundaries estão preservados em:
 
-2.1A será executada em dois lotes, sem misturar com D72:
+- [ADR-007](adr/007-rls-implementation-patterns.md): RLS e tenant derivado da sessão;
+- [ADR-011](adr/011-outbox-audit-idempotency-patterns.md): auditoria sem payload sensível;
+- [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md): ledger append-only e compensação por estorno;
+- [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md): separação fiscal e escolha do Asaas
+  para NFS-e de clínica PJ;
+- [ADR-058](adr/058-exportacao-financeira-contabilidade.md): contrato aceito e implementado do CSV.
 
-1. **2.1A.1 contrato/snapshot — Financial + Patient:** seam documental estreito, confirmação explícita
-   do pagador, snapshot cifrado/minimizado e idempotência por baixa/versão. A aplicação compõe o perfil
-   público existente de Tenancy sem alterar seus internals.
-2. **2.1A.2 render/entrega — Financial + app/lib:** renderizador puro, rota Node, RBAC financeiro, rate
-   limit, auditoria, headers seguros, estado de compensação e ação no Caixa.
-
-Cada lote precisa confirmar sua própria estimativa `≤25 arquivos`, `≤1500 linhas` e `≤2 contexts`
-antes do código.
-
-### 22.6 Checklist 2.1.0
+### 22.6 Checklist 2.1A
 
 - [x] fontes oficiais atuais da Receita Federal verificadas;
 - [x] diferença PF/PJ, pagamento/parcela, pagador/beneficiário e Dmed registrada;
 - [x] modelo atual auditado contra os campos mínimos;
 - [x] engine PDF, rota de referência, rate limit, RBAC e seams existentes auditados;
 - [x] ausência de `payment_transaction.status` e de pagador persistido registrada sem inferências;
-- [x] execução proposta em 2.1A.1/2.1A.2 para respeitar o budget por lote;
-- [x] ADR-054 criada e aceita para 2.1A;
-- [x] arquitetura, ameaças, privacidade, idempotência e matriz de testes propostas;
-- [x] decisão humana: 2.1A aprovada e recibo fiscal integral rejeitado para este slice;
+- [x] proposta antiga de comprovante preservada como história e superseded na ADR-054;
+- [x] ADR-058 criada e aceita para a exportação financeira;
+- [x] read model tenant-scoped do ledger sem paciente/dado clínico;
+- [x] CSV mensal, sinal de caixa, fuso, BOM/CRLF e proteção contra formula injection;
+- [x] rota com RBAC fresco, rate limit, auditoria mínima e headers seguros;
+- [x] UI somente para `view:financial`, com aviso “não fiscal”;
+- [x] focused 23/23, suíte integral 3.081/3.081, lint, typecheck e build PASS;
+- [x] smoke conectado DEV somente leitura PASS, com duas linhas, 703 bytes e zero mutação;
+- [x] arquitetura, DB, grafos, migrations, registry e observabilidade PASS;
+- [x] `git diff --check`, formatação e varredura de segredos do conteúdo alterado PASS;
 - [x] parceiro de NFS-e PJ escolhido: Asaas; contrato assíncrono e responsabilidades registrados na
   ADR-054;
-- [ ] revisão jurídico-contábil da copy e do enquadramento da primeira clínica piloto;
-- [ ] código, migration, testes, E2E e rollout — não iniciados; aguardam os gates da Camada 1 e a
-  revisão jurídico-contábil definida acima.
+
+Não existe pendência técnica de código/DEV dentro da 2.1A. Uma revisão das colunas por contador é uma
+validação opcional de usabilidade, não um gate de correção. Commit, push, deploy, smoke de Preview e
+produção pertencem ao rollout e **não foram executados porque não foram autorizados**; deverão formar
+um lote próprio, sem migration, quando houver autorização explícita.
 
 ---
 

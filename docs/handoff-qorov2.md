@@ -24,7 +24,8 @@ Depois dele, leia:
 | `docs/adr/050-identidade-de-pagamento-do-paciente.md` | PII mínima que vai para o Asaas |
 | `docs/adr/051-conciliacao-sinal-e-recebivel.md` | **as 4 invariantes financeiras**, na §2.1 |
 | `docs/adr/052-risco-e-reversao-de-pagamento-do-paciente.md` | chargeback e compensação financeira |
-| `docs/adr/054-documento-de-pagamento-e-recibo-fiscal.md` | spike 2.1: comprovante não fiscal versus Receita Saúde/NFS-e |
+| `docs/adr/054-documento-de-pagamento-e-recibo-fiscal.md` | histórico do spike 2.1; comprovante individual superseded em parte pela ADR-058 |
+| `docs/adr/058-exportacao-financeira-contabilidade.md` | decisão atual 2.1A: CSV mensal não fiscal para a contabilidade |
 | `docs/adr/055-documentos-clinicos-fora-da-consulta.md` | documentos clínicos centrados no paciente, com consulta opcional |
 | `docs/adr/056-spike-integracao-memed.md` | spike 2.2.0 concluído; runtime Memed adiado para a Track M final |
 | `docs/adr/057-recuperacao-falta-retorno.md` | 2.4: retorno clínico existente e recuperação após falta implementada em DEV |
@@ -96,13 +97,12 @@ canônico e às seções 20–24 de `qorov2.md`:
   a ponte `qoro.dev/comecar` para Google Ads. É **desenho não implementado**. Trial após readback
   server-side da assinatura e `signup_completed` como conversão primária inicial já foram decididos;
   falta provar o contrato do Checkout hospedado, fechar O-0 e obter autorização para APIs/infra;
-- a Camada 2 começou somente pelo spike regulatório 2.1.0, em `qorov2.md` §22 e na **ADR-054
-  Accepted**. Em 06/09 o fundador aprovou comprovante não fiscal por baixa; Receita Saúde para PF e
-  NFS-e/recibo de PJ permanecem integrações fiscais separadas. Nenhum PDF/schema/endpoint foi criado;
-  falta a revisão jurídico-contábil e o fechamento dos gates da Camada 1. A auditoria confirmou que a engine PDF, rota Node,
-  rate limit e RBAC já existem, mas não há pagador persistido nem `payment_transaction.status`; o
-  trabalho proposto foi dividido em 2.1A.1 (snapshot, Financial + Patient) e 2.1A.2 (render/entrega),
-  sem misturar com D72;
+- a Camada 2 redirecionou a 2.1A em 09/09: a **ADR-058 Accepted** substitui o comprovante individual
+  da ADR-054 por CSV mensal não fiscal para a contabilidade. Read model, rota e UI estão implementados
+  e validados localmente/DEV, sem migration/PDF/provider: focused 23/23, suíte 3.081/3.081, smoke
+  conectado read-only com 2 linhas/703 bytes/zero mutação, lint, typecheck, build e todos os gates
+  passaram. Commit/push/deploy não foram executados nem autorizados. Receita Saúde PF e NFS-e via
+  Asaas PJ continuam separados;
 - o spike documental 2.2.0 foi concluído em 07/09 na **ADR-056 Deferred**. A Memed é tecnicamente
   integrável por API backend + MdHub frontend, porém implementação, migration e SDK estão bloqueados
   até contrato/preço/SLA/LGPD, credenciais/homologação, readback ou webhook server-side,
@@ -348,9 +348,9 @@ D72 está verde, publicado e revalidado e torna esses estados legíveis no Caixa
 provider. Commit `b6f8194`, deployment `success`, smoke Preview 6/6 e prova específica `/caixa` PASS;
 auth state/artefato removidos.
 
-**Código da Camada 2 só começa com `1.H ✅ + 1.S ✅`; o spike documental 2.1.0 pode avançar sem
-alterar runtime nem contornar os gates externos.** O ledger não possui `payment_transaction.status`:
-o eventual comprovante 2.1A nasce de uma baixa `kind = 'payment'` já persistida pelo Financial.
+**A Camada 2 está em execução após `1.H ✅ + 1.S ✅`.** A 2.1A atual nasce do ledger append-only
+`payment_transactions`, inclui pagamentos e estornos e não depende de `payment_transaction.status`,
+pagador persistido ou documento fiscal.
 
 ## 7. Ondas seguintes (só depois da Camada 1 fechada)
 
@@ -371,13 +371,14 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
 
 ### Camada 2 (P1)
 
-- **2.1.0** spike regulatório conforme `qorov2.md` §22/ADR-054: **concluído; 2.1A aprovada** como
-  comprovante não fiscal por baixa, separado de Receita Saúde/NFS-e.
+- **2.1A** conforme `qorov2.md` §22/ADR-058: CSV mensal não fiscal para contabilidade, implementado
+  e validado localmente/DEV sem migration; focused 23/23, suíte 3.081/3.081, smoke conectado read-only,
+  lint, typecheck, build e gates PASS. Rollout não executado/não autorizado.
 - **Decisão fiscal de 07/09:** Asaas é o parceiro de NFS-e das clínicas PJ. Qoro orquestra
   cobrança/nota e projeta somente estado autoritativo; não constrói motor municipal e não substitui
   Receita Saúde PF.
-- **2.1** implementar em 2.1A.1/2.1A.2 somente depois dos gates da Camada 1; revisão
-  jurídico-contábil permanece gate de rollout.
+- **2.1** não cria comprovante por baixa nem snapshot de pagador; validação com contador é opcional de
+  usabilidade, enquanto documento fiscal segue fluxo próprio.
 - **C2.0/C2.1 ✅ DEV/PREVIEW:** entrada unificada de documentos clínicos avulsos em `/documentos` e na
   ficha do paciente, com referências tenant/patient-scoped, sem migration. Unit/component/integration
   63/63, regressão 3.040/3.040, E2E mutável 1/1 com cleanup zero e Preview autenticado 8/8/26
@@ -465,8 +466,9 @@ aplicada/verificada em DEV e produção. O lote P11 está commitado, enviado e i
 passou 8/8, com 26 rotas HTTP 200, paciente dinâmico visitado e nenhuma mutação. O E2E mutável DEV
 passou 1/1 com fixtures clínicas sintéticas tenant-scoped, PDFs reais no Storage e cleanup/readback
 zero. Auth state e artefatos do Preview foram removidos. Preservar `financeiro.md`, `novaui.md` e os
-dois runners temporários não rastreados. 2.1A.1 ainda exige a decisão de pagador/revisão
-jurídico-contábil; não repetir a chamada externa de D88. Produção não foi alterada por C2.1.
+dois runners temporários não rastreados. Em 09/09, 2.1A foi substituída pelo CSV da ADR-058 e está
+validada localmente/DEV, mas sem commit ou rollout; não repetir a chamada externa de D88. Produção não
+foi alterada por C2.1 nem pela 2.1A.
 
 ## 10. Ao terminar cada sub-fase, responda neste formato
 

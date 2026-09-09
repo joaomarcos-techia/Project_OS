@@ -1,8 +1,9 @@
 # ADR-054 — Documento de pagamento e recibo fiscal da Camada 2
 
-- **Status:** Accepted — 2.1A aprovada em 2026-09-06; Asaas escolhido em 2026-09-07 como parceiro de
-  NFS-e para clínicas PJ; revisão jurídico-contábil permanece gate de rollout
-- **Data:** 2026-09-06; atualizada em 2026-09-07
+- **Status:** Superseded in part — a proposta de comprovante individual 2.1A foi substituída em
+  2026-09-09 pela exportação financeira da [ADR-058](058-exportacao-financeira-contabilidade.md);
+  a decisão de usar o Asaas para NFS-e de clínicas PJ permanece aceita
+- **Data:** 2026-09-06; atualizada em 2026-09-09
 - **Contextos:** financial, patient e tenancy, compostos somente na camada de aplicação e entregues
   em slices de no máximo dois bounded contexts
 - **Relaciona:** [ADR-007](007-rls-implementation-patterns.md),
@@ -11,6 +12,12 @@
   [Qoro v2 §22](../qorov2.md#22-camada-2--21-documento-de-pagamento-spike-regulatório)
 
 ## Contexto
+
+> **Registro histórico:** este ADR continua explicando por que comprovante operacional, recibo médico
+> e documento fiscal não são sinônimos. A decisão posterior da ADR-058 removeu do roadmap o PDF
+> individual e o snapshot de pagador: a necessidade imediata passou a ser um CSV mensal, não fiscal,
+> destinado à conferência da contabilidade. Nenhum trecho abaixo autoriza implementar o comprovante
+> superseded.
 
 O roadmap chama a 2.1 de “recibo PDF”, mas esse nome mistura três documentos diferentes:
 
@@ -93,8 +100,8 @@ Decisão do fundador em 2026-09-06:
   definir PF/PJ, provedor fiscal, identidade legal do emitente, pagador real, beneficiário,
   assinatura/numeração, cancelamento e retenção.
 
-A aprovação autoriza o desenho em dois lotes; não dispensa a revisão jurídico-contábil da copy e do
-enquadramento da clínica piloto antes do rollout.
+A aprovação então autorizava o desenho em dois lotes, mas foi substituída pela ADR-058 antes da
+implementação. A revisão jurídico-contábil descrita aqui não é pendência do CSV operacional atual.
 
 Decisão complementar do fundador em 2026-09-07:
 
@@ -108,7 +115,10 @@ Decisão complementar do fundador em 2026-09-07:
 - cada tenant usa a conta Asaas da própria clínica e sua configuração fiscal. Credenciais, serviço
   municipal, alíquotas e identidade do emitente nunca são compartilhados entre clínicas.
 
-## Auditoria técnica e divisão do trabalho
+## Auditoria técnica e divisão do trabalho — plano histórico superseded
+
+O plano abaixo é mantido como registro da análise de 06/09. **Não deve ser executado:** a ADR-058
+substituiu contrato, snapshot, PDF e entrega por um read model mensal sem migration.
 
 A infraestrutura de renderização já existe e não exige dependência nova: `@react-pdf/renderer` 4.5.1,
 renderizadores puros em `src/lib/pdf` e uma rota Node de referência em `/relatorios/pdf`. Também já
@@ -139,7 +149,7 @@ Cada lote terá estimativa própria antes do código e deve permanecer em `≤25
 e `≤2 bounded contexts`. D72 deve ser publicado separadamente; não misturar o corretivo da Camada 1
 com a migration ou o contrato público da Camada 2.
 
-## Contrato mínimo da entrega recomendada
+## Contrato mínimo da entrega então recomendada — superseded
 
 - fonte: um movimento positivo `payment_transactions.kind = 'payment'`, persistido pelo Financial
   como baixa após o recebimento; não existe nem será presumido um `status` da transação;
@@ -155,7 +165,7 @@ com a migration ou o contrato público da Camada 2.
 - dados: snapshot cifrado/minimizado, retenção alinhada ao ledger e hard-delete bloqueado quando houver
   obrigação legal de guarda.
 
-## Testes e gates antes de `Accepted`
+## Testes e gates do plano histórico — superseded
 
 - unitários de copy, arredondamento, parcela, pagador diferente do beneficiário e estorno;
 - integração DB para snapshot, idempotência, concorrência, tenant A → B, RLS e ledger append-only;

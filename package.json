@@ -83,6 +83,7 @@
     "smoke:c7": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c7.ts",
     "smoke:c8": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c8.ts",
     "smoke:c9": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 tsx --conditions=react-server scripts/smoke-c9.ts",
+    "smoke:accounting-export": "tsx --conditions=react-server scripts/smoke-accounting-export.ts",
     "smoke:c10": "cross-env OUTBOX_BATCH_SIZE=5 OUTBOX_PARALLELISM=2 META_APP_SECRET=smoke-app-secret META_WEBHOOK_VERIFY_TOKEN=verify-me CRYPTO_LOOKUP_SALT=c21va2UtYzEwLWxvb2t1cC1zYWx0LTMyLWJ5dGVzLW9rIQ== tsx --conditions=react-server scripts/smoke-c10.ts",
     "smoke:c11": "cross-env OUTBOX_BATCH_SIZE=10 OUTBOX_PARALLELISM=1 GEMINI_API_KEY=smoke-gemini-key AI_SNAPSHOT_MODE=full tsx --conditions=react-server scripts/smoke-c11.ts",
     "smoke:c12": "cross-env OUTBOX_BATCH_SIZE=10 OUTBOX_PARALLELISM=1 GEMINI_API_KEY=smoke-gemini-key AI_SNAPSHOT_MODE=off tsx --conditions=react-server scripts/smoke-c12.ts",

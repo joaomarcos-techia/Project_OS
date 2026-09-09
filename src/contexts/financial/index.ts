@@ -39,6 +39,7 @@ export type {
 } from './events';
 
 export type {
+  AccountingMovementDTO,
   LancamentoTipo,
   LancamentoStatus,
   LancamentoCreatedVia,

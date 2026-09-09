@@ -31,6 +31,7 @@ const report = {
   ocupacao: { busyMinutes: 600, freeMinutes: 400, taxa: 0.6 },
   fromLabel: '22/07',
   toLabel: '20/08',
+  accountingMonth: '2026-08',
 };
 
 afterEach(cleanup);
@@ -52,6 +53,9 @@ describe('RelatoriosPage', () => {
     expect(within(metrics).getByText('No-show')).toBeTruthy();
     expect(within(metrics).getByText('Ocupação')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Volume de atendimentos' })).toBeTruthy();
+    expect(
+      screen.queryByRole('region', { name: 'Exportação financeira para contabilidade' }),
+    ).toBeNull();
   });
 
   it('mantém período, exportação e faturamento descobertos com permissão', async () => {
@@ -67,5 +71,13 @@ describe('RelatoriosPage', () => {
     expect(screen.getByRole('link', { name: 'Exportar PDF' }).className).toContain(
       'min-h-(--hit-target)',
     );
+    const accounting = screen.getByRole('region', {
+      name: 'Exportação financeira para contabilidade',
+    });
+    expect(within(accounting).getByLabelText('Mês de referência').getAttribute('value')).toBe(
+      '2026-08',
+    );
+    expect(within(accounting).getByRole('button', { name: 'Exportar CSV' })).toBeTruthy();
+    expect(within(accounting).getByText(/não substitui nota fiscal/i)).toBeTruthy();
   });
 });

@@ -4,7 +4,7 @@
  * tenant-scoped; faturamento exige view:financial (gate no loader). Ocupação usa
  * o slot-resolver canônico (ver data.ts), nunca contagem ingênua.
  */
-import { CalendarCheck, FileDown } from 'lucide-react';
+import { CalendarCheck, FileDown, Sheet } from 'lucide-react';
 import Link from 'next/link';
 
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
@@ -80,6 +80,48 @@ export default async function RelatoriosPage({
           </Link>
         ))}
       </nav>
+
+      {canFinancial ? (
+        <PanelCard
+          title="Arquivo para contabilidade"
+          meta="CSV mensal · não fiscal"
+          regionLabel="Exportação financeira para contabilidade"
+          className="mt-(--sp-4)"
+        >
+          <form
+            action="/relatorios/contabilidade.csv"
+            method="get"
+            className="flex flex-wrap items-end gap-(--sp-3)"
+          >
+            <label className="grid gap-1 text-(length:--fs-sm) font-medium text-fg">
+              Mês de referência
+              <input
+                type="month"
+                name="mes"
+                required
+                defaultValue={data.accountingMonth}
+                min="2000-01"
+                max="2100-12"
+                className="min-h-(--hit-target) rounded-(--r-sm) border border-border bg-surface px-3 text-fg tabular-nums"
+              />
+            </label>
+            <button
+              type="submit"
+              className={cn(
+                buttonVariants({ variant: 'secondary', size: 'sm' }),
+                'min-h-(--hit-target)',
+              )}
+            >
+              <Sheet aria-hidden="true" className="size-4" />
+              Exportar CSV
+            </button>
+          </form>
+          <p className="mt-(--sp-3) max-w-3xl text-(length:--fs-sm) text-fg-muted">
+            Movimentos de caixa, pagamentos e estornos do mês para conferência contábil. Este
+            arquivo é operacional e não substitui nota fiscal, Receita Saúde ou documento do Asaas.
+          </p>
+        </PanelCard>
+      ) : null}
 
       <MetricStrip className={styles.metrics ?? ''}>
         {canFinancial ? (

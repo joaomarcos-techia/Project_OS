@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { currentMonthInTimeZone } from '@/contexts/financial/accounting-export';
 import { getFaturamentoPeriodo, getRecebimentosByAppointment } from '@/contexts/financial/queries';
 import {
   getAppointmentStats,
@@ -45,6 +46,7 @@ export interface RelatoriosDTO {
   ocupacao: { busyMinutes: number; freeMinutes: number; taxa: number | null };
   fromLabel: string;
   toLabel: string;
+  accountingMonth: string;
 }
 
 function tzOffsetMs(date: Date, tz: string): number {
@@ -121,6 +123,7 @@ export async function getRelatorios(
     ocupacao: { busyMinutes: stats.busyMinutes, freeMinutes, taxa: taxaOcupacao },
     fromLabel: fmt(from),
     toLabel: fmt(new Date(to.getTime() - DAY_MS)),
+    accountingMonth: currentMonthInTimeZone(tz),
   };
 }
 

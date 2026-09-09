@@ -96,6 +96,32 @@ export interface PaymentTransactionSummary {
   refundableAmount: number;
 }
 
+/**
+ * Movimento imutável do ledger preparado para exportação contábil.
+ *
+ * Não carrega paciente, CPF nem conteúdo clínico. `cashEffect` é positivo
+ * quando o movimento aumenta o caixa e negativo quando o reduz.
+ */
+export interface AccountingMovementDTO {
+  transactionId: string;
+  lancamentoId: string;
+  occurredAt: string;
+  transactionKind: PaymentTransactionKind;
+  lancamentoTipo: LancamentoTipo;
+  description: string;
+  amount: number;
+  cashEffect: number;
+  paymentMethod: string | null;
+  paymentMethodLabel: string | null;
+  dueDate: string | null;
+  lancamentoStatus: LancamentoStatus;
+  createdVia: LancamentoCreatedVia;
+  supplierName: string | null;
+  supplierCnpj: string | null;
+  originalPaymentId: string | null;
+  reason: string | null;
+}
+
 export interface CollectionCaseDTO {
   id: string;
   lancamentoId: string;

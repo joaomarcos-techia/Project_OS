@@ -7,7 +7,7 @@
  */
 import 'server-only';
 
-import { and, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
@@ -24,6 +24,7 @@ import {
   type SupplierRow,
 } from './schema';
 import type {
+  AccountingMovementDTO,
   CashFlowDTO,
   CollectionCaseDTO,
   FaturamentoPendenciaDTO,
@@ -35,6 +36,7 @@ import type {
   PaymentTransactionSummary,
   SupplierSummary,
 } from './types';
+import { accountingCashEffect } from './accounting-export';
 
 const toIso = (v: Date | string | null | undefined): string | null =>
   v == null ? null : v instanceof Date ? v.toISOString() : v;
@@ -427,6 +429,86 @@ export async function getFaturamentoPeriodo(
     const recebido = num(r?.recebido);
     const pago = num(r?.pago);
     return { recebido, pago, saldo: Math.round((recebido - pago) * 100) / 100 };
+  });
+}
+
+/**
+ * Ledger detalhado para o relatório mensal enviado à contabilidade.
+ *
+ * A consulta não seleciona paciente nem conteúdo clínico. Os dois lados do JOIN
+ * carregam o predicado de tenant, além da RLS ativada por `withTenant`.
+ */
+export async function listAccountingMovements(
+  clinicId: string,
+  from: Date,
+  to: Date,
+  limit: number,
+): Promise<AccountingMovementDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        transactionId: paymentTransactions.id,
+        lancamentoId: paymentTransactions.lancamentoId,
+        occurredAt: paymentTransactions.occurredAt,
+        transactionKind: paymentTransactions.kind,
+        lancamentoTipo: lancamentos.tipo,
+        description: lancamentos.descricao,
+        amount: paymentTransactions.amount,
+        paymentMethod: paymentTransactions.paymentMethod,
+        paymentMethodLabel: paymentMethods.label,
+        dueDate: lancamentos.dueDate,
+        lancamentoStatus: lancamentos.status,
+        createdVia: lancamentos.createdVia,
+        supplierName: suppliers.razaoSocial,
+        supplierCnpj: suppliers.cnpj,
+        originalPaymentId: paymentTransactions.originalPaymentId,
+        reason: paymentTransactions.reason,
+      })
+      .from(paymentTransactions)
+      .innerJoin(
+        lancamentos,
+        and(
+          eq(lancamentos.id, paymentTransactions.lancamentoId),
+          eq(lancamentos.clinicId, clinicId),
+        ),
+      )
+      .leftJoin(
+        suppliers,
+        and(eq(suppliers.id, lancamentos.supplierId), eq(suppliers.clinicId, clinicId)),
+      )
+      .leftJoin(paymentMethods, eq(paymentMethods.code, paymentTransactions.paymentMethod))
+      .where(
+        and(
+          eq(paymentTransactions.clinicId, clinicId),
+          gte(paymentTransactions.occurredAt, from),
+          lt(paymentTransactions.occurredAt, to),
+        ),
+      )
+      .orderBy(asc(paymentTransactions.occurredAt), asc(paymentTransactions.id))
+      .limit(limit);
+
+    return rows.map((row) => {
+      const amount = num(row.amount);
+      return {
+        transactionId: row.transactionId,
+        lancamentoId: row.lancamentoId,
+        occurredAt: toIso(row.occurredAt)!,
+        transactionKind: row.transactionKind,
+        lancamentoTipo: row.lancamentoTipo,
+        description: row.description,
+        amount,
+        cashEffect: accountingCashEffect(row.lancamentoTipo, row.transactionKind, amount),
+        paymentMethod: row.paymentMethod ?? null,
+        paymentMethodLabel: row.paymentMethodLabel ?? null,
+        dueDate: row.dueDate ?? null,
+        lancamentoStatus: row.lancamentoStatus,
+        createdVia: row.createdVia,
+        supplierName: row.supplierName ?? null,
+        supplierCnpj: row.supplierCnpj ?? null,
+        originalPaymentId: row.originalPaymentId ?? null,
+        reason: row.reason ?? null,
+      };
+    });
   });
 }
 
