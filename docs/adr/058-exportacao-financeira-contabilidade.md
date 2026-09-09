@@ -1,7 +1,7 @@
 # ADR-058 — Exportação financeira mensal para contabilidade
 
-- **Status:** Accepted — implementação/DEV e commit local `b45dffc` concluídos; push/deploy pausados
-  antes da rede por ancestral de UI fora do escopo
+- **Status:** Accepted — implementação/DEV, commit/push, Vercel e smoke autenticado do Preview
+  concluídos
 - **Data:** 2026-09-09
 - **Contextos:** financial + composição na camada app
 - **Supersede:** a entrega 2.1A de comprovante individual proposta na
@@ -84,10 +84,13 @@ substituída antes de qualquer schema, endpoint ou PDF ser criado.
 - arquitetura/operação: `arch:check`, `arch:db-check`, `arch:graphs --check` com zero ciclos,
   `check:migrations`, `check:registry:strict` e `check:observability` PASS;
 - segurança do lote: formatação, `git diff --check` e varredura do conteúdo alterado PASS;
-- rollout: commit local `b45dffc` concluído. A branch já continha o commit de UI `a935c39`, ausente do
-  remoto; como um push normal publicaria os dois lotes, push/deploy foram pausados antes da rede até
-  existir decisão explícita sobre incluir ou isolar esse ancestral. Isso não altera a conclusão
-  local/DEV desta ADR.
+- rollout: após autorização do fundador para preservar a organização linear, `a935c39`, `b45dffc` e
+  `dfa5ecc` foram publicados por fast-forward. O Vercel concluiu o deployment
+  `6uGhcfnkBpvTVAYTWnWG2ebRUZ4H` no SHA `dfa5ecc`. A fronteira pública passou 5/5; o smoke autenticado
+  foi inicialmente bloqueado por credencial local inválida, sem ser classificado como aprovação. Após
+  a correção da variável local, a mesma matriz somente leitura passou 8/8, com 26 rotas estáticas HTTP
+  200, paciente dinâmico visitado, conversa dinâmica vazia e navegação principal sem `pageerror`.
+  Auth state e resultado temporário foram removidos.
 
 ## Alternativas rejeitadas
 
