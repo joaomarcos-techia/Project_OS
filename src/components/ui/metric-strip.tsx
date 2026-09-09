@@ -17,6 +17,7 @@ import { cn } from '@/lib/ui/cn';
 export function MetricStrip({ className, ...props }: ComponentProps<'section'>) {
   return (
     <section
+      data-slot="metric-strip"
       aria-label="Métricas principais"
       className={cn(
         'grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-(--sp-3)',

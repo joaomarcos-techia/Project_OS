@@ -3,7 +3,7 @@
  * nome/email only. Search is by name (ILIKE / trigram). Tenant scope comes from
  * the session via requireClinicId. Criação vive num Drawer (?novo=1).
  */
-import { ChevronRight, Search, Users } from 'lucide-react';
+import { Search, Users } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -11,6 +11,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { listPatients, listPatientsPage } from '@/contexts/patient/queries';
 import { PageNoAccess } from '@/components/shared/page-no-access';
+import { buttonVariants } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { EntityCell } from '@/components/ui/entity-cell';
@@ -21,6 +22,9 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 
 import { PATIENT_RESTORE_WINDOW_DAYS } from '@/contexts/patient/internal/restore-policy';
 import { formatDatePt } from '@/lib/format';
+import { cn } from '@/lib/ui/cn';
+
+import styles from './patients.module.css';
 
 import { NewPatientDrawer } from './new-patient-drawer';
 import {
@@ -94,7 +98,7 @@ export default async function PacientesPage({
         description={
           showTrash
             ? `Pacientes removidos nos últimos ${PATIENT_RESTORE_WINDOW_DAYS} dias. Depois disso a remoção é definitiva.`
-            : 'Cadastro e busca de pacientes da clínica.'
+            : 'Busca, cadastro e hub de cada paciente.'
         }
         actions={
           <NewPatientDrawer
@@ -114,48 +118,59 @@ export default async function PacientesPage({
         />
       ) : (
         <>
-          {/* Métrica na linha, não em card: a contagem cabe numa frase e a
-              tabela sobe para perto do topo. */}
-          <StatsInline
-            className="mb-(--sp-3)"
-            items={[
-              {
-                label: `${result.total.toLocaleString('pt-BR')} ${
-                  showTrash ? 'removido' : 'paciente'
-                }${result.total === 1 ? '' : 's'}`,
-              },
-              ...(q
-                ? [{ label: `filtrando por “${q}”` as const, tone: 'attention' as const }]
-                : []),
-            ]}
-          />
-
-          <FilterBar>
-            <form className="flex min-w-0 flex-1 items-center gap-(--sp-2)" role="search">
+          <FilterBar className="qoro-toolbar">
+            <form className="flex w-full min-w-0 items-center gap-(--sp-2) sm:w-68" role="search">
               {showTrash ? <input type="hidden" name="removidos" value="1" /> : null}
               <SearchField
                 name="q"
                 defaultValue={sp.q ?? ''}
                 placeholder="Buscar por nome…"
                 aria-label="Buscar pacientes por nome"
-                className="max-w-90"
+                className="min-w-0"
               />
             </form>
             {canRestore ? (
-              <Link
-                href={patientListHref(currentParams, {
-                  removidos: showTrash ? undefined : '1',
-                  novo: undefined,
-                  page: undefined,
-                })}
-                className="text-(length:--fs-sm) font-medium text-link hover:underline"
+              <nav
+                aria-label="Situação dos pacientes"
+                className="inline-flex rounded-(--r-md) border border-border bg-surface-inset p-0.5"
               >
-                {showTrash ? 'Voltar aos ativos' : 'Removidos'}
-              </Link>
+                {[
+                  { label: 'Ativos', removed: false },
+                  { label: 'Removidos', removed: true },
+                ].map((item) => (
+                  <Link
+                    key={item.label}
+                    href={patientListHref(currentParams, {
+                      removidos: item.removed ? '1' : undefined,
+                      novo: undefined,
+                      page: undefined,
+                    })}
+                    aria-current={showTrash === item.removed ? 'page' : undefined}
+                    className={cn(
+                      'inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm)',
+                      showTrash === item.removed
+                        ? 'bg-surface font-semibold text-fg shadow-xs'
+                        : 'text-fg-muted hover:bg-surface-hover',
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
             ) : null}
+            <StatsInline
+              className="ml-auto"
+              items={[
+                {
+                  label: `${result.total.toLocaleString('pt-BR')} ${showTrash ? 'removido' : 'paciente'}${result.total === 1 ? '' : 's'}`,
+                },
+                ...(q ? [{ label: `filtrando por “${q}”`, tone: 'attention' as const }] : []),
+              ]}
+            />
           </FilterBar>
 
           <DataTable
+            className={styles.table ?? ''}
             total={result.items.length === 0 ? 0 : result.total}
             page={page}
             pageCount={totalPages}
@@ -182,8 +197,9 @@ export default async function PacientesPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Paciente</TableHead>
+                <TableHead>Contato</TableHead>
                 {showTrash ? <TableHead>Removido em</TableHead> : null}
-                <TableHead className="w-12" aria-label="Abrir" />
+                <TableHead className="w-28" aria-label="Abrir" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -193,13 +209,14 @@ export default async function PacientesPage({
                     {showTrash ? (
                       // A rota do paciente removido responde 404 (HTTP-001):
                       // oferecer o link aqui levaria a um beco sem saída.
-                      <EntityCell name={p.nome} sub={p.email} />
+                      <EntityCell name={p.nome} />
                     ) : (
                       <Link href={`/pacientes/${p.id}`} className="block px-3.5 py-(--cell-py)">
-                        <EntityCell name={p.nome} sub={p.email} />
+                        <EntityCell name={p.nome} />
                       </Link>
                     )}
                   </TableCell>
+                  <TableCell className="text-fg-muted">{p.email || 'Não informado'}</TableCell>
                   {showTrash ? (
                     <TableCell className="text-fg-muted">{formatDatePt(p.deletedAt)}</TableCell>
                   ) : null}
@@ -210,9 +227,9 @@ export default async function PacientesPage({
                       <Link
                         href={`/pacientes/${p.id}`}
                         aria-label={`Abrir ${p.nome}`}
-                        className="grid size-7 place-items-center rounded-(--r-sm) text-fg-subtle transition-colors hover:bg-surface-hover hover:text-fg"
+                        className={buttonVariants({ variant: 'secondary', size: 'sm' })}
                       >
-                        <ChevronRight className="size-4" />
+                        Abrir
                       </Link>
                     )}
                   </TableCell>

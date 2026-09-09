@@ -46,6 +46,7 @@ beforeEach(() => {
     id: conversationId,
     patientDisplayName: 'Maria Silva',
     maskedPhone: '***-1234',
+    contactPhone: '+5511999991234',
     status: 'handoff',
     intentAtual: 'agendamento',
     startedAt: '2026-08-20T12:00:00.000Z',
@@ -84,16 +85,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('workspace da conversa', () => {
-  it('prioriza o atendimento e mantém a rail persistente ao lado da thread', async () => {
+  it('mantém histórico, telefone e atendimento no mesmo painel', async () => {
     const { container } = render(
       await ConversaThreadPage({ params: Promise.resolve({ id: conversationId }) }),
     );
     const aside = screen.getByRole('complementary', { name: 'Atendimento humano' });
     const history = screen.getByRole('region', { name: 'Histórico da conversa' });
 
-    expect(aside.className).toContain('lg:sticky');
-    expect(aside.className).toContain('lg:col-start-2');
-    expect(aside.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(history.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('+5511999991234')).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Composer persistente' })).toBeTruthy();
     expect(container.textContent).toContain('Posso ajudar com o agendamento.');
   });

@@ -11,6 +11,7 @@ import { cn } from '@/lib/ui/cn';
 import type { SettingsNavItem } from './settings-navigation';
 import { visibleSettingsNavigation } from './settings-navigation';
 import type { SettingsStatus } from './settings-status';
+import styles from './settings.module.css';
 
 /**
  * Card de uma configuração. É a unidade de leitura da categoria: ícone pequeno,
@@ -31,41 +32,39 @@ function SettingsCard({
   return (
     <Card
       className={cn(
-        'group relative flex flex-col gap-2 p-(--card-pad)',
+        styles.item,
+        'group relative',
         'transition-colors duration-(--dur-fast) hover:border-border-2',
         'focus-within:shadow-(--focus-ring)',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className={styles.identity ?? ''}>
         <span
           aria-hidden="true"
           className="grid size-9 shrink-0 place-items-center rounded-(--r-md) bg-surface-2 text-fg-muted"
         >
           <Icon className="size-4.5" />
         </span>
-        {status ? (
-          <Badge tone={status.tone} dot>
-            {status.label}
-          </Badge>
-        ) : null}
       </div>
-
-      <h3 className="mt-1 text-(length:--fs-subsection) font-semibold">
-        {/* `after:absolute inset-0` estende o alvo do link ao card inteiro sem
+      <div className={styles.copy ?? ''}>
+        <h3 className="mt-1 text-(length:--fs-subsection) font-semibold">
+          {/* `after:absolute inset-0` estende o alvo do link ao card inteiro sem
             aninhar elementos interativos — o link continua sendo um só. */}
-        <Link
-          href={item.href}
-          className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
-        >
-          {item.label}
-        </Link>
-      </h3>
-      <p className="text-pretty text-(length:--fs-body-sm) text-fg-muted">{item.description}</p>
-
-      <span
-        aria-hidden="true"
-        className="mt-2 inline-flex items-center gap-1.5 self-start rounded-(--r-md) border border-border px-3 py-1.5 text-(length:--fs-body-sm) font-medium text-primary transition-colors duration-(--dur-fast) group-hover:bg-(--primary-soft)"
-      >
+          <Link
+            href={item.href}
+            className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+          >
+            {item.label}
+          </Link>
+        </h3>
+        <p className="text-pretty text-(length:--fs-body-sm) text-fg-muted">{item.description}</p>
+      </div>
+      {status ? (
+        <Badge tone={status.tone} dot>
+          {status.label}
+        </Badge>
+      ) : null}
+      <span aria-hidden="true" className={styles.action ?? ''}>
         {item.cta ?? 'Configurar'}
         <ArrowRight className="size-3.5" />
       </span>
@@ -97,8 +96,16 @@ export async function SettingsCategoryPage({
 
   return (
     <>
-      <PageHeader title={group.label} description={group.description} />
-      <div className="grid gap-(--sp-4) sm:grid-cols-2 xl:grid-cols-3">
+      <PageHeader
+        crumbs={[{ label: 'Administração' }, { label: 'Configurações' }]}
+        title="Configurações"
+        description="Clínica, operação, integrações, conformidade e conta"
+      />
+      <div className={styles.categoryHeading}>
+        <h2>{group.label}</h2>
+        <p>{group.description}</p>
+      </div>
+      <div className={styles.list ?? ''}>
         {group.items.map((item) => (
           <SettingsCard key={item.href} item={item} status={statuses[item.href]} />
         ))}

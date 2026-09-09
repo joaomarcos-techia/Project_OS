@@ -8,8 +8,8 @@ const appActions = readFileSync(
   resolve(process.cwd(), 'src/app/(app)/(shell)/conversas/actions.ts'),
   'utf8',
 );
-const threadPage = readFileSync(
-  resolve(process.cwd(), 'src/app/(app)/(shell)/conversas/[id]/page.tsx'),
+const threadView = readFileSync(
+  resolve(process.cwd(), 'src/app/(app)/(shell)/conversas/_components/conversation-thread.tsx'),
   'utf8',
 );
 
@@ -42,8 +42,8 @@ describe('manual WhatsApp message retry', () => {
 
   it('expõe reenvio somente quando a operação pode ser executada', () => {
     expect(appActions).toContain('export async function reenviarMensagemAction');
-    expect(threadPage).toContain('canRetryFailedMessages');
-    expect(threadPage).toContain("m.delivery === 'failed' && canRetryFailedMessages");
-    expect(threadPage).toContain('<RetryMessageButton');
+    expect(threadView).toContain('const canRetry');
+    expect(threadView).toContain("message.delivery === 'failed' && canRetry");
+    expect(threadView).toContain('<RetryMessageButton');
   });
 });

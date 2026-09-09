@@ -1,0 +1,154 @@
+.metricsPanel {
+  --panel-header-margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.metricsPanel > :first-child {
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.liveMetrics,
+.summaryMetrics {
+  gap: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.liveMetrics :global([data-slot='stat-card']),
+.summaryMetrics :global([data-slot='stat-card']) {
+  min-width: 0;
+  padding: 14px 18px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.liveMetrics :global([data-slot='stat-card']):last-child,
+.summaryMetrics :global([data-slot='stat-card']):last-child {
+  border-right: 0;
+}
+
+.liveMetrics {
+  --stat-value-size: 30px;
+}
+
+.summaryMetrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+}
+
+.summaryMetrics :global([data-slot='stat-card']) {
+  padding: 12px 16px;
+}
+
+.summaryMetrics {
+  --stat-value-size: 19px;
+}
+
+.summaryGrid,
+.contentGrid,
+.contentSingle {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  min-width: 0;
+}
+
+.summaryGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+}
+
+.mainColumn {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel {
+  min-width: 0;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.appointments {
+  margin: -4px -16px -16px;
+}
+
+.appointments > li {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 46px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.appointments > li:last-child {
+  border-bottom: 0;
+}
+
+.appointmentTime {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.patientName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.revenue :global([data-slot='bar-chart']) > :last-child > div {
+  height: 100%;
+}
+
+.revenue
+  :global([data-slot='bar-chart'])
+  > :last-child
+  > div:not(:last-child)
+  :global(.bg-primary) {
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in oklch, var(--primary) 25%, var(--border));
+}
+
+@media (min-width: 1200px) {
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+@media (max-width: 600px) {
+  .liveMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .liveMetrics :global([data-slot='stat-card']) {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .liveMetrics :global([data-slot='stat-card']):last-child {
+    border-bottom: 0;
+  }
+
+  .appointments > li {
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 6px 10px;
+  }
+
+  .appointments > li > :last-child {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

@@ -1,0 +1,80 @@
+.overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.overview > div {
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-right: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+
+.overview > div:last-child {
+  border-right: 0;
+}
+
+.overview svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.overview strong {
+  margin-left: auto;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.roster td {
+  height: 58px;
+}
+
+.roster th {
+  height: 38px;
+  background: var(--surface-2);
+}
+
+.inactive {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+@media (max-width: 900px) {
+  .overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .overview > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 480px) {
+  .overview > div {
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .overview svg {
+    display: none;
+  }
+}

@@ -12,6 +12,7 @@ import { cn } from '@/lib/ui/cn';
 export function TableWrap({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
+      data-slot="table-wrap"
       className={cn('overflow-hidden rounded-(--r-lg) border border-border bg-surface', className)}
       {...props}
     />
@@ -112,6 +113,7 @@ export function TableCellStack({
 export function TableFoot({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
+      data-slot="table-foot"
       className={cn(
         'flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface-2 px-3.5 py-3',
         className,

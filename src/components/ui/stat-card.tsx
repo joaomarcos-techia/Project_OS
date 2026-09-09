@@ -53,7 +53,7 @@ export function StatCard({
     >
       {/* Label à esquerda, ícone à direita: à esquerda o ícone empurrava o
           rótulo e desalinhava a coluna de labels entre os cards da fileira. */}
-      <div className="flex items-start justify-between gap-2">
+      <div data-slot="stat-label" className="flex items-start justify-between gap-2">
         <span className="text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
           {label}
         </span>
@@ -65,6 +65,7 @@ export function StatCard({
       </div>
 
       <div
+        data-slot="stat-value"
         className={cn(
           'leading-none font-semibold tracking-(--tracking-tight) tabular-nums',
           emphasis ? 'text-(length:--fs-h1)' : 'text-(length:--fs-h2)',

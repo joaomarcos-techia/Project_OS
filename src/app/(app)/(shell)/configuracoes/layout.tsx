@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/auth/tenant-context';
 
 import { SettingsNav } from './settings-nav';
 import { visibleSettingsNavigation } from './settings-navigation';
+import styles from './settings.module.css';
 
 /**
  * As abas vivem aqui, e não em cada página, para serem as mesmas em todas.
@@ -22,7 +23,7 @@ export default async function ConfiguracoesLayout({ children }: { children: Reac
   const visibleHrefs = groups.flatMap((group) => group.items.map((item) => item.href));
 
   return (
-    <div className="min-w-0">
+    <div className={styles.layout}>
       <SettingsNav visibleHrefs={visibleHrefs} />
       {children}
     </div>

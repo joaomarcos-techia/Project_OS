@@ -37,12 +37,13 @@ describe('preset shadcn b5J5Qtmtc integrado de forma controlada', () => {
     expect(css).not.toMatch(/--accent-(?:50|100|200|300|400|500|600|700|800):/u);
   });
 
-  it('usa DM Sans para texto e heading sem remover a fonte mono', () => {
+  it('preserva DM Sans no admin e disponibiliza as fontes da referência para o tenant', () => {
     expect(layout).toContain('DM_Sans');
     expect(layout).toContain("variable: '--font-dm-sans'");
     expect(layout).toContain('IBM_Plex_Mono');
-    expect(layout).not.toContain('Hanken_Grotesk');
-    expect(layout).not.toMatch(/\bInter\b/u);
+    expect(layout).toContain('Hanken_Grotesk');
+    expect(layout).toContain("variable: '--font-hanken'");
+    expect(layout).toContain("variable: '--font-inter'");
     expect(css).toContain('--font-heading: var(--font-sans);');
   });
 });

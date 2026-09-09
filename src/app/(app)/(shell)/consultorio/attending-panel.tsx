@@ -111,7 +111,7 @@ export function AttendingPanel({
   const podeEmitir = emAtendimento && data.prontuario && data.patientId;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div data-slot="attending-panel" className="flex flex-col gap-4">
       {/* Cartão de sessão — identidade + tempo + ações no mesmo lugar */}
       <div className="rounded-(--r-lg) border border-border bg-surface shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3 p-4">

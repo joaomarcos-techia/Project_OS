@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { Laptop, LogOut, Moon, Sun, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import {
@@ -17,6 +18,8 @@ import { resolvePageLayout } from '@/components/shared/page-layout';
 import { useTheme } from '@/components/shared/use-theme';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { initialsFrom } from '@/components/ui/avatar';
 
 import { useOpenHandoffCount } from './handoff-store';
 import { Icon } from './icons';
@@ -55,103 +58,152 @@ export function PainelShell({
     setNavOpen(false);
   }, [pathname]);
 
-  const isActive = (href?: string) =>
-    !!href && (pathname === href || pathname.startsWith(href + '/'));
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setNavOpen(false);
+      requestAnimationFrame(() => {
+        document
+          .querySelector<HTMLButtonElement>(
+            '[data-qoro-shell="tenant"] button[aria-label="Abrir navegação"]',
+          )
+          ?.focus();
+      });
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [navOpen]);
 
-  const userInitials = userName
-    .split(' ')
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+  const isActive = (href?: string) =>
+    !!href &&
+    (pathname === href ||
+      pathname.startsWith(href + '/') ||
+      (href === settingsHref && pathname.startsWith('/configuracoes/')));
+
+  const userInitials = initialsFrom(userName);
+  const themeLabel =
+    theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'system' ? Laptop : Sun;
 
   return (
     <TooltipProvider delayDuration={300}>
-      <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
-      <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
+      <div data-qoro-shell="tenant">
+        <a className="qoro-skip-link" href="#qoro-main">
+          Pular para o conteúdo
+        </a>
+        <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
+        <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
-      <div className="min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
-        <ShellSidebar open={navOpen}>
-          <Wordmark />
+        <div className="qoro-shell-grid min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
+          <ShellSidebar open={navOpen}>
+            <div className="flex items-center justify-between pr-3">
+              <Wordmark />
+              <Button
+                variant="subtle"
+                size="sm"
+                icon
+                className="nav:hidden"
+                aria-label="Fechar navegação"
+                onClick={() => setNavOpen(false)}
+              >
+                <X aria-hidden="true" className="size-4" />
+              </Button>
+            </div>
 
-          <nav
-            className="min-h-0 flex-1 overflow-y-auto px-(--sp-3)"
-            aria-label="Navegação principal"
-          >
-            {GROUPS.map((g) => {
-              const mods = MODULES.filter((m) => m.group === g);
-              if (!mods.length) return null;
-              return (
-                <div key={g} className="mt-(--sp-4) first:mt-(--sp-2)">
-                  <SideNavGroupLabel>{g}</SideNavGroupLabel>
-                  {mods.map((m) => {
-                    const href = m.id === 'config' ? settingsHref : m.href;
-                    return m.soon || !href ? (
-                      <SideNavDisabled key={m.id} icon={<Icon name={m.icon} />} label={m.label} />
-                    ) : (
-                      <SideNavLink
-                        key={m.id}
-                        href={href}
-                        active={isActive(href)}
-                        icon={<Icon name={m.icon} />}
-                        label={m.label}
-                        trailing={
-                          m.id === 'conversas' && handoffCount > 0 ? (
-                            // Vermelho porque pede ação de alguém, e com o
-                            // NÚMERO: "3" diz o tamanho da fila, um ponto não.
-                            <span
-                              aria-label={`${handoffCount} ${
-                                handoffCount === 1
-                                  ? 'conversa aguardando atendimento'
-                                  : 'conversas aguardando atendimento'
-                              }`}
-                              className="grid min-w-4.5 place-items-center rounded-full bg-danger-600 px-1 text-(length:--fs-3xs) font-semibold text-(--text-inverse)"
-                            >
-                              {handoffCount > 9 ? '9+' : handoffCount}
-                            </span>
-                          ) : m.badge ? (
-                            <span className="grid min-w-4.5 place-items-center rounded-full bg-(--primary-soft) px-1 text-(length:--fs-3xs) font-semibold text-(--primary-active) dark:text-fg">
-                              {m.badge}
-                            </span>
-                          ) : undefined
-                        }
-                      />
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </nav>
+            <nav
+              className="min-h-0 flex-1 overflow-y-auto px-(--sp-3)"
+              aria-label="Navegação principal"
+            >
+              {GROUPS.map((g) => {
+                const mods = MODULES.filter((m) => m.group === g);
+                if (!mods.length) return null;
+                return (
+                  <div key={g} className="mt-(--sp-4) first:mt-(--sp-2)">
+                    <SideNavGroupLabel>{g}</SideNavGroupLabel>
+                    {mods.map((m) => {
+                      const href = m.id === 'config' ? settingsHref : m.href;
+                      return m.soon || !href ? (
+                        <SideNavDisabled key={m.id} icon={<Icon name={m.icon} />} label={m.label} />
+                      ) : (
+                        <SideNavLink
+                          key={m.id}
+                          href={href}
+                          active={isActive(href)}
+                          icon={<Icon name={m.icon} />}
+                          label={m.label}
+                          trailing={
+                            m.id === 'conversas' && handoffCount > 0 ? (
+                              // Vermelho porque pede ação de alguém, e com o
+                              // NÚMERO: "3" diz o tamanho da fila, um ponto não.
+                              <span
+                                aria-label={`${handoffCount} ${
+                                  handoffCount === 1
+                                    ? 'conversa aguardando atendimento'
+                                    : 'conversas aguardando atendimento'
+                                }`}
+                                className="qoro-handoff-badge grid min-w-4.5 place-items-center rounded-full bg-danger-600 px-1 text-(length:--fs-3xs) font-semibold text-(--text-inverse)"
+                              >
+                                {handoffCount > 9 ? '9+' : handoffCount}
+                              </span>
+                            ) : m.badge ? (
+                              <span className="grid min-w-4.5 place-items-center rounded-full bg-(--primary-soft) px-1 text-(length:--fs-3xs) font-semibold text-(--primary-active) dark:text-fg">
+                                {m.badge}
+                              </span>
+                            ) : undefined
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </nav>
 
-          {/* Rodapé de um elemento só, como a referência. Tema e Sair não
-              sumiram: viraram itens do menu do usuário, que é onde ação de conta
-              é procurada. O form fica FORA do menu porque o conteúdo dele é
-              renderizado num Portal; o botão o alcança por `form=id`. */}
-          <div className="border-t border-border p-(--sp-2)">
-            <form id="painel-logout" action="/logout" method="post" className="hidden" />
-            <SidebarUserMenu
-              userName={userName}
-              userRole={userRole}
-              initials={userInitials}
-              theme={theme}
-              onToggleTheme={toggle}
-              accountHref="/account/security"
-              {...(clinicSettingsHref ? { clinicSettingsHref } : {})}
-              logoutFormId="painel-logout"
-            />
+            {/* Conta, tema e saída no rodapé da referência. O mesmo form atende
+              tanto ao botão direto quanto ao item do menu renderizado em Portal. */}
+            <div className="qoro-sidebar-footer border-t border-border p-(--sp-2)">
+              <form id="painel-logout" action="/logout" method="post" className="hidden" />
+              <SidebarUserMenu
+                userName={userName}
+                userRole={userRole}
+                initials={userInitials}
+                theme={theme}
+                onToggleTheme={toggle}
+                accountHref="/account/security"
+                {...(clinicSettingsHref ? { clinicSettingsHref } : {})}
+                logoutFormId="painel-logout"
+                showThemeControl={false}
+              />
+              <div className="qoro-sidebar-actions">
+                <Button
+                  variant="subtle"
+                  onClick={toggle}
+                  aria-label={`${themeLabel}. Alternar tema`}
+                >
+                  <ThemeIcon aria-hidden="true" className="size-3.5" />
+                  {themeLabel}
+                </Button>
+                <Button variant="subtle" icon type="submit" form="painel-logout" aria-label="Sair">
+                  <LogOut aria-hidden="true" className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          </ShellSidebar>
+
+          <div className="flex min-w-0 flex-col bg-canvas">
+            <main
+              id="qoro-main"
+              tabIndex={-1}
+              data-page-layout={pageLayout}
+              className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb) max-nav:pt-(--page-pt-mobile)"
+            >
+              {children}
+            </main>
           </div>
-        </ShellSidebar>
-
-        <div className="flex min-w-0 flex-col bg-canvas">
-          <main
-            data-page-layout={pageLayout}
-            className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb) max-nav:pt-(--page-pt-mobile)"
-          >
-            {children}
-          </main>
         </div>
+        <Toaster />
       </div>
-      <Toaster />
     </TooltipProvider>
   );
 }

@@ -126,6 +126,8 @@ export interface AIConversationListItem {
   patientDisplayName: string | null;
   /** Fallback de identificação quando não há nome. Sempre mascarado. */
   maskedPhone: string | null;
+  /** Contato completo para a UI autorizada de conversas. Nunca usar em logs. */
+  contactPhone: string | null;
   /** Trecho da última mensagem, truncado. Decifrado no servidor. */
   lastMessagePreview: string | null;
   status: AIConversationStatus;
@@ -178,6 +180,8 @@ export interface AIConversationThread {
   id: string;
   patientDisplayName: string | null;
   maskedPhone: string | null;
+  /** Decifrado no servidor somente dentro da clínica autorizada. */
+  contactPhone: string | null;
   status: AIConversationStatus;
   intentAtual: string | null;
   startedAt: string;

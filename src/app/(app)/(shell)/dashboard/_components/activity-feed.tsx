@@ -72,11 +72,14 @@ export function ActivityFeed({
         return (
           <li
             key={a.id}
-            className="flex items-center gap-3 border-b border-border py-2 text-(length:--fs-sm) last:border-b-0"
+            className="flex items-start gap-3 border-b border-border py-3 text-(length:--fs-sm) first:pt-0 last:border-b-0 last:pb-0"
           >
-            <span className="min-w-0 flex-1 truncate">
+            <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
+            <span className="min-w-0 flex-1 text-pretty font-medium">
               {humanizeAction(a.action)}
-              <span className="ml-1.5 text-(length:--fs-xs) text-fg-subtle">{who}</span>
+              <span className="mt-1 block text-(length:--fs-xs) font-normal text-fg-subtle">
+                {who}
+              </span>
             </span>
             <span className="shrink-0 font-mono text-(length:--fs-2xs) whitespace-nowrap text-fg-subtle">
               {relTime(a.createdAt)}

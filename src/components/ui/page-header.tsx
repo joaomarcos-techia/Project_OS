@@ -31,7 +31,7 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn('mb-(--sp-5)', className)}>
+    <div data-slot="page-header" className={cn('mb-(--sp-5)', className)}>
       {crumbs ? (
         <Breadcrumbs items={crumbs} className="mb-(--sp-3)" />
       ) : breadcrumb ? (
@@ -42,8 +42,11 @@ export function PageHeader({
       {/* items-start: com descrição de duas linhas, alinhar pelo fim jogava o
           cluster de ações para baixo e desalinhava do título, que é a âncora
           visual da linha na referência. */}
-      <div className="flex flex-wrap items-start justify-between gap-(--sp-4)">
-        <div className="min-w-0">
+      <div
+        data-slot="page-header-row"
+        className="flex flex-wrap items-start justify-between gap-(--sp-4)"
+      >
+        <div data-slot="page-header-copy" className="min-w-0">
           <h1 className="text-balance font-display text-(length:--fs-page) font-semibold tracking-tight">
             {title}
           </h1>
@@ -54,7 +57,7 @@ export function PageHeader({
           ) : null}
         </div>
         {meta || actions ? (
-          <div className="flex flex-wrap items-center gap-(--sp-4)">
+          <div data-slot="page-header-actions" className="flex flex-wrap items-center gap-(--sp-4)">
             {meta ? (
               <span className="text-(length:--fs-body-sm) text-fg-subtle">{meta}</span>
             ) : null}

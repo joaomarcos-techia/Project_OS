@@ -1,4 +1,5 @@
 import type { VariantProps } from 'class-variance-authority';
+import { Mail, ShieldCheck, Users } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 import { billingApiV1 } from '@/contexts/billing/api';
@@ -28,6 +29,7 @@ import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
 import { MemberRowActions } from './member-row-actions';
+import styles from './team.module.css';
 
 type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>['tone']>;
 
@@ -85,14 +87,39 @@ export default async function EquipePage() {
     user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS) && granularPermissionsEnabled;
   const counts = new Map<Role, number>();
   for (const e of employees) counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
+  const pendingInvites = employees.filter((employee) => employee.ativo && employee.pending).length;
+  const enrolledMfa = employees.filter((employee) => employee.ativo && employee.mfaEnrolled).length;
 
   return (
     <>
       <PageHeader
         crumbs={[{ label: 'Administração' }, { label: 'Equipe & Permissões' }]}
         title="Equipe & Permissões"
-        description="Quem acessa o quê — usuários e funções da sua clínica."
+        description="Pessoas, credenciais e acesso à clínica."
+        actions={<InviteDrawer ativos={ativos} seatLimit={seatLimit} />}
       />
+
+      <section aria-label="Resumo da equipe" className={styles.overview ?? ''}>
+        <div>
+          <Users aria-hidden="true" />
+          <span>Pessoas na clínica</span>
+          <strong>{employees.length}</strong>
+        </div>
+        <div>
+          <span>Usuários ativos</span>
+          <strong>{ativos}</strong>
+        </div>
+        <div>
+          <Mail aria-hidden="true" />
+          <span>Convites pendentes</span>
+          <strong>{pendingInvites}</strong>
+        </div>
+        <div>
+          <ShieldCheck aria-hidden="true" />
+          <span>2FA ativado</span>
+          <strong>{enrolledMfa}</strong>
+        </div>
+      </section>
 
       {employees.length === 0 ? (
         <div className="flex flex-col items-center gap-4">
@@ -100,24 +127,19 @@ export default async function EquipePage() {
             title="Nenhum funcionário cadastrado"
             description="Convide o primeiro para começar."
           />
-          <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
         </div>
       ) : (
-        <TableWrap>
+        <TableWrap className={styles.roster ?? ''}>
           <TableToolbar>
-            <span className="text-(length:--fs-xs) text-fg-subtle">
-              {employees.length} {employees.length === 1 ? 'pessoa' : 'pessoas'} · {ativos}{' '}
-              {ativos === 1 ? 'ativa' : 'ativas'}
-            </span>
+            <h2 className="text-(length:--fs-sm) font-semibold">Usuários e convites</h2>
             <TableToolbarSpacer />
             <div className="flex flex-wrap gap-1.5">
               {ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) > 0).map((r) => (
-                <Badge key={r} tone={ROLE_META[r].tone}>
+                <Badge key={r} tone="gray">
                   {ROLE_META[r].label} · {counts.get(r)}
                 </Badge>
               ))}
             </div>
-            <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
           </TableToolbar>
           <TableScroll>
             <Table>
@@ -139,16 +161,23 @@ export default async function EquipePage() {
                       ? `CRM ${e.crm}${e.crmUf ? `/${e.crmUf}` : ''}`
                       : (e.especialidade ?? null);
                   return (
-                    <TableRow key={e.id}>
+                    <TableRow key={e.id} className={!e.ativo ? styles.inactive : undefined}>
                       <TableCell>
                         <span className="flex items-center gap-2.5">
                           <span
                             aria-hidden="true"
-                            className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-(length:--fs-3xs) font-semibold text-on-primary"
+                            className="grid size-8 shrink-0 place-items-center rounded-(--r-md) border border-border bg-primary-soft text-(length:--fs-xs) font-semibold text-primary"
                           >
                             {initials(e.nome)}
                           </span>
-                          <span className="font-medium">{e.nome}</span>
+                          <span className="min-w-0 font-medium">
+                            {e.nome}
+                            {e.id === user.userId ? (
+                              <span className="ml-1.5 text-(length:--fs-xs) font-normal text-fg-subtle">
+                                (você)
+                              </span>
+                            ) : null}
+                          </span>
                         </span>
                       </TableCell>
                       <TableCell>
@@ -172,7 +201,7 @@ export default async function EquipePage() {
                             Ativo
                           </Badge>
                         ) : (
-                          <span className="text-fg-subtle">—</span>
+                          <span className="text-(length:--fs-xs) text-fg-subtle">Não ativado</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -212,6 +241,9 @@ export default async function EquipePage() {
             <TableFootInfo>
               {employees.length} usuário{employees.length === 1 ? '' : 's'} na clínica
             </TableFootInfo>
+            <span className="text-(length:--fs-xs) text-fg-subtle">
+              Ações disponíveis conforme seu nível de acesso
+            </span>
           </TableFoot>
         </TableWrap>
       )}

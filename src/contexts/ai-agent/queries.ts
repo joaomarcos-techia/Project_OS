@@ -239,14 +239,14 @@ export async function listConversations(
     const items = await Promise.all(
       rows.map(async (r): Promise<AIConversationListItem> => {
         const nome = r.patientName ?? null;
+        const contactPhone = await decryptForTenant(clinicId, r.patientPhoneEncrypted);
         const lastMessage = lastMessageByConversation.get(r.id);
         return {
           id: r.id,
           patientDisplayName: nome,
-          // Telefone só aparece quando não há nome, e SEMPRE mascarado.
-          maskedPhone: nome
-            ? null
-            : maskPhone(await decryptForTenant(clinicId, r.patientPhoneEncrypted)),
+          // Preserva o fallback mascarado; a UI autorizada usa o contato separado.
+          maskedPhone: nome ? null : maskPhone(contactPhone),
+          contactPhone: contactPhone || null,
           lastMessagePreview: lastMessage
             ? preview(await decryptForTenant(clinicId, lastMessage))
             : null,
@@ -409,6 +409,7 @@ export async function getConversationThread(
     const lastInboundAt = [...rows].reverse().find((r) => r.direction === 'in')?.createdAt ?? null;
     const now = new Date();
     const nome = conv.patientId ? await getPatientName(tx, clinicId, conv.patientId) : null;
+    const contactPhone = await decryptForTenant(clinicId, conv.patientPhoneEncrypted);
 
     metrics.emit('ai_agent.conversation.opened', {
       clinicId,
@@ -420,7 +421,8 @@ export async function getConversationThread(
     return {
       id: conv.id,
       patientDisplayName: nome,
-      maskedPhone: maskPhone(await decryptForTenant(clinicId, conv.patientPhoneEncrypted)),
+      maskedPhone: maskPhone(contactPhone),
+      contactPhone: contactPhone || null,
       status: conv.status,
       intentAtual: conv.intentAtual,
       startedAt: toIso(conv.startedAt)!,

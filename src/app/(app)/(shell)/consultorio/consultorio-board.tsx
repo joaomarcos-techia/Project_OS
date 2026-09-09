@@ -20,6 +20,7 @@ import { CheckinStrip } from './checkin-strip';
 import { FinalizedList } from './finalized-list';
 import { WaitingCard } from './waiting-card';
 import { uuidv4 } from '@/lib/ui/uuid';
+import styles from './consultorio.module.css';
 
 const CONN_BADGE: Record<RealtimeState, { tone: 'green' | 'amber' | 'gray'; label: string }> = {
   live: { tone: 'green', label: 'Tempo real' },
@@ -34,7 +35,7 @@ const CONN_BADGE: Record<RealtimeState, { tone: 'green' | 'amber' | 'gray'; labe
  */
 function ColumnTitle({ children, count }: { children: React.ReactNode; count?: number | null }) {
   return (
-    <div className="mb-(--sp-3) flex items-center gap-2 px-1">
+    <div className={styles.columnTitle ?? ''}>
       <h2 className="text-(length:--fs-subsection) font-semibold text-fg">{children}</h2>
       {count != null ? (
         <span className="min-w-5 rounded-full bg-surface-inset px-1.5 py-0.5 text-center text-(length:--fs-xs) font-medium text-fg-muted tabular-nums">
@@ -198,9 +199,9 @@ export function ConsultorioBoard({
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_2fr_1fr]">
+      <div className={styles.board ?? ''}>
         {/* Coluna 1 — Sala de Espera (25%) */}
-        <section>
+        <section className={styles.waiting ?? ''}>
           <ColumnTitle count={board.salaEspera.length}>Sala de espera</ColumnTitle>
           <div className="flex flex-col gap-2">
             {board.salaEspera.length === 0 ? (
@@ -220,7 +221,7 @@ export function ConsultorioBoard({
         </section>
 
         {/* Coluna 2 — Em Atendimento (50%, o coração) */}
-        <section className="flex flex-col gap-3">
+        <section className={styles.attending ?? ''}>
           <ColumnTitle count={viewingFinalizada ? null : board.emAtendimento.length}>
             {viewingFinalizada ? 'Consulta finalizada' : 'Em atendimento'}
           </ColumnTitle>
@@ -255,7 +256,7 @@ export function ConsultorioBoard({
         </section>
 
         {/* Coluna 3 — Finalizadas (25%) */}
-        <section>
+        <section className={styles.finished ?? ''}>
           <ColumnTitle count={board.finalizadas.length}>Finalizadas</ColumnTitle>
           <FinalizedList
             cards={board.finalizadas}

@@ -34,10 +34,11 @@ export function PanelCard({
 }) {
   return (
     <Card
+      data-slot="panel-card"
       {...(regionLabel ? { role: 'region', 'aria-label': regionLabel } : {})}
       className={cn('flex flex-col p-(--sp-4)', className)}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div data-slot="panel-header" className="mb-3 flex items-center justify-between gap-3">
         <h4 className="flex items-center gap-1.5 text-(length:--fs-sm) font-semibold [&>svg]:size-4 [&>svg]:text-fg-subtle">
           {titleIcon}
           {title}

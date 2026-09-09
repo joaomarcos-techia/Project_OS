@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { ArrowDownLeft, ArrowUpRight, Check, Filter, Info, Scale, Truck } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { clinicMonthBounds } from '@/contexts/financial/logic';
 import {
@@ -18,11 +20,9 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
-import { FilterBar } from '@/components/ui/filter-bar';
-import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
+import { Select } from '@/components/ui/select';
 import {
   TableBody,
   TableCell,
@@ -120,13 +120,14 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
       <PageHeader
         crumbs={[{ label: 'Gestão' }, { label: 'Financeiro' }]}
         title="Financeiro"
-        description="Visão geral do caixa e dos lançamentos da clínica."
+        description={`Visão gerencial de ${new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: tz }).format(from)}`}
         actions={
           <>
             <Link
               href="/financeiro/fornecedores"
               className={buttonVariants({ variant: 'secondary', size: 'sm' })}
             >
+              <Truck aria-hidden="true" className="size-4" />
               Fornecedores
             </Link>
             {canManage ? (
@@ -140,39 +141,13 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
         }
       />
 
-      {/* O saldo vem primeiro e maior: é a resposta, e o resto são as parcelas
-          que a compõem. A ordem anterior obrigava a somar de cabeça para chegar
-          no número que a pessoa abriu a tela para ver. */}
-      <MetricStrip className="mb-(--sp-4)">
-        <StatCard
-          emphasis
-          label="Saldo do mês"
-          value={formatBRL(flow.saldoHoje)}
-          valueTone={flow.saldoHoje >= 0 ? 'positive' : 'negative'}
-        />
-        <StatCard label="Recebido no mês" value={formatBRL(flow.recebidoHoje)} />
-        <StatCard
-          label="A receber"
-          value={formatBRL(flow.receber)}
-          valueTone={flow.receber > 0 ? 'warning' : 'default'}
-          hint="pendências em aberto"
-        />
-        <StatCard label="Pago no mês" value={formatBRL(flow.pagoHoje)} />
-        <StatCard
-          label="A pagar"
-          value={formatBRL(flow.pagar)}
-          valueTone={flow.pagar > 0 ? 'warning' : 'default'}
-          hint="contas em aberto"
-        />
-      </MetricStrip>
-
-      <FilterBar>
+      <div className="qoro-toolbar">
         <form className="flex flex-wrap items-center gap-2">
           <Select
             name="tipo"
             defaultValue={tipoFilter ?? ''}
             aria-label="Filtrar por tipo"
-            className="min-w-36"
+            className="w-44"
           >
             <option value="">Todos os tipos</option>
             <option value="receber">A receber</option>
@@ -182,7 +157,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
             name="status"
             defaultValue={statusFilter ?? ''}
             aria-label="Filtrar por status"
-            className="min-w-36"
+            className="w-46"
           >
             <option value="">Todos os status</option>
             <option value="pendente">Pendente</option>
@@ -192,62 +167,169 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
             <option value="estornado">Estornado</option>
           </Select>
           <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            <Filter aria-hidden="true" className="size-4" />
             Filtrar
           </button>
         </form>
-      </FilterBar>
+        <span className="ml-auto font-mono text-xs text-fg-subtle tabular-nums">
+          {lancamentosResult.total} lançamentos · mais recentes primeiro
+        </span>
+      </div>
 
-      <DataTable
-        total={lancamentos.length === 0 ? 0 : lancamentosResult.total}
-        page={page}
-        pageCount={totalPages}
-        pageSize={lancamentosResult.pageSize}
-        unit={{ one: 'lançamento', many: 'lançamentos' }}
-        hrefFor={(targetPage) => financeiroPageHref(paginationFilters, targetPage)}
-        empty={
-          <EmptyState
-            title="Nenhum lançamento"
-            description="Ajuste os filtros ou crie um lançamento."
-          />
-        }
-      >
-        <TableHeader>
-          <TableRow>
-            <TableHead>Descrição</TableHead>
-            <TableHead>Vencimento</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead numeric>Valor</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {lancamentos.map((l: LancamentoSummary) => (
-            <TableRow key={l.id}>
-              <TableCell>
-                <TableCellStack
-                  main={l.descricao}
-                  sub={`${l.tipo === 'receber' ? 'A receber' : 'A pagar'} · criado ${formatDatePt(l.createdAt)}`}
-                />
-              </TableCell>
-              <TableCell className="text-fg-muted">{formatDatePt(l.dueDate)}</TableCell>
-              <TableCell>
-                <Badge tone={STATUS_TONE[l.status]} dot>
-                  {STATUS_LABEL[l.status]}
-                </Badge>
-              </TableCell>
-              <TableCell
-                numeric
-                className={cn(
-                  'font-medium',
-                  l.tipo === 'receber' ? 'text-success-700' : 'text-danger-700',
-                )}
-              >
-                {l.tipo === 'receber' ? '+' : '−'}
-                {formatBRL(l.valor)}
-              </TableCell>
+      <div className="qoro-page-content space-y-3">
+        <section
+          aria-label="Métricas principais"
+          className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(15rem,.7fr)]"
+        >
+          <FinancialMetricGroup title="Entradas">
+            <FinancialMetric
+              label="A receber"
+              value={flow.receber}
+              icon={<ArrowDownLeft />}
+              hint="Pendências em aberto"
+            />
+            <FinancialMetric
+              label="Recebido no mês"
+              value={flow.recebidoHoje}
+              icon={<Check />}
+              tone="positive"
+              hint="Recebimentos confirmados"
+            />
+          </FinancialMetricGroup>
+          <FinancialMetricGroup title="Saídas">
+            <FinancialMetric
+              label="A pagar"
+              value={flow.pagar}
+              icon={<ArrowUpRight />}
+              hint="Contas em aberto"
+            />
+            <FinancialMetric
+              label="Pago no mês"
+              value={flow.pagoHoje}
+              icon={<Check />}
+              hint="Pagamentos confirmados"
+            />
+          </FinancialMetricGroup>
+          <FinancialMetricGroup title="Saldo do mês">
+            <FinancialMetric
+              label="Recebido menos pago"
+              value={flow.saldoHoje}
+              icon={<Scale />}
+              tone={flow.saldoHoje >= 0 ? 'balance' : 'negative'}
+              hint="Mês atual, no fuso da clínica"
+              emphasis
+            />
+          </FinancialMetricGroup>
+        </section>
+
+        <div className="flex min-h-10 flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface-2 px-3.5 py-2 text-xs text-fg-muted">
+          <Info aria-hidden="true" className="size-4 shrink-0 text-fg-subtle" />
+          <p className="min-w-0 flex-1 text-pretty">
+            Esta é a visão gerencial do mês. Recebimentos e pagamentos do dia são operados no{' '}
+            <Link href="/caixa" className="font-semibold text-link hover:underline">
+              Caixa
+            </Link>
+            .
+          </p>
+        </div>
+
+        <DataTable
+          total={lancamentos.length === 0 ? 0 : lancamentosResult.total}
+          page={page}
+          pageCount={totalPages}
+          pageSize={lancamentosResult.pageSize}
+          unit={{ one: 'lançamento', many: 'lançamentos' }}
+          hrefFor={(targetPage) => financeiroPageHref(paginationFilters, targetPage)}
+          empty={
+            <EmptyState
+              title="Nenhum lançamento"
+              description="Ajuste os filtros ou crie um lançamento."
+            />
+          }
+        >
+          <TableHeader>
+            <TableRow>
+              <TableHead>Lançamento e natureza</TableHead>
+              <TableHead>Criado em</TableHead>
+              <TableHead>Vencimento</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead numeric>Valor</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </DataTable>
+          </TableHeader>
+          <TableBody>
+            {lancamentos.map((l: LancamentoSummary) => (
+              <TableRow key={l.id}>
+                <TableCell>
+                  <TableCellStack
+                    main={l.descricao}
+                    sub={l.tipo === 'receber' ? 'A receber' : 'A pagar'}
+                  />
+                </TableCell>
+                <TableCell className="font-mono text-xs whitespace-nowrap text-fg-subtle tabular-nums">
+                  {formatDatePt(l.createdAt)}
+                </TableCell>
+                <TableCell className="font-mono text-xs whitespace-nowrap text-fg-muted tabular-nums">
+                  {formatDatePt(l.dueDate)}
+                </TableCell>
+                <TableCell>
+                  <Badge tone={STATUS_TONE[l.status]} dot>
+                    {STATUS_LABEL[l.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell
+                  numeric
+                  className={cn(
+                    'font-mono text-xs font-medium whitespace-nowrap',
+                    l.status === 'pago' && l.tipo === 'receber' ? 'text-success-700' : 'text-fg',
+                  )}
+                >
+                  {l.tipo === 'receber' ? '+' : '−'}
+                  {formatBRL(l.valor)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </DataTable>
+      </div>
     </>
+  );
+}
+
+function FinancialMetricGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="qoro-section overflow-hidden">
+      <h2 className="flex min-h-10 items-center border-b border-border bg-surface-2 px-4 text-(length:--fs-2xs) font-semibold tracking-wide text-fg-subtle uppercase">
+        {title}
+      </h2>
+      <div className="grid grid-flow-col auto-cols-fr divide-x divide-border">{children}</div>
+    </section>
+  );
+}
+
+function FinancialMetric({
+  label,
+  value,
+  icon,
+  hint,
+  tone,
+  emphasis = false,
+}: {
+  label: string;
+  value: number;
+  icon: ReactNode;
+  hint: string;
+  tone?: 'positive' | 'negative' | 'balance';
+  emphasis?: boolean;
+}) {
+  return (
+    <StatCard
+      label={label}
+      value={formatBRL(value)}
+      icon={icon}
+      hint={hint}
+      emphasis={emphasis}
+      valueTone={tone === 'positive' ? 'positive' : tone === 'negative' ? 'negative' : 'default'}
+      className="qoro-grouped-metric rounded-none border-0"
+    />
   );
 }

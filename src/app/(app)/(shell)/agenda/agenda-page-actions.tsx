@@ -1,9 +1,9 @@
 'use client';
 
-import { CalendarOff, ChevronDown, FileUp } from 'lucide-react';
+import { CalendarOff, FileUp, List, MoreVertical } from 'lucide-react';
 import Link from 'next/link';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,11 +18,20 @@ import { NewAppointmentDrawer } from './new-appointment-drawer';
 export function AgendaPageActions({ data }: { data: AgendaData }) {
   return (
     <div role="group" aria-label="Ações da agenda" className="flex flex-wrap items-center gap-2">
+      <Link href="/agenda/lista-espera" className={buttonVariants({ variant: 'secondary' })}>
+        <List aria-hidden="true" className="size-4" />
+        Lista de espera
+      </Link>
+      {data.canManageAvailability ? (
+        <Link href="/agenda/ausencias" className={buttonVariants({ variant: 'secondary' })}>
+          <CalendarOff aria-hidden="true" className="size-4" />
+          Ausências médicas
+        </Link>
+      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="secondary" className="min-h-(--hit-target)">
-            Mais opções
-            <ChevronDown aria-hidden="true" className="size-4" />
+          <Button variant="ghost" aria-label="Mais opções" className="size-(--hit-target) p-0">
+            <MoreVertical aria-hidden="true" className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -32,14 +41,6 @@ export function AgendaPageActions({ data }: { data: AgendaData }) {
               Importar histórico
             </Link>
           </DropdownMenuItem>
-          {data.canManageAvailability ? (
-            <DropdownMenuItem asChild className="min-h-(--hit-target)">
-              <Link href="/agenda/ausencias">
-                <CalendarOff aria-hidden="true" />
-                Ausências médicas
-              </Link>
-            </DropdownMenuItem>
-          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 

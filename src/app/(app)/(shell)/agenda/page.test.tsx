@@ -48,7 +48,7 @@ describe('AgendaPage', () => {
     getAgendaData.mockResolvedValue(agendaData);
   });
 
-  it('separa subrotas, controles temporais e no máximo duas ações operacionais', async () => {
+  it('mantém as subrotas no cabeçalho e separa os controles temporais', async () => {
     render(
       await AgendaPage({
         searchParams: Promise.resolve({ view: 'week', date: '2026-08-20' }),
@@ -57,13 +57,9 @@ describe('AgendaPage', () => {
 
     expect(getAgendaData).toHaveBeenCalledWith({ view: 'week', date: '2026-08-20' });
 
-    const sectionNav = screen.getByRole('navigation', { name: 'Navegação da seção' });
-    expect(
-      within(sectionNav).getByRole('link', { name: 'Agenda' }).getAttribute('aria-current'),
-    ).toBe('page');
-    expect(
-      within(sectionNav).getByRole('link', { name: 'Lista de espera' }).getAttribute('href'),
-    ).toBe('/agenda/lista-espera');
+    expect(screen.getByRole('link', { name: 'Lista de espera' }).getAttribute('href')).toBe(
+      '/agenda/lista-espera',
+    );
 
     const viewNav = screen.getByRole('navigation', { name: 'Visualização da agenda' });
     expect(within(viewNav).getByRole('link', { name: 'Semana' }).getAttribute('aria-current')).toBe(
@@ -82,8 +78,11 @@ describe('AgendaPage', () => {
     expect(within(actions).getByRole('button', { name: 'Mais opções' })).toBeTruthy();
   });
 
-  it('mantém destinos ocasionais no menu e respeita manage:availability', async () => {
+  it('mantém a importação no menu e oferece ausências somente com manage:availability', async () => {
     render(await AgendaPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByRole('link', { name: 'Ausências médicas' }).getAttribute('href')).toBe(
+      '/agenda/ausencias',
+    );
 
     const menuTrigger = screen.getByRole('button', { name: 'Mais opções' });
     menuTrigger.focus();
@@ -92,9 +91,6 @@ describe('AgendaPage', () => {
     expect(
       (await screen.findByRole('menuitem', { name: 'Importar histórico' })).getAttribute('href'),
     ).toBe('/agenda/importar');
-    expect(screen.getByRole('menuitem', { name: 'Ausências médicas' }).getAttribute('href')).toBe(
-      '/agenda/ausencias',
-    );
 
     cleanup();
     getAgendaData.mockResolvedValue({
@@ -105,6 +101,7 @@ describe('AgendaPage', () => {
     render(await AgendaPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.queryByRole('button', { name: 'Novo atendimento' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Ausências médicas' })).toBeNull();
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Mais opções' }), {
       button: 0,
       ctrlKey: false,
@@ -112,6 +109,13 @@ describe('AgendaPage', () => {
     });
     expect(await screen.findByRole('menuitem', { name: 'Importar histórico' })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: 'Ausências médicas' })).toBeNull();
+  });
+
+  it('abre o dia por padrão e preserva mês/semana quando explícitos na URL', async () => {
+    await AgendaPage({ searchParams: Promise.resolve({}) });
+    expect(getAgendaData).toHaveBeenLastCalledWith({ view: 'day' });
+    await AgendaPage({ searchParams: Promise.resolve({ view: 'month', date: '2026-09-09' }) });
+    expect(getAgendaData).toHaveBeenLastCalledWith({ view: 'month', date: '2026-09-09' });
   });
 
   it('não renderiza navegação nem ações quando view:agenda é negada', async () => {

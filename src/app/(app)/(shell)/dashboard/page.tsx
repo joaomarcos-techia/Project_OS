@@ -1,7 +1,9 @@
-import { Banknote, CalendarDays, Clock3, Stethoscope, Wallet } from 'lucide-react';
+import { Banknote, CalendarDays, CircleCheck, Clock3, Stethoscope, Wallet } from 'lucide-react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { buttonVariants } from '@/components/ui/button';
 import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
@@ -21,6 +23,7 @@ import { ActivationChecklist } from './_components/activation-checklist';
 import { ActivityFeed } from './_components/activity-feed';
 import { RevenueChart } from './_components/revenue-chart';
 import { getActivationChecklist, getDashboard } from './data';
+import styles from './dashboard.module.css';
 
 export const dynamic = 'force-dynamic';
 
@@ -124,7 +127,13 @@ export default async function DashboardPage() {
       <PageHeader
         crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
         title="Visão operacional"
-        description="Agenda, atendimento e indicadores essenciais para decidir o próximo passo."
+        description="O pulso da clínica agora."
+        actions={
+          <Link href="/consultorio" className={buttonVariants({ size: 'sm' })}>
+            <Stethoscope aria-hidden="true" className="size-4" />
+            Abrir o Consultório
+          </Link>
+        }
       />
 
       {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
@@ -133,85 +142,95 @@ export default async function DashboardPage() {
       <ActivationChecklist data={checklist} />
 
       {/* ---- stat tiles (dados reais) ---- */}
-      <MetricStrip>
-        <StatCard
-          emphasis
-          label="Consultas hoje"
-          value={d.consultasHoje}
-          hint={`${d.finalizadas} finalizadas`}
-          icon={<CalendarDays />}
-        />
-        <StatCard
-          label="Aguardando"
-          value={d.aguardando}
-          hint="na sala de espera"
-          icon={<Clock3 />}
-        />
-        <StatCard
-          label="Em atendimento"
-          value={d.emAtendimento}
-          hint="agora"
-          icon={<Stethoscope />}
-        />
-        {canViewFinancial ? (
-          <>
-            <StatCard
-              label="A receber"
-              value={formatBRL(flow.receber)}
-              valueTone={flow.receber > 0 ? 'warning' : 'default'}
-              hint="pendências em aberto"
-              icon={<Wallet />}
-            />
-            <StatCard
-              label="Faturado hoje"
-              value={formatBRL(flow.recebidoHoje)}
-              valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
-              hint="recebido hoje"
-              icon={<Banknote />}
-            />
-          </>
-        ) : null}
-      </MetricStrip>
-
-      <div
-        className={
-          canViewFinancial
-            ? 'mt-(--sp-4) grid gap-(--sp-4) xl:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]'
-            : 'mt-(--sp-4)'
-        }
+      <PanelCard
+        title="Agora"
+        regionLabel="Sala de espera e atendimento"
+        action={{ label: 'Ver fila no Consultório', href: '/consultorio' }}
+        className={styles.metricsPanel ?? ''}
       >
-        {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
-            HTML quando a permissão existe. */}
+        <MetricStrip className={styles.liveMetrics ?? ''}>
+          <StatCard
+            label="Aguardando"
+            value={d.aguardando}
+            hint="na sala de espera"
+            icon={<Clock3 />}
+          />
+          <StatCard
+            label="Em atendimento"
+            value={d.emAtendimento}
+            hint="agora"
+            icon={<Stethoscope />}
+          />
+          <StatCard
+            label="Próxima consulta"
+            value={d.proximos[0] ? hora(d.proximos[0].horario) : '—'}
+            hint={d.proximos[0]?.nome ?? 'Nenhuma consulta na fila de hoje'}
+            icon={<CalendarDays />}
+          />
+        </MetricStrip>
+      </PanelCard>
+
+      <div className={styles.summaryGrid ?? ''}>
+        <PanelCard
+          title="Operação do turno"
+          regionLabel="Operação do turno"
+          className={styles.metricsPanel ?? ''}
+        >
+          <MetricStrip className={styles.summaryMetrics ?? ''}>
+            <StatCard
+              label="Consultas hoje"
+              value={d.consultasHoje}
+              hint="agendadas para hoje"
+              icon={<CalendarDays />}
+            />
+            <StatCard
+              label="Finalizadas"
+              value={d.finalizadas}
+              hint="atendimentos concluídos"
+              icon={<CircleCheck />}
+            />
+          </MetricStrip>
+        </PanelCard>
         {canViewFinancial ? (
           <PanelCard
-            title="Faturamento · últimos 7 dias"
-            action={{ label: 'Financeiro', href: '/financeiro' }}
+            title="Resumo financeiro"
+            regionLabel="Resumo financeiro"
+            action={{ label: 'Abrir o Financeiro', href: '/financeiro' }}
+            className={styles.metricsPanel ?? ''}
           >
-            {chartTotal === 0 ? (
-              <EmptyState
-                variant="compact"
-                icon={<Banknote />}
-                title="Sem recebimentos no período"
-                description="Os valores recebidos aparecem aqui assim que forem registrados."
+            <MetricStrip className={styles.summaryMetrics ?? ''}>
+              <StatCard
+                label="A receber"
+                value={formatBRL(flow.receber)}
+                valueTone={flow.receber > 0 ? 'warning' : 'default'}
+                hint="pendências em aberto"
+                icon={<Wallet />}
               />
-            ) : (
-              <RevenueChart points={chart} />
-            )}
+              <StatCard
+                label="Faturado hoje"
+                value={formatBRL(flow.recebidoHoje)}
+                valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
+                hint="recebido hoje"
+                icon={<Banknote />}
+              />
+              <StatCard
+                label="Saldo do dia"
+                value={formatBRL(flow.saldoHoje)}
+                hint="depois das saídas"
+                icon={<Wallet />}
+              />
+            </MetricStrip>
           </PanelCard>
         ) : null}
+      </div>
 
-        <div
-          className={
-            canViewFinancial
-              ? 'flex min-w-0 flex-col gap-(--sp-4)'
-              : canAudit
-                ? 'grid gap-(--sp-4) lg:grid-cols-2'
-                : 'min-w-0'
-          }
-        >
+      <div className={canAudit ? styles.contentGrid : styles.contentSingle}>
+        <div className={styles.mainColumn ?? ''}>
           <PanelCard
             title="Próximos na agenda"
-            action={{ label: 'Ver consultório', href: '/consultorio' }}
+            regionLabel="Próximos na agenda"
+            action={{ label: 'Ver agenda do dia', href: '/agenda' }}
+            className={styles.panel ?? ''}
           >
             {d.proximos.length === 0 ? (
               <EmptyState
@@ -221,38 +240,58 @@ export default async function DashboardPage() {
                 description="Nenhum atendimento está agendado para hoje."
               />
             ) : (
-              <ul className="flex flex-col">
+              <ul className={styles.appointments ?? ''}>
                 {d.proximos.map((p) => (
-                  <li
-                    key={p.appointmentId}
-                    className="flex items-center gap-3 border-b border-border py-2 text-(length:--fs-sm) last:border-b-0"
-                  >
-                    <span className="font-mono text-(length:--fs-xs) text-fg-subtle tabular-nums">
-                      {hora(p.horario)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-medium">{p.nome}</span>
+                  <li key={p.appointmentId}>
+                    <span className={styles.appointmentTime ?? ''}>{hora(p.horario)}</span>
+                    <span className={styles.patientName ?? ''}>{p.nome}</span>
                     <AppointmentStatusBadge status={p.status} />
                   </li>
                 ))}
               </ul>
             )}
           </PanelCard>
-
-          {canAudit ? (
-            <PanelCard title="Atividade recente">
-              {activity.length === 0 ? (
+          {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
+            HTML quando a permissão existe. */}
+          {canViewFinancial ? (
+            <PanelCard
+              title="Faturamento · últimos 7 dias"
+              action={{ label: 'Financeiro', href: '/financeiro' }}
+              regionLabel="Faturamento recebido"
+              className={styles.panel ?? ''}
+            >
+              {chartTotal === 0 ? (
                 <EmptyState
                   variant="compact"
-                  icon={<Clock3 />}
-                  title="Sem atividade recente"
-                  description="As próximas ações da equipe aparecerão aqui."
+                  icon={<Banknote />}
+                  title="Sem recebimentos no período"
+                  description="Os valores recebidos aparecem aqui assim que forem registrados."
                 />
               ) : (
-                <ActivityFeed activity={activity} actorNames={actorNames} />
+                <RevenueChart points={chart} />
               )}
             </PanelCard>
           ) : null}
         </div>
+
+        {canAudit ? (
+          <PanelCard
+            title="Atividade recente"
+            regionLabel="Atividade recente"
+            className={styles.panel ?? ''}
+          >
+            {activity.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                icon={<Clock3 />}
+                title="Sem atividade recente"
+                description="As próximas ações da equipe aparecerão aqui."
+              />
+            ) : (
+              <ActivityFeed activity={activity} actorNames={actorNames} />
+            )}
+          </PanelCard>
+        ) : null}
       </div>
     </>
   );

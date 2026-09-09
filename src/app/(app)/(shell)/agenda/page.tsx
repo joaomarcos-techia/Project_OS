@@ -4,7 +4,6 @@
  * atendimentos. "Novo atendimento" segue o fluxo walk-in do C6.
  */
 import { EmptyState } from '@/components/ui/empty-state';
-import { NavTabs } from '@/components/ui/nav-tabs';
 import { PageHeader } from '@/components/ui/page-header';
 import { PageNoAccess } from '@/components/shared/page-no-access';
 
@@ -14,11 +13,6 @@ import { getAgendaData } from './data';
 import { isAgendaView } from './range';
 
 export const dynamic = 'force-dynamic';
-
-const AGENDA_TABS = [
-  { label: 'Agenda', href: '/agenda', exact: true },
-  { label: 'Lista de espera', href: '/agenda/lista-espera' },
-];
 
 export default async function AgendaPage({
   searchParams,
@@ -56,12 +50,15 @@ export default async function AgendaPage({
       <PageHeader
         crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
         title="Agenda"
-        description="Veja os atendimentos por mês, semana ou dia."
+        description="Consultas, encaixes e correções do dia."
+        meta={`${data.appointments.length} atendimento${data.appointments.length === 1 ? '' : 's'}`}
+        actions={<AgendaPageActions data={data} />}
       />
 
-      <NavTabs tabs={AGENDA_TABS} className="mb-(--sp-4)" />
-      <AgendaNav data={data} actions={<AgendaPageActions data={data} />} />
-      <AgendaCalendar data={data} />
+      <AgendaNav data={data} />
+      <div className="qoro-page-content">
+        <AgendaCalendar data={data} />
+      </div>
     </>
   );
 }

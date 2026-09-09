@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/ui/cn';
 
 import { SETTINGS_NAVIGATION, groupOf } from './settings-navigation';
+import styles from './settings.module.css';
 
 /**
  * Abas das configurações — uma por categoria, no topo de toda página da seção.
@@ -41,7 +42,7 @@ export function SettingsNav({ visibleHrefs }: { visibleHrefs: string[] }) {
   const active = groupOf(groups, pathname);
 
   return (
-    <nav aria-label="Configurações" className="mb-(--sp-6) min-w-0">
+    <nav aria-label="Configurações" className={styles.navigation ?? ''}>
       <div className="hidden flex-wrap gap-0.5 border-b border-border sm:flex">
         {groups.map((group) => {
           const Icon = group.icon;

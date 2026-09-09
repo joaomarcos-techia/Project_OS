@@ -3,14 +3,25 @@
  * Server component — navegação por URL (`?view=&date=`), sem estado cliente.
  * Cancelados aparecem esmaecidos (decisão do founder), não somem.
  */
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3, Stethoscope } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { AppointmentStatusBadge, DepositStatusBadge } from '@/components/ui/status-badge';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
+import { buttonVariants } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/ui/cn';
+
+import styles from './agenda.module.css';
 
 import type { AgendaAppt, AgendaData } from './data';
 import { AppointmentCorrectionDialog } from './appointment-correction-dialog';
@@ -179,6 +190,7 @@ function WeekView({ data }: { data: AgendaData }) {
 function DayView({ data }: { data: AgendaData }) {
   const appts = [...data.appointments].sort((a, b) => a.horario.localeCompare(b.horario));
   const seriesById = new Map(data.recurrenceSeries.map((s) => [s.id, s]));
+  const waiting = appts.filter((appointment) => appointment.status === 'chegou').length;
   if (appts.length === 0) {
     return (
       <EmptyState
@@ -188,23 +200,53 @@ function DayView({ data }: { data: AgendaData }) {
     );
   }
   return (
-    <Card>
-      <ul className="flex flex-col">
-        {appts.map((a) => {
-          const noConsultorio = a.status === 'chegou' || a.status === 'em_atendimento';
-          return (
-            <li
-              key={a.id}
-              className={cn(
-                'flex flex-wrap items-center gap-3 border-b border-border px-(--card-pad) py-3 last:border-b-0',
-                isCancelled(a) && 'opacity-60',
-              )}
-            >
-              <span className="font-mono text-sm">{hora(a.horario, data.tz)}</span>
-              <span className="min-w-0 truncate font-medium">{a.pacienteNome}</span>
-              <span className="text-xs text-fg-subtle">{a.medicoNome}</span>
-              <AppointmentStatusBadge status={a.status} />
-              {/*
+    <>
+      {waiting > 0 ? (
+        <Link href="/consultorio" className={styles.waitingNotice ?? ''}>
+          <Clock3 aria-hidden="true" className="size-4 shrink-0" />
+          <span className="flex-1 font-medium">
+            {waiting} paciente{waiting === 1 ? '' : 's'} na sala de espera
+          </span>
+          <span className="font-semibold">Abrir no Consultório</span>
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0" />
+        </Link>
+      ) : null}
+      <div className={cn('qoro-section', styles.day)}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Hora</TableHead>
+              <TableHead>Paciente</TableHead>
+              <TableHead>Profissional</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Próxima ação</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {appts.map((a) => {
+              const noConsultorio = a.status === 'chegou' || a.status === 'em_atendimento';
+              return (
+                <TableRow
+                  key={a.id}
+                  data-status={a.status}
+                  className={cn(styles.appointment, isCancelled(a) && 'opacity-60')}
+                >
+                  <TableCell
+                    data-label="Hora"
+                    className="font-mono text-(length:--fs-sm) font-medium tabular-nums"
+                  >
+                    {hora(a.horario, data.tz)}
+                  </TableCell>
+                  <TableCell data-label="Paciente" className="font-semibold">
+                    {a.pacienteNome}
+                  </TableCell>
+                  <TableCell data-label="Profissional" className="text-fg-muted">
+                    {a.medicoNome}
+                  </TableCell>
+                  <TableCell data-label="Status">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <AppointmentStatusBadge status={a.status} />
+                      {/*
                 ADR-049 1.6b — o sinal é dimensão ORTOGONAL ao status, então vem
                 como badge próprio ao lado, não substituindo. `none` não renderiza
                 nada: sinal desligado é o caso da maioria das clínicas, e um
@@ -212,39 +254,53 @@ function DayView({ data }: { data: AgendaData }) {
                 O prazo entra no `title` porque é o que decide se ainda dá para
                 agir — vaga pendente vira cancelamento sozinha quando ele passa.
               */}
-              <span
-                title={
-                  a.depositStatus === 'pending' && a.holdExpiresAt
-                    ? `Vaga segurada até ${hora(a.holdExpiresAt, data.tz)}`
-                    : undefined
-                }
-              >
-                <DepositStatusBadge status={a.depositStatus} />
-              </span>
-              {/* UX-003 — o vínculo com a série vira visível e acionável aqui. */}
-              {a.recurrenceSeriesId && seriesById.get(a.recurrenceSeriesId) ? (
-                <RecurrenceSeriesDialog
-                  series={seriesById.get(a.recurrenceSeriesId)!}
-                  occurrence={a.recurrenceOccurrence}
-                />
-              ) : null}
-              <span className="flex-1" />
-              {noConsultorio ? (
-                <Link
-                  href="/consultorio"
-                  className="text-(length:--fs-sm) font-medium text-link hover:underline"
-                >
-                  Abrir no Consultório
-                </Link>
-              ) : null}
-              {data.canEditAgenda && a.recoveryKinds.length > 0 ? (
-                <AppointmentCorrectionDialog appointment={a} doctors={data.doctors} />
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </Card>
+                      <span
+                        title={
+                          a.depositStatus === 'pending' && a.holdExpiresAt
+                            ? `Vaga segurada até ${hora(a.holdExpiresAt, data.tz)}`
+                            : undefined
+                        }
+                      >
+                        <DepositStatusBadge status={a.depositStatus} />
+                      </span>
+                      {/* UX-003 — o vínculo com a série vira visível e acionável aqui. */}
+                      {a.recurrenceSeriesId && seriesById.get(a.recurrenceSeriesId) ? (
+                        <RecurrenceSeriesDialog
+                          series={seriesById.get(a.recurrenceSeriesId)!}
+                          occurrence={a.recurrenceOccurrence}
+                        />
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell data-label="Próxima ação">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {noConsultorio ? (
+                        <Link
+                          href="/consultorio"
+                          className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+                        >
+                          <Stethoscope aria-hidden="true" className="size-4" />
+                          Abrir no Consultório
+                        </Link>
+                      ) : null}
+                      {data.canEditAgenda && a.recoveryKinds.length > 0 ? (
+                        <AppointmentCorrectionDialog appointment={a} doctors={data.doctors} />
+                      ) : null}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        <div className={styles.footer ?? ''}>
+          <span className="font-mono tabular-nums">
+            {appts.length} atendimento{appts.length === 1 ? '' : 's'} no dia
+          </span>
+          <span>Faltas e cancelamentos permanecem visíveis no histórico do dia.</span>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -274,7 +330,9 @@ export function AgendaNav({ data, actions }: { data: AgendaData; actions?: React
       aria-current={view === v ? 'page' : undefined}
       className={cn(
         'inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm) font-medium transition-colors',
-        view === v ? 'bg-primary text-on-primary' : 'text-fg-muted hover:bg-surface-hover',
+        view === v
+          ? 'bg-surface font-semibold text-fg shadow-xs'
+          : 'text-fg-muted hover:bg-surface-hover',
       )}
     >
       {txt}
@@ -298,21 +356,31 @@ export function AgendaNav({ data, actions }: { data: AgendaData; actions?: React
   return (
     <section
       aria-label="Controles da agenda"
-      className="mb-4 flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between"
+      className="qoro-toolbar mb-4 flex flex-wrap items-center justify-between gap-3"
     >
       <nav aria-label="Navegação por data" className="flex min-w-0 flex-wrap items-center gap-1">
         {nav(-1, <ChevronLeft aria-hidden="true" className="size-4" />, 'Anterior')}
-        {nav(1, <ChevronRight aria-hidden="true" className="size-4" />, 'Próximo')}
-        <Link
-          href={href(view, todayYmd(tz))}
-          className="ml-1 inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm) font-medium text-fg-muted transition-colors hover:bg-surface-hover"
-        >
+        <Link href={href(view, todayYmd(tz))} className={buttonVariants({ variant: 'secondary' })}>
           Hoje
         </Link>
+        {nav(1, <ChevronRight aria-hidden="true" className="size-4" />, 'Próximo')}
         <span className="ml-2 min-w-0 text-balance text-(length:--fs-sm) font-medium capitalize">
           {label}
         </span>
       </nav>
+
+      <div className={styles.summary ?? ''} aria-label="Resumo dos atendimentos">
+        <span>
+          {data.appointments.filter((item) => item.status === 'atendido').length} finalizados
+        </span>
+        <span className="text-warning-700">
+          {data.appointments.filter((item) => item.status === 'chegou').length} aguardando
+        </span>
+        <span className="text-primary">
+          {data.appointments.filter((item) => item.status === 'em_atendimento').length} em
+          atendimento
+        </span>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         <nav

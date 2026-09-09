@@ -148,7 +148,7 @@ export function CaixaView({
 
       {/* As três métricas saíram do slot de ações do header: ação e indicador não
           são a mesma coisa, e amontoá-las lá fazia número parecer botão. */}
-      <MetricStrip className="mb-(--sp-4)">
+      <MetricStrip className="qoro-cash-metrics mb-(--sp-4)">
         <StatCard
           label="A receber"
           value={formatBRL(totalPendente)}
@@ -165,16 +165,6 @@ export function CaixaView({
           valueTone={totalAPagar > 0 ? 'warning' : 'default'}
         />
       </MetricStrip>
-
-      {recebimentosPorForma.length > 0 ? (
-        <PanelCard
-          title="Recebimentos por forma"
-          meta={formatBRL(totalRecebidoHoje)}
-          className="mb-(--sp-4)"
-        >
-          <BreakdownList items={recebimentosPorForma} />
-        </PanelCard>
-      ) : null}
 
       {pendencias.length > 0 || collectionCases.length > 0 ? (
         <div className="mb-5 grid gap-3 xl:grid-cols-2">
@@ -234,23 +224,32 @@ export function CaixaView({
         </Alert>
       ) : null}
 
-      <CashQueue
-        pendentes={pendentes}
-        parciais={parciais}
-        pagosHoje={pagosHoje}
-        aPagar={aPagar}
-        methods={methods}
-        paymentTransactionsByLancamento={paymentTransactionsByLancamento}
-        canOperate={canOperate}
-        canRefund={canRefund}
-        pending={pending}
-        panel={panel}
-        onOpenPanel={openPanel}
-        onClosePanel={closePanel}
-        onConfirm={onConfirm}
-        onCancel={onCancel}
-        onEstorno={onEstorno}
-      />
+      <div className="qoro-cash-layout">
+        <CashQueue
+          pendentes={pendentes}
+          parciais={parciais}
+          pagosHoje={pagosHoje}
+          aPagar={aPagar}
+          methods={methods}
+          paymentTransactionsByLancamento={paymentTransactionsByLancamento}
+          canOperate={canOperate}
+          canRefund={canRefund}
+          pending={pending}
+          panel={panel}
+          onOpenPanel={openPanel}
+          onClosePanel={closePanel}
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+          onEstorno={onEstorno}
+        />
+        {recebimentosPorForma.length > 0 ? (
+          <aside aria-label="Recebimentos do dia">
+            <PanelCard title="Recebimentos por forma" meta={formatBRL(totalRecebidoHoje)}>
+              <BreakdownList items={recebimentosPorForma} />
+            </PanelCard>
+          </aside>
+        ) : null}
+      </div>
     </>
   );
 }

@@ -4,7 +4,7 @@
  * Tenant scope via requireClinicId + RLS; nome do paciente vem do snapshot (R8).
  * Cada item linka para a página de PDF existente (signed URL fresca lá — R4).
  */
-import { FileText, Files, Pill, Search } from 'lucide-react';
+import { ExternalLink, FileText, Files, ListFilter, Pill, Search } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -18,7 +18,8 @@ import { PageNoAccess } from '@/components/shared/page-no-access';
 import { buttonVariants } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
-import { EntityCell, EntityIcon } from '@/components/ui/entity-cell';
+import { EntityCell } from '@/components/ui/entity-cell';
+import { Badge } from '@/components/ui/badge';
 import { FilterBar, SearchField } from '@/components/ui/filter-bar';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
@@ -27,6 +28,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 
 import { documentosPageHref, parseDocumentosPage, type DocumentosSearchParams } from './pagination';
 import { NewClinicalDocumentDrawer } from './new-clinical-document-drawer';
+import styles from './documents.module.css';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,26 +114,14 @@ export default async function DocumentosPage({
         description="Crie e consulte receitas e documentos médicos da clínica."
       />
 
-      <StatsInline
-        className="mb-(--sp-3)"
-        items={[
-          {
-            label: `${result.total.toLocaleString('pt-BR')} documento${
-              result.total === 1 ? '' : 's'
-            }`,
-          },
-          ...(filtrando ? [{ label: 'filtro aplicado', tone: 'attention' as const }] : []),
-        ]}
-      />
-
-      <FilterBar>
-        <form className="flex min-w-0 flex-1 flex-wrap items-center gap-(--sp-2)" role="search">
+      <FilterBar className="qoro-toolbar">
+        <form className="flex min-w-0 flex-wrap items-center gap-(--sp-2)" role="search">
           <SearchField
             name="q"
             defaultValue={q ?? ''}
             placeholder="Buscar por paciente…"
             aria-label="Buscar documentos por nome do paciente"
-            className="sm:max-w-90"
+            className="min-w-0 sm:w-68 sm:flex-none"
           />
           <Select
             name="tipo"
@@ -144,12 +134,23 @@ export default async function DocumentosPage({
             <option value="document">Documentos médicos</option>
           </Select>
           <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            <ListFilter aria-hidden="true" className="size-4" />
             Filtrar
           </button>
         </form>
+        <StatsInline
+          className="ml-auto"
+          items={[
+            {
+              label: `${result.total.toLocaleString('pt-BR')} documento${result.total === 1 ? '' : 's'}`,
+            },
+            ...(filtrando ? [{ label: 'filtro aplicado', tone: 'attention' as const }] : []),
+          ]}
+        />
       </FilterBar>
 
       <DataTable
+        className={styles.table ?? ''}
         total={items.length === 0 ? 0 : result.total}
         page={page}
         pageCount={totalPages}
@@ -180,26 +181,37 @@ export default async function DocumentosPage({
           {items.map((d) => (
             <TableRow key={`${d.kind}:${d.id}`}>
               <TableCell>
-                {/* Tipo saiu do badge e virou identidade da linha, como na
-                    referência: o badge repetia a mesma cor em toda linha e não
-                    distinguia nada — o ícone + rótulo carrega melhor. */}
-                <EntityCell
-                  name={d.label}
-                  leading={
-                    <EntityIcon>{d.kind === 'prescription' ? <Pill /> : <FileText />}</EntityIcon>
-                  }
-                  sub={d.hasPdf ? undefined : 'PDF pendente'}
-                />
+                <Badge tone={d.kind === 'prescription' ? 'blue' : 'gray'}>
+                  {d.kind === 'prescription' ? (
+                    <Pill aria-hidden="true" className="size-3" />
+                  ) : (
+                    <FileText aria-hidden="true" className="size-3" />
+                  )}
+                  {d.label}
+                </Badge>
+                {!d.hasPdf ? (
+                  <p className="mt-1 text-(length:--fs-xs) text-fg-subtle">PDF pendente</p>
+                ) : null}
               </TableCell>
               <TableCell>
                 <EntityCell name={d.patientNome} />
               </TableCell>
-              <TableCell className="text-fg-muted tabular-nums">
-                {new Date(d.createdAt).toLocaleString('pt-BR')}
+              <TableCell className="font-mono text-fg-muted tabular-nums">
+                <span className="block">{new Date(d.createdAt).toLocaleDateString('pt-BR')}</span>
+                <span className="mt-0.5 block text-(length:--fs-xs) text-fg-subtle">
+                  {new Date(d.createdAt).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
               </TableCell>
               <TableCell>
-                <Link href={d.pdfHref} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-                  {d.hasPdf ? 'Abrir' : 'Gerar PDF'}
+                <Link
+                  href={d.pdfHref}
+                  className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+                >
+                  <ExternalLink aria-hidden="true" className="size-4" />
+                  {d.hasPdf ? 'Abrir PDF' : 'Gerar PDF'}
                 </Link>
               </TableCell>
             </TableRow>

@@ -1,4 +1,5 @@
 import { BarChart } from '@/components/ui/bar-chart';
+import styles from '../dashboard.module.css';
 
 export type RevenuePoint = { date: string; label: string; recebido: number };
 
@@ -8,17 +9,21 @@ const compact = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFra
  * Faturamento de 7 dias. Fina sobre `BarChart`: a série e o formato do rótulo
  * são a única coisa específica do dashboard.
  *
- * O destaque de "hoje" saiu. Ele existia para dar um ponto de referência ao
- * olho, mas o eixo já traz o dia e a última coluna é sempre hoje — pintar uma
- * barra de outra cor gastava significado de cor para repetir o que a posição
- * dizia.
+ * A última coluna destaca o recebido hoje; as anteriores mostram os dias
+ * fechados. A série continua sendo calculada no fuso da clínica pela página.
  */
 export function RevenueChart({ points }: { points: RevenuePoint[] }) {
   return (
-    <BarChart
-      series={[{ name: 'Recebido', tone: 'primary' }]}
-      points={points.map((p) => ({ key: p.date, label: p.label, values: [p.recebido] }))}
-      formatValue={(v) => compact.format(v)}
-    />
+    <div className={styles.revenue ?? ''}>
+      <BarChart
+        series={[{ name: 'Recebido', tone: 'primary' }]}
+        points={points.map((p, i) => ({
+          key: p.date,
+          label: i === points.length - 1 ? 'hoje' : p.label,
+          values: [p.recebido],
+        }))}
+        formatValue={(v) => compact.format(v)}
+      />
+    </div>
   );
 }

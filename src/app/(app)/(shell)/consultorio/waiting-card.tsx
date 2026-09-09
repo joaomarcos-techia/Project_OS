@@ -39,6 +39,7 @@ function WaitingCardImpl({
   const tone = waitTone(mins);
   return (
     <div
+      data-slot="waiting-card"
       className={cn(
         'rounded-lg border border-border border-l-4 bg-surface p-3 shadow-xs',
         LEFT_BORDER[tone],

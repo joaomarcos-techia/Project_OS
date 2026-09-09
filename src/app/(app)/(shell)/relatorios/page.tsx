@@ -21,6 +21,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { cn } from '@/lib/ui/cn';
 
 import { getRelatorios, PERIODS, resolvePeriod } from './data';
+import styles from './reports.module.css';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,10 +63,7 @@ export default async function RelatoriosPage({
         }
       />
 
-      <nav
-        aria-label="Período do relatório"
-        className="mb-(--sp-4) inline-flex max-w-full gap-0.5 overflow-x-auto rounded-(--r-md) border border-border bg-surface-inset p-1"
-      >
+      <nav aria-label="Período do relatório" className="qoro-toolbar">
         {PERIODS.map((p) => (
           <Link
             key={p.key}
@@ -83,7 +81,7 @@ export default async function RelatoriosPage({
         ))}
       </nav>
 
-      <MetricStrip>
+      <MetricStrip className={styles.metrics ?? ''}>
         {canFinancial ? (
           <StatCard
             emphasis
@@ -103,10 +101,11 @@ export default async function RelatoriosPage({
             mas rótulo, valor e nota seguem os mesmos degraus de tipografia, para
             não destoar dos vizinhos da fileira. */}
         <Card data-slot="stat-card" className="flex flex-col gap-2.5 p-(--card-pad)">
-          <span className="text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
-            Ocupação
-          </span>
-          <span className="text-(length:--fs-h2) leading-none font-semibold tracking-(--tracking-tight) tabular-nums">
+          <span className="text-(length:--fs-xs) font-medium text-fg-muted">Ocupação</span>
+          <span
+            data-slot="stat-value"
+            className="text-(length:--fs-h2) leading-none font-semibold tracking-(--tracking-tight) tabular-nums"
+          >
             {pct(data.ocupacao.taxa)}
           </span>
           <div className="h-2 w-full overflow-hidden rounded-full bg-viz-track">
@@ -128,54 +127,60 @@ export default async function RelatoriosPage({
       {/* Recebido, pago e saldo estavam concatenados num `hint` de uma linha só,
           o que obrigava a ler três valores monetários numa frase e impedia
           alinhar as casas decimais. */}
-      {canFinancial ? (
-        <PanelCard
-          title="Resultado do período"
-          regionLabel="Resultado do período"
-          className="mt-(--sp-4)"
-        >
-          <SummaryList
-            rows={[
-              { label: 'Recebido', value: brl(data.faturamento.recebido) },
-              { label: 'Pago', value: brl(data.faturamento.pago) },
-              {
-                label: 'Saldo',
-                value: brl(data.faturamento.saldo),
-                emphasis: true,
-                tone: data.faturamento.saldo >= 0 ? 'positive' : 'negative',
-              },
-            ]}
-          />
-        </PanelCard>
-      ) : null}
+      <div className={styles.panels ?? ''}>
+        {canFinancial ? (
+          <PanelCard
+            title="Resultado do período"
+            regionLabel="Resultado do período"
+            className="mt-(--sp-4)"
+          >
+            <SummaryList
+              rows={[
+                { label: 'Recebido', value: brl(data.faturamento.recebido) },
+                { label: 'Pago', value: brl(data.faturamento.pago) },
+                {
+                  label: 'Saldo',
+                  value: brl(data.faturamento.saldo),
+                  emphasis: true,
+                  tone: data.faturamento.saldo >= 0 ? 'positive' : 'negative',
+                },
+              ]}
+            />
+          </PanelCard>
+        ) : null}
 
-      {/* Volume de atendimentos — os três desfechos são partes do total, então
+        {/* Volume de atendimentos — os três desfechos são partes do total, então
           a barra empilhada responde "quanto de cada" numa olhada. A grade de
           quatro números exigia dividir de cabeça para chegar na proporção, que
           é a única coisa acionável aqui. */}
-      <PanelCard
-        title="Volume de atendimentos"
-        regionLabel="Volume de atendimentos"
-        meta={`${data.noShow.total} no período`}
-        className="mt-(--sp-4)"
-      >
-        {data.noShow.total === 0 ? (
-          <EmptyState
-            variant="compact"
-            icon={<CalendarCheck />}
-            title="Nenhum atendimento com desfecho"
-            description="Atendidos, faltas e cancelamentos aparecem aqui quando houver movimento no período."
-          />
-        ) : (
-          <StackedBar
-            segments={[
-              { label: 'Atendidos', value: data.noShow.atendido, amount: data.noShow.atendido },
-              { label: 'Faltas', value: data.noShow.faltou, amount: data.noShow.faltou },
-              { label: 'Cancelados', value: data.noShow.cancelado, amount: data.noShow.cancelado },
-            ]}
-          />
-        )}
-      </PanelCard>
+        <PanelCard
+          title="Volume de atendimentos"
+          regionLabel="Volume de atendimentos"
+          meta={`${data.noShow.total} no período`}
+          className="mt-(--sp-4)"
+        >
+          {data.noShow.total === 0 ? (
+            <EmptyState
+              variant="compact"
+              icon={<CalendarCheck />}
+              title="Nenhum atendimento com desfecho"
+              description="Atendidos, faltas e cancelamentos aparecem aqui quando houver movimento no período."
+            />
+          ) : (
+            <StackedBar
+              segments={[
+                { label: 'Atendidos', value: data.noShow.atendido, amount: data.noShow.atendido },
+                { label: 'Faltas', value: data.noShow.faltou, amount: data.noShow.faltou },
+                {
+                  label: 'Cancelados',
+                  value: data.noShow.cancelado,
+                  amount: data.noShow.cancelado,
+                },
+              ]}
+            />
+          )}
+        </PanelCard>
+      </div>
     </>
   );
 }

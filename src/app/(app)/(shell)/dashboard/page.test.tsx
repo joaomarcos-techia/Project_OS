@@ -110,7 +110,7 @@ describe('DashboardPage', () => {
     getProfileNames.mockResolvedValue(new Map([['user-1', 'Ana Costa']]));
   });
 
-  it('abre pelo checklist de ativação e segue por métricas, gráfico e agenda', async () => {
+  it('prioriza ativação e operação, com agenda antes do gráfico', async () => {
     const { container } = render(await DashboardPage());
     const content = container.textContent ?? '';
 
@@ -121,11 +121,14 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/em breve/iu)).toBeNull();
     expect(screen.queryByRole('link', { name: 'Atualizar' })).toBeNull();
     expect(content.indexOf('Consultas hoje')).toBeLessThan(content.indexOf('Faturamento'));
-    expect(content.indexOf('Faturamento')).toBeLessThan(content.indexOf('Próximos na agenda'));
+    expect(content.indexOf('Próximos na agenda')).toBeLessThan(content.indexOf('Faturamento'));
     // A ordem virou: enquanto a ativação não fecha, ela vem primeiro. No
     // rodapé o operador não a encontrava — e o bloco some sozinho quando os
     // passos terminam, então não custa nada ao dashboard maduro.
-    expect(content.indexOf('Primeiros passos')).toBeLessThan(content.indexOf('Consultas hoje'));
+    expect(content.indexOf('Ativação da clínica')).toBeLessThan(content.indexOf('Consultas hoje'));
+    expect(screen.getByRole('region', { name: 'Sala de espera e atendimento' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Operação do turno' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Resumo financeiro' })).toBeTruthy();
   });
 
   it('formata Hoje no fuso da clínica durante a virada do dia em UTC', async () => {
@@ -177,6 +180,7 @@ describe('DashboardPage', () => {
     expect(getProfileNames).not.toHaveBeenCalled();
     expect(html).not.toContain('A receber');
     expect(html).not.toContain('Faturado hoje');
+    expect(html).not.toContain('Saldo do dia');
     expect(html).not.toContain('Faturamento');
     expect(html).not.toContain('Financeiro');
     expect(html).not.toContain('Atividade recente');

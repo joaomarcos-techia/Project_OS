@@ -37,6 +37,7 @@ export function MobileNavButton({ open, onClick }: { open: boolean; onClick: () 
     <button
       type="button"
       aria-label="Abrir navegação"
+      aria-expanded={open}
       onClick={onClick}
       className={cn(
         // acima do topbar sticky (z-sticky) para o clique não ser interceptado
@@ -71,6 +72,8 @@ export function ShellScrim({ show, onClick }: { show: boolean; onClick: () => vo
 export function ShellSidebar({ open, children }: { open: boolean; children: ReactNode }) {
   return (
     <aside
+      data-slot="shell-sidebar"
+      data-open={open}
       className={cn(
         'fixed inset-y-0 left-0 z-(--z-drawer) flex w-(--sidebar-w) flex-col gap-(--sp-4) overflow-hidden border-r border-border bg-surface pt-(--sp-5)',
         'transition-transform duration-(--dur-slow) ease-out',
@@ -85,7 +88,10 @@ export function ShellSidebar({ open, children }: { open: boolean; children: Reac
 
 export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="mb-1 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase">
+    <span
+      data-slot="nav-group-label"
+      className="mb-1 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase"
+    >
       {children}
     </span>
   );
@@ -120,6 +126,7 @@ export function SideNavLink({
   return (
     <Link
       href={href}
+      data-slot="nav-link"
       prefetch={prefetch ?? null}
       aria-current={active ? 'page' : undefined}
       className={cn(
@@ -250,6 +257,7 @@ export function SidebarUserMenu({
   accountHref,
   clinicSettingsHref,
   logoutFormId,
+  showThemeControl = true,
 }: {
   userName: string;
   userRole?: string;
@@ -264,6 +272,7 @@ export function SidebarUserMenu({
    */
   clinicSettingsHref?: string;
   logoutFormId: string;
+  showThemeControl?: boolean;
 }) {
   const face = themeFace(theme);
 
@@ -272,6 +281,7 @@ export function SidebarUserMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          data-slot="sidebar-user"
           className="flex min-h-(--hit-target) w-full items-center gap-2.5 rounded-(--r-md) px-(--sp-3) py-2 text-left transition-colors duration-(--dur-fast) hover:bg-surface-hover"
         >
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-(--primary-soft) text-(length:--fs-sm) font-semibold text-(--primary-active) dark:text-fg">
@@ -315,18 +325,20 @@ export function SidebarUserMenu({
             </Link>
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem
-          // Sem o preventDefault o menu fecha a cada clique, e o tema cicla por
-          // tres estados — reabrir a cada passo seria hostil.
-          onSelect={(event) => {
-            event.preventDefault();
-            onToggleTheme();
-          }}
-        >
-          {face.icon}
-          {face.label}
-          <DropdownMenuShortcut>&#8984;&#92;</DropdownMenuShortcut>
-        </DropdownMenuItem>
+        {showThemeControl ? (
+          <DropdownMenuItem
+            // Sem o preventDefault o menu fecha a cada clique, e o tema cicla por
+            // tres estados — reabrir a cada passo seria hostil.
+            onSelect={(event) => {
+              event.preventDefault();
+              onToggleTheme();
+            }}
+          >
+            {face.icon}
+            {face.label}
+            <DropdownMenuShortcut>&#8984;&#92;</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild danger>
           <button type="submit" form={logoutFormId}>
@@ -350,6 +362,7 @@ export function Wordmark() {
   return (
     <Link
       href="/"
+      data-slot="wordmark"
       aria-label="Qoro — início"
       className="flex min-h-(--hit-target) items-center px-(--sp-6)"
     >

@@ -131,7 +131,7 @@ export function CashQueue({
   };
 
   return (
-    <section aria-labelledby="cash-queue-title">
+    <section className="qoro-cash-queue" aria-labelledby="cash-queue-title">
       <div className="mb-2 flex items-center justify-between gap-3 px-1">
         <div>
           <h2 id="cash-queue-title" className="text-balance text-(length:--fs-sm) font-semibold">
@@ -273,7 +273,10 @@ function ItemRows({
 
   return (
     <Fragment>
-      <TableRow selected={panelMode !== null}>
+      <TableRow
+        selected={panelMode !== null}
+        data-status={item.valorPago === 0 ? item.status : 'com-pagamento'}
+      >
         <TableCell>
           <TableCellStack
             main={subject}
@@ -302,9 +305,14 @@ function ItemRows({
             ) : null}
           </div>
         </TableCell>
-        <TableCell numeric>{formatBRL(item.valor)}</TableCell>
-        <TableCell numeric>{formatBRL(item.valorPago)}</TableCell>
+        <TableCell data-label="Total" numeric>
+          {formatBRL(item.valor)}
+        </TableCell>
+        <TableCell data-label="Pago" numeric>
+          {formatBRL(item.valorPago)}
+        </TableCell>
         <TableCell
+          data-label="Saldo"
           numeric
           className={outstandingBalance(item) > 0 ? 'font-semibold text-fg' : 'text-fg-muted'}
         >

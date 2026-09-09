@@ -32,7 +32,8 @@ describe('SettingsCategoryPage', () => {
   it('abre a categoria com um card por destino acessível', async () => {
     render(await SettingsCategoryPage({ id: 'agenda' }));
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Agenda' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Configurações' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Agenda' })).toBeTruthy();
     const links = screen.getAllByRole('link');
     expect(links.map((a) => a.getAttribute('href'))).toEqual([
       '/configuracoes/horarios',
