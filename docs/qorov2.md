@@ -186,8 +186,10 @@ fiscal, da [ADR-058](adr/058-exportacao-financeira-contabilidade.md). O read mod
 foram implementados e validados localmente/DEV sem migration: focused **23/23**, suíte integral
 **3.081/3.081**, smoke conectado somente leitura **PASS** (`2` movimentos, `703` bytes e zero
 mutação), lint, typecheck, build e todos os gates arquiteturais/operacionais verdes. Não houve chamada
-externa, commit, push ou deploy neste lote; rollout continua uma fase separada e não autorizada.
-Receita Saúde (PF) e NFS-e via Asaas (PJ) continuam fluxos fiscais separados.
+externa. O commit local `b45dffc` contém somente os 20 arquivos da 2.1A; push/deploy foram interrompidos
+antes da rede porque a branch possui o ancestral local de UI `a935c39`, ainda ausente do remoto, que um
+push normal também publicaria. Receita Saúde (PF) e NFS-e via Asaas (PJ) continuam fluxos fiscais
+separados.
 
 **Spike Memed 2.2.0 executado em 07/09:** a documentação oficial e o código atual foram comparados na
 [ADR-056](adr/056-spike-integracao-memed.md). A arquitetura API backend + MdHub frontend é viável,
@@ -1268,7 +1270,8 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
 ## 7. Camadas 2–4 (mesmos gates + `.H`/`.S`)
 - **P1:** **2.1A exportação financeira mensal para contabilidade**, não fiscal, sem PDF/migration,
   conforme [ADR-058](adr/058-exportacao-financeira-contabilidade.md); código e DEV verdes com focused
-  23/23, suíte 3.081/3.081, smoke read-only e todos os gates; rollout não executado/não autorizado ·
+  23/23, suíte 3.081/3.081, smoke read-only e todos os gates; commit local `b45dffc`, com push/deploy
+  aguardando decisão explícita sobre o ancestral de UI `a935c39` ·
   **2.3 ✅ template psiquiátrico local
   (código/Unit/E2E controlado DEV 1/1 PASS, cleanup zero)** · **2.4A retorno existente com
   smoke C14 DEV 9/9 PASS** · **2.4B recuperação de falta implementada e validada em DEV,
@@ -2856,8 +2859,8 @@ autorização para migration/API/infra. Não misturar módulos por especialidade
 ## 22. Camada 2 — 2.1 exportação financeira para contabilidade
 
 **Estado em 09/09/2026:** `2.1A IMPLEMENTADA E VALIDADA EM CÓDIGO/DEV; FOCUSED 23/23; SUÍTE
-3.081/3.081; SMOKE CONECTADO READ-ONLY PASS; TODOS OS GATES VERDES; ROLLOUT NÃO EXECUTADO/NÃO
-AUTORIZADO`.
+3.081/3.081; SMOKE CONECTADO READ-ONLY PASS; TODOS OS GATES VERDES; COMMIT LOCAL B45DFFC; PUSH/DEPLOY
+PAUSADOS ANTES DA REDE POR ANCESTRAL DE UI FORA DO ESCOPO`.
 
 Por decisão do fundador em 09/09, o comprovante PDF individual proposto na
 [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) foi substituído antes de existir schema
@@ -2938,8 +2941,10 @@ chamar o arquivo de documento fiscal.
 - **arquitetura/operação:** `arch:check`, `arch:db-check`, `arch:graphs --check` (54 elementos, 293
   arestas, zero ciclos, 67 eventos e 42 producer-ahead allowlisted), `check:migrations`,
   `check:registry:strict` e `check:observability` PASS;
-- **fronteira de rollout:** commit/push/deploy/Preview/produção não foram executados e continuam
-  exigindo autorização específica; isso não é pendência de código/DEV da 2.1A.
+- **fronteira de rollout:** o commit local `b45dffc` foi criado somente com os 20 arquivos da 2.1A.
+  Push/deploy não foram executados: a branch já continha `a935c39`, um lote de UI com 56 arquivos que
+  também seria publicado por um push normal e não foi incluído na autorização específica da 2.1A;
+  isso não é pendência de código/DEV da exportação.
 
 ### 22.5 Implementação local
 
@@ -2981,9 +2986,10 @@ As decisões e boundaries estão preservados em:
   ADR-054;
 
 Não existe pendência técnica de código/DEV dentro da 2.1A. Uma revisão das colunas por contador é uma
-validação opcional de usabilidade, não um gate de correção. Commit, push, deploy, smoke de Preview e
-produção pertencem ao rollout e **não foram executados porque não foram autorizados**; deverão formar
-um lote próprio, sem migration, quando houver autorização explícita.
+validação opcional de usabilidade, não um gate de correção. O commit local `b45dffc` foi concluído.
+Push, deploy e smoke de Preview aguardam somente a decisão de incluir `a935c39` no rollout ou isolar os
+históricos de forma explicitamente autorizada; nenhuma rede foi tocada enquanto o escopo ficou
+ambíguo.
 
 ---
 

@@ -1,6 +1,7 @@
 # ADR-058 — Exportação financeira mensal para contabilidade
 
-- **Status:** Accepted — implementação e validação local/DEV concluídas; rollout não autorizado
+- **Status:** Accepted — implementação/DEV e commit local `b45dffc` concluídos; push/deploy pausados
+  antes da rede por ancestral de UI fora do escopo
 - **Data:** 2026-09-09
 - **Contextos:** financial + composição na camada app
 - **Supersede:** a entrega 2.1A de comprovante individual proposta na
@@ -83,8 +84,10 @@ substituída antes de qualquer schema, endpoint ou PDF ser criado.
 - arquitetura/operação: `arch:check`, `arch:db-check`, `arch:graphs --check` com zero ciclos,
   `check:migrations`, `check:registry:strict` e `check:observability` PASS;
 - segurança do lote: formatação, `git diff --check` e varredura do conteúdo alterado PASS;
-- rollout: não executado e não autorizado; commit, push, deploy, Preview e produção exigem
-  autorização posterior e não são parte da conclusão local/DEV desta ADR.
+- rollout: commit local `b45dffc` concluído. A branch já continha o commit de UI `a935c39`, ausente do
+  remoto; como um push normal publicaria os dois lotes, push/deploy foram pausados antes da rede até
+  existir decisão explícita sobre incluir ou isolar esse ancestral. Isso não altera a conclusão
+  local/DEV desta ADR.
 
 ## Alternativas rejeitadas
 

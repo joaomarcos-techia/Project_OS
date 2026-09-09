@@ -101,8 +101,9 @@ canônico e às seções 20–24 de `qorov2.md`:
   da ADR-054 por CSV mensal não fiscal para a contabilidade. Read model, rota e UI estão implementados
   e validados localmente/DEV, sem migration/PDF/provider: focused 23/23, suíte 3.081/3.081, smoke
   conectado read-only com 2 linhas/703 bytes/zero mutação, lint, typecheck, build e todos os gates
-  passaram. Commit/push/deploy não foram executados nem autorizados. Receita Saúde PF e NFS-e via
-  Asaas PJ continuam separados;
+  passaram. O commit local `b45dffc` contém só os 20 arquivos da 2.1A. Push/deploy foram pausados antes
+  da rede porque a branch também publicaria o ancestral local de UI `a935c39`; Receita Saúde PF e
+  NFS-e via Asaas PJ continuam separados;
 - o spike documental 2.2.0 foi concluído em 07/09 na **ADR-056 Deferred**. A Memed é tecnicamente
   integrável por API backend + MdHub frontend, porém implementação, migration e SDK estão bloqueados
   até contrato/preço/SLA/LGPD, credenciais/homologação, readback ou webhook server-side,
@@ -373,7 +374,8 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
 
 - **2.1A** conforme `qorov2.md` §22/ADR-058: CSV mensal não fiscal para contabilidade, implementado
   e validado localmente/DEV sem migration; focused 23/23, suíte 3.081/3.081, smoke conectado read-only,
-  lint, typecheck, build e gates PASS. Rollout não executado/não autorizado.
+  lint, typecheck, build e gates PASS. Commit local `b45dffc`; push/deploy pausados antes da rede pelo
+  conflito de escopo D93.
 - **Decisão fiscal de 07/09:** Asaas é o parceiro de NFS-e das clínicas PJ. Qoro orquestra
   cobrança/nota e projeta somente estado autoritativo; não constrói motor municipal e não substitui
   Receita Saúde PF.
@@ -466,9 +468,9 @@ aplicada/verificada em DEV e produção. O lote P11 está commitado, enviado e i
 passou 8/8, com 26 rotas HTTP 200, paciente dinâmico visitado e nenhuma mutação. O E2E mutável DEV
 passou 1/1 com fixtures clínicas sintéticas tenant-scoped, PDFs reais no Storage e cleanup/readback
 zero. Auth state e artefatos do Preview foram removidos. Preservar `financeiro.md`, `novaui.md` e os
-dois runners temporários não rastreados. Em 09/09, 2.1A foi substituída pelo CSV da ADR-058 e está
-validada localmente/DEV, mas sem commit ou rollout; não repetir a chamada externa de D88. Produção não
-foi alterada por C2.1 nem pela 2.1A.
+dois runners temporários não rastreados. Em 09/09, 2.1A foi substituída pelo CSV da ADR-058, validada
+localmente/DEV e commitada em `b45dffc`. Nenhum push/deploy ocorreu porque `a935c39` também entraria no
+rollout; não repetir a chamada externa de D88. Produção não foi alterada por C2.1 nem pela 2.1A.
 
 ## 10. Ao terminar cada sub-fase, responda neste formato
 
