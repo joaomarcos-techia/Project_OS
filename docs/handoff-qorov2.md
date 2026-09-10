@@ -390,6 +390,13 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
   commit `e60f8f0`, com Unit/component PASS e E2E mutável conectado DEV 1/1 PASS, cleanup zero ·
   **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B** recuperação de falta em
   código/DEV, schema PROD e Preview, smoke C14 10/10; E2E Meta real pendente · **2.H** / **2.S**.
+- **2.H em execução — D95/D96/ADR-059:** o viewer clínico expunha signed URL Supabase de 24 h no DOM.
+  O lote substitui por proxy Qoro autenticado por request, projeção mínima `clinic_id + id`, download
+  server-side, `no-store`/same-origin, rate limit e audit sem PII. D96 também endurece o CSV contra
+  fórmula camuflada por whitespace. Matriz focada 182/182, suíte integral 3.106/3.106, lint, typecheck,
+  build, formatação e todos os gates PASS. E2E mutável DEV 1/1 PASS: três PDFs reais pelos três pontos
+  de entrada, ausência de signed URL/token Supabase, bytes/headers/attachment, anônimo `307 → /login`
+  sem PDF e cleanup DB/Auth/Storage. Faltam commit/push/deploy e smoke autenticado Preview antes de 2.S.
 
 ### Camada 3 (P2)
 

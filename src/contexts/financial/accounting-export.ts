@@ -116,7 +116,11 @@ export function assertAccountingRowLimit(rowCount: number): void {
 
 function csvField(value: string | null, protectFormula = true): string {
   if (value === null) return '';
-  const guarded = protectFormula && /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  // Planilhas não são uniformes: algumas normalizam whitespace/control chars
+  // antes de decidir se a célula é fórmula. Além do prefixo perigoso direto,
+  // neutralize operadores camuflados depois de whitespace (inclui BOM/NBSP).
+  const formulaLike = /^(?:[=+\-@\t\r\n]|\s+[=+\-@])/u.test(value);
+  const guarded = protectFormula && formulaLike ? `'${value}` : value;
   return `"${guarded.replaceAll('"', '""')}"`;
 }
 

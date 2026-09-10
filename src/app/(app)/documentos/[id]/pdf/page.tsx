@@ -1,17 +1,16 @@
 /**
  * /documentos/[id]/pdf — preview + download de documento médico (atestado,
- * declaração, exame, encaminhamento). Mesma estratégia da prescrição: signed
- * URL fresca por load; regenerar se ausente.
+ * declaração, exame, encaminhamento). O arquivo passa por endpoint same-origin
+ * autenticado; regenerar se ausente.
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { Alert } from '@/components/ui/alert';
-import { getMedicalDocumentById } from '@/contexts/clinical/queries';
+import { getMedicalDocumentPdfRef } from '@/contexts/clinical/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
-import { createClinicalSignedUrl } from '@/lib/storage/clinical';
 
 import { RegeneratePdfButton } from './regenerate-button';
 
@@ -26,9 +25,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default async function DocumentPdfPage({ params }: { params: Promise<{ id: string }> }) {
   // AUTHZ-003 — ANTES de consultar/decifrar e MUITO antes de
-  // `createClinicalSignedUrl`: a URL assinada é um bearer token para o arquivo,
-  // então emiti-la já é o vazamento, mesmo que a página não renderize.
-  // Negativa = notFound(), não 403: um 403 aqui distinguiria "existe mas você
+  // expor o recurso. Negativa = notFound(), não 403: um 403 aqui distinguiria "existe mas você
   // não pode" de "não existe" e viraria oráculo de enumeração.
   const gate = await resourceGate([PERMISSIONS.VIEW_PRESCRIPTION]);
   if (!gate) notFound();
@@ -37,10 +34,10 @@ export default async function DocumentPdfPage({ params }: { params: Promise<{ id
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) notFound();
 
-  const doc = await getMedicalDocumentById(clinicId, parsed.data);
+  const doc = await getMedicalDocumentPdfRef(clinicId, parsed.data);
   if (!doc) notFound();
 
-  const url = doc.pdfStoragePath ? await createClinicalSignedUrl(doc.pdfStoragePath) : null;
+  const url = doc.pdfStoragePath ? `/documentos/${doc.id}/pdf/arquivo` : null;
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -59,7 +56,7 @@ export default async function DocumentPdfPage({ params }: { params: Promise<{ id
             <a href={url} target="_blank" rel="noreferrer" className="underline">
               Abrir em nova aba
             </a>
-            <a href={url} download className="underline">
+            <a href={`${url}?download=1`} download className="underline">
               Baixar
             </a>
           </div>

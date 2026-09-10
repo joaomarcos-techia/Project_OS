@@ -68,7 +68,8 @@ substituída antes de qualquer schema, endpoint ou PDF ser criado.
 - **Permissão revogada:** `requireFreshPermission(view:financial)` antes da consulta.
 - **Exfiltração por abuso:** rate limit por usuário e clínica, limite rígido de linhas e auditoria.
 - **Cache/vazamento intermediário:** `no-store`, attachment autenticado e sem URL pública.
-- **CSV injection:** campos textuais iniciados por `=`, `+`, `-`, `@`, tab ou CR recebem apóstrofo.
+- **CSV injection:** campos textuais iniciados por `=`, `+`, `-`, `@`, tab, CR ou LF recebem
+  apóstrofo; o mesmo vale quando whitespace/BOM/NBSP tenta camuflar um operador de fórmula.
 - **Export parcial:** estouro responde 422 e não produz artefato.
 - **Dados de saúde:** paciente e conteúdo clínico não integram a projeção.
 

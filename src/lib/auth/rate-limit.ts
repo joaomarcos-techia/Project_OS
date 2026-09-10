@@ -136,6 +136,8 @@ const fallback = {
   mfaIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
   pdfUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
   pdfClinic: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
+  clinicalPdfUser: new BoundedFallbackLimiter(60, FIFTEEN_MIN_MS),
+  clinicalPdfClinic: new BoundedFallbackLimiter(600, FIFTEEN_MIN_MS),
 };
 
 /**
@@ -245,7 +247,8 @@ function degraded(
     | 'invite'
     | 'resend'
     | 'mfa'
-    | 'pdf',
+    | 'pdf'
+    | 'clinical_pdf',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -706,6 +709,55 @@ export async function assertPdfExportAllowed(
     const userOk = fallback.pdfUser.hit(userId);
     const clinicOk = fallback.pdfClinic.hit(clinicKey);
     return degraded('pdf', err, userOk && clinicOk);
+  }
+}
+
+const lazyClinicalPdfLimiters = (() => {
+  let cached: { user: Ratelimit; clinic: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      user: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(60, '15 m'),
+        prefix: redisKey.global('rl', 'clinical-pdf', 'user'),
+        analytics: false,
+      }),
+      clinic: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(600, '15 m'),
+        prefix: redisKey.global('rl', 'clinical-pdf', 'clinic'),
+        analytics: false,
+      }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * Contém download repetitivo de PDF clínico por conta comprometida sem usar o
+ * orçamento menor dos renders caros. A autorização já ocorreu; as chaves são
+ * pós-auth e separadas por ambiente, usuário e clínica.
+ */
+export async function assertClinicalPdfDownloadAllowed(
+  clinicId: string,
+  userId: string,
+): Promise<LimitResult> {
+  try {
+    const { user, clinic } = lazyClinicalPdfLimiters();
+    const [userResult, clinicResult] = await Promise.all([
+      user.limit(userId),
+      clinic.limit(clinicId),
+    ]);
+    if (!userResult.success || !clinicResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const userOk = fallback.clinicalPdfUser.hit(userId);
+    const clinicOk = fallback.clinicalPdfClinic.hit(clinicId);
+    return degraded('clinical_pdf', err, userOk && clinicOk);
   }
 }
 

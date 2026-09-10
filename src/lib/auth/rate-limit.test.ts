@@ -5,6 +5,7 @@ import { metrics } from '@/lib/observability/metrics';
 
 import {
   BoundedFallbackLimiter,
+  assertClinicalPdfDownloadAllowed,
   assertInviteAcceptAllowed,
   assertInviteAllowed,
   assertMfaAllowed,
@@ -347,6 +348,20 @@ describe('M3 — fail-open com Redis indisponível', () => {
       results.push(await assertMfaAllowed(`user-ipv6-${i}`, i % 2 === 0 ? a : b));
     }
     expect(results[20]).toEqual({ ok: false, reason: 'rate_limited' });
+  });
+
+  it('PDF clínico: fallback limita a conta comprometida sem bloquear outro usuário', async () => {
+    spies();
+    const results = [];
+    for (let i = 0; i < 61; i++) {
+      results.push(await assertClinicalPdfDownloadAllowed('clinic-pdf', 'user-pdf-a'));
+    }
+
+    expect(results.slice(0, 60).every((result) => result.ok)).toBe(true);
+    expect(results[60]).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(await assertClinicalPdfDownloadAllowed('clinic-pdf', 'user-pdf-b')).toEqual({
+      ok: true,
+    });
   });
 });
 

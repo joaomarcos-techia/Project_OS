@@ -118,4 +118,13 @@ describe('accounting export', () => {
     expect(csv).toContain('"10,00";"-10,00"');
     expect(csv).toContain(`"${baseMovement.transactionId}";"Ajuste solicitado"`);
   });
+
+  it.each(['  =1+1', '\n+SUM(1;1)', '\u00a0@IMPORTXML("https://example.invalid")'])(
+    'neutraliza fórmula camuflada por whitespace: %j',
+    (description) => {
+      const csv = renderAccountingCsv([{ ...baseMovement, description }], 'UTC');
+
+      expect(csv).toContain(`"'${description.replaceAll('"', '""')}"`);
+    },
+  );
 });

@@ -24,7 +24,8 @@ Canonical — ciclo de vida do paciente, prontuário e direitos do titular.
 - Snapshot de paciente e profissional preserva o contexto legal.
 - Prescrições suportam simples e controle especial. A implementação de controle especial é receita branca em duas vias; não há numeração oficial/tarja preta integrada.
 - Documentos: atestado, exame, declaração e encaminhamento.
-- PDFs clínicos ficam no bucket privado `clinical-pdfs`; URL assinada padrão expira em 24 h.
+- PDFs clínicos ficam no bucket privado `clinical-pdfs`; o browser os acessa por rota Qoro
+  autenticada, tenant-scoped e `no-store`, sem signed URL do Storage no DOM (ADR-059).
 - Emissão clínica exige gates de permission e, conforme o documento, credencial CRM/UF/especialidade.
 
 ## LGPD
@@ -49,7 +50,8 @@ Pedido LGPD não é bloqueado por inadimplência da clínica.
 
 - permissions distintas controlam visualizar, criar, editar, excluir e exportar paciente; prontuário/prescrição têm permissions próprias.
 - PII decifrada não pode ir a logs, métricas ou eventos.
-- Storage usa buckets privados e signed URLs de curta duração.
+- Storage usa buckets privados. PDFs clínicos passam por proxy autenticado; exports LGPD destinados ao
+  titular ainda usam URL temporária de 24 h por contrato próprio.
 - RLS isola clínica; actor GUC permite políticas autorais quando necessário.
 
 ## Failure modes
@@ -57,4 +59,5 @@ Pedido LGPD não é bloqueado por inadimplência da clínica.
 - chave de crypto ausente/versão desconhecida: falhar fechado, sem retornar ciphertext como dado;
 - referência clínica impede hard delete: anonimizar em vez de quebrar retenção;
 - PDF/Storage indisponível: evento falha e é retentado;
-- URL expirada: gerar outra após novo guard de autorização.
+- PDF clínico indisponível: falhar fechado sem expor path/token; export LGPD expirado exige nova
+  geração conforme seu contrato próprio.

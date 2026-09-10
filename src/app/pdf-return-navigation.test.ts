@@ -54,3 +54,14 @@ describe('P-20 — visualizadores de PDF seguem os tokens do produto', () => {
     expect(actionSource).toContain('<Alert variant="danger"');
   });
 });
+
+describe('2.H — PDF clínico permanece atrás da sessão do Qoro', () => {
+  it.each([
+    ['documento', documentPage, '/documentos/${doc.id}/pdf/arquivo'],
+    ['prescrição', prescriptionPage, '/prescricoes/${presc.id}/pdf/arquivo'],
+  ])('%s usa endpoint same-origin e não expõe signed URL', (_name, pageSource, endpoint) => {
+    expect(pageSource).toContain(endpoint);
+    expect(pageSource).not.toContain('createClinicalSignedUrl');
+    expect(pageSource).not.toMatch(/supabase|signedUrl|signed URL/iu);
+  });
+});

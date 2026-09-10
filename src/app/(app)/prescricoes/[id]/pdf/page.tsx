@@ -1,17 +1,16 @@
 /**
- * /prescricoes/[id]/pdf — preview + download. Gera uma signed URL FRESCA (TTL
- * 24h) do pdf_storage_path a cada load (R4 — a action nunca retorna a URL). Se o
- * PDF ainda não existe (falha na geração), oferece regenerar.
+ * /prescricoes/[id]/pdf — preview + download por endpoint same-origin que
+ * revalida sessão, permissão e tenant. Se o PDF ainda não existe (falha na
+ * geração), oferece regenerar.
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { Alert } from '@/components/ui/alert';
-import { getPrescriptionById } from '@/contexts/clinical/queries';
+import { getPrescriptionPdfRef } from '@/contexts/clinical/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
-import { createClinicalSignedUrl } from '@/lib/storage/clinical';
 
 import { RegeneratePdfButton } from './regenerate-button';
 
@@ -19,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function PrescriptionPdfPage({ params }: { params: Promise<{ id: string }> }) {
   // AUTHZ-003 — ver a nota gêmea em documentos/[id]/pdf: o gate precede a
-  // consulta e a emissão da signed URL, e a negativa é indistinguível de 404.
+  // consulta e a exposição do recurso, e a negativa é indistinguível de 404.
   const gate = await resourceGate([PERMISSIONS.VIEW_PRESCRIPTION]);
   if (!gate) notFound();
   const { clinicId } = gate;
@@ -27,10 +26,10 @@ export default async function PrescriptionPdfPage({ params }: { params: Promise<
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) notFound();
 
-  const presc = await getPrescriptionById(clinicId, parsed.data);
+  const presc = await getPrescriptionPdfRef(clinicId, parsed.data);
   if (!presc) notFound();
 
-  const url = presc.pdfStoragePath ? await createClinicalSignedUrl(presc.pdfStoragePath) : null;
+  const url = presc.pdfStoragePath ? `/prescricoes/${presc.id}/pdf/arquivo` : null;
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -47,7 +46,7 @@ export default async function PrescriptionPdfPage({ params }: { params: Promise<
             <a href={url} target="_blank" rel="noreferrer" className="underline">
               Abrir em nova aba
             </a>
-            <a href={url} download className="underline">
+            <a href={`${url}?download=1`} download className="underline">
               Baixar
             </a>
           </div>

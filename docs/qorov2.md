@@ -823,7 +823,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
 | D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
 | Track O — onboarding self-serve | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
-| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, e 2.4B aguarda a prova Meta real. Depois vêm `2.H/2.S` → P2/P3. Memed foi adiada para a Track M final |
+| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` corrige D95/ADR-059 localmente. Depois vêm o fechamento `2.H/2.S` → P2/P3. Memed foi adiada para a Track M final |
 
 ### Dependências externas — validação comportamental (atualizado em 2026-09-01)
 
@@ -3479,3 +3479,100 @@ confirmados pelo fundador.
 - [x] commit/push/deploy e smoke autenticado no Preview — `6b9fdba`, Vercel `success`, 2/2 PASS;
 - [ ] E2E real Meta de `no_show_followup` com destinatário consentido;
 - [ ] rollout progressivo e estabilização 2.H/2.S; a Memed não é pré-requisito deste gate.
+
+## 27. Camada 2 — 2.H hardening de egresso clínico
+
+**Estado em 10/09/2026: D95/D96 CORRIGIDOS; 182/182 TESTES FOCADOS, 3.106/3.106 NA SUÍTE
+INTEGRAL E E2E MUTÁVEL DEV 1/1 PASS; LINT, TYPECHECK, BUILD E TODOS OS GATES PASS; ROLLOUT E
+SMOKE PREVIEW AINDA PENDENTES.**
+
+Durante o hardening foi observado um link completo de prescrição hospedado no Supabase. A análise
+correta é dupla: o link não prova bucket público, enumeração ou invasão, mas a signed URL de 24 horas
+funciona como bearer token fora da sessão. Como o PDF pode conter identidade, medicamento, médico e
+clínica, a janela é inadequada para o viewer clínico autenticado.
+
+A decisão está congelada na [ADR-059](adr/059-acesso-autenticado-pdfs-clinicos.md).
+
+### 27.1 Fluxo anterior e fluxo corrigido
+
+```text
+ANTES
+sessão Qoro → página autorizada → signed URL Supabase 24 h no DOM → acesso por posse do link
+
+DEPOIS
+sessão Qoro → página autorizada → /.../pdf/arquivo
+           → resourceGate(VIEW_PRESCRIPTION)
+           → clinic_id da sessão + UUID válido
+           → projeção mínima clinic_id + id (sem decrypt clínico)
+           → rate limit por usuário/clínica
+           → download Storage somente no servidor
+           → audit mínimo tenant-scoped
+           → PDF no-store/same-origin
+```
+
+Foram criados endpoints separados para prescrição e documento, mas a política vive em um único helper
+da camada app. Ausência de permissão, ID inválido, outro tenant, recurso ausente e registro sem arquivo
+falham sem consultar/baixar indevidamente e não viram oráculo de enumeração. O path do bucket vem
+exclusivamente da consulta autorizada; nunca da URL ou do cliente.
+
+### 27.2 Controles implementados
+
+- signed URL, token Supabase e path interno removidos do viewer e do DOM;
+- download server-side pelo bucket privado existente, sem alteração de Storage ou schema;
+- projeções de PDF não selecionam/decifram medicamentos, observações ou conteúdo médico;
+- `private, no-store`, `nosniff`, `no-referrer`, CORP same-origin e `SAMEORIGIN`;
+- `inline` no viewer e `attachment` apenas com `?download=1`, filename derivado de UUID validado;
+- rate limit próprio: 60/15 min por usuário e 600/15 min por clínica, separado dos renders de relatório;
+- auditoria de acesso com ator/tipo/id/disposição, sem paciente, path, URL ou conteúdo;
+- Storage/audit indisponível falha fechado, sem resposta parcial;
+- serialização do CSV contábil também neutraliza fórmula camuflada por whitespace, LF, BOM ou NBSP
+  antes de `=`, `+`, `-` ou `@` (D96/ADR-058);
+- nenhuma migration, dependência, segredo ou chamada externa.
+
+### 27.3 Limites e resposta ao link já emitido
+
+A mudança impede **novas** signed URLs clínicas depois do rollout. Uma URL já emitida não é revogada
+por alterar o código e permanece utilizável até o TTL terminar. Sem o URL/path exato não se deve apagar
+ou mover arquivo por suposição; se o documento observado continha dados reais e ainda estiver dentro
+das 24 horas, tratar como potencial incidente, identificar somente o objeto afetado e aplicar resposta
+operacional específica. Rotacionar segredo global do Storage por reflexo teria blast radius maior.
+
+Exports LGPD enviados ao titular e exports de auditoria superadmin também usam links temporários, mas
+têm contratos/destinatários diferentes e não são declarados corrigidos por este lote. Sua revisão fica
+registrada como escopo próprio de segurança, sem ampliar silenciosamente D95.
+
+### 27.4 Evidência e checklist D95
+
+- [x] causa confirmada no código: signed URL de 24 h renderizada em link e `iframe`;
+- [x] ADR-059 aceita e fronteira de segurança definida;
+- [x] viewer usa somente endpoint same-origin Qoro;
+- [x] sessão/permissão/tenant revalidados por request;
+- [x] projeção mínima `clinic_id + id`, sem decrypt clínico;
+- [x] negativa/UUID/cross-tenant/ausência indistinguíveis e fail-closed;
+- [x] headers privados/same-origin e modos inline/attachment;
+- [x] rate limit por usuário + clínica e isolamento entre atores;
+- [x] auditoria mínima sem PII/conteúdo/path;
+- [x] Storage usa download server-side e não cria signed URL;
+- [x] D96: fórmula CSV direta ou camuflada por whitespace/control char é neutralizada;
+- [x] matriz focada de segurança/regressão clínica, financeira e C14: 182/182 PASS;
+- [x] suíte integral: 337 arquivos e 3.106/3.106 testes PASS;
+- [x] `pnpm lint`, `pnpm typecheck`, `pnpm build` e `pnpm format:check` PASS;
+- [x] arquitetura: 54 elementos, 293 arestas, 0 ciclos; DB check com 0 findings;
+- [x] migrations, registry estrito e observabilidade PASS; nenhuma migration criada/aplicada;
+- [x] budget: 25 arquivos, aproximadamente 860 linhas adicionadas e 2 contextos de negócio
+      (`clinical` + `financial`), além da infraestrutura compartilhada app/auth/storage;
+- [x] harness E2E C2.1 ampliado para provar três PDFs reais, URL/DOM same-origin, `%PDF`, headers
+      privados, attachment e negação anônima, preservando a fixture/cleanup sintéticos existentes;
+- [x] E2E autenticado mutável DEV: 1/1 PASS em 4,8 min no `next start`; três PDFs e entradas
+      `/documentos`/paciente/Consultório, browser sem signed URL/token, `inline`/`attachment`, anônimo
+      `307 → /login` sem PDF e teardown com readback zero em DB/Auth/Storage;
+- [ ] commit/push/deploy autorizado e smoke Preview;
+- [x] D95/D96, ADR-058, ADR-059, runbook, domínio e handoff atualizados com a evidência local;
+- [ ] avançar para 2.S somente após zero finding alto aberto.
+
+A primeira execução autorizada, em `next dev`, encontrou `CONNECT_TIMEOUT` no submit de criação do
+paciente; o teardown ainda removeu a fixture. A repetição no build otimizado revelou duas premissas
+incorretas somente no harness: o visualizador nativo do Chromium descarta o corpo da resposta do
+`iframe`, e o middleware intercepta o anônimo com `307 → /login` antes do `404` fail-closed do handler.
+O teste passou a validar os bytes pelo request context autenticado do mesmo browser e a exigir o
+redirect sem `application/pdf`. O run final passou integralmente e executou novo cleanup.

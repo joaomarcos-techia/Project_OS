@@ -1,10 +1,10 @@
 /**
  * Supabase Storage helper para PDFs clínicos (C7) — prescrições + documentos.
  *
- * Bucket `clinical-pdfs` é PRIVADO (download só via signed URL curta). Deve ser
- * criado manualmente no Supabase — ver docs/runbooks/c7-validation.md. Usa o
- * service-role client porque a emissão roda em Server Action server-side e o
- * objeto não é público.
+ * Bucket `clinical-pdfs` é PRIVADO. Upload e download são feitos somente no
+ * servidor com service role; o navegador recebe o PDF por uma rota same-origin
+ * que revalida sessão, permissão e tenant a cada request. Nenhuma credencial
+ * bearer do Storage deve chegar ao DOM.
  *
  * Server-only.
  */
@@ -13,9 +13,6 @@ import 'server-only';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 
 export const CLINICAL_PDF_BUCKET = 'clinical-pdfs';
-
-/** TTL padrão da signed URL de PDF clínico (24h — §7.18). */
-export const CLINICAL_SIGNED_URL_TTL_SECONDS = 86_400;
 
 /**
  * Upload reutilizável (§7.7). `upsert:true` ⇒ regeneração sobrescreve o MESMO
@@ -38,17 +35,12 @@ export async function uploadStorageFile(
   }
 }
 
-/** Signed URL de download (default 24h). */
-export async function createClinicalSignedUrl(
-  path: string,
-  ttlSeconds = CLINICAL_SIGNED_URL_TTL_SECONDS,
-): Promise<string> {
+/** Download server-side. O path deve vir de uma consulta tenant-scoped autorizada. */
+export async function downloadClinicalPdf(path: string): Promise<Blob> {
   const sb = createAdminClient();
-  const { data, error } = await sb.storage
-    .from(CLINICAL_PDF_BUCKET)
-    .createSignedUrl(path, ttlSeconds);
+  const { data, error } = await sb.storage.from(CLINICAL_PDF_BUCKET).download(path);
   if (error || !data) {
-    throw new Error(`[storage] signed url falhou (${path}): ${error?.message ?? 'sem data'}`);
+    throw new Error(`[storage] download clínico falhou: ${error?.message ?? 'sem data'}`);
   }
-  return data.signedUrl;
+  return data;
 }

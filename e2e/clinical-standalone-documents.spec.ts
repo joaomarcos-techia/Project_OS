@@ -9,6 +9,7 @@ const supabaseKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV ??
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const PDF_VIEWER_ROUTE = /\/(?:prescricoes|documentos)\/[0-9a-f-]{36}\/pdf(?:\?.*)?$/u;
 
 async function authenticateSyntheticDoctor(
   context: BrowserContext,
@@ -69,7 +70,7 @@ async function selectPatientInDocumentLauncher(
   return drawer;
 }
 
-async function emitPrescription(page: Page, marker: string): Promise<void> {
+async function emitPrescription(page: Page, marker: string): Promise<string> {
   const drawer = page.getByRole('dialog', { name: 'Emitir prescrição' });
   await expect(drawer).toBeVisible({ timeout: 90_000 });
   await drawer.getByLabel('Medicamento 1', { exact: true }).fill(`Medicamento sintético ${marker}`);
@@ -82,10 +83,12 @@ async function emitPrescription(page: Page, marker: string): Promise<void> {
     }),
     drawer.getByRole('button', { name: 'Emitir prescrição (PDF)' }).click(),
   ]);
-  expect(new URL(request.url()).pathname).toMatch(/\/prescricoes\/[0-9a-f-]{36}\/pdf$/u);
+  const pathname = new URL(request.url()).pathname;
+  expect(pathname).toMatch(/\/prescricoes\/[0-9a-f-]{36}\/pdf$/u);
+  return pathname;
 }
 
-async function emitMedicalDocument(page: Page, text: string): Promise<void> {
+async function emitMedicalDocument(page: Page, text: string): Promise<string> {
   const drawer = page.getByRole('dialog', { name: 'Emitir documento' });
   await expect(drawer).toBeVisible({ timeout: 90_000 });
   await drawer.getByLabel('Descrição').fill(text);
@@ -96,7 +99,9 @@ async function emitMedicalDocument(page: Page, text: string): Promise<void> {
     }),
     drawer.getByRole('button', { name: 'Emitir documento (PDF)' }).click(),
   ]);
-  expect(new URL(request.url()).pathname).toMatch(/\/documentos\/[0-9a-f-]{36}\/pdf$/u);
+  const pathname = new URL(request.url()).pathname;
+  expect(pathname).toMatch(/\/documentos\/[0-9a-f-]{36}\/pdf$/u);
+  return pathname;
 }
 
 test.describe('C2.1 — documentos clínicos fora da consulta', () => {
@@ -108,6 +113,7 @@ test.describe('C2.1 — documentos clínicos fora da consulta', () => {
   test('converge /documentos, ficha do paciente e Consultório sem consulta artificial', async ({
     context,
     page,
+    request,
   }) => {
     test.skip(
       process.env.E2E_MUTATION !== '1' || !process.env.E2E_USER_EMAIL,
@@ -117,9 +123,7 @@ test.describe('C2.1 — documentos clínicos fora da consulta', () => {
     const fixture = await readMutationFixture();
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    await context.route(/\/(?:prescricoes|documentos)\/[0-9a-f-]{36}\/pdf(?:\?.*)?$/u, (route) =>
-      route.fulfill({ status: 204 }),
-    );
+    await context.route(PDF_VIEWER_ROUTE, (route) => route.fulfill({ status: 204 }));
     await authenticateSyntheticDoctor(context, fixture);
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u, { timeout: 30_000 });
@@ -146,11 +150,14 @@ test.describe('C2.1 — documentos clínicos fora da consulta', () => {
       page.waitForURL(prescriptionUrl, { timeout: 90_000 }),
       prescriptionLauncher.getByRole('link', { name: /Prescrição/u }).click(),
     ]);
-    await emitPrescription(page, fixture.runId);
+    const prescriptionPdfRoute = await emitPrescription(page, fixture.runId);
 
     // A ficha do paciente abre o mesmo builder sem prontuário ou consulta obrigatórios.
     await page.goto(`/pacientes/${patientId}?novo=documento`);
-    await emitMedicalDocument(page, `[E2E C2.1] avulso ${fixture.runId}`);
+    const standaloneDocumentPdfRoute = await emitMedicalDocument(
+      page,
+      `[E2E C2.1] avulso ${fixture.runId}`,
+    );
 
     // Regressão do caminho original: atendimento real cria seu próprio vínculo e usa o mesmo drawer.
     await page.goto('/agenda');
@@ -181,12 +188,70 @@ test.describe('C2.1 — documentos clínicos fora da consulta', () => {
       },
     );
     await page.getByRole('button', { name: 'Documento', exact: true }).click();
-    await emitMedicalDocument(page, `[E2E C2.1] consultório ${fixture.runId}`);
+    const consultorioDocumentPdfRoute = await emitMedicalDocument(
+      page,
+      `[E2E C2.1] consultório ${fixture.runId}`,
+    );
 
     await page.goto(`/documentos?q=${encodeURIComponent(fixture.patientName)}`);
     await expect(page.getByText(fixture.patientName, { exact: true })).toHaveCount(3, {
       timeout: 30_000,
     });
+
+    // 2.H: a criação continua abrindo o viewer, mas o browser nunca recebe uma
+    // signed URL do Storage. Cada PDF é lido pelo endpoint Qoro autenticado.
+    await context.unroute(PDF_VIEWER_ROUTE);
+    for (const viewerRoute of [
+      prescriptionPdfRoute,
+      standaloneDocumentPdfRoute,
+      consultorioDocumentPdfRoute,
+    ]) {
+      const filePath = `${viewerRoute}/arquivo`;
+      const fileResponsePromise = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === filePath,
+      );
+      await page.goto(viewerRoute);
+      const fileResponse = await fileResponsePromise;
+      const frameSrc = await page.locator('iframe').getAttribute('src');
+
+      expect(frameSrc).toBe(filePath);
+      expect(new URL(page.url()).origin).toBe(new URL(baseUrl).origin);
+      expect(new URL(fileResponse.url()).origin).toBe(new URL(baseUrl).origin);
+      expect(page.url()).not.toMatch(/supabase|token=/iu);
+      expect(await page.content()).not.toMatch(/supabase|signedUrl|token=/iu);
+      expect(fileResponse.status()).toBe(200);
+      expect(fileResponse.headers()['content-type']).toContain('application/pdf');
+      expect(fileResponse.headers()['cache-control']).toContain('no-store');
+      expect(fileResponse.headers()['cross-origin-resource-policy']).toBe('same-origin');
+      expect(fileResponse.headers()['content-disposition']).toContain('inline');
+
+      // O visualizador nativo do Chromium pode descartar o corpo da resposta
+      // do iframe depois de carregá-lo. O request context compartilha os
+      // cookies autenticados do browser e permite validar os bytes sem uma
+      // signed URL ou acesso direto ao Storage.
+      const bodyResponse = await context.request.get(`${baseUrl}${filePath}`);
+      expect(bodyResponse.status()).toBe(200);
+      expect(bodyResponse.headers()['content-type']).toContain('application/pdf');
+      expect((await bodyResponse.body()).subarray(0, 4).toString('ascii')).toBe('%PDF');
+      await bodyResponse.dispose();
+    }
+
+    const firstFilePath = `${prescriptionPdfRoute}/arquivo`;
+    const downloadResponse = await context.request.get(`${baseUrl}${firstFilePath}?download=1`);
+    expect(downloadResponse.status()).toBe(200);
+    expect(downloadResponse.headers()['content-disposition']).toContain('attachment');
+    expect((await downloadResponse.body()).subarray(0, 4).toString('ascii')).toBe('%PDF');
+    await downloadResponse.dispose();
+
+    const anonymousResponse = await request.get(`${baseUrl}${firstFilePath}`, {
+      maxRedirects: 0,
+    });
+    expect(anonymousResponse.status()).toBe(307);
+    expect(anonymousResponse.headers()['content-type'] ?? '').not.toContain('application/pdf');
+    const anonymousLocation = anonymousResponse.headers().location;
+    if (!anonymousLocation) throw new Error('Resposta anônima não redirecionou para o login.');
+    expect(new URL(anonymousLocation, baseUrl).pathname).toBe('/login');
+    await anonymousResponse.dispose();
     expect(pageErrors).toEqual([]);
   });
 });

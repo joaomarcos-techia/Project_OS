@@ -232,6 +232,60 @@ export async function getMedicalDocumentById(
   });
 }
 
+export interface PrescriptionPdfRef {
+  id: string;
+  patientId: string;
+  pdfStoragePath: string | null;
+  snapshotPatientNome: string;
+}
+
+export interface MedicalDocumentPdfRef extends PrescriptionPdfRef {
+  type: string;
+}
+
+/**
+ * Projeções mínimas para o viewer/proxy de PDF. Elas não selecionam nem
+ * decifram conteúdo clínico e mantêm defesa explícita por tenant além da RLS.
+ */
+export async function getPrescriptionPdfRef(
+  clinicId: string,
+  id: string,
+): Promise<PrescriptionPdfRef | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({
+        id: prescriptions.id,
+        patientId: prescriptions.patientId,
+        pdfStoragePath: prescriptions.pdfStoragePath,
+        snapshotPatientNome: prescriptions.snapshotPatientNome,
+      })
+      .from(prescriptions)
+      .where(and(eq(prescriptions.id, id), eq(prescriptions.clinicId, clinicId)))
+      .limit(1);
+    return row ?? null;
+  });
+}
+
+export async function getMedicalDocumentPdfRef(
+  clinicId: string,
+  id: string,
+): Promise<MedicalDocumentPdfRef | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({
+        id: medicalDocuments.id,
+        patientId: medicalDocuments.patientId,
+        type: medicalDocuments.type,
+        pdfStoragePath: medicalDocuments.pdfStoragePath,
+        snapshotPatientNome: medicalDocuments.snapshotPatientNome,
+      })
+      .from(medicalDocuments)
+      .where(and(eq(medicalDocuments.id, id), eq(medicalDocuments.clinicId, clinicId)))
+      .limit(1);
+    return row ?? null;
+  });
+}
+
 // --- feed unificado de documentos clínicos (/documentos) -------------------
 //
 // Adapter ÚNICO para a tela de Documentos: une prescrições + medical_documents
@@ -251,7 +305,7 @@ export interface ClinicalDocumentFeedItem {
   /** Rótulo humano já resolvido ("Receita", "Atestado", …). */
   label: string;
   createdAt: string;
-  /** Página de PDF existente (signed URL fresca é gerada lá — R4). */
+  /** Página autenticada de PDF; o arquivo permanece atrás da sessão do Qoro. */
   pdfHref: string;
   hasPdf: boolean;
 }

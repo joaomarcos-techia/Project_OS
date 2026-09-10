@@ -2,7 +2,8 @@
  * /documentos — feed unificado de documentos clínicos (prescrições + atestados/
  * declarações/exames/encaminhamentos) da clínica. Server component; só leitura.
  * Tenant scope via requireClinicId + RLS; nome do paciente vem do snapshot (R8).
- * Cada item linka para a página de PDF existente (signed URL fresca lá — R4).
+ * Cada item linka para a página autenticada de PDF; o token do Storage não é
+ * exposto ao navegador.
  */
 import { ExternalLink, FileText, Files, ListFilter, Pill, Search } from 'lucide-react';
 import Link from 'next/link';
