@@ -1,6 +1,6 @@
 # ADR-059 — Acesso autenticado a PDFs clínicos sem bearer URL
 
-- **Status:** Accepted — código e E2E mutável DEV validados; rollout pendente
+- **Status:** Accepted — código, E2E mutável DEV e rollout Preview validados
 - **Data:** 2026-09-09
 - **Contextos:** clinical + composição/auth/storage na camada app
 - **Relaciona:** [ADR-007](007-rls-implementation-patterns.md),
@@ -86,5 +86,8 @@ devem ser auditados em escopo próprio; não são considerados corrigidos por es
 - a primeira tentativa em `next dev` sofreu `CONNECT_TIMEOUT` ao criar o paciente, mas também executou
   o teardown; a prova final foi repetida em `next start`, sem classificar indisponibilidade transitória
   como sucesso funcional;
-- após rollout autorizado: Preview autenticado deve provar conteúdo PDF 200 pela URL Qoro, ausência de
-  token no DOM/rede, anônimo redirecionado/negado e tenant sem acesso recebendo 404.
+- rollout: commit executável `d94bd20` publicado na branch `feat/qorov2-pagamentos`; o deployment
+  Vercel do mesmo SHA terminou `success` e o smoke autenticado somente leitura passou 6/6 em 1,3 min,
+  com fronteiras anônimas protegidas e navegação principal sem `pageerror`;
+- a prova comportamental específica de bytes, DOM/rede e negação anônima permanece o E2E mutável DEV,
+  pois o smoke Preview não cria nem retém documento clínico sintético.

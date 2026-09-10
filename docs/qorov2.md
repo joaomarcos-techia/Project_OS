@@ -823,7 +823,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
 | D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
 | Track O — onboarding self-serve | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
-| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` corrige D95/ADR-059 localmente. Depois vêm o fechamento `2.H/2.S` → P2/P3. Memed foi adiada para a Track M final |
+| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` fechou D95/D96 no código, DEV e Preview. O próximo passo interno é `2.S` → P2/P3. Memed foi adiada para a Track M final |
 
 ### Dependências externas — validação comportamental (atualizado em 2026-09-01)
 
@@ -3482,9 +3482,9 @@ confirmados pelo fundador.
 
 ## 27. Camada 2 — 2.H hardening de egresso clínico
 
-**Estado em 10/09/2026: D95/D96 CORRIGIDOS; 182/182 TESTES FOCADOS, 3.106/3.106 NA SUÍTE
-INTEGRAL E E2E MUTÁVEL DEV 1/1 PASS; LINT, TYPECHECK, BUILD E TODOS OS GATES PASS; ROLLOUT E
-SMOKE PREVIEW AINDA PENDENTES.**
+**Estado em 10/09/2026: D95/D96 CORRIGIDOS E PUBLICADOS NO PREVIEW; 182/182 TESTES FOCADOS,
+3.106/3.106 NA SUÍTE INTEGRAL, E2E MUTÁVEL DEV 1/1 E SMOKE PREVIEW 6/6 PASS; LINT, TYPECHECK,
+BUILD E TODOS OS GATES PASS. PRÓXIMO PASSO INTERNO: 2.S.**
 
 Durante o hardening foi observado um link completo de prescrição hospedado no Supabase. A análise
 correta é dupla: o link não prova bucket público, enumeração ou invasão, mas a signed URL de 24 horas
@@ -3566,9 +3566,11 @@ registrada como escopo próprio de segurança, sem ampliar silenciosamente D95.
 - [x] E2E autenticado mutável DEV: 1/1 PASS em 4,8 min no `next start`; três PDFs e entradas
       `/documentos`/paciente/Consultório, browser sem signed URL/token, `inline`/`attachment`, anônimo
       `307 → /login` sem PDF e teardown com readback zero em DB/Auth/Storage;
-- [ ] commit/push/deploy autorizado e smoke Preview;
+- [x] commit `d94bd20`, push e deployment Vercel do mesmo SHA `success`;
+- [x] smoke autenticado Preview somente leitura: 6/6 em 1,3 min, fronteiras públicas protegidas,
+      navegação principal e Configurações/Sugestões sem `pageerror`;
 - [x] D95/D96, ADR-058, ADR-059, runbook, domínio e handoff atualizados com a evidência local;
-- [ ] avançar para 2.S somente após zero finding alto aberto.
+- [x] zero finding alto aberto no lote; 2.S está liberada como próximo passo interno.
 
 A primeira execução autorizada, em `next dev`, encontrou `CONNECT_TIMEOUT` no submit de criação do
 paciente; o teardown ainda removeu a fixture. A repetição no build otimizado revelou duas premissas
@@ -3576,3 +3578,8 @@ incorretas somente no harness: o visualizador nativo do Chromium descarta o corp
 `iframe`, e o middleware intercepta o anônimo com `307 → /login` antes do `404` fail-closed do handler.
 O teste passou a validar os bytes pelo request context autenticado do mesmo browser e a exigir o
 redirect sem `application/pdf`. O run final passou integralmente e executou novo cleanup.
+
+O lote executável foi commitado em `d94bd20`, enviado por fast-forward à branch
+`feat/qorov2-pagamentos` e associado pela Vercel ao deployment terminal `success`. O smoke autenticado
+do alias Preview foi deliberadamente somente leitura e passou 6/6 em 1,3 min. Ele não criou uma
+segunda fixture nem chamou Asaas/Meta; a prova específica do PDF pertence ao E2E DEV descrito acima.
