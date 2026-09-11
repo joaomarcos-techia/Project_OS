@@ -3475,10 +3475,51 @@ confirmados pelo fundador.
 - [x] regressão de Payments no no-show e `followup` de retorno verde;
 - [x] arquitetura 0 ciclos e registry 1:1 preservados pelo handler composto;
 - [ ] E2E Meta real do template de retorno;
-- [ ] template `qoro_no_show_followup` aprovado no Meta;
+- [x] template `qoro_no_show_followup` **APPROVED** no Meta, verificado via Graph API no WABA 817226981382497 — categoria **MARKETING**, não `Utility` como a §26.2 especifica (recategorização automática provável; `retorno_consulta` e `lembrete_confirmacao` estão iguais);
 - [x] commit/push/deploy e smoke autenticado no Preview — `6b9fdba`, Vercel `success`, 2/2 PASS;
-- [ ] E2E real Meta de `no_show_followup` com destinatário consentido;
-- [ ] rollout progressivo e estabilização 2.H/2.S; a Memed não é pré-requisito deste gate.
+- [x] E2E real Meta de `no_show_followup` com destinatário consentido — **PASS até o aparelho** em 11/09; ver §26.5;
+- [x] estabilização 2.S fechada como `PASS` (§28); a Memed não é pré-requisito deste gate.
+
+### 26.5 E2E Meta real de `no_show_followup` — 11/09/2026
+
+**`PASS` até o aparelho.** O template foi aprovado pela Meta e o fundador conectou o WhatsApp no
+ambiente de Preview (que usa `DATABASE_URL`, ou seja, o banco DEV — produção não foi tocada). A prova
+seguiu o runbook `c14-validation.md` §4 em dois níveis.
+
+**Verificação do provider antes de qualquer envio.** A aprovação não foi aceita como afirmação: uma
+consulta read-only a `{waba}/message_templates` confirmou `qoro_no_show_followup` `APPROVED` em
+`pt_BR`. A mesma consulta revelou que a categoria é **MARKETING**, e não `Utility` como a §26.2
+especifica. Isso não é cosmético: template de marketing exige opt-in de marketing, está sujeito a
+limite por usuário e pode não ser entregue. `retorno_consulta` e `lembrete_confirmacao` estão na mesma
+situação no WABA, o que aponta para recategorização automática da Meta, não erro de cadastro.
+Registrado como pendência; a entrega neste destinatário foi confirmada mesmo assim.
+
+**Prova isolada** (`wa:send-template --type no_show_followup`): `status=accepted`,
+`providerMessageId=wamid.HBgMNTU4…RDNFQUJCQTQ5QUU2MDM0RDIwAA==`, `deduped=false`. Prova resolução da
+variável de ambiente, nome do template e ordem das variáveis. O operador confirmou a chegada.
+
+**E2E real** — o job nasceu de uma falta controlada e atravessou outbox, C14 e Messaging:
+
+```text
+outbox.enqueued  scheduling.appointment.no_show
+outbox.processed scheduling.appointment.no_show
+job 4716daa2 · agendado Mon 14/09 10:00 America/Sao_Paulo
+proactive.job.processing → messaging.outbound.accepted → proactive.job.sent
+batch: scanned=1 sent=1 cancelled=0 retried=0 failed=0
+providerMessageId=wamid.HBgMNTU4…M0UyMDE1NjgwQTZBQjI1MUYxAA==  template=qoro_no_show_followup
+replay: scanned=0 sent=0 — sem duplicata
+readback: 0 linhas remanescentes (paciente, consulta, job, outbox)
+```
+
+A execução foi numa **sexta-feira 11/09** e o job caiu na **segunda 14/09 às 10h locais** — a regra de
+próximo dia útil pulou o fim de semana no caminho real, não apenas em teste unitário. O
+`scheduled_for` foi antecipado para permitir o envio no mesmo dia; a **regra de agendamento foi
+verificada antes** dessa antecipação, com `Intl` independente dos helpers sob teste. A mensagem
+`outbound` cifrada foi preservada como evidência; o restante teve cleanup com readback zero.
+
+**Limite honesto:** `accepted` é recibo da Meta, não prova de entrega — o que fecha esse ponto é a
+confirmação do operador no aparelho, obtida nas duas mensagens. Isto não mede reputação do número,
+taxa de entrega em escala nem comportamento sob limite de marketing.
 
 ## 27. Camada 2 — 2.H hardening de egresso clínico
 

@@ -388,8 +388,13 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
   rotas verdes; produção fora do escopo.
 - **2.3 ✅** template psiquiátrico local já integrado no
   commit `e60f8f0`, com Unit/component PASS e E2E mutável conectado DEV 1/1 PASS, cleanup zero ·
-  **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B** recuperação de falta em
-  código/DEV, schema PROD e Preview, smoke C14 10/10; E2E Meta real pendente · **2.H** / **2.S**.
+  **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B ✅ FECHADA em 11/09**: template
+  `qoro_no_show_followup` `APPROVED` (verificado via Graph API, não por afirmação) e **E2E Meta real
+  PASS até o aparelho** — falta controlada → outbox → C14 → Messaging, job na segunda 10h locais numa
+  execução de sexta, `sent=1`, `providerMessageId` distinto, replay `sent=0`, readback zero. Harness
+  em `scripts/no-show-meta-e2e.ts`; detalhe em qorov2 §26.5. **Ressalva D102:** a Meta categorizou o
+  template como `MARKETING`, não `Utility` — exige opt-in de marketing e pode não entregar a outros
+  destinatários; pedir recategorização e repetir a prova · **2.H** / **2.S ✅**.
 - **2.H D95/D96/ADR-059 fechado no Preview:** o viewer clínico expunha signed URL Supabase de 24 h no DOM.
   O lote substitui por proxy Qoro autenticado por request, consulta filtrada por `id + clinic_id`
   e sem decrypt clínico (redação corrigida na 2.S: o acessor é compartilhado com o viewer), download

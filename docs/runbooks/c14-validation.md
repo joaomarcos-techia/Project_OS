@@ -43,6 +43,20 @@ Use `Maria` como exemplo de `{{1}}`. Depois de `APPROVED`, configure o nome — 
 job nasça de uma falta sintética/controlada e atravesse outbox, C14 e Messaging. Não execute nenhum
 dos dois contra a Meta sem autorização explícita e destinatário consentido.
 
+**Evidência 2.4B (11/09/2026) — `PASS` até o aparelho.** Template `APPROVED` em `pt_BR`, confirmado
+por consulta read-only a `{waba}/message_templates` antes de qualquer envio. Dois níveis: a prova
+isolada (`wa:send-template --type no_show_followup`) e o E2E real
+`pnpm exec tsx --conditions=react-server scripts/no-show-meta-e2e.ts`, em que o job nasce de uma falta
+controlada e atravessa outbox → C14 → Messaging. Resultado: job na segunda 14/09 10h locais (execução
+numa sexta — a regra de dia útil pulou o fim de semana no caminho real), `sent=1`, `providerMessageId`
+distinto, replay `sent=0` e readback zero. O operador confirmou as duas mensagens no aparelho. Detalhe
+em [qorov2 §26.5](../qorov2.md).
+
+> **Atenção:** o template está categorizado como **MARKETING**, não `Utility`. Marketing exige opt-in
+> de marketing e está sujeito a limite por usuário — pode não ser entregue a outros destinatários.
+> `retorno_consulta` e `lembrete_confirmacao` estão iguais, o que sugere recategorização automática da
+> Meta. Solicitar a mudança para `Utility` e **repetir esta prova** se a categoria mudar.
+
 **Evidência vigente (31/08–02/09/2026):** o runner controlado criou as cobranças de sinal/restante,
 publicou `link_ready`, drenou C14, obteve dois `providerMessageId` distintos, confirmou replay zero e
 fez cleanup. O operador confirmou a chegada das duas mensagens com links no aparelho. Repetir somente
