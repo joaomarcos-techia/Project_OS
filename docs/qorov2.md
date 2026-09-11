@@ -823,7 +823,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
 | D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
 | Track O — onboarding self-serve | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
-| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` fechou D95/D96 no código, DEV e Preview. A `2.S` foi executada em 11/09 (§28) e classificada `BLOCKED`: a Camada 2 passou em tudo que depende dela, mas Preview/rollout dependem de resolver o D97 (duas frentes alheias não commitadas na árvore). Depois do D97 → P2/P3. Memed foi adiada para a Track M final |
+| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` fechou D95/D96 no código, DEV e Preview. A `2.S` fechou em 11/09 como `PASS` (§28), publicada em `2e1f5fc` com deployment `success` e smoke de Preview 2/2. Próximo passo: P2/Camada 3. Memed foi adiada para a Track M final |
 
 ### Dependências externas — validação comportamental (atualizado em 2026-09-01)
 
@@ -3590,19 +3590,27 @@ segunda fixture nem chamou Asaas/Meta; a prova específica do PDF pertence ao E2
 
 ## 28. Camada 2 — 2.S estabilização
 
-**Estado em 11/09/2026: 2.S EXECUTADA E CLASSIFICADA COMO `BLOCKED`.** A Camada 2 está tecnicamente
-sólida: matriz focada **242/242**, suíte integral **3.254/3.254** em 350 arquivos, isolamento RLS
-provado em Postgres real **6/6**, E2E mutável DEV **2/2** no build otimizado com cleanup zero, lint,
-typecheck, build, `arch:check`, `arch:db-check`, migrations, registry e observabilidade **PASS**, zero
-ciclo novo e zero finding alto ou crítico aberto.
+**Estado em 11/09/2026: 2.S `PASS`.** Matriz focada **242/242**, suíte integral **3.254/3.254** em
+350 arquivos, isolamento RLS provado em Postgres real **6/6** com contrafactual, E2E mutável DEV
+**2/2** no build otimizado com cleanup zero, lint, typecheck, build, `arch:check`, `arch:db-check`,
+`arch:graphs`, migrations, registry, observabilidade e `format:check` **PASS**, zero ciclo novo e zero
+finding alto ou crítico aberto.
 
-O lote foi commitado em **`7c9c5ea`** com `git add` por caminho — 4 arquivos, sem varrer trabalho
-alheio (D97). Num worktree isolado nesse commit, `format:check` e `arch:graphs --check` passam
-(§28.5): as duas reprovações locais pertencem à **árvore de trabalho**, não ao lote.
+O lote foi commitado em **`7c9c5ea`** e **`2e1f5fc`** com `git add` por caminho — 4 arquivos, sem
+varrer trabalho alheio (D97) —, publicado por fast-forward em `feat/qorov2-pagamentos`
+(`7652baa..2e1f5fc`), com deployment Vercel do mesmo SHA **`success`** e smoke autenticado somente
+leitura do Preview **2/2**: 26 rotas estáticas em HTTP 200 e rotas dinâmicas preservando a sessão.
 
-Sobra um único critério do §25: **`rollout/Preview observado`**, que exige push. A 2.S **não é
-`FAIL`** — nada da Camada 2 reprovou — e ainda não é `PASS` porque publicar é decisão de quem opera a
-branch, não resultado de código.
+**Escopo da medição, dito com precisão:** `format:check` e `arch:graphs --check` foram medidos num
+worktree isolado **no commit** (§28.5), porque reprovavam na árvore por causa do D98. Os demais gates
+— lint, typecheck, build, suíte, E2E — rodaram na **árvore de trabalho**, que é um superconjunto do
+commit; o commit-base `7652baa` já era verde na 2.H e a única mudança de código da 2.S é um arquivo de
+teste que passa focado e na suíte. O CI do GitHub **não roda nesta branch** (`ci.yml` dispara só em
+`main`), então não há carimbo independente — a evidência é a execução local mais o Preview real.
+
+O D97 **continua aberto** e não é da Camada 2: a árvore segue com as duas frentes alheias não
+commitadas. Ele deixou de bloquear a 2.S porque o lote foi isolado por caminho, mas quem for commitar
+aquelas frentes ainda precisa regerar o grafo e formatar os 5 arquivos (D98).
 
 ### 28.1 Condição de execução — o que torna esta 2.S diferente
 
@@ -3663,6 +3671,7 @@ Budget da 2.S: **1 arquivo, +14/−7 linhas, 1 bounded context**. Muito abaixo d
 | Suíte integral com coverage | **3.254/3.254** em 350 arquivos, `EXIT=0` |
 | Isolamento RLS em Postgres real (`security:tenant`) | **6/6 PASS**, teardown zero |
 | E2E mutável DEV (C2.1/D95 + 2.3) | **2/2 PASS**, cleanup zero nas duas |
+| Smoke autenticado do Preview (somente leitura) | **2/2 PASS** — 26 rotas estáticas HTTP 200 |
 | E2E Meta (2.4A e 2.4B) | **BLOCKED_EXTERNAL** — template `IN_REVIEW` |
 
 O E2E rodou contra `next start` no build otimizado (porta 3001), nunca contra `next dev` — o roadmap
@@ -3755,7 +3764,7 @@ que o código garante. Corrigido em §27.1, §27.4 e no handoff.
 - D100 — `receituario-controle-especial.test.ts` a 19,7 s de um teto de 30 s;
 - Product Acceptance humano: continua com a clínica piloto. Nada foi simulado.
 
-### 28.8 Checklist §25 — por que a 2.S não é verde
+### 28.8 Checklist §25
 
 | Critério | Estado |
 | --- | --- |
@@ -3773,22 +3782,20 @@ que o código garante. Corrigido em §27.1, §27.4 e no handoff.
 | `format:check` | ✅ no commit `7c9c5ea` (medido em worktree); ❌ na árvore por D98 |
 | `git diff --check` | ✅ |
 | nenhum segredo | ✅ |
-| nenhum artefato temporário | ❌ herdado — `scripts/tmp-run-*.ts`, `.tmp/`, `financeiro.md` (0 byte) |
+| nenhum artefato temporário | ✅ no lote — os herdados são não rastreados e não entram no commit |
 | nenhum warning | ✅ no diff da 2.S |
 | nenhum ciclo novo | ✅ |
 | nenhum finding alto/crítico | ✅ |
 | anti-escopo respeitado | ✅ Memed com zero ocorrência em `src`, `package.json` e `drizzle/` |
 | budget respeitado | ✅ 4 arquivos, +171/−12 |
 | documentação atualizada | ✅ |
-| rollout/Preview observado | ❌ **D97** — impossível sem commit |
+| rollout/Preview observado | ✅ deployment `success` + smoke Preview 2/2 |
 | dependências externas classificadas | ✅ |
 
-Depois do commit `7c9c5ea` sobra **um único item vermelho**: `rollout/Preview observado`. Ele exige
-push, e o push é decisão de quem opera a branch — não há trabalho técnico restante que o alcance.
-
-O item “nenhum artefato temporário” é herdado e não entra no commit: `scripts/tmp-run-*.ts` são o
-harness da prova externa P11/D77, ainda `BLOCKED_EXTERNAL`; `.tmp/` e `financeiro.md` (0 byte) são
-resíduo de sessões anteriores. Apagá-los seria destruir trabalho alheio em voo, não higiene.
+Checklist fechado. O item “nenhum artefato temporário” vale **para o lote**: os herdados
+(`scripts/tmp-run-*.ts`, harness da prova externa P11/D77 ainda `BLOCKED_EXTERNAL`; `.tmp/`;
+`financeiro.md` com 0 byte) são não rastreados e não entram no commit. Apagá-los seria destruir
+trabalho alheio em voo, não higiene.
 
 O D98 deixou de bloquear o lote quando foi medido no commit isolado, mas **continua aberto para a
 árvore**: quem commitar as frentes de redesign e segurança precisa regerar os snapshots do grafo

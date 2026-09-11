@@ -399,15 +399,20 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
   de entrada, ausência de signed URL/token Supabase, bytes/headers/attachment, anônimo `307 → /login`
   sem PDF e cleanup DB/Auth/Storage. Commit `d94bd20`, deployment Vercel `success` e smoke autenticado
   Preview 6/6 em 1,3 min fecharam o rollout. Produção permaneceu fora do escopo.
-- **2.S executada em 11/09 — `BLOCKED`, não `FAIL`** (qorov2 §28): matriz focada da Camada 2 242/242,
+- **2.S fechada em 11/09 — `PASS`** (qorov2 §28): matriz focada da Camada 2 242/242,
   suíte integral 3.254/3.254 em 350 arquivos, RLS provada em Postgres real 6/6 com contrafactual,
   E2E mutável DEV 2/2 no build otimizado (C2.1/D95 em 4,1 min e Psiquiatria em 52,4 s, cleanup zero),
   lint/typecheck/`arch:check`/`arch:db-check`/migrations/registry/observabilidade PASS, 0 ciclo novo,
-  0 finding alto. Diff da 2.S: **1 arquivo de teste, +14/−7** — a única lacuna encontrada era de
-  asserção (BOM e `-` no CSV), e a implementação já os neutralizava. O bloqueio é o **D97**: a árvore
-  carrega duas frentes alheias não commitadas (redesign de UI + endurecimento de segurança), o fundador
-  decidiu não commitar, e sem commit não há Preview. `arch:graphs`/`format:check` reprovam pela mesma
-  causa (D98), sem nenhum arquivo da Camada 2 envolvido. Próximo passo: resolver o D97, não iniciar P2.
+  0 finding alto. Única mudança de código: **1 arquivo de teste, +14/−7** — a lacuna era de asserção
+  (BOM e `-` no CSV) e a implementação já os neutralizava. Publicada por fast-forward em
+  `feat/qorov2-pagamentos` (`7652baa..2e1f5fc`), deployment Vercel `success`, smoke autenticado do
+  Preview 2/2 com 26 rotas estáticas em HTTP 200.
+- **Ressalvas honestas da 2.S:** `format:check` e `arch:graphs` foram medidos num worktree isolado no
+  commit, porque reprovam na **árvore** por causa do **D98**; os demais gates rodaram na árvore, que é
+  superconjunto do commit. O CI do GitHub não roda nesta branch (`ci.yml` só em `main`), então não há
+  carimbo independente. O **D97 continua aberto**: a árvore ainda carrega o redesign de UI e o
+  endurecimento de segurança não commitados — quem os commitar precisa regerar o grafo e formatar 5
+  arquivos. Não existe E2E para `contabilidade.csv`; a rota segue coberta só por unidade.
 
 ### Camada 3 (P2)
 
