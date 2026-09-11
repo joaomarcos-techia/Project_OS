@@ -1,9 +1,9 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 735,
-    "elements": 54,
-    "importEdges": 293,
+    "modules": 738,
+    "elements": 55,
+    "importEdges": 294,
     "moduleCycles": 0,
     "events": 67,
     "eventsWithoutConsumer": 42
@@ -523,6 +523,15 @@
       "id": "lib:env",
       "kind": "lib",
       "fanIn": 19,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:env-coherence"
+      ]
+    },
+    {
+      "id": "lib:env-coherence",
+      "kind": "lib",
+      "fanIn": 1,
       "fanOut": 0,
       "dependsOn": []
     },
