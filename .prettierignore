@@ -19,3 +19,8 @@ drizzle/migrations/meta/*.json
 evidence/**/*.json
 design_system/*.html
 docs/architecture/arch-metrics.json
+# Evidência bruta da auditoria de segurança: saída de teste e snapshot imutável
+# do inventário. Reformatar apaga a fidelidade ao que o gerador escreveu.
+docs/security/ia-privacidade-tests.json
+docs/security/inventory-before.json
+.tmp/

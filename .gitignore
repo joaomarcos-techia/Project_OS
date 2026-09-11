@@ -11,6 +11,10 @@ next-env.d.ts
 dist/
 build/
 
+# Rascunho local de sessão (scripts soltos, screenshots de diagnóstico). Não é
+# código do produto e não deve ser versionado nem passar pelos gates de formato.
+.tmp/
+
 # Environment
 .env
 .env.local
