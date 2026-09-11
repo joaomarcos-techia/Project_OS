@@ -3412,8 +3412,15 @@ permanece com **0 ciclos**.
 
 Copy do template:
 
-> Oi, {{1}}. Vimos que não foi possível comparecer ao seu horário. Se quiser remarcar, responda a
-> esta mensagem e nossa equipe ajuda você.
+> Atualização do seu agendamento: {{1}}, sua consulta consta como não realizada.
+>
+> Para reagendar, responda a esta mensagem.
+
+Copy reescrita em 11/09 por causa do [D102](discovery-log.md). A anterior — “Vimos que não foi
+possível comparecer… Se quiser remarcar” — abria com saudação e fechava com convite, e convite é o
+que a Meta lê como MARKETING. A nova nomeia a transação (“Atualização do seu agendamento”), afirma um
+fato sobre uma consulta específica e dá um passo procedimental. Mesma contagem de variáveis, então o
+builder não muda.
 
 Configuração: categoria `Utility`, idioma `pt_BR`, nome `qoro_no_show_followup`, sem cabeçalho,
 rodapé ou botões. O runtime lê `META_TEMPLATE_NO_SHOW_FOLLOWUP_ID`. A variável já foi informada pelo

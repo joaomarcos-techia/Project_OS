@@ -84,13 +84,35 @@ describe('catálogo de templates proativos', () => {
   it('copy da recuperação de falta é operacional e não expõe conteúdo sensível', () => {
     const body = PROACTIVE_TEMPLATE_BODIES.no_show_followup.body;
 
-    expect(body).toContain('não foi possível comparecer');
-    expect(body).toContain('remarcar');
+    // Enquadramento UTILITY: informa o estado de um agendamento específico e dá
+    // o próximo passo procedimental. Não convida, não oferece.
+    expect(body).toContain('agendamento');
+    expect(body).toContain('não realizada');
+    expect(body).toContain('reagendar');
     expect(body).toContain('responda');
     expect(body).not.toMatch(
       /procedimento|especialidade|diagnóstico|tratamento|pagamento|sinal|estorno|dívida|valor|R\$/iu,
     );
   });
+
+  /**
+   * D102 — a Meta reclassificou estes três para MARKETING, o que sujeita o envio
+   * a opt-in de marketing e a limite por usuário: a mensagem pode simplesmente
+   * não ser entregue. Linguagem de convite/oferta é o que puxa a reclassificação,
+   * então ela fica travada por teste nos templates que PRECISAM ser operacionais.
+   *
+   * `waitlist_offer` está fora de propósito: oferecer uma vaga é a função dele.
+   */
+  it.each(['reminder', 'followup', 'no_show_followup'] as const)(
+    'copy de %s não usa linguagem de convite/oferta (mantém enquadramento UTILITY)',
+    (kind) => {
+      const body = PROACTIVE_TEMPLATE_BODIES[kind].body;
+
+      expect(body).not.toMatch(/\bquer\b|\bqueres\b|gostaria|aproveite|oferta|promo/iu);
+      // Abre nomeando o fato/transação, não com saudação promocional.
+      expect(body).toMatch(/^(Confirmação|Acompanhamento|Atualização)/u);
+    },
+  );
 });
 
 describe('countTemplateVariables', () => {

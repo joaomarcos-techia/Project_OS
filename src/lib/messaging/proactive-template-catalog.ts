@@ -55,8 +55,8 @@ export const PROACTIVE_TEMPLATE_BODIES: Record<
 > = {
   reminder: {
     body:
-      'Olá {{1}}! Passando para lembrar da sua consulta amanhã às {{2}} com {{3}}.\n\n' +
-      'Você confirma a presença? Responda SIM para confirmar ou NÃO para cancelar.',
+      'Confirmação de consulta: {{1}}, seu atendimento está agendado para amanhã às {{2}} ' +
+      'com {{3}}.\n\nResponda SIM para confirmar a presença ou NÃO para cancelar.',
     example: ['Maria Silva', '14:30', 'Dra. Ana Costa'],
   },
   dunning: {
@@ -119,16 +119,16 @@ export const PROACTIVE_TEMPLATE_BODIES: Record<
     // O de maior risco de a Meta reclassificar como MARKETING. A redação
     // enquadra como acompanhamento clínico, não como oferta.
     body:
-      'Oi {{1}}! {{2}} indicou um retorno para acompanhar seu tratamento.\n\n' +
-      'Quer que a gente veja um horário nesta semana?',
+      'Acompanhamento de tratamento: {{1}}, no seu último atendimento {{2}} indicou um ' +
+      'retorno.\n\nPara agendar esse retorno, responda a esta mensagem.',
     example: ['Maria Silva', 'Dra. Ana Costa'],
   },
   no_show_followup: {
     // ADR-057 / 2.4B — operação de agenda, sem procedimento, especialidade,
     // diagnóstico, cobrança ou qualquer outro dado clínico/financeiro.
     body:
-      'Oi, {{1}}. Vimos que não foi possível comparecer ao seu horário. ' +
-      'Se quiser remarcar, responda a esta mensagem e nossa equipe ajuda você.',
+      'Atualização do seu agendamento: {{1}}, sua consulta consta como não realizada.\n\n' +
+      'Para reagendar, responda a esta mensagem.',
     example: ['Maria'],
   },
 };

@@ -34,8 +34,14 @@ Para 2.4B, crie no mesmo WABA conectado um template de categoria **Utility**, id
 `qoro_no_show_followup`, sem cabeçalho, rodapé ou botões, e corpo:
 
 ```text
-Oi, {{1}}. Vimos que não foi possível comparecer ao seu horário. Se quiser remarcar, responda a esta mensagem e nossa equipe ajuda você.
+Atualização do seu agendamento: {{1}}, sua consulta consta como não realizada.
+
+Para reagendar, responda a esta mensagem.
 ```
+
+Os corpos canônicos vivem em `src/lib/messaging/proactive-template-catalog.ts` e são a fonte da
+verdade para o provisionamento automático no connect. Ao editar um template na Meta, edite o catálogo
+junto — senão uma clínica nova recebe a versão antiga.
 
 Use `Maria` como exemplo de `{{1}}`. Depois de `APPROVED`, configure o nome — não o ID numérico — em
 `META_TEMPLATE_NO_SHOW_FOLLOWUP_ID` no ambiente alvo e faça um novo deploy. A prova isolada autorizada
