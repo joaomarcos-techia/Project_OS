@@ -3596,13 +3596,13 @@ provado em Postgres real **6/6**, E2E mutável DEV **2/2** no build otimizado co
 typecheck, build, `arch:check`, `arch:db-check`, migrations, registry e observabilidade **PASS**, zero
 ciclo novo e zero finding alto ou crítico aberto.
 
-O bloqueio **não é da Camada 2**: é a árvore de trabalho, que carrega duas frentes alheias não
-commitadas (D97). Sem commit não há Preview, e sem Preview o critério §25 “rollout/Preview observado”
-não é afirmável. Pelo mesmo motivo `arch:graphs --check` e `format:check` reprovam — com a causa
-rastreada, em D98, a essas mesmas frentes e a nenhum arquivo da Camada 2.
+O lote foi commitado em **`7c9c5ea`** com `git add` por caminho — 4 arquivos, sem varrer trabalho
+alheio (D97). Num worktree isolado nesse commit, `format:check` e `arch:graphs --check` passam
+(§28.5): as duas reprovações locais pertencem à **árvore de trabalho**, não ao lote.
 
-A 2.S **não é `FAIL`**: nada da Camada 2 reprovou. E não é `PASS`: dois critérios obrigatórios do §25
-dependem de uma decisão de organização de branch que é do fundador, não do código.
+Sobra um único critério do §25: **`rollout/Preview observado`**, que exige push. A 2.S **não é
+`FAIL`** — nada da Camada 2 reprovou — e ainda não é `PASS` porque publicar é decisão de quem opera a
+branch, não resultado de código.
 
 ### 28.1 Condição de execução — o que torna esta 2.S diferente
 
@@ -3702,11 +3702,11 @@ mantém a um pico de carga de reprovar de novo — registrado como [D100](discov
 | typecheck | PASS | — |
 | `arch:check` | PASS | madge, 0 ciclo |
 | `arch:db-check` | PASS | 0 achado |
-| `arch:graphs --check` | **FAIL** | drift 100% das frentes alheias; **0 ciclo novo** — ver [D98](discovery-log.md) |
+| `arch:graphs --check` | **FAIL na árvore · PASS no commit** | drift 100% das frentes alheias — ver [D98](discovery-log.md) |
 | `check:migrations` | PASS | — |
 | `check:registry:strict` | PASS | 1:1 preservado |
 | `check:observability` | PASS | — |
-| `format:check` | **FAIL** | 5 arquivos, **todos alheios** — ver [D98](discovery-log.md) |
+| `format:check` | **FAIL na árvore · PASS no commit** | 5 arquivos, **todos alheios e não rastreados** — ver [D98](discovery-log.md) |
 | `git diff --check` | PASS | — |
 
 As duas reprovações foram rastreadas até a causa antes de serem reportadas: o grafo regenerado dá
@@ -3714,6 +3714,21 @@ As duas reprovações foram rastreadas até a causa antes de serem reportadas: o
 mais `context:patient → lib:format` e `→ lib:masks` (redesign). Os arquivos do `format:check` são
 `.tmp/*.mjs`, `scripts/seed-design-states.ts` e `login/auth-product-preview.tsx`. **Nenhum arquivo da
 Camada 2 aparece em nenhuma das duas listas.**
+
+Isso foi então **medido, não deduzido**. O lote da 2.S foi commitado em `7c9c5ea` com `git add` por
+caminho — 4 arquivos, nada de trabalho alheio — e os dois gates foram reexecutados num **worktree
+isolado nesse commit**:
+
+```text
+prettier --check .              → All matched files use Prettier code style!   EXIT=0
+tsx scripts/arch-graphs.ts --check → OK — snapshots em dia
+                                     (54 elementos · 293 arestas · 0 ciclo(s) · 67 eventos)  EXIT=0
+```
+
+O grafo do commit é **idêntico à baseline commitada** porque `arch-graphs.ts:62` exclui `*.test.ts`
+e a única mudança de código da 2.S é um arquivo de teste. Os 5 arquivos de formatação não existem num
+checkout limpo — são todos não rastreados. Ou seja: **as duas reprovações pertencem à árvore de
+trabalho, não ao lote da 2.S**, e em CI o commit fica verde.
 
 ### 28.6 Correção de redação — D99
 
@@ -3753,9 +3768,9 @@ que o código garante. Corrigido em §27.1, §27.4 e no handoff.
 | lint · typecheck | ✅ |
 | build | ✅ `Compiled successfully in 4.5min`, 0 warning |
 | `arch:check` · `arch:db-check` | ✅ 0 ciclo · 0 achado |
-| `arch:graphs --check` | ❌ **D98** — drift 100% alheio, 0 ciclo novo |
+| `arch:graphs --check` | ✅ no commit `7c9c5ea` (medido em worktree); ❌ na árvore por D98 |
 | migrations · registry · observability | ✅ |
-| `format:check` | ❌ **D98** — 5 arquivos, todos alheios |
+| `format:check` | ✅ no commit `7c9c5ea` (medido em worktree); ❌ na árvore por D98 |
 | `git diff --check` | ✅ |
 | nenhum segredo | ✅ |
 | nenhum artefato temporário | ❌ herdado — `scripts/tmp-run-*.ts`, `.tmp/`, `financeiro.md` (0 byte) |
@@ -3768,9 +3783,16 @@ que o código garante. Corrigido em §27.1, §27.4 e no handoff.
 | rollout/Preview observado | ❌ **D97** — impossível sem commit |
 | dependências externas classificadas | ✅ |
 
-Três itens vermelhos, **nenhum deles causado pela Camada 2**: dois são o D98 e um é o D97. O caminho
-para a 2.S verde é resolver o D97 — separar as frentes —, depois reexecutar `arch:graphs`,
-`format:check`, o E2E mutável DEV e o smoke de Preview. Nada disso exige tocar no código da Camada 2.
+Depois do commit `7c9c5ea` sobra **um único item vermelho**: `rollout/Preview observado`. Ele exige
+push, e o push é decisão de quem opera a branch — não há trabalho técnico restante que o alcance.
+
+O item “nenhum artefato temporário” é herdado e não entra no commit: `scripts/tmp-run-*.ts` são o
+harness da prova externa P11/D77, ainda `BLOCKED_EXTERNAL`; `.tmp/` e `financeiro.md` (0 byte) são
+resíduo de sessões anteriores. Apagá-los seria destruir trabalho alheio em voo, não higiene.
+
+O D98 deixou de bloquear o lote quando foi medido no commit isolado, mas **continua aberto para a
+árvore**: quem commitar as frentes de redesign e segurança precisa regerar os snapshots do grafo
+(`pnpm arch:graphs`) e formatar os 5 arquivos.
 
 **A 2.S não libera P2/Camada 3.** A regra do §27 do prompt de execução continua valendo: fecha-se a
 2.S primeiro.
