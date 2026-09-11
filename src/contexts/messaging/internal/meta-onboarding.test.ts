@@ -698,6 +698,51 @@ describe('ensureMessageTemplates', () => {
     expect(optOf(fetchMock.mock.calls[1]!).method).toBe('POST');
   });
 
+  // D104 — a Meta reclassifica template aprovado por conta própria. Antes a
+  // listagem pedia só `name`, então o drift passava por `already_exists` e
+  // ninguém ficava sabendo: o envio segue `accepted`, o job termina `sent` e a
+  // mensagem pode não ser entregue por falta de opt-in de marketing.
+  it('denuncia categoria divergente em template que já existe', async () => {
+    fetchMock.mockResolvedValueOnce(
+      res({ data: [{ name: 'reclassificado', category: 'MARKETING' }] }),
+    );
+
+    const outcomes = await ensureMessageTemplates('waba-1', 'TOK', [
+      definition('reclassificado', 1),
+    ]);
+
+    expect(outcomes).toEqual([
+      {
+        name: 'reclassificado',
+        status: 'already_exists',
+        categoryDrift: { expected: 'UTILITY', actual: 'MARKETING' },
+      },
+    ]);
+    // Não tenta recriar: a Meta recusa nome duplicado, e editar não muda
+    // categoria. A correção é um template novo, com nome novo.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('pede a categoria na listagem, senão o drift é indetectável', async () => {
+    fetchMock.mockResolvedValueOnce(res({ data: [] }));
+    fetchMock.mockResolvedValueOnce(res({ id: 'tpl-1' }));
+
+    await ensureMessageTemplates('waba-1', 'TOK', [definition('novo', 1)]);
+
+    const listUrl = new URL(String(fetchMock.mock.calls[0]![0]));
+    expect(listUrl.searchParams.get('fields')).toBe('name,category');
+  });
+
+  it('não inventa divergência quando a categoria não vem na resposta', async () => {
+    fetchMock.mockResolvedValueOnce(res({ data: [{ name: 'sem_categoria' }] }));
+
+    const outcomes = await ensureMessageTemplates('waba-1', 'TOK', [
+      definition('sem_categoria', 1),
+    ]);
+
+    expect(outcomes).toEqual([{ name: 'sem_categoria', status: 'already_exists' }]);
+  });
+
   it('envia o corpo no formato que a Meta espera', async () => {
     fetchMock.mockResolvedValueOnce(res({ data: [] }));
     fetchMock.mockResolvedValueOnce(res({ id: 'tpl-1' }));

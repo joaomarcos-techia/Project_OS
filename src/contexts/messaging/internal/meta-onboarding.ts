@@ -471,6 +471,20 @@ export async function subscribeAppToWaba(wabaId: string, token: string): Promise
 export interface TemplateProvisionOutcome {
   name: string;
   status: 'created' | 'already_exists' | 'failed';
+  /**
+   * D104 — preenchido só quando o template JÁ existe e a categoria que a Meta
+   * reporta hoje diverge da que o catálogo submete.
+   *
+   * A Meta recategoriza template aprovado por conta própria: um `UTILITY` que
+   * ela julgue promocional vira `MARKETING` com a mensagem "não atendeu às
+   * nossas diretrizes de utilidade". Isso não é cosmético — marketing exige
+   * opt-in de marketing e tem limite por usuário, então a mensagem pode não ser
+   * entregue enquanto a API responde `accepted` e o job termina `sent`.
+   *
+   * Só reporta: recriar não resolveria (a Meta recusa nome duplicado) e editar
+   * não muda categoria. A correção é criar um template novo, com nome novo.
+   */
+  categoryDrift?: { expected: string; actual: string };
 }
 
 /**
@@ -496,18 +510,25 @@ export async function ensureMessageTemplates(
 ): Promise<TemplateProvisionOutcome[]> {
   if (definitions.length === 0) return [];
 
-  let existing: Set<string>;
+  // D104 — a consulta traz `category` junto com o nome. Antes pedia só `name`,
+  // então um template reclassificado pela Meta passava por `already_exists` sem
+  // que ninguém ficasse sabendo.
+  let existing: Map<string, string | undefined>;
   try {
-    const res = await graphFetch<{ data?: Array<{ name?: string }> }>(
+    const res = await graphFetch<{ data?: Array<{ name?: string; category?: string }> }>(
       `${encodeURIComponent(wabaId)}/message_templates`,
       {
         method: 'GET',
         stage: 'template_provisioning',
         token,
-        query: { fields: 'name', limit: '250' },
+        query: { fields: 'name,category', limit: '250' },
       },
     );
-    existing = new Set((res.data ?? []).map((t) => t.name).filter((n): n is string => !!n));
+    existing = new Map(
+      (res.data ?? [])
+        .filter((t): t is { name: string; category?: string } => Boolean(t.name))
+        .map((t) => [t.name, t.category]),
+    );
   } catch {
     // Sem a lista não dá para decidir o que falta. Criar às cegas duplicaria
     // pedidos de revisão na Meta; melhor reportar e deixar o health/retry expor.
@@ -517,7 +538,15 @@ export async function ensureMessageTemplates(
   const outcomes: TemplateProvisionOutcome[] = [];
   for (const definition of definitions) {
     if (existing.has(definition.name)) {
-      outcomes.push({ name: definition.name, status: 'already_exists' });
+      const actual = existing.get(definition.name);
+      outcomes.push({
+        name: definition.name,
+        status: 'already_exists',
+        // Categoria ausente na resposta não é divergência: é falta de dado.
+        ...(actual && actual !== definition.category
+          ? { categoryDrift: { expected: definition.category, actual } }
+          : {}),
+      });
       continue;
     }
     try {

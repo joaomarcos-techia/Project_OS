@@ -306,6 +306,18 @@ export async function connectMyClinicWhatsapp(
           templates: failed.map((o) => o.name).join(','),
         });
       }
+      // D104 — template que a Meta reclassificou continua existindo e sendo
+      // aceito no envio, mas passa a valer a régua de opt-in de marketing, que
+      // o Qoro não enxerga: o job termina `sent` e a mensagem pode não chegar.
+      // Editar não muda categoria; a correção é criar outro, com nome novo.
+      const drifted = outcomes.filter((o) => o.categoryDrift);
+      if (drifted.length > 0) {
+        logger.error('messaging.whatsapp.template_category_drift', {
+          templates: drifted
+            .map((o) => `${o.name}:${o.categoryDrift!.expected}->${o.categoryDrift!.actual}`)
+            .join(','),
+        });
+      }
     });
 
     return { id, phoneNumberMasked: maskPhone(meta.waba.phoneNumber) };
