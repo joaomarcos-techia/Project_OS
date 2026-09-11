@@ -119,12 +119,19 @@ describe('accounting export', () => {
     expect(csv).toContain(`"${baseMovement.transactionId}";"Ajuste solicitado"`);
   });
 
-  it.each(['  =1+1', '\n+SUM(1;1)', '\u00a0@IMPORTXML("https://example.invalid")'])(
-    'neutraliza fórmula camuflada por whitespace: %j',
-    (description) => {
-      const csv = renderAccountingCsv([{ ...baseMovement, description }], 'UTC');
+  it.each([
+    '  =1+1',
+    '\n+SUM(1;1)',
+    '\u00a0@IMPORTXML("https://example.invalid")',
+    // BOM antes do operador: \s em JS casa \ufeff, e a planilha descarta o
+    // marcador antes de decidir se a célula é fórmula.
+    '\ufeff=1+1',
+    // O hífen abre fórmula tanto quanto o igual: -2+3 é avaliado pela planilha.
+    '-2+3',
+    ' -2+3',
+  ])('neutraliza fórmula direta ou camuflada por whitespace/BOM: %j', (description) => {
+    const csv = renderAccountingCsv([{ ...baseMovement, description }], 'UTC');
 
-      expect(csv).toContain(`"'${description.replaceAll('"', '""')}"`);
-    },
-  );
+    expect(csv).toContain(`"'${description.replaceAll('"', '""')}"`);
+  });
 });

@@ -391,13 +391,23 @@ Cada uma tem os mesmos gates e o mesmo par `.H`/`.S`. Detalhe nas §6 e §7 do `
   **2.4A** retorno existente reconfirmado no smoke C14 DEV · **2.4B** recuperação de falta em
   código/DEV, schema PROD e Preview, smoke C14 10/10; E2E Meta real pendente · **2.H** / **2.S**.
 - **2.H D95/D96/ADR-059 fechado no Preview:** o viewer clínico expunha signed URL Supabase de 24 h no DOM.
-  O lote substitui por proxy Qoro autenticado por request, projeção mínima `clinic_id + id`, download
+  O lote substitui por proxy Qoro autenticado por request, consulta filtrada por `id + clinic_id`
+  e sem decrypt clínico (redação corrigida na 2.S: o acessor é compartilhado com o viewer), download
   server-side, `no-store`/same-origin, rate limit e audit sem PII. D96 também endurece o CSV contra
   fórmula camuflada por whitespace. Matriz focada 182/182, suíte integral 3.106/3.106, lint, typecheck,
   build, formatação e todos os gates PASS. E2E mutável DEV 1/1 PASS: três PDFs reais pelos três pontos
   de entrada, ausência de signed URL/token Supabase, bytes/headers/attachment, anônimo `307 → /login`
   sem PDF e cleanup DB/Auth/Storage. Commit `d94bd20`, deployment Vercel `success` e smoke autenticado
-  Preview 6/6 em 1,3 min fecharam o rollout. Produção permaneceu fora do escopo; próximo passo: 2.S.
+  Preview 6/6 em 1,3 min fecharam o rollout. Produção permaneceu fora do escopo.
+- **2.S executada em 11/09 — `BLOCKED`, não `FAIL`** (qorov2 §28): matriz focada da Camada 2 242/242,
+  suíte integral 3.254/3.254 em 350 arquivos, RLS provada em Postgres real 6/6 com contrafactual,
+  E2E mutável DEV 2/2 no build otimizado (C2.1/D95 em 4,1 min e Psiquiatria em 52,4 s, cleanup zero),
+  lint/typecheck/`arch:check`/`arch:db-check`/migrations/registry/observabilidade PASS, 0 ciclo novo,
+  0 finding alto. Diff da 2.S: **1 arquivo de teste, +14/−7** — a única lacuna encontrada era de
+  asserção (BOM e `-` no CSV), e a implementação já os neutralizava. O bloqueio é o **D97**: a árvore
+  carrega duas frentes alheias não commitadas (redesign de UI + endurecimento de segurança), o fundador
+  decidiu não commitar, e sem commit não há Preview. `arch:graphs`/`format:check` reprovam pela mesma
+  causa (D98), sem nenhum arquivo da Camada 2 envolvido. Próximo passo: resolver o D97, não iniciar P2.
 
 ### Camada 3 (P2)
 

@@ -823,7 +823,7 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 | D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
 | D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
 | Track O — onboarding self-serve | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
-| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` fechou D95/D96 no código, DEV e Preview. O próximo passo interno é `2.S` → P2/P3. Memed foi adiada para a Track M final |
+| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` fechou D95/D96 no código, DEV e Preview. A `2.S` foi executada em 11/09 (§28) e classificada `BLOCKED`: a Camada 2 passou em tudo que depende dela, mas Preview/rollout dependem de resolver o D97 (duas frentes alheias não commitadas na árvore). Depois do D97 → P2/P3. Memed foi adiada para a Track M final |
 
 ### Dependências externas — validação comportamental (atualizado em 2026-09-01)
 
@@ -3503,7 +3503,7 @@ DEPOIS
 sessão Qoro → página autorizada → /.../pdf/arquivo
            → resourceGate(VIEW_PRESCRIPTION)
            → clinic_id da sessão + UUID válido
-           → projeção mínima clinic_id + id (sem decrypt clínico)
+           → filtro id + clinic_id; projeção sem decrypt clínico
            → rate limit por usuário/clínica
            → download Storage somente no servidor
            → audit mínimo tenant-scoped
@@ -3547,7 +3547,11 @@ registrada como escopo próprio de segurança, sem ampliar silenciosamente D95.
 - [x] ADR-059 aceita e fronteira de segurança definida;
 - [x] viewer usa somente endpoint same-origin Qoro;
 - [x] sessão/permissão/tenant revalidados por request;
-- [x] projeção mínima `clinic_id + id`, sem decrypt clínico;
+- [x] consulta filtrada por `id + clinic_id`, sem decrypt clínico. Correção de redação feita na 2.S:
+      o acessor é compartilhado com as páginas do viewer, então projeta também `patient_id`,
+      `snapshot_patient_nome` e (documentos) `type` — nenhum deles usado pela rota de arquivo, nenhum
+      registrado em log. O que o teste trava é a ausência de `decryptJson`/`*_encrypted`, não uma
+      projeção de duas colunas;
 - [x] negativa/UUID/cross-tenant/ausência indistinguíveis e fail-closed;
 - [x] headers privados/same-origin e modos inline/attachment;
 - [x] rate limit por usuário + clínica e isolamento entre atores;
@@ -3583,3 +3587,190 @@ O lote executável foi commitado em `d94bd20`, enviado por fast-forward à branc
 `feat/qorov2-pagamentos` e associado pela Vercel ao deployment terminal `success`. O smoke autenticado
 do alias Preview foi deliberadamente somente leitura e passou 6/6 em 1,3 min. Ele não criou uma
 segunda fixture nem chamou Asaas/Meta; a prova específica do PDF pertence ao E2E DEV descrito acima.
+
+## 28. Camada 2 — 2.S estabilização
+
+**Estado em 11/09/2026: 2.S EXECUTADA E CLASSIFICADA COMO `BLOCKED`.** A Camada 2 está tecnicamente
+sólida: matriz focada **242/242**, suíte integral **3.254/3.254** em 350 arquivos, isolamento RLS
+provado em Postgres real **6/6**, E2E mutável DEV **2/2** no build otimizado com cleanup zero, lint,
+typecheck, build, `arch:check`, `arch:db-check`, migrations, registry e observabilidade **PASS**, zero
+ciclo novo e zero finding alto ou crítico aberto.
+
+O bloqueio **não é da Camada 2**: é a árvore de trabalho, que carrega duas frentes alheias não
+commitadas (D97). Sem commit não há Preview, e sem Preview o critério §25 “rollout/Preview observado”
+não é afirmável. Pelo mesmo motivo `arch:graphs --check` e `format:check` reprovam — com a causa
+rastreada, em D98, a essas mesmas frentes e a nenhum arquivo da Camada 2.
+
+A 2.S **não é `FAIL`**: nada da Camada 2 reprovou. E não é `PASS`: dois critérios obrigatórios do §25
+dependem de uma decisão de organização de branch que é do fundador, não do código.
+
+### 28.1 Condição de execução — o que torna esta 2.S diferente
+
+A 2.S foi executada sobre um checkout em `redesign/qoro-ui-v4` com **94 arquivos modificados
+(+4.183/−888) e 33 não rastreados**, de duas frentes que não são da Camada 2:
+
+1. **redesign de UI** — e ela toca a superfície da 2.1A: `relatorios/page.tsx` (+417),
+   `relatorios/data.ts` (+120), `reports.module.css` (+218), `financeiro/page.tsx` (+181) e
+   `financial/queries.ts` (+92, com `getFaturamentoPorSemana` novo);
+2. **endurecimento de segurança** — `webhook-body.ts`, CSP bloqueante, `prontuario-access.ts`,
+   verificação de papel em `withTenant`, `scripts/security/**` e `docs/security/**`.
+
+Por decisão do fundador nesta sessão, **nada foi commitado**. A consequência é registrada sem
+maquiagem: os critérios §25 `git diff --check`, budget e “zero artefato temporário” só são afirmáveis
+sobre o diff da própria 2.S, nunca sobre a árvore. Ver [D97](discovery-log.md).
+
+### 28.2 Matriz de regressão da Camada 2
+
+Cada linha foi verificada por **leitura do código atual**, não pela descrição histórica do roadmap.
+
+| Domínio | Verificação | Resultado |
+| --- | --- | --- |
+| Clinical · prontuário | `prontuario-access.ts` grava `clinical.prontuario.viewed` na mesma tx, fail-closed | PASS |
+| Clinical · PDF | `_lib/clinical-pdf-route.ts`: gate → UUID → rate limit → consulta → download server-side → audit | PASS |
+| Clinical · prescrição | mesmo helper, `VIEW_PRESCRIPTION`, 404 indistinguível | PASS |
+| Clinical · template 2.3 | `templates/psiquiatria.test.ts` + editor; sem LLM, sem Memed | PASS |
+| Patient · isolamento | consultas tenant-scoped; `withTenant` verifica o papel efetivo antes do callback | PASS |
+| RLS · A → B | Postgres real descartável: estrangeiro=0 nos dois sentidos, INSERT alheio recusado (42501) | PASS |
+| Financial · CSV | projeção sem paciente/CPF/consulta/prontuário; JOIN tenant-scoped nos dois lados | PASS |
+| Financial · CSV injection | `=`, `+`, `-`, `@`, whitespace, NBSP **e BOM** neutralizados | PASS |
+| Financial · limites | teto de 10.000 linhas com `+1` na consulta — recusa em vez de truncar | PASS |
+| Financial · fuso/mês | mês civil no fuso da clínica, início inclusivo e fim exclusivo em UTC | PASS |
+| Messaging · followup | guardas de contexto, `needsReturn`, retorno já concluído | PASS |
+| Messaging · no-show | dedup por `appointmentId`; evento legado, sem paciente e status ≠ `faltou` não contatam | PASS |
+| RBAC | `canFinancial` na página **e** `requireFreshPermission` na rota — defesa em profundidade | PASS |
+| Storage · PDF privado | download só no servidor; nenhuma signed URL criada; nada no DOM | PASS |
+| Audit · acesso PDF | ator/tipo/id/disposição, sem paciente, path, URL ou conteúdo | PASS |
+| Architecture · ciclos | 55 elementos · 296 arestas · **0 ciclos** · 67 eventos | PASS |
+| Registry · C14 | **um único** consumidor de `scheduling.appointment.no_show`, compondo C14 + Payments | PASS |
+| Migrations | integridade PASS; **nenhuma migration criada ou aplicada nesta sub-fase** | PASS |
+| Observability | heartbeat, métricas por lote, kill-switch antes do claim, sem PII | PASS |
+
+### 28.3 O que a 2.S mudou no código
+
+Um único arquivo, de teste, com o menor diff possível: `accounting-export.test.ts` ganhou três
+entradas adversariais que a lista do gate exigia mas nenhuma asserção cobria — BOM (`U+FEFF`) antes
+do operador, `-` direto e `-` após espaço. **A implementação já estava correta**: o regex
+`/^(?:[=+\-@\t\r\n]|\s+[=+\-@])/u` já os cobria, porque `\s` em JavaScript inclui `U+FEFF` e
+`U+00A0` (NBSP). A lacuna era de prova, não de comportamento — nenhuma linha de runtime mudou.
+
+Budget da 2.S: **1 arquivo, +14/−7 linhas, 1 bounded context**. Muito abaixo do teto de 25/1500/2.
+
+### 28.4 Testes executados
+
+| Conjunto | Resultado |
+| --- | --- |
+| Matriz focada da Camada 2 (2.1A · 2.3 · 2.4A/B · 2.H · C2.0/C2.1) | **242/242** em 28 arquivos |
+| Suíte integral com coverage | **3.254/3.254** em 350 arquivos, `EXIT=0` |
+| Isolamento RLS em Postgres real (`security:tenant`) | **6/6 PASS**, teardown zero |
+| E2E mutável DEV (C2.1/D95 + 2.3) | **2/2 PASS**, cleanup zero nas duas |
+| E2E Meta (2.4A e 2.4B) | **BLOCKED_EXTERNAL** — template `IN_REVIEW` |
+
+O E2E rodou contra `next start` no build otimizado (porta 3001), nunca contra `next dev` — o roadmap
+já registrava `CONNECT_TIMEOUT` desse harness no modo dev. `clinical-standalone-documents` passou em
+4,1 min provando os três PDFs pelas três entradas, ausência de `supabase|signedUrl|token=` na URL e no
+DOM, bytes `%PDF`, `attachment` com `?download=1` e anônimo sem `application/pdf`;
+`psychiatry-template` passou em 52,4 s. As duas fixtures foram removidas ao fim.
+
+Complemento de borda medido por HTTP direto contra o mesmo build: anônimo em
+`/relatorios/contabilidade.csv`, `/prescricoes/{uuid}/pdf/arquivo` e `/documentos/{uuid}/pdf/arquivo?download=1`
+recebe **`307 → /login`**, sem `content-type` e sem corpo — o middleware intercepta antes do 404
+fail-closed do handler, exatamente como §27 descreve.
+
+**Não existe E2E cobrindo `contabilidade.csv`.** A rota tem 5 testes de unidade (RBAC fresco, mês
+inválido, teto de linhas, rate limit, permissão negada) e 22 de serialização/projeção, mas o caminho
+HTTP autenticado ponta a ponta não é exercitado por spec. Fica registrado como lacuna real, não
+fabricada: criar esse E2E é trabalho de escopo próprio, não de um gate de estabilização.
+
+A prova de RLS sobe um cluster Postgres próprio em loopback, aplica os helpers SQL e a policy reais
+das migrations e chama o `withTenant` real com papel `authenticated`. Vale registrar o **contrafactual**
+que ela executa: sem o `SET LOCAL ROLE`, o papel do pool (BYPASSRLS) **lê** a linha da outra clínica.
+Ou seja, o isolamento vem do role-switch, não da RLS sozinha — e é por isso que a verificação de papel
+dentro de `withTenant` importa. Nenhum banco de produto foi tocado; o cluster é descartado no fim.
+
+Sobre a primeira execução da suíte nesta sessão: ela acusou 2 falhas em
+`src/lib/pdf/receituario-controle-especial.test.ts`, ambas por **timeout de 30 s**. Não era regressão —
+isolados, os mesmos testes rodam em 490 ms e 1.374 ms. A causa era disputa de CPU com o `next dev` do
+fundador e um `seed-design-states.ts` simultâneo. Com a máquina mais livre a suíte inteira caiu de
+347 s para 185 s e passou 350/350. **Mas o teste ainda consumiu 19,7 s dos 30 s disponíveis**, o que o
+mantém a um pico de carga de reprovar de novo — registrado como [D100](discovery-log.md).
+
+### 28.5 Gates
+
+| Gate | Resultado | Observação |
+| --- | --- | --- |
+| lint | PASS | 1.121 arquivos |
+| typecheck | PASS | — |
+| `arch:check` | PASS | madge, 0 ciclo |
+| `arch:db-check` | PASS | 0 achado |
+| `arch:graphs --check` | **FAIL** | drift 100% das frentes alheias; **0 ciclo novo** — ver [D98](discovery-log.md) |
+| `check:migrations` | PASS | — |
+| `check:registry:strict` | PASS | 1:1 preservado |
+| `check:observability` | PASS | — |
+| `format:check` | **FAIL** | 5 arquivos, **todos alheios** — ver [D98](discovery-log.md) |
+| `git diff --check` | PASS | — |
+
+As duas reprovações foram rastreadas até a causa antes de serem reportadas: o grafo regenerado dá
+55/296/**0**/67 contra a baseline 54/293/0/67, e o delta inteiro é `lib:env-coherence` (segurança)
+mais `context:patient → lib:format` e `→ lib:masks` (redesign). Os arquivos do `format:check` são
+`.tmp/*.mjs`, `scripts/seed-design-states.ts` e `login/auth-product-preview.tsx`. **Nenhum arquivo da
+Camada 2 aparece em nenhuma das duas listas.**
+
+### 28.6 Correção de redação — D99
+
+A doc da 2.H afirmava “projeção mínima `clinic_id + id`”. O código projeta também `patient_id`,
+`snapshot_patient_nome` e, em documentos, `type`, porque o acessor é **compartilhado com as páginas
+do viewer**, que mostram o nome ao usuário já autorizado. A rota de arquivo consome apenas
+`pdfStoragePath` e não registra nenhum desses campos. Não há vazamento; havia afirmação mais forte do
+que o código garante. Corrigido em §27.1, §27.4 e no handoff.
+
+### 28.7 Pendências
+
+**Externas — não falsificadas, não contornadas:**
+
+- `qoro_no_show_followup` continua `IN_REVIEW` no Meta → E2E real do no-show: `BLOCKED_EXTERNAL`;
+- E2E Meta do template de retorno (2.4A): `BLOCKED_EXTERNAL`;
+- P11/D77 `DONE → refunded` e D50: `BLOCKED_EXTERNAL`, inalterados por esta sub-fase.
+
+**Internas:**
+
+- D97 — separar as frentes em branches/worktrees; é o que destrava commit, Preview e rollout;
+- D98 — `arch:graphs` e `format:check` fecham quando as frentes alheias forem commitadas;
+- E2E de `contabilidade.csv`: não existe spec; o caminho HTTP autenticado da 2.1A segue coberto só
+  por unidade. Escopo próprio, fora de um gate de estabilização;
+- D100 — `receituario-controle-especial.test.ts` a 19,7 s de um teto de 30 s;
+- Product Acceptance humano: continua com a clínica piloto. Nada foi simulado.
+
+### 28.8 Checklist §25 — por que a 2.S não é verde
+
+| Critério | Estado |
+| --- | --- |
+| regressão da Camada 2 | ✅ 242/242 focados |
+| Unit · Integration · Contract | ✅ 3.254/3.254 em 350 arquivos |
+| E2E controlado | ✅ 2/2 no build otimizado, cleanup zero |
+| RBAC | ✅ página + rota, defesa em profundidade |
+| RLS | ✅ Postgres real, dois sentidos, com contrafactual |
+| Security adversarial | ✅ PDF e CSV; zero finding alto ou crítico |
+| lint · typecheck | ✅ |
+| build | ✅ `Compiled successfully in 4.5min`, 0 warning |
+| `arch:check` · `arch:db-check` | ✅ 0 ciclo · 0 achado |
+| `arch:graphs --check` | ❌ **D98** — drift 100% alheio, 0 ciclo novo |
+| migrations · registry · observability | ✅ |
+| `format:check` | ❌ **D98** — 5 arquivos, todos alheios |
+| `git diff --check` | ✅ |
+| nenhum segredo | ✅ |
+| nenhum artefato temporário | ❌ herdado — `scripts/tmp-run-*.ts`, `.tmp/`, `financeiro.md` (0 byte) |
+| nenhum warning | ✅ no diff da 2.S |
+| nenhum ciclo novo | ✅ |
+| nenhum finding alto/crítico | ✅ |
+| anti-escopo respeitado | ✅ Memed com zero ocorrência em `src`, `package.json` e `drizzle/` |
+| budget respeitado | ✅ 4 arquivos, +171/−12 |
+| documentação atualizada | ✅ |
+| rollout/Preview observado | ❌ **D97** — impossível sem commit |
+| dependências externas classificadas | ✅ |
+
+Três itens vermelhos, **nenhum deles causado pela Camada 2**: dois são o D98 e um é o D97. O caminho
+para a 2.S verde é resolver o D97 — separar as frentes —, depois reexecutar `arch:graphs`,
+`format:check`, o E2E mutável DEV e o smoke de Preview. Nada disso exige tocar no código da Camada 2.
+
+**A 2.S não libera P2/Camada 3.** A regra do §27 do prompt de execução continua valendo: fecha-se a
+2.S primeiro.
