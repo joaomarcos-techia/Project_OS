@@ -1,0 +1,2761 @@
+{
+  "surfaces": [
+    {
+      "id": "src/app/(admin)/admin/actions/feedback.ts#manageFeedbackAction",
+      "file": "src/app/(admin)/admin/actions/feedback.ts",
+      "line": 32,
+      "name": "manageFeedbackAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/feedback.ts:32#manageFeedbackAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/actions/impersonation.ts#startImpersonationAction",
+      "file": "src/app/(admin)/admin/actions/impersonation.ts",
+      "line": 34,
+      "name": "startImpersonationAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/impersonation.ts:34#startImpersonationAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/actions/impersonation.ts#stopImpersonationAction",
+      "file": "src/app/(admin)/admin/actions/impersonation.ts",
+      "line": 86,
+      "name": "stopImpersonationAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/impersonation.ts:86#stopImpersonationAction",
+        "src/lib/audit/super-admin.ts:25#superAdminAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/actions/onboarding-invites.ts#cancelClinicInviteAction",
+      "file": "src/app/(admin)/admin/actions/onboarding-invites.ts",
+      "line": 110,
+      "name": "cancelClinicInviteAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/onboarding-invites.ts:110#cancelClinicInviteAction",
+        "src/lib/audit/super-admin.ts:25#superAdminAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/actions/onboarding-invites.ts#createClinicInviteAction",
+      "file": "src/app/(admin)/admin/actions/onboarding-invites.ts",
+      "line": 44,
+      "name": "createClinicInviteAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/onboarding-invites.ts:44#createClinicInviteAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/actions/platform-settings.ts#deactivateAnnouncementAction",
+      "file": "src/app/(admin)/admin/actions/platform-settings.ts",
+      "line": 143,
+      "name": "deactivateAnnouncementAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/platform-settings.ts:143#deactivateAnnouncementAction",
+        "src/lib/audit/super-admin.ts:25#superAdminAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/actions/platform-settings.ts#publishAnnouncementAction",
+      "file": "src/app/(admin)/admin/actions/platform-settings.ts",
+      "line": 96,
+      "name": "publishAnnouncementAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/platform-settings.ts:96#publishAnnouncementAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/actions/platform-settings.ts#setPlatformFlagAction",
+      "file": "src/app/(admin)/admin/actions/platform-settings.ts",
+      "line": 36,
+      "name": "setPlatformFlagAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/actions/platform-settings.ts:36#setPlatformFlagAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/clinicas/[id]/audit/export/route.ts#POST",
+      "file": "src/app/(admin)/admin/clinicas/[id]/audit/export/route.ts",
+      "line": 60,
+      "name": "POST",
+      "kind": "route",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/clinicas/[id]/audit/export/route.ts:60#POST",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(admin)/admin/feedbacks/export/route.ts#GET",
+      "file": "src/app/(admin)/admin/feedbacks/export/route.ts",
+      "line": 18,
+      "name": "GET",
+      "kind": "route",
+      "guard": "session",
+      "evidence": [
+        "src/app/(admin)/admin/feedbacks/export/route.ts:18#GET",
+        "src/lib/audit/super-admin.ts:25#superAdminAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/_painel/handoff-actions.ts#fetchOpenHandoffs",
+      "file": "src/app/(app)/(shell)/_painel/handoff-actions.ts",
+      "line": 16,
+      "name": "fetchOpenHandoffs",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/_painel/handoff-actions.ts:16#fetchOpenHandoffs",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/account/security/actions.ts#startEnrollAction",
+      "file": "src/app/(app)/(shell)/account/security/actions.ts",
+      "line": 37,
+      "name": "startEnrollAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/account/security/actions.ts:37#startEnrollAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/account/security/actions.ts#unenrollAction",
+      "file": "src/app/(app)/(shell)/account/security/actions.ts",
+      "line": 102,
+      "name": "unenrollAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/account/security/actions.ts:102#unenrollAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/account/security/actions.ts#verifyEnrollAction",
+      "file": "src/app/(app)/(shell)/account/security/actions.ts",
+      "line": 58,
+      "name": "verifyEnrollAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/account/security/actions.ts:58#verifyEnrollAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes",
+      "file": "src/app/(app)/(shell)/agenda/actions.ts",
+      "line": 185,
+      "name": "buscarPacientes",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/agenda/actions.ts:185#buscarPacientes",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/agenda/actions.ts#cancelarSerieRecorrenteAction",
+      "file": "src/app/(app)/(shell)/agenda/actions.ts",
+      "line": 233,
+      "name": "cancelarSerieRecorrenteAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/agenda/actions.ts:233#cancelarSerieRecorrenteAction",
+        "src/contexts/scheduling/actions.ts:797#cancelRecurringSeries",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/agenda/actions.ts#corrigirAtendimentoAction",
+      "file": "src/app/(app)/(shell)/agenda/actions.ts",
+      "line": 197,
+      "name": "corrigirAtendimentoAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/agenda/actions.ts:197#corrigirAtendimentoAction",
+        "src/contexts/scheduling/actions.ts:489#recoverAppointment",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/agenda/actions.ts#criarAtendimento",
+      "file": "src/app/(app)/(shell)/agenda/actions.ts",
+      "line": 122,
+      "name": "criarAtendimento",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/agenda/actions.ts:122#criarAtendimento",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/agenda/actions.ts#criarAusenciaMedicaAction",
+      "file": "src/app/(app)/(shell)/agenda/actions.ts",
+      "line": 262,
+      "name": "criarAusenciaMedicaAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/agenda/actions.ts:262#criarAusenciaMedicaAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/agenda/importar/actions.ts#importAppointmentHistoryForm",
+      "file": "src/app/(app)/(shell)/agenda/importar/actions.ts",
+      "line": 17,
+      "name": "importAppointmentHistoryForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/agenda/importar/actions.ts:17#importAppointmentHistoryForm",
+        "src/contexts/scheduling/actions.ts:286#importAppointmentHistory",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/agenda/lista-espera/actions.ts#createWaitlistFromUi",
+      "file": "src/app/(app)/(shell)/agenda/lista-espera/actions.ts",
+      "line": 34,
+      "name": "createWaitlistFromUi",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/agenda/lista-espera/actions.ts:34#createWaitlistFromUi",
+        "src/lib/auth/tenant-context.ts:396#requireClinicId",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/caixa/actions.ts#cancelLancamentoAction",
+      "file": "src/app/(app)/(shell)/caixa/actions.ts",
+      "line": 30,
+      "name": "cancelLancamentoAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/caixa/actions.ts:30#cancelLancamentoAction",
+        "src/contexts/financial/actions.ts:260#cancelLancamento",
+        "src/lib/auth/tenant-context.ts:467#requireCachedAnyPermission",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/caixa/actions.ts#confirmPaymentAction",
+      "file": "src/app/(app)/(shell)/caixa/actions.ts",
+      "line": 19,
+      "name": "confirmPaymentAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/caixa/actions.ts:19#confirmPaymentAction",
+        "src/contexts/financial/actions.ts:154#confirmPayment",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/caixa/actions.ts#createEstornoAction",
+      "file": "src/app/(app)/(shell)/caixa/actions.ts",
+      "line": 41,
+      "name": "createEstornoAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/caixa/actions.ts:41#createEstornoAction",
+        "src/contexts/financial/actions.ts:320#createEstorno",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts#reactivateSubscriptionAction",
+      "file": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts",
+      "line": 225,
+      "name": "reactivateSubscriptionAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:225#reactivateSubscriptionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts#requestPlanChangeAction",
+      "file": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts",
+      "line": 45,
+      "name": "requestPlanChangeAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:45#requestPlanChangeAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts#requestSubscriptionCancellationAction",
+      "file": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts",
+      "line": 123,
+      "name": "requestSubscriptionCancellationAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:123#requestSubscriptionCancellationAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts#revokeSubscriptionCancellationAction",
+      "file": "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts",
+      "line": 174,
+      "name": "revokeSubscriptionCancellationAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/assinatura/actions.ts:174#revokeSubscriptionCancellationAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/auditoria/actions.ts#auditExportLimits",
+      "file": "src/app/(app)/(shell)/configuracoes/auditoria/actions.ts",
+      "line": 74,
+      "name": "auditExportLimits",
+      "kind": "action",
+      "guard": "REVIEW_REQUIRED",
+      "evidence": []
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/auditoria/actions.ts#exportAuditAction",
+      "file": "src/app/(app)/(shell)/configuracoes/auditoria/actions.ts",
+      "line": 26,
+      "name": "exportAuditAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/auditoria/actions.ts:26#exportAuditAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#assignLgpdRequestForm",
+      "file": "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts",
+      "line": 26,
+      "name": "assignLgpdRequestForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts:26#assignLgpdRequestForm",
+        "src/contexts/patient/actions.ts:1479#assignLgpdRequest",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#notifyLgpdRequesterForm",
+      "file": "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts",
+      "line": 35,
+      "name": "notifyLgpdRequesterForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts:35#notifyLgpdRequesterForm",
+        "src/contexts/patient/actions.ts:1517#markLgpdRequesterNotified",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#processLgpdRequestForm",
+      "file": "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts",
+      "line": 17,
+      "name": "processLgpdRequestForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts:17#processLgpdRequestForm",
+        "src/contexts/patient/actions.ts:1416#processLgpdRequest",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts#connectPaymentAccountAction",
+      "file": "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts",
+      "line": 25,
+      "name": "connectPaymentAccountAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts:25#connectPaymentAccountAction",
+        "src/contexts/payments/actions.ts:307#connectPaymentAccount",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts#disconnectPaymentAccountAction",
+      "file": "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts",
+      "line": 35,
+      "name": "disconnectPaymentAccountAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts:35#disconnectPaymentAccountAction",
+        "src/contexts/payments/actions.ts:357#disconnectPaymentAccount",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts#saveDepositPolicyAction",
+      "file": "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts",
+      "line": 45,
+      "name": "saveDepositPolicyAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/pagamentos/actions.ts:45#saveDepositPolicyAction",
+        "src/contexts/payments/actions.ts:386#saveDepositPolicy",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/perfil/actions.ts#updateProfessionalCredentialAction",
+      "file": "src/app/(app)/(shell)/configuracoes/perfil/actions.ts",
+      "line": 28,
+      "name": "updateProfessionalCredentialAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/perfil/actions.ts:28#updateProfessionalCredentialAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/sugestoes/actions.ts#submitFeedbackAction",
+      "file": "src/app/(app)/(shell)/configuracoes/sugestoes/actions.ts",
+      "line": 33,
+      "name": "submitFeedbackAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/sugestoes/actions.ts:33#submitFeedbackAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/whatsapp/actions.ts#connectWhatsappAction",
+      "file": "src/app/(app)/(shell)/configuracoes/whatsapp/actions.ts",
+      "line": 19,
+      "name": "connectWhatsappAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/whatsapp/actions.ts:19#connectWhatsappAction",
+        "src/contexts/messaging/actions.ts:220#connectMyClinicWhatsapp",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/configuracoes/whatsapp/actions.ts#disconnectWhatsappAction",
+      "file": "src/app/(app)/(shell)/configuracoes/whatsapp/actions.ts",
+      "line": 30,
+      "name": "disconnectWhatsappAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/configuracoes/whatsapp/actions.ts:30#disconnectWhatsappAction",
+        "src/contexts/messaging/actions.ts:346#disconnectMyClinicWhatsapp",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#callNextPatient",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 236,
+      "name": "callNextPatient",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:236#callNextPatient",
+        "src/contexts/clinical/actions.ts:89#createProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#checkInPatient",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 257,
+      "name": "checkInPatient",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:257#checkInPatient",
+        "src/contexts/scheduling/actions.ts:131#checkInAppointment",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#completeConsulta",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 281,
+      "name": "completeConsulta",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:281#completeConsulta",
+        "src/contexts/scheduling/actions.ts:141#completeAppointment",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#emitDocument",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 320,
+      "name": "emitDocument",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:320#emitDocument",
+        "src/contexts/clinical/actions.ts:496#createMedicalDocument",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#emitPrescription",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 308,
+      "name": "emitPrescription",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:308#emitPrescription",
+        "src/contexts/clinical/actions.ts:399#createPrescription",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#getBoard",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 74,
+      "name": "getBoard",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:74#getBoard",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#loadAtendimento",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 182,
+      "name": "loadAtendimento",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:182#loadAtendimento",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#markAbsent",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 269,
+      "name": "markAbsent",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:269#markAbsent",
+        "src/contexts/scheduling/actions.ts:152#markNoShow",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/consultorio/actions.ts#signConsulta",
+      "file": "src/app/(app)/(shell)/consultorio/actions.ts",
+      "line": 295,
+      "name": "signConsulta",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/consultorio/actions.ts:295#signConsulta",
+        "src/contexts/clinical/actions.ts:221#signProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/conversas/actions.ts#assumirConversaAction",
+      "file": "src/app/(app)/(shell)/conversas/actions.ts",
+      "line": 71,
+      "name": "assumirConversaAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/conversas/actions.ts:71#assumirConversaAction",
+        "src/contexts/ai-agent/actions.ts:124#assumirConversa",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/conversas/actions.ts#definirPrioridadeAction",
+      "file": "src/app/(app)/(shell)/conversas/actions.ts",
+      "line": 55,
+      "name": "definirPrioridadeAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/conversas/actions.ts:55#definirPrioridadeAction",
+        "src/contexts/ai-agent/actions.ts:215#definirPrioridadeHandoff",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/conversas/actions.ts#devolverAoAgenteAction",
+      "file": "src/app/(app)/(shell)/conversas/actions.ts",
+      "line": 85,
+      "name": "devolverAoAgenteAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/conversas/actions.ts:85#devolverAoAgenteAction",
+        "src/contexts/ai-agent/actions.ts:177#devolverAoAgente",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/conversas/actions.ts#reenviarMensagemAction",
+      "file": "src/app/(app)/(shell)/conversas/actions.ts",
+      "line": 116,
+      "name": "reenviarMensagemAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/conversas/actions.ts:116#reenviarMensagemAction",
+        "src/contexts/ai-agent/actions.ts:386#reenviarMensagemManual",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/conversas/actions.ts#responderAction",
+      "file": "src/app/(app)/(shell)/conversas/actions.ts",
+      "line": 99,
+      "name": "responderAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/conversas/actions.ts:99#responderAction",
+        "src/contexts/ai-agent/actions.ts:274#responderManualmente",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/documentos/actions.ts#buscarPacientesParaDocumento",
+      "file": "src/app/(app)/(shell)/documentos/actions.ts",
+      "line": 13,
+      "name": "buscarPacientesParaDocumento",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/documentos/actions.ts:13#buscarPacientesParaDocumento",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/equipe/actions.ts#cancelInviteAction",
+      "file": "src/app/(app)/(shell)/equipe/actions.ts",
+      "line": 173,
+      "name": "cancelInviteAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/equipe/actions.ts:173#cancelInviteAction",
+        "src/lib/auth/action-guard.ts:77#authorizeAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/equipe/actions.ts#inviteMemberAction",
+      "file": "src/app/(app)/(shell)/equipe/actions.ts",
+      "line": 67,
+      "name": "inviteMemberAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/equipe/actions.ts:67#inviteMemberAction",
+        "src/lib/auth/action-guard.ts:77#authorizeAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/equipe/actions.ts#resendInviteAction",
+      "file": "src/app/(app)/(shell)/equipe/actions.ts",
+      "line": 139,
+      "name": "resendInviteAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/equipe/actions.ts:139#resendInviteAction",
+        "src/lib/auth/action-guard.ts:77#authorizeAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/equipe/actions.ts#setMemberActiveAction",
+      "file": "src/app/(app)/(shell)/equipe/actions.ts",
+      "line": 225,
+      "name": "setMemberActiveAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/equipe/actions.ts:225#setMemberActiveAction",
+        "src/lib/auth/action-guard.ts:77#authorizeAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/equipe/actions.ts#setMemberOverrideAction",
+      "file": "src/app/(app)/(shell)/equipe/actions.ts",
+      "line": 321,
+      "name": "setMemberOverrideAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/equipe/actions.ts:321#setMemberOverrideAction",
+        "src/lib/auth/action-guard.ts:77#authorizeAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/equipe/actions.ts#setMemberRoleAction",
+      "file": "src/app/(app)/(shell)/equipe/actions.ts",
+      "line": 280,
+      "name": "setMemberRoleAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/equipe/actions.ts:280#setMemberRoleAction",
+        "src/lib/auth/action-guard.ts:77#authorizeAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts#createSupplierAction",
+      "file": "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts",
+      "line": 8,
+      "name": "createSupplierAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts:8#createSupplierAction",
+        "src/contexts/financial/actions.ts:520#createSupplier",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts#setSupplierAtivoAction",
+      "file": "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts",
+      "line": 31,
+      "name": "setSupplierAtivoAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts:31#setSupplierAtivoAction",
+        "src/contexts/financial/actions.ts:629#setSupplierAtivo",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts#updateSupplierAction",
+      "file": "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts",
+      "line": 19,
+      "name": "updateSupplierAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/financeiro/fornecedores/actions.ts:19#updateSupplierAction",
+        "src/contexts/financial/actions.ts:563#updateSupplier",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/financeiro/lancamento-actions.ts#createLancamentoFormAction",
+      "file": "src/app/(app)/(shell)/financeiro/lancamento-actions.ts",
+      "line": 35,
+      "name": "createLancamentoFormAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/financeiro/lancamento-actions.ts:35#createLancamentoFormAction",
+        "src/contexts/financial/actions.ts:84#createLancamento",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts#autosaveProntuario",
+      "file": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts",
+      "line": 67,
+      "name": "autosaveProntuario",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts:67#autosaveProntuario",
+        "src/contexts/clinical/actions.ts:176#updateProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts#createMedicalDocumentForm",
+      "file": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts",
+      "line": 143,
+      "name": "createMedicalDocumentForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts:143#createMedicalDocumentForm",
+        "src/contexts/clinical/actions.ts:496#createMedicalDocument",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts#createPrescriptionForm",
+      "file": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts",
+      "line": 115,
+      "name": "createPrescriptionForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts:115#createPrescriptionForm",
+        "src/contexts/clinical/actions.ts:399#createPrescription",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts#createProntuarioForm",
+      "file": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts",
+      "line": 51,
+      "name": "createProntuarioForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts:51#createProntuarioForm",
+        "src/contexts/clinical/actions.ts:89#createProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts#signProntuarioForm",
+      "file": "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts",
+      "line": 91,
+      "name": "signProntuarioForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions.ts:91#signProntuarioForm",
+        "src/contexts/clinical/actions.ts:221#signProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#buscarPacientesRelacionamento",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 216,
+      "name": "buscarPacientesRelacionamento",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:216#buscarPacientesRelacionamento",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#createPatientForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 82,
+      "name": "createPatientForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:82#createPatientForm",
+        "src/contexts/patient/actions.ts:195#createPatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#deletePatientForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 144,
+      "name": "deletePatientForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:144#deletePatientForm",
+        "src/contexts/patient/actions.ts:380#deletePatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#grantConsentForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 296,
+      "name": "grantConsentForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:296#grantConsentForm",
+        "src/contexts/patient/actions.ts:1074#recordConsent",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#linkPatientRelationshipForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 159,
+      "name": "linkPatientRelationshipForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:159#linkPatientRelationshipForm",
+        "src/contexts/patient/actions.ts:557#linkPatientRelationship",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#mergePatientsForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 197,
+      "name": "mergePatientsForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:197#mergePatientsForm",
+        "src/contexts/patient/actions.ts:726#mergePatients",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#recordPatientDeathForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 232,
+      "name": "recordPatientDeathForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:232#recordPatientDeathForm",
+        "src/contexts/patient/actions.ts:1001#recordPatientDeath",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#requestLgpdDeleteForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 271,
+      "name": "requestLgpdDeleteForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:271#requestLgpdDeleteForm",
+        "src/contexts/patient/actions.ts:1346#requestLgpdDelete",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#requestLgpdExportForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 251,
+      "name": "requestLgpdExportForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:251#requestLgpdExportForm",
+        "src/contexts/patient/actions.ts:1299#requestLgpdExport",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#restaurarPacienteAction",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 354,
+      "name": "restaurarPacienteAction",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:354#restaurarPacienteAction",
+        "src/contexts/patient/actions.ts:445#restorePatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#revokeConsentForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 329,
+      "name": "revokeConsentForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:329#revokeConsentForm",
+        "src/contexts/patient/actions.ts:1176#revokeConsent",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#unlinkPatientRelationshipForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 181,
+      "name": "unlinkPatientRelationshipForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:181#unlinkPatientRelationshipForm",
+        "src/contexts/patient/actions.ts:630#unlinkPatientRelationship",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/pacientes/actions.ts#updatePatientForm",
+      "file": "src/app/(app)/(shell)/pacientes/actions.ts",
+      "line": 117,
+      "name": "updatePatientForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/pacientes/actions.ts:117#updatePatientForm",
+        "src/contexts/patient/actions.ts:211#updatePatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/relatorios/contabilidade.csv/route.ts#GET",
+      "file": "src/app/(app)/(shell)/relatorios/contabilidade.csv/route.ts",
+      "line": 33,
+      "name": "GET",
+      "kind": "route",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/relatorios/contabilidade.csv/route.ts:33#GET",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/(shell)/relatorios/pdf/route.ts#GET",
+      "file": "src/app/(app)/(shell)/relatorios/pdf/route.ts",
+      "line": 19,
+      "name": "GET",
+      "kind": "route",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/(shell)/relatorios/pdf/route.ts:19#GET",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/auth/confirm/route.ts#GET",
+      "file": "src/app/(app)/auth/confirm/route.ts",
+      "line": 42,
+      "name": "GET",
+      "kind": "route",
+      "guard": "supabase-otp",
+      "evidence": [
+        "src/app/(app)/auth/confirm/route.ts:61#supabase.auth.verifyOtp"
+      ]
+    },
+    {
+      "id": "src/app/(app)/convite/actions.ts#acceptInviteAction",
+      "file": "src/app/(app)/convite/actions.ts",
+      "line": 48,
+      "name": "acceptInviteAction",
+      "kind": "action",
+      "guard": "supabase-invite-session",
+      "evidence": [
+        "src/app/(app)/convite/actions.ts:63#supabase.auth.getUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/documentos/[id]/pdf/actions.ts#regenerateDocumentPdfForm",
+      "file": "src/app/(app)/documentos/[id]/pdf/actions.ts",
+      "line": 9,
+      "name": "regenerateDocumentPdfForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/documentos/[id]/pdf/actions.ts:9#regenerateDocumentPdfForm",
+        "src/contexts/clinical/actions.ts:553#regenerateDocumentPdf",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/documentos/[id]/pdf/arquivo/route.ts#GET",
+      "file": "src/app/(app)/documentos/[id]/pdf/arquivo/route.ts",
+      "line": 6,
+      "name": "GET",
+      "kind": "route",
+      "guard": "REVIEW_REQUIRED",
+      "evidence": []
+    },
+    {
+      "id": "src/app/(app)/join/[token]/actions.ts#saveStepAction",
+      "file": "src/app/(app)/join/[token]/actions.ts",
+      "line": 57,
+      "name": "saveStepAction",
+      "kind": "action",
+      "guard": "invite-token",
+      "evidence": [
+        "src/app/(app)/join/[token]/actions.ts:57#saveStepAction",
+        "src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite"
+      ]
+    },
+    {
+      "id": "src/app/(app)/join/[token]/actions.ts#submitCheckoutAction",
+      "file": "src/app/(app)/join/[token]/actions.ts",
+      "line": 132,
+      "name": "submitCheckoutAction",
+      "kind": "action",
+      "guard": "invite-token",
+      "evidence": [
+        "src/app/(app)/join/[token]/actions.ts:132#submitCheckoutAction",
+        "src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite"
+      ]
+    },
+    {
+      "id": "src/app/(app)/join/bootstrap.ts#bootstrapJoinAction",
+      "file": "src/app/(app)/join/bootstrap.ts",
+      "line": 33,
+      "name": "bootstrapJoinAction",
+      "kind": "action",
+      "guard": "invite-token",
+      "evidence": [
+        "src/app/(app)/join/bootstrap.ts:33#bootstrapJoinAction",
+        "src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite"
+      ]
+    },
+    {
+      "id": "src/app/(app)/login/actions.ts#forgotPasswordAction",
+      "file": "src/app/(app)/login/actions.ts",
+      "line": 42,
+      "name": "forgotPasswordAction",
+      "kind": "action",
+      "guard": "public-recovery-request",
+      "evidence": [
+        "src/app/(app)/login/actions.ts:52#assertPasswordResetAllowed"
+      ]
+    },
+    {
+      "id": "src/app/(app)/login/actions.ts#loginAction",
+      "file": "src/app/(app)/login/actions.ts",
+      "line": 75,
+      "name": "loginAction",
+      "kind": "action",
+      "guard": "public-login",
+      "evidence": [
+        "src/app/(app)/login/actions.ts:103#supabase.auth.signInWithPassword"
+      ]
+    },
+    {
+      "id": "src/app/(app)/login/mfa/actions.ts#switchAccountAction",
+      "file": "src/app/(app)/login/mfa/actions.ts",
+      "line": 23,
+      "name": "switchAccountAction",
+      "kind": "action",
+      "guard": "public-local-session-clear",
+      "evidence": [
+        "src/app/(app)/login/mfa/actions.ts:26#supabase.auth.signOut"
+      ]
+    },
+    {
+      "id": "src/app/(app)/login/mfa/actions.ts#verifyMfaAction",
+      "file": "src/app/(app)/login/mfa/actions.ts",
+      "line": 37,
+      "name": "verifyMfaAction",
+      "kind": "action",
+      "guard": "supabase-session-and-mfa",
+      "evidence": [
+        "src/app/(app)/login/mfa/actions.ts:49#supabase.auth.getUser",
+        "src/app/(app)/login/mfa/actions.ts:81#supabase.auth.getUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/logout/route.ts#POST",
+      "file": "src/app/(app)/logout/route.ts",
+      "line": 33,
+      "name": "POST",
+      "kind": "route",
+      "guard": "optional-session-logout",
+      "evidence": [
+        "src/app/(app)/logout/route.ts:37#getCurrentUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/prescricoes/[id]/pdf/actions.ts#regeneratePrescriptionPdfForm",
+      "file": "src/app/(app)/prescricoes/[id]/pdf/actions.ts",
+      "line": 9,
+      "name": "regeneratePrescriptionPdfForm",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/app/(app)/prescricoes/[id]/pdf/actions.ts:9#regeneratePrescriptionPdfForm",
+        "src/contexts/clinical/actions.ts:483#regeneratePrescriptionPdf",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts#GET",
+      "file": "src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts",
+      "line": 6,
+      "name": "GET",
+      "kind": "route",
+      "guard": "REVIEW_REQUIRED",
+      "evidence": []
+    },
+    {
+      "id": "src/app/(app)/reset-password/actions.ts#resetPasswordAction",
+      "file": "src/app/(app)/reset-password/actions.ts",
+      "line": 27,
+      "name": "resetPasswordAction",
+      "kind": "action",
+      "guard": "supabase-session-and-recovery-grant",
+      "evidence": [
+        "src/app/(app)/reset-password/actions.ts:53#readRecoveryGrant"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/audit-partitions/route.ts#GET",
+      "file": "src/app/api/cron/audit-partitions/route.ts",
+      "line": 48,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/audit-partitions/route.ts:48#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/billing-dunning/route.ts#GET",
+      "file": "src/app/api/cron/billing-dunning/route.ts",
+      "line": 27,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/billing-dunning/route.ts:27#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/billing-reconcile/route.ts#GET",
+      "file": "src/app/api/cron/billing-reconcile/route.ts",
+      "line": 58,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/billing-reconcile/route.ts:58#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/cash-flow-rollup/route.ts#GET",
+      "file": "src/app/api/cron/cash-flow-rollup/route.ts",
+      "line": 29,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/cash-flow-rollup/route.ts:29#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/data-retention/route.ts#GET",
+      "file": "src/app/api/cron/data-retention/route.ts",
+      "line": 44,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/data-retention/route.ts:44#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/financial-reconcile/route.ts#GET",
+      "file": "src/app/api/cron/financial-reconcile/route.ts",
+      "line": 41,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/financial-reconcile/route.ts:41#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/invites-cleanup/route.ts#GET",
+      "file": "src/app/api/cron/invites-cleanup/route.ts",
+      "line": 31,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/invites-cleanup/route.ts:31#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/metrics-rollup/route.ts#GET",
+      "file": "src/app/api/cron/metrics-rollup/route.ts",
+      "line": 108,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/metrics-rollup/route.ts:108#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/outbox/route.ts#GET",
+      "file": "src/app/api/cron/outbox/route.ts",
+      "line": 31,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/outbox/route.ts:31#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/patient-hard-delete/route.ts#GET",
+      "file": "src/app/api/cron/patient-hard-delete/route.ts",
+      "line": 50,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/patient-hard-delete/route.ts:50#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/payments-deposit/route.ts#GET",
+      "file": "src/app/api/cron/payments-deposit/route.ts",
+      "line": 50,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/payments-deposit/route.ts:50#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/proactive-deposit-link/route.ts#GET",
+      "file": "src/app/api/cron/proactive-deposit-link/route.ts",
+      "line": 33,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/proactive-deposit-link/route.ts:33#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/proactive-dunning/route.ts#GET",
+      "file": "src/app/api/cron/proactive-dunning/route.ts",
+      "line": 20,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/proactive-dunning/route.ts:20#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/proactive-followup/route.ts#GET",
+      "file": "src/app/api/cron/proactive-followup/route.ts",
+      "line": 18,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/proactive-followup/route.ts:18#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/proactive-remainder-link/route.ts#GET",
+      "file": "src/app/api/cron/proactive-remainder-link/route.ts",
+      "line": 18,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/proactive-remainder-link/route.ts:18#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/proactive-reminders/route.ts#GET",
+      "file": "src/app/api/cron/proactive-reminders/route.ts",
+      "line": 20,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/proactive-reminders/route.ts:20#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/proactive-waitlist/route.ts#GET",
+      "file": "src/app/api/cron/proactive-waitlist/route.ts",
+      "line": 33,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/proactive-waitlist/route.ts:33#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/cron/whatsapp-health/route.ts#GET",
+      "file": "src/app/api/cron/whatsapp-health/route.ts",
+      "line": 25,
+      "name": "GET",
+      "kind": "route",
+      "guard": "cron-token",
+      "evidence": [
+        "src/app/api/cron/whatsapp-health/route.ts:25#GET",
+        "src/lib/http/cron.ts:45#withCron",
+        "src/lib/http/cron-auth.ts:43#assertCronAuth"
+      ]
+    },
+    {
+      "id": "src/app/api/health/auth-hook/route.ts#GET",
+      "file": "src/app/api/health/auth-hook/route.ts",
+      "line": 39,
+      "name": "GET",
+      "kind": "route",
+      "guard": "health-token-or-admin",
+      "evidence": [
+        "src/app/api/health/auth-hook/route.ts:39#GET",
+        "src/lib/http/health-auth.ts:22#healthAuthLevel"
+      ]
+    },
+    {
+      "id": "src/app/api/health/outbox/route.ts#GET",
+      "file": "src/app/api/health/outbox/route.ts",
+      "line": 84,
+      "name": "GET",
+      "kind": "route",
+      "guard": "health-token-or-admin",
+      "evidence": [
+        "src/app/api/health/outbox/route.ts:84#GET",
+        "src/lib/http/health-auth.ts:22#healthAuthLevel"
+      ]
+    },
+    {
+      "id": "src/app/api/health/route.ts#GET",
+      "file": "src/app/api/health/route.ts",
+      "line": 62,
+      "name": "GET",
+      "kind": "route",
+      "guard": "health-token-or-admin",
+      "evidence": [
+        "src/app/api/health/route.ts:62#GET",
+        "src/lib/http/health-auth.ts:22#healthAuthLevel"
+      ]
+    },
+    {
+      "id": "src/app/api/webhooks/asaas/patient/[ref]/route.ts#POST",
+      "file": "src/app/api/webhooks/asaas/patient/[ref]/route.ts",
+      "line": 68,
+      "name": "POST",
+      "kind": "route",
+      "guard": "asaas-tenant-token",
+      "evidence": [
+        "src/app/api/webhooks/asaas/patient/[ref]/route.ts:108#safeEqual"
+      ]
+    },
+    {
+      "id": "src/app/api/webhooks/asaas/route.ts#POST",
+      "file": "src/app/api/webhooks/asaas/route.ts",
+      "line": 90,
+      "name": "POST",
+      "kind": "route",
+      "guard": "asaas-shared-token",
+      "evidence": [
+        "src/app/api/webhooks/asaas/route.ts:110#asaasProvider.validateWebhookToken"
+      ]
+    },
+    {
+      "id": "src/app/api/webhooks/meta/route.ts#GET",
+      "file": "src/app/api/webhooks/meta/route.ts",
+      "line": 61,
+      "name": "GET",
+      "kind": "route",
+      "guard": "meta-handshake-token",
+      "evidence": [
+        "src/app/api/webhooks/meta/route.ts:74#safeEqual"
+      ]
+    },
+    {
+      "id": "src/app/api/webhooks/meta/route.ts#POST",
+      "file": "src/app/api/webhooks/meta/route.ts",
+      "line": 112,
+      "name": "POST",
+      "kind": "route",
+      "guard": "meta-hmac",
+      "evidence": [
+        "src/app/api/webhooks/meta/route.ts:136#provider.validateSignature"
+      ]
+    },
+    {
+      "id": "src/contexts/ai-agent/actions.ts#assumirConversa",
+      "file": "src/contexts/ai-agent/actions.ts",
+      "line": 124,
+      "name": "assumirConversa",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/ai-agent/actions.ts:124#assumirConversa",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/ai-agent/actions.ts#definirPrioridadeHandoff",
+      "file": "src/contexts/ai-agent/actions.ts",
+      "line": 215,
+      "name": "definirPrioridadeHandoff",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/ai-agent/actions.ts:215#definirPrioridadeHandoff",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/ai-agent/actions.ts#devolverAoAgente",
+      "file": "src/contexts/ai-agent/actions.ts",
+      "line": 177,
+      "name": "devolverAoAgente",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/ai-agent/actions.ts:177#devolverAoAgente",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/ai-agent/actions.ts#reenviarMensagemManual",
+      "file": "src/contexts/ai-agent/actions.ts",
+      "line": 386,
+      "name": "reenviarMensagemManual",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/ai-agent/actions.ts:386#reenviarMensagemManual",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/ai-agent/actions.ts#responderManualmente",
+      "file": "src/contexts/ai-agent/actions.ts",
+      "line": 274,
+      "name": "responderManualmente",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/ai-agent/actions.ts:274#responderManualmente",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/ai-agent/config-actions.ts#getAgentConfig",
+      "file": "src/contexts/ai-agent/config-actions.ts",
+      "line": 40,
+      "name": "getAgentConfig",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/ai-agent/config-actions.ts:40#getAgentConfig",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/ai-agent/config-actions.ts#updateAgentConfig",
+      "file": "src/contexts/ai-agent/config-actions.ts",
+      "line": 67,
+      "name": "updateAgentConfig",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/ai-agent/config-actions.ts:67#updateAgentConfig",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions-templates.ts#createPrescriptionTemplate",
+      "file": "src/contexts/clinical/actions-templates.ts",
+      "line": 68,
+      "name": "createPrescriptionTemplate",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions-templates.ts:68#createPrescriptionTemplate",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions-templates.ts#deletePrescriptionTemplate",
+      "file": "src/contexts/clinical/actions-templates.ts",
+      "line": 181,
+      "name": "deletePrescriptionTemplate",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions-templates.ts:181#deletePrescriptionTemplate",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions-templates.ts#duplicatePrescriptionTemplate",
+      "file": "src/contexts/clinical/actions-templates.ts",
+      "line": 225,
+      "name": "duplicatePrescriptionTemplate",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions-templates.ts:225#duplicatePrescriptionTemplate",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions-templates.ts#listMyPrescriptionTemplates",
+      "file": "src/contexts/clinical/actions-templates.ts",
+      "line": 59,
+      "name": "listMyPrescriptionTemplates",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions-templates.ts:59#listMyPrescriptionTemplates",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions-templates.ts#updatePrescriptionTemplate",
+      "file": "src/contexts/clinical/actions-templates.ts",
+      "line": 120,
+      "name": "updatePrescriptionTemplate",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions-templates.ts:120#updatePrescriptionTemplate",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#createMedicalDocument",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 496,
+      "name": "createMedicalDocument",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:496#createMedicalDocument",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#createPrescription",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 399,
+      "name": "createPrescription",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:399#createPrescription",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#createProntuario",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 89,
+      "name": "createProntuario",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:89#createProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#editSignedProntuario",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 322,
+      "name": "editSignedProntuario",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:322#editSignedProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#regenerateDocumentPdf",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 553,
+      "name": "regenerateDocumentPdf",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:553#regenerateDocumentPdf",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#regeneratePrescriptionPdf",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 483,
+      "name": "regeneratePrescriptionPdf",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:483#regeneratePrescriptionPdf",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#signProntuario",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 221,
+      "name": "signProntuario",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:221#signProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/clinical/actions.ts#updateProntuario",
+      "file": "src/contexts/clinical/actions.ts",
+      "line": 176,
+      "name": "updateProntuario",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/clinical/actions.ts:176#updateProntuario",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#cancelLancamento",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 260,
+      "name": "cancelLancamento",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:260#cancelLancamento",
+        "src/lib/auth/tenant-context.ts:467#requireCachedAnyPermission",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#confirmPayment",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 154,
+      "name": "confirmPayment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:154#confirmPayment",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#createEstorno",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 320,
+      "name": "createEstorno",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:320#createEstorno",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#createLancamento",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 84,
+      "name": "createLancamento",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:84#createLancamento",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#createSupplier",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 520,
+      "name": "createSupplier",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:520#createSupplier",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#listCashFlow",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 509,
+      "name": "listCashFlow",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:509#listCashFlow",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#setSupplierAtivo",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 629,
+      "name": "setSupplierAtivo",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:629#setSupplierAtivo",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/financial/actions.ts#updateSupplier",
+      "file": "src/contexts/financial/actions.ts",
+      "line": 563,
+      "name": "updateSupplier",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/financial/actions.ts:563#updateSupplier",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/messaging/actions.ts#connectMyClinicWhatsapp",
+      "file": "src/contexts/messaging/actions.ts",
+      "line": 220,
+      "name": "connectMyClinicWhatsapp",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/messaging/actions.ts:220#connectMyClinicWhatsapp",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/messaging/actions.ts#connectWhatsappNumber",
+      "file": "src/contexts/messaging/actions.ts",
+      "line": 76,
+      "name": "connectWhatsappNumber",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/messaging/actions.ts:76#connectWhatsappNumber",
+        "src/lib/auth/tenant-context.ts:596#requireSuperAdmin",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/messaging/actions.ts#disconnectMyClinicWhatsapp",
+      "file": "src/contexts/messaging/actions.ts",
+      "line": 346,
+      "name": "disconnectMyClinicWhatsapp",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/messaging/actions.ts:346#disconnectMyClinicWhatsapp",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/messaging/actions.ts#disconnectWhatsappNumber",
+      "file": "src/contexts/messaging/actions.ts",
+      "line": 122,
+      "name": "disconnectWhatsappNumber",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/messaging/actions.ts:122#disconnectWhatsappNumber",
+        "src/lib/auth/tenant-context.ts:596#requireSuperAdmin",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/messaging/actions.ts#rotateWhatsappToken",
+      "file": "src/contexts/messaging/actions.ts",
+      "line": 149,
+      "name": "rotateWhatsappToken",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/messaging/actions.ts:149#rotateWhatsappToken",
+        "src/lib/auth/tenant-context.ts:596#requireSuperAdmin",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#addToSuppressionList",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1247,
+      "name": "addToSuppressionList",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1247#addToSuppressionList",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#assignLgpdRequest",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1479,
+      "name": "assignLgpdRequest",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1479#assignLgpdRequest",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#createPatient",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 195,
+      "name": "createPatient",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:195#createPatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#deletePatient",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 380,
+      "name": "deletePatient",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:380#deletePatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#linkPatientRelationship",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 557,
+      "name": "linkPatientRelationship",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:557#linkPatientRelationship",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#markLgpdRequesterNotified",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1517,
+      "name": "markLgpdRequesterNotified",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1517#markLgpdRequesterNotified",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#mergePatients",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 726,
+      "name": "mergePatients",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:726#mergePatients",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#processLgpdRequest",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1416,
+      "name": "processLgpdRequest",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1416#processLgpdRequest",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#recordConsent",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1074,
+      "name": "recordConsent",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1074#recordConsent",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#recordPatientDeath",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1001,
+      "name": "recordPatientDeath",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1001#recordPatientDeath",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#requestLgpdDelete",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1346,
+      "name": "requestLgpdDelete",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1346#requestLgpdDelete",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#requestLgpdExport",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1299,
+      "name": "requestLgpdExport",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1299#requestLgpdExport",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#restorePatient",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 445,
+      "name": "restorePatient",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:445#restorePatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#revokeConsent",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 1176,
+      "name": "revokeConsent",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:1176#revokeConsent",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#unlinkPatientRelationship",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 630,
+      "name": "unlinkPatientRelationship",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:630#unlinkPatientRelationship",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/patient/actions.ts#updatePatient",
+      "file": "src/contexts/patient/actions.ts",
+      "line": 211,
+      "name": "updatePatient",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/patient/actions.ts:211#updatePatient",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/payments/actions.ts#connectPaymentAccount",
+      "file": "src/contexts/payments/actions.ts",
+      "line": 307,
+      "name": "connectPaymentAccount",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/payments/actions.ts:307#connectPaymentAccount",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/payments/actions.ts#disconnectPaymentAccount",
+      "file": "src/contexts/payments/actions.ts",
+      "line": 357,
+      "name": "disconnectPaymentAccount",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/payments/actions.ts:357#disconnectPaymentAccount",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/payments/actions.ts#saveDepositPolicy",
+      "file": "src/contexts/payments/actions.ts",
+      "line": 386,
+      "name": "saveDepositPolicy",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/payments/actions.ts:386#saveDepositPolicy",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#acceptWaitlistOffer",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 1092,
+      "name": "acceptWaitlistOffer",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:1092#acceptWaitlistOffer",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#cancelAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 146,
+      "name": "cancelAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:146#cancelAppointment",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#cancelRecurringSeries",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 797,
+      "name": "cancelRecurringSeries",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:797#cancelRecurringSeries",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#cancelWaitlistEntry",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 971,
+      "name": "cancelWaitlistEntry",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:971#cancelWaitlistEntry",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#checkInAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 131,
+      "name": "checkInAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:131#checkInAppointment",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#completeAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 141,
+      "name": "completeAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:141#completeAppointment",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#confirmAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 126,
+      "name": "confirmAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:126#confirmAppointment",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#createAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 156,
+      "name": "createAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:156#createAppointment",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#createDoctorAbsence",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 617,
+      "name": "createDoctorAbsence",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:617#createDoctorAbsence",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#createRecurringAppointments",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 173,
+      "name": "createRecurringAppointments",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:173#createRecurringAppointments",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#createWaitlistEntry",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 908,
+      "name": "createWaitlistEntry",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:908#createWaitlistEntry",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#createWalkInAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 389,
+      "name": "createWalkInAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:389#createWalkInAppointment",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#declineWaitlistOffer",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 1195,
+      "name": "declineWaitlistOffer",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:1195#declineWaitlistOffer",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#importAppointmentHistory",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 286,
+      "name": "importAppointmentHistory",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:286#importAppointmentHistory",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#markNoShow",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 152,
+      "name": "markNoShow",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:152#markNoShow",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#markWaitlistEntryBooked",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 1020,
+      "name": "markWaitlistEntryBooked",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:1020#markWaitlistEntryBooked",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#recoverAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 489,
+      "name": "recoverAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:489#recoverAppointment",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#rescheduleAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 475,
+      "name": "rescheduleAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:475#rescheduleAppointment",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/actions.ts#startAppointment",
+      "file": "src/contexts/scheduling/actions.ts",
+      "line": 136,
+      "name": "startAppointment",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/actions.ts:136#startAppointment",
+        "src/contexts/scheduling/actions.ts:92#transitionAction",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/catalog-actions.ts#createProcedure",
+      "file": "src/contexts/scheduling/catalog-actions.ts",
+      "line": 32,
+      "name": "createProcedure",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/catalog-actions.ts:32#createProcedure",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/catalog-actions.ts#deactivateProcedure",
+      "file": "src/contexts/scheduling/catalog-actions.ts",
+      "line": 190,
+      "name": "deactivateProcedure",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/catalog-actions.ts:190#deactivateProcedure",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/catalog-actions.ts#updateProcedure",
+      "file": "src/contexts/scheduling/catalog-actions.ts",
+      "line": 82,
+      "name": "updateProcedure",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/catalog-actions.ts:82#updateProcedure",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/config-actions.ts#createHoliday",
+      "file": "src/contexts/scheduling/config-actions.ts",
+      "line": 369,
+      "name": "createHoliday",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/config-actions.ts:369#createHoliday",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/config-actions.ts#createSchedulableResource",
+      "file": "src/contexts/scheduling/config-actions.ts",
+      "line": 76,
+      "name": "createSchedulableResource",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/config-actions.ts:76#createSchedulableResource",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/config-actions.ts#removeDoctorAvailability",
+      "file": "src/contexts/scheduling/config-actions.ts",
+      "line": 329,
+      "name": "removeDoctorAvailability",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/config-actions.ts:329#removeDoctorAvailability",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/config-actions.ts#removeHoliday",
+      "file": "src/contexts/scheduling/config-actions.ts",
+      "line": 420,
+      "name": "removeHoliday",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/config-actions.ts:420#removeHoliday",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/config-actions.ts#setDoctorAvailability",
+      "file": "src/contexts/scheduling/config-actions.ts",
+      "line": 272,
+      "name": "setDoctorAvailability",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/config-actions.ts:272#setDoctorAvailability",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/config-actions.ts#setDoctorAvailabilityWindows",
+      "file": "src/contexts/scheduling/config-actions.ts",
+      "line": 214,
+      "name": "setDoctorAvailabilityWindows",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/config-actions.ts:214#setDoctorAvailabilityWindows",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/scheduling/config-actions.ts#setSchedulableResourceActive",
+      "file": "src/contexts/scheduling/config-actions.ts",
+      "line": 129,
+      "name": "setSchedulableResourceActive",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/scheduling/config-actions.ts:129#setSchedulableResourceActive",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/tenancy/actions.ts#updateClinicProfile",
+      "file": "src/contexts/tenancy/actions.ts",
+      "line": 25,
+      "name": "updateClinicProfile",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/tenancy/actions.ts:25#updateClinicProfile",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    },
+    {
+      "id": "src/contexts/tenancy/actions.ts#uploadClinicLogo",
+      "file": "src/contexts/tenancy/actions.ts",
+      "line": 48,
+      "name": "uploadClinicLogo",
+      "kind": "action",
+      "guard": "session",
+      "evidence": [
+        "src/contexts/tenancy/actions.ts:48#uploadClinicLogo",
+        "src/lib/auth/tenant-context.ts:351#requireUser"
+      ]
+    }
+  ],
+  "props": [
+    {
+      "file": "src/app/(app)/(shell)/account/security/unenroll-form.tsx",
+      "line": 9,
+      "prop": "action",
+      "actions": [
+        "src/app/(app)/(shell)/account/security/actions.ts#unenrollAction"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/agenda/lista-espera/waitlist-manager.tsx",
+      "line": 165,
+      "prop": "onSearch",
+      "actions": [
+        "src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/agenda/new-appointment-drawer.tsx",
+      "line": 187,
+      "prop": "onSearch",
+      "actions": [
+        "src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/configuracoes/horarios/horarios-manager.tsx",
+      "line": 187,
+      "prop": "onClick",
+      "actions": [
+        "src/contexts/scheduling/config-actions.ts#removeDoctorAvailability"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/configuracoes/horarios/horarios-manager.tsx",
+      "line": 300,
+      "prop": "onClick",
+      "actions": [
+        "src/contexts/scheduling/config-actions.ts#removeHoliday"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/configuracoes/lgpd/lgpd-work-queue.tsx",
+      "line": 184,
+      "prop": "action",
+      "actions": [
+        "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#assignLgpdRequestForm"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/configuracoes/lgpd/lgpd-work-queue.tsx",
+      "line": 214,
+      "prop": "action",
+      "actions": [
+        "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#processLgpdRequestForm"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/configuracoes/lgpd/lgpd-work-queue.tsx",
+      "line": 235,
+      "prop": "action",
+      "actions": [
+        "src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#notifyLgpdRequesterForm"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/configuracoes/procedimentos/procedures-manager.tsx",
+      "line": 287,
+      "prop": "action",
+      "actions": [
+        "src/contexts/scheduling/catalog-actions.ts#deactivateProcedure"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/documentos/new-clinical-document-drawer.tsx",
+      "line": 90,
+      "prop": "onSearch",
+      "actions": [
+        "src/app/(app)/(shell)/documentos/actions.ts#buscarPacientesParaDocumento"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/layout.tsx",
+      "line": 65,
+      "prop": "stopAction",
+      "actions": [
+        "src/app/(admin)/admin/actions/impersonation.ts#stopImpersonationAction"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/modelos-receita/templates-manager.tsx",
+      "line": 277,
+      "prop": "action",
+      "actions": [
+        "src/contexts/clinical/actions-templates.ts#deletePrescriptionTemplate"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/pacientes/[id]/patient-profile-card.tsx",
+      "line": 170,
+      "prop": "action",
+      "actions": [
+        "src/app/(app)/(shell)/pacientes/actions.ts#updatePatientForm"
+      ]
+    },
+    {
+      "file": "src/app/(app)/(shell)/pacientes/new-patient-drawer.tsx",
+      "line": 60,
+      "prop": "action",
+      "actions": [
+        "src/app/(app)/(shell)/pacientes/actions.ts#createPatientForm"
+      ]
+    }
+  ],
+  "environment": [
+    {
+      "file": "src/instrumentation-client.ts",
+      "line": 9,
+      "name": "NEXT_PUBLIC_SENTRY_DSN",
+      "access": "process.env.NEXT_PUBLIC_SENTRY_DSN"
+    },
+    {
+      "file": "src/instrumentation-client.ts",
+      "line": 15,
+      "name": "NODE_ENV",
+      "access": "process.env.NODE_ENV"
+    },
+    {
+      "file": "src/instrumentation.ts",
+      "line": 4,
+      "name": "NEXT_RUNTIME",
+      "access": "process.env.NEXT_RUNTIME"
+    },
+    {
+      "file": "src/instrumentation.ts",
+      "line": 8,
+      "name": "NEXT_RUNTIME",
+      "access": "process.env.NEXT_RUNTIME"
+    },
+    {
+      "file": "src/lib/auth/supabase-browser.ts",
+      "line": 17,
+      "name": "NEXT_PUBLIC_SUPABASE_URL",
+      "access": "process.env.NEXT_PUBLIC_SUPABASE_URL"
+    },
+    {
+      "file": "src/lib/auth/supabase-browser.ts",
+      "line": 19,
+      "name": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      "access": "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+    },
+    {
+      "file": "src/lib/auth/supabase-browser.ts",
+      "line": 20,
+      "name": "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV",
+      "access": "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV"
+    },
+    {
+      "file": "src/lib/auth/supabase-browser.ts",
+      "line": 21,
+      "name": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "access": "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    },
+    {
+      "file": "src/lib/db/index.ts",
+      "line": 39,
+      "name": "SUPABASE_PROJECT_ENV",
+      "access": "process.env.SUPABASE_PROJECT_ENV"
+    },
+    {
+      "file": "src/lib/db/index.ts",
+      "line": 53,
+      "name": "SUPABASE_PROJECT_ENV",
+      "access": "process.env.SUPABASE_PROJECT_ENV"
+    },
+    {
+      "file": "src/lib/impersonation/index.ts",
+      "line": 64,
+      "name": "NODE_ENV",
+      "access": "process.env.NODE_ENV"
+    }
+  ],
+  "publicEnvironment": [
+    "NEXT_PUBLIC_SENTRY_DSN",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV",
+    "NEXT_PUBLIC_SUPABASE_URL"
+  ]
+}

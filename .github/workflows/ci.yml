@@ -80,8 +80,14 @@ jobs:
       - name: Test + coverage gate
         run: pnpm test:coverage
 
+      - name: Security inventory (AST and explicit guard review)
+        run: pnpm security:inventory
+
+      - name: Two-tenant isolation (temporary local Postgres)
+        run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm security:tenant
+
       - name: Build
-        run: pnpm build
+        run: pnpm security:build
         env:
           NODE_ENV: production
           # C1+ env.ts validates these via Zod at module load (loaded by next.config.ts).
@@ -91,3 +97,6 @@ jobs:
           DATABASE_URL: 'postgres://ci:ci@localhost:5432/ci?sslmode=require'
           NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
+
+      - name: Client bundle secrets and local HTTP boundaries
+        run: pnpm security:bundle && pnpm security:http

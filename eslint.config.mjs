@@ -17,12 +17,18 @@ import boundaries from 'eslint-plugin-boundaries';
 import prettierConfig from 'eslint-config-prettier';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,
+  // pnpm mantém os plugins como dependências do eslint-config-next.
+  // Resolve também no lint iniciado pelo next build em uma cópia do checkout.
+  resolvePluginsRelativeTo: path.dirname(
+    createRequire(import.meta.url).resolve('eslint-config-next/package.json'),
+  ),
 });
 
 const config = [
@@ -142,6 +148,8 @@ const config = [
       // pelo próprio harness. Guardas recusam Preview/prod/DEV compartilhado.
       'scripts/load-test.ts',
       'scripts/load-test-seed-runner.ts',
+      // Bootstrap do cluster temporário: loopback fixo e data_directory verificado.
+      'scripts/security/tenant-isolation.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',

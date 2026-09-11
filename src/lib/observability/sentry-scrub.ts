@@ -14,7 +14,7 @@ function scrubRequestUrl(url: string): string {
  *
  * Reusa a mesma disciplina `sanitizePayload` do logger/metrics (Bearer/JWT/sk_/
  * DSN + SENSITIVE_KEYS). Combinado com `sendDefaultPii: false`, remove cookies/
- * headers da request e redige request body / extra / contexts. URLs de convite
+ * headers e body da request e redige extra / contexts. URLs de convite
  * e corpos multipart também são tratados explicitamente: token de convite e
  * dados de checkout não podem sair para o Sentry.
  *
@@ -45,12 +45,9 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
       event.request.url = scrubRequestUrl(event.request.url);
     }
     if (event.request.data !== undefined) {
-      // Uma string pode ser um body multipart bruto. Sem parse seguro, ela
-      // nunca deve ser enviada a telemetria.
-      event.request.data =
-        typeof event.request.data === 'string'
-          ? '[REDACTED_REQUEST_BODY]'
-          : sanitizePayload(event.request.data);
+      // Mesmo um objeto pode conter texto clínico sob chave desconhecida.
+      // O corpo não é necessário para correlacionar uma falha operacional.
+      event.request.data = '[REDACTED_REQUEST_BODY]';
     }
   }
   if (event.extra) {

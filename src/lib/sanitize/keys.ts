@@ -77,6 +77,16 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   // non-sensitive projection, so these never reach the audit path — this is
   // defense in depth in case raw rows are ever passed to logAudit/metrics.
   'cpf',
+  'nome',
+  'nome_completo',
+  'nomecompleto',
+  'patient_name',
+  'patientname',
+  'convenio',
+  'convenio_nome',
+  'health_insurance',
+  // Corpos HTTP podem ser capturados também dentro de extra/contexts.
+  'body',
   'cpf_encrypted',
   'cpfencrypted',
   'cpf_hash',

@@ -19,13 +19,7 @@ describe('scrubEvent', () => {
     });
 
     expect(event.request?.url).toBe('https://app.example.test/join/[REDACTED]?token=[REDACTED]');
-    expect(event.request?.data).toEqual({
-      _1_cardNumber: '[REDACTED]',
-      _1_cardCvv: '[REDACTED]',
-      _1_cpfCnpj: '[REDACTED]',
-      _1_password: '[REDACTED]',
-      event: 'checkout.failed',
-    });
+    expect(event.request?.data).toBe('[REDACTED_REQUEST_BODY]');
   });
 
   it('remove por inteiro um body multipart bruto', () => {
@@ -37,5 +31,34 @@ describe('scrubEvent', () => {
     });
 
     expect(event.request?.data).toBe('[REDACTED_REQUEST_BODY]');
+  });
+
+  it('remove CPF, nome, convenio, body, cookie e authorization de um evento clinico', () => {
+    const secrets = {
+      cpf: '123.456.789-00',
+      nome: 'Paciente Sintetico Privado',
+      convenio: 'Convenio Sintetico Privado',
+      body: 'texto clinico sob chave desconhecida',
+      cookie: 'session=sessao-sintetica-privada',
+      authorization: 'Bearer autorizacao-sintetica-privada',
+    };
+    const event = scrubEvent({
+      type: undefined,
+      request: {
+        cookies: { session: secrets.cookie },
+        headers: { Cookie: secrets.cookie, Authorization: secrets.authorization },
+        data: { campoNovo: secrets.body },
+      },
+      extra: { paciente: [secrets], operation: 'clinical.read.failed' },
+      contexts: { clinical: { ...secrets } },
+    });
+
+    for (const value of Object.values(secrets)) {
+      expect(JSON.stringify(event)).not.toContain(value);
+    }
+    expect(event.request).not.toHaveProperty('cookies');
+    expect(event.request).not.toHaveProperty('headers');
+    expect(event.request?.data).toBe('[REDACTED_REQUEST_BODY]');
+    expect(event.extra?.operation).toBe('clinical.read.failed');
   });
 });

@@ -10,6 +10,8 @@
  */
 import { z } from 'zod';
 
+import { checkEnvironmentCoherence } from './env-coherence';
+
 // Empty strings from `.env.local` (e.g. `FOO=`) become `undefined` so that
 // `.optional()` actually means "not set" rather than "set to empty string".
 // Without this, an empty `NEXT_PUBLIC_SUPABASE_URL=` would fail `.url()` validation.
@@ -342,6 +344,19 @@ const EnvSchema = z
           });
         }
       }
+    }
+
+    // SEC-041 (auditoria adversarial 2026-09-11) — coerência de ambiente.
+    // Autenticar contra um projeto Supabase e ler o banco de outro faz o
+    // `clinic_id` do JWT não significar nada no banco consultado; e preview
+    // apontando para produção é uma cópia pública da base real. O detalhe do
+    // que é e do que NÃO é detectável daqui está em env-coherence.ts.
+    for (const issue of checkEnvironmentCoherence(data)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [issue.path],
+        message: issue.message,
+      });
     }
 
     // Note: DATABASE_URL_PROD validation lives in scripts/_env.ts.assertProdContext().

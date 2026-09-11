@@ -30,6 +30,7 @@ import { eq } from 'drizzle-orm';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { dbAdmin } from '@/lib/db';
 import { assertBillingWebhookReady } from '@/lib/env';
+import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { runWithContext } from '@/lib/observability/context';
 import { metrics } from '@/lib/observability/metrics';
@@ -100,8 +101,8 @@ async function handleWebhook(req: Request): Promise<Response> {
     metrics.emit('billing.webhook.oversized', { contentLength });
     return new Response('payload too large', { status: 413 });
   }
-  const raw = await req.text();
-  if (Buffer.byteLength(raw, 'utf8') > MAX_WEBHOOK_BYTES) {
+  const raw = await readWebhookBodyCapped(req, MAX_WEBHOOK_BYTES);
+  if (raw === null) {
     return new Response('payload too large', { status: 413 });
   }
 

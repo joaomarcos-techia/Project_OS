@@ -10,11 +10,7 @@
  */
 import { logAudit } from '@/lib/audit/log';
 import { requestContext } from '@/lib/audit/request-context-from-headers';
-import {
-  AuditExportRangeError,
-  exportTenantAudit,
-  TENANT_AUDIT_EXPORT_MAX_ROWS,
-} from '@/lib/audit/tenant-export';
+import { AuditExportRangeError, exportTenantAudit } from '@/lib/audit/tenant-export';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
@@ -69,8 +65,4 @@ export async function exportAuditAction(from: string, to: string): Promise<Audit
     if (err instanceof AuditExportRangeError) return { ok: false, message: err.message };
     throw err;
   }
-}
-
-export async function auditExportLimits(): Promise<{ maxRows: number }> {
-  return { maxRows: TENANT_AUDIT_EXPORT_MAX_ROWS };
 }

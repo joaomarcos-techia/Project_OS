@@ -41,6 +41,8 @@ const DB_ORIGIN = 'src/lib/db/index.ts';
 
 const ALLOWED_POSTGRES_IMPORTS = new Set([
   'src/lib/db/index.ts',
+  // Cluster temporário próprio, loopback fixo e data_directory conferido antes do DDL.
+  'scripts/security/tenant-isolation.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.

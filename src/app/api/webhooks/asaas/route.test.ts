@@ -137,6 +137,37 @@ describe('token', () => {
   });
 });
 
+describe('stream size guard', () => {
+  it.each([undefined, '1', 'invalid'])(
+    'caps a stream with content-length %s before auth or provider calls',
+    async (contentLength) => {
+      const cancel = vi.fn();
+      let chunks = 0;
+      const pull = vi.fn((controller: ReadableStreamDefaultController<Uint8Array>) => {
+        controller.enqueue(new Uint8Array(600_000));
+        if (++chunks === 4) controller.close();
+      });
+      const body = new ReadableStream<Uint8Array>({ pull, cancel }, { highWaterMark: 0 });
+      const headers = new Headers();
+      if (contentLength !== undefined) headers.set('content-length', contentLength);
+      const init: RequestInit & { duplex: 'half' } = {
+        method: 'POST',
+        headers,
+        body,
+        duplex: 'half',
+      };
+      const response = await POST(new Request('http://localhost/api/webhooks/asaas', init));
+
+      expect(response.status).toBe(413);
+      expect(pull).toHaveBeenCalledTimes(2);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(validateWebhookToken).not.toHaveBeenCalled();
+      expect(getPayment).not.toHaveBeenCalled();
+      expect(transactionMock).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('dedup key (A2)', () => {
   it('sem body.id → 400 e nada é processado', async () => {
     const res = await post({

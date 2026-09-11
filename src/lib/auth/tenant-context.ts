@@ -112,6 +112,21 @@ export class AuthError extends Error {
   ) {
     super(message);
     this.name = 'AuthError';
+    // SEC-050 (auditoria adversarial 2026-09-11) — negativa de autorização é
+    // EVENTO, não só uma resposta HTTP.
+    //
+    // Sem isto, sondagem de IDOR/escopo/escalada é indistinguível de silêncio:
+    // um atacante podia iterar recursos por meses e a única coisa produzida
+    // seria uma sequência de 403 que ninguém conta. O emissor fica no
+    // construtor de propósito — é o ponto de estrangulamento pelo qual TODA
+    // negativa passa hoje e passará amanhã, e não há decorator para alguém
+    // esquecer de aplicar numa rota nova.
+    //
+    // `metrics.emit` é síncrono, barato e passa por `sanitizeFields`. Só campos
+    // estruturais entram: nada de mensagem livre, id de paciente ou payload.
+    if (code !== 'config') {
+      metrics.emit('authz.denied', { code, reason, httpStatus });
+    }
   }
 }
 

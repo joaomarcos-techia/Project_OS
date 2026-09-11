@@ -60,6 +60,39 @@ function supabaseEnv(): { url: string; key: string } {
  * Em Server Components puros (read-only), o adapter pode lançar quando tenta
  * setAll — capturamos e ignoramos como recomendação oficial Supabase.
  */
+/**
+ * Fixa os atributos do cookie de sessão em vez de herdá-los (auditoria
+ * 2026-09-10, item 7 — "SameSite=Lax no mínimo").
+ *
+ * O `@supabase/ssr` hoje já entrega `httpOnly`/`sameSite: 'lax'`/`secure`, mas
+ * isso era um DEFAULT de biblioteca: uma atualização que afrouxasse qualquer um
+ * dos três degradaria o cookie de sessão sem uma linha de diff neste
+ * repositório. `sameSite: 'none'` tornaria a sessão utilizável em requisição
+ * cross-site (CSRF); perder `httpOnly` a tornaria legível por script.
+ *
+ * `secure` acompanha o ambiente: forçá-lo sempre quebraria o login em
+ * `http://localhost`, e um cookie que não é gravado em dev vira workaround.
+ * Mesmo critério já usado em `app/(app)/auth/confirm/route.ts`.
+ *
+ * Tudo o mais que a biblioteca decide (nome, `maxAge`, `path`, `domain`,
+ * fragmentação `.0`/`.1`) passa intacto: aqui só se endurece, nunca se
+ * reescreve a política de sessão do provedor.
+ */
+export function hardenCookie<T extends Record<string, unknown>>(
+  options: T | undefined,
+): Omit<T, 'httpOnly' | 'sameSite' | 'secure'> & {
+  httpOnly: true;
+  sameSite: 'lax';
+  secure: boolean;
+} {
+  return {
+    ...((options ?? {}) as T),
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: env.NODE_ENV === 'production',
+  };
+}
+
 export async function createServerClient(): Promise<SupabaseClient> {
   const { url, key } = supabaseEnv();
   const cookieStore = await cookies();
@@ -71,7 +104,7 @@ export async function createServerClient(): Promise<SupabaseClient> {
     setAll(items) {
       try {
         for (const { name, value, options } of items) {
-          cookieStore.set(name, value, options);
+          cookieStore.set(name, value, hardenCookie(options));
         }
       } catch {
         // Lendo de Server Component: setAll não disponível. Esperado — o

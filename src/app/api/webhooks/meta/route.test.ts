@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHmac } from 'node:crypto';
+
+import { MetaCloudProvider } from '@/lib/messaging/meta-cloud';
 
 const {
   afterMock,
@@ -98,6 +101,49 @@ describe('Meta webhook immediate outbox trigger', () => {
     expect((await POST(webhookRequest())).status).toBe(401);
     expect(persistInbound).not.toHaveBeenCalled();
     expect(afterMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts a real HMAC and rejects a body changed after signing', async () => {
+    const provider = new MetaCloudProvider();
+    validateSignature.mockImplementation(provider.validateSignature.bind(provider));
+    const raw = JSON.stringify({ object: 'whatsapp_business_account' });
+    const signature = `sha256=${createHmac('sha256', 'app-secret').update(raw).digest('hex')}`;
+    const signedRequest = (body: string) =>
+      new Request('http://localhost/api/webhooks/meta', {
+        method: 'POST',
+        headers: { 'x-hub-signature-256': signature },
+        body,
+      });
+
+    expect((await POST(signedRequest(raw))).status).toBe(200);
+    expect((await POST(signedRequest(raw + ' '))).status).toBe(401);
+    expect(persistInbound).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels an oversized stream before HMAC and persistence', async () => {
+    const cancel = vi.fn();
+    let chunks = 0;
+    const pull = vi.fn((controller: ReadableStreamDefaultController<Uint8Array>) => {
+      controller.enqueue(new Uint8Array(600_000));
+      if (++chunks === 4) controller.close();
+    });
+    const body = new ReadableStream<Uint8Array>({ pull, cancel }, { highWaterMark: 0 });
+    const init: RequestInit & { duplex: 'half' } = { method: 'POST', body, duplex: 'half' };
+
+    expect((await POST(new Request('http://localhost/api/webhooks/meta', init))).status).toBe(413);
+    expect(pull).toHaveBeenCalledTimes(2);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(validateSignature).not.toHaveBeenCalled();
+    expect(persistInbound).not.toHaveBeenCalled();
+  });
+
+  it('requests provider redelivery when transactional persistence fails', async () => {
+    const error = new Error('transaction rolled back');
+    persistInbound.mockRejectedValueOnce(error);
+
+    expect((await POST(webhookRequest())).status).toBe(500);
+    expect(afterMock).not.toHaveBeenCalled();
+    expect(captureBackgroundError).toHaveBeenCalledWith(error, { flow: 'messaging.webhook' });
   });
 
   it('processes at most one job in the best-effort ingress tick', async () => {

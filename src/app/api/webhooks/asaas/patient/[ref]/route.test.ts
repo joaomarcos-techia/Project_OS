@@ -219,6 +219,38 @@ describe('estorno e risco financeiro', () => {
 });
 
 describe('tamanho e formato', () => {
+  it.each([undefined, '1', 'invalid'])(
+    'cancels a stream with content-length %s before account lookup',
+    async (contentLength) => {
+      const cancel = vi.fn();
+      let chunks = 0;
+      const pull = vi.fn((controller: ReadableStreamDefaultController<Uint8Array>) => {
+        controller.enqueue(new Uint8Array(600_000));
+        if (++chunks === 4) controller.close();
+      });
+      const body = new ReadableStream<Uint8Array>({ pull, cancel }, { highWaterMark: 0 });
+      const headers = new Headers();
+      if (contentLength !== undefined) headers.set('content-length', contentLength);
+      const init: RequestInit & { duplex: 'half' } = {
+        method: 'POST',
+        headers,
+        body,
+        duplex: 'half',
+      };
+      const response = await POST(
+        new Request('http://localhost/api/webhooks/asaas/patient/' + REF, init),
+        params(),
+      );
+
+      expect(response.status).toBe(413);
+      expect(pull).toHaveBeenCalledTimes(2);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(mocks.resolve).not.toHaveBeenCalled();
+      expect(mocks.getPayment).not.toHaveBeenCalled();
+      expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+    },
+  );
+
   it('content-length acima do teto devolve 413 antes de ler o corpo', async () => {
     const res = await POST(request({ contentLength: '2000000' }), params());
     expect(res.status).toBe(413);

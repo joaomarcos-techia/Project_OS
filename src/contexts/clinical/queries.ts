@@ -189,10 +189,14 @@ export async function listRecentProntuariosByPatient(
   });
 }
 
-export async function getProntuarioById(
-  clinicId: string,
-  id: string,
-): Promise<ProntuarioDetail | null> {
+/**
+ * INTERNO ao contexto de propósito (auditoria 2026-09-10, peso 5): devolve o
+ * SOAP DECIFRADO. Fora do Clinical, a única porta é `readProntuarioAudited`
+ * (prontuario-access.ts), que grava `clinical.prontuario.viewed` na mesma tx.
+ * Aqui ele sobrevive só para carregar o `before` das mutações — que já são
+ * auditadas pela própria mutação. Travado por `prontuario-access.test.ts`.
+ */
+async function getProntuarioById(clinicId: string, id: string): Promise<ProntuarioDetail | null> {
   return withTenant(clinicId, async (tx) => {
     const [row] = await tx.select().from(prontuarios).where(eq(prontuarios.id, id)).limit(1);
     return row ? toProntuarioDetail(clinicId, row) : null;
@@ -297,13 +301,37 @@ export async function getMedicalDocumentPdfRef(
 
 export type ClinicalDocumentKind = 'prescription' | 'document';
 
+export type ClinicalDocumentType =
+  | 'simples'
+  | 'controle_especial'
+  | 'atestado'
+  | 'exame'
+  | 'declaracao'
+  | 'encaminhamento';
+
 export interface ClinicalDocumentFeedItem {
   kind: ClinicalDocumentKind;
   id: string;
   patientId: string;
   patientNome: string;
-  /** Rótulo humano já resolvido ("Receita", "Atestado", …). */
+  /** Rótulo humano já resolvido ("Receita simples", "Atestado", …). */
   label: string;
+  /**
+   * Tipo bruto, para a tela escolher ícone e cor. O `label` sozinho não serve:
+   * casar por texto quebraria na primeira vez que alguém reescrever a cópia.
+   */
+  type: ClinicalDocumentType;
+  /**
+   * Profissional que emitiu, do SNAPSHOT da emissão — não do cadastro atual.
+   * Um documento assinado não muda de autor porque o cadastro mudou depois.
+   */
+  emitidoPor: string;
+  /**
+   * Credencial do emitente NO MOMENTO da emissão (`CRM-SP 148.220`). É o que
+   * dá validade ao documento; sem ela a coluna nomeia alguém sem dizer por que
+   * aquela pessoa podia assinar.
+   */
+  emitidoPorCrm: string | null;
   createdAt: string;
   /** Página autenticada de PDF; o arquivo permanece atrás da sessão do Qoro. */
   pdfHref: string;
@@ -335,12 +363,23 @@ export interface ClinicalDocumentFeedPageResult {
 const MEDICAL_DOCUMENT_LABEL: Record<string, string> = {
   atestado: 'Atestado',
   declaracao: 'Declaração',
-  exame: 'Solicitação de exames',
+  exame: 'Solicitação de exame',
   encaminhamento: 'Encaminhamento',
 };
 
+/**
+ * "Receita simples" e não só "Receita": o par só informa quando os dois lados
+ * são ditos. Sem o qualificador, a linha vizinha ("Controle especial") parece
+ * uma categoria à parte em vez da outra metade da mesma escolha.
+ */
 const prescriptionLabel = (kind: string): string =>
-  kind === 'controle_especial' ? 'Receituário de controle especial' : 'Receita';
+  kind === 'controle_especial' ? 'Controle especial' : 'Receita simples';
+
+/** `CRM-SP 148.220` — a UF só entra quando foi registrada na emissão. */
+function credencial(crm: string | null, uf: string | null): string | null {
+  if (!crm) return null;
+  return uf ? `CRM-${uf} ${crm}` : `CRM ${crm}`;
+}
 
 export async function listClinicalDocumentFeed(
   clinicId: string,
@@ -367,7 +406,10 @@ export async function listClinicalDocumentFeed(
           id: r.id,
           patientId: r.patientId,
           patientNome: r.snapshotPatientNome,
+          emitidoPor: r.snapshotDoctorNome,
+          emitidoPorCrm: credencial(r.snapshotDoctorCrm, r.snapshotDoctorCrmUf),
           label: prescriptionLabel(r.kind),
+          type: r.kind,
           createdAt: toIso(r.createdAt)!,
           pdfHref: `/prescricoes/${r.id}/pdf`,
           hasPdf: r.pdfStoragePath != null,
@@ -391,7 +433,10 @@ export async function listClinicalDocumentFeed(
           id: r.id,
           patientId: r.patientId,
           patientNome: r.snapshotPatientNome,
+          emitidoPor: r.snapshotDoctorNome,
+          emitidoPorCrm: credencial(r.snapshotDoctorCrm, r.snapshotDoctorCrmUf),
           label: MEDICAL_DOCUMENT_LABEL[r.type] ?? 'Documento',
+          type: r.type,
           createdAt: toIso(r.createdAt)!,
           pdfHref: `/documentos/${r.id}/pdf`,
           hasPdf: r.pdfStoragePath != null,
@@ -412,6 +457,9 @@ interface ClinicalDocumentFeedDbRow extends Record<string, unknown> {
   id: string;
   patient_id: string;
   patient_nome: string;
+  doctor_nome: string;
+  doctor_crm: string | null;
+  doctor_crm_uf: string | null;
   source_type: string;
   created_at: Date | string;
   has_pdf: boolean;
@@ -455,6 +503,9 @@ export async function listClinicalDocumentFeedPage(
           ${prescriptions.id} AS id,
           ${prescriptions.patientId} AS patient_id,
           ${prescriptions.snapshotPatientNome} AS patient_nome,
+          ${prescriptions.snapshotDoctorNome} AS doctor_nome,
+          ${prescriptions.snapshotDoctorCrm} AS doctor_crm,
+          ${prescriptions.snapshotDoctorCrmUf} AS doctor_crm_uf,
           ${prescriptions.kind}::text AS source_type,
           ${prescriptions.createdAt} AS created_at,
           (${prescriptions.pdfStoragePath} IS NOT NULL) AS has_pdf
@@ -475,6 +526,9 @@ export async function listClinicalDocumentFeedPage(
           ${medicalDocuments.id} AS id,
           ${medicalDocuments.patientId} AS patient_id,
           ${medicalDocuments.snapshotPatientNome} AS patient_nome,
+          ${medicalDocuments.snapshotDoctorNome} AS doctor_nome,
+          ${medicalDocuments.snapshotDoctorCrm} AS doctor_crm,
+          ${medicalDocuments.snapshotDoctorCrmUf} AS doctor_crm_uf,
           ${medicalDocuments.type}::text AS source_type,
           ${medicalDocuments.createdAt} AS created_at,
           (${medicalDocuments.pdfStoragePath} IS NOT NULL) AS has_pdf
@@ -489,7 +543,8 @@ export async function listClinicalDocumentFeedPage(
     const [rows, countRows] = await Promise.all([
       tx.execute<ClinicalDocumentFeedDbRow>(sql`
         WITH unified AS (${source})
-        SELECT kind, id, patient_id, patient_nome, source_type, created_at, has_pdf
+        SELECT kind, id, patient_id, patient_nome, doctor_nome, doctor_crm, doctor_crm_uf,
+               source_type, created_at, has_pdf
         FROM unified
         ORDER BY created_at DESC, kind DESC, id DESC
         LIMIT ${pageSize}
@@ -508,10 +563,13 @@ export async function listClinicalDocumentFeedPage(
         id: row.id,
         patientId: row.patient_id,
         patientNome: row.patient_nome,
+        emitidoPor: row.doctor_nome,
+        emitidoPorCrm: credencial(row.doctor_crm, row.doctor_crm_uf),
         label:
           row.kind === 'prescription'
             ? prescriptionLabel(row.source_type)
             : (MEDICAL_DOCUMENT_LABEL[row.source_type] ?? 'Documento'),
+        type: row.source_type as ClinicalDocumentType,
         createdAt: toIso(row.created_at)!,
         pdfHref:
           row.kind === 'prescription' ? `/prescricoes/${row.id}/pdf` : `/documentos/${row.id}/pdf`,
@@ -585,18 +643,6 @@ export async function getPrescriptionTemplateById(
 }
 
 // --- C8: prontuário por consulta -------------------------------------------
-
-/** Carrega o prontuário vinculado a um appointment (centro do Consultório). */
-export async function getProntuarioByAppointment(
-  clinicId: string,
-  appointmentId: string,
-): Promise<ProntuarioDetail | null> {
-  return withTenant(clinicId, async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(prontuarios)
-      .where(and(eq(prontuarios.clinicId, clinicId), eq(prontuarios.appointmentId, appointmentId)))
-      .limit(1);
-    return row ? toProntuarioDetail(clinicId, row) : null;
-  });
-}
+// `getProntuarioByAppointment` foi REMOVIDO (auditoria 2026-09-10, peso 5): era
+// o segundo leitor exportado que decifrava o SOAP sem trilha. O Consultório
+// passou a usar `readProntuarioAudited(clinicId, 'consultorio_atendimento', …)`.
