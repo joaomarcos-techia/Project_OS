@@ -27,6 +27,11 @@ O de paciente está em [payment-account-connect](payment-account-connect.md).
 Esta lista é a cópia versionada da configuração — o painel do Asaas é a única outra cópia, e painel
 de terceiro não é memória confiável (**D30**).
 
+A mesma lista existe em código, em `src/contexts/billing/subscription-webhook-events.ts`, e
+`subscription-webhook-events.test.ts` compara as duas: se a tabela abaixo e a constante divergirem, o
+teste reprova. Isso é deliberado — uma doc operacional que sai de sincronia com o repositório mente
+com a autoridade de estar versionada, e quem a lê está refazendo o webhook às 3h da manhã.
+
 | Evento | Por quê |
 | --- | --- |
 | `PAYMENT_CREATED` | materializa a fatura do ciclo em `invoices` |

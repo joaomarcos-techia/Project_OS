@@ -6,7 +6,14 @@ import type { PdfBranding, PdfDoctor, ReceituarioControleEspecialPdfData } from 
 // Render @react-pdf + parse pdfjs são legitimamente lentos em node (cold start de
 // fontes/engine) e ficam ainda mais lentos sob a carga paralela do `vitest run`.
 // Timeout generoso para todo o arquivo evita flakiness (não é teste de performance).
-vi.setConfig({ testTimeout: 30_000 });
+//
+// D100 — 30 s não bastavam. Medições: 490 ms e 1.374 ms com o arquivo isolado;
+// 19,7 s na suíte integral com a máquina razoavelmente livre; **estouro em 30 s**
+// na suíte com um `next dev` e um seed concorrendo. Ou seja, a margem real era de
+// ~34% e um runner mais lento (ou CI compartilhado) derruba. Sobe para 60 s: o
+// custo de um teto alto num teste que passa é zero, e o de um teto curto é uma
+// reprovação que ninguém consegue reproduzir.
+vi.setConfig({ testTimeout: 60_000 });
 
 const branding: PdfBranding = {
   nome: 'Clínica Teste',

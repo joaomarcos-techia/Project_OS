@@ -3845,9 +3845,146 @@ Checklist fechado. O item “nenhum artefato temporário” vale **para o lote**
 `financeiro.md` com 0 byte) são não rastreados e não entram no commit. Apagá-los seria destruir
 trabalho alheio em voo, não higiene.
 
-O D98 deixou de bloquear o lote quando foi medido no commit isolado, mas **continua aberto para a
-árvore**: quem commitar as frentes de redesign e segurança precisa regerar os snapshots do grafo
-(`pnpm arch:graphs`) e formatar os 5 arquivos.
+O D98 deixou de bloquear o lote quando foi medido no commit isolado, e **fechou para a árvore em
+12/09**, quando as duas frentes alheias foram commitadas e os snapshots do grafo regenerados (§29).
 
-**A 2.S não libera P2/Camada 3.** A regra do §27 do prompt de execução continua valendo: fecha-se a
-2.S primeiro.
+## 29. Pendências — fotografia de 12/09/2026
+
+Esta seção existe para não depender de memória nem de leitura cruzada do Discovery Log. Regra de cada
+item: **o que está pendente, o que isso bloqueia, e o que especificamente destrava**. Item sem
+destravamento identificável não é pendência — é desejo, e não entra aqui.
+
+Nada abaixo bloqueia a Camada 2, que está fechada (§28). O que sobra da Camada 2 são provas externas
+que dependem de terceiro e não se resolvem com código.
+
+### 29.1 Bloqueadas por terceiro — não há trabalho de código a fazer
+
+| Item | O que bloqueia | O que destrava |
+| --- | --- | --- |
+| **D102** — `lembrete_confirmacao`, `retorno_consulta` e `qoro_no_show_followup` foram **reclassificados para MARKETING** pela Meta | Entrega confiável de lembrete, retorno e recuperação de falta a **outros** pacientes: marketing exige opt-in de marketing e tem limite por usuário | Revisão da Meta dos três substitutos criados em 12/09 (§29.4). Editar não muda categoria — foi verificado no painel |
+| **2.4A** — E2E Meta do template de retorno | Fechamento da 2.4A com prova real | Mesma revisão: `acompanhamento_tratamento` precisa sair `APPROVED/UTILITY` |
+| **D50** — estorno do excedente existente segue `PENDING` no Asaas | Prova externa do caminho de excedente | Provider concluir o refund. Código, DB, webhook, reconcile e compensação já estão resolvidos e testados |
+| **D80 / P11-D77** — transição `DONE → refunded` não observada | Prova externa do ciclo completo de estorno | Provider. Um refund único, replay sem duplicata e readback já passaram; o GET de 06/09 manteve o pagamento `RECEIVED` |
+
+**Não falsificar nenhuma destas com mock.** O contrato do projeto (§20) separa `PASS` de
+`BLOCKED_EXTERNAL` justamente para que a ausência de prova não vire prova por cansaço.
+
+### 29.2 Dependem de decisão do fundador
+
+| Item | Situação medida | Decisão pedida |
+| --- | --- | --- |
+| **D11/D12** — sessões paralelas commitando na MESMA branch | Aconteceu de novo em 11/09 e custou caro: um commit meu varreu 8 arquivos deletados por outra sessão, e a separação errada de `clinical/queries.ts` quebrou o build publicado (`cf9d628` → `effe3ff`) | Separar as frentes por branch/worktree, ou aceitar conscientemente o risco. O paliativo em uso — `git commit -- <caminhos>` em vez de `git add` + `git commit` — reduz, não elimina |
+| **D4** — referências a ADR penduradas | Medido em 12/09: **51 citadas, 19 no disco, 32 penduradas** (eram 34 em agosto) | Reintroduzir as ADRs citadas ou limpar as citações. Hoje o código aponta para decisões que ninguém consegue ler |
+
+### 29.3 Internas e executáveis — sem bloqueio externo
+
+| Item | Por que importa | Custo |
+| --- | --- | --- |
+| **Auditar env de Preview e produção** com `provision-templates.ts --dry-run` | O D105 (variável duplicada apontando para template inexistente) foi encontrado e corrigido **só no `.env.local`**. `.env.local` não é versionado, então ninguém sabe se Preview e produção têm o mesmo erro — e lá a cobrança amigável quebraria em silêncio, porque falha de envio vira retry, não alarme | Um comando, com aquelas env vars carregadas |
+| ~~**E2E de `contabilidade.csv`**~~ | **FECHADO em 12/09:** `e2e/accounting-export.spec.ts`, somente leitura, 3/3 contra o Preview real. Prova cabeçalho da ADR-058, BOM, CRLF, `no-store`/`nosniff`/`attachment`, ausência de coluna de paciente, mês malformado devolvendo 422 (não 500) e anônimo sem CSV | — |
+| **Camada 3 / P2** | Próximo passo formal do roadmap, agora que a 2.S fechou | Exige ADR e scope freeze próprios (§23); não se começa por improviso |
+
+### 29.4 Substitutos de template criados em 12/09 — aguardando revisão
+
+Criados na WABA conectada pelo **mesmo caminho do cliente** (`ensureMessageTemplates`, a função que o
+connect dispara), com `category: 'UTILITY'` e os corpos reescritos:
+
+| Novo | Substitui | Estado |
+| --- | --- | --- |
+| `confirmacao_consulta` | `lembrete_confirmacao` | `PENDING` |
+| `acompanhamento_tratamento` | `retorno_consulta` | `PENDING` |
+| `atualizacao_agendamento` | `qoro_no_show_followup` | `PENDING` |
+
+Os nomes novos foram injetados **apenas na execução do script**; o ambiente segue apontando para os
+antigos, que funcionam. Apontar para template em análise quebraria o envio. Quando a Meta revisar:
+
+```bash
+META_TEMPLATE_CONFIRMATION_REMINDER_ID=confirmacao_consulta \
+META_TEMPLATE_FOLLOWUP_RETURN_ID=acompanhamento_tratamento \
+META_TEMPLATE_NO_SHOW_FOLLOWUP_ID=atualizacao_agendamento \
+pnpm exec tsx --conditions=react-server scripts/provision-templates.ts --clinic <uuid> --dry-run
+```
+
+Se os três voltarem `APPROVED/UTILITY`, trocar o ambiente e publicar. Se algum voltar `MARKETING`, o
+texto não convenceu e a decisão passa a ser de produto: aceitar marketing naquele caso, ou abrir mão
+do convite e perder taxa de resposta. **`acompanhamento_tratamento` é o de maior risco** — recomendar
+retorno é, por natureza, reengajamento.
+
+Vale vigiar `lista_espera_oferta`: está `UTILITY` hoje, mas diz "Quer ficar com esse horário?", e foi
+exatamente esse tipo de construção que a Meta recusou no `retorno_consulta`.
+
+### 29.5 Fechadas em 11–12/09 — para não serem reabertas por engano
+
+`D97` (frentes separadas e commitadas) · `D98` (grafo e formato verdes) · `D100` (teto do teste de
+PDF, com as medições registradas) · `D103` (dois bugs do harness de E2E) · `D104` (drift de categoria
+detectado e logado) · `D105` (duplicata de env, corrigida pelo fundador) · `D2` (o `arch:check` via
+39% do grafo; passou a resolver alias, e **não havia ciclo escondido**) · `D8` (runbooks de pagamento
+existem) · `D10` (credencial validada no save, por schema e por chamada real) · `D30` (eventos do
+webhook de assinatura versionados em código, com teste contra o runbook).
+
+## 30. Camada 3 / P2 — inventário do "conselho genérico"
+
+**Isto é insumo de ADR, não decisão.** O §23 proíbe improvisar mudança arquitetural, e generalizar
+credencial profissional mexe em schema, em gate clínico e em documento impresso — três lugares onde
+errar é caro. O que está abaixo é o levantamento do acoplamento atual, feito lendo o código, para que
+a ADR nasça de medição em vez de suposição. Nenhuma linha de runtime foi alterada.
+
+### 30.1 Por que isso é a fundação do P2
+
+O P2 é "conselho genérico (fundação; psicologia clínica desacoplada) · pacote/mensalidade · O-2". O
+conselho vem primeiro porque os outros dois dependem dele: um psicólogo tem **CRP**, não CRM, e hoje
+o sistema não sabe dizer isso. Enquanto a credencial for CRM cravado, "psicologia desacoplada" não
+tem onde se apoiar.
+
+### 30.2 Onde o CRM está cravado — medido em 12/09
+
+28 arquivos de runtime citam CRM (fora de teste), concentrados em quatro camadas:
+
+| Camada | Arquivos | Natureza do acoplamento |
+| --- | --- | --- |
+| `contexts/identity` | 7 | **Dono do dado.** `profiles.crm` e `profiles.crm_uf` (`identity/schema.ts:80-81`), mais `CrmConflictError` |
+| `contexts/clinical` | 5 | **Snapshot imutável.** `signed_doctor_crm`, `snapshot_doctor_crm` e `snapshot_doctor_crm_uf` em prontuário, prescrição e documento |
+| `app/(app)` | 9 | Formulário de perfil, exibição e telas de equipe |
+| `lib/pdf` | 3 | **Saída impressa.** `components.tsx:108` e `receituario-controle-especial.tsx:135` montam a linha `CRM {uf} {numero}` |
+| `contexts/scheduling` | 3 | Snapshot antecipado do profissional |
+
+O gate funcional é `assertDoctorHasCrm` (`clinical/internal/doctor.ts`), chamado em
+`clinical/actions.ts:442` e `:526`. A regra vigente, documentada no schema, é precisa e precisa ser
+preservada por qualquer generalização:
+
+> CRM é **obrigatório** para emitir prescrição/documento; **não** é obrigatório para assinar
+> prontuário (R6).
+
+### 30.3 O que já está meio-caminho
+
+O vocabulário do `identity` **já é genérico**: `ProfessionalCredentialError`,
+`professional-credential.ts`, `updateOwnProfessionalCredential`. Quem nomeou isso já previa mais de
+um conselho. O que não acompanhou foi o **armazenamento** (duas colunas com nome de CRM) e a
+**apresentação** (a string `CRM` literal no PDF).
+
+Isso reduz o tamanho do problema: a fronteira de API do contexto quase não muda; o que muda é o dado
+e a renderização.
+
+### 30.4 As três decisões que a ADR precisa tomar
+
+Não as estou tomando. Cada uma tem consequência que ultrapassa refactor:
+
+1. **Modelo do dado.** Renomear `crm`/`crm_uf` para `conselho_sigla`/`conselho_numero`/`conselho_uf`,
+   ou acrescentar as colunas novas e manter as antigas por compatibilidade? Há **snapshot imutável**
+   em três tabelas clínicas: documento já emitido não pode mudar o que imprimiu. Migration que
+   reescreve snapshot histórico seria falsificação de documento clínico.
+2. **Alcance do gate.** `assertDoctorHasCrm` vira `assertHasProfessionalCredential`? Se sim, cada
+   conselho precisa dizer o que habilita: um psicólogo **não** prescreve medicamento controlado. Hoje
+   o gate é binário (tem CRM ou não); genérico, ele passa a ser uma matriz conselho × tipo de
+   documento — e isso é regra regulatória, não preferência de produto.
+3. **Compatibilidade do impresso.** O receituário de controle especial tem layout normativo. Trocar
+   "CRM" por sigla variável no PDF exige confirmar que o formato aceita — e essa confirmação é
+   externa, não de código.
+
+### 30.5 Recomendação de sequência
+
+Fazer o item 1 (dado) sozinho, com as colunas novas **aditivas** e o snapshot histórico intocado, é
+um lote pequeno, reversível e que não altera comportamento — o tipo de mudança que cabe num budget de
+sub-fase. Os itens 2 e 3 dependem de resposta regulatória e não devem entrar no mesmo lote.
+
+**Não comecei a implementar nada disso.** A ADR e o scope freeze vêm primeiro.
