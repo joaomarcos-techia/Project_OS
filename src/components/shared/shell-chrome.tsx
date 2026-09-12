@@ -127,7 +127,21 @@ export function SideNavLink({
     <Link
       href={href}
       data-slot="nav-link"
-      prefetch={prefetch ?? null}
+      // PREFETCH DESLIGADO POR PADRÃO, de propósito.
+      //
+      // A sidebar lista ~11 destinos e todos são rotas dinâmicas. Com o modo
+      // automático do Next, entrar em QUALQUER aba disparava um request de
+      // prefetch para cada uma das outras, e cada request roda o layout do shell
+      // (sessão, permissões) mais a página. Medido no Preview: o recurso mais
+      // lento de `/dashboard` não era script nenhum — eram os prefetches de
+      // `/documentos` (639 ms), `/agenda` (594 ms) e `/pacientes` (495 ms), e o
+      // de `/caixa` chegou a 1.408 ms. Abrir uma aba custava renderizar todas.
+      //
+      // O custo de desligar é o primeiro clique buscar a rota; a maioria das
+      // telas do shell tem `loading.tsx`, então o usuário vê o esqueleto na
+      // hora. Trocar N renders de fundo por uma busca sob demanda é o negócio
+      // certo — e quem quiser prefetch numa rota específica passa `prefetch`.
+      prefetch={prefetch ?? false}
       aria-current={active ? 'page' : undefined}
       className={cn(
         itemBase,

@@ -67,7 +67,10 @@ function LoginScreen() {
         <div className="flex min-w-0 flex-col px-6 py-8 sm:px-10 lg:px-14 lg:py-10">
           <Logo className="h-auto w-[78px]" />
 
-          <div className="my-auto w-full max-w-[392px] py-10">
+          {/* `mx-auto` centra o formulário na faixa branca. Sem ele o bloco de
+              392px encostava na borda do padding, e a coluna esquerda ficava
+              com todo o respiro à direita e nenhum à esquerda. */}
+          <div className="mx-auto my-auto w-full max-w-[392px] py-10">
             <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.024em] text-fg">
               Entrar na sua conta
             </h1>
@@ -179,8 +182,11 @@ function LoginScreen() {
         </div>
 
         {/* ============================ MARCA (direita) ============================ */}
+        {/* O painel é um cartão dentro da célula do grid, não a célula inteira:
+            `m-*` cria a faixa branca entre a borda da tela e a arte, e o raio
+            arredonda os quatro cantos. Antes ele sangrava até as bordas. */}
         <aside
-          className="relative hidden overflow-hidden lg:flex lg:flex-col"
+          className="relative m-(--sp-5) hidden overflow-hidden rounded-(--r-3xl) lg:flex lg:flex-col"
           style={{
             background:
               'linear-gradient(158deg, oklch(0.5 0.2 266) 0%, oklch(0.44 0.21 268) 42%, oklch(0.36 0.18 270) 100%)',

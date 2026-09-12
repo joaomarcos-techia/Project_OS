@@ -47,27 +47,39 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
   const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const q = sp.q?.trim() || undefined;
   const overdueOnly = sp.sla === 'overdue';
-  const result = await listConversations(clinicId, {
-    ...(status ? { status } : {}),
-    ...(q ? { search: q } : {}),
-    ...(overdueOnly ? { overdueOnly: true } : {}),
-    page,
-  });
+  // Duas rodadas, não cinco idas sequenciais. Cada `withTenant` é um round trip
+  // próprio (abre transação, troca o papel, seta o GUC), então encadear o que
+  // não depende um do outro multiplica latência à toa — e esta página é a mais
+  // lenta do shell justamente por isso.
+  //
+  // Rodada 1: a lista e o pulso da fila são independentes.
+  // Rodada 2: thread e nomes dependem da lista, mas não um do outro.
+  const [result, pulso] = await Promise.all([
+    listConversations(clinicId, {
+      ...(status ? { status } : {}),
+      ...(q ? { search: q } : {}),
+      ...(overdueOnly ? { overdueOnly: true } : {}),
+      page,
+    }),
+    // Pulso da fila inteira, não só da página visível: quem abre a tela precisa
+    // saber quantos esperam no total, e a paginação esconderia isso.
+    countOpenHandoffs(clinicId),
+  ]);
+
   const selection = z.string().uuid().safeParse(sp.conversation);
   const selected =
     (selection.success ? result.items.find((item) => item.id === selection.data) : undefined) ??
     result.items[0];
+
   const thread = selected ? await getConversationThread(clinicId, selected.id) : null;
   const assigneeIds = result.items.flatMap((item) => item.handoff?.assignedToUserId ?? []);
   if (thread?.handoff?.assignedToUserId) assigneeIds.push(thread.handoff.assignedToUserId);
   const assigneeNames = await getProfileNames(clinicId, [...new Set(assigneeIds)]);
+
   const assignedToName = thread?.handoff?.assignedToUserId
     ? (assigneeNames.get(thread.handoff.assignedToUserId) ?? 'Membro da equipe')
     : null;
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
-  // Pulso da fila inteira, não só da página visível: quem abre a tela precisa
-  // saber quantos esperam no total, e a paginação esconderia isso.
-  const pulso = await countOpenHandoffs(clinicId);
   const filtering = Boolean(q || status || overdueOnly);
   const hasExplicitSelection =
     selection.success && selected?.id === selection.data && Boolean(thread);
