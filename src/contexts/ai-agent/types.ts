@@ -134,6 +134,13 @@ export interface AIConversationListItem {
   lastMessageAt: string;
   intentAtual: string | null;
   handoff: AIHandoffState | null;
+  /**
+   * Janela de 24 h da Meta ainda aberta. Vem na LISTA, não só na conversa
+   * aberta, porque "não dá para responder em texto livre" muda o que o
+   * operador faz com a linha — e ele decide isso varrendo a fila, antes de
+   * abrir qualquer uma.
+   */
+  windowOpen: boolean;
 }
 
 export interface AIConversationListResult {

@@ -29,8 +29,28 @@ const report = {
   faturamento: { recebido: 1200, pago: 250, saldo: 950 },
   noShow: { faltou: 2, atendido: 8, cancelado: 1, total: 11, taxa: 0.2 },
   ocupacao: { busyMinutes: 600, freeMinutes: 400, taxa: 0.6 },
+  semanas: [
+    {
+      weekStart: '2026-08-10',
+      label: '10 – 16 de agosto',
+      recebido: 800,
+      pago: 200,
+      saldo: 600,
+      atendido: 5,
+    },
+    // Semana sem lançamento: a UI deve escrever "sem dado", não "R$ 0,00".
+    {
+      weekStart: '2026-08-17',
+      label: '17 – 23 de agosto',
+      recebido: null,
+      pago: null,
+      saldo: null,
+      atendido: null,
+    },
+  ],
   fromLabel: '22/07',
   toLabel: '20/08',
+  timezone: 'America/Sao_Paulo',
   accountingMonth: '2026-08',
 };
 
@@ -48,11 +68,13 @@ describe('RelatoriosPage', () => {
     render(await RelatoriosPage({ searchParams: Promise.resolve({ periodo: '30d' }) }));
 
     expect(getRelatorios).toHaveBeenCalledWith('clinic-1', 30, { includeFaturamento: false });
-    const metrics = screen.getByRole('region', { name: 'Métricas principais' });
-    expect(within(metrics).queryByText('Faturamento (recebido)')).toBeNull();
-    expect(within(metrics).getByText('No-show')).toBeTruthy();
-    expect(within(metrics).getByText('Ocupação')).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Volume de atendimentos' })).toBeTruthy();
+    // Sem view:financial a seção de dinheiro não existe — nem vazia, nem zerada.
+    expect(screen.queryByRole('region', { name: 'Financeiro do período' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Faltas' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Ocupação' })).toBeTruthy();
+    // Os desfechos seguem visíveis: contagem de consulta não é dado financeiro.
+    expect(screen.getByText('Consultas no período')).toBeTruthy();
+    expect(screen.getByText('Canceladas')).toBeTruthy();
     expect(
       screen.queryByRole('region', { name: 'Exportação financeira para contabilidade' }),
     ).toBeNull();
@@ -64,7 +86,9 @@ describe('RelatoriosPage', () => {
     render(await RelatoriosPage({ searchParams: Promise.resolve({ periodo: '7d' }) }));
 
     expect(getRelatorios).toHaveBeenCalledWith('clinic-1', 7, { includeFaturamento: true });
-    expect(screen.getByText('Faturamento (recebido)')).toBeTruthy();
+    const financeiro = screen.getByRole('region', { name: 'Financeiro do período' });
+    expect(within(financeiro).getByText('Recebido')).toBeTruthy();
+    expect(within(financeiro).getByText('Saldo')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Últimos 7 dias' }).getAttribute('aria-current')).toBe(
       'page',
     );

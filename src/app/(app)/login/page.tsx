@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Suspense, useActionState, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -11,17 +11,27 @@ import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/shared/logo';
 import { AuthScreenSkeleton } from '@/components/shared/auth-screen-skeleton';
 import { loginAction, type LoginActionState } from './actions';
+import { AuthProductPreview } from './auth-product-preview';
 import { clearPasswordField, clearPasswordFieldAfterSubmit } from './clear-password-field';
 import { ForgotPasswordForm } from './forgot-password-form';
 
 const INITIAL: LoginActionState = { error: null };
 
+const SITE = 'https://qoro.dev';
+
+/**
+ * `data-qoro-tokens="qorov2"` traz a camada de tokens dos designs de setembro/2026
+ * (globals.css) para fora do shell: sem ele o login herda a paleta e a tipografia
+ * legadas do `:root` e destoa do restante do produto.
+ */
 // useSearchParams() força CSR bailout — boundary <Suspense> obrigatório p/ prerender.
 export default function LoginPage() {
   return (
-    <Suspense fallback={<AuthScreenSkeleton variant="login" />}>
-      <LoginScreen />
-    </Suspense>
+    <div data-qoro-tokens="qorov2">
+      <Suspense fallback={<AuthScreenSkeleton variant="login" />}>
+        <LoginScreen />
+      </Suspense>
+    </div>
   );
 }
 
@@ -51,18 +61,18 @@ function LoginScreen() {
   };
 
   return (
-    <main className="grid min-h-screen bg-surface lg:grid-cols-2">
-      {/* ============================ FORM (esquerda) ============================ */}
-      <div className="flex flex-col px-6 py-8 sm:px-10 lg:px-16">
-        <div className="flex items-center">
-          <Logo className="h-7 w-auto" />
-        </div>
+    <main className="flex min-h-screen flex-col bg-surface">
+      <div className="grid flex-1 grid-cols-1 overflow-hidden bg-surface lg:grid-cols-2">
+        {/* ============================ FORM (esquerda) ============================ */}
+        <div className="flex min-w-0 flex-col px-6 py-8 sm:px-10 lg:px-14 lg:py-10">
+          <Logo className="h-auto w-[78px]" />
 
-        <div className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-sm">
-            <h1 className="text-3xl font-semibold tracking-[-0.03em]">Bem-vindo de volta</h1>
-            <p className="mt-2 text-sm text-fg-muted">
-              Entre com seu e-mail e senha para acessar sua clínica.
+          <div className="my-auto w-full max-w-[392px] py-10">
+            <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.024em] text-fg">
+              Entrar na sua conta
+            </h1>
+            <p className="mt-2 text-[14px] leading-[1.5] text-fg-subtle">
+              Bem-vindo de volta. Informe seus dados para continuar.
             </p>
 
             {reason && REASONS[reason] ? (
@@ -74,107 +84,124 @@ function LoginScreen() {
               </Alert>
             ) : null}
 
-            <form
-              ref={formRef}
-              action={formAction}
-              onSubmit={handleSubmit}
-              className="mt-6 flex flex-col gap-4"
-            >
-              <Field label="Email" htmlFor="email">
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  disabled={pending}
-                  placeholder="voce@clinica.com.br"
-                />
-              </Field>
-
-              <Field label="Senha" htmlFor="password">
-                <div className="relative">
+            {/*
+              `form.contents` dissolve o <form> no flex do container: os campos
+              ficam em `order` 0, o gatilho de recuperação em 2 e o Entrar em 3.
+              É o que põe "Esqueci a senha" acima do botão, como no design, sem
+              aninhar o <form> da recuperação dentro do <form> de login.
+            */}
+            <div className="mt-7 flex flex-col gap-3.5">
+              <form ref={formRef} action={formAction} onSubmit={handleSubmit} className="contents">
+                <Field label="E-mail" htmlFor="email">
                   <Input
-                    id="password"
-                    name="password"
-                    type={showPw ? 'text' : 'password'}
+                    id="email"
+                    name="email"
+                    type="email"
                     required
-                    autoComplete="current-password"
+                    autoComplete="email"
                     disabled={pending}
-                    placeholder="••••••••"
-                    className="pr-10"
+                    placeholder="voce@clinica.com.br"
+                    className="h-11 text-[14px]"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((v) => !v)}
-                    aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'}
-                    className="absolute right-0 top-1/2 flex size-(--hit-target) -translate-y-1/2 items-center justify-center rounded-md text-fg-subtle transition-colors hover:text-fg"
-                  >
-                    {showPw ? (
-                      <EyeOff aria-hidden="true" className="size-4.5" />
-                    ) : (
-                      <Eye aria-hidden="true" className="size-4.5" />
-                    )}
-                  </button>
-                </div>
-              </Field>
+                </Field>
 
-              {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
+                <Field label="Senha" htmlFor="password">
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPw ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      disabled={pending}
+                      placeholder="••••••••"
+                      className="h-11 pr-11 text-[14px]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      aria-label={showPw ? 'Ocultar senha' : 'Mostrar senha'}
+                      className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-(--field-radius) text-fg-subtle transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
+                    >
+                      {showPw ? (
+                        <EyeOff aria-hidden="true" className="size-4" />
+                      ) : (
+                        <Eye aria-hidden="true" className="size-4" />
+                      )}
+                    </button>
+                  </div>
+                </Field>
 
-              <Button type="submit" loading={pending} className="w-full">
-                Entrar
-              </Button>
-            </form>
+                {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 
-            <ForgotPasswordForm />
+                <Button
+                  type="submit"
+                  loading={pending}
+                  className="order-3 mt-1.5 h-[46px] w-full text-[14px] font-semibold"
+                >
+                  Entrar
+                </Button>
+              </form>
+
+              <div className="order-2">
+                <ForgotPasswordForm />
+              </div>
+            </div>
+
+            {/* "Cadastre-se" é órfão de propósito (decisão do founder, 2026-09-10):
+                o self-serve ainda não existe, e o destino entra depois. Fica como
+                texto, não <a> — um link que não navega é pior que nenhum. */}
+            <p className="mt-6 text-center text-[13px] leading-none text-fg-subtle">
+              Sua clínica ainda não usa a Qoro?{' '}
+              <span className="font-semibold text-(--text-link)">Cadastre-se</span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 text-[12px] leading-none text-border-strong">
+            <span>© {new Date().getFullYear()} Qoro</span>
+            <a
+              href={`${SITE}/politica-de-privacidade`}
+              className="text-inherit no-underline transition-colors hover:text-fg-muted"
+            >
+              Privacidade
+            </a>
+            <a
+              href={`${SITE}/termos-de-uso`}
+              className="text-inherit no-underline transition-colors hover:text-fg-muted"
+            >
+              Termos
+            </a>
+            <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-[11.5px] font-medium">
+              <ShieldCheck aria-hidden="true" className="size-[13px]" />
+              LGPD · dados no Brasil
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-fg-subtle">
-          <span>© {new Date().getFullYear()} Qoro</span>
-          <span className="font-mono">Operação sem vazamento</span>
-        </div>
-      </div>
-
-      {/* ============================ MARCA (direita) ============================ */}
-      <aside
-        className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-center"
-        style={{
-          background:
-            'linear-gradient(155deg, var(--primary-600) 0%, var(--primary-700) 55%, var(--primary-800) 100%)',
-        }}
-      >
-        {/* textura em grid */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.16]"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)',
-            backgroundSize: '46px 46px',
-            WebkitMaskImage: 'radial-gradient(120% 80% at 72% 8%, #000 0%, transparent 62%)',
-            maskImage: 'radial-gradient(120% 80% at 72% 8%, #000 0%, transparent 62%)',
-          }}
-        />
-        {/* brilho teal (acento memorável, com parcimônia) */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full"
+        {/* ============================ MARCA (direita) ============================ */}
+        <aside
+          className="relative hidden overflow-hidden lg:flex lg:flex-col"
           style={{
             background:
-              'radial-gradient(circle, color-mix(in oklch, var(--brand-accent-500) 55%, transparent), transparent 70%)',
+              'linear-gradient(158deg, oklch(0.5 0.2 266) 0%, oklch(0.44 0.21 268) 42%, oklch(0.36 0.18 270) 100%)',
+            padding: '64px 0 0 52px',
           }}
-        />
+        >
+          <div className="relative pr-[52px]">
+            <h2 className="max-w-[19ch] font-display text-[31px] font-semibold leading-[1.2] tracking-[-0.028em] text-white">
+              Conduza o dia da clínica de um único lugar
+            </h2>
+            <p
+              className="mt-3.5 max-w-[44ch] text-[14.5px] leading-[1.55]"
+              style={{ color: 'oklch(0.91 0.05 268)' }}
+            >
+              Entre para acompanhar agenda, prontuários, documentos e caixa em tempo real.
+            </p>
+          </div>
 
-        <div className="relative z-10 px-12 xl:px-16">
-          <h2 className="max-w-md text-balance text-3xl font-semibold leading-tight tracking-tight text-white xl:text-4xl">
-            Gerencie sua clínica sem vazamentos.
-          </h2>
-          <p className="mt-4 max-w-md text-pretty text-base leading-relaxed text-white/70">
-            Entre para acessar o painel e operar agenda, atendimento e caixa em tempo real.
-          </p>
-        </div>
-      </aside>
+          <AuthProductPreview />
+        </aside>
+      </div>
     </main>
   );
 }

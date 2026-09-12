@@ -22,7 +22,7 @@ export default async function PagamentosSettingsPage() {
   if (!gate.allowed) {
     return (
       <PageNoAccess
-        crumbs={[{ label: 'Gestão', href: '/configuracoes/gestao' }, { label: 'Pagamentos' }]}
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Pagamentos' }]}
         title="Pagamentos"
         description="Seu perfil não tem permissão para configurar o recebimento da clínica. Fale com um gestor se precisar de acesso."
       />

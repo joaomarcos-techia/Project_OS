@@ -4,17 +4,28 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIConversationListItem, AIConversationThread } from '@/contexts/ai-agent/types';
 
-const { listConversations, getConversationThread, getProfileNames, requireClinicId, requireUser } =
-  vi.hoisted(() => ({
-    listConversations: vi.fn(),
-    getConversationThread: vi.fn(),
-    getProfileNames: vi.fn(),
-    requireClinicId: vi.fn(),
-    requireUser: vi.fn(),
-  }));
+const {
+  listConversations,
+  getConversationThread,
+  countOpenHandoffs,
+  getProfileNames,
+  requireClinicId,
+  requireUser,
+} = vi.hoisted(() => ({
+  listConversations: vi.fn(),
+  getConversationThread: vi.fn(),
+  countOpenHandoffs: vi.fn(),
+  getProfileNames: vi.fn(),
+  requireClinicId: vi.fn(),
+  requireUser: vi.fn(),
+}));
 vi.mock('next/link', () => ({ default: (props: ComponentProps<'a'>) => <a {...props} /> }));
 vi.mock('@/lib/auth/tenant-context', () => ({ requireClinicId, requireUser }));
-vi.mock('@/contexts/ai-agent/queries', () => ({ listConversations, getConversationThread }));
+vi.mock('@/contexts/ai-agent/queries', () => ({
+  listConversations,
+  getConversationThread,
+  countOpenHandoffs,
+}));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
 vi.mock('./_components/conversation-auto-refresh', () => ({ ConversationAutoRefresh: () => null }));
 vi.mock('./[id]/_components/conversa-actions', () => ({
@@ -34,6 +45,7 @@ const first: AIConversationListItem = {
   status: 'handoff',
   lastMessageAt: '2026-09-09T12:00:00Z',
   intentAtual: null,
+  windowOpen: true,
   handoff: {
     assignedToUserId: 'user-1',
     priority: 'urgent',
@@ -70,6 +82,7 @@ beforeEach(() => {
     thread(id === firstId ? first : second),
   );
   getProfileNames.mockResolvedValue(new Map([['user-1', 'Recepção Teste']]));
+  countOpenHandoffs.mockResolvedValue({ abertos: 0, vencidos: 0 });
 });
 afterEach(cleanup);
 
@@ -78,7 +91,7 @@ describe('inbox de conversas', () => {
     render(await ConversasPage({ searchParams: Promise.resolve({}) }));
     expect(getConversationThread).toHaveBeenCalledWith('clinic-1', firstId);
     const inbox = screen.getByRole('region', { name: 'Lista de conversas' });
-    expect(within(inbox).getByText('+5511999991234')).toBeTruthy();
+    expect(within(inbox).getByText('+55 (11) 99999-1234')).toBeTruthy();
     expect(
       within(inbox)
         .getByRole('link', { name: /Ana Teste/ })
@@ -86,7 +99,7 @@ describe('inbox de conversas', () => {
     ).toBe('true');
     expect(
       within(screen.getByRole('region', { name: 'Conversa selecionada' })).getByText(
-        '+5511999991234',
+        '+55 (11) 99999-1234',
       ),
     ).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Responder ao contato' })).toBeTruthy();

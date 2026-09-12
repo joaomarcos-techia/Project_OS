@@ -58,6 +58,7 @@
     "seed:admin-bucket": "tsx --conditions=react-server scripts/seed-admin-bucket.ts",
     "seed:logo-bucket": "tsx --conditions=react-server scripts/seed-logo-bucket.ts",
     "seed:c15": "tsx --conditions=react-server scripts/seed-c15-test.ts",
+    "seed:design-states": "tsx --conditions=react-server scripts/seed-design-states.ts",
     "billing:live-check": "tsx --conditions=react-server scripts/asaas-live-check.ts",
     "payments:live-check": "tsx --conditions=react-server scripts/payments-live-check.ts",
     "smoke:payments-rls": "tsx --conditions=react-server scripts/smoke-payments-rls.ts",

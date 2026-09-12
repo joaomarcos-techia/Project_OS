@@ -105,7 +105,10 @@ describe('listConversations', () => {
       ],
     });
     expect(tx.select).toHaveBeenCalledTimes(2);
-    expect(tx.selectDistinctOn).toHaveBeenCalledTimes(1);
+    // Duas varreduras em lote, não uma por conversa: a última mensagem (prévia)
+    // e o último INBOUND (janela de 24 h). O que este teste protege é o número
+    // ser CONSTANTE — com 2 conversas ou com 200, continua 2.
+    expect(tx.selectDistinctOn).toHaveBeenCalledTimes(2);
     expect(decryptForTenant).toHaveBeenCalledWith('clinic-1', '+5511999991234');
     expect(decryptForTenant).toHaveBeenCalledWith('clinic-1', '+5511988885678');
   });

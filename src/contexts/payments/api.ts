@@ -9,6 +9,7 @@
 import 'server-only';
 
 import { findPayableCharge, type PayableCharge } from './internal/charge-store';
+import { listFailedCharges, type FailedChargeDTO } from './internal/failed-charges';
 import { listExcessRefundStatuses, type ExcessRefundStatus } from './internal/refund-status';
 
 export interface PaymentsApiV1 {
@@ -31,11 +32,18 @@ export interface PaymentsApiV1 {
     clinicId: string,
     appointmentIds: readonly string[],
   ): Promise<ExcessRefundStatus[]>;
+
+  /**
+   * Cobranças que falharam ao ser criadas — o paciente nunca recebeu link.
+   * Falha silenciosa que só aparece se alguém a mostrar; o Caixa mostra.
+   */
+  listFailedCharges(clinicId: string): Promise<FailedChargeDTO[]>;
 }
 
 export const paymentsApiV1: PaymentsApiV1 = {
   getPayableCharge: (clinicId, chargeId) => findPayableCharge(clinicId, chargeId),
   listExcessRefundStatuses,
+  listFailedCharges,
 };
 
-export type { ExcessRefundStatus, PayableCharge };
+export type { ExcessRefundStatus, FailedChargeDTO, PayableCharge };

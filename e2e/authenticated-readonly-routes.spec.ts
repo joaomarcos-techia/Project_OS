@@ -11,8 +11,9 @@ const READ_ONLY_ROUTES = [
   '/caixa',
   '/financeiro',
   '/financeiro/fornecedores',
-  // `/configuracoes` é somente um redirect; o inventário valida a tela canônica.
-  '/configuracoes/agenda',
+  // O índice É a tela: desde a remoção das rotas de categoria, `/configuracoes`
+  // é a lista única e não redireciona para lugar nenhum.
+  '/configuracoes',
   '/configuracoes/agente',
   '/configuracoes/assinatura',
   '/configuracoes/horarios',

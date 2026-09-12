@@ -18,7 +18,7 @@ test.describe('fluxos mutáveis da Clínica A', () => {
     );
 
     await page.goto('/login');
-    await page.getByLabel('Email').fill(testEmail!);
+    await page.locator('#email').fill(testEmail!);
     await page.locator('input[name="password"]').fill(testPassword!);
     await page.getByRole('button', { name: 'Entrar' }).click();
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });

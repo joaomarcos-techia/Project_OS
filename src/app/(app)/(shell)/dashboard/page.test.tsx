@@ -12,6 +12,7 @@ const {
   getRecentActivity,
   listCashFlowDaily,
   redirect,
+  countOpenHandoffs,
 } = vi.hoisted(() => ({
   getActivationChecklist: vi.fn(),
   getCashFlowToday: vi.fn(),
@@ -22,9 +23,14 @@ const {
   getRecentActivity: vi.fn(),
   listCashFlowDaily: vi.fn(),
   redirect: vi.fn(),
+  countOpenHandoffs: vi.fn(),
 }));
 
-vi.mock('next/navigation', () => ({ redirect }));
+// `useRouter` entra no mock por causa do botao "Atualizar", que e client e
+// chama router.refresh(). Sem ele o modulo mockado nao exporta o hook e o
+// render inteiro quebra.
+vi.mock('next/navigation', () => ({ redirect, useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('@/contexts/ai-agent/queries', () => ({ countOpenHandoffs }));
 vi.mock('@/lib/auth/tenant-context', () => ({ getCurrentUser }));
 vi.mock('@/contexts/tenancy/queries', () => ({ getClinicTimezone }));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
@@ -41,11 +47,18 @@ const dashboard = {
   aguardando: 1,
   emAtendimento: 1,
   finalizadas: 1,
+  faltas: 1,
+  cancelados: 0,
+  faltaNome: 'Rita Bueno',
+  maiorEsperaMin: 24,
+  maiorEsperaNome: 'Marina Rezende',
+  naoFaturados: 2,
   proximos: [
     {
       appointmentId: 'appointment-1',
       horario: '2026-08-20T13:30:00.000Z',
       nome: 'Maria Silva',
+      procedimento: 'Consulta cardiologia',
       status: 'confirmado',
     },
   ],
@@ -108,6 +121,7 @@ describe('DashboardPage', () => {
       },
     ]);
     getProfileNames.mockResolvedValue(new Map([['user-1', 'Ana Costa']]));
+    countOpenHandoffs.mockResolvedValue({ abertos: 0, vencidos: 0 });
   });
 
   it('prioriza ativação e operação, com agenda antes do gráfico', async () => {
@@ -115,7 +129,7 @@ describe('DashboardPage', () => {
     const content = container.textContent ?? '';
 
     expect(screen.getByText('Consultas hoje')).toBeTruthy();
-    expect(screen.getByText('Faturamento · últimos 7 dias')).toBeTruthy();
+    expect(screen.getByText('Faturamento recebido')).toBeTruthy();
     expect(screen.getByText('Próximos na agenda')).toBeTruthy();
     expect(screen.getByText('Atividade recente')).toBeTruthy();
     expect(screen.queryByText(/em breve/iu)).toBeNull();
@@ -179,7 +193,7 @@ describe('DashboardPage', () => {
     expect(getRecentActivity).not.toHaveBeenCalled();
     expect(getProfileNames).not.toHaveBeenCalled();
     expect(html).not.toContain('A receber');
-    expect(html).not.toContain('Faturado hoje');
+    expect(html).not.toContain('Recebido hoje');
     expect(html).not.toContain('Saldo do dia');
     expect(html).not.toContain('Faturamento');
     expect(html).not.toContain('Financeiro');

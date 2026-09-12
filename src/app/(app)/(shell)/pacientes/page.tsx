@@ -3,14 +3,15 @@
  * nome/email only. Search is by name (ILIKE / trigram). Tenant scope comes from
  * the session via requireClinicId. Criação vive num Drawer (?novo=1).
  */
-import { Search, Users } from 'lucide-react';
+import { Search, UserRound, Users } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
-import { listPatients, listPatientsPage } from '@/contexts/patient/queries';
+import { listPatientBonds, listPatients, listPatientsPage } from '@/contexts/patient/queries';
 import { PageNoAccess } from '@/components/shared/page-no-access';
+import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -22,6 +23,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 
 import { PATIENT_RESTORE_WINDOW_DAYS } from '@/contexts/patient/internal/restore-policy';
 import { formatDatePt } from '@/lib/format';
+import { ageFromBirthdate } from '../consultorio/board-logic';
 import { cn } from '@/lib/ui/cn';
 
 import styles from './patients.module.css';
@@ -74,6 +76,14 @@ export default async function PacientesPage({
     // normal não carrega mais 200 pacientes adicionais em toda navegação.
     drawerOpen ? listPatients(clinicId, { limit: 200 }) : Promise.resolve([]),
   ]);
+  // Vínculos só da página visível — a coluna "Vínculo" da referência. Na
+  // lixeira não faz sentido: o vínculo descreve operação corrente.
+  const bonds = showTrash
+    ? new Map<string, { responsavelNome: string | null; dependentes: number }>()
+    : await listPatientBonds(
+        clinicId,
+        result.items.map((item) => item.id),
+      );
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const filtering = Boolean(q || showTrash);
   const currentParams: PatientListSearchParams = {
@@ -99,6 +109,11 @@ export default async function PacientesPage({
           showTrash
             ? `Pacientes removidos nos últimos ${PATIENT_RESTORE_WINDOW_DAYS} dias. Depois disso a remoção é definitiva.`
             : 'Busca, cadastro e hub de cada paciente.'
+        }
+        meta={
+          <span className="font-mono tabular-nums">
+            {result.total.toLocaleString('pt-BR')} {showTrash ? 'removidos' : 'ativos'}
+          </span>
         }
         actions={
           <NewPatientDrawer
@@ -180,6 +195,7 @@ export default async function PacientesPage({
               many: showTrash ? 'removidos' : 'pacientes',
             }}
             hrefFor={(nextPage) => patientListHref(currentParams, { page: String(nextPage) })}
+            hint="Use a busca para localizar um paciente específico"
             empty={
               <EmptyState
                 icon={<Search />}
@@ -198,7 +214,14 @@ export default async function PacientesPage({
               <TableRow>
                 <TableHead>Paciente</TableHead>
                 <TableHead>Contato</TableHead>
-                {showTrash ? <TableHead>Removido em</TableHead> : null}
+                {showTrash ? (
+                  <TableHead>Removido em</TableHead>
+                ) : (
+                  <>
+                    <TableHead>Nascimento</TableHead>
+                    <TableHead>Vínculo</TableHead>
+                  </>
+                )}
                 <TableHead className="w-28" aria-label="Abrir" />
               </TableRow>
             </TableHeader>
@@ -212,14 +235,73 @@ export default async function PacientesPage({
                       <EntityCell name={p.nome} />
                     ) : (
                       <Link href={`/pacientes/${p.id}`} className="block px-3.5 py-(--cell-py)">
-                        <EntityCell name={p.nome} />
+                        <EntityCell
+                          name={p.nome}
+                          {...(p.cpfMascarado
+                            ? {
+                                sub: (
+                                  <span className="font-mono tabular-nums">
+                                    CPF {p.cpfMascarado}
+                                  </span>
+                                ),
+                              }
+                            : {})}
+                        />
                       </Link>
                     )}
                   </TableCell>
-                  <TableCell className="text-fg-muted">{p.email || 'Não informado'}</TableCell>
+                  <TableCell className="text-fg-muted">
+                    {/* E-mail em cima, telefone embaixo — a referência empilha os
+                        dois porque a recepção usa um ou outro conforme o caso, e
+                        abrir o cadastro só para descobrir o número era um clique
+                        a mais em toda ligação. */}
+                    <span className="block truncate">
+                      {p.email || <span className="italic text-fg-subtle">Não informado</span>}
+                    </span>
+                    {p.telefone ? (
+                      <span className="mt-1 block font-mono text-(length:--fs-2xs) tabular-nums text-fg-subtle">
+                        {p.telefone}
+                      </span>
+                    ) : null}
+                  </TableCell>
                   {showTrash ? (
                     <TableCell className="text-fg-muted">{formatDatePt(p.deletedAt)}</TableCell>
-                  ) : null}
+                  ) : (
+                    <>
+                      <TableCell>
+                        {p.dataNascimento ? (
+                          <>
+                            <span className="block font-mono text-(length:--fs-sm) tabular-nums text-fg-muted">
+                              {formatDatePt(p.dataNascimento)}
+                            </span>
+                            {ageFromBirthdate(p.dataNascimento) !== null ? (
+                              <span className="mt-0.5 block text-(length:--fs-2xs) text-fg-subtle">
+                                {ageFromBirthdate(p.dataNascimento)} anos
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-fg-subtle">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {/* Responsável primeiro: para um menor, saber QUEM responde
+                            é o que decide se a recepção pode seguir sozinha. */}
+                        {bonds.get(p.id)?.responsavelNome ? (
+                          <Badge tone="blue">
+                            <UserRound aria-hidden="true" className="size-3" />
+                            Responsável: {bonds.get(p.id)!.responsavelNome}
+                          </Badge>
+                        ) : (bonds.get(p.id)?.dependentes ?? 0) > 0 ? (
+                          <Badge tone="gray">
+                            <Users aria-hidden="true" className="size-3" />
+                            {bonds.get(p.id)!.dependentes} dependente
+                            {bonds.get(p.id)!.dependentes === 1 ? '' : 's'}
+                          </Badge>
+                        ) : null}
+                      </TableCell>
+                    </>
+                  )}
                   <TableCell>
                     {showTrash ? (
                       <RestorePatientButton patientId={p.id} />

@@ -5,13 +5,26 @@
  * Cada item linka para a página autenticada de PDF; o token do Storage não é
  * exposto ao navegador.
  */
-import { ExternalLink, FileText, Files, ListFilter, Pill, Search } from 'lucide-react';
+import {
+  CornerUpRight,
+  ExternalLink,
+  FileBadge,
+  FileCheck,
+  FileText,
+  Files,
+  ListFilter,
+  Search,
+  ShieldAlert,
+  TestTube,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import {
   listClinicalDocumentFeedPage,
   type ClinicalDocumentKind,
+  type ClinicalDocumentType,
 } from '@/contexts/clinical/queries';
 import { PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
@@ -32,6 +45,21 @@ import { NewClinicalDocumentDrawer } from './new-clinical-document-drawer';
 import styles from './documents.module.css';
 
 export const dynamic = 'force-dynamic';
+/**
+ * Cada tipo tem ícone próprio — o badge é o que se varre numa lista de 184
+ * linhas, e seis rótulos na mesma cor cinza obrigam a LER todos eles.
+ *
+ * Controle especial é o único em vermelho: é receituário de lista controlada,
+ * com regra de dispensação própria, e a diferença precisa saltar de longe.
+ */
+const TIPO: Record<ClinicalDocumentType, { Icon: LucideIcon; tone: 'blue' | 'red' | 'gray' }> = {
+  simples: { Icon: FileText, tone: 'blue' },
+  controle_especial: { Icon: ShieldAlert, tone: 'red' },
+  atestado: { Icon: FileCheck, tone: 'gray' },
+  exame: { Icon: TestTube, tone: 'gray' },
+  declaracao: { Icon: FileBadge, tone: 'gray' },
+  encaminhamento: { Icon: CornerUpRight, tone: 'gray' },
+};
 
 interface DocumentosPageUser {
   isSuperAdmin?: boolean;
@@ -111,8 +139,13 @@ export default async function DocumentosPage({
           ) : undefined
         }
         crumbs={[{ label: 'Clínico' }, { label: 'Documentos' }]}
-        title="Documentos"
-        description="Crie e consulte receitas e documentos médicos da clínica."
+        title="Documentos emitidos"
+        description="Histórico de receitas e documentos. A emissão acontece no Consultório e no prontuário."
+        meta={
+          <span className="font-mono tabular-nums">
+            {result.total.toLocaleString('pt-BR')} documento{result.total === 1 ? '' : 's'}
+          </span>
+        }
       />
 
       <FilterBar className="qoro-toolbar">
@@ -172,9 +205,10 @@ export default async function DocumentosPage({
       >
         <TableHeader>
           <TableRow>
-            <TableHead>Documento</TableHead>
+            <TableHead>Tipo</TableHead>
             <TableHead>Paciente</TableHead>
-            <TableHead>Emitido em</TableHead>
+            <TableHead>Emitido por</TableHead>
+            <TableHead>Emissão</TableHead>
             <TableHead className="w-28" aria-label="Ações" />
           </TableRow>
         </TableHeader>
@@ -182,12 +216,11 @@ export default async function DocumentosPage({
           {items.map((d) => (
             <TableRow key={`${d.kind}:${d.id}`}>
               <TableCell>
-                <Badge tone={d.kind === 'prescription' ? 'blue' : 'gray'}>
-                  {d.kind === 'prescription' ? (
-                    <Pill aria-hidden="true" className="size-3" />
-                  ) : (
-                    <FileText aria-hidden="true" className="size-3" />
-                  )}
+                <Badge tone={TIPO[d.type]?.tone ?? 'gray'} className={styles.tipo}>
+                  {(() => {
+                    const Icon = TIPO[d.type]?.Icon ?? FileText;
+                    return <Icon aria-hidden="true" className="size-3" />;
+                  })()}
                   {d.label}
                 </Badge>
                 {!d.hasPdf ? (
@@ -196,6 +229,14 @@ export default async function DocumentosPage({
               </TableCell>
               <TableCell>
                 <EntityCell name={d.patientNome} />
+              </TableCell>
+              <TableCell className="min-w-0 text-fg-muted">
+                <span className="block truncate">{d.emitidoPor}</span>
+                {d.emitidoPorCrm ? (
+                  <span className="mt-0.5 block font-mono text-(length:--fs-xs) tabular-nums text-fg-subtle">
+                    {d.emitidoPorCrm}
+                  </span>
+                ) : null}
               </TableCell>
               <TableCell className="font-mono text-fg-muted tabular-nums">
                 <span className="block">{new Date(d.createdAt).toLocaleDateString('pt-BR')}</span>

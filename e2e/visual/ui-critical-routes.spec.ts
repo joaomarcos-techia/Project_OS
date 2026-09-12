@@ -10,7 +10,13 @@ import { authenticate } from '../auth';
  * Ordem = ordem de revisão no GATE 3.
  */
 const ROUTES = [
-  { path: '/dashboard', slug: 'dashboard', heading: 'Visão operacional' },
+  // O h1 do Dashboard é uma SAUDAÇÃO ("Boa tarde, Ana"): muda com a hora e com
+  // quem entrou, então a asserção é de padrão. O padrão também é mais forte que
+  // o texto fixo antigo — "Visão operacional" é o título do fallback de sessão
+  // SEM clínica, e a asserção literal ficava verde justamente no estado que a
+  // auditoria precisa reprovar.
+  // O `(?:,|$)` cobre a conta sem nome, em que a saudação fica sozinha.
+  { path: '/dashboard', slug: 'dashboard', heading: /^(?:Bom dia|Boa tarde|Boa noite)(?:,|$)/u },
   { path: '/agenda', slug: 'agenda', heading: 'Agenda' },
   { path: '/consultorio', slug: 'consultorio', heading: 'Consultório' },
   { path: '/pacientes', slug: 'pacientes', heading: 'Pacientes' },
@@ -18,7 +24,7 @@ const ROUTES = [
   { path: '/financeiro', slug: 'financeiro', heading: 'Financeiro' },
   { path: '/caixa', slug: 'caixa', heading: 'Caixa' },
   { path: '/conversas', slug: 'conversas', heading: 'Conversas IA' },
-  { path: '/configuracoes/agenda', slug: 'configuracoes', heading: 'Agenda' },
+  { path: '/configuracoes', slug: 'configuracoes', heading: 'Configurações' },
 ] as const;
 
 const THEMES = ['light', 'dark'] as const;
@@ -51,9 +57,12 @@ test.describe('auditoria visual autenticada das rotas críticas', () => {
         expect(response!.status(), `${route.path} retornou erro de servidor`).toBeLessThan(500);
         await expect(page).not.toHaveURL(/\/login(?:\?|$)/u);
         await expect(page.locator('main')).toBeVisible();
-        await expect(page.getByRole('heading', { name: route.heading, exact: true })).toBeVisible({
-          timeout: 30_000,
-        });
+        await expect(
+          page.getByRole('heading', {
+            name: route.heading,
+            exact: typeof route.heading === 'string',
+          }),
+        ).toBeVisible({ timeout: 30_000 });
         await expect(page.getByText('Sem acesso', { exact: true })).toHaveCount(0);
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(page.locator('html')).toHaveClass(

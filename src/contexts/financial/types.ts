@@ -63,6 +63,18 @@ export interface CashFlowDTO {
   recebidoHoje: number;
   pagoHoje: number;
   saldoHoje: number; // recebidoHoje - pagoHoje
+  /**
+   * Contagens que acompanham os totais. A referência de setembro/2026 escreve
+   * "12 lançamentos · 1 vencido" sob o valor: sem elas a sublinha só repetia o
+   * rótulo ("Pendências em aberto"), que o número acima já dizia.
+   */
+  contagens: {
+    receber: number;
+    receberVencidos: number;
+    pagar: number;
+    recebimentos: number;
+    pagamentos: number;
+  };
 }
 
 export interface SupplierSummary {

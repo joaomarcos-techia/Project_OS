@@ -18,7 +18,7 @@ describe('ForgotPasswordForm', () => {
     mocks.forgotPasswordAction.mockResolvedValue({ error: null, sent: true });
     render(<ForgotPasswordForm />);
 
-    const summary = screen.getByText('Esqueci minha senha');
+    const summary = screen.getByText('Esqueci a senha');
     const details = summary.closest('details');
     expect(details?.open).toBe(false);
     fireEvent.click(summary);

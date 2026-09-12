@@ -43,7 +43,16 @@ describe('manual WhatsApp message retry', () => {
   it('expõe reenvio somente quando a operação pode ser executada', () => {
     expect(appActions).toContain('export async function reenviarMensagemAction');
     expect(threadView).toContain('const canRetry');
-    expect(threadView).toContain("message.delivery === 'failed' && canRetry");
     expect(threadView).toContain('<RetryMessageButton');
+    // O botão só existe sob o gate. Asserir a expressão literal prendia o teste
+    // à FORMA do JSX (um `&&` virou ternário quando a falha passou a ser uma
+    // caixa); o que importa é que nenhuma renderização dele escape do gate.
+    const ocorrencias = [...threadView.matchAll(/<RetryMessageButton/g)];
+    expect(ocorrencias).toHaveLength(1);
+    for (const ocorrencia of ocorrencias) {
+      expect(threadView.slice(Math.max(0, ocorrencia.index - 120), ocorrencia.index)).toContain(
+        'canRetry ?',
+      );
+    }
   });
 });

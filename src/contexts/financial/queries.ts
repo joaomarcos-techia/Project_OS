@@ -358,6 +358,11 @@ export async function getCashFlowToday(
       .select({
         receber: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'receber' then ${lancamentos.valor} - ${lancamentos.valorPago} else 0 end), 0)`,
         pagar: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'pagar' then ${lancamentos.valor} - ${lancamentos.valorPago} else 0 end), 0)`,
+        // Contagens vêm da MESMA varredura dos totais: uma query a mais só para
+        // contar as linhas que já estão sendo somadas seria ida redundante.
+        qtdReceber: sql<number>`coalesce(count(*) filter (where ${lancamentos.tipo} = 'receber'), 0)::int`,
+        qtdPagar: sql<number>`coalesce(count(*) filter (where ${lancamentos.tipo} = 'pagar'), 0)::int`,
+        qtdReceberVencidos: sql<number>`coalesce(count(*) filter (where ${lancamentos.tipo} = 'receber' and ${lancamentos.dueDate} < current_date), 0)::int`,
       })
       .from(lancamentos)
       .where(inArray(lancamentos.status, ['pendente', 'parcial']));
@@ -372,6 +377,12 @@ export async function getCashFlowToday(
           when (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
             or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')
           then ${paymentTransactions.amount} else 0 end), 0)`,
+        qtdRecebimentos: sql<number>`coalesce(count(*) filter (where
+          (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'refund')), 0)::int`,
+        qtdPagamentos: sql<number>`coalesce(count(*) filter (where
+          (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')), 0)::int`,
       })
       .from(paymentTransactions)
       .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
@@ -391,6 +402,13 @@ export async function getCashFlowToday(
       recebidoHoje,
       pagoHoje,
       saldoHoje: Math.round((recebidoHoje - pagoHoje) * 100) / 100,
+      contagens: {
+        receber: aberto?.qtdReceber ?? 0,
+        receberVencidos: aberto?.qtdReceberVencidos ?? 0,
+        pagar: aberto?.qtdPagar ?? 0,
+        recebimentos: liquidado?.qtdRecebimentos ?? 0,
+        pagamentos: liquidado?.qtdPagamentos ?? 0,
+      },
     };
   });
 }
@@ -400,6 +418,80 @@ export async function getCashFlowToday(
  * janela [from, to). Mesma semântica do getCashFlowToday (não depende do rollup
  * cash_flow_daily estar populado). Estornos (status='estornado') ficam de fora.
  */
+/** Uma semana da série de faturamento — segunda a domingo no fuso da clínica. */
+export interface FaturamentoSemana {
+  /** Segunda-feira da semana, `YYYY-MM-DD`, já no fuso da clínica. */
+  weekStart: string;
+  recebido: number;
+  pago: number;
+  saldo: number;
+}
+
+/**
+ * Faturamento agregado POR SEMANA, para a série de Relatórios.
+ *
+ * Mesma regra de sinal de `getFaturamentoPeriodo` (um estorno de "receber" conta
+ * como saída, e vice-versa) — se as duas divergissem, o total do período não
+ * fecharia com a soma das semanas.
+ *
+ * O corte de semana usa `date_trunc('week', … AT TIME ZONE tz)`: o Postgres
+ * trunca para segunda-feira, e o `AT TIME ZONE` garante que a virada de semana
+ * seja a da clínica, não a do UTC. Semanas sem movimento NÃO voltam como zero —
+ * elas simplesmente não existem no resultado, e quem chama decide se aquilo é
+ * "sem dado" ou "R$ 0" (as duas coisas são diferentes num relatório).
+ */
+export async function getFaturamentoPorSemana(
+  clinicId: string,
+  from: Date,
+  to: Date,
+  timeZone: string,
+): Promise<FaturamentoSemana[]> {
+  const weekStart = sql<string>`to_char(date_trunc('week', ${paymentTransactions.occurredAt} AT TIME ZONE ${timeZone}), 'YYYY-MM-DD')`;
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        weekStart,
+        recebido: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
+        pago: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
+      })
+      .from(paymentTransactions)
+      .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
+      .where(
+        and(
+          eq(paymentTransactions.clinicId, clinicId),
+          gte(paymentTransactions.occurredAt, from),
+          lt(paymentTransactions.occurredAt, to),
+        ),
+      )
+      // GROUP BY/ORDER BY por POSIÇÃO, e não repetindo a expressão: o drizzle
+      // renderiza a mesma referência de coluna qualificada na cláusula de grupo
+      // ("appointments"."scheduled_at") e sem qualificar na projeção
+      // ("scheduled_at"). O Postgres compara as duas SINTATICAMENTE, conclui que
+      // a projeção não está agrupada e recusa a query com "must appear in the
+      // GROUP BY clause". O ordinal aponta para a mesma expressão sem depender
+      // de como cada lado é impresso.
+      .groupBy(sql`1`)
+      .orderBy(sql`1`);
+
+    return rows.map((row) => {
+      const recebido = num(row.recebido);
+      const pago = num(row.pago);
+      return {
+        weekStart: row.weekStart,
+        recebido,
+        pago,
+        saldo: Math.round((recebido - pago) * 100) / 100,
+      };
+    });
+  });
+}
+
 export async function getFaturamentoPeriodo(
   clinicId: string,
   from: Date,

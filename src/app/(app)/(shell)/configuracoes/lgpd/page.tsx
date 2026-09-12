@@ -30,7 +30,7 @@ export default async function LgpdOperationsPage({
       <>
         <PageHeader
           crumbs={[
-            { label: 'Conformidade e segurança', href: '/configuracoes/seguranca' },
+            { label: 'Configurações', href: '/configuracoes' },
             { label: 'Solicitações LGPD' },
           ]}
           title="Solicitações LGPD"
@@ -68,7 +68,7 @@ export default async function LgpdOperationsPage({
     <>
       <PageHeader
         crumbs={[
-          { label: 'Conformidade e segurança', href: '/configuracoes/seguranca' },
+          { label: 'Configurações', href: '/configuracoes' },
           { label: 'Solicitações LGPD' },
         ]}
         title="Solicitações LGPD"

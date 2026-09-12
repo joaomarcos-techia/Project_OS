@@ -12,6 +12,7 @@
  * mesma chave e o servidor devolve o resultado original em vez de duplicar.
  */
 import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { Clock } from 'lucide-react';
 
 import type { AIHandoffState } from '@/contexts/ai-agent/types';
 import { Alert } from '@/components/ui/alert';
@@ -204,15 +205,13 @@ function HandoffPanel({
 
   return (
     <div className="flex flex-col gap-(--sp-4)">
-      <Alert
-        variant={handoff.overdue ? 'danger' : handoff.priority === 'urgent' ? 'warning' : 'info'}
-        title={handoff.overdue ? 'SLA vencido' : 'Atendimento sob sua responsabilidade'}
-      >
-        Prazo: {new Date(handoff.dueAt).toLocaleString('pt-BR')} · prioridade{' '}
-        {handoff.priority === 'urgent' ? 'urgente' : 'normal'}.
-      </Alert>
-
-      {windowOpen ? null : (
+      {/* O SLA já é a PRIMEIRA coisa da conversa, em faixa vermelha no topo do
+          painel. Repeti-lo aqui embaixo não avisa ninguém duas vezes: só empurra
+          o campo de resposta para longe e ensina o operador a ignorar avisos.
+          O que o rodapé precisa dizer é outra coisa — se ainda dá para escrever. */}
+      {windowOpen ? (
+        <JanelaAberta closesAt={windowClosesAt} />
+      ) : (
         <Alert variant="warning" title="Janela de 24h da Meta expirada">
           {lastInboundAt
             ? `A última mensagem do paciente foi em ${new Date(lastInboundAt).toLocaleString('pt-BR')}. `
@@ -243,8 +242,11 @@ function HandoffPanel({
           aria-describedby={windowOpen && windowClosesAt ? `${textId}-hint` : undefined}
         />
         <div className="flex flex-wrap items-center justify-between gap-(--sp-2)">
+          {/* O prazo da janela já está em `JanelaAberta`, acima do campo. Aqui
+              fica só a âncora acessível: quem navega por teclado ouve o prazo ao
+              focar o campo, sem que a mesma frase apareça duas vezes na tela. */}
           {windowOpen && windowClosesAt ? (
-            <span id={`${textId}-hint`} className="text-(length:--fs-xs) text-fg-subtle">
+            <span id={`${textId}-hint`} className="sr-only">
               A janela fecha em {new Date(windowClosesAt).toLocaleString('pt-BR')}.
             </span>
           ) : (
@@ -295,6 +297,41 @@ function HandoffPanel({
  * MESMA chave e o servidor devolve o resultado do primeiro. Gerar a chave a
  * cada render transformaria cada clique numa mensagem nova.
  */
+/**
+ * Quanto tempo ainda dá para responder em texto livre.
+ *
+ * A Meta conta 24 h a partir da última mensagem do PACIENTE. O operador não
+ * precisa do horário absoluto para decidir — precisa saber se escreve agora ou
+ * se já perdeu a janela —, então o tempo restante vem por extenso e o horário
+ * fica como referência.
+ */
+function JanelaAberta({ closesAt }: { closesAt: string | null }) {
+  if (!closesAt) return null;
+  const fecha = new Date(closesAt);
+  const restamMin = Math.max(0, Math.round((fecha.getTime() - Date.now()) / 60_000));
+  const horas = Math.floor(restamMin / 60);
+  const hoje = new Date().toDateString() === fecha.toDateString();
+  return (
+    <p className="flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)">
+      <Clock aria-hidden="true" className="size-3.5 text-success-700" />
+      <span className="font-medium text-success-700">Janela de 24 h aberta</span>
+      <span className="text-fg-subtle">
+        fecha às{' '}
+        {fecha.toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hourCycle: 'h23',
+        })}{' '}
+        {hoje ? 'de hoje' : 'de amanhã'} · restam
+      </span>
+      <span className="font-mono font-semibold tabular-nums text-fg-muted">
+        {horas > 0 ? `${horas} h ` : ''}
+        {restamMin % 60} min
+      </span>
+    </p>
+  );
+}
+
 function useIdempotencyKey(succeeded: boolean): string {
   const [key, setKey] = useState(newKey);
   const prev = useRef(succeeded);

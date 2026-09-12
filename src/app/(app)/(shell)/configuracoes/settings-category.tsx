@@ -1,15 +1,11 @@
-import { ArrowRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
-import { requireUser } from '@/lib/auth/tenant-context';
 import { cn } from '@/lib/ui/cn';
 
-import type { SettingsNavItem } from './settings-navigation';
-import { visibleSettingsNavigation } from './settings-navigation';
+import type { SettingsNavGroup, SettingsNavItem } from './settings-navigation';
 import type { SettingsStatus } from './settings-status';
 import styles from './settings.module.css';
 
@@ -24,9 +20,11 @@ import styles from './settings.module.css';
 function SettingsCard({
   item,
   status,
+  meta,
 }: {
   item: SettingsNavItem;
   status: SettingsStatus | undefined;
+  meta: string | undefined;
 }) {
   const Icon = item.icon;
   return (
@@ -39,12 +37,10 @@ function SettingsCard({
       )}
     >
       <div className={styles.identity ?? ''}>
-        <span
-          aria-hidden="true"
-          className="grid size-9 shrink-0 place-items-center rounded-(--r-md) bg-surface-2 text-fg-muted"
-        >
-          <Icon className="size-4.5" />
-        </span>
+        {/* Ícone SOLTO, sem ladrilho: a referência não emoldura nenhum dos nove.
+            O quadradinho cinza dobrava o peso visual de um glifo que só serve
+            para reconhecer a linha de relance. */}
+        <Icon aria-hidden="true" className="size-4.5 shrink-0 text-fg-subtle" />
       </div>
       <div className={styles.copy ?? ''}>
         <h3 className="mt-1 text-(length:--fs-subsection) font-semibold">
@@ -64,52 +60,51 @@ function SettingsCard({
           {status.label}
         </Badge>
       ) : null}
-      <span aria-hidden="true" className={styles.action ?? ''}>
-        {item.cta ?? 'Configurar'}
-        <ArrowRight className="size-3.5" />
-      </span>
+      {/* O número em mono, à direita, antes do chevron: é o que transforma a
+          lista em inventário. "Procedimentos" diz que a tela existe; "38 ativos
+          · 4 inativos" diz se vale abrir. */}
+      {meta ? <span className={styles.meta ?? ''}>{meta}</span> : null}
+      {/* Sem CTA textual. A linha INTEIRA é o link (o `after:inset-0` acima), e
+          o chevron já diz isso. Nove linhas com nove verbos diferentes
+          ("Configurar", "Abrir", "Conectar", "Gerenciar", "Acompanhar") faziam
+          o olho ler a coluna de ações em vez da lista de assuntos — e todos
+          levam ao mesmo lugar: a página daquela configuração. */}
+      <ChevronRight aria-hidden="true" className={styles.action ?? ''} />
     </Card>
   );
 }
 
 /**
- * Página de uma categoria. As cinco rotas de categoria são cascas finas em cima
- * disto: quem decide o que aparece é o mesmo mapa que desenha as abas, e o gate
- * real continua em cada rota de destino.
+ * Uma categoria como SEÇÃO — o bloco que a referência empilha no índice.
+ *
+ * Reusa o mesmo `SettingsCard` das páginas de categoria: se o cartão divergisse
+ * entre o índice e a categoria, a mesma configuração teria duas aparências.
  */
-export async function SettingsCategoryPage({
-  id,
+export function SettingsGroupSection({
+  group,
   statuses = {},
+  metas = {},
 }: {
-  id: string;
+  group: SettingsNavGroup;
   statuses?: Record<string, SettingsStatus>;
+  metas?: Record<string, string>;
 }) {
-  const user = await requireUser();
-  const groups = visibleSettingsNavigation(
-    user.permissions,
-    user.isSuperAdmin && user.aal === 'aal2',
-  );
-  const group = groups.find((candidate) => candidate.id === id);
-  // Sem NENHUM destino visível a categoria não existe para esta pessoa — e a
-  // aba correspondente também não foi desenhada. 404 é a resposta honesta.
-  if (!group) notFound();
-
   return (
-    <>
-      <PageHeader
-        crumbs={[{ label: 'Administração' }, { label: 'Configurações' }]}
-        title="Configurações"
-        description="Clínica, operação, integrações, conformidade e conta"
-      />
-      <div className={styles.categoryHeading}>
-        <h2>{group.label}</h2>
+    <section className={styles.groupSection ?? ''} aria-labelledby={`settings-group-${group.id}`}>
+      <div className={styles.groupHeader ?? ''}>
+        <h2 id={`settings-group-${group.id}`}>{group.label}</h2>
         <p>{group.description}</p>
       </div>
       <div className={styles.list ?? ''}>
         {group.items.map((item) => (
-          <SettingsCard key={item.href} item={item} status={statuses[item.href]} />
+          <SettingsCard
+            key={item.href}
+            item={item}
+            status={statuses[item.href]}
+            meta={metas[item.href]}
+          />
         ))}
       </div>
-    </>
+    </section>
   );
 }

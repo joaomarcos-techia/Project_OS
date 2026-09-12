@@ -45,6 +45,10 @@ export default defineConfig({
     baseURL,
     extraHTTPHeaders: vercelBypassHeaders(),
     ...(hasReusableAuth ? { storageState: '.playwright/.auth/user.json' } : {}),
+    // 9 rotas por teste, cada uma podendo ser a primeira compilação de um
+    // `next dev` ou um cold start serverless. O teto padrão de 30 s reprova por
+    // lentidão de ambiente, não por regressão visual — que é o que se audita.
+    navigationTimeout: 90_000,
     trace: 'off',
     video: 'off',
     screenshot: 'off',

@@ -21,9 +21,11 @@ export function PageHeader({
   description?: ReactNode;
   actions?: ReactNode;
   /**
-   * Contexto de leitura à direita, antes das ações — o "Hoje · 21 de agosto" do
-   * Consultório. Fica separado de `actions` de propósito: é informação, não
-   * affordance, e misturar os dois faz texto mudo parecer botão desabilitado.
+   * Contexto de leitura — "12 consultas", "atualizado 14:02", o fuso da clínica.
+   *
+   * Vive na LINHA DO TÍTULO, atrás de um filete, e não no cluster de ações: é
+   * informação, não affordance, e encostado nos botões o texto mudo lia como
+   * botão desabilitado. Atrás do filete ele fica colado no assunto que mede.
    */
   meta?: ReactNode;
   breadcrumb?: ReactNode;
@@ -55,15 +57,18 @@ export function PageHeader({
               {description}
             </p>
           ) : null}
+          {meta ? (
+            <span
+              data-slot="page-header-meta"
+              className="mt-1.5 block text-(length:--fs-body-sm) text-fg-subtle"
+            >
+              {meta}
+            </span>
+          ) : null}
         </div>
-        {meta || actions ? (
+        {actions ? (
           <div data-slot="page-header-actions" className="flex flex-wrap items-center gap-(--sp-4)">
-            {meta ? (
-              <span className="text-(length:--fs-body-sm) text-fg-subtle">{meta}</span>
-            ) : null}
-            {actions ? (
-              <div className="flex flex-wrap items-center gap-(--sp-2)">{actions}</div>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-(--sp-2)">{actions}</div>
           </div>
         ) : null}
       </div>

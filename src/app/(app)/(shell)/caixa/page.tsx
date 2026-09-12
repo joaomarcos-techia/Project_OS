@@ -58,12 +58,15 @@ export default async function CaixaPage() {
       listOpenCollectionCases(clinicId),
     ]),
   );
-  const excessRefundStatuses = await withQueryDeadline(
-    'caixa.excessRefundStatuses',
-    paymentsApiV1.listExcessRefundStatuses(
-      clinicId,
-      pendencias.map((item) => item.appointmentId),
-    ),
+  const [excessRefundStatuses, failedCharges] = await withQueryDeadline(
+    'caixa.paymentsStatuses',
+    Promise.all([
+      paymentsApiV1.listExcessRefundStatuses(
+        clinicId,
+        pendencias.map((item) => item.appointmentId),
+      ),
+      paymentsApiV1.listFailedCharges(clinicId),
+    ]),
   );
 
   // Caixa patient-first: resolve nomes via contexto patient (camada page — sem
@@ -76,7 +79,12 @@ export default async function CaixaPage() {
       all.map((l) => l.id),
     ),
   );
-  const patientIds = [...new Set(all.filter((l) => l.patientId).map((l) => l.patientId!))];
+  const patientIds = [
+    ...new Set([
+      ...all.filter((l) => l.patientId).map((l) => l.patientId!),
+      ...failedCharges.filter((c) => c.patientId).map((c) => c.patientId!),
+    ]),
+  ];
   const cards = await withQueryDeadline(
     'caixa.patientCards',
     listPatientCards(clinicId, patientIds),
@@ -94,11 +102,28 @@ export default async function CaixaPage() {
 
   return (
     <CaixaView
+      // Data e relógio vêm do SERVIDOR no fuso da clínica: calcular no cliente
+      // daria fuso do navegador e divergência de hidratação no primeiro render.
+      hoje={new Intl.DateTimeFormat('pt-BR', {
+        timeZone: tz,
+        day: 'numeric',
+        month: 'long',
+      }).format(new Date())}
+      atualizadoEm={new Intl.DateTimeFormat('pt-BR', {
+        timeZone: tz,
+        hourCycle: 'h23',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date())}
       pendentes={lancs.pendentes.map(enrich)}
       parciais={lancs.parciais.map(enrich)}
       pagosHoje={lancs.pagosHoje.map(enrich)}
       aPagar={pagaveis.map(enrich)}
       pendencias={pendencias}
+      failedCharges={failedCharges.map((charge) => ({
+        ...charge,
+        pacienteNome: charge.patientId ? (nameById.get(charge.patientId) ?? null) : null,
+      }))}
       excessRefundStatuses={excessRefundStatuses}
       collectionCases={collectionCases}
       methods={methods}

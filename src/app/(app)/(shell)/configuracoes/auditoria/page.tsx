@@ -18,10 +18,7 @@ export default async function AuditoriaPage() {
   if (!gate.allowed) {
     return (
       <PageNoAccess
-        crumbs={[
-          { label: 'Conformidade e segurança', href: '/configuracoes/seguranca' },
-          { label: 'Auditoria' },
-        ]}
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Auditoria' }]}
         title="Auditoria"
         description="Seu perfil não tem permissão para exportar a trilha de auditoria da clínica. Fale com um gestor se precisar de acesso."
       />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { maskCep, maskCnpj, maskCpf, maskCpfCnpj, maskPhoneBR } from './masks';
+import { redactCpf } from './format';
 
 describe('maskCpf', () => {
   it('formata progressivamente', () => {
@@ -72,5 +73,21 @@ describe('maskCep', () => {
     expect(maskCep('01310100')).toBe('01310-100');
     expect(maskCep('013')).toBe('013');
     expect(maskCep(maskCep('01310100'))).toBe('01310-100');
+  });
+});
+
+describe('redactCpf', () => {
+  it('preserva 6 primeiros e 2 últimos e apaga o meio', () => {
+    expect(redactCpf('41290871104')).toBe('412.908.***-04');
+    expect(redactCpf('412.908.711-04')).toBe('412.908.***-04');
+  });
+  it('não exibe CPF incompleto pela metade', () => {
+    expect(redactCpf('529982')).toBe('');
+    expect(redactCpf(null)).toBe('');
+    expect(redactCpf(undefined)).toBe('');
+  });
+  // O contrato que importa: nenhum dígito do meio sobrevive à redação.
+  it('não deixa vazar os dígitos redigidos', () => {
+    expect(redactCpf('41290871104')).not.toContain('711');
   });
 });

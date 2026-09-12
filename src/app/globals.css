@@ -21,6 +21,21 @@
   align-items: start;
   gap: 16px;
 }
+/* Caixa: "A receber" leva o dobro da largura porque e onde o turno acontece;
+   recebidos e a pagar dividem a coluna estreita, como na referencia. */
+[data-qoro-shell='tenant'] .qoro-cash-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
+}
+@media (max-width: 1199px) {
+  [data-qoro-shell='tenant'] .qoro-cash-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 [data-qoro-shell='tenant'] .qoro-cash-queue {
   min-width: 0;
 }
@@ -169,8 +184,14 @@
 /* Referências HTML Qoro de setembro/2026 — somente a clínica.
    O marcador é renderizado no servidor pelo PainelShell. :has() aplica também
    os tokens aos portais Radix no body; ao sair do tenant o admin recupera os
-   tokens originais sem efeito, estado global ou alteração de tema. */
-body:has([data-qoro-shell='tenant']) {
+   tokens originais sem efeito, estado global ou alteração de tema.
+
+   `data-qoro-tokens='qorov2'` é o segundo marcador, para telas públicas que
+   seguem os mesmos designs mas não vivem no shell (auth). Ele traz só a camada
+   de tokens — nenhuma regra estrutural `[data-qoro-shell='tenant'] …` casa com
+   ele, então o login não herda sidebar, nav nem grid de tabela do painel. */
+body:has([data-qoro-shell='tenant']),
+body:has([data-qoro-tokens='qorov2']) {
   --background: oklch(0.988 0.0035 98);
   --foreground: oklch(0.216 0.006 106);
   --card: oklch(1 0 0);
@@ -201,6 +222,9 @@ body:has([data-qoro-shell='tenant']) {
   --sidebar: var(--card);
   --sidebar-foreground: var(--foreground);
   --sidebar-accent: oklch(0.934 0.006 98);
+  /* Item de navegação em repouso: um degrau ACIMA de --text-2, para que a
+     faixa Administração (que herda --text-2) leia como secundária de fato. */
+  --nav-link-fg: oklch(0.292 0.007 104);
   --sidebar-border: var(--border);
   --bg: var(--background);
   --bg-subtle: var(--secondary);
@@ -240,7 +264,7 @@ body:has([data-qoro-shell='tenant']) {
   --sidebar-w: 200px;
   --page-px: 24px;
   --page-pt: 0px;
-  --page-pb: 24px;
+  --page-pb: 20px;
   --card-pad: 16px;
   --card-bg: var(--surface);
   --card-border: var(--border);
@@ -280,7 +304,8 @@ body:has([data-qoro-shell='tenant']) {
   font-family: var(--font-sans);
 }
 
-.dark body:has([data-qoro-shell='tenant']) {
+.dark body:has([data-qoro-shell='tenant']),
+.dark body:has([data-qoro-tokens='qorov2']) {
   --background: oklch(0.18 0.008 106);
   --foreground: oklch(0.95 0.006 98);
   --card: oklch(0.225 0.008 106);
@@ -296,6 +321,7 @@ body:has([data-qoro-shell='tenant']) {
   --border-2: oklch(0.43 0.009 106);
   --border-strong: oklch(0.58 0.009 106);
   --sidebar-accent: oklch(0.31 0.009 106);
+  --nav-link-fg: oklch(0.88 0.007 104);
   --text-3: oklch(0.73 0.009 100);
   --ai: var(--brand-accent-300);
   --on-ai: oklch(0.18 0.04 322);
@@ -350,18 +376,26 @@ body:has([data-qoro-shell='tenant']) {
   text-transform: none;
 }
 [data-qoro-shell='tenant'] [data-slot='nav-link'] {
-  min-height: 40px;
+  min-height: 38px;
   gap: 9px;
   padding: 0 8px;
   border-radius: 6px;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--text-2);
+  color: var(--nav-link-fg);
 }
 [data-qoro-shell='tenant'] [data-slot='nav-link'] svg {
   width: 16px;
   height: 16px;
   color: currentColor;
+}
+/* Administração é a única faixa que a referência desenha mais leve (peso 400)
+   em TODAS as 12 telas. Não é descuido: configurar a clínica é tarefa de
+   exceção, e igualar o peso a Dashboard/Agenda faria a lista inteira competir
+   pela mesma atenção o dia todo. A COR já é `--text-2` herdada da regra base;
+   só o peso cai. O item ativo volta ao peso cheio pela regra abaixo. */
+[data-qoro-shell='tenant'] [data-nav-group='Administração'] [data-slot='nav-link'] {
+  font-weight: 400;
 }
 [data-qoro-shell='tenant'] [data-slot='nav-link'][aria-current='page'] {
   background: var(--sidebar-accent);
@@ -376,7 +410,7 @@ body:has([data-qoro-shell='tenant']) {
   border-radius: 5px;
   background: var(--ai-soft);
   color: var(--ai);
-  font: 500 11.5px/1.5 var(--font-mono);
+  font: 600 11.5px/1.5 var(--font-mono);
 }
 [data-qoro-shell='tenant'] .qoro-sidebar-footer {
   margin: auto 10px 14px;
@@ -402,6 +436,76 @@ body:has([data-qoro-shell='tenant']) {
   padding-inline: 6px;
   font-size: 12px;
 }
+/* Faixa de alerta acionável — Dashboard, Agenda e Caixa usam a MESMA peça.
+   Cada linha é um destino: cor diz o domínio, texto carrega para onde o clique
+   leva. Vive aqui, e não num module por tela, porque três cópias divergiriam
+   (Governança de UI, regra 5). `data-tone` escolhe a família de cor. */
+[data-qoro-shell='tenant'] .qoro-alert-row {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: border-color var(--dur-fast) ease;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row > svg:last-child {
+  width: 15px;
+  height: 15px;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row-text {
+  flex: 1;
+  min-width: 0;
+  text-wrap: pretty;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row-cta {
+  flex: none;
+  font-size: var(--fs-caption);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning'] {
+  border-color: var(--warning-200);
+  background: var(--warning-50);
+  color: var(--warning-700);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning']:hover {
+  border-color: var(--warning-600);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning'] > svg {
+  color: var(--warning-600);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger'] {
+  border-color: var(--danger-200);
+  background: var(--danger-50);
+  color: var(--danger-700);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger']:hover {
+  border-color: var(--danger-500);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger'] > svg {
+  color: var(--danger-500);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai'] {
+  border-color: var(--ai-border);
+  background: var(--ai-soft);
+  color: var(--ai);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai']:hover {
+  border-color: var(--brand-accent-500);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai'] > svg {
+  color: var(--brand-accent-500);
+}
+
 [data-qoro-shell='tenant'] .qoro-skip-link {
   position: fixed;
   top: 8px;
@@ -452,6 +556,21 @@ body:has([data-qoro-shell='tenant']) {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
+}
+/* O filete é o que permite a métrica encostar no título sem virar legenda dele:
+   separa sem afastar. Mono + tabular-nums porque é sempre número contado. */
+[data-qoro-shell='tenant'] [data-slot='page-header-meta'] {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 [data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
   grid-column: 2;
@@ -914,6 +1033,24 @@ body:has([data-qoro-shell='tenant']) :is(button, a, input, select, textarea):foc
 
 [data-page-layout='workspace'] {
   --page-maxw: 1600px;
+}
+
+/* Telas de TURNO (Consultório, Conversas, Agenda) ocupam a altura da janela e
+   rolam POR DENTRO de cada painel, como na referência. Um chat e um kanban que
+   empurram a página para baixo obrigam o operador a rolar o shell inteiro para
+   ver a fila — e a perder de vista quem está em atendimento. As telas de
+   tabela seguem fluindo: ali a lista é longa por natureza e cortar é pior.
+
+   `min-height: 0` é o que permite o filho encolher abaixo do conteúdo; sem
+   ele o flex item usa `min-height: auto` e o overflow interno nunca acontece. */
+[data-qoro-shell='tenant'] main[data-page-layout='workspace'] {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+[data-qoro-shell='tenant'] main[data-page-layout='workspace'] > .qoro-fill {
+  min-height: 0;
+  flex: 1;
 }
 
 [data-page-layout='data'] {

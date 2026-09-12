@@ -22,7 +22,7 @@ export default async function ProcedimentosPage() {
     return (
       <div>
         <PageHeader
-          crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Procedimentos' }]}
+          crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Procedimentos' }]}
           title="Procedimentos"
         />
         <Alert variant="warning" title="Sem acesso">
@@ -37,7 +37,7 @@ export default async function ProcedimentosPage() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Procedimentos' }]}
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Procedimentos' }]}
         title="Procedimentos"
         description="Catálogo de procedimentos com preço e duração — base da Agenda e do faturamento."
       />

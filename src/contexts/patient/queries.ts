@@ -11,7 +11,7 @@
  */
 import 'server-only';
 
-import { and, desc, eq, ilike, inArray, isNull, type SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -22,6 +22,8 @@ import {
   normalizePhone,
   validateCpf,
 } from '@/lib/crypto';
+import { redactCpf } from '@/lib/format';
+import { maskPhoneBR } from '@/lib/masks';
 
 import {
   patientAddresses,
@@ -90,19 +92,64 @@ const patientListItemColumns = {
   id: patients.id,
   nome: patients.nome,
   email: patients.email,
+  dataNascimento: patients.dataNascimento,
+  cpfEncrypted: patients.cpfEncrypted,
+  telefoneEncrypted: patients.telefoneEncrypted,
   deletedAt: patients.deletedAt,
 };
 
-function toPatientListItem(row: {
-  id: string;
-  nome: string;
-  email: string | null;
-  deletedAt: Date | string | null;
-}): PatientListItem {
+/**
+ * Decifra o CPF e devolve **só a máscara**. Falha de decifragem vira `null`, não
+ * exceção: uma linha com ciphertext de chave antiga não pode derrubar a lista
+ * inteira da clínica.
+ */
+async function maskedCpf(clinicId: string, ciphertext: string | null): Promise<string | null> {
+  if (!ciphertext) return null;
+  try {
+    return redactCpf(await decryptForTenant(clinicId, ciphertext)) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decifra e FORMATA o telefone. Diferente do CPF, não é redigido: a coluna
+ * Contato existe para ser discada, e meio número não disca. Falha de decifragem
+ * vira `null` pela mesma razão do CPF — uma linha ruim não derruba a lista.
+ */
+async function telefoneFormatado(
+  clinicId: string,
+  ciphertext: string | null,
+): Promise<string | null> {
+  if (!ciphertext) return null;
+  try {
+    return maskPhoneBR(await decryptForTenant(clinicId, ciphertext)) || null;
+  } catch {
+    return null;
+  }
+}
+
+function toPatientListItem(
+  row: {
+    id: string;
+    nome: string;
+    email: string | null;
+    dataNascimento: string | Date | null;
+    deletedAt: Date | string | null;
+  },
+  cpfMascarado: string | null,
+  telefone: string | null,
+): PatientListItem {
   return {
     id: row.id,
     nome: row.nome,
     email: row.email,
+    telefone,
+    dataNascimento:
+      row.dataNascimento instanceof Date
+        ? row.dataNascimento.toISOString().slice(0, 10)
+        : row.dataNascimento,
+    cpfMascarado,
     deletedAt: toIso(row.deletedAt),
   };
 }
@@ -209,7 +256,13 @@ export async function listPatients(
 
 /**
  * Lista paginada para `/pacientes`. Itens e total usam exatamente os mesmos
- * filtros dentro do mesmo contexto de tenant; nenhuma coluna cifrada é lida.
+ * filtros dentro do mesmo contexto de tenant.
+ *
+ * O CPF é a ÚNICA coluna cifrada lida aqui, por decisão do founder (2026-09-10):
+ * a referência mostra o CPF mascarado sob o nome, e é como a recepção confere
+ * identidade. A decifragem acontece neste servidor e o que sai é a máscara —
+ * uma página tem no máximo `PATIENTS_PAGE_SIZE` linhas, então o custo é limitado
+ * pela paginação, não pelo tamanho da base.
  */
 export async function listPatientsPage(
   clinicId: string,
@@ -235,8 +288,18 @@ export async function listPatientsPage(
         .where(where),
     ]);
 
+    const items = await Promise.all(
+      rows.map(async (row) =>
+        toPatientListItem(
+          row,
+          await maskedCpf(clinicId, row.cpfEncrypted),
+          await telefoneFormatado(clinicId, row.telefoneEncrypted),
+        ),
+      ),
+    );
+
     return {
-      items: rows.map(toPatientListItem),
+      items,
       total: countRow?.total ?? 0,
       page,
       pageSize: PATIENTS_PAGE_SIZE,
@@ -331,6 +394,74 @@ export async function hasLegalGuardian(clinicId: string, patientId: string): Pro
       )
       .limit(1);
     return row != null;
+  });
+}
+
+/** Vínculo resumido de um paciente na LISTA — nunca o grafo inteiro. */
+export interface PatientBondSummary {
+  /** Nome de quem responde por este paciente, quando ele é dependente. */
+  responsavelNome: string | null;
+  /** Quantos dependentes este paciente responde. */
+  dependentes: number;
+}
+
+/**
+ * Vínculos de um LOTE de pacientes, para a coluna "Vínculo" da lista.
+ *
+ * Existe separada de `listPatientRelationships` (que é por paciente e devolve o
+ * DTO completo) porque a lista mostra até 20 linhas: chamar a versão unitária
+ * por linha seriam 20 idas ao banco por render. Aqui são duas — os vínculos e
+ * os nomes dos responsáveis.
+ */
+export async function listPatientBonds(
+  clinicId: string,
+  patientIds: string[],
+): Promise<Map<string, PatientBondSummary>> {
+  const out = new Map<string, PatientBondSummary>();
+  if (patientIds.length === 0) return out;
+
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        responsiblePatientId: patientRelationships.responsiblePatientId,
+        dependentPatientId: patientRelationships.dependentPatientId,
+      })
+      .from(patientRelationships)
+      .where(
+        and(
+          eq(patientRelationships.clinicId, clinicId),
+          // `inArray`, não `= ANY(...)`: o drizzle interpola um array JS como
+          // lista de parâmetros `($1,$2,$3)`, e o Postgres recusa isso à direita
+          // de ANY ("requires array on right side").
+          or(
+            inArray(patientRelationships.responsiblePatientId, patientIds),
+            inArray(patientRelationships.dependentPatientId, patientIds),
+          ),
+        ),
+      );
+    if (rows.length === 0) return out;
+
+    const responsibleIds = [...new Set(rows.map((row) => row.responsiblePatientId))];
+    const names = await tx
+      .select({ id: patients.id, nome: patients.nome })
+      .from(patients)
+      .where(and(eq(patients.clinicId, clinicId), inArray(patients.id, responsibleIds)));
+    const nameById = new Map(names.map((row) => [row.id, row.nome]));
+
+    const wanted = new Set(patientIds);
+    for (const row of rows) {
+      if (wanted.has(row.dependentPatientId)) {
+        const bond = out.get(row.dependentPatientId) ?? { responsavelNome: null, dependentes: 0 };
+        bond.responsavelNome ??= nameById.get(row.responsiblePatientId) ?? null;
+        out.set(row.dependentPatientId, bond);
+      }
+      if (wanted.has(row.responsiblePatientId)) {
+        const bond = out.get(row.responsiblePatientId) ?? { responsavelNome: null, dependentes: 0 };
+        bond.dependentes += 1;
+        out.set(row.responsiblePatientId, bond);
+      }
+    }
+    return out;
   });
 }
 

@@ -3,12 +3,20 @@
   grid-template-columns: 372px minmax(0, 1fr);
   gap: 14px;
   min-width: 0;
-  align-items: start;
+  /* `stretch`, não `start`: as duas colunas vão até o fim da janela (ver
+     `main[data-page-layout='workspace']`) e rolam por dentro. Numa conversa,
+     empurrar a página para baixo tira a lista de contatos do campo de visão
+     justo quando se procura a próxima pessoa a responder. */
+  align-items: stretch;
+  min-height: 0;
 }
 
 .inbox,
 .thread {
+  display: flex;
   min-width: 0;
+  min-height: 0;
+  flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -19,12 +27,23 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  min-height: 47px;
+  min-height: 44px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
+}
+.inboxCount {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.inboxOrder {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-3);
 }
 
 .contacts {
@@ -103,27 +122,31 @@
   font-size: 12.5px;
   line-height: 1.35;
 }
+/* O estado NÃO é badge: é ícone + rótulo em linha. O único badge da linha é o
+   do prazo — dois badges lado a lado disputariam a mesma leitura. */
 .contactStatus {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 5px 8px;
+  margin-top: 7px;
   font-size: 11.5px;
-}
-.handoff {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  margin-top: 6px;
-  color: var(--text-3);
-  font-size: 11.5px;
-}
-.overdue {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--danger-700);
   font-weight: 600;
+}
+.contactStatus > svg {
+  flex: none;
+}
+.contactStatus[data-tone='ai'] {
+  color: var(--brand-accent-800);
+}
+.contactStatus[data-tone='human'] {
+  color: var(--primary-active);
+}
+.contactStatus[data-tone='attention'] {
+  color: var(--warning-700);
+}
+.contactStatus[data-tone='muted'] {
+  color: var(--text-3);
 }
 .pagination {
   padding: 10px 14px;
@@ -199,10 +222,21 @@
   letter-spacing: 0.02em;
   color: var(--text-3);
 }
-.sla,
-.deliveryAlert {
+.sla {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--danger-200);
+  background: var(--danger-50);
+  color: var(--danger-700);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.sla > svg {
+  flex: none;
+  color: var(--danger-500);
 }
 .history {
   min-width: 0;
@@ -263,6 +297,17 @@
   border-color: color-mix(in oklch, var(--primary) 25%, var(--border));
   color: var(--primary-active);
 }
+.authorChip {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
 .delivery {
   display: flex;
   align-items: center;
@@ -271,9 +316,24 @@
   font-size: 11.5px;
   color: var(--text-3);
 }
-.failed {
+.deliveryFailed {
+  display: flex;
+  max-width: 85%;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 8px 11px;
+  border: 1px solid var(--danger-200);
+  border-radius: 8px;
+  background: var(--danger-50);
   color: var(--danger-700);
+  font-size: 12.5px;
   font-weight: 600;
+  line-height: 1.4;
+}
+.deliveryFailed > svg {
+  flex: none;
+  color: var(--danger-500);
 }
 .diagnostics {
   max-width: 85%;
@@ -304,10 +364,17 @@
 .back {
   display: none;
 }
+/* O vazio da direita é uma SEÇÃO, com a mesma borda e o mesmo fundo do painel
+   que vai ocupá-la — a referência nunca deixa a área de leitura solta sobre o
+   fundo da página. */
 .emptyThread {
-  min-height: 340px;
   display: grid;
+  min-height: 340px;
+  flex: 1;
   place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
 @media (max-width: 1199px) {
@@ -350,7 +417,7 @@
   }
 }
 
-:global(.dark) .overdue,
-:global(.dark) .failed {
+:global(.dark) .sla,
+:global(.dark) .deliveryFailed {
   color: var(--danger-200);
 }

@@ -58,10 +58,7 @@ export function AgentConfigForm({ initial }: { initial: AgentConfigDTO }) {
   return (
     <>
       <PageHeader
-        crumbs={[
-          { label: 'Canais e IA', href: '/configuracoes/canais-ia' },
-          { label: 'Agente de IA' },
-        ]}
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Agente de IA' }]}
         title="Agente de IA"
         description="O que o agente pode fazer e dizer em nome da clínica no WhatsApp."
       />

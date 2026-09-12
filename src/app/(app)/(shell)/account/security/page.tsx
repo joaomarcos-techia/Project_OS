@@ -10,9 +10,6 @@ import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 
-import { SettingsNav } from '../../configuracoes/settings-nav';
-import { visibleSettingsNavigation } from '../../configuracoes/settings-navigation';
-
 import { TotpSetupDialog } from './security-dialog';
 import { UnenrollForm } from './unenroll-form';
 
@@ -30,23 +27,12 @@ export default async function AccountSecurityPage({ searchParams }: PageProps) {
   const verified = factors.filter((f) => f.status === 'verified');
   const required = mustHaveMFA(user.role);
   const forced = params.force === '1';
-  // Esta rota é um dos treze destinos das configurações, mas vive fora de
-  // `/configuracoes` — então o layout de lá não a alcança e ela ficava sem
-  // navegação nenhuma: quem chegava aqui pela barra não tinha como voltar por
-  // ela. A barra é montada aqui à mão pelo mesmo mapa, com o mesmo filtro de
-  // permissão. Em sessão pré-MFA (super_admin em AAL1) sobram só os destinos
-  // sem permissão exigida — degrada, não quebra.
-  const settingsHrefs = visibleSettingsNavigation(
-    user.permissions,
-    user.isSuperAdmin && user.aal === 'aal2',
-  ).flatMap((group) => group.items.map((item) => item.href));
 
   return (
     <div>
-      <SettingsNav visibleHrefs={settingsHrefs} />
       <PageHeader
         crumbs={[
-          { label: 'Conformidade e segurança', href: '/configuracoes/seguranca' },
+          { label: 'Configurações', href: '/configuracoes' },
           { label: 'Segurança da conta' },
         ]}
         title="Segurança da conta"

@@ -1,5 +1,23 @@
+/* Larguras da referencia: paciente e contato dividem a folga, nascimento e
+   vinculo sao fixos e "Abrir" fecha a linha. */
+.table th:first-child,
 .table td:first-child {
-  width: 48%;
+  width: 34%;
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  width: 29%;
+}
+
+.table th:nth-child(3),
+.table td:nth-child(3) {
+  width: 150px;
+}
+
+.table th:nth-child(4),
+.table td:nth-child(4) {
+  width: 190px;
 }
 
 .table td:last-child {
@@ -54,6 +72,23 @@
     grid-column: 1;
     padding-left: var(--sp-2);
     font-size: var(--fs-xs);
+  }
+
+  .table th:first-child,
+  .table td:first-child,
+  .table th:nth-child(2),
+  .table td:nth-child(2),
+  .table th:nth-child(3),
+  .table td:nth-child(3),
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    width: auto;
+  }
+
+  /* Nascimento e vinculo saem no telefone: a linha vira nome + contato + Abrir. */
+  .table td:nth-child(3),
+  .table td:nth-child(4) {
+    display: none;
   }
 
   .table td:last-child {

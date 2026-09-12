@@ -6,6 +6,7 @@ import { getProfileNames } from '@/contexts/identity/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { PageHeader } from '@/components/ui/page-header';
+import { identidadeDoContato } from '../contact-identity';
 import { ConversasNoAccess } from '../_components/no-access';
 import { ConversationAutoRefresh } from '../_components/conversation-auto-refresh';
 import { ConversationThread } from '../_components/conversation-thread';
@@ -26,11 +27,7 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
   const assignedToName = thread.handoff?.assignedToUserId
     ? (assigneeNames.get(thread.handoff.assignedToUserId) ?? 'Membro da equipe')
     : null;
-  const title =
-    thread.patientDisplayName ??
-    thread.contactPhone ??
-    thread.maskedPhone ??
-    'Contato desconhecido';
+  const title = identidadeDoContato(thread).titulo;
   return (
     <>
       <ConversationAutoRefresh />

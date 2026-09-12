@@ -28,7 +28,7 @@ afterEach(() => {
 
 function renderShell() {
   return render(
-    <PainelShell userName="Maria da Silva" userRole="Gestor" settingsHref="/configuracoes/agenda">
+    <PainelShell userName="Maria da Silva" userRole="Gestor" settingsHref="/configuracoes/horarios">
       <h1>Pagamentos</h1>
     </PainelShell>,
   );
@@ -39,7 +39,7 @@ describe('shell tenant das referências HTML', () => {
     renderShell();
     const link = screen.getByRole('link', { name: 'Configurações' });
     expect(link.getAttribute('aria-current')).toBe('page');
-    expect(link.getAttribute('href')).toBe('/configuracoes/agenda');
+    expect(link.getAttribute('href')).toBe('/configuracoes/horarios');
     expect(screen.queryByRole('link', { name: 'Documentação' })).toBeNull();
   });
   it('oferece tema e logout POST diretamente no rodapé', () => {

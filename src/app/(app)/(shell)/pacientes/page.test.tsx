@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { listPatients, listPatientsPage, pageGate, redirect } = vi.hoisted(() => ({
+const { listPatientBonds, listPatients, listPatientsPage, pageGate, redirect } = vi.hoisted(() => ({
+  listPatientBonds: vi.fn(),
   listPatients: vi.fn(),
   listPatientsPage: vi.fn(),
   pageGate: vi.fn(),
   redirect: vi.fn(),
 }));
 
-vi.mock('@/contexts/patient/queries', () => ({ listPatients, listPatientsPage }));
+vi.mock('@/contexts/patient/queries', () => ({
+  listPatientBonds,
+  listPatients,
+  listPatientsPage,
+}));
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('next/navigation', () => ({ redirect, useRouter: vi.fn() }));
 
@@ -27,6 +32,7 @@ describe('/pacientes pagination', () => {
     });
     listPatientsPage.mockResolvedValue(emptyPage);
     listPatients.mockResolvedValue([]);
+    listPatientBonds.mockResolvedValue(new Map());
   });
 
   it('aplica RBAC antes de qualquer leitura', async () => {

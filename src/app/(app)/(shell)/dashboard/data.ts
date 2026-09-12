@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 
 import { practitionerSql, profiles } from '@/contexts/identity';
 import { listPatientCards } from '@/contexts/patient/queries';
-import { listAppointments } from '@/contexts/scheduling/queries';
+import { getCheckInTimes, listAppointments } from '@/contexts/scheduling/queries';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 import { withTenant } from '@/lib/db/tenant';
 
@@ -18,6 +18,8 @@ export interface DashboardUpcoming {
   appointmentId: string;
   horario: string;
   nome: string;
+  /** Procedimento agendado — a terceira coluna de "Próximos da agenda". */
+  procedimento: string;
   status: AppointmentStatusDTO;
 }
 
@@ -26,15 +28,37 @@ export interface DashboardDTO {
   aguardando: number;
   emAtendimento: number;
   finalizadas: number;
+  faltas: number;
+  cancelados: number;
+  /** Nome de quem falta faturar aparece só quando há exatamente uma falta. */
+  faltaNome: string | null;
+  /**
+   * Maior espera REAL, em minutos, entre quem fez check-in e ainda não entrou.
+   *
+   * Vem de `appointment_state_log` (transição para `chegou`) via
+   * `getCheckInTimes` — a mesma fonte que o Consultório usa —, não do horário
+   * agendado. `null` quando a fila está vazia ou ninguém tem check-in
+   * registrado; nesse caso o cartão mostra travessão em vez de um zero falso.
+   */
+  maiorEsperaMin: number | null;
+  maiorEsperaNome: string | null;
+  /** Atendidos hoje que seguem com faturamento pendente (alerta do Caixa). */
+  naoFaturados: number;
   proximos: DashboardUpcoming[];
 }
 
+// `faltou` e `cancelado` entram na busca para alimentar os contadores de Faltas
+// e Cancelados do turno. Eles ficam FORA de `consultasHoje` — um cancelamento
+// não é consulta do dia —, por isso a contagem abaixo filtra em vez de usar
+// `appts.length`.
 const STATUSES: AppointmentStatusDTO[] = [
   'agendado',
   'confirmado',
   'chegou',
   'em_atendimento',
   'atendido',
+  'faltou',
+  'cancelado',
 ];
 
 function tzOffsetMs(date: Date, tz: string): number {
@@ -74,29 +98,68 @@ export async function getDashboard(clinicId: string, timezone: string): Promise<
   const { from, to } = clinicDayBounds(timezone);
   const appts = await listAppointments(clinicId, { from, to, status: STATUSES, limit: 200 });
 
-  const aguardando = appts.filter((a) => a.status === 'chegou').length;
+  const naFila = appts.filter((a) => a.status === 'chegou');
+  const faltouAppts = appts.filter((a) => a.status === 'faltou');
+  const aguardando = naFila.length;
   const emAtendimento = appts.filter((a) => a.status === 'em_atendimento').length;
   const finalizadas = appts.filter((a) => a.status === 'atendido').length;
+  const cancelados = appts.filter((a) => a.status === 'cancelado').length;
+  const consultasHoje = appts.filter((a) => a.status !== 'cancelado').length;
+  const naoFaturados = appts.filter((a) => a.status === 'atendido' && a.faturamentoPendente).length;
+
+  // Espera REAL: instante do check-in, não o horário agendado. Quem está na
+  // fila sem transição registrada fica de fora em vez de virar zero enganoso.
+  const checkIns = await getCheckInTimes(
+    clinicId,
+    naFila.map((a) => a.id),
+  );
+  const agora = Date.now();
+  const esperando = naFila
+    .flatMap((appt) => {
+      const desde = checkIns[appt.id];
+      if (!desde) return [];
+      return [{ appt, min: Math.floor((agora - new Date(desde).getTime()) / 60_000) }];
+    })
+    .filter((x) => x.min > 0)
+    .sort((x, y) => y.min - x.min);
+  const maiorEspera = esperando[0] ?? null;
 
   const upcoming = appts
     .filter((a) => a.status === 'agendado' || a.status === 'confirmado' || a.status === 'chegou')
     .slice(0, 6);
-  const ids = [...new Set(upcoming.filter((a) => a.patientId).map((a) => a.patientId!))];
+
+  // Os nomes de quem está atrasado e da falta única não saem de `upcoming`
+  // (uma falta nunca está lá), então entram no mesmo lote de cartões.
+  const nomeados = [
+    ...upcoming,
+    ...(maiorEspera ? [maiorEspera.appt] : []),
+    ...(faltouAppts.length === 1 ? faltouAppts : []),
+  ];
+  const ids = [...new Set(nomeados.filter((a) => a.patientId).map((a) => a.patientId!))];
   const cards = await listPatientCards(clinicId, ids);
   const nameOf = new Map(cards.map((c) => [c.id, c.nome]));
+  const nomeDe = (patientId: string | null): string =>
+    patientId ? (nameOf.get(patientId) ?? 'Paciente') : 'Walk-in';
 
   const proximos: DashboardUpcoming[] = upcoming.map((a) => ({
     appointmentId: a.id,
     horario: a.scheduledAt,
-    nome: a.patientId ? (nameOf.get(a.patientId) ?? 'Paciente') : 'Walk-in',
+    nome: nomeDe(a.patientId),
+    procedimento: a.snapshotProcedureName,
     status: a.status,
   }));
 
   return {
-    consultasHoje: appts.length,
+    consultasHoje,
     aguardando,
     emAtendimento,
     finalizadas,
+    faltas: faltouAppts.length,
+    cancelados,
+    faltaNome: faltouAppts.length === 1 ? nomeDe(faltouAppts[0]!.patientId) : null,
+    maiorEsperaMin: maiorEspera?.min ?? null,
+    maiorEsperaNome: maiorEspera ? nomeDe(maiorEspera.appt.patientId) : null,
+    naoFaturados,
     proximos,
   };
 }

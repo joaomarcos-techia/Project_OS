@@ -119,7 +119,7 @@ export function PainelShell({
                 const mods = MODULES.filter((m) => m.group === g);
                 if (!mods.length) return null;
                 return (
-                  <div key={g} className="mt-(--sp-4) first:mt-(--sp-2)">
+                  <div key={g} data-nav-group={g} className="mt-(--sp-4) first:mt-(--sp-2)">
                     <SideNavGroupLabel>{g}</SideNavGroupLabel>
                     {mods.map((m) => {
                       const href = m.id === 'config' ? settingsHref : m.href;

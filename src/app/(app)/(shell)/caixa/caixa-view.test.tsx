@@ -25,7 +25,7 @@ vi.mock('./actions', () => ({
 }));
 
 import { cancelLancamentoAction } from './actions';
-import { CaixaView } from './caixa-view';
+import { CaixaView, type FailedChargeItem } from './caixa-view';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
 const PAYMENT: PaymentTransactionSummary = {
@@ -87,11 +87,14 @@ function payable(overrides: Partial<CaixaItem> = {}): CaixaItem {
 }
 
 const base = {
+  hoje: '7 de setembro',
+  atualizadoEm: '14:02',
   pendentes: [] as CaixaItem[],
   parciais: [] as CaixaItem[],
   pagosHoje: [] as CaixaItem[],
   aPagar: [] as CaixaItem[],
   pendencias: [] as FaturamentoPendenciaDTO[],
+  failedCharges: [] as FailedChargeItem[],
   excessRefundStatuses: [] as ExcessRefundStatus[],
   collectionCases: [] as CollectionCaseDTO[],
   methods: METHODS,
@@ -115,35 +118,68 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     expect(screen.getByText(/Consulta · Dra\. Smoke/)).toBeTruthy();
   });
 
-  it('usa Receber para recebível e Pagar para pagável, mantendo os formulários inline', () => {
+  it('usa Confirmar pagamento para recebível e Pagar para pagável, mantendo os formulários inline', () => {
     render(<CaixaView {...base} pendentes={[item()]} aPagar={[payable()]} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Receber João Silva' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
     expect(screen.getByLabelText('Valor recebido')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Receber R\$\s*200,00/ })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('radio', { name: /A pagar 1/ }));
+    // Sem abas: as filas convivem, então o pagável já está na tela.
+    expect(screen.getByRole('region', { name: 'A pagar' })).toBeTruthy();
     expect(screen.getByText('Aluguel da sala')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar Aluguel da sala' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
     expect(screen.getByLabelText('Valor pago')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Pagar R\$\s*1\.200,00/ })).toBeTruthy();
   });
 
   it('operate:caixa mostra ações de receber/cancelar; sem permissão não mostra', () => {
+    // Cancelar vive DENTRO do painel de confirmação (uma ação por linha na
+    // fila) — por isso o teste abre o painel antes de procurá-lo.
     const { unmount } = render(<CaixaView {...base} canOperate pendentes={[item()]} />);
-    expect(screen.getByRole('button', { name: 'Receber João Silva' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Cancelar João Silva' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    expect(screen.getByRole('button', { name: 'Cancelar cobrança de João Silva' })).toBeTruthy();
 
     unmount();
     render(<CaixaView {...base} canOperate={false} canRefund={false} pendentes={[item()]} />);
-    expect(screen.queryByRole('button', { name: 'Receber João Silva' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Cancelar João Silva' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Confirmar pagamento' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Cancelar cobrança/ })).toBeNull();
+  });
+
+  it('anuncia a cobrança que falhou e nunca chegou ao paciente', () => {
+    // Falha silenciosa: sem link, o paciente nao recebe lembrete e ninguem
+    // reclama. Se o Caixa nao mostrar, nada mostra.
+    render(
+      <CaixaView
+        {...base}
+        failedCharges={[
+          {
+            chargeId: 'pc1',
+            appointmentId: 'a1',
+            patientId: 'p1',
+            amount: 562,
+            failureCode: 'checkout_response_invalid',
+            failedAt: '2026-09-10T12:00:00.000Z',
+            pacienteNome: 'Heitor Fontes Barreto',
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'Falha operacional: a cobrança de Heitor Fontes Barreto não foi enviada ao paciente',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText(/link nunca gerado/)).toBeTruthy();
+    expect(screen.getByText('checkout_response_invalid')).toBeTruthy();
   });
 
   it('cancelamento exige confirmação contextual antes da action idempotente', async () => {
     render(<CaixaView {...base} pendentes={[item()]} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar João Silva' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar cobrança de João Silva' }));
     expect(cancelLancamentoAction).not.toHaveBeenCalled();
     expect(
       screen.getByText(/saldo de R\$\s*200,00 deixará de aparecer em A receber/i),
@@ -173,8 +209,8 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
         paymentTransactions={[PAYMENT]}
       />,
     );
-    fireEvent.click(screen.getByRole('radio', { name: /Recebido hoje 1/ }));
-    expect(screen.getByRole('button', { name: 'Reembolsar João Silva' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Recebidos hoje' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reembolsar' })).toBeTruthy();
 
     unmount();
     render(
@@ -186,8 +222,8 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
         paymentTransactions={[PAYMENT]}
       />,
     );
-    fireEvent.click(screen.getByRole('radio', { name: /Recebido hoje 1/ }));
-    expect(screen.queryByRole('button', { name: 'Reembolsar João Silva' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Recebidos hoje' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reembolsar' })).toBeNull();
   });
 
   it('preserva os cálculos de saldo dos três totais executivos', () => {
@@ -224,11 +260,11 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       createdAt: '2026-06-06T00:00:00.000Z',
     };
     const { unmount } = render(<CaixaView {...base} pendencias={[pendingBilling]} />);
-    expect(screen.getByText(/Atendimentos não faturados/)).toBeTruthy();
+    expect(screen.getByText(/ainda não foi faturado/i)).toBeTruthy();
 
     unmount();
     render(<CaixaView {...base} pendencias={[]} />);
-    expect(screen.queryByText(/Atendimentos não faturados/)).toBeNull();
+    expect(screen.queryByText(/ainda não foi faturado/i)).toBeNull();
   });
 
   it.each([
@@ -278,7 +314,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
         ]}
       />,
     );
-    expect(screen.getByText(/Cobranças aguardando revisão humana/i)).toBeTruthy();
+    expect(screen.getByText(/aguarda revisão humana antes do envio/i)).toBeTruthy();
     expect(screen.getByText(/45 dias em atraso/i)).toBeTruthy();
     expect(screen.getByText(/R\$\s*600,00/i)).toBeTruthy();
   });
@@ -292,7 +328,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     expect(screen.queryByText('Paciente 11')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Próxima página de A receber' }));
     expect(screen.getByText('Paciente 11')).toBeTruthy();
-    expect(screen.getByText('11–11 de 11 em a receber')).toBeTruthy();
+    expect(screen.getByText('11–11 de 11')).toBeTruthy();
   });
 
   it('remove o corte de cinco pendências e oferece caminho até a página seguinte', () => {

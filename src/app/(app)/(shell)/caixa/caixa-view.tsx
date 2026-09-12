@@ -1,5 +1,16 @@
 'use client';
 
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  ChevronRight,
+  CircleCheck,
+  CircleX,
+  Sparkles,
+  TriangleAlert,
+  Wallet,
+} from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -10,8 +21,9 @@ import type {
   PaymentMethodDTO,
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
-import type { ExcessRefundStatus } from '@/contexts/payments';
+import type { ExcessRefundStatus, FailedChargeDTO } from '@/contexts/payments';
 import { Alert } from '@/components/ui/alert';
+import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { BreakdownList } from '@/components/ui/breakdown-list';
 import { MetricStrip } from '@/components/ui/metric-strip';
@@ -26,14 +38,20 @@ import { CashQueue, type CashPanelMode } from './cash-queue';
 import type { ActionResult } from './caixa-types';
 import { LocalPager, paginateLocally } from './local-pagination';
 
+/** Cobrança falha + nome resolvido na camada page (Financial não conhece Patient). */
+export type FailedChargeItem = FailedChargeDTO & { pacienteNome: string | null };
+
 const QUERY_RESULT_LIMIT = 100;
 
 export function CaixaView({
+  hoje,
+  atualizadoEm,
   pendentes,
   parciais,
   pagosHoje,
   aPagar,
   pendencias,
+  failedCharges,
   excessRefundStatuses,
   collectionCases,
   methods,
@@ -41,11 +59,16 @@ export function CaixaView({
   paymentTransactions,
   canRefund,
 }: {
+  /** "7 de setembro", já no fuso da clínica. */
+  hoje: string;
+  /** "14:02", já no fuso da clínica. */
+  atualizadoEm: string;
   pendentes: CaixaItem[];
   parciais: CaixaItem[];
   pagosHoje: CaixaItem[];
   aPagar: CaixaItem[];
   pendencias: FaturamentoPendenciaDTO[];
+  failedCharges: FailedChargeItem[];
   excessRefundStatuses: ExcessRefundStatus[];
   collectionCases: CollectionCaseDTO[];
   methods: PaymentMethodDTO[];
@@ -124,9 +147,30 @@ export function CaixaView({
    * lançamento. Não é query nova nem regra nova: é a mesma soma do "Recebido
    * hoje", quebrada por forma, que é a pergunta seguinte de quem fecha o caixa.
    */
+  // Vencida é a cobrança em aberto cuja data de vencimento já passou. `dueDate`
+  // é 'YYYY-MM-DD', então a comparação é textual e não sofre com fuso — o mesmo
+  // truque que o resto do financeiro usa.
+  // Uma lista só para a coluna "A receber", na ordem em que a fila é trabalhada:
+  // pendentes primeiro, parciais logo atrás (já têm parte do dinheiro dentro).
+  const aReceber = [...pendentes, ...parciais];
+  const aReceberCount = aReceber.length;
+  // `split('T')[0]` recorta a data do ISO. A guarda anti-truncamento do teste
+  // varre o fonte atras de corte fixo de lista, entao evitamos essa forma aqui
+  // mesmo o corte sendo de data — inclusive em comentario.
+  const hojeYmd = new Date().toISOString().split('T')[0]!;
+  const vencidas = [...pendentes, ...parciais].filter(
+    (item) => item.dueDate != null && item.dueDate < hojeYmd,
+  ).length;
+
+  // Agrupa pelo RÓTULO do catálogo, não pelo código: `cartao_credito` ao lado de
+  // "Dinheiro" na mesma coluna é a mesma falha que o cartão da fila já teve — a
+  // chave é do banco, o que o operador lê é o nome da forma de pagamento.
   const recebimentosPorForma = Object.entries(
     pagosHoje.reduce<Record<string, number>>((acc, item) => {
-      const forma = item.paymentMethod?.trim() || 'Não informado';
+      const codigo = item.paymentMethod?.trim();
+      const forma = codigo
+        ? (methods.find((m) => m.code === codigo)?.label ?? codigo)
+        : 'Não informado';
       acc[forma] = (acc[forma] ?? 0) + item.valorPago;
       return acc;
     }, {}),
@@ -143,36 +187,104 @@ export function CaixaView({
       <PageHeader
         crumbs={[{ label: 'Gestão' }, { label: 'Caixa' }]}
         title="Caixa"
-        description="Receba, pague e revise exceções financeiras sem sair da fila operacional."
+        description={`Recebimentos e pagamentos de hoje, ${hoje}`}
+        meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
+        actions={
+          <Link href="/financeiro" className={buttonVariants({ variant: 'secondary' })}>
+            <Wallet aria-hidden="true" className="size-4 text-fg-subtle" />
+            Ver no Financeiro
+          </Link>
+        }
       />
 
       {/* As três métricas saíram do slot de ações do header: ação e indicador não
           são a mesma coisa, e amontoá-las lá fazia número parecer botão. */}
       <MetricStrip className="qoro-cash-metrics mb-(--sp-4)">
+        {/* Neutro de propósito: a referência reserva cor para o resultado
+            (verde) e para o alerta (as faixas abaixo). Pintar "a receber" de
+            âmbar fazia toda cobrança em aberto parecer problema, inclusive as
+            que vencem semana que vem. */}
         <StatCard
           label="A receber"
           value={formatBRL(totalPendente)}
-          valueTone={totalPendente > 0 ? 'warning' : 'default'}
+          icon={<ArrowDownLeft />}
+          hint={
+            aReceberCount === 0
+              ? 'nada em aberto'
+              : `${aReceberCount} cobrança${aReceberCount === 1 ? '' : 's'}${
+                  vencidas > 0 ? ` · ${vencidas} vencida${vencidas === 1 ? '' : 's'}` : ''
+                }`
+          }
         />
         <StatCard
           label="Recebido hoje"
           value={formatBRL(totalRecebidoHoje)}
           valueTone={totalRecebidoHoje > 0 ? 'positive' : 'default'}
+          icon={<CircleCheck />}
+          hint={
+            pagosHoje.length === 0
+              ? 'nenhum recebimento'
+              : `${pagosHoje.length} recebimento${pagosHoje.length === 1 ? '' : 's'}`
+          }
         />
         <StatCard
           label="A pagar"
           value={formatBRL(totalAPagar)}
-          valueTone={totalAPagar > 0 ? 'warning' : 'default'}
+          icon={<ArrowUpRight />}
+          hint={
+            aPagar.length === 0
+              ? 'nenhuma conta do dia'
+              : `${aPagar.length} conta${aPagar.length === 1 ? '' : 's'} do dia`
+          }
         />
       </MetricStrip>
 
-      {pendencias.length > 0 || collectionCases.length > 0 ? (
-        <div className="mb-5 grid gap-3 xl:grid-cols-2">
+      {failedCharges.length > 0 || pendencias.length > 0 || collectionCases.length > 0 ? (
+        <div className="mb-5 flex flex-col gap-2">
+          {/* Primeiro da pilha porque é o único aqui que o sistema causou. As
+              outras duas faixas são trabalho pendente; esta é uma cobrança que
+              o operador acha que saiu e não saiu. */}
+          {failedCharges.length > 0 ? (
+            <AttentionQueue
+              label="cobranças que falharam ao ser enviadas"
+              summary={
+                failedCharges.length === 1
+                  ? `Falha operacional: a cobrança de ${failedCharges[0]!.pacienteNome ?? 'um paciente'} não foi enviada ao paciente`
+                  : `Falha operacional: ${failedCharges.length} cobranças não foram enviadas aos pacientes`
+              }
+              cta="Ver detalhes"
+              tone="danger"
+              icon={<CircleX aria-hidden="true" />}
+              items={failedCharges}
+              getKey={(item) => item.chargeId}
+              renderItem={(item) => (
+                <div className="grid gap-0.5 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
+                  <span className="text-pretty">
+                    {item.pacienteNome ?? 'Paciente não identificado'} · link nunca gerado
+                    {item.failureCode ? (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <span className="font-mono text-(length:--fs-2xs)">{item.failureCode}</span>
+                      </>
+                    ) : null}
+                  </span>
+                  <span className="font-medium tabular-nums">{formatBRL(item.amount)}</span>
+                </div>
+              )}
+            />
+          ) : null}
           {pendencias.length > 0 ? (
             <AttentionQueue
               label="atendimentos não faturados"
-              title="Atendimentos não faturados"
-              variant="danger"
+              summary={
+                pendencias.length === 1
+                  ? '1 atendimento concluído ainda não foi faturado'
+                  : `${pendencias.length} atendimentos concluídos ainda não foram faturados`
+              }
+              cta="Ver e faturar"
+              tone="warning"
+              icon={<TriangleAlert aria-hidden="true" />}
               items={pendencias}
               getKey={(item) => item.id}
               renderItem={(item) => (
@@ -197,8 +309,14 @@ export function CaixaView({
           {collectionCases.length > 0 ? (
             <AttentionQueue
               label="cobranças em revisão"
-              title="Cobranças aguardando revisão humana"
-              variant="warning"
+              summary={
+                collectionCases.length === 1
+                  ? '1 cobrança do agente aguarda revisão humana antes do envio'
+                  : `${collectionCases.length} cobranças do agente aguardam revisão humana antes do envio`
+              }
+              cta="Revisar cobranças"
+              tone="ai"
+              icon={<Sparkles aria-hidden="true" />}
               items={collectionCases}
               getKey={(item) => item.id}
               renderItem={(item) => (
@@ -224,10 +342,22 @@ export function CaixaView({
         </Alert>
       ) : null}
 
-      <div className="qoro-cash-layout">
+      {/*
+        A referência abandona as abas: as três filas convivem, com "A receber"
+        ocupando o dobro por ser onde o operador passa o turno. Abas escondiam
+        "Recebido hoje" e "A pagar" atrás de um clique, e fechar caixa é
+        justamente comparar as três de uma vez.
+
+        Pendente e parcial entram na MESMA lista porque cada item já carrega o
+        próprio badge de status e a própria ação — separá-los era um recorte da
+        UI, não do negócio.
+      */}
+      <div className="qoro-cash-columns">
         <CashQueue
-          pendentes={pendentes}
-          parciais={parciais}
+          fixedMode="receber"
+          headerTotal={formatBRL(totalPendente)}
+          pendentes={aReceber}
+          parciais={[]}
           pagosHoje={pagosHoje}
           aPagar={aPagar}
           methods={methods}
@@ -242,13 +372,58 @@ export function CaixaView({
           onCancel={onCancel}
           onEstorno={onEstorno}
         />
-        {recebimentosPorForma.length > 0 ? (
-          <aside aria-label="Recebimentos do dia">
-            <PanelCard title="Recebimentos por forma" meta={formatBRL(totalRecebidoHoje)}>
+
+        <div className="flex min-w-0 flex-col gap-(--sp-4)">
+          <CashQueue
+            fixedMode="recebido"
+            headerTotal={formatBRL(totalRecebidoHoje)}
+            pendentes={aReceber}
+            parciais={[]}
+            pagosHoje={pagosHoje}
+            aPagar={aPagar}
+            methods={methods}
+            paymentTransactionsByLancamento={paymentTransactionsByLancamento}
+            canOperate={canOperate}
+            canRefund={canRefund}
+            pending={pending}
+            panel={panel}
+            onOpenPanel={openPanel}
+            onClosePanel={closePanel}
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+            onEstorno={onEstorno}
+          />
+
+          <CashQueue
+            fixedMode="pagar"
+            headerTotal={formatBRL(totalAPagar)}
+            pendentes={aReceber}
+            parciais={[]}
+            pagosHoje={pagosHoje}
+            aPagar={aPagar}
+            methods={methods}
+            paymentTransactionsByLancamento={paymentTransactionsByLancamento}
+            canOperate={canOperate}
+            canRefund={canRefund}
+            pending={pending}
+            panel={panel}
+            onOpenPanel={openPanel}
+            onClosePanel={closePanel}
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+            onEstorno={onEstorno}
+          />
+
+          {recebimentosPorForma.length > 0 ? (
+            <PanelCard
+              title="Recebimentos por forma"
+              regionLabel="Recebimentos por forma"
+              meta={formatBRL(totalRecebidoHoje)}
+            >
               <BreakdownList items={recebimentosPorForma} />
             </PanelCard>
-          </aside>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </>
   );
@@ -270,17 +445,29 @@ function ExcessRefundStatusLine({ status }: { status: ExcessRefundStatus }) {
   );
 }
 
+/**
+ * Pendência do caixa como FAIXA acionável, no padrão da referência.
+ *
+ * A faixa é o resumo; o detalhe (qual atendimento, qual lançamento, quanto)
+ * continua ali, dentro de um `<details>` nativo. A referência mostra só a faixa,
+ * mas descartar a lista tiraria do operador exatamente o que ele precisa para
+ * resolver — e não há outra tela onde essas linhas apareçam.
+ */
 function AttentionQueue<T>({
   label,
-  title,
-  variant,
+  summary,
+  cta,
+  tone,
+  icon,
   items,
   getKey,
   renderItem,
 }: {
   label: string;
-  title: string;
-  variant: 'danger' | 'warning';
+  summary: string;
+  cta: string;
+  tone: 'danger' | 'warning' | 'ai';
+  icon: ReactNode;
   items: T[];
   getKey: (item: T) => string;
   renderItem: (item: T) => ReactNode;
@@ -289,30 +476,42 @@ function AttentionQueue<T>({
   const localPage = paginateLocally(items, page);
 
   return (
-    <Alert variant={variant} title={`${title} · ${items.length}`}>
-      <ul aria-label={label} className="mt-2 divide-y divide-current/10 border-y border-current/10">
-        {localPage.visibleItems.map((item) => (
-          <li key={getKey(item)} className="py-2 first:pt-1.5 last:pb-1.5">
-            {renderItem(item)}
-          </li>
-        ))}
-      </ul>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-(length:--fs-xs) tabular-nums">
-          {localPage.firstItem}–{localPage.lastItem} de {items.length} carregados
-        </span>
-        <LocalPager
-          label={label}
-          page={localPage.page}
-          pageCount={localPage.pageCount}
-          onPageChange={setPage}
-        />
+    <details className="group">
+      <summary
+        data-tone={tone}
+        className="qoro-alert-row cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+      >
+        {icon}
+        <span className="qoro-alert-row-text">{summary}</span>
+        <span className="qoro-alert-row-cta">{cta}</span>
+        <ChevronRight aria-hidden="true" className="transition-transform group-open:rotate-90" />
+      </summary>
+
+      <div className="mt-2 rounded-(--r-md) border border-border bg-surface p-3">
+        <ul aria-label={label} className="divide-y divide-border border-y border-border">
+          {localPage.visibleItems.map((item) => (
+            <li key={getKey(item)} className="py-2 first:pt-1.5 last:pb-1.5">
+              {renderItem(item)}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-(length:--fs-xs) tabular-nums">
+            {localPage.firstItem}–{localPage.lastItem} de {items.length} carregados
+          </span>
+          <LocalPager
+            label={label}
+            page={localPage.page}
+            pageCount={localPage.pageCount}
+            onPageChange={setPage}
+          />
+        </div>
+        {items.length === QUERY_RESULT_LIMIT ? (
+          <p className="mt-1.5 text-pretty text-(length:--fs-xs) text-fg-muted">
+            A origem desta fila carrega no máximo 100 registros; podem existir itens adicionais.
+          </p>
+        ) : null}
       </div>
-      {items.length === QUERY_RESULT_LIMIT ? (
-        <p className="mt-1.5 text-pretty text-(length:--fs-xs)">
-          A origem desta fila carrega no máximo 100 registros; podem existir itens adicionais.
-        </p>
-      ) : null}
-    </Alert>
+    </details>
   );
 }

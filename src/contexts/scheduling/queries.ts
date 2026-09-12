@@ -789,6 +789,62 @@ export async function getAppointmentStats(
  * inclui todos os atendimentos; `appointmentIds` é o seam necessário para a
  * camada de relatórios associar recebimentos sem JOIN entre contextos.
  */
+/** Uma semana da série de atendimentos — segunda a domingo no fuso da clínica. */
+export interface AtendimentosSemana {
+  /** Segunda-feira da semana, `YYYY-MM-DD`, já no fuso da clínica. */
+  weekStart: string;
+  atendido: number;
+  total: number;
+}
+
+/**
+ * Atendimentos agregados POR SEMANA, para a tabela de Relatórios.
+ *
+ * Espelha `getFaturamentoPorSemana` no corte de semana — `date_trunc('week', …
+ * AT TIME ZONE tz)` — para que a mesma linha da tabela junte dinheiro e volume
+ * do MESMO intervalo. Semanas sem consulta não voltam, pelo mesmo motivo: quem
+ * chama distingue "não houve" de "não sabemos".
+ */
+export async function getAtendimentosPorSemana(
+  clinicId: string,
+  from: Date,
+  to: Date,
+  timeZone: string,
+): Promise<AtendimentosSemana[]> {
+  const weekStart = sql<string>`to_char(date_trunc('week', ${appointments.scheduledAt} AT TIME ZONE ${timeZone}), 'YYYY-MM-DD')`;
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        weekStart,
+        atendido: sql<number>`coalesce(sum(case when ${appointments.status} = 'atendido' then 1 else 0 end), 0)::int`,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          gte(appointments.scheduledAt, from),
+          lt(appointments.scheduledAt, to),
+        ),
+      )
+      // GROUP BY/ORDER BY por POSIÇÃO, e não repetindo a expressão: o drizzle
+      // renderiza a mesma referência de coluna qualificada na cláusula de grupo
+      // ("appointments"."scheduled_at") e sem qualificar na projeção
+      // ("scheduled_at"). O Postgres compara as duas SINTATICAMENTE, conclui que
+      // a projeção não está agrupada e recusa a query com "must appear in the
+      // GROUP BY clause". O ordinal aponta para a mesma expressão sem depender
+      // de como cada lado é impresso.
+      .groupBy(sql`1`)
+      .orderBy(sql`1`);
+
+    return rows.map((row) => ({
+      weekStart: row.weekStart,
+      atendido: row.atendido ?? 0,
+      total: row.total ?? 0,
+    }));
+  });
+}
+
 export async function getAppointmentStatsByDoctor(
   clinicId: string,
   from: Date,
@@ -1007,5 +1063,47 @@ export async function getAvailableSlots(opts: GetAvailableSlotsOpts): Promise<Sl
         durationMin: s.endMin - s.startMin,
       };
     });
+  });
+}
+
+/**
+ * Carimbos da fila do consultório para um lote de atendimentos.
+ *
+ * `queued_at` é o check-in e `started_at` é a chamada — é deles que sai "há
+ * quanto tempo esta pessoa espera" e "há quanto tempo está em atendimento". A
+ * Agenda precisa disso porque o status sozinho ("Aguardando") não distingue
+ * quem chegou agora de quem está lá há 40 minutos, que é a única diferença que
+ * muda o que a recepção faz.
+ */
+export interface QueueTimestamps {
+  appointmentId: string;
+  queuedAt: string;
+  startedAt: string | null;
+}
+
+export async function listQueueTimestamps(
+  clinicId: string,
+  appointmentIds: readonly string[],
+): Promise<QueueTimestamps[]> {
+  if (appointmentIds.length === 0) return [];
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        appointmentId: waitingQueueEntries.appointmentId,
+        queuedAt: waitingQueueEntries.queuedAt,
+        startedAt: waitingQueueEntries.startedAt,
+      })
+      .from(waitingQueueEntries)
+      .where(
+        and(
+          eq(waitingQueueEntries.clinicId, clinicId),
+          inArray(waitingQueueEntries.appointmentId, [...appointmentIds]),
+        ),
+      );
+    return rows.map((row) => ({
+      appointmentId: row.appointmentId,
+      queuedAt: toIso(row.queuedAt)!,
+      startedAt: toIso(row.startedAt),
+    }));
   });
 }

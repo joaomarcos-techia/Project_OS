@@ -8,7 +8,6 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import {
   SETTINGS_NAVIGATION,
   firstSettingsHref,
-  groupOf,
   visibleSettingsNavigation,
 } from './settings-navigation';
 
@@ -63,16 +62,14 @@ describe('navegação das configurações', () => {
     expect(items([], true).map((item) => item.href)).not.toContain('/configuracoes/perfil');
   });
 
-  it('abre na primeira categoria acessível, nunca numa negativa de permissão', () => {
+  it('abre no primeiro DESTINO acessível, nunca numa rota que não existe', () => {
     expect(firstSettingsHref(visibleSettingsNavigation([PERMISSIONS.MANAGE_SETTINGS], false))).toBe(
-      '/configuracoes/canais-ia',
+      '/configuracoes/whatsapp',
     );
     expect(firstSettingsHref(visibleSettingsNavigation([PERMISSIONS.EXPORT_AUDIT], false))).toBe(
-      '/configuracoes/seguranca',
+      '/configuracoes/auditoria',
     );
-    expect(firstSettingsHref(visibleSettingsNavigation([], false))).toBe(
-      '/configuracoes/seguranca',
-    );
+    expect(firstSettingsHref(visibleSettingsNavigation([], false))).toBe('/account/security');
   });
 });
 
@@ -94,17 +91,6 @@ describe('contrato do mapa de configurações', () => {
         expect(typeof item.icon, item.label).not.toBe('undefined');
       }
     }
-  });
-
-  /** A aba ativa e a trilha de volta dependem disto. */
-  it('resolve a categoria a partir da rota da categoria e de cada destino', () => {
-    const todos = visibleSettingsNavigation([], true);
-
-    expect(groupOf(todos, '/configuracoes/agenda')?.id).toBe('agenda');
-    expect(groupOf(todos, '/configuracoes/procedimentos')?.id).toBe('agenda');
-    expect(groupOf(todos, '/account/security')?.id).toBe('seguranca');
-    expect(groupOf(todos, '/equipe')?.id).toBe('gestao');
-    expect(groupOf(todos, '/configuracoes')).toBeUndefined();
   });
 
   it('nunca anuncia o mesmo destino em dois lugares', () => {

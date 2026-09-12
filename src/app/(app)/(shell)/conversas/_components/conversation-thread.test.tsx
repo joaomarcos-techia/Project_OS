@@ -53,7 +53,7 @@ describe('reenvio no histórico compartilhado', () => {
         assignedToName="Recepção"
       />,
     );
-    expect(screen.getByText('Falha de entrega no WhatsApp')).toBeTruthy();
+    expect(screen.getByText(/Não entregue às/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reenviar' })).toBeTruthy();
   });
 

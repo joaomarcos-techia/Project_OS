@@ -1,5 +1,6 @@
 import type { VariantProps } from 'class-variance-authority';
-import { Mail, ShieldCheck, Users } from 'lucide-react';
+import { CircleCheck, CirclePause, MailWarning, ShieldCheck, ShieldOff, Users } from 'lucide-react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { billingApiV1 } from '@/contexts/billing/api';
@@ -9,6 +10,7 @@ import { listEmployees } from '@/contexts/identity/queries';
 import { Alert } from '@/components/ui/alert';
 import { Badge, type badgeVariants } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { FilterBar, SearchField } from '@/components/ui/filter-bar';
 import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
@@ -25,6 +27,7 @@ import {
 import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
+import { cn } from '@/lib/ui/cn';
 
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
@@ -48,6 +51,25 @@ const ROLE_META: Record<Role, { label: string; tone: BadgeTone }> = {
 
 const ROLE_ORDER: Role[] = ['owner', 'gestor', 'doctor', 'financial', 'attendant', 'super_admin'];
 
+/**
+ * A nota sob cada contagem diz POR QUE ela é essa — é o que transforma um
+ * número em coisa acionável. Um só: o nome, porque a pergunta seguinte é "quem".
+ * Vários: o que destoa (inativo, credencial faltando); nada destoando, o total.
+ */
+function notaDoPapel(
+  role: Role,
+  employees: { role: Role; nome: string; ativo: boolean; crm: string | null }[],
+): string {
+  const doPapel = employees.filter((e) => e.role === role);
+  if (doPapel.length === 0) return role === 'super_admin' ? 'fora do tenant' : 'nenhum';
+  const inativos = doPapel.filter((e) => !e.ativo).length;
+  const semCredencial = doPapel.filter((e) => isPractitioner(e) && e.crm == null).length;
+  if (inativos > 0) return `${inativos} inativo${inativos === 1 ? '' : 's'}`;
+  if (semCredencial > 0) return `${semCredencial} com pendência`;
+  if (doPapel.length === 1) return doPapel[0]!.nome;
+  return `${doPapel.length} ativos`;
+}
+
 function initials(nome: string): string {
   const parts = nome.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -55,7 +77,34 @@ function initials(nome: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-export default async function EquipePage() {
+/** Recortes que a referência oferece na barra; `todos` é o padrão. */
+const FILTROS = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'ativos', label: 'Ativos' },
+  { id: 'inativos', label: 'Inativos' },
+  { id: 'convites', label: 'Convites' },
+] as const;
+
+type FiltroEquipe = (typeof FILTROS)[number]['id'];
+
+function isFiltro(v: string | undefined): v is FiltroEquipe {
+  return FILTROS.some((f) => f.id === v);
+}
+
+/** Href do filtro preservando a busca — trocar o recorte não apaga o termo. */
+function equipeHref(q: string, filtro: FiltroEquipe): string {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (filtro !== 'todos') params.set('filtro', filtro);
+  const qs = params.toString();
+  return qs ? `/equipe?${qs}` : '/equipe';
+}
+
+export default async function EquipePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; filtro?: string }>;
+}) {
   // Ver comentário equivalente no dashboard: o redirect explícito impede que
   // renders concorrentes transformem a expiração/revogação esperada em Sentry.
   const user = await getCurrentUser();
@@ -79,6 +128,24 @@ export default async function EquipePage() {
       ? billingApiV1.hasGranularPermissions(user.clinicId)
       : Promise.resolve(false),
   ]);
+  const { q: qRaw, filtro: filtroRaw } = await searchParams;
+  const q = (qRaw ?? '').trim();
+  const filtro: FiltroEquipe = isFiltro(filtroRaw) ? filtroRaw : 'todos';
+
+  /*
+    A faixa de contagens e o rodapé falam da CLÍNICA, não do recorte: são o
+    denominador contra o qual o filtro faz sentido. Quem filtra por "Inativos"
+    quer ver um, não passar a acreditar que a clínica tem um.
+  */
+  const visiveis = employees.filter((e) => {
+    if (q && !e.nome.toLocaleLowerCase('pt-BR').includes(q.toLocaleLowerCase('pt-BR')))
+      return false;
+    if (filtro === 'ativos') return e.ativo && !e.pending;
+    if (filtro === 'inativos') return !e.ativo;
+    if (filtro === 'convites') return e.pending;
+    return true;
+  });
+
   const ativos = employees.filter((e) => e.ativo).length;
   // Funções que ESTE ator pode atribuir (server-side; a UI só oferece o permitido).
   const assignableRoles = assignableRolesFor(user.role);
@@ -88,38 +155,98 @@ export default async function EquipePage() {
   const counts = new Map<Role, number>();
   for (const e of employees) counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
   const pendingInvites = employees.filter((employee) => employee.ativo && employee.pending).length;
-  const enrolledMfa = employees.filter((employee) => employee.ativo && employee.mfaEnrolled).length;
 
   return (
     <>
       <PageHeader
         crumbs={[{ label: 'Administração' }, { label: 'Equipe & Permissões' }]}
         title="Equipe & Permissões"
-        description="Pessoas, credenciais e acesso à clínica."
-        actions={<InviteDrawer ativos={ativos} seatLimit={seatLimit} />}
+        description="Acesso, papéis e capacidade do plano"
+        {...(seatLimit != null
+          ? {
+              meta: (
+                <span className="font-mono tabular-nums">
+                  {ativos} de {seatLimit} usuários
+                </span>
+              ),
+            }
+          : {})}
+        actions={
+          <>
+            {/* Vagas restantes ao lado do Convidar: é a informação que decide
+                se o convite vai caber, e ela chegava só depois do clique. */}
+            {seatLimit != null ? (
+              <span className="inline-flex items-center gap-1.5 text-(length:--fs-sm) text-fg-muted">
+                <Users aria-hidden="true" className="size-3.5 text-fg-subtle" />
+                {Math.max(0, seatLimit - ativos)} vaga
+                {seatLimit - ativos === 1 ? '' : 's'} no plano
+              </span>
+            ) : null}
+            <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
+          </>
+        }
       />
 
       <section aria-label="Resumo da equipe" className={styles.overview ?? ''}>
+        {ROLE_ORDER.map((r) => (
+          <div key={r}>
+            <span>{ROLE_META[r].label}</span>
+            <strong>{counts.get(r) ?? 0}</strong>
+            <small>{notaDoPapel(r, employees)}</small>
+          </div>
+        ))}
         <div>
-          <Users aria-hidden="true" />
-          <span>Pessoas na clínica</span>
-          <strong>{employees.length}</strong>
-        </div>
-        <div>
-          <span>Usuários ativos</span>
-          <strong>{ativos}</strong>
-        </div>
-        <div>
-          <Mail aria-hidden="true" />
-          <span>Convites pendentes</span>
-          <strong>{pendingInvites}</strong>
-        </div>
-        <div>
-          <ShieldCheck aria-hidden="true" />
-          <span>2FA ativado</span>
-          <strong>{enrolledMfa}</strong>
+          <span>Uso do plano</span>
+          <strong>{seatLimit != null ? `${ativos} de ${seatLimit}` : ativos}</strong>
+          <small>
+            {seatLimit != null
+              ? `${Math.max(0, seatLimit - ativos)} vaga${seatLimit - ativos === 1 ? '' : 's'} restante${seatLimit - ativos === 1 ? '' : 's'}`
+              : 'sem limite no plano'}
+          </small>
         </div>
       </section>
+
+      <FilterBar className="qoro-toolbar">
+        <form className="flex w-full min-w-0 items-center gap-(--sp-2) sm:w-68" role="search">
+          {filtro !== 'todos' ? <input type="hidden" name="filtro" value={filtro} /> : null}
+          <SearchField
+            name="q"
+            defaultValue={q}
+            placeholder="Buscar por nome…"
+            aria-label="Buscar pessoas da equipe por nome"
+            className="min-w-0"
+          />
+        </form>
+        <nav
+          aria-label="Situação do acesso"
+          className="inline-flex rounded-(--r-md) border border-border bg-surface-inset p-0.5"
+        >
+          {FILTROS.map((item) => (
+            <Link
+              key={item.id}
+              href={equipeHref(q, item.id)}
+              aria-current={filtro === item.id ? 'page' : undefined}
+              className={cn(
+                'inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm)',
+                filtro === item.id
+                  ? 'bg-surface font-semibold text-fg shadow-xs'
+                  : 'text-fg-muted hover:bg-surface-hover',
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <span className="ml-auto font-mono text-(length:--fs-caption) tabular-nums text-fg-subtle">
+          {ativos} ativo{ativos === 1 ? '' : 's'}
+          {employees.length - ativos > 0
+            ? ` · ${employees.length - ativos} inativo${employees.length - ativos === 1 ? '' : 's'}`
+            : ''}
+          {pendingInvites > 0
+            ? ` · ${pendingInvites} convite${pendingInvites === 1 ? '' : 's'}`
+            : ''}
+        </span>
+      </FilterBar>
 
       {employees.length === 0 ? (
         <div className="flex flex-col items-center gap-4">
@@ -133,13 +260,11 @@ export default async function EquipePage() {
           <TableToolbar>
             <h2 className="text-(length:--fs-sm) font-semibold">Usuários e convites</h2>
             <TableToolbarSpacer />
-            <div className="flex flex-wrap gap-1.5">
-              {ROLE_ORDER.filter((r) => (counts.get(r) ?? 0) > 0).map((r) => (
-                <Badge key={r} tone="gray">
-                  {ROLE_META[r].label} · {counts.get(r)}
-                </Badge>
-              ))}
-            </div>
+            {/* Aqui dentro da moldura o número é o do RECORTE — é o que está
+                logo abaixo. O total da clínica já está na barra de filtros. */}
+            <span className="font-mono text-(length:--fs-caption) tabular-nums text-fg-subtle">
+              {visiveis.length} de {employees.length}
+            </span>
           </TableToolbar>
           <TableScroll>
             <Table>
@@ -147,14 +272,14 @@ export default async function EquipePage() {
                 <TableRow>
                   <TableHead>Usuário</TableHead>
                   <TableHead>Função</TableHead>
-                  <TableHead>Credencial</TableHead>
-                  <TableHead>2FA</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Credencial profissional</TableHead>
+                  <TableHead>Segundo fator</TableHead>
+                  <TableHead>Situação do acesso</TableHead>
                   <TableHead className="w-0 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {employees.map((e) => {
+                {visiveis.map((e) => {
                   const meta = ROLE_META[e.role];
                   const credencial =
                     e.crm != null
@@ -181,7 +306,10 @@ export default async function EquipePage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge tone={meta.tone}>{meta.label}</Badge>
+                        {/* Texto, não badge: o papel já é contado na faixa, e
+                            cinco pastilhas coloridas por linha faziam a tabela
+                            gritar sem hierarquia nenhuma. */}
+                        <span className="font-medium text-fg-muted">{meta.label}</span>
                         {canManagePermissions && e.overridesCount > 0 ? (
                           <span className="ml-1.5 text-(length:--fs-xs) text-fg-subtle">
                             +{e.overridesCount} ajuste{e.overridesCount > 1 ? 's' : ''}
@@ -192,25 +320,52 @@ export default async function EquipePage() {
                         {isPractitioner(e) && e.crm == null ? (
                           <Badge tone="amber">Médico incompleto</Badge>
                         ) : (
-                          (credencial ?? '—')
+                          (credencial ?? (
+                            // "Não aplicável" e não "—": recepção não tem
+                            // credencial profissional, e um travessão faria
+                            // parecer cadastro faltando.
+                            <span className="italic text-fg-subtle">Não aplicável</span>
+                          ))
                         )}
                       </TableCell>
                       <TableCell>
-                        {e.mfaEnrolled ? (
-                          <Badge tone="green" dot>
-                            Ativo
+                        {e.pending ? (
+                          // Convite ainda não aceito: não há segundo fator para
+                          // relatar, e "Não ativado" leria como negligência.
+                          <span className="text-(length:--fs-xs) text-fg-subtle">
+                            após o primeiro acesso
+                          </span>
+                        ) : e.mfaEnrolled ? (
+                          <Badge tone="green">
+                            <ShieldCheck aria-hidden="true" className="size-3 shrink-0" />
+                            TOTP ativo
                           </Badge>
                         ) : (
-                          <span className="text-(length:--fs-xs) text-fg-subtle">Não ativado</span>
+                          <Badge tone="gray">
+                            <ShieldOff aria-hidden="true" className="size-3 shrink-0" />
+                            Não ativado
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>
+                        {/* "Ativo" em CINZA de propósito: é o estado normal de
+                            toda a equipe, e em verde a coluna inteira virava um
+                            painel de parabéns onde só a exceção importa. */}
                         {!e.ativo ? (
-                          <Badge tone="gray">Inativo</Badge>
+                          <Badge tone="gray">
+                            <CirclePause aria-hidden="true" className="size-3 shrink-0" />
+                            Acesso desativado
+                          </Badge>
                         ) : e.pending ? (
-                          <Badge tone="amber">Convite pendente</Badge>
+                          <Badge tone="amber">
+                            <MailWarning aria-hidden="true" className="size-3 shrink-0" />
+                            Convite pendente
+                          </Badge>
                         ) : (
-                          <Badge tone="green">Ativo</Badge>
+                          <Badge tone="gray">
+                            <CircleCheck aria-hidden="true" className="size-3 shrink-0" />
+                            Ativo
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -239,7 +394,9 @@ export default async function EquipePage() {
           </TableScroll>
           <TableFoot>
             <TableFootInfo>
-              {employees.length} usuário{employees.length === 1 ? '' : 's'} na clínica
+              {filtro === 'todos' && !q
+                ? `${employees.length} usuário${employees.length === 1 ? '' : 's'} na clínica`
+                : `${visiveis.length} de ${employees.length} usuário${employees.length === 1 ? '' : 's'}`}
             </TableFootInfo>
             <span className="text-(length:--fs-xs) text-fg-subtle">
               Ações disponíveis conforme seu nível de acesso

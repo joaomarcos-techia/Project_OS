@@ -5,9 +5,11 @@ import { sql } from 'drizzle-orm';
 import { practitionerSql, profiles } from '@/contexts/identity';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
 import { listPatientCards } from '@/contexts/patient/queries';
+import { ageFromBirthdate } from '../consultorio/board-logic';
 import {
   listAppointments,
   listProcedures,
+  listQueueTimestamps,
   listRecurrenceSeriesSummaries,
   listSchedulableResources,
   type RecurrenceSeriesSummary,
@@ -35,7 +37,13 @@ export interface AgendaAppt {
   doctorId: string;
   horario: string; // ISO
   pacienteNome: string;
+  /** Idade do paciente — a segunda linha da célula "Paciente" na referência. */
+  pacienteIdade: number | null;
   medicoNome: string;
+  /** Nome do procedimento no snapshot da criação (coluna "Procedimento"). */
+  procedimento: string;
+  /** Duração agendada, em minutos — segunda linha da célula "Hora". */
+  duracaoMin: number;
   status: AppointmentStatusDTO;
   recoveryKinds: AppointmentRecoveryKind[];
   /**
@@ -53,6 +61,16 @@ export interface AgendaAppt {
   depositStatus: DepositStatus;
   /** Ate quando a vaga fica segurada (ISO). Nao-nulo somente em `pending`. */
   holdExpiresAt: string | null;
+  /** Marcado como urgente na criação — a referência põe um selo ao lado do nome. */
+  urgencia: boolean;
+  /** `walkin` é o encaixe; a referência diz a que horas ele foi criado. */
+  createdVia: string;
+  /** Criação do atendimento (ISO) — é a hora do encaixe. */
+  criadoEm: string;
+  /** Check-in na fila do consultório (ISO). Null enquanto não chegou. */
+  filaDesde: string | null;
+  /** Chamada para atendimento (ISO). Null enquanto não foi chamado. */
+  atendimentoDesde: string | null;
 }
 export interface ProcedureOption {
   id: string;
@@ -154,6 +172,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   const ids = [...new Set(appts.filter((a) => a.patientId).map((a) => a.patientId!))];
   const cards = await listPatientCards(clinicId, ids);
   const nameOf = new Map(cards.map((c) => [c.id, c.nome]));
+  const birthOf = new Map(cards.map((c) => [c.id, c.dataNascimento]));
 
   const procedures = (await listProcedures(clinicId, { onlyActive: true })).map((p) => ({
     id: p.id,
@@ -176,18 +195,34 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   const doctors = docRows.map((r) => ({ id: r.id, nome: r.nome }));
   const doctorNameOf = new Map(doctors.map((doctor) => [doctor.id, doctor.nome]));
 
+  // Uma leitura em lote, não uma por linha: os carimbos da fila só existem para
+  // quem passou pelo consultório, e a maioria do dia nunca tem entrada.
+  const fila = await listQueueTimestamps(
+    clinicId,
+    appts.filter((a) => a.status === 'chegou' || a.status === 'em_atendimento').map((a) => a.id),
+  );
+  const filaDe = new Map(fila.map((f) => [f.appointmentId, f]));
+
   const appointments: AgendaAppt[] = appts.map((a) => ({
     id: a.id,
     doctorId: a.doctorId,
     horario: a.scheduledAt,
     pacienteNome: a.patientId ? (nameOf.get(a.patientId) ?? 'Paciente') : 'Encaixe',
+    pacienteIdade: ageFromBirthdate(a.patientId ? (birthOf.get(a.patientId) ?? null) : null),
     medicoNome: doctorNameOf.get(a.doctorId) ?? a.snapshotDoctorNome,
+    procedimento: a.snapshotProcedureName,
+    duracaoMin: a.durationMin,
     status: a.status,
     recoveryKinds: listAppointmentRecoveryKinds(a.status),
     recurrenceSeriesId: a.recurrenceSeriesId,
     recurrenceOccurrence: a.recurrenceOccurrence,
     depositStatus: a.depositStatus,
     holdExpiresAt: a.holdExpiresAt,
+    urgencia: a.urgencia,
+    createdVia: a.createdVia,
+    criadoEm: a.createdAt,
+    filaDesde: filaDe.get(a.id)?.queuedAt ?? null,
+    atendimentoDesde: filaDe.get(a.id)?.startedAt ?? null,
   }));
 
   // UX-003 — total e estado das séries presentes na faixa. Sem o total,

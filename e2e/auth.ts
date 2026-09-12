@@ -18,7 +18,11 @@ export async function authenticate(page: Page): Promise<void> {
     throw new Error('E2E credentials are required to authenticate.');
   }
 
-  await page.goto('/dashboard');
+  // O mesmo teto do assert abaixo: a constante existe para dizer que a
+  // navegação de autenticação PODE ser lenta, e o `goto` ficava no padrão de
+  // 30 s — curto para um `next dev` compilando a rota pela primeira vez e para
+  // um deploy serverless frio.
+  await page.goto('/dashboard', { timeout: AUTH_NAVIGATION_TIMEOUT_MS });
   if (!/\/login(?:\?|$)/.test(page.url())) {
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, {
       timeout: AUTH_NAVIGATION_TIMEOUT_MS,
@@ -26,7 +30,9 @@ export async function authenticate(page: Page): Promise<void> {
     return;
   }
 
-  await page.getByLabel('Email').fill(testEmail);
+  // #email, nao getByLabel: o form de recuperacao inline usa o mesmo
+  // rotulo "E-mail" e o mesmo name, entao so o id desambigua.
+  await page.locator('#email').fill(testEmail);
   await page.locator('input[name="password"]').fill(testPassword);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, {

@@ -1,4 +1,6 @@
 import type { VariantProps } from 'class-variance-authority';
+import { Ban, CircleCheck, CircleDashed, CircleDot, RotateCcw, TriangleAlert } from 'lucide-react';
+import type { ComponentType } from 'react';
 
 import { Badge } from './badge';
 import type { badgeVariants } from './badge';
@@ -19,14 +21,23 @@ export type AppointmentStatus =
   | 'cancelado'
   | 'faltou';
 
+/**
+ * Rótulos NOMINAIS e no feminino, concordando com "a consulta" — é assim que a
+ * referência escreve, e o registro importa: o badge qualifica a linha ("consulta
+ * Finalizada"), não narra o que o paciente fez ("Atendido", "Faltou").
+ *
+ * `chegou` é "Aguardando" e não "Chegou" pelo mesmo motivo: quem lê a agenda
+ * precisa saber o que está acontecendo AGORA — que há alguém esperando —, não
+ * registrar um fato que já passou.
+ */
 const APPOINTMENT: Record<AppointmentStatus, { tone: Tone; label: string }> = {
-  agendado: { tone: 'gray', label: 'Agendado' },
-  confirmado: { tone: 'blue', label: 'Confirmado' },
-  chegou: { tone: 'teal', label: 'Chegou' },
+  agendado: { tone: 'gray', label: 'Agendada' },
+  confirmado: { tone: 'blue', label: 'Confirmada' },
+  chegou: { tone: 'amber', label: 'Aguardando' },
   em_atendimento: { tone: 'violet', label: 'Em atendimento' },
-  atendido: { tone: 'green', label: 'Atendido' },
-  cancelado: { tone: 'gray', label: 'Cancelado' },
-  faltou: { tone: 'red', label: 'Faltou' },
+  atendido: { tone: 'green', label: 'Finalizada' },
+  cancelado: { tone: 'gray', label: 'Cancelada' },
+  faltou: { tone: 'red', label: 'Falta' },
 };
 
 export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }) {
@@ -69,31 +80,59 @@ export function DepositStatusBadge({ status }: { status: DepositStatus }) {
 
 export type PaymentStatus = 'pendente' | 'pago' | 'parcial' | 'cancelado' | 'estornado';
 
-const PAYMENT: Record<PaymentStatus, { tone: Tone; label: string }> = {
-  pendente: { tone: 'amber', label: 'Pendente' },
-  pago: { tone: 'green', label: 'Pago' },
-  parcial: { tone: 'blue', label: 'Parcial' },
-  cancelado: { tone: 'gray', label: 'Cancelado' },
-  estornado: { tone: 'red', label: 'Estornado' },
+type Glyph = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
+
+/**
+ * Cada status ganha um icone proprio, e nao o mesmo ponto colorido. Caixa e
+ * Financeiro mostram estas fichas em fila: so a cor obriga a comparar dois
+ * badges lado a lado para saber qual e qual, e falha de vez para quem nao
+ * distingue ambar de verde.
+ */
+const PAYMENT: Record<PaymentStatus, { tone: Tone; label: string; icon: Glyph }> = {
+  pendente: { tone: 'amber', label: 'Pendente', icon: CircleDashed },
+  pago: { tone: 'green', label: 'Pago', icon: CircleCheck },
+  parcial: { tone: 'blue', label: 'Parcial', icon: CircleDot },
+  cancelado: { tone: 'gray', label: 'Cancelado', icon: Ban },
+  estornado: { tone: 'red', label: 'Estornado', icon: RotateCcw },
 };
 
 /**
  * `overdue` NAO e um status armazenado: o Financial deriva "vencido" comparando
  * `due_date` com hoje no fuso da clinica (ver dunning-candidates.ts). A regra e
- * dele; aqui so existe a apresentacao dela, porque um pendente vencido e um
- * pendente no prazo pedem acoes diferentes e a tela precisa distinguir.
+ * dele; aqui so existe a apresentacao dela, porque um lancamento em aberto fora
+ * do prazo e um no prazo pedem acoes diferentes e a tela precisa distinguir.
+ *
+ * Vale para `pendente` E `parcial` — os dois estados em aberto. Um parcial que
+ * passou do vencimento tem saldo devedor atrasado igual, e chama-lo so de
+ * "Parcial" esconderia justamente a parte acionavel.
+ *
+ * `overdueDays` troca "Vencido" por "Vencido ha N dias": o operador precisa da
+ * ordem de grandeza para priorizar, e ela ja esta calculada de qualquer jeito.
  */
 export function PaymentStatusBadge({
   status,
   overdue = false,
+  overdueDays = 0,
 }: {
   status: PaymentStatus;
   overdue?: boolean;
+  overdueDays?: number;
 }) {
-  const vencido = overdue && status === 'pendente';
-  const { tone, label } = vencido ? { tone: 'red' as Tone, label: 'Vencido' } : PAYMENT[status];
+  const vencido = overdue && (status === 'pendente' || status === 'parcial');
+  const { tone, label, icon } = vencido
+    ? {
+        tone: 'red' as Tone,
+        label:
+          overdueDays > 0
+            ? `Vencido há ${overdueDays} ${overdueDays === 1 ? 'dia' : 'dias'}`
+            : 'Vencido',
+        icon: TriangleAlert as Glyph,
+      }
+    : PAYMENT[status];
+  const Icon = icon;
   return (
-    <Badge tone={tone} dot>
+    <Badge tone={tone}>
+      <Icon aria-hidden="true" className="size-3 shrink-0" />
       {label}
     </Badge>
   );

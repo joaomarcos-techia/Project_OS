@@ -104,6 +104,34 @@ export async function listOpenHandoffs(clinicId: string, limit = 20): Promise<Pe
   });
 }
 
+/** Pulso da fila de handoff para o alerta do Dashboard. */
+export interface HandoffPulse {
+  /** Conversas esperando um humano agora. */
+  abertos: number;
+  /** Subconjunto de `abertos` cujo `dueAt` já passou (SLA vencido). */
+  vencidos: number;
+}
+
+/**
+ * Contagem da fila de handoff — dois inteiros, nada mais.
+ *
+ * Existe separada de `listOpenHandoffs` porque o alerta precisa do `dueAt` para
+ * saber o que venceu, e carregar linhas só para contá-las no Node desperdiça
+ * banda a cada render do Dashboard. Continua sem PII, pelo mesmo motivo.
+ */
+export async function countOpenHandoffs(clinicId: string): Promise<HandoffPulse> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({
+        abertos: sql<number>`count(*)::int`,
+        vencidos: sql<number>`count(*) filter (where ${aiHandoffQueue.dueAt} < now())::int`,
+      })
+      .from(aiHandoffQueue)
+      .where(and(eq(aiHandoffQueue.clinicId, clinicId), isNull(aiHandoffQueue.resolvedAt)));
+    return { abertos: row?.abertos ?? 0, vencidos: row?.vencidos ?? 0 };
+  });
+}
+
 /**
  * Fila de conversas. Ordenação NÃO é preferência de UI — é a regra operacional:
  * `handoff` primeiro porque são as que esperam um humano; dentro de cada grupo,
@@ -236,6 +264,32 @@ export async function listConversations(
       latestMessages.map((message) => [message.conversationId, message.contentEncrypted]),
     );
 
+    // A janela da Meta conta a partir do último INBOUND, não da última mensagem:
+    // responder não reabre nada. Por isso é uma segunda varredura, com o mesmo
+    // predicado de poda de partição da anterior.
+    const lastInbound =
+      conversationIds.length > 0 && earliestConversationStart
+        ? await tx
+            .selectDistinctOn([aiMessages.conversationId], {
+              conversationId: aiMessages.conversationId,
+              createdAt: aiMessages.createdAt,
+            })
+            .from(aiMessages)
+            .where(
+              and(
+                eq(aiMessages.clinicId, clinicId),
+                inArray(aiMessages.conversationId, conversationIds),
+                eq(aiMessages.direction, 'in'),
+                gte(aiMessages.createdAt, earliestConversationStart),
+              ),
+            )
+            .orderBy(aiMessages.conversationId, desc(aiMessages.createdAt))
+        : [];
+    const lastInboundByConversation = new Map(
+      lastInbound.map((message) => [message.conversationId, message.createdAt]),
+    );
+    const agora = new Date();
+
     const items = await Promise.all(
       rows.map(async (r): Promise<AIConversationListItem> => {
         const nome = r.patientName ?? null;
@@ -253,6 +307,7 @@ export async function listConversations(
           status: r.status,
           lastMessageAt: toIso(r.lastMessageAt)!,
           intentAtual: r.intentAtual,
+          windowOpen: isWindowOpen(lastInboundByConversation.get(r.id) ?? null, agora),
           handoff:
             r.status === 'handoff' && r.handoffDueAt && r.handoffPriority
               ? {

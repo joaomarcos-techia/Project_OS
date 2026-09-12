@@ -162,6 +162,19 @@ export interface PatientListItem {
   id: string;
   nome: string;
   email: string | null;
+  /** Telefone decifrado e formatado (`(11) 98842-1190`); `null` sem telefone. */
+  telefone: string | null;
+  /** `data_nascimento` — coluna EM CLARO, como `nome` e `sexo`. */
+  dataNascimento: string | null;
+  /**
+   * CPF **já mascarado** (`412.908.***-04`), decifrado e mascarado no servidor.
+   *
+   * O valor completo nunca sai daqui: quem decifra é quem mascara, para que o
+   * payload do RSC e o DOM carreguem no máximo 8 dos 11 dígitos. `null` quando
+   * o paciente não tem CPF ou quando a decifragem falha — a lista não quebra
+   * por causa de uma linha com chave antiga.
+   */
+  cpfMascarado: string | null;
   deletedAt: string | null;
 }
 

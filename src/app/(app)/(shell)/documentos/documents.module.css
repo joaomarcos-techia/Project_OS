@@ -1,5 +1,19 @@
-.table td:first-child {
-  width: 24%;
+/* Larguras da referência: o tipo é coluna FIXA porque é por ele que se varre a
+   lista; paciente e emitente dividem o que sobra. */
+.table td:first-child,
+.table th:first-child {
+  width: 206px;
+}
+.table td:nth-child(4),
+.table th:nth-child(4) {
+  width: 150px;
+}
+
+/* Todos os badges de tipo com a MESMA largura: alinhados, a coluna vira uma
+   régua de leitura — desalinhados, o olho reencontra o início de cada rótulo a
+   cada linha. */
+.tipo {
+  min-width: 190px;
 }
 
 .table td:last-child {
@@ -7,6 +21,17 @@
 }
 
 @media (max-width: 639px) {
+  .tipo {
+    min-width: 0;
+  }
+
+  .table td:first-child,
+  .table th:first-child,
+  .table td:nth-child(4),
+  .table th:nth-child(4) {
+    width: auto;
+  }
+
   .table table,
   .table tbody {
     display: block;

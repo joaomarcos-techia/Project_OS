@@ -1,45 +1,46 @@
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CircleX, Timer } from 'lucide-react';
 
-import type {
-  AIConversationStatus,
-  AIConversationThread,
-  AIThreadMessage,
-} from '@/contexts/ai-agent/types';
-import { Alert } from '@/components/ui/alert';
+import type { AIConversationThread, AIThreadMessage } from '@/contexts/ai-agent/types';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/ui/cn';
 
+import { identidadeDoContato } from '../contact-identity';
+import { apresentacaoDoStatus, prazoRelativo, type StatusTone } from '../status-presentation';
 import { ConversaActions } from '../[id]/_components/conversa-actions';
 import { RetryMessageButton } from '../[id]/_components/retry-message-button';
 import styles from '../conversations.module.css';
 
-export const STATUS_TONE: Record<AIConversationStatus, 'amber' | 'green' | 'gray'> = {
-  handoff: 'amber',
-  active: 'green',
-  closed: 'gray',
-  abandoned: 'gray',
+/** O estado usa a MESMA gramática da fila; aqui ele só ganha moldura de badge. */
+const BADGE_TONE: Record<StatusTone, 'ai' | 'blue' | 'amber' | 'gray'> = {
+  ai: 'ai',
+  human: 'blue',
+  attention: 'amber',
+  muted: 'gray',
 };
-export const STATUS_LABEL: Record<AIConversationStatus, string> = {
-  handoff: 'Aguardando humano',
-  active: 'Agente respondendo',
-  closed: 'Encerrada',
-  abandoned: 'Abandonada',
-};
-const AUTHOR_LABEL: Record<AIThreadMessage['author'], string> = {
+
+const AUTHOR_CHIP: Record<AIThreadMessage['author'], string> = {
   patient: 'Paciente',
-  agent: 'Agente IA',
-  human: 'Você / equipe',
+  agent: 'IA',
+  human: 'Equipe',
 };
 const DELIVERY_LABEL = {
   pending: 'Enviando…',
   sent: 'Enviada ao WhatsApp',
   delivered: 'Entregue',
   read: 'Lida',
-  failed: 'Falha no envio',
 } as const;
+
+/** Só a hora: a data já está no cabeçalho da conversa e nas linhas da fila. */
+function hora(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+}
 
 export function ConversationThread({
   thread,
@@ -54,14 +55,12 @@ export function ConversationThread({
   assignedToName: string | null;
   backHref?: string;
 }) {
-  const title =
-    thread.patientDisplayName ??
-    thread.contactPhone ??
-    thread.maskedPhone ??
-    'Contato desconhecido';
-  const failedDeliveries = thread.messages.filter(
-    (message) => message.delivery === 'failed',
-  ).length;
+  const contato = identidadeDoContato(thread);
+  const estado = apresentacaoDoStatus({
+    status: thread.status,
+    windowOpen: thread.window.open,
+    assignedToName,
+  });
   const canRetry =
     canManage &&
     thread.status === 'handoff' &&
@@ -75,26 +74,31 @@ export function ConversationThread({
       </Link>
       {thread.handoff?.overdue ? (
         <div className={styles.sla}>
-          <Alert variant="danger" title="SLA de resposta vencido">
-            Prazo de resposta: {new Date(thread.handoff.dueAt).toLocaleString('pt-BR')}.
-          </Alert>
+          <Timer aria-hidden="true" size={16} />
+          <span>
+            {prazoRelativo(thread.handoff.dueAt).replace('SLA vencido', 'SLA de resposta vencido')}
+            {thread.window.lastInboundAt
+              ? ` · o paciente aguarda desde ${hora(thread.window.lastInboundAt)}`
+              : ''}
+          </span>
         </div>
       ) : null}
       <header className={styles.threadHeader}>
         <Avatar name={thread.patientDisplayName ?? 'Contato'} />
         <div className={styles.threadIdentity}>
           <div className={styles.threadTitle}>
-            <h2>{title}</h2>
-            <Badge tone={STATUS_TONE[thread.status]} dot>
-              {STATUS_LABEL[thread.status]}
+            <h2>{contato.titulo}</h2>
+            <Badge tone={BADGE_TONE[estado.tone]}>
+              <estado.Icon aria-hidden="true" className="size-3" />
+              {estado.label}
             </Badge>
           </div>
           <div className={styles.threadMeta}>
-            {thread.contactPhone ? (
-              <span className={styles.phone}>{thread.contactPhone}</span>
+            {contato.telefone ? <span className={styles.phone}>{contato.telefone}</span> : null}
+            <span>conversa iniciada às {hora(thread.startedAt)}</span>
+            {thread.window.lastInboundAt ? (
+              <span>última mensagem recebida {hora(thread.window.lastInboundAt)}</span>
             ) : null}
-            <span>Iniciada em {new Date(thread.startedAt).toLocaleString('pt-BR')}</span>
-            {thread.intentAtual ? <span>Intenção: {thread.intentAtual}</span> : null}
           </div>
         </div>
       </header>
@@ -103,15 +107,6 @@ export function ConversationThread({
           <span>Atendimento humano</span>
           <strong>{assignedToName ?? 'Sem responsável'}</strong>
           <span>Prioridade {thread.handoff.priority === 'urgent' ? 'urgente' : 'normal'}</span>
-        </div>
-      ) : null}
-      {failedDeliveries > 0 ? (
-        <div className={styles.deliveryAlert}>
-          <Alert variant="danger" title="Falha de entrega no WhatsApp">
-            {failedDeliveries} mensagem{failedDeliveries === 1 ? '' : 'ns'} não{' '}
-            {failedDeliveries === 1 ? 'foi entregue' : 'foram entregues'}. Confira o número e a
-            conexão antes de reenviar.
-          </Alert>
         </div>
       ) : null}
       <section aria-label="Histórico da conversa" className={styles.history}>
@@ -132,24 +127,30 @@ export function ConversationThread({
                   <strong>
                     {message.author === 'patient'
                       ? (thread.patientDisplayName ?? 'Paciente')
-                      : AUTHOR_LABEL[message.author]}
+                      : message.author === 'agent'
+                        ? 'Agente Qoro'
+                        : (assignedToName ?? 'Equipe')}
                   </strong>
-                  {message.author === 'agent' ? <Badge tone="ai">IA</Badge> : null}
-                  <time dateTime={message.createdAt}>
-                    {new Date(message.createdAt).toLocaleString('pt-BR')}
-                  </time>
+                  <span className={styles.authorChip}>{AUTHOR_CHIP[message.author]}</span>
+                  <time dateTime={message.createdAt}>{hora(message.createdAt)}</time>
                 </div>
                 <div className={styles.bubble} data-author={message.author}>
                   {message.text}
                 </div>
-                {message.delivery ? (
-                  <div
-                    className={cn(styles.delivery, message.delivery === 'failed' && styles.failed)}
-                  >
-                    <span>{DELIVERY_LABEL[message.delivery]}</span>
-                    {message.delivery === 'failed' && canRetry ? (
+                {/* A falha é uma CAIXA sob o balão, não uma legenda: ela carrega
+                    a ação de reenvio e precisa do peso de um aviso. O sucesso
+                    continua legenda — não há o que fazer a respeito dele. */}
+                {message.delivery === 'failed' ? (
+                  <div className={styles.deliveryFailed}>
+                    <CircleX aria-hidden="true" size={15} />
+                    <span>Não entregue às {hora(message.createdAt)}</span>
+                    {canRetry ? (
                       <RetryMessageButton conversationId={thread.id} messageId={message.id} />
                     ) : null}
+                  </div>
+                ) : message.delivery ? (
+                  <div className={styles.delivery}>
+                    <span>{DELIVERY_LABEL[message.delivery]}</span>
                   </div>
                 ) : null}
                 {message.meta ? <AgentMeta meta={message.meta} /> : null}

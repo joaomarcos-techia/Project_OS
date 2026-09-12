@@ -12,7 +12,8 @@ test.describe('acesso público', () => {
 
     const password = page.locator('input[name="password"]');
     await expect(page.getByRole('heading', { name: 'Bem-vindo de volta' })).toBeVisible();
-    await expect(page.getByLabel('Email')).toBeVisible();
+    await expect(page.locator('#email')).toBeVisible();
+    await expect(page.locator('label[for="email"]')).toHaveText(/e-?mail/i);
     await expect(password).toHaveAttribute('type', 'password');
     await expect(page.getByRole('button', { name: 'Entrar' })).toBeEnabled();
 

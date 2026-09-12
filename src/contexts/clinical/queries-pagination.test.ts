@@ -120,7 +120,8 @@ describe('listClinicalDocumentFeedPage', () => {
     expect(statement).not.toContain('union all');
     expect(result.items[0]).toMatchObject({
       kind: 'prescription',
-      label: 'Receita',
+      label: 'Receita simples',
+      type: 'simples',
       pdfHref: `/prescricoes/${row(1).id}/pdf`,
     });
   });

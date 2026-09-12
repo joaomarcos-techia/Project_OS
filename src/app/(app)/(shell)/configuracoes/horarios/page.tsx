@@ -24,7 +24,7 @@ export default async function HorariosPage() {
     return (
       <div>
         <PageHeader
-          crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Horários' }]}
+          crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Horários' }]}
           title="Horários"
         />
         <Alert variant="warning" title="Sem acesso">
@@ -50,7 +50,7 @@ export default async function HorariosPage() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: 'Agenda', href: '/configuracoes/agenda' }, { label: 'Horários' }]}
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Horários' }]}
         title="Horários de atendimento"
         description="Disponibilidade semanal dos profissionais e feriados — base da agenda e dos horários livres."
       />

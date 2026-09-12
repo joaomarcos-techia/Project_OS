@@ -3,11 +3,20 @@
  * Server component — navegação por URL (`?view=&date=`), sem estado cliente.
  * Cancelados aparecem esmaecidos (decisão do founder), não somem.
  */
-import { ChevronLeft, ChevronRight, Clock3, Stethoscope } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  Clock3,
+  Siren,
+  Stethoscope,
+  UserX,
+} from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { AppointmentStatusBadge, DepositStatusBadge } from '@/components/ui/status-badge';
+import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { buttonVariants } from '@/components/ui/button';
@@ -22,6 +31,9 @@ import {
 import { cn } from '@/lib/ui/cn';
 
 import styles from './agenda.module.css';
+
+import type { RecurrenceSeriesSummary } from '@/contexts/scheduling/queries';
+import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 
 import type { AgendaAppt, AgendaData } from './data';
 import { AppointmentCorrectionDialog } from './appointment-correction-dialog';
@@ -187,10 +199,74 @@ function WeekView({ data }: { data: AgendaData }) {
 }
 
 /* ---------------- Dia ---------------- */
+/** "24 min" / "1 h 10" — uma regra só de formatação de duração. */
+function formatarMinutos(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const resto = min % 60;
+  return resto === 0 ? `${h} h` : `${h} h ${resto}`;
+}
+
+/** Minutos decorridos desde um carimbo, já formatados. */
+function decorrido(desde: string, agora: number): string | null {
+  const min = Math.floor((agora - new Date(desde).getTime()) / 60_000);
+  if (!Number.isFinite(min) || min < 0) return null;
+  return formatarMinutos(min);
+}
+
+const CADENCIA: Record<number, string> = {
+  1: 'série semanal',
+  2: 'série quinzenal',
+  4: 'série mensal',
+};
+
+/**
+ * A linha de contexto sob o procedimento.
+ *
+ * O status diz o QUÊ; esta linha diz há quanto tempo, e é ela que separa quem
+ * chegou agora de quem espera há quarenta minutos. Só sai quando existe um
+ * carimbo real por trás — nada aqui é estimado.
+ */
+function contexto(
+  a: AgendaAppt,
+  serie: RecurrenceSeriesSummary | undefined,
+  agora: number,
+  tz: string,
+): string | null {
+  if (a.status === 'chegou' && a.filaDesde) {
+    const t = decorrido(a.filaDesde, agora);
+    if (t) return `aguardando há ${t}`;
+  }
+  if (a.status === 'em_atendimento' && a.atendimentoDesde) {
+    const t = decorrido(a.atendimentoDesde, agora);
+    if (t) return `em atendimento há ${t}`;
+  }
+  if (a.createdVia === 'walkin') return `encaixe criado às ${hora(a.criadoEm, tz)}`;
+  if (serie) {
+    // Só a CADÊNCIA: a posição na série ("3/8") já está no chip da coluna
+    // Status, que é onde ela também é a ação. Repeti-la aqui encheria duas
+    // colunas com o mesmo número. A cadência, essa, só existia no `title`.
+    return CADENCIA[serie.intervalWeeks] ?? `série a cada ${serie.intervalWeeks} semanas`;
+  }
+  return null;
+}
+
 function DayView({ data }: { data: AgendaData }) {
   const appts = [...data.appointments].sort((a, b) => a.horario.localeCompare(b.horario));
   const seriesById = new Map(data.recurrenceSeries.map((s) => [s.id, s]));
-  const waiting = appts.filter((appointment) => appointment.status === 'chegou').length;
+  const agora = Date.now();
+  const esperando = appts.filter((appointment) => appointment.status === 'chegou');
+  const waiting = esperando.length;
+  // A MAIOR espera é o que decide se alguém precisa agir agora; a contagem
+  // sozinha não distingue três pessoas que acabaram de chegar de três que
+  // esperam há meia hora.
+  const maiorEsperaMin = esperando.reduce<number | null>((maior, appointment) => {
+    if (!appointment.filaDesde) return maior;
+    const min = Math.floor((agora - new Date(appointment.filaDesde).getTime()) / 60_000);
+    if (!Number.isFinite(min) || min < 0) return maior;
+    return maior === null || min > maior ? min : maior;
+  }, null);
+  const maiorEspera = maiorEsperaMin === null ? null : formatarMinutos(maiorEsperaMin);
   if (appts.length === 0) {
     return (
       <EmptyState
@@ -206,6 +282,7 @@ function DayView({ data }: { data: AgendaData }) {
           <Clock3 aria-hidden="true" className="size-4 shrink-0" />
           <span className="flex-1 font-medium">
             {waiting} paciente{waiting === 1 ? '' : 's'} na sala de espera
+            {maiorEspera ? ` · maior espera ${maiorEspera}` : ''}
           </span>
           <span className="font-semibold">Abrir no Consultório</span>
           <ChevronRight aria-hidden="true" className="size-4 shrink-0" />
@@ -217,6 +294,7 @@ function DayView({ data }: { data: AgendaData }) {
             <TableRow>
               <TableHead>Hora</TableHead>
               <TableHead>Paciente</TableHead>
+              <TableHead>Procedimento</TableHead>
               <TableHead>Profissional</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Próxima ação</TableHead>
@@ -231,16 +309,50 @@ function DayView({ data }: { data: AgendaData }) {
                   data-status={a.status}
                   className={cn(styles.appointment, isCancelled(a) && 'opacity-60')}
                 >
-                  <TableCell
-                    data-label="Hora"
-                    className="font-mono text-(length:--fs-sm) font-medium tabular-nums"
-                  >
-                    {hora(a.horario, data.tz)}
+                  <TableCell data-label="Hora">
+                    <span className="block font-mono text-(length:--fs-sm) font-semibold tabular-nums">
+                      {hora(a.horario, data.tz)}
+                    </span>
+                    <span className="mt-0.5 block font-mono text-(length:--fs-micro) tabular-nums text-fg-subtle">
+                      {a.duracaoMin} min
+                    </span>
                   </TableCell>
-                  <TableCell data-label="Paciente" className="font-semibold">
-                    {a.pacienteNome}
+                  <TableCell data-label="Paciente">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-semibold">{a.pacienteNome}</span>
+                      {/* Urgência é decisão de TRIAGEM registrada na criação, e
+                          precisa estar onde o olho procura a pessoa — não
+                          escondida entre os badges de status. */}
+                      {a.urgencia ? (
+                        <Badge tone="red">
+                          <Siren aria-hidden="true" className="size-3" />
+                          Urgente
+                        </Badge>
+                      ) : null}
+                    </span>
+                    {a.pacienteIdade !== null ? (
+                      <span className="mt-0.5 block text-(length:--fs-2xs) text-fg-subtle">
+                        {a.pacienteIdade} anos
+                      </span>
+                    ) : null}
                   </TableCell>
-                  <TableCell data-label="Profissional" className="text-fg-muted">
+                  <TableCell data-label="Procedimento" className="min-w-0 text-fg-muted">
+                    <span className="block truncate">{a.procedimento}</span>
+                    {(() => {
+                      const nota = contexto(
+                        a,
+                        a.recurrenceSeriesId ? seriesById.get(a.recurrenceSeriesId) : undefined,
+                        agora,
+                        data.tz,
+                      );
+                      return nota ? (
+                        <span className="mt-0.5 block truncate text-(length:--fs-2xs) text-fg-subtle">
+                          {nota}
+                        </span>
+                      ) : null;
+                    })()}
+                  </TableCell>
+                  <TableCell data-label="Profissional" className="truncate text-fg-muted">
                     {a.medicoNome}
                   </TableCell>
                   <TableCell data-label="Status">
@@ -316,12 +428,17 @@ export function AgendaNav({ data, actions }: { data: AgendaData; actions?: React
     const b = days[6]!.split('-');
     label = `${Number(a[2])}/${a[1]} – ${Number(b[2])}/${b[1]}/${b[0]}`;
   } else {
-    label = new Date(`${ymd}T12:00:00Z`).toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-      timeZone: 'UTC',
-    });
+    // "-feira" sai porque a referencia escreve "Segunda, 7 de setembro de 2026";
+    // o Intl devolve "segunda-feira, 07 de setembro de 2026".
+    label = new Date(`${ymd}T12:00:00Z`)
+      .toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+      .replace('-feira', '');
   }
 
   const tab = (v: 'month' | 'week' | 'day', txt: string) => (
@@ -353,6 +470,9 @@ export function AgendaNav({ data, actions }: { data: AgendaData; actions?: React
     );
   };
 
+  const count = (status: AppointmentStatusDTO) =>
+    data.appointments.filter((item) => item.status === status).length;
+
   return (
     <section
       aria-label="Controles da agenda"
@@ -364,21 +484,30 @@ export function AgendaNav({ data, actions }: { data: AgendaData; actions?: React
           Hoje
         </Link>
         {nav(1, <ChevronRight aria-hidden="true" className="size-4" />, 'Próximo')}
-        <span className="ml-2 min-w-0 text-balance text-(length:--fs-sm) font-medium capitalize">
+        <span className="ml-2 min-w-0 text-balance text-(length:--fs-sm) font-semibold first-letter:uppercase">
           {label}
         </span>
       </nav>
 
       <div className={styles.summary ?? ''} aria-label="Resumo dos atendimentos">
         <span>
-          {data.appointments.filter((item) => item.status === 'atendido').length} finalizados
+          <CircleCheck aria-hidden="true" className="size-3.5 text-fg-subtle" />
+          {count('atendido')} finalizadas
         </span>
-        <span className="text-warning-700">
-          {data.appointments.filter((item) => item.status === 'chegou').length} aguardando
+        <span className="font-semibold text-warning-700">
+          <Clock3 aria-hidden="true" className="size-3.5 text-warning-600" />
+          {count('chegou')} aguardando
         </span>
-        <span className="text-primary">
-          {data.appointments.filter((item) => item.status === 'em_atendimento').length} em
-          atendimento
+        <span className="font-semibold text-(--primary-active)">
+          <Stethoscope aria-hidden="true" className="size-3.5 text-primary" />
+          {count('em_atendimento')} em atendimento
+        </span>
+        {/* Falta e cancelamento andam juntos: os dois são vaga perdida, e
+            separá-los em dois contadores diluía o número que importa. */}
+        <span>
+          <UserX aria-hidden="true" className="size-3.5 text-fg-subtle" />
+          {count('faltou')} falta{count('faltou') === 1 ? '' : 's'} · {count('cancelado')} cancelada
+          {count('cancelado') === 1 ? '' : 's'}
         </span>
       </div>
 

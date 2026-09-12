@@ -48,6 +48,7 @@ export type {
 export {
   paymentsApiV1,
   type ExcessRefundStatus,
+  type FailedChargeDTO,
   type PayableCharge,
   type PaymentsApiV1,
 } from './api';

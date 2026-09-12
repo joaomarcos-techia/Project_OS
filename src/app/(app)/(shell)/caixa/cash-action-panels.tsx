@@ -1,5 +1,6 @@
 'use client';
 
+import { Ban, Check } from 'lucide-react';
 import { useState } from 'react';
 
 import type {
@@ -27,11 +28,16 @@ export function ConfirmPaymentPanel({
   item,
   methods,
   pending,
+  onClose,
+  onRequestCancel,
   onSubmit,
 }: {
   item: CaixaItem;
   methods: PaymentMethodDTO[];
   pending: boolean;
+  onClose?: () => void;
+  /** Ausente quando o perfil nao pode operar o caixa — ai o botao nao existe. */
+  onRequestCancel?: (() => void) | undefined;
   onSubmit: (valorPago: number, method: string, comprovante: string) => void;
 }) {
   const [valor, setValor] = useState(String(outstandingBalance(item).toFixed(2)));
@@ -83,18 +89,47 @@ export function ConfirmPaymentPanel({
           onChange={(event) => setComprovante(event.target.value)}
         />
       </Field>
-      <div className="sm:col-span-3">
+      {/* Confirmar e desistir de um lado; cancelar a cobranca do outro. Sao
+          ações de consequencia oposta, e encostadas uma na outra o clique
+          errado custa um lancamento. */}
+      <div className="flex flex-wrap items-center gap-2 sm:col-span-3">
         <Button
           type="button"
           size="sm"
-          variant="success"
           className="min-h-(--hit-target)"
           loading={pending}
           disabled={!valid || pending}
           onClick={() => onSubmit(Math.round(valorNum * 100) / 100, method, comprovante)}
         >
+          <Check aria-hidden="true" className="size-4" />
           {actionLabel} {formatBRL(valorNum || 0)}
         </Button>
+        {onClose ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="min-h-(--hit-target)"
+            onClick={onClose}
+            disabled={pending}
+          >
+            Voltar
+          </Button>
+        ) : null}
+        {onRequestCancel ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="ml-auto min-h-(--hit-target) text-danger-700"
+            aria-label={`Cancelar ${item.tipo === 'pagar' ? 'conta' : 'cobrança'} de ${item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Walk-in')}`}
+            onClick={onRequestCancel}
+            disabled={pending}
+          >
+            <Ban aria-hidden="true" className="size-4" />
+            {item.tipo === 'pagar' ? 'Cancelar conta' : 'Cancelar cobrança'}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

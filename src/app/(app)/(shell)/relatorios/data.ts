@@ -1,10 +1,15 @@
 import 'server-only';
 
 import { currentMonthInTimeZone } from '@/contexts/financial/accounting-export';
-import { getFaturamentoPeriodo, getRecebimentosByAppointment } from '@/contexts/financial/queries';
+import {
+  getFaturamentoPeriodo,
+  getFaturamentoPorSemana,
+  getRecebimentosByAppointment,
+} from '@/contexts/financial/queries';
 import {
   getAppointmentStats,
   getAppointmentStatsByDoctor,
+  getAtendimentosPorSemana,
   getAvailableSlots,
 } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
@@ -34,6 +39,35 @@ export function resolvePeriod(raw: string | undefined): { key: PeriodKey; days: 
   return found ? { key: found.key, days: found.days } : { key: '30d', days: 30 };
 }
 
+/**
+ * Uma semana do período. `recebido`/`pago`/`saldo` e `atendido` são `null`
+ * quando NÃO houve movimento registrado — diferente de zero, que significa
+ * "houve e deu zero". A UI escreve "sem dado" para null, e é essa distinção que
+ * impede um relatório de afirmar faturamento zero numa semana sem lançamento.
+ */
+export interface RelatorioSemana {
+  /** Segunda-feira, `YYYY-MM-DD` no fuso da clínica. */
+  weekStart: string;
+  /** Rótulo humano do intervalo ("09 – 15 de agosto"). */
+  label: string;
+  recebido: number | null;
+  pago: number | null;
+  saldo: number | null;
+  atendido: number | null;
+  /**
+   * A semana ainda está correndo: os dias que faltam não são zero, são
+   * desconhecidos. Sem essa marca, a última barra desenha baixa ao lado de
+   * quatro semanas fechadas e sugere uma queda que não aconteceu.
+   */
+  emCurso: boolean;
+  /**
+   * A semana inteira ainda não começou. `recebido: null` aqui NÃO é "sem dado"
+   * — é "sem ter acontecido", e as duas coisas pedem leituras opostas: uma é
+   * um buraco a investigar, a outra é o calendário seguindo seu curso.
+   */
+  futura: boolean;
+}
+
 export interface RelatoriosDTO {
   faturamento: { recebido: number; pago: number; saldo: number };
   noShow: {
@@ -44,8 +78,13 @@ export interface RelatoriosDTO {
     taxa: number | null;
   };
   ocupacao: { busyMinutes: number; freeMinutes: number; taxa: number | null };
+  /** Série semanal do período — gráfico e tabela de Relatórios. */
+  semanas: RelatorioSemana[];
   fromLabel: string;
   toLabel: string;
+  /** Fuso IANA da clínica — a referência o mostra no cabeçalho, e ele é o que
+   *  explica por que os cortes de dia não batem com o relógio de quem lê. */
+  timezone: string;
   accountingMonth: string;
 }
 
@@ -83,6 +122,76 @@ function clinicTodayStart(tz: string): Date {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** Data local (`YYYY-MM-DD`) de um instante, no fuso da clínica. */
+function localYmd(instant: Date, tz: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(instant);
+}
+
+/**
+ * Segundas-feiras que cobrem o período, no fuso da clínica.
+ *
+ * Enumerar aqui (e não confiar só no que o banco devolveu) é o que permite
+ * mostrar a semana SEM movimento: o SQL agrupado só traz semanas com linha, e
+ * uma série que pula semanas mente sobre a forma da curva.
+ *
+ * O passo usa `YYYY-MM-DD` em UTC puro para andar de 7 em 7 dias — datas civis
+ * não sofrem horário de verão, então somar dias aqui é seguro mesmo em fusos
+ * que mudam de offset no meio do período.
+ */
+function weekStartsBetween(from: Date, to: Date, tz: string): string[] {
+  const [y, m, d] = localYmd(from, tz).split('-').map(Number);
+  const cursor = new Date(Date.UTC(y!, m! - 1, d!));
+  // getUTCDay(): 0 = domingo. A semana do Postgres começa na segunda.
+  const backToMonday = (cursor.getUTCDay() + 6) % 7;
+  cursor.setUTCDate(cursor.getUTCDate() - backToMonday);
+
+  const lastYmd = localYmd(new Date(to.getTime() - DAY_MS), tz);
+  const out: string[] = [];
+  for (let guard = 0; guard < 60; guard += 1) {
+    const iso = cursor.toISOString().split('T')[0]!;
+    out.push(iso);
+    if (iso >= lastYmd) break;
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+  // O laço empurra ANTES de testar, então a série termina uma semana depois do
+  // período. É de propósito: a última coluna é o ciclo que está começando, e
+  // sem ela o gráfico dá a impressão de que a série acabou. Ela é desenhada
+  // como "período futuro", nunca como "sem dado".
+  return out;
+}
+
+const MESES = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+] as const;
+
+/** "09 – 15 de agosto", ou "30 de agosto – 05 de setembro" quando vira o mês. */
+function weekLabel(weekStart: string): string {
+  const [y, m, d] = weekStart.split('-').map(Number);
+  const start = new Date(Date.UTC(y!, m! - 1, d!));
+  const end = new Date(start.getTime() + 6 * DAY_MS);
+  const dd = (date: Date) => String(date.getUTCDate()).padStart(2, '0');
+  const mes = (date: Date) => MESES[date.getUTCMonth()]!;
+  return start.getUTCMonth() === end.getUTCMonth()
+    ? `${dd(start)} – ${dd(end)} de ${mes(end)}`
+    : `${dd(start)} de ${mes(start)} – ${dd(end)} de ${mes(end)}`;
+}
+
 export async function getRelatorios(
   clinicId: string,
   days: number,
@@ -93,13 +202,43 @@ export async function getRelatorios(
   const to = new Date(todayStart.getTime() + DAY_MS); // fim de hoje (exclusivo)
   const from = new Date(todayStart.getTime() - (days - 1) * DAY_MS);
 
-  const [stats, freeSlots, faturamento] = await Promise.all([
+  const [stats, freeSlots, faturamento, semanasFin, semanasAgd] = await Promise.all([
     getAppointmentStats(clinicId, from, to),
     getAvailableSlots({ clinicId, from, to }),
     opts.includeFaturamento
       ? getFaturamentoPeriodo(clinicId, from, to)
       : Promise.resolve({ recebido: 0, pago: 0, saldo: 0 }),
+    // Sem `view:financial` a série semanal de dinheiro nem é consultada — o
+    // mesmo gate que já esconde o total do período.
+    opts.includeFaturamento
+      ? getFaturamentoPorSemana(clinicId, from, to, tz)
+      : Promise.resolve<Awaited<ReturnType<typeof getFaturamentoPorSemana>>>([]),
+    getAtendimentosPorSemana(clinicId, from, to, tz),
   ]);
+
+  const finPorSemana = new Map(semanasFin.map((week) => [week.weekStart, week]));
+  const agdPorSemana = new Map(semanasAgd.map((week) => [week.weekStart, week]));
+  // Comparação de datas CIVIS no fuso da clínica, em string: `YYYY-MM-DD`
+  // ordena lexicograficamente, e assim não há instante nem offset no meio.
+  const hojeYmd = localYmd(new Date(), tz);
+  const semanas: RelatorioSemana[] = weekStartsBetween(from, to, tz).map((weekStart) => {
+    const fin = finPorSemana.get(weekStart);
+    const agd = agdPorSemana.get(weekStart);
+    const [y, m, d] = weekStart.split('-').map(Number);
+    const fimDaSemana = new Date(Date.UTC(y!, m! - 1, d!) + 6 * DAY_MS)
+      .toISOString()
+      .split('T')[0]!;
+    return {
+      weekStart,
+      label: weekLabel(weekStart),
+      recebido: fin?.recebido ?? null,
+      pago: fin?.pago ?? null,
+      saldo: fin?.saldo ?? null,
+      atendido: agd?.atendido ?? null,
+      emCurso: weekStart <= hojeYmd && hojeYmd <= fimDaSemana,
+      futura: weekStart > hojeYmd,
+    };
+  });
 
   const decididos = stats.atendido + stats.faltou; // consultas com desfecho
   const taxaNoShow = decididos > 0 ? stats.faltou / decididos : null;
@@ -121,8 +260,10 @@ export async function getRelatorios(
       taxa: taxaNoShow,
     },
     ocupacao: { busyMinutes: stats.busyMinutes, freeMinutes, taxa: taxaOcupacao },
+    semanas,
     fromLabel: fmt(from),
     toLabel: fmt(new Date(to.getTime() - DAY_MS)),
+    timezone: tz,
     accountingMonth: currentMonthInTimeZone(tz),
   };
 }

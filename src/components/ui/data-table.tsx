@@ -25,6 +25,7 @@ export function DataTable({
   unit,
   hrefFor,
   empty,
+  hint,
   className,
 }: {
   children: ReactNode;
@@ -37,6 +38,8 @@ export function DataTable({
   hrefFor: (page: number) => string;
   /** Renderizado no lugar da tabela quando não há linhas. */
   empty?: ReactNode;
+  /** Texto de apoio no rodapé, à direita da contagem (ex.: como refinar a busca). */
+  hint?: ReactNode;
   className?: string;
 }) {
   if (total === 0 && empty) {
@@ -56,7 +59,13 @@ export function DataTable({
           {nf.format(first)}–{nf.format(last)} de {nf.format(total)}{' '}
           {total === 1 ? unit.one : unit.many}
         </TableFootInfo>
-        {pageCount > 1 ? <TablePager page={page} pageCount={pageCount} hrefFor={hrefFor} /> : null}
+        {/* O hint cede a vez ao paginador: com mais de uma página, "como buscar"
+            é ruído ao lado dos controles que o operador veio usar. */}
+        {pageCount > 1 ? (
+          <TablePager page={page} pageCount={pageCount} hrefFor={hrefFor} />
+        ) : hint ? (
+          <span className="ml-auto text-(length:--fs-caption) text-fg-subtle">{hint}</span>
+        ) : null}
       </TableFoot>
     </TableWrap>
   );

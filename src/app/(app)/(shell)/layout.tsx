@@ -50,13 +50,17 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     redirect('/admin');
   }
 
-  // Avoid a client navigation to `/configuracoes`, whose page only performs a
-  // server redirect. That combination can trigger an intermittent App Router
-  // hook-order race. The shell already has the permissions needed to link
-  // directly to the first category this user can access.
-  const settingsHref = firstSettingsHref(
-    visibleSettingsNavigation(user.permissions, user.isSuperAdmin && user.aal === 'aal2'),
+  // `/configuracoes` deixou de ser um redirect: agora é a página que empilha
+  // todas as categorias. O desvio para a primeira categoria existia só para
+  // evitar a race de hook-order do App Router num redirect de cliente — sem o
+  // redirect, o shell aponta para o índice, que é o que a referência mostra.
+  // O fallback permanece para quem não enxerga categoria nenhuma.
+  const settingsGroups = visibleSettingsNavigation(
+    user.permissions,
+    user.isSuperAdmin && user.aal === 'aal2',
   );
+  const settingsHref =
+    settingsGroups.length > 0 ? '/configuracoes' : firstSettingsHref(settingsGroups);
 
   return (
     <>

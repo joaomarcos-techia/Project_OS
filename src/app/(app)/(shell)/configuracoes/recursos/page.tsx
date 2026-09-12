@@ -24,7 +24,7 @@ export default async function RecursosPage() {
       <div>
         <PageHeader
           crumbs={[
-            { label: 'Agenda', href: '/configuracoes/agenda' },
+            { label: 'Configurações', href: '/configuracoes' },
             { label: 'Salas e equipamentos' },
           ]}
           title="Salas e equipamentos"
@@ -41,7 +41,7 @@ export default async function RecursosPage() {
     <div>
       <PageHeader
         crumbs={[
-          { label: 'Agenda', href: '/configuracoes/agenda' },
+          { label: 'Configurações', href: '/configuracoes' },
           { label: 'Salas e equipamentos' },
         ]}
         title="Salas e equipamentos"

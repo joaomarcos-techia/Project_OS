@@ -35,10 +35,12 @@ import {
   type RefundInput,
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
+import { CashItemCard } from './cash-item-card';
 import { LocalPager, paginateLocally } from './local-pagination';
 
 type Tone = NonNullable<Parameters<typeof badgeVariants>[0]>['tone'];
-export type CashPanelMode = 'confirm' | 'cancel' | 'estorno';
+export type { CashPanelMode } from './caixa-types';
+import type { CashPanelMode } from './caixa-types';
 type QueueMode = 'receber' | 'parcial' | 'recebido' | 'pagar';
 
 const STATUS_TONE: Record<LancamentoStatus, Tone> = {
@@ -60,7 +62,7 @@ const STATUS_LABEL: Record<LancamentoStatus, string> = {
 const QUEUE_LABEL: Record<QueueMode, string> = {
   receber: 'A receber',
   parcial: 'Parcial',
-  recebido: 'Recebido hoje',
+  recebido: 'Recebidos hoje',
   pagar: 'A pagar',
 };
 
@@ -90,6 +92,8 @@ export function CashQueue({
   onConfirm,
   onCancel,
   onEstorno,
+  fixedMode,
+  headerTotal,
 }: {
   pendentes: CaixaItem[];
   parciais: CaixaItem[];
@@ -106,8 +110,17 @@ export function CashQueue({
   onConfirm: (item: CaixaItem, valorPago: number, method: string, comprovante: string) => void;
   onCancel: (item: CaixaItem) => void;
   onEstorno: (item: CaixaItem, input: RefundInput) => void;
+  /**
+   * Trava a fila numa etapa e troca as abas por uma SEÇÃO com cabeçalho — o
+   * layout da referência, em que as filas convivem lado a lado. Sem ele o
+   * componente segue no modo abas.
+   */
+  fixedMode?: QueueMode;
+  /** Total monetário no cabeçalho da seção (só no modo seção). */
+  headerTotal?: string;
 }) {
-  const [mode, setMode] = useState<QueueMode>('receber');
+  const [tabMode, setTabMode] = useState<QueueMode>('receber');
+  const mode = fixedMode ?? tabMode;
   const [page, setPage] = useState(1);
   const queues: Record<QueueMode, CaixaItem[]> = {
     receber: pendentes,
@@ -120,7 +133,7 @@ export function CashQueue({
   const label = QUEUE_LABEL[mode];
 
   const selectQueue = (nextMode: QueueMode) => {
-    setMode(nextMode);
+    setTabMode(nextMode);
     setPage(1);
     onClosePanel();
   };
@@ -129,6 +142,80 @@ export function CashQueue({
     setPage(nextPage);
     onClosePanel();
   };
+
+  // Modo seção: a referência mostra as filas LADO A LADO, sem abas. O
+  // cabeçalho da seção substitui o segmented, e quem escolhe o que entra em
+  // cada lista é o pai — inclusive juntar pendente e parcial em "A receber",
+  // porque cada item já carrega o próprio badge de status e a própria ação.
+  if (fixedMode) {
+    return (
+      <section
+        className="qoro-cash-queue flex min-w-0 flex-col overflow-hidden rounded-(--r-lg) border border-border bg-surface"
+        aria-label={QUEUE_LABEL[fixedMode]}
+      >
+        <div className="flex min-h-11 flex-none items-center gap-2 border-b border-border px-3.5">
+          <h2 className="text-(length:--fs-subsection) font-semibold text-fg">
+            {QUEUE_LABEL[fixedMode]}
+          </h2>
+          <span className="font-mono text-(length:--fs-sm) font-semibold tabular-nums text-fg-subtle">
+            {items.length}
+          </span>
+          {headerTotal ? (
+            <span className="ml-auto font-mono text-(length:--fs-sm) font-semibold tabular-nums text-fg">
+              {headerTotal}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="min-h-0 flex-1">
+          {items.length === 0 ? (
+            <EmptyState
+              variant="compact"
+              title={EMPTY_COPY[fixedMode].title}
+              description={EMPTY_COPY[fixedMode].description}
+            />
+          ) : (
+            <div className={fixedMode === 'receber' ? 'flex flex-col gap-2 p-3' : ''}>
+              {localPage.visibleItems.map((item) => (
+                <CashItemCard
+                  key={item.id}
+                  item={item}
+                  // "A receber" e onde se trabalha: cartao. As outras duas sao
+                  // consulta, e a linha compacta cabe na coluna estreita.
+                  variant={fixedMode === 'receber' ? 'card' : 'compact'}
+                  canOperate={fixedMode !== 'recebido' && canOperate}
+                  canRefund={fixedMode === 'recebido' && canRefund}
+                  pending={pending}
+                  methods={methods}
+                  paymentTransactions={paymentTransactionsByLancamento.get(item.id) ?? []}
+                  panelMode={panel?.id === item.id ? panel.mode : null}
+                  onOpenPanel={(panelMode) => onOpenPanel(item.id, panelMode)}
+                  onClosePanel={onClosePanel}
+                  onConfirm={onConfirm}
+                  onCancel={onCancel}
+                  onEstorno={onEstorno}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {localPage.pageCount > 1 ? (
+          <div className="flex flex-none items-center justify-between gap-2 border-t border-border px-3.5 py-2">
+            <span className="text-(length:--fs-xs) tabular-nums text-fg-subtle">
+              {localPage.firstItem}–{localPage.lastItem} de {items.length}
+            </span>
+            <LocalPager
+              label={label}
+              page={localPage.page}
+              pageCount={localPage.pageCount}
+              onPageChange={selectPage}
+            />
+          </div>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section className="qoro-cash-queue" aria-labelledby="cash-queue-title">

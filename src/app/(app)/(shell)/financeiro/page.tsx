@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowDownLeft, ArrowUpRight, Check, Filter, Info, Scale, Truck } from 'lucide-react';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Check,
+  CircleDot,
+  Filter,
+  Info,
+  Scale,
+  Truck,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { clinicMonthBounds } from '@/contexts/financial/logic';
@@ -10,6 +19,7 @@ import {
   listPaymentMethods,
   listSuppliers,
 } from '@/contexts/financial/queries';
+import { listPatientCards } from '@/contexts/patient/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import type {
   LancamentoStatus,
@@ -22,6 +32,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
+import { PaymentStatusBadge } from '@/components/ui/status-badge';
 import { Select } from '@/components/ui/select';
 import {
   TableBody,
@@ -35,7 +46,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { withQueryDeadline } from '@/lib/db/query-timeout';
-import { formatBRL, formatDatePt } from '@/lib/format';
+import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
 
 import { NewLancamentoDrawer } from './new-lancamento-drawer';
@@ -44,21 +55,6 @@ import { financeiroPageHref, parseFinanceiroPage } from './pagination';
 export const dynamic = 'force-dynamic';
 
 type SP = { tipo?: string; status?: string; novo?: string; page?: string };
-
-const STATUS_TONE: Record<LancamentoStatus, 'amber' | 'blue' | 'green' | 'gray' | 'red'> = {
-  pendente: 'amber',
-  parcial: 'blue',
-  pago: 'green',
-  cancelado: 'gray',
-  estornado: 'red',
-};
-const STATUS_LABEL: Record<LancamentoStatus, string> = {
-  pendente: 'Pendente',
-  parcial: 'Parcial',
-  pago: 'Pago',
-  cancelado: 'Cancelado',
-  estornado: 'Estornado',
-};
 
 const isTipo = (v: string | undefined): v is LancamentoTipo => v === 'receber' || v === 'pagar';
 const isStatus = (v: string | undefined): v is LancamentoStatus =>
@@ -109,11 +105,73 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
     ]),
   );
 
+  // Nome do paciente resolvido na CAMADA PAGE, como no Caixa: o Financial não
+  // conhece Patient, então nada de JOIN cross-context. A referência põe o nome
+  // na linha porque "Atendimento - Consulta" repetido seis vezes não identifica
+  // lançamento nenhum — o operador precisa saber de QUEM é a cobrança.
+  const patientIds = [
+    ...new Set(lancamentosResult.items.filter((l) => l.patientId).map((l) => l.patientId!)),
+  ];
+  const patientCards = await withQueryDeadline(
+    'financeiro.patientCards',
+    listPatientCards(clinicId, patientIds),
+  );
+  const nomeDoPaciente = new Map(patientCards.map((card) => [card.id, card.nome]));
+  const nomeDoFornecedor = new Map(suppliers.map((s) => [s.id, s.razaoSocial]));
+
   const totalPages = Math.max(1, Math.ceil(lancamentosResult.total / lancamentosResult.pageSize));
   if (page > totalPages) {
     redirect(financeiroPageHref(paginationFilters, totalPages));
   }
   const lancamentos = lancamentosResult.items;
+
+  // A faixa vem do MÊS de `from`, não de aritmética sobre `to`. `to` é um
+  // instante exclusivo e subtrair milissegundos dele depende do offset exato do
+  // fuso — `Date.UTC(ano, mes, 0)` devolve o último dia do mês sem essa dança.
+  const [anoMes, mesMes] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+  })
+    .format(from)
+    .split('-')
+    .map(Number);
+  const mm = String(mesMes).padStart(2, '0');
+  /**
+   * dd/MM no fuso da clínica — a referência não repete o ano em toda linha.
+   *
+   * Recebe as DUAS formas que a tabela tem: `dueDate` é uma data civil sem hora
+   * (`YYYY-MM-DD`), e ancorá-la ao meio-dia UTC evita que o fuso a jogue para o
+   * dia anterior; `createdAt` já é um instante ISO completo e não pode receber
+   * sufixo nenhum — concatenar hora nele produzia `Invalid Date`.
+   */
+  const diaCurto = (iso: string | Date | null) => {
+    if (!iso) return '—';
+    const instante =
+      typeof iso === 'string'
+        ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00Z` : iso)
+        : iso;
+    if (Number.isNaN(instante.getTime())) return '—';
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: tz,
+      day: '2-digit',
+      month: '2-digit',
+    }).format(instante);
+  };
+  const hojeYmd = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+  /** Dias de atraso de um vencimento ainda em aberto; 0 quando não venceu. */
+  const diasVencido = (l: LancamentoSummary) => {
+    if (l.dueDate == null || (l.status !== 'pendente' && l.status !== 'parcial')) return 0;
+    if (l.dueDate >= hojeYmd) return 0;
+    return Math.max(
+      1,
+      Math.round(
+        (Date.parse(`${hojeYmd}T00:00:00Z`) - Date.parse(`${l.dueDate}T00:00:00Z`)) / 86_400_000,
+      ),
+    );
+  };
+  const ultimoDia = new Date(Date.UTC(anoMes!, mesMes!, 0)).getUTCDate();
+  const periodoLabel = `01/${mm}/${anoMes} – ${ultimoDia}/${mm}/${anoMes}`;
 
   return (
     <>
@@ -121,6 +179,17 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
         crumbs={[{ label: 'Gestão' }, { label: 'Financeiro' }]}
         title="Financeiro"
         description={`Visão gerencial de ${new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: tz }).format(from)}`}
+        meta={
+          <span className="font-mono tabular-nums">
+            atualizado{' '}
+            {new Intl.DateTimeFormat('pt-BR', {
+              timeZone: tz,
+              hourCycle: 'h23',
+              hour: '2-digit',
+              minute: '2-digit',
+            }).format(new Date())}
+          </span>
+        }
         actions={
           <>
             <Link
@@ -186,14 +255,14 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
               label="A receber"
               value={flow.receber}
               icon={<ArrowDownLeft />}
-              hint="Pendências em aberto"
+              hint={`${flow.contagens.receber} lançamento${flow.contagens.receber === 1 ? '' : 's'}${flow.contagens.receberVencidos > 0 ? ` · ${flow.contagens.receberVencidos} vencido${flow.contagens.receberVencidos === 1 ? '' : 's'}` : ''}`}
             />
             <FinancialMetric
               label="Recebido no mês"
               value={flow.recebidoHoje}
               icon={<Check />}
               tone="positive"
-              hint="Recebimentos confirmados"
+              hint={`${flow.contagens.recebimentos} recebimento${flow.contagens.recebimentos === 1 ? '' : 's'}`}
             />
           </FinancialMetricGroup>
           <FinancialMetricGroup title="Saídas">
@@ -201,13 +270,13 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
               label="A pagar"
               value={flow.pagar}
               icon={<ArrowUpRight />}
-              hint="Contas em aberto"
+              hint={`${flow.contagens.pagar} lançamento${flow.contagens.pagar === 1 ? '' : 's'}`}
             />
             <FinancialMetric
               label="Pago no mês"
               value={flow.pagoHoje}
               icon={<Check />}
-              hint="Pagamentos confirmados"
+              hint={`${flow.contagens.pagamentos} pagamento${flow.contagens.pagamentos === 1 ? '' : 's'}`}
             />
           </FinancialMetricGroup>
           <FinancialMetricGroup title="Saldo do mês">
@@ -216,7 +285,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
               value={flow.saldoHoje}
               icon={<Scale />}
               tone={flow.saldoHoje >= 0 ? 'balance' : 'negative'}
-              hint="Mês atual, no fuso da clínica"
+              hint={`até ${diaCurto(new Date())}, fuso da clínica`}
               emphasis
             />
           </FinancialMetricGroup>
@@ -231,6 +300,9 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
             </Link>
             .
           </p>
+          {/* Faixa do mês ao lado do aviso: é o recorte que os números acima
+              usam, e sem ele "do mês" fica sem começo nem fim. */}
+          <span className="shrink-0 font-mono tabular-nums">{periodoLabel}</span>
         </div>
 
         <DataTable
@@ -240,6 +312,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
           pageSize={lancamentosResult.pageSize}
           unit={{ one: 'lançamento', many: 'lançamentos' }}
           hrefFor={(targetPage) => financeiroPageHref(paginationFilters, targetPage)}
+          hint="Ordenado pelos mais recentes"
           empty={
             <EmptyState
               title="Nenhum lançamento"
@@ -260,21 +333,66 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
             {lancamentos.map((l: LancamentoSummary) => (
               <TableRow key={l.id}>
                 <TableCell>
+                  {/* A natureza vira sinal VISUAL: seta para dentro em verde,
+                      para fora em cinza. Antes era só texto e obrigava a ler
+                      a linha inteira para saber se o dinheiro entra ou sai. */}
                   <TableCellStack
-                    main={l.descricao}
-                    sub={l.tipo === 'receber' ? 'A receber' : 'A pagar'}
+                    main={[
+                      l.snapshotProcedureName ?? l.descricao,
+                      l.patientId
+                        ? nomeDoPaciente.get(l.patientId)
+                        : l.supplierId
+                          ? nomeDoFornecedor.get(l.supplierId)
+                          : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    sub={
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 font-semibold',
+                          l.tipo === 'receber' ? 'text-success-700' : 'text-fg-muted',
+                        )}
+                      >
+                        {l.tipo === 'receber' ? (
+                          <ArrowDownLeft aria-hidden="true" className="size-3" />
+                        ) : (
+                          <ArrowUpRight aria-hidden="true" className="size-3" />
+                        )}
+                        {l.tipo === 'receber' ? 'A receber' : 'A pagar'}
+                      </span>
+                    }
                   />
                 </TableCell>
                 <TableCell className="font-mono text-xs whitespace-nowrap text-fg-subtle tabular-nums">
-                  {formatDatePt(l.createdAt)}
+                  {diaCurto(l.createdAt)}
                 </TableCell>
-                <TableCell className="font-mono text-xs whitespace-nowrap text-fg-muted tabular-nums">
-                  {formatDatePt(l.dueDate)}
+                <TableCell
+                  className={cn(
+                    'font-mono text-xs whitespace-nowrap tabular-nums',
+                    // Vencimento em atraso é o dado que decide a próxima ação
+                    // da linha; em cinza ele se perdia entre as outras datas.
+                    diasVencido(l) > 0 ? 'font-semibold text-danger-700' : 'text-fg-muted',
+                  )}
+                >
+                  {diaCurto(l.dueDate)}
                 </TableCell>
                 <TableCell>
-                  <Badge tone={STATUS_TONE[l.status]} dot>
-                    {STATUS_LABEL[l.status]}
-                  </Badge>
+                  {/* O parcial no prazo é o único caso com badge próprio: numa
+                      tabela, "quanto ainda falta" é a resposta que o operador
+                      viria buscar, e ela não cabe no badge compartilhado. */}
+                  {diasVencido(l) === 0 && l.status === 'parcial' ? (
+                    <Badge tone="blue">
+                      <CircleDot aria-hidden="true" className="size-3 shrink-0" />
+                      Parcial · {formatBRL(l.valor - l.valorPago)} em aberto
+                    </Badge>
+                  ) : (
+                    <PaymentStatusBadge
+                      status={l.status}
+                      overdue={diasVencido(l) > 0}
+                      overdueDays={diasVencido(l)}
+                    />
+                  )}
                 </TableCell>
                 <TableCell
                   numeric
@@ -283,8 +401,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
                     l.status === 'pago' && l.tipo === 'receber' ? 'text-success-700' : 'text-fg',
                   )}
                 >
-                  {l.tipo === 'receber' ? '+' : '−'}
-                  {formatBRL(l.valor)}
+                  {l.tipo === 'receber' ? '+' : '−'} {formatBRL(l.valor)}
                 </TableCell>
               </TableRow>
             ))}

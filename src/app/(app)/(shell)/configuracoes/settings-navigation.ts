@@ -203,23 +203,14 @@ export function visibleSettingsNavigation(
   })).filter((group) => group.items.length > 0);
 }
 
-/** A categoria de um destino — usada pela aba ativa e pela trilha de volta. */
-export function groupOf(
-  groups: readonly SettingsNavGroup[],
-  pathname: string,
-): SettingsNavGroup | undefined {
-  return groups.find(
-    (group) =>
-      pathname === `/configuracoes/${group.id}` ||
-      group.items.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)),
-  );
-}
-
 /**
  * Destino de `/configuracoes`: a primeira categoria que a pessoa realmente pode
  * abrir. A rota nunca entrega uma negativa de permissão como tela inicial.
  */
 export function firstSettingsHref(groups: readonly SettingsNavGroup[]): string {
-  const first = groups[0];
-  return first ? `/configuracoes/${first.id}` : '/account/security';
+  // DESTINO, não categoria: as rotas de categoria deixaram de existir quando o
+  // índice virou a lista única. Apontar para `/configuracoes/<grupo>` daria 404
+  // justamente para quem já tem o acesso mais estreito.
+  const first = groups[0]?.items[0];
+  return first ? first.href : '/account/security';
 }

@@ -1,4 +1,17 @@
-import { Banknote, CalendarDays, CircleCheck, Clock3, Stethoscope, Wallet } from 'lucide-react';
+import {
+  Ban,
+  Banknote,
+  CalendarClock,
+  CalendarDays,
+  ChevronRight,
+  Clock3,
+  Sparkles,
+  Stethoscope,
+  Timer,
+  TriangleAlert,
+  UserX,
+  Wallet,
+} from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -9,11 +22,13 @@ import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
 import { StatCard } from '@/components/ui/stat-card';
 import { AppointmentStatusBadge } from '@/components/ui/status-badge';
+import { cn } from '@/lib/ui/cn';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import { getCashFlowToday, listCashFlowDaily } from '@/contexts/financial/queries';
 import type { CashFlowDTO } from '@/contexts/financial/types';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
+import { countOpenHandoffs, type HandoffPulse } from '@/contexts/ai-agent/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
@@ -21,6 +36,7 @@ import { formatBRL } from '@/lib/format';
 
 import { ActivationChecklist } from './_components/activation-checklist';
 import { ActivityFeed } from './_components/activity-feed';
+import { RefreshButton } from './_components/refresh-button';
 import { RevenueChart } from './_components/revenue-chart';
 import { getActivationChecklist, getDashboard } from './data';
 import styles from './dashboard.module.css';
@@ -52,6 +68,7 @@ const NO_CASH_FLOW: CashFlowDTO = {
   recebidoHoje: 0,
   pagoHoje: 0,
   saldoHoje: 0,
+  contagens: { receber: 0, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
 };
 
 function hora(iso: string): string {
@@ -86,11 +103,15 @@ export default async function DashboardPage() {
   const canViewFinancial =
     (user.isSuperAdmin && user.aal === 'aal2') ||
     user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
+  // Mesmo gate do item de menu: sem `view:conversations` a fila de handoff nem
+  // e consultada, entao o alerta da IA nao existe no HTML.
+  const canViewConversations = user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS);
+  const NO_HANDOFF: HandoffPulse = { abertos: 0, vencidos: 0 };
 
   // Gráfico: faturamento (recebido) dos últimos 7 dias. Histórico vem do
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
   // roda 1x/dia, então ainda não fechou o dia corrente).
-  const [d, checklist, flow, serie, activity] = await Promise.all([
+  const [d, checklist, flow, serie, activity, handoff] = await Promise.all([
     getDashboard(clinicId, tz),
     getActivationChecklist(clinicId),
     // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
@@ -100,6 +121,7 @@ export default async function DashboardPage() {
       ? listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
       : Promise.resolve<Awaited<ReturnType<typeof listCashFlowDaily>>>([]),
     canAudit ? getRecentActivity(clinicId, 7) : Promise.resolve<AuditActivity[]>([]),
+    canViewConversations ? countOpenHandoffs(clinicId) : Promise.resolve(NO_HANDOFF),
   ]);
   const recByDate = new Map(serie.map((s) => [s.date, s.totalRecebido]));
   const chart = dias.map((date, i) => ({
@@ -122,17 +144,35 @@ export default async function DashboardPage() {
     year: 'numeric',
   }).format(new Date());
 
+  // hourCycle:'h23' e nao hour12:false — o mesmo bug do ICU que renderiza
+  // meia-noite como "24" ja mordeu em data.ts.
+  const relogio = (opts: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hourCycle: 'h23', ...opts }).format(
+      new Date(),
+    );
+  const horaLocal = Number(relogio({ hour: '2-digit' }));
+  const periodo = horaLocal < 12 ? 'Bom dia' : horaLocal < 18 ? 'Boa tarde' : 'Boa noite';
+  const primeiroNome = (user.name ?? '').trim().split(/\s+/)[0] ?? '';
+  const atualizadoEm = relogio({ hour: '2-digit', minute: '2-digit' });
+
+  // Quem ja chegou e ainda espera — o nome que o cartao "Aguardando" anuncia.
+  const proximoNaFila = d.proximos.find((consulta) => consulta.status === 'chegou');
+
   return (
     <>
       <PageHeader
         crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
-        title="Visão operacional"
-        description="O pulso da clínica agora."
+        title={primeiroNome ? `${periodo}, ${primeiroNome}` : periodo}
+        description="O pulso da clínica agora"
+        meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
         actions={
-          <Link href="/consultorio" className={buttonVariants({ size: 'sm' })}>
-            <Stethoscope aria-hidden="true" className="size-4" />
-            Abrir o Consultório
-          </Link>
+          <>
+            <RefreshButton />
+            <Link href="/consultorio" className={buttonVariants()}>
+              <Stethoscope aria-hidden="true" className="size-4" />
+              Abrir o Consultório
+            </Link>
+          </>
         }
       />
 
@@ -152,8 +192,22 @@ export default async function DashboardPage() {
           <StatCard
             label="Aguardando"
             value={d.aguardando}
-            hint="na sala de espera"
+            hint={proximoNaFila ? `${proximoNaFila.nome} é o próximo` : 'na sala de espera'}
             icon={<Clock3 />}
+          />
+          {/* Só ganha o tom de alerta quando alguém está de fato atrasado; fila
+              em dia mostra o mesmo cartão neutro, sem gritar por nada. */}
+          <StatCard
+            label="Maior espera"
+            value={d.maiorEsperaMin === null ? '—' : d.maiorEsperaMin}
+            {...(d.maiorEsperaMin === null ? {} : { suffix: 'min' })}
+            hint={
+              d.maiorEsperaNome
+                ? `${d.maiorEsperaNome} · acima do previsto`
+                : 'ninguém acima do previsto'
+            }
+            icon={<Timer />}
+            {...(d.maiorEsperaMin === null ? {} : { className: styles.metricAlert ?? '' })}
           />
           <StatCard
             label="Em atendimento"
@@ -164,8 +218,12 @@ export default async function DashboardPage() {
           <StatCard
             label="Próxima consulta"
             value={d.proximos[0] ? hora(d.proximos[0].horario) : '—'}
-            hint={d.proximos[0]?.nome ?? 'Nenhuma consulta na fila de hoje'}
-            icon={<CalendarDays />}
+            hint={
+              d.proximos[0]
+                ? `${d.proximos[0].nome} · ${d.proximos[0].procedimento}`
+                : 'Nenhuma consulta na fila de hoje'
+            }
+            icon={<CalendarClock />}
           />
         </MetricStrip>
       </PanelCard>
@@ -180,14 +238,20 @@ export default async function DashboardPage() {
             <StatCard
               label="Consultas hoje"
               value={d.consultasHoje}
-              hint="agendadas para hoje"
+              hint={`${d.finalizadas} ${d.finalizadas === 1 ? 'finalizada' : 'finalizadas'}`}
               icon={<CalendarDays />}
             />
             <StatCard
-              label="Finalizadas"
-              value={d.finalizadas}
-              hint="atendimentos concluídos"
-              icon={<CircleCheck />}
+              label="Faltas"
+              value={d.faltas}
+              hint={d.faltaNome ?? (d.faltas === 0 ? 'ninguém faltou' : 'registradas hoje')}
+              icon={<UserX />}
+            />
+            <StatCard
+              label="Cancelados"
+              value={d.cancelados}
+              hint={d.cancelados === 0 ? 'nenhum cancelamento' : 'cancelados hoje'}
+              icon={<Ban />}
             />
           </MetricStrip>
         </PanelCard>
@@ -207,7 +271,7 @@ export default async function DashboardPage() {
                 icon={<Wallet />}
               />
               <StatCard
-                label="Faturado hoje"
+                label="Recebido hoje"
                 value={formatBRL(flow.recebidoHoje)}
                 valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
                 hint="recebido hoje"
@@ -223,6 +287,39 @@ export default async function DashboardPage() {
           </PanelCard>
         ) : null}
       </div>
+
+      {/* Pendências que valem interromper a leitura: dinheiro que ficou para
+          trás e gente esperando um humano. Cada faixa é um link para o lugar
+          onde aquilo se resolve — nunca um aviso mudo. */}
+      {(canViewFinancial && d.naoFaturados > 0) || handoff.abertos > 0 ? (
+        <div className={styles.alerts ?? ''}>
+          {canViewFinancial && d.naoFaturados > 0 ? (
+            <Link href="/caixa" className={cn(styles.alert, styles.alertBilling)}>
+              <TriangleAlert aria-hidden="true" />
+              <span className={styles.alertText ?? ''}>
+                {d.naoFaturados === 1
+                  ? '1 atendimento concluído hoje ainda não foi faturado'
+                  : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`}
+              </span>
+              <span className={styles.alertCta ?? ''}>Abrir o Caixa</span>
+              <ChevronRight aria-hidden="true" />
+            </Link>
+          ) : null}
+          {handoff.abertos > 0 ? (
+            <Link href="/conversas" className={cn(styles.alert, styles.alertAi)}>
+              <Sparkles aria-hidden="true" />
+              <span className={styles.alertText ?? ''}>
+                {handoff.abertos === 1
+                  ? '1 conversa do agente aguardando atendimento humano'
+                  : `${handoff.abertos} conversas do agente aguardando atendimento humano`}
+                {handoff.vencidos > 0 ? ` · ${handoff.vencidos} com SLA vencido` : ''}
+              </span>
+              <span className={styles.alertCta ?? ''}>Abrir Conversas IA</span>
+              <ChevronRight aria-hidden="true" />
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className={canAudit ? styles.contentGrid : styles.contentSingle}>
         <div className={styles.mainColumn ?? ''}>
@@ -245,6 +342,7 @@ export default async function DashboardPage() {
                   <li key={p.appointmentId}>
                     <span className={styles.appointmentTime ?? ''}>{hora(p.horario)}</span>
                     <span className={styles.patientName ?? ''}>{p.nome}</span>
+                    <span className={styles.appointmentProcedure ?? ''}>{p.procedimento}</span>
                     <AppointmentStatusBadge status={p.status} />
                   </li>
                 ))}
@@ -255,7 +353,7 @@ export default async function DashboardPage() {
             HTML quando a permissão existe. */}
           {canViewFinancial ? (
             <PanelCard
-              title="Faturamento · últimos 7 dias"
+              title="Faturamento recebido"
               action={{ label: 'Financeiro', href: '/financeiro' }}
               regionLabel="Faturamento recebido"
               className={styles.panel ?? ''}
@@ -275,22 +373,29 @@ export default async function DashboardPage() {
         </div>
 
         {canAudit ? (
-          <PanelCard
-            title="Atividade recente"
-            regionLabel="Atividade recente"
-            className={styles.panel ?? ''}
-          >
-            {activity.length === 0 ? (
-              <EmptyState
-                variant="compact"
-                icon={<Clock3 />}
-                title="Sem atividade recente"
-                description="As próximas ações da equipe aparecerão aqui."
-              />
-            ) : (
-              <ActivityFeed activity={activity} actorNames={actorNames} />
-            )}
-          </PanelCard>
+          <div className={styles.rightColumn ?? ''}>
+            <PanelCard
+              title="Atividade recente"
+              regionLabel="Atividade recente"
+              className={styles.panel ?? ''}
+            >
+              {activity.length === 0 ? (
+                <EmptyState
+                  variant="compact"
+                  icon={<Clock3 />}
+                  title="Sem atividade recente"
+                  description="As próximas ações da equipe aparecerão aqui."
+                />
+              ) : (
+                <ActivityFeed activity={activity} actorNames={actorNames} />
+              )}
+            </PanelCard>
+            {/* Dizer o que a tela ainda NÃO mostra é mais honesto que deixar o
+                canto vazio parecendo carregamento travado. */}
+            <p className={styles.note ?? ''}>
+              Ocupação por profissional ainda não tem fonte de dados nesta clínica.
+            </p>
+          </div>
         ) : null}
       </div>
     </>

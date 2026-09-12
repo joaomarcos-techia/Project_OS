@@ -17,7 +17,9 @@ describe('P-15 — fallbacks de autenticação', () => {
     const login = readFileSync(resolve(process.cwd(), 'src/app/(app)/login/page.tsx'), 'utf8');
     const mfa = readFileSync(resolve(process.cwd(), 'src/app/(app)/login/mfa/page.tsx'), 'utf8');
 
-    expect(login).toContain("import { Eye, EyeOff } from 'lucide-react'");
+    // Regex e nao string exata: o que importa e que Eye/EyeOff venham do
+    // lucide, nao que sejam os unicos icones da lista de import.
+    expect(login).toMatch(/import \{[^}]*\bEye\b[^}]*\bEyeOff\b[^}]*\} from 'lucide-react'/u);
     expect(login).not.toContain('function EyeIcon');
     expect(mfa).toContain('<Logo');
     expect(mfa).not.toContain('Clinica<b');
@@ -31,7 +33,7 @@ describe('P-15 — fallbacks de autenticação', () => {
     );
 
     expect(login).toContain('<ForgotPasswordForm />');
-    expect(recovery).toContain('Esqueci minha senha');
+    expect(recovery).toContain('Esqueci a senha');
     expect(recovery).toContain('forgotPasswordAction');
     expect(recovery).not.toContain('href="/reset-password"');
   });

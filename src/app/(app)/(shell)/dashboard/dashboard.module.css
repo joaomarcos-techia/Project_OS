@@ -17,6 +17,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.liveMetrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .liveMetrics :global([data-slot='stat-card']),
 .summaryMetrics :global([data-slot='stat-card']) {
   min-width: 0;
@@ -35,10 +39,6 @@
 
 .liveMetrics {
   --stat-value-size: 30px;
-}
-
-.summaryMetrics {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
 }
 
 .summaryMetrics :global([data-slot='stat-card']) {
@@ -81,7 +81,7 @@
 
 .appointments > li {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-columns: 64px minmax(0, 1fr) 210px 150px;
   gap: 12px;
   align-items: center;
   min-height: 46px;
@@ -92,6 +92,10 @@
 
 .appointments > li:last-child {
   border-bottom: 0;
+}
+
+.appointments > li > :last-child {
+  justify-self: end;
 }
 
 .appointmentTime {
@@ -124,7 +128,7 @@
 
 @media (min-width: 1200px) {
   .contentGrid {
-    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-columns: minmax(0, 1fr) 360px;
   }
 }
 
@@ -147,8 +151,135 @@
     gap: 6px 10px;
   }
 
+  /* O procedimento cede primeiro: hora, nome e status sao o que a recepcao le
+     de relance; o procedimento e detalhe e volta no desktop. */
+  .appointmentProcedure {
+    display: none;
+  }
+
   .appointments > li > :last-child {
     grid-column: 2;
     justify-self: start;
   }
+}
+
+.appointmentProcedure {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--fs-body-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Faixa de alertas — cada linha e um destino, nao um aviso mudo: a cor diz o
+   dominio (dinheiro / IA) e o texto sempre carrega para onde o clique leva. */
+.alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.alert {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: border-color var(--dur-fast) ease;
+}
+
+.alert > svg:first-child {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.alertText {
+  flex: 1;
+  min-width: 0;
+  text-wrap: pretty;
+}
+
+.alertCta {
+  flex: none;
+  font-size: var(--fs-caption);
+}
+
+.alert > svg:last-child {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.alertBilling {
+  border-color: var(--warning-200);
+  background: var(--warning-50);
+  color: var(--warning-700);
+}
+
+.alertBilling:hover {
+  border-color: var(--warning-600);
+}
+
+.alertBilling > svg {
+  color: var(--warning-600);
+}
+
+.alertAi {
+  border-color: var(--ai-border);
+  background: var(--ai-soft);
+  color: var(--ai);
+}
+
+.alertAi:hover {
+  border-color: var(--brand-accent-500);
+}
+
+.alertAi > svg {
+  color: var(--brand-accent-500);
+}
+
+/* Cartao de espera fora do previsto: fundo ambar + regua inferior, como na
+   referencia. A regua e o segundo sinal nao-cromatico do estado (1.4.1). */
+.metricAlert {
+  background: var(--warning-50);
+  box-shadow: inset 0 -2px 0 var(--warning-600);
+}
+
+.metricAlert :global([data-slot='stat-label']) > span:first-child,
+.metricAlert > span:last-child {
+  color: var(--warning-700);
+}
+
+.metricAlert :global([data-slot='stat-label']) svg {
+  color: var(--warning-600);
+}
+
+.rightColumn {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Nota tracejada: diz o que a tela AINDA nao mostra, em vez de deixar o canto
+   vazio parecendo carregamento travado. */
+.note {
+  flex: none;
+  padding: 11px 14px;
+  border: 1px dashed var(--border-2);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  line-height: 1.45;
+  text-wrap: pretty;
 }
