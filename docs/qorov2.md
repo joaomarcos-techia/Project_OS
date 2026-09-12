@@ -4133,3 +4133,29 @@ Track O é o O-0/ADR.
 
 **Isto não é um plano.** É o registro de que a camada ficou vazia e do que precisaria ser decidido
 para reabri-la. Nenhuma linha de runtime foi alterada por esta seção.
+
+### 31.4 Reaberta em 12/09: Track O pelo O-2
+
+O fundador decidiu retomar o cadastro autônomo e começar pelo **O-2 na leitura do §21.19** — bootstrap
+seguro, com migration `signup_sessions`, cookie/HMAC/TTL/CAS, rate limit fail-closed, Turnstile e
+janitor. Motivo declarado: *"prezo pela segurança e quero ter uma boa observação de leads pelo
+formulário de cadastro"*. Isso resolve, para efeito prático, a ambiguidade do §31.2 — **o P2 usa a
+leitura do §21.19**; a do §6 continua existindo e continua precisando ser desfeita algum dia.
+
+**Decisão de produto registrada junto:** o cartão vai pelo **Checkout hospedado do Asaas**, nunca por
+formulário próprio. A [ADR-053](adr/053-cadastro-autonomo-seguro.md) já decidia isso por escopo PCI; o
+fundador acrescentou a razão de produto — *"usando um personalizado nosso, pode haver falta de confiança
+em colocar as informações lá"*. Vale registrar as duas: se algum dia o argumento técnico mudar, o de
+confiança do usuário continua de pé.
+
+**Fluxo pretendido** (desenho de produto, não desta fatia): três perguntas → e-mail/senha → checkout.
+Entra no O-2 só como restrição: a fatia **não** pode cravar número ou conteúdo das perguntas no schema.
+
+O escopo congelado está na [ADR-060](adr/060-sessao-anonima-de-cadastro.md), que existe separada da
+ADR-053 por um motivo concreto: a barra de evidência da 053 inclui prova de Checkout no Sandbox do
+Asaas e linker do Google — coisas que a fatia O-2 não toca. Enquanto essa barra for tratada como
+pré-requisito único, nenhuma fatia começa, nem as que não dependem de terceiro nenhum.
+
+**Achado que destrava a ordem:** O-2 **não depende de O-1**. O §21.3 proíbe a atribuição de criar
+`signup_sessions`, e `attribution` é anulável — a numeração do §21.19 é de fatias, não de
+dependências. Sessão sem atribuição é a sessão orgânica, caso permanente e não degrau temporário.
