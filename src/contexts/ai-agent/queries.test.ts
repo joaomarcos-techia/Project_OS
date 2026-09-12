@@ -75,10 +75,22 @@ describe('listConversations', () => {
         ]),
       )
       .mockReturnValueOnce(query([{ total: 2 }]));
+    // String, não Date: é o que o driver devolve para uma coluna calculada, e
+    // um mock com Date escondia a quebra real (`.getTime is not a function`).
+    const inboundRecente = String(Date.now() - 60_000);
     tx.selectDistinctOn.mockReturnValue(
       query([
-        { conversationId: 'conversation-1', contentEncrypted: 'Última mensagem da Ana' },
-        { conversationId: 'conversation-2', contentEncrypted: 'Última mensagem sem cadastro' },
+        {
+          conversationId: 'conversation-1',
+          contentEncrypted: 'Última mensagem da Ana',
+          lastInboundEpochMs: inboundRecente,
+        },
+        {
+          conversationId: 'conversation-2',
+          contentEncrypted: 'Última mensagem sem cadastro',
+          // Inbound antigo: a janela de 24 h da Meta está fechada.
+          lastInboundEpochMs: String(startedAt.getTime()),
+        },
       ]),
     );
     withTenant.mockImplementation(
@@ -95,20 +107,25 @@ describe('listConversations', () => {
           lastMessagePreview: 'Última mensagem da Ana',
           maskedPhone: null,
           contactPhone: '+5511999991234',
+          windowOpen: true,
         },
         {
           patientDisplayName: null,
           lastMessagePreview: 'Última mensagem sem cadastro',
           maskedPhone: '+5511*****5678',
           contactPhone: '+5511988885678',
+          windowOpen: false,
         },
       ],
     });
     expect(tx.select).toHaveBeenCalledTimes(2);
-    // Duas varreduras em lote, não uma por conversa: a última mensagem (prévia)
-    // e o último INBOUND (janela de 24 h). O que este teste protege é o número
-    // ser CONSTANTE — com 2 conversas ou com 200, continua 2.
-    expect(tx.selectDistinctOn).toHaveBeenCalledTimes(2);
+    // UMA varredura em lote, não uma por conversa — e não mais duas. A prévia e
+    // o último INBOUND (janela de 24 h) saem da mesma passada, via window
+    // function avaliada antes do DISTINCT ON. O que este teste protege é o
+    // número ser CONSTANTE: com 2 conversas ou com 200, continua 1. O
+    // `windowOpen` acima é o que prova que a combinação não perdeu a distinção
+    // entre "última mensagem" e "última mensagem DO PACIENTE".
+    expect(tx.selectDistinctOn).toHaveBeenCalledTimes(1);
     expect(decryptForTenant).toHaveBeenCalledWith('clinic-1', '+5511999991234');
     expect(decryptForTenant).toHaveBeenCalledWith('clinic-1', '+5511988885678');
   });

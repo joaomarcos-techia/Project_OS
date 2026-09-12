@@ -47,13 +47,21 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
   const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const q = sp.q?.trim() || undefined;
   const overdueOnly = sp.sla === 'overdue';
-  // Duas rodadas, não cinco idas sequenciais. Cada `withTenant` é um round trip
-  // próprio (abre transação, troca o papel, seta o GUC), então encadear o que
-  // não depende um do outro multiplica latência à toa — e esta página é a mais
-  // lenta do shell justamente por isso.
+  const selection = z.string().uuid().safeParse(sp.conversation);
+
+  // DUAS rodadas, não três.
   //
-  // Rodada 1: a lista e o pulso da fila são independentes.
-  // Rodada 2: thread e nomes dependem da lista, mas não um do outro.
+  // Abrir um `withTenant` não é de graça: são BEGIN, SET LOCAL ROLE, set_config e
+  // COMMIT antes do primeiro SELECT. Medido (2026-09-12): ~820 ms no link daqui,
+  // contra 162 ms de um round trip adicional DENTRO dele. Encadear
+  // lista → thread → nomes pagava esse pedágio três vezes.
+  //
+  // Transações PARALELAS são de fato simultâneas (pool max:6) — medido: dois
+  // `withTenant` concorrentes custam o tempo de um. O que NÃO paraleliza são
+  // duas queries dentro da MESMA transação, porque é uma conexão só; lá o que
+  // vale é reduzir o número de queries (feito em `queries.ts`).
+  //
+  // Rodada 1: a lista e o pulso da fila, que não dependem um do outro.
   const [result, pulso] = await Promise.all([
     listConversations(clinicId, {
       ...(status ? { status } : {}),
@@ -66,18 +74,31 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
     countOpenHandoffs(clinicId),
   ]);
 
-  const selection = z.string().uuid().safeParse(sp.conversation);
   const selected =
     (selection.success ? result.items.find((item) => item.id === selection.data) : undefined) ??
     result.items[0];
 
-  const thread = selected ? await getConversationThread(clinicId, selected.id) : null;
-  const assigneeIds = result.items.flatMap((item) => item.handoff?.assignedToUserId ?? []);
-  if (thread?.handoff?.assignedToUserId) assigneeIds.push(thread.handoff.assignedToUserId);
-  const assigneeNames = await getProfileNames(clinicId, [...new Set(assigneeIds)]);
+  // Rodada 2: thread e nomes, em paralelo — antes os nomes esperavam a thread.
+  //
+  // A thread NÃO é adiantada para a rodada 1 mesmo quando a URL traz o id: só a
+  // lista diz se aquela conversa está nos resultados do filtro atual, e buscar
+  // antes decifraria o histórico de uma conversa que talvez não seja exibida.
+  // Uma rodada a menos não vale relaxar isso (coberto por teste).
+  const [thread, assigneeNames] = await Promise.all([
+    selected ? getConversationThread(clinicId, selected.id) : null,
+    getProfileNames(clinicId, [
+      ...new Set(result.items.flatMap((item) => item.handoff?.assignedToUserId ?? [])),
+    ]),
+  ]);
 
-  const assignedToName = thread?.handoff?.assignedToUserId
-    ? (assigneeNames.get(thread.handoff.assignedToUserId) ?? 'Membro da equipe')
+  // Lista e thread são lidas em transações distintas. Se alguém assumir a
+  // conversa entre as duas leituras, o responsável não está no lote de nomes —
+  // uma ida a mais NESSE caso é melhor que uma ida a mais em todos eles.
+  const threadAssignee = thread?.handoff?.assignedToUserId ?? null;
+  const assignedToName = threadAssignee
+    ? (assigneeNames.get(threadAssignee) ??
+      (await getProfileNames(clinicId, [threadAssignee])).get(threadAssignee) ??
+      'Membro da equipe')
     : null;
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const filtering = Boolean(q || status || overdueOnly);
