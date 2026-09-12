@@ -1085,7 +1085,7 @@ CAMADA 0   Baseline ...................................... ✅ CONCLUÍDA
 CAMADA 1   1.0 adapter·1.1 credencial·[O-1]·1.2 política·1.3 charges+hold·
            1.4 webhook·1.5 falta/restante·1.6 UI·1.H hardening·1.S stabilization
 CAMADA 2   P1 (CSV contábil não fiscal · template local · recuperação) · 2.H · 2.S
-CAMADA 3   P2 (pacote/mensalidade + O-2) · 3.H · 3.S    [conselho genérico ADIADO — §30.6]
+CAMADA 3   P2 — VAZIA na prática, ver §31 · 3.H · 3.S    [conselho genérico e pacote ADIADOS]
 CAMADA 4   P3 (backlog)
 TRACK O    cadastro self-serve · onboarding · tour · documentação · O.H · O.S
 TRACK M    ÚLTIMA: integração Memed, somente após o roadmap anterior + gates externos da ADR-056
@@ -1267,7 +1267,7 @@ diferença que o readback D50 × D80 já provou e nunca oferece “tentar novame
 ---
 
 ## 6. Track O — Onboarding self-serve
-Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá uma experiência única; o onboarding não pergunta módulo/especialidade, não exibe especialidade “em breve” e não roteia para dashboards diferentes. Isso não remove CRM/especialidade profissional, procedimentos, templates clínicos nem a lista de especialidades informada pelo agente. **O-1** wizard (atribuição do Qoro→média/mês→email+senha→plano→verificação→entrou; trial **7d**; preço **padrão**). **O-2** onboarding concluído→dashboard único, com dependências a confirmar na auditoria própria do Track O. **O-3** tour. **O-4** Central de Documentação autenticada em `/documentacao`: primeiros passos, fluxos por papel, prontuário/documentos, financeiro, Asaas, Meta/WhatsApp, IA, segurança e troubleshooting. Ela não se confunde com `/documentos`, que contém documentos clínicos reais.
+Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá uma experiência única; o onboarding não pergunta módulo/especialidade, não exibe especialidade “em breve” e não roteia para dashboards diferentes. Isso não remove CRM/especialidade profissional, procedimentos, templates clínicos nem a lista de especialidades informada pelo agente. **O-1** wizard (atribuição do Qoro→média/mês→email+senha→plano→verificação→entrou; trial **7d**; preço **padrão**). **O-2** onboarding concluído→dashboard único, com dependências a confirmar na auditoria própria do Track O. **(Atenção: este O-2 NÃO é o mesmo do §21.19 — ver §31.2.)** **O-3** tour. **O-4** Central de Documentação autenticada em `/documentacao`: primeiros passos, fluxos por papel, prontuário/documentos, financeiro, Asaas, Meta/WhatsApp, IA, segurança e troubleshooting. Ela não se confunde com `/documentos`, que contém documentos clínicos reais.
 
 ---
 
@@ -1280,9 +1280,11 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
   (código/Unit/E2E controlado DEV 1/1 PASS, cleanup zero)** · **2.4A retorno existente com
   smoke C14 DEV 9/9 PASS** · **2.4B recuperação de falta implementada e validada em DEV,
   smoke C14 10/10 PASS; rollout/E2E Meta pendentes** · **2.H·2.S**.
-- **P2:** pacote/mensalidade · O-2 · **3.H·3.S**. O "conselho genérico (fundação; psicologia
-  clínica desacoplada)" saiu do escopo por decisão do fundador em 12/09 — o foco é quem tem CRM.
-  Motivo e consequência em §30.6; o inventário do acoplamento fica registrado para quando/se voltar.
+- **P2:** **sem conteúdo acionável hoje — leia o §31 antes de planejar qualquer coisa aqui.** Os três
+  itens que a camada tinha saíram por decisão do fundador em 12/09: "conselho genérico" (§30.6, foco
+  em quem tem CRM) e "pacote/mensalidade" (§31.1, presente em poucas clínicas e sem urgência). O que
+  resta é "O-2", que **não é um escopo definido**: o rótulo tem duas definições incompatíveis neste
+  mesmo documento (§31.2). **3.H·3.S**.
 - **P3:** NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clínica completa.
 - **Track M — última:** **2.2.0 spike Memed concluído**; implementação 2.2 adiada até todas as entregas
   acima e a Track O estarem estabilizadas. Só reabrir com contrato, custos, LGPD, credenciais,
@@ -2795,7 +2797,11 @@ Redis multi-region dedicado; verificação de domínio/e-mail corporativo; SSO e
 
 ### 21.19 Plano de implementação e gates
 
-Dividir o Track O; não fazer um PR gigante:
+Dividir o Track O; não fazer um PR gigante.
+
+> **Os rótulos abaixo colidem com os do §6.** Eles numeram *fatias de implementação* do cadastro
+> autônomo; os do §6 numeram *marcos de produto*. "O-2" e "O-4" significam coisas diferentes nas duas
+> listas. Qualquer referência a "O-n" fora destas seções precisa dizer qual das duas — ver §31.2.
 
 1. **O-0 — ADR e contratos:** decisão do trial/gate de billing, threat model, estados, eventos,
    ownership, retenção e rollback. Citar ADR-007/008/010/011 e esta seção;
@@ -3877,7 +3883,8 @@ que dependem de terceiro e não se resolvem com código.
 | --- | --- | --- |
 | **D11/D12** — sessões paralelas no mesmo checkout | **Serializar**: uma sessão ativa por vez | Elimina a causa em vez de mitigar, ao custo do paralelismo. Registrado em [CONVENTIONS.md](CONVENTIONS.md#uma-sessão-por-vez-no-checkout) com os três incidentes que a justificam |
 | **D4** — 32 referências a ADR penduradas | **Recuperar do histórico**, não limpar as citações | As ADRs nunca se perderam: o commit `d8d442d` apagou 41 arquivos de uma vez e todos seguiam no git. Restauradas; **56 citadas, 56 no disco, zero penduradas** |
-| **§30** — credencial profissional genérica | **Manter apenas CRM**: esquecer a divisão psicólogo/psiquiatra e focar em quem tem CRM | Tira o "conselho genérico" do P2 e deixa **pacote/mensalidade + O-2** como a camada. Detalhe em §30.6 |
+| **§30** — credencial profissional genérica | **Manter apenas CRM**: esquecer a divisão psicólogo/psiquiatra e focar em quem tem CRM | Tira o "conselho genérico" do P2. Detalhe em §30.6 |
+| **P2 — pacote/mensalidade** | **Adiar**: "essa lógica só existe em algumas clínicas, não acho que é algo urgente" | Tira o segundo item do P2 e deixa a camada sem conteúdo acionável. Detalhe em §31.1 |
 
 O D4 acabou não sendo a escolha binária que o registro sugeria. A hipótese do fundador — "talvez
 estejam numa branch" — estava certa, e verificar antes de apagar evitou destruir 205 KB de decisão
@@ -3888,7 +3895,7 @@ de arquitetura que continuava valendo.
 | Item | Por que importa | Custo |
 | --- | --- | --- |
 | **Auditar env de Preview e produção** com `provision-templates.ts --dry-run` | O D105 (variável duplicada apontando para template inexistente) foi encontrado e corrigido **só no `.env.local`**. `.env.local` não é versionado, então ninguém sabe se Preview e produção têm o mesmo erro — e lá a cobrança amigável quebraria em silêncio, porque falha de envio vira retry, não alarme | Um comando, com aquelas env vars carregadas |
-| **Camada 3 / P2** | Próximo passo formal do roadmap, agora que a 2.S fechou | Exige ADR e scope freeze próprios (§23). Escopo **reduzido em 12/09** para pacote/mensalidade + O-2 (§30.6) |
+| **Camada 3 / P2** | Era o próximo passo formal do roadmap | **Esvaziada em 12/09** por duas decisões do fundador (§30.6, §31.1). O que sobrou não é executável como está — ver §31.3 |
 
 **Todo o resto do Discovery Log interno está fechado.** Os três achados ainda abertos — D50, D80 e
 D102 — dependem de terceiro (Asaas e Meta) e não têm trabalho de código associado.
@@ -4069,3 +4076,60 @@ não precisar ser refeito.
 
 **O que NÃO fica valendo:** o §30.5. Ele está preservado acima por honestidade de registro, mas a
 recomendação dele está revogada por esta seção.
+
+## 31. P2 — o que sobrou da camada depois de 12/09
+
+### 31.1 Decisão do fundador: pacote/mensalidade adiado
+
+**Decisão:** adiar. Palavras do fundador: *"essa lógica só existe em algumas clínicas, não acho que é
+algo urgente"*.
+
+**Contexto que sustenta a decisão:** "pacote/mensalidade" nunca teve especificação. Levantado em
+12/09, o termo aparece **somente** nas linhas de listagem de camadas (§7, §29.3 e o mapa) — nenhuma
+seção, nenhuma ADR, nenhum arquivo em `src/contexts` o menciona. O contexto `billing` que existe trata
+da assinatura **da clínica ao Qoro**, não de contrato de paciente. Ou seja: não havia trabalho
+adiável, havia um nome esperando virar escopo.
+
+**Consequência:** some o segundo item do P2. Quando voltar, o primeiro entregável continua sendo a
+definição de produto — hoje nem se sabe se é pacote de N sessões pré-pagas, mensalidade recorrente, ou
+os dois como modalidades de um mesmo contrato; cada leitura implica dados e regras diferentes
+(saldo/consumo/expiração × recorrência/inadimplência/suspensão).
+
+### 31.2 Defeito de documentação: "O-2" e "O-4" significam duas coisas
+
+**Achado em 12/09, lendo o documento para planejar a camada.** Duas listas numeram o Track O com os
+mesmos rótulos e conteúdos diferentes, e **as duas entraram no mesmo commit** (`42cd114`, 04/09) —
+nenhuma supera a outra por data:
+
+| Rótulo | §6 — marcos de produto | §21.19 — fatias de implementação |
+| --- | --- | --- |
+| **O-1** | wizard de cadastro | atribuição (`/comecar`, parâmetros, linker) |
+| **O-2** | onboarding concluído → **dashboard único** | **bootstrap seguro**: migration `signup_sessions`, cookie/HMAC/TTL/CAS, rate limit fail-closed, Turnstile, janitor |
+| **O-3** | tour | identidade (Supabase signUp, PKCE, anti-enumeração) |
+| **O-4** | **Central de Documentação** (§23 expande este) | **clínica/plano** (draft autenticado, plano server-side) |
+
+Não é sinônimo nem refinamento: o O-2 do §6 é uma tela; o O-2 do §21.19 é uma migration com controle
+de abuso. Planejar "P2 = O-2" sem dizer qual produz trabalhos de tamanho e risco incomparáveis.
+
+**Correção aplicada agora:** avisos cruzados no §6 e no §21.19. **Não** renomeei os rótulos, porque
+renumerar afeta referências fora deste documento (ADR-053, runbooks) e isso é mudança que merece
+decisão própria, não conserto de passagem.
+
+### 31.3 Estado real da camada
+
+Com o conselho genérico (§30.6) e o pacote (§31.1) fora, **o P2 não tem conteúdo executável**. O que
+resta é o rótulo "O-2", e ele está bloqueado por três coisas, em ordem:
+
+1. **Qual O-2** (§31.2) — decisão de leitura, não de implementação;
+2. **Track O exige ADR e scope freeze próprios** antes de qualquer código, mais gates `O.H`/`O.S`. O
+   §21 está marcado "DESENHO PROPOSTO PARA DISCOVERY; NÃO IMPLEMENTADO" e a [ADR-053](adr/053-cadastro-autonomo-seguro.md)
+   segue *Proposed*. O §21.19 chama esse passo de **O-0**;
+3. **Na leitura do §21.19, O-2 depende de O-1** (atribuição) e traz migration, Turnstile e regras de
+   WAF — infraestrutura nova, que o §21 diz exigir autorização explícita.
+
+Na leitura do §6, O-2 ("onboarding concluído → dashboard único") depende do wizard O-1 existir — que
+não existe. Pelas duas leituras, portanto, **O-2 não é um ponto de partida**: o ponto de partida do
+Track O é o O-0/ADR.
+
+**Isto não é um plano.** É o registro de que a camada ficou vazia e do que precisaria ser decidido
+para reabri-la. Nenhuma linha de runtime foi alterada por esta seção.
