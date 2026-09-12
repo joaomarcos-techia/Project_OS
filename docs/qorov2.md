@@ -3874,7 +3874,7 @@ que dependem de terceiro e não se resolvem com código.
 | Item | Situação medida | Decisão pedida |
 | --- | --- | --- |
 | **D11/D12** — sessões paralelas commitando na MESMA branch | Aconteceu de novo em 11/09 e custou caro: um commit meu varreu 8 arquivos deletados por outra sessão, e a separação errada de `clinical/queries.ts` quebrou o build publicado (`cf9d628` → `effe3ff`) | Separar as frentes por branch/worktree, ou aceitar conscientemente o risco. O paliativo em uso — `git commit -- <caminhos>` em vez de `git add` + `git commit` — reduz, não elimina |
-| **D4** — referências a ADR penduradas | Medido em 12/09: **51 citadas, 19 no disco, 32 penduradas** (eram 34 em agosto) | Reintroduzir as ADRs citadas ou limpar as citações. Hoje o código aponta para decisões que ninguém consegue ler |
+| **D4** — referências a ADR penduradas | Medido em 12/09: **51 citadas, 19 no disco, 32 penduradas** (eram 34 em agosto). As mais citadas estão no **código de produção**, não em doc velha: `ADR-047` e `ADR-032` em 20 arquivos de código cada, `ADR-012` em 16, `ADR-037` em 14 | Reintroduzir ou limpar — mas as opções **não são simétricas**: limpar apagaria de 20 arquivos o ponteiro para uma decisão que continua valendo. Recomendação: reintroduzir as seis mais citadas em código e reavaliar o resto depois |
 
 ### 29.3 Internas e executáveis — sem bloqueio externo
 
