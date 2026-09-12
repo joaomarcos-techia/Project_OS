@@ -3922,6 +3922,39 @@ detectado e logado) · `D105` (duplicata de env, corrigida pelo fundador) · `D2
 existem) · `D10` (credencial validada no save, por schema e por chamada real) · `D30` (eventos do
 webhook de assinatura versionados em código, com teste contra o runbook).
 
+### 29.6 Rollout de 12/09 — o que foi publicado e como foi validado
+
+Cinco commits em `a62c1c5..cc426ee`, deployment Vercel do SHA final `success`.
+
+| Commit | Conteúdo |
+| --- | --- |
+| `bcf2aa5` | Redesenho do tenant — 109 arquivos, `+6.109/−1.457` |
+| `9cde8cc` | Snapshots do grafo após o redesenho (55/296/**0 ciclos**) |
+| `83764e9` | D2, D30, D100, E2E do CSV contábil, §29 e §30 |
+| `18821df` | Inventário vivo de segurança regenerado |
+| `cc426ee` | Onde as ADRs penduradas são citadas (D4) |
+
+Validação, com exit code medido por execução direta — **não** depois de um pipe:
+
+| Gate | Resultado |
+| --- | --- |
+| `pnpm test` | `EXIT=0` |
+| `typecheck` · `arch:check` · `arch:db-check` | `EXIT=0` |
+| `check:migrations` · `check:registry:strict` · `check:observability` | `EXIT=0` |
+| `format:check` · `arch:graphs --check` | `EXIT=0` |
+| `pnpm build` | `EXIT=0`, **rodado antes do push** |
+| `security:inventory` | `EXIT=0` após regenerar; `unresolved: []` |
+| `security:tenant` | **6/6**, com contrafactual e teardown zero |
+| Smoke autenticado do Preview | **5/5** — 26 rotas estáticas em HTTP 200, dinâmicas preservando sessão |
+
+Duas correções de método entraram em vigor aqui, ambas por terem custado erro real antes:
+
+1. **Árvore verde não implica commit verde.** Publicar um subconjunto validado como parte de um todo
+   quebrou o build em `cf9d628`. Agora o build roda no próprio commit — em worktree isolado quando a
+   árvore diverge dele — antes de qualquer push.
+2. **`$?` depois de um pipe mede o `tail`, não o comando.** Um lote inteiro de gates foi lido como
+   verde quando `arch:graphs` reprovava. A validação acima usa `out=$(cmd); code=$?`.
+
 ## 30. Camada 3 / P2 — inventário do "conselho genérico"
 
 **Isto é insumo de ADR, não decisão.** O §23 proíbe improvisar mudança arquitetural, e generalizar
