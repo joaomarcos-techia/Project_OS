@@ -1085,7 +1085,7 @@ CAMADA 0   Baseline ...................................... ✅ CONCLUÍDA
 CAMADA 1   1.0 adapter·1.1 credencial·[O-1]·1.2 política·1.3 charges+hold·
            1.4 webhook·1.5 falta/restante·1.6 UI·1.H hardening·1.S stabilization
 CAMADA 2   P1 (CSV contábil não fiscal · template local · recuperação) · 2.H · 2.S
-CAMADA 3   P2 (conselho genérico + O-2 + pacote/mensalidade) · 3.H · 3.S
+CAMADA 3   P2 (pacote/mensalidade + O-2) · 3.H · 3.S    [conselho genérico ADIADO — §30.6]
 CAMADA 4   P3 (backlog)
 TRACK O    cadastro self-serve · onboarding · tour · documentação · O.H · O.S
 TRACK M    ÚLTIMA: integração Memed, somente após o roadmap anterior + gates externos da ADR-056
@@ -1280,7 +1280,9 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
   (código/Unit/E2E controlado DEV 1/1 PASS, cleanup zero)** · **2.4A retorno existente com
   smoke C14 DEV 9/9 PASS** · **2.4B recuperação de falta implementada e validada em DEV,
   smoke C14 10/10 PASS; rollout/E2E Meta pendentes** · **2.H·2.S**.
-- **P2:** conselho genérico (fundação; psicologia clínica desacoplada) · pacote/mensalidade · O-2 · **3.H·3.S**.
+- **P2:** pacote/mensalidade · O-2 · **3.H·3.S**. O "conselho genérico (fundação; psicologia
+  clínica desacoplada)" saiu do escopo por decisão do fundador em 12/09 — o foco é quem tem CRM.
+  Motivo e consequência em §30.6; o inventário do acoplamento fica registrado para quando/se voltar.
 - **P3:** NPS · modalidade online · convênio/TISS · NFS-e via Asaas · psicologia clínica completa.
 - **Track M — última:** **2.2.0 spike Memed concluído**; implementação 2.2 adiada até todas as entregas
   acima e a Track O estarem estabilizadas. Só reabrir com contrato, custos, LGPD, credenciais,
@@ -3875,6 +3877,7 @@ que dependem de terceiro e não se resolvem com código.
 | --- | --- | --- |
 | **D11/D12** — sessões paralelas no mesmo checkout | **Serializar**: uma sessão ativa por vez | Elimina a causa em vez de mitigar, ao custo do paralelismo. Registrado em [CONVENTIONS.md](CONVENTIONS.md#uma-sessão-por-vez-no-checkout) com os três incidentes que a justificam |
 | **D4** — 32 referências a ADR penduradas | **Recuperar do histórico**, não limpar as citações | As ADRs nunca se perderam: o commit `d8d442d` apagou 41 arquivos de uma vez e todos seguiam no git. Restauradas; **56 citadas, 56 no disco, zero penduradas** |
+| **§30** — credencial profissional genérica | **Manter apenas CRM**: esquecer a divisão psicólogo/psiquiatra e focar em quem tem CRM | Tira o "conselho genérico" do P2 e deixa **pacote/mensalidade + O-2** como a camada. Detalhe em §30.6 |
 
 O D4 acabou não sendo a escolha binária que o registro sugeria. A hipótese do fundador — "talvez
 estejam numa branch" — estava certa, e verificar antes de apagar evitou destruir 205 KB de decisão
@@ -3885,7 +3888,7 @@ de arquitetura que continuava valendo.
 | Item | Por que importa | Custo |
 | --- | --- | --- |
 | **Auditar env de Preview e produção** com `provision-templates.ts --dry-run` | O D105 (variável duplicada apontando para template inexistente) foi encontrado e corrigido **só no `.env.local`**. `.env.local` não é versionado, então ninguém sabe se Preview e produção têm o mesmo erro — e lá a cobrança amigável quebraria em silêncio, porque falha de envio vira retry, não alarme | Um comando, com aquelas env vars carregadas |
-| **Camada 3 / P2** | Próximo passo formal do roadmap, agora que a 2.S fechou | Exige ADR e scope freeze próprios (§23); o inventário do acoplamento está em §30 |
+| **Camada 3 / P2** | Próximo passo formal do roadmap, agora que a 2.S fechou | Exige ADR e scope freeze próprios (§23). Escopo **reduzido em 12/09** para pacote/mensalidade + O-2 (§30.6) |
 
 **Todo o resto do Discovery Log interno está fechado.** Os três achados ainda abertos — D50, D80 e
 D102 — dependem de terceiro (Asaas e Meta) e não têm trabalho de código associado.
@@ -3966,7 +3969,11 @@ Duas correções de método entraram em vigor aqui, ambas por terem custado erro
 2. **`$?` depois de um pipe mede o `tail`, não o comando.** Um lote inteiro de gates foi lido como
    verde quando `arch:graphs` reprovava. A validação acima usa `out=$(cmd); code=$?`.
 
-## 30. Camada 3 / P2 — inventário do "conselho genérico"
+## 30. Camada 3 / P2 — inventário do "conselho genérico" (ADIADO em 12/09)
+
+> **Leia o §30.6 primeiro.** O fundador decidiu em 12/09 manter **apenas CRM**. O inventário abaixo
+> continua correto e foi preservado inteiro porque descreve acoplamento real que não desapareceu —
+> mas ele descreve um trabalho que **não está mais no P2**. Nada aqui é plano corrente.
 
 **Isto é insumo de ADR, não decisão.** O §23 proíbe improvisar mudança arquitetural, e generalizar
 credencial profissional mexe em schema, em gate clínico e em documento impresso — três lugares onde
@@ -4032,3 +4039,33 @@ um lote pequeno, reversível e que não altera comportamento — o tipo de mudan
 sub-fase. Os itens 2 e 3 dependem de resposta regulatória e não devem entrar no mesmo lote.
 
 **Não comecei a implementar nada disso.** A ADR e o scope freeze vêm primeiro.
+
+### 30.6 Decisão do fundador (12/09): apenas CRM
+
+**Decisão:** esquecer a divisão psicólogo/psiquiatra e focar em quem tem CRM. Manter apenas CRM.
+
+**Consequência direta:** o "conselho genérico" sai do P2. A Camada 3 passa a ser
+**pacote/mensalidade + O-2**, e as três decisões do §30.4 deixam de ser bloqueio de roadmap.
+
+**Recomendação que mudou, e por quê.** O §30.5 recomendava executar o item 1 — colunas aditivas
+`conselho_sigla`/`conselho_numero`/`conselho_uf` — como lote pequeno e reversível. Essa
+recomendação **não se sustenta depois desta decisão**, e mantê-la seria inércia:
+
+- Colunas aditivas só valem quando existe um segundo caso para acomodar. Com CRP fora do escopo, elas
+  nasceriam vazias, sem nenhum caminho de escrita e sem nenhum leitor — dado morto que todo
+  `SELECT *`, toda migration futura e toda revisão de schema teria de explicar.
+- O custo real não é a migration: é que `profiles.crm` passaria a ter um irmão que **parece** ser a
+  fonte da verdade sem ser. Duas colunas para o mesmo fato, uma delas sempre nula, é como se cria a
+  dúvida "qual vale?" — exatamente a classe de ambiguidade que o §23 existe para evitar.
+- O vocabulário do `identity` já é genérico (`ProfessionalCredentialError`,
+  `updateOwnProfessionalCredential`, §30.3). Isso significa que **o custo de generalizar depois não
+  aumenta por esperar**: a fronteira de API não muda, só o armazenamento e a renderização — e ambos
+  são localizados (2 colunas, 3 arquivos de PDF).
+
+**O que fica valendo:** nada muda no runtime. `profiles.crm`/`crm_uf`, `assertDoctorHasCrm` e a
+linha `CRM {uf} {numero}` do PDF continuam como estão, e continuam corretos para o foco atual. O
+§30.2 fica como mapa de onde mexer se um CRP entrar em cena — levantado quando estava fresco, para
+não precisar ser refeito.
+
+**O que NÃO fica valendo:** o §30.5. Ele está preservado acima por honestidade de registro, mas a
+recomendação dele está revogada por esta seção.
