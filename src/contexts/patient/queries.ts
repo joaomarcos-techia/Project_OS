@@ -12,6 +12,7 @@
 import 'server-only';
 
 import { and, desc, eq, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
@@ -268,43 +269,62 @@ export async function listPatientsPage(
   clinicId: string,
   opts: ListPatientsPageOpts = {},
 ): Promise<PatientListResult> {
+  return withTenant(clinicId, (tx) => listPatientsPageTx(tx, clinicId, opts));
+}
+
+/**
+ * A mesma leitura, recebendo a transação de fora.
+ *
+ * Existe porque abrir um `withTenant` NÃO é de graça: são BEGIN, SET LOCAL ROLE,
+ * set_config e COMMIT antes de qualquer SELECT. Medido (2026-09-12, pooler
+ * Supabase): um `withTenant` vazio custa 820 ms no link daqui, contra 162 ms de
+ * um round trip adicional dentro dele. A página lia lista e vínculos em DOIS
+ * wrappers em série e pagava esse preço duas vezes — daí a versão `Tx`.
+ */
+async function listPatientsPageTx(
+  tx: Tx,
+  clinicId: string,
+  opts: ListPatientsPageOpts,
+): Promise<PatientListResult> {
   const page =
     opts.page != null && Number.isSafeInteger(opts.page) && opts.page > 0 ? opts.page : 1;
   const offset = (page - 1) * PATIENTS_PAGE_SIZE;
   const where = and(...patientListConditions(clinicId, opts));
 
-  return withTenant(clinicId, async (tx) => {
-    const [rows, [countRow]] = await Promise.all([
-      tx
-        .select(patientListItemColumns)
-        .from(patients)
-        .where(where)
-        .orderBy(desc(patients.updatedAt), desc(patients.id))
-        .limit(PATIENTS_PAGE_SIZE)
-        .offset(offset),
-      tx
-        .select({ total: sql<number>`count(*)::int` })
-        .from(patients)
-        .where(where),
-    ]);
+  // `Promise.all` aqui não sobrepõe execução — uma transação é UMA conexão, e o
+  // Postgres atende um statement por vez. O que ele economiza é o round trip de
+  // pipeline (medido: ~160 ms), então continua valendo; o que NÃO vale é supor
+  // que duas queries na mesma transação custam o tempo de uma.
+  const [rows, [countRow]] = await Promise.all([
+    tx
+      .select(patientListItemColumns)
+      .from(patients)
+      .where(where)
+      .orderBy(desc(patients.updatedAt), desc(patients.id))
+      .limit(PATIENTS_PAGE_SIZE)
+      .offset(offset),
+    tx
+      .select({ total: sql<number>`count(*)::int` })
+      .from(patients)
+      .where(where),
+  ]);
 
-    const items = await Promise.all(
-      rows.map(async (row) =>
-        toPatientListItem(
-          row,
-          await maskedCpf(clinicId, row.cpfEncrypted),
-          await telefoneFormatado(clinicId, row.telefoneEncrypted),
-        ),
+  const items = await Promise.all(
+    rows.map(async (row) =>
+      toPatientListItem(
+        row,
+        await maskedCpf(clinicId, row.cpfEncrypted),
+        await telefoneFormatado(clinicId, row.telefoneEncrypted),
       ),
-    );
+    ),
+  );
 
-    return {
-      items,
-      total: countRow?.total ?? 0,
-      page,
-      pageSize: PATIENTS_PAGE_SIZE,
-    };
-  });
+  return {
+    items,
+    total: countRow?.total ?? 0,
+    page,
+    pageSize: PATIENTS_PAGE_SIZE,
+  };
 }
 
 /**
@@ -410,58 +430,103 @@ export interface PatientBondSummary {
  *
  * Existe separada de `listPatientRelationships` (que é por paciente e devolve o
  * DTO completo) porque a lista mostra até 20 linhas: chamar a versão unitária
- * por linha seriam 20 idas ao banco por render. Aqui são duas — os vínculos e
- * os nomes dos responsáveis.
+ * por linha seriam 20 idas ao banco por render. Agora é UMA ida — o nome do
+ * responsável vem no mesmo SELECT.
  */
 export async function listPatientBonds(
+  clinicId: string,
+  patientIds: string[],
+): Promise<Map<string, PatientBondSummary>> {
+  if (patientIds.length === 0) return new Map();
+  return withTenant(clinicId, (tx) => listPatientBondsTx(tx, clinicId, patientIds));
+}
+
+async function listPatientBondsTx(
+  tx: Tx,
   clinicId: string,
   patientIds: string[],
 ): Promise<Map<string, PatientBondSummary>> {
   const out = new Map<string, PatientBondSummary>();
   if (patientIds.length === 0) return out;
 
-  return withTenant(clinicId, async (tx) => {
-    const rows = await tx
-      .select({
-        responsiblePatientId: patientRelationships.responsiblePatientId,
-        dependentPatientId: patientRelationships.dependentPatientId,
-      })
-      .from(patientRelationships)
-      .where(
-        and(
-          eq(patientRelationships.clinicId, clinicId),
-          // `inArray`, não `= ANY(...)`: o drizzle interpola um array JS como
-          // lista de parâmetros `($1,$2,$3)`, e o Postgres recusa isso à direita
-          // de ANY ("requires array on right side").
-          or(
-            inArray(patientRelationships.responsiblePatientId, patientIds),
-            inArray(patientRelationships.dependentPatientId, patientIds),
-          ),
+  // Auto-join em `patients`: o nome do responsável saía de um SEGUNDO select que
+  // só podia partir depois do primeiro voltar — um round trip inteiro para ler
+  // uma coluna de uma tabela do próprio contexto. O alias é o que permite
+  // referenciar `patients` como "o responsável desta linha".
+  const responsavel = alias(patients, 'responsavel');
+  const rows = await tx
+    .select({
+      responsiblePatientId: patientRelationships.responsiblePatientId,
+      dependentPatientId: patientRelationships.dependentPatientId,
+      responsavelNome: responsavel.nome,
+    })
+    .from(patientRelationships)
+    // LEFT, não INNER: um vínculo cujo responsável sumiu ainda precisa contar
+    // como dependente do outro lado. INNER apagaria a linha inteira.
+    .leftJoin(
+      responsavel,
+      and(
+        eq(responsavel.id, patientRelationships.responsiblePatientId),
+        eq(responsavel.clinicId, clinicId),
+      ),
+    )
+    .where(
+      and(
+        eq(patientRelationships.clinicId, clinicId),
+        // `inArray`, não `= ANY(...)`: o drizzle interpola um array JS como
+        // lista de parâmetros `($1,$2,$3)`, e o Postgres recusa isso à direita
+        // de ANY ("requires array on right side").
+        or(
+          inArray(patientRelationships.responsiblePatientId, patientIds),
+          inArray(patientRelationships.dependentPatientId, patientIds),
         ),
-      );
-    if (rows.length === 0) return out;
+      ),
+    );
+  if (rows.length === 0) return out;
 
-    const responsibleIds = [...new Set(rows.map((row) => row.responsiblePatientId))];
-    const names = await tx
-      .select({ id: patients.id, nome: patients.nome })
-      .from(patients)
-      .where(and(eq(patients.clinicId, clinicId), inArray(patients.id, responsibleIds)));
-    const nameById = new Map(names.map((row) => [row.id, row.nome]));
-
-    const wanted = new Set(patientIds);
-    for (const row of rows) {
-      if (wanted.has(row.dependentPatientId)) {
-        const bond = out.get(row.dependentPatientId) ?? { responsavelNome: null, dependentes: 0 };
-        bond.responsavelNome ??= nameById.get(row.responsiblePatientId) ?? null;
-        out.set(row.dependentPatientId, bond);
-      }
-      if (wanted.has(row.responsiblePatientId)) {
-        const bond = out.get(row.responsiblePatientId) ?? { responsavelNome: null, dependentes: 0 };
-        bond.dependentes += 1;
-        out.set(row.responsiblePatientId, bond);
-      }
+  const wanted = new Set(patientIds);
+  for (const row of rows) {
+    if (wanted.has(row.dependentPatientId)) {
+      const bond = out.get(row.dependentPatientId) ?? { responsavelNome: null, dependentes: 0 };
+      bond.responsavelNome ??= row.responsavelNome ?? null;
+      out.set(row.dependentPatientId, bond);
     }
-    return out;
+    if (wanted.has(row.responsiblePatientId)) {
+      const bond = out.get(row.responsiblePatientId) ?? { responsavelNome: null, dependentes: 0 };
+      bond.dependentes += 1;
+      out.set(row.responsiblePatientId, bond);
+    }
+  }
+  return out;
+}
+
+/** Resultado da lista com a coluna "Vínculo" já resolvida na mesma transação. */
+export interface PatientListPageWithBonds extends PatientListResult {
+  bonds: Map<string, PatientBondSummary>;
+}
+
+/**
+ * Lista + vínculos numa transação só.
+ *
+ * Os vínculos DEPENDEM dos ids da página, então não há como sobrepor as duas
+ * leituras — mas não há motivo para pagar DOIS `withTenant`. Medido daqui
+ * (2026-09-12): a rota gastava 1.481 ms na lista e mais 1.491 ms nos vínculos,
+ * dos quais ~820 ms eram só a abertura do segundo wrapper.
+ */
+export async function listPatientsPageWithBonds(
+  clinicId: string,
+  opts: ListPatientsPageOpts & { withBonds: boolean },
+): Promise<PatientListPageWithBonds> {
+  return withTenant(clinicId, async (tx) => {
+    const result = await listPatientsPageTx(tx, clinicId, opts);
+    const bonds = opts.withBonds
+      ? await listPatientBondsTx(
+          tx,
+          clinicId,
+          result.items.map((item) => item.id),
+        )
+      : new Map<string, PatientBondSummary>();
+    return { ...result, bonds };
   });
 }
 

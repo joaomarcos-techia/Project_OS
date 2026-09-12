@@ -9,7 +9,7 @@ import { redirect } from 'next/navigation';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
-import { listPatientBonds, listPatients, listPatientsPage } from '@/contexts/patient/queries';
+import { listPatients, listPatientsPageWithBonds } from '@/contexts/patient/queries';
 import { PageNoAccess } from '@/components/shared/page-no-access';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
@@ -66,9 +66,20 @@ export default async function PacientesPage({
   const canRestore = gate.user.permissions.includes(PERMISSIONS.DELETE_PATIENT);
   const showTrash = sp.removidos === '1' && canRestore;
   const drawerOpen = sp.novo === '1';
-  const [result, guardianCandidates] = await Promise.all([
-    listPatientsPage(clinicId, {
+  // UMA rodada, não duas. Os vínculos dependem dos ids da página, então a
+  // leitura deles é mesmo sequencial — mas acontece DENTRO da transação da
+  // lista, em vez de abrir um segundo `withTenant` (BEGIN + SET LOCAL ROLE +
+  // set_config + COMMIT) só para uma query. Medido: o segundo wrapper custava
+  // ~820 ms antes de qualquer SELECT.
+  //
+  // O drawer continua em paralelo porque é outra transação — e transações
+  // paralelas são de fato simultâneas (pool max:6), ao contrário de duas
+  // queries dentro da mesma.
+  const [{ bonds, ...result }, guardianCandidates] = await Promise.all([
+    listPatientsPageWithBonds(clinicId, {
       page,
+      // Na lixeira o vínculo não faz sentido: ele descreve operação corrente.
+      withBonds: !showTrash,
       ...(showTrash ? { onlyDeleted: true } : {}),
       ...(q ? { search: q } : {}),
     }),
@@ -76,14 +87,6 @@ export default async function PacientesPage({
     // normal não carrega mais 200 pacientes adicionais em toda navegação.
     drawerOpen ? listPatients(clinicId, { limit: 200 }) : Promise.resolve([]),
   ]);
-  // Vínculos só da página visível — a coluna "Vínculo" da referência. Na
-  // lixeira não faz sentido: o vínculo descreve operação corrente.
-  const bonds = showTrash
-    ? new Map<string, { responsavelNome: string | null; dependentes: number }>()
-    : await listPatientBonds(
-        clinicId,
-        result.items.map((item) => item.id),
-      );
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const filtering = Boolean(q || showTrash);
   const currentParams: PatientListSearchParams = {
