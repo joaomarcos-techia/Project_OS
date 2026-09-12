@@ -40,6 +40,24 @@ Canonical — regras atuais para mudanças no repositório.
 - Código prova implementação, não estado externo. Use `REQUIRES_MANUAL_VALIDATION` quando necessário.
 - Decisão transversal duradoura entra em [adr/README.md](adr/README.md); histórico de execução não é ADR.
 
+## Uma sessão por vez no checkout
+
+**Decisão do fundador, 12/09/2026 (D11/D12).** Só uma sessão de trabalho ativa por checkout. Duas
+sessões no mesmo diretório e na mesma branch já custaram caro três vezes:
+
+- duas migrations nasceram com o número `0080` no mesmo dia; a colisão foi pega por acaso, antes de
+  rodar. Duas migrations com o mesmo número teriam ido para produção (D12);
+- um commit varreu 8 arquivos que a outra sessão tinha deletado e deixado staged — `git add` seguido
+  de `git commit` commita o **índice inteiro**, não só o que você adicionou;
+- um arquivo editado pelas duas frentes (`clinical/queries.ts`) foi classificado como pertencendo a
+  uma só, e o build publicado quebrou.
+
+Enquanto isso valer, não há paralelismo a proteger. Se em algum momento houver, o mínimo é:
+
+- `git commit -- <caminhos>` em vez de `git add` + `git commit`, para não commitar o índice alheio;
+- conferir `ls drizzle/migrations` e `meta/_journal.json` **antes** de numerar migration;
+- não confiar em classificação por caminho sem verificar: arquivo pode conter mudança de duas frentes.
+
 ## Revisão mínima
 
 - diff contém somente o objetivo declarado;

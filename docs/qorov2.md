@@ -3869,20 +3869,26 @@ que dependem de terceiro e não se resolvem com código.
 **Não falsificar nenhuma destas com mock.** O contrato do projeto (§20) separa `PASS` de
 `BLOCKED_EXTERNAL` justamente para que a ausência de prova não vire prova por cansaço.
 
-### 29.2 Dependem de decisão do fundador
+### 29.2 Decisões do fundador — tomadas em 12/09
 
-| Item | Situação medida | Decisão pedida |
+| Item | Decisão | Consequência |
 | --- | --- | --- |
-| **D11/D12** — sessões paralelas commitando na MESMA branch | Aconteceu de novo em 11/09 e custou caro: um commit meu varreu 8 arquivos deletados por outra sessão, e a separação errada de `clinical/queries.ts` quebrou o build publicado (`cf9d628` → `effe3ff`) | Separar as frentes por branch/worktree, ou aceitar conscientemente o risco. O paliativo em uso — `git commit -- <caminhos>` em vez de `git add` + `git commit` — reduz, não elimina |
-| **D4** — referências a ADR penduradas | Medido em 12/09: **51 citadas, 19 no disco, 32 penduradas** (eram 34 em agosto). As mais citadas estão no **código de produção**, não em doc velha: `ADR-047` e `ADR-032` em 20 arquivos de código cada, `ADR-012` em 16, `ADR-037` em 14 | Reintroduzir ou limpar — mas as opções **não são simétricas**: limpar apagaria de 20 arquivos o ponteiro para uma decisão que continua valendo. Recomendação: reintroduzir as seis mais citadas em código e reavaliar o resto depois |
+| **D11/D12** — sessões paralelas no mesmo checkout | **Serializar**: uma sessão ativa por vez | Elimina a causa em vez de mitigar, ao custo do paralelismo. Registrado em [CONVENTIONS.md](CONVENTIONS.md#uma-sessão-por-vez-no-checkout) com os três incidentes que a justificam |
+| **D4** — 32 referências a ADR penduradas | **Recuperar do histórico**, não limpar as citações | As ADRs nunca se perderam: o commit `d8d442d` apagou 41 arquivos de uma vez e todos seguiam no git. Restauradas; **56 citadas, 56 no disco, zero penduradas** |
+
+O D4 acabou não sendo a escolha binária que o registro sugeria. A hipótese do fundador — "talvez
+estejam numa branch" — estava certa, e verificar antes de apagar evitou destruir 205 KB de decisão
+de arquitetura que continuava valendo.
 
 ### 29.3 Internas e executáveis — sem bloqueio externo
 
 | Item | Por que importa | Custo |
 | --- | --- | --- |
 | **Auditar env de Preview e produção** com `provision-templates.ts --dry-run` | O D105 (variável duplicada apontando para template inexistente) foi encontrado e corrigido **só no `.env.local`**. `.env.local` não é versionado, então ninguém sabe se Preview e produção têm o mesmo erro — e lá a cobrança amigável quebraria em silêncio, porque falha de envio vira retry, não alarme | Um comando, com aquelas env vars carregadas |
-| ~~**E2E de `contabilidade.csv`**~~ | **FECHADO em 12/09:** `e2e/accounting-export.spec.ts`, somente leitura, 3/3 contra o Preview real. Prova cabeçalho da ADR-058, BOM, CRLF, `no-store`/`nosniff`/`attachment`, ausência de coluna de paciente, mês malformado devolvendo 422 (não 500) e anônimo sem CSV | — |
-| **Camada 3 / P2** | Próximo passo formal do roadmap, agora que a 2.S fechou | Exige ADR e scope freeze próprios (§23); não se começa por improviso |
+| **Camada 3 / P2** | Próximo passo formal do roadmap, agora que a 2.S fechou | Exige ADR e scope freeze próprios (§23); o inventário do acoplamento está em §30 |
+
+**Todo o resto do Discovery Log interno está fechado.** Os três achados ainda abertos — D50, D80 e
+D102 — dependem de terceiro (Asaas e Meta) e não têm trabalho de código associado.
 
 ### 29.4 Substitutos de template criados em 12/09 — aguardando revisão
 
@@ -3920,7 +3926,12 @@ PDF, com as medições registradas) · `D103` (dois bugs do harness de E2E) · `
 detectado e logado) · `D105` (duplicata de env, corrigida pelo fundador) · `D2` (o `arch:check` via
 39% do grafo; passou a resolver alias, e **não havia ciclo escondido**) · `D8` (runbooks de pagamento
 existem) · `D10` (credencial validada no save, por schema e por chamada real) · `D30` (eventos do
-webhook de assinatura versionados em código, com teste contra o runbook).
+webhook de assinatura versionados em código, com teste contra o runbook) · `D4` (32 ADRs recuperadas
+do histórico; zero pendurada) · `D11` (decidido serializar) · `D12` (96 migrations ↔ 96 entradas no
+journal, sem colisão).
+
+Dos achados do Discovery Log, sobram **três**, todos de terceiro: `D50` e `D80` no Asaas, `D102` na
+Meta. Nenhum tem trabalho de código pendente.
 
 ### 29.6 Rollout de 12/09 — o que foi publicado e como foi validado
 
