@@ -2,7 +2,7 @@
 
 - **Status:** Proposed — congela o escopo da fatia O-2. Não autoriza migration aplicada, deploy, nem as
   fatias O-1, O-3 e seguintes
-- **Data:** 2026-09-12
+- **Data:** 2026-09-12 (revisada no mesmo dia; ver "Revisão de 12/09" ao final)
 - **Contextos:** onboarding (novo) + `lib/db` (tabela global pré-tenant) — dois bounded contexts, no teto
 - **Relaciona:** [ADR-053](053-cadastro-autonomo-seguro.md) (arquitetura do track),
   [ADR-007](007-rls-implementation-patterns.md), [ADR-010](010-security-definer-patterns.md),
@@ -23,51 +23,94 @@ Este ADR existe para separar as duas coisas: ele congela o escopo de **O-2** e d
 ### Decisões do fundador em 12/09/2026
 
 1. **Reabrir o Track O** e começar pelo O-2 na leitura do §21.19 — "bootstrap seguro" (migration
-   `signup_sessions`, cookie/HMAC/TTL/CAS, rate limit fail-closed, Turnstile, janitor). A escolha foi
-   explícita quanto ao motivo: *"prezo pela segurança e quero ter uma boa observação de leads pelo
-   formulário de cadastro"*. O §31.2 registra que o rótulo "O-2" é ambíguo no roadmap; **esta ADR adota
-   a leitura do §21.19** e é a referência para a fatia.
+   `signup_sessions`, cookie/HMAC/TTL/CAS, rate limit, Turnstile, janitor). Motivo declarado: *"prezo
+   pela segurança e quero ter uma boa observação de leads pelo formulário de cadastro"*. O §31.2
+   registra que o rótulo "O-2" é ambíguo no roadmap; **esta ADR adota a leitura do §21.19**.
 2. **Cartão pelo Checkout hospedado do Asaas**, nunca por formulário próprio. A ADR-053 já decidia isso
    por escopo PCI; o fundador acrescentou a razão de produto: *"usando um personalizado nosso, pode
    haver falta de confiança em colocar as informações lá"*. As duas razões apontam para o mesmo lugar, e
-   a de produto é a que sobrevive mesmo se o argumento técnico mudar.
-3. **Fluxo pretendido:** três perguntas → e-mail/senha → checkout. Isso é desenho de produto das fatias
-   O-1/O-4; entra aqui apenas como restrição: **O-2 não pode cravar o número nem o conteúdo das
-   perguntas** no schema ou na máquina de estados.
+   a de produto sobrevive mesmo se o argumento técnico mudar.
+3. **Ordem do fluxo: opção A** (ver "Ordem do fluxo" abaixo) — três perguntas, depois identidade
+   verificada, depois cartão.
 
-### Por que O-2 pode começar antes de O-1
+## Ordem do fluxo — a decisão que reordena a máquina de estados
 
-Na leitura do §21.19, O-1 é **atribuição** (`/comecar`, parâmetros allowlisted, linker do Google) e o
-§21.3 exige que ela **não** crie `signup_sessions`. A coluna `attribution` é anulável. Logo O-2 não
-depende de O-1 — a ordem numérica aqui não é ordem de dependência. Uma sessão criada sem atribuição é
-uma sessão orgânica, que é um caso real e permanente, não um degrau temporário.
+O fluxo pretendido pelo fundador era *três perguntas → checkout com login e cartão juntos*. Isso
+conflitava com o §21.2 e com o item 3 da ADR-053, que exigem **identidade verificada antes** de dados de
+clínica e de billing — ordem que o enum do §21.5 carrega (`identity_pending` antes de
+`details_complete`). Três ordens foram postas ao fundador, que escolheu a **A**:
+
+| | Ordem | Consequência |
+| --- | --- | --- |
+| **A — escolhida** | perguntas → e-mail/senha → **verifica** → checkout(cartão) | Guarda a conversão das perguntas primeiro e não cria recurso externo para e-mail não provado |
+| B | perguntas → checkout(login+cartão) → verifica depois | Melhor funil; aceita customer/assinatura órfãos no Asaas e PII pré-verificação |
+| C | e-mail/senha → verifica → perguntas → checkout | Mais seguro, pior funil: pede credencial antes de qualquer valor percebido |
+
+**A ordem canônica passa a ser:**
+
+```text
+initiated → details_complete → identity_pending → email_verified → checkout_pending
+          → provisioning → completed
+                                   (a qualquer momento: expired | blocked | failed)
+```
+
+O enum é **declarado nessa ordem**, porque em Postgres a ordem de declaração é a ordem de comparação;
+declarar na sequência lógica evita que um `ORDER BY status` futuro minta sobre o progresso do funil.
+
+### O que a escolha de A muda nesta fatia
+
+1. **As perguntas passam a preceder a identidade.** O-2 continua sem implementá-las, mas a fatia que as
+   implementa deixa de ser a quarta e passa a ser a imediatamente seguinte a esta. A numeração do
+   §21.19 fica, portanto, fora de ordem em relação ao fluxo — **não renumerada aqui** pelo mesmo motivo
+   do §31.2 (há referências fora do documento).
+2. **PII entra na sessão anônima na fatia seguinte, não nesta.** `owner_name` é dado pessoal, e em A ele
+   chega antes de qualquer verificação. Consequência direta e obrigatória: **o janitor escrito em O-2
+   nasce preparado para apagar PII**, com teste que prove a remoção, mesmo que em O-2 não haja nenhuma.
+   Escrever agora um janitor que só apaga linha "vazia" garantiria retrabalho na fatia seguinte, na
+   parte do sistema onde esquecer tem consequência de LGPD.
+3. **O perfil de abuso muda:** texto livre entra antes da identidade. Os tetos de tamanho do §21.9
+   (body pequeno, Zod `.strict()`, limites por campo) deixam de ser higiene e viram contenção de custo,
+   e "details submetidos" vira sinal para o classificador de risco do §21.8.
+4. **A proteção que A preserva** é a que importa: nenhum customer ou assinatura no Asaas antes do e-mail
+   verificado. Órfão em provider externo é o lixo que não dá para limpar com `DELETE`.
 
 ## Decisão
 
-### 1. O que a fatia entrega
+### 1. Corte em duas sub-fatias
+
+O escopo anterior desta ADR juntava migration, endpoints, rate limit, Turnstile, janitor e eventos.
+O Turnstile é o **único item que depende de configuração humana em terceiro** (conta Cloudflare, chaves
+por ambiente, um dono). Juntá-lo ao resto põe uma dependência externa no caminho crítico de trabalho
+que é inteiramente testável offline.
+
+**O-2a — sessão (sem dependência externa):**
 
 1. Migration da tabela global `signup_sessions`, pré-tenant, sem grants a `anon`/`authenticated`,
-   acessível somente pelo serviço mínimo allowlisted ([ADR-010](010-security-definer-patterns.md)).
+   acessível somente pelo serviço mínimo allowlisted ([ADR-010](010-security-definer-patterns.md));
 2. `POST /api/signup/sessions` — cria a sessão e devolve o token bruto **apenas** no cookie
-   `__Host-qoro_signup` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, sem `Domain`).
-3. `GET /api/signup/sessions/me` — devolve o estado **sanitizado** da própria sessão, para a página
-   sobreviver a refresh e a múltiplas abas.
-4. Rate limiting multidimensional **fail-closed** e bot protection adaptativa (Turnstile só acima do
-   limiar de risco), conforme §21.7 e §21.8.
-5. Janitor de expiradas, em lotes pequenos.
-6. Eventos de observação de funil, sem PII (item 7 abaixo).
+   `__Host-qoro_signup` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, sem `Domain`);
+3. `GET /api/signup/sessions/me` — estado **sanitizado** da própria sessão, para sobreviver a refresh e
+   a múltiplas abas;
+4. Rate limiting multidimensional. **Reaproveita `src/lib/auth/rate-limit.ts` e o `@upstash/ratelimit`
+   que já são dependências do projeto** — nenhuma conta nova, nenhum setup humano;
+5. Janitor de expiradas em lotes pequenos, **já capaz de apagar PII** (item 2 da seção anterior);
+6. Eventos de observação de funil, sem PII.
 
-### 2. O que a fatia NÃO entrega — e isto é escopo congelado, não omissão
+**O-2b — risco adaptativo (depende de terceiro):** classificador do §21.8 e Turnstile validado no
+backend. Pequeno e bem especificado: o §21.8 já define os sinais e as três faixas; o que falta são os
+limiares, que são afinação, e o dono da configuração.
 
-- **sem** `signUp` no Supabase, confirmação de e-mail ou PKCE (é O-3);
-- **sem** qualquer chamada ao Asaas, intenção de billing ou Checkout (é O-5);
-- **sem** criação de `clinics`, profile owner ou qualquer recurso de tenant (é O-6);
-- **sem** `/comecar`, parâmetros de campanha ou tag do Google (é O-1);
-- **sem** as três perguntas do wizard e sem tela de cadastro (produto, O-1/O-4).
+### 2. O que a fatia NÃO entrega — escopo congelado, não omissão
 
-O-2 é o **substrato**: a sessão que torna confiável tudo o que as outras fatias vão pendurar nela.
+- **sem** `signUp` no Supabase, confirmação de e-mail ou PKCE (fatia de identidade);
+- **sem** qualquer chamada ao Asaas, intenção de billing ou Checkout (O-5);
+- **sem** criação de `clinics`, profile owner ou recurso de tenant (O-6);
+- **sem** `/comecar`, parâmetros de campanha ou tag do Google (O-1);
+- **sem** as três perguntas e sem tela de cadastro (produto, fatia seguinte).
 
-### 3. Colunas: só as que esta fatia escreve
+O-2 é o **substrato**: a sessão que torna confiável tudo o que as outras fatias penduram nela.
+
+### 3. Colunas: só as que a fatia escreve
 
 O §21.5 desenha a tabela final. **Não vamos criá-la inteira agora.** Nesta fatia entram:
 
@@ -76,125 +119,159 @@ id · token_hash · status · risk_level · failed_attempts · row_version
 idle_expires_at · absolute_expires_at · consumed_at · created_at · updated_at
 ```
 
-Ficam para as fatias que as escrevem: `auth_user_id` e `email_hash` (O-3), `owner_name`, `clinic_name`
-e `selected_plan_id` (O-4), `attribution` (O-1), `completed_at` (O-6).
+Ficam para as fatias que as escrevem: `owner_name`, `clinic_name` e `selected_plan_id` (fatia das
+perguntas, agora a seguinte), `auth_user_id` e `email_hash` (identidade), `attribution` (O-1),
+`completed_at` (O-6).
 
-**Motivo, e é o mesmo do [§30.6](../qorov2.md#306-decisão-do-fundador-1209-apenas-crm):** coluna que
-nasce sem caminho de escrita e sem leitor é dado morto que toda revisão futura precisa explicar. Aqui o
-custo de adiar é ainda menor que no caso do CRM: **as linhas desta tabela vivem no máximo 60 minutos**,
-então `ALTER TABLE ADD COLUMN` mais tarde não tem backfill, não tem lock relevante e não tem linha
-histórica para reconciliar. Adiar é quase de graça; antecipar não é.
+**Motivo, o mesmo do [§30.6](../qorov2.md#306-decisão-do-fundador-1209-apenas-crm):** coluna que nasce
+sem caminho de escrita e sem leitor é dado morto que toda revisão futura precisa explicar. Aqui o custo
+de adiar é ainda menor que no caso do CRM: **as linhas vivem no máximo 60 minutos**, então
+`ALTER TABLE ADD COLUMN` mais tarde não tem backfill, não tem lock relevante e não tem linha histórica
+para reconciliar.
 
-**A exceção deliberada é o enum de `status`: ele nasce completo**, com os dez valores do §21.5
-(`initiated`, `identity_pending`, `email_verified`, `details_complete`, `checkout_pending`,
-`provisioning`, `completed`, `expired`, `blocked`, `failed`). Valor de enum não usado é metadado com
-custo zero — não ocupa linha, não aparece em `SELECT`, não confunde leitura. Já `ALTER TYPE ... ADD
-VALUE` é armadilha de migration: o valor novo não pode ser usado na mesma transação que o adiciona.
-Trocar um risco de migration por zero custo de dado é a troca certa, e é por isso que a regra
-"só o que se escreve" vale para colunas e não para valores de enum.
+**A exceção deliberada é o enum de `status`: nasce completo**, com os dez valores, na ordem lógica de A.
+Valor de enum não usado é metadado de custo zero — não ocupa linha, não aparece em `SELECT`. Já
+`ALTER TYPE ... ADD VALUE` é armadilha: o valor novo não pode ser usado na mesma transação que o
+adiciona. Trocar risco de migration por custo zero de dado é a troca certa, e é por isso que a regra
+"só o que se escreve" vale para coluna e **não** para valor de enum.
 
 ### 4. Estados alcançáveis nesta fatia
 
-Só três: `initiated` (criação), `expired` (TTL vencido, pelo janitor ou na leitura) e `blocked`
-(tentativas ou risco). Qualquer outra transição é erro de programação nesta fatia e **deve ter teste que
-falhe**, não comentário pedindo cuidado. `identity_pending` passa a ser alcançável em O-3.
+Só três: `initiated`, `expired` e `blocked`. Qualquer outra transição é erro de programação aqui e
+**deve ter teste que falhe**, não comentário pedindo cuidado.
 
 ### 5. Token, TTL e concorrência
 
-Sem novidade: vale integralmente o §21.6 — 32 bytes CSPRNG, só o HMAC no banco, comparação em tempo
-constante, 15 min de inatividade e 60 min absolutos, CAS por `status + row_version`, `409` para a aba
-perdedora, `410` genérico para token consumido ou expirado, token nunca na URL. Este ADR não redefine
-nada disso; registra que a fatia O-2 é onde isso passa a existir em código.
+Vale integralmente o §21.6 — 32 bytes CSPRNG, só o HMAC no banco, comparação em tempo constante, 15 min
+de inatividade e 60 min absolutos, CAS por `status + row_version`, `409` para a aba perdedora, `410`
+genérico para token consumido ou expirado, token nunca na URL. Esta ADR não redefine nada disso;
+registra que O-2a é onde passa a existir em código.
 
-### 6. Fail-closed é uma decisão de disponibilidade, não só de segurança
+### 6. Indisponibilidade do limiter: graduada, não uniforme
 
-Se o limiter distribuído estiver indisponível, **a criação de sessão falha**. Consequência aceita
-conscientemente: durante um apagão do Upstash, ninguém consegue iniciar cadastro. A alternativa —
-degradar para permitir — transforma a indisponibilidade de um terceiro em janela aberta de criação
-massiva, num endpoint público e anônimo que gera escrita no banco. Cadastro é a superfície onde
-indisponibilidade custa menos que abuso: quem não conseguiu se cadastrar volta; tenant-lixo e custo de
-e-mail não voltam atrás.
+**Esta decisão foi revista depois de ler o código.** A versão anterior desta ADR mandava *fail-closed*
+para tudo. Duas coisas contradizem isso:
 
-Isto vale para a criação. A **leitura** do próprio estado (`GET .../me`) pode degradar para permitido,
-porque não cria nada.
+- o padrão vigente do projeto **degrada**: `BoundedFallbackLimiter` (`src/lib/auth/rate-limit.ts`) cai
+  para contagem em memória, limitada e com evicção FIFO, quando o Redis some;
+- a própria ADR-053 escreve "falham **fechadas/degradadas**" — permite as duas, não manda fechar.
 
-### 7. Observação de leads — o que O-2 entrega de verdade
+E o argumento decisivo é o custo do que se está protegendo. **Nesta fatia, uma sessão excedente custa
+uma linha que expira em 60 minutos, sem PII e sem chamada externa.** Fechar o cadastro inteiro porque o
+Upstash caiu troca um custo desprezível por indisponibilidade total de aquisição.
 
-O objetivo declarado do fundador é enxergar o funil do formulário. A fatia entrega os eventos, **sem
-PII**:
+Portanto:
+
+| Operação | Limiter indisponível | Por quê |
+| --- | --- | --- |
+| `POST /api/signup/sessions` | **degrada** para o fallback limitado | Linha efêmera, sem PII, sem custo externo |
+| `GET .../me` | degrada para permitido | Não cria nada |
+| Envio de e-mail de verificação (fatia seguinte) | **fecha** | Custo externo, abusável, não reversível |
+| Criar customer/assinatura no Asaas (O-5) | **fecha** | Registro órfão em terceiro, sem `DELETE` que resolva |
+
+Contrapartida honesta do "degrada": em serverless o fallback é por instância, então um atacante
+distribuído consegue mais que o limite nominal durante um apagão do Redis. Aceito **nesta fatia**
+porque o teto de dano é linha efêmera, e mitigado por alerta de crescimento da tabela — que entra na
+evidência de aceite. Não seria aceitável nas linhas de baixo da tabela, e por isso elas fecham.
+
+### 7. Observação de leads — o que a fatia entrega de verdade
 
 | Evento | Quando | Campos |
 | --- | --- | --- |
-| `signup.session.created` | sessão criada com sucesso | `risk_level`, se houve desafio |
-| `signup.session.challenged` | Turnstile exigido | `risk_level` |
+| `signup.session.created` | sessão criada | `risk_level`, se houve desafio |
+| `signup.session.challenged` | Turnstile exigido (O-2b) | `risk_level` |
 | `signup.session.blocked` | tentativas/risco estouraram | motivo categorizado |
 | `signup.session.expired` | janitor ou leitura vencida | último `status`, idade |
 
-Nenhum deles carrega e-mail, nome, telefone, IP bruto ou token. `email_hash` existe (em O-3) para
-deduplicação e limite, **nunca** para contato ou para juntar com marketing.
+Nenhum carrega e-mail, nome, telefone, IP bruto ou token. `email_hash` existirá para deduplicação e
+limite, **nunca** para contato ou junção com marketing.
 
-**Limite honesto:** isto não é um painel de funil, e O-2 sozinho não mostra "em qual das três perguntas
-a pessoa parou" — as perguntas não existem ainda. O que O-2 garante é que, quando existirem, a contagem
-será confiável: sem sessão, "quantos começaram" seria estimativa de tráfego; com ela, é estado com CAS.
+**Limite honesto:** isto não é um painel de funil, e O-2 sozinho não mostra em qual das três perguntas a
+pessoa parou — elas ainda não existem. O que O-2 garante é que, quando existirem, a contagem será
+estado com CAS e não estimativa de tráfego. Com a ordem A, `details_complete` passa a ser o **primeiro**
+degrau observável depois de `initiated`, o que torna a taxa "abriu → respondeu as perguntas" medível
+já na fatia seguinte.
 
-### 8. Retenção e rollback
+### 8. Retenção, rollback e rollout
 
-Como nenhuma coluna desta fatia guarda PII, o janitor **apaga** linha expirada — não há o que
-anonimizar. Isso é consequência direta da decisão 3: adiar as colunas de PII adiou junto a superfície de
-LGPD da fatia.
+Nenhuma coluna desta fatia guarda PII, então o janitor **apaga** — mas nasce preparado para PII, porque
+a fatia seguinte a traz (item 2 de "Ordem do fluxo").
 
 Rollback é barato e deve continuar assim enquanto durar O-2: kill switch por env desliga a rota; como
 não existe tenant, assinatura nem usuário criado por este caminho, reverter é desligar a rota e, se
-necessário, remover a tabela. **Depois de O-6 isso deixa de ser verdade** — é mais uma razão para não
+necessário, remover a tabela. **Depois de O-6 isso deixa de ser verdade** — mais uma razão para não
 juntar as fatias.
+
+**Rollout:** a rota não precisa nascer pública. Subir atrás de flag ou allowlist, validar o anti-abuso
+com tráfego controlado e só então abrir é prudência barata numa superfície que existe justamente para
+receber desconhecidos.
 
 ## Evidência necessária para aceitar ESTA fatia
 
-Bem menor que a da ADR-053, porque a fatia não fala com provider nenhum:
-
 1. desenho da migration revisado: grants, ausência de acesso `anon`/`authenticated`, índices
-   (`token_hash`, `status + idle_expires_at`) e a constraint que impede `completed` sem as colunas que
-   ainda nem existem — ou, na ausência delas, a decisão explícita de adiar a constraint junto;
-2. matriz endpoint × limites aprovada para os dois endpoints desta fatia;
+   (`token_hash`, `status + idle_expires_at`) e decisão explícita sobre adiar, junto com as colunas, a
+   constraint que impede `completed` incompleto;
+2. matriz endpoint × limites aprovada para os dois endpoints;
 3. testes: unit (entropia, HMAC, TTL, CAS, tempo constante), integration DB (expiração, duas abas,
-   concorrência, janitor, ausência de grants), adversarial (replay, token forjado, enumeração) e carga
-   scratch no limiter fail-closed;
-4. runbook e alerta para "limiter indisponível" — sem isso, o fail-closed vira indisponibilidade
-   silenciosa de aquisição;
-5. responsável nomeado pela configuração do Turnstile.
+   concorrência, janitor apagando PII simulada, ausência de grants), adversarial (replay, token
+   forjado, enumeração) e carga scratch no comportamento degradado;
+4. **alerta de crescimento da tabela** — é o que sustenta a decisão de degradar em vez de fechar;
+5. para O-2b apenas: responsável nomeado pela configuração do Turnstile e limiares das faixas.
 
-**Não** entram aqui: Sandbox do Asaas, linker do Google, contrato de trial. Eles continuam bloqueando
-O-5 e O-1, e não esta fatia.
+**Não** entram aqui: Sandbox do Asaas, linker do Google, contrato de trial. Eles bloqueiam O-5 e O-1, e
+não esta fatia.
 
 ## Consequências
 
 ### Positivas
 
-- a fatia é começável hoje: não depende de O-1 nem de contrato com terceiro;
+- a fatia é começável hoje: não depende de O-1, de Turnstile nem de contrato com terceiro;
 - sem PII e sem tenant, o custo de errar é baixo e o rollback é real;
 - a sessão com CAS transforma contagem de funil em estado, não em estimativa;
+- degradar em vez de fechar mantém a aquisição viva durante apagão de um terceiro;
 - congelar o escopo impede que "bootstrap" cresça até virar o track inteiro num PR só.
 
 ### Custos e riscos
 
 - migration global pré-tenant é a primeira tabela fora do modelo tenant-scoped; exige revisão de grants
   mais atenta que o normal, porque `withTenant` não a protege;
-- fail-closed acopla disponibilidade de cadastro à do limiter (aceito acima, mas precisa de alerta);
-- Turnstile é configuração manual em terceiro, fora do código — se ninguém for dono dela, a proteção
-  fica desligada sem ninguém perceber;
-- a tabela nasce incompleta de propósito; quem ler o §21.5 esperando o schema final vai estranhar, e é
-  por isso que a decisão 3 está escrita por extenso aqui.
+- o fallback por instância é mais fraco que o limiter distribuído; depende do alerta de crescimento
+  para não virar ponto cego;
+- Turnstile é configuração manual em terceiro: sem dono nomeado, a proteção fica desligada sem ninguém
+  perceber — por isso está na evidência de O-2b, não na de O-2a;
+- a tabela nasce incompleta de propósito; quem ler o §21.5 esperando o schema final vai estranhar.
 
 ## Alternativas rejeitadas
 
-- **criar a tabela inteira do §21.5 agora:** sete colunas sem escritor, e a constraint de `completed`
-  referenciando dado que nenhuma fatia produz. O argumento do §30.6 vale aqui, e mais forte, porque a
-  linha é efêmera;
-- **enum parcial, crescendo por fatia:** troca custo zero (valor de enum sem uso) por armadilha real
-  (`ALTER TYPE ... ADD VALUE` não utilizável na mesma transação);
+- **autenticação anônima do Supabase (`signInAnonymously`) no lugar da tabela própria:** economizaria
+  cripto, cookie e janitor próprios, e o projeto já tem o encanamento SSR/PKCE. Perde **neste código**
+  porque o usuário anônimo nasce em `auth.users` com JWT real, e toda política RLS do projeto pressupõe
+  que quem tem JWT é usuário de verdade — a ADR-007 descreve `withTenant` como a defesa principal.
+  Adotá-la obrigaria a auditar todas as políticas e o middleware para distinguir `is_anonymous`, raio de
+  alcance muito maior que uma tabela isolada sem grant para ninguém. Registrada porque é uma alternativa
+  legítima que a ADR-053 não considerou;
+- **criar a tabela inteira do §21.5 agora:** colunas sem escritor, e constraint referenciando dado que
+  nenhuma fatia produz;
+- **enum parcial, crescendo por fatia:** troca custo zero por armadilha real de migration;
+- **fail-closed uniforme:** ver decisão 6 — contradiz o padrão vigente do projeto e troca custo
+  desprezível por indisponibilidade de aquisição;
+- **manter a ordem do §21.2 (identidade antes das perguntas):** decisão do fundador em 12/09 pela opção
+  A; a ordem C pede credencial antes de qualquer valor percebido;
+- **ordem B (login e cartão no mesmo passo, verificação depois):** criaria customer e assinatura no
+  Asaas para e-mail não verificado — órfão em terceiro, que nenhum `DELETE` nosso resolve;
 - **fazer O-1 antes por causa do número:** a numeração do §21.19 é de fatias, não de dependências, e a
   atribuição é explicitamente proibida de criar sessão;
-- **degradar o limiter para permitir quando o Upstash cair:** abre criação massiva num endpoint público
-  e anônimo exatamente quando ninguém está olhando;
-- **guardar as respostas das três perguntas já em O-2:** cravaria no schema um desenho de produto que
-  ainda vai mudar, e traria PII para uma fatia que hoje não tem nenhuma.
+- **guardar as respostas das três perguntas já em O-2:** cravaria desenho de produto que ainda vai
+  mudar, e traria PII para uma fatia que hoje não tem nenhuma.
+
+## Revisão de 12/09
+
+A primeira versão desta ADR foi revisada no mesmo dia, a pedido do fundador ("o escopo como está é o
+melhor possível ou existe outra abordagem?"). Mudou:
+
+1. **ordem do fluxo** — a versão inicial não percebeu que o fluxo descrito pelo fundador invertia a
+   ordem cravada no enum do §21.5. Resolvido pela opção A;
+2. **indisponibilidade do limiter** — de *fail-closed* uniforme para graduado, depois de ler
+   `BoundedFallbackLimiter` e reler o "fechadas/degradadas" da ADR-053;
+3. **corte em O-2a/O-2b** — tira a dependência humana do Turnstile do caminho crítico;
+4. **alternativa do Supabase anônimo** — registrada com o motivo da rejeição.

@@ -4148,13 +4148,38 @@ fundador acrescentou a razão de produto — *"usando um personalizado nosso, po
 em colocar as informações lá"*. Vale registrar as duas: se algum dia o argumento técnico mudar, o de
 confiança do usuário continua de pé.
 
-**Fluxo pretendido** (desenho de produto, não desta fatia): três perguntas → e-mail/senha → checkout.
-Entra no O-2 só como restrição: a fatia **não** pode cravar número ou conteúdo das perguntas no schema.
+**Ordem do fluxo — decidida em 12/09 depois de um conflito detectado.** O fluxo descrito pelo fundador
+(três perguntas → checkout com login e cartão juntos) invertia a ordem que o §21.2 e o item 3 da
+ADR-053 cravam, e que o enum do §21.5 carrega: identidade verificada **antes** de dados de clínica e de
+billing. Postas as três ordens possíveis, o fundador escolheu a **A**:
+
+```text
+perguntas → e-mail/senha → VERIFICA → checkout(cartão)
+```
+
+Ela guarda a conversão de perguntar primeiro e não cria customer nem assinatura no Asaas para e-mail
+não provado — órfão em provider externo é o lixo que nenhum `DELETE` nosso resolve. A ordem canônica do
+enum passa a ser `initiated → details_complete → identity_pending → email_verified → checkout_pending →
+provisioning → completed`.
+
+**Efeito colateral que vale registrar:** com A, as perguntas precedem a identidade, então a fatia que as
+implementa deixa de ser a quarta e passa a ser a imediatamente seguinte ao O-2 — a numeração do §21.19
+fica fora de ordem em relação ao fluxo, e **não foi renumerada** pelo mesmo motivo do §31.2. E como
+`owner_name` é PII que chega antes de qualquer verificação, o janitor escrito no O-2 **nasce preparado
+para apagar PII**, com teste, mesmo sem ter nenhuma ainda.
 
 O escopo congelado está na [ADR-060](adr/060-sessao-anonima-de-cadastro.md), que existe separada da
 ADR-053 por um motivo concreto: a barra de evidência da 053 inclui prova de Checkout no Sandbox do
 Asaas e linker do Google — coisas que a fatia O-2 não toca. Enquanto essa barra for tratada como
 pré-requisito único, nenhuma fatia começa, nem as que não dependem de terceiro nenhum.
+
+A ADR foi **revisada no mesmo dia**, a pedido do fundador ("o escopo como está é o melhor possível?").
+Além da ordem do fluxo, mudaram duas coisas por leitura de código: o corte em **O-2a** (sessão, sem
+dependência externa) e **O-2b** (risco adaptativo + Turnstile, que depende de conta em terceiro), e a
+troca do *fail-closed* uniforme por um **limiter graduado** — degrada onde o excedente custa uma linha
+efêmera, fecha onde custa e-mail enviado ou registro no Asaas. O gatilho da revisão foi descobrir que o
+padrão vigente do projeto já degrada (`BoundedFallbackLimiter` em `src/lib/auth/rate-limit.ts`) e que a
+própria ADR-053 escreve "falham fechadas/**degradadas**", permitindo as duas.
 
 **Achado que destrava a ordem:** O-2 **não depende de O-1**. O §21.3 proíbe a atribuição de criar
 `signup_sessions`, e `attribution` é anulável — a numeração do §21.19 é de fatias, não de

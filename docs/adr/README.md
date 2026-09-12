@@ -35,7 +35,7 @@ Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras d
 | Recuperação separa retorno clínico existente de contato após falta | Accepted (2.4A e 2.4B em código/DEV/Preview; E2E Meta pendente) | [ADR-057](057-recuperacao-falta-retorno.md) |
 | CSV mensal do ledger para contabilidade, sem valor fiscal | Accepted (código/DEV/Preview) | [ADR-058](058-exportacao-financeira-contabilidade.md) |
 | PDF clínico servido por rota Qoro autenticada, sem bearer URL no cliente | Accepted (implementação local; rollout pendente) | [ADR-059](059-acesso-autenticado-pdfs-clinicos.md) |
-| Sessão anônima de cadastro: escopo congelado da fatia O-2, sem PII e sem tenant | Proposed (scope freeze; não autoriza migration aplicada nem deploy) | [ADR-060](060-sessao-anonima-de-cadastro.md) |
+| Sessão anônima de cadastro: fatia O-2 cortada em O-2a/O-2b, perguntas antes da identidade, limiter graduado | Proposed (scope freeze; não autoriza migration aplicada nem deploy) | [ADR-060](060-sessao-anonima-de-cadastro.md) |
 | Inadimplência bloqueia escrita, não login/leitura | Accepted | [billing](../billing/subscriptions.md) |
 | Sentry + logs + métricas + health/heartbeats | Accepted | [operations](../operations/deployment-observability.md) |
 
