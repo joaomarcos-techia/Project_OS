@@ -85,17 +85,18 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
     ...(statusFilter ? { status: statusFilter } : {}),
   };
   const page = parseFinanceiroPage(rawPage);
-  const tz = await getClinicTimezone(clinicId);
-  // Cards de fluxo = MÊS corrente (não o dia): recebido/pago/saldo do mês. Os
-  // totais "a receber/a pagar" já são o aberto geral (independem da janela).
-  const { from, to } = clinicMonthBounds(tz);
-
-  // Fan-out do financeiro. `withQueryDeadline` (FALHA ALTO): nunca mostra vazio-por-
-  // timeout como verdade — estolou, cai no error boundary do shell, não pendura.
-  const [flow, lancamentosResult, suppliers, methods] = await withQueryDeadline(
+  // DUAS RODADAS, não três. Só `getCashFlowToday` precisa da janela do mês, e
+  // portanto do fuso; lançamentos, fornecedores e formas de pagamento não
+  // dependem de nada. Esperar o fuso para só então disparar os três era uma ida
+  // ao banco a mais em série — e esta rota era a mais lenta do shell, com
+  // 3.725 ms streamando o documento contra 70 ms de TTFB.
+  //
+  // `withQueryDeadline` (FALHA ALTO): nunca mostra vazio-por-timeout como
+  // verdade — estolou, cai no error boundary do shell, não pendura.
+  const [tz, lancamentosResult, suppliers, methods] = await withQueryDeadline(
     'financeiro.load',
     Promise.all([
-      getCashFlowToday(clinicId, from, to),
+      getClinicTimezone(clinicId),
       listLancamentosPage(clinicId, {
         ...paginationFilters,
         page,
@@ -105,6 +106,10 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
     ]),
   );
 
+  // Cards de fluxo = MÊS corrente (não o dia): recebido/pago/saldo do mês. Os
+  // totais "a receber/a pagar" já são o aberto geral (independem da janela).
+  const { from, to } = clinicMonthBounds(tz);
+
   // Nome do paciente resolvido na CAMADA PAGE, como no Caixa: o Financial não
   // conhece Patient, então nada de JOIN cross-context. A referência põe o nome
   // na linha porque "Atendimento - Consulta" repetido seis vezes não identifica
@@ -112,9 +117,10 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
   const patientIds = [
     ...new Set(lancamentosResult.items.filter((l) => l.patientId).map((l) => l.patientId!)),
   ];
-  const patientCards = await withQueryDeadline(
-    'financeiro.patientCards',
-    listPatientCards(clinicId, patientIds),
+
+  const [flow, patientCards] = await withQueryDeadline(
+    'financeiro.flow',
+    Promise.all([getCashFlowToday(clinicId, from, to), listPatientCards(clinicId, patientIds)]),
   );
   const nomeDoPaciente = new Map(patientCards.map((card) => [card.id, card.nome]));
   const nomeDoFornecedor = new Map(suppliers.map((s) => [s.id, s.razaoSocial]));

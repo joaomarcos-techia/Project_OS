@@ -160,9 +160,35 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   // Sair antes do primeiro SELECT é o ponto: negar depois já serializou.
   if (!canViewAgenda(user)) return { ...EMPTY, hasClinic: true };
   const clinicId = user.clinicId;
-  const isPractitioner = await getCurrentPractitioner();
 
-  const tz = (await getClinicTimezone(clinicId)) ?? DEFAULT_TZ;
+  // TRÊS RODADAS, não dez idas em fila indiana.
+  //
+  // Cada consulta aqui é um `withTenant` próprio, e cada `withTenant` é um round
+  // trip completo — abre transação, troca o papel para `authenticated`, seta o
+  // GUC do tenant. Encadear o que não depende um do outro multiplica latência
+  // sem motivo: medido no Preview, o documento desta rota levava 3.254 ms
+  // streamando, com TTFB de 69 ms. O tempo estava todo aqui.
+  //
+  // A ordem das rodadas é ditada por dependência real, não por estilo:
+  //   1. o que não depende de nada (inclusive o fuso, que a faixa de datas usa);
+  //   2. os atendimentos, que precisam da faixa;
+  //   3. o que se resolve a partir dos atendimentos.
+  const [isPractitioner, tzRaw, proceduresRaw, resourcesRaw, docRows] = await Promise.all([
+    getCurrentPractitioner(),
+    getClinicTimezone(clinicId),
+    listProcedures(clinicId, { onlyActive: true }),
+    listSchedulableResources(clinicId),
+    withTenant(clinicId, (tx) =>
+      tx.execute(
+        sql`SELECT id::text AS id, nome FROM profiles
+          WHERE ${practitionerSql(profiles.role, profiles.crm)} AND ativo = true AND deleted_at IS NULL
+            AND invite_accepted_at IS NOT NULL
+          ORDER BY nome`,
+      ),
+    ) as Promise<unknown> as Promise<Array<{ id: string; nome: string }>>,
+  ]);
+
+  const tz = tzRaw ?? DEFAULT_TZ;
   const ymd = normalizeDateParam(query.date, tz);
   // Mês pode ter muitos atendimentos; teto generoso p/ clínica pequena.
   const limit = query.view === 'month' ? 1000 : 300;
@@ -170,37 +196,34 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   const appts = await listAppointments(clinicId, { from, to, limit });
 
   const ids = [...new Set(appts.filter((a) => a.patientId).map((a) => a.patientId!))];
-  const cards = await listPatientCards(clinicId, ids);
+  const seriesIds = [
+    ...new Set(appts.map((a) => a.recurrenceSeriesId).filter((id): id is string => id !== null)),
+  ];
+
+  const [cards, fila, recurrenceSeries] = await Promise.all([
+    listPatientCards(clinicId, ids),
+    // Uma leitura em lote, não uma por linha: os carimbos da fila só existem
+    // para quem passou pelo consultório, e a maioria do dia nunca tem entrada.
+    listQueueTimestamps(
+      clinicId,
+      appts.filter((a) => a.status === 'chegou' || a.status === 'em_atendimento').map((a) => a.id),
+    ),
+    // UX-003 — total e estado das séries presentes na faixa. Sem o total,
+    // "ocorrência 3" não informa nada; sem `futureActive`, o operador não sabe
+    // o que um cancelamento de série atingiria.
+    listRecurrenceSeriesSummaries(clinicId, seriesIds),
+  ]);
+
   const nameOf = new Map(cards.map((c) => [c.id, c.nome]));
   const birthOf = new Map(cards.map((c) => [c.id, c.dataNascimento]));
-
-  const procedures = (await listProcedures(clinicId, { onlyActive: true })).map((p) => ({
-    id: p.id,
-    descricao: p.descricao,
-  }));
-  const resources = (await listSchedulableResources(clinicId)).map((resource) => ({
+  const procedures = proceduresRaw.map((p) => ({ id: p.id, descricao: p.descricao }));
+  const resources = resourcesRaw.map((resource) => ({
     id: resource.id,
     name: resource.name,
     type: resource.type,
   }));
-
-  const docRows = (await withTenant(clinicId, (tx) =>
-    tx.execute(
-      sql`SELECT id::text AS id, nome FROM profiles
-          WHERE ${practitionerSql(profiles.role, profiles.crm)} AND ativo = true AND deleted_at IS NULL
-            AND invite_accepted_at IS NOT NULL
-          ORDER BY nome`,
-    ),
-  )) as unknown as Array<{ id: string; nome: string }>;
   const doctors = docRows.map((r) => ({ id: r.id, nome: r.nome }));
   const doctorNameOf = new Map(doctors.map((doctor) => [doctor.id, doctor.nome]));
-
-  // Uma leitura em lote, não uma por linha: os carimbos da fila só existem para
-  // quem passou pelo consultório, e a maioria do dia nunca tem entrada.
-  const fila = await listQueueTimestamps(
-    clinicId,
-    appts.filter((a) => a.status === 'chegou' || a.status === 'em_atendimento').map((a) => a.id),
-  );
   const filaDe = new Map(fila.map((f) => [f.appointmentId, f]));
 
   const appointments: AgendaAppt[] = appts.map((a) => ({
@@ -224,14 +247,6 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     filaDesde: filaDe.get(a.id)?.queuedAt ?? null,
     atendimentoDesde: filaDe.get(a.id)?.startedAt ?? null,
   }));
-
-  // UX-003 — total e estado das séries presentes na faixa. Sem o total,
-  // "ocorrência 3" não informa nada; sem `futureActive`, o operador não sabe o
-  // que um cancelamento de série atingiria.
-  const seriesIds = [
-    ...new Set(appts.map((a) => a.recurrenceSeriesId).filter((id): id is string => id !== null)),
-  ];
-  const recurrenceSeries = await listRecurrenceSeriesSummaries(clinicId, seriesIds);
 
   return {
     hasAccess: true,
