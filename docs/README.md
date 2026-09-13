@@ -33,6 +33,7 @@ Esta pasta descreve o código presente neste repositório. O nome técnico é **
 | Bounded contexts e dependências | [Context map](architecture/context-map.md) |
 | Visão C4, grafos gerados e riscos | [C4](architecture/c4.md) e [riscos](architecture/risks.md) |
 | Achados adiados durante a execução | [Discovery log](discovery-log.md) |
+| Cobertura E2E: auditoria e matriz | [Auditoria E2E](quality/e2e-coverage-audit.md) e [matriz](quality/e2e-coverage-matrix.md) |
 | Banco, migrations, pools e RLS | [Schema e tenancy](database/schema.md) |
 | Backend, APIs, crons e outbox | [HTTP, jobs e outbox](backend/http-jobs-outbox.md) |
 | Frontend, rotas e acesso | [Rotas e permissões](frontend/routes-and-access.md) |

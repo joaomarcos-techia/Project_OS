@@ -153,14 +153,36 @@ levaria a uma falha de verificação no meio do funil, que é o pior lugar para 
 **Ligar o captcha no painel do Supabase antes de o código enviar o token derruba o login de todas as
 clínicas.** Não é degradação — é ninguém entra. Levantado em 13/09, quando o fundador ia ativar direto
 no projeto de produção; busca por `captchaToken` no repositório inteiro devolveu **zero ocorrências**,
-e há quatro chamadas que o captcha passa a exigir:
+e há **três** chamadas que o captcha passa a exigir:
 
-| Call site | Chamada | O que quebra |
-| --- | --- | --- |
-| `app/(app)/login/actions.ts` | `signInWithPassword` | **login de toda clínica existente** |
-| `app/(app)/login/actions.ts` | `resetPasswordForEmail` | recuperação de senha |
-| `app/(app)/join/[token]/actions.ts` | `signInWithPassword` | onboarding por convite |
-| `app/(app)/auth/confirm/route.ts` | `verifyOtp` | confirmação de e-mail |
+| Call site | Chamada | O que quebra | Situação |
+| --- | --- | --- | --- |
+| `app/(app)/login/actions.ts` | `signInWithPassword` | **login de toda clínica existente** | feito (13/09) |
+| `app/(app)/login/actions.ts` | `resetPasswordForEmail` | recuperação de senha | feito (13/09) |
+| `app/(app)/join/[token]/actions.ts` | `signInWithPassword` | auto-login pós-checkout | feito (13/09) |
+
+**Correção de 13/09 — eram três, não quatro.** A quarta linha desta tabela dizia
+`auth/confirm/route.ts → verifyOtp`, e isso está errado: o SDK não permite. A variante que essa rota
+usa, `VerifyTokenHashParams` (`verifyOtp({ token_hash, type })`), **não tem campo `options`**; nas
+outras duas variantes o `captchaToken` está marcado `@deprecated`. Faz sentido — quem chega ali já
+provou posse do token do e-mail, e não há navegador para resolver desafio num link clicado. Conferido
+em `@supabase/auth-js@2.106.2`.
+
+O mesmo vale para `convite/page.tsx`, que também usa `verifyOtp({ token_hash })`. As chamadas
+`admin.auth.admin.*` (convite, `generateLink`, `createUser` da saga) usam a service role e **não passam
+por captcha** — por isso o provisionamento do checkout não precisa de token.
+
+**Consequência para o checkout:** o token do formulário de ativação é gasto no auto-login, e só nele.
+Um token por envio basta — e é bom que baste, porque o usuário não teria como resolver um segundo
+desafio depois de o cartão já ter sido cobrado. O `catch` mudo daquele auto-login virou
+`logger.warn('checkout.autologin_failed')`: sem isso, um captcha mal configurado apareceria apenas
+como "paguei e caí no login", indistinguível de decisão de produto.
+
+**Pré-requisito que faltava: a CSP bloqueava o Turnstile.** `script-src`, `frame-src` e `connect-src`
+não tinham `https://challenges.cloudflare.com`. O widget carrega um script, renderiza num **iframe** e
+**fala** com a Cloudflare — faltando qualquer uma das três, ele nunca aparece, e a falha é silenciosa
+para quem não abre o console. Corrigido com origem nomeada (nunca curinga) e registrado na allowlist de
+`src/lib/security/headers-gate.test.ts`.
 
 Sequência correta:
 
@@ -172,6 +194,41 @@ Sequência correta:
 
 O passo 2 responde à objeção correta do fundador de que ativar no projeto de dev quebraria o E2E: os
 testes fazem login de verdade em `e2e/auth.ts`. Com as chaves de teste, quebram não.
+
+### 1.b. O que a tela das três perguntas HERDA do `/join` — avaliação de 13/09
+
+A tela de cadastro autônomo não existe, mas a tela de onboarding **existe**: o wizard de
+`/join` (`clinic → owner → plan → checkout`). Antes de desenhar a nova, vale listar o que já está
+resolvido lá, porque reconstruir do zero perde coisas que custaram caro.
+
+**O que precisa ser copiado, não reinventado:**
+
+| Mecanismo | Onde | Por que importa |
+| --- | --- | --- |
+| Persistência por passo com CAS | `guardedUpdateInvite(id, version)` | A segunda aba perde a corrida em vez de sobrescrever. `signup_sessions.row_version` já existe para o mesmo papel. |
+| **Senha nunca entra no estado persistido** | `join-wizard.tsx` (`needsPassword`) | Vive só no cliente; numa retomada em outra aba é pedida de novo. A nova sessão NÃO pode gravar credencial na linha. |
+| Cartão só em memória | `submitCheckoutAction` | Nunca logado, nunca persistido, nunca no `step_state`. |
+| Preço resolvido no SERVIDOR | `resolveCheckoutPlan(st.planId)` | O cliente manda o `planId`, não o preço. Sem isso, desconto é um campo de formulário. |
+| Idempotência natural | convite vira `completed`, guardado por `version` | Reenvio dá "já ativado" em vez de cobrar duas vezes. `status` + `consumed_at` + `row_version` cobrem o mesmo na sessão. |
+| **Taxonomia de falha com mensagem própria** | `OnboardingProvisionError` | `card_declined` (com a razão legível do Asaas), `provider_unreachable`, `invite_version_conflict`, `owner_create_failed` (e-mail já em uso). É a parte mais fácil de perder numa reescrita, e a que o usuário mais sente. |
+
+**O que a ordem A (perguntas antes da identidade) obriga a decidir antes de codar:**
+
+1. **Colunas de PII na sessão.** Hoje `signup_sessions` tem só `id · token_hash · status ·
+   risk_level · failed_attempts · row_version · TTLs`. As três perguntas trazem dado de pessoa
+   (nome, clínica, telefone?) para uma linha que existe **antes de haver usuário e antes de haver
+   consentimento**. Isso é migration nova + decisão de retenção: um lead que abandona no passo 2
+   deixou dados, e o janitor hoje apaga por TTL — o que é a resposta certa, mas precisa estar dita.
+2. **Quais são as três perguntas.** Não há especificação. É decisão de produto, não de engenharia.
+3. **Checkout próprio ou do Asaas.** O fundador levantou em 12/09 que o checkout transparente pode
+   gerar desconfiança ("colocar o cartão num formulário nosso"). Se a escolha for o checkout hospedado
+   do Asaas, o bloco de cartão do `submitCheckoutAction` **deixa de existir** — e com ele a validação
+   de CPF/CEP/validade e o `card_declined`. Decidir isso depois de implementar custa o dobro.
+
+**O que já foi corrigido no `/join` por causa desta avaliação:** o auto-login pós-checkout era
+`try { … } catch {}` mudo. Virou `logger.warn('checkout.autologin_failed')` com motivo
+(`captcha_failed` / `auth_rejected`). A clínica que paga e cai no `/login` agora aparece em log, em
+vez de aparecer só quando alguém abre suporte.
 
 ### 2. O que a fatia NÃO entrega — escopo congelado, não omissão
 

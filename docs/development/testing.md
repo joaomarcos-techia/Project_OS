@@ -26,6 +26,35 @@ código: se o acoplamento mudou, regenere com `pnpm arch:graphs` e commite o dif
 
 O CI executa todos acima exceto `format:check`; inclui também `pnpm audit --prod --audit-level high`. Thresholds Vitest atuais: lines 29%, functions 41%, branches 74%, statements 29%.
 
+## Gate E2E em CI (desde 2026-09-13)
+
+```bash
+pnpm test:e2e:ci     # exige `pnpm security:build` antes
+```
+
+Roda `e2e/public-surface.spec.ts` contra o build isolado que `security:build`
+produz em `dist/security-local/app`. Cobre o que dispensa credencial: fronteira
+sem sessão (22 rotas, incluindo as 8 de `/admin`), cabeçalhos de segurança e
+integridade estrutural do formulário de login.
+
+**Por que só isso.** Os 51 specs `production-*` exigem variável de autorização
+própria, credenciais de clínica sintética e conexão ao Postgres de PRODUÇÃO —
+não podem rodar em CI, e até esta data **nenhum E2E rodava**. O diagnóstico
+completo e a matriz de cobertura estão em
+[`docs/quality/e2e-coverage-audit.md`](../quality/e2e-coverage-audit.md).
+
+Acrescentar um spec a `playwright.ci.config.ts` é decisão explícita: ele passa a
+poder quebrar o merge de todo mundo.
+
+```bash
+pnpm test:e2e:public   # public-surface + signup-session-api, contra E2E_BASE_URL
+```
+
+O `signup-session-api` fica fora do CI porque precisa de banco. Ele exercita
+`/api/signup/*` por HTTP real e **pula com anotação** quando o orçamento de IP
+do próprio produto (20 aberturas/15 min) estoura — skip anotado, nunca verde,
+pelo mesmo motivo do `n/v` acima.
+
 ## Verificações contra o provedor real (sandbox)
 
 ```bash
