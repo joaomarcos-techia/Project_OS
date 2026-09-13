@@ -219,7 +219,10 @@ resolvido lá, porque reconstruir do zero perde coisas que custaram caro.
    (nome, clínica, telefone?) para uma linha que existe **antes de haver usuário e antes de haver
    consentimento**. Isso é migration nova + decisão de retenção: um lead que abandona no passo 2
    deixou dados, e o janitor hoje apaga por TTL — o que é a resposta certa, mas precisa estar dita.
-2. **Quais são as três perguntas.** Não há especificação. É decisão de produto, não de engenharia.
+2. **Quais são as três perguntas.** Não há especificação em lugar nenhum do repositório (busca de
+   13/09). É decisão de produto, não de engenharia. O que já está decidido e RESTRINGE a escolha:
+   (a) nenhuma pode identificar a pessoa (§1.c); (b) o §30.6 decidiu **manter apenas CRM** e esquecer a
+   divisão psicólogo/psiquiatra — então "qual sua profissão?" contradiz decisão já tomada.
 3. **Checkout próprio ou do Asaas.** O fundador levantou em 12/09 que o checkout transparente pode
    gerar desconfiança ("colocar o cartão num formulário nosso"). Se a escolha for o checkout hospedado
    do Asaas, o bloco de cartão do `submitCheckoutAction` **deixa de existir** — e com ele a validação
@@ -229,6 +232,70 @@ resolvido lá, porque reconstruir do zero perde coisas que custaram caro.
 `try { … } catch {}` mudo. Virou `logger.warn('checkout.autologin_failed')` com motivo
 (`captcha_failed` / `auth_rejected`). A clínica que paga e cai no `/login` agora aparece em log, em
 vez de aparecer só quando alguém abre suporte.
+
+### 1.c. Decisões do fundador em 14/09 — ordem final, consentimento e checkout
+
+Três decisões que fecham o que a avaliação de 13/09 (§1.b) deixou em aberto.
+
+**1. Ordem final — substitui a "opção A".**
+
+```text
+3 perguntas (IMPESSOAIS)
+      ↓
+identidade + consentimento + nome da clínica, NA MESMA TELA
+      ↓
+verificação de e-mail
+      ↓
+Checkout hospedado do Asaas
+```
+
+O ganho sobre a A é específico: **o consentimento chega junto com a PII, não depois dela.** Na A as
+perguntas vinham primeiro, e qualquer pergunta pessoal criaria dado de pessoa antes de qualquer aceite.
+
+**Isso impõe uma restrição de produto, não de engenharia: as três perguntas não podem identificar
+ninguém.** Se uma delas pedir o nome de quem preenche, a ordem volta a ter o defeito que ela conserta.
+São perguntas sobre a CLÍNICA — tamanho, volume, ferramenta atual.
+
+**2. Consentimento é link, não sistema.**
+
+A tela liga para `https://qoro.dev/politica-de-privacidade` e `https://qoro.dev/termos-de-uso` — as
+mesmas URLs que o rodapé do `/login` já usa. **Não** se constrói versionamento de termos, hash de
+documento nem histórico de aceite nesta fatia. Decisão explícita do fundador; o custo aceito está
+registrado em §1.d.
+
+**3. Checkout HOSPEDADO do Asaas. Tokenização descartada.**
+
+Isto **confirma o §21.2**, que já dizia "Checkout recorrente hospedado do Asaas" — não é mudança de
+rumo. A tokenização (campo do Asaas capturando o cartão, servidor recebendo só token) foi considerada e
+descartada: exigiria abrir chamado no suporte do Asaas, e o fundador prefere o checkout hospedado.
+
+**O que isso muda na execução, e é a parte que não é óbvia:** hospedado troca o modelo de execução, não
+só o formulário. Hoje o `/join` faz `runCheckout` SÍNCRONO — cartão → Asaas → saga → clínica + owner +
+auto-login, com o usuário olhando "Ativando…". Com hospedado, a confirmação chega por **webhook**, o
+provisionamento vira assíncrono e a fatia precisa de:
+
+- tela de espera com estado real (não animação temporizada como a `Processing` atual);
+- caminho para "paguei e ainda não entrou" — que deixa de ser raro e passa a ser normal por alguns
+  segundos;
+- o readback do §21.2 (confirmar no Asaas que a assinatura existe no estado esperado) como fonte da
+  verdade, nunca o redirect do navegador.
+
+### 1.d. Limite honesto das decisões de 14/09
+
+Duas consequências ficam registradas porque não aparecem sozinhas depois.
+
+**O escopo PCI só cai quando NENHUM caminho tocar cartão.** Hoje `/join` (o fluxo de convite) envia
+`creditCard: { number, ccv, … }` pelo nosso servidor (`onboarding/internal/saga.ts`), o que coloca a
+aplicação em **SAQ A-EP**. Adotar hospedado só no cadastro autônomo **não** reduz o escopo: a aplicação
+continua sendo a mesma, e basta um caminho tocar cartão para o escopo maior valer. A redução para
+**SAQ A** exige migrar `/join` também — trabalho separado, não decidido aqui, e sem o qual o argumento
+de segurança desta decisão não se realiza. Fica valendo o argumento de produto (confiança) e o de
+§21.2.
+
+**Consentimento por link não prova a QUE a pessoa consentiu.** Sem versão nem hash do documento, quando
+os termos mudarem não há como demonstrar qual texto estava no ar no dia do aceite. Para o estágio atual
+é troca aceitável — e é o tipo de coisa que fica barata agora e cara depois de mil clínicas. Registrado
+para ser reavaliado, não esquecido.
 
 ### 2. O que a fatia NÃO entrega — escopo congelado, não omissão
 
