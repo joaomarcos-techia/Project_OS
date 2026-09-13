@@ -180,6 +180,48 @@ test.describe('integridade estrutural do formulário de login', () => {
     }
   });
 
+  test('o desafio resolve e entrega token — não fica preso em "loading"', async ({ page }) => {
+    await page.goto('/login');
+
+    const hosts = page.getByTestId('turnstile-widget');
+    const total = await hosts.count();
+    test.skip(total === 0, 'Ambiente sem NEXT_PUBLIC_TURNSTILE_SITE_KEY — não há widget.');
+
+    // ESTE é o teste que custou uma hora de diagnóstico em 13/09.
+    //
+    // A falha do Turnstile é MUDA: chave registrada para outro hostname, CSP
+    // sem `frame-src`, script que não injetou — tudo produz o MESMO sintoma,
+    // `loading` para sempre, sem iframe, sem token e sem callback de erro. Um
+    // teste que só verificasse "o widget existe" passaria em todos esses casos.
+    //
+    // O que ele afirma é o desfecho: estado terminal e token no campo que a
+    // server action vai ler. `error`/`expired` também reprovam — não é "saiu de
+    // loading", é "resolveu".
+    for (let i = 0; i < total; i++) {
+      const host = hosts.nth(i);
+      await expect(host, `widget ${i} não resolveu o desafio`).toHaveAttribute(
+        'data-turnstile-state',
+        'solved',
+        { timeout: 30_000 },
+      );
+    }
+
+    const tokens = page.locator('input[name="captchaToken"]');
+    for (let i = 0; i < (await tokens.count()); i++) {
+      expect(
+        (await tokens.nth(i).inputValue()).length,
+        `campo ${i} ficou sem token`,
+      ).toBeGreaterThan(0);
+    }
+
+    // Uma injeção só, compartilhada pelos dois widgets da tela (login e
+    // recuperação). Duas tags significaria a corrida que o singleton evita.
+    expect(
+      await page.locator('script[src*="challenges.cloudflare.com"]').count(),
+      'o script do Turnstile foi injetado mais de uma vez',
+    ).toBe(1);
+  });
+
   test('a recuperação de senha não aninha formulário dentro do login', async ({ page }) => {
     await page.goto('/login');
     await page.getByText('Esqueci a senha').click();

@@ -187,7 +187,7 @@ Ordenados por custo de errar, não por esforço.
 | # | Gap | Por que importa |
 | --- | --- | --- |
 | **G1** | **Nenhum E2E roda em CI** | 20.000 linhas de teste que só rodam quando alguém lembra não previnem regressão: descobrem depois. |
-| **G2** | **`/admin` sem cobertura autenticada** | Única superfície com poder sobre TODAS as clínicas (impersonate, kill-switch, billing). Um erro de autorização aqui não vaza um tenant, vaza todos. |
+| **G2** | **`/admin` sem cobertura autenticada** | Única superfície com poder sobre TODAS as clínicas (impersonate, kill-switch, billing). Um erro de autorização aqui não vaza um tenant, vaza todos. **Metade fechada** em §D.2 (o deny); o caminho do `super_admin` segue aberto (R1). |
 | **G3** | `/configuracoes/pagamentos` sem E2E | É onde a clínica conecta a chave do Asaas. Dinheiro de paciente. |
 | **G4** | `/configuracoes/auditoria` sem E2E | Export de auditoria é egresso de dado sensível e tem permission dedicada (`export:audit`). |
 | **G5** | `/login/mfa` sem E2E | O ciclo MFA é testado em `/account/security`; o **desafio no login** não. |
@@ -217,7 +217,24 @@ Primeira cobertura Playwright do ADR-060. Exercita por HTTP real:
 
 **Executado contra o Preview: 9/9 verdes** na primeira rodada da janela.
 
-### D.2 `e2e/public-surface.spec.ts` (7 casos)
+### D.2 `e2e/admin-boundary-rbac.spec.ts` (2 casos)
+
+Fecha o lado de segurança do G2 — a metade que dá para fechar sem credencial
+nova. Uma sessão de clínica **válida** (a mesma conta descartável dos outros
+cenários) tenta as 9 rotas de plataforma e o deep-link de clínica por ID.
+
+A distinção que o torna útil: o caminho anônimo é fácil (sem cookie, o
+middleware manda para `/login`). O caso perigoso é a sessão legítima — aí o
+middleware **deixa passar de propósito** (ADR-037: ele só confere presença de
+cookie) e quem decide é a porta única no servidor.
+
+Ele afirma que a sessão está válida ANTES de concluir qualquer coisa sobre o
+deny: sem isso, uma sessão expirada faria todos os casos passarem pelo motivo
+errado — "admin protegido" quando na verdade ninguém tinha entrado.
+
+**Executado contra o Preview: 2/2 verdes.**
+
+### D.3 `e2e/public-surface.spec.ts` (8 casos)
 
 O único spec que roda **sem segredo nenhum**:
 
@@ -323,12 +340,23 @@ desses endpoints). O que faltava era esta tabela existir, para ninguém confundi
 | Categoria | Qtde |
 | --- | --- |
 | Specs auditados | 51 |
-| Specs adicionados | 2 (16 casos) |
-| Casos novos executados | 16 |
-| Aprovados | 15 |
-| Falhos | 1 (CSP — verdadeiro: falta redeploy do Preview) |
-| Pulados com anotação | variável (orçamento de IP) |
-| Testes unitários (regressão) | 3.322 verdes |
+| Specs adicionados | 3 (19 casos) |
+| Casos novos executados | 19 |
+| Aprovados | 19 |
+| Falhos | 0 |
+| Pulados com anotação | 2 no `signup-session-api`, quando o orçamento de IP estoura |
+| Testes unitários (regressão) | 3.330 verdes (356 arquivos) |
+
+Execuções que sustentam a linha "aprovados", todas contra ambiente real:
+
+- `public-surface` — **8/8** no Preview e **6/7 + 1 skip** no build isolado de CI
+  (o skip é a secret do Turnstile, que o ambiente isolado não tem, por design);
+- `signup-session-api` — **9/9** no Preview na primeira janela de rate limit;
+- `admin-boundary-rbac` — **2/2** no Preview.
+
+**O que NÃO foi executado:** os 40 specs `production-*`. Eles escrevem em produção
+com clínicas sintéticas e exigem autorização explícita por spec — não é decisão de
+quem escreve teste. A auditoria os leu inteiros; não os rodou.
 
 ---
 

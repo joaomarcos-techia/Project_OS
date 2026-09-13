@@ -10,6 +10,7 @@ abaixo.
 | --- | --- | --- |
 | `public-surface.spec.ts` | nada (ou `E2E_BASE_URL`) | **sim** — `pnpm test:e2e:ci` |
 | `signup-session-api.spec.ts` | `E2E_BASE_URL` | não (precisa de banco) |
+| `admin-boundary-rbac.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (precisa de credencial) |
 | `production-*.spec.ts` (40) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
 | mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
 

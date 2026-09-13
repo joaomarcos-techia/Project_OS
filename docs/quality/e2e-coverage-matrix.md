@@ -173,10 +173,19 @@ Ver R4 da auditoria.
 | Feedbacks | triar | super_admin | — | **Não coberto** |
 | Conversas IA | ver | super_admin | — | **Não coberto** |
 | Fronteira anônima de `/admin` | redirect | anônimo | `public-surface` (8 rotas) | Coberto |
+| **Fronteira autenticada de `/admin`** | **deny com sessão de clínica válida** | owner de clínica | `admin-boundary-rbac` (9 rotas + deep-link) | **Coberto** |
 
-**Esta é a linha mais importante do documento.** `/admin` é a única superfície
-com poder sobre todas as clínicas, e a única cobertura autenticada que tem é
-indireta, por scripts de smoke em duas das onze páginas.
+**Metade do buraco foi fechada nesta auditoria.** `admin-boundary-rbac.spec.ts`
+cobre o lado que mais importa em segurança: uma sessão de clínica **válida**
+(JWT legítimo, cookie presente) batendo direto nas 9 rotas de plataforma e no
+deep-link de clínica por ID. O middleware deixa passar de propósito — ele só
+confere presença de cookie (ADR-037) — então quem nega é a porta única no
+servidor, e é essa decisão que o teste exercita.
+
+O que continua descoberto é o caminho **positivo**: o que o `super_admin`
+consegue fazer depois de entrar. Isso exige credencial de plataforma dedicada e
+uma decisão sobre em que ambiente exercitá-la; impersonate e kill-switch em
+produção não são coisas que um teste decide sozinho. Segue como R1.
 
 ---
 
