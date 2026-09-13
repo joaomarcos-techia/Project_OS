@@ -102,6 +102,51 @@ que é inteiramente testável offline.
 backend. Pequeno e bem especificado: o §21.8 já define os sinais e as três faixas; o que falta são os
 limiares, que são afinação, e o dono da configuração.
 
+### 1b. Desafio de bot: DUAS camadas, não uma escolha entre elas
+
+Levantado em 13/09, a partir de uma pergunta do fundador ("não seria melhor um reCAPTCHA? acho que já
+existe no Supabase"). A resposta tem três partes, e a do meio muda o desenho.
+
+**O Supabase não suporta reCAPTCHA.** A proteção de bot do Supabase Auth aceita **hCaptcha** e
+**Cloudflare Turnstile**. (As menções a reCAPTCHA no §20 do roadmap são do Checkout do **Asaas** —
+escolha do provider, na página dele, não nossa.)
+
+**O captcha do Supabase NÃO protege a nossa rota.** Ele age nos endpoints do Supabase Auth — `signUp`,
+`signIn`, recuperação de senha. `POST /api/signup/sessions` é rota nossa; o Supabase nunca a vê. Logo:
+
+| Camada | Protege | Fatia | Custo |
+| --- | --- | --- | --- |
+| Captcha do Supabase Auth | `signUp` e reenvio de verificação | **O-3** (identidade) | **configuração**, zero código |
+| Desafio próprio (Turnstile) | `POST /api/signup/sessions` | **O-2b** | código |
+
+As duas são desejadas, em fatias diferentes. A do Supabase estava prestes a virar item esquecido
+justamente por não ser código — não aparecia em nenhuma lista até este registro.
+
+**Turnstile não implica migrar para a Cloudflare.** É serviço avulso: basta conta e o par de chaves.
+Não exige DNS apontado para lá, proxy, CDN nem mudança de hospedagem — o Vercel continua o Vercel.
+Registrado porque a decisão estava sendo adiada por um pré-requisito que não existe.
+
+**Por que Turnstile e não hCaptcha**, agora com um motivo melhor que o do §21.8 ("custo e integração
+simples"): **um provedor cobre as duas camadas**. Uma conta, um par de chaves por ambiente, e o
+Supabase o suporta nativamente. Sobre reCAPTCHA há ainda o ângulo de privacidade — ele envia dados do
+visitante ao Google, o que num produto de saúde brasileiro com criptografia por tenant e postura LGPD
+é decisão de produto, não detalhe técnico neutro.
+
+**Contrato de env (decidido aqui para o O-2b não reabrir a discussão):**
+
+| Variável | Natureza | Onde |
+| --- | --- | --- |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | pública — o widget roda no browser | `.env.local` + Vercel (Preview e Production) |
+| `TURNSTILE_SECRET_KEY` | **segredo** — só o servidor valida o token | idem, **sem** `NEXT_PUBLIC_` |
+
+Chaves **separadas por ambiente** (§21.8): o Turnstile valida o hostname onde o widget rodou, e um
+widget por ambiente evita que a chave de produção seja exercitada de Preview ou de `localhost`.
+
+**Detalhe de implementação que muda o fluxo:** o token do Turnstile é **de uso único**. Um token
+gasto na criação da sessão (O-2b) **não** serve para o `signUp` (O-3) — cada passo protegido precisa
+do seu próprio desafio. Desenhar a tela supondo "um captcha no começo resolve o cadastro inteiro"
+levaria a uma falha de verificação no meio do funil, que é o pior lugar para descobrir isso.
+
 ### 2. O que a fatia NÃO entrega — escopo congelado, não omissão
 
 - **sem** `signUp` no Supabase, confirmação de e-mail ou PKCE (fatia de identidade);
@@ -332,7 +377,7 @@ contenção de um risco de segurança deixa de depender de um mecanismo não exe
 | adversarial (cookie forjado, resposta genérica) | **feito** — verificado no Preview: cookie ausente e cookie forjado devolvem `410` com corpo idêntico |
 | teto auto-limitante + sinal no `/api/health` | **feito** |
 | carga scratch no modo degradado | **feito** — `pnpm load:signup-degraded`, PASS; resultados abaixo |
-| dono do Turnstile | **pendente** — bloqueia O-2b, não O-2a |
+| dono do Turnstile | conta criada pelo fundador em 13/09; faltam os widgets por ambiente e as chaves no env (§1b) |
 
 ### Carga com o limiter degradado — 13/09
 
