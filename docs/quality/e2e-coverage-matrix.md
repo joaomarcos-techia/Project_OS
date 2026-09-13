@@ -54,6 +54,11 @@ documento:
 ¹ Com chaves de **teste** da Cloudflare, o token forjado é aceito de propósito.
 Ver R4 da auditoria.
 
+² A metade mutante só roda com a clínica DESCONECTADA. A do Preview já tem conta
+conectada, e conectar por cima seria "Trocar chave" — substituiria a configuração
+de quem usa o ambiente e deixaria um webhook órfão na conta antiga. Skip anotado,
+nunca verde.
+
 ## 3. Onboarding por convite (`/join`)
 
 | Funcionalidade | Ação | Roles | Positivo | Negativo | E2E existente | Novo E2E | Status |
@@ -123,7 +128,8 @@ Ver R4 da auditoria.
 | Dashboard financeiro | KPIs sem `view:financial` | doctor | — | sim | `production-dashboard-financial-rbac` | Coberto |
 | Relatórios | períodos, totais, PDFs, tenant binding | 5 roles | sim | período inválido, clinicId estrangeiro | `production-report-matrix` | Coberto |
 | Export contábil | CSV da ADR-058 | autenticado, anônimo | sim | mês malformado, sem sessão | `accounting-export` | Coberto |
-| Conectar conta Asaas | `/configuracoes/pagamentos` | — | não | não | — | **Não coberto** |
+| Conectar conta Asaas | chave inválida recusada, estado intacto, chave não volta ao browser | manage:financial | — | sim | `payments-account-lifecycle` | Coberto |
+| Conectar conta Asaas | ciclo conectar → persistir → desconectar | manage:financial | sim | — | `payments-account-lifecycle` (condicional) | Parcial (²) |
 
 ## 8. Equipe e permissões
 

@@ -11,8 +11,13 @@ abaixo.
 | `public-surface.spec.ts` | nada (ou `E2E_BASE_URL`) | **sim** — `pnpm test:e2e:ci` |
 | `signup-session-api.spec.ts` | `E2E_BASE_URL` | não (precisa de banco) |
 | `admin-boundary-rbac.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (precisa de credencial) |
+| `payments-account-lifecycle.spec.ts` | `E2E_BASE_URL` **de Preview** + `ASAAS_CLINIC_SANDBOX_KEY` | não (cria estado no Asaas) |
 | `production-*.spec.ts` (40) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
 | mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
+
+**Regra do fundador (13/09): escrita e alteração acontecem SOMENTE em Preview.**
+O `payments-account-lifecycle` recusa `app.qoro.dev` com erro — não com skip —
+porque pode registrar webhook no Asaas.
 
 Os `production-*` escrevem em **produção** com clínicas sintéticas: o atrito das
 60 variáveis `E2E_*` é a proteção, não burocracia. A consequência é que eles são

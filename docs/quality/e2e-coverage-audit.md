@@ -188,7 +188,7 @@ Ordenados por custo de errar, não por esforço.
 | --- | --- | --- |
 | **G1** | **Nenhum E2E roda em CI** | 20.000 linhas de teste que só rodam quando alguém lembra não previnem regressão: descobrem depois. |
 | **G2** | **`/admin` sem cobertura autenticada** | Única superfície com poder sobre TODAS as clínicas (impersonate, kill-switch, billing). Um erro de autorização aqui não vaza um tenant, vaza todos. **Metade fechada** em §D.2 (o deny); o caminho do `super_admin` segue aberto (R1). |
-| **G3** | `/configuracoes/pagamentos` sem E2E | É onde a clínica conecta a chave do Asaas. Dinheiro de paciente. |
+| **G3** | `/configuracoes/pagamentos` sem E2E | É onde a clínica conecta a chave do Asaas. Dinheiro de paciente. **Fechado** em §D.4, menos o ciclo mutante (ver R2). |
 | **G4** | `/configuracoes/auditoria` sem E2E | Export de auditoria é egresso de dado sensível e tem permission dedicada (`export:audit`). |
 | **G5** | `/login/mfa` sem E2E | O ciclo MFA é testado em `/account/security`; o **desafio no login** não. |
 | **G6** | O-2a/O-2b sem E2E até esta auditoria | Fatia nova (sessão anônima de cadastro). Fechado em §D. |
@@ -234,7 +234,23 @@ errado — "admin protegido" quando na verdade ninguém tinha entrado.
 
 **Executado contra o Preview: 2/2 verdes.**
 
-### D.3 `e2e/public-surface.spec.ts` (8 casos)
+### D.3 `e2e/payments-account-lifecycle.spec.ts` (2 casos, 1 condicional)
+
+Primeiro E2E de `/configuracoes/pagamentos` — a tela onde a clínica conecta a
+chave que **movimenta dinheiro de paciente**.
+
+Roda **só contra Preview**, e a guarda é `throw`, não skip: um skip silencioso
+num teste que muta é o caminho curto para alguém "só testar rapidinho" em
+produção. Verificado: recusa `app.qoro.dev` e `qoro.dev`, aceita Preview e
+localhost, e recusa a ausência de `E2E_BASE_URL`.
+
+A metade que sempre roda prova que uma chave inválida é recusada de forma
+**visível**, que o estado da conta **não muda** por causa dela, e que a chave
+**nunca chega ao browser** (o DTO carrega só `hasApiKey`).
+
+**Executado contra o Preview: 1/1 verde + 1 skip anotado.**
+
+### D.4 `e2e/public-surface.spec.ts` (8 casos)
 
 O único spec que roda **sem segredo nenhum**:
 
@@ -365,7 +381,7 @@ quem escreve teste. A auditoria os leu inteiros; não os rodou.
 | # | Risco | Por que não foi fechado |
 | --- | --- | --- |
 | **R1** | `/admin` (11 páginas) sem E2E | Exige credencial `super_admin` dedicada e uma decisão sobre em qual ambiente exercitá-la. Impersonate e kill-switch em produção não são coisas para um teste decidir sozinho. |
-| **R2** | `/configuracoes/pagamentos` sem E2E | Conectar conta Asaas cria estado no provedor; precisa de fixture de sandbox. |
+| **R2** | O CICLO de conectar/desconectar a conta Asaas | A chave sandbox da clínica existe (`ASAAS_CLINIC_SANDBOX_KEY`) e o fundador autorizou criar estado no Asaas de Preview. O que bloqueia agora é outra coisa: a clínica do Preview **já tem conta conectada**, e conectar por cima substituiria a configuração de quem usa o ambiente. Para exercitar, desconecte pela tela antes de rodar. A metade não-mutante (recusa de chave inválida, estado intacto, chave que não volta ao browser) já roda. |
 | **R3** | O captcha do Supabase segue **desligado** em todos os projetos | Correto por ora. A ordem obrigatória está no ADR-060; o código agora envia o token, que era o pré-requisito. |
 | **R4** | Preview com **chaves de teste** não discrimina token falso | Consequência declarada e desejada: mantém o E2E verde exercitando o caminho. Quem discrimina nos dois regimes é o caso de origem ausente. |
 | **R5** | Os 40 `production-*` continuam manuais | Automatizá-los exige decidir se produção aceita uma suíte destrutiva agendada. É decisão de produto, não de engenharia. |
