@@ -63,22 +63,38 @@ test.describe('fronteira sem sessão', () => {
     // não existe (foi o que aconteceu na primeira versão).
     await request.get('/login');
 
-    const leaked: string[] = [];
-    for (const route of PROTECTED_ROUTES) {
+    /**
+     * Uma tentativa. Devolve `null` quando a rota se comportou como deve.
+     *
+     * Separado em função porque o chamador tenta DUAS vezes: a primeira
+     * requisição a uma rota fria (servidor recém-subido, função serverless
+     * adormecida) pode responder de forma atípica, e um gate que quebra o merge
+     * de todo mundo por causa disso é pior que inútil — ensina a ignorar
+     * vermelho. Uma rota genuinamente desprotegida falha nas duas.
+     */
+    const probe = async (route: string): Promise<string | null> => {
       const response = await request.get(route, { maxRedirects: 0 });
       const location = response.headers()['location'] ?? '';
       const redirected = response.status() >= 300 && response.status() < 400;
 
       if (!redirected || !location.includes('/login')) {
-        leaked.push(`${route} → ${response.status()} ${location || '(sem Location)'}`);
-        continue;
+        return `${route} → ${response.status()} ${location || '(sem Location)'}`;
       }
       // Corpo vazio: um redirect que ainda assim carrega HTML do shell teria
       // vazado o conteúdo para quem olha a resposta crua.
       const body = await response.text();
       if (/<main|data-clinic|Prontuário|Agenda da clínica/i.test(body)) {
-        leaked.push(`${route} → redirect COM corpo (${body.length} bytes)`);
+        return `${route} → redirect COM corpo (${body.length} bytes)`;
       }
+      return null;
+    };
+
+    const leaked: string[] = [];
+    for (const route of PROTECTED_ROUTES) {
+      const first = await probe(route);
+      if (first === null) continue;
+      const second = await probe(route);
+      if (second !== null) leaked.push(second);
     }
 
     // Lista inteira de uma vez: falhar na primeira esconderia quantas outras

@@ -47,10 +47,17 @@ Acrescentar um spec a `playwright.ci.config.ts` é decisão explícita: ele pass
 poder quebrar o merge de todo mundo.
 
 ```bash
-pnpm test:e2e:public   # public-surface + signup-session-api, contra E2E_BASE_URL
+# Rode com E2E_AUTH_REUSE=1: o admin-boundary faz login de verdade, e a conta é
+# compartilhada com os outros cenários. Sem o reuse, repetir a suíte dentro de
+# 15 min esgota o rate limit DUAL (IP + e-mail) e o caso vira skip.
+E2E_AUTH_REUSE=1 pnpm test:e2e:public
 ```
 
-O `signup-session-api` fica fora do CI porque precisa de banco. Ele exercita
+Três specs: `public-surface`, `signup-session-api` e `admin-boundary-rbac`, todos
+contra `E2E_BASE_URL`.
+
+`signup-session-api` e `admin-boundary-rbac` ficam fora do CI: um precisa de banco,
+o outro de credencial. Ele exercita
 `/api/signup/*` por HTTP real e **pula com anotação** quando o orçamento de IP
 do próprio produto (20 aberturas/15 min) estoura — skip anotado, nunca verde,
 pelo mesmo motivo do `n/v` acima.
