@@ -4,6 +4,12 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 
+import {
+  CAPTCHA_ERROR_MESSAGE,
+  captchaOptions,
+  isCaptchaError,
+  readCaptchaToken,
+} from '@/lib/auth/captcha';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
@@ -59,9 +65,19 @@ export async function forgotPasswordAction(
     const supabase = await createServerClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: createPasswordResetRedirectUrl(),
+      // Presente só quando o widget produziu um token. Com o captcha desligado
+      // no projeto, o GoTrue ignora o campo.
+      ...captchaOptions(readCaptchaToken(formData)),
     });
     if (error) {
-      logger.warn('forgot_password.request_failed', { reason: 'provider_rejected' });
+      // O motivo distingue desafio reprovado de rejeição do provedor — são
+      // incidentes diferentes e o conserto de cada um é outro. A RESPOSTA ao
+      // usuário continua idêntica nos dois casos: esta action nunca revela se
+      // o endereço existe, e um erro visível de captcha aqui seria um oráculo
+      // a menos de ruído para quem enumera contas.
+      logger.warn('forgot_password.request_failed', {
+        reason: isCaptchaError(error) ? 'captcha_failed' : 'provider_rejected',
+      });
     }
   } catch (error) {
     logger.error('forgot_password.request_failed', {
@@ -100,8 +116,22 @@ export async function loginAction(
   }
 
   const supabase = await createServerClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  // `options` é omitido quando não há token: mandar `{ captchaToken: '' }` faz o
+  // GoTrue tratar como token INVÁLIDO, não como ausente.
+  const options = captchaOptions(readCaptchaToken(formData));
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    ...(options ? { options } : {}),
+  });
   if (error || !data.user) {
+    // Captcha reprovado NÃO é tentativa de credencial: contá-lo como falha de
+    // login envenenaria o rate limit por e-mail (um widget expirado bloquearia
+    // a conta de quem digitou a senha certa) e o sinal de brute-force.
+    if (isCaptchaError(error)) {
+      metrics.emit('auth.login.failed', { reason: 'captcha_failed' });
+      return { error: CAPTCHA_ERROR_MESSAGE };
+    }
     await recordLoginAttempt(emailHash, ip, false);
     // A1: alimenta a saved-search de brute-force (> N/5min). `reason` distingue
     // credencial inválida de bloqueio — são incidentes diferentes.

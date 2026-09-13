@@ -10,6 +10,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Logo } from '@/components/shared/logo';
 import { AuthScreenSkeleton } from '@/components/shared/auth-screen-skeleton';
+import { TurnstileWidget } from '@/components/shared/turnstile-widget';
 import { loginAction, type LoginActionState } from './actions';
 import { AuthProductPreview } from './auth-product-preview';
 import { clearPasswordField, clearPasswordFieldAfterSubmit } from './clear-password-field';
@@ -47,10 +48,15 @@ function LoginScreen() {
   const reason = params.get('reason');
   const [state, formAction, pending] = useActionState(loginAction, INITIAL);
   const [showPw, setShowPw] = useState(false);
+  // O token do Turnstile é DE USO ÚNICO. Sem este contador, a segunda tentativa
+  // reenviaria o token já gasto e levaria `timeout-or-duplicate` — o usuário
+  // veria "verificação de segurança" com a senha certa.
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!state.error) return;
+    setCaptchaAttempt((n) => n + 1);
     clearPasswordField(formRef.current);
     setShowPw(false);
   }, [state]);
@@ -134,6 +140,13 @@ function LoginScreen() {
                     </button>
                   </div>
                 </Field>
+
+                {/* `interaction-only`: invisível para quem a Cloudflare já
+                    considera humano, e só aparece quando há desafio a resolver.
+                    Um widget sempre visível no login é atrito diário para
+                    clínica inteira em troca de nada na esmagadora maioria dos
+                    acessos. */}
+                <TurnstileWidget action="login" resetSignal={captchaAttempt} />
 
                 {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
 

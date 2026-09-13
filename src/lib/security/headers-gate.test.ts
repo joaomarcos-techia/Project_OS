@@ -122,6 +122,11 @@ describe('gate: a política não pode afrouxar', () => {
         'https://web.facebook.com',
         'https://graph.facebook.com',
         'https://staticxx.facebook.com',
+        // Turnstile (ADR-060): desafio de bot nas telas sem sessão. Entra em
+        // script-src, frame-src e connect-src — o widget carrega, renderiza num
+        // iframe e fala com a Cloudflare. Origem dedicada ao produto; não serve
+        // conteúdo de terceiro arbitrário.
+        'https://challenges.cloudflare.com',
         // Preview-only (Vercel Toolbar).
         'https://vercel.live',
         'https://vercel.com',

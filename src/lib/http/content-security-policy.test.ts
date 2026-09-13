@@ -26,6 +26,25 @@ describe('buildContentSecurityPolicy', () => {
     expect(directive(policy, 'frame-src')).not.toContain('vercel');
   });
 
+  it('permite o Turnstile nas TRÊS diretivas que o widget precisa', () => {
+    const policy = buildContentSecurityPolicy('production', SUPABASE);
+    const CF = 'https://challenges.cloudflare.com';
+
+    // Script sozinho não basta: o widget renderiza num IFRAME e conversa com a
+    // Cloudflare para buscar e resolver o desafio. Faltando frame-src ou
+    // connect-src ele carrega e nunca aparece — falha silenciosa para quem não
+    // abre o console.
+    expect(directive(policy, 'script-src')).toContain(CF);
+    expect(directive(policy, 'frame-src')).toContain(CF);
+    expect(directive(policy, 'connect-src')).toContain(CF);
+  });
+
+  it('o Turnstile vale também em Preview — é onde o desafio é exercitado', () => {
+    const policy = buildContentSecurityPolicy('preview', SUPABASE);
+
+    expect(directive(policy, 'frame-src')).toContain('https://challenges.cloudflare.com');
+  });
+
   it('permite o SDK do Facebook usado pelo Embedded Signup', () => {
     const policy = buildContentSecurityPolicy('production', SUPABASE);
 
@@ -85,8 +104,11 @@ describe('fechamento dos canais de exfiltração (auditoria 2026-09-10, item 10)
     // Fail-closed: a política sai sem a origem (app quebra visivelmente em dev)
     // em vez de ganhar `https:` de volta por um fallback silencioso.
     const broken = buildContentSecurityPolicy('production', 'nao-e-url');
+    // Igualdade exata, não `toContain`: o ponto do teste é que a lista
+    // permaneça FECHADA quando a origem do Supabase cai fora. Turnstile entrou
+    // na lista deliberadamente (ADR-060) e é origem nomeada, não curinga.
     expect(directive(broken, 'connect-src')).toBe(
-      "connect-src 'self' https://www.facebook.com https://graph.facebook.com",
+      "connect-src 'self' https://www.facebook.com https://graph.facebook.com https://challenges.cloudflare.com",
     );
     expect(broken).not.toContain('*');
   });

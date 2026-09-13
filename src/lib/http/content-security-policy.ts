@@ -60,6 +60,20 @@ const FACEBOOK_FRAME = [
 ] as const;
 
 /**
+ * Cloudflare Turnstile (ADR-060, O-2b) — desafio de bot nas telas sem sessão.
+ *
+ * Três diretivas, não uma: o widget CARREGA um script, RENDERIZA dentro de um
+ * iframe e FALA com a Cloudflare para buscar e resolver o desafio. Liberar só
+ * `script-src` faz o widget carregar e nunca aparecer — e a falha é silenciosa
+ * para quem não abre o console.
+ *
+ * Origem nomeada, nunca curinga: `challenges.cloudflare.com` serve apenas o
+ * Turnstile. Vale em Production e em Preview porque o desafio existe nos dois:
+ * uma política que só protege um ambiente ensina a equipe a testar no errado.
+ */
+const TURNSTILE = 'https://challenges.cloudflare.com';
+
+/**
  * Vercel Toolbar — SOMENTE em Preview. Em Production a origem continua
  * ausente: o toolbar expõe metadado de deployment para quem usa o sistema.
  */
@@ -125,8 +139,8 @@ export function buildContentSecurityPolicy(
     "object-src 'none'",
     // 'unsafe-inline' permanece — ver o bloco "Por que NÃO há nonce" acima.
     // 'unsafe-eval' SÓ em `next dev` (React Refresh); nunca no que é publicado.
-    `script-src ${join("'self'", "'unsafe-inline'", development ? "'unsafe-eval'" : [], FACEBOOK_SCRIPT, preview ? VERCEL_LIVE.script : [])}`,
-    `frame-src ${join("'self'", FACEBOOK_FRAME, preview ? VERCEL_LIVE.frame : [])}`,
+    `script-src ${join("'self'", "'unsafe-inline'", development ? "'unsafe-eval'" : [], FACEBOOK_SCRIPT, TURNSTILE, preview ? VERCEL_LIVE.script : [])}`,
+    `frame-src ${join("'self'", FACEBOOK_FRAME, TURNSTILE, preview ? VERCEL_LIVE.frame : [])}`,
     // Next e Tailwind emitem <style> inline; sem nonce, style-src precisa disto.
     // É um risco menor por ordens de grandeza que o mesmo em script-src.
     `style-src ${join("'self'", "'unsafe-inline'", preview ? VERCEL_LIVE.script : [])}`,
@@ -135,6 +149,6 @@ export function buildContentSecurityPolicy(
     // O Sentry do browser sai pelo túnel same-origin (/monitoring), então o host
     // de ingestão NÃO entra aqui: seria um destino de exfiltração a mais, e o
     // DSN é público. Se o túnel falhar, perde-se telemetria — não o app.
-    `connect-src ${join("'self'", supabase.http, supabase.ws, FACEBOOK_CONNECT, preview ? VERCEL_LIVE.connect : [])}`,
+    `connect-src ${join("'self'", supabase.http, supabase.ws, FACEBOOK_CONNECT, TURNSTILE, preview ? VERCEL_LIVE.connect : [])}`,
   ].join('; ');
 }

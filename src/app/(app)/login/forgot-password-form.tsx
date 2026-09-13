@@ -1,11 +1,12 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { TurnstileWidget } from '@/components/shared/turnstile-widget';
 
 import { forgotPasswordAction, type ForgotPasswordActionState } from './actions';
 
@@ -22,6 +23,12 @@ const INITIAL: ForgotPasswordActionState = { error: null, sent: false };
  */
 export function ForgotPasswordForm() {
   const [state, formAction, pending] = useActionState(forgotPasswordAction, INITIAL);
+  // Token do Turnstile é de uso único: cada envio precisa de um novo.
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
+
+  useEffect(() => {
+    if (state.sent || state.error) setCaptchaAttempt((n) => n + 1);
+  }, [state]);
 
   return (
     <details className="group">
@@ -47,6 +54,7 @@ export function ForgotPasswordForm() {
               placeholder="voce@clinica.com.br"
             />
           </Field>
+          <TurnstileWidget action="recovery" resetSignal={captchaAttempt} />
           {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
           {state.sent ? (
             <Alert variant="success" title="Verifique seu e-mail">

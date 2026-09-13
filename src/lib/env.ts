@@ -420,9 +420,20 @@ function normalizeDevelopmentAliases(source: NodeJS.ProcessEnv): NodeJS.ProcessE
     // de produção simplesmente falha em localhost. O alias evita o caso pior —
     // um valor de produção sob o nome canônico no .env.local mandando a máquina
     // do desenvolvedor exercitar o widget de produção.
+    //
+    // TRÊS níveis, e a ordem importa: `_LOCAL` > `_DEV` > canônico.
+    // `_DEV` é a chave do hostname de homologação (`*.vercel.app`); `_LOCAL` é
+    // a do `localhost`. São hostnames DIFERENTES na Cloudflare, então usar a de
+    // homologação em `localhost` faz o widget recusar — e a recusa aparece como
+    // "o desafio não passa", que não aponta para configuração nenhuma.
     NEXT_PUBLIC_TURNSTILE_SITE_KEY:
-      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV ?? source.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
-    TURNSTILE_SECRET_KEY: source.TURNSTILE_SECRET_KEY_DEV ?? source.TURNSTILE_SECRET_KEY,
+      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL ??
+      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV ??
+      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    TURNSTILE_SECRET_KEY:
+      source.TURNSTILE_SECRET_KEY_LOCAL ??
+      source.TURNSTILE_SECRET_KEY_DEV ??
+      source.TURNSTILE_SECRET_KEY,
   };
 }
 
