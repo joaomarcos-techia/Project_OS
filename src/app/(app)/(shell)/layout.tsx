@@ -46,7 +46,23 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   // C15: super_admin só fica no app tenant DURANTE um impersonate. Sem sessão
   // ativa (nunca iniciou / TTL expirou / revogado), volta pro /admin — em vez de
   // bater em requireClinicId() e quebrar a tela tenant (OR-I10).
-  if (user?.isSuperAdmin && !impersonation) {
+  //
+  // ⚠️ SÓ COM AAL2, e isto conserta um IMPASSE FECHADO (14/09). Sem a condição,
+  // um super_admin recém-criado ficava trancado para fora do produto inteiro:
+  //
+  //   login → postLoginRedirect manda para /account/security?force=1 (sem MFA)
+  //        → mas essa página vive no (shell)
+  //        → o shell redireciona para /admin
+  //        → /admin exige AAL2 → notFound()
+  //
+  // Ou seja: precisava de AAL2 para chegar na única tela que concede AAL2. O
+  // `seed:super-admin` imprime "PRÓXIMOS PASSOS" que eram inalcançáveis.
+  //
+  // Em AAL1 o shell RENDERIZA, e é o que torna o enrollment possível. A troca
+  // aceita: um super_admin em AAL1 que digite uma rota de tenant à mão cai no
+  // erro de `requireClinicId()` em vez de ser redirecionado. É uma janela que
+  // dura um enrollment; o custo anterior era lockout permanente.
+  if (user?.isSuperAdmin && !impersonation && user.aal === 'aal2') {
     redirect('/admin');
   }
 

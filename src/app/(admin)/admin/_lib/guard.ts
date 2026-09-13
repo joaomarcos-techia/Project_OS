@@ -18,14 +18,28 @@
  */
 import 'server-only';
 
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
-import { requireSuperAdmin } from '@/lib/auth/tenant-context';
+import { AuthError, requireSuperAdmin } from '@/lib/auth/tenant-context';
+
+/** Tela que concede AAL2 — enrollment forçado quando ainda não há fator. */
+const STEP_UP_ROUTE = '/account/security?force=1';
 
 export async function guardAdminAccess(): Promise<void> {
   try {
     await requireSuperAdmin();
-  } catch {
+  } catch (error) {
+    // `MFA_REQUIRED` é o ÚNICO caso que não merece 404: quem chegou até aqui já
+    // provou ser super_admin: a sessão carrega a role. Ele não é alguém de quem
+    // se esconde o painel — é o próprio admin, no meio da autenticação. Mandar
+    // 404 para ele foi o que criou o impasse de 14/09, em que um super_admin
+    // recém-criado não alcançava a única tela capaz de lhe dar AAL2.
+    //
+    // Não enfraquece a anti-enumeração: ela existe para quem NÃO é super_admin,
+    // e esse caminho continua em `notFound()` logo abaixo.
+    if (error instanceof AuthError && error.reason === 'MFA_REQUIRED') {
+      redirect(STEP_UP_ROUTE);
+    }
     notFound();
   }
 }
