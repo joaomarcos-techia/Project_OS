@@ -33,6 +33,7 @@ import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
 import { assertCronRuntimeReady } from '@/lib/env';
+import { SIGNUP_SESSION_CEILING, getSignupSessionPressure } from '@/contexts/onboarding';
 import { healthAuthLevel } from '@/lib/http/health-auth';
 import { checkExternals, type CheckStatus } from '@/lib/http/health-probes';
 
@@ -41,6 +42,20 @@ export const dynamic = 'force-dynamic';
 
 // SLO de fila (slo.md / GAP 3): pending mais antigo acima disso → degraded.
 const PENDING_STUCK_S = 300;
+
+/**
+ * ADR-060 (O-2a) — pressão na tabela de sessões anônimas de cadastro.
+ *
+ * Degrada em 80% do teto, NÃO em 100%: o teto é o ponto em que o cadastro passa
+ * a ser recusado, e um alerta que só dispara ali avisa depois da queda. 80% dá
+ * margem para olhar antes de alguém deixar de conseguir se cadastrar.
+ *
+ * Este check existe aqui, e não como regra de limiar sobre linha de log, por
+ * decisão registrada na ADR-060: probe HTTP de saúde é caminho de alerta que
+ * JÁ funciona neste projeto (monitores no Better Stack). Criar um caminho novo
+ * significaria apostar a contenção de um risco num mecanismo não exercitado.
+ */
+const SIGNUP_PRESSURE_DEGRADED_AT = Math.floor(SIGNUP_SESSION_CEILING * 0.8);
 
 /** `db` é a única dependência cuja falha é DOWN (resto degrada). */
 async function checkDb(): Promise<CheckStatus> {
@@ -98,8 +113,25 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
+  // Pressão de cadastro — mesma regra do outbox: só consulta se o banco
+  // respondeu, e falha de leitura já é sinal (degraded), não silêncio.
+  let signupLive = 0;
+  let signup: CheckStatus = db === 'down' ? 'down' : 'ok';
+  if (db !== 'down') {
+    try {
+      const pressure = await getSignupSessionPressure();
+      signupLive = pressure.live;
+      signup = signupLive >= SIGNUP_PRESSURE_DEGRADED_AT ? 'degraded' : 'ok';
+    } catch {
+      signup = 'degraded';
+    }
+  }
+
   const ext = await checkExternals(deep);
-  const checks: Record<'db' | 'gemini' | 'meta' | 'asaas' | 'redis' | 'outbox', CheckStatus> = {
+  const checks: Record<
+    'db' | 'gemini' | 'meta' | 'asaas' | 'redis' | 'outbox' | 'signup',
+    CheckStatus
+  > = {
     db,
     gemini: ext.gemini,
     meta: ext.meta,
@@ -108,6 +140,7 @@ export async function GET(req: Request): Promise<Response> {
     // sistema segue servindo sem proteção de brute-force, hoje em silêncio.
     redis: ext.redis,
     outbox,
+    signup,
   };
 
   const status = aggregate(checks);
@@ -131,6 +164,8 @@ export async function GET(req: Request): Promise<Response> {
     body.sli = {
       outbox_depth: outboxPending,
       outbox_oldest_age: outboxOldestAgeS,
+      signup_sessions_live: signupLive,
+      signup_sessions_ceiling: SIGNUP_SESSION_CEILING,
     };
   }
 

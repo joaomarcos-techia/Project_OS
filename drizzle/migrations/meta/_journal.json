@@ -673,6 +673,13 @@
       "when": 1788783000000,
       "tag": "0095_proactive_no_show_followup",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1789256256141,
+      "tag": "0096_signup_sessions",
+      "breakpoints": true
     }
   ]
 }

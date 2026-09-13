@@ -138,6 +138,10 @@ const fallback = {
   pdfClinic: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
   clinicalPdfUser: new BoundedFallbackLimiter(60, FIFTEEN_MIN_MS),
   clinicalPdfClinic: new BoundedFallbackLimiter(600, FIFTEEN_MIN_MS),
+  // ADR-060 (O-2a): criação de sessão anônima de cadastro. Teto por IP mais
+  // generoso que o do login porque aqui não há conta a proteger — o que se
+  // contém é volume, e quem contém o pior caso é o teto de sessões vivas.
+  signupIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
 };
 
 /**
@@ -248,7 +252,8 @@ function degraded(
     | 'resend'
     | 'mfa'
     | 'pdf'
-    | 'clinical_pdf',
+    | 'clinical_pdf'
+    | 'signup',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -425,6 +430,43 @@ export async function assertPasswordResetCompletionAllowed(
     return degraded('reset_completion', err, ipOk && emailOk);
   }
 }
+
+/**
+ * ADR-060 (O-2a) — criação de sessão anônima de cadastro.
+ *
+ * Superfície PÚBLICA e anônima: não há conta, e-mail nem tenant para usar como
+ * dimensão, então o IP é a única disponível nesta fatia. As outras dimensões do
+ * §21.7 (hash de e-mail, dispositivo) entram nas fatias que passam a conhecê-las.
+ *
+ * DEGRADA quando o Redis cai, como o resto do módulo — e aqui isso é decisão
+ * registrada, não herança: nesta fatia uma sessão excedente custa uma linha que
+ * expira em 60 min, sem PII e sem chamada externa. Fechar o cadastro inteiro por
+ * queda de um terceiro trocaria custo desprezível por indisponibilidade de
+ * aquisição. O pior caso é contido por `SIGNUP_SESSION_CEILING`, não por aqui.
+ */
+export async function assertSignupSessionAllowed(ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const r = await lazySignupLimiter().limit(ipKey);
+    return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  } catch (err) {
+    return degraded('signup', err, fallback.signupIp.hit(ipKey));
+  }
+}
+
+const lazySignupLimiter = (() => {
+  let cached: Ratelimit | null = null;
+  return () => {
+    if (cached) return cached;
+    cached = new Ratelimit({
+      redis: lazyRedis(),
+      limiter: Ratelimit.slidingWindow(20, '15 m'),
+      prefix: redisKey.global('rl', 'signup', 'ip'),
+      analytics: false,
+    });
+    return cached;
+  };
+})();
 
 const lazyJoinLimiter = (() => {
   let cached: Ratelimit | null = null;

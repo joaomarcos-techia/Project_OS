@@ -89,6 +89,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // por version rodam via dbAdmin/BYPASSRLS. A saga de provisionamento também.
     'src/contexts/onboarding/internal/invites.ts',
     'src/contexts/onboarding/internal/saga.ts',
+    // ADR-060 (O-2a): signup_sessions é global pré-tenant (sem clinic_id), com RLS
+    // ENABLE+FORCE sem policy, grant só a service_role e REVOKE de
+    // anon/authenticated na 0096. withTenant não se aplica.
+    'src/contexts/onboarding/internal/signup-session.ts',
     // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
     // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
     'src/contexts/identity/internal/members.ts',

@@ -38,3 +38,59 @@ export const clinicInvites = pgTable('clinic_invites', {
 
 export type ClinicInviteRow = typeof clinicInvites.$inferSelect;
 export type ClinicInviteInsert = typeof clinicInvites.$inferInsert;
+
+/**
+ * `signup_sessions` — sessão anônima do cadastro autônomo (ADR-060, fatia O-2a).
+ *
+ * Categoria (ADR-007 §10): GLOBAL PROTECTED, como `clinic_invites`. Não tem
+ * `clinic_id` porque nasce ANTES de existir clínica. Acesso só via
+ * dbAdmin/service_role: a tabela não recebe grant de `anon` nem de
+ * `authenticated`, e o navegador sempre passa pelos endpoints de onboarding.
+ *
+ * O token NUNCA é guardado em claro — só o HMAC, como no convite mágico.
+ *
+ * O QUE ESTA TABELA NÃO GUARDA, e é decisão, não esquecimento (ADR-060 §3):
+ * nome, e-mail, telefone, senha, cartão, atribuição de campanha ou qualquer
+ * PII. As colunas do §21.5 que guardariam isso entram nas fatias que as
+ * escrevem. Consequência boa: enquanto for assim, o janitor APAGA a linha e não
+ * há nada a anonimizar.
+ *
+ * `status` é `text` com CHECK, não `pgEnum`, por dois motivos:
+ *   1. o CHECK lista SÓ os estados que esta fatia pode produzir, então o banco
+ *      recusa uma transição fora de escopo — o congelamento vira constraint, não
+ *      comentário pedindo cuidado;
+ *   2. estender depois é `DROP CONSTRAINT` + `ADD CONSTRAINT`, sem a armadilha
+ *      do `ALTER TYPE ... ADD VALUE` (valor novo inutilizável na mesma transação).
+ *
+ * NUNCA ordenar por `status` para deduzir progresso de funil: a ordem de `text`
+ * é alfabética e não tem relação com a máquina de estados. A ordem do funil vive
+ * no código, em `SIGNUP_FUNNEL_ORDER`.
+ */
+export const signupSessions = pgTable('signup_sessions', {
+  id: uuidPk(),
+  /** HMAC-SHA256 do token cru (32 bytes CSPRNG). O cru só existe no cookie. */
+  tokenHash: text('token_hash').notNull().unique(),
+  /** Estados desta fatia: initiated | expired | blocked (CHECK na migration). */
+  status: text('status').notNull().default('initiated'),
+  /** Faixa do classificador do §21.8. 0 nesta fatia; O-2b passa a escrever. */
+  riskLevel: integer('risk_level').notNull().default(0),
+  /** Contador transacional, além dos buckets do Redis. Estourou → blocked. */
+  failedAttempts: integer('failed_attempts').notNull().default(0),
+  /** CAS: toda escrita exige a versão lida. Aba perdedora recebe 409. */
+  rowVersion: integer('row_version').notNull().default(1),
+  /** 15 min de inatividade; atividade válida renova SÓ este. */
+  idleExpiresAt: timestamp('idle_expires_at', { withTimezone: true }).notNull(),
+  /** 60 min absolutos; atividade NÃO renova. */
+  absoluteExpiresAt: timestamp('absolute_expires_at', { withTimezone: true }).notNull(),
+  /** Preenchido quando a sessão é consumida pela identidade (fatia seguinte). */
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+});
+
+export type SignupSessionRow = typeof signupSessions.$inferSelect;
+export type SignupSessionInsert = typeof signupSessions.$inferInsert;

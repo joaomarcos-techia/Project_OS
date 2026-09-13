@@ -54,8 +54,9 @@ initiated → details_complete → identity_pending → email_verified → check
                                    (a qualquer momento: expired | blocked | failed)
 ```
 
-O enum é **declarado nessa ordem**, porque em Postgres a ordem de declaração é a ordem de comparação;
-declarar na sequência lógica evita que um `ORDER BY status` futuro minta sobre o progresso do funil.
+Essa sequência vive **no código** (`SIGNUP_FUNNEL_ORDER`), não no banco. A coluna é `text` com CHECK
+(decisão 3), então ordenar por `status` daria ordem alfabética — que não tem relação nenhuma com
+progresso. **Nada deve `ORDER BY status` para deduzir etapa do funil.**
 
 ### O que a escolha de A muda nesta fatia
 
@@ -129,11 +130,25 @@ de adiar é ainda menor que no caso do CRM: **as linhas vivem no máximo 60 minu
 `ALTER TABLE ADD COLUMN` mais tarde não tem backfill, não tem lock relevante e não tem linha histórica
 para reconciliar.
 
-**A exceção deliberada é o enum de `status`: nasce completo**, com os dez valores, na ordem lógica de A.
-Valor de enum não usado é metadado de custo zero — não ocupa linha, não aparece em `SELECT`. Já
-`ALTER TYPE ... ADD VALUE` é armadilha: o valor novo não pode ser usado na mesma transação que o
-adiciona. Trocar risco de migration por custo zero de dado é a troca certa, e é por isso que a regra
-"só o que se escreve" vale para coluna e **não** para valor de enum.
+**Correção (implementação): `text` + CHECK, não `pgEnum`.** As duas versões anteriores desta ADR
+discutiam se o enum devia nascer completo. A pergunta estava errada. Ao escrever a migration, o
+análogo mais próximo — `clinic_invites`, também global e pré-tenant — usa `text` com um comentário
+listando os valores, e **sem CHECK**: nenhuma validação no banco. E o projeto já usa CHECK em outras
+tabelas (`clinics_slug_format`, `profiles_role_clinic_check`), então é ferramenta da casa.
+
+`text` + CHECK ganha das duas opções que eu havia considerado:
+
+- **valida no banco**, ao contrário do `text` puro do `clinic_invites`;
+- **estende sem armadilha**: `DROP CONSTRAINT` + `ADD CONSTRAINT`, sem o problema do
+  `ALTER TYPE ... ADD VALUE` (valor novo inutilizável na mesma transação);
+- e, o mais importante, **permite listar só os estados desta fatia**. O CHECK da 0096 aceita
+  `initiated`, `expired` e `blocked` — nada mais. O congelamento de escopo vira **constraint**, não
+  comentário pedindo cuidado: o banco recusa uma transição que esta fatia não deveria produzir. Cada
+  fatia seguinte substitui a constraint acrescentando os seus.
+
+Com isso a regra "só o que se escreve" volta a valer **também** para os estados, sem exceção — e o
+ponto sobre ordem de declaração some junto: `text` ordena alfabeticamente, então **nada deve ordenar
+por `status`** para deduzir progresso. A ordem do funil vive no código, em `SIGNUP_FUNNEL_ORDER`.
 
 ### 4. Estados alcançáveis nesta fatia
 
@@ -171,8 +186,35 @@ Portanto:
 
 Contrapartida honesta do "degrada": em serverless o fallback é por instância, então um atacante
 distribuído consegue mais que o limite nominal durante um apagão do Redis. Aceito **nesta fatia**
-porque o teto de dano é linha efêmera, e mitigado por alerta de crescimento da tabela — que entra na
-evidência de aceite. Não seria aceitável nas linhas de baixo da tabela, e por isso elas fecham.
+porque o teto de dano é linha efêmera — e contido pelo teto da decisão 6b. Não seria aceitável nas
+linhas de baixo da tabela, e por isso elas fecham.
+
+### 6b. O teto de sessões vivas — o que torna "degradar" defensável
+
+`SIGNUP_SESSION_CEILING` limita quantas sessões **vivas simultâneas** podem existir. Acima dele, a
+criação é recusada.
+
+**O que ele NÃO é:** não é limite de contas criadas, nem de cadastros por período. Em O-2a não existe
+conta nenhuma — nem usuário, nem tenant, nem e-mail enviado. Um limite de negócio por período barraria
+cliente de verdade e não é isto.
+
+**O que ele é:** contenção de raio de alcance. O banco é o mesmo que guarda dado clínico de clínicas
+pagantes. Um endpoint público e anônimo não pode ter caminho para fazer uma tabela crescer sem fim lá
+dentro. O teto torna explícito um trade-off que sem ele ficaria implícito:
+
+| | com teto | sem teto |
+| --- | --- | --- |
+| atacante enche | derruba o **cadastro** — ruim, limitado, recuperável | degrada o **banco** que atende paciente |
+
+**Custo assumido:** um atacante pode encher o teto de propósito para negar cadastro (DoS por
+esgotamento). Aceitável porque (a) em operação normal o rate limit o para muito antes — o teto só
+aperta enquanto o limiter distribuído está fora; (b) é dimensionado ordens de grandeza acima da
+concorrência legítima; (c) o que ele nega é exatamente o que o *fail-closed* negaria, mas **só sob
+ataque**, não a cada soluço do Redis.
+
+**Implementação:** conferido por amostragem (uma vez a cada 30 s por instância), não a cada
+requisição — um `COUNT` por chamada seria custo fixo no caminho quente para uma válvula que quase
+nunca dispara. E não depende do Redis, porque o cenário em que o teto importa é o de Redis fora.
 
 ### 7. Observação de leads — o que a fatia entrega de verdade
 
@@ -215,11 +257,39 @@ receber desconhecidos.
 3. testes: unit (entropia, HMAC, TTL, CAS, tempo constante), integration DB (expiração, duas abas,
    concorrência, janitor apagando PII simulada, ausência de grants), adversarial (replay, token
    forjado, enumeração) e carga scratch no comportamento degradado;
-4. **alerta de crescimento da tabela** — é o que sustenta a decisão de degradar em vez de fechar;
+4. **teto auto-limitante + sinal no `/api/health`** — é o que sustenta degradar em vez de fechar.
+   Resolvido em código, não em configuração: ver "Por que não um alerta novo", abaixo;
 5. para O-2b apenas: responsável nomeado pela configuração do Turnstile e limiares das faixas.
 
 **Não** entram aqui: Sandbox do Asaas, linker do Google, contrato de trial. Eles bloqueiam O-5 e O-1, e
 não esta fatia.
+
+## Por que não um alerta novo
+
+A versão anterior exigia "alerta de crescimento da tabela" como evidência de aceite. Duas coisas
+mudaram isso.
+
+**Primeiro, uma correção de fato.** Eu havia lido o `alerting-setup.md` como se o alerting do projeto
+fosse `NOT_TESTED` por inteiro. A evidência ali é mais estreita: diz que a API do Sentry respondeu
+401/403 **aos tokens locais** e que não havia credencial Better Stack *naquela tentativa, em 18/08*.
+O fundador informou em 12/09 que **o Sentry funciona em produção e os monitores das APIs de saúde no
+Better Stack também**. O runbook está desatualizado, não o ambiente.
+
+**Segundo, a distinção que sobra.** Há três caminhos de alerta, e eles não são intercambiáveis:
+
+| caminho | estado |
+| --- | --- |
+| probe HTTP de saúde → Better Stack | funciona |
+| exceção → Sentry | funciona |
+| métrica em linha de log → regra de limiar → canal | seria novo |
+
+O sinal de pressão da tabela é exatamente da forma que o `/api/health` já trata: o check `outbox` vira
+`degraded` quando `oldest_pending_age_s > 300` — um `COUNT` com limiar, agregado em `status`, com
+`?strict=1` devolvendo 503 para monitor que só olha código HTTP.
+
+Então o sinal entra como mais um check (`signup`), **degradando a 80% do teto** — não a 100%, porque
+um alerta que dispara junto com a recusa avisa depois da queda. Zero caminho novo para provar, e a
+contenção de um risco de segurança deixa de depender de um mecanismo não exercitado.
 
 ## Consequências
 
@@ -252,7 +322,13 @@ não esta fatia.
   legítima que a ADR-053 não considerou;
 - **criar a tabela inteira do §21.5 agora:** colunas sem escritor, e constraint referenciando dado que
   nenhuma fatia produz;
-- **enum parcial, crescendo por fatia:** troca custo zero por armadilha real de migration;
+- **`pgEnum` para `status`, completo ou parcial:** as duas versões anteriores desta ADR debateram qual
+  das duas; a resposta é nenhuma. Enum completo carrega valores que a fatia não pode produzir (então o
+  banco não ajuda a congelar o escopo) e enum parcial paga a armadilha do `ALTER TYPE ... ADD VALUE`.
+  `text` + CHECK escapa das duas — ver decisão 3;
+- **`text` puro, como `clinic_invites` faz:** é o análogo mais próximo, mas sem CHECK não há validação
+  nenhuma no banco — um estado escrito errado passa em silêncio. Copiar o vizinho aqui seria copiar a
+  fraqueza dele;
 - **fail-closed uniforme:** ver decisão 6 — contradiz o padrão vigente do projeto e troca custo
   desprezível por indisponibilidade de aquisição;
 - **manter a ordem do §21.2 (identidade antes das perguntas):** decisão do fundador em 12/09 pela opção
@@ -274,4 +350,8 @@ melhor possível ou existe outra abordagem?"). Mudou:
 2. **indisponibilidade do limiter** — de *fail-closed* uniforme para graduado, depois de ler
    `BoundedFallbackLimiter` e reler o "fechadas/degradadas" da ADR-053;
 3. **corte em O-2a/O-2b** — tira a dependência humana do Turnstile do caminho crítico;
-4. **alternativa do Supabase anônimo** — registrada com o motivo da rejeição.
+4. **alternativa do Supabase anônimo** — registrada com o motivo da rejeição;
+5. **teto auto-limitante no lugar de alerta novo** (decisão 6b e "Por que não um alerta novo"), depois
+   de o fundador corrigir minha leitura sobre o estado do alerting;
+6. **`text` + CHECK no lugar de `pgEnum`** (decisão 3), depois de ler `clinic_invites` ao escrever a
+   migration — o congelamento de escopo passa a ser constraint de banco.

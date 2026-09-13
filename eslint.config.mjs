@@ -253,6 +253,11 @@ const config = [
       // justificativa dos read-models acima — também na allowlist do arch:db-check.
       'src/contexts/onboarding/internal/invites.ts',
       'src/contexts/onboarding/internal/saga.ts',
+      // ADR-060 (O-2a): signup_sessions é global pré-tenant, como clinic_invites —
+      // nasce ANTES de existir clínica, então não há GUC de tenant para withTenant
+      // setar. A tabela tem RLS ENABLE+FORCE SEM NENHUMA POLICY, grant só a
+      // service_role e REVOKE explícito de anon/authenticated (migration 0096).
+      'src/contexts/onboarding/internal/signup-session.ts',
       // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
       // authenticated (D31). Mesma justificativa da saga de onboarding.

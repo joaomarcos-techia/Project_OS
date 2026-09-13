@@ -4,6 +4,15 @@
  */
 export { generateInviteToken, hashToken } from './internal/token';
 export {
+  SIGNUP_SESSION_CEILING,
+  createSignupSession,
+  getSignupSessionPressure,
+  purgeExpiredSignupSessions,
+  readSignupSession,
+  type SignupSessionState,
+  type SignupSessionStatus,
+} from './internal/signup-session';
+export {
   cancelInviteTx,
   createInviteTx,
   getInviteStatus,
