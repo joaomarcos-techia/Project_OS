@@ -1,7 +1,8 @@
 # ADR-060 — Fatia O-2: sessão anônima de cadastro (bootstrap seguro)
 
-- **Status:** Proposed — congela o escopo da fatia O-2. Não autoriza migration aplicada, deploy, nem as
-  fatias O-1, O-3 e seguintes
+- **Status:** **O-2a Accepted** — código, migration aplicada em DEV (0096/0097), smoke contra o banco
+  e endpoints verificados no Preview. **O-2b segue Proposed** (risco adaptativo + Turnstile, pendente de
+  dono da configuração). Não autoriza as fatias O-1, O-3 e seguintes, nem migration em produção
 - **Data:** 2026-09-12 (revisada no mesmo dia; ver "Revisão de 12/09" ao final)
 - **Contextos:** onboarding (novo) + `lib/db` (tabela global pré-tenant) — dois bounded contexts, no teto
 - **Relaciona:** [ADR-053](053-cadastro-autonomo-seguro.md) (arquitetura do track),
@@ -319,6 +320,34 @@ O sinal de pressão da tabela é exatamente da forma que o `/api/health` já tra
 Então o sinal entra como mais um check (`signup`), **degradando a 80% do teto** — não a 100%, porque
 um alerta que dispara junto com a recusa avisa depois da queda. Zero caminho novo para provar, e a
 contenção de um risco de segurança deixa de depender de um mecanismo não exercitado.
+
+## Evidência produzida em 12/09 (O-2a)
+
+| Item | Estado |
+| --- | --- |
+| migration revisada: grants, RLS, índices | **feito** — e verificado NO BANCO após aplicar, não só no SQL: RLS ENABLE+FORCE, zero policies, grants só para `postgres` (dono) e `service_role`, CHECK recusando estado de fatia futura |
+| matriz endpoint × limites | **feito** — ver seção acima |
+| testes unit | **feito** — 12 casos |
+| teste de integração contra o banco | **feito** — `pnpm smoke:signup-session`, PASS com readback zero |
+| adversarial (cookie forjado, resposta genérica) | **feito** — verificado no Preview: cookie ausente e cookie forjado devolvem `410` com corpo idêntico |
+| teto auto-limitante + sinal no `/api/health` | **feito** |
+| carga scratch no modo degradado | **pendente** — é o que falta para a evidência ficar completa |
+| dono do Turnstile | **pendente** — bloqueia O-2b, não O-2a |
+
+### O que a verificação real pegou, e o unitário não
+
+1. **Bug de runtime em `readSignupSession`.** A renovação interpolava um `Date` do JS dentro de um
+   template `sql` cru; o driver não faz bind de `Date` ali. O teste unitário passou porque o banco é
+   mock — `GET /me` daria **500 em toda chamada**. Apareceu na primeira execução do smoke contra o
+   banco de verdade. A correção passou os dois prazos para o relógio do BANCO
+   (`now() + make_interval`), o que de quebra eliminou deriva de relógio entre instância e Postgres.
+2. **`qoro_runtime` com DML na tabela nova** (migration 0097). Só apareceu ao consultar os grants
+   reais em vez de assumir que "não conceder" bastava.
+3. **`GET /me` sem rate limit.** A rota ESCREVE (renova o idle). O buraco apareceu ao montar a matriz
+   de limites — escrever a tabela foi o que obrigou a olhar os dois endpoints lado a lado.
+
+Os três reforçam a mesma coisa: **verificar contra o sistema real acha o que raciocinar sobre o código
+não acha.**
 
 ## Consequências
 

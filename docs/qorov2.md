@@ -4184,3 +4184,21 @@ própria ADR-053 escreve "falham fechadas/**degradadas**", permitindo as duas.
 **Achado que destrava a ordem:** O-2 **não depende de O-1**. O §21.3 proíbe a atribuição de criar
 `signup_sessions`, e `attribution` é anulável — a numeração do §21.19 é de fatias, não de
 dependências. Sessão sem atribuição é a sessão orgânica, caso permanente e não degrau temporário.
+
+### 31.5 O-2a entregue em 12/09
+
+Migration `0096`/`0097`, serviço de sessão, os dois endpoints públicos, rate limit próprio por rota,
+teto auto-limitante, janitor a cada 10 min e o check `signup` no `/api/health`. Migration **aplicada em
+DEV** com autorização do fundador; produção não foi tocada.
+
+**Verificado onde importa:** smoke contra o banco real (`pnpm smoke:signup-session`, PASS com readback
+zero) e os endpoints exercitados no Preview — `201` com cookie `__Host-` correto, `200` na leitura com
+renovação de TTL visível, `410` idêntico para cookie ausente e cookie forjado, `400` para campo extra.
+
+**Três defeitos que só a verificação real pegou**, e vale registrar porque a lição é a mesma: um bug de
+runtime que faria `GET /me` responder 500 em toda chamada (o unitário passava, porque lá o banco é
+mock); a role `qoro_runtime` nascendo com DML na tabela nova; e o `GET /me` sem limite, apesar de
+escrever a cada chamada. Detalhe na [ADR-060](adr/060-sessao-anonima-de-cadastro.md).
+
+**Falta para a evidência ficar completa:** carga scratch no modo degradado. O **O-2b** (risco adaptativo
++ Turnstile) segue parado num item só — quem é o dono da configuração no Cloudflare.
