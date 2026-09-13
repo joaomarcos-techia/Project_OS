@@ -142,6 +142,10 @@ const fallback = {
   // generoso que o do login porque aqui não há conta a proteger — o que se
   // contém é volume, e quem contém o pior caso é o teto de sessões vivas.
   signupIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
+  // Leitura do próprio estado: bem mais generosa que a criação, porque refresh,
+  // troca de aba e polling são uso LEGÍTIMO e frequente — mas não ilimitada,
+  // porque cada leitura renova o TTL e portanto ESCREVE uma linha.
+  signupReadIp: new BoundedFallbackLimiter(120, FIFTEEN_MIN_MS),
 };
 
 /**
@@ -453,6 +457,42 @@ export async function assertSignupSessionAllowed(ip: string): Promise<LimitResul
     return degraded('signup', err, fallback.signupIp.hit(ipKey));
   }
 }
+
+/**
+ * ADR-060 (O-2a) — leitura do próprio estado de cadastro.
+ *
+ * Tem limite próprio, e não é zelo: `GET /api/signup/sessions/me` **escreve** —
+ * renovar o prazo de inatividade é um UPDATE por chamada (§21.6). Sem limite, um
+ * portador de token válido poderia martelar a rota e transformar uma leitura
+ * barata em carga de escrita sustentada.
+ *
+ * Orçamento separado do de criação, de propósito: leitura é frequente e
+ * legítima, criação é rara. Compartilhar o balde faria um refresh insistente
+ * consumir a cota de iniciar cadastro.
+ */
+export async function assertSignupReadAllowed(ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const r = await lazySignupReadLimiter().limit(ipKey);
+    return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  } catch (err) {
+    return degraded('signup', err, fallback.signupReadIp.hit(ipKey));
+  }
+}
+
+const lazySignupReadLimiter = (() => {
+  let cached: Ratelimit | null = null;
+  return () => {
+    if (cached) return cached;
+    cached = new Ratelimit({
+      redis: lazyRedis(),
+      limiter: Ratelimit.slidingWindow(120, '15 m'),
+      prefix: redisKey.global('rl', 'signup', 'read'),
+      analytics: false,
+    });
+    return cached;
+  };
+})();
 
 const lazySignupLimiter = (() => {
   let cached: Ratelimit | null = null;

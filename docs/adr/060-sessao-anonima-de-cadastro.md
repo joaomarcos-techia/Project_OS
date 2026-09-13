@@ -248,6 +248,35 @@ juntar as fatias.
 com tráfego controlado e só então abrir é prudência barata numa superfície que existe justamente para
 receber desconhecidos.
 
+## Matriz endpoint × limites (evidência 2)
+
+Ambos os endpoints são **públicos e anônimos** — não há sessão Supabase, e por isso
+`api/signup` está excluído do gate do middleware. O que os protege não é autenticação.
+
+| | `POST /api/signup/sessions` | `GET /api/signup/sessions/me` |
+| --- | --- | --- |
+| efeito | INSERT de uma linha | UPDATE de uma linha (renova o idle) |
+| limite por IP | 20 / 15 min (sliding window) | 120 / 15 min |
+| orçamento | próprio (`rl:signup:ip`) | próprio (`rl:signup:read`) |
+| teto global | `SIGNUP_SESSION_CEILING` | não se aplica (não cria) |
+| Redis fora | **degrada** p/ fallback em memória | **degrada** |
+| corpo | ≤ 1 KiB, JSON vazio, Zod `.strict()` | sem corpo |
+| nega com | 429 `rate_limited` · 503 `at_capacity` · 400 `invalid_body` · 413 `body_too_large` | 429 `rate_limited` · 410 `gone` |
+| `Retry-After` | 60 s | 60 s |
+
+Três decisões que a matriz torna visíveis:
+
+1. **Orçamentos separados.** Leitura é frequente e legítima (refresh, troca de aba);
+   criação é rara. Num balde único, um refresh insistente consumiria a cota de
+   *iniciar* cadastro — e o usuário seria punido por usar a tela normalmente.
+2. **`/me` tem limite porque ESCREVE.** Renovar o prazo de inatividade é um UPDATE
+   por chamada. Sem limite, quem tem um token válido transformaria uma leitura barata
+   em carga de escrita sustentada. A primeira versão desta fatia não tinha esse limite;
+   o buraco apareceu ao montar esta tabela.
+3. **429 e 503 são códigos diferentes de propósito.** "Este cliente pediu demais" e "o
+   sistema todo está no teto" pedem reações opostas de quem opera. Colapsar nos dois num
+   código só apagaria a distinção justamente no incidente em que ela decide o que fazer.
+
 ## Evidência necessária para aceitar ESTA fatia
 
 1. desenho da migration revisado: grants, ausência de acesso `anon`/`authenticated`, índices

@@ -41,8 +41,14 @@ export const config = {
   // WEBHOOKS (token/assinatura do provider), + fluxos auth não-autenticados +
   // /account/security (pré-MFA) + /join (onboarding público) + `monitoring`
   // (tunnelRoute do Sentry). Essas rotas não têm sessão Supabase.
+  //
+  // `api/signup` (ADR-060, O-2a): cadastro autônomo é PÚBLICO por definição —
+  // quem chega ali ainda não tem conta, então exigir cookie de sessão redirecionaria
+  // todo visitante para /login. O que protege essas rotas não é sessão: é rate limit
+  // por IP, teto de sessões vivas e, na fatia O-2b, desafio adaptativo. Elas não leem
+  // nem escrevem dado de tenant.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks|login|reset-password|convite|auth/callback|auth/confirm|auth/auth-error|account/security|join).*)',
+    '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks|api/signup|login|reset-password|convite|auth/callback|auth/confirm|auth/auth-error|account/security|join).*)',
   ],
 };
 

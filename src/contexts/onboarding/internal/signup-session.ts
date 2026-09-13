@@ -24,10 +24,20 @@ import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
+/**
+ * TTLs em SEGUNDOS, e computados pelo relógio do BANCO (`now()`), não pelo do
+ * processo.
+ *
+ * Por que não `new Date()` no app: os prazos são comparados em SQL a cada leitura
+ * e a cada passada do janitor. Se a validade fosse gravada pelo relógio de uma
+ * instância serverless e comparada pelo relógio do Postgres, qualquer deriva
+ * entre os dois viraria sessão morrendo cedo ou vivendo demais — e ninguém
+ * conseguiria reproduzir, porque dependeria de qual instância atendeu.
+ */
 /** 15 min de inatividade (§21.6). Atividade válida renova SÓ este. */
-const IDLE_TTL_MS = 15 * 60 * 1000;
+const IDLE_TTL_SECONDS = 15 * 60;
 /** 60 min absolutos (§21.6). Atividade NÃO renova. */
-const ABSOLUTE_TTL_MS = 60 * 60 * 1000;
+const ABSOLUTE_TTL_SECONDS = 60 * 60;
 
 /**
  * Teto de sessões vivas simultâneas — a válvula que torna defensável degradar o
@@ -153,21 +163,20 @@ export async function createSignupSession(ip: string): Promise<CreateSignupSessi
   }
 
   const rawToken = randomBytes(32).toString('base64url');
-  const idleExpiresAt = new Date(now.getTime() + IDLE_TTL_MS);
-  const absoluteExpiresAt = new Date(now.getTime() + ABSOLUTE_TTL_MS);
 
   const [row] = await dbAdmin
     .insert(signupSessions)
     .values({
       tokenHash: hashSignupToken(rawToken),
       status: 'initiated',
-      idleExpiresAt,
-      absoluteExpiresAt,
+      idleExpiresAt: sql`now() + make_interval(secs => ${IDLE_TTL_SECONDS})`,
+      absoluteExpiresAt: sql`now() + make_interval(secs => ${ABSOLUTE_TTL_SECONDS})`,
     })
     .returning({
       status: signupSessions.status,
       riskLevel: signupSessions.riskLevel,
       rowVersion: signupSessions.rowVersion,
+      idleExpiresAt: signupSessions.idleExpiresAt,
     });
 
   if (!row) throw new Error('[signup] insert não devolveu linha');
@@ -183,7 +192,7 @@ export async function createSignupSession(ip: string): Promise<CreateSignupSessi
     state: {
       status: 'initiated',
       riskLevel: row.riskLevel,
-      expiresAt: idleExpiresAt.toISOString(),
+      expiresAt: row.idleExpiresAt.toISOString(),
       rowVersion: row.rowVersion,
     },
   };
@@ -204,17 +213,25 @@ export async function createSignupSession(ip: string): Promise<CreateSignupSessi
 export async function readSignupSession(rawToken: string): Promise<SignupSessionState | null> {
   const now = new Date();
   const tokenHash = hashSignupToken(rawToken);
-  const nextIdle = new Date(now.getTime() + IDLE_TTL_MS);
 
   // Renova o idle na MESMA ida ao banco que lê — ler e depois atualizar seriam
   // dois round trips e abriria janela entre a leitura e a renovação.
   //
-  // `least(nextIdle, absolute)`: a renovação nunca pode empurrar a sessão para
+  // `least(novo_idle, absolute)`: a renovação nunca pode empurrar a sessão para
   // além do prazo absoluto, senão 15 min de atividade contínua a tornariam
   // eterna — que é exatamente o que o teto absoluto existe para impedir.
+  //
+  // O prazo novo sai de `now()` do BANCO, não de um `Date` do processo. A versão
+  // anterior interpolava um `Date` aqui e quebrava em RUNTIME — o driver não faz
+  // bind de Date dentro de um template `sql` cru ("The string argument must be
+  // of type string... Received an instance of Date"). O teste unitário não pegou
+  // porque lá o banco é mock; o smoke contra o banco real pegou na primeira
+  // execução.
   const [row] = await dbAdmin
     .update(signupSessions)
-    .set({ idleExpiresAt: sql`least(${nextIdle}, ${signupSessions.absoluteExpiresAt})` })
+    .set({
+      idleExpiresAt: sql`least(now() + make_interval(secs => ${IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
+    })
     .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition(now)))
     .returning({
       status: signupSessions.status,

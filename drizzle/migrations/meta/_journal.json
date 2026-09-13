@@ -680,6 +680,13 @@
       "when": 1789256256141,
       "tag": "0096_signup_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1789258657051,
+      "tag": "0097_signup_sessions_runtime_revoke",
+      "breakpoints": true
     }
   ]
 }

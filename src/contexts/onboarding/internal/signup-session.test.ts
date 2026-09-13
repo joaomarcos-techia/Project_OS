@@ -60,7 +60,15 @@ function textoDe(valor: unknown, vistos = new Set<unknown>()): string {
 }
 
 function insertedRow() {
-  return chain([{ status: 'initiated', riskLevel: 0, rowVersion: 1 }]);
+  // `idleExpiresAt` vem do RETURNING porque o prazo e calculado pelo banco.
+  return chain([
+    {
+      status: 'initiated',
+      riskLevel: 0,
+      rowVersion: 1,
+      idleExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    },
+  ]);
 }
 
 beforeEach(() => {
@@ -111,24 +119,27 @@ describe('token da sessão de cadastro', () => {
 });
 
 describe('criação de sessão', () => {
-  it('aplica TTL de 15 min de inatividade e 60 min absolutos', async () => {
-    let capturado: { idleExpiresAt: Date; absoluteExpiresAt: Date } | null = null;
+  it('pede os TTLs ao relógio do BANCO, com 900 s de idle e 3600 s absolutos', async () => {
+    let capturado: Record<string, unknown> | null = null;
     insertMock.mockImplementation(() => ({
-      values: (v: { idleExpiresAt: Date; absoluteExpiresAt: Date }) => {
+      values: (v: Record<string, unknown>) => {
         capturado = v;
         return insertedRow();
       },
     }));
 
-    const antes = Date.now();
     await createSignupSession(IP);
-    const valores = capturado as { idleExpiresAt: Date; absoluteExpiresAt: Date } | null;
-    expect(valores).not.toBeNull();
-    if (!valores) return;
 
-    expect(valores.idleExpiresAt.getTime() - antes).toBeGreaterThanOrEqual(15 * 60 * 1000 - 50);
-    expect(valores.idleExpiresAt.getTime() - antes).toBeLessThan(15 * 60 * 1000 + 5_000);
-    expect(valores.absoluteExpiresAt.getTime() - antes).toBeGreaterThanOrEqual(60 * 60 * 1000 - 50);
+    // Os prazos são expressão SQL (`now() + make_interval`), não `Date` do
+    // processo: gravar com o relógio da instância e comparar com o do Postgres
+    // faria sessão morrer cedo ou viver demais conforme a deriva entre eles.
+    const texto = textoDe(capturado);
+    expect(texto).toContain('make_interval');
+    expect(texto).toContain('now()');
+    // O VALOR real dos prazos é verificado contra o banco em
+    // `pnpm smoke:signup-session` — aqui só a intenção, porque o banco é mock.
+    expect(JSON.stringify(capturado)).toContain('900');
+    expect(JSON.stringify(capturado)).toContain('3600');
   });
 
   it('recusa sem escrever quando o rate limit nega', async () => {

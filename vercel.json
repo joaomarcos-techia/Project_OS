@@ -75,6 +75,10 @@
     {
       "path": "/api/cron/proactive-remainder-link",
       "schedule": "*/15 11-23 * * *"
+    },
+    {
+      "path": "/api/cron/signup-sessions-cleanup",
+      "schedule": "*/10 * * * *"
     }
   ],
   "outputDirectory": ".next"

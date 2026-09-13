@@ -4,7 +4,7 @@
 
 Reference — inventário verificado por `pnpm check:observability`.
 
-## Crons (18)
+## Crons (19)
 
 | Rota | Owner funcional |
 | --- | --- |
@@ -17,6 +17,7 @@ Reference — inventário verificado por `pnpm check:observability`.
 | `/api/cron/payments-deposit` | payments |
 | `/api/cron/data-retention` | plataforma |
 | `/api/cron/invites-cleanup` | onboarding |
+| `/api/cron/signup-sessions-cleanup` | onboarding |
 | `/api/cron/billing-dunning` | billing |
 | `/api/cron/billing-reconcile` | billing |
 | `/api/cron/whatsapp-health` | messaging |
