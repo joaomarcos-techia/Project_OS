@@ -394,7 +394,18 @@ function normalizeDevelopmentAliases(source: NodeJS.ProcessEnv): NodeJS.ProcessE
     ...source,
     // Um alias DEV explícito prevalece localmente: assim uma chave antiga com
     // o nome padrão não consegue redirecionar uma homologação para outra conta.
-    // Em produção os aliases nem são lidos (guard acima).
+    //
+    // ⚠️ ESTES ALIASES SÓ VALEM EM DESENVOLVIMENTO LOCAL — leia-se `.env.local`.
+    // O guard acima é `NODE_ENV === 'production'`, e a **Vercel constrói o
+    // PREVIEW com NODE_ENV=production** (o que distingue Preview de produção lá
+    // é `VERCEL_ENV`, não `NODE_ENV`). Logo, um `*_DEV` configurado no painel da
+    // Vercel para o escopo Preview **nunca é lido**.
+    //
+    // Custou um diagnóstico em 13/09: as chaves do Turnstile foram postas no
+    // Preview como `*_DEV`, o alias não rodou, o nome canônico ficou vazio e a
+    // rota passou a recusar com `not_configured` — comportamento correto, pelo
+    // motivo errado. No painel da Vercel use SEMPRE o nome canônico, uma entrada
+    // por escopo, como `DATABASE_URL` e `ASAAS_API_KEY` já fazem.
     DATABASE_URL: source.DATABASE_URL_DEV ?? source.DATABASE_URL,
     SUPABASE_SECRET_KEY: source.SECRET_KEY_DEV ?? source.SUPABASE_SECRET_KEY,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:

@@ -1,9 +1,9 @@
 # ADR-060 — Fatia O-2: sessão anônima de cadastro (bootstrap seguro)
 
-- **Status:** **O-2a Accepted** — código, migration aplicada em DEV (0096/0097), smoke contra o banco
-  e endpoints verificados no Preview. **O-2b implementado em 13/09** (classificador + `siteverify`),
-  pendente de verificação ponta a ponta com o widget renderizado — que só existe na fatia das
-  perguntas. Não autoriza as fatias O-1, O-3 e seguintes, nem migration em produção
+- **Status:** **O-2a Accepted**; **O-2b Accepted no servidor** — classificador e `siteverify`
+  verificados contra a Cloudflare real no Preview em 13/09. Falta só o widget renderizado, que
+  pertence à fatia das perguntas. Não autoriza as fatias O-1, O-3 e seguintes, nem migration em
+  produção
 - **Data:** 2026-09-12 (revisada no mesmo dia; ver "Revisão de 12/09" ao final)
 - **Contextos:** onboarding (novo) + `lib/db` (tabela global pré-tenant) — dois bounded contexts, no teto
 - **Relaciona:** [ADR-053](053-cadastro-autonomo-seguro.md) (arquitetura do track),
@@ -362,6 +362,35 @@ schema e no alias, seguindo a convenção de `DATABASE_URL` e `ASAAS_*`.
 
 Variantes `*_LOCAL` não têm função: `.env.local` só é lido em localhost, então uma chave por ambiente
 basta — e para localhost o caminho previsto são as chaves de teste da Cloudflare, sem widget.
+
+### Verificação do O-2b no Preview — 13/09
+
+O classificador exercitado por HTTP real, cada faixa com o seu código:
+
+| Requisição | Resposta |
+| --- | --- |
+| `Origin` coerente | `201` — segue sem desafio, `riskLevel: 0`, `risk: clean` |
+| `Origin` ausente | `401 challenge_required` |
+| `Origin` de outro host | `403 blocked`, `risk: cross_site_origin` |
+| campo extra no corpo | `400 invalid_body` |
+
+**E a prova que o status HTTP sozinho não dava.** Um token forjado no caminho de desafio respondeu
+`401` — mas `not_configured` e `rejected` mapeiam para o MESMO `401`, então a resposta não distinguia
+"a Cloudflare recusou" de "não há chave configurada". A métrica distinguiu, e na primeira tentativa
+disse `signup.turnstile.not_configured`: comportamento correto (falha fechada) pelo motivo errado, que
+teria passado por "integração funcionando".
+
+Causa: as chaves estavam no Preview com sufixo `_DEV`, e o alias não roda lá (`NODE_ENV=production` no
+Preview da Vercel — ver o aviso em `src/lib/env.ts`). Corrigido para o nome canônico, redeploy, e o
+mesmo teste passou a emitir:
+
+```json
+{"event":"signup.turnstile.rejected","codes":["invalid-input-response"]}
+```
+
+O código de erro é o que fecha a prova: **`invalid-input-response`** (token inválido) e não
+`invalid-input-secret` — ou seja, a Cloudflare **aceitou a nossa secret** e recusou o token. A
+integração fala com o provider de verdade, e o token forjado não cria sessão.
 
 ## Matriz endpoint × limites (evidência 2)
 
