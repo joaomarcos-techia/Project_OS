@@ -10,6 +10,7 @@
  */
 import { z } from 'zod';
 
+import { DEVELOPMENT_ENV_ALIASES } from './env-aliases';
 import { checkEnvironmentCoherence } from './env-coherence';
 
 // Empty strings from `.env.local` (e.g. `FOO=`) become `undefined` so that
@@ -390,51 +391,21 @@ export type Env = z.infer<typeof EnvSchema>;
  */
 function normalizeDevelopmentAliases(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (source.NODE_ENV === 'production') return source;
-  return {
-    ...source,
-    // Um alias DEV explícito prevalece localmente: assim uma chave antiga com
-    // o nome padrão não consegue redirecionar uma homologação para outra conta.
-    //
-    // ⚠️ ESTES ALIASES SÓ VALEM EM DESENVOLVIMENTO LOCAL — leia-se `.env.local`.
-    // O guard acima é `NODE_ENV === 'production'`, e a **Vercel constrói o
-    // PREVIEW com NODE_ENV=production** (o que distingue Preview de produção lá
-    // é `VERCEL_ENV`, não `NODE_ENV`). Logo, um `*_DEV` configurado no painel da
-    // Vercel para o escopo Preview **nunca é lido**.
-    //
-    // Custou um diagnóstico em 13/09: as chaves do Turnstile foram postas no
-    // Preview como `*_DEV`, o alias não rodou, o nome canônico ficou vazio e a
-    // rota passou a recusar com `not_configured` — comportamento correto, pelo
-    // motivo errado. No painel da Vercel use SEMPRE o nome canônico, uma entrada
-    // por escopo, como `DATABASE_URL` e `ASAAS_API_KEY` já fazem.
-    DATABASE_URL: source.DATABASE_URL_DEV ?? source.DATABASE_URL,
-    SUPABASE_SECRET_KEY: source.SECRET_KEY_DEV ?? source.SUPABASE_SECRET_KEY,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-      source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV ??
-      source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-    ASAAS_API_KEY: source.ASAAS_API_KEY_DEV ?? source.ASAAS_API_KEY,
-    ASAAS_BASE_URL: source.ASAAS_BASE_URL_DEV ?? source.ASAAS_BASE_URL,
-    ASAAS_WEBHOOK_TOKEN: source.ASAAS_WEBHOOK_TOKEN_DEV ?? source.ASAAS_WEBHOOK_TOKEN,
-    RESEND_API_KEY: source.RESEND_API_KEY_DEV ?? source.RESEND_API_KEY,
-    EMAIL_FROM: source.EMAIL_FROM_DEV ?? source.EMAIL_FROM,
-    // ADR-060: o Turnstile valida o HOSTNAME onde o widget rodou, então a chave
-    // de produção simplesmente falha em localhost. O alias evita o caso pior —
-    // um valor de produção sob o nome canônico no .env.local mandando a máquina
-    // do desenvolvedor exercitar o widget de produção.
-    //
-    // TRÊS níveis, e a ordem importa: `_LOCAL` > `_DEV` > canônico.
-    // `_DEV` é a chave do hostname de homologação (`*.vercel.app`); `_LOCAL` é
-    // a do `localhost`. São hostnames DIFERENTES na Cloudflare, então usar a de
-    // homologação em `localhost` faz o widget recusar — e a recusa aparece como
-    // "o desafio não passa", que não aponta para configuração nenhuma.
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY:
-      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL ??
-      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV ??
-      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
-    TURNSTILE_SECRET_KEY:
-      source.TURNSTILE_SECRET_KEY_LOCAL ??
-      source.TURNSTILE_SECRET_KEY_DEV ??
-      source.TURNSTILE_SECRET_KEY,
-  };
+  // A tabela vive em `env-aliases.ts` e é compartilhada com `scripts/_env.ts`.
+  // Antes ela era copiada nos dois arquivos e divergiu: as chaves do Turnstile
+  // entraram aqui e não lá, o que faria um script local usar a chave de
+  // PRODUÇÃO em silêncio.
+  //
+  // Um alias explícito prevalece localmente: assim uma chave antiga sob o nome
+  // padrão não consegue redirecionar uma homologação para outra conta.
+  const result: NodeJS.ProcessEnv = { ...source };
+  for (const [canonical, ...aliases] of DEVELOPMENT_ENV_ALIASES) {
+    // Primeiro alias com valor vence. Truthiness, não `??`: um `FOO=` no
+    // `.env.local` vira STRING VAZIA, e com `??` a vazia ganharia da chave boa.
+    const value = aliases.map((name) => source[name]).find(Boolean);
+    if (value) result[canonical] = value;
+  }
+  return result;
 }
 
 function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {

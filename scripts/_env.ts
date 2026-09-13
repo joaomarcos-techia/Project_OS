@@ -9,6 +9,8 @@
  */
 import { config as loadDotenv } from 'dotenv';
 
+import { DEVELOPMENT_ENV_ALIASES } from '@/lib/env-aliases';
+
 // MUST be the very first side effect: every script needs the .env.local values
 // before reading process.env.
 loadDotenv({ path: '.env.local' });
@@ -17,19 +19,15 @@ loadDotenv({ path: '.env.local' });
  * Mantém os scripts fora do runtime Next alinhados à resolução de env.ts.
  * Aliases DEV prevalecem apenas fora de produção e são promovidos em memória;
  * o arquivo .env.local não é alterado.
+ *
+ * A TABELA é compartilhada (`@/lib/env-aliases`). Ela já foi copiada aqui e
+ * divergiu do `env.ts` — ver o cabeçalho daquele módulo. `env.ts` não pode ser
+ * importado direto porque valida tudo no carregamento e lançaria num script que
+ * só queria a lista.
  */
 if (process.env.NODE_ENV !== 'production') {
-  for (const [canonical, development] of [
-    ['DATABASE_URL', 'DATABASE_URL_DEV'],
-    ['SUPABASE_SECRET_KEY', 'SECRET_KEY_DEV'],
-    ['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV'],
-    ['ASAAS_API_KEY', 'ASAAS_API_KEY_DEV'],
-    ['ASAAS_BASE_URL', 'ASAAS_BASE_URL_DEV'],
-    ['ASAAS_WEBHOOK_TOKEN', 'ASAAS_WEBHOOK_TOKEN_DEV'],
-    ['RESEND_API_KEY', 'RESEND_API_KEY_DEV'],
-    ['EMAIL_FROM', 'EMAIL_FROM_DEV'],
-  ] as const) {
-    const value = process.env[development];
+  for (const [canonical, ...aliases] of DEVELOPMENT_ENV_ALIASES) {
+    const value = aliases.map((name) => process.env[name]).find(Boolean);
     if (value) process.env[canonical] = value;
   }
 }
