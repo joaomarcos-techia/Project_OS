@@ -4,6 +4,21 @@ Os cenários padrão usam Playwright e Chromium e não criam nem alteram dados.
 Os fluxos mutáveis exigem opt-in explícito e seguem as proteções descritas
 abaixo.
 
+## Três famílias, propósitos diferentes
+
+| Família | Precisa de | Roda em CI? |
+| --- | --- | --- |
+| `public-surface.spec.ts` | nada (ou `E2E_BASE_URL`) | **sim** — `pnpm test:e2e:ci` |
+| `signup-session-api.spec.ts` | `E2E_BASE_URL` | não (precisa de banco) |
+| `production-*.spec.ts` (40) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
+| mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
+
+Os `production-*` escrevem em **produção** com clínicas sintéticas: o atrito das
+60 variáveis `E2E_*` é a proteção, não burocracia. A consequência é que eles são
+uma **ferramenta de auditoria operada por gente** — o gate automático é só o
+`public-surface`. O diagnóstico completo está em
+[`docs/quality/e2e-coverage-audit.md`](../docs/quality/e2e-coverage-audit.md).
+
 ## Rodar localmente
 
 1. Preencha `.env.local` com o ambiente de desenvolvimento.

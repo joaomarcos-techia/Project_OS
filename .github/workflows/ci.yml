@@ -100,3 +100,26 @@ jobs:
 
       - name: Client bundle secrets and local HTTP boundaries
         run: pnpm security:bundle && pnpm security:http
+
+      # Auditoria E2E (2026-09-13): a suíte tinha 51 specs e ~20.000 linhas, e
+      # NENHUMA rodava aqui — 40 exigem variável de autorização própria,
+      # credenciais de clínica sintética e conexão ao Postgres de PRODUÇÃO. Boa
+      # ferramenta de auditoria, zero proteção contra regressão antes do merge.
+      #
+      # Este passo roda a fatia que dispensa segredo (fronteira sem sessão,
+      # cabeçalhos de segurança, integridade do form de login) contra o MESMO
+      # build isolado que o passo acima já produziu. Ver
+      # docs/quality/e2e-coverage-audit.md.
+      - name: Install Playwright browser (chromium)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E gate (superfície pública, sem credencial)
+        run: pnpm test:e2e:ci
+
+      - name: Upload E2E report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
