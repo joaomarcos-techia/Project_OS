@@ -148,6 +148,31 @@ gasto na criação da sessão (O-2b) **não** serve para o `signUp` (O-3) — ca
 do seu próprio desafio. Desenhar a tela supondo "um captcha no começo resolve o cadastro inteiro"
 levaria a uma falha de verificação no meio do funil, que é o pior lugar para descobrir isso.
 
+#### ⚠️ ORDEM OBRIGATÓRIA: código primeiro, painel depois
+
+**Ligar o captcha no painel do Supabase antes de o código enviar o token derruba o login de todas as
+clínicas.** Não é degradação — é ninguém entra. Levantado em 13/09, quando o fundador ia ativar direto
+no projeto de produção; busca por `captchaToken` no repositório inteiro devolveu **zero ocorrências**,
+e há quatro chamadas que o captcha passa a exigir:
+
+| Call site | Chamada | O que quebra |
+| --- | --- | --- |
+| `app/(app)/login/actions.ts` | `signInWithPassword` | **login de toda clínica existente** |
+| `app/(app)/login/actions.ts` | `resetPasswordForEmail` | recuperação de senha |
+| `app/(app)/join/[token]/actions.ts` | `signInWithPassword` | onboarding por convite |
+| `app/(app)/auth/confirm/route.ts` | `verifyOtp` | confirmação de e-mail |
+
+Sequência correta:
+
+1. o código renderiza o widget e passa `options.captchaToken` nas chamadas acima;
+2. ativa no Supabase **de dev**, usando as **chaves de teste** da Cloudflare (o par documentado em que
+   o desafio sempre passa). Assim o E2E continua verde **e** o caminho do captcha é exercitado — melhor
+   que desligar no Preview, que pularia o código em vez de testá-lo;
+3. só então ativa em produção, com as chaves reais.
+
+O passo 2 responde à objeção correta do fundador de que ativar no projeto de dev quebraria o E2E: os
+testes fazem login de verdade em `e2e/auth.ts`. Com as chaves de teste, quebram não.
+
 ### 2. O que a fatia NÃO entrega — escopo congelado, não omissão
 
 - **sem** `signUp` no Supabase, confirmação de e-mail ou PKCE (fatia de identidade);
