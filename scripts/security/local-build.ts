@@ -14,7 +14,7 @@ await mkdir(target, { recursive: true });
 // `.next/server/` ficou com 2 manifestos e `/api/health` respondeu 500 em vez
 // de 401 — um "achado" que era corrupção de fixture, não do produto.
 await rm(path.join(target, '.next'), { recursive: true, force: true });
-for (const entry of [
+const copied = [
   'src',
   'scripts/security',
   'package.json',
@@ -23,7 +23,19 @@ for (const entry of [
   'postcss.config.mjs',
   'sentry.server.config.ts',
   'sentry.edge.config.ts',
-]) {
+];
+for (const entry of copied) {
+  // APAGA antes de copiar. `cp` MESCLA: um arquivo removido do `src` continuava
+  // vivo na cópia para sempre, e o build isolado passava a compilar um source
+  // que não existe mais. Observado em 2026-09-13: três `configuracoes/*/page.tsx`
+  // excluídos meses antes quebraram o build com "has no exported member", num
+  // repositório em que `pnpm typecheck` estava verde. É o MESMO risco que o
+  // comentário do `.next` acima descreve — verificação contra artefato que não
+  // corresponde ao source —, só que pela via do código-fonte.
+  //
+  // Em CI não acontecia (checkout limpo), o que torna o caso pior: só quebra na
+  // máquina de quem desenvolve, e parece problema do código.
+  await rm(path.join(target, entry), { recursive: true, force: true });
   await cp(path.join(root, entry), path.join(target, entry), { recursive: true });
 }
 // Copia o config de lint; os plugins são resolvidos pelo pacote eslint-config-next.
