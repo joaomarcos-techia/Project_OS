@@ -107,7 +107,8 @@
     "check:registry": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts",
     "check:registry:strict": "cross-env OUTBOX_CRON_ALLOW_NON_VERCEL=true tsx --conditions=react-server scripts/check-handler-registry.ts --strict",
     "idempotency:cleanup": "tsx scripts/idempotency-cleanup.ts",
-    "smoke:signup-session": "tsx --conditions=react-server scripts/smoke-signup-session.ts"
+    "smoke:signup-session": "tsx --conditions=react-server scripts/smoke-signup-session.ts",
+    "load:signup-degraded": "tsx --conditions=react-server scripts/load-signup-degraded.ts"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "1.3.6",

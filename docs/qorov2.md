@@ -4200,5 +4200,11 @@ runtime que faria `GET /me` responder 500 em toda chamada (o unitário passava, 
 mock); a role `qoro_runtime` nascendo com DML na tabela nova; e o `GET /me` sem limite, apesar de
 escrever a cada chamada. Detalhe na [ADR-060](adr/060-sessao-anonima-de-cadastro.md).
 
-**Falta para a evidência ficar completa:** carga scratch no modo degradado. O **O-2b** (risco adaptativo
-+ Turnstile) segue parado num item só — quem é o dono da configuração no Cloudflare.
+**Carga adversarial no modo degradado (13/09): PASS.** Com o Upstash apontado para um endereço
+inalcançável — falha de rede de verdade, não mock —, 300 tentativas de IPs distintos passaram pelo
+fallback sem uma recusa (o pior caso previsto), e então **o teto recusou 10 de 10** tentativas com a
+tabela cheia. O janitor drenou **1.691 linhas em 3,8 s (441/s)** e o readback fechou em zero. A
+evidência de aceite do O-2a está completa; detalhe em [ADR-060](adr/060-sessao-anonima-de-cadastro.md).
+
+O **O-2b** (risco adaptativo + Turnstile) segue parado num item só — quem é o dono da configuração no
+Cloudflare.

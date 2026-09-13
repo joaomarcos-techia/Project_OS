@@ -331,8 +331,37 @@ contenção de um risco de segurança deixa de depender de um mecanismo não exe
 | teste de integração contra o banco | **feito** — `pnpm smoke:signup-session`, PASS com readback zero |
 | adversarial (cookie forjado, resposta genérica) | **feito** — verificado no Preview: cookie ausente e cookie forjado devolvem `410` com corpo idêntico |
 | teto auto-limitante + sinal no `/api/health` | **feito** |
-| carga scratch no modo degradado | **pendente** — é o que falta para a evidência ficar completa |
+| carga scratch no modo degradado | **feito** — `pnpm load:signup-degraded`, PASS; resultados abaixo |
 | dono do Turnstile | **pendente** — bloqueia O-2b, não O-2a |
+
+### Carga com o limiter degradado — 13/09
+
+A degradação **não foi mockada**: o script aponta `UPSTASH_REDIS_REST_URL` para
+`http://127.0.0.1:1`, o cliente falha em rede de verdade e o `catch` de
+`assertSignupSessionAllowed` cai no `BoundedFallbackLimiter` — o mesmo caminho de um outage real.
+Os logs confirmam: `auth.ratelimit.degraded` com `reason_category: network`, `fetch failed`.
+
+| Fase | Resultado |
+| --- | --- |
+| **A1** — 60 tentativas de UM IP | o fallback em memória **continua limitando**: criações param no teto configurado (20/15 min) e o resto é recusado |
+| **A2** — 300 tentativas de IPs distintos | **zero recusas pelo limiter**. Confirma o pior caso: em serverless o fallback é por instância, e um atacante distribuído passa por ele |
+| **B** — tabela no teto (2.010 vivas) | **10 de 10 recusadas** com `at_capacity`; **nenhuma** sessão criada acima do teto |
+| **C** — janitor | **441 remoções/s** (1.691 linhas em 3,8 s) |
+| limpeza | readback **zero** — nenhuma linha do teste sobrou |
+
+**O que isso prova e o que NÃO prova.** Prova que a contenção funciona: com o limiter fora e
+IPs distintos, quem segura é o teto, e ele segurou 100% das tentativas. Prova também que a
+recuperação é muito mais rápida que a degradação — o janitor drena a ~441/s.
+
+**Não prova** qual é a vazão de um atacante real. A vazão medida aqui (4,1 sessões/s, o que daria
+~8 min para encher o teto) é a DESTE cliente, de uma máquina doméstica com RTT de ~160 ms ao banco e
+concorrência 20. Um atacante em datacenter seria muito mais rápido. O número honesto a tirar daqui
+não é "leva 8 minutos para encher", é **"encheu, e o teto segurou; e o dreno é ~100× mais rápido que
+o enchimento observado"**.
+
+**Consequência operacional registrada:** o `/api/health` degrada a 80% do teto, então o sinal chega
+antes de a recusa começar. Com dreno a 441/s, uma passada do janitor (10 em 10 min) devolve o
+sistema ao normal em segundos assim que a fonte de abuso para.
 
 ### O que a verificação real pegou, e o unitário não
 
