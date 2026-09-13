@@ -312,6 +312,19 @@ const EnvSchema = z
     // Org/projeto Sentry para o upload de source maps (build-time).
     SENTRY_ORG: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     SENTRY_PROJECT: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+
+    // --- ADR-060 (O-2b): desafio de bot no cadastro autônomo ---
+    // Site key é PÚBLICA por natureza — o widget roda no browser e qualquer
+    // visitante a vê no HTML. O `NEXT_PUBLIC_` não é estilo: é o que faz o Next
+    // inliná-la no bundle do cliente.
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Secret key: SÓ servidor, usada no `siteverify`. Sem `NEXT_PUBLIC_` — com o
+    // prefixo ela iria para o bundle que todo visitante baixa.
+    //
+    // Ausentes → o desafio não é exigido (O-2a segue protegido por rate limit e
+    // pelo teto de sessões vivas). É degradação declarada, não silenciosa: a
+    // ausência aparece no `/api/health` quando o O-2b passar a depender delas.
+    TURNSTILE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -392,6 +405,13 @@ function normalizeDevelopmentAliases(source: NodeJS.ProcessEnv): NodeJS.ProcessE
     ASAAS_WEBHOOK_TOKEN: source.ASAAS_WEBHOOK_TOKEN_DEV ?? source.ASAAS_WEBHOOK_TOKEN,
     RESEND_API_KEY: source.RESEND_API_KEY_DEV ?? source.RESEND_API_KEY,
     EMAIL_FROM: source.EMAIL_FROM_DEV ?? source.EMAIL_FROM,
+    // ADR-060: o Turnstile valida o HOSTNAME onde o widget rodou, então a chave
+    // de produção simplesmente falha em localhost. O alias evita o caso pior —
+    // um valor de produção sob o nome canônico no .env.local mandando a máquina
+    // do desenvolvedor exercitar o widget de produção.
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY:
+      source.NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV ?? source.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    TURNSTILE_SECRET_KEY: source.TURNSTILE_SECRET_KEY_DEV ?? source.TURNSTILE_SECRET_KEY,
   };
 }
 
