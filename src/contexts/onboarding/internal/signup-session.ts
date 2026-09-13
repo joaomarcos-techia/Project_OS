@@ -66,9 +66,14 @@ const CEILING_RECHECK_MS = 30_000;
  * Ordem do funil, em CÓDIGO e não no banco.
  *
  * `status` é `text`: ordenar por ele daria ordem alfabética, que não tem relação
- * nenhuma com progresso. Quem precisar comparar etapas usa este índice.
+ * nenhuma com progresso — `blocked` viria antes de `initiated`. Quem precisar
+ * comparar etapas usa este índice.
+ *
+ * Os estados de progresso vêm primeiro, na ordem em que acontecem; os terminais
+ * ficam no fim porque são saídas, não avanço. `details_complete` entrou com a
+ * migration 0098 (as quatro perguntas do §1.c.1 do ADR-060).
  */
-export const SIGNUP_FUNNEL_ORDER = ['initiated', 'blocked', 'expired'] as const;
+export const SIGNUP_FUNNEL_ORDER = ['initiated', 'details_complete', 'blocked', 'expired'] as const;
 
 export type SignupSessionStatus = (typeof SIGNUP_FUNNEL_ORDER)[number];
 

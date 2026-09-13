@@ -280,6 +280,46 @@ provisionamento vira assíncrono e a fatia precisa de:
 - o readback do §21.2 (confirmar no Asaas que a assinatura existe no estado esperado) como fonte da
   verdade, nunca o redirect do navegador.
 
+### 1.c.1. As perguntas — agora QUATRO, definidas em 14/09
+
+O documento chamava "as três perguntas" desde o §21.19. São **quatro**. O nome antigo sobrevive em
+referências fora daqui e não foi renomeado em massa, pelo mesmo motivo do §31.2.
+
+| # | Pergunta | Consequência no sistema |
+| --- | --- | --- |
+| 1 | Quantos profissionais atendem na clínica? (1 · 2–5 · 6–15 · 16+) | Sugere o plano; dimensiona a tela de equipe |
+| 2 | Quantos atendimentos por semana, aproximadamente? | Prevê valor; é a métrica de qualificação do lead |
+| 3 | O que você usa hoje? (papel/nada · agenda genérica · outro sistema) | "Outro sistema" oferece o importador de `/agenda/importar` no onboarding |
+| 4 | Por onde ficou sabendo da gente? | Atribuição **declarada** — ver abaixo |
+
+**Critério para uma pergunta existir:** a resposta muda alguma coisa. Pergunta sem consequência é
+atrito cobrado do visitante para produzir dado que ninguém lê.
+
+**Por que a 4 não duplica o §21.3.** A ponte de atribuição já captura `gclid` e UTMs automaticamente,
+e faz isso melhor do que qualquer pessoa lembraria. Mas ela só enxerga o que é **pago e etiquetado**.
+É cega justamente para o canal que provavelmente domina num produto vendido a psiquiatra: **indicação
+de colega**. Nenhum `gclid` conta isso. A pergunta captura o que a tag não alcança — é complementar,
+não redundante.
+
+#### ⚠️ A pergunta 4 tem de ser de OPÇÕES FECHADAS. Sem texto livre.
+
+Se houver a opção "Indicação de um colega", a vontade natural do produto é perguntar **quem** indicou.
+Não faça isso aqui. Um campo assim coleta **PII de um terceiro que nunca consentiu**, dentro do passo
+impessoal, antes da caixa de consentimento — quebrando exatamente a restrição que a ordem nova de §1.c
+existe para proteger.
+
+O mesmo vale para um "Outro" com texto livre: convida qualquer coisa, inclusive nome de pessoa.
+
+Lista fechada sugerida: *Busca no Google · Indicação de um colega · Instagram ou redes sociais · Grupo
+ou comunidade · Evento ou congresso · Outro*.
+
+Ganho lateral, não acidental: lista fechada produz **distribuição comparável ao longo do tempo**; texto
+livre produz um monte que ninguém lê. Se "Outro" crescer demais, ele mesmo vira a evidência de que
+falta uma opção.
+
+**Se rastrear indicação virar prioridade**, pergunte "quem indicou?" no onboarding — depois de a conta
+existir e o consentimento ter sido dado. Aí o dado tem dono e base legal.
+
 ### 1.d. Limite honesto das decisões de 14/09
 
 Duas consequências ficam registradas porque não aparecem sozinhas depois.

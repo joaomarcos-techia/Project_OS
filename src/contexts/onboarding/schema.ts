@@ -84,6 +84,29 @@ export const signupSessions = pgTable('signup_sessions', {
   absoluteExpiresAt: timestamp('absolute_expires_at', { withTimezone: true }).notNull(),
   /** Preenchido quando a sessão é consumida pela identidade (fatia seguinte). */
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
+
+  /* --- As QUATRO perguntas (ADR-060 §1.c.1, migration 0098) ------------
+   * IMPESSOAIS por decisão: são sobre a CLÍNICA, nunca sobre a pessoa. É o que
+   * permite coletá-las ANTES do consentimento, e o que mantém a propriedade de
+   * que o janitor só precisa APAGAR a linha.
+   *
+   * Cada uma tem CHECK no banco listando as opções. A validação não vive só no
+   * Zod de propósito: uma fatia futura pode afrouxar um schema sem querer, e
+   * `discovery_source` em particular precisa recusar texto livre — é o que
+   * impede alguém digitar o nome de quem indicou (PII de terceiro).
+   *
+   * NULL = ainda não respondeu. A constraint `answers_all_or_none` garante que
+   * as cinco andam juntas, então não existe linha meio respondida. */
+  /** '1' | '2_5' | '6_15' | '16_plus' */
+  professionalsBand: text('professionals_band'),
+  /** 'ate_20' | '21_50' | '51_100' | '100_plus' — faixa, nunca número livre. */
+  weeklyAppointmentsBand: text('weekly_appointments_band'),
+  /** 'nada_papel' | 'agenda_generica' | 'outro_sistema' */
+  currentTooling: text('current_tooling'),
+  /** Canal DECLARADO. Guarda o canal, nunca quem indicou. */
+  discoverySource: text('discovery_source'),
+  /** Distingue "abandonou no passo 0" de "respondeu e parou depois". */
+  answeredAt: timestamp('answered_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .default(sql`now()`),
