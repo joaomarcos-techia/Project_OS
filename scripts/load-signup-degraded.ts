@@ -88,7 +88,14 @@ async function disparar(
       // IP distinto por requisição simula botnet — o pior caso, e o que o
       // fallback POR INSTÂNCIA não contém.
       const ip = ipFixo ?? `10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`;
-      const r = await createSignupSession(ip);
+      // Origin coerente: a carga mede rate limit e teto, não o classificador
+      // de risco. Com Origin divergente tudo viraria risco alto e a prova
+      // mediria outra coisa.
+      const r = await createSignupSession({
+        ip,
+        origin: 'https://app.qoro.dev',
+        expectedHost: 'app.qoro.dev',
+      });
       if (r.ok) criadas += 1;
       else if (r.reason === 'rate_limited') limitadas += 1;
       else noTeto += 1;

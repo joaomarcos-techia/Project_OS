@@ -1,8 +1,9 @@
 # ADR-060 — Fatia O-2: sessão anônima de cadastro (bootstrap seguro)
 
 - **Status:** **O-2a Accepted** — código, migration aplicada em DEV (0096/0097), smoke contra o banco
-  e endpoints verificados no Preview. **O-2b segue Proposed** (risco adaptativo + Turnstile, pendente de
-  dono da configuração). Não autoriza as fatias O-1, O-3 e seguintes, nem migration em produção
+  e endpoints verificados no Preview. **O-2b implementado em 13/09** (classificador + `siteverify`),
+  pendente de verificação ponta a ponta com o widget renderizado — que só existe na fatia das
+  perguntas. Não autoriza as fatias O-1, O-3 e seguintes, nem migration em produção
 - **Data:** 2026-09-12 (revisada no mesmo dia; ver "Revisão de 12/09" ao final)
 - **Contextos:** onboarding (novo) + `lib/db` (tabela global pré-tenant) — dois bounded contexts, no teto
 - **Relaciona:** [ADR-053](053-cadastro-autonomo-seguro.md) (arquitetura do track),
@@ -293,6 +294,74 @@ juntar as fatias.
 **Rollout:** a rota não precisa nascer pública. Subir atrás de flag ou allowlist, validar o anti-abuso
 com tráfego controlado e só então abrir é prudência barata numa superfície que existe justamente para
 receber desconhecidos.
+
+## O-2b — como o desafio ficou (13/09)
+
+### Sinais disponíveis, e os que não existem ainda
+
+O §21.8 lista velocidade por IP/sessão/e-mail/dispositivo, tokens inválidos, falhas de schema, origem
+cross-site e assinatura de WAF. **Quatro existem hoje**; os outros não têm de onde vir nesta fatia, e
+isso está no código em vez de virar dívida silenciosa:
+
+| Sinal | Faixa | Por quê |
+| --- | --- | --- |
+| `Origin` de outro host | **alto** → recusa | Não há caso legítimo de POST de cadastro vindo de outra origem. Não vale gastar desafio |
+| `Origin` ausente | moderado → desafia | Cliente não-browser pode ser legítimo. "Não é o fluxo normal" ainda não é "é abuso" |
+| corpo recusado pelo schema | moderado | Bot manda lixo; a nossa tela, não |
+| balde do IP ≥ 50% | moderado | Pedir prova ANTES de o limite estourar transforma o rate limit de muro em pedágio |
+| **limiter degradado** | moderado | Ver abaixo |
+
+Fora do escopo por não existirem: e-mail e dispositivo (a ordem A põe as perguntas depois, então a
+fatia não os coleta) e assinatura de WAF (não há WAF). O classificador é função **pura** que recebe os
+sinais prontos — acrescentar um não mexe em quem o chama.
+
+### Limiter degradado vira desafio: controle compensatório
+
+Decisão que emergiu ao ligar as peças, e que fecha um buraco da decisão 6.
+
+Quando o Upstash cai, a defesa por IP **deixa de existir de fato** — em serverless o fallback é por
+instância, e a carga de 13/09 mediu exatamente isso: 300 tentativas de IPs distintos, zero recusas.
+A decisão 6 aceitava isso porque o teto contém o pior caso. Mas havia um degrau intermediário vazio.
+
+Agora o estado degradado **exige desafio**. Isso troca "perdemos o rate limit" por "prove que é
+humano", em vez de "deixa passar", e só encarece o cadastro durante o apagão. A escada fica:
+
+```text
+Redis são          → cadastro normal, sem desafio
+Redis fora         → desafio para todos (o desafio substitui o limite que sumiu)
+teto atingido      → recusa
+```
+
+### Falha fechada, mas só no caminho de desafio
+
+`verifyTurnstileToken` devolve `unreachable` quando não consegue falar com a Cloudflare, e o caller
+**recusa**. É o mesmo raciocínio graduado da decisão 6, aplicado um nível acima: esta função só é
+chamada quando algo na requisição **já pediu prova**, e não conseguir a prova não autoriza seguir como
+se ela tivesse sido dada.
+
+O caminho de risco baixo não passa por ali. Então um apagão da Cloudflare **não derruba o cadastro
+normal** — derruba só o das requisições que já estavam sob suspeita. Há teste para isso.
+
+### Códigos HTTP: quatro desfechos, quatro códigos
+
+| Código | Desfecho | O que o cliente faz |
+| --- | --- | --- |
+| `429` | `rate_limited` | espera (`Retry-After`) |
+| `503` | `at_capacity` | espera (`Retry-After`) |
+| `403` | `blocked` (risco alto) | nada — não há retry útil |
+| `401` | `challenge_required` | resolve o Turnstile e repete |
+
+Colapsar em um só apagaria a distinção justamente no incidente em que ela decide o que fazer.
+
+### Contrato de chaves, conferido no ambiente
+
+O `normalizeDevelopmentAliases` deste projeto é **allowlist explícita**. Turnstile não estava nela, e
+as variáveis `*_DEV` que o fundador criou no `.env.local` **não eram lidas por nada** — quem valia era
+o nome canônico. Corrigido: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` entraram no
+schema e no alias, seguindo a convenção de `DATABASE_URL` e `ASAAS_*`.
+
+Variantes `*_LOCAL` não têm função: `.env.local` só é lido em localhost, então uma chave por ambiente
+basta — e para localhost o caminho previsto são as chaves de teste da Cloudflare, sem widget.
 
 ## Matriz endpoint × limites (evidência 2)
 

@@ -16,6 +16,7 @@ import { z } from 'zod';
 
 import { createSignupSession } from '@/contexts/onboarding';
 import { getClientIp } from '@/lib/auth/rate-limit';
+import { env } from '@/lib/env';
 
 import { SIGNUP_COOKIE_OPTIONS, SIGNUP_SESSION_COOKIE } from '../cookie';
 
@@ -26,11 +27,30 @@ export const dynamic = 'force-dynamic';
 const MAX_BODY_BYTES = 1024;
 
 /**
- * `.strict()` sobre objeto VAZIO: a fatia O-2a não coleta nada. Campo extra é
- * rejeitado em vez de ignorado — ignorar ensina o cliente a mandar lixo e
+ * O único campo aceito é o token do desafio, e ele é OPCIONAL: a maioria das
+ * requisições é de risco baixo e não precisa dele. `.strict()` recusa qualquer
+ * outro campo em vez de ignorar — ignorar ensina o cliente a mandar lixo e
  * esconde a divergência quando as fatias seguintes passarem a ler campos.
  */
-const bodySchema = z.object({}).strict();
+const bodySchema = z.object({ turnstileToken: z.string().min(1).max(2048).optional() }).strict();
+
+/**
+ * Host que esperamos para nós mesmos, usado no sinal cross-site do O-2b.
+ *
+ * `APP_BASE_URL` quando configurado — valor de confiança, vindo do ambiente.
+ * Sem ele, cai no `Host` da requisição, que é o que permite o Preview funcionar
+ * (cada deployment tem host próprio e um valor fixo recusaria todos).
+ */
+function expectedHostOf(req: Request): string {
+  if (env.APP_BASE_URL) {
+    try {
+      return new URL(env.APP_BASE_URL).host;
+    } catch {
+      // URL malformada no ambiente não derruba a rota — cai no Host.
+    }
+  }
+  return req.headers.get('host') ?? '';
+}
 
 export async function POST(req: Request): Promise<Response> {
   const declared = Number(req.headers.get('content-length') ?? '0');
@@ -42,6 +62,8 @@ export async function POST(req: Request): Promise<Response> {
   if (raw.length > MAX_BODY_BYTES) {
     return NextResponse.json({ error: 'body_too_large' }, { status: 413 });
   }
+
+  let turnstileToken: string | undefined;
   if (raw.trim().length > 0) {
     let parsed: unknown;
     try {
@@ -49,23 +71,37 @@ export async function POST(req: Request): Promise<Response> {
     } catch {
       return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
     }
-    if (!bodySchema.safeParse(parsed).success) {
+    const check = bodySchema.safeParse(parsed);
+    if (!check.success) {
       return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
     }
+    turnstileToken = check.data.turnstileToken;
   }
 
-  const result = await createSignupSession(getClientIp(req.headers));
+  const result = await createSignupSession({
+    ip: getClientIp(req.headers),
+    origin: req.headers.get('origin'),
+    expectedHost: expectedHostOf(req),
+    ...(turnstileToken ? { turnstileToken } : {}),
+  });
 
   if (!result.ok) {
-    // 429 e 503 são estados DIFERENTES para quem opera: o primeiro é "este
-    // cliente pediu demais", o segundo é "o sistema todo está no teto". Colapsar
-    // os dois num código só apagaria a distinção justamente no incidente em que
-    // ela decide o que fazer.
-    const status = result.reason === 'rate_limited' ? 429 : 503;
-    return NextResponse.json(
-      { error: result.reason },
-      { status, headers: { 'Retry-After': '60' } },
-    );
+    // Quatro desfechos, quatro códigos. Colapsar em um só apagaria a distinção
+    // justamente no incidente em que ela decide o que fazer:
+    //   429 este cliente pediu demais
+    //   503 o sistema todo está no teto
+    //   403 requisição recusada por risco alto (cross-site) — não há retry útil
+    //   401 falta o desafio; resolver o Turnstile e repetir É o caminho
+    const status =
+      result.reason === 'rate_limited'
+        ? 429
+        : result.reason === 'at_capacity'
+          ? 503
+          : result.reason === 'blocked'
+            ? 403
+            : 401;
+    const headers = status === 429 || status === 503 ? { 'Retry-After': '60' } : undefined;
+    return NextResponse.json({ error: result.reason }, { status, ...(headers ? { headers } : {}) });
   }
 
   const res = NextResponse.json({ session: result.state }, { status: 201 });

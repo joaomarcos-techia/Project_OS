@@ -20,6 +20,8 @@ import { and, eq, gt, lte, or, sql } from 'drizzle-orm';
 
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { assertSignupSessionAllowed } from '@/lib/auth/rate-limit';
+import { RISK_HIGH, RISK_LOW, classifySignupRisk } from './signup-risk';
+import { verifyTurnstileToken } from './turnstile';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
@@ -79,9 +81,23 @@ export interface SignupSessionState {
   rowVersion: number;
 }
 
+/**
+ * Entrada da criação. Objeto, e não parâmetros soltos, porque o O-2b precisou
+ * de três campos novos de uma vez — e um quarto virá quando houver dispositivo.
+ */
+export interface CreateSignupSessionInput {
+  ip: string;
+  /** Cabeçalho `Origin` da requisição. `null` quando ausente — é sinal, não erro. */
+  origin: string | null;
+  /** Host que esperamos para nós mesmos, para detectar requisição cross-site. */
+  expectedHost: string;
+  /** Token do Turnstile, quando o cliente já resolveu um desafio. */
+  turnstileToken?: string | undefined;
+}
+
 export type CreateSignupSessionResult =
   | { ok: true; rawToken: string; state: SignupSessionState }
-  | { ok: false; reason: 'rate_limited' | 'at_capacity' };
+  | { ok: false; reason: 'rate_limited' | 'at_capacity' | 'challenge_required' | 'blocked' };
 
 /**
  * HMAC do token cru, com SEPARAÇÃO DE DOMÍNIO.
@@ -149,11 +165,49 @@ export function resetSignupCeilingCache(): void {
  * Cria a sessão. O token CRU volta uma única vez, para ir ao cookie
  * `__Host-qoro_signup` — nunca à URL, nunca ao corpo da resposta (§21.6).
  */
-export async function createSignupSession(ip: string): Promise<CreateSignupSessionResult> {
+export async function createSignupSession(
+  input: CreateSignupSessionInput,
+): Promise<CreateSignupSessionResult> {
+  const { ip, origin, expectedHost, turnstileToken } = input;
+
   const limit = await assertSignupSessionAllowed(ip);
-  if (!limit.ok) {
+  if (!limit.allowed) {
     metrics.emit('signup.session.blocked', { reason: 'rate_limited' });
     return { ok: false, reason: 'rate_limited' };
+  }
+
+  // Risco ANTES do teto e antes de qualquer escrita: recusar cedo é o ponto —
+  // negar depois já teria gasto a consulta de capacidade e o INSERT.
+  const risk = classifySignupRisk({
+    origin,
+    expectedHost,
+    ipBudgetUsed: limit.budgetUsed,
+    schemaFailure: false,
+    limiterDegraded: limit.degraded,
+  });
+
+  if (risk.level === RISK_HIGH) {
+    metrics.emit('signup.session.blocked', { reason: 'risk_high', risk: risk.reason });
+    return { ok: false, reason: 'blocked' };
+  }
+
+  if (risk.level > RISK_LOW) {
+    // MODERADO: exige desafio. Sem token, devolve `challenge_required` para o
+    // cliente resolver e repetir — não é erro, é um passo a mais.
+    if (!turnstileToken) {
+      metrics.emit('signup.session.challenged', { risk: risk.reason });
+      return { ok: false, reason: 'challenge_required' };
+    }
+    const verificado = await verifyTurnstileToken(turnstileToken, ip);
+    if (!verificado.ok) {
+      // Inclui `unreachable`: no caminho de desafio, não conseguir a prova não
+      // autoriza seguir como se ela tivesse sido dada (ver turnstile.ts).
+      metrics.emit('signup.session.blocked', {
+        reason: 'challenge_failed',
+        detail: verificado.reason,
+      });
+      return { ok: false, reason: 'challenge_required' };
+    }
   }
 
   const now = new Date();
@@ -169,6 +223,7 @@ export async function createSignupSession(ip: string): Promise<CreateSignupSessi
     .values({
       tokenHash: hashSignupToken(rawToken),
       status: 'initiated',
+      riskLevel: risk.level,
       idleExpiresAt: sql`now() + make_interval(secs => ${IDLE_TTL_SECONDS})`,
       absoluteExpiresAt: sql`now() + make_interval(secs => ${ABSOLUTE_TTL_SECONDS})`,
     })
@@ -184,7 +239,7 @@ export async function createSignupSession(ip: string): Promise<CreateSignupSessi
   // Sem campo "degraded" aqui: o módulo de rate limit já emite
   // `auth.ratelimit.degraded` quando cai no fallback, e duplicar o sinal em dois
   // eventos faria a contagem divergir dependendo de qual deles fosse lido.
-  metrics.emit('signup.session.created', { riskLevel: row.riskLevel });
+  metrics.emit('signup.session.created', { riskLevel: row.riskLevel, risk: risk.reason });
 
   return {
     ok: true,

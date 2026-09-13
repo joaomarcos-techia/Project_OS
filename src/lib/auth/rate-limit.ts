@@ -448,14 +448,34 @@ export async function assertPasswordResetCompletionAllowed(
  * queda de um terceiro trocaria custo desprezível por indisponibilidade de
  * aquisição. O pior caso é contido por `SIGNUP_SESSION_CEILING`, não por aqui.
  */
-export async function assertSignupSessionAllowed(ip: string): Promise<LimitResult> {
+export async function assertSignupSessionAllowed(ip: string): Promise<SignupLimitOutcome> {
   const ipKey = ipRateLimitKey(ip);
   try {
     const r = await lazySignupLimiter().limit(ipKey);
-    return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+    // `budgetUsed` alimenta o classificador de risco (ADR-060 O-2b): pedir prova
+    // ANTES de o balde estourar é o que transforma o limite de muro em pedágio.
+    const budgetUsed = r.limit > 0 ? 1 - r.remaining / r.limit : 0;
+    return { allowed: r.success, budgetUsed, degraded: false };
   } catch (err) {
-    return degraded('signup', err, fallback.signupIp.hit(ipKey));
+    const allowed = degraded('signup', err, fallback.signupIp.hit(ipKey)).ok;
+    // Degradado, o balde distribuído não existe — não há fração a reportar.
+    // Quem consome trata `degraded` como sinal próprio, e não finge saber.
+    return { allowed, budgetUsed: 0, degraded: true };
   }
+}
+
+/**
+ * Desfecho do limite de criação de sessão, mais rico que `LimitResult`.
+ *
+ * Existe separado porque o O-2b precisa de dois sinais que o resto do módulo
+ * não usa: quanto do balde já foi gasto e se estamos operando degradados.
+ */
+export interface SignupLimitOutcome {
+  allowed: boolean;
+  /** 0..1 — fração do balde por IP consumida. 0 quando degradado (desconhecido). */
+  budgetUsed: number;
+  /** true quando o limiter distribuído falhou e caímos no fallback local. */
+  degraded: boolean;
 }
 
 /**

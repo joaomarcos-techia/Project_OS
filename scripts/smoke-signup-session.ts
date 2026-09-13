@@ -55,7 +55,11 @@ async function main(): Promise<void> {
   await limpar(); // resíduo de execução anterior interrompida
 
   console.log('--- criação ---');
-  const criada = await createSignupSession(ipNovo());
+  const criada = await createSignupSession({
+    ip: ipNovo(),
+    origin: 'https://app.qoro.dev',
+    expectedHost: 'app.qoro.dev',
+  });
   check(criada.ok, 'createSignupSession devolveu ok');
   if (!criada.ok) throw new Error('sem sessão, o resto não faz sentido');
 

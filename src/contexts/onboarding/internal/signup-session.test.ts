@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { selectMock, insertMock, updateMock, deleteMock, limitMock, emitMock } = vi.hoisted(() => ({
-  selectMock: vi.fn(),
-  insertMock: vi.fn(),
-  updateMock: vi.fn(),
-  deleteMock: vi.fn(),
-  limitMock: vi.fn(),
-  emitMock: vi.fn(),
-}));
+const { selectMock, insertMock, updateMock, deleteMock, limitMock, emitMock, verifyMock } =
+  vi.hoisted(() => ({
+    selectMock: vi.fn(),
+    insertMock: vi.fn(),
+    updateMock: vi.fn(),
+    deleteMock: vi.fn(),
+    limitMock: vi.fn(),
+    emitMock: vi.fn(),
+    verifyMock: vi.fn(),
+  }));
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/db', () => ({
@@ -19,6 +21,9 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 vi.mock('@/lib/auth/rate-limit', () => ({ assertSignupSessionAllowed: limitMock }));
+// O classificador de risco NÃO é mockado: é função pura e o que ele decide é
+// parte do comportamento sob teste. O Turnstile é, porque fala com a rede.
+vi.mock('./turnstile', () => ({ verifyTurnstileToken: verifyMock }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: emitMock } }));
 vi.mock('@/lib/env', () => ({ env: { MAGIC_TOKEN_SECRET: 'segredo-de-teste' } }));
 
@@ -47,6 +52,17 @@ function chain<T>(rows: T[]): Chain {
 }
 
 const IP = '203.0.113.7';
+const HOST = 'app.qoro.dev';
+
+/** Entrada padrão: risco BAIXO (origem coerente, balde vazio, limiter são). */
+function criar(over: Partial<Parameters<typeof createSignupSession>[0]> = {}) {
+  return createSignupSession({
+    ip: IP,
+    origin: `https://${HOST}`,
+    expectedHost: HOST,
+    ...over,
+  });
+}
 
 /** Texto de qualquer estrutura, inclusive o objeto `sql` do drizzle (circular). */
 function textoDe(valor: unknown, vistos = new Set<unknown>()): string {
@@ -74,7 +90,8 @@ function insertedRow() {
 beforeEach(() => {
   vi.clearAllMocks();
   resetSignupCeilingCache();
-  limitMock.mockResolvedValue({ ok: true });
+  limitMock.mockResolvedValue({ allowed: true, budgetUsed: 0, degraded: false });
+  verifyMock.mockResolvedValue({ ok: true });
   selectMock.mockReturnValue(chain([{ live: 0 }]));
   insertMock.mockReturnValue(insertedRow());
 });
@@ -89,7 +106,7 @@ describe('token da sessão de cadastro', () => {
       },
     }));
 
-    const criada = await createSignupSession(IP);
+    const criada = await criar();
     expect(criada.ok).toBe(true);
     if (!criada.ok) return;
 
@@ -100,7 +117,7 @@ describe('token da sessão de cadastro', () => {
   });
 
   it('devolve o token cru UMA vez e nunca dentro do estado sanitizado', async () => {
-    const criada = await createSignupSession(IP);
+    const criada = await criar();
     expect(criada.ok).toBe(true);
     if (!criada.ok) return;
 
@@ -109,7 +126,7 @@ describe('token da sessão de cadastro', () => {
   });
 
   it('não põe o token cru em nenhuma métrica', async () => {
-    const criada = await createSignupSession(IP);
+    const criada = await criar();
     expect(criada.ok).toBe(true);
     if (!criada.ok) return;
 
@@ -128,7 +145,7 @@ describe('criação de sessão', () => {
       },
     }));
 
-    await createSignupSession(IP);
+    await criar();
 
     // Os prazos são expressão SQL (`now() + make_interval`), não `Date` do
     // processo: gravar com o relógio da instância e comparar com o do Postgres
@@ -143,9 +160,9 @@ describe('criação de sessão', () => {
   });
 
   it('recusa sem escrever quando o rate limit nega', async () => {
-    limitMock.mockResolvedValue({ ok: false, reason: 'rate_limited' });
+    limitMock.mockResolvedValue({ allowed: false, budgetUsed: 1, degraded: false });
 
-    const criada = await createSignupSession(IP);
+    const criada = await criar();
 
     expect(criada).toEqual({ ok: false, reason: 'rate_limited' });
     // O ponto do teste: recusar ANTES do INSERT. Recusar depois já teria
@@ -156,7 +173,7 @@ describe('criação de sessão', () => {
   it('recusa sem escrever quando o teto de sessões vivas foi atingido', async () => {
     selectMock.mockReturnValue(chain([{ live: SIGNUP_SESSION_CEILING }]));
 
-    const criada = await createSignupSession(IP);
+    const criada = await criar();
 
     expect(criada).toEqual({ ok: false, reason: 'at_capacity' });
     expect(insertMock).not.toHaveBeenCalled();
@@ -170,22 +187,112 @@ describe('criação de sessão', () => {
     // Cenário do apagão de Redis: o limiter devolve ok (fallback em memória
     // deixou passar) e mesmo assim o teto tem de segurar. Se não segurasse, a
     // decisão de degradar em vez de fechar não teria contenção nenhuma.
-    limitMock.mockResolvedValue({ ok: true });
+    limitMock.mockResolvedValue({ allowed: true, budgetUsed: 0, degraded: false });
     selectMock.mockReturnValue(chain([{ live: SIGNUP_SESSION_CEILING + 10 }]));
 
-    const criada = await createSignupSession(IP);
+    const criada = await criar();
 
     expect(criada).toEqual({ ok: false, reason: 'at_capacity' });
     expect(insertMock).not.toHaveBeenCalled();
   });
 
   it('não conta o teto a cada requisição: a segunda chamada usa o cache', async () => {
-    await createSignupSession(IP);
-    await createSignupSession(IP);
+    await criar();
+    await criar();
 
     // Um COUNT por requisição seria custo fixo no caminho quente para uma
     // válvula que quase nunca dispara.
     expect(selectMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('desafio de bot (O-2b)', () => {
+  it('risco BAIXO não pede desafio nem chama o Turnstile', async () => {
+    const criada = await criar();
+
+    expect(criada.ok).toBe(true);
+    expect(verifyMock).not.toHaveBeenCalled();
+  });
+
+  it('origem CROSS-SITE é recusada sem gastar desafio nem escrita', async () => {
+    const criada = await criar({ origin: 'https://site-de-terceiro.example' });
+
+    expect(criada).toEqual({ ok: false, reason: 'blocked' });
+    // Não há caso legítimo de POST de cadastro vindo de outra origem, então não
+    // se oferece desafio: recusa direto, antes do INSERT.
+    expect(verifyMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('origem AUSENTE pede desafio em vez de recusar', async () => {
+    const criada = await criar({ origin: null });
+
+    expect(criada).toEqual({ ok: false, reason: 'challenge_required' });
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('com token válido, a requisição de risco moderado passa', async () => {
+    verifyMock.mockResolvedValue({ ok: true });
+
+    const criada = await criar({ origin: null, turnstileToken: 'token-bom' });
+
+    expect(criada.ok).toBe(true);
+    expect(verifyMock).toHaveBeenCalledWith('token-bom', IP);
+  });
+
+  it('token inválido NÃO cria sessão', async () => {
+    verifyMock.mockResolvedValue({ ok: false, reason: 'invalid' });
+
+    const criada = await criar({ origin: null, turnstileToken: 'token-ruim' });
+
+    expect(criada).toEqual({ ok: false, reason: 'challenge_required' });
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('Turnstile INALCANÇÁVEL falha fechado no caminho de desafio', async () => {
+    verifyMock.mockResolvedValue({ ok: false, reason: 'unreachable' });
+
+    const criada = await criar({ origin: null, turnstileToken: 'token-qualquer' });
+
+    // Não conseguir a prova não autoriza seguir como se ela tivesse sido dada.
+    // Só afeta quem já estava sob suspeita: o caminho de risco baixo nem passa
+    // por aqui, então um apagão da Cloudflare não derruba o cadastro normal.
+    expect(criada).toEqual({ ok: false, reason: 'challenge_required' });
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it('LIMITER DEGRADADO passa a exigir desafio — controle compensatório', async () => {
+    limitMock.mockResolvedValue({ allowed: true, budgetUsed: 0, degraded: true });
+
+    const criada = await criar();
+
+    // Sem o balde distribuído a defesa por IP deixou de existir de fato. O
+    // desafio entra no lugar dela enquanto durar o apagão, em vez de simplesmente
+    // deixar passar.
+    expect(criada).toEqual({ ok: false, reason: 'challenge_required' });
+  });
+
+  it('balde por IP acima da metade já pede prova, antes de o limite estourar', async () => {
+    limitMock.mockResolvedValue({ allowed: true, budgetUsed: 0.6, degraded: false });
+
+    const criada = await criar();
+
+    expect(criada).toEqual({ ok: false, reason: 'challenge_required' });
+  });
+
+  it('grava no banco o nível de risco apurado, não um valor fixo', async () => {
+    let capturado: Record<string, unknown> | null = null;
+    insertMock.mockImplementation(() => ({
+      values: (v: Record<string, unknown>) => {
+        capturado = v;
+        return insertedRow();
+      },
+    }));
+    verifyMock.mockResolvedValue({ ok: true });
+
+    await criar({ origin: null, turnstileToken: 'token-bom' });
+
+    expect((capturado as Record<string, unknown> | null)?.riskLevel).toBe(1);
   });
 });
 
