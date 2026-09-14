@@ -189,11 +189,11 @@ Ordenados por custo de errar, não por esforço.
 | **G1** | **Nenhum E2E roda em CI** | 20.000 linhas de teste que só rodam quando alguém lembra não previnem regressão: descobrem depois. |
 | ~~G2~~ | ~~`/admin` sem cobertura autenticada~~ | **Fechado em 14/09.** A negativa em §D.2, o caminho positivo em §D.4. |
 | **G3** | `/configuracoes/pagamentos` sem E2E | É onde a clínica conecta a chave do Asaas. Dinheiro de paciente. **Fechado** em §D.4, menos o ciclo mutante (ver R2). |
-| **G4** | `/configuracoes/auditoria` sem E2E | Export de auditoria é egresso de dado sensível e tem permission dedicada (`export:audit`). |
-| **G5** | `/login/mfa` sem E2E | O ciclo MFA é testado em `/account/security`; o **desafio no login** não. |
+| ~~G4~~ | ~~`/configuracoes/auditoria` sem E2E~~ | **Fechado em 14/09** por `tenant-settings-screens`: o export é baixado de verdade e o CABEÇALHO do CSV é travado. |
+| ~~G5~~ | ~~`/login/mfa` sem E2E~~ | **Fechado em 14/09**: a jornada do super_admin passa pelo desafio a cada execução — é o que a eleva a AAL2. |
 | **G6** | O-2a/O-2b sem E2E até esta auditoria | Fatia nova (sessão anônima de cadastro). Fechado em §D. |
 | **G7** | Captcha do Supabase sem E2E | Fechado em §D (campo `captchaToken`). |
-| **G8** | `/configuracoes/lgpd` e `/modelos-receita` superficiais | Passam por visitarem a página. |
+| ~~G8~~ | ~~`/configuracoes/lgpd` e `/modelos-receita` superficiais~~ | **Fechado em 14/09.** A categoria "superficial" zerou na matriz. |
 | **G9** | Integrações só abaixo da UI | Ver §H — decisão defensável, mas não estava escrita. |
 
 ---
@@ -383,9 +383,9 @@ desses endpoints). O que faltava era esta tabela existir, para ninguém confundi
 | Categoria | Qtde |
 | --- | --- |
 | Specs auditados | 51 |
-| Specs adicionados | 5 (26 casos) |
-| Casos novos executados | 26 |
-| Aprovados | 26 |
+| Specs adicionados | 6 (30 casos) |
+| Casos novos executados | 30 |
+| Aprovados | 30 |
 | Falhos | 0 |
 | Pulados com anotação | 2 no `signup-session-api`, quando o orçamento de IP estoura |
 | Testes unitários (regressão) | 3.330 verdes (356 arquivos) |
@@ -397,7 +397,8 @@ Execuções que sustentam a linha "aprovados", todas contra ambiente real:
 - `signup-session-api` — **9/9** no Preview na primeira janela de rate limit;
 - `admin-boundary-rbac` — **1/1** no Preview (dois casos viraram um, com um login só);
 - `payments-account-lifecycle` — **1/1 + 1 skip anotado** no Preview;
-- `admin-superadmin-journey` — **5/5** no Preview, com o ambiente conferido depois.
+- `admin-superadmin-journey` — **6/6** no Preview, com o ambiente conferido depois;
+- `tenant-settings-screens` — **3/3** no Preview.
 
 **O que NÃO foi executado:** os 40 specs `production-*`. Eles escrevem em produção
 com clínicas sintéticas e exigem autorização explícita por spec — não é decisão de

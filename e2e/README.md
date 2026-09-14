@@ -13,6 +13,7 @@ abaixo.
 | `admin-boundary-rbac.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (precisa de credencial) |
 | `payments-account-lifecycle.spec.ts` | `E2E_BASE_URL` **de Preview** + `ASAAS_CLINIC_SANDBOX_KEY` | não (cria estado no Asaas) |
 | `admin-superadmin-journey.spec.ts` | `E2E_BASE_URL` **de Preview** + `SUPER_ADMIN_*_DEV` + `DATABASE_URL` | não (muta estado GLOBAL) |
+| `tenant-settings-screens.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (cria e apaga modelo de receita) |
 | `production-*.spec.ts` (40) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
 | mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
 

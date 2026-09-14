@@ -30,7 +30,7 @@ documento:
 | Login | rate limit dual (IP+e-mail) | — | — | sim | — (unitário) | — | Parcial |
 | Login | captcha do Supabase | qualquer | — | reprovado ≠ senha errada | — | `login/actions.test.ts` | Parcial |
 | MFA | ativar / elevar AAL2 / remover | owner | sim | fator órfão | `production-mfa-lifecycle` | — | Coberto |
-| MFA | desafio na tela `/login/mfa` | — | não | não | — | — | **Não coberto** |
+| MFA | desafio na tela `/login/mfa` | super_admin | sim | — | — | `admin-superadmin-journey` | Coberto |
 | Recuperação de senha | solicitar | qualquer | sim | anti-enumeração | `production-password-recovery-a` | — | Coberto |
 | Recuperação de senha | prova de recovery, uso único, revogação | owner | sim | replay, token inválido | `production-password-recovery-a` | — | Coberto |
 | Logout | revogar refresh, dois dispositivos | owner | sim | replay do cookie | `production-session-logout-replay-a` | — | Coberto |
@@ -84,7 +84,7 @@ nunca verde.
 | Paciente | isolamento A↔B | tenant A/B | — | listagem, detalhe, CRUD adulterado | `production-cross-tenant-patients` | Coberto |
 | LGPD | exportar (PDF/JSON privados) | controlled | sim | A↔B | `production-lgpd-export-email` | Coberto |
 | LGPD | ciclo destrutivo (reter, eliminar, anonimizar) | controlled, doctor | sim | — | `production-lgpd-full-lifecycle-a` | Coberto |
-| LGPD | fila em `/configuracoes/lgpd` | — | não | não | inventário de rota apenas | **Superficial** |
+| LGPD | fila em `/configuracoes/lgpd` | owner | sim | — | `tenant-settings-screens` | Coberto |
 | Consentimento | conceder / revogar | — | não | não | — | **Não coberto** |
 
 ## 5. Agenda e Consultório
@@ -113,7 +113,7 @@ nunca verde.
 | Template clínico (Psiquiatria) | selecionar, preencher, persistir | doctor | sim | — | `psychiatry-template` | Coberto |
 | Documentos fora da consulta | emitir e convergir 3 telas | doctor | sim | — | `clinical-standalone-documents` | Coberto |
 | PDFs (prescrição/documento) | acesso autenticado | — | sim | ID estrangeiro | `production-cross-tenant-clinical-idor` | Coberto |
-| Modelos de receita | criar, editar, duplicar, excluir | — | não | não | inventário de rota apenas | **Superficial** |
+| Modelos de receita | criar, persistir e excluir (com confirmação) | owner | sim | — | `tenant-settings-screens` | Coberto |
 
 ## 7. Financeiro
 
@@ -162,7 +162,7 @@ nunca verde.
 | Webhook Asaas (billing) | pago, dunning, suspensão | — | sim | sim | `smoke:c13`, `billing:live-roundtrip` | Fora do navegador |
 | Sugestões | enviar, autor privado, A↔B, replay | owner, doctor, tenant B | sim | sim | `production-feedback-privacy-a` | Coberto |
 | Perfil da clínica | editar, concorrência | owner, doctor, tenant B | sim | CNPJ inválido | `production-clinic-profile-a` | Coberto |
-| Auditoria (`/configuracoes/auditoria`) | exportar | — | não | não | — | **Não coberto** |
+| Auditoria (`/configuracoes/auditoria`) | exportar CSV de verdade, colunas travadas | owner | sim | — | `tenant-settings-screens` | Coberto |
 
 ## 11. Plataforma — `super_admin` (`/admin`)
 
@@ -176,11 +176,11 @@ nunca verde.
 | Kill-switch | flag **e** auditoria na mesma transação | super_admin | `admin-superadmin-journey` | Coberto |
 | Kill-switches / flags | alterar (nível de banco) | super_admin | `smoke:admin-config` | Fora do navegador |
 | Anúncio (broadcast) | publicar / desativar | super_admin | `smoke:admin-config` | Fora do navegador |
-| Billing da plataforma | ver | super_admin | — | **Não coberto** |
-| Auditoria da plataforma | ver | super_admin | — | **Não coberto** |
-| Métricas / Saúde | ver | super_admin | `/api/health` (unitário) | **Não coberto** |
-| Feedbacks | triar | super_admin | — | **Não coberto** |
-| Conversas IA | ver | super_admin | — | **Não coberto** |
+| Billing da plataforma | ver | super_admin | `admin-superadmin-journey` | Coberto |
+| Auditoria da plataforma | ver | super_admin | `admin-superadmin-journey` | Coberto |
+| Métricas / Saúde | ver | super_admin | `admin-superadmin-journey` | Coberto |
+| Feedbacks | ver a fila | super_admin | `admin-superadmin-journey` | Coberto |
+| Conversas IA | ver | super_admin | `admin-superadmin-journey` | Coberto |
 | Fronteira anônima de `/admin` | redirect | anônimo | `public-surface` (8 rotas) | Coberto |
 | **Fronteira autenticada de `/admin`** | **deny com sessão de clínica válida** | owner de clínica | `admin-boundary-rbac` (9 rotas + deep-link) | **Coberto** |
 
@@ -209,14 +209,23 @@ Contadas do próprio arquivo, não estimadas.
 
 | Status | Linhas |
 | --- | --- |
-| Coberto | 72 |
+| Coberto | 81 |
 | Parcial | 5 |
-| Superficial (= não coberto) | 2 |
-| Não coberto | 10 |
+| Superficial | **0** |
+| Não coberto | **3** |
 | Fora do navegador | 9 |
 | Não existe ainda (tela das 3 perguntas) | 1 |
 
-Os "não coberto" caíram de 14 para 10 em 14/09, e a natureza deles mudou: os quatro que saíram eram
-de `/admin` — impersonate e kill-switch, o risco particular daquela superfície. Os que sobraram ali
-são TELAS de leitura (`billing`, `audit`, `metricas`, `saude`, `feedbacks`, `conversas-ia`), cujo
-risco é o de qualquer página autenticada.
+**De 14 para 3 em 14/09**, e "superficial" zerou — a categoria existia para nomear cobertura
+aparente (rota visitada, `status < 500`), e não sobrou nenhuma.
+
+Os três que restam não sobraram por esquecimento; cada um tem um motivo que não se resolve
+escrevendo mais teste:
+
+| O que falta | Por que não foi coberto |
+| --- | --- |
+| **Auto-login pós-checkout** | Exige um checkout pago completo. Além disso, a fatia vai mudar: a decisão de 14/09 troca o checkout transparente pelo hospedado do Asaas, e o provisionamento passa a ser por webhook. Cobrir agora seria testar código com data de validade. |
+| **Consentimento (conceder / revogar)** | Toca dado de PACIENTE. Exige fixture própria e cleanup provado; um teste não deve decidir exercitar revogação de consentimento sem isso, nem em Preview. |
+| **Troca de plano / reativação** | Muta estado de billing da clínica no Asaas. Precisa de assinatura sandbox dedicada — a mesma razão que manteve o ciclo de `payments-account-lifecycle` condicional. |
+
+O mesmo vale para a **tela das 3 perguntas**: não há o que testar porque ela ainda não existe.

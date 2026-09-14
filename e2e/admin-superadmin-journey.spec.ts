@@ -208,6 +208,47 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
     expect(new URL(page.url()).pathname, 'foi expulso do painel').toBe('/admin/clinicas');
   });
 
+  test('as seis telas de leitura do painel renderizam conteúdo próprio', async () => {
+    test.setTimeout(180_000);
+
+    // Cada tela é afirmada por DOIS âncoras: o `<h1>` dela e um bloco que só
+    // existe quando a consulta de dados terminou. Só o título provaria que a
+    // rota respondeu — a casca renderiza igual quando o corpo falha, e foi
+    // exatamente essa a fraqueza que a auditoria apontou no
+    // `authenticated-readonly-routes` (visita a página, aceita qualquer status
+    // < 500 e conclui "coberto").
+    const telas = [
+      { rota: '/admin/billing', titulo: 'Pagamentos', dado: /Receita · últimos 6 meses/ },
+      { rota: '/admin/metricas', titulo: 'Métricas', dado: /Usuários ativos diários/ },
+      { rota: '/admin/feedbacks', titulo: 'Feedbacks', dado: /Por status/ },
+      { rota: '/admin/saude', titulo: 'Saúde da plataforma', dado: /Incidentes ativos/ },
+      { rota: '/admin/conversas-ia', titulo: 'Conversas IA', dado: /Conversas recentes/ },
+      // Auditoria aceita os dois desfechos: a tabela OU o estado vazio. Um log
+      // vazio é legítimo, e exigir linhas tornaria o teste dependente de
+      // atividade prévia — o antipadrão "depende de estado anterior".
+      { rota: '/admin/audit', titulo: 'Auditoria', dado: /Todas as clínicas|Nenhum evento/ },
+    ] as const;
+
+    const quebradas: string[] = [];
+    for (const tela of telas) {
+      await page.goto(tela.rota, { waitUntil: 'domcontentloaded' });
+
+      const titulo = page.getByRole('heading', { level: 1, name: tela.titulo });
+      if ((await titulo.count()) === 0) {
+        quebradas.push(`${tela.rota} → sem o <h1> "${tela.titulo}"`);
+        continue;
+      }
+      const corpo = await page.locator('main').innerText();
+      if (!tela.dado.test(corpo)) {
+        quebradas.push(`${tela.rota} → título ok, mas o conteúdo não carregou`);
+      }
+    }
+
+    // Lista inteira: falhar na primeira esconderia quantas outras também estão
+    // quebradas, e num painel de plataforma é isso que se quer saber.
+    expect(quebradas, 'telas do painel sem conteúdo próprio').toEqual([]);
+  });
+
   test('kill-switch grava a flag E a auditoria — as duas, ou nenhuma', async () => {
     test.setTimeout(120_000);
     await page.goto('/admin/config');
