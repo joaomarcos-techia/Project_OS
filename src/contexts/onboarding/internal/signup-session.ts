@@ -16,7 +16,7 @@ import 'server-only';
 
 import { createHmac, randomBytes } from 'node:crypto';
 
-import { and, eq, gt, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, lte, or, sql } from 'drizzle-orm';
 
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { assertSignupSessionAllowed } from '@/lib/auth/rate-limit';
@@ -112,7 +112,7 @@ export type CreateSignupSessionResult =
  * convite nem possa ser apresentado no lugar dele. Sem o prefixo, dois usos
  * diferentes do mesmo segredo produziriam hashes intercambiáveis.
  */
-function hashSignupToken(rawToken: string): string {
+export function hashSignupToken(rawToken: string): string {
   const secret = env.MAGIC_TOKEN_SECRET;
   if (!secret) throw new Error('[signup] MAGIC_TOKEN_SECRET é obrigatório em runtime');
   return createHmac('sha256', secret).update(`signup-session:v1:${rawToken}`).digest('hex');
@@ -127,7 +127,10 @@ function hashSignupToken(rawToken: string): string {
  */
 function liveCondition(now: Date) {
   return and(
-    eq(signupSessions.status, 'initiated'),
+    // `details_complete` também é sessão VIVA: responder as perguntas avança o
+    // funil, não o encerra. Sem isto, `GET /me` passaria a devolver 410 logo
+    // depois do passo 1 — e a página perderia a própria sessão ao recarregar.
+    inArray(signupSessions.status, ['initiated', 'details_complete']),
     gt(signupSessions.idleExpiresAt, now),
     gt(signupSessions.absoluteExpiresAt, now),
   );

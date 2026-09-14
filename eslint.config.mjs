@@ -258,6 +258,10 @@ const config = [
       // setar. A tabela tem RLS ENABLE+FORCE SEM NENHUMA POLICY, grant só a
       // service_role e REVOKE explícito de anon/authenticated (migration 0096).
       'src/contexts/onboarding/internal/signup-session.ts',
+      // ADR-060 §1.c.1: as quatro perguntas escrevem na MESMA tabela global
+      // pré-tenant. Mesma justificativa do irmão acima — `withTenant` não tem
+      // GUC de tenant para setar numa linha que nasce antes de existir clínica.
+      'src/contexts/onboarding/internal/signup-answers.ts',
       // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
       // authenticated (D31). Mesma justificativa da saga de onboarding.

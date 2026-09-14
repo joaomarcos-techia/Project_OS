@@ -4,6 +4,16 @@
  */
 export { generateInviteToken, hashToken } from './internal/token';
 export {
+  CURRENT_TOOLING,
+  DISCOVERY_SOURCES,
+  PROFESSIONALS_BANDS,
+  WEEKLY_APPOINTMENT_BANDS,
+  recordSignupAnswers,
+  signupAnswersSchema,
+  type RecordAnswersOutcome,
+  type SignupAnswers,
+} from './internal/signup-answers';
+export {
   SIGNUP_SESSION_CEILING,
   createSignupSession,
   getSignupSessionPressure,
