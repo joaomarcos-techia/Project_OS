@@ -305,29 +305,66 @@ function HandoffPanel({
  * se já perdeu a janela —, então o tempo restante vem por extenso e o horário
  * fica como referência.
  */
-function JanelaAberta({ closesAt }: { closesAt: string | null }) {
+/**
+ * "Agora", só DEPOIS da hidratação, atualizado a cada minuto.
+ *
+ * Devolve `null` no servidor e no primeiro render do cliente. Isso conserta dois
+ * problemas de uma vez:
+ *
+ * 1. **Mismatch de hidratação.** `Date.now()` durante o render faz o servidor
+ *    escrever "15 min" e o cliente, segundos depois, "14 min". O React descarta
+ *    a subárvore e reporta o erro — capturado no Sentry em 11/09 com exatamente
+ *    `+14 / -15` dentro do `<span className="font-mono …">`.
+ * 2. **O contador não contava.** Calculado uma vez no render, ficava congelado:
+ *    um relógio de janela de 24 h que não anda é pior que não ter relógio, porque
+ *    o operador decide se ainda dá tempo de escrever olhando para ele.
+ *
+ * O intervalo é de 1 min porque a granularidade exibida é o minuto — despertar
+ * mais vezes gastaria render sem mudar um pixel.
+ */
+function useAgoraAposMontar(): number | null {
+  const [agora, setAgora] = useState<number | null>(null);
+  useEffect(() => {
+    setAgora(Date.now());
+    const id = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return agora;
+}
+
+export function JanelaAberta({ closesAt }: { closesAt: string | null }) {
+  const agora = useAgoraAposMontar();
   if (!closesAt) return null;
   const fecha = new Date(closesAt);
-  const restamMin = Math.max(0, Math.round((fecha.getTime() - Date.now()) / 60_000));
-  const horas = Math.floor(restamMin / 60);
-  const hoje = new Date().toDateString() === fecha.toDateString();
+
+  // O horário ABSOLUTO vem do prop e é estável — pode sair no servidor. Só o
+  // relativo depende de "agora", e é ele que espera a montagem.
+  const horario = fecha.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+
+  const restamMin =
+    agora === null ? null : Math.max(0, Math.round((fecha.getTime() - agora) / 60_000));
+  const horas = restamMin === null ? 0 : Math.floor(restamMin / 60);
+  const hoje = agora === null ? null : new Date(agora).toDateString() === fecha.toDateString();
+
   return (
     <p className="flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)">
       <Clock aria-hidden="true" className="size-3.5 text-success-700" />
       <span className="font-medium text-success-700">Janela de 24 h aberta</span>
       <span className="text-fg-subtle">
-        fecha às{' '}
-        {fecha.toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hourCycle: 'h23',
-        })}{' '}
-        {hoje ? 'de hoje' : 'de amanhã'} · restam
+        fecha às {horario}
+        {hoje === null ? '' : hoje ? ' de hoje' : ' de amanhã'}
+        {restamMin === null ? '' : ' · restam'}
       </span>
-      <span className="font-mono font-semibold tabular-nums text-fg-muted">
-        {horas > 0 ? `${horas} h ` : ''}
-        {restamMin % 60} min
-      </span>
+      {restamMin === null ? null : (
+        <span className="font-mono font-semibold tabular-nums text-fg-muted">
+          {horas > 0 ? `${horas} h ` : ''}
+          {restamMin % 60} min
+        </span>
+      )}
     </p>
   );
 }
