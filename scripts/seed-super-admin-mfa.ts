@@ -36,6 +36,8 @@ import { createHmac } from 'node:crypto';
 
 import { createClient } from '@supabase/supabase-js';
 
+import { markMfaEnrolledForUser } from '@/lib/auth/tenant-context';
+
 const { databaseUrl } = assertDevContext();
 console.log(`[seed-mfa] target: ${databaseUrl.replace(/:[^:@]+@/, ':***@')}`);
 
@@ -115,7 +117,14 @@ const verificado = fatores.totp.find((f) => f.status === 'verified');
 if (verificado) {
   // Idempotente: rodar de novo não troca o fator de quem já tem. Trocar exigiria
   // `seed-super-admin.ts --reset-mfa` antes, que é uma decisão explícita.
-  console.log(`[seed-mfa] já existe fator TOTP verificado (${verificado.id}). Nada a fazer.`);
+  //
+  // Mas a marca no profile é RECONCILIADA mesmo assim: é o caso de uma conta que
+  // ficou com fator verificado e `mfa_enrolled_at` nulo — exatamente o que a
+  // primeira versão deste script produziu. Rodar de novo conserta.
+  const { data: atual } = await supabase.auth.getUser();
+  if (atual.user) await markMfaEnrolledForUser(atual.user.id, true);
+  console.log(`[seed-mfa] já existe fator TOTP verificado (${verificado.id}).`);
+  console.log('[seed-mfa] profiles.mfa_enrolled_at reconciliado. Nada mais a fazer.');
   process.exit(0);
 }
 
@@ -141,5 +150,26 @@ if (verifyError) {
   process.exit(1);
 }
 
+/* ---------------------------------------------------------------------
+ * `profiles.mfa_enrolled_at` — a OUTRA metade do enrollment.
+ *
+ * O fator vive no Supabase (`auth.mfa_factors`); a marca vive no nosso
+ * `profiles`, e é ELA que o `postLoginRedirect` consulta. Fazer só a primeira
+ * metade deixa a conta num estado incoerente: tem fator verificado e mesmo
+ * assim é mandada para o enrollment forçado a cada login.
+ *
+ * Descoberto sondando o Preview logo depois da primeira versão deste script —
+ * o login caiu em `/account/security?force=1` com o fator já existindo. A
+ * `verifyEnrollAction` da tela faz as duas metades; um script que faz só uma
+ * não reproduz o enrollment, reproduz metade dele.
+ * ------------------------------------------------------------------ */
+const { data: sessao } = await supabase.auth.getUser();
+if (!sessao.user) {
+  console.error('[seed-mfa] sessão sumiu antes de marcar o profile.');
+  process.exit(1);
+}
+await markMfaEnrolledForUser(sessao.user.id, true);
+
 console.log(`[seed-mfa] fator TOTP verificado (${enrolled.id}).`);
+console.log('[seed-mfa] profiles.mfa_enrolled_at marcado.');
 console.log('[seed-mfa] ✅ done. O segredo NÃO foi impresso — o E2E o lê de auth.mfa_factors.');
