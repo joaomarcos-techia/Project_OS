@@ -51,6 +51,7 @@
     "restore:test": "tsx scripts/restore-test.ts",
     "db:studio": "tsx scripts/db-studio.ts",
     "seed:super-admin": "tsx scripts/seed-super-admin.ts",
+    "seed:super-admin-mfa": "tsx --conditions=react-server scripts/seed-super-admin-mfa.ts",
     "seed:clinic-user": "tsx scripts/seed-clinic-user.ts",
     "reset:dev": "tsx scripts/reset-dev-data.ts",
     "reset:prod": "tsx scripts/reset-prod-data.ts",
