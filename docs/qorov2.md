@@ -4208,3 +4208,320 @@ evidência de aceite do O-2a está completa; detalhe em [ADR-060](adr/060-sessao
 
 O **O-2b** (risco adaptativo + Turnstile) segue parado num item só — quem é o dono da configuração no
 Cloudflare.
+
+---
+
+## 32. Inventário do implementado — mapa com ADRs (14/09/2026)
+
+### 32.1 Como ler esta seção
+
+O `docs/README.md` fixa a regra que esta seção obedece, e ela é o que dá valor ao inventário:
+
+> `IMPLEMENTADO` significa que há implementação no repositório. **Não** significa que migration,
+> credencial, webhook, template ou deploy estejam ativos em produção.
+
+Por isso cada linha tem **duas** dimensões de estado, e não uma. "Existe no código" e "roda em
+produção" divergem hoje, e a distância é grande:
+
+| Medida | Valor em 14/09 |
+| --- | --- |
+| Commits em `feat/qorov2-pagamentos` à frente de `main` | **180** |
+| Migrations no branch e **não** em produção | **5** (`0094`–`0098`) |
+| Migrations totais | 99 |
+| Tabelas | ~100 |
+| Bounded contexts | 13 |
+| Crons | 19 |
+| Rotas de API | 28 |
+| Páginas | 52 |
+| Server actions exportadas | ~200 |
+| Permissions canônicas | 30 |
+| Roles | 6 |
+| Testes unitários | 3.355 (359 arquivos) |
+| Specs E2E | 55 |
+| ADRs | 57 |
+
+**A leitura honesta das duas primeiras linhas:** boa parte do que este documento descreve como
+entregue está num branch. Produção não tem `signup_sessions`, não tem Turnstile, não tem o conserto do
+super_admin trancado, não tem a janela de 24 h consertada. Isso não é atraso — é a consequência de
+`main` ser o que está publicado —, mas confundir as duas coisas é o erro mais caro que este inventário
+existe para evitar.
+
+### 32.2 Identidade, sessão e autorização
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Sessão server-authoritative por request (auth epoch); o middleware NÃO autoriza | [ADR-037](adr/037-server-authoritative-session.md) | produção | `security:unit`, `production-permission-lifecycle` |
+| 6 roles + 30 permissions flat no JWT, catálogo único em TS | [ADR-008](adr/008-identity-patterns.md) · D25 | produção | `production-all-permission-overrides` |
+| MFA obrigatório **só** para `super_admin` | [ADR-038](adr/038-mfa-policy.md) | produção | `production-mfa-lifecycle` |
+| Ciclo de vida de membro (desativar, reativar, trocar role, override) | [ADR-039](adr/039-member-lifecycle.md) | produção | `production-role-transition-matrix-a` |
+| Aceite de convite como gate de sessão | [ADR-040](adr/040-invite-acceptance-gate.md) | produção | `production-team-lifecycle` |
+| Reenvio de convite por link copiável, não e-mail automático | [ADR-034](adr/034-invite-resend-copy-link.md) | produção | `production-invite-concurrency-a` |
+| Tabela de autorização não é tabela de tenant | [ADR-041](adr/041-authz-tables-are-not-tenant-tables.md) | produção | `security:tenant` |
+| Colapso User=Employee=Practitioner + `isPractitioner` | [ADR-032](adr/032-mvp-identity-practitioner-model.md) | produção | — |
+| `captchaToken` nas 3 chamadas do Supabase Auth | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c | **branch** | `login/actions.test.ts`, `public-surface` |
+| super_admin recém-criado alcança o enrollment de MFA | conserto de 14/09 | **branch** | sonda no Preview |
+
+### 32.3 Multi-tenant e banco
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| RLS com `withTenant` (`SET LOCAL ROLE` + GUC `app.current_clinic`) | [ADR-007](adr/007-rls-implementation-patterns.md) | produção | `security:tenant` (Postgres temporário no CI) |
+| Policy v2 (InitPlan) + least-privilege no schema `public` | [ADR-042](adr/042-rls-initplan-and-public-least-privilege.md) | produção | `arch:db-check` |
+| SECURITY DEFINER com allowlist mínima | [ADR-010](adr/010-security-definer-patterns.md) | produção | `security:inventory` |
+| Tabelas globais pré-tenant: RLS ENABLE+FORCE **sem policy**, grant só a `service_role` | [ADR-007](adr/007-rls-implementation-patterns.md) §10 | produção + branch | `smoke:signup-session` |
+| Gate anti-destrutivo de migration | — | produção | `check:migrations` |
+| Guard AST de origem de conexão (`dbAdmin` fora de `withTenant`) | [ADR-007](adr/007-rls-implementation-patterns.md) F-01 | produção | `arch:db-check` (1.213 arquivos) |
+| Cifra de conteúdo clínico | [ADR-044](adr/044-clinical-content-encryption.md) | produção | `db:encrypt-clinical`, `security:unit` |
+| Retenção (não particionamento) da mensageria raw | [ADR-043](adr/043-messaging-retention-not-partitioning.md) | produção | `cron/data-retention` |
+
+### 32.4 Clínico
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Prontuário SOAP, assinatura, edição de assinado | — | produção | `production-consultorio-attendant-integrity-a` |
+| Board do Consultório: practitioner vê a própria fila | [ADR-033](adr/033-consultorio-board-scope-practitioner.md) | produção | `production-role-journeys-a` |
+| Documentos clínicos **fora** da consulta | [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md) | produção | `clinical-standalone-documents` |
+| Template psiquiátrico | §25 | produção | `psychiatry-template` |
+| PDFs clínicos com acesso autenticado, sem bearer na URL | [ADR-059](adr/059-acesso-autenticado-pdfs-clinicos.md) | produção | `production-cross-tenant-clinical-idor` |
+| Inadimplência **não** bloqueia leitura do prontuário | [ADR-046](adr/046-no-login-gate-clinical-record-access.md) | produção | — |
+| Memed | [ADR-056](adr/056-spike-integracao-memed.md) | **adiado** (Track M) | spike; sem SDK, sem migration |
+
+### 32.5 Agenda e recuperação
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Agenda, recorrência, encaixe, transferência, no-show | — | produção | `production-recurrence-a`, `production-appointment-recovery-a` |
+| Double booking impedido sob concorrência | — | produção | `production-appointment-concurrency` |
+| Importação histórica com rollback e proveniência | — | produção | `production-appointment-import-a` |
+| Lista de espera com oferta e cancelamento humano | — | produção | `production-waitlist-a` |
+| Recuperação após falta e retorno clínico | [ADR-057](adr/057-recuperacao-falta-retorno.md) | produção | `cron/proactive-followup` |
+
+### 32.6 Financeiro e pagamentos
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Cobrança de paciente via Asaas (modelo B, chave da clínica cifrada) | [ADR-049](adr/049-pagamentos-paciente-sinal.md) | produção | `payments:live-check` (sandbox real) |
+| Identidade de pagamento do paciente (customer por clínica) | [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md) | produção | `smoke:payments-journey` |
+| Conciliação cobrança ⇄ recebível | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) | produção | `smoke:payments-financial` |
+| Risco e reversão de pagamento | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md) | produção | `smoke:payments-post-recovery` |
+| Documento de pagamento e recibo | [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) | produção | — |
+| Exportação financeira mensal para contabilidade | [ADR-058](adr/058-exportacao-financeira-contabilidade.md) | produção | `accounting-export` + `smoke:accounting-export` |
+| Caixa, estorno multipartes, concorrência de recebimento | — | produção | `production-financial-lifecycle-a`, `production-financial-concurrency-a` |
+| NFS-e via Asaas | — | **adiado** (12/09) | sem spec |
+
+### 32.7 Mensageria, agente e WhatsApp
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Webhook Meta: idempotência, retry, fora de ordem | C10 | produção | `smoke:c10`, `smoke:c12` |
+| Embedded Signup self-service (`connectMyClinicWhatsapp`) | §handoff | produção | `wa:connect`, runbook |
+| Agente de IA + guardas de prompt injection | [ADR-048](adr/048-ai-agent-conversational-safety.md) | produção | `smoke:c11`, `ai:adversarial` |
+| Painel de Conversas IA + handoff humano | [ADR-047](adr/047-ai-conversations-human-handoff.md) | produção | `production-conversation-handoff-a` |
+| Kill-switch `ai_agent.mode` e `proactive_jobs.enabled` | C15 | produção | `smoke:admin-config` |
+| Janela de 24 h: contador correto e que de fato conta | conserto de 14/09 | **branch** | `janela-aberta.test.tsx` |
+| **Perfil do WhatsApp Business configurável pela clínica** | **§33 (novo)** | **não existe** | — |
+
+### 32.8 Plataforma (`/admin`) e observabilidade
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Impersonate com step-up de MFA a cada uso; a LINHA manda, não o cookie | C15 | produção | **sem E2E autenticado** (R1) |
+| Platform settings + anúncio global | C15 | produção | `smoke:admin-config` |
+| Fronteira de observabilidade: `withCron`, contexto, captura de background | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` |
+| Gate de drift docs ⇄ `vercel.json` ⇄ eventos | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` (19 crons) |
+| Sessão expirada deixa de virar exceção no Sentry | conserto de 14/09 | **branch** | `sentry-scrub.test.ts` |
+
+### 32.9 Cadastro autônomo (Track O)
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Arquitetura do track | [ADR-053](adr/053-cadastro-autonomo-seguro.md) | decidida | — |
+| O-2a: sessão anônima, cookie `__Host-`, TTL/CAS, rate limit, teto, janitor | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) | **branch** + DEV | `smoke:signup-session`, `load:signup-degraded`, `signup-session-api` |
+| O-2b: classificador de risco + Turnstile no servidor | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) | **branch** | verificado contra a Cloudflare real |
+| O-2b: widget renderizado | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) | **branch** | `public-surface` (estado `solved` + token) |
+| Quatro perguntas: migration `0098` + endpoint | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c | **branch** + DEV | `smoke:signup-session` |
+| Tela do passo 1 | — | **não existe** | — |
+| Checkout hospedado do Asaas | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c · §21.2 | **não existe** | — |
+
+### 32.10 Qualidade
+
+| O que existe | ADR | Estado | Prova |
+| --- | --- | --- | --- |
+| Auditoria de cobertura E2E + matriz | — | **branch** | [auditoria](quality/e2e-coverage-audit.md) · [matriz](quality/e2e-coverage-matrix.md) |
+| Primeiro gate de E2E em CI (superfície pública) | — | **branch** | `playwright.ci.config.ts` |
+| Fronteira autenticada de `/admin` (caminho de negativa) | — | **branch** | `admin-boundary-rbac` |
+
+**O buraco que este inventário não disfarça:** `/admin` é a única superfície com poder sobre todas as
+clínicas, e o caminho POSITIVO dela — o que o `super_admin` faz depois de entrar — não tem E2E.
+Registrado como R1 em [`docs/quality/e2e-coverage-audit.md`](quality/e2e-coverage-audit.md).
+
+---
+
+## 33. Perfil do WhatsApp Business da clínica — spec
+
+**Status:** especificado, **não implementado**. Sem ADR própria ainda; quando entrar em execução,
+vira ADR-061 (a decisão que justifica ADR é a nº 2 abaixo — Meta como fonte da verdade).
+
+### 33.1 O que falta, em uma frase
+
+A clínica conecta o número pelo Embedded Signup e, a partir dali, **não consegue mexer em nada do que
+o paciente vê**: foto, bio, descrição, endereço, e-mail e site continuam sendo editados à mão no
+Business Manager da Meta.
+
+Isso já estava escrito e nunca virou escopo — `docs/handoff-meta-embedded-signup.md` §4 registra:
+
+> O repositório não usa `public_profile`, `whatsapp_business_manage_events` nem
+> `/{phone-number-id}/whatsapp_business_profile`. Foto, bio, endereço e site continuam manuais porque
+> essa feature ainda não existe.
+
+**Por que importa mais do que parece:** o perfil é a primeira coisa que o paciente vê quando a clínica
+manda a primeira mensagem. Um perfil vazio ao lado de um número desconhecido é indistinguível de
+spam — e o produto acabou de gastar um template aprovado para chegar ali.
+
+### 33.2 Superfície da Meta
+
+Endpoint único, no `phone-number-id` (não na WABA):
+
+```text
+GET  /{phone-number-id}/whatsapp_business_profile?fields=about,address,description,email,
+                                                        profile_picture_url,websites,vertical
+POST /{phone-number-id}/whatsapp_business_profile      (messaging_product=whatsapp + campos)
+```
+
+Escopo necessário: `whatsapp_business_management` — **já concedido** hoje (`REQUIRED_SCOPES` em
+`meta-onboarding.ts`). Isto é o que torna a fatia barata: **não há novo consentimento a pedir ao
+cliente, nem reconexão**.
+
+**Limites por campo** — são os valores da documentação da Meta e devem ser **reconferidos contra a doc
+na hora de implementar**, porque mudam sem aviso e a validação local existe para dar 400 em vez de um
+erro do Graph:
+
+| Campo | Limite | Observação |
+| --- | --- | --- |
+| `about` | 139 caracteres | a linha curta sob o nome |
+| `description` | 512 | |
+| `address` | 256 | |
+| `email` | 128 | e-mail de CONTATO da clínica, não do paciente |
+| `websites` | até 2, 256 cada | |
+| `vertical` | enum fechado | para clínica, `HEALTH` |
+| `profile_picture_url` | upload retomável | **fora desta fatia** — ver §33.6 |
+
+### 33.3 As quatro invariantes de segurança
+
+Estas não são recomendações; são o que separa a fatia de um incidente.
+
+**1. O `phone_number_id` NUNCA vem do input.**
+
+Ele sai de `loadConnectionForHealth(await requireClinicId())`. O motivo é específico deste caso e
+fácil de errar: `clinic_whatsapp_numbers` é lida com `dbAdmin` (service_role), então **a RLS não está
+protegendo esta consulta** — quem protege é o `WHERE clinic_id = …` da própria query. Aceitar um
+`phoneNumberId` do corpo daria a qualquer clínica autenticada o poder de reescrever o perfil público
+de outra. É o IDOR mais barato que este produto poderia ter, e o único guarda é a disciplina do call
+site.
+
+**2. Tudo o que se grava aqui é PÚBLICO.**
+
+Não é "visível para quem tem o link": é visível para qualquer pessoa que abra a conversa, e fica
+indexável por quem coleciona números. Consequências obrigatórias:
+
+- a tela diz isso, com todas as letras, acima dos campos — não num tooltip;
+- `email` é rotulado **e-mail de contato da clínica**, nunca "e-mail"; um rótulo genérico convida
+  alguém a colar o e-mail de um paciente;
+- nada de dado clínico, nome de paciente ou número de prontuário. A validação não consegue provar
+  isso (é prosa livre), então o controle é o aviso — e é honesto admitir que é um controle fraco.
+
+**3. O token não sai do servidor.**
+
+Mesmo caminho já usado: `decryptForTenant(clinicId, tokenCiphertext)` dentro da action, chamada ao
+Graph pelo `graphFetch` do `meta-onboarding.ts`, que já nasce com a regra de **nunca logar URL, corpo
+cru nem incluir token em mensagem de erro**. Nada de novo a inventar — e nada a afrouxar.
+
+**4. Permissão fresca, não cacheada.**
+
+`requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS)`, igual a `updateClinicProfile` e a
+`connectMyClinicWhatsapp`. Mudar a cara pública da clínica é do mesmo peso que mudar o perfil dela.
+
+### 33.4 Decisão: a Meta é a fonte da verdade, sem espelho local
+
+**Decisão:** não criar coluna nem tabela para o perfil. A tela LÊ da Meta ao abrir e ESCREVE na Meta
+ao salvar.
+
+**Por quê.** Um espelho local diverge em silêncio, e a divergência é invisível justamente onde dói: a
+tela mostraria o que nós achamos que o paciente vê, e o paciente veria outra coisa. Basta alguém editar
+pelo Business Manager — que continua disponível e é o que a clínica usa hoje — para o espelho ficar
+mentindo, sem nenhum sinal.
+
+**O custo, declarado:** uma chamada Graph por abertura da tela, e a tela fica indisponível quando a
+Meta está fora. É aceitável porque a tela é de configuração (aberta raramente, não no caminho de
+atendimento) e porque a alternativa troca indisponibilidade honesta por dado errado silencioso.
+
+**Consequência de concorrência:** dois administradores salvando ao mesmo tempo → o último vence, na
+Meta. Não há CAS possível sem espelho, e inventar um `row_version` local sobre um estado que mora fora
+seria fingir controle. A tela releia depois de salvar e mostra o que a Meta devolveu — que é a única
+verdade que importa.
+
+### 33.5 Fluxo e estados
+
+```text
+/configuracoes/whatsapp
+      │
+      ├─ número NÃO conectado → a seção de perfil nem aparece.
+      │                         Não é erro: não há o que configurar.
+      │
+      └─ número conectado
+            ├─ GET perfil na Meta
+            │     ├─ ok        → formulário preenchido com o que o paciente vê hoje
+            │     └─ falhou    → "não foi possível ler o perfil agora", com retry.
+            │                    NUNCA formulário vazio: vazio parece "não configurado"
+            │                    e convida a sobrescrever o que existe com nada.
+            │
+            └─ Salvar → valida local → POST na Meta → RELÊ e mostra o resultado
+                  ├─ ok         → estado novo vindo da Meta
+                  ├─ 4xx        → mensagem por campo, nada foi alterado
+                  └─ 5xx/timeout→ "não foi possível salvar", estado anterior intacto
+```
+
+O caso do `GET` falho é o que mais importa no desenho: **formulário vazio por erro de leitura é uma
+armadilha**, porque o passo seguinte natural do usuário é preencher e salvar — apagando o que já
+estava lá.
+
+### 33.6 Fora do escopo desta fatia, e por quê
+
+- **Foto de perfil.** Exige upload retomável (`/{app-id}/uploads`), que é outra forma de API, com
+  manipulação de binário e um handle intermediário. Além do tamanho, traz o risco que os campos de
+  texto não têm: alguém subir uma imagem com paciente nela. Se entrar, entra com decisão própria
+  sobre limite de tamanho, MIME e quem pode.
+- **Nome de exibição (display name).** Não é campo deste endpoint — passa por **revisão da Meta** e
+  tem regra própria. Misturar com os campos livres daria a impressão de que muda na hora.
+- **Múltiplos números por clínica.** O modelo hoje é um número ativo por clínica
+  (`WHERE clinic_id = … AND active = true LIMIT 1`). A fatia respeita isso e não o generaliza.
+
+### 33.7 O que precisa existir
+
+| Camada | Item |
+| --- | --- |
+| Contexto `messaging` | `getBusinessProfile(clinicId)` e `updateBusinessProfile(clinicId, dados)` em `internal/`, usando o `graphFetch` existente |
+| Contrato | schema Zod com os limites de §33.2 e `.strict()` — recusa campo desconhecido em vez de ignorar |
+| Erros | reusar `MetaConnectError` com `stage` novo (`profile_read` / `profile_write`), para o log distinguir leitura de escrita |
+| Action | `updateMyClinicWhatsappProfile` no molde de `updateClinicProfile` (§33.3 nº 4) |
+| Tela | seção nova em `/configuracoes/whatsapp`, visível só com número conectado |
+| Auditoria | linha por alteração, com os campos alterados (não os valores antigos e novos de prosa livre) |
+| Rate limit | teto por clínica — a Meta throttla, e é melhor recusar aqui com mensagem do que colecionar 429 dela |
+
+### 33.8 Como provar que funciona
+
+Sem isto a fatia não está pronta — e o que **não** serve como prova está dito na regra permanente da
+[auditoria E2E](quality/e2e-coverage-audit.md):
+
+| Prova | Como |
+| --- | --- |
+| Contrato dos limites | unitário do schema: 139/512/256/128, 2 sites, vertical fora do enum recusada |
+| **Isolamento** | E2E: clínica A autenticada não altera o perfil da B — e o teste tenta pelo caminho realista (adulterar o corpo), não só pela URL |
+| Sem número conectado | a seção não aparece; a action recusa mesmo assim |
+| Leitura falha não esvazia | com o Graph mockado em erro, o formulário **não** renderiza vazio |
+| Round-trip real | smoke contra a Meta no número de TESTE: escreve, relê, confere, restaura |
+| Token não vaza | o HTML servido não contém o token; o log não contém URL do Graph |
+
+O round-trip real é o único que prova a fatia de verdade, e ele exige um número de teste conectado —
+**em Preview**, pela regra de 13/09 (escrita só em Preview). Um mock provaria que o nosso código chama
+o que achamos que a Meta expõe, não que a Meta aceita.
