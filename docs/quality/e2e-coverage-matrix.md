@@ -168,10 +168,13 @@ nunca verde.
 
 | Funcionalidade | Ação | Roles | E2E existente | Status |
 | --- | --- | --- | --- | --- |
-| Painel | ver | super_admin | — | **Não coberto** |
-| Clínicas | listar, abrir, agir | super_admin | — | **Não coberto** |
-| Impersonate | iniciar / encerrar | super_admin | — | **Não coberto** |
-| Kill-switches / flags | alterar | super_admin | `smoke:admin-config` | Fora do navegador |
+| Painel | ver com AAL2 | super_admin | `admin-superadmin-journey` | Coberto |
+| Clínicas | listar e abrir | super_admin | `admin-superadmin-journey` | Coberto |
+| Impersonate | iniciar (step-up TOTP) | super_admin | `admin-superadmin-journey` | Coberto |
+| Impersonate | encerrar pelo banner, com auditoria | super_admin | `admin-superadmin-journey` | Coberto |
+| Impersonate | **revogar a linha mata a sessão com o cookie intacto** | super_admin | `admin-superadmin-journey` | Coberto |
+| Kill-switch | flag **e** auditoria na mesma transação | super_admin | `admin-superadmin-journey` | Coberto |
+| Kill-switches / flags | alterar (nível de banco) | super_admin | `smoke:admin-config` | Fora do navegador |
 | Anúncio (broadcast) | publicar / desativar | super_admin | `smoke:admin-config` | Fora do navegador |
 | Billing da plataforma | ver | super_admin | — | **Não coberto** |
 | Auditoria da plataforma | ver | super_admin | — | **Não coberto** |
@@ -181,17 +184,22 @@ nunca verde.
 | Fronteira anônima de `/admin` | redirect | anônimo | `public-surface` (8 rotas) | Coberto |
 | **Fronteira autenticada de `/admin`** | **deny com sessão de clínica válida** | owner de clínica | `admin-boundary-rbac` (9 rotas + deep-link) | **Coberto** |
 
-**Metade do buraco foi fechada nesta auditoria.** `admin-boundary-rbac.spec.ts`
+**O buraco foi fechado em 14/09.** `admin-boundary-rbac.spec.ts`
 cobre o lado que mais importa em segurança: uma sessão de clínica **válida**
 (JWT legítimo, cookie presente) batendo direto nas 9 rotas de plataforma e no
 deep-link de clínica por ID. O middleware deixa passar de propósito — ele só
 confere presença de cookie (ADR-037) — então quem nega é a porta única no
 servidor, e é essa decisão que o teste exercita.
 
-O que continua descoberto é o caminho **positivo**: o que o `super_admin`
-consegue fazer depois de entrar. Isso exige credencial de plataforma dedicada e
-uma decisão sobre em que ambiente exercitá-la; impersonate e kill-switch em
-produção não são coisas que um teste decide sozinho. Segue como R1.
+O caminho **positivo** — o que o `super_admin` faz depois de entrar — passou a ser
+coberto por `admin-superadmin-journey`, contra o **Preview** e usando apenas
+clínicas `Smoke %`. Ele exercita login com step-up de TOTP até AAL2, kill-switch
+(flag **e** auditoria juntas), e o ciclo inteiro de impersonate.
+
+O que continua fora: `/admin/billing`, `/admin/audit`, `/admin/metricas`,
+`/admin/saude`, `/admin/feedbacks` e `/admin/conversas-ia` como TELAS. São
+leitura, e o risco delas é o de qualquer página autenticada — não o risco
+particular de `/admin`, que era impersonate e kill-switch.
 
 ---
 
@@ -201,12 +209,14 @@ Contadas do próprio arquivo, não estimadas.
 
 | Status | Linhas |
 | --- | --- |
-| Coberto | 64 |
-| Parcial | 4 |
+| Coberto | 72 |
+| Parcial | 5 |
 | Superficial (= não coberto) | 2 |
-| Não coberto | 14 |
+| Não coberto | 10 |
 | Fora do navegador | 9 |
 | Não existe ainda (tela das 3 perguntas) | 1 |
 
-Dos 14 "não coberto", **8 são de `/admin`** — mais da metade do buraco inteiro está numa única
-superfície, a que tem poder sobre todas as clínicas.
+Os "não coberto" caíram de 14 para 10 em 14/09, e a natureza deles mudou: os quatro que saíram eram
+de `/admin` — impersonate e kill-switch, o risco particular daquela superfície. Os que sobraram ali
+são TELAS de leitura (`billing`, `audit`, `metricas`, `saude`, `feedbacks`, `conversas-ia`), cujo
+risco é o de qualquer página autenticada.

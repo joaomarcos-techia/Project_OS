@@ -12,12 +12,28 @@ abaixo.
 | `signup-session-api.spec.ts` | `E2E_BASE_URL` | não (precisa de banco) |
 | `admin-boundary-rbac.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (precisa de credencial) |
 | `payments-account-lifecycle.spec.ts` | `E2E_BASE_URL` **de Preview** + `ASAAS_CLINIC_SANDBOX_KEY` | não (cria estado no Asaas) |
+| `admin-superadmin-journey.spec.ts` | `E2E_BASE_URL` **de Preview** + `SUPER_ADMIN_*_DEV` + `DATABASE_URL` | não (muta estado GLOBAL) |
 | `production-*.spec.ts` (40) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
 | mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
 
 **Regra do fundador (13/09): escrita e alteração acontecem SOMENTE em Preview.**
-O `payments-account-lifecycle` recusa `app.qoro.dev` com erro — não com skip —
-porque pode registrar webhook no Asaas.
+`payments-account-lifecycle` e `admin-superadmin-journey` recusam `app.qoro.dev`
+com **erro**, não com skip: o primeiro pode registrar webhook no Asaas, o segundo
+muta o kill-switch GLOBAL e cria sessão de impersonate.
+
+O `admin-superadmin-journey` precisa de uma conta de plataforma própria, e ela se
+prepara sozinha — sem passo manual:
+
+```bash
+# SUPER_ADMIN_EMAIL_DEV / SUPER_ADMIN_PASSWORD_DEV no .env.local
+pnpm seed:super-admin        # cria o usuário e o profile super_admin
+pnpm seed:super-admin-mfa    # enrollment do TOTP pela API pública
+```
+
+O segredo do TOTP **não** fica em arquivo: o spec o lê de `auth.mfa_factors` na
+hora de rodar. Um segundo fator num `.env` deixa de ser segundo fator — e ler do
+banco não amplia exposição, porque quem roda o teste já tem o `DATABASE_URL` de
+admin, bem mais poderoso que seis dígitos.
 
 Os `production-*` escrevem em **produção** com clínicas sintéticas: o atrito das
 60 variáveis `E2E_*` é a proteção, não burocracia. A consequência é que eles são

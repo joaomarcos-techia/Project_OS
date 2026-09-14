@@ -4325,7 +4325,7 @@ existe para evitar.
 
 | O que existe | ADR | Estado | Prova |
 | --- | --- | --- | --- |
-| Impersonate com step-up de MFA a cada uso; a LINHA manda, não o cookie | C15 | produção | **sem E2E autenticado** (R1) |
+| Impersonate com step-up de MFA a cada uso; a LINHA manda, não o cookie | C15 | produção | `admin-superadmin-journey` (5/5 no Preview) |
 | Platform settings + anúncio global | C15 | produção | `smoke:admin-config` |
 | Fronteira de observabilidade: `withCron`, contexto, captura de background | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` |
 | Gate de drift docs ⇄ `vercel.json` ⇄ eventos | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` (19 crons) |
@@ -4349,11 +4349,13 @@ existe para evitar.
 | --- | --- | --- | --- |
 | Auditoria de cobertura E2E + matriz | — | **branch** | [auditoria](quality/e2e-coverage-audit.md) · [matriz](quality/e2e-coverage-matrix.md) |
 | Primeiro gate de E2E em CI (superfície pública) | — | **branch** | `playwright.ci.config.ts` |
-| Fronteira autenticada de `/admin` (caminho de negativa) | — | **branch** | `admin-boundary-rbac` |
+| Fronteira autenticada de `/admin` (negativa) | — | **branch** | `admin-boundary-rbac` |
+| Jornada do `super_admin` (positiva): AAL2, kill-switch, ciclo de impersonate | — | **branch** | `admin-superadmin-journey` |
 
-**O buraco que este inventário não disfarça:** `/admin` é a única superfície com poder sobre todas as
-clínicas, e o caminho POSITIVO dela — o que o `super_admin` faz depois de entrar — não tem E2E.
-Registrado como R1 em [`docs/quality/e2e-coverage-audit.md`](quality/e2e-coverage-audit.md).
+**O R1 da auditoria foi fechado em 14/09.** `/admin` era a única superfície com poder sobre todas as
+clínicas sem E2E autenticado; agora tem os dois lados — a negativa (`admin-boundary-rbac`) e a jornada
+positiva (`admin-superadmin-journey`), esta contra o Preview e só com clínicas `Smoke %`. Sobram as
+TELAS de leitura do painel, cujo risco é o de qualquer página autenticada.
 
 ---
 

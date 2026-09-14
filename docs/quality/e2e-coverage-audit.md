@@ -187,7 +187,7 @@ Ordenados por custo de errar, não por esforço.
 | # | Gap | Por que importa |
 | --- | --- | --- |
 | **G1** | **Nenhum E2E roda em CI** | 20.000 linhas de teste que só rodam quando alguém lembra não previnem regressão: descobrem depois. |
-| **G2** | **`/admin` sem cobertura autenticada** | Única superfície com poder sobre TODAS as clínicas (impersonate, kill-switch, billing). Um erro de autorização aqui não vaza um tenant, vaza todos. **Metade fechada** em §D.2 (o deny); o caminho do `super_admin` segue aberto (R1). |
+| ~~G2~~ | ~~`/admin` sem cobertura autenticada~~ | **Fechado em 14/09.** A negativa em §D.2, o caminho positivo em §D.4. |
 | **G3** | `/configuracoes/pagamentos` sem E2E | É onde a clínica conecta a chave do Asaas. Dinheiro de paciente. **Fechado** em §D.4, menos o ciclo mutante (ver R2). |
 | **G4** | `/configuracoes/auditoria` sem E2E | Export de auditoria é egresso de dado sensível e tem permission dedicada (`export:audit`). |
 | **G5** | `/login/mfa` sem E2E | O ciclo MFA é testado em `/account/security`; o **desafio no login** não. |
@@ -250,7 +250,34 @@ A metade que sempre roda prova que uma chave inválida é recusada de forma
 
 **Executado contra o Preview: 1/1 verde + 1 skip anotado.**
 
-### D.4 `e2e/public-surface.spec.ts` (8 casos)
+### D.4 `e2e/admin-superadmin-journey.spec.ts` (5 casos)
+
+O caminho POSITIVO de `/admin` — o que faltava depois de `admin-boundary-rbac`
+cobrir a negativa. **Somente Preview**, guarda `throw` (o spec muta o kill-switch
+GLOBAL), e a clínica alvo do impersonate é escolhida por `nome LIKE 'Smoke %'`,
+nunca uma clínica de gente.
+
+Três casos merecem destaque porque nenhum outro tipo de teste os alcança:
+
+- **kill-switch grava a flag E a auditoria** — as duas afirmadas juntas, porque a
+  escrita acontece dentro da transação do log (`superAdminAction`). Uma sem a
+  outra é exatamente o bug que interessa, e um teste de UI não o veria;
+- **revogar a LINHA encerra o impersonate com o cookie intacto** — feito por SQL
+  direto, sem tocar no navegador. É o que prova que o cookie não é a autoridade;
+- **encerrar pelo banner audita** — o único caminho que exercita
+  `stopImpersonationAction`. Sem ele o ciclo teria começo coberto e fim não,
+  bem onde mora a pergunta operacional "esse impersonate foi encerrado?".
+
+O step-up de TOTP exige **dois** códigos por jornada (login e impersonate), de
+janelas diferentes — reenviar o mesmo é recusado pelo Supabase. O helper espera a
+janela seguinte; não é folga, é requisito.
+
+**Executado contra o Preview: 5/5 verdes.** Ambiente conferido depois:
+`ai_agent.mode` restaurado para `normal`, zero sessões de impersonate vivas, e a
+auditoria mostrando o ciclo completo (`impersonate_start`, `impersonate_stop`,
+`platform_flag_set`).
+
+### D.5 `e2e/public-surface.spec.ts` (8 casos)
 
 O único spec que roda **sem segredo nenhum**:
 
@@ -356,9 +383,9 @@ desses endpoints). O que faltava era esta tabela existir, para ninguém confundi
 | Categoria | Qtde |
 | --- | --- |
 | Specs auditados | 51 |
-| Specs adicionados | 3 (19 casos) |
-| Casos novos executados | 19 |
-| Aprovados | 19 |
+| Specs adicionados | 5 (26 casos) |
+| Casos novos executados | 26 |
+| Aprovados | 26 |
 | Falhos | 0 |
 | Pulados com anotação | 2 no `signup-session-api`, quando o orçamento de IP estoura |
 | Testes unitários (regressão) | 3.330 verdes (356 arquivos) |
@@ -368,7 +395,9 @@ Execuções que sustentam a linha "aprovados", todas contra ambiente real:
 - `public-surface` — **8/8** no Preview e **6/7 + 1 skip** no build isolado de CI
   (o skip é a secret do Turnstile, que o ambiente isolado não tem, por design);
 - `signup-session-api` — **9/9** no Preview na primeira janela de rate limit;
-- `admin-boundary-rbac` — **2/2** no Preview.
+- `admin-boundary-rbac` — **1/1** no Preview (dois casos viraram um, com um login só);
+- `payments-account-lifecycle` — **1/1 + 1 skip anotado** no Preview;
+- `admin-superadmin-journey` — **5/5** no Preview, com o ambiente conferido depois.
 
 **O que NÃO foi executado:** os 40 specs `production-*`. Eles escrevem em produção
 com clínicas sintéticas e exigem autorização explícita por spec — não é decisão de
@@ -380,7 +409,7 @@ quem escreve teste. A auditoria os leu inteiros; não os rodou.
 
 | # | Risco | Por que não foi fechado |
 | --- | --- | --- |
-| **R1** | `/admin` (11 páginas) sem E2E | Exige credencial `super_admin` dedicada e uma decisão sobre em qual ambiente exercitá-la. Impersonate e kill-switch em produção não são coisas para um teste decidir sozinho. |
+| ~~R1~~ | ~~`/admin` sem E2E~~ | **Fechado em 14/09** por `admin-superadmin-journey`, contra o Preview e só com clínicas `Smoke %`. A conta de plataforma se prepara sozinha (`seed:super-admin` + `seed:super-admin-mfa`) e o segredo do TOTP nunca vai para arquivo — o spec o lê de `auth.mfa_factors`. Sobram as TELAS de leitura do painel, cujo risco é o de qualquer página autenticada. |
 | **R2** | O CICLO de conectar/desconectar a conta Asaas | A chave sandbox da clínica existe (`ASAAS_CLINIC_SANDBOX_KEY`) e o fundador autorizou criar estado no Asaas de Preview. O que bloqueia agora é outra coisa: a clínica do Preview **já tem conta conectada**, e conectar por cima substituiria a configuração de quem usa o ambiente. Para exercitar, desconecte pela tela antes de rodar. A metade não-mutante (recusa de chave inválida, estado intacto, chave que não volta ao browser) já roda. |
 | **R3** | O captcha do Supabase segue **desligado** em todos os projetos | Correto por ora. A ordem obrigatória está no ADR-060; o código agora envia o token, que era o pré-requisito. |
 | **R4** | Preview com **chaves de teste** não discrimina token falso | Consequência declarada e desejada: mantém o E2E verde exercitando o caminho. Quem discrimina nos dois regimes é o caso de origem ausente. |
