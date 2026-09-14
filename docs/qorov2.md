@@ -4225,8 +4225,8 @@ produção" divergem hoje, e a distância é grande:
 
 | Medida | Valor em 14/09 |
 | --- | --- |
-| Commits em `feat/qorov2-pagamentos` à frente de `main` | **180** |
-| Migrations no branch e **não** em produção | **5** (`0094`–`0098`) |
+| Commits em `feat/qorov2-pagamentos` à frente de `main` | **183** |
+| Migrations no branch e **não** em produção | **3** (`0096`–`0098`) |
 | Migrations totais | 99 |
 | Tabelas | ~100 |
 | Bounded contexts | 13 |
@@ -4237,7 +4237,7 @@ produção" divergem hoje, e a distância é grande:
 | Permissions canônicas | 30 |
 | Roles | 6 |
 | Testes unitários | 3.355 (359 arquivos) |
-| Specs E2E | 55 |
+| Specs E2E | 57 (21.813 linhas) |
 | ADRs | 57 |
 
 **A leitura honesta das duas primeiras linhas:** boa parte do que este documento descreve como
@@ -4245,6 +4245,16 @@ entregue está num branch. Produção não tem `signup_sessions`, não tem Turns
 super_admin trancado, não tem a janela de 24 h consertada. Isso não é atraso — é a consequência de
 `main` ser o que está publicado —, mas confundir as duas coisas é o erro mais caro que este inventário
 existe para evitar.
+
+**Correção de 14/09, nesta própria tabela.** A primeira versão dizia **5** migrations fora de produção
+(`0094`–`0098`), contando os arquivos ausentes de `main`. Estava errado — e o erro é exatamente aquele
+que esta seção existe para evitar: **o lugar do arquivo no git não é o estado do banco**. A `0094` e a
+`0095` foram aplicadas e pós-checadas **em produção** em 06 e 07/09, com backup e advisory lock
+([ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a e
+[ADR-057](adr/057-recuperacao-falta-retorno.md)); o que viaja com o branch é só o arquivo. Fora de
+produção estão as **três** do cadastro anônimo — `0096`, `0097` e `0098` —, e o
+[ADR-060](adr/060-sessao-anonima-de-cadastro.md) declara, no próprio status, que não autoriza migration
+em produção.
 
 ### 32.2 Identidade, sessão e autorização
 
@@ -4325,7 +4335,7 @@ existe para evitar.
 
 | O que existe | ADR | Estado | Prova |
 | --- | --- | --- | --- |
-| Impersonate com step-up de MFA a cada uso; a LINHA manda, não o cookie | C15 | produção | `admin-superadmin-journey` (5/5 no Preview) |
+| Impersonate com step-up de MFA a cada uso; a LINHA manda, não o cookie | C15 | produção | `admin-superadmin-journey` (6/6 no Preview) |
 | Platform settings + anúncio global | C15 | produção | `smoke:admin-config` |
 | Fronteira de observabilidade: `withCron`, contexto, captura de background | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` |
 | Gate de drift docs ⇄ `vercel.json` ⇄ eventos | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` (19 crons) |
@@ -4350,12 +4360,20 @@ existe para evitar.
 | Auditoria de cobertura E2E + matriz | — | **branch** | [auditoria](quality/e2e-coverage-audit.md) · [matriz](quality/e2e-coverage-matrix.md) |
 | Primeiro gate de E2E em CI (superfície pública) | — | **branch** | `playwright.ci.config.ts` |
 | Fronteira autenticada de `/admin` (negativa) | — | **branch** | `admin-boundary-rbac` |
-| Jornada do `super_admin` (positiva): AAL2, kill-switch, ciclo de impersonate | — | **branch** | `admin-superadmin-journey` |
+| Jornada do `super_admin` (positiva): AAL2, kill-switch, ciclo de impersonate | — | **branch** | `admin-superadmin-journey` (6/6) |
+| As 6 telas de leitura do painel, cada uma com título **e** dado carregado | — | **branch** | `admin-superadmin-journey` |
+| Telas de configuração do tenant: auditoria (CSV real), LGPD, modelos de receita | — | **branch** | `tenant-settings-screens` (3/3) |
 
 **O R1 da auditoria foi fechado em 14/09.** `/admin` era a única superfície com poder sobre todas as
 clínicas sem E2E autenticado; agora tem os dois lados — a negativa (`admin-boundary-rbac`) e a jornada
-positiva (`admin-superadmin-journey`), esta contra o Preview e só com clínicas `Smoke %`. Sobram as
-TELAS de leitura do painel, cujo risco é o de qualquer página autenticada.
+positiva (`admin-superadmin-journey`), esta contra o Preview e só com clínicas `Smoke %`. As telas de
+leitura do painel entraram em seguida, cada uma afirmada por **dois** âncoras — o `<h1>` e um bloco que
+só existe quando a consulta terminou —, porque só o título provaria que a rota respondeu: a casca
+renderiza igual quando o corpo falha.
+
+**Resultado na matriz:** "não coberto" foi de **14 → 3** e "superficial" foi a **0**. O detalhe do que
+foi provado, em qual ambiente, e o que continua sem prova está na
+[§34](#34-registro-de-execução--o-que-foi-feito-e-o-que-foi-validado-1214092026).
 
 ---
 
@@ -4527,3 +4545,340 @@ Sem isto a fatia não está pronta — e o que **não** serve como prova está d
 O round-trip real é o único que prova a fatia de verdade, e ele exige um número de teste conectado —
 **em Preview**, pela regra de 13/09 (escrita só em Preview). Um mock provaria que o nosso código chama
 o que achamos que a Meta expõe, não que a Meta aceita.
+
+---
+
+## 34. Registro de execução — o que foi feito e o que foi **validado** (12–14/09/2026)
+
+### 34.1 Por que esta seção existe separada da §32
+
+A §32 responde *o que existe*. Esta responde outra pergunta, e é a que se responde mal com mais
+facilidade: **o que foi provado, onde, e o que a prova não alcança**.
+
+A regra do `docs/README.md` que a §32 obedece — "implementado não significa em produção" — tem uma
+segunda metade que nunca esteve escrita: **"testado" não significa "testado onde importa"**. Um
+unitário verde e um E2E verde contra o Preview provam coisas diferentes, e tratá-los como equivalentes
+é o mesmo erro de confundir branch com produção. Por isso cada linha aqui carrega o **ambiente** da
+prova.
+
+| Nível de prova | O que prova | O que **não** prova |
+| --- | --- | --- |
+| Unitário / componente (Vitest) | que a regra está escrita como pensamos | que ela está **ligada** ao produto |
+| Smoke / carga (`tsx` contra Postgres real) | que o banco aceita, que a concorrência se comporta, que o TTL é do relógio do banco | que alguém **alcança** aquilo pela tela |
+| E2E no navegador contra **Preview** | que a pessoa consegue, com cookie `__Host-`, CSP, RSC e rede reais | que **produção** se comporta igual |
+
+**Nada do que está nesta seção foi validado em produção**, e isso é deliberado — §34.2.
+
+### 34.2 A restrição que governou o período
+
+Instrução do fundador em 13/09, literal:
+
+> "sobre escrever em prod, nao faça, quero que a escrita ou qualquer alteração seja apenas em preview"
+
+Ela não é uma preferência de ambiente: ela **define o teto de evidência** de tudo o que veio depois, e
+por isso está no início e não numa nota de rodapé. Consequências que valem registrar:
+
+- os E2E que **mutam** (conta Asaas, modelo de receita, kill-switch, impersonate) têm guarda de host
+  que **lança exceção** contra `app.qoro.dev` — recusar é melhor que pular em silêncio, porque um spec
+  pulado passa por verde;
+- o Asaas exercitado é o **sandbox** do Preview, autorizado explicitamente ("*ele é feito justamente
+  para teste*");
+- a conta de plataforma usada nos testes é criada **só no Preview**, com senha descartável e via
+  aliases `*_DEV` — o script **recusa** as variáveis canônicas (§34.3.D);
+- os 40 specs `production-*` **não rodaram** neste período: eles falam com o Postgres de produção;
+- portanto, todo "verde" abaixo é um verde de **Preview**, e as **três** migrations do cadastro
+  anônimo — `0096`, `0097` e `0098` — continuam fora de produção (a `0094` e a `0095` já estão lá desde
+  06 e 07/09; ver a correção na §32.1).
+
+### 34.3 O que foi feito, fatia por fatia
+
+#### A. Captcha e Turnstile — [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.a e §1.b
+
+| Entrega | Prova | Ambiente |
+| --- | --- | --- |
+| CSP liberando o Turnstile em `script-src`, `frame-src` **e** `connect-src` | teste de CSP com casamento exato, não `contains` | unitário |
+| `src/lib/auth/captcha.ts` — leitura, repasse e classificação de erro do token | `captcha.test.ts` | unitário |
+| `captchaToken` nas **3** chamadas do Supabase Auth (`signInWithPassword`, `resetPasswordForEmail`, `signUp`) | `login/actions.test.ts` | unitário |
+| Falha de captcha **não** conta como tentativa de senha errada | `login/actions.test.ts` | unitário |
+| Widget renderizado, com `data-turnstile-state` | `public-surface` — o desafio chega a `solved` **e** produz token | **Preview** |
+| Classificador de risco + `siteverify` no servidor | verificação contra a Cloudflare real | **Preview** |
+
+Três achados desta fatia estão no [discovery-log](discovery-log.md): **D112** (a CSP bloqueava em três
+diretivas, e a falha seria muda), **D113** (os "quatro call sites" eram **três** — `verifyOtp` não
+aceita `captchaToken`) e **D114** (captcha reprovado envenenaria o rate limit por e-mail).
+
+**O que isto explicitamente não prova:** que o captcha *protege* alguma coisa. Ele segue **desligado**
+no Supabase de todos os projetos (R3 da auditoria). O que foi entregue é o pré-requisito — o código
+envia o token —, e a ordem obrigatória de ativação está no ADR-060 §1.a.
+
+#### B. Cadastro autônomo — as quatro perguntas — [ADR-053](adr/053-cadastro-autonomo-seguro.md) · [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c
+
+| Entrega | Prova | Ambiente |
+| --- | --- | --- |
+| Migration `0098`: quatro colunas de lista fechada + `answered_at` + status `details_complete` | `check:migrations`, `arch:db-check` | CI |
+| `recordSignupAnswers` — liveness + CAS (`row_version`) + renovação de ociosidade em **um** round trip | unitário + `smoke:signup-session` | unitário + **DEV** |
+| `POST /api/signup/sessions/answers` — sessão identificada **só pelo cookie**, `.strict()`, 409 ≠ 410 | `signup-session-api` (9 casos) | **Preview** |
+| Tabela global pré-tenant com RLS ENABLE+FORCE **sem policy** ([ADR-007](adr/007-rls-implementation-patterns.md) §10) | `smoke:signup-session` | **DEV** |
+
+Decisão de produto tomada no período: **as quatro perguntas são todas de marcar, sem campo de texto**
+("*quero as perguntas todas de marcar, sem texto*"). Isso não é só de UX — lista fechada é a diferença
+entre um campo que se valida com `z.enum` e um campo de prosa livre que ninguém consegue validar, num
+endpoint **anônimo**, aberto à internet, antes de existir tenant.
+
+**A tela ainda não existe.** É o próximo trabalho, e é a única linha da matriz classificada como "não
+existe ainda".
+
+#### C. Resolução de env — a tabela de aliases
+
+| Entrega | Prova | Ambiente |
+| --- | --- | --- |
+| `src/lib/env-aliases.ts` — uma tabela, compartilhada por `env.ts` e `scripts/_env.ts` | `env-aliases.test.ts`, `env.test.ts` | unitário |
+| `resolveSiteKey()` no cliente, espelhando a MESMA regra e o MESMO guard | teste do widget | unitário |
+
+Quatro achados, e os quatro do mesmo tipo — **cópia que diverge em silêncio**: **D118** (o bundle do
+cliente não passa por `env.ts`: o Next inlina `NEXT_PUBLIC_*` no build, então em `localhost` o widget
+recebia a chave de `app.qoro.dev` e o Turnstile recusava **sem callback de erro**), **D119** (`??`
+aceitava string vazia; `FOO=` num `.env` produz `''`), **D120** (a tabela vivia em três cópias e já
+tinha divergido no mesmo dia em que foi editada) e **D121** (o refactor derrubou o nível `_LOCAL`, e o
+teste do dia anterior pegou em dez minutos).
+
+O padrão que esses quatro ensinam está em D121 e vale repetir: **o teste que paga é o que afirma a
+precedência inteira, não o que confirma o caminho feliz.**
+
+#### D. O `super_admin` destrancado — [ADR-037](adr/037-server-authoritative-session.md) · [ADR-038](adr/038-mfa-policy.md)
+
+Este é o achado mais caro do período, e foi encontrado por **uso real**, não por teste: o fundador
+rodou o seed, logou e recebeu "Página não encontrada".
+
+A cadeia (**D122**): `postLoginRedirect` manda o `super_admin` sem MFA para `/account/security` → essa
+página vive no route group `(shell)` → o layout do shell redireciona `super_admin` para `/admin` →
+`/admin` exige AAL2 → `guardAdminAccess()` chama `notFound()`. **Era preciso ter AAL2 para alcançar a
+única tela que concede AAL2.** Os "próximos passos" que o próprio script de seed imprimia eram
+inalcançáveis.
+
+| Entrega | Prova | Ambiente |
+| --- | --- | --- |
+| O shell só desvia para `/admin` **quando já há AAL2** | `guard.test.ts` (os quatro desfechos) | unitário |
+| `guardAdminAccess` distingue `MFA_REQUIRED` e manda ao step-up em vez de 404 | `guard.test.ts` | unitário |
+| O caminho inteiro percorrido por gente | sonda manual | **Preview** |
+| `seed:super-admin-mfa` — enrollment de TOTP sem passo manual, **sem imprimir o segredo** | execução real | **Preview** |
+
+Vale a honestidade sobre o script: a primeira versão fazia **metade** do enrollment — criava o fator em
+`auth.mfa_factors` e não marcava `profiles.mfa_enrolled_at`. O login continuava sendo empurrado para a
+tela de enrollment, e isso só apareceu ao sondar o Preview. Enrollment tem duas metades porque a
+política do [ADR-038](adr/038-mfa-policy.md) tem duas fontes: o fator no GoTrue e o registro no nosso
+perfil.
+
+Que **nenhum teste tenha pegado** este impasse não é coincidência: a auditoria do dia anterior já
+apontava `/admin` como as 11 páginas sem E2E autenticado (R1). É exatamente o tipo de defeito que só
+aparece quando alguém percorre o caminho inteiro.
+
+#### E. Triagem do Sentry — [ADR-029](adr/029-observability-stack.md) · [ADR-045](adr/045-observability-execution-boundary.md)
+
+O fundador colou um lote de erros de produção e de dev. Três viraram conserto:
+
+| Erro | Causa | Conserto | Prova |
+| --- | --- | --- | --- |
+| Mismatch de hidratação `+14 / -15` na janela de 24 h | `Date.now()` **durante** o render | `useAgoraAposMontar()` | `janela-aberta.test.tsx` |
+| `AuthError` de sessão expirada enchendo o Sentry | sessão expirada tratada como exceção | `scrubEvent` descarta a tabela fechada de `unauthenticated` — e **mantém** `forbidden` e `config` | `sentry-scrub.test.ts` |
+| `security:build` compilando source que não existe mais | `cp` mescla, e o apagado sobrevivia na cópia | `rm` antes de cada `cp` | **D117** |
+
+O primeiro trouxe um segundo defeito de brinde, que ninguém tinha notado: **o contador estava
+congelado** no valor do primeiro render. Um relógio de janela que não anda é pior que nenhum — o
+operador decide se ainda dá tempo de escrever olhando para ele. O caso de teste `CONTA: o valor muda
+sozinho com o passar do tempo` existe por isso.
+
+O terceiro (**D117**) é o mais incômodo: o **gate de segurança verificava um artefato fantasma**, num
+repositório onde `typecheck` e `build` estavam verdes. Em CI nunca apareceria — checkout limpo —, o que
+o torna pior: só quebra na máquina de quem desenvolve, e parece problema do código.
+
+#### F. Auditoria de E2E, matriz e o primeiro gate de CI
+
+| Entrega | Onde |
+| --- | --- |
+| Auditoria de cobertura, seções A–J | [`docs/quality/e2e-coverage-audit.md`](quality/e2e-coverage-audit.md) |
+| Matriz de mapeamento, contada do próprio arquivo | [`docs/quality/e2e-coverage-matrix.md`](quality/e2e-coverage-matrix.md) |
+| Primeiro gate de E2E em CI | `playwright.ci.config.ts` + passo `test:e2e:ci` no `ci.yml` |
+| 6 specs novos — 29 casos, 83 asserts, 1.440 linhas | §34.4 |
+
+O achado estrutural é **D115**, e é o tipo de coisa que só aparece quando se olha o conjunto: existiam
+**51 specs, 20.245 linhas e 1.074 asserts** — de qualidade alta, muito acima de "cliquei e apareceu" —
+e **nenhum rodava automaticamente**. O `ci.yml` não tinha passo de Playwright. A suíte era uma
+**ferramenta de auditoria operada por gente**, não um gate: boa no que fazia, e incapaz de impedir uma
+regressão antes do merge.
+
+O gate novo roda contra o build isolado que `security:build` já produz — o artefato mais próximo do que
+vai para produção que o CI tem — e não usa segredo nenhum.
+
+A **regra permanente** que saiu da auditoria vale para toda feature futura, inclusive a tela das
+perguntas e o perfil do WhatsApp da §33:
+
+> **Nenhuma feature nova é concluída sem o E2E correspondente** — caminho feliz, um negativo relevante,
+> persistência provada no banco ou por reload (nunca só pela UI), o negativo de autorização quando há
+> permission, e o caso A↔B quando é multi-tenant.
+
+#### G. Decisões de produto tomadas no período
+
+Não são código; são decisões que mudam o que o código vai ser. Estão registradas no
+[ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c.
+
+| Decisão | Como ficou | Consequência técnica |
+| --- | --- | --- |
+| Ordem do cadastro | perguntas → usuário e consentimento junto a nome/clínica → verificar e-mail → checkout | o consentimento é colhido **antes** de existir conta, na mesma tela em que a pessoa se identifica |
+| Consentimento | **links** para `qoro.dev/politica-de-privacidade` e `/termos-de-uso` | sem sistema de versionamento de política — decisão explícita, e o limite está declarado no ADR |
+| Checkout | **hospedado** do Asaas | evita SAQ A-EP: dado de cartão não passa pelo nosso servidor. Tokenização exigiria ticket ao suporte e foi recusada |
+| As perguntas | todas de marcar, **sem texto** | `z.enum` num endpoint anônimo, em vez de prosa livre não validável |
+
+### 34.4 O placar do Preview (14/09)
+
+Todos executados contra o Preview, com `E2E_AUTH_REUSE=1` e bypass de Deployment Protection.
+
+| Spec | Casos | Resultado | O que o caso mais caro prova |
+| --- | --- | --- | --- |
+| `public-surface` | 8 | **8/8** | 22 rotas protegidas redirecionam **sem corpo** (`maxRedirects: 0`); o desafio chega a `solved` com token |
+| `signup-session-api` | 9 | **9/9** | atributos do cookie `__Host-`, token fora do corpo, 403 cross-site, 401 sem origem, 410 indistinguível |
+| `admin-boundary-rbac` | 1 | **1/1** | sessão de clínica válida não alcança 9 rotas de `/admin`, nem por deep-link |
+| `payments-account-lifecycle` | 2 | **1/1 + 1 skip** | a chave do Asaas **nunca** chega ao browser; a metade mutante é condicional (R2) |
+| `admin-superadmin-journey` | 6 | **6/6** | **revogar a linha mata a sessão com o cookie intacto** — a LINHA manda, não o cookie |
+| `tenant-settings-screens` | 3 | **3/3** | o CSV de auditoria é **baixado de verdade**, com o cabeçalho travado |
+
+Fora do navegador, na mesma data: `pnpm vitest run` verde em **3.355/3.355** (359 arquivos), e os 60
+links de arquivo das §§32–34 conferidos um a um — nenhum quebrado. O número de testes é o mesmo de
+antes dos seis specs novos, e isso é esperado: Playwright não roda no Vitest.
+
+**Efeito na matriz:** "não coberto" foi de **14 → 3**, e "superficial" foi a **0**. Zerar "superficial"
+é o que mais importa: a categoria existia para nomear **cobertura aparente** — rota visitada, `status <
+500`, conclusão "coberto" — e não sobrou nenhuma.
+
+| Status na matriz | Linhas |
+| --- | --- |
+| Coberto | **81** |
+| Parcial | 5 |
+| Superficial | **0** |
+| Não coberto | **3** |
+| Fora do navegador (smoke/carga, por escolha declarada) | 9 |
+| Não existe ainda (tela das perguntas) | 1 |
+
+O **R1** da auditoria — `/admin` como a única superfície com poder sobre **todas** as clínicas e sem
+E2E autenticado — **está fechado**. Tem os dois lados: a negativa (`admin-boundary-rbac`) e a jornada
+positiva (`admin-superadmin-journey`), esta com login e step-up de TOTP até AAL2, kill-switch verificado
+**com flag e auditoria juntas**, e o ciclo inteiro de impersonate.
+
+### 34.5 O ambiente ficou como foi encontrado
+
+Isto é parte da entrega, não um detalhe operacional: um teste que exercita kill-switch e impersonate em
+ambiente compartilhado e **não** limpa atrás de si é pior que nenhum teste.
+
+Conferido após a execução da jornada do `super_admin`:
+
+- `ai_agent.mode` de volta a `"normal"`;
+- **zero** sessões de impersonate vivas;
+- a trilha de auditoria contendo `impersonate_start`, `impersonate_stop` e `platform_flag_set` — ou
+  seja, o rastro **ficou**, que é o comportamento correto;
+- o modelo de receita criado pelo teste foi apagado, e a exclusão foi confirmada **após reload**.
+
+### 34.6 Os erros que eu cometi neste período
+
+Ficam registrados porque um relatório que só lista acertos é um relatório que não dá para auditar.
+
+| O que eu errei | Como apareceu | O que ficou |
+| --- | --- | --- |
+| Afirmei "quatro call sites" de captcha; são **três** | ao implementar: `VerifyTokenHashParams` não tem `options` | D113; ADR-060 corrigido |
+| Persegui um bug fantasma no `next/script` | minhas observações estavam contaminadas por um dev server com erro de módulo em cache | **retratei a afirmação no comentário do código**, em vez de enviar uma asserção não provada |
+| Escrevi um spec que se auto-bloqueava no orçamento de IP do próprio produto | a segunda execução falhava | D116; `serial`, uma sessão só, e skip anotado |
+| O teste do CSV de auditoria procurava palavras clínicas e **reprovou** | `recurso_tipo` legitimamente contém `prontuario` | **D124** — **o teste estava errado, não o produto**: saber que alguém tocou um recurso do tipo prontuário é o **propósito** da trilha; o que não pode sair é o **conteúdo**. Trocado por cabeçalho travado |
+| Assumi que a clínica do Preview estava desconectada do Asaas | o spec falhou | **D125** — premissa minha, não defeito do produto; e uma asserção mais frouxa teria **substituído a chave de alguém**. A metade mutante virou condicional (R2) |
+| O `seed:super-admin-mfa` fazia metade do enrollment | o login continuava exigindo enrollment | **D123** — a política do ADR-038 tem duas fontes: o fator no GoTrue e `profiles.mfa_enrolled_at` |
+
+O quarto caso é exatamente o que a regra permanente manda perguntar **antes** de mexer num teste
+vermelho: *o teste estava errado, ou o produto?* Responder isso é a diferença entre consertar e apagar
+o alarme em vez de olhar a fumaça.
+
+### 34.7 O que continua sem prova — e por quê
+
+| Item | Por que não foi provado |
+| --- | --- |
+| **Tela das quatro perguntas** | não existe ainda. É o próximo trabalho |
+| **Auto-login pós-checkout** | exige checkout pago completo, e a fatia **vai mudar**: o checkout hospedado troca o provisionamento para webhook. Cobrir agora seria testar código com data de validade |
+| **Consentimento (conceder / revogar)** | toca dado de **paciente**. Exige fixture própria e cleanup provado; nem em Preview um teste deve decidir exercitar revogação sem isso |
+| **Troca de plano / reativação** | muta billing no Asaas; precisa de assinatura sandbox dedicada |
+| **Ciclo conectar/desconectar Asaas** (R2) | a clínica do Preview já tem conta conectada; conectar por cima substituiria a configuração de quem usa o ambiente |
+| **Captcha ativo** (R3) | segue desligado no Supabase, por ordem. O código já envia o token, que era o pré-requisito |
+| **Os 40 `production-*`** (R5) | falam com o Postgres de produção. Automatizá-los é decisão de produto, não de engenharia |
+| **Perfil do WhatsApp Business** | especificado na §33, não implementado |
+| **Qualquer coisa em produção** | por decisão explícita do fundador (§34.2). As três migrations do cadastro anônimo (`0096`–`0098`) seguem fora de produção |
+
+### 34.8 Catálogo completo das ADRs vigentes
+
+As **57** ADRs do repositório, com o estado que cada uma declara e onde ela aparece neste documento.
+A tabela existe para uma coisa específica: tornar **auditável** a afirmação "citamos as ADRs". Uma
+decisão que não aparece em nenhuma seção não é necessariamente um problema — muitas são de fundação e
+já viraram código —, mas a lacuna fica visível em vez de invisível.
+
+Os números **006, 026 e 030 não existem**: foram descartados antes de virarem decisão. A ausência é
+real, não um arquivo perdido.
+
+| ADR | Assunto | Status declarado | Onde aparece |
+| --- | --- | --- | --- |
+| [001](adr/001-bounded-contexts.md) | Bounded contexts isolados via DDD | accepted | fundação (13 contextos, §32.1) |
+| [002](adr/002-rls-postgres.md) | RLS do Postgres como defesa de isolamento | accepted | §32.3 |
+| [003](adr/003-outbox-pattern.md) | Outbox transacional para eventos cross-context | accepted | fundação |
+| [004](adr/004-meta-cloud-api.md) | Meta Cloud API (WhatsApp) com fallback ZAPI | accepted | §32.7 · §33 |
+| [005](adr/005-supabase-vs-firebase.md) | Supabase (Postgres) escolhido sobre Firebase | accepted | fundação |
+| [007](adr/007-rls-implementation-patterns.md) | Padrão de RLS — `withTenant`, GUC, tabelas globais §10 | Accepted · Reference | §32.3 · §34.3.B |
+| [008](adr/008-identity-patterns.md) | Identidade e RBAC — 6 roles, 30 permissions | Accepted · Reference | §32.2 |
+| [009](adr/009-claims-drift-mitigation.md) | Mitigação de drift de claims (`claims_version`) | Accepted · Reference | §32.2 |
+| [010](adr/010-security-definer-patterns.md) | Funções privilegiadas com allowlist mínima | Accepted · Reference | §32.3 |
+| [011](adr/011-outbox-audit-idempotency-patterns.md) | Outbox, audit e idempotência | Accepted · Reference | §32.3 · §34.5 |
+| [012](adr/012-encryption-strategy.md) | Cifra por tenant (AES-256-GCM + lookup HMAC) | accepted | §32.3 |
+| [013](adr/013-clinical-data-ownership.md) | `patient_clinical_data` em C5, C7 como futuro owner | accepted | §32.4 |
+| [014](adr/014-scheduling-patterns.md) | Scheduling Core (C6): contratos congelados | accepted | §32.5 |
+| [015](adr/015-event-versioning.md) | Versionamento de eventos do outbox | accepted | fundação |
+| [016](adr/016-clinic-lifecycle.md) | Semântica do ciclo de vida de clínica | accepted | §32.6 |
+| [017](adr/017-clinical-record-retention-vs-lgpd.md) | Retenção de prontuário (CFM) vs hard-delete LGPD | accepted | §32.4 · §34.7 (consentimento) |
+| [018](adr/018-ui-design-foundation.md) | UI / Design Foundation | accepted | base da tela das perguntas |
+| [019](adr/019-consultorio-chamadas.md) | Consultório (C8): orquestração e Realtime | accepted | §32.4 |
+| [020](adr/020-messaging-provider-patterns.md) | Contrato de provider de mensageria | Accepted parcialmente | §32.7 |
+| [021](adr/021-lgpd-anonymization-on-clinical-retention.md) | Anonimização LGPD quando o hard-delete é bloqueado | accepted | §32.4 · `tenant-settings-screens` |
+| [022](adr/022-ai-agent-foundation.md) | Fundação do agente de IA | Accepted parcialmente | §32.7 |
+| [023](adr/023-ai-agent-intents.md) | AI Agent Intents Core (C12) | accepted | §32.7 |
+| [024](adr/024-plan-model.md) | Planos: só limites, sem overage nem feature-gating | accepted | §34.7 (troca de plano) |
+| [025](adr/025-billing-architecture.md) | Billing: Asaas é adapter, não o centro | accepted | §32.6 · §34.3.G (checkout hospedado) |
+| [027](adr/027-onboarding-magic-invite.md) | Onboarding de clínicas via convite mágico | Accepted | §32.2 · antecessor do Track O |
+| [028](adr/028-white-label-scope-pdf-only.md) | White-label restrito aos PDFs | accepted | §32.4 |
+| [029](adr/029-observability-stack.md) | Stack de observabilidade (Sentry + logger + envelope) | accepted | §32.8 · **§34.3.E** |
+| [031](adr/031-design-system-v2-rebrand.md) | Design System v2 + governança de UI | accepted | base da tela das perguntas |
+| [032](adr/032-mvp-identity-practitioner-model.md) | Colapso User=Employee=Practitioner | accepted | §32.2 |
+| [033](adr/033-consultorio-board-scope-practitioner.md) | Board do Consultório: a própria fila | accepted | §32.4 |
+| [034](adr/034-invite-resend-copy-link.md) | Reenvio de convite por link copiável | accepted | §32.2 |
+| [035](adr/035-palette-rebrand-navy-orchid.md) | Paleta navy/orchid e wordmark Qoro | accepted | base da tela das perguntas |
+| [036](adr/036-asconflict-permanece-no-contexto.md) | `asConflict` permanece em cada contexto | accepted | §34.3.C (mesma família: onde a cópia cabe e onde não cabe) |
+| [037](adr/037-server-authoritative-session.md) | Sessão server-authoritative por request (auth epoch) | accepted | §32.2 · **§34.3.D** |
+| [038](adr/038-mfa-policy.md) | Política de MFA (obrigatória só para `super_admin`) | accepted | §32.2 · **§34.3.D** · `admin-superadmin-journey` |
+| [039](adr/039-member-lifecycle.md) | Ciclo de vida de membro | accepted | §32.2 |
+| [040](adr/040-invite-acceptance-gate.md) | Aceite do convite como gate de sessão | accepted | §32.2 |
+| [041](adr/041-authz-tables-are-not-tenant-tables.md) | Tabela de autorização não é tabela de tenant | accepted | §32.3 |
+| [042](adr/042-rls-initplan-and-public-least-privilege.md) | Policy v2 (InitPlan) + least-privilege no `public` | accepted | §32.3 |
+| [043](adr/043-messaging-retention-not-partitioning.md) | Retenção, não particionamento, da mensageria raw | accepted | §32.3 |
+| [044](adr/044-clinical-content-encryption.md) | Cifra do conteúdo clínico | accepted | §32.3 · §34.6 (por que o CSV não carrega conteúdo) |
+| [045](adr/045-observability-execution-boundary.md) | Fronteira de observabilidade (`withCron`, contexto) | accepted | §32.8 · **§34.3.E** |
+| [046](adr/046-no-login-gate-clinical-record-access.md) | Inadimplência não bloqueia leitura do prontuário | accepted | §32.4 |
+| [047](adr/047-ai-conversations-human-handoff.md) | Painel de Conversas IA e intervenção humana | proposed | §32.7 · `admin-superadmin-journey` (tela) |
+| [048](adr/048-ai-agent-conversational-safety.md) | Segurança conversacional do agente | Accepted · Reference | §32.7 |
+| [049](adr/049-pagamentos-paciente-sinal.md) | Pagamento de paciente e sinal anti-no-show | Proposto | §32.6 · migration `0094` **em produção** |
+| [050](adr/050-identidade-de-pagamento-do-paciente.md) | Identidade de pagamento do paciente | Aprovado | §32.6 |
+| [051](adr/051-conciliacao-sinal-e-recebivel.md) | Conciliação cobrança ⇄ recebível | Aprovado | §32.6 |
+| [052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md) | Risco e reversão de pagamento | Aceita | §32.6 |
+| [053](adr/053-cadastro-autonomo-seguro.md) | Cadastro autônomo seguro e atribuição de aquisição | Proposed | §32.9 · **§34.3.B** |
+| [054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) | Documento de pagamento e recibo fiscal | Superseded in part | §32.6 |
+| [055](adr/055-documentos-clinicos-fora-da-consulta.md) | Documentos clínicos fora da consulta | Accepted | §32.4 |
+| [056](adr/056-spike-integracao-memed.md) | Spike Memed | **Deferred** (Track M) | §32.4 · §24 |
+| [057](adr/057-recuperacao-falta-retorno.md) | Recuperação após falta e retorno clínico | Accepted | §32.5 · migration `0095` **em produção** |
+| [058](adr/058-exportacao-financeira-contabilidade.md) | Exportação financeira mensal para contabilidade | Accepted | §32.6 · §22 |
+| [059](adr/059-acesso-autenticado-pdfs-clinicos.md) | Acesso autenticado a PDFs clínicos, sem bearer na URL | Accepted | §32.4 |
+| [060](adr/060-sessao-anonima-de-cadastro.md) | Fatia O-2: sessão anônima de cadastro | **O-2a Accepted; O-2b Accepted no servidor** | §32.9 · **§34.3.A, §34.3.B, §34.3.G** |
+
+**A ADR que falta escrever:** o perfil do WhatsApp Business da §33 vira **ADR-061** quando entrar em
+execução. A decisão que justifica uma ADR própria é a de §33.4 — a Meta como fonte da verdade, sem
+espelho local —, porque ela troca disponibilidade por correção, e isso é escolha de arquitetura, não
+detalhe de implementação.
