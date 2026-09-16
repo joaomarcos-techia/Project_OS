@@ -96,7 +96,7 @@ describe('POST signup resend', () => {
       type: 'signup',
       email: input.email,
       options: {
-        emailRedirectTo: 'https://app.qoro.test/cadastro/continuar',
+        emailRedirectTo: 'https://app.qoro.test/auth/confirm',
         captchaToken: 'fresh-resend',
       },
     });

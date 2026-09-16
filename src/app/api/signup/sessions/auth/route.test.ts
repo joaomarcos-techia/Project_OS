@@ -94,7 +94,7 @@ describe('POST signup auth', () => {
       email: input.email,
       password: input.password,
       options: {
-        emailRedirectTo: 'https://app.qoro.test/cadastro/continuar',
+        emailRedirectTo: 'https://app.qoro.test/auth/confirm',
         captchaToken: 'fresh-signup',
       },
     });

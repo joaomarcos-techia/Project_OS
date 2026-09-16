@@ -293,20 +293,21 @@ O SDK SSR instalado **força `flowType: 'pkce'`**, inclusive sobre `options.auth
 `exchangeCodeForSession` usa `/token?grant_type=pkce` e depende do verifier original.
 
 Preservar o cliente SSR. Para Track O, escolher link customizado com `TokenHash` e OTP no
-servidor, sem callback `code` nem mudança dos fluxos existentes. Template proposto para
-**Confirm sign up**, com origem canônica do alvo, não derivada de Host:
+servidor, sem callback `code` nem mudança dos fluxos existentes. Template para
+**Confirm sign up**, com callback canônico fornecido pelo servidor, não derivado de Host:
 
 ```html
 <a
-  href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=%2Fcadastro%2Fcontinuar"
+  href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=signup&next=%2Fcadastro%2Fcontinuar"
   >Confirmar e-mail</a
 >
 ```
 
-`emailRedirectTo` de signup/resend é somente a URL canônica `/cadastro/continuar` construída
-por `buildApplicationUrl`. O template acima é proposta para revisão; não foi aplicado ao painel.
-`SiteURL`, template, redirect allowlist e aceitação de `type=signup` pelo GoTrue real exigem
-readback/teste no alvo autorizado. Não usar `ConfirmationURL` para devolver bearer ao browser.
+`emailRedirectTo` de signup/resend é a URL canônica `/auth/confirm` construída por
+`buildApplicationUrl`; o template a recebe em `RedirectTo`, acrescenta somente `TokenHash`,
+`type=signup` e o destino interno fixo `/cadastro/continuar`. Template, redirect allowlist e
+aceitação de `type=signup` pelo GoTrue real exigem readback/teste no alvo autorizado. Não usar
+`ConfirmationURL` para devolver bearer ao browser.
 Não acrescentar draft id, token de bootstrap, e-mail, nomes ou retorno arbitrário ao link.
 
 Fundamentação: [templates e endpoint SSR](https://supabase.com/docs/guides/auth/auth-email-templates),

@@ -2,7 +2,9 @@
   Qoro — Template de e-mail: CONFIRMAR CADASTRO
   Onde colar: Supabase → Authentication → Email Templates → "Confirm signup".
   Assunto sugerido: Confirme seu e-mail — Qoro
-  Variável obrigatória: {{ .ConfirmationURL }}  (link de confirmação)
+  Variáveis obrigatórias: {{ .RedirectTo }} e {{ .TokenHash }}
+  O link passa por /auth/confirm para trocar o OTP no servidor. Não usar o link
+  pronto do provider, que devolve credenciais ao browser após a confirmação.
 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="pt-BR">
@@ -100,13 +102,13 @@
                 <tr>
                   <td class="px cta" style="padding:28px 44px 4px 44px;">
                     <!--[if mso]>
-                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ .ConfirmationURL }}" style="height:52px;v-text-anchor:middle;width:250px;" arcsize="20%" stroke="f" fillcolor="#00737e">
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=%2Fcadastro%2Fcontinuar" style="height:52px;v-text-anchor:middle;width:250px;" arcsize="20%" stroke="f" fillcolor="#00737e">
                       <w:anchorlock/>
                       <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:bold;">Confirmar meu e-mail</center>
                     </v:roundrect>
                     <![endif]-->
                     <!--[if !mso]><!-- -->
-                    <a href="{{ .ConfirmationURL }}" style="background:#00737e; color:#f9fdfd; display:inline-block; font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; font-weight:700; line-height:52px; text-align:center; text-decoration:none; border-radius:11px; padding:0 30px; min-width:200px;">Confirmar meu e-mail</a>
+                    <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=%2Fcadastro%2Fcontinuar" style="background:#00737e; color:#f9fdfd; display:inline-block; font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; font-weight:700; line-height:52px; text-align:center; text-decoration:none; border-radius:11px; padding:0 30px; min-width:200px;">Confirmar meu e-mail</a>
                     <!--<![endif]-->
                   </td>
                 </tr>
@@ -121,7 +123,7 @@
                 </tr>
                 <tr>
                   <td class="px" style="padding:8px 44px 0 44px;">
-                    <div class="urlbox" style="background:#f0f9fa; border:1px solid #d9f0f3; border-radius:9px; padding:12px 14px; font-family:'Courier New',Courier,monospace; font-size:12.5px; line-height:1.5; color:#005e68; word-break:break-all;">{{ .ConfirmationURL }}</div>
+                    <div class="urlbox" style="background:#f0f9fa; border:1px solid #d9f0f3; border-radius:9px; padding:12px 14px; font-family:'Courier New',Courier,monospace; font-size:12.5px; line-height:1.5; color:#005e68; word-break:break-all;">{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=%2Fcadastro%2Fcontinuar</div>
                   </td>
                 </tr>
               </table>

@@ -304,7 +304,7 @@ async function runBrowserJourney(
         assert.ok(typeof body === 'object' && body !== null);
         assert.equal('type' in body ? body.type : undefined, 'signup');
         assert.equal('email' in body ? body.email : undefined, 'synthetic@example.invalid');
-        assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/cadastro/continuar`);
+        assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/auth/confirm`);
         resendCalls++;
         if (resendMode === 'timeout') return;
         if (resendMode === 'concurrent') await new Promise((resolve) => setTimeout(resolve, 300));
@@ -319,7 +319,7 @@ async function runBrowserJourney(
       }
       assert.equal(request.method, 'POST');
       assert.equal(target.pathname, '/auth/v1/signup');
-      assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/cadastro/continuar`);
+      assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/auth/confirm`);
       const body = await readJsonBody(request);
       assert.ok(
         typeof body === 'object' && body !== null && 'password' in body && 'code_challenge' in body,

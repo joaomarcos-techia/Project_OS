@@ -33,7 +33,7 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'unavailable' }, 503);
   let redirectUrl: string;
   try {
-    redirectUrl = buildApplicationUrl(env.APP_BASE_URL ?? '', '/cadastro/continuar', {
+    redirectUrl = buildApplicationUrl(env.APP_BASE_URL ?? '', '/auth/confirm', {
       allowInsecureLocalhost: env.NODE_ENV !== 'production',
     });
   } catch {
