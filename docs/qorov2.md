@@ -5601,3 +5601,27 @@ Migrations DEV, entrega e confirmação pelo template anterior e publicação no
 `project-os-git-preview-auth-email-o3b-clinic-os-v2-s-projects.vercel.app` são **PASS**. Confirmar
 `APP_BASE_URL` nesse alias, instalar o template corrigido, permitir o callback exato no Supabase e
 executar um clique novo até a continuação são **NOT TESTED**. Produção não foi alterada.
+
+### 35.19 O-3b — callback corrigido, replay e layout móvel no Preview
+
+O novo cadastro consentido percorreu novamente `201/200/200/200`, recebeu o template corrigido e
+abriu `/auth/confirm` no celular. O readback confirmou o usuário e mostrou uma sessão Auth e um
+refresh token ativos. Abrir o mesmo link depois no computador foi corretamente recusado: o token é
+de uso único e já havia sido consumido no primeiro navegador; os 27 minutos entre envio e segundo
+acesso não caracterizam falha do TTL.
+
+O draft permaneceu `email_pending`, sem owner e não consumido porque o celular não possuía o cookie
+anônimo do navegador que iniciou o cadastro. A continuação apresentou `restart` e exigiu redigitar os
+dados, conforme a barreira O-3b.5 que impede recuperar ou vincular staging apenas por coincidência de
+e-mail entre navegadores.
+
+A tela real autenticada foi medida em viewports de 320 px e 390 px: `scrollWidth` igual à viewport,
+zero elemento da aplicação fora dos limites e controles com 40–44 px de altura. A interferência
+visual reproduzida era o elemento `vercel-live-feedback`, injetado pelo Preview e sobreposto aos
+campos. Com o cabeçalho oficial `x-vercel-skip-toolbar`, a barra desapareceu e o layout permaneceu
+inalterado; não houve correção CSS porque a aplicação não era a origem do defeito.
+
+O callback corrigido, a confirmação, a criação da sessão, a rejeição de replay e o comportamento
+cross-browser são **PASS** no Preview DEV. Produção não foi alterada. A barra pode ser desativada
+somente para esta branch com `VERCEL_PREVIEW_FEEDBACK_ENABLED=0` em uma próxima configuração do
+Preview; isso não é requisito funcional do O-3b.

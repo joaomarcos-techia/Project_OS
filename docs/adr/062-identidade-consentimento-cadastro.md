@@ -4,7 +4,7 @@
   Contratos O-3b de §9 aprovados para execução local sequencial; O-3b.1–6 validados localmente
   e implementação local O-3b encerrada. Rollout DEV autorizado em 16/09/2026: migrations
   0099–0101, entrega SMTP e confirmação de uma conta real verificadas; correção do callback
-  server-side publicada em Preview e ainda sem novo clique externo.
+  server-side publicada e verificada de ponta a ponta no Preview isolado.
 - **Data:** 2026-09-15.
 - **Atualizado:** 2026-09-16.
 - **Checkout de rollout:** branch `preview/auth-email-o3b` em worktree isolada; base histórica
@@ -683,11 +683,19 @@ não secretos. O callback não inclui o token nos logs estruturados da aplicaç�
 | Suíte integral | **PASS**, 3.760/3.760 em 384 arquivos |
 | Build de segurança, typecheck, lint, formato e regressão SQL/Next/Chromium | **PASS**, regressão 24/24 e cleanup zero |
 | Publicação isolada da correção | **PASS**, branch `preview/auth-email-o3b`; alias estável `project-os-git-preview-auth-email-o3b-clinic-os-v2-s-projects.vercel.app` |
-| Template corrigido instalado no Supabase e novo clique real até `/cadastro/continuar` | **NOT TESTED** |
+| Template corrigido instalado no Supabase e novo clique real até `/cadastro/continuar` | **PASS**, novo cadastro consentido; confirmação e sessão estabelecidas no celular |
+| Readback após o callback corrigido | **PASS**, usuário confirmado e autenticado, uma sessão e um refresh token; draft ainda `email_pending`, sem owner e não consumido |
+| Reuso do mesmo link no computador | **PASS**, rejeitado como token de uso único já consumido; o intervalo de 27 minutos não prova expiração por TTL |
+| Continuação em outro navegador | **PASS**, modo `restart` sem recuperar PII/respostas do cookie anônimo ausente, conforme contrato O-3b.5 |
+| Layout móvel da aplicação no Preview | **PASS**, 320 px e 390 px sem overflow horizontal; a sobreposição observada era `vercel-live-feedback`, injetada pelo Preview |
 
-O próximo gate externo exige confirmar `APP_BASE_URL` com a origem do alias estável, instalar o HTML
-versionado no template **Confirm signup**, permitir exatamente
-`https://project-os-git-preview-auth-email-o3b-clinic-os-v2-s-projects.vercel.app/auth/confirm` e
-testar com uma identidade ainda não confirmada. Até esse clique, a entrega antiga está comprovada,
-mas o callback corrigido permanece sem evidência externa end-to-end. Produção continua fora deste
-rollout.
+`APP_BASE_URL`, os dois gates de signup, o template **Confirm signup** e o callback permitido ficaram
+restritos ao Preview da branch. A repetição com `x-vercel-skip-toolbar` removeu apenas a barra externa
+da Vercel e preservou as mesmas dimensões da aplicação; por isso nenhum CSS do Qoro foi alterado para
+compensá-la. O primeiro clique no celular consumiu corretamente a credencial de uso único. O segundo
+acesso, no computador, precisava falhar mesmo antes do TTL porque replay não é permitido.
+
+Como a confirmação ocorreu em outro navegador, sem o cookie anônimo que criou o staging, o fluxo não
+vinculou o draft automaticamente nem recuperou seus dados. A sessão autenticada chegou a
+`/cadastro/continuar` e apresentou a redigitação completa por `restart`, que é a proteção prevista
+contra associação por e-mail entre navegadores. Produção continua fora deste rollout.
