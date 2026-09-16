@@ -7,7 +7,7 @@ import { getAal, challengeAndVerify, listFactors } from '@/lib/auth/mfa';
 import { postLoginRedirect } from '@/lib/auth/policies';
 import { assertMfaAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { isRole } from '@/lib/auth/roles';
-import { createServerClient } from '@/lib/auth/supabase-server';
+import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -22,11 +22,12 @@ export type MfaActionState = {
  */
 export async function switchAccountAction(_prev: MfaActionState): Promise<MfaActionState> {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServerClient({ cookieWrites: 'required' });
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) {
       return { error: 'Não foi possível trocar de conta. Tente novamente.' };
     }
+    await clearSupabaseSessionSelector();
   } catch {
     return { error: 'Não foi possível trocar de conta. Tente novamente.' };
   }
@@ -42,7 +43,7 @@ export async function verifyMfaAction(
   if (!/^\d{6}$/.test(code)) {
     return { error: 'Código deve ter 6 dígitos.' };
   }
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
 
   // M3: brute-force do 2º fator dependia SÓ do throttle do GoTrue. O usuário já
   // está em AAL1 aqui (passou a senha), então há userId para limitar.

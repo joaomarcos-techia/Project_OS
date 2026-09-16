@@ -36,6 +36,7 @@ flowchart LR
     lib_db["db"]
     lib_email["email"]
     lib_env["env"]
+    lib_env_aliases["env-aliases"]
     lib_env_coherence["env-coherence"]
     lib_financial["financial"]
     lib_format["format"]
@@ -127,6 +128,7 @@ flowchart LR
   app_api --> context_clinical
   app_api --> context_financial
   app_api --> context_messaging
+  app_api --> context_onboarding
   app_api --> context_patient
   app_api --> context_payments
   app_api --> context_scheduling
@@ -316,6 +318,7 @@ flowchart LR
   lib_db --> lib_observability
   lib_email --> lib_auth
   lib_email --> lib_env
+  lib_env --> lib_env_aliases
   lib_env --> lib_env_coherence
   lib_financial --> lib_audit
   lib_financial --> lib_db
@@ -357,6 +360,5 @@ flowchart LR
   lib_payments --> lib_observability
   lib_platform_announcements --> lib_db
   lib_platform_settings --> lib_db
-  lib_realtime --> lib_auth
   lib_storage --> lib_auth
   lib_tenant_access --> lib_db

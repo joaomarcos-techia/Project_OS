@@ -694,6 +694,27 @@
       "when": 1789342146785,
       "tag": "0098_signup_session_answers",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1789473600000,
+      "tag": "0099_signup_session_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1789518398429,
+      "tag": "0100_signup_auth_attempt",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1789526400000,
+      "tag": "0101_signup_draft_ownership",
+      "breakpoints": true
     }
   ]
 }

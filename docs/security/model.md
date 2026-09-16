@@ -21,11 +21,33 @@ sessão Supabase
 
 Nenhuma camada isolada substitui as demais. Middleware não é boundary de autenticação.
 
+Cada sessão Supabase usa `sb-<project>-auth-token-v2-<geração>`, com geração de 32 caracteres
+hexadecimais, e o seletor `qoro-auth-session`. Cookies de sessão, fragmentos e seletor são `HttpOnly`,
+`SameSite=Lax` e `Secure` em produção. O servidor lê e renova access/refresh tokens; o JavaScript do
+browser não recebe nem lê o bearer. Login, OTP e login final de `/join` criam uma geração e gravam
+o seletor depois dos fragmentos. Refresh nunca altera o seletor, mesmo em falha; uma resposta antiga
+só pode escrever cookies da geração antiga. Logout, troca de conta e reset removem o seletor; OTP
+inválido também deixa a identidade anterior desvinculada.
+
+`/convite` verifica sessão e perfil no servidor antes de renderizar estado mínimo, e o Consultório
+atualiza o board por Server Action a cada 20 s com aba visível. O middleware expira cookies legados
+e de gerações órfãs, sem copiar bearer ou reemitir a sessão ativa. O cutover exige uma nova
+autenticação para o legado. A renovação próxima do vencimento passa por `/auth/session-refresh`,
+Route Handler gravável, sem rede no Edge. Nenhuma dessas operações no middleware substitui a
+autoridade server-side abaixo.
+Cookies próprios de recuperação, impersonação e cadastro anônimo também são HttpOnly.
+
+A evidência local combina Chromium real, build Next isolado e SDK SSR instalado com Auth HTTP
+sintético em loopback. GoTrue/Supabase externo, rollout e revogação pelo provedor são **NOT TESTED**
+nesta emenda; a geração não prova a revogação de um bearer copiado externamente. Veja [Qoro v2 §35.6](../qorov2.md).
+
 ## Identidade e autorização
 
 - roles: `owner`, `gestor`, `doctor`, `attendant`, `financial`, `super_admin`;
 - 28 permissions canônicas em `src/lib/auth/permissions.ts`;
 - JWT carrega `permissions: string[]`; profile/epoch do banco vence claim antiga;
+- JavaScript same-origin não lê o bearer das novas sessões após o cutover; XSS ainda pode
+  disparar ações com a sessão presente e a CSP com `unsafe-inline` segue como risco separado;
 - overrides individuais são persistidos e só existem em Clínica/Pro;
 - super-admin exige AAL2 e não pertence a tenant;
 - acesso cross-tenant usa admin service ou impersonação auditada.
@@ -73,7 +95,10 @@ No DEV, `bump_plan_claims_version()` é `SECURITY DEFINER` e possui `EXECUTE` he
 
 ## Headers e rede
 
-Next aplica HSTS, frame/content/referrer/permissions headers. CSP está em modo `Report-Only`, portanto coleta violações mas ainda não bloqueia. Data API, rede do Postgres e políticas de buckets são configuração externa e precisam ser confirmadas no ambiente.
+Next aplica HSTS, frame/content/referrer/permissions headers. A CSP é bloqueante, fecha
+`connect-src`/`img-src` por origens nomeadas e ainda permite `'unsafe-inline'` em `script-src`; a
+remoção por nonce permanece risco registrado. Data API, rede do Postgres e políticas de buckets
+são configuração externa e precisam ser confirmadas no ambiente.
 
 ## Auditoria e retenção
 

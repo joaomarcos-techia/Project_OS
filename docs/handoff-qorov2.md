@@ -1,7 +1,11 @@
-# Handoff — continuação da execução do Qoro v2
+# Handoff histórico — execução do Qoro v2 até 06/09/2026
 
-> Cole o conteúdo abaixo como prompt inicial de uma nova sessão. Ele é auto-suficiente:
-> não depende de nada que tenha ficado só no histórico de conversa.
+> **Substituído para retomada em 15/09/2026.** Use o
+> [prompt completo atual](prompts/retomada-qorov2-2026-09-15.md) e o checkpoint §35 do
+> [qorov2](qorov2.md#35-checkpoint-de-retomada--revisão-intermediária-de-14092026).
+> O conteúdo abaixo preserva histórico; sua ordem de tarefas e seus estados não governam
+> a execução atual. O projeto está em desenvolvimento no Track O; a tela das quatro perguntas está
+> concluída localmente e a próxima fatia é identidade + consentimento + nome da clínica.
 
 ---
 

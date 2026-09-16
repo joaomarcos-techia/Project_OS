@@ -26,6 +26,27 @@ export interface PublicEnvEntry {
 }
 
 export const PUBLIC_ENV_REGISTRY: Record<string, PublicEnvEntry> = {
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: {
+    owner: 'plataforma',
+    purpose: 'Identificador público do widget Cloudflare Turnstile no browser.',
+    exposure: 'public-by-design',
+    rationale:
+      'O browser precisa enviar a site key à Cloudflare para renderizar o desafio. Ela identifica o widget, mas não valida tokens; essa autoridade pertence à TURNSTILE_SECRET_KEY, lida apenas no servidor.',
+  },
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV: {
+    owner: 'plataforma',
+    purpose: 'Site key pública do Turnstile para o ambiente de desenvolvimento.',
+    exposure: 'public-by-design',
+    rationale:
+      'Mesmo contrato público da chave canônica, segregado para que desenvolvimento não exercite o widget de produção.',
+  },
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL: {
+    owner: 'plataforma',
+    purpose: 'Site key pública do Turnstile para localhost.',
+    exposure: 'public-by-design',
+    rationale:
+      'Mesmo contrato público da chave canônica, com precedência local explícita. A chave secreta correspondente não usa NEXT_PUBLIC_.',
+  },
   NEXT_PUBLIC_SENTRY_DSN: {
     owner: 'plataforma',
     purpose: 'Endpoint de ingestão do Sentry usado pelo SDK do browser.',
@@ -35,17 +56,17 @@ export const PUBLIC_ENV_REGISTRY: Record<string, PublicEnvEntry> = {
   },
   NEXT_PUBLIC_SUPABASE_URL: {
     owner: 'plataforma',
-    purpose: 'URL do projeto Supabase que o cliente do browser chama.',
+    purpose: 'URL do projeto Supabase usada pelo Auth no servidor e pelo middleware.',
     exposure: 'public-by-design',
     rationale:
-      'É o endereço do serviço; todo request do browser o revela de qualquer forma. A autorização é do JWT + RLS, nunca do sigilo da URL.',
+      'É o endereço público do serviço. O nome NEXT_PUBLIC_ é legado de configuração; nenhum bearer de sessão deve ser exposto ao navegador. A autorização ocorre nos guards do servidor.',
   },
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: {
     owner: 'plataforma',
-    purpose: 'Chave publishable (sb_publishable_) do Supabase Auth no browser.',
+    purpose: 'Chave publishable (sb_publishable_) do Supabase Auth usada no servidor.',
     exposure: 'public-by-design',
     rationale:
-      'Par público da chave de serviço: só permite o que RLS permitir para a sessão. A credencial administrativa é a secret (sb_secret_), que o bundle-check varre e nunca pode aparecer no cliente.',
+      'A chave é pública por contrato, mas a sessão do usuário fica em cookie HttpOnly e as chamadas autenticadas ocorrem no servidor. A credencial administrativa é a secret (sb_secret_), que nunca pode aparecer no cliente.',
   },
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV: {
     owner: 'plataforma',

@@ -44,7 +44,7 @@ export async function startImpersonationAction(
   if (!/^\d{6}$/.test(code)) return { error: 'O código do autenticador tem 6 dígitos.' };
 
   // Step-up: re-verifica o TOTP agora (a cada impersonate).
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
   let factors;
   try {
     factors = await listFactors(supabase);

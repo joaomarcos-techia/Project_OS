@@ -127,5 +127,8 @@ describe('registro real do repositório', () => {
         `${id} sumiu do registro de risco`,
       ).toBe(true);
     }
+    expect(RISK_REGISTER.some((entry) => entry.id === 'supabase-session-browser-readable')).toBe(
+      false,
+    );
   });
 });

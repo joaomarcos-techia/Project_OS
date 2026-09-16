@@ -35,8 +35,16 @@ Os 48 ADRs antigos registravam muitas etapas intermediárias e repetiam regras d
 | Recuperação separa retorno clínico existente de contato após falta | Accepted (2.4A e 2.4B em código/DEV/Preview; E2E Meta pendente) | [ADR-057](057-recuperacao-falta-retorno.md) |
 | CSV mensal do ledger para contabilidade, sem valor fiscal | Accepted (código/DEV/Preview) | [ADR-058](058-exportacao-financeira-contabilidade.md) |
 | PDF clínico servido por rota Qoro autenticada, sem bearer URL no cliente | Accepted (implementação local; rollout pendente) | [ADR-059](059-acesso-autenticado-pdfs-clinicos.md) |
-| Sessão anônima de cadastro: fatia O-2 cortada em O-2a/O-2b, perguntas antes da identidade, limiter graduado | O-2a Accepted (código, migration em DEV, smoke e endpoints verificados no Preview); O-2b Proposed | [ADR-060](060-sessao-anonima-de-cadastro.md) |
+| Sessão anônima de cadastro: fatia O-2 cortada em O-2a/O-2b, perguntas antes da identidade, limiter graduado | O-2a Accepted; O-2b Accepted no servidor; quatro perguntas e sessão HttpOnly com provas locais datadas, sem novo rollout | [ADR-060](060-sessao-anonima-de-cadastro.md) e [Qoro v2 §35.5–§35.6](../qorov2.md) |
 | Inadimplência bloqueia escrita, não login/leitura | Accepted | [billing](../billing/subscriptions.md) |
 | Sentry + logs + métricas + health/heartbeats | Accepted | [operations](../operations/deployment-observability.md) |
 
 Decisão futura só entra aqui quando adotada na implementação. Uma ideia descartada ou sem código não é `Accepted`.
+
+## Decisões locais — sem rollout externo
+
+| Contrato | Estado | Documento |
+| --- | --- | --- |
+| Identidade + consentimento + nome da clínica; corte O-3a/staging e O-3b/Auth/ownership | O-3a e O-3b.1–6 Accepted local em 15–16/09/2026; sem rollout externo | [ADR-062](062-identidade-consentimento-cadastro.md) |
+
+ADR-061 permanece reservada ao perfil WhatsApp de Qoro v2 §33; não foi criada nesta fatia.

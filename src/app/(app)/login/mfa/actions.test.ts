@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   assertMfaAllowed: vi.fn(),
   challengeAndVerify: vi.fn(),
   createServerClient: vi.fn(),
+  clearSelector: vi.fn(),
   getClientIp: vi.fn(),
   getUser: vi.fn(),
   listFactors: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 vi.mock('@/lib/auth/supabase-server', () => ({
   createServerClient: mocks.createServerClient,
+  clearSupabaseSessionSelector: mocks.clearSelector,
 }));
 vi.mock('@/lib/auth/mfa', () => ({
   challengeAndVerify: mocks.challengeAndVerify,
@@ -47,6 +49,7 @@ beforeEach(() => {
     auth: { getUser: mocks.getUser, signOut: mocks.signOut },
   });
   mocks.signOut.mockResolvedValue({ error: null });
+  mocks.clearSelector.mockResolvedValue(undefined);
   mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
   mocks.getClientIp.mockReturnValue('203.0.113.10');
   mocks.assertMfaAllowed.mockResolvedValue({ ok: true });
@@ -68,10 +71,20 @@ describe('switchAccountAction', () => {
     await expect(switchAccountAction(INITIAL)).rejects.toMatchObject({ target: '/login' });
 
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.clearSelector).toHaveBeenCalledOnce();
     expect(mocks.signOut.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.redirect.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
     expect(mocks.redirect).toHaveBeenCalledWith('/login');
+  });
+
+  it('não confirma a troca quando o seletor não pode ser removido', async () => {
+    mocks.clearSelector.mockRejectedValue(new Error('headers committed'));
+
+    await expect(switchAccountAction(INITIAL)).resolves.toEqual({
+      error: 'Não foi possível trocar de conta. Tente novamente.',
+    });
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it('não redireciona quando o Auth devolve erro ao limpar a sessão', async () => {

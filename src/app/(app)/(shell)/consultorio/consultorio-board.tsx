@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Wifi, WifiOff } from 'lucide-react';
+import { Calendar, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -12,9 +12,9 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/ui/cn';
 import {
-  useConsultorioRealtime,
-  type RealtimeState,
-} from '@/lib/realtime/use-consultorio-realtime';
+  useConsultorioPolling,
+  type ConsultorioRefreshState,
+} from '@/lib/realtime/use-consultorio-polling';
 
 import { callNextPatient, checkInPatient, completeConsulta, getBoard, markAbsent } from './actions';
 import { AttendingPanel } from './attending-panel';
@@ -26,10 +26,14 @@ import { WaitingCard } from './waiting-card';
 import { uuidv4 } from '@/lib/ui/uuid';
 import styles from './consultorio.module.css';
 
-const CONN_BADGE: Record<RealtimeState, { tone: 'green' | 'amber' | 'gray'; label: string }> = {
-  live: { tone: 'green', label: 'Tempo real' },
-  polling: { tone: 'amber', label: 'Reconectando…' },
-  connecting: { tone: 'gray', label: 'Conectando…' },
+const REFRESH_BADGE: Record<
+  ConsultorioRefreshState,
+  { tone: 'green' | 'amber' | 'gray'; label: string }
+> = {
+  active: { tone: 'green', label: 'Atualiza a cada 20 s' },
+  retrying: { tone: 'amber', label: 'Tentando atualizar…' },
+  paused: { tone: 'gray', label: 'Pausado em segundo plano' },
+  connecting: { tone: 'gray', label: 'Atualizando…' },
 };
 
 /**
@@ -69,7 +73,6 @@ function ColumnTitle({
 }
 
 export function ConsultorioBoard({
-  clinicId,
   isPractitioner,
   initialBoard,
 }: {
@@ -94,29 +97,19 @@ export function ConsultorioBoard({
     return () => clearInterval(t);
   }, []);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (): Promise<boolean> => {
     try {
       setBoard(await getBoard({ doctorId: selectedDoctorId }));
+      return true;
     } catch {
-      // getBoard só lança em auth; Realtime/polling tentará de novo.
+      // O hook sinaliza a falha e tenta de novo com backoff.
+      return false;
     }
   }, [selectedDoctorId]);
 
-  const conn = useConsultorioRealtime({ clinicId, tables: ['appointments'], onChange: refetch });
-
-  // Troca de médico (gestor/atendente) → refetch.
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
-
-  // Rede de segurança: polling lento (20s) APENAS quando o Realtime não está ao
-  // vivo. Com o canal "live", o Realtime entrega as mudanças e o próprio hook tem
-  // backoff se cair — então não há getBoard ocioso a cada 20s (board mais leve).
-  useEffect(() => {
-    if (conn === 'live') return;
-    const t = setInterval(() => void refetch(), 20_000);
-    return () => clearInterval(t);
-  }, [conn, refetch]);
+  // Uma única fonte de atualização: leitura autorizada no servidor, de imediato
+  // na montagem/troca de médico e a cada 20 s enquanto a aba está visível.
+  const refreshState = useConsultorioPolling(refetch);
 
   // A seleção do painel central é dirigida pelo usuário (Chamar / clicar finalizada /
   // Fechar / Encerrar). Aqui só LIMPAMOS se o selecionado sumiu do board — nunca
@@ -162,10 +155,10 @@ export function ConsultorioBoard({
       return r;
     });
 
-  const badge = CONN_BADGE[conn];
+  const badge = REFRESH_BADGE[refreshState];
 
   // Card atual (do board) do appointment selecionado → o painel central recarrega
-  // quando o status muda (ex.: em_atendimento → atendido após Encerrar, ou via Realtime).
+  // quando o status muda (ex.: em_atendimento → atendido após Encerrar, ou após refetch).
   const selectedCard =
     [...board.aChegar, ...board.salaEspera, ...board.emAtendimento, ...board.finalizadas].find(
       (c) => c.appointmentId === selectedAppt,
@@ -212,12 +205,8 @@ export function ConsultorioBoard({
                 ))}
               </Select>
             ) : null}
-            <Badge tone={badge.tone}>
-              {badge.tone === 'green' ? (
-                <Wifi aria-hidden="true" className="size-3 shrink-0" />
-              ) : (
-                <WifiOff aria-hidden="true" className="size-3 shrink-0" />
-              )}
+            <Badge tone={badge.tone} aria-live="polite">
+              <RefreshCw aria-hidden="true" className="size-3 shrink-0" />
               {badge.label}
             </Badge>
             {/* A referência mantém a saída para a Agenda à mão: quando falta

@@ -29,13 +29,15 @@ export function OptionCardGroup<V extends string>({
   value,
   onValueChange,
   options,
+  disabled = false,
   'aria-label': ariaLabel,
   className,
 }: {
   name: string;
-  value: V;
+  value: V | undefined;
   onValueChange: (value: V) => void;
   options: OptionCard<V>[];
+  disabled?: boolean;
   'aria-label'?: string;
   className?: string;
 }) {
@@ -44,6 +46,7 @@ export function OptionCardGroup<V extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
+      aria-disabled={disabled || undefined}
       data-slot="option-card-group"
       className={cn('flex flex-col gap-1.5', className)}
     >
@@ -55,11 +58,12 @@ export function OptionCardGroup<V extends string>({
             key={option.value}
             htmlFor={inputId}
             className={cn(
-              'flex cursor-pointer items-start gap-2.5 rounded-(--r-md) border p-3 transition-colors duration-(--dur-fast)',
+              'flex items-start gap-2.5 rounded-(--r-md) border p-3 transition-colors duration-(--dur-fast)',
               'has-[:focus-visible]:shadow-(--focus-ring)',
+              disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
               selected
                 ? 'border-primary bg-(--primary-soft)'
-                : 'border-border hover:bg-surface-hover',
+                : cn('border-border', !disabled && 'hover:bg-surface-hover'),
             )}
           >
             <input
@@ -68,6 +72,7 @@ export function OptionCardGroup<V extends string>({
               name={name}
               value={option.value}
               checked={selected}
+              disabled={disabled}
               onChange={() => onValueChange(option.value)}
               className="sr-only"
             />

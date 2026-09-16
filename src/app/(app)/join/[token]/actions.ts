@@ -261,7 +261,7 @@ export async function submitCheckoutAction(
   // usuário não tem como resolver um segundo desafio depois que o cartão já
   // foi cobrado.
   try {
-    const supabase = await createServerClient();
+    const supabase = await createServerClient({ cookieWrites: 'required', newSession: true });
     const options = captchaOptions(readCaptchaToken(formData));
     const { error } = await supabase.auth.signInWithPassword({
       email: st.owner.email,

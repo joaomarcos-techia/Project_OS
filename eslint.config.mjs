@@ -150,6 +150,7 @@ const config = [
       'scripts/load-test-seed-runner.ts',
       // Bootstrap do cluster temporário: loopback fixo e data_directory verificado.
       'scripts/security/tenant-isolation.ts',
+      'scripts/security/signup-regression.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
@@ -262,6 +263,10 @@ const config = [
       // pré-tenant. Mesma justificativa do irmão acima — `withTenant` não tem
       // GUC de tenant para setar numa linha que nasce antes de existir clínica.
       'src/contexts/onboarding/internal/signup-answers.ts',
+      // ADR-062 O-3b.3: ownership do mesmo signup_sessions global prÃ©-tenant.
+      // O draft verificado ainda nÃ£o tem clinic_id; RLS FORCE sem policy e grant
+      // exclusivo a service_role mantÃªm a fronteira atÃ© o provisionamento.
+      'src/contexts/onboarding/internal/signup-draft.ts',
       // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
       // authenticated (D31). Mesma justificativa da saga de onboarding.

@@ -1,80 +1,200 @@
-/**
- * Middleware — o que sobrou depois do ADR-037.
- *
- * O teste anterior congelava `isSupabaseAuthCookie` (F-06: o heal precisava apagar
- * TODOS os fragmentos do cookie `sb-…-auth-token`). Esse predicado e o heal inteiro
- * foram DELETADOS: a revogação virou responsabilidade da porta única, que confere o
- * epoch por request. Não sobrou nada para o predicado guardar — teste de código
- * morto é dívida, não cobertura.
- *
- * O que passa a ser testado é o `matcher`, que é a única regra de verdade que
- * sobrou aqui — e a que JÁ quebrou produção: incluir `api/webhooks` fazia o
- * middleware de sessão responder 307 → /login para o webhook do Asaas/Meta, que
- * não tem sessão nenhuma.
- */
-import { describe, expect, it } from 'vitest';
+import { NextRequest } from 'next/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { config } from './middleware';
+import { SUPABASE_SESSION_SELECTOR_COOKIE } from './lib/auth/supabase-session-cookie';
+import { config, middleware } from './middleware';
 
-/** Reproduz o casamento que o Next faz com `config.matcher`. */
+const LEGACY_COOKIE_NAME = 'sb-project-auth-token';
+const COOKIE_PREFIX = 'sb-project-auth-token-v2';
+const GENERATION_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const GENERATION_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+function cookieName(generation: string): string {
+  return `${COOKIE_PREFIX}-${generation}`;
+}
+
 function runsMiddlewareOn(pathname: string): boolean {
   return config.matcher.some((pattern) => new RegExp(`^${pattern}$`).test(pathname));
 }
 
-describe('matcher — rotas que NÃO podem passar pelo middleware de sessão', () => {
+function encodedSession(expiresAt: number): string {
+  return `base64-${Buffer.from(JSON.stringify({ expires_at: expiresAt })).toString('base64url')}`;
+}
+
+function activeSessionCookie(
+  expiresAt: number,
+  generation = GENERATION_A,
+  chunked = false,
+): string {
+  const name = cookieName(generation);
+  const value = encodedSession(expiresAt);
+  const selector = `${SUPABASE_SESSION_SELECTOR_COOKIE}=${generation}`;
+  if (!chunked) return `${selector}; ${name}=${value}`;
+  const middle = Math.floor(value.length / 2);
+  return `${selector}; ${name}.0=${value.slice(0, middle)}; ${name}.1=${value.slice(middle)}`;
+}
+
+function legacySessionCookie(expiresAt: number, chunked = false): string {
+  const value = encodedSession(expiresAt);
+  if (!chunked) return `${LEGACY_COOKIE_NAME}=${value}`;
+  const middle = Math.floor(value.length / 2);
+  return `${LEGACY_COOKIE_NAME}.0=${value.slice(0, middle)}; ${LEGACY_COOKIE_NAME}.1=${value.slice(middle)}`;
+}
+
+function request(path: string, cookie?: string, method = 'GET'): NextRequest {
+  return new NextRequest(`https://qoro.test${path}`, {
+    method,
+    ...(cookie ? { headers: { cookie } } : {}),
+  });
+}
+
+function expectOnlyExpirations(setCookies: string[], expectedNames: string[]): void {
+  expect(setCookies).toHaveLength(expectedNames.length);
+  for (const name of expectedNames) {
+    const header = setCookies.find((cookie) => cookie.startsWith(`${name}=`));
+    expect(header).toBeDefined();
+    expect(header).toMatch(/Max-Age=0/i);
+    expect(header).toMatch(/Expires=Thu, 01 Jan 1970 00:00:00 GMT/i);
+    expect(header).not.toMatch(new RegExp(`^${name}=[^;]+`));
+  }
+}
+
+beforeEach(() => vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.supabase.co'));
+afterEach(() => vi.unstubAllEnvs());
+
+describe('matcher de sessão e cutover HttpOnly', () => {
   it.each([
-    ['/api/webhooks/asaas', 'webhook: autentica por assinatura do provider, não tem sessão'],
-    ['/api/webhooks/meta', 'idem'],
-    ['/api/cron/outbox', 'cron: autentica por Bearer CRON_SECRET'],
-    ['/api/health', 'healthcheck: precisa responder sem sessão'],
-    ['/login', 'senão o redirect para /login vira loop'],
-    ['/reset-password', 'destino do link de recovery — pré-sessão'],
-    ['/auth/confirm', 'troca token_hash→sessão server-side — pré-sessão'],
-    ['/auth/auth-error', 'tela de erro dos links de e-mail — pré-sessão'],
-    ['/convite', 'aceite de convite: sessão sem claims (Hook deny-by-default)'],
-    ['/join', 'onboarding público: não há sessão até o owner existir'],
-    ['/join/abc123', 'compatibilidade temporária dos convites legados'],
-    ['/auth/callback', 'troca de code por sessão'],
-    ['/account/security', 'super_admin em AAL1 precisa chegar aqui para cadastrar o TOTP'],
-    ['/monitoring', 'tunnelRoute do Sentry — interceptar quebra o report do client'],
-    ['/favicon.ico', 'estático'],
-    ['/_next/static/chunk.js', 'estático'],
-  ])('%s é excluída (%s)', (path) => {
+    '/api/webhooks/asaas',
+    '/api/webhooks/meta',
+    '/api/cron/outbox',
+    '/api/health',
+    '/monitoring',
+    '/favicon.ico',
+    '/_next/static/chunk.js',
+  ])('não intercepta %s', (path) => {
     expect(runsMiddlewareOn(path)).toBe(false);
   });
-});
 
-describe('matcher — rotas que PRECISAM do refresh de sessão', () => {
   it.each([
-    ['/dashboard'],
-    ['/pacientes'],
-    ['/pacientes/123/prontuarios/456'],
-    ['/equipe'],
-    ['/admin'],
-    ['/admin/clinicas'],
-    ['/'],
-  ])('%s passa pelo middleware', (path) => {
+    '/login',
+    '/convite',
+    '/reset-password',
+    '/auth/confirm',
+    '/auth/session-refresh',
+    '/join/legacy',
+    '/cadastro',
+    '/api/signup/sessions',
+    '/account/security',
+  ])('mantém %s público sem inventar sessão', (path) => {
     expect(runsMiddlewareOn(path)).toBe(true);
+    expect(middleware(request(path)).status).toBe(200);
   });
 
-  it('/api que não é cron/webhook/health continua passando', () => {
-    // Não é descuido: essas rotas TÊM sessão e dependem do refresh de cookie.
-    expect(runsMiddlewareOn('/api/admin/algo')).toBe(true);
-  });
-});
-
-describe('ADR-037 — o heal saiu de vez', () => {
-  it('o módulo não exporta mais nada do heal (_healed / drift / cookie predicate)', async () => {
-    const mod = await import('./middleware');
-    expect(Object.keys(mod).sort()).toEqual(['config', 'middleware']);
+  it('redireciona página protegida sem sessão para login', () => {
+    const response = middleware(request('/dashboard'));
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://qoro.test/login');
   });
 
-  it('o código-fonte não menciona mais os cookies do heal', async () => {
-    // Guarda contra reintrodução silenciosa: se alguém trouxer `_healed` de volta,
-    // traz junto a superfície forjável que o I-7 descreve.
-    const { readFileSync } = await import('node:fs');
-    const src = readFileSync(new URL('./middleware.ts', import.meta.url), 'utf8');
-    const code = src.slice(src.indexOf('import {')); // ignora o docblock, que EXPLICA o histórico
-    expect(code).not.toMatch(/_healed|_claim_check_at|claims_version/);
+  it('invalida todos os fragmentos legados e exige novo login em rota protegida', () => {
+    const response = middleware(
+      request('/dashboard', legacySessionCookie(Date.now() / 1000 + 3600, true)),
+    );
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://qoro.test/login');
+    expectOnlyExpirations(response.headers.getSetCookie(), [
+      `${LEGACY_COOKIE_NAME}.0`,
+      `${LEGACY_COOKIE_NAME}.1`,
+    ]);
+  });
+
+  it('invalida legado em página pública sem copiar o bearer para o nome novo', () => {
+    const response = middleware(
+      request('/login', legacySessionCookie(Date.now() / 1000 + 3600, true)),
+    );
+    expect(response.status).toBe(200);
+    const setCookies = response.headers.getSetCookie();
+    expectOnlyExpirations(setCookies, [`${LEGACY_COOKIE_NAME}.0`, `${LEGACY_COOKIE_NAME}.1`]);
+    expect(setCookies.some((cookie) => cookie.startsWith(COOKIE_PREFIX))).toBe(false);
+  });
+
+  it('encaminha sessão v2 perto do vencimento sem reemitir o snapshot', () => {
+    const response = middleware(
+      request('/dashboard?tab=hoje', activeSessionCookie(Date.now() / 1000 + 60)),
+    );
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/auth/session-refresh');
+    expect(location.searchParams.get('next')).toBe('/dashboard?tab=hoje');
+    expect(response.headers.getSetCookie()).toHaveLength(0);
+  });
+
+  it('mantém sessão v2 longe do vencimento sem nenhum Set-Cookie no middleware', () => {
+    const response = middleware(
+      request('/dashboard', activeSessionCookie(Date.now() / 1000 + 3600)),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.getSetCookie()).toHaveLength(0);
+  });
+
+  it('não bloqueia cadastro público por causa de uma sessão legada expirada', () => {
+    const response = middleware(request('/cadastro', legacySessionCookie(Date.now() / 1000 - 60)));
+    expect(response.status).toBe(200);
+    expectOnlyExpirations(response.headers.getSetCookie(), [LEGACY_COOKIE_NAME]);
+  });
+
+  it.each([
+    '/convite?token_hash=novo&type=invite',
+    '/convite?token_hash=novo&type=recovery',
+    '/reset-password?token_hash=novo&type=recovery',
+  ])('preserva token de e-mail novo e elimina sessão legada em %s', (path) => {
+    const response = middleware(request(path, legacySessionCookie(Date.now() / 1000 - 60)));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('location')).toBeNull();
+    expectOnlyExpirations(response.headers.getSetCookie(), [LEGACY_COOKIE_NAME]);
+  });
+
+  it('mantém a geração selecionada e remove cookies v2 inativos', () => {
+    const active = activeSessionCookie(Date.now() / 1000 + 3600, GENERATION_B);
+    const staleName = cookieName(GENERATION_A);
+    const response = middleware(request('/dashboard', `${active}; ${staleName}=stale`));
+    expect(response.status).toBe(200);
+    expectOnlyExpirations(response.headers.getSetCookie(), [staleName]);
+  });
+
+  it('não confunde cookies de outro projeto com a sessão configurada', () => {
+    const response = middleware(
+      request(
+        '/dashboard',
+        `${SUPABASE_SESSION_SELECTOR_COOKIE}=${GENERATION_A}; sb-other-auth-token-v2-${GENERATION_A}=abc`,
+      ),
+    );
+    expect(response.headers.get('location')).toBe('https://qoro.test/login');
+    expect(response.headers.getSetCookie()).toHaveLength(0);
+  });
+
+  it('uma GET antiga não consegue sobrescrever seletor ou cookie de uma sessão posterior', () => {
+    const oldName = cookieName(GENERATION_A);
+    const newName = cookieName(GENERATION_B);
+    const stale = middleware(
+      request('/dashboard', activeSessionCookie(Date.now() / 1000 + 3600, GENERATION_A)),
+    );
+    const staleHeaders = stale.headers.getSetCookie().join('\n');
+    expect(staleHeaders).not.toContain(SUPABASE_SESSION_SELECTOR_COOKIE);
+    expect(staleHeaders).not.toContain(oldName);
+    expect(staleHeaders).not.toContain(newName);
+  });
+
+  it('não reemite geração ativa durante logout ou confirmação de identidade', () => {
+    const cookie = activeSessionCookie(Date.now() / 1000 + 3600);
+    const logout = middleware(request('/logout', cookie, 'POST'));
+    expect(logout.headers.getSetCookie()).toHaveLength(0);
+    const confirm = middleware(request('/auth/confirm', cookie));
+    expect(confirm.headers.getSetCookie()).toHaveLength(0);
+  });
+
+  it('preserva x-request-id na resposta', () => {
+    const response = middleware(request('/dashboard'));
+    expect(response.headers.get('x-request-id')).toBeTruthy();
   });
 });

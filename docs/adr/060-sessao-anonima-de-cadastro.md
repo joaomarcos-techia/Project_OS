@@ -1,10 +1,13 @@
 # ADR-060 — Fatia O-2: sessão anônima de cadastro (bootstrap seguro)
 
 - **Status:** **O-2a Accepted**; **O-2b Accepted no servidor** — classificador e `siteverify`
-  verificados contra a Cloudflare real no Preview em 13/09. Falta só o widget renderizado, que
-  pertence à fatia das perguntas. Não autoriza as fatias O-1, O-3 e seguintes, nem migration em
-  produção
+  verificados contra a Cloudflare real no Preview em 13/09. Widget e tela das quatro perguntas
+  implementados e provados localmente em 14/09; Cloudflare/Preview não foram revalidados nessa
+  retomada. Não autoriza as fatias O-1, O-3 e seguintes, nem migration em produção
 - **Data:** 2026-09-12 (revisada no mesmo dia; ver "Revisão de 12/09" ao final)
+- **Complemento proposto em 15/09:** [ADR-062](062-identidade-consentimento-cadastro.md)
+  congela a proposta de dados/aceite e os invariantes posteriores de Auth/ownership. Não amplia
+  o aceite de O-2 nem registra aprovação de API/migration/O-3.
 - **Contextos:** onboarding (novo) + `lib/db` (tabela global pré-tenant) — dois bounded contexts, no teto
 - **Relaciona:** [ADR-053](053-cadastro-autonomo-seguro.md) (arquitetura do track),
   [ADR-007](007-rls-implementation-patterns.md), [ADR-010](010-security-definer-patterns.md),
@@ -317,6 +320,12 @@ Ganho lateral, não acidental: lista fechada produz **distribuição comparável
 livre produz um monte que ninguém lê. Se "Outro" crescer demais, ele mesmo vira a evidência de que
 falta uma opção.
 
+**Implementação local de 14/09.** `/cadastro` usa exatamente os quatro enums da migration 0098,
+criação/`me`/`answers` reais e CAS por `row_version`. `/me` devolve somente o estado sanitizado e as
+quatro respostas para retomada. Testes de componente e Chromium/Postgres locais cobrem reload, duas
+abas, expiração, rate limit, falha de rede, desafio, teclado/foco/labels e ausência de PII. A tela
+encerra honestamente após salvar; identidade e consentimento continuam na próxima fatia.
+
 **Se rastrear indicação virar prioridade**, pergunte "quem indicou?" no onboarding — depois de a conta
 existir e o consentimento ter sido dado. Aí o dado tem dono e base legal.
 
@@ -338,6 +347,13 @@ os termos mudarem não há como demonstrar qual texto estava no ar no dia do ace
 para ser reavaliado, não esquecido.
 
 ### 2. O que a fatia NÃO entrega — escopo congelado, não omissão
+
+**Leitura atual em 15/09:** §§2–4 abaixo preservam o corte original O-2a. As quatro perguntas,
+`details_complete` e cinco colunas de respostas foram acrescentados na migration 0098 e em §1.c.1;
+O-2 está observado em Qoro v2 §35.5. Posteriormente o fundador aprovou O-3a e O-3b locais na ADR-062,
+com staging de identidade/aceite/nome e provas em §§35.10–35.17. Auth/consumo O-3b.1–6 estão
+validados apenas localmente; isso não autoriza rollout nem os campos finais desenhados em Qoro v2
+§21.5.
 
 - **sem** `signUp` no Supabase, confirmação de e-mail ou PKCE (fatia de identidade);
 - **sem** qualquer chamada ao Asaas, intenção de billing ou Checkout (O-5);

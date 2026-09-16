@@ -6,6 +6,11 @@ import http from 'node:http';
 import path from 'node:path';
 import { z } from 'zod';
 
+import {
+  supabaseAuthCookieName,
+  SUPABASE_SESSION_SELECTOR_COOKIE,
+} from '../../src/lib/auth/supabase-session-cookie';
+
 const root = process.cwd();
 const output = path.join(root, 'dist/security-local');
 const target = path.join(output, 'app');
@@ -29,6 +34,13 @@ const env = z
   .object({ NODE_ENV: z.literal('production') })
   .catchall(z.string())
   .parse(JSON.parse(await readFile(path.join(output, 'runtime-env.json'), 'utf8')));
+const invalidSessionGeneration = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const invalidSessionCookieName = supabaseAuthCookieName(
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  invalidSessionGeneration,
+);
+assert.ok(invalidSessionCookieName, 'runtime env sem nome válido de cookie Supabase');
+const invalidSessionCookie = `${SUPABASE_SESSION_SELECTOR_COOKIE}=${invalidSessionGeneration}; ${invalidSessionCookieName}=invalid`;
 const server = spawn(
   process.execPath,
   [path.join(root, 'node_modules/next/dist/bin/next'), 'start', '-p', '3217', '-H', '127.0.0.1'],
@@ -169,7 +181,7 @@ try {
       `action:invalid-cookie:${name}`,
       route,
       'POST',
-      { ...headers, Cookie: 'sb-local-auth-token=invalid' },
+      { ...headers, Cookie: invalidSessionCookie },
       '[]',
     );
   }
@@ -187,7 +199,7 @@ try {
       'Next-Action': action[0],
       'Content-Type': 'text/plain',
       Origin: 'https://evil.test',
-      Cookie: 'sb-local-auth-token=invalid',
+      Cookie: invalidSessionCookie,
     },
     '[]',
   );

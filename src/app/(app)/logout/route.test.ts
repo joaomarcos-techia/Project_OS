@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { bump, signOut, currentUser, redirect, logError } = vi.hoisted(() => ({
+const { bump, signOut, clearSelector, currentUser, redirect, logError } = vi.hoisted(() => ({
   bump: vi.fn(),
   signOut: vi.fn(),
+  clearSelector: vi.fn(),
   currentUser: vi.fn(),
   redirect: vi.fn((url: string): never => {
     throw new Error(`redirect:${url}`);
@@ -12,6 +13,7 @@ const { bump, signOut, currentUser, redirect, logError } = vi.hoisted(() => ({
 vi.mock('@/lib/auth/session-epoch', () => ({ bumpSessionEpoch: bump }));
 vi.mock('@/lib/auth/supabase-server', () => ({
   createServerClient: async () => ({ auth: { signOut } }),
+  clearSupabaseSessionSelector: clearSelector,
 }));
 vi.mock('@/lib/auth/tenant-context', () => ({ getCurrentUser: currentUser }));
 vi.mock('@/lib/observability/logger', () => ({ logger: { error: logError } }));
@@ -24,6 +26,7 @@ beforeEach(() => {
   currentUser.mockResolvedValue({ userId: 'local-user' });
   bump.mockResolvedValue(true);
   signOut.mockResolvedValue({ error: null });
+  clearSelector.mockResolvedValue(undefined);
 });
 
 describe('logout global só confirma as duas revogações', () => {
@@ -32,6 +35,10 @@ describe('logout global só confirma as duas revogações', () => {
     expect(bump).toHaveBeenCalledWith('local-user', 'logout');
     expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
     expect(bump.mock.invocationCallOrder[0]).toBeLessThan(signOut.mock.invocationCallOrder[0]!);
+    expect(clearSelector).toHaveBeenCalledOnce();
+    expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(
+      clearSelector.mock.invocationCallOrder[0]!,
+    );
   });
   it('falha retornada pelo Auth não confirma logout nem vaza a mensagem do SDK', async () => {
     signOut.mockResolvedValue({
@@ -40,6 +47,7 @@ describe('logout global só confirma as duas revogações', () => {
     const response = await POST();
     expect(response.status).toBe(503);
     expect(redirect).not.toHaveBeenCalled();
+    expect(clearSelector).not.toHaveBeenCalled();
     expect(JSON.stringify(logError.mock.calls)).not.toContain('sensitive provider data');
   });
   it.each([false, new Error('database unavailable')])(

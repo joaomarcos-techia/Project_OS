@@ -39,6 +39,11 @@ O middleware **deixa de fazer qualquer verificação de autorização**. O drift
 existir. Ele mantém `getUser()`, que não é decoração: é o que **renova os cookies de sessão** no
 `@supabase/ssr` (Server Component não pode escrever cookie).
 
+> **Emenda de 25/07/2026:** esse último papel do middleware foi removido depois que o round-trip ao
+> Auth passou a bloquear o Edge. A renovação posterior passou primeiro pelos consumidores browser
+> (D126) e, em 14/09, por um Route Handler gravável (emenda abaixo). Autenticação e autorização
+> continuam na porta única; o middleware não faz chamada de rede nem decide acesso.
+
 ### O invariante que sustenta tudo
 
 > **`claims_version` bate ⟹ as claims do JWT são atuais.**
@@ -119,6 +124,72 @@ taxonomia única para log/Sentry/auditoria sem colapsar as camadas.
 - **Middleware continua sendo UX** (ADR-009 D22 segue valendo) — agora por escolha, não por limitação.
 - **Como sair:** reverter o commit. O trigger e a função da 0040 são aditivos e inofensivos; sem o
   epoch-check, o sistema volta ao comportamento da ADR-009 (e ao I-4).
+
+### Emenda D126 — transporte para consumidores browser (histórico substituído em 14/09/2026)
+
+Naquele checkpoint, o cookie de sessão do `@supabase/ssr` usava explicitamente `httpOnly: false`,
+`SameSite=Lax` e `Secure` em produção. `/convite` lia a sessão pelo SDK do browser e o Realtime
+precisava do access token. Esse contrato foi uma reprodução necessária do problema e foi
+substituído pela emenda server-only abaixo; não descreve o código atual.
+
+Isso altera o transporte, não a autoridade. Server Components, Route Handlers e Server Actions
+continuam validando assinatura, profile, `claims_version` e guards no servidor conforme esta ADR.
+O Realtime é autorizado pelo JWT sob RLS; o filtro de `clinic_id` do canal serve apenas para
+relevância e desempenho. Grants separados de recuperação, impersonação e cadastro anônimo mantêm
+cookies próprios HttpOnly.
+
+A regressão local usa o SDK Supabase instalado sobre Auth HTTP e Realtime WebSocket sintéticos:
+confirma e submete convite, recusa convite inválido/expirado, autentica o primeiro join, propaga
+refresh e não abre canal anônimo sem sessão. Ela não executa Supabase externo nem prova RLS.
+
+O custo residual daquele checkpoint era explícito: JavaScript same-origin podia ler access e
+refresh tokens. O risco `supabase-session-browser-readable` permaneceu pendente e sem aceite até a
+implementação e a prova da emenda abaixo, quando saiu do registro de riscos abertos.
+
+### Emenda de 14–15/09/2026 — sessão HttpOnly por geração e consumidores server-only
+
+O contrato D126 acima descreve a correção local anterior e sua prova; **foi substituído nesta
+retomada** para eliminar a exposição do bearer. Cada autenticação estabelece uma geração de 32
+caracteres hexadecimais e armazena a sessão em `sb-<project>-auth-token-v2-<geração>`, incluindo seus
+fragmentos quando necessários. O seletor `qoro-auth-session` aponta para a geração ativa. Ambos são
+emitidos com `HttpOnly`, `SameSite=Lax` e `Secure` em produção. O SDK Supabase do browser foi removido:
+access e refresh tokens são lidos e renovados apenas pelo servidor.
+
+Login, confirmação OTP e login ao concluir `/join` criam uma geração nova; o adapter persiste os
+fragmentos e grava o seletor por último. Refresh de uma geração nunca grava ou apaga o seletor,
+inclusive em falha: uma resposta atrasada de A só pode regravar o cookie de A, sem substituir o
+login B ou reativar uma sessão encerrada. Logout, troca de conta e conclusão de reset removem o
+seletor explicitamente. A confirmação OTP desvincula a identidade anterior antes da verificação;
+um OTP inválido não conserva a seleção antiga nem seleciona uma nova sessão.
+
+`/convite` valida `getUser()` e o perfil autoritativo no Server Component e envia ao formulário
+somente o estado do convite e metadados textuais limitados. A Server Action revalida a sessão, o
+perfil e o aceite antes de definir a senha e renovar o token com claims. O Consultório consulta
+`getBoard` por Server Action ao montar, ao trocar o médico e a cada **20 s** com aba visível;
+falhas usam backoff de **5→10→20→30 s**. Essa troca removeu o canal Postgres Changes do browser.
+Ela preserva atualização periódica e leitura autorizada pelo servidor, mas perde a latência de
+evento do Realtime — decisão registrada também na ADR-019.
+
+O middleware continua sem Auth ou banco no Edge. Quando uma navegação GET encontra a sessão perto
+do vencimento, redireciona para `/auth/session-refresh`; o handler força `refreshSession()`, valida
+`getUser()` em contexto gravável, persiste a rotação via `Set-Cookie` e retorna ao caminho interno
+validado. Falha retornada pelo Auth encaminha ao `/login` público; exceção na renovação ou validação
+retorna 503. Contextos de mutação da sessão Auth exigem escrita de cookies; somente Server Components toleram
+o contexto de cookies somente leitura. O middleware expira cookies legados e cookies de gerações
+órfãs, sem copiar bearer, reemitir cookies ativos ou alterar o seletor. O cutover exige uma nova
+autenticação dos navegadores com a sessão legada; o nome antigo nunca é importado como sessão v2.
+
+Essa mudança fecha a **leitura de access/refresh tokens por JavaScript** nas novas sessões após o
+cutover; não elimina XSS. Um script injetado ainda pode acionar operações same-origin com a sessão
+do usuário, sujeitas aos guards e controles CSRF. A CSP com `unsafe-inline` continua como risco
+separado. Após a prova local, o risco específico saiu do registro de riscos abertos sem registrar
+aceite humano fictício. A evidência desta emenda está no [Qoro v2 §35.6](../qorov2.md). O gate
+`security:browser-session`, configurado em `playwright.httponly.config.ts`, exercita Chromium real
+contra o build Next de produção isolado. Os testes do convite usam o SDK SSR instalado contra Auth
+HTTP sintético em loopback; isso não equivale a executar GoTrue/Supabase externo. Rollout, Preview,
+produção e revogação pelo provedor permanecem **NOT TESTED** nesta emenda. A geração resolve a
+concorrência do seletor no navegador; não prova o encerramento de bearers copiados externamente,
+nem altera a ordem epoch → `signOut` do logout.
 
 ### Registrado e recusado: enfileirar o `record_login_attempt`
 

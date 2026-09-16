@@ -44,6 +44,12 @@ export function safeNext(raw: string | null | undefined): string {
   }
 }
 
+/** Signup sempre termina no onboarding; query/fragmento e `next` arbitrário são ignorados. */
+export function safeNextForOtp(raw: string | null | undefined, type: EmailOtpType): string {
+  if (type === 'signup') return '/cadastro/continuar';
+  return safeNext(raw);
+}
+
 /** Motivo → mensagem amigável (matriz de erros do plano). */
 export function verifyErrorReason(message: string | undefined): 'expired' | 'invalid_token' {
   return message && /expired|otp_expired/i.test(message) ? 'expired' : 'invalid_token';

@@ -49,11 +49,9 @@ export type ClinicInviteInsert = typeof clinicInvites.$inferInsert;
  *
  * O token NUNCA é guardado em claro — só o HMAC, como no convite mágico.
  *
- * O QUE ESTA TABELA NÃO GUARDA, e é decisão, não esquecimento (ADR-060 §3):
- * nome, e-mail, telefone, senha, cartão, atribuição de campanha ou qualquer
- * PII. As colunas do §21.5 que guardariam isso entram nas fatias que as
- * escrevem. Consequência boa: enquanto for assim, o janitor APAGA a linha e não
- * há nada a anonimizar.
+ * ADR-062 O-3a acrescenta staging de nomes, HMAC do e-mail e instante do aceite.
+ * Nunca guarda e-mail bruto, senha, telefone ou cartão. O janitor APAGA toda a
+ * linha vencida, inclusive staging pessoal; o DTO anônimo não expõe esses campos.
  *
  * `status` é `text` com CHECK, não `pgEnum`, por dois motivos:
  *   1. o CHECK lista SÓ os estados que esta fatia pode produzir, então o banco
@@ -70,7 +68,7 @@ export const signupSessions = pgTable('signup_sessions', {
   id: uuidPk(),
   /** HMAC-SHA256 do token cru (32 bytes CSPRNG). O cru só existe no cookie. */
   tokenHash: text('token_hash').notNull().unique(),
-  /** Estados desta fatia: initiated | expired | blocked (CHECK na migration). */
+  /** initiated | details_complete | identity_pending | email_pending | email_verified | expired | blocked. */
   status: text('status').notNull().default('initiated'),
   /** Faixa do classificador do §21.8. 0 nesta fatia; O-2b passa a escrever. */
   riskLevel: integer('risk_level').notNull().default(0),
@@ -84,6 +82,8 @@ export const signupSessions = pgTable('signup_sessions', {
   absoluteExpiresAt: timestamp('absolute_expires_at', { withTimezone: true }).notNull(),
   /** Preenchido quando a sessão é consumida pela identidade (fatia seguinte). */
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  /** Owner Auth verificado; sem FK porque ainda não existe profile/tenant. */
+  authUserId: uuid('auth_user_id').unique(),
 
   /* --- As QUATRO perguntas (ADR-060 §1.c.1, migration 0098) ------------
    * IMPESSOAIS por decisão: são sobre a CLÍNICA, nunca sobre a pessoa. É o que
@@ -107,6 +107,15 @@ export const signupSessions = pgTable('signup_sessions', {
   discoverySource: text('discovery_source'),
   /** Distingue "abandonou no passo 0" de "respondeu e parou depois". */
   answeredAt: timestamp('answered_at', { withTimezone: true }),
+  /** Staging restrito, só após aceite explícito e CAS (migration 0099). */
+  ownerName: text('owner_name'),
+  clinicName: text('clinic_name'),
+  emailHash: text('email_hash'),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  /** Reserva de envio sem senha/e-mail bruto/captcha/UUID retornado por signup. */
+  authAttemptKind: text('auth_attempt_kind'),
+  authAttemptState: text('auth_attempt_state'),
+  authAttemptedAt: timestamp('auth_attempted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .default(sql`now()`),

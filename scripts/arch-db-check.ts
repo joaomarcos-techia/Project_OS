@@ -43,6 +43,7 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   'src/lib/db/index.ts',
   // Cluster temporário próprio, loopback fixo e data_directory conferido antes do DDL.
   'scripts/security/tenant-isolation.ts',
+  'scripts/security/signup-regression.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.
@@ -96,6 +97,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // ADR-060 §1.c.1: as quatro perguntas escrevem na MESMA tabela global
     // pré-tenant. Irmão do arquivo acima, mesma justificativa.
     'src/contexts/onboarding/internal/signup-answers.ts',
+    // ADR-062 O-3b.3: ownership do mesmo signup_sessions global prÃ©-tenant;
+    // permanece sem clinic_id e protegido por RLS FORCE sem policy/service_role.
+    'src/contexts/onboarding/internal/signup-draft.ts',
     // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
     // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
     'src/contexts/identity/internal/members.ts',

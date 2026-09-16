@@ -226,9 +226,45 @@ export function collectInventory(root: string): Inventory {
       guard: 'supabase-otp',
       call: 'supabase.auth.verifyOtp',
     },
+    'src/app/(app)/auth/session-refresh/route.ts#GET': {
+      guard: 'supabase-session-refresh',
+      call: 'supabase.auth.getUser',
+    },
     'src/app/(app)/logout/route.ts#POST': {
       guard: 'optional-session-logout',
       call: 'getCurrentUser',
+    },
+    'src/app/api/signup/sessions/route.ts#POST': {
+      guard: 'public-signup-rate-limit-risk-and-cap',
+      call: 'createSignupSession',
+    },
+    'src/app/api/signup/sessions/me/route.ts#GET': {
+      guard: 'signup-cookie-and-read-rate-limit',
+      call: 'readSignupSession',
+    },
+    'src/app/api/signup/sessions/answers/route.ts#POST': {
+      guard: 'signup-cookie-cas-and-read-rate-limit',
+      call: 'recordSignupAnswers',
+    },
+    'src/app/api/signup/sessions/identity/route.ts#POST': {
+      guard: 'SIGNUP_IDENTITY_ENABLED-origin-limit-cookie-cas',
+      call: 'recordSignupIdentity',
+    },
+    'src/app/api/signup/sessions/auth/route.ts#POST': {
+      guard: 'SIGNUP_AUTH_ENABLED-origin-limit-cookie-cas',
+      call: 'reserveSignupAuthAttempt',
+    },
+    'src/app/api/signup/sessions/resend/route.ts#POST': {
+      guard: 'SIGNUP_AUTH_ENABLED-origin-resend-limit-cooldown-cas',
+      call: 'reserveSignupResendAttempt',
+    },
+    'src/app/api/signup/draft/route.ts#GET': {
+      guard: 'verified-pretenant-user-hmac-read-limit',
+      call: 'readSignupDraft',
+    },
+    'src/app/api/signup/draft/route.ts#POST': {
+      guard: 'origin-verified-pretenant-user-hmac-write-limit-cas',
+      call: 'writeSignupDraft',
     },
     'src/app/api/webhooks/meta/route.ts#GET': { guard: 'meta-handshake-token', call: 'safeEqual' },
     'src/app/api/webhooks/meta/route.ts#POST': {

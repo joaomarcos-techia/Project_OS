@@ -17,14 +17,19 @@ import { z } from 'zod';
 import { createSignupSession } from '@/contexts/onboarding';
 import { getClientIp } from '@/lib/auth/rate-limit';
 import { env } from '@/lib/env';
+import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 
 import { SIGNUP_COOKIE_OPTIONS, SIGNUP_SESSION_COOKIE } from '../cookie';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Teto de corpo. §21.9 pede body pequeno; esta rota não recebe campo nenhum. */
-const MAX_BODY_BYTES = 1024;
+/**
+ * Turnstile aceita até 2048 caracteres. 16 KiB comporta até 6 bytes por unidade
+ * JSON escapada (\\uXXXX), mais o envelope, sem truncar o schema existente.
+ * https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
+ */
+const MAX_BODY_BYTES = 16 * 1024;
 
 /**
  * O único campo aceito é o token do desafio, e ele é OPCIONAL: a maioria das
@@ -58,8 +63,8 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'body_too_large' }, { status: 413 });
   }
 
-  const raw = await req.text();
-  if (raw.length > MAX_BODY_BYTES) {
+  const raw = await readWebhookBodyCapped(req, MAX_BODY_BYTES);
+  if (raw === null) {
     return NextResponse.json({ error: 'body_too_large' }, { status: 413 });
   }
 

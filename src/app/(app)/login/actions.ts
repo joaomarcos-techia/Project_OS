@@ -16,6 +16,7 @@ import { hashEmail } from '@/lib/auth/email-hash';
 import { recordLoginAttempt } from '@/lib/auth/login-audit';
 import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
+import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import { getAal } from '@/lib/auth/mfa';
 import { isRole } from '@/lib/auth/roles';
 import { createPasswordResetRedirectUrl } from '@/lib/http/application-url';
@@ -115,7 +116,7 @@ export async function loginAction(
     return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
   }
 
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required', newSession: true });
   // `options` é omitido quando não há token: mandar `{ captchaToken: '' }` faz o
   // GoTrue tratar como token INVÁLIDO, não como ausente.
   const options = captchaOptions(readCaptchaToken(formData));
@@ -143,7 +144,15 @@ export async function loginAction(
   // Leitura server-side autoritativa. Não usa PostgREST/Data API: o navegador
   // fica restrito ao Auth/Realtime/Storage e não ganha uma superfície SQL CRUD.
   const profile = await readAuthoritativeProfile(data.user.id);
-  if (!profile || !profile.role || !isRole(profile.role)) {
+  if (!profile) {
+    const onboarding = await resolvePreTenantOnboarding(supabase);
+    if (onboarding.ok) {
+      redirect(onboarding.kind === 'pretenant' ? '/cadastro/continuar' : onboarding.route);
+    }
+    await supabase.auth.signOut({ scope: 'local' });
+    return { error: 'Profile inválido. Contate o administrador.' };
+  }
+  if (!profile.role || !isRole(profile.role)) {
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Profile inválido. Contate o administrador.' };
   }

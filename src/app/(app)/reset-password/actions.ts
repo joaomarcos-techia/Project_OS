@@ -8,7 +8,7 @@ import { hashEmail } from '@/lib/auth/email-hash';
 import { assertPasswordResetCompletionAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { RECOVERY_GRANT_COOKIE, readRecoveryGrant } from '@/lib/auth/recovery-grant';
 import { bumpSessionEpoch } from '@/lib/auth/session-epoch';
-import { createServerClient } from '@/lib/auth/supabase-server';
+import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { logger } from '@/lib/observability/logger';
 
@@ -32,7 +32,7 @@ export async function resetPasswordAction(
   if (!parsed.success) {
     return { error: 'Senha deve ter ao menos 8 caracteres.' };
   }
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
 
   // V10 (auditoria de segurança): valida EXPLICITAMENTE a sessão (não confia só
   // no cookie) e aplica rate-limit.
@@ -107,6 +107,7 @@ export async function resetPasswordAction(
   await supabase.auth.signOut({ scope: 'global' }).catch(() => {
     /* não-fatal: o epoch já derrubou os access tokens */
   });
+  await clearSupabaseSessionSelector();
   jar.delete(RECOVERY_GRANT_COOKIE);
 
   if (!revoked) {

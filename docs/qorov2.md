@@ -15,7 +15,36 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Última verificação contra o repositório e dependências controladas:** 2026-09-08 · branch `feat/qorov2-pagamentos`
+**Checkpoint atual — 15/09/2026: EM DESENVOLVIMENTO.** A revisão independente examinou o
+HEAD `a9621e8` na branch `redesign/qoro-ui-v4` e reproduziu D126–D130, além de corrigir a atribuição
+D131. A retomada local na mesma base implementou as seis correções e a tela `/cadastro` das
+**quatro perguntas** e depois o staging O-3a de identidade/aceite/nome da clínica. Este registro
+**não é avaliação de uma entrega final do Qoro v2**: Auth/e-mail, checkout, provisionamento e
+onboarding continuam em fatias posteriores.
+Detalhes e limites estão em [§35](#35-checkpoint-de-retomada--revisão-intermediária-de-14092026),
+no [Discovery Log](discovery-log.md) e no
+[prompt completo de retomada](prompts/retomada-qorov2-2026-09-15.md).
+
+**Estado do working tree local em 15/09:** os gates de D126–D131 e da tela de perguntas estão
+registrados em §35.5. Depois desse checkpoint, o código substituiu o transporte de sessão D126:
+cookies Supabase HttpOnly por geração e seletor, `/convite` e renovação server-side, expiração de cookies legados no
+middleware e Consultório com consulta periódica de 20 s. A nova prova e seus limites ficam em
+§35.6. O patch CI autorizado está aplicado localmente; a leitura das Actions identificou falha
+operacional no backup diário, separada da CI, em §35.7. Após confirmação da rotação de senha e
+autorização específica, o secret GitHub foi atualizado em §35.8; um único backup remoto
+concluiu **PASS**, com artifact cifrado publicado. O Track O e o Qoro v2 completo seguem em desenvolvimento; o código local não foi publicado.
+
+**Retomada de identidade em 15–16/09:** o fundador aprovou O-3a e a execução local sequencial de
+O-3b, incluindo SQL exclusivamente em Postgres descartável de loopback. O-3a e O-3b.1–6 estão
+validados localmente; a implementação local Auth/e-mail O-3b foi fechada na
+[ADR-062](adr/062-identidade-consentimento-cadastro.md). Detalhes em §§35.10–35.17; o filtro de
+senha exige 8–72 caracteres (até 72 bytes), maiúscula, minúscula, número e símbolo aceito pelo Supabase, sem espaços ou
+controles. Sem publicação ou autorização externa; Track O e Qoro v2 seguem EM DESENVOLVIMENTO.
+
+**Referência histórica do bloco abaixo:** verificação de 2026-09-08 na branch
+`feat/qorov2-pagamentos`. Para a sequência atual, prevalecem este checkpoint, §§31.4–35 e as
+decisões mais recentes da ADR-060. Os estados de provedores citados no histórico não foram
+reconsultados na revisão local de 14/09.
 
 **Versionamento (2026-08-27):** a 1.6c está nos commits publicados `15cb9c3` (código) e `3035383`
 (registro da migration). O hardening financeiro/D49 está em `a7717e7`, com Preview Vercel verde, e
@@ -257,14 +286,15 @@ São **duas causas independentes**, e confundi-las foi o que travou o diagnósti
 1. **Bloqueio externo (causa do erro que o cliente viu) — hipótese principal, NÃO confirmada.** O erro
    `Recurso indisponível` apareceu dentro do diálogo OAuth da Meta, antes de qualquer `code` ou evento
    `WA_EMBEDDED_SIGNUP`. A definição oficial de [níveis de acesso](https://developers.facebook.com/docs/graph-api/overview/access-levels)
-   é literal: *"As permissões com acesso padrão só podem ser solicitadas de usuários que têm uma função
-   no app solicitante"*. Isso explica a assimetria observada — conta interna com App Role passa, conta
+   é literal: _"As permissões com acesso padrão só podem ser solicitadas de usuários que têm uma função
+   no app solicitante"_. Isso explica a assimetria observada — conta interna com App Role passa, conta
    do cliente sem App Role é barrada — e o painel mostra `public_profile` em "Pronto para teste", ou
    seja, acesso **padrão**, num app em modo Live.
 
    A mesma mensagem genérica também é emitida por outras pendências de plataforma. **Nada disso está
    confirmado**: o repositório não observa o painel. Verificação da Empresa, Data Use Checkup e demais
    ações exigidas são **itens a verificar** no roteiro abaixo, não fatos apurados.
+
 2. **Defeitos reais no código (independentes do bloqueio).** Mesmo com o login liberado, o connect
    falharia ou — pior — acertaria a conta errada:
    - `resolveWabaAndPhone()` caía em `GET /me/businesses → /{business-id}/owned_whatsapp_business_accounts`,
@@ -280,14 +310,14 @@ São **duas causas independentes**, e confundi-las foi o que travou o diagnósti
 
 #### Hipóteses descartadas
 
-| Hipótese | Veredito |
-| --- | --- |
-| Redirecionamento errado do Qoro / popup mal configurado | **Descartada.** A URL observada é o diálogo OAuth legítimo do SDK, com `config_id` correto, `display=popup`, `response_type=code`, domínio `app.qoro.dev` e fallback para `/configuracoes/whatsapp`. O erro é renderizado pela Meta, não pelo Qoro |
-| O usuário cancelou | **Descartada como causa.** Era o sintoma do bug de diagnóstico: um callback sem `code` virava `CANCELLED` mesmo quando nenhum evento `WA_EMBEDDED_SIGNUP` havia chegado |
-| Faltam `whatsapp_business_management` / `whatsapp_business_messaging` | **Descartada.** Ambos foram aprovados em 11/08/2026 e são os únicos escopos da configuração ativa |
-| `business_management` é obrigatório para Embedded Signup | **Descartada para este produto.** A [App Review de Solution Partners](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/app-review) exige Advanced Access aos dois escopos WhatsApp e **não lista `business_management`**; o [sample oficial de Tech Provider](https://github.com/fbsamples/business-messaging-sample-tech-provider-app/blob/main/README.md) diz "At minimum, request: `whatsapp_business_management`, `whatsapp_business_messaging`" |
-| `/me/business_users` substitui `/me/businesses` | **Descartada.** Ele respondeu no Explorer, mas devolve associações usuário-do-sistema↔portfólio, semântica diferente de WABA. Trocar um pelo outro seria inventar contrato a partir do nome do endpoint |
-| `public_profile` é necessária para o perfil do WhatsApp (foto/bio/site) | **Descartada.** [Business Profiles](https://www.postman.com/meta/whatsapp-business-platform/folder/13382743-2e0565c0-6b03-4ced-ae8e-bf6534ef1125) usa `whatsapp_business_management`. `public_profile` é do usuário Facebook e o repositório não a consome; ela importa apenas por ser exigida pelo próprio diálogo de login |
+| Hipótese                                                                | Veredito                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Redirecionamento errado do Qoro / popup mal configurado                 | **Descartada.** A URL observada é o diálogo OAuth legítimo do SDK, com `config_id` correto, `display=popup`, `response_type=code`, domínio `app.qoro.dev` e fallback para `/configuracoes/whatsapp`. O erro é renderizado pela Meta, não pelo Qoro                                                                                                                                                                                                                                               |
+| O usuário cancelou                                                      | **Descartada como causa.** Era o sintoma do bug de diagnóstico: um callback sem `code` virava `CANCELLED` mesmo quando nenhum evento `WA_EMBEDDED_SIGNUP` havia chegado                                                                                                                                                                                                                                                                                                                          |
+| Faltam `whatsapp_business_management` / `whatsapp_business_messaging`   | **Descartada.** Ambos foram aprovados em 11/08/2026 e são os únicos escopos da configuração ativa                                                                                                                                                                                                                                                                                                                                                                                                |
+| `business_management` é obrigatório para Embedded Signup                | **Descartada para este produto.** A [App Review de Solution Partners](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/app-review) exige Advanced Access aos dois escopos WhatsApp e **não lista `business_management`**; o [sample oficial de Tech Provider](https://github.com/fbsamples/business-messaging-sample-tech-provider-app/blob/main/README.md) diz "At minimum, request: `whatsapp_business_management`, `whatsapp_business_messaging`" |
+| `/me/business_users` substitui `/me/businesses`                         | **Descartada.** Ele respondeu no Explorer, mas devolve associações usuário-do-sistema↔portfólio, semântica diferente de WABA. Trocar um pelo outro seria inventar contrato a partir do nome do endpoint                                                                                                                                                                                                                                                                                          |
+| `public_profile` é necessária para o perfil do WhatsApp (foto/bio/site) | **Descartada.** [Business Profiles](https://www.postman.com/meta/whatsapp-business-platform/folder/13382743-2e0565c0-6b03-4ced-ae8e-bf6534ef1125) usa `whatsapp_business_management`. `public_profile` é do usuário Facebook e o repositório não a consome; ela importa apenas por ser exigida pelo próprio diálogo de login                                                                                                                                                                     |
 
 #### Decisão 1 — resolução da WABA por menor privilégio
 
@@ -295,8 +325,8 @@ Adotada a **opção 1 (menor privilégio)**, com a descoberta que a Meta documen
 token, e não com o fallback de portfólio.
 
 A doc [WABAs / manage-accounts](https://developers.facebook.com/docs/whatsapp/embedded-signup/manage-accounts/)
-diz, sobre o token devolvido pelo Embedded Signup: *"Each object in the `granular_scopes` array
-identifies the IDs of every WABA that has granted your app a given permission (`scope`)"*. O próprio
+diz, sobre o token devolvido pelo Embedded Signup: _"Each object in the `granular_scopes` array
+identifies the IDs of every WABA that has granted your app a given permission (`scope`)"_. O próprio
 `debug_token` — que o connect já chamava para validar escopos — carrega a lista de WABAs concedidas,
 sem `business_management`.
 
@@ -312,10 +342,10 @@ sem `business_management`.
 **O que cada verificação prova, e o que não prova.** Não são "duas provas independentes" em todos os
 casos:
 
-| Situação | Verificações efetivas | O que fica sem prova |
-| --- | --- | --- |
-| `target_ids` presente | allowlist do token **e** `GET /{waba-id}/phone_numbers` | — |
-| `target_ids` vazio ou ausente | apenas `GET /{waba-id}/phone_numbers` | O id continua vindo do evento no navegador. A chamada prova que o token **alcança** aquele asset; não prova que o cliente o **selecionou** |
+| Situação                      | Verificações efetivas                                   | O que fica sem prova                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `target_ids` presente         | allowlist do token **e** `GET /{waba-id}/phone_numbers` | —                                                                                                                                          |
+| `target_ids` vazio ou ausente | apenas `GET /{waba-id}/phone_numbers`                   | O id continua vindo do evento no navegador. A chamada prova que o token **alcança** aquele asset; não prova que o cliente o **selecionou** |
 
 O `target_ids` vazio foi observado em campo e não corresponde à forma documentada. Quando ele falta, o
 gate de allowlist é pulado — nunca invertido: a ausência da lista jamais autoriza uma WABA, apenas
@@ -326,13 +356,13 @@ deixa de recusá-la antecipadamente.
 O contrato anterior era `(preferPhoneId && phones.find(...)) || phones[0]`. O `||` colapsava dois casos
 distintos em "pega o primeiro". O contrato novo:
 
-| Entrada do evento | Números na WABA | Resultado |
-| --- | --- | --- |
-| `phone_number_id` presente e encontrado | qualquer | usa a correspondência **exata** |
-| `phone_number_id` presente e **não** encontrado | qualquer | falha (`account`). Nunca substitui pelo primeiro |
-| sem `phone_number_id` | zero | falha (`account`) — WABA sem número |
-| sem `phone_number_id` | exatamente um | usa esse número |
-| sem `phone_number_id` | mais de um | falha (`phone_ambiguous`) — o operador refaz escolhendo |
+| Entrada do evento                               | Números na WABA | Resultado                                               |
+| ----------------------------------------------- | --------------- | ------------------------------------------------------- |
+| `phone_number_id` presente e encontrado         | qualquer        | usa a correspondência **exata**                         |
+| `phone_number_id` presente e **não** encontrado | qualquer        | falha (`account`). Nunca substitui pelo primeiro        |
+| sem `phone_number_id`                           | zero            | falha (`account`) — WABA sem número                     |
+| sem `phone_number_id`                           | exatamente um   | usa esse número                                         |
+| sem `phone_number_id`                           | mais de um      | falha (`phone_ambiguous`) — o operador refaz escolhendo |
 
 Entradas sem `id` são descartadas **antes** de contar, para não fabricar ambiguidade. Nenhuma dessas
 falhas chega a `register`, `subscribed_apps` ou persistência — coberto por teste parametrizado.
@@ -350,18 +380,18 @@ recebe o sinal sanitizado (`graphStatus`, `graphCode`, `graphSubcode` — nunca 
 corpo cru) e é **conservador por construção**: nada é negativa a menos que a documentação oficial diga
 que é.
 
-| Sinal | Classe | Fonte oficial |
-| --- | --- | --- |
-| `error.code` 4, 17, 341 | `rate_limited` | Graph API — [Handling errors](https://developers.facebook.com/docs/graph-api/guides/error-handling) |
-| `error.code` 80007, 130429, 133016 | `rate_limited` | Cloud API — [Error codes](https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes), tabela Throttling |
-| HTTP `429` | `rate_limited` | [RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585#section-4) |
-| `error.code` 2, 131016, 133004 | `indeterminate` | Graph API "Handling errors"; Cloud API "temporarily unavailable" |
-| `error.code` 0, 3, 10, 33, 102, 190, 200–299, 131005 | `denied` | Graph API "Handling errors"; Cloud API, tabela Authorization errors; 33 = "The business phone number has been deleted" |
-| `error.code` 100 **com** `error_subcode` 33 | `denied` | [Marketing API error reference](https://developers.facebook.com/docs/marketing-api/error-reference/) — token sem a permissão de usuário do sistema |
-| HTTP `401`, `403` | `denied` | Semântica HTTP: negativas de autorização |
-| HTTP `404` | `denied` (falha funcional da etapa) | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.5): o servidor não encontrou representação atual, e o status também pode ocultar a existência do recurso. **Não prova falta de permissão** — prova que o asset não está acessível por esta requisição. Fica fora de indeterminação porque o efeito prático é o mesmo (a etapa falhou), mas a causa não é reportada como "permissão negada" |
-| HTTP `400` sem código documentado | `indeterminate` | A Meta usa `400` para quase tudo, inclusive throttling — a classe não prova nada |
-| HTTP `5xx`, timeout, reset (`graphStatus: null`) | `indeterminate` | Sem resposta conclusiva |
+| Sinal                                                | Classe                              | Fonte oficial                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `error.code` 4, 17, 341                              | `rate_limited`                      | Graph API — [Handling errors](https://developers.facebook.com/docs/graph-api/guides/error-handling)                                                                                                                                                                                                                                                                                                       |
+| `error.code` 80007, 130429, 133016                   | `rate_limited`                      | Cloud API — [Error codes](https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes), tabela Throttling                                                                                                                                                                                                                                                                                 |
+| HTTP `429`                                           | `rate_limited`                      | [RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585#section-4)                                                                                                                                                                                                                                                                                                                                           |
+| `error.code` 2, 131016, 133004                       | `indeterminate`                     | Graph API "Handling errors"; Cloud API "temporarily unavailable"                                                                                                                                                                                                                                                                                                                                          |
+| `error.code` 0, 3, 10, 33, 102, 190, 200–299, 131005 | `denied`                            | Graph API "Handling errors"; Cloud API, tabela Authorization errors; 33 = "The business phone number has been deleted"                                                                                                                                                                                                                                                                                    |
+| `error.code` 100 **com** `error_subcode` 33          | `denied`                            | [Marketing API error reference](https://developers.facebook.com/docs/marketing-api/error-reference/) — token sem a permissão de usuário do sistema                                                                                                                                                                                                                                                        |
+| HTTP `401`, `403`                                    | `denied`                            | Semântica HTTP: negativas de autorização                                                                                                                                                                                                                                                                                                                                                                  |
+| HTTP `404`                                           | `denied` (falha funcional da etapa) | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.5): o servidor não encontrou representação atual, e o status também pode ocultar a existência do recurso. **Não prova falta de permissão** — prova que o asset não está acessível por esta requisição. Fica fora de indeterminação porque o efeito prático é o mesmo (a etapa falhou), mas a causa não é reportada como "permissão negada" |
+| HTTP `400` sem código documentado                    | `indeterminate`                     | A Meta usa `400` para quase tudo, inclusive throttling — a classe não prova nada                                                                                                                                                                                                                                                                                                                          |
+| HTTP `5xx`, timeout, reset (`graphStatus: null`)     | `indeterminate`                     | Sem resposta conclusiva                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Ordem de avaliação: rate limit e transitório **vencem** a classe HTTP, porque a Meta devolve alguns
 deles com `400` — e um `429` carregando código da faixa de permissão continua sendo rate limit.
@@ -377,12 +407,12 @@ validação de escopos, no `POST /register` e no `POST /subscribed_apps` continu
 "a Meta recusou". Agora ela vive dentro do próprio `graphFetch`, que é o único ponto por onde todas as
 chamadas passam.
 
-| Classe | Etapa reportada no connect | Sonda de saúde |
-| --- | --- | --- |
-| `denied` | **preserva a etapa funcional** (`authorization`, `permissions`, `account`, `phone_registration`, `webhook_subscription`) | `failed` |
-| `rate_limited` | `provider_rate_limited` | `unknown` |
-| `indeterminate` em `GET` | `provider_unavailable` | `unknown` |
-| `indeterminate` em `POST`/`DELETE` | `provider_outcome_unknown` | `unknown` |
+| Classe                             | Etapa reportada no connect                                                                                               | Sonda de saúde |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| `denied`                           | **preserva a etapa funcional** (`authorization`, `permissions`, `account`, `phone_registration`, `webhook_subscription`) | `failed`       |
+| `rate_limited`                     | `provider_rate_limited`                                                                                                  | `unknown`      |
+| `indeterminate` em `GET`           | `provider_unavailable`                                                                                                   | `unknown`      |
+| `indeterminate` em `POST`/`DELETE` | `provider_outcome_unknown`                                                                                               | `unknown`      |
 
 A separação por método é o ponto crítico. Num `GET` a indeterminação é inofensiva e a tela pode afirmar
 que nada foi alterado. Num `POST /register` ou `POST /subscribed_apps`, timeout ou `5xx` deixam o
@@ -433,11 +463,11 @@ estar terminal e quiescente.
 
 Timers, todos nomeados, cancelados no desmonte e ao iniciar nova tentativa:
 
-| Constante | Valor | Papel |
-| --- | --- | --- |
-| `SIGNUP_EVENT_GRACE_MS` | 1,5 s | Callback voltou sem `code`: espera um evento antes de decidir. Qualquer evento resolve e cancela o timer |
-| `SIGNUP_QUIESCE_MS` | 3 s | Desfecho conhecido: janela em que um `postMessage` atrasado ainda é descartado |
-| `SIGNUP_ABANDON_MS` | 10 min | Timeout explícito, ativo em `running` **e** em `closing`. Único caminho que libera sem os dois canais quiescentes — existe porque um pop-up morto pelo sistema pode nunca acionar o callback do SDK. Sem desfecho, encerra com `SIGNUP_TIMED_OUT`; **com** desfecho já registrado, apenas destrava e preserva a mensagem original |
+| Constante               | Valor  | Papel                                                                                                                                                                                                                                                                                                                             |
+| ----------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SIGNUP_EVENT_GRACE_MS` | 1,5 s  | Callback voltou sem `code`: espera um evento antes de decidir. Qualquer evento resolve e cancela o timer                                                                                                                                                                                                                          |
+| `SIGNUP_QUIESCE_MS`     | 3 s    | Desfecho conhecido: janela em que um `postMessage` atrasado ainda é descartado                                                                                                                                                                                                                                                    |
+| `SIGNUP_ABANDON_MS`     | 10 min | Timeout explícito, ativo em `running` **e** em `closing`. Único caminho que libera sem os dois canais quiescentes — existe porque um pop-up morto pelo sistema pode nunca acionar o callback do SDK. Sem desfecho, encerra com `SIGNUP_TIMED_OUT`; **com** desfecho já registrado, apenas destrava e preserva a mensagem original |
 
 **Resposta da Server Action.** Ela é descartada por `attempt.id` antes de qualquer efeito — nem
 `setError`, nem `router.refresh()`, nem escrita de estado. Mas o que **garante** que uma resposta
@@ -484,14 +514,14 @@ e não são tratados.
 
 Desfechos que a tela distingue, sem reproduzir o texto cross-origin do pop-up:
 
-| Código na tela | Condição observável |
-| --- | --- |
-| `SIGNUP_NOT_STARTED` | callback sem `code` e **nenhum** `WA_EMBEDDED_SIGNUP` dentro da janela de tolerância |
-| `CANCELLED` | `CANCEL` sem `error_message`/`error_code` (desistência humana) |
-| `META_SIGNUP_ERROR` | `CANCEL` com `error_message`/`error_code`, ou `ERROR`. Só a referência curta é exibida, sanitizada para `[A-Za-z0-9_-]{,32}` |
-| `SIGNUP_INCOMPLETE` | `FINISH`/`FINISH_ONLY_WABA` sem `waba_id` |
-| `AUTHORIZATION_MISSING` | `FINISH` válido, mas o `FB.login` não devolveu `code` |
-| `SIGNUP_TIMED_OUT` | `SIGNUP_ABANDON_MS` expirou **sem** desfecho — o pop-up nunca acionou o callback do SDK. Com desfecho já registrado, o abandono apenas destrava e não substitui a mensagem |
+| Código na tela          | Condição observável                                                                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SIGNUP_NOT_STARTED`    | callback sem `code` e **nenhum** `WA_EMBEDDED_SIGNUP` dentro da janela de tolerância                                                                                       |
+| `CANCELLED`             | `CANCEL` sem `error_message`/`error_code` (desistência humana)                                                                                                             |
+| `META_SIGNUP_ERROR`     | `CANCEL` com `error_message`/`error_code`, ou `ERROR`. Só a referência curta é exibida, sanitizada para `[A-Za-z0-9_-]{,32}`                                               |
+| `SIGNUP_INCOMPLETE`     | `FINISH`/`FINISH_ONLY_WABA` sem `waba_id`                                                                                                                                  |
+| `AUTHORIZATION_MISSING` | `FINISH` válido, mas o `FB.login` não devolveu `code`                                                                                                                      |
+| `SIGNUP_TIMED_OUT`      | `SIGNUP_ABANDON_MS` expirou **sem** desfecho — o pop-up nunca acionou o callback do SDK. Com desfecho já registrado, o abandono apenas destrava e não substitui a mensagem |
 
 A mensagem de `SIGNUP_NOT_STARTED` afirma apenas o que é observável — que nenhum evento chegou — e pede
 que o operador informe o aviso caso o pop-up tenha exibido algum. O Qoro **não** lê aquela janela.
@@ -502,51 +532,51 @@ que o operador informe o aviso caso o pop-up tenha exibido algum. O Qoro **não*
 aliases**.
 
 A [doc de Server Actions do Next.js](https://nextjs.org/docs/app/guides/server-actions) é explícita:
-*"Each Server Action is identified by the action ID that is part of its build artifacts. New
+_"Each Server Action is identified by the action ID that is part of its build artifacts. New
 deployments typically generate new IDs (Next.js rotates them at most every 14 days, even when the
 source is unchanged), so a client still running the previous build may invoke an action ID that no
-longer exists."* A chamada de uma aba antiga falha na resolução do **id**, antes de o payload ser
+longer exists."_ A chamada de uma aba antiga falha na resolução do **id**, antes de o payload ser
 desserializado — aliases no schema nunca seriam alcançados. Aceitá-los criaria um segundo contrato
 permanente sem resolver nada.
 
-A recomendação da própria doc (*"Surface the error as a retry path in the UI rather than a hard failure,
-so a refresh recovers the user"*) já está atendida: a falha cai no `catch` do connect, que exibe
+A recomendação da própria doc (_"Surface the error as a retry path in the UI rather than a hard failure,
+so a refresh recovers the user"_) já está atendida: a falha cai no `catch` do connect, que exibe
 `CONNECTION_FAILED` com "Tente novamente" e libera nova tentativa. A janela de risco é mínima — o fluxo
 sempre parte de um pop-up novo — e recarregar a página resolve.
 
 #### Arquivos alterados
 
-| Arquivo | Mudança |
-| --- | --- |
-| `src/contexts/messaging/internal/meta-onboarding.ts` | `MetaTokenGrant`; `validateTokenScopes` devolve as WABAs de `granular_scopes`; `resolveWabaAndPhone` com allowlist + `waba_id` obrigatório; remoção de `/me/businesses` e `/owned_whatsapp_business_accounts`; `pickPhone()` sem escolha por posição; `listWabaPhones()` delega a classificação; **classificação única dentro de `graphFetch`** (`classifySignal`/`classifyGraphFailure` + `failureStage`), cobrindo todas as etapas do connect e separando mutação de leitura; `graphFetch` extrai `error.code` e `error_subcode`; `outcomeFromGraphError` usa o mesmo classificador |
-| `src/contexts/messaging/actions.ts` | `wabaHint`/`phoneHint` → `wabaId`/`phoneNumberId`; falha `signup_incomplete` antes de qualquer chamada Meta; repasse do grant ao resolver |
-| `src/contexts/messaging/errors.ts` | estágios `signup_incomplete`, `phone_ambiguous`, `provider_unavailable`, `provider_rate_limited`, `provider_outcome_unknown`; `MetaConnectError` carrega `graphCode` e `graphSubcode` |
-| `src/contexts/messaging/internal/channel-health.ts` | comentário canônico alinhado: negativa é a **documentada**, não "todo 4xx" |
-| `src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.tsx` | máquina `idle/running/closing` com single-flight; `SIGNUP_EVENT_GRACE_MS`, `SIGNUP_QUIESCE_MS`, `SIGNUP_ABANDON_MS` ativo também em `closing` (correção do deadlock); `attempt.id` em todos os timers, e a resposta da Server Action descartada por id antes de qualquer efeito; timers cancelados no desmonte e em nova tentativa; desfecho terminal não sobrescrito; PIN e botões travados durante a tentativa; CANCEL com/sem erro; `ERROR` suportado; sanitização da referência da Meta |
-| `src/app/(app)/(shell)/configuracoes/whatsapp/wa-types.ts` | mensagens dos cinco estágios novos, com `provider_outcome_unknown` sem prometer "nada foi alterado" |
-| `+5 arquivos de teste` | `meta-onboarding.test.ts`, `meta-health-probe.test.ts`, `connect-tenant.test.ts`, `whatsapp-connect.test.tsx`, `wa-types.test.ts` |
+| Arquivo                                                             | Mudança                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/contexts/messaging/internal/meta-onboarding.ts`                | `MetaTokenGrant`; `validateTokenScopes` devolve as WABAs de `granular_scopes`; `resolveWabaAndPhone` com allowlist + `waba_id` obrigatório; remoção de `/me/businesses` e `/owned_whatsapp_business_accounts`; `pickPhone()` sem escolha por posição; `listWabaPhones()` delega a classificação; **classificação única dentro de `graphFetch`** (`classifySignal`/`classifyGraphFailure` + `failureStage`), cobrindo todas as etapas do connect e separando mutação de leitura; `graphFetch` extrai `error.code` e `error_subcode`; `outcomeFromGraphError` usa o mesmo classificador |
+| `src/contexts/messaging/actions.ts`                                 | `wabaHint`/`phoneHint` → `wabaId`/`phoneNumberId`; falha `signup_incomplete` antes de qualquer chamada Meta; repasse do grant ao resolver                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `src/contexts/messaging/errors.ts`                                  | estágios `signup_incomplete`, `phone_ambiguous`, `provider_unavailable`, `provider_rate_limited`, `provider_outcome_unknown`; `MetaConnectError` carrega `graphCode` e `graphSubcode`                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `src/contexts/messaging/internal/channel-health.ts`                 | comentário canônico alinhado: negativa é a **documentada**, não "todo 4xx"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.tsx` | máquina `idle/running/closing` com single-flight; `SIGNUP_EVENT_GRACE_MS`, `SIGNUP_QUIESCE_MS`, `SIGNUP_ABANDON_MS` ativo também em `closing` (correção do deadlock); `attempt.id` em todos os timers, e a resposta da Server Action descartada por id antes de qualquer efeito; timers cancelados no desmonte e em nova tentativa; desfecho terminal não sobrescrito; PIN e botões travados durante a tentativa; CANCEL com/sem erro; `ERROR` suportado; sanitização da referência da Meta                                                                                           |
+| `src/app/(app)/(shell)/configuracoes/whatsapp/wa-types.ts`          | mensagens dos cinco estágios novos, com `provider_outcome_unknown` sem prometer "nada foi alterado"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `+5 arquivos de teste`                                              | `meta-onboarding.test.ts`, `meta-health-probe.test.ts`, `connect-tenant.test.ts`, `whatsapp-connect.test.tsx`, `wa-types.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Sem migration, sem mudança de schema, sem alteração no painel Meta, sem chamada externa mutável.
 
 #### Gates — execução de 05/09/2026 (worktree `feat/qorov2-pagamentos`)
 
-| Gate | Comando | Resultado |
-| --- | --- | --- |
-| Testes focados (Meta + UI) | `vitest run meta-onboarding.test.ts meta-health-probe.test.ts connect-tenant.test.ts whatsapp-connect.test.tsx wa-types.test.ts` | ✅ **199/199 em 5 arquivos** (exit 0) |
-| Revalidação focada após merge | 19 arquivos de D78, P11 e conflitos da `main` | ✅ **323/323** (exit 0) |
-| Suíte integral | `pnpm test:coverage` | ✅ **2.975/2.975 em 318 arquivos**, thresholds atendidos (exit 0) |
-| Typecheck | `pnpm typecheck` | ✅ sem erro |
-| Lint integral | `pnpm lint` | ✅ sem erro |
-| Ciclos | `pnpm arch:check` | ✅ nenhum ciclo |
-| Snapshots de arquitetura | `pnpm arch:graphs --check` | ✅ em dia (54 elementos · 293 arestas · 0 ciclo · 67 eventos) |
-| Fronteira de DB | `pnpm arch:db-check` | ✅ 1.130 arquivos, 0 achados |
-| Migrations | `pnpm check:migrations` | ✅ nenhuma operação destrutiva não aprovada |
-| Observabilidade | `pnpm check:observability` | ✅ 18 crons coerentes |
-| Registry | `pnpm check:registry:strict` | ✅ catálogo (67) ⇔ registry (25) |
-| Build | `pnpm build` | ✅ compilação otimizada concluída; etapa webpack em 2,4 min (exit 0) |
-| Diff | `git diff --check` + releitura | ✅ limpo; sem segredo, log de debug ou teste desabilitado |
-| Formatação | `pnpm format:check` | ✅ baseline integral normalizada no lote D9 de 08/09; JSON gerado em `evidence/` ignorado por contrato e código/testes cobertos pelo gate |
-| **E2E Meta externo** | conta sem App Role | 🔴 **`NOT TESTED`** — a autorização operacional foi concedida, mas ainda depende do desbloqueio na Meta e de uma conta externa disponível. Nenhum mock substitui esta prova |
+| Gate                          | Comando                                                                                                                          | Resultado                                                                                                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Testes focados (Meta + UI)    | `vitest run meta-onboarding.test.ts meta-health-probe.test.ts connect-tenant.test.ts whatsapp-connect.test.tsx wa-types.test.ts` | ✅ **199/199 em 5 arquivos** (exit 0)                                                                                                                                       |
+| Revalidação focada após merge | 19 arquivos de D78, P11 e conflitos da `main`                                                                                    | ✅ **323/323** (exit 0)                                                                                                                                                     |
+| Suíte integral                | `pnpm test:coverage`                                                                                                             | ✅ **2.975/2.975 em 318 arquivos**, thresholds atendidos (exit 0)                                                                                                           |
+| Typecheck                     | `pnpm typecheck`                                                                                                                 | ✅ sem erro                                                                                                                                                                 |
+| Lint integral                 | `pnpm lint`                                                                                                                      | ✅ sem erro                                                                                                                                                                 |
+| Ciclos                        | `pnpm arch:check`                                                                                                                | ✅ nenhum ciclo                                                                                                                                                             |
+| Snapshots de arquitetura      | `pnpm arch:graphs --check`                                                                                                       | ✅ em dia (54 elementos · 293 arestas · 0 ciclo · 67 eventos)                                                                                                               |
+| Fronteira de DB               | `pnpm arch:db-check`                                                                                                             | ✅ 1.130 arquivos, 0 achados                                                                                                                                                |
+| Migrations                    | `pnpm check:migrations`                                                                                                          | ✅ nenhuma operação destrutiva não aprovada                                                                                                                                 |
+| Observabilidade               | `pnpm check:observability`                                                                                                       | ✅ 18 crons coerentes                                                                                                                                                       |
+| Registry                      | `pnpm check:registry:strict`                                                                                                     | ✅ catálogo (67) ⇔ registry (25)                                                                                                                                            |
+| Build                         | `pnpm build`                                                                                                                     | ✅ compilação otimizada concluída; etapa webpack em 2,4 min (exit 0)                                                                                                        |
+| Diff                          | `git diff --check` + releitura                                                                                                   | ✅ limpo; sem segredo, log de debug ou teste desabilitado                                                                                                                   |
+| Formatação                    | `pnpm format:check`                                                                                                              | ✅ baseline integral normalizada no lote D9 de 08/09; JSON gerado em `evidence/` ignorado por contrato e código/testes cobertos pelo gate                                   |
+| **E2E Meta externo**          | conta sem App Role                                                                                                               | 🔴 **`NOT TESTED`** — a autorização operacional foi concedida, mas ainda depende do desbloqueio na Meta e de uma conta externa disponível. Nenhum mock substitui esta prova |
 
 Os testes usam `fetch` e Server Action mockados: provam **regressão local**, não o provider.
 
@@ -592,7 +622,7 @@ o teste Asaas D77 executou um único `POST /refund` e passou depois somente por 
 
 #### Roteiro de painel para o operador
 
-1. **Diagnosticar antes de submeter.** Em *Painel do app → Análise do app → Permissões e recursos*,
+1. **Diagnosticar antes de submeter.** Em _Painel do app → Análise do app → Permissões e recursos_,
    anote o nível de cada permissão: toda permissão exigida pelo diálogo de login precisa estar em
    **Acesso avançado** para usuários sem função no app, inclusive `public_profile`. Depois, percorra
    separadamente e anote o estado de cada item, sem presumir nenhum: **Verificação da Empresa**,
@@ -616,15 +646,15 @@ o teste Asaas D77 executou um único `POST /refund` e passou depois somente por 
 Executar com uma conta **sem nenhuma função no app** e registrar cada etapa separadamente. Só declarar
 D78 resolvido se as sete passarem:
 
-| # | Etapa | Evidência esperada |
-| --- | --- | --- |
-| 1 | popup abre e mostra o login | diálogo OAuth com o `config_id` da configuração ativa |
-| 2 | login conclui sem `Recurso indisponível` | avança para as telas do Embedded Signup |
-| 3 | `code` emitido | a tela entra em conexão; se não, o código exibido diz qual desfecho ocorreu |
-| 4 | evento `FINISH` com `waba_id` | conexão prossegue; se faltar, a tela mostra `SIGNUP_INCOMPLETE` |
-| 5 | WABA/telefone resolvidos | sem falha de `account`, `phone_ambiguous` ou `provider_unavailable` |
-| 6 | `register` + `subscribed_apps` | sem falha de `phone_registration`/`webhook_subscription` |
-| 7 | persistência | tela em "WhatsApp conectado" com número mascarado |
+| #   | Etapa                                    | Evidência esperada                                                          |
+| --- | ---------------------------------------- | --------------------------------------------------------------------------- |
+| 1   | popup abre e mostra o login              | diálogo OAuth com o `config_id` da configuração ativa                       |
+| 2   | login conclui sem `Recurso indisponível` | avança para as telas do Embedded Signup                                     |
+| 3   | `code` emitido                           | a tela entra em conexão; se não, o código exibido diz qual desfecho ocorreu |
+| 4   | evento `FINISH` com `waba_id`            | conexão prossegue; se faltar, a tela mostra `SIGNUP_INCOMPLETE`             |
+| 5   | WABA/telefone resolvidos                 | sem falha de `account`, `phone_ambiguous` ou `provider_unavailable`         |
+| 6   | `register` + `subscribed_apps`           | sem falha de `phone_registration`/`webhook_subscription`                    |
+| 7   | persistência                             | tela em "WhatsApp conectado" com número mascarado                           |
 
 Se a etapa 2 falhar de novo com a mesma mensagem, a causa é externa e o código não é o bloqueio; se
 falhar da etapa 3 em diante, há evidência nova de produto — e agora a tela informa **qual** desfecho
@@ -633,20 +663,20 @@ ocorreu, em vez de dizer "cancelada". Contexto e brief original:
 
 ### Sub-fases da Camada 1
 
-| Sub-fase | Estado | Confirmado por |
-| --- | --- | --- |
-| 1.0 Adapter Asaas | ✅ | `src/lib/payments/asaas/index.ts` + 26 testes |
-| 1.1 Credencial por clínica | ✅ | migration 0081 aplicada; `clinic_payment_accounts` com grant por coluna |
-| 1.2 Política de sinal | ✅ | migration 0082; `payments/policy.ts` (funções puras) |
-| 1.3 Charges + hold | ✅ | migrations 0083–0085; cron `/api/cron/payments-deposit` |
-| 1.4 Webhook do paciente | ✅ **corrigido e provado no negócio (D47–D48)** | `0089` aplicada; grants/RLS validados; E2E no Preview criou sinal de R$ 75,00, recebeu `PAYMENT_RECEIVED` real do Asaas e confirmou a consulta |
-| 1.5a Falta / cancelamento / estorno | 🟡 **D77 CANCELLED PASS; DONE BLOCKED** | P11 reutiliza `patient_refund_intents`, nunca fecha no 2xx, trata `CANCELLED` como falha e só projeta `refunded` após `DONE`/pagamento `REFUNDED`; migration 0094 aplicada em DEV/PROD, smoke DEV 7/7, Preview 6/6 e pós-check PROD 9/9 verdes. Duas provas pós-rollout fizeram exatamente um refund cada, sem duplicata, convergiram para `CANCELLED → failed/paid/available` e tiveram cleanup local exato. D79 corrigiu a correlação; D80 bloqueia nova tentativa até diagnóstico do Asaas |
-| **1.5b Restante** | ✅ **runtime completo** — 1.5b.1 · 1.5b.2 · 1.5b.3a · 1.5b.3b | migration 0088; `credit-store` + 2 handlers; `remainder-charge` + `remainder-scan`; seam `getAppointmentBalance` |
-| 1.6a Link no WhatsApp | ✅ | migration 0087; fila C14 tipo `deposit_link`; cron próprio |
-| 1.6b Status do sinal na agenda | ✅ | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração |
-| **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA E ENTREGUE** | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; Meta aceitou e o operador confirmou a chegada ao aparelho |
-| 1.H Hardening | 🟡 **EM EXECUÇÃO** | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST indeterminado contido ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 externo ✅ · Playwright Preview read-only ✅ · matriz visual pós-deploy ✅ 8/8/72 estados · Product Acceptance técnico-normativo ✅ 150/150 · D27 externo ✅ · D60/D70 publicados/revalidados ✅ · D77 código/DEV/PROD/Preview ✅ e provider `PARTIAL` · D50 aguarda provider |
-| 1.S Stabilization | ✅ **CONCLUÍDA — P10** | D73 worker órfão ✅ · D74 gate de POST alinhado ao Checkout ✅ · D75 isolamento dos harnesses ✅ · C14 9/9 ✅ · Financial 10/10 ✅ · jornada 13/13 ✅ · simulação 30 dias ✅ · lint/typecheck/build ✅ · 2.816/2.816 testes ✅ · arquitetura/operacionais ✅ · diff/formatação/segredos revisados ✅ · commit executável `4883372` publicado/deployado ✅ · Preview autenticado 6/6 sem `pageerror` ✅ |
+| Sub-fase                             | Estado                                                        | Confirmado por                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0 Adapter Asaas                    | ✅                                                            | `src/lib/payments/asaas/index.ts` + 26 testes                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 1.1 Credencial por clínica           | ✅                                                            | migration 0081 aplicada; `clinic_payment_accounts` com grant por coluna                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 1.2 Política de sinal                | ✅                                                            | migration 0082; `payments/policy.ts` (funções puras)                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 1.3 Charges + hold                   | ✅                                                            | migrations 0083–0085; cron `/api/cron/payments-deposit`                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 1.4 Webhook do paciente              | ✅ **corrigido e provado no negócio (D47–D48)**               | `0089` aplicada; grants/RLS validados; E2E no Preview criou sinal de R$ 75,00, recebeu `PAYMENT_RECEIVED` real do Asaas e confirmou a consulta                                                                                                                                                                                                                                                                                                                                                |
+| 1.5a Falta / cancelamento / estorno  | 🟡 **D77 CANCELLED PASS; DONE BLOCKED**                       | P11 reutiliza `patient_refund_intents`, nunca fecha no 2xx, trata `CANCELLED` como falha e só projeta `refunded` após `DONE`/pagamento `REFUNDED`; migration 0094 aplicada em DEV/PROD, smoke DEV 7/7, Preview 6/6 e pós-check PROD 9/9 verdes. Duas provas pós-rollout fizeram exatamente um refund cada, sem duplicata, convergiram para `CANCELLED → failed/paid/available` e tiveram cleanup local exato. D79 corrigiu a correlação; D80 bloqueia nova tentativa até diagnóstico do Asaas |
+| **1.5b Restante**                    | ✅ **runtime completo** — 1.5b.1 · 1.5b.2 · 1.5b.3a · 1.5b.3b | migration 0088; `credit-store` + 2 handlers; `remainder-charge` + `remainder-scan`; seam `getAppointmentBalance`                                                                                                                                                                                                                                                                                                                                                                              |
+| 1.6a Link no WhatsApp                | ✅                                                            | migration 0087; fila C14 tipo `deposit_link`; cron próprio                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 1.6b Status do sinal na agenda       | ✅                                                            | `AppointmentSummary.depositStatus`; `DepositStatusBadge`; sem migração                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **1.6c Entrega do link do RESTANTE** | ✅ **IMPLEMENTADA E ENTREGUE**                                | migration 0090; job/cron `remainder_link`; lookup no send-time; template próprio; Meta aceitou e o operador confirmou a chegada ao aparelho                                                                                                                                                                                                                                                                                                                                                   |
+| 1.H Hardening                        | 🟡 **EM EXECUÇÃO**                                            | D13 RLS ✅ 5/5 · RLS/concorrência financeira ✅ 10/10 · jornada banco+worker + D52 ✅ 13/13 · POST indeterminado contido ✅ · simulação 30 dias ✅ · restore + carga P8 ✅ · D54/D55 externo ✅ · Playwright Preview read-only ✅ · matriz visual pós-deploy ✅ 8/8/72 estados · Product Acceptance técnico-normativo ✅ 150/150 · D27 externo ✅ · D60/D70 publicados/revalidados ✅ · D77 código/DEV/PROD/Preview ✅ e provider `PARTIAL` · D50 aguarda provider                            |
+| 1.S Stabilization                    | ✅ **CONCLUÍDA — P10**                                        | D73 worker órfão ✅ · D74 gate de POST alinhado ao Checkout ✅ · D75 isolamento dos harnesses ✅ · C14 9/9 ✅ · Financial 10/10 ✅ · jornada 13/13 ✅ · simulação 30 dias ✅ · lint/typecheck/build ✅ · 2.816/2.816 testes ✅ · arquitetura/operacionais ✅ · diff/formatação/segredos revisados ✅ · commit executável `4883372` publicado/deployado ✅ · Preview autenticado 6/6 sem `pageerror` ✅                                                                                        |
 
 **A Camada 1 NÃO terminou.** A **1.S/P10 está concluída** e o corretivo **P11/D77** está verde em
 código, bancos DEV/PROD e Preview. A nova prova Sandbox confirmou `PENDING → CANCELLED` sem falso
@@ -669,42 +699,42 @@ de dinheiro foi repetido contra DEV e terminou 7/7 com cleanup zero. Os resultad
 jornada 13/13 abaixo são evidências anteriores preservadas, não execuções desta rodada. Lint, typecheck,
 suíte integral, build e checks arquiteturais/operacionais foram repetidos no worktree integrado.
 
-| Gate | Comando | Resultado |
-| --- | --- | --- |
-| Lint | `pnpm lint` | ✅ |
-| Typecheck | `pnpm typecheck` | ✅ |
-| Testes | `pnpm test:coverage` | ✅ **2.977/2.977** (318 arquivos), incluindo o formato real do POST de refund, correlação por baseline, contrato terminal D50/D77, compatibilidade pré-0094, concorrência e regressão integral |
-| Build | `pnpm build` | ✅ exit 0 |
-| Ciclos | `pnpm arch:check` | ✅ 0 ciclos (1.058 arquivos) |
-| dbAdmin allowlist | `pnpm arch:db-check` | ✅ 0 findings (1.130 arquivos) |
-| Snapshots de acoplamento | `pnpm arch:graphs --check` | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos |
-| Migrations | `pnpm check:migrations` | ✅ nenhuma destrutiva não aprovada |
-| Catálogo ⇔ registry | `pnpm check:registry:strict` | ✅ catalog 67 ⇔ registry 25; 42 producer-ahead |
-| Observabilidade | `pnpm check:observability` | ✅ 18 crons coerentes e 6 eventos cobertos por buscas salvas |
-| Worker/Smoke C14 | `pnpm smoke:c14` | ✅ 9/9, incluindo tenant removido → `skipped_missing_clinic`; banco dev, fixtures removidas, sem envio Meta |
-| RLS/concorrência financeira | `pnpm smoke:payments-financial` | ✅ 10/10 em evidência anterior, banco dev, fixtures removidas; não repetido nesta rodada |
-| Jornada banco+worker | `pnpm smoke:payments-journey` | ✅ 13/13 em evidência anterior, incluindo timeout/retry e detector D52 cross-tenant, dois usuários sintéticos removidos, sem Asaas/Meta; não repetido nesta rodada |
-| Contenção de POST indeterminado | `pnpm smoke:payments-post-recovery` | ✅ provedor local aceitou 1 `POST /checkouts` e perdeu a resposta; Qoro preservou 1 dívida/1 geração `creation_unknown`, 0 links/eventos e 0 POST duplicado; cleanup zero |
-| Simulação 30 dias | `pnpm test:simulation` | ✅ 30 agendamentos · 38 cobranças · 62 webhooks · 3 ticks · zero retry/falha · cleanup zero, sem Asaas/Meta |
-| Matriz focada de ciclo de vida | `pnpm vitest run <7 arquivos>` | ✅ 138/138: falha indeterminada de provider, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta |
-| Webhook de assinatura D54/D55 | `pnpm vitest run <4 arquivos>` | ✅ 73/73: `deleted:true`, restore, pago fora de ordem, CAS e replay |
-| Restore isolado | `pnpm restore:test backups/prod-pre-migration-2026-08-27T04-49-51.sql` | ✅ PostgreSQL local descartável na porta 55439: 117 tabelas, 83 policies, âncoras 3/41/48/1095; servidor parado e diretório removido após a prova |
-| Carga P8 scratch-only | `LOAD_TEST_CONFIRM=LOCAL_SCRATCH_ONLY pnpm test:load` após `pnpm build` | ✅ 500 consultas; C14 5.000/5.000, P99 2,35s; webhook 1.000/1.000 `2xx`, P99 235,73ms; outbox 5.000 uma vez, P99 1,47s; reconcile 20/20, P99 36,14ms; SQL P99 3,18ms; zero deadlock/duplicata/retry/falha; PostgreSQL parado e temp removido |
-| Playwright Preview somente leitura | `e2e/login-and-navigation.spec.ts` + auditoria autenticada ampla, `E2E_AUTH_REUSE=1`, `E2E_MUTATION=0` | ✅ **6/6** no smoke canônico e **2/2 executados + 1 skip esperado** na auditoria ampla: 26 rotas estáticas HTTP 200, paciente/conversas sem dados aceitos; estado autenticado e artefatos temporários removidos |
-| Asaas ao vivo | `pnpm payments:live-check` | ✅ 12/12 reexecutados em 2026-08-28, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real) |
-| Checkout/gerações DB | `pnpm smoke:payments-checkout-db` | ✅ 5/5 em DEV: RLS/grants, claim idempotente, dívida única, cross-tenant, ativação/send-time; cleanup zero |
-| D50/D27/D77 DB | `pnpm smoke:payments-money-db` | ✅ **7/7 em DEV**: estrutura/RLS/grants, intenção concorrente, `CANCELLED` sem falso fechamento, `DONE` atômico + replay, D50 exato, disputa/reversão e perda/cross-tenant; cleanup zero |
-| P11 focado | `pnpm vitest run <7 arquivos>` | ✅ **104/104**: migration, closeout, webhook, reconciliador, descoberta de tenants, handler e intents antigos sem os contadores da 0094 |
-| Migration PROD `0094` | `SUPABASE_PROJECT_ENV=prod pnpm db:migrate:prod` + verificação read-only | ✅ backup **2.661.164 bytes** · advisory lock adquirido/liberado · `DONE` · pós-check **9/9**: version/journal, colunas, constraints, RLS/FORCE RLS, grants, dados existentes e lock ausente |
-| D77 externo pós-rollout | runner guardado de PIX na Clinic A Sandbox | ✅ **CANCELLED PASS / DONE BLOCKED**: duas fixtures isoladas liquidaram PIX e fizeram exatamente 1 refund cada, sem segundo POST no replay. Ambas terminaram `CANCELLED`; intenção `failed`, cobrança `paid` e crédito `available`. A última usou trava pré-POST com operador no painel e ficou 71 s em autorização crítica. O painel informou sucesso ao operador, mas a API cancelou o refund e o saldo continuou subindo com os PIX creditados. Readback/reconcile e cleanup local passaram; histórico Sandbox preservado |
-| D79 correlação do refund | `asaas/index` + `excess-refund` | ✅ adapter não confunde mais o id da cobrança com refund; fallback do baseline aceita id armazenado sem correspondência; regressões `CANCELLED` e `DONE` + suíte 2.977/2.977 verdes |
-| D50 focado + status preservado | `pnpm vitest run <6 arquivos>` + `STATUS_CLINICA_A_D50` | ✅ **29/29**; pagamento/webhook reais, R$ 10 alocados, um único POST parcial de R$ 10 e intenção `confirmation_pending`. Readback independente de 06/09 confirmou pagamento `CONFIRMED`, `patient_charge=paid`, recebível R$ 20 pago, duas baixas/R$ 20, baseline zero e exatamente um refund de R$ 10 ainda `PENDING`; nenhum POST/cleanup. A consulta separada da D80 retornou `RECEIVED` + refund `CANCELLED`, provando que os estados não estão misturados |
-| D62 tenant + Financial + replay | `PROCESS_RETAINED_CLINICA_A_PATIENT_CHARGEBACK_RISK` | ✅ **3 fatos processados / replay 0 de 3**; conta vinculada por fingerprint, nenhuma fila alheia tocada, compensação ligada à baixa, `chargeback_loss` única, saldo reaberto e atendimento preservado |
-| Cleanup D62 | `CLEANUP_RETAINED_CLINICA_A_PATIENT_CHARGEBACK` | ✅ preflight exato, provider `REFUNDED/DONE`, 16 linhas sintéticas removidas em transação, zero mutação no provider, auditoria de webhook preservada, manifesto removido e zero resíduo da fixture |
-| Webhook global D54/D55/D66 | `pnpm billing:delete-restore-e2e` + verificador read-only | ✅ conta vinculada por fingerprint; `qoro dev` ativo com 7 eventos/`NON_SEQUENTIALLY`; `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`; replay idempotente e cleanup provider+banco |
-| Rollback por clínica | `pnpm vitest run policy deposit-charge deposit-scan remainder-charge` | ✅ **55/55**: `enabled=false` não cria sinal/restante e o scanner seleciona somente clínicas habilitadas |
-| Migrations PROD `0091` + `0092` | `pnpm db:migrate:prod` + verificação read-only | ✅ backup 2.834.598 bytes · lock adquirido/liberado · `DONE` · sem sentinel · pós-verificação **7/7**: versions/journal, enums, tabelas/colunas, RLS/policies, grants, índices/constraints e lock ausente |
-| `pnpm format:check` | — | ✅ **PASS global em 08/09** após o lote mecânico D9; 70 JSON de evidência gerada foram ignorados e os 58 alvos executáveis/testes foram normalizados |
+| Gate                               | Comando                                                                                                | Resultado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint                               | `pnpm lint`                                                                                            | ✅                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Typecheck                          | `pnpm typecheck`                                                                                       | ✅                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Testes                             | `pnpm test:coverage`                                                                                   | ✅ **2.977/2.977** (318 arquivos), incluindo o formato real do POST de refund, correlação por baseline, contrato terminal D50/D77, compatibilidade pré-0094, concorrência e regressão integral                                                                                                                                                                                                                                                                                                                               |
+| Build                              | `pnpm build`                                                                                           | ✅ exit 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Ciclos                             | `pnpm arch:check`                                                                                      | ✅ 0 ciclos (1.058 arquivos)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| dbAdmin allowlist                  | `pnpm arch:db-check`                                                                                   | ✅ 0 findings (1.130 arquivos)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Snapshots de acoplamento           | `pnpm arch:graphs --check`                                                                             | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Migrations                         | `pnpm check:migrations`                                                                                | ✅ nenhuma destrutiva não aprovada                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Catálogo ⇔ registry                | `pnpm check:registry:strict`                                                                           | ✅ catalog 67 ⇔ registry 25; 42 producer-ahead                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Observabilidade                    | `pnpm check:observability`                                                                             | ✅ 18 crons coerentes e 6 eventos cobertos por buscas salvas                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Worker/Smoke C14                   | `pnpm smoke:c14`                                                                                       | ✅ 9/9, incluindo tenant removido → `skipped_missing_clinic`; banco dev, fixtures removidas, sem envio Meta                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| RLS/concorrência financeira        | `pnpm smoke:payments-financial`                                                                        | ✅ 10/10 em evidência anterior, banco dev, fixtures removidas; não repetido nesta rodada                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Jornada banco+worker               | `pnpm smoke:payments-journey`                                                                          | ✅ 13/13 em evidência anterior, incluindo timeout/retry e detector D52 cross-tenant, dois usuários sintéticos removidos, sem Asaas/Meta; não repetido nesta rodada                                                                                                                                                                                                                                                                                                                                                           |
+| Contenção de POST indeterminado    | `pnpm smoke:payments-post-recovery`                                                                    | ✅ provedor local aceitou 1 `POST /checkouts` e perdeu a resposta; Qoro preservou 1 dívida/1 geração `creation_unknown`, 0 links/eventos e 0 POST duplicado; cleanup zero                                                                                                                                                                                                                                                                                                                                                    |
+| Simulação 30 dias                  | `pnpm test:simulation`                                                                                 | ✅ 30 agendamentos · 38 cobranças · 62 webhooks · 3 ticks · zero retry/falha · cleanup zero, sem Asaas/Meta                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Matriz focada de ciclo de vida     | `pnpm vitest run <7 arquivos>`                                                                         | ✅ 138/138: falha indeterminada de provider, send-time, pagamento tardio, reagendamento, Asaas fora e retry Meta                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Webhook de assinatura D54/D55      | `pnpm vitest run <4 arquivos>`                                                                         | ✅ 73/73: `deleted:true`, restore, pago fora de ordem, CAS e replay                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Restore isolado                    | `pnpm restore:test backups/prod-pre-migration-2026-08-27T04-49-51.sql`                                 | ✅ PostgreSQL local descartável na porta 55439: 117 tabelas, 83 policies, âncoras 3/41/48/1095; servidor parado e diretório removido após a prova                                                                                                                                                                                                                                                                                                                                                                            |
+| Carga P8 scratch-only              | `LOAD_TEST_CONFIRM=LOCAL_SCRATCH_ONLY pnpm test:load` após `pnpm build`                                | ✅ 500 consultas; C14 5.000/5.000, P99 2,35s; webhook 1.000/1.000 `2xx`, P99 235,73ms; outbox 5.000 uma vez, P99 1,47s; reconcile 20/20, P99 36,14ms; SQL P99 3,18ms; zero deadlock/duplicata/retry/falha; PostgreSQL parado e temp removido                                                                                                                                                                                                                                                                                 |
+| Playwright Preview somente leitura | `e2e/login-and-navigation.spec.ts` + auditoria autenticada ampla, `E2E_AUTH_REUSE=1`, `E2E_MUTATION=0` | ✅ **6/6** no smoke canônico e **2/2 executados + 1 skip esperado** na auditoria ampla: 26 rotas estáticas HTTP 200, paciente/conversas sem dados aceitos; estado autenticado e artefatos temporários removidos                                                                                                                                                                                                                                                                                                              |
+| Asaas ao vivo                      | `pnpm payments:live-check`                                                                             | ✅ 12/12 reexecutados em 2026-08-28, incluindo reconfiguração sem duplicar e limpeza ok + **1 declarado não-verificado** (estorno de PIX/cartão exige pagamento real)                                                                                                                                                                                                                                                                                                                                                        |
+| Checkout/gerações DB               | `pnpm smoke:payments-checkout-db`                                                                      | ✅ 5/5 em DEV: RLS/grants, claim idempotente, dívida única, cross-tenant, ativação/send-time; cleanup zero                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| D50/D27/D77 DB                     | `pnpm smoke:payments-money-db`                                                                         | ✅ **7/7 em DEV**: estrutura/RLS/grants, intenção concorrente, `CANCELLED` sem falso fechamento, `DONE` atômico + replay, D50 exato, disputa/reversão e perda/cross-tenant; cleanup zero                                                                                                                                                                                                                                                                                                                                     |
+| P11 focado                         | `pnpm vitest run <7 arquivos>`                                                                         | ✅ **104/104**: migration, closeout, webhook, reconciliador, descoberta de tenants, handler e intents antigos sem os contadores da 0094                                                                                                                                                                                                                                                                                                                                                                                      |
+| Migration PROD `0094`              | `SUPABASE_PROJECT_ENV=prod pnpm db:migrate:prod` + verificação read-only                               | ✅ backup **2.661.164 bytes** · advisory lock adquirido/liberado · `DONE` · pós-check **9/9**: version/journal, colunas, constraints, RLS/FORCE RLS, grants, dados existentes e lock ausente                                                                                                                                                                                                                                                                                                                                 |
+| D77 externo pós-rollout            | runner guardado de PIX na Clinic A Sandbox                                                             | ✅ **CANCELLED PASS / DONE BLOCKED**: duas fixtures isoladas liquidaram PIX e fizeram exatamente 1 refund cada, sem segundo POST no replay. Ambas terminaram `CANCELLED`; intenção `failed`, cobrança `paid` e crédito `available`. A última usou trava pré-POST com operador no painel e ficou 71 s em autorização crítica. O painel informou sucesso ao operador, mas a API cancelou o refund e o saldo continuou subindo com os PIX creditados. Readback/reconcile e cleanup local passaram; histórico Sandbox preservado |
+| D79 correlação do refund           | `asaas/index` + `excess-refund`                                                                        | ✅ adapter não confunde mais o id da cobrança com refund; fallback do baseline aceita id armazenado sem correspondência; regressões `CANCELLED` e `DONE` + suíte 2.977/2.977 verdes                                                                                                                                                                                                                                                                                                                                          |
+| D50 focado + status preservado     | `pnpm vitest run <6 arquivos>` + `STATUS_CLINICA_A_D50`                                                | ✅ **29/29**; pagamento/webhook reais, R$ 10 alocados, um único POST parcial de R$ 10 e intenção `confirmation_pending`. Readback independente de 06/09 confirmou pagamento `CONFIRMED`, `patient_charge=paid`, recebível R$ 20 pago, duas baixas/R$ 20, baseline zero e exatamente um refund de R$ 10 ainda `PENDING`; nenhum POST/cleanup. A consulta separada da D80 retornou `RECEIVED` + refund `CANCELLED`, provando que os estados não estão misturados                                                               |
+| D62 tenant + Financial + replay    | `PROCESS_RETAINED_CLINICA_A_PATIENT_CHARGEBACK_RISK`                                                   | ✅ **3 fatos processados / replay 0 de 3**; conta vinculada por fingerprint, nenhuma fila alheia tocada, compensação ligada à baixa, `chargeback_loss` única, saldo reaberto e atendimento preservado                                                                                                                                                                                                                                                                                                                        |
+| Cleanup D62                        | `CLEANUP_RETAINED_CLINICA_A_PATIENT_CHARGEBACK`                                                        | ✅ preflight exato, provider `REFUNDED/DONE`, 16 linhas sintéticas removidas em transação, zero mutação no provider, auditoria de webhook preservada, manifesto removido e zero resíduo da fixture                                                                                                                                                                                                                                                                                                                           |
+| Webhook global D54/D55/D66         | `pnpm billing:delete-restore-e2e` + verificador read-only                                              | ✅ conta vinculada por fingerprint; `qoro dev` ativo com 7 eventos/`NON_SEQUENTIALLY`; `PAYMENT_DELETED → cancelled → PAYMENT_RESTORED → open`; replay idempotente e cleanup provider+banco                                                                                                                                                                                                                                                                                                                                  |
+| Rollback por clínica               | `pnpm vitest run policy deposit-charge deposit-scan remainder-charge`                                  | ✅ **55/55**: `enabled=false` não cria sinal/restante e o scanner seleciona somente clínicas habilitadas                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Migrations PROD `0091` + `0092`    | `pnpm db:migrate:prod` + verificação read-only                                                         | ✅ backup 2.834.598 bytes · lock adquirido/liberado · `DONE` · sem sentinel · pós-verificação **7/7**: versions/journal, enums, tabelas/colunas, RLS/policies, grants, índices/constraints e lock ausente                                                                                                                                                                                                                                                                                                                    |
+| `pnpm format:check`                | —                                                                                                      | ✅ **PASS global em 08/09** após o lote mecânico D9; 70 JSON de evidência gerada foram ignorados e os 58 alvos executáveis/testes foram normalizados                                                                                                                                                                                                                                                                                                                                                                         |
 
 Migrations **0081–0094** aplicadas e verificadas no banco de **dev**. A `0094` passou o smoke conectado
 7/7, incluindo RLS/grants, concorrência, estados terminais, replay e isolamento cross-tenant. Após a rotação da credencial,
@@ -758,19 +788,19 @@ processou tudo em 3 ticks, sem retry/falha, e removeu clínica e usuário sinté
 
 ### O que foi fechado no hardening de 27/08
 
-| Entrega | Evidência real | Arquitetura preservada |
-| --- | --- | --- |
-| D49 — restante recebido não baixava o Caixa | unitário 7/7 + jornada banco/worker; `a7717e7` | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1: `financial` continua dono do ledger |
-| Concorrência financeira e multi-tenant | `smoke:payments-financial` 10/10 + `smoke:payments-rls` 5/5, cleanup zero | [ADR-007](adr/007-rls-implementation-patterns.md) + [ADR-011](adr/011-outbox-audit-idempotency-patterns.md) |
-| Jornada A/B/C, corrida pagamento×hold e isolamento A→B | `smoke:payments-journey` 13/13, banco e worker reais | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §§4 e 7 + ADR-051 |
-| Banco lento e retry pós-`statement_timeout` | evento voltou a `pending`, erro observável, 2 tentativas e 1 recebível | ADR-011: lease/retry/idempotência existentes, sem fila paralela |
-| POST de Checkout aceito com resposta perdida | `smoke:payments-post-recovery`: 1 POST, 1 dívida/geração `creation_unknown`, 0 links/eventos e 0 duplicata, cleanup zero | ADR-011 + [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md): intenção/lease antes da rede e reconciliação explícita, sem retry cego |
-| D51 — recebível já pago sem `paid_at` | unitário 13/13 + simulação 30 dias; `c480e44` | ADR-051: valor bruto + pagamento comprovado/alocado |
-| D52 — crédito antigo permanecia invisível em `available` | `ca94839`; route 3/3 + jornada DEV 13/13: terminal, agenda vencida, futuro, replay e cross-tenant | ADR-051 §5: detector no reconcile existente, somente leitura, sem decidir destino do dinheiro |
-| D53 — senha permanecia no DOM e podia entrar no snapshot de erro Playwright | artefatos locais removidos, auth storage ausente; helper 3/3 + regressão de login 10/10 | hardening local do login/teste; limpa após captura do submit e após erro, sem novo contrato/ADR nem armazenar/repetir a credencial |
-| D54/D55 — delete/restore da assinatura não fechavam o round-trip | route + decisão pura + sincronizador 73/73; round-trip Sandbox real `open → cancelled → open`, replay e cleanup passaram | Billing segue dono da invoice; `getPayment` decide, CAS/audit impedem duplicata e nenhuma aresta genérica `cancelled → open` foi aberta |
-| Operação acumulada | `test:simulation`: 30 agendamentos, 38 cobranças, 62 webhooks, 3 ticks, ledger R$ 800 e zero órfão/hold/fixture | ADR-049/051; não chamou Asaas/Meta |
-| Entrega do restante 1.6c | unit/integration/contract, `smoke:c14` 9/9, 2.816 testes, migration 0090 | ADR-011 + [ADR-020](adr/020-messaging-provider-patterns.md): mesma C14/Meta, lookup no send-time, sem LLM |
+| Entrega                                                                     | Evidência real                                                                                                           | Arquitetura preservada                                                                                                                      |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| D49 — restante recebido não baixava o Caixa                                 | unitário 7/7 + jornada banco/worker; `a7717e7`                                                                           | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1: `financial` continua dono do ledger                                               |
+| Concorrência financeira e multi-tenant                                      | `smoke:payments-financial` 10/10 + `smoke:payments-rls` 5/5, cleanup zero                                                | [ADR-007](adr/007-rls-implementation-patterns.md) + [ADR-011](adr/011-outbox-audit-idempotency-patterns.md)                                 |
+| Jornada A/B/C, corrida pagamento×hold e isolamento A→B                      | `smoke:payments-journey` 13/13, banco e worker reais                                                                     | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §§4 e 7 + ADR-051                                                                           |
+| Banco lento e retry pós-`statement_timeout`                                 | evento voltou a `pending`, erro observável, 2 tentativas e 1 recebível                                                   | ADR-011: lease/retry/idempotência existentes, sem fila paralela                                                                             |
+| POST de Checkout aceito com resposta perdida                                | `smoke:payments-post-recovery`: 1 POST, 1 dívida/geração `creation_unknown`, 0 links/eventos e 0 duplicata, cleanup zero | ADR-011 + [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md): intenção/lease antes da rede e reconciliação explícita, sem retry cego |
+| D51 — recebível já pago sem `paid_at`                                       | unitário 13/13 + simulação 30 dias; `c480e44`                                                                            | ADR-051: valor bruto + pagamento comprovado/alocado                                                                                         |
+| D52 — crédito antigo permanecia invisível em `available`                    | `ca94839`; route 3/3 + jornada DEV 13/13: terminal, agenda vencida, futuro, replay e cross-tenant                        | ADR-051 §5: detector no reconcile existente, somente leitura, sem decidir destino do dinheiro                                               |
+| D53 — senha permanecia no DOM e podia entrar no snapshot de erro Playwright | artefatos locais removidos, auth storage ausente; helper 3/3 + regressão de login 10/10                                  | hardening local do login/teste; limpa após captura do submit e após erro, sem novo contrato/ADR nem armazenar/repetir a credencial          |
+| D54/D55 — delete/restore da assinatura não fechavam o round-trip            | route + decisão pura + sincronizador 73/73; round-trip Sandbox real `open → cancelled → open`, replay e cleanup passaram | Billing segue dono da invoice; `getPayment` decide, CAS/audit impedem duplicata e nenhuma aresta genérica `cancelled → open` foi aberta     |
+| Operação acumulada                                                          | `test:simulation`: 30 agendamentos, 38 cobranças, 62 webhooks, 3 ticks, ledger R$ 800 e zero órfão/hold/fixture          | ADR-049/051; não chamou Asaas/Meta                                                                                                          |
+| Entrega do restante 1.6c                                                    | unit/integration/contract, `smoke:c14` 9/9, 2.816 testes, migration 0090                                                 | ADR-011 + [ADR-020](adr/020-messaging-provider-patterns.md): mesma C14/Meta, lookup no send-time, sem LLM                                   |
 
 ### Plano de fechamento — pendências, execução e teste de aceite
 
@@ -778,36 +808,36 @@ Esta é a **fila única** para terminar 1.H e 1.S. Um item só muda para verde c
 mock, deploy bem-sucedido ou leitura de código não substituem comportamento externo quando ele é o
 objeto do teste.
 
-| Ordem | Pendência / autoridade | Como deve ser feita | Teste/evidência ainda pendente | Referência |
-| --- | --- | --- | --- | --- |
-| P0 | ✅ **Publicar/observar o lote** — repetido em 29/08 | Commit executável `8bf193e` confirmado no remoto e deployment Vercel terminal `success`, casado ao mesmo SHA. O Preview read-only foi reexecutado com uma única sessão e passou 8/8 em 1,8 min; 25 rotas estáticas responderam 200, rotas dinâmicas e navegação permaneceram íntegras, e o auth state/artefatos gerados foram removidos. `financeiro.md` permaneceu fora do commit | **PASS:** Git remoto, Vercel e smoke Preview observados no HEAD com P8/D61; repetir somente após novo lote executável | §0.3 DoD; [handoff](handoff-qorov2.md); D56; D61 |
-| P1 | ✅ **Meta real entregou sinal e restante** | Em 31/08 a Clínica A estava ativa/verificada no banco DEV/Preview. O runner controlado criou Checkouts reais, publicou os eventos próprios, gerou `deposit_link` e `remainder_link`, resolveu os links no send-time e recebeu `accepted` + `providerMessageId` para dois templates distintos. Replay encontrou zero jobs e o cleanup local/provider foi confirmado. Em 02/09 o operador confirmou que ambas as mensagens chegaram ao aparelho com os links | **PASS:** aplicação → C14 → Meta → aparelho, templates distintos, jobs terminais e at-most-once. Os links estavam expirados quando abertos porque o runner já havia cancelado os Checkouts no cleanup; isso é esperado e não prova pagamento pelo link | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md); D63/D64 |
-| P2 | ✅ **Webhook global e round-trip de restauração provados na conta alvo** | Em 02/09, após autorização explícita, o runner verificou por fingerprint que a credencial global e a fixture D50 pertencem à mesma conta Sandbox alvo; criou `qoro dev` na rota global do Preview, com token/bypass, API v3, sete eventos e `NON_SEQUENTIALLY`. A mesma cobrança sintética percorreu `open → cancelled → open` por eventos reais `PAYMENT_DELETED` e `PAYMENT_RESTORED` | **PASS:** readback do webhook, entrega provider→Preview, duas linhas de dedup, replay sem nova transição e cleanup exato no provider+banco. Pós-check confirmou coexistência com o webhook tenant de 12 eventos/`SEQUENTIALLY`. O mesmo Sandbox em dois papéis continua concessão exclusiva de teste | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D46, D54, D55, D65, D66; §20.5 |
-| P3 | ✅ **Rotação da chave sandbox não será executada** — decisão final do fundador em 03/09 | A credencial é exclusiva do Sandbox e o fundador aceitou conscientemente o risco residual. Isso deixa de ser pendência da Camada 1; o valor continua proibido em código, diff, log e documentação. Reabrir somente se a conta deixar de ser descartável, for compartilhada, promovida ou usada como evidência de longa duração | **DECISÃO ENCERRADA, não é teste nem bloqueio.** Continuam obrigatórios fingerprint da conta e separação absoluta de produção | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md) |
-| P4 | **D24 — somente PIX/cartão no sinal e restante** — código + DEV/PROD ✅; pagamento externo ✅; estorno PIX assíncrono revelou D77 | Checkout `DETACHED` usa somente `PIX` + `CREDIT_CARD`. O PIX histórico da conta anterior continua `NOT COMPLETED`, sem reintroduzir credenciais. Em 04/09 uma prova isolada na conta atual confirmou cobrança `PIX` de R$ 10 em `RECEIVED`. O único refund foi aceito, aguardou ação crítica e terminou `CANCELLED`; o pagamento continua recebido e o saldo era suficiente | **PASS:** criação/pagamento PIX. **FAIL externo:** nenhum valor foi devolvido; não repetir POST sem nova autorização. O risco crítico D77 está corrigido em código/DEV pelo P11, mas a proteção só entra em produção após migration 0094, publicação e revalidação | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [estornos Asaas](https://docs.asaas.com/docs/estornos); D57/D58/D76/D77; §20.1 |
-| P5 | ✅ **D27 — jornada tenant completa e fixture removida** | Em 01/09 a fixture real de restante de R$ 10 foi paga por cartão na conta alvo. Depois do suporte disparar o chargeback, o provider terminou `REFUNDED/DONE`, a rota tenant marcou a `patient_charge` `refunded/lost` e publicou `requested`, `in_dispute`, `lost`. Em 02/09 o runner vinculou a fixture a um fingerprint da conta e executou somente esses handlers | **PASS:** identidade/proveniência, Asaas → Preview, dedup, Payments, compensação ligada à baixa, `chargeback_loss`, saldo reaberto, fato clínico preservado e replay 0/3. O cleanup autorizado validou as contagens, removeu 16 linhas sintéticas em uma transação, não chamou o provider, preservou o audit de webhook e terminou sem resíduo da fixture | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); D62, D68; §20.2 |
-| P6 | **D50 — estorno parcial enviado; provider ainda `PENDING`** | Em 01/09 o Checkout de R$ 20 foi pago por cartão e o webhook tenant marcou a charge `paid`. O Financial alocou somente R$ 10 ao saldo e publicou o excedente. Uma única intenção, baseline zero, executou um único POST parcial de R$ 10. Readback independente em **06/09** confirmou pagamento `CONFIRMED`, `patient_charge=paid`, recebível `pago` em R$ 20, duas baixas somando R$ 20, uma intenção `confirmation_pending` de R$ 10, baseline zero e um único refund `PENDING` de R$ 10; D80 foi consultada separadamente e é a fixture `CANCELLED` | **PASS:** pagamento, webhook, correlação, valor exato, persist-before-POST, ausência de duplicata, fingerprint e separação entre contas/fixtures. **Pendente exclusivamente no provider/suporte:** aguardar o refund existente; nunca repetir POST. Quando virar `DONE`, fazer readback → ledger → replay → cleanup. D72 está publicado e distingue esses estados no Caixa; isso não confirma a devolução enquanto o provider permanecer `PENDING` | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estornos Asaas](https://docs.asaas.com/docs/estornos); D50/D72; §20.3 e §20.9 |
-| P7 | ✅ **Detector de crédito `available` órfão** — `ca94839` | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md) |
-| P8 | ✅ **Carga e restore em volume** | Restore real e carga usam PostgreSQL 17 local descartável. `test:load` extrai somente o schema DEV, sobe app real no scratch TLS, substitui Meta antes da rede, bloqueia demais HTTP externos e exige confirmação/guards fail-closed. Nenhuma escrita foi feita em DEV, Preview ou produção | **PASS:** restore 117 tabelas/83 policies e zero resíduo; carga 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile 20 chamadas e 100 queries. Todos os SLOs verdes, zero deadlock/duplicata/retry/falha e cleanup integral | §10 Performance; §16 Migração; `test:load`; `restore:test`; D61; R10 em [riscos](architecture/risks.md) |
-| P9 | ✅ **Product Acceptance técnico-normativo publicado e revalidado** — D53/D56/D60/D70/D71 | Em 04/09 o agente cruzou o fluxo real do Qoro com CFM/ANPD e executou 150 testes focados de Agenda, prontuário, autorização, isolamento, templates e pagamentos. A auditoria encontrou D60 recorrente e D70; ambos foram corrigidos e publicados em `42cd114`. O deployment terminou `success`, a navegação Preview passou 6/6 e a matriz pós-deploy passou 8/8/72 estados esperando headings reais e capturando `pageerror`. Auth state e capturas foram removidos. Teste humano de usabilidade deixa de ser encenado pelo fundador e passa a ser observação da clínica piloto | **PASS técnico-normativo:** código, suíte integral, build/gates e Preview verdes. Manter monitoramento passivo do Sentry. A validação humana de percepção não bloqueia iniciar 1.S; bloqueia avançar da clínica piloto para ondas seguintes se revelar problema alto/médio | §0.2; §15; CFM/ANPD; [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56/D60/D70/D71; [guia E2E](../e2e/README.md) |
-| P10 | ✅ **1.S concluída** — D73/D74/D75 | D73 encerra observavelmente eventos preservados cujo tenant já não existe, sem violar o audit do outbox; D74 substitui o contrato obsoleto de recuperação `/payments` pela contenção real de `POST /checkouts` indeterminado; D75 impede que harnesses globais confundam audit órfão com concorrência ativa. C14 9/9, Financial 10/10, jornada 13/13, contenção POST e simulação 30 dias passaram com cleanup zero. ADR-049/050/051, Discovery e runbooks foram reconciliados | **PASS completo:** lint, typecheck, 2.816/2.816 testes em 311 arquivos, build, 0 ciclos, db-check, grafos, migrations, registry, observabilidade, diff, formatação e varredura do conteúdo adicionado. O commit executável `4883372` foi confirmado no remoto, teve deployment Vercel `CZJqTEXXeMoKYa9zwTfxBDGDGpwr` terminal `success` e smoke Preview autenticado 6/6 sem `pageerror`; auth state/artefato removidos. D50 continua dependência externa `PENDING`, sem novo POST | §0.3 DoD; §18 Rollout; ADR-049 §9; D73–D75 |
-| P11 | 🟡 **D77 — CANCELLED PASS; DONE BLOCKED** | `deposit_closeout` reutiliza `patient_refund_intents`: persiste antes do POST, grava baseline+contadores no claim atômico, não repete resposta incerta, trata `PENDING`/em progresso como não terminal e `CANCELLED` como falha. Só `DONE` ou pagamento `REFUNDED` confirma; intenção, `patient_charge.closed` e `patient_credit.released` fecham na mesma transação. D79 corrige a correlação pelo baseline quando o id salvo não encontra refund | **PASS código/DEV/PROD/Preview + CANCELLED externo:** 0094/pós-check 9/9, money smoke 7/7 e rollout P11 verdes. D79 está em `0181939`: 2.977/2.977, deployment `success` e Preview 6/6. Duas provas pós-rollout terminaram `CANCELLED → failed/paid/available`, cada uma com um único refund, replay sem duplicata e cleanup. Na última, operador e POST foram sincronizados; D80 exige suporte antes de nova tentativa. D50 segue `PENDING` | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a; [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; D76–D80; migration 0094 |
+| Ordem | Pendência / autoridade                                                                                                            | Como deve ser feita                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Teste/evidência ainda pendente                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Referência                                                                                                                                                                                                           |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0    | ✅ **Publicar/observar o lote** — repetido em 29/08                                                                               | Commit executável `8bf193e` confirmado no remoto e deployment Vercel terminal `success`, casado ao mesmo SHA. O Preview read-only foi reexecutado com uma única sessão e passou 8/8 em 1,8 min; 25 rotas estáticas responderam 200, rotas dinâmicas e navegação permaneceram íntegras, e o auth state/artefatos gerados foram removidos. `financeiro.md` permaneceu fora do commit                                                                                                                                                                                              | **PASS:** Git remoto, Vercel e smoke Preview observados no HEAD com P8/D61; repetir somente após novo lote executável                                                                                                                                                                                                                                                                                                                                                             | §0.3 DoD; [handoff](handoff-qorov2.md); D56; D61                                                                                                                                                                     |
+| P1    | ✅ **Meta real entregou sinal e restante**                                                                                        | Em 31/08 a Clínica A estava ativa/verificada no banco DEV/Preview. O runner controlado criou Checkouts reais, publicou os eventos próprios, gerou `deposit_link` e `remainder_link`, resolveu os links no send-time e recebeu `accepted` + `providerMessageId` para dois templates distintos. Replay encontrou zero jobs e o cleanup local/provider foi confirmado. Em 02/09 o operador confirmou que ambas as mensagens chegaram ao aparelho com os links                                                                                                                      | **PASS:** aplicação → C14 → Meta → aparelho, templates distintos, jobs terminais e at-most-once. Os links estavam expirados quando abertos porque o runner já havia cancelado os Checkouts no cleanup; isso é esperado e não prova pagamento pelo link                                                                                                                                                                                                                            | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.6; [ADR-011](adr/011-outbox-audit-idempotency-patterns.md); [ADR-020](adr/020-messaging-provider-patterns.md); [runbook C14](runbooks/c14-validation.md); D63/D64 |
+| P2    | ✅ **Webhook global e round-trip de restauração provados na conta alvo**                                                          | Em 02/09, após autorização explícita, o runner verificou por fingerprint que a credencial global e a fixture D50 pertencem à mesma conta Sandbox alvo; criou `qoro dev` na rota global do Preview, com token/bypass, API v3, sete eventos e `NON_SEQUENTIALLY`. A mesma cobrança sintética percorreu `open → cancelled → open` por eventos reais `PAYMENT_DELETED` e `PAYMENT_RESTORED`                                                                                                                                                                                         | **PASS:** readback do webhook, entrega provider→Preview, duas linhas de dedup, replay sem nova transição e cleanup exato no provider+banco. Pós-check confirmou coexistência com o webhook tenant de 12 eventos/`SEQUENTIALLY`. O mesmo Sandbox em dois papéis continua concessão exclusiva de teste                                                                                                                                                                              | [runbook de assinatura](runbooks/asaas-webhook-assinatura.md); D20, D36, D46, D54, D55, D65, D66; §20.5                                                                                                              |
+| P3    | ✅ **Rotação da chave sandbox não será executada** — decisão final do fundador em 03/09                                           | A credencial é exclusiva do Sandbox e o fundador aceitou conscientemente o risco residual. Isso deixa de ser pendência da Camada 1; o valor continua proibido em código, diff, log e documentação. Reabrir somente se a conta deixar de ser descartável, for compartilhada, promovida ou usada como evidência de longa duração                                                                                                                                                                                                                                                  | **DECISÃO ENCERRADA, não é teste nem bloqueio.** Continuam obrigatórios fingerprint da conta e separação absoluta de produção                                                                                                                                                                                                                                                                                                                                                     | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.1; [runbook da conta](runbooks/payment-account-connect.md)                                                                                                        |
+| P4    | **D24 — somente PIX/cartão no sinal e restante** — código + DEV/PROD ✅; pagamento externo ✅; estorno PIX assíncrono revelou D77 | Checkout `DETACHED` usa somente `PIX` + `CREDIT_CARD`. O PIX histórico da conta anterior continua `NOT COMPLETED`, sem reintroduzir credenciais. Em 04/09 uma prova isolada na conta atual confirmou cobrança `PIX` de R$ 10 em `RECEIVED`. O único refund foi aceito, aguardou ação crítica e terminou `CANCELLED`; o pagamento continua recebido e o saldo era suficiente                                                                                                                                                                                                     | **PASS:** criação/pagamento PIX. **FAIL externo:** nenhum valor foi devolvido; não repetir POST sem nova autorização. O risco crítico D77 está corrigido em código/DEV pelo P11, mas a proteção só entra em produção após migration 0094, publicação e revalidação                                                                                                                                                                                                                | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a/D24; [estornos Asaas](https://docs.asaas.com/docs/estornos); D57/D58/D76/D77; §20.1                                                                            |
+| P5    | ✅ **D27 — jornada tenant completa e fixture removida**                                                                           | Em 01/09 a fixture real de restante de R$ 10 foi paga por cartão na conta alvo. Depois do suporte disparar o chargeback, o provider terminou `REFUNDED/DONE`, a rota tenant marcou a `patient_charge` `refunded/lost` e publicou `requested`, `in_dispute`, `lost`. Em 02/09 o runner vinculou a fixture a um fingerprint da conta e executou somente esses handlers                                                                                                                                                                                                            | **PASS:** identidade/proveniência, Asaas → Preview, dedup, Payments, compensação ligada à baixa, `chargeback_loss`, saldo reaberto, fato clínico preservado e replay 0/3. O cleanup autorizado validou as contagens, removeu 16 linhas sintéticas em uma transação, não chamou o provider, preservou o audit de webhook e terminou sem resíduo da fixture                                                                                                                         | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md); ADR-011; [eventos Asaas](https://docs.asaas.com/docs/webhook-para-cobrancas); D62, D68; §20.2                                                       |
+| P6    | **D50 — estorno parcial enviado; provider ainda `PENDING`**                                                                       | Em 01/09 o Checkout de R$ 20 foi pago por cartão e o webhook tenant marcou a charge `paid`. O Financial alocou somente R$ 10 ao saldo e publicou o excedente. Uma única intenção, baseline zero, executou um único POST parcial de R$ 10. Readback independente em **06/09** confirmou pagamento `CONFIRMED`, `patient_charge=paid`, recebível `pago` em R$ 20, duas baixas somando R$ 20, uma intenção `confirmation_pending` de R$ 10, baseline zero e um único refund `PENDING` de R$ 10; D80 foi consultada separadamente e é a fixture `CANCELLED`                         | **PASS:** pagamento, webhook, correlação, valor exato, persist-before-POST, ausência de duplicata, fingerprint e separação entre contas/fixtures. **Pendente exclusivamente no provider/suporte:** aguardar o refund existente; nunca repetir POST. Quando virar `DONE`, fazer readback → ledger → replay → cleanup. D72 está publicado e distingue esses estados no Caixa; isso não confirma a devolução enquanto o provider permanecer `PENDING`                                | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; [estornos Asaas](https://docs.asaas.com/docs/estornos); D50/D72; §20.3 e §20.9                                                                             |
+| P7    | ✅ **Detector de crédito `available` órfão** — `ca94839`                                                                          | O reconcile existente faz scan cross-tenant somente leitura: 30+ dias e consulta já vencida/vínculo ausente; agrega por clínica/status, emite `financial.reconcile.orphan_credit_detected` e inclui contagens no heartbeat. Não libera, retém, aloca ou estorna dinheiro                                                                                                                                                                                                                                                                                                        | Unit 3/3 + DEV 13/13: terminal cancelado/faltou, agenda vencida, consulta futura excluída, replay idêntico, dois tenants e cleanup zero. Ao alertar, suporte investiga pelo runbook; destino econômico continua exigindo regra aprovada                                                                                                                                                                                                                                           | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §5; [runbook](runbooks/payment-account-connect.md)                                                                                                               |
+| P8    | ✅ **Carga e restore em volume**                                                                                                  | Restore real e carga usam PostgreSQL 17 local descartável. `test:load` extrai somente o schema DEV, sobe app real no scratch TLS, substitui Meta antes da rede, bloqueia demais HTTP externos e exige confirmação/guards fail-closed. Nenhuma escrita foi feita em DEV, Preview ou produção                                                                                                                                                                                                                                                                                     | **PASS:** restore 117 tabelas/83 policies e zero resíduo; carga 500 consultas, 5.000 jobs C14, 1.000 webhooks, outbox 5.000, reconcile 20 chamadas e 100 queries. Todos os SLOs verdes, zero deadlock/duplicata/retry/falha e cleanup integral                                                                                                                                                                                                                                    | §10 Performance; §16 Migração; `test:load`; `restore:test`; D61; R10 em [riscos](architecture/risks.md)                                                                                                              |
+| P9    | ✅ **Product Acceptance técnico-normativo publicado e revalidado** — D53/D56/D60/D70/D71                                          | Em 04/09 o agente cruzou o fluxo real do Qoro com CFM/ANPD e executou 150 testes focados de Agenda, prontuário, autorização, isolamento, templates e pagamentos. A auditoria encontrou D60 recorrente e D70; ambos foram corrigidos e publicados em `42cd114`. O deployment terminou `success`, a navegação Preview passou 6/6 e a matriz pós-deploy passou 8/8/72 estados esperando headings reais e capturando `pageerror`. Auth state e capturas foram removidos. Teste humano de usabilidade deixa de ser encenado pelo fundador e passa a ser observação da clínica piloto | **PASS técnico-normativo:** código, suíte integral, build/gates e Preview verdes. Manter monitoramento passivo do Sentry. A validação humana de percepção não bloqueia iniciar 1.S; bloqueia avançar da clínica piloto para ondas seguintes se revelar problema alto/médio                                                                                                                                                                                                        | §0.2; §15; CFM/ANPD; [ADR-049](adr/049-pagamentos-paciente-sinal.md) §7; D53/D56/D60/D70/D71; [guia E2E](../e2e/README.md)                                                                                           |
+| P10   | ✅ **1.S concluída** — D73/D74/D75                                                                                                | D73 encerra observavelmente eventos preservados cujo tenant já não existe, sem violar o audit do outbox; D74 substitui o contrato obsoleto de recuperação `/payments` pela contenção real de `POST /checkouts` indeterminado; D75 impede que harnesses globais confundam audit órfão com concorrência ativa. C14 9/9, Financial 10/10, jornada 13/13, contenção POST e simulação 30 dias passaram com cleanup zero. ADR-049/050/051, Discovery e runbooks foram reconciliados                                                                                                   | **PASS completo:** lint, typecheck, 2.816/2.816 testes em 311 arquivos, build, 0 ciclos, db-check, grafos, migrations, registry, observabilidade, diff, formatação e varredura do conteúdo adicionado. O commit executável `4883372` foi confirmado no remoto, teve deployment Vercel `CZJqTEXXeMoKYa9zwTfxBDGDGpwr` terminal `success` e smoke Preview autenticado 6/6 sem `pageerror`; auth state/artefato removidos. D50 continua dependência externa `PENDING`, sem novo POST | §0.3 DoD; §18 Rollout; ADR-049 §9; D73–D75                                                                                                                                                                           |
+| P11   | 🟡 **D77 — CANCELLED PASS; DONE BLOCKED**                                                                                         | `deposit_closeout` reutiliza `patient_refund_intents`: persiste antes do POST, grava baseline+contadores no claim atômico, não repete resposta incerta, trata `PENDING`/em progresso como não terminal e `CANCELLED` como falha. Só `DONE` ou pagamento `REFUNDED` confirma; intenção, `patient_charge.closed` e `patient_credit.released` fecham na mesma transação. D79 corrige a correlação pelo baseline quando o id salvo não encontra refund                                                                                                                              | **PASS código/DEV/PROD/Preview + CANCELLED externo:** 0094/pós-check 9/9, money smoke 7/7 e rollout P11 verdes. D79 está em `0181939`: 2.977/2.977, deployment `success` e Preview 6/6. Duas provas pós-rollout terminaram `CANCELLED → failed/paid/available`, cada uma com um único refund, replay sem duplicata e cleanup. Na última, operador e POST foram sincronizados; D80 exige suporte antes de nova tentativa. D50 segue `PENDING`                                      | [ADR-049](adr/049-pagamentos-paciente-sinal.md) §1.5a; [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) §2.1; D76–D80; migration 0094                                                                             |
 
 ### Testes explicitamente não verdes / não executados
 
-| Teste | Estado atual | Para ficar verde |
-| --- | --- | --- |
-| Playwright read-only | ✅ **PASS Preview `f2c1b60`: smoke canônico 6/6 + auditoria autenticada ampla 2/2** | 26 rotas estáticas responderam 200, rota dinâmica disponível renderizou, navegação principal não produziu `pageerror`; auth state e resultados removidos |
-| `test:load` | ✅ **PASS local scratch-only em 29/08** | repetir após mudança relevante em C14, webhook, outbox/reconcile, schema ou SLO; exige build atual, PostgreSQL 17 local e confirmação exata |
-| `pnpm restore:test` em volume | ✅ **PASS em scratch local descartável** | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido |
-| Checkout Asaas PIX + cartão (D24) | **PASS pagamento real; D77 `CANCELLED` PASS / `DONE` BLOCKED** | A fixture anterior terminou `CANCELLED` e revelou D77. Após o rollout, duas provas PIX isoladas liquidaram e geraram exatamente um refund cada; os replays não duplicaram, cobrança/crédito permaneceram abertos ao terminar `CANCELLED` e o cleanup local passou. D80 bloqueia nova fixture até diagnóstico do Asaas |
-| `smoke:payments-money-db` (D50/D27/D77) | ✅ **PASS DEV 7/7; PROD 0094 verificada 9/9** | P11 repetiu estrutura/RLS, concorrência, `CANCELLED`, `DONE` atômico/replay, D50, disputa e perda com cleanup zero; produção confirmou schema version/journal, colunas, constraints, RLS/FORCE, grants, dados e lock |
-| E2E Meta `deposit_link` | ✅ **PASS até o aparelho** | Checkout real, `link_ready`, job, lookup, template de sinal, provider message id e replay 0 foram provados; o operador confirmou a mensagem e o link no aparelho. O link expirou após o cleanup intencional |
-| E2E Meta `remainder_link` | ✅ **PASS até o aparelho** | mesmo encadeamento real com template distinto de restante e cobrança pagável no send-time; o operador confirmou a mensagem e o link no aparelho. O link expirou após o cleanup intencional |
-| `PAYMENT_RESTORED` da assinatura | ✅ **PASS externo na conta alvo** | `qoro dev` foi criado com os sete eventos canônicos; a mesma cobrança passou por delete/restore, a mesma invoice por `open → cancelled → open`, replay não duplicou e o runner limpou provider+banco |
-| Estorno real do sinal pago por PIX/cartão | **Cartão PASS; PIX D77 `CANCELLED` PASS / `DONE` BLOCKED** | duas provas pós-rollout criaram um refund cada, sem repetição no replay, e terminaram `CANCELLED` mantendo cobrança `paid` e crédito `available`; cleanup local passou. A segunda foi sincronizada com o operador. Não criar outra fixture antes do diagnóstico D80 |
-| Product Acceptance por persona | **TÉCNICO-NORMATIVO PASS local + Preview; usabilidade humana DEFERRED para piloto** | D60/D70 publicados e revalidados; manter observação passiva do Sentry. Na onda 1 colher percepção real de dono/secretária/médico/paciente, sem pedir ao fundador que finja experiência clínica |
-| `pnpm format:check` global | ✅ **PASS — D9 fechada em 08/09** | 70 JSON gerados ignorados por contrato; 58 alvos de código/teste formatados; gates integrais verdes |
+| Teste                                     | Estado atual                                                                        | Para ficar verde                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Playwright read-only                      | ✅ **PASS Preview `f2c1b60`: smoke canônico 6/6 + auditoria autenticada ampla 2/2** | 26 rotas estáticas responderam 200, rota dinâmica disponível renderizou, navegação principal não produziu `pageerror`; auth state e resultados removidos                                                                                                                                                              |
+| `test:load`                               | ✅ **PASS local scratch-only em 29/08**                                             | repetir após mudança relevante em C14, webhook, outbox/reconcile, schema ou SLO; exige build atual, PostgreSQL 17 local e confirmação exata                                                                                                                                                                           |
+| `pnpm restore:test` em volume             | ✅ **PASS em scratch local descartável**                                            | repetir somente quando houver novo dump/migration relevante; o alvo de 28/08 foi parado e removido                                                                                                                                                                                                                    |
+| Checkout Asaas PIX + cartão (D24)         | **PASS pagamento real; D77 `CANCELLED` PASS / `DONE` BLOCKED**                      | A fixture anterior terminou `CANCELLED` e revelou D77. Após o rollout, duas provas PIX isoladas liquidaram e geraram exatamente um refund cada; os replays não duplicaram, cobrança/crédito permaneceram abertos ao terminar `CANCELLED` e o cleanup local passou. D80 bloqueia nova fixture até diagnóstico do Asaas |
+| `smoke:payments-money-db` (D50/D27/D77)   | ✅ **PASS DEV 7/7; PROD 0094 verificada 9/9**                                       | P11 repetiu estrutura/RLS, concorrência, `CANCELLED`, `DONE` atômico/replay, D50, disputa e perda com cleanup zero; produção confirmou schema version/journal, colunas, constraints, RLS/FORCE, grants, dados e lock                                                                                                  |
+| E2E Meta `deposit_link`                   | ✅ **PASS até o aparelho**                                                          | Checkout real, `link_ready`, job, lookup, template de sinal, provider message id e replay 0 foram provados; o operador confirmou a mensagem e o link no aparelho. O link expirou após o cleanup intencional                                                                                                           |
+| E2E Meta `remainder_link`                 | ✅ **PASS até o aparelho**                                                          | mesmo encadeamento real com template distinto de restante e cobrança pagável no send-time; o operador confirmou a mensagem e o link no aparelho. O link expirou após o cleanup intencional                                                                                                                            |
+| `PAYMENT_RESTORED` da assinatura          | ✅ **PASS externo na conta alvo**                                                   | `qoro dev` foi criado com os sete eventos canônicos; a mesma cobrança passou por delete/restore, a mesma invoice por `open → cancelled → open`, replay não duplicou e o runner limpou provider+banco                                                                                                                  |
+| Estorno real do sinal pago por PIX/cartão | **Cartão PASS; PIX D77 `CANCELLED` PASS / `DONE` BLOCKED**                          | duas provas pós-rollout criaram um refund cada, sem repetição no replay, e terminaram `CANCELLED` mantendo cobrança `paid` e crédito `available`; cleanup local passou. A segunda foi sincronizada com o operador. Não criar outra fixture antes do diagnóstico D80                                                   |
+| Product Acceptance por persona            | **TÉCNICO-NORMATIVO PASS local + Preview; usabilidade humana DEFERRED para piloto** | D60/D70 publicados e revalidados; manter observação passiva do Sentry. Na onda 1 colher percepção real de dono/secretária/médico/paciente, sem pedir ao fundador que finja experiência clínica                                                                                                                        |
+| `pnpm format:check` global                | ✅ **PASS — D9 fechada em 08/09**                                                   | 70 JSON gerados ignorados por contrato; 58 alvos de código/teste formatados; gates integrais verdes                                                                                                                                                                                                                   |
 
 POST indeterminado e banco lento estão verdes em E2E controlado com banco; Asaas indisponível,
 Meta indisponível/backoff e estados obsoletos no send-time estão verdes na matriz focada. Transporte
@@ -815,38 +845,38 @@ real Asaas e entrega real Meta continuam separados desses E2E controlados.
 
 ### Backlog conhecido — não incorporar por acidente no fechamento de 1.H
 
-| Item | Estado e execução correta |
-| --- | --- |
-| D2 — `arch:check` sem tsconfig | Abrir mudança isolada de tooling: adicionar `--ts-config tsconfig.json`, comparar o grafo antes/depois, atualizar CI/docs e exigir 0 ciclos. `arch:graphs` mitiga hoje, mas não fecha o discovery |
-| D9 — formatação | **Fechado em 08/09 (`804c071`):** lote exclusivamente mecânico; 70 JSON de evidência gerada ignorados, 58 alvos de código/teste formatados e todos os gates executados |
-| D23 — transferir sinal no reagendamento | Hoje o sistema estorna e recobra, o que evita duplicidade. Transferência exige vínculo A→B e decisão sobre janela/taxa; desenhar para 2.x em ADR próprio, sem reabrir 1.5a |
-| D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8) |
-| D42 — assinatura da Clínica A não provisionada | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente |
-| Track O — onboarding self-serve | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
-| Camadas 2–4 | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` fechou D95/D96 no código, DEV e Preview. A `2.S` fechou em 11/09 como `PASS` (§28), publicada em `2e1f5fc` com deployment `success` e smoke de Preview 2/2. Próximo passo: P2/Camada 3. Memed foi adiada para a Track M final |
+| Item                                               | Estado e execução correta                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D2 — `arch:check` sem tsconfig                     | Abrir mudança isolada de tooling: adicionar `--ts-config tsconfig.json`, comparar o grafo antes/depois, atualizar CI/docs e exigir 0 ciclos. `arch:graphs` mitiga hoje, mas não fecha o discovery                                                                                                                                                                                                                          |
+| D9 — formatação                                    | **Fechado em 08/09 (`804c071`):** lote exclusivamente mecânico; 70 JSON de evidência gerada ignorados, 58 alvos de código/teste formatados e todos os gates executados                                                                                                                                                                                                                                                     |
+| D23 — transferir sinal no reagendamento            | Hoje o sistema estorna e recobra, o que evita duplicidade. Transferência exige vínculo A→B e decisão sobre janela/taxa; desenhar para 2.x em ADR próprio, sem reabrir 1.5a                                                                                                                                                                                                                                                 |
+| D29 — autoridade de valor/vencimento da assinatura | Decidir Qoro ou Asaas como autoridade antes de qualquer handler de `PAYMENT_UPDATED`; acompanhar [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8)                                                                                                                                                                                                                                                      |
+| D42 — assinatura da Clínica A não provisionada     | Conta Asaas de paciente e assinatura SaaS são fluxos distintos. Provisionar pela saga/onboarding de Billing e validar `billing_customers` + `subscriptions`; não “corrigir” conectando outra chave de paciente                                                                                                                                                                                                             |
+| Track O — onboarding self-serve                    | **Auditoria de escopo feita em 01/09:** o runtime atual de convite/join não possui seleção, gate ou dashboard por especialidade; a bifurcação existia apenas no roadmap e foi removida. O produto permanece único, preservando especialidade somente como dado clínico/operacional. Antes de implementar O-1/O-2/O-3/O-4, ainda é obrigatório ADR/scope freeze próprio e gates `O.H`/`O.S`; não misturar onboarding em 1.H |
+| Camadas 2–4                                        | A Camada 2 está em execução após `1.H ✅ + 1.S ✅`: 2.1A é o CSV contábil não fiscal da ADR-058; C2.0/C2.1 e 2.3 estão verdes, 2.4B aguarda a prova Meta real e `2.H` fechou D95/D96 no código, DEV e Preview. A `2.S` fechou em 11/09 como `PASS` (§28), publicada em `2e1f5fc` com deployment `success` e smoke de Preview 2/2. Próximo passo: P2/Camada 3. Memed foi adiada para a Track M final                        |
 
 ### Dependências externas — validação comportamental (atualizado em 2026-09-01)
 
-| # | O quê | Estado |
-| --- | --- | --- |
-| E1 | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID` | **PASS até o aparelho** — conexão ativa, destinatário consentido, template real, provider message id, job `sent`, replay zero e recebimento confirmado pelo operador |
-| E2 | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro) | **PASS externo em 02/09** — webhook global `qoro dev` configurado na conta alvo com sete eventos, delete/restore real, invoice reaberta por CAS, replay idempotente e cleanup provider+banco |
-| E3 | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production) | **PASS comportamental para o webhook de paciente** — webhook ativo na rota Preview; `0089` aplicada. Além do contrato e da validação RLS, uma cobrança criada pelo Qoro recebeu `PAYMENT_RECEIVED` real do sandbox, gravou dedup/crédito uma vez e projetou agenda `Confirmado` + `Sinal pago`. Isso não valida o webhook global de assinatura (E2) nem a entrega Meta (E1/E5) |
-| E4 | Rotacionar a chave sandbox do Asaas que passou pelo chat | ✅ **ENCERRADO POR DECISÃO, SEM ROTAÇÃO** — em 03/09 o fundador decidiu não executar por se tratar de conta Sandbox descartável e aceitou o risco residual. Não é pendência nem bloqueio. Reabrir se a conta for compartilhada, deixar de ser descartável ou sustentar evidência de longa duração |
-| E5 | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **PASS até o aparelho** — pipeline real usou template próprio, lookup no send-time, provider message id, replay zero e recebimento confirmado pelo operador |
+| #   | O quê                                                                                            | Estado                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| E1  | Template `deposit_link` aprovado na Meta + `META_TEMPLATE_DEPOSIT_LINK_ID`                       | **PASS até o aparelho** — conexão ativa, destinatário consentido, template real, provider message id, job `sent`, replay zero e recebimento confirmado pelo operador                                                                                                                                                                                                           |
+| E2  | `PAYMENT_RESTORED` no webhook de **assinatura** (conta do Qoro)                                  | **PASS externo em 02/09** — webhook global `qoro dev` configurado na conta alvo com sete eventos, delete/restore real, invoice reaberta por CAS, replay idempotente e cleanup provider+banco                                                                                                                                                                                   |
+| E3  | `APP_BASE_URL` por ambiente na Vercel (Preview ≠ Production)                                     | **PASS comportamental para o webhook de paciente** — webhook ativo na rota Preview; `0089` aplicada. Além do contrato e da validação RLS, uma cobrança criada pelo Qoro recebeu `PAYMENT_RECEIVED` real do sandbox, gravou dedup/crédito uma vez e projetou agenda `Confirmado` + `Sinal pago`. Isso não valida o webhook global de assinatura (E2) nem a entrega Meta (E1/E5) |
+| E4  | Rotacionar a chave sandbox do Asaas que passou pelo chat                                         | ✅ **ENCERRADO POR DECISÃO, SEM ROTAÇÃO** — em 03/09 o fundador decidiu não executar por se tratar de conta Sandbox descartável e aceitou o risco residual. Não é pendência nem bloqueio. Reabrir se a conta for compartilhada, deixar de ser descartável ou sustentar evidência de longa duração                                                                              |
+| E5  | Template `remainder_link` aprovado + `META_TEMPLATE_REMAINDER_LINK_ID` + destinatário controlado | **PASS até o aparelho** — pipeline real usou template próprio, lookup no send-time, provider message id, replay zero e recebimento confirmado pelo operador                                                                                                                                                                                                                    |
 
 #### Ações exclusivamente manuais / decisões do fundador
 
-| Ação | Por que não pode ser automatizada | Estado |
-| --- | --- | --- |
-| Indicar destinatário controlado para os templates Meta já aprovados | O telefone pertence à pessoa real e exige consentimento de cobrança | ✅ **FEITO em 31/08** — variável local presente, em E.164 e com consentimento confirmado pelo fundador; o valor não foi exposto. A conexão ativa do tenant continua sendo gate separado |
-| Rotacionar a chave sandbox do Asaas exposta no chat | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave | ✅ **NÃO EXECUTAR POR DECISÃO DO FUNDADOR (E4)** — risco residual do Sandbox aceito em 03/09; reabrir somente nas condições registradas em P3 |
-| Resolver o PIX da conta Sandbox anterior | A conta antiga exigia ação humana e depois deixou de ser a conta-alvo | **ENCERRADO COMO `NOT COMPLETED`:** o operador confirmou que nada foi estornado, removeu webhook/chaves e não localizou mais a cobrança. Não recuperar nem recolocar essa credencial. Se útil, criar amanhã uma fixture PIX nova na conta atual |
-| Autorizar os estornos das provas PIX na conta Sandbox atual | A confirmação de ação crítica exige interação humana autenticada no painel do titular | **EXECUTADO, MAS O PROVIDER CANCELOU:** na primeira prova, o operador informou o código recebido no celular. Na prova pós-D79, o runner foi pausado antes do único POST com o operador já no painel; depois, o operador confirmou que a interface mostrou sucesso ao aceitar o código Sandbox. Mesmo assim, a API terminou `CANCELLED` e o saldo continuou subindo porque os PIX foram creditados sem refund `DONE`. Readback, replay e cleanup local passaram. Não repetir nem criar fixture antes do diagnóstico D80 |
-| Alinhar o webhook global de assinatura no ambiente correto | O secret efetivo do runtime Preview só pode ser alterado por quem possui acesso ao projeto Vercel | ✅ **FEITO E PROVADO:** chave/token/Preview alinhados; `qoro dev` criado na conta alvo; readback, delete/restore, replay e cleanup passaram |
-| Observar usabilidade por persona na clínica piloto | Julgamento de percepção exige secretária/médico/paciente reais; web, agente e Playwright não podem fabricar experiência vivida | **DEFERRED PARA A ONDA 1, não é ação manual agora nem bloqueio de 1.S.** O aceite técnico-normativo e sua prova pós-deploy foram executados pelo agente |
-| Rotacionar novamente a senha do banco de produção e atualizar todos os consumidores | A credencial usada na migration foi rotacionada corretamente, mas a sucessora foi publicada no chat antes da verificação; continuar com ela seria risco crítico | ✅ **CONFIRMADO PELO FUNDADOR**; a credencial exposta não foi usada, o DPAPI foi removido sem leitura e o env atualizado foi usado somente em transação read-only |
-| Verificação read-only de `0091` + `0092` em produção | Era necessário provar o estado posterior sem inferi-lo do `DONE` | ✅ **7/7** — versions/journal, enums, tabelas/colunas, FORCE RLS/policies, grants, índices/constraints e advisory lock liberado |
+| Ação                                                                                | Por que não pode ser automatizada                                                                                                                               | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Indicar destinatário controlado para os templates Meta já aprovados                 | O telefone pertence à pessoa real e exige consentimento de cobrança                                                                                             | ✅ **FEITO em 31/08** — variável local presente, em E.164 e com consentimento confirmado pelo fundador; o valor não foi exposto. A conexão ativa do tenant continua sendo gate separado                                                                                                                                                                                                                                                                                                                                |
+| Rotacionar a chave sandbox do Asaas exposta no chat                                 | Revogação exige autoridade da conta; o código não deve escolher ou exibir a nova chave                                                                          | ✅ **NÃO EXECUTAR POR DECISÃO DO FUNDADOR (E4)** — risco residual do Sandbox aceito em 03/09; reabrir somente nas condições registradas em P3                                                                                                                                                                                                                                                                                                                                                                          |
+| Resolver o PIX da conta Sandbox anterior                                            | A conta antiga exigia ação humana e depois deixou de ser a conta-alvo                                                                                           | **ENCERRADO COMO `NOT COMPLETED`:** o operador confirmou que nada foi estornado, removeu webhook/chaves e não localizou mais a cobrança. Não recuperar nem recolocar essa credencial. Se útil, criar amanhã uma fixture PIX nova na conta atual                                                                                                                                                                                                                                                                        |
+| Autorizar os estornos das provas PIX na conta Sandbox atual                         | A confirmação de ação crítica exige interação humana autenticada no painel do titular                                                                           | **EXECUTADO, MAS O PROVIDER CANCELOU:** na primeira prova, o operador informou o código recebido no celular. Na prova pós-D79, o runner foi pausado antes do único POST com o operador já no painel; depois, o operador confirmou que a interface mostrou sucesso ao aceitar o código Sandbox. Mesmo assim, a API terminou `CANCELLED` e o saldo continuou subindo porque os PIX foram creditados sem refund `DONE`. Readback, replay e cleanup local passaram. Não repetir nem criar fixture antes do diagnóstico D80 |
+| Alinhar o webhook global de assinatura no ambiente correto                          | O secret efetivo do runtime Preview só pode ser alterado por quem possui acesso ao projeto Vercel                                                               | ✅ **FEITO E PROVADO:** chave/token/Preview alinhados; `qoro dev` criado na conta alvo; readback, delete/restore, replay e cleanup passaram                                                                                                                                                                                                                                                                                                                                                                            |
+| Observar usabilidade por persona na clínica piloto                                  | Julgamento de percepção exige secretária/médico/paciente reais; web, agente e Playwright não podem fabricar experiência vivida                                  | **DEFERRED PARA A ONDA 1, não é ação manual agora nem bloqueio de 1.S.** O aceite técnico-normativo e sua prova pós-deploy foram executados pelo agente                                                                                                                                                                                                                                                                                                                                                                |
+| Rotacionar novamente a senha do banco de produção e atualizar todos os consumidores | A credencial usada na migration foi rotacionada corretamente, mas a sucessora foi publicada no chat antes da verificação; continuar com ela seria risco crítico | ✅ **CONFIRMADO PELO FUNDADOR**; a credencial exposta não foi usada, o DPAPI foi removido sem leitura e o env atualizado foi usado somente em transação read-only                                                                                                                                                                                                                                                                                                                                                      |
+| Verificação read-only de `0091` + `0092` em produção                                | Era necessário provar o estado posterior sem inferi-lo do `DONE`                                                                                                | ✅ **7/7** — versions/journal, enums, tabelas/colunas, FORCE RLS/policies, grants, índices/constraints e advisory lock liberado                                                                                                                                                                                                                                                                                                                                                                                        |
 
 **Evidência atual válida:** `payments:live-check` real contra Sandbox; identidade sanitizada por
 `GET /myAccount`; contrato do webhook tenant e probes do Preview; consultas tenant-scoped da Clínica A.
@@ -874,57 +904,57 @@ global da conta alvo.
 
 ### Discoveries que ainda governam decisões
 
-| # | Assunto | Estado |
-| --- | --- | --- |
-| D2 | `arch:check` roda sem `--ts-config` (enxerga menos arestas que o real) | aberto — `arch:graphs` cobre com tsConfig |
-| D9 | `format:check` vermelho na baseline (128 arquivos) | **resolvido em 08/09** — 70 JSON de evidência gerada ignorados, 58 alvos executáveis/testes normalizados e gate global verde |
-| D13 | RLS cross-tenant de `clinic_payment_accounts` sem teste (exige banco) | **resolvido no 1.H** — `pnpm smoke:payments-rls` ✅ 5/5 no banco DEV, fixtures removidas e resíduo 0 |
-| D19 | Bloqueio da 1.5b | **encaminhado** → ADR-051 |
-| D24 | Estorno só funciona para PIX/cartão; boleto não compensa dentro do hold de 24h | **resolvido em código/DEV/PROD e provado externamente em 30/08** — Checkout restringe os métodos, e a falta de idempotência do provider é contida por intenção/lease local antes do POST. Migration 0091, smoke DEV 5/5 e pós-verificação PROD 7/7 verdes; pagamentos reais PIX/cartão correlacionados. Cartão terminou `REFUNDED`; o PIX da conta antiga não foi estornado e foi encerrado como `NOT COMPLETED`, sem reintroduzir a credencial |
-| D23 | Reagendamento devolve o sinal (não transfere) — brecha: remarcar em cima da hora escapa da taxa | encaminhado — decisão de produto/ADR próprio em 2.x; hoje estornar+recobrar evita duplicidade |
-| D27 | `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` sem tratamento | **resolvido em código/banco e provado provider → webhook tenant → Payments → Financial em 02/09** — a fixture D62 terminou `REFUNDED/DONE` e `refunded/lost`; `requested`, `in_dispute`, `lost` foram processados uma vez. O ledger ganhou uma única compensação ligada à baixa e uma `chargeback_loss`, o saldo foi reaberto, o atendimento permaneceu `atendido` e o replay processou zero. Cleanup autorizado removeu 16 linhas sintéticas sem mutar o provider e deixou zero resíduo da fixture |
-| D29 | Ninguém tem autoridade declarada sobre valor/vencimento de cobrança de assinatura | backlog — [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8). **Não implementar sync de `amount`/`dueDate` sem decidir A ou B: fazer isso é escolher B por omissão** |
-| D30 | Config do webhook de assinatura só existia no painel | mitigado — [runbook](runbooks/asaas-webhook-assinatura.md) é a cópia versionada |
-| D31 | Mapa `job type → suppression purpose` estava duplicado | **resolvido** — `suppressionPurposeFor` é fonte única. `deposit_link` → `reminder`. **Não duplicar de novo** |
-| D32 | **Regra de processo:** sub-fase verde não prova jornada verde | vigente — ver abaixo |
-| D33 | `appointment-completed.ts` (cria TODO recebível do Caixa) não tinha nenhum teste | **resolvido no 1.H** — além dos 13 testes originais, a varredura confirmou teste direto em todos os 13 handlers de Payments/Financial/Scheduling/Billing; os 5 gaps receberam 16 testes focados |
-| D34 | ADR-051 D6 mandava o Payments calcular o saldo; pagamento em dinheiro na recepção não apareceria | **resolvido** — saldo vem do `financial`; sub-fase dividida em 3a/3b para caber no §0.6 |
-| D35 | O link do **restante** era criado e não entregue; a copy do sinal não serve depois do atendimento | **resolvido integralmente em 02/09 (1.6c)** — `remainder_link` usou fila C14, lookup no send-time e template próprio; Meta retornou `accepted`/message id, replay zero e o operador confirmou a chegada ao aparelho (E5) |
-| D36 | Webhook sandbox de assinatura precisa entregar `PAYMENT_RESTORED` no ambiente controlado | **resolvido externamente em 02/09** — `qoro dev` foi criado na conta alvo com sete eventos e `NON_SEQUENTIALLY`; delete/restore real fez a mesma invoice `open → cancelled → open`, com replay e cleanup verdes (D66) |
-| D37 | Bypass da proteção do Preview | **resolvido na borda** — probe real: sem bypass, `302 /sso-api`; com bypass, `405` da rota do Qoro (o teste usou `GET` de propósito em endpoint somente `POST`). Isso não prova que a variável recém-adicionada já esteja disponível ao processo do deploy atual |
-| D38 | Evento penalizado veio da conta sandbox de clínica | **bloqueante externo** — `ASAAS_CLINIC_SANDBOX_KEY` encontra o webhook; ele não prova assinatura e não pode usar a rota global |
-| D39 | Reativação via API não corrige causa-raiz | **vigente** — `PUT interrupted=false` funciona, mas a fila voltou a interromper no retry; corrigir rota/token antes de reativar novamente |
-| D40 | Preview está atrás do código local | **resolvido** — remoto `b0074e3` contém `/configuracoes/pagamentos` e `/api/webhooks/asaas/patient/<ref>`; a UI já persistiu a conta da Clínica A |
-| D41 | Auto-registro de paciente não carregava bypass | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. O erro posterior já alcançava a API do Asaas e tinha outra causa, fechada em **D44** |
-| D49 | Restante pago virava crédito, mas não baixava o recebível já existente | **resolvido no 1.H** — aplicação atômica limitada ao saldo atualiza `valor_pago`, ledger e evento; unitários e E2E banco+worker 7/7 verdes |
-| D50 | Baixa manual pode tornar um link do restante maior que o saldo atual | **resolvido em código/banco; prova externa chegou ao provider** — pagamento/webhook reais, R$ 10 alocados e um único estorno parcial de R$ 10 solicitado com baseline zero. O saldo Sandbox já está suficiente, mas o refund continua `PENDING`; a hipótese de “Ações críticas” foi retirada. Solicitar diagnóstico ao suporte e depois observar confirmação → ledger → replay → cleanup, sem repetir POST |
-| D51 | Atendimento totalmente coberto por créditos falhava ao criar o recebível `pago` sem `paid_at` | **resolvido no 1.H** — handler grava `paid_at` atomicamente quando o status inicial é `pago`; unitário 13/13 e simulação real de 30 dias verdes |
-| D52 | ADR-051 §5 exige tratar crédito `available` órfão; a simulação terminou sem órfãos, mas não provava estados envelhecidos fora do cenário modelado | **resolvido como detector em `ca94839`** — `financial-reconcile` observa 30d + consulta vencida, agrega terminal/agenda ativa/vínculo ausente e alerta sem mover dinheiro. Route 3/3 + jornada DEV 13/13; operação no runbook |
-| D53 | Snapshot de falha do Playwright podia reter a senha digitada porque o formulário mantinha o campo preenchido durante/depois da tentativa de login | **corrigido em código; proteção verificada** — artefatos locais e auth storage foram eliminados; o formulário limpa a senha no tick seguinte à captura e após erro. A credencial atual foi aceita pelo Supabase sem ser impressa. As novas execuções permaneceram sem artefatos autenticados retidos |
-| D54 | `PAYMENT_RESTORED` não reabria a invoice apesar do runbook exigir isso | **resolvido em código e provado no Sandbox alvo** — a máquina genérica mantém `cancelled` terminal; o sincronizador reabre somente quando `getPayment` confirma a mesma cobrança viva/pagável, por CAS, timeline e métrica. A prova real reabriu a mesma invoice e o replay não duplicou |
-| D55 | Webhook global ignorava o contrato real `GET 200 + deleted:true` já descoberto no D20 | **resolvido em código e provado no Sandbox alvo** — pagamento deletado não é materializado nem guiado pelo status antigo; a rota localizou a invoice, aplicou `{ exists:false }`, recebeu restore e concluiu o round-trip real com cleanup |
-| D56 | Os specs read-only tratavam `/configuracoes` como tela e esperavam “Sugestões” na primeira categoria, mas a rota é um redirect e o link pertence à categoria Produto | **resolvido nos contratos E2E em 28/08** — o inventário usa `/configuracoes/agenda`; a jornada aceita o heading da primeira categoria, entra explicitamente em Produto e só então abre Sugestões. Preview read-only 8/8 com sessão única e regressão local 2.717/2.717; nenhuma mudança de produto |
-| D57 | Checkout Asaas restringe PIX/cartão, mas não preserva a idempotência atual de criação | **resolvido em código/DEV/PROD e provado externamente em 30/08.** Intenção + lease local antecedem o POST, timeout não repete criação e `checkoutSession` correlaciona o payment autoritativo no webhook. O runner correlacionou pagamentos reais PIX/cartão após o único passo humano do reCAPTCHA e agora exige readback terminal do cleanup |
-| D58 | Checkout expira em no máximo 24h, mas o restante atual promete 7 dias | **resolvido em código/DEV/PROD em 29/08.** Gerações idempotentes de até 24h preservam 7 dias sobre a mesma `patient_charge`; somente a atual fornece link e a renovação publica `link_ready` controlado. Unit, migration 0091 DEV+PROD, smoke 5/5 e pós-verificação 7/7 verdes |
-| D59 | Rotação da senha de produção deixou Functions antigas autenticando com a credencial revogada | **recuperado em 29/08** — Sentry registrou falhas nos quatro crons às 11:30–11:31 BRT; após atualizar o env e redeployar, health estrito respondeu 200/tudo `ok` e heartbeats read-only provaram `success` dos quatro jobs às 11:45–11:46. Não foi falha das queries nem dos smokes locais |
-| D60 | Preview registrou `Rendered more hooks than during the previous render` ao navegar pelo redirect de `/configuracoes`, com recorrência reportada em 04/09 | **resolvido, publicado e revalidado** — nenhum hook condicional foi encontrado e o stack `Router/useMemo` coincide com o bug oficial Next.js #78396 corrigido no upstream pelo React sync #95368. O shell deriva pela permissão e liga diretamente à primeira categoria, sem passar pela página que apenas redireciona. O deployment `42cd114` terminou `success`; Preview 6/6 na navegação e 8/8/72 na matriz visual, sem `pageerror`. Manter observação passiva do Sentry, sem misturar ao Financial |
-| D61 | Candidatos de reminder de SQL cru podiam entregar `scheduled_at` como string PostgreSQL em vez de `Date`, fazendo o job falhar como `invalid_payload` somente no runtime real | **resolvido no P8 em 29/08** — a fronteira `listReminderCandidates` aceita `Date|string`, valida e sempre publica ISO UTC; valor inválido falha alto. Regressão direta 3/3, C14 real 5.000/5.000 no scratch e suíte 2.797/2.797 verdes |
-| D62 | Fixture de chargeback global não provava a jornada tenant | **RESOLVIDO E LIMPO em 02/09, sem mocks** — a cobrança `remainder` tenant-scoped da Clínica A pagou, foi alocada, recebeu chargeback e terminou `REFUNDED/DONE` + `refunded/lost`. Os três fatos monotônicos atravessaram os handlers financeiros reais; a perda reabriu o saldo com ledger append-only, sem alterar o fato clínico. Replay 0/3. O cleanup revalidou a evidência e a conta, removeu 16 linhas da fixture em transação, preservou os eventos de webhook e não chamou o provider |
-| D63 | Checkout hospedado rejeita `customer` de paciente sem endereço completo | **resolvido em 31/08** — probe sandbox isolou o contrato: com customer nome/CPF, HTTP 400 pediu endereço/número/CEP/bairro/cidade; sem `customer`/`customerData`, Checkout `ACTIVE`. Sinal, restante e renovação agora deixam o pagador preencher a página hospedada, preservam o gate local de CPF e não enviam PII no POST. 92 testes focados + suíte 2.812/2.812; [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md) emendada |
-| D64 | Health local da conexão Meta pode usar credenciais de app diferentes das que emitiram o token tenant | **descoberto em 31/08; não bloqueia envio** — `debug_token` local falhou por app mismatch, mas Graph confirmou telefone `CONNECTED` e uma subscribed app; o E2E real recebeu dois `accepted`. Alinhar app id/secret por ambiente para o health não produzir falso negativo, sem trocar o token tenant |
-| D65 | Probe vazio do webhook global provava token, mas não que o runtime Preview consultava a mesma conta Asaas do webhook | **RESOLVIDO em 01/09** — aliases `_DEV` efetivos foram copiados para os nomes canônicos do Preview. O runner atravessou `getPayment`, persistiu a invoice `open` e só então avançou ao DELETE real; provider e DEV foram limpos |
-| D66 | Asaas aceitou DELETE na conta Sandbox anterior, mas não houve `PAYMENT_DELETED` observável | **RESOLVIDO NA CONTA ALVO em 02/09** — a evidência antiga continuou invalidada; o novo runner verificou fingerprint, criou `qoro dev` com contrato exato e recebeu `PAYMENT_DELETED` + `PAYMENT_RESTORED`. A invoice foi cancelada/reaberta, replay não duplicou e a fixture foi removida |
-| D67 | Webhook de paciente existente não convergiu após a ampliação do contrato D27/D50 | **RESOLVIDO em 01/09** — reparação guardada confirmou conta, `webhook_ref`, host/rota e estado; atualizou `Qoro — cobranca de paciente` para os 12 eventos canônicos, `SEQUENTIALLY`, ativo/não interrompido. O recurso global `qoro dev` foi removido naquele momento por autorização, mas a correção posterior da conta global mostrou que ele deverá ser recriado separadamente para Billing |
-| D68 | Estado do webhook foi inferido da identidade da conta e o histórico misturava duas contas | **CORRIGIDO em 02/09** — a auditoria da conta alvo confirmou exatamente um webhook tenant, 12 eventos, `enabled=true`, `interrupted=false`, além da entrega D62. PIX/alertas/401 pertenciam à conta antiga e nunca foram somados ao aceite. O operador confirmou que o PIX antigo não foi estornado e removeu webhook e chaves API dessa conta. Os manifests v2 agora guardam fingerprint não reversível da conta e os runners abortam se a identidade divergir |
-| D69 | O verificador amplo encontrou linhas órfãs de round-trip anteriores | ✅ **RESOLVIDO E LIMPO EM DEV em 03/09** — autorização separada recebida. O dry-run confirmou exatamente 4 `checkout_sessions` + 4 `tenant_provisioning`, ambas sem `clinic_id`, zero clínica ativa e somente a FK esperada. Após backup local ignorado pelo Git, a exclusão ocorreu sob advisory lock e transação; foram removidas exatamente 4 + 4 linhas. O pós-check e o verificador amplo retornaram `historicalRoundtripRows=0` e `billingRoundtripActiveFixtures=0` |
-| D78 | Conta externa recebe `Recurso indisponível` no OAuth do Embedded Signup; o fallback local pressupõe `/me/businesses`, mas a configuração emite token de usuário do sistema | **CÓDIGO CORRIGIDO em 05/09; BLOQUEADO NA META** — menor privilégio: `waba_id` do evento obrigatório, conferido contra a allowlist do próprio token (`debug_token → granular_scopes.target_ids`) e contra `/{waba-id}/phone_numbers`; `/me/businesses` removido e `business_management` **não** exigida no runtime. Telefone nunca é escolhido por posição. Classificação de falha do Graph agora vive dentro do `graphFetch` e vale em **todas** as etapas do connect: negativa documentada preserva a etapa funcional, rate limit vira `provider_rate_limited`, indeterminação em `GET` vira `provider_unavailable` e em `POST`/`DELETE` vira `provider_outcome_unknown` — sem prometer "nada foi alterado" nem repetir mutação às cegas. Embedded Signup é **single-flight** (o `postMessage` não é correlacionável) e o deadlock da fase `closing` foi corrigido: o abandono de 10 min cobre `running` e `closing`, destravando sem substituir o desfecho. Gates locais verdes (199/199 focados · revalidação integrada 323/323 · suíte 2.975/2.975). Falta o externo: Advanced Access de `public_profile` e verificação separada de Verificação da Empresa/Data Use Checkup no painel, mais reteste com conta sem App Role — `NOT TESTED`. Contexto: [handoff D78](handoff-meta-embedded-signup.md) |
-| D42 | Clínica A não possui assinatura provisionada | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos |
-| D43 | Falha do auto-registro virava apenas `webhookConfigured=false` | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado |
-| D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object` | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético |
-| D45 | Reconexão ainda repetia `POST /webhooks` para uma rota já cadastrada | **resolvido em código e provado com `assaasapi`** — reprodução controlada confirmou `HTTP 400 invalid_object` com “já existe uma configuração para os eventos com os mesmos atributos”. O adapter agora lista, identifica a mesma origem+rota sem depender da query de bypass e converge por `PUT`, inclusive sob corrida GET→POST. O live check criou e reconfigurou o mesmo ID sem duplicar |
-| D46 | Token do webhook global diverge entre local e Preview | **resolvido operacionalmente em 31/08** — após alinhar o secret/redeployar, o `POST {}` autenticado atravessou a proteção e devolveu `400` de payload, não `401`. Readback Asaas: ativo, não interrompido, sete eventos, `NON_SEQUENTIALLY` e alias Preview. A prova de restore permanece D36 |
-| D47 | `patient_webhook_events` era somente leitura para a role real do webhook | **resolvido e provado no Preview** — a `0086` dizia “service_role-only”, mas `markDepositPaid()` usa `withTenant`, que faz `SET LOCAL ROLE authenticated`. A `0089` adicionou somente `INSERT` + policy tenant-scoped e manteve `UPDATE`/`DELETE` revogados. Validação conectada com rollback passou; deploy `ed83c90` passou; E2E controlado devolveu `unknown_charge` e replay `ignored`, com dedup exatamente 1 e limpeza 0 resíduos. No E2E real, `PAYMENT_RECEIVED` gravou dedup e moveu a cobrança para `paid` sem erro de permissão |
-| D48 | Webhook habilitado continuava sem entregar após os 401/500 anteriores | **resolvido operacionalmente no sandbox e causa comprovada** — `enabled=true` e `interrupted=false` não removem a penalização de entrega. `POST /webhooks/{id}/removeBackoff` devolveu 204; em seguida o Asaas entregou os eventos pendentes e a cobrança criada pelo Qoro foi conciliada. O webhook permanece apontando para o Preview, com bypass, token próprio e `PAYMENT_RECEIVED` habilitado |
+| #   | Assunto                                                                                                                                                                       | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D2  | `arch:check` roda sem `--ts-config` (enxerga menos arestas que o real)                                                                                                        | aberto — `arch:graphs` cobre com tsConfig                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| D9  | `format:check` vermelho na baseline (128 arquivos)                                                                                                                            | **resolvido em 08/09** — 70 JSON de evidência gerada ignorados, 58 alvos executáveis/testes normalizados e gate global verde                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| D13 | RLS cross-tenant de `clinic_payment_accounts` sem teste (exige banco)                                                                                                         | **resolvido no 1.H** — `pnpm smoke:payments-rls` ✅ 5/5 no banco DEV, fixtures removidas e resíduo 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D19 | Bloqueio da 1.5b                                                                                                                                                              | **encaminhado** → ADR-051                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| D24 | Estorno só funciona para PIX/cartão; boleto não compensa dentro do hold de 24h                                                                                                | **resolvido em código/DEV/PROD e provado externamente em 30/08** — Checkout restringe os métodos, e a falta de idempotência do provider é contida por intenção/lease local antes do POST. Migration 0091, smoke DEV 5/5 e pós-verificação PROD 7/7 verdes; pagamentos reais PIX/cartão correlacionados. Cartão terminou `REFUNDED`; o PIX da conta antiga não foi estornado e foi encerrado como `NOT COMPLETED`, sem reintroduzir a credencial                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D23 | Reagendamento devolve o sinal (não transfere) — brecha: remarcar em cima da hora escapa da taxa                                                                               | encaminhado — decisão de produto/ADR próprio em 2.x; hoje estornar+recobrar evita duplicidade                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D27 | `PAYMENT_CHARGEBACK_REQUESTED` e `PAYMENT_RECEIVED_IN_CASH_UNDONE` sem tratamento                                                                                             | **resolvido em código/banco e provado provider → webhook tenant → Payments → Financial em 02/09** — a fixture D62 terminou `REFUNDED/DONE` e `refunded/lost`; `requested`, `in_dispute`, `lost` foram processados uma vez. O ledger ganhou uma única compensação ligada à baixa e uma `chargeback_loss`, o saldo foi reaberto, o atendimento permaneceu `atendido` e o replay processou zero. Cleanup autorizado removeu 16 linhas sintéticas sem mutar o provider e deixou zero resíduo da fixture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| D29 | Ninguém tem autoridade declarada sobre valor/vencimento de cobrança de assinatura                                                                                             | backlog — [issue #8](https://github.com/joaomarcos-techia/Project_OS/issues/8). **Não implementar sync de `amount`/`dueDate` sem decidir A ou B: fazer isso é escolher B por omissão**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| D30 | Config do webhook de assinatura só existia no painel                                                                                                                          | mitigado — [runbook](runbooks/asaas-webhook-assinatura.md) é a cópia versionada                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D31 | Mapa `job type → suppression purpose` estava duplicado                                                                                                                        | **resolvido** — `suppressionPurposeFor` é fonte única. `deposit_link` → `reminder`. **Não duplicar de novo**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| D32 | **Regra de processo:** sub-fase verde não prova jornada verde                                                                                                                 | vigente — ver abaixo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D33 | `appointment-completed.ts` (cria TODO recebível do Caixa) não tinha nenhum teste                                                                                              | **resolvido no 1.H** — além dos 13 testes originais, a varredura confirmou teste direto em todos os 13 handlers de Payments/Financial/Scheduling/Billing; os 5 gaps receberam 16 testes focados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D34 | ADR-051 D6 mandava o Payments calcular o saldo; pagamento em dinheiro na recepção não apareceria                                                                              | **resolvido** — saldo vem do `financial`; sub-fase dividida em 3a/3b para caber no §0.6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| D35 | O link do **restante** era criado e não entregue; a copy do sinal não serve depois do atendimento                                                                             | **resolvido integralmente em 02/09 (1.6c)** — `remainder_link` usou fila C14, lookup no send-time e template próprio; Meta retornou `accepted`/message id, replay zero e o operador confirmou a chegada ao aparelho (E5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| D36 | Webhook sandbox de assinatura precisa entregar `PAYMENT_RESTORED` no ambiente controlado                                                                                      | **resolvido externamente em 02/09** — `qoro dev` foi criado na conta alvo com sete eventos e `NON_SEQUENTIALLY`; delete/restore real fez a mesma invoice `open → cancelled → open`, com replay e cleanup verdes (D66)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| D37 | Bypass da proteção do Preview                                                                                                                                                 | **resolvido na borda** — probe real: sem bypass, `302 /sso-api`; com bypass, `405` da rota do Qoro (o teste usou `GET` de propósito em endpoint somente `POST`). Isso não prova que a variável recém-adicionada já esteja disponível ao processo do deploy atual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| D38 | Evento penalizado veio da conta sandbox de clínica                                                                                                                            | **bloqueante externo** — `ASAAS_CLINIC_SANDBOX_KEY` encontra o webhook; ele não prova assinatura e não pode usar a rota global                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| D39 | Reativação via API não corrige causa-raiz                                                                                                                                     | **vigente** — `PUT interrupted=false` funciona, mas a fila voltou a interromper no retry; corrigir rota/token antes de reativar novamente                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| D40 | Preview está atrás do código local                                                                                                                                            | **resolvido** — remoto `b0074e3` contém `/configuracoes/pagamentos` e `/api/webhooks/asaas/patient/<ref>`; a UI já persistiu a conta da Clínica A                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D41 | Auto-registro de paciente não carregava bypass                                                                                                                                | **resolvido em código** — Preview anexa o segredo server-to-server; ausência falha antes do POST; Production nunca recebe o query param. O erro posterior já alcançava a API do Asaas e tinha outra causa, fechada em **D44**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D49 | Restante pago virava crédito, mas não baixava o recebível já existente                                                                                                        | **resolvido no 1.H** — aplicação atômica limitada ao saldo atualiza `valor_pago`, ledger e evento; unitários e E2E banco+worker 7/7 verdes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D50 | Baixa manual pode tornar um link do restante maior que o saldo atual                                                                                                          | **resolvido em código/banco; prova externa chegou ao provider** — pagamento/webhook reais, R$ 10 alocados e um único estorno parcial de R$ 10 solicitado com baseline zero. O saldo Sandbox já está suficiente, mas o refund continua `PENDING`; a hipótese de “Ações críticas” foi retirada. Solicitar diagnóstico ao suporte e depois observar confirmação → ledger → replay → cleanup, sem repetir POST                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D51 | Atendimento totalmente coberto por créditos falhava ao criar o recebível `pago` sem `paid_at`                                                                                 | **resolvido no 1.H** — handler grava `paid_at` atomicamente quando o status inicial é `pago`; unitário 13/13 e simulação real de 30 dias verdes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D52 | ADR-051 §5 exige tratar crédito `available` órfão; a simulação terminou sem órfãos, mas não provava estados envelhecidos fora do cenário modelado                             | **resolvido como detector em `ca94839`** — `financial-reconcile` observa 30d + consulta vencida, agrega terminal/agenda ativa/vínculo ausente e alerta sem mover dinheiro. Route 3/3 + jornada DEV 13/13; operação no runbook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D53 | Snapshot de falha do Playwright podia reter a senha digitada porque o formulário mantinha o campo preenchido durante/depois da tentativa de login                             | **corrigido em código; proteção verificada** — artefatos locais e auth storage foram eliminados; o formulário limpa a senha no tick seguinte à captura e após erro. A credencial atual foi aceita pelo Supabase sem ser impressa. As novas execuções permaneceram sem artefatos autenticados retidos                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| D54 | `PAYMENT_RESTORED` não reabria a invoice apesar do runbook exigir isso                                                                                                        | **resolvido em código e provado no Sandbox alvo** — a máquina genérica mantém `cancelled` terminal; o sincronizador reabre somente quando `getPayment` confirma a mesma cobrança viva/pagável, por CAS, timeline e métrica. A prova real reabriu a mesma invoice e o replay não duplicou                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| D55 | Webhook global ignorava o contrato real `GET 200 + deleted:true` já descoberto no D20                                                                                         | **resolvido em código e provado no Sandbox alvo** — pagamento deletado não é materializado nem guiado pelo status antigo; a rota localizou a invoice, aplicou `{ exists:false }`, recebeu restore e concluiu o round-trip real com cleanup                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D56 | Os specs read-only tratavam `/configuracoes` como tela e esperavam “Sugestões” na primeira categoria, mas a rota é um redirect e o link pertence à categoria Produto          | **resolvido nos contratos E2E em 28/08** — o inventário usa `/configuracoes/agenda`; a jornada aceita o heading da primeira categoria, entra explicitamente em Produto e só então abre Sugestões. Preview read-only 8/8 com sessão única e regressão local 2.717/2.717; nenhuma mudança de produto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D57 | Checkout Asaas restringe PIX/cartão, mas não preserva a idempotência atual de criação                                                                                         | **resolvido em código/DEV/PROD e provado externamente em 30/08.** Intenção + lease local antecedem o POST, timeout não repete criação e `checkoutSession` correlaciona o payment autoritativo no webhook. O runner correlacionou pagamentos reais PIX/cartão após o único passo humano do reCAPTCHA e agora exige readback terminal do cleanup                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| D58 | Checkout expira em no máximo 24h, mas o restante atual promete 7 dias                                                                                                         | **resolvido em código/DEV/PROD em 29/08.** Gerações idempotentes de até 24h preservam 7 dias sobre a mesma `patient_charge`; somente a atual fornece link e a renovação publica `link_ready` controlado. Unit, migration 0091 DEV+PROD, smoke 5/5 e pós-verificação 7/7 verdes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| D59 | Rotação da senha de produção deixou Functions antigas autenticando com a credencial revogada                                                                                  | **recuperado em 29/08** — Sentry registrou falhas nos quatro crons às 11:30–11:31 BRT; após atualizar o env e redeployar, health estrito respondeu 200/tudo `ok` e heartbeats read-only provaram `success` dos quatro jobs às 11:45–11:46. Não foi falha das queries nem dos smokes locais                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D60 | Preview registrou `Rendered more hooks than during the previous render` ao navegar pelo redirect de `/configuracoes`, com recorrência reportada em 04/09                      | **resolvido, publicado e revalidado** — nenhum hook condicional foi encontrado e o stack `Router/useMemo` coincide com o bug oficial Next.js #78396 corrigido no upstream pelo React sync #95368. O shell deriva pela permissão e liga diretamente à primeira categoria, sem passar pela página que apenas redireciona. O deployment `42cd114` terminou `success`; Preview 6/6 na navegação e 8/8/72 na matriz visual, sem `pageerror`. Manter observação passiva do Sentry, sem misturar ao Financial                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| D61 | Candidatos de reminder de SQL cru podiam entregar `scheduled_at` como string PostgreSQL em vez de `Date`, fazendo o job falhar como `invalid_payload` somente no runtime real | **resolvido no P8 em 29/08** — a fronteira `listReminderCandidates` aceita `Date                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | string`, valida e sempre publica ISO UTC; valor inválido falha alto. Regressão direta 3/3, C14 real 5.000/5.000 no scratch e suíte 2.797/2.797 verdes |
+| D62 | Fixture de chargeback global não provava a jornada tenant                                                                                                                     | **RESOLVIDO E LIMPO em 02/09, sem mocks** — a cobrança `remainder` tenant-scoped da Clínica A pagou, foi alocada, recebeu chargeback e terminou `REFUNDED/DONE` + `refunded/lost`. Os três fatos monotônicos atravessaram os handlers financeiros reais; a perda reabriu o saldo com ledger append-only, sem alterar o fato clínico. Replay 0/3. O cleanup revalidou a evidência e a conta, removeu 16 linhas da fixture em transação, preservou os eventos de webhook e não chamou o provider                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| D63 | Checkout hospedado rejeita `customer` de paciente sem endereço completo                                                                                                       | **resolvido em 31/08** — probe sandbox isolou o contrato: com customer nome/CPF, HTTP 400 pediu endereço/número/CEP/bairro/cidade; sem `customer`/`customerData`, Checkout `ACTIVE`. Sinal, restante e renovação agora deixam o pagador preencher a página hospedada, preservam o gate local de CPF e não enviam PII no POST. 92 testes focados + suíte 2.812/2.812; [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md) emendada                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| D64 | Health local da conexão Meta pode usar credenciais de app diferentes das que emitiram o token tenant                                                                          | **descoberto em 31/08; não bloqueia envio** — `debug_token` local falhou por app mismatch, mas Graph confirmou telefone `CONNECTED` e uma subscribed app; o E2E real recebeu dois `accepted`. Alinhar app id/secret por ambiente para o health não produzir falso negativo, sem trocar o token tenant                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| D65 | Probe vazio do webhook global provava token, mas não que o runtime Preview consultava a mesma conta Asaas do webhook                                                          | **RESOLVIDO em 01/09** — aliases `_DEV` efetivos foram copiados para os nomes canônicos do Preview. O runner atravessou `getPayment`, persistiu a invoice `open` e só então avançou ao DELETE real; provider e DEV foram limpos                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D66 | Asaas aceitou DELETE na conta Sandbox anterior, mas não houve `PAYMENT_DELETED` observável                                                                                    | **RESOLVIDO NA CONTA ALVO em 02/09** — a evidência antiga continuou invalidada; o novo runner verificou fingerprint, criou `qoro dev` com contrato exato e recebeu `PAYMENT_DELETED` + `PAYMENT_RESTORED`. A invoice foi cancelada/reaberta, replay não duplicou e a fixture foi removida                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| D67 | Webhook de paciente existente não convergiu após a ampliação do contrato D27/D50                                                                                              | **RESOLVIDO em 01/09** — reparação guardada confirmou conta, `webhook_ref`, host/rota e estado; atualizou `Qoro — cobranca de paciente` para os 12 eventos canônicos, `SEQUENTIALLY`, ativo/não interrompido. O recurso global `qoro dev` foi removido naquele momento por autorização, mas a correção posterior da conta global mostrou que ele deverá ser recriado separadamente para Billing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D68 | Estado do webhook foi inferido da identidade da conta e o histórico misturava duas contas                                                                                     | **CORRIGIDO em 02/09** — a auditoria da conta alvo confirmou exatamente um webhook tenant, 12 eventos, `enabled=true`, `interrupted=false`, além da entrega D62. PIX/alertas/401 pertenciam à conta antiga e nunca foram somados ao aceite. O operador confirmou que o PIX antigo não foi estornado e removeu webhook e chaves API dessa conta. Os manifests v2 agora guardam fingerprint não reversível da conta e os runners abortam se a identidade divergir                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| D69 | O verificador amplo encontrou linhas órfãs de round-trip anteriores                                                                                                           | ✅ **RESOLVIDO E LIMPO EM DEV em 03/09** — autorização separada recebida. O dry-run confirmou exatamente 4 `checkout_sessions` + 4 `tenant_provisioning`, ambas sem `clinic_id`, zero clínica ativa e somente a FK esperada. Após backup local ignorado pelo Git, a exclusão ocorreu sob advisory lock e transação; foram removidas exatamente 4 + 4 linhas. O pós-check e o verificador amplo retornaram `historicalRoundtripRows=0` e `billingRoundtripActiveFixtures=0`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D78 | Conta externa recebe `Recurso indisponível` no OAuth do Embedded Signup; o fallback local pressupõe `/me/businesses`, mas a configuração emite token de usuário do sistema    | **CÓDIGO CORRIGIDO em 05/09; BLOQUEADO NA META** — menor privilégio: `waba_id` do evento obrigatório, conferido contra a allowlist do próprio token (`debug_token → granular_scopes.target_ids`) e contra `/{waba-id}/phone_numbers`; `/me/businesses` removido e `business_management` **não** exigida no runtime. Telefone nunca é escolhido por posição. Classificação de falha do Graph agora vive dentro do `graphFetch` e vale em **todas** as etapas do connect: negativa documentada preserva a etapa funcional, rate limit vira `provider_rate_limited`, indeterminação em `GET` vira `provider_unavailable` e em `POST`/`DELETE` vira `provider_outcome_unknown` — sem prometer "nada foi alterado" nem repetir mutação às cegas. Embedded Signup é **single-flight** (o `postMessage` não é correlacionável) e o deadlock da fase `closing` foi corrigido: o abandono de 10 min cobre `running` e `closing`, destravando sem substituir o desfecho. Gates locais verdes (199/199 focados · revalidação integrada 323/323 · suíte 2.975/2.975). Falta o externo: Advanced Access de `public_profile` e verificação separada de Verificação da Empresa/Data Use Checkup no painel, mais reteste com conta sem App Role — `NOT TESTED`. Contexto: [handoff D78](handoff-meta-embedded-signup.md) |
+| D42 | Clínica A não possui assinatura provisionada                                                                                                                                  | **confirmado em dev** — não há linha em `billing_customers` nem em `subscriptions`. Conectar a conta Asaas que recebe pagamentos de pacientes não provisiona a assinatura que a clínica paga ao Qoro; são contextos e donos do dinheiro distintos                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D43 | Falha do auto-registro virava apenas `webhookConfigured=false`                                                                                                                | **resolvido em código** — a nova tentativa devolve etapa, motivo e código seguros para a tela e para `payments.webhook.configure_failed`: configuração do Qoro, conta Asaas, banco/cripto, comunicação ou `POST /webhooks` recusado com HTTP/códigos sanitizados. Reenviar a mesma chave já configurada não cria webhook duplicado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D44 | `POST /webhooks` devolvia `HTTP 400 invalid_object`                                                                                                                           | **resolvido em código e provado no sandbox** — o adapter omitia `apiVersion`, campo obrigatório do contrato v3 atual. O payload agora envia `apiVersion: 3`; teste de contrato cobre o JSON completo e `pnpm payments:live-check` aceitou e removeu o webhook sintético                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| D45 | Reconexão ainda repetia `POST /webhooks` para uma rota já cadastrada                                                                                                          | **resolvido em código e provado com `assaasapi`** — reprodução controlada confirmou `HTTP 400 invalid_object` com “já existe uma configuração para os eventos com os mesmos atributos”. O adapter agora lista, identifica a mesma origem+rota sem depender da query de bypass e converge por `PUT`, inclusive sob corrida GET→POST. O live check criou e reconfigurou o mesmo ID sem duplicar                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D46 | Token do webhook global diverge entre local e Preview                                                                                                                         | **resolvido operacionalmente em 31/08** — após alinhar o secret/redeployar, o `POST {}` autenticado atravessou a proteção e devolveu `400` de payload, não `401`. Readback Asaas: ativo, não interrompido, sete eventos, `NON_SEQUENTIALLY` e alias Preview. A prova de restore permanece D36                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D47 | `patient_webhook_events` era somente leitura para a role real do webhook                                                                                                      | **resolvido e provado no Preview** — a `0086` dizia “service_role-only”, mas `markDepositPaid()` usa `withTenant`, que faz `SET LOCAL ROLE authenticated`. A `0089` adicionou somente `INSERT` + policy tenant-scoped e manteve `UPDATE`/`DELETE` revogados. Validação conectada com rollback passou; deploy `ed83c90` passou; E2E controlado devolveu `unknown_charge` e replay `ignored`, com dedup exatamente 1 e limpeza 0 resíduos. No E2E real, `PAYMENT_RECEIVED` gravou dedup e moveu a cobrança para `paid` sem erro de permissão                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D48 | Webhook habilitado continuava sem entregar após os 401/500 anteriores                                                                                                         | **resolvido operacionalmente no sandbox e causa comprovada** — `enabled=true` e `interrupted=false` não removem a penalização de entrega. `POST /webhooks/{id}/removeBackoff` devolveu 204; em seguida o Asaas entregou os eventos pendentes e a cobrança criada pelo Qoro foi conciliada. O webhook permanece apontando para o Preview, com bypass, token próprio e `PAYMENT_RECEIVED` habilitado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### D32 — jornada, não componente
 
@@ -936,7 +966,7 @@ entregava o link ao paciente. Daqui para frente, ao fechar qualquer trecho da Ca
 agenda → política → charge → link_ready → fila → WhatsApp → paciente → pagamento → webhook → confirmação
 ```
 
-Ramos de aceite, **em código**: **A (falta)** ✅ · **B (comparecimento)** ✅ *desde a 1.5b* ·
+Ramos de aceite, **em código**: **A (falta)** ✅ · **B (comparecimento)** ✅ _desde a 1.5b_ ·
 **C (cancelamento)** ✅
 
 A jornada do ramo B, agora completa:
@@ -980,16 +1010,16 @@ provar que a Camada 1 aguenta o mundo real.
 
 Cenários a executar e **registrar aqui com o resultado real**:
 
-| Grupo | Cenários |
-| --- | --- |
-| Concorrência | ✅ dois workers/cron concorrente · ✅ duplo webhook/pagamento · ✅ grant/alocação/liberação concorrentes · ✅ pagamento no instante em que o hold expira |
-| Idempotência | ✅ webhook duplicado/replay · ✅ refund/close duplicado · ✅ lease/retry/link obsoleto em unit/integration · ✅ POST indeterminado contido com provedor local + banco · ✅ retry pós-timeout no E2E banco |
-| Crédito (novo, 1.5b) | ✅ crédito duplicado · ✅ alocado duas vezes · ✅ liberado após alocação bloqueado · ✅ restante pago alocado (D49) · ✅ restante criado duas vezes no banco real |
-| Multi-tenant | ✅ `clinic_payment_accounts` 5/5 · ✅ `patient_credits` no smoke 10/10 · ✅ `ref` forjada/token inválido em contrato · ✅ conciliação A→cobrança B no banco real |
-| Ciclo de vida | ✅ cobrança paga/cancelada antes do send-time · ✅ job obsoleto · ✅ reagendamento/recovery · ✅ pagamento tardio; unit/integration + jornada DB |
-| Externo | ✅ Asaas fora em contrato · ✅ Meta fora/retry em worker · ✅ banco lento controlado · ✅ troca/reenvio de credencial em contrato |
-| Cobertura | **D33 ✅** — 13/13 handlers auditados possuem teste direto; 5 gaps receberam 16 testes de projeção financeira, metering e cancelamento por ciclo de vida |
-| Produto | ✅ **E2E controlado dos três ramos + D52 com banco/worker 13/13** · ✅ POST indeterminado contido · ✅ simulação de 30 dias; transporte real Asaas e Meta permanecem evidências externas separadas |
+| Grupo                | Cenários                                                                                                                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Concorrência         | ✅ dois workers/cron concorrente · ✅ duplo webhook/pagamento · ✅ grant/alocação/liberação concorrentes · ✅ pagamento no instante em que o hold expira                                                  |
+| Idempotência         | ✅ webhook duplicado/replay · ✅ refund/close duplicado · ✅ lease/retry/link obsoleto em unit/integration · ✅ POST indeterminado contido com provedor local + banco · ✅ retry pós-timeout no E2E banco |
+| Crédito (novo, 1.5b) | ✅ crédito duplicado · ✅ alocado duas vezes · ✅ liberado após alocação bloqueado · ✅ restante pago alocado (D49) · ✅ restante criado duas vezes no banco real                                         |
+| Multi-tenant         | ✅ `clinic_payment_accounts` 5/5 · ✅ `patient_credits` no smoke 10/10 · ✅ `ref` forjada/token inválido em contrato · ✅ conciliação A→cobrança B no banco real                                          |
+| Ciclo de vida        | ✅ cobrança paga/cancelada antes do send-time · ✅ job obsoleto · ✅ reagendamento/recovery · ✅ pagamento tardio; unit/integration + jornada DB                                                          |
+| Externo              | ✅ Asaas fora em contrato · ✅ Meta fora/retry em worker · ✅ banco lento controlado · ✅ troca/reenvio de credencial em contrato                                                                         |
+| Cobertura            | **D33 ✅** — 13/13 handlers auditados possuem teste direto; 5 gaps receberam 16 testes de projeção financeira, metering e cancelamento por ciclo de vida                                                  |
+| Produto              | ✅ **E2E controlado dos três ramos + D52 com banco/worker 13/13** · ✅ POST indeterminado contido · ✅ simulação de 30 dias; transporte real Asaas e Meta permanecem evidências externas separadas        |
 
 Depois: **1.S**. A implementação da Camada 2 só começa com `1.H ✅ + 1.S ✅`; discovery/ADR
 reversíveis podem antecipar dúvidas regulatórias sem alterar runtime ou contornar gates externos.
@@ -999,10 +1029,13 @@ reversíveis podem antecipar dúvidas regulatórias sem alterar runtime ou conto
 ## 0. Método, restrições e gates
 
 ### 0.1 Ordem inviolável
+
 Entender → projetar (ADR) → **congelar (ADR/Scope Freeze)** → implementar → testar → endurecer (.H) → estabilizar (.S) → observar → liberar. Nunca inverter.
 
 ### 0.2 Portão de aceite padrão — gates de PRIMEIRA CLASSE
+
 Sub-fase só é "verde" com **todos**:
+
 ```
 FUNCIONAL        lint · typecheck · test · build · test:e2e
 ARQUITETURA      arch:check · arch:db-check · check:migrations · check:registry:strict
@@ -1025,6 +1058,7 @@ DOCS VIVAS       ADR + docs + fluxograma + runbook (§17)
 ```
 
 ### 0.3 Definition of Done (global)
+
 ```
 [ ] ADR criado/atualizado (+ ADR freeze)   [ ] Observabilidade (log+métrica+alerta+painel)
 [ ] Impact + Regression Matrix             [ ] Security review
@@ -1038,47 +1072,59 @@ DOCS VIVAS       ADR + docs + fluxograma + runbook (§17)
 ```
 
 ### 0.4 REGRA ABSOLUTA — Impact & Regression Matrix
+
 Toda feature declara **quais domínios podem regredir** + teste específico por domínio. Modelo (sinal): Agenda/Financeiro/Billing/WhatsApp/IA/Relatórios.
 
 ### 0.5 ANTI-ESCOPO — proibido construir
+
 Se não resolve um **gap mapeado**, **não se faz**. Proibido: refatorar sem necessidade direta · trocar arquitetura por preferência · reescrever módulo estável · nova dependência sem justificativa/ADR · abstração para problema inexistente · mexer em fluxo não impactado · mudar naming convention global · mudar design system sem ADR · mover arquivo por estética.
+
 > **Toda linha alterada aponta para um gap. Sem gap → sem mudança.**
 
 ### 0.6 BUDGET DE MUDANÇA (menor PR possível)
+
 Estimar antes: **arquivos · linhas · contexts**. Excedeu **qualquer** limite → **split**:
+
 ```
 > 25 arquivos   ou   > 1500 linhas   ou   > 2 bounded contexts
 ```
 
 ### 0.7 ARQUITETURAS PROTEGIDAS (não remover, não contornar)
-| Mecanismo | Onde vive | Regra |
-|---|---|---|
-| Outbox / Domain Events | `lib/outbox`, `schema/infra/outbox.ts` | cross-context via evento |
-| RLS / Multi-tenancy | `lib/db/rls.ts`, `withTenant`, `tenantIdRef` | tudo tenant-scoped; `dbAdmin` só allowlist |
-| Audit Trail | `lib/audit` | ações sensíveis auditadas |
-| Idempotency | `lib/idempotency`, `external_reference` | handlers idempotentes |
-| Feature Flags (global) | `platform_settings` (`lib/platform-settings`) | kill-switch de plataforma; allowlist de chaves; escrita só por super-admin auditada |
-| Gate por clínica | **coluna booleana no schema do próprio domínio**, default `false` (ex.: `clinic_deposit_policy.enabled`) | feature nova nasce off por clínica |
+
+| Mecanismo              | Onde vive                                                                                                | Regra                                                                               |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Outbox / Domain Events | `lib/outbox`, `schema/infra/outbox.ts`                                                                   | cross-context via evento                                                            |
+| RLS / Multi-tenancy    | `lib/db/rls.ts`, `withTenant`, `tenantIdRef`                                                             | tudo tenant-scoped; `dbAdmin` só allowlist                                          |
+| Audit Trail            | `lib/audit`                                                                                              | ações sensíveis auditadas                                                           |
+| Idempotency            | `lib/idempotency`, `external_reference`                                                                  | handlers idempotentes                                                               |
+| Feature Flags (global) | `platform_settings` (`lib/platform-settings`)                                                            | kill-switch de plataforma; allowlist de chaves; escrita só por super-admin auditada |
+| Gate por clínica       | **coluna booleana no schema do próprio domínio**, default `false` (ex.: `clinic_deposit_policy.enabled`) | feature nova nasce off por clínica                                                  |
+
 > Burlar qualquer um exige **ADR próprio aprovado** — nunca como efeito colateral.
 > **Não existe flag genérica por tenant** (D1, Camada -1). Criar uma exige ADR próprio, e só se justifica quando houver clínicas suficientes para rollout percentual significar algo. Até lá, o gate por clínica é a coluna do domínio.
 
 ### 0.8 SCOPE FREEZE + Discovery Log
+
 Iniciada a camada, **nenhum requisito novo entra nela**. Todo achado vai para o **Discovery Log** (`docs/discovery-log.md`) e é movido para **próxima camada** ou **backlog**. Exceção única: **bug crítico · vulnerabilidade crítica · risco financeiro crítico** (entra com registro + mini-ADR).
 
 ### 0.9 ADR FREEZE
+
 Após o ADR **aprovado**, a arquitetura da camada **não muda durante a implementação**. Mudança de arquitetura exige **ADR complementar** aprovado — não redesenho no meio do caminho.
 
 ### 0.10 Proibido concluir se
+
 Código sem teste · migration sem validação em volume · endpoint sem teste · fluxo sem E2E · feature sem observabilidade · domínio afetado sem regressão · **mudança fora do anti-escopo/scope-freeze** · **budget estourado sem split** · **ciclo novo de dependência** · **arquitetura protegida burlada** · **integridade financeira não fecha** · warning · TODO sem justificativa · `.H` ou `.S` não executados.
 
 ---
 
 ## 1. Decisões travadas
+
 Asaas · Modelo B (conta da clínica, BYO, cifrada, write-only) · **link sem token** · sinal 50% configurável (PIX/cartão, 1ª+retorno) · hold 24h · cancelamento ≥24h estorna · restante por link/presencial · trial admin 14d / self-serve 7d · preço fundador só admin · **produto único, sem módulos por especialidade**. Especialidade continua sendo dado clínico/operacional do profissional e da clínica, nunca gate comercial ou bifurcação do onboarding. Detalhe financeiro: [ADR-049](adr/049-pagamentos-paciente-sinal.md).
 
 ---
 
 ## 2. Sequência
+
 ```
 CAMADA -1  Architecture Review (C4 + grafos + riscos + ADRs) ..... ✅ CONCLUÍDA
 CAMADA 0   Baseline ...................................... ✅ CONCLUÍDA
@@ -1091,28 +1137,33 @@ TRACK O    cadastro self-serve · onboarding · tour · documentação · O.H ·
 TRACK M    ÚLTIMA: integração Memed, somente após o roadmap anterior + gates externos da ADR-056
 ADIADO     CRM/UTM/reativação · repasse
 ```
+
 **Nenhuma camada libera a próxima sem `.H` E `.S` verdes.**
 
 ---
 
 ## 3. CAMADA -1 — Architecture Review
+
 **Objetivo:** entender o sistema inteiro antes de tocar código (reforça anti-escopo §0.5).
 **Mapear:** contexts (**12** — `feedback` é o 12º) · dependências · eventos · crons (15) · webhooks · integrações · RLS · flags · tabelas.
 **Entregue em `docs/architecture/`** (padrão do repo; o rascunho dizia `/docs/arquitetura`):
+
 - **[C4](architecture/c4.md)** (Mermaid, níveis 1–3) + inventário medido.
 - **`dependency-graph.mmd`**, **`event-flow.mmd`**, **`context-map.mmd`**, **`arch-metrics.json`** — **gerados** por `pnpm arch:graphs`, versionados, com `--check` (modelo lockfile) para **diffar antes×depois**.
 - **[Riscos](architecture/risks.md)** — 11 itens, incl. flag por clínica inexistente (R1) e `arch:check` sem tsconfig (R2).
 - **ADRs necessários** listados em `risks.md`; achados adiados em [`discovery-log.md`](discovery-log.md).
-**Resultado:** 52 elementos · 264 arestas · **0 ciclos** · 57 eventos (43 sem consumidor, allowlist `PRODUCER_AHEAD`). Nenhum refactor; zero mudança em `src/`.
+  **Resultado:** 52 elementos · 264 arestas · **0 ciclos** · 57 eventos (43 sem consumidor, allowlist `PRODUCER_AHEAD`). Nenhum refactor; zero mudança em `src/`.
 
 ---
 
 ## 4. CAMADA 0 — Baseline ✅
+
 lint ✅ · typecheck ✅ · **1966 testes** ✅ · build ✅ @ `d414191`.
 
 ---
 
 ## 5. CAMADA 1 (P0) — Cobrança de paciente + sinal
+
 Arquitetura no [ADR-049](adr/049-pagamentos-paciente-sinal.md). Testes **funcionais** por sub-fase; **gates transversais (§8–§17) valem para cada uma**.
 
 - **1.0 Adapter:** ✅ **CONCLUÍDA (24/08)** — `src/lib/payments/asaas` + `createAsaasClient(credential)`; breaker por credencial; client do Qoro singleton com leitura tardia de env. Sem migração, zero comportamento novo. 11 call-sites repontados, +5 testes de fábrica, `onboarding` perdeu uma exceção `boundaries`. Gates: 257 arquivos / **2295 testes** ✅ · build ✅ · arch:check/db-check/graphs ✅ · registry/migrations/observability ✅.
@@ -1204,44 +1255,44 @@ suíte 100% verde.
 #### Checklist P11 / D77 — evidência local/DEV de 05/09
 
 - [x] Scope freeze respeitado: correção do fechamento prematuro do estorno; nenhum novo POST Asaas,
-  mudança de Meta, UI ou regra de valor.
+      mudança de Meta, UI ou regra de valor.
 - [x] Budget respeitado: 23 arquivos do lote, menos de 1.500 linhas líquidas e apenas Payments mais
-  integração indireta com Financial/outbox existente; nenhuma dependência nova.
+      integração indireta com Financial/outbox existente; nenhuma dependência nova.
 - [x] Migration 0093 da `main` integrada; migration 0094 aditiva registrada em DEV e produção.
 - [x] Intenção `deposit_closeout` persistida antes do POST; baseline e contadores gravados no claim
-  atômico; somente um worker pode submeter.
+      atômico; somente um worker pode submeter.
 - [x] Resultado incerto não repete POST; `PENDING`/em progresso não fecham; `CANCELLED` falha;
-  somente refund `DONE` ou pagamento `REFUNDED` confirma.
+      somente refund `DONE` ou pagamento `REFUNDED` confirma.
 - [x] Confirmação da intenção, fechamento da cobrança, evento `closed` e liberação do crédito na mesma
-  transação tenant-scoped.
+      transação tenant-scoped.
 - [x] Webhook tenant e cron fazem readback autoritativo; o cron descobre intenção em voo mesmo com a
-  política de sinal desligada.
+      política de sinal desligada.
 - [x] Compatibilidade com intents D50 anteriores à 0094: contadores nulos não impedem confirmação por
-  refund id, total `DONE` ou status `REFUNDED`; `CANCELLED` sem id/contadores permanece pendente em vez
-  de produzir falso terminal.
+      refund id, total `DONE` ou status `REFUNDED`; `CANCELLED` sem id/contadores permanece pendente em vez
+      de produzir falso terminal.
 - [x] Unit/contract/integration focados: 104/104; após o merge, regressão integral: 2.975/2.975 em
-  318 arquivos e revalidação combinada D78/P11/conflitos: 323/323 em 19 arquivos.
+      318 arquivos e revalidação combinada D78/P11/conflitos: 323/323 em 19 arquivos.
 - [x] DEV conectado revalidado: `smoke:payments-money-db` 7/7, cleanup zero e sem Asaas/Meta.
-  Financial 10/10 e jornada banco+worker 13/13 permanecem evidência anterior e não foram repetidos.
+      Financial 10/10 e jornada banco+worker 13/13 permanecem evidência anterior e não foram repetidos.
 - [x] `lint`, `typecheck`, `build`, ciclos, dbAdmin, grafos, migrations, registry estrito,
-  observabilidade e `git diff --check` verdes.
+      observabilidade e `git diff --check` verdes.
 - [x] Histórico 0081–0092 reconciliado e publicado na `main` em `93da840`; arquivos locais do usuário
-  continuam fora do lote.
+      continuam fora do lote.
 - [x] 0094 em produção: backup 2.661.164 bytes, advisory lock 4242 adquirido/liberado, migrador `DONE`
-  e pós-verificação independente 9/9.
+      e pós-verificação independente 9/9.
 - [x] Commit local P11 `940335e`; D78 separado em `175750b`; `origin/main` integrado por merge
-  `c5f759d`, sem reescrever histórico.
+      `c5f759d`, sem reescrever histórico.
 - [x] Push confirmado no SHA `f2c1b60`; deployment Vercel do mesmo SHA terminal `success`; smoke
-  canônico Preview 6/6 e auditoria autenticada ampla 2/2, com artefatos removidos.
+      canônico Preview 6/6 e auditoria autenticada ampla 2/2, com artefatos removidos.
 - [x] Fixture PIX tenant-scoped criada após o rollout: pagamento liquidado, um refund, baseline zero,
-  replay sem segundo POST e proteção não terminal comprovada (`paid` + crédito `available`).
+      replay sem segundo POST e proteção não terminal comprovada (`paid` + crédito `available`).
 - [x] O refund D77 saiu de `PENDING` para `CANCELLED`; readback/reconcile provou `failed → paid`, crédito
-  `available`, um único refund e cleanup local exato, preservando o histórico do provider.
+      `available`, um único refund e cleanup local exato, preservando o histórico do provider.
 - [x] D79: o adapter deixou de persistir o id da cobrança como refund; fallback por baseline funciona
-  quando o id antigo não encontra correspondência. Regressões `CANCELLED` e `DONE` passaram.
+      quando o id antigo não encontra correspondência. Regressões `CANCELLED` e `DONE` passaram.
 - [ ] **BLOCKED D80:** provar externamente `DONE → refunded` somente depois de o suporte Asaas
-  explicar/liberar a autorização crítica. A tentativa sincronizada também terminou `CANCELLED`;
-  não criar nova fixture nem repetir POST.
+      explicar/liberar a autorização crítica. A tentativa sincronizada também terminou `CANCELLED`;
+      não criar nova fixture nem repetir POST.
 
 **Gate independente da Camada 1:** D50 continua com um único refund externo `PENDING`; quando o provider
 confirmar `DONE`, executar somente readback, ledger, replay e cleanup, sem repetir o POST.
@@ -1249,7 +1300,7 @@ confirmar `DONE`, executar somente readback, ledger, replay e cleanup, sem repet
 #### Checklist corretivo 1.S / D72 — estado humano do estorno no Caixa
 
 - [x] Payments mantém a leitura tenant-scoped e expõe somente estado sanitizado, valor e
-  identidade do atendimento; nenhum id/erro bruto do Asaas atravessa o contrato público.
+      identidade do atendimento; nenhum id/erro bruto do Asaas atravessa o contrato público.
 - [x] `pending`, `submitting` e `confirmation_pending` são exibidos como aguardando confirmação.
 - [x] `confirmed`, `failed/refund_cancelled` e demais falhas possuem branches humanas explícitas.
 - [x] O Caixa compõe o seam público sem JOIN cross-context nem nova regra financeira.
@@ -1257,7 +1308,7 @@ confirmar `DONE`, executar somente readback, ledger, replay e cleanup, sem repet
 - [x] E2E local autenticado: `/caixa` 200, copy/valor visíveis, zero id interno e zero `pageerror`.
 - [x] Suíte integral 2.989/2.989, lint, typecheck, build e gates arquiteturais/operacionais.
 - [x] Commit `b6f8194`, push, deployment Vercel `success`, smoke autenticado Preview 6/6 e prova D72
-  específica `/caixa` PASS; auth state/artefato removidos.
+      específica `/caixa` PASS; auth state/artefato removidos.
 
 Este corretivo não altera migration, webhook, refund, ledger ou estado externo. Ele torna visível a
 diferença que o readback D50 × D80 já provou e nunca oferece “tentar novamente” como atalho perigoso.
@@ -1267,11 +1318,13 @@ diferença que o readback D50 × D80 já provou e nunca oferece “tentar novame
 ---
 
 ## 6. Track O — Onboarding self-serve
+
 Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá uma experiência única; o onboarding não pergunta módulo/especialidade, não exibe especialidade “em breve” e não roteia para dashboards diferentes. Isso não remove CRM/especialidade profissional, procedimentos, templates clínicos nem a lista de especialidades informada pelo agente. **O-1** wizard (atribuição do Qoro→média/mês→email+senha→plano→verificação→entrou; trial **7d**; preço **padrão**). **O-2** onboarding concluído→dashboard único, com dependências a confirmar na auditoria própria do Track O. **(Atenção: este O-2 NÃO é o mesmo do §21.19 — ver §31.2.)** **O-3** tour. **O-4** Central de Documentação autenticada em `/documentacao`: primeiros passos, fluxos por papel, prontuário/documentos, financeiro, Asaas, Meta/WhatsApp, IA, segurança e troubleshooting. Ela não se confunde com `/documentos`, que contém documentos clínicos reais.
 
 ---
 
 ## 7. Camadas 2–4 (mesmos gates + `.H`/`.S`)
+
 - **P1:** **2.1A exportação financeira mensal para contabilidade**, não fiscal, sem PDF/migration,
   conforme [ADR-058](adr/058-exportacao-financeira-contabilidade.md); código e DEV verdes com focused
   23/23, suíte 3.081/3.081, smoke read-only e todos os gates; `b45dffc` publicado no histórico linear,
@@ -1295,27 +1348,34 @@ Mesmos gates + `O.H`/`O.S`. **Decisão de produto de 01/09/2026:** Qoro terá um
 ---
 
 ## 8. Gate — Observabilidade
+
 `metrics.emit` + `check:observability` (drift) + Sentry/Better Stack. Eventos P0: `payments.account.{connected,disconnected}` (1.1) · `payments.patient_charge.{created,paid,refunded,failed}` · `payments.deposit.expired` · `scheduling.appointment.confirmed_after_payment` · `payments.webhook.{received,invalid_token,verify,duplicate}`. Alertas + painel "saúde do pagamento".
 
 ## 9. Gate — Segurança
+
 RLS · cross-tenant · permission escalation · **webhook forgery (espelhar os 23)** · rate limiting · sensitive data exposure · LGPD (consent do sinal, hard-delete cobre `patient_charges`). Reusa `arch:db-check`, `lib/auth/*`, cripto.
 
 ## 10. Gate — Performance & Carga
+
 > **Exigível a partir de 1.4** (antes disso não há endpoint novo para medir). Ferramenta: **`autocannon`** (npm) — `k6` descartado por ser binário fora do npm. Alvo obrigatório: scratch isolado; **nunca Preview, produção ou DEV compartilhado**. Estado atual: restore e `test:load` P8 passaram em PostgreSQL local descartável, com app real, Meta falso e guards fail-closed.
 
 **SLOs:** API P95<500ms · P99<1s · webhook<2s · job<30s · query<100ms.
 **Load (`test:load` via autocannon):** appointment 500 · webhook 1000 · WhatsApp 5000 · reconcile em lote · outbox saturado → sem erro/deadlock/race. Resultado de 29/08: todos os SLOs passaram; repetir após mudança relevante de runtime/schema/SLO.
 
 ## 11. Gate — Complexidade
+
 Nenhuma alteração pode aumentar acoplamento, ciclos ou fan-in/out excessivo. Ferramenta: **`pnpm arch:graphs --check`** (Camada -1) — usa o `madge` já instalado e calcula fan-in/out por elemento. **`dependency-cruiser` foi CORTADO**: regra declarativa de dependência já é feita pelo `eslint-plugin-boundaries`, e uma segunda config das mesmas regras só cria divergência. **Exigível desde 1.0. Aceite:** `--check` verde (0 ciclos; nenhuma aresta nova sem o diff do snapshot commitado no mesmo PR).
 
 ## 12. Gate — Chaos Testing
+
 Simular e validar os mecanismos **existentes**: Asaas indisponível (circuit breaker do adapter) · Gemini indisponível (`lib/ai/circuit-breaker.ts`) · WhatsApp indisponível (outbox retry) · banco lento · timeout de webhook (backstop `billing-reconcile`) · falha parcial de worker. Validar: retry · circuit breaker · fallback · **consistência ao voltar**.
 
 ## 13. Gate — Financial Integrity (crítico)
+
 Nenhum cenário gera: **cobrança duplicada · estorno duplicado · recebimento negativo · divergência Asaas↔Qoro · divergência agenda↔financeiro.** Toda transação **fecha contábil**. Valida: ledger append-only (`payment_transactions`), estorno=lançamento novo, `UNIQUE(appointment_id)`, `external_reference` idempotente, `billing-reconcile` (somatório Asaas = somatório Qoro por clínica/período).
 
 ## 14. Gate — Clinic Simulation (Operação Real) — NET-NEW
+
 > **Exigível no `1.H`** — antes de 1.3–1.5 não existe `patient_charges`, webhook de paciente nem handler de `no_show`: não há o que simular. Sem dependência nova (tsx + seeds + `worker:once`, no molde dos `smoke:*`).
 
 Harness `test:simulation` (reusa seeds + geradores de evento) simulando **30 dias de operação**: agendamentos, faltas, pagamentos, cancelamentos, reembolsos, webhooks (inclusive duplicados/out-of-order). **Validar consistência final** (Financial Integrity §13 + agenda↔financeiro + sem órfão/hold preso). Pega bugs que só aparecem com eventos acumulados.
@@ -1326,7 +1386,8 @@ encontrou o D51; a repetição após o fix fechou 8 recebíveis/R$ 800,00 de led
 duplicata, órfão ou hold preso e confirmou cleanup com resíduo zero. Não houve chamada ao Asaas/Meta.
 
 ## 15. Gate — Product Acceptance
-Percorrer a jornada como **secretária·médico·dono·paciente**: nº de cliques · clareza · tempo · chance de erro humano. *(Usabilidade real exige usuário real → confirmada na piloto da Fase 2 do rollout §18.)*
+
+Percorrer a jornada como **secretária·médico·dono·paciente**: nº de cliques · clareza · tempo · chance de erro humano. _(Usabilidade real exige usuário real → confirmada na piloto da Fase 2 do rollout §18.)_
 
 **Estado atual em 04/09/2026:** `PASS técnico-normativo`. D60/D70 foram publicados no commit
 `42cd114` e reobservados no Preview. A parte que pode ser avaliada objetivamente pelo agente foi executada:
@@ -1365,6 +1426,7 @@ clínica piloto e bloqueia somente a expansão para as ondas seguintes. O fundad
 um processo clínico que não domina para permitir o início de 1.S.
 
 ## 16. Gate — Migração
+
 Validar em **vazio · populado (`seed:dev`) · volume (restore anonimizado)**, com **Up→Down→Up** + consistência. Reusa `check:migrations`, `db:backup:prod`, `restore:test`.
 
 **Estado atual:** 0090 verde em vazio, populado e `up → rollback operacional → up`; aplicada em dev e
@@ -1373,22 +1435,27 @@ DEV atual em scratch TLS, ambos sem resíduo. Enum aditivo do PostgreSQL não te
 seguro; rollback mantém o valor inerte e recua o código, sem recriar enum/tabela.
 
 ## 17. Gate — Documentação Viva
+
 Concluído só com: **ADR · docs · fluxograma · runbook (`docs/runbooks/`)** atualizados.
 
 ## 18. Rollout progressivo
+
 **Ondas nominais, por clínica** — não percentuais (D1: não há flag por tenant, e com uma piloto "25%" não quer dizer nada):
+
 ```
 onda 0  clínica interna de testes
 onda 1  1 clínica piloto (psiquiatra)
 onda 2  próximas clínicas, lista explícita
 onda 3  todas
 ```
+
 Cada onda = ligar a coluna do domínio (`clinic_deposit_policy.enabled = true`) nas clínicas **nomeadas** da onda. Avanço só com observabilidade sem anomalia + zero incidente por N dias.
 **Rollback = `enabled = false` na clínica** — efeito imediato, sem deploy, sem migração reversa.
 
 ---
 
 ## 19. Rastreabilidade, riscos e rollback
+
 **Gap→camada→validação:** no-show → 1.3–1.5 (E2E A/B/C + §13 + §14) · gateway → 1.0–1.4 (webhook espelhado + §10 + §12) · recibo → 2.1 · controlado/Memed → Track M final (após o roadmap anterior e os gates da ADR-056) · psiquiátrico → 2.3 · psicólogo bloqueado → 3.1 · onboarding → O-1.
 **Riscos:** refactor do adapter (1.0 isolada) · fricção do sinal (flag/%) · credencial de terceiro (cifra+write-only+papel+audit) · webhook forjado (A2) · concorrência/carga (§10+§12+1.H) · integridade financeira (§13) · **Memed só reentra após os gates externos e não bloqueia o cronograma principal** · scope creep (§0.8 freeze).
 **Rollback:** flag desliga; migrações aditivas; reverter = desligar flag + reverter migração + recuar onda.
@@ -1499,12 +1566,12 @@ funcionando de ponta a ponta; o comportamento da assinatura SaaS do Qoro não mu
 apagar prontuário, não voltar atendimento concluído para “não atendido” e não cancelar
 automaticamente uma consulta apenas porque a contestação começou.
 
-| Estado observado | Regra recomendada |
-| --- | --- |
-| `PAYMENT_CHARGEBACK_REQUESTED` / `IN_DISPUTE` | marcar o valor como **em disputa**, impedir que seja contado/alocado novamente e abrir alerta para a clínica; não enviar novo link nem acusação automática ao paciente |
-| disputa perdida / `PAYMENT_REFUNDED` | registrar movimento compensatório append-only e reabrir/reduzir o recebível pelo valor efetivamente perdido; o pagamento original continua no histórico |
-| disputa ganha / reversão confirmada pelo Asaas | retirar o bloqueio ou registrar a recomposição uma única vez, sem criar um segundo pagamento e sem duplicar crédito |
-| `PAYMENT_RECEIVED_IN_CASH_UNDONE` | tratar como reversão efetiva, não como disputa: compensar o ledger e reabrir/reduzir o recebível imediatamente |
+| Estado observado                               | Regra recomendada                                                                                                                                                      |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PAYMENT_CHARGEBACK_REQUESTED` / `IN_DISPUTE`  | marcar o valor como **em disputa**, impedir que seja contado/alocado novamente e abrir alerta para a clínica; não enviar novo link nem acusação automática ao paciente |
+| disputa perdida / `PAYMENT_REFUNDED`           | registrar movimento compensatório append-only e reabrir/reduzir o recebível pelo valor efetivamente perdido; o pagamento original continua no histórico                |
+| disputa ganha / reversão confirmada pelo Asaas | retirar o bloqueio ou registrar a recomposição uma única vez, sem criar um segundo pagamento e sem duplicar crédito                                                    |
+| `PAYMENT_RECEIVED_IN_CASH_UNDONE`              | tratar como reversão efetiva, não como disputa: compensar o ledger e reabrir/reduzir o recebível imediatamente                                                         |
 
 Se a consulta ainda não ocorreu, a agenda continua existindo e a tela deve mostrar uma pendência
 financeira para decisão humana. O sistema não deve cobrar novamente enquanto a disputa estiver
@@ -1754,13 +1821,13 @@ prova original.
 10. registrar timestamps e ids sanitizados do log de entrega, estado no banco, audit/outbox e
     resultado do reconcile; remover a fixture e verificar resíduo zero.
 
-| Evidência | Resultado exigido |
-| --- | --- |
-| painel Asaas | ambas as entregas retornaram HTTP 200 |
+| Evidência            | Resultado exigido                                          |
+| -------------------- | ---------------------------------------------------------- |
+| painel Asaas         | ambas as entregas retornaram HTTP 200                      |
 | `processed_webhooks` | um registro por event id; replay não aumenta cardinalidade |
-| `invoices` | mesma linha: `open → cancelled → open` |
-| auditoria/outbox | uma transição por fato, nenhuma duplicata |
-| reconcile seguinte | sem divergência Asaas↔Qoro |
+| `invoices`           | mesma linha: `open → cancelled → open`                     |
+| auditoria/outbox     | uma transição por fato, nenhuma duplicata                  |
+| reconcile seguinte   | sem divergência Asaas↔Qoro                                 |
 
 Esse teste muta sandbox e banco. Foi executado com autorização explícita e conta/ambiente controlados;
 um POST inventado diretamente na rota não substituiria a prova, pois o handler consulta o Asaas como
@@ -1768,17 +1835,17 @@ fonte da verdade.
 
 ### 20.6 Quais testes bloqueiam o quê
 
-| Pendência | Fecha Camada 1 / rollout financeiro? | Impede discovery TISS? | Motivo |
-| --- | --- | --- | --- |
-| D24 PIX/cartão implementado e provado | **código/DB/pagamento externo PASS; D77 `CANCELLED` PASS e `DONE` BLOCKED** | não | boleto foi removido e os dois métodos pagaram. Duas provas pós-rollout fizeram um refund cada, sem duplicata e com proteção/cleanup; ambas terminaram `CANCELLED`. A última foi sincronizada. D80 requer suporte antes de novo teste |
-| D27 chargeback confirmado, implementado e testado | ✅ **código + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup PASS** | não | D62 atravessou perda, compensação, saldo reaberto, fato clínico preservado e replay 0/3; 16 linhas sintéticas foram removidas sem mutação do provider e sem resíduo da fixture |
-| D50 estorno do excedente + sandbox | **código/DB/pagamento/webhook/POST parcial PASS; confirmação provider pendente** | não | saldo já está suficiente, mas o Asaas mantém um único refund de R$ 10 em `PENDING`; a hipótese de “Ações críticas” foi retirada. Suporte deve diagnosticar o refund existente antes de ledger/replay/cleanup |
-| `PAYMENT_RESTORED` real (D54/D55) | ✅ **PASS externo de Billing/assinatura** | não | `qoro dev` foi criado na conta alvo; delete/restore, invoice cancelada/reaberta, replay e cleanup foram provados pelo runner |
-| E2E Meta de sinal/restante | ✅ **PASS até o aparelho** | não | transporte aplicação → C14 → Meta, message ids, jobs terminais, replay e chegada das duas mensagens com links foram confirmados. Os links expiraram depois do cleanup intencional |
-| `test:load` em app scratch | ✅ **PASS; não é mais pendência** | não | carga local descartável mediu C14/webhook/outbox/reconcile/SQL, SLOs, dedup e deadlocks; cleanup integral |
-| Product Acceptance técnico-normativo | ✅ **PASS local + deployment + Preview** | não | 150/150 focados, deployment `42cd114` `success`, navegação autenticada 6/6 sem `pageerror` e matriz visual pós-deploy 8/8/72 estados |
-| Usabilidade humana por persona | **não para iniciar 1.S; sim para expandir após a onda piloto** | não | percepção de secretária/médico reais não pode ser fabricada pelo agente nem pelo fundador; colher na clínica piloto |
-| rotação da chave sandbox exposta | **risco aceito temporariamente pelo fundador** | não | não bloqueia o sandbox, mas continua pendente por higiene operacional; templates, conexão e destinatário já permitiram o E2E real até `accepted` |
+| Pendência                                         | Fecha Camada 1 / rollout financeiro?                                                              | Impede discovery TISS? | Motivo                                                                                                                                                                                                                               |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D24 PIX/cartão implementado e provado             | **código/DB/pagamento externo PASS; D77 `CANCELLED` PASS e `DONE` BLOCKED**                       | não                    | boleto foi removido e os dois métodos pagaram. Duas provas pós-rollout fizeram um refund cada, sem duplicata e com proteção/cleanup; ambas terminaram `CANCELLED`. A última foi sincronizada. D80 requer suporte antes de novo teste |
+| D27 chargeback confirmado, implementado e testado | ✅ **código + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup PASS** | não                    | D62 atravessou perda, compensação, saldo reaberto, fato clínico preservado e replay 0/3; 16 linhas sintéticas foram removidas sem mutação do provider e sem resíduo da fixture                                                       |
+| D50 estorno do excedente + sandbox                | **código/DB/pagamento/webhook/POST parcial PASS; confirmação provider pendente**                  | não                    | saldo já está suficiente, mas o Asaas mantém um único refund de R$ 10 em `PENDING`; a hipótese de “Ações críticas” foi retirada. Suporte deve diagnosticar o refund existente antes de ledger/replay/cleanup                         |
+| `PAYMENT_RESTORED` real (D54/D55)                 | ✅ **PASS externo de Billing/assinatura**                                                         | não                    | `qoro dev` foi criado na conta alvo; delete/restore, invoice cancelada/reaberta, replay e cleanup foram provados pelo runner                                                                                                         |
+| E2E Meta de sinal/restante                        | ✅ **PASS até o aparelho**                                                                        | não                    | transporte aplicação → C14 → Meta, message ids, jobs terminais, replay e chegada das duas mensagens com links foram confirmados. Os links expiraram depois do cleanup intencional                                                    |
+| `test:load` em app scratch                        | ✅ **PASS; não é mais pendência**                                                                 | não                    | carga local descartável mediu C14/webhook/outbox/reconcile/SQL, SLOs, dedup e deadlocks; cleanup integral                                                                                                                            |
+| Product Acceptance técnico-normativo              | ✅ **PASS local + deployment + Preview**                                                          | não                    | 150/150 focados, deployment `42cd114` `success`, navegação autenticada 6/6 sem `pageerror` e matriz visual pós-deploy 8/8/72 estados                                                                                                 |
+| Usabilidade humana por persona                    | **não para iniciar 1.S; sim para expandir após a onda piloto**                                    | não                    | percepção de secretária/médico reais não pode ser fabricada pelo agente nem pelo fundador; colher na clínica piloto                                                                                                                  |
+| rotação da chave sandbox exposta                  | **risco aceito temporariamente pelo fundador**                                                    | não                    | não bloqueia o sandbox, mas continua pendente por higiene operacional; templates, conexão e destinatário já permitiram o E2E real até `accepted`                                                                                     |
 
 Portanto, os pendentes **não impediram** ADRs, D24/D27/D50 nem impedem iniciar um spike documental de
 TISS. O refund D50 ainda precisa chegar a estado terminal no provider. D60/D70 já foram publicados e
@@ -1798,12 +1865,12 @@ Preview 6/6; 104/104 focados e smoke DEV 7/7. A prova PIX pós-rollout chegou a 
 integral atual passou 2.977/2.977. Uma segunda tentativa pós-rollout, sincronizada com o operador,
 também terminou `CANCELLED`; o ramo externo `DONE` permanece `BLOCKED` pelo D80.
 
-| Bloco | Estado real | O que falta para ficar verde |
-| --- | --- | --- |
-| **D24/D58 — somente PIX/cartão por 7 dias** | **Código + DB DEV + PROD + pagamentos externos verdes para criação/pagamento.** Checkout hospedado, intenção/lease, correlação, gerações e renovação implementados; smoke 5/5 e pós-verificação 7/7. Em 04/09 a conta atual confirmou `PIX/RECEIVED` | as provas de refund terminaram `CANCELLED`, sem devolução. As duas pós-rollout demonstraram proteção, replay e cleanup; a última foi sincronizada com o operador. Não repetir antes de diagnóstico do suporte D80 |
-| **D50 — excedente após baixa manual** | **Código + DB DEV/PROD + pagamento/webhook/POST parcial verdes.** Readback independente de 06/09: pagamento `CONFIRMED`; cobrança `paid`; recebível `pago` em R$ 20; duas baixas somando R$ 20; uma intenção `confirmation_pending` de R$ 10 com baseline zero; um único refund de R$ 10 ainda `PENDING`. D80 foi consultada à parte e retornou `RECEIVED` + `CANCELLED`; não há mistura. D72 está publicado e mostra o estado humano no Caixa | o pedido de diagnóstico já foi enviado ao suporte. Aguardar o refund D50 existente virar `DONE`; então o runner faz somente readback → confirmação → ledger → replay → cleanup. Não repetir POST. A visibilidade Preview passou 6/6 + prova `/caixa` específica; isso não transforma `PENDING` em devolução |
-| **D27 — chargeback/dinheiro desfeito** | ✅ **Código + ADR-052 + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup verdes.** O provider terminou `REFUNDED/DONE`; a rota tenant marcou a cobrança `refunded/lost`; os três fatos reais de risco foram processados uma vez | nada funcional. O ledger provado continha compensação `refund`, `chargeback_loss`, saldo reaberto, atendimento preservado e replay 0/3; o cleanup removeu 16 linhas sintéticas, preservou audit de webhook e deixou zero resíduo da fixture |
-| **D77 — confirmação terminal do estorno do sinal** | ✅ **Código + DB DEV/PROD + Preview verdes; `CANCELLED` externo PASS.** Intenção antes do POST, claim concorrente, baseline, webhook/cron readback e fechamento atômico implementados. Duas provas pós-rollout criaram um refund cada, não duplicaram no replay, terminaram `failed/paid/available` e foram limpas localmente. D79 corrige a correlação do formato real | `DONE → refunded` está bloqueado pelo D80: a tentativa com runner pausado e operador no painel também foi cancelada. Abrir suporte; não repetir POST nem criar nova fixture |
+| Bloco                                              | Estado real                                                                                                                                                                                                                                                                                                                                                                                                                                    | O que falta para ficar verde                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D24/D58 — somente PIX/cartão por 7 dias**        | **Código + DB DEV + PROD + pagamentos externos verdes para criação/pagamento.** Checkout hospedado, intenção/lease, correlação, gerações e renovação implementados; smoke 5/5 e pós-verificação 7/7. Em 04/09 a conta atual confirmou `PIX/RECEIVED`                                                                                                                                                                                           | as provas de refund terminaram `CANCELLED`, sem devolução. As duas pós-rollout demonstraram proteção, replay e cleanup; a última foi sincronizada com o operador. Não repetir antes de diagnóstico do suporte D80                                                                                           |
+| **D50 — excedente após baixa manual**              | **Código + DB DEV/PROD + pagamento/webhook/POST parcial verdes.** Readback independente de 06/09: pagamento `CONFIRMED`; cobrança `paid`; recebível `pago` em R$ 20; duas baixas somando R$ 20; uma intenção `confirmation_pending` de R$ 10 com baseline zero; um único refund de R$ 10 ainda `PENDING`. D80 foi consultada à parte e retornou `RECEIVED` + `CANCELLED`; não há mistura. D72 está publicado e mostra o estado humano no Caixa | o pedido de diagnóstico já foi enviado ao suporte. Aguardar o refund D50 existente virar `DONE`; então o runner faz somente readback → confirmação → ledger → replay → cleanup. Não repetir POST. A visibilidade Preview passou 6/6 + prova `/caixa` específica; isso não transforma `PENDING` em devolução |
+| **D27 — chargeback/dinheiro desfeito**             | ✅ **Código + ADR-052 + DB DEV/PROD + provider sandbox + webhook/Payments/Financial tenant + cleanup verdes.** O provider terminou `REFUNDED/DONE`; a rota tenant marcou a cobrança `refunded/lost`; os três fatos reais de risco foram processados uma vez                                                                                                                                                                                    | nada funcional. O ledger provado continha compensação `refund`, `chargeback_loss`, saldo reaberto, atendimento preservado e replay 0/3; o cleanup removeu 16 linhas sintéticas, preservou audit de webhook e deixou zero resíduo da fixture                                                                 |
+| **D77 — confirmação terminal do estorno do sinal** | ✅ **Código + DB DEV/PROD + Preview verdes; `CANCELLED` externo PASS.** Intenção antes do POST, claim concorrente, baseline, webhook/cron readback e fechamento atômico implementados. Duas provas pós-rollout criaram um refund cada, não duplicaram no replay, terminaram `failed/paid/available` e foram limpas localmente. D79 corrige a correlação do formato real                                                                        | `DONE → refunded` está bloqueado pelo D80: a tentativa com runner pausado e operador no painel também foi cancelada. Abrir suporte; não repetir POST nem criar nova fixture                                                                                                                                 |
 
 #### Decisão D58 confirmada — prazo do restante
 
@@ -2175,12 +2242,12 @@ O paciente não precisa ter login no Qoro: sua interface é a mensagem consentid
 6. executar a sequência **dono → secretária → médico → paciente**, pois ela forma uma única história
    operacional e evita quatro cenários desconectados.
 
-| Persona | Jornada humana mínima | O que precisa ser julgado |
-| --- | --- | --- |
-| Dono | abrir Dashboard; configurar procedimento e política em Configurações/Pagamentos; revisar equipe; criar ou acompanhar consulta; conferir Caixa e Financeiro; revisar assinatura e auditoria | se encontra as configurações sem ajuda, entende sinal/restante/estorno e distingue cobrança do paciente da assinatura do Qoro |
-| Secretária | localizar/cadastrar paciente; criar, remarcar e cancelar uma consulta controlada; observar estado do sinal na Agenda; abrir conversa e orientar o paciente sem acessar funções exclusivas do dono | número de passos, clareza dos estados, prevenção de duplicidade e respeito às permissões |
-| Médico | abrir a própria Agenda/Consultório; localizar o paciente; iniciar e concluir o atendimento controlado; conferir que o restante nasce depois da conclusão, sem editar configurações financeiras restritas | foco clínico, ausência de distração financeira e permissões corretas |
-| Paciente | receber o template consentido de sinal; abrir o link e identificar PIX/cartão; observar confirmação; após atendimento, receber o template de restante; conferir que a copy não fala em reservar horário nem duplica mensagem | compreensão, confiança, link correto/atual, acessibilidade móvel e ausência de mensagem indevida |
+| Persona    | Jornada humana mínima                                                                                                                                                                                                        | O que precisa ser julgado                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Dono       | abrir Dashboard; configurar procedimento e política em Configurações/Pagamentos; revisar equipe; criar ou acompanhar consulta; conferir Caixa e Financeiro; revisar assinatura e auditoria                                   | se encontra as configurações sem ajuda, entende sinal/restante/estorno e distingue cobrança do paciente da assinatura do Qoro |
+| Secretária | localizar/cadastrar paciente; criar, remarcar e cancelar uma consulta controlada; observar estado do sinal na Agenda; abrir conversa e orientar o paciente sem acessar funções exclusivas do dono                            | número de passos, clareza dos estados, prevenção de duplicidade e respeito às permissões                                      |
+| Médico     | abrir a própria Agenda/Consultório; localizar o paciente; iniciar e concluir o atendimento controlado; conferir que o restante nasce depois da conclusão, sem editar configurações financeiras restritas                     | foco clínico, ausência de distração financeira e permissões corretas                                                          |
+| Paciente   | receber o template consentido de sinal; abrir o link e identificar PIX/cartão; observar confirmação; após atendimento, receber o template de restante; conferir que a copy não fala em reservar horário nem duplica mensagem | compreensão, confiança, link correto/atual, acessibilidade móvel e ausência de mensagem indevida                              |
 
 **Passo a passo do dono:**
 
@@ -2275,11 +2342,11 @@ aceite leva aproximadamente 30–45 minutos e é gate de lançamento, não de co
 
 #### G. Resultado das autorizações técnicas de 02–03/09
 
-| Ação | Peso | O que muda | O que ela bloqueia |
-| --- | --- | --- | --- |
-| cleanup destrutivo da fixture D62 | **CONCLUÍDO / PASS** | removeu somente 16 linhas sintéticas tenant-scoped de DEV depois de preservar as contagens/evidências; não chamou Asaas | higiene concluída; audit de webhook preservado e zero resíduo da fixture |
-| recriar/provar webhook global `PAYMENT_DELETED → PAYMENT_RESTORED` | **CONCLUÍDO / PASS** | criou configuração externa na conta Sandbox alvo, alinhou token/bypass e executou cobrança global controlada com cleanup | aceite externo do Billing/assinatura fechado; D54/D55/D66 verdes |
-| cleanup dos órfãos históricos D69 | ✅ **CONCLUÍDO / PASS em DEV** | autorização recebida em 03/09; dry-run conferiu 4 `checkout_sessions` + 4 `tenant_provisioning`, `clinic_id` nulo, zero clínica ativa e FK esperada. Backup local ignorado pelo Git foi gravado antes da transação com advisory lock | exclusão exata 4 + 4; pós-check e verificador amplo confirmaram `historicalRoundtripRows=0`, `billingRoundtripActiveFixtures=0` e dois webhooks canônicos ainda íntegros |
+| Ação                                                               | Peso                           | O que muda                                                                                                                                                                                                                           | O que ela bloqueia                                                                                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| cleanup destrutivo da fixture D62                                  | **CONCLUÍDO / PASS**           | removeu somente 16 linhas sintéticas tenant-scoped de DEV depois de preservar as contagens/evidências; não chamou Asaas                                                                                                              | higiene concluída; audit de webhook preservado e zero resíduo da fixture                                                                                                 |
+| recriar/provar webhook global `PAYMENT_DELETED → PAYMENT_RESTORED` | **CONCLUÍDO / PASS**           | criou configuração externa na conta Sandbox alvo, alinhou token/bypass e executou cobrança global controlada com cleanup                                                                                                             | aceite externo do Billing/assinatura fechado; D54/D55/D66 verdes                                                                                                         |
+| cleanup dos órfãos históricos D69                                  | ✅ **CONCLUÍDO / PASS em DEV** | autorização recebida em 03/09; dry-run conferiu 4 `checkout_sessions` + 4 `tenant_provisioning`, `clinic_id` nulo, zero clínica ativa e FK esperada. Backup local ignorado pelo Git foi gravado antes da transação com advisory lock | exclusão exata 4 + 4; pós-check e verificador amplo confirmaram `historicalRoundtripRows=0`, `billingRoundtripActiveFixtures=0` e dois webhooks canônicos ainda íntegros |
 
 As três ações autorizadas terminaram verdes. A limpeza D69 não tocou Asaas, produção, clínica ativa,
 assinatura, cobrança de paciente ou eventos de webhook. O backup operacional está em
@@ -2381,13 +2448,13 @@ O endpoint/página deve:
 
 Métricas e conversões recomendadas:
 
-| Marco | Uso | Google Ads |
-| --- | --- | --- |
-| `cta_signup_clicked` | diagnóstico da landing | microconversão, não otimizar campanha só por ela |
-| `signup_started` | funil após criação válida da sessão | secundária |
-| `email_verified` | intenção qualificada | secundária |
-| `signup_completed` | tenant provisionado | **primária inicial**, para produzir sinal suficiente à primeira campanha |
-| `subscription_activated` | billing confirmado | secundária de valor; torna-se primária quando houver volume confiável |
+| Marco                    | Uso                                 | Google Ads                                                               |
+| ------------------------ | ----------------------------------- | ------------------------------------------------------------------------ |
+| `cta_signup_clicked`     | diagnóstico da landing              | microconversão, não otimizar campanha só por ela                         |
+| `signup_started`         | funil após criação válida da sessão | secundária                                                               |
+| `email_verified`         | intenção qualificada                | secundária                                                               |
+| `signup_completed`       | tenant provisionado                 | **primária inicial**, para produzir sinal suficiente à primeira campanha |
+| `subscription_activated` | billing confirmado                  | secundária de valor; torna-se primária quando houver volume confiável    |
 
 **Decisão de 02/09:** configurar inicialmente `signup_completed` como a única ação primária e
 `subscription_activated` como secundária. Quando a campanha tiver volume de ativações suficiente para
@@ -2401,18 +2468,18 @@ versão, preferir o linker/tag do Google e não criar outra base de dados de mar
 
 ### 21.4 Responsabilidade por camada
 
-| Camada | Obrigação | O que ela não substitui |
-| --- | --- | --- |
-| DNS | DNSSEC quando suportado, domínio/contas protegidos por MFA, inventário de subdomínios e remoção de CNAME órfão | WAF e autorização |
-| CDN/Firewall Vercel | mitigação volumétrica, WAF, bloqueio de assinaturas/bots evidentes, limites por IP/JA4 e body/rota | limites por e-mail/token e regra de negócio |
-| Rate limiting | limites multidimensionais em Redis/Upstash, `429` + `Retry-After`, quotas globais de custo | validação, CAPTCHA, autenticação |
-| Bot protection | desafio adaptativo validado no backend; cooldown de alto risco | rate limit e e-mail verificado |
-| Reverse proxy/Next | HTTPS/HSTS, headers, CORS restrito, origem/Fetch Metadata, body e timeout | autorização do serviço e RLS |
-| Backend | Zod estrito, estado da máquina, idempotência, plano/preço server-side, erros genéricos | WAF e banco |
-| AuthN/AuthZ | Supabase Auth, e-mail verificado, sessão/epoch, RBAC e step-up MFA | isolamento de linha no banco |
-| Application services | saga de cadastro/billing e boundaries `onboarding → tenancy/identity/billing` | decisões pelo frontend |
-| Postgres | constraints, transações, RLS/FORCE RLS, grants mínimos, pool/timeout e outbox | validação da entrada externa |
-| Observabilidade | métricas, auditoria sanitizada, alertas de abuso/custo/falha | controle preventivo |
+| Camada               | Obrigação                                                                                                      | O que ela não substitui                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| DNS                  | DNSSEC quando suportado, domínio/contas protegidos por MFA, inventário de subdomínios e remoção de CNAME órfão | WAF e autorização                           |
+| CDN/Firewall Vercel  | mitigação volumétrica, WAF, bloqueio de assinaturas/bots evidentes, limites por IP/JA4 e body/rota             | limites por e-mail/token e regra de negócio |
+| Rate limiting        | limites multidimensionais em Redis/Upstash, `429` + `Retry-After`, quotas globais de custo                     | validação, CAPTCHA, autenticação            |
+| Bot protection       | desafio adaptativo validado no backend; cooldown de alto risco                                                 | rate limit e e-mail verificado              |
+| Reverse proxy/Next   | HTTPS/HSTS, headers, CORS restrito, origem/Fetch Metadata, body e timeout                                      | autorização do serviço e RLS                |
+| Backend              | Zod estrito, estado da máquina, idempotência, plano/preço server-side, erros genéricos                         | WAF e banco                                 |
+| AuthN/AuthZ          | Supabase Auth, e-mail verificado, sessão/epoch, RBAC e step-up MFA                                             | isolamento de linha no banco                |
+| Application services | saga de cadastro/billing e boundaries `onboarding → tenancy/identity/billing`                                  | decisões pelo frontend                      |
+| Postgres             | constraints, transações, RLS/FORCE RLS, grants mínimos, pool/timeout e outbox                                  | validação da entrada externa                |
+| Observabilidade      | métricas, auditoria sanitizada, alertas de abuso/custo/falha                                                   | controle preventivo                         |
 
 O firewall de plataforma já cobre parte do DDoS, enquanto regras WAF controlam o tráfego que alcança
 funções e serviços cobrados. Referência oficial:
@@ -2503,19 +2570,19 @@ mais útil quando a saída precisa de cadência constante. Nenhum algoritmo subs
 
 Limites iniciais, todos configuráveis e sujeitos a ajuste por telemetria:
 
-| Endpoint/ação | Dimensões | Limite inicial |
-| --- | --- | --- |
-| `GET /comecar` | WAF IP/JA4 | 120/min; não escreve banco |
-| criar sessão | IP + cookie dispositivo + global | 5/15 min/IP, 3/15 min/dispositivo, cap global por minuto |
-| enviar identidade | IP + sessão + HMAC(e-mail) | 10/15 min/IP, 5/sessão, 3/h/e-mail |
-| reenviar verificação | IP + sessão + HMAC(e-mail) | 10/h/IP, 3/h/sessão e e-mail, cooldown 60 s |
-| consultar sessão | IP + token | 60/15 min/token; payload constante e pequeno |
-| salvar clínica/plano | usuário + sessão | 30/15 min, CAS obrigatório |
-| criar Checkout | usuário + sessão + global | 3/h/sessão, 2/h/usuário; uma intenção ativa |
-| login atual | IP + HMAC(e-mail) | preservar 10/15 min e 5/15 min existentes |
-| password reset atual | IP + HMAC(e-mail) | preservar 10/h e 3/h existentes |
-| envio futuro por telefone | IP + HMAC(E.164) + usuário | 3/h e 5/dia por telefone; uma finalidade por vez |
-| webhook Asaas | token/contrato + event id | não depender só de IP; body/timeouts e circuit próprios |
+| Endpoint/ação             | Dimensões                        | Limite inicial                                           |
+| ------------------------- | -------------------------------- | -------------------------------------------------------- |
+| `GET /comecar`            | WAF IP/JA4                       | 120/min; não escreve banco                               |
+| criar sessão              | IP + cookie dispositivo + global | 5/15 min/IP, 3/15 min/dispositivo, cap global por minuto |
+| enviar identidade         | IP + sessão + HMAC(e-mail)       | 10/15 min/IP, 5/sessão, 3/h/e-mail                       |
+| reenviar verificação      | IP + sessão + HMAC(e-mail)       | 10/h/IP, 3/h/sessão e e-mail, cooldown 60 s              |
+| consultar sessão          | IP + token                       | 60/15 min/token; payload constante e pequeno             |
+| salvar clínica/plano      | usuário + sessão                 | 30/15 min, CAS obrigatório                               |
+| criar Checkout            | usuário + sessão + global        | 3/h/sessão, 2/h/usuário; uma intenção ativa              |
+| login atual               | IP + HMAC(e-mail)                | preservar 10/15 min e 5/15 min existentes                |
+| password reset atual      | IP + HMAC(e-mail)                | preservar 10/h e 3/h existentes                          |
+| envio futuro por telefone | IP + HMAC(E.164) + usuário       | 3/h e 5/dia por telefone; uma finalidade por vez         |
+| webhook Asaas             | token/contrato + event id        | não depender só de IP; body/timeouts e circuit próprios  |
 
 IP sozinho falha contra botnet e prejudica NAT de clínicas. E-mail/telefone sozinhos permitem atacar
 terceiros. Por isso a decisão usa interseção de sinais e respostas genéricas. O “dispositivo” é um
@@ -2689,16 +2756,16 @@ recebe a assinatura do Qoro e as contas BYO que recebem pagamentos de pacientes.
 
 ### 21.14 Idempotência obrigatória
 
-| Operação | Chave/constraint |
-| --- | --- |
-| criar sessão | nonce do dispositivo/request + bucket curto; token/hash único |
-| registrar identidade | `signup_session_id:identity:v1`; `auth_user_id` e e-mail canônico únicos no Auth |
-| reenviar e-mail | `signup_session_id:verification:<janela>` + cooldown |
-| salvar clínica/plano | `signup_session_id + row_version`; update, não nova linha |
-| criar customer/Checkout/assinatura | uma `signup_billing_intent` ativa + key estável + lease |
-| processar webhook | `provider + event.id` unique; efeito financeiro/provisionamento com key própria |
-| criar tenant/owner | `signup_session_id` unique na tabela de provisionamento + transação única |
-| publicar e-mail/outbox | idempotency key de domínio; at-most-once onde o provider exige |
+| Operação                           | Chave/constraint                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------- |
+| criar sessão                       | nonce do dispositivo/request + bucket curto; token/hash único                    |
+| registrar identidade               | `signup_session_id:identity:v1`; `auth_user_id` e e-mail canônico únicos no Auth |
+| reenviar e-mail                    | `signup_session_id:verification:<janela>` + cooldown                             |
+| salvar clínica/plano               | `signup_session_id + row_version`; update, não nova linha                        |
+| criar customer/Checkout/assinatura | uma `signup_billing_intent` ativa + key estável + lease                          |
+| processar webhook                  | `provider + event.id` unique; efeito financeiro/provisionamento com key própria  |
+| criar tenant/owner                 | `signup_session_id` unique na tabela de provisionamento + transação única        |
+| publicar e-mail/outbox             | idempotency key de domínio; at-most-once onde o provider exige                   |
 
 `Idempotency-Key` do cliente deve ser UUID aleatório, limitado em tamanho e escopado à sessão/usuário;
 o banco guarda hash, request fingerprint e resultado. A mesma chave com payload diferente retorna
@@ -2707,22 +2774,22 @@ constraints e estado do domínio.
 
 ### 21.15 Endpoints recomendados
 
-| Endpoint | Autoridade | Limite/idempotência | Validação e ataques | Resposta |
-| --- | --- | --- | --- | --- |
-| `GET qoro.dev/comecar` | público | WAF; sem escrita | parâmetros allowlisted, destino fixo; open redirect/bot click | `302/303` para cadastro |
-| `POST /api/signup/sessions` | público | IP/device/global; desafio adaptativo | Origin, body vazio/pequeno; session flood | `201`, cookie; `429`/`403` |
-| `GET /api/signup/session` | cookie bootstrap | token bucket/sliding por token | HMAC, TTL, status; enum/replay | `200`; `410` genérico |
-| `POST /api/signup/identity` | cookie bootstrap | IP/token/e-mail; idempotente | Zod, e-mail/senha não logados, CSRF; spam/enumeração | sempre `202` quando formato válido |
-| `POST /api/signup/verification/resend` | cookie bootstrap | cooldown + IP/e-mail | mesma resposta para existente/inexistente | `202`; `429` |
-| `GET /auth/callback` | state/PKCE do Supabase | IP + uso único | state/redirect allowlisted; login CSRF/replay | `303`; erro sanitizado |
-| `PUT /api/signup/clinic` | usuário verificado | user/session + CAS | nomes/tamanhos; não aceita tenant/role | `200`; `409`; `422` |
-| `PUT /api/signup/plan` | usuário verificado | user/session + CAS | `planId` ativo; preço/trial server-side | `200`; `409`; `422` |
-| `POST /api/signup/billing/checkout` | usuário verificado | 2/h + key + intenção/lease | plano do banco, destino fixo; payment abuse | `200/201` com URL hospedada; `409/429` |
-| `GET /api/signup/status` | usuário verificado | user/session | retorna apenas próprio estado | `200`; `404` genérico |
-| `POST /api/webhooks/asaas` | token Asaas, não sessão | event id + body/timeout | auth, schema, replay, out-of-order | `200` duplicado/válido; `400/401/503` |
-| `POST /api/auth/logout` | autenticado | user/IP; idempotente | Origin/CSRF | `204` |
-| `POST /api/auth/forgot-password` | público | limites atuais IP/e-mail | anti-enumeração | `202` sempre |
-| `POST /api/auth/reset-password` | recovery grant | limites atuais + nonce | senha forte, grant single-use, CSRF | `204`; `400/429` |
+| Endpoint                               | Autoridade              | Limite/idempotência                  | Validação e ataques                                           | Resposta                               |
+| -------------------------------------- | ----------------------- | ------------------------------------ | ------------------------------------------------------------- | -------------------------------------- |
+| `GET qoro.dev/comecar`                 | público                 | WAF; sem escrita                     | parâmetros allowlisted, destino fixo; open redirect/bot click | `302/303` para cadastro                |
+| `POST /api/signup/sessions`            | público                 | IP/device/global; desafio adaptativo | Origin, body vazio/pequeno; session flood                     | `201`, cookie; `429`/`403`             |
+| `GET /api/signup/session`              | cookie bootstrap        | token bucket/sliding por token       | HMAC, TTL, status; enum/replay                                | `200`; `410` genérico                  |
+| `POST /api/signup/identity`            | cookie bootstrap        | IP/token/e-mail; idempotente         | Zod, e-mail/senha não logados, CSRF; spam/enumeração          | sempre `202` quando formato válido     |
+| `POST /api/signup/verification/resend` | cookie bootstrap        | cooldown + IP/e-mail                 | mesma resposta para existente/inexistente                     | `202`; `429`                           |
+| `GET /auth/callback`                   | state/PKCE do Supabase  | IP + uso único                       | state/redirect allowlisted; login CSRF/replay                 | `303`; erro sanitizado                 |
+| `PUT /api/signup/clinic`               | usuário verificado      | user/session + CAS                   | nomes/tamanhos; não aceita tenant/role                        | `200`; `409`; `422`                    |
+| `PUT /api/signup/plan`                 | usuário verificado      | user/session + CAS                   | `planId` ativo; preço/trial server-side                       | `200`; `409`; `422`                    |
+| `POST /api/signup/billing/checkout`    | usuário verificado      | 2/h + key + intenção/lease           | plano do banco, destino fixo; payment abuse                   | `200/201` com URL hospedada; `409/429` |
+| `GET /api/signup/status`               | usuário verificado      | user/session                         | retorna apenas próprio estado                                 | `200`; `404` genérico                  |
+| `POST /api/webhooks/asaas`             | token Asaas, não sessão | event id + body/timeout              | auth, schema, replay, out-of-order                            | `200` duplicado/válido; `400/401/503`  |
+| `POST /api/auth/logout`                | autenticado             | user/IP; idempotente                 | Origin/CSRF                                                   | `204`                                  |
+| `POST /api/auth/forgot-password`       | público                 | limites atuais IP/e-mail             | anti-enumeração                                               | `202` sempre                           |
+| `POST /api/auth/reset-password`        | recovery grant          | limites atuais + nonce               | senha forte, grant single-use, CSRF                           | `204`; `400/429`                       |
 
 Não criar um endpoint público `signup/complete` que aceite “payment=true”, `tenant_id`, role ou preço.
 “Complete” é uma transição interna do worker após identidade e billing autoritativos.
@@ -2759,24 +2826,24 @@ reconcile divergente. Dashboard não exibe raw IP; investigação privilegiada, 
 
 ### 21.17 Ameaças e defesas
 
-| Ameaça | Defesas obrigatórias |
-| --- | --- |
-| DDoS volumétrico | Vercel platform firewall/CDN, WAF, limites edge e circuit de custo; token não conta |
-| spam/criação massiva distribuída | limites IP+JA4+device+e-mail+global, desafio adaptativo, e-mail verificado e tenant só após billing |
-| brute force/credential stuffing | limites IP+e-mail, senha vazada, respostas genéricas, MFA/step-up e alertas |
-| enumeração de usuário | `202` uniforme, mensagem/latência equivalentes, HMAC nos contadores |
-| replay/roubo do token | 256 bits, HMAC, cookie HttpOnly host-only, TTL, CAS, consumo e rotação |
-| abuso de e-mail/SMS | cooldown e quotas por destinatário/IP/sessão/global; fila/circuit; template fixo |
-| payload malicioso/injection | Zod strict, limites, Drizzle parametrizado, content type e body size |
-| XSS | escaping, sem HTML do usuário, CSP e sanitização quando rich text existir |
-| CSRF/login CSRF | cookie host-only, Origin/Fetch Metadata, token/header CSRF, PKCE state; webhook separado |
-| open redirect/SSRF | destinos e hosts fixos/allowlisted, sem `next` livre, redirect externo desabilitado |
-| manipular plano/preço/status | resolução server-side e webhook/reconcile autoritativo |
-| duplicar customer/assinatura/tenant | intenção persist-before-I/O, unique, lease, CAS, event id e outbox |
-| Tenant A acessar B | sessão resolve tenant, RBAC server-side, `withTenant`, RLS/FORCE, grants e testes A/B |
-| saturar Postgres/sessões | edge antes do DB, pool/timeout, índices/TTL, batch janitor, cap global e scratch load |
-| recuperação de senha abusiva | resposta genérica, limites, token single-use, não auto-login, revogação de sessão |
-| webhook falso/fora de ordem | token, schema, body cap, event id, leitura autoritativa e máquina monotônica |
+| Ameaça                              | Defesas obrigatórias                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------- |
+| DDoS volumétrico                    | Vercel platform firewall/CDN, WAF, limites edge e circuit de custo; token não conta                 |
+| spam/criação massiva distribuída    | limites IP+JA4+device+e-mail+global, desafio adaptativo, e-mail verificado e tenant só após billing |
+| brute force/credential stuffing     | limites IP+e-mail, senha vazada, respostas genéricas, MFA/step-up e alertas                         |
+| enumeração de usuário               | `202` uniforme, mensagem/latência equivalentes, HMAC nos contadores                                 |
+| replay/roubo do token               | 256 bits, HMAC, cookie HttpOnly host-only, TTL, CAS, consumo e rotação                              |
+| abuso de e-mail/SMS                 | cooldown e quotas por destinatário/IP/sessão/global; fila/circuit; template fixo                    |
+| payload malicioso/injection         | Zod strict, limites, Drizzle parametrizado, content type e body size                                |
+| XSS                                 | escaping, sem HTML do usuário, CSP e sanitização quando rich text existir                           |
+| CSRF/login CSRF                     | cookie host-only, Origin/Fetch Metadata, token/header CSRF, PKCE state; webhook separado            |
+| open redirect/SSRF                  | destinos e hosts fixos/allowlisted, sem `next` livre, redirect externo desabilitado                 |
+| manipular plano/preço/status        | resolução server-side e webhook/reconcile autoritativo                                              |
+| duplicar customer/assinatura/tenant | intenção persist-before-I/O, unique, lease, CAS, event id e outbox                                  |
+| Tenant A acessar B                  | sessão resolve tenant, RBAC server-side, `withTenant`, RLS/FORCE, grants e testes A/B               |
+| saturar Postgres/sessões            | edge antes do DB, pool/timeout, índices/TTL, batch janitor, cap global e scratch load               |
+| recuperação de senha abusiva        | resposta genérica, limites, token single-use, não auto-login, revogação de sessão                   |
+| webhook falso/fora de ordem         | token, schema, body cap, event id, leitura autoritativa e máquina monotônica                        |
 
 ### 21.18 Obrigatório para lançar versus melhoria futura
 
@@ -2799,8 +2866,8 @@ Redis multi-region dedicado; verificação de domínio/e-mail corporativo; SSO e
 
 Dividir o Track O; não fazer um PR gigante.
 
-> **Os rótulos abaixo colidem com os do §6.** Eles numeram *fatias de implementação* do cadastro
-> autônomo; os do §6 numeram *marcos de produto*. "O-2" e "O-4" significam coisas diferentes nas duas
+> **Os rótulos abaixo colidem com os do §6.** Eles numeram _fatias de implementação_ do cadastro
+> autônomo; os do §6 numeram _marcos de produto_. "O-2" e "O-4" significam coisas diferentes nas duas
 > listas. Qualquer referência a "O-n" fora destas seções precisa dizer qual das duas — ver §31.2.
 
 1. **O-0 — ADR e contratos:** decisão do trial/gate de billing, threat model, estados, eventos,
@@ -2917,13 +2984,13 @@ e risco sem benefício. O ledger financeiro já fornece uma fonte mais apropriad
 ### 22.3 Decisão de produto
 
 - [x] **Aprovada em 09/09/2026:** substituir o comprovante individual 2.1A pelo CSV mensal para
-  contabilidade, sem valor fiscal, PDF, snapshot de pagador ou migration.
+      contabilidade, sem valor fiscal, PDF, snapshot de pagador ou migration.
 - [x] **Aprovada em 07/09/2026:** Asaas como parceiro fiscal de NFS-e para clínicas PJ; NF-e de produto,
-  Receita Saúde PF e motor municipal próprio ficam fora desse contrato.
+      Receita Saúde PF e motor municipal próprio ficam fora desse contrato.
 - [x] **Rejeitada para este slice:** exigir recibo médico/fiscal já na 2.1. Esse caminho exige primeiro
-  definir PF/PJ,
-  provedor fiscal, identidade legal do emitente, pagador, beneficiário, assinatura/numeração,
-  cancelamento e retenção.
+      definir PF/PJ,
+      provedor fiscal, identidade legal do emitente, pagador, beneficiário, assinatura/numeração,
+      cancelamento e retenção.
 
 O CSV não exige parecer jurídico para existir porque não faz declaração legal; a clínica deve validar
 com seu contador se as colunas atendem a rotina prática. Essa validação de usabilidade não autoriza
@@ -2999,7 +3066,7 @@ As decisões e boundaries estão preservados em:
 - [x] arquitetura, DB, grafos, migrations, registry e observabilidade PASS;
 - [x] `git diff --check`, formatação e varredura de segredos do conteúdo alterado PASS;
 - [x] parceiro de NFS-e PJ escolhido: Asaas; contrato assíncrono e responsabilidades registrados na
-  ADR-054;
+      ADR-054;
 
 Não existe pendência técnica de código/DEV dentro da 2.1A. Uma revisão das colunas por contador é uma
 validação opcional de usabilidade, não um gate de correção. Commit, push, deployment e smoke
@@ -3123,15 +3190,15 @@ O menor fluxo coerente foi entregue localmente:
 - `appointment_id = null` e `prontuario_id = null` continuam sendo os contratos existentes. Não há
   agendamento fictício, schema novo, dependência nova ou migration.
 
-| Evidência | Resultado local de 08/09 |
-| --- | --- |
-| Recorte Unit/component/integration | ✅ 63/63 em 15 arquivos |
-| Suíte integral | ✅ 3.040/3.040 em 329 arquivos |
-| Lint, typecheck e build | ✅ PASS |
-| Arquitetura/DB boundary | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos; 0 findings |
-| Migrations/registry/observabilidade | ✅ PASS; nenhuma migration nova |
-| E2E mutável conectado DEV | ✅ 1/1 em Chromium contra `next start`; `/documentos`, ficha do paciente e Consultório; PDFs legíveis no Storage antes do cleanup; resíduo zero |
-| Preview/produção | ✅ Preview no SHA `7de40c1`: Vercel `success`, smoke autenticado 8/8, 26 rotas HTTP 200 e nenhuma mutação; ⏸️ produção fora do escopo |
+| Evidência                           | Resultado local de 08/09                                                                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recorte Unit/component/integration  | ✅ 63/63 em 15 arquivos                                                                                                                         |
+| Suíte integral                      | ✅ 3.040/3.040 em 329 arquivos                                                                                                                  |
+| Lint, typecheck e build             | ✅ PASS                                                                                                                                         |
+| Arquitetura/DB boundary             | ✅ 54 elementos · 293 arestas · 0 ciclos · 67 eventos; 0 findings                                                                               |
+| Migrations/registry/observabilidade | ✅ PASS; nenhuma migration nova                                                                                                                 |
+| E2E mutável conectado DEV           | ✅ 1/1 em Chromium contra `next start`; `/documentos`, ficha do paciente e Consultório; PDFs legíveis no Storage antes do cleanup; resíduo zero |
+| Preview/produção                    | ✅ Preview no SHA `7de40c1`: Vercel `success`, smoke autenticado 8/8, 26 rotas HTTP 200 e nenhuma mutação; ⏸️ produção fora do escopo           |
 
 Budget C2.0/C2.1: lote funcional com **25 arquivos**, menos de 1.500 linhas e dois bounded contexts
 (`clinical` e `patient`; `app` somente composição). A prova mutável foi autorizada depois e ficou em
@@ -3155,9 +3222,9 @@ sem os identificadores do run.
 - [x] C2.1 implementada sem migration, consulta artificial ou novo builder;
 - [x] Unit, componentes, integração, regressão integral, build e gates arquiteturais verdes;
 - [x] E2E mutável conectado em DEV com fixture sintética tenant-scoped, prova real no Storage e
-  cleanup exato: 1/1 PASS, resíduo zero;
+      cleanup exato: 1/1 PASS, resíduo zero;
 - [x] commit, push, deployment Vercel e smoke autenticado no Preview — `985f5cf`, `2723931` e
-  checkpoint `7de40c1`; Vercel `success`; 8/8 PASS e 26 rotas HTTP 200, sem mutação;
+      checkpoint `7de40c1`; Vercel `success`; 8/8 PASS e 26 rotas HTTP 200, sem mutação;
 - [ ] O-4.0/O-4.1: inventário editorial e shell `/documentacao`;
 - [ ] documentação para usuários finais e Product Acceptance humano.
 
@@ -3687,27 +3754,27 @@ sobre o diff da própria 2.S, nunca sobre a árvore. Ver [D97](discovery-log.md)
 
 Cada linha foi verificada por **leitura do código atual**, não pela descrição histórica do roadmap.
 
-| Domínio | Verificação | Resultado |
-| --- | --- | --- |
-| Clinical · prontuário | `prontuario-access.ts` grava `clinical.prontuario.viewed` na mesma tx, fail-closed | PASS |
-| Clinical · PDF | `_lib/clinical-pdf-route.ts`: gate → UUID → rate limit → consulta → download server-side → audit | PASS |
-| Clinical · prescrição | mesmo helper, `VIEW_PRESCRIPTION`, 404 indistinguível | PASS |
-| Clinical · template 2.3 | `templates/psiquiatria.test.ts` + editor; sem LLM, sem Memed | PASS |
-| Patient · isolamento | consultas tenant-scoped; `withTenant` verifica o papel efetivo antes do callback | PASS |
-| RLS · A → B | Postgres real descartável: estrangeiro=0 nos dois sentidos, INSERT alheio recusado (42501) | PASS |
-| Financial · CSV | projeção sem paciente/CPF/consulta/prontuário; JOIN tenant-scoped nos dois lados | PASS |
-| Financial · CSV injection | `=`, `+`, `-`, `@`, whitespace, NBSP **e BOM** neutralizados | PASS |
-| Financial · limites | teto de 10.000 linhas com `+1` na consulta — recusa em vez de truncar | PASS |
-| Financial · fuso/mês | mês civil no fuso da clínica, início inclusivo e fim exclusivo em UTC | PASS |
-| Messaging · followup | guardas de contexto, `needsReturn`, retorno já concluído | PASS |
-| Messaging · no-show | dedup por `appointmentId`; evento legado, sem paciente e status ≠ `faltou` não contatam | PASS |
-| RBAC | `canFinancial` na página **e** `requireFreshPermission` na rota — defesa em profundidade | PASS |
-| Storage · PDF privado | download só no servidor; nenhuma signed URL criada; nada no DOM | PASS |
-| Audit · acesso PDF | ator/tipo/id/disposição, sem paciente, path, URL ou conteúdo | PASS |
-| Architecture · ciclos | 55 elementos · 296 arestas · **0 ciclos** · 67 eventos | PASS |
-| Registry · C14 | **um único** consumidor de `scheduling.appointment.no_show`, compondo C14 + Payments | PASS |
-| Migrations | integridade PASS; **nenhuma migration criada ou aplicada nesta sub-fase** | PASS |
-| Observability | heartbeat, métricas por lote, kill-switch antes do claim, sem PII | PASS |
+| Domínio                   | Verificação                                                                                      | Resultado |
+| ------------------------- | ------------------------------------------------------------------------------------------------ | --------- |
+| Clinical · prontuário     | `prontuario-access.ts` grava `clinical.prontuario.viewed` na mesma tx, fail-closed               | PASS      |
+| Clinical · PDF            | `_lib/clinical-pdf-route.ts`: gate → UUID → rate limit → consulta → download server-side → audit | PASS      |
+| Clinical · prescrição     | mesmo helper, `VIEW_PRESCRIPTION`, 404 indistinguível                                            | PASS      |
+| Clinical · template 2.3   | `templates/psiquiatria.test.ts` + editor; sem LLM, sem Memed                                     | PASS      |
+| Patient · isolamento      | consultas tenant-scoped; `withTenant` verifica o papel efetivo antes do callback                 | PASS      |
+| RLS · A → B               | Postgres real descartável: estrangeiro=0 nos dois sentidos, INSERT alheio recusado (42501)       | PASS      |
+| Financial · CSV           | projeção sem paciente/CPF/consulta/prontuário; JOIN tenant-scoped nos dois lados                 | PASS      |
+| Financial · CSV injection | `=`, `+`, `-`, `@`, whitespace, NBSP **e BOM** neutralizados                                     | PASS      |
+| Financial · limites       | teto de 10.000 linhas com `+1` na consulta — recusa em vez de truncar                            | PASS      |
+| Financial · fuso/mês      | mês civil no fuso da clínica, início inclusivo e fim exclusivo em UTC                            | PASS      |
+| Messaging · followup      | guardas de contexto, `needsReturn`, retorno já concluído                                         | PASS      |
+| Messaging · no-show       | dedup por `appointmentId`; evento legado, sem paciente e status ≠ `faltou` não contatam          | PASS      |
+| RBAC                      | `canFinancial` na página **e** `requireFreshPermission` na rota — defesa em profundidade         | PASS      |
+| Storage · PDF privado     | download só no servidor; nenhuma signed URL criada; nada no DOM                                  | PASS      |
+| Audit · acesso PDF        | ator/tipo/id/disposição, sem paciente, path, URL ou conteúdo                                     | PASS      |
+| Architecture · ciclos     | 55 elementos · 296 arestas · **0 ciclos** · 67 eventos                                           | PASS      |
+| Registry · C14            | **um único** consumidor de `scheduling.appointment.no_show`, compondo C14 + Payments             | PASS      |
+| Migrations                | integridade PASS; **nenhuma migration criada ou aplicada nesta sub-fase**                        | PASS      |
+| Observability             | heartbeat, métricas por lote, kill-switch antes do claim, sem PII                                | PASS      |
 
 ### 28.3 O que a 2.S mudou no código
 
@@ -3721,14 +3788,14 @@ Budget da 2.S: **1 arquivo, +14/−7 linhas, 1 bounded context**. Muito abaixo d
 
 ### 28.4 Testes executados
 
-| Conjunto | Resultado |
-| --- | --- |
-| Matriz focada da Camada 2 (2.1A · 2.3 · 2.4A/B · 2.H · C2.0/C2.1) | **242/242** em 28 arquivos |
-| Suíte integral com coverage | **3.254/3.254** em 350 arquivos, `EXIT=0` |
-| Isolamento RLS em Postgres real (`security:tenant`) | **6/6 PASS**, teardown zero |
-| E2E mutável DEV (C2.1/D95 + 2.3) | **2/2 PASS**, cleanup zero nas duas |
-| Smoke autenticado do Preview (somente leitura) | **2/2 PASS** — 26 rotas estáticas HTTP 200 |
-| E2E Meta (2.4A e 2.4B) | **BLOCKED_EXTERNAL** — template `IN_REVIEW` |
+| Conjunto                                                          | Resultado                                   |
+| ----------------------------------------------------------------- | ------------------------------------------- |
+| Matriz focada da Camada 2 (2.1A · 2.3 · 2.4A/B · 2.H · C2.0/C2.1) | **242/242** em 28 arquivos                  |
+| Suíte integral com coverage                                       | **3.254/3.254** em 350 arquivos, `EXIT=0`   |
+| Isolamento RLS em Postgres real (`security:tenant`)               | **6/6 PASS**, teardown zero                 |
+| E2E mutável DEV (C2.1/D95 + 2.3)                                  | **2/2 PASS**, cleanup zero nas duas         |
+| Smoke autenticado do Preview (somente leitura)                    | **2/2 PASS** — 26 rotas estáticas HTTP 200  |
+| E2E Meta (2.4A e 2.4B)                                            | **BLOCKED_EXTERNAL** — template `IN_REVIEW` |
 
 O E2E rodou contra `next start` no build otimizado (porta 3001), nunca contra `next dev` — o roadmap
 já registrava `CONNECT_TIMEOUT` desse harness no modo dev. `clinical-standalone-documents` passou em
@@ -3761,18 +3828,18 @@ mantém a um pico de carga de reprovar de novo — registrado como [D100](discov
 
 ### 28.5 Gates
 
-| Gate | Resultado | Observação |
-| --- | --- | --- |
-| lint | PASS | 1.121 arquivos |
-| typecheck | PASS | — |
-| `arch:check` | PASS | madge, 0 ciclo |
-| `arch:db-check` | PASS | 0 achado |
-| `arch:graphs --check` | **FAIL na árvore · PASS no commit** | drift 100% das frentes alheias — ver [D98](discovery-log.md) |
-| `check:migrations` | PASS | — |
-| `check:registry:strict` | PASS | 1:1 preservado |
-| `check:observability` | PASS | — |
-| `format:check` | **FAIL na árvore · PASS no commit** | 5 arquivos, **todos alheios e não rastreados** — ver [D98](discovery-log.md) |
-| `git diff --check` | PASS | — |
+| Gate                    | Resultado                           | Observação                                                                   |
+| ----------------------- | ----------------------------------- | ---------------------------------------------------------------------------- |
+| lint                    | PASS                                | 1.121 arquivos                                                               |
+| typecheck               | PASS                                | —                                                                            |
+| `arch:check`            | PASS                                | madge, 0 ciclo                                                               |
+| `arch:db-check`         | PASS                                | 0 achado                                                                     |
+| `arch:graphs --check`   | **FAIL na árvore · PASS no commit** | drift 100% das frentes alheias — ver [D98](discovery-log.md)                 |
+| `check:migrations`      | PASS                                | —                                                                            |
+| `check:registry:strict` | PASS                                | 1:1 preservado                                                               |
+| `check:observability`   | PASS                                | —                                                                            |
+| `format:check`          | **FAIL na árvore · PASS no commit** | 5 arquivos, **todos alheios e não rastreados** — ver [D98](discovery-log.md) |
+| `git diff --check`      | PASS                                | —                                                                            |
 
 As duas reprovações foram rastreadas até a causa antes de serem reportadas: o grafo regenerado dá
 55/296/**0**/67 contra a baseline 54/293/0/67, e o delta inteiro é `lib:env-coherence` (segurança)
@@ -3822,31 +3889,31 @@ que o código garante. Corrigido em §27.1, §27.4 e no handoff.
 
 ### 28.8 Checklist §25
 
-| Critério | Estado |
-| --- | --- |
-| regressão da Camada 2 | ✅ 242/242 focados |
-| Unit · Integration · Contract | ✅ 3.254/3.254 em 350 arquivos |
-| E2E controlado | ✅ 2/2 no build otimizado, cleanup zero |
-| RBAC | ✅ página + rota, defesa em profundidade |
-| RLS | ✅ Postgres real, dois sentidos, com contrafactual |
-| Security adversarial | ✅ PDF e CSV; zero finding alto ou crítico |
-| lint · typecheck | ✅ |
-| build | ✅ `Compiled successfully in 4.5min`, 0 warning |
-| `arch:check` · `arch:db-check` | ✅ 0 ciclo · 0 achado |
-| `arch:graphs --check` | ✅ no commit `7c9c5ea` (medido em worktree); ❌ na árvore por D98 |
-| migrations · registry · observability | ✅ |
-| `format:check` | ✅ no commit `7c9c5ea` (medido em worktree); ❌ na árvore por D98 |
-| `git diff --check` | ✅ |
-| nenhum segredo | ✅ |
-| nenhum artefato temporário | ✅ no lote — os herdados são não rastreados e não entram no commit |
-| nenhum warning | ✅ no diff da 2.S |
-| nenhum ciclo novo | ✅ |
-| nenhum finding alto/crítico | ✅ |
-| anti-escopo respeitado | ✅ Memed com zero ocorrência em `src`, `package.json` e `drizzle/` |
-| budget respeitado | ✅ 4 arquivos, +171/−12 |
-| documentação atualizada | ✅ |
-| rollout/Preview observado | ✅ deployment `success` + smoke Preview 2/2 |
-| dependências externas classificadas | ✅ |
+| Critério                              | Estado                                                             |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| regressão da Camada 2                 | ✅ 242/242 focados                                                 |
+| Unit · Integration · Contract         | ✅ 3.254/3.254 em 350 arquivos                                     |
+| E2E controlado                        | ✅ 2/2 no build otimizado, cleanup zero                            |
+| RBAC                                  | ✅ página + rota, defesa em profundidade                           |
+| RLS                                   | ✅ Postgres real, dois sentidos, com contrafactual                 |
+| Security adversarial                  | ✅ PDF e CSV; zero finding alto ou crítico                         |
+| lint · typecheck                      | ✅                                                                 |
+| build                                 | ✅ `Compiled successfully in 4.5min`, 0 warning                    |
+| `arch:check` · `arch:db-check`        | ✅ 0 ciclo · 0 achado                                              |
+| `arch:graphs --check`                 | ✅ no commit `7c9c5ea` (medido em worktree); ❌ na árvore por D98  |
+| migrations · registry · observability | ✅                                                                 |
+| `format:check`                        | ✅ no commit `7c9c5ea` (medido em worktree); ❌ na árvore por D98  |
+| `git diff --check`                    | ✅                                                                 |
+| nenhum segredo                        | ✅                                                                 |
+| nenhum artefato temporário            | ✅ no lote — os herdados são não rastreados e não entram no commit |
+| nenhum warning                        | ✅ no diff da 2.S                                                  |
+| nenhum ciclo novo                     | ✅                                                                 |
+| nenhum finding alto/crítico           | ✅                                                                 |
+| anti-escopo respeitado                | ✅ Memed com zero ocorrência em `src`, `package.json` e `drizzle/` |
+| budget respeitado                     | ✅ 4 arquivos, +171/−12                                            |
+| documentação atualizada               | ✅                                                                 |
+| rollout/Preview observado             | ✅ deployment `success` + smoke Preview 2/2                        |
+| dependências externas classificadas   | ✅                                                                 |
 
 Checklist fechado. O item “nenhum artefato temporário” vale **para o lote**: os herdados
 (`scripts/tmp-run-*.ts`, harness da prova externa P11/D77 ainda `BLOCKED_EXTERNAL`; `.tmp/`;
@@ -3867,24 +3934,24 @@ que dependem de terceiro e não se resolvem com código.
 
 ### 29.1 Bloqueadas por terceiro — não há trabalho de código a fazer
 
-| Item | O que bloqueia | O que destrava |
-| --- | --- | --- |
-| **D102** — `lembrete_confirmacao`, `retorno_consulta` e `qoro_no_show_followup` foram **reclassificados para MARKETING** pela Meta | Entrega confiável de lembrete, retorno e recuperação de falta a **outros** pacientes: marketing exige opt-in de marketing e tem limite por usuário | Revisão da Meta dos três substitutos criados em 12/09 (§29.4). Editar não muda categoria — foi verificado no painel |
-| **2.4A** — E2E Meta do template de retorno | Fechamento da 2.4A com prova real | Mesma revisão: `acompanhamento_tratamento` precisa sair `APPROVED/UTILITY` |
-| **D50** — estorno do excedente existente segue `PENDING` no Asaas | Prova externa do caminho de excedente | Provider concluir o refund. Código, DB, webhook, reconcile e compensação já estão resolvidos e testados |
-| **D80 / P11-D77** — transição `DONE → refunded` não observada | Prova externa do ciclo completo de estorno | Provider. Um refund único, replay sem duplicata e readback já passaram; o GET de 06/09 manteve o pagamento `RECEIVED` |
+| Item                                                                                                                               | O que bloqueia                                                                                                                                     | O que destrava                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **D102** — `lembrete_confirmacao`, `retorno_consulta` e `qoro_no_show_followup` foram **reclassificados para MARKETING** pela Meta | Entrega confiável de lembrete, retorno e recuperação de falta a **outros** pacientes: marketing exige opt-in de marketing e tem limite por usuário | Revisão da Meta dos três substitutos criados em 12/09 (§29.4). Editar não muda categoria — foi verificado no painel   |
+| **2.4A** — E2E Meta do template de retorno                                                                                         | Fechamento da 2.4A com prova real                                                                                                                  | Mesma revisão: `acompanhamento_tratamento` precisa sair `APPROVED/UTILITY`                                            |
+| **D50** — estorno do excedente existente segue `PENDING` no Asaas                                                                  | Prova externa do caminho de excedente                                                                                                              | Provider concluir o refund. Código, DB, webhook, reconcile e compensação já estão resolvidos e testados               |
+| **D80 / P11-D77** — transição `DONE → refunded` não observada                                                                      | Prova externa do ciclo completo de estorno                                                                                                         | Provider. Um refund único, replay sem duplicata e readback já passaram; o GET de 06/09 manteve o pagamento `RECEIVED` |
 
 **Não falsificar nenhuma destas com mock.** O contrato do projeto (§20) separa `PASS` de
 `BLOCKED_EXTERNAL` justamente para que a ausência de prova não vire prova por cansaço.
 
 ### 29.2 Decisões do fundador — tomadas em 12/09
 
-| Item | Decisão | Consequência |
-| --- | --- | --- |
-| **D11/D12** — sessões paralelas no mesmo checkout | **Serializar**: uma sessão ativa por vez | Elimina a causa em vez de mitigar, ao custo do paralelismo. Registrado em [CONVENTIONS.md](CONVENTIONS.md#uma-sessão-por-vez-no-checkout) com os três incidentes que a justificam |
-| **D4** — 32 referências a ADR penduradas | **Recuperar do histórico**, não limpar as citações | As ADRs nunca se perderam: o commit `d8d442d` apagou 41 arquivos de uma vez e todos seguiam no git. Restauradas; **56 citadas, 56 no disco, zero penduradas** |
-| **§30** — credencial profissional genérica | **Manter apenas CRM**: esquecer a divisão psicólogo/psiquiatra e focar em quem tem CRM | Tira o "conselho genérico" do P2. Detalhe em §30.6 |
-| **P2 — pacote/mensalidade** | **Adiar**: "essa lógica só existe em algumas clínicas, não acho que é algo urgente" | Tira o segundo item do P2 e deixa a camada sem conteúdo acionável. Detalhe em §31.1 |
+| Item                                              | Decisão                                                                                | Consequência                                                                                                                                                                      |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D11/D12** — sessões paralelas no mesmo checkout | **Serializar**: uma sessão ativa por vez                                               | Elimina a causa em vez de mitigar, ao custo do paralelismo. Registrado em [CONVENTIONS.md](CONVENTIONS.md#uma-sessão-por-vez-no-checkout) com os três incidentes que a justificam |
+| **D4** — 32 referências a ADR penduradas          | **Recuperar do histórico**, não limpar as citações                                     | As ADRs nunca se perderam: o commit `d8d442d` apagou 41 arquivos de uma vez e todos seguiam no git. Restauradas; **56 citadas, 56 no disco, zero penduradas**                     |
+| **§30** — credencial profissional genérica        | **Manter apenas CRM**: esquecer a divisão psicólogo/psiquiatra e focar em quem tem CRM | Tira o "conselho genérico" do P2. Detalhe em §30.6                                                                                                                                |
+| **P2 — pacote/mensalidade**                       | **Adiar**: "essa lógica só existe em algumas clínicas, não acho que é algo urgente"    | Tira o segundo item do P2 e deixa a camada sem conteúdo acionável. Detalhe em §31.1                                                                                               |
 
 O D4 acabou não sendo a escolha binária que o registro sugeria. A hipótese do fundador — "talvez
 estejam numa branch" — estava certa, e verificar antes de apagar evitou destruir 205 KB de decisão
@@ -3892,10 +3959,10 @@ de arquitetura que continuava valendo.
 
 ### 29.3 Internas e executáveis — sem bloqueio externo
 
-| Item | Por que importa | Custo |
-| --- | --- | --- |
-| **Auditar env de Preview e produção** com `provision-templates.ts --dry-run` | O D105 (variável duplicada apontando para template inexistente) foi encontrado e corrigido **só no `.env.local`**. `.env.local` não é versionado, então ninguém sabe se Preview e produção têm o mesmo erro — e lá a cobrança amigável quebraria em silêncio, porque falha de envio vira retry, não alarme | Um comando, com aquelas env vars carregadas |
-| **Camada 3 / P2** | Era o próximo passo formal do roadmap | **Esvaziada em 12/09** por duas decisões do fundador (§30.6, §31.1). O que sobrou não é executável como está — ver §31.3 |
+| Item                                                                         | Por que importa                                                                                                                                                                                                                                                                                            | Custo                                                                                                                    |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Auditar env de Preview e produção** com `provision-templates.ts --dry-run` | O D105 (variável duplicada apontando para template inexistente) foi encontrado e corrigido **só no `.env.local`**. `.env.local` não é versionado, então ninguém sabe se Preview e produção têm o mesmo erro — e lá a cobrança amigável quebraria em silêncio, porque falha de envio vira retry, não alarme | Um comando, com aquelas env vars carregadas                                                                              |
+| **Camada 3 / P2**                                                            | Era o próximo passo formal do roadmap                                                                                                                                                                                                                                                                      | **Esvaziada em 12/09** por duas decisões do fundador (§30.6, §31.1). O que sobrou não é executável como está — ver §31.3 |
 
 **Todo o resto do Discovery Log interno está fechado.** Os três achados ainda abertos — D50, D80 e
 D102 — dependem de terceiro (Asaas e Meta) e não têm trabalho de código associado.
@@ -3905,11 +3972,11 @@ D102 — dependem de terceiro (Asaas e Meta) e não têm trabalho de código ass
 Criados na WABA conectada pelo **mesmo caminho do cliente** (`ensureMessageTemplates`, a função que o
 connect dispara), com `category: 'UTILITY'` e os corpos reescritos:
 
-| Novo | Substitui | Estado |
-| --- | --- | --- |
-| `confirmacao_consulta` | `lembrete_confirmacao` | `PENDING` |
-| `acompanhamento_tratamento` | `retorno_consulta` | `PENDING` |
-| `atualizacao_agendamento` | `qoro_no_show_followup` | `PENDING` |
+| Novo                        | Substitui               | Estado    |
+| --------------------------- | ----------------------- | --------- |
+| `confirmacao_consulta`      | `lembrete_confirmacao`  | `PENDING` |
+| `acompanhamento_tratamento` | `retorno_consulta`      | `PENDING` |
+| `atualizacao_agendamento`   | `qoro_no_show_followup` | `PENDING` |
 
 Os nomes novos foram injetados **apenas na execução do script**; o ambiente segue apontando para os
 antigos, que funcionam. Apontar para template em análise quebraria o envio. Quando a Meta revisar:
@@ -3947,26 +4014,26 @@ Meta. Nenhum tem trabalho de código pendente.
 
 Cinco commits em `a62c1c5..cc426ee`, deployment Vercel do SHA final `success`.
 
-| Commit | Conteúdo |
-| --- | --- |
-| `bcf2aa5` | Redesenho do tenant — 109 arquivos, `+6.109/−1.457` |
+| Commit    | Conteúdo                                                  |
+| --------- | --------------------------------------------------------- |
+| `bcf2aa5` | Redesenho do tenant — 109 arquivos, `+6.109/−1.457`       |
 | `9cde8cc` | Snapshots do grafo após o redesenho (55/296/**0 ciclos**) |
-| `83764e9` | D2, D30, D100, E2E do CSV contábil, §29 e §30 |
-| `18821df` | Inventário vivo de segurança regenerado |
-| `cc426ee` | Onde as ADRs penduradas são citadas (D4) |
+| `83764e9` | D2, D30, D100, E2E do CSV contábil, §29 e §30             |
+| `18821df` | Inventário vivo de segurança regenerado                   |
+| `cc426ee` | Onde as ADRs penduradas são citadas (D4)                  |
 
 Validação, com exit code medido por execução direta — **não** depois de um pipe:
 
-| Gate | Resultado |
-| --- | --- |
-| `pnpm test` | `EXIT=0` |
-| `typecheck` · `arch:check` · `arch:db-check` | `EXIT=0` |
-| `check:migrations` · `check:registry:strict` · `check:observability` | `EXIT=0` |
-| `format:check` · `arch:graphs --check` | `EXIT=0` |
-| `pnpm build` | `EXIT=0`, **rodado antes do push** |
-| `security:inventory` | `EXIT=0` após regenerar; `unresolved: []` |
-| `security:tenant` | **6/6**, com contrafactual e teardown zero |
-| Smoke autenticado do Preview | **5/5** — 26 rotas estáticas em HTTP 200, dinâmicas preservando sessão |
+| Gate                                                                 | Resultado                                                              |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm test`                                                          | `EXIT=0`                                                               |
+| `typecheck` · `arch:check` · `arch:db-check`                         | `EXIT=0`                                                               |
+| `check:migrations` · `check:registry:strict` · `check:observability` | `EXIT=0`                                                               |
+| `format:check` · `arch:graphs --check`                               | `EXIT=0`                                                               |
+| `pnpm build`                                                         | `EXIT=0`, **rodado antes do push**                                     |
+| `security:inventory`                                                 | `EXIT=0` após regenerar; `unresolved: []`                              |
+| `security:tenant`                                                    | **6/6**, com contrafactual e teardown zero                             |
+| Smoke autenticado do Preview                                         | **5/5** — 26 rotas estáticas em HTTP 200, dinâmicas preservando sessão |
 
 Duas correções de método entraram em vigor aqui, ambas por terem custado erro real antes:
 
@@ -3998,13 +4065,13 @@ tem onde se apoiar.
 
 28 arquivos de runtime citam CRM (fora de teste), concentrados em quatro camadas:
 
-| Camada | Arquivos | Natureza do acoplamento |
-| --- | --- | --- |
-| `contexts/identity` | 7 | **Dono do dado.** `profiles.crm` e `profiles.crm_uf` (`identity/schema.ts:80-81`), mais `CrmConflictError` |
-| `contexts/clinical` | 5 | **Snapshot imutável.** `signed_doctor_crm`, `snapshot_doctor_crm` e `snapshot_doctor_crm_uf` em prontuário, prescrição e documento |
-| `app/(app)` | 9 | Formulário de perfil, exibição e telas de equipe |
-| `lib/pdf` | 3 | **Saída impressa.** `components.tsx:108` e `receituario-controle-especial.tsx:135` montam a linha `CRM {uf} {numero}` |
-| `contexts/scheduling` | 3 | Snapshot antecipado do profissional |
+| Camada                | Arquivos | Natureza do acoplamento                                                                                                            |
+| --------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `contexts/identity`   | 7        | **Dono do dado.** `profiles.crm` e `profiles.crm_uf` (`identity/schema.ts:80-81`), mais `CrmConflictError`                         |
+| `contexts/clinical`   | 5        | **Snapshot imutável.** `signed_doctor_crm`, `snapshot_doctor_crm` e `snapshot_doctor_crm_uf` em prontuário, prescrição e documento |
+| `app/(app)`           | 9        | Formulário de perfil, exibição e telas de equipe                                                                                   |
+| `lib/pdf`             | 3        | **Saída impressa.** `components.tsx:108` e `receituario-controle-especial.tsx:135` montam a linha `CRM {uf} {numero}`              |
+| `contexts/scheduling` | 3        | Snapshot antecipado do profissional                                                                                                |
 
 O gate funcional é `assertDoctorHasCrm` (`clinical/internal/doctor.ts`), chamado em
 `clinical/actions.ts:442` e `:526`. A regra vigente, documentada no schema, é precisa e precisa ser
@@ -4081,8 +4148,8 @@ recomendação dele está revogada por esta seção.
 
 ### 31.1 Decisão do fundador: pacote/mensalidade adiado
 
-**Decisão:** adiar. Palavras do fundador: *"essa lógica só existe em algumas clínicas, não acho que é
-algo urgente"*.
+**Decisão:** adiar. Palavras do fundador: _"essa lógica só existe em algumas clínicas, não acho que é
+algo urgente"_.
 
 **Contexto que sustenta a decisão:** "pacote/mensalidade" nunca teve especificação. Levantado em
 12/09, o termo aparece **somente** nas linhas de listagem de camadas (§7, §29.3 e o mapa) — nenhuma
@@ -4101,12 +4168,12 @@ os dois como modalidades de um mesmo contrato; cada leitura implica dados e regr
 mesmos rótulos e conteúdos diferentes, e **as duas entraram no mesmo commit** (`42cd114`, 04/09) —
 nenhuma supera a outra por data:
 
-| Rótulo | §6 — marcos de produto | §21.19 — fatias de implementação |
-| --- | --- | --- |
-| **O-1** | wizard de cadastro | atribuição (`/comecar`, parâmetros, linker) |
-| **O-2** | onboarding concluído → **dashboard único** | **bootstrap seguro**: migration `signup_sessions`, cookie/HMAC/TTL/CAS, rate limit fail-closed, Turnstile, janitor |
-| **O-3** | tour | identidade (Supabase signUp, PKCE, anti-enumeração) |
-| **O-4** | **Central de Documentação** (§23 expande este) | **clínica/plano** (draft autenticado, plano server-side) |
+| Rótulo  | §6 — marcos de produto                         | §21.19 — fatias de implementação                                                                                   |
+| ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **O-1** | wizard de cadastro                             | atribuição (`/comecar`, parâmetros, linker)                                                                        |
+| **O-2** | onboarding concluído → **dashboard único**     | **bootstrap seguro**: migration `signup_sessions`, cookie/HMAC/TTL/CAS, rate limit fail-closed, Turnstile, janitor |
+| **O-3** | tour                                           | identidade (Supabase signUp, PKCE, anti-enumeração)                                                                |
+| **O-4** | **Central de Documentação** (§23 expande este) | **clínica/plano** (draft autenticado, plano server-side)                                                           |
 
 Não é sinônimo nem refinamento: o O-2 do §6 é uma tela; o O-2 do §21.19 é uma migration com controle
 de abuso. Planejar "P2 = O-2" sem dizer qual produz trabalhos de tamanho e risco incomparáveis.
@@ -4123,7 +4190,7 @@ resta é o rótulo "O-2", e ele está bloqueado por três coisas, em ordem:
 1. **Qual O-2** (§31.2) — decisão de leitura, não de implementação;
 2. **Track O exige ADR e scope freeze próprios** antes de qualquer código, mais gates `O.H`/`O.S`. O
    §21 está marcado "DESENHO PROPOSTO PARA DISCOVERY; NÃO IMPLEMENTADO" e a [ADR-053](adr/053-cadastro-autonomo-seguro.md)
-   segue *Proposed*. O §21.19 chama esse passo de **O-0**;
+   segue _Proposed_. O §21.19 chama esse passo de **O-0**;
 3. **Na leitura do §21.19, O-2 depende de O-1** (atribuição) e traz migration, Turnstile e regras de
    WAF — infraestrutura nova, que o §21 diz exigir autorização explícita.
 
@@ -4138,14 +4205,14 @@ para reabri-la. Nenhuma linha de runtime foi alterada por esta seção.
 
 O fundador decidiu retomar o cadastro autônomo e começar pelo **O-2 na leitura do §21.19** — bootstrap
 seguro, com migration `signup_sessions`, cookie/HMAC/TTL/CAS, rate limit fail-closed, Turnstile e
-janitor. Motivo declarado: *"prezo pela segurança e quero ter uma boa observação de leads pelo
-formulário de cadastro"*. Isso resolve, para efeito prático, a ambiguidade do §31.2 — **o P2 usa a
+janitor. Motivo declarado: _"prezo pela segurança e quero ter uma boa observação de leads pelo
+formulário de cadastro"_. Isso resolve, para efeito prático, a ambiguidade do §31.2 — **o P2 usa a
 leitura do §21.19**; a do §6 continua existindo e continua precisando ser desfeita algum dia.
 
 **Decisão de produto registrada junto:** o cartão vai pelo **Checkout hospedado do Asaas**, nunca por
 formulário próprio. A [ADR-053](adr/053-cadastro-autonomo-seguro.md) já decidia isso por escopo PCI; o
-fundador acrescentou a razão de produto — *"usando um personalizado nosso, pode haver falta de confiança
-em colocar as informações lá"*. Vale registrar as duas: se algum dia o argumento técnico mudar, o de
+fundador acrescentou a razão de produto — _"usando um personalizado nosso, pode haver falta de confiança
+em colocar as informações lá"_. Vale registrar as duas: se algum dia o argumento técnico mudar, o de
 confiança do usuário continua de pé.
 
 **Ordem do fluxo — decidida em 12/09 depois de um conflito detectado.** O fluxo descrito pelo fundador
@@ -4176,7 +4243,7 @@ pré-requisito único, nenhuma fatia começa, nem as que não dependem de tercei
 A ADR foi **revisada no mesmo dia**, a pedido do fundador ("o escopo como está é o melhor possível?").
 Além da ordem do fluxo, mudaram duas coisas por leitura de código: o corte em **O-2a** (sessão, sem
 dependência externa) e **O-2b** (risco adaptativo + Turnstile, que depende de conta em terceiro), e a
-troca do *fail-closed* uniforme por um **limiter graduado** — degrada onde o excedente custa uma linha
+troca do _fail-closed_ uniforme por um **limiter graduado** — degrada onde o excedente custa uma linha
 efêmera, fecha onde custa e-mail enviado ou registro no Asaas. O gatilho da revisão foi descobrir que o
 padrão vigente do projeto já degrada (`BoundedFallbackLimiter` em `src/lib/auth/rate-limit.ts`) e que a
 própria ADR-053 escreve "falham fechadas/**degradadas**", permitindo as duas.
@@ -4223,22 +4290,22 @@ O `docs/README.md` fixa a regra que esta seção obedece, e ela é o que dá val
 Por isso cada linha tem **duas** dimensões de estado, e não uma. "Existe no código" e "roda em
 produção" divergem hoje, e a distância é grande:
 
-| Medida | Valor em 14/09 |
-| --- | --- |
-| Commits em `feat/qorov2-pagamentos` à frente de `main` | **183** |
-| Migrations no branch e **não** em produção | **3** (`0096`–`0098`) |
-| Migrations totais | 99 |
-| Tabelas | ~100 |
-| Bounded contexts | 13 |
-| Crons | 19 |
-| Rotas de API | 28 |
-| Páginas | 52 |
-| Server actions exportadas | ~200 |
-| Permissions canônicas | 30 |
-| Roles | 6 |
-| Testes unitários | 3.355 (359 arquivos) |
-| Specs E2E | 57 (21.813 linhas) |
-| ADRs | 57 |
+| Medida                                                 | Valor em 14/09        |
+| ------------------------------------------------------ | --------------------- |
+| Commits em `feat/qorov2-pagamentos` à frente de `main` | **183**               |
+| Migrations no branch e **não** em produção             | **3** (`0096`–`0098`) |
+| Migrations totais                                      | 99                    |
+| Tabelas                                                | ~100                  |
+| Bounded contexts                                       | 13                    |
+| Crons                                                  | 19                    |
+| Rotas de API                                           | 28                    |
+| Páginas                                                | 52                    |
+| Server actions exportadas                              | ~200                  |
+| Permissions canônicas                                  | 30                    |
+| Roles                                                  | 6                     |
+| Testes unitários                                       | 3.355 (359 arquivos)  |
+| Specs E2E                                              | 57 (21.813 linhas)    |
+| ADRs                                                   | 57                    |
 
 **A leitura honesta das duas primeiras linhas:** boa parte do que este documento descreve como
 entregue está num branch. Produção não tem `signup_sessions`, não tem Turnstile, não tem o conserto do
@@ -4258,111 +4325,114 @@ em produção.
 
 ### 32.2 Identidade, sessão e autorização
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Sessão server-authoritative por request (auth epoch); o middleware NÃO autoriza | [ADR-037](adr/037-server-authoritative-session.md) | produção | `security:unit`, `production-permission-lifecycle` |
-| 6 roles + 30 permissions flat no JWT, catálogo único em TS | [ADR-008](adr/008-identity-patterns.md) · D25 | produção | `production-all-permission-overrides` |
-| MFA obrigatório **só** para `super_admin` | [ADR-038](adr/038-mfa-policy.md) | produção | `production-mfa-lifecycle` |
-| Ciclo de vida de membro (desativar, reativar, trocar role, override) | [ADR-039](adr/039-member-lifecycle.md) | produção | `production-role-transition-matrix-a` |
-| Aceite de convite como gate de sessão | [ADR-040](adr/040-invite-acceptance-gate.md) | produção | `production-team-lifecycle` |
-| Reenvio de convite por link copiável, não e-mail automático | [ADR-034](adr/034-invite-resend-copy-link.md) | produção | `production-invite-concurrency-a` |
-| Tabela de autorização não é tabela de tenant | [ADR-041](adr/041-authz-tables-are-not-tenant-tables.md) | produção | `security:tenant` |
-| Colapso User=Employee=Practitioner + `isPractitioner` | [ADR-032](adr/032-mvp-identity-practitioner-model.md) | produção | — |
-| `captchaToken` nas 3 chamadas do Supabase Auth | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c | **branch** | `login/actions.test.ts`, `public-surface` |
-| super_admin recém-criado alcança o enrollment de MFA | conserto de 14/09 | **branch** | sonda no Preview |
+| O que existe                                                                            | ADR                                                             | Estado           | Prova                                                           |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------- | --------------------------------------------------------------- |
+| Sessão server-authoritative por request (auth epoch); o middleware NÃO autoriza         | [ADR-037](adr/037-server-authoritative-session.md)              | produção         | `security:unit`, `production-permission-lifecycle`              |
+| Sessão Supabase HttpOnly por geração, renovação no servidor e reautenticação no cutover | [ADR-037](adr/037-server-authoritative-session.md) emenda 14/09 | **branch/local** | regressões de sessão em §35.6; Preview/produção não revalidados |
+| 6 roles + 30 permissions flat no JWT, catálogo único em TS                              | [ADR-008](adr/008-identity-patterns.md) · D25                   | produção         | `production-all-permission-overrides`                           |
+| MFA obrigatório **só** para `super_admin`                                               | [ADR-038](adr/038-mfa-policy.md)                                | produção         | `production-mfa-lifecycle`                                      |
+| Ciclo de vida de membro (desativar, reativar, trocar role, override)                    | [ADR-039](adr/039-member-lifecycle.md)                          | produção         | `production-role-transition-matrix-a`                           |
+| Aceite de convite como gate de sessão                                                   | [ADR-040](adr/040-invite-acceptance-gate.md)                    | produção         | `production-team-lifecycle`                                     |
+| Reenvio de convite por link copiável, não e-mail automático                             | [ADR-034](adr/034-invite-resend-copy-link.md)                   | produção         | `production-invite-concurrency-a`                               |
+| Tabela de autorização não é tabela de tenant                                            | [ADR-041](adr/041-authz-tables-are-not-tenant-tables.md)        | produção         | `security:tenant`                                               |
+| Colapso User=Employee=Practitioner + `isPractitioner`                                   | [ADR-032](adr/032-mvp-identity-practitioner-model.md)           | produção         | —                                                               |
+| `captchaToken` nas 3 chamadas do Supabase Auth                                          | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c           | **branch**       | `login/actions.test.ts`, `public-surface`                       |
+| super_admin recém-criado alcança o enrollment de MFA                                    | conserto de 14/09                                               | **branch**       | sonda no Preview                                                |
 
 ### 32.3 Multi-tenant e banco
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| RLS com `withTenant` (`SET LOCAL ROLE` + GUC `app.current_clinic`) | [ADR-007](adr/007-rls-implementation-patterns.md) | produção | `security:tenant` (Postgres temporário no CI) |
-| Policy v2 (InitPlan) + least-privilege no schema `public` | [ADR-042](adr/042-rls-initplan-and-public-least-privilege.md) | produção | `arch:db-check` |
-| SECURITY DEFINER com allowlist mínima | [ADR-010](adr/010-security-definer-patterns.md) | produção | `security:inventory` |
-| Tabelas globais pré-tenant: RLS ENABLE+FORCE **sem policy**, grant só a `service_role` | [ADR-007](adr/007-rls-implementation-patterns.md) §10 | produção + branch | `smoke:signup-session` |
-| Gate anti-destrutivo de migration | — | produção | `check:migrations` |
-| Guard AST de origem de conexão (`dbAdmin` fora de `withTenant`) | [ADR-007](adr/007-rls-implementation-patterns.md) F-01 | produção | `arch:db-check` (1.213 arquivos) |
-| Cifra de conteúdo clínico | [ADR-044](adr/044-clinical-content-encryption.md) | produção | `db:encrypt-clinical`, `security:unit` |
-| Retenção (não particionamento) da mensageria raw | [ADR-043](adr/043-messaging-retention-not-partitioning.md) | produção | `cron/data-retention` |
+| O que existe                                                                           | ADR                                                           | Estado            | Prova                                         |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------- | --------------------------------------------- |
+| RLS com `withTenant` (`SET LOCAL ROLE` + GUC `app.current_clinic`)                     | [ADR-007](adr/007-rls-implementation-patterns.md)             | produção          | `security:tenant` (Postgres temporário no CI) |
+| Policy v2 (InitPlan) + least-privilege no schema `public`                              | [ADR-042](adr/042-rls-initplan-and-public-least-privilege.md) | produção          | `arch:db-check`                               |
+| SECURITY DEFINER com allowlist mínima                                                  | [ADR-010](adr/010-security-definer-patterns.md)               | produção          | `security:inventory`                          |
+| Tabelas globais pré-tenant: RLS ENABLE+FORCE **sem policy**, grant só a `service_role` | [ADR-007](adr/007-rls-implementation-patterns.md) §10         | produção + branch | `smoke:signup-session`                        |
+| Gate anti-destrutivo de migration                                                      | —                                                             | produção          | `check:migrations`                            |
+| Guard AST de origem de conexão (`dbAdmin` fora de `withTenant`)                        | [ADR-007](adr/007-rls-implementation-patterns.md) F-01        | produção          | `arch:db-check` (1.213 arquivos)              |
+| Cifra de conteúdo clínico                                                              | [ADR-044](adr/044-clinical-content-encryption.md)             | produção          | `db:encrypt-clinical`, `security:unit`        |
+| Retenção (não particionamento) da mensageria raw                                       | [ADR-043](adr/043-messaging-retention-not-partitioning.md)    | produção          | `cron/data-retention`                         |
 
 ### 32.4 Clínico
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Prontuário SOAP, assinatura, edição de assinado | — | produção | `production-consultorio-attendant-integrity-a` |
-| Board do Consultório: practitioner vê a própria fila | [ADR-033](adr/033-consultorio-board-scope-practitioner.md) | produção | `production-role-journeys-a` |
-| Documentos clínicos **fora** da consulta | [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md) | produção | `clinical-standalone-documents` |
-| Template psiquiátrico | §25 | produção | `psychiatry-template` |
-| PDFs clínicos com acesso autenticado, sem bearer na URL | [ADR-059](adr/059-acesso-autenticado-pdfs-clinicos.md) | produção | `production-cross-tenant-clinical-idor` |
-| Inadimplência **não** bloqueia leitura do prontuário | [ADR-046](adr/046-no-login-gate-clinical-record-access.md) | produção | — |
-| Memed | [ADR-056](adr/056-spike-integracao-memed.md) | **adiado** (Track M) | spike; sem SDK, sem migration |
+| O que existe                                                                       | ADR                                                        | Estado               | Prova                                                   |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------- | ------------------------------------------------------- |
+| Prontuário SOAP, assinatura, edição de assinado                                    | —                                                          | produção             | `production-consultorio-attendant-integrity-a`          |
+| Board do Consultório: practitioner vê a própria fila                               | [ADR-033](adr/033-consultorio-board-scope-practitioner.md) | produção             | `production-role-journeys-a`                            |
+| Atualização do board por `getBoard` server-side a cada 20 s, sem bearer no browser | [ADR-019](adr/019-consultorio-chamadas.md) emenda 14/09    | **branch/local**     | regressão de polling em §35.6; perde latência de evento |
+| Documentos clínicos **fora** da consulta                                           | [ADR-055](adr/055-documentos-clinicos-fora-da-consulta.md) | produção             | `clinical-standalone-documents`                         |
+| Template psiquiátrico                                                              | §25                                                        | produção             | `psychiatry-template`                                   |
+| PDFs clínicos com acesso autenticado, sem bearer na URL                            | [ADR-059](adr/059-acesso-autenticado-pdfs-clinicos.md)     | produção             | `production-cross-tenant-clinical-idor`                 |
+| Inadimplência **não** bloqueia leitura do prontuário                               | [ADR-046](adr/046-no-login-gate-clinical-record-access.md) | produção             | —                                                       |
+| Memed                                                                              | [ADR-056](adr/056-spike-integracao-memed.md)               | **adiado** (Track M) | spike; sem SDK, sem migration                           |
 
 ### 32.5 Agenda e recuperação
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Agenda, recorrência, encaixe, transferência, no-show | — | produção | `production-recurrence-a`, `production-appointment-recovery-a` |
-| Double booking impedido sob concorrência | — | produção | `production-appointment-concurrency` |
-| Importação histórica com rollback e proveniência | — | produção | `production-appointment-import-a` |
-| Lista de espera com oferta e cancelamento humano | — | produção | `production-waitlist-a` |
-| Recuperação após falta e retorno clínico | [ADR-057](adr/057-recuperacao-falta-retorno.md) | produção | `cron/proactive-followup` |
+| O que existe                                         | ADR                                             | Estado   | Prova                                                          |
+| ---------------------------------------------------- | ----------------------------------------------- | -------- | -------------------------------------------------------------- |
+| Agenda, recorrência, encaixe, transferência, no-show | —                                               | produção | `production-recurrence-a`, `production-appointment-recovery-a` |
+| Double booking impedido sob concorrência             | —                                               | produção | `production-appointment-concurrency`                           |
+| Importação histórica com rollback e proveniência     | —                                               | produção | `production-appointment-import-a`                              |
+| Lista de espera com oferta e cancelamento humano     | —                                               | produção | `production-waitlist-a`                                        |
+| Recuperação após falta e retorno clínico             | [ADR-057](adr/057-recuperacao-falta-retorno.md) | produção | `cron/proactive-followup`                                      |
 
 ### 32.6 Financeiro e pagamentos
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Cobrança de paciente via Asaas (modelo B, chave da clínica cifrada) | [ADR-049](adr/049-pagamentos-paciente-sinal.md) | produção | `payments:live-check` (sandbox real) |
-| Identidade de pagamento do paciente (customer por clínica) | [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md) | produção | `smoke:payments-journey` |
-| Conciliação cobrança ⇄ recebível | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md) | produção | `smoke:payments-financial` |
-| Risco e reversão de pagamento | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md) | produção | `smoke:payments-post-recovery` |
-| Documento de pagamento e recibo | [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) | produção | — |
-| Exportação financeira mensal para contabilidade | [ADR-058](adr/058-exportacao-financeira-contabilidade.md) | produção | `accounting-export` + `smoke:accounting-export` |
-| Caixa, estorno multipartes, concorrência de recebimento | — | produção | `production-financial-lifecycle-a`, `production-financial-concurrency-a` |
-| NFS-e via Asaas | — | **adiado** (12/09) | sem spec |
+| O que existe                                                        | ADR                                                             | Estado             | Prova                                                                    |
+| ------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------ |
+| Cobrança de paciente via Asaas (modelo B, chave da clínica cifrada) | [ADR-049](adr/049-pagamentos-paciente-sinal.md)                 | produção           | `payments:live-check` (sandbox real)                                     |
+| Identidade de pagamento do paciente (customer por clínica)          | [ADR-050](adr/050-identidade-de-pagamento-do-paciente.md)       | produção           | `smoke:payments-journey`                                                 |
+| Conciliação cobrança ⇄ recebível                                    | [ADR-051](adr/051-conciliacao-sinal-e-recebivel.md)             | produção           | `smoke:payments-financial`                                               |
+| Risco e reversão de pagamento                                       | [ADR-052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md) | produção           | `smoke:payments-post-recovery`                                           |
+| Documento de pagamento e recibo                                     | [ADR-054](adr/054-documento-de-pagamento-e-recibo-fiscal.md)    | produção           | —                                                                        |
+| Exportação financeira mensal para contabilidade                     | [ADR-058](adr/058-exportacao-financeira-contabilidade.md)       | produção           | `accounting-export` + `smoke:accounting-export`                          |
+| Caixa, estorno multipartes, concorrência de recebimento             | —                                                               | produção           | `production-financial-lifecycle-a`, `production-financial-concurrency-a` |
+| NFS-e via Asaas                                                     | —                                                               | **adiado** (12/09) | sem spec                                                                 |
 
 ### 32.7 Mensageria, agente e WhatsApp
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Webhook Meta: idempotência, retry, fora de ordem | C10 | produção | `smoke:c10`, `smoke:c12` |
-| Embedded Signup self-service (`connectMyClinicWhatsapp`) | §handoff | produção | `wa:connect`, runbook |
-| Agente de IA + guardas de prompt injection | [ADR-048](adr/048-ai-agent-conversational-safety.md) | produção | `smoke:c11`, `ai:adversarial` |
-| Painel de Conversas IA + handoff humano | [ADR-047](adr/047-ai-conversations-human-handoff.md) | produção | `production-conversation-handoff-a` |
-| Kill-switch `ai_agent.mode` e `proactive_jobs.enabled` | C15 | produção | `smoke:admin-config` |
-| Janela de 24 h: contador correto e que de fato conta | conserto de 14/09 | **branch** | `janela-aberta.test.tsx` |
-| **Perfil do WhatsApp Business configurável pela clínica** | **§33 (novo)** | **não existe** | — |
+| O que existe                                              | ADR                                                  | Estado         | Prova                               |
+| --------------------------------------------------------- | ---------------------------------------------------- | -------------- | ----------------------------------- |
+| Webhook Meta: idempotência, retry, fora de ordem          | C10                                                  | produção       | `smoke:c10`, `smoke:c12`            |
+| Embedded Signup self-service (`connectMyClinicWhatsapp`)  | §handoff                                             | produção       | `wa:connect`, runbook               |
+| Agente de IA + guardas de prompt injection                | [ADR-048](adr/048-ai-agent-conversational-safety.md) | produção       | `smoke:c11`, `ai:adversarial`       |
+| Painel de Conversas IA + handoff humano                   | [ADR-047](adr/047-ai-conversations-human-handoff.md) | produção       | `production-conversation-handoff-a` |
+| Kill-switch `ai_agent.mode` e `proactive_jobs.enabled`    | C15                                                  | produção       | `smoke:admin-config`                |
+| Janela de 24 h: contador correto e que de fato conta      | conserto de 14/09                                    | **branch**     | `janela-aberta.test.tsx`            |
+| **Perfil do WhatsApp Business configurável pela clínica** | **§33 (novo)**                                       | **não existe** | —                                   |
 
 ### 32.8 Plataforma (`/admin`) e observabilidade
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Impersonate com step-up de MFA a cada uso; a LINHA manda, não o cookie | C15 | produção | `admin-superadmin-journey` (6/6 no Preview) |
-| Platform settings + anúncio global | C15 | produção | `smoke:admin-config` |
-| Fronteira de observabilidade: `withCron`, contexto, captura de background | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` |
-| Gate de drift docs ⇄ `vercel.json` ⇄ eventos | [ADR-045](adr/045-observability-execution-boundary.md) | produção | `check:observability` (19 crons) |
-| Sessão expirada deixa de virar exceção no Sentry | conserto de 14/09 | **branch** | `sentry-scrub.test.ts` |
+| O que existe                                                              | ADR                                                    | Estado     | Prova                                       |
+| ------------------------------------------------------------------------- | ------------------------------------------------------ | ---------- | ------------------------------------------- |
+| Impersonate com step-up de MFA a cada uso; a LINHA manda, não o cookie    | C15                                                    | produção   | `admin-superadmin-journey` (6/6 no Preview) |
+| Platform settings + anúncio global                                        | C15                                                    | produção   | `smoke:admin-config`                        |
+| Fronteira de observabilidade: `withCron`, contexto, captura de background | [ADR-045](adr/045-observability-execution-boundary.md) | produção   | `check:observability`                       |
+| Gate de drift docs ⇄ `vercel.json` ⇄ eventos                              | [ADR-045](adr/045-observability-execution-boundary.md) | produção   | `check:observability` (19 crons)            |
+| Sessão expirada deixa de virar exceção no Sentry                          | conserto de 14/09                                      | **branch** | `sentry-scrub.test.ts`                      |
 
 ### 32.9 Cadastro autônomo (Track O)
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Arquitetura do track | [ADR-053](adr/053-cadastro-autonomo-seguro.md) | decidida | — |
-| O-2a: sessão anônima, cookie `__Host-`, TTL/CAS, rate limit, teto, janitor | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) | **branch** + DEV | `smoke:signup-session`, `load:signup-degraded`, `signup-session-api` |
-| O-2b: classificador de risco + Turnstile no servidor | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) | **branch** | verificado contra a Cloudflare real |
-| O-2b: widget renderizado | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) | **branch** | `public-surface` (estado `solved` + token) |
-| Quatro perguntas: migration `0098` + endpoint | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c | **branch** + DEV | `smoke:signup-session` |
-| Tela do passo 1 | — | **não existe** | — |
-| Checkout hospedado do Asaas | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c · §21.2 | **não existe** | — |
+| O que existe                                                                     | ADR                                                                                                             | Estado                                       | Prova                                                                                                       |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Arquitetura do track                                                             | [ADR-053](adr/053-cadastro-autonomo-seguro.md)                                                                  | decidida                                     | —                                                                                                           |
+| O-2a: sessão anônima, cookie `__Host-`, TTL/CAS, rate limit, teto, janitor       | [ADR-060](adr/060-sessao-anonima-de-cadastro.md)                                                                | **branch** + DEV                             | `smoke:signup-session`, `load:signup-degraded`, `signup-session-api`                                        |
+| O-2b: classificador de risco + Turnstile no servidor                             | [ADR-060](adr/060-sessao-anonima-de-cadastro.md)                                                                | **branch**                                   | verificado contra a Cloudflare real                                                                         |
+| O-2b: widget renderizado                                                         | [ADR-060](adr/060-sessao-anonima-de-cadastro.md)                                                                | **branch**                                   | `public-surface` (estado `solved` + token)                                                                  |
+| Quatro perguntas: migration `0098` + endpoint                                    | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c                                                           | **branch** + DEV                             | `smoke:signup-session`                                                                                      |
+| Tela do passo 1: quatro perguntas fechadas em `/cadastro`                        | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c                                                           | **branch/local**                             | 120 testes focados e E2E Postgres/Chromium em §35.5                                                         |
+| Identidade, consentimento e nome da clínica na mesma tela; confirmação de e-mail | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c e [ADR-062](adr/062-identidade-consentimento-cadastro.md) | **O-3a + Auth O-3b local PASS** | O-3a/O-3b.1–6 provados em loopback (§§35.10–35.17); gate default false, provider/SMTP/rollout externos NOT TESTED; `/join` é convite |
+| Checkout hospedado do Asaas                                                      | [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c · §21.2                                                   | **não existe**                               | —                                                                                                           |
 
 ### 32.10 Qualidade
 
-| O que existe | ADR | Estado | Prova |
-| --- | --- | --- | --- |
-| Auditoria de cobertura E2E + matriz | — | **branch** | [auditoria](quality/e2e-coverage-audit.md) · [matriz](quality/e2e-coverage-matrix.md) |
-| Primeiro gate de E2E em CI (superfície pública) | — | **branch** | `playwright.ci.config.ts` |
-| Fronteira autenticada de `/admin` (negativa) | — | **branch** | `admin-boundary-rbac` |
-| Jornada do `super_admin` (positiva): AAL2, kill-switch, ciclo de impersonate | — | **branch** | `admin-superadmin-journey` (6/6) |
-| As 6 telas de leitura do painel, cada uma com título **e** dado carregado | — | **branch** | `admin-superadmin-journey` |
-| Telas de configuração do tenant: auditoria (CSV real), LGPD, modelos de receita | — | **branch** | `tenant-settings-screens` (3/3) |
+| O que existe                                                                    | ADR | Estado     | Prova                                                                                 |
+| ------------------------------------------------------------------------------- | --- | ---------- | ------------------------------------------------------------------------------------- |
+| Auditoria de cobertura E2E + matriz                                             | —   | **branch** | [auditoria](quality/e2e-coverage-audit.md) · [matriz](quality/e2e-coverage-matrix.md) |
+| Primeiro gate de E2E em CI (superfície pública)                                 | —   | **branch** | `playwright.ci.config.ts`                                                             |
+| Fronteira autenticada de `/admin` (negativa)                                    | —   | **branch** | `admin-boundary-rbac`                                                                 |
+| Jornada do `super_admin` (positiva): AAL2, kill-switch, ciclo de impersonate    | —   | **branch** | `admin-superadmin-journey` (6/6)                                                      |
+| As 6 telas de leitura do painel, cada uma com título **e** dado carregado       | —   | **branch** | `admin-superadmin-journey`                                                            |
+| Telas de configuração do tenant: auditoria (CSV real), LGPD, modelos de receita | —   | **branch** | `tenant-settings-screens` (3/3)                                                       |
 
 **O R1 da auditoria foi fechado em 14/09.** `/admin` era a única superfície com poder sobre todas as
 clínicas sem E2E autenticado; agora tem os dois lados — a negativa (`admin-boundary-rbac`) e a jornada
@@ -4416,15 +4486,15 @@ cliente, nem reconexão**.
 na hora de implementar**, porque mudam sem aviso e a validação local existe para dar 400 em vez de um
 erro do Graph:
 
-| Campo | Limite | Observação |
-| --- | --- | --- |
-| `about` | 139 caracteres | a linha curta sob o nome |
-| `description` | 512 | |
-| `address` | 256 | |
-| `email` | 128 | e-mail de CONTATO da clínica, não do paciente |
-| `websites` | até 2, 256 cada | |
-| `vertical` | enum fechado | para clínica, `HEALTH` |
-| `profile_picture_url` | upload retomável | **fora desta fatia** — ver §33.6 |
+| Campo                 | Limite           | Observação                                    |
+| --------------------- | ---------------- | --------------------------------------------- |
+| `about`               | 139 caracteres   | a linha curta sob o nome                      |
+| `description`         | 512              |                                               |
+| `address`             | 256              |                                               |
+| `email`               | 128              | e-mail de CONTATO da clínica, não do paciente |
+| `websites`            | até 2, 256 cada  |                                               |
+| `vertical`            | enum fechado     | para clínica, `HEALTH`                        |
+| `profile_picture_url` | upload retomável | **fora desta fatia** — ver §33.6              |
 
 ### 33.3 As quatro invariantes de segurança
 
@@ -4518,29 +4588,29 @@ estava lá.
 
 ### 33.7 O que precisa existir
 
-| Camada | Item |
-| --- | --- |
+| Camada               | Item                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Contexto `messaging` | `getBusinessProfile(clinicId)` e `updateBusinessProfile(clinicId, dados)` em `internal/`, usando o `graphFetch` existente |
-| Contrato | schema Zod com os limites de §33.2 e `.strict()` — recusa campo desconhecido em vez de ignorar |
-| Erros | reusar `MetaConnectError` com `stage` novo (`profile_read` / `profile_write`), para o log distinguir leitura de escrita |
-| Action | `updateMyClinicWhatsappProfile` no molde de `updateClinicProfile` (§33.3 nº 4) |
-| Tela | seção nova em `/configuracoes/whatsapp`, visível só com número conectado |
-| Auditoria | linha por alteração, com os campos alterados (não os valores antigos e novos de prosa livre) |
-| Rate limit | teto por clínica — a Meta throttla, e é melhor recusar aqui com mensagem do que colecionar 429 dela |
+| Contrato             | schema Zod com os limites de §33.2 e `.strict()` — recusa campo desconhecido em vez de ignorar                            |
+| Erros                | reusar `MetaConnectError` com `stage` novo (`profile_read` / `profile_write`), para o log distinguir leitura de escrita   |
+| Action               | `updateMyClinicWhatsappProfile` no molde de `updateClinicProfile` (§33.3 nº 4)                                            |
+| Tela                 | seção nova em `/configuracoes/whatsapp`, visível só com número conectado                                                  |
+| Auditoria            | linha por alteração, com os campos alterados (não os valores antigos e novos de prosa livre)                              |
+| Rate limit           | teto por clínica — a Meta throttla, e é melhor recusar aqui com mensagem do que colecionar 429 dela                       |
 
 ### 33.8 Como provar que funciona
 
 Sem isto a fatia não está pronta — e o que **não** serve como prova está dito na regra permanente da
 [auditoria E2E](quality/e2e-coverage-audit.md):
 
-| Prova | Como |
-| --- | --- |
-| Contrato dos limites | unitário do schema: 139/512/256/128, 2 sites, vertical fora do enum recusada |
-| **Isolamento** | E2E: clínica A autenticada não altera o perfil da B — e o teste tenta pelo caminho realista (adulterar o corpo), não só pela URL |
-| Sem número conectado | a seção não aparece; a action recusa mesmo assim |
-| Leitura falha não esvazia | com o Graph mockado em erro, o formulário **não** renderiza vazio |
-| Round-trip real | smoke contra a Meta no número de TESTE: escreve, relê, confere, restaura |
-| Token não vaza | o HTML servido não contém o token; o log não contém URL do Graph |
+| Prova                     | Como                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Contrato dos limites      | unitário do schema: 139/512/256/128, 2 sites, vertical fora do enum recusada                                                     |
+| **Isolamento**            | E2E: clínica A autenticada não altera o perfil da B — e o teste tenta pelo caminho realista (adulterar o corpo), não só pela URL |
+| Sem número conectado      | a seção não aparece; a action recusa mesmo assim                                                                                 |
+| Leitura falha não esvazia | com o Graph mockado em erro, o formulário **não** renderiza vazio                                                                |
+| Round-trip real           | smoke contra a Meta no número de TESTE: escreve, relê, confere, restaura                                                         |
+| Token não vaza            | o HTML servido não contém o token; o log não contém URL do Graph                                                                 |
 
 O round-trip real é o único que prova a fatia de verdade, e ele exige um número de teste conectado —
 **em Preview**, pela regra de 13/09 (escrita só em Preview). Um mock provaria que o nosso código chama
@@ -4552,7 +4622,7 @@ o que achamos que a Meta expõe, não que a Meta aceita.
 
 ### 34.1 Por que esta seção existe separada da §32
 
-A §32 responde *o que existe*. Esta responde outra pergunta, e é a que se responde mal com mais
+A §32 responde _o que existe_. Esta responde outra pergunta, e é a que se responde mal com mais
 facilidade: **o que foi provado, onde, e o que a prova não alcança**.
 
 A regra do `docs/README.md` que a §32 obedece — "implementado não significa em produção" — tem uma
@@ -4561,11 +4631,11 @@ unitário verde e um E2E verde contra o Preview provam coisas diferentes, e trat
 é o mesmo erro de confundir branch com produção. Por isso cada linha aqui carrega o **ambiente** da
 prova.
 
-| Nível de prova | O que prova | O que **não** prova |
-| --- | --- | --- |
-| Unitário / componente (Vitest) | que a regra está escrita como pensamos | que ela está **ligada** ao produto |
+| Nível de prova                             | O que prova                                                                         | O que **não** prova                     |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- | --------------------------------------- |
+| Unitário / componente (Vitest)             | que a regra está escrita como pensamos                                              | que ela está **ligada** ao produto      |
 | Smoke / carga (`tsx` contra Postgres real) | que o banco aceita, que a concorrência se comporta, que o TTL é do relógio do banco | que alguém **alcança** aquilo pela tela |
-| E2E no navegador contra **Preview** | que a pessoa consegue, com cookie `__Host-`, CSP, RSC e rede reais | que **produção** se comporta igual |
+| E2E no navegador contra **Preview**        | que a pessoa consegue, com cookie `__Host-`, CSP, RSC e rede reais                  | que **produção** se comporta igual      |
 
 **Nada do que está nesta seção foi validado em produção**, e isso é deliberado — §34.2.
 
@@ -4581,8 +4651,8 @@ por isso está no início e não numa nota de rodapé. Consequências que valem 
 - os E2E que **mutam** (conta Asaas, modelo de receita, kill-switch, impersonate) têm guarda de host
   que **lança exceção** contra `app.qoro.dev` — recusar é melhor que pular em silêncio, porque um spec
   pulado passa por verde;
-- o Asaas exercitado é o **sandbox** do Preview, autorizado explicitamente ("*ele é feito justamente
-  para teste*");
+- o Asaas exercitado é o **sandbox** do Preview, autorizado explicitamente ("_ele é feito justamente
+  para teste_");
 - a conta de plataforma usada nos testes é criada **só no Preview**, com senha descartável e via
   aliases `*_DEV` — o script **recusa** as variáveis canônicas (§34.3.D);
 - os 40 specs `production-*` **não rodaram** neste período: eles falam com o Postgres de produção;
@@ -4594,46 +4664,48 @@ por isso está no início e não numa nota de rodapé. Consequências que valem 
 
 #### A. Captcha e Turnstile — [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.a e §1.b
 
-| Entrega | Prova | Ambiente |
-| --- | --- | --- |
-| CSP liberando o Turnstile em `script-src`, `frame-src` **e** `connect-src` | teste de CSP com casamento exato, não `contains` | unitário |
-| `src/lib/auth/captcha.ts` — leitura, repasse e classificação de erro do token | `captcha.test.ts` | unitário |
-| `captchaToken` nas **3** chamadas do Supabase Auth (`signInWithPassword`, `resetPasswordForEmail`, `signUp`) | `login/actions.test.ts` | unitário |
-| Falha de captcha **não** conta como tentativa de senha errada | `login/actions.test.ts` | unitário |
-| Widget renderizado, com `data-turnstile-state` | `public-surface` — o desafio chega a `solved` **e** produz token | **Preview** |
-| Classificador de risco + `siteverify` no servidor | verificação contra a Cloudflare real | **Preview** |
+| Entrega                                                                                                      | Prova                                                            | Ambiente    |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ----------- |
+| CSP liberando o Turnstile em `script-src`, `frame-src` **e** `connect-src`                                   | teste de CSP com casamento exato, não `contains`                 | unitário    |
+| `src/lib/auth/captcha.ts` — leitura, repasse e classificação de erro do token                                | `captcha.test.ts`                                                | unitário    |
+| `captchaToken` nas **3** chamadas do Supabase Auth (`signInWithPassword`, `resetPasswordForEmail`, `signUp`) | `login/actions.test.ts`                                          | unitário    |
+| Falha de captcha **não** conta como tentativa de senha errada                                                | `login/actions.test.ts`                                          | unitário    |
+| Widget renderizado, com `data-turnstile-state`                                                               | `public-surface` — o desafio chega a `solved` **e** produz token | **Preview** |
+| Classificador de risco + `siteverify` no servidor                                                            | verificação contra a Cloudflare real                             | **Preview** |
 
 Três achados desta fatia estão no [discovery-log](discovery-log.md): **D112** (a CSP bloqueava em três
 diretivas, e a falha seria muda), **D113** (os "quatro call sites" eram **três** — `verifyOtp` não
 aceita `captchaToken`) e **D114** (captcha reprovado envenenaria o rate limit por e-mail).
 
-**O que isto explicitamente não prova:** que o captcha *protege* alguma coisa. Ele segue **desligado**
+**O que isto explicitamente não prova:** que o captcha _protege_ alguma coisa. Ele segue **desligado**
 no Supabase de todos os projetos (R3 da auditoria). O que foi entregue é o pré-requisito — o código
 envia o token —, e a ordem obrigatória de ativação está no ADR-060 §1.a.
 
 #### B. Cadastro autônomo — as quatro perguntas — [ADR-053](adr/053-cadastro-autonomo-seguro.md) · [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c
 
-| Entrega | Prova | Ambiente |
-| --- | --- | --- |
-| Migration `0098`: quatro colunas de lista fechada + `answered_at` + status `details_complete` | `check:migrations`, `arch:db-check` | CI |
-| `recordSignupAnswers` — liveness + CAS (`row_version`) + renovação de ociosidade em **um** round trip | unitário + `smoke:signup-session` | unitário + **DEV** |
-| `POST /api/signup/sessions/answers` — sessão identificada **só pelo cookie**, `.strict()`, 409 ≠ 410 | `signup-session-api` (9 casos) | **Preview** |
-| Tabela global pré-tenant com RLS ENABLE+FORCE **sem policy** ([ADR-007](adr/007-rls-implementation-patterns.md) §10) | `smoke:signup-session` | **DEV** |
+| Entrega                                                                                                              | Prova                                                                                                          | Ambiente                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Migration `0098`: quatro colunas de lista fechada + `answered_at` + status `details_complete`                        | `check:migrations`, `arch:db-check`                                                                            | CI                                                                                                                        |
+| `recordSignupAnswers` — liveness + CAS (`row_version`) + renovação de ociosidade em **um** round trip                | unitário + `smoke:signup-session`                                                                              | unitário + **DEV**                                                                                                        |
+| `POST /api/signup/sessions/answers` — sessão identificada **só pelo cookie**, `.strict()`, 409 ≠ 410                 | 20 testes adjacentes + Postgres/handler reais; CAS concorrente e negativos sem mutação; E2E local de duas abas | **branch/local**, PASS em 14/09; os 9 casos históricos de `signup-session-api` continuam atribuídos apenas a criação/`me` |
+| GET `/me` com readback sanitizado das quatro respostas                                                               | teste de serviço/handler + reload no browser sem abrir nova sessão                                             | **branch/local**, PASS em 14/09                                                                                           |
+| Tela `/cadastro` com quatro grupos fechados, sem PII                                                                 | 11 testes de componente + Chromium real sobre build/handlers/Postgres locais                                   | **branch/local**, PASS em 14/09                                                                                           |
+| Tabela global pré-tenant com RLS ENABLE+FORCE **sem policy** ([ADR-007](adr/007-rls-implementation-patterns.md) §10) | `smoke:signup-session`                                                                                         | **DEV**                                                                                                                   |
 
 Decisão de produto tomada no período: **as quatro perguntas são todas de marcar, sem campo de texto**
-("*quero as perguntas todas de marcar, sem texto*"). Isso não é só de UX — lista fechada é a diferença
+("_quero as perguntas todas de marcar, sem texto_"). Isso não é só de UX — lista fechada é a diferença
 entre um campo que se valida com `z.enum` e um campo de prosa livre que ninguém consegue validar, num
 endpoint **anônimo**, aberto à internet, antes de existir tenant.
 
-**A tela ainda não existe.** É o próximo trabalho, e é a única linha da matriz classificada como "não
-existe ainda".
+**A tela existe no diff local de 14/09.** Ela salva e retoma as quatro respostas reais, distingue
+conflito/expiração/rate limit/rede/desafio e não inventa a transição de identidade ainda ausente.
 
 #### C. Resolução de env — a tabela de aliases
 
-| Entrega | Prova | Ambiente |
-| --- | --- | --- |
+| Entrega                                                                               | Prova                                | Ambiente |
+| ------------------------------------------------------------------------------------- | ------------------------------------ | -------- |
 | `src/lib/env-aliases.ts` — uma tabela, compartilhada por `env.ts` e `scripts/_env.ts` | `env-aliases.test.ts`, `env.test.ts` | unitário |
-| `resolveSiteKey()` no cliente, espelhando a MESMA regra e o MESMO guard | teste do widget | unitário |
+| `resolveSiteKey()` no cliente, espelhando a MESMA regra e o MESMO guard               | teste do widget                      | unitário |
 
 Quatro achados, e os quatro do mesmo tipo — **cópia que diverge em silêncio**: **D118** (o bundle do
 cliente não passa por `env.ts`: o Next inlina `NEXT_PUBLIC_*` no build, então em `localhost` o widget
@@ -4656,12 +4728,12 @@ página vive no route group `(shell)` → o layout do shell redireciona `super_a
 única tela que concede AAL2.** Os "próximos passos" que o próprio script de seed imprimia eram
 inalcançáveis.
 
-| Entrega | Prova | Ambiente |
-| --- | --- | --- |
-| O shell só desvia para `/admin` **quando já há AAL2** | `guard.test.ts` (os quatro desfechos) | unitário |
-| `guardAdminAccess` distingue `MFA_REQUIRED` e manda ao step-up em vez de 404 | `guard.test.ts` | unitário |
-| O caminho inteiro percorrido por gente | sonda manual | **Preview** |
-| `seed:super-admin-mfa` — enrollment de TOTP sem passo manual, **sem imprimir o segredo** | execução real | **Preview** |
+| Entrega                                                                                  | Prova                                 | Ambiente    |
+| ---------------------------------------------------------------------------------------- | ------------------------------------- | ----------- |
+| O shell só desvia para `/admin` **quando já há AAL2**                                    | `guard.test.ts` (os quatro desfechos) | unitário    |
+| `guardAdminAccess` distingue `MFA_REQUIRED` e manda ao step-up em vez de 404             | `guard.test.ts`                       | unitário    |
+| O caminho inteiro percorrido por gente                                                   | sonda manual                          | **Preview** |
+| `seed:super-admin-mfa` — enrollment de TOTP sem passo manual, **sem imprimir o segredo** | execução real                         | **Preview** |
 
 Vale a honestidade sobre o script: a primeira versão fazia **metade** do enrollment — criava o fator em
 `auth.mfa_factors` e não marcava `profiles.mfa_enrolled_at`. O login continuava sendo empurrado para a
@@ -4677,11 +4749,11 @@ aparece quando alguém percorre o caminho inteiro.
 
 O fundador colou um lote de erros de produção e de dev. Três viraram conserto:
 
-| Erro | Causa | Conserto | Prova |
-| --- | --- | --- | --- |
-| Mismatch de hidratação `+14 / -15` na janela de 24 h | `Date.now()` **durante** o render | `useAgoraAposMontar()` | `janela-aberta.test.tsx` |
-| `AuthError` de sessão expirada enchendo o Sentry | sessão expirada tratada como exceção | `scrubEvent` descarta a tabela fechada de `unauthenticated` — e **mantém** `forbidden` e `config` | `sentry-scrub.test.ts` |
-| `security:build` compilando source que não existe mais | `cp` mescla, e o apagado sobrevivia na cópia | `rm` antes de cada `cp` | **D117** |
+| Erro                                                   | Causa                                        | Conserto                                                                                          | Prova                    |
+| ------------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------ |
+| Mismatch de hidratação `+14 / -15` na janela de 24 h   | `Date.now()` **durante** o render            | `useAgoraAposMontar()`                                                                            | `janela-aberta.test.tsx` |
+| `AuthError` de sessão expirada enchendo o Sentry       | sessão expirada tratada como exceção         | `scrubEvent` descarta a tabela fechada de `unauthenticated` — e **mantém** `forbidden` e `config` | `sentry-scrub.test.ts`   |
+| `security:build` compilando source que não existe mais | `cp` mescla, e o apagado sobrevivia na cópia | `rm` antes de cada `cp`                                                                           | **D117**                 |
 
 O primeiro trouxe um segundo defeito de brinde, que ninguém tinha notado: **o contador estava
 congelado** no valor do primeiro render. Um relógio de janela que não anda é pior que nenhum — o
@@ -4694,12 +4766,12 @@ o torna pior: só quebra na máquina de quem desenvolve, e parece problema do c�
 
 #### F. Auditoria de E2E, matriz e o primeiro gate de CI
 
-| Entrega | Onde |
-| --- | --- |
-| Auditoria de cobertura, seções A–J | [`docs/quality/e2e-coverage-audit.md`](quality/e2e-coverage-audit.md) |
-| Matriz de mapeamento, contada do próprio arquivo | [`docs/quality/e2e-coverage-matrix.md`](quality/e2e-coverage-matrix.md) |
-| Primeiro gate de E2E em CI | `playwright.ci.config.ts` + passo `test:e2e:ci` no `ci.yml` |
-| 6 specs novos — 29 casos, 83 asserts, 1.440 linhas | §34.4 |
+| Entrega                                            | Onde                                                                    |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| Auditoria de cobertura, seções A–J                 | [`docs/quality/e2e-coverage-audit.md`](quality/e2e-coverage-audit.md)   |
+| Matriz de mapeamento, contada do próprio arquivo   | [`docs/quality/e2e-coverage-matrix.md`](quality/e2e-coverage-matrix.md) |
+| Primeiro gate de E2E em CI                         | `playwright.ci.config.ts` + passo `test:e2e:ci` no `ci.yml`             |
+| 6 specs novos — 29 casos, 83 asserts, 1.440 linhas | §34.4                                                                   |
 
 O achado estrutural é **D115**, e é o tipo de coisa que só aparece quando se olha o conjunto: existiam
 **51 specs, 20.245 linhas e 1.074 asserts** — de qualidade alta, muito acima de "cliquei e apareceu" —
@@ -4722,25 +4794,25 @@ perguntas e o perfil do WhatsApp da §33:
 Não são código; são decisões que mudam o que o código vai ser. Estão registradas no
 [ADR-060](adr/060-sessao-anonima-de-cadastro.md) §1.c.
 
-| Decisão | Como ficou | Consequência técnica |
-| --- | --- | --- |
-| Ordem do cadastro | perguntas → usuário e consentimento junto a nome/clínica → verificar e-mail → checkout | o consentimento é colhido **antes** de existir conta, na mesma tela em que a pessoa se identifica |
-| Consentimento | **links** para `qoro.dev/politica-de-privacidade` e `/termos-de-uso` | sem sistema de versionamento de política — decisão explícita, e o limite está declarado no ADR |
-| Checkout | **hospedado** do Asaas | evita SAQ A-EP: dado de cartão não passa pelo nosso servidor. Tokenização exigiria ticket ao suporte e foi recusada |
-| As perguntas | todas de marcar, **sem texto** | `z.enum` num endpoint anônimo, em vez de prosa livre não validável |
+| Decisão           | Como ficou                                                                             | Consequência técnica                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Ordem do cadastro | perguntas → usuário e consentimento junto a nome/clínica → verificar e-mail → checkout | o consentimento é colhido **antes** de existir conta, na mesma tela em que a pessoa se identifica                   |
+| Consentimento     | **links** para `qoro.dev/politica-de-privacidade` e `/termos-de-uso`                   | sem sistema de versionamento de política — decisão explícita, e o limite está declarado no ADR                      |
+| Checkout          | **hospedado** do Asaas                                                                 | evita SAQ A-EP: dado de cartão não passa pelo nosso servidor. Tokenização exigiria ticket ao suporte e foi recusada |
+| As perguntas      | todas de marcar, **sem texto**                                                         | `z.enum` num endpoint anônimo, em vez de prosa livre não validável                                                  |
 
 ### 34.4 O placar do Preview (14/09)
 
 Todos executados contra o Preview, com `E2E_AUTH_REUSE=1` e bypass de Deployment Protection.
 
-| Spec | Casos | Resultado | O que o caso mais caro prova |
-| --- | --- | --- | --- |
-| `public-surface` | 8 | **8/8** | 22 rotas protegidas redirecionam **sem corpo** (`maxRedirects: 0`); o desafio chega a `solved` com token |
-| `signup-session-api` | 9 | **9/9** | atributos do cookie `__Host-`, token fora do corpo, 403 cross-site, 401 sem origem, 410 indistinguível |
-| `admin-boundary-rbac` | 1 | **1/1** | sessão de clínica válida não alcança 9 rotas de `/admin`, nem por deep-link |
-| `payments-account-lifecycle` | 2 | **1/1 + 1 skip** | a chave do Asaas **nunca** chega ao browser; a metade mutante é condicional (R2) |
-| `admin-superadmin-journey` | 6 | **6/6** | **revogar a linha mata a sessão com o cookie intacto** — a LINHA manda, não o cookie |
-| `tenant-settings-screens` | 3 | **3/3** | o CSV de auditoria é **baixado de verdade**, com o cabeçalho travado |
+| Spec                         | Casos | Resultado        | O que o caso mais caro prova                                                                             |
+| ---------------------------- | ----- | ---------------- | -------------------------------------------------------------------------------------------------------- |
+| `public-surface`             | 8     | **8/8**          | 22 rotas protegidas redirecionam **sem corpo** (`maxRedirects: 0`); o desafio chega a `solved` com token |
+| `signup-session-api`         | 9     | **9/9**          | atributos do cookie `__Host-`, token fora do corpo, 403 cross-site, 401 sem origem, 410 indistinguível   |
+| `admin-boundary-rbac`        | 1     | **1/1**          | sessão de clínica válida não alcança 9 rotas de `/admin`, nem por deep-link                              |
+| `payments-account-lifecycle` | 2     | **1/1 + 1 skip** | a chave do Asaas **nunca** chega ao browser; a metade mutante é condicional (R2)                         |
+| `admin-superadmin-journey`   | 6     | **6/6**          | **revogar a linha mata a sessão com o cookie intacto** — a LINHA manda, não o cookie                     |
+| `tenant-settings-screens`    | 3     | **3/3**          | o CSV de auditoria é **baixado de verdade**, com o cabeçalho travado                                     |
 
 Fora do navegador, na mesma data: `pnpm vitest run` verde em **3.355/3.355** (359 arquivos), e os 60
 links de arquivo das §§32–34 conferidos um a um — nenhum quebrado. O número de testes é o mesmo de
@@ -4750,14 +4822,14 @@ antes dos seis specs novos, e isso é esperado: Playwright não roda no Vitest.
 é o que mais importa: a categoria existia para nomear **cobertura aparente** — rota visitada, `status <
 500`, conclusão "coberto" — e não sobrou nenhuma.
 
-| Status na matriz | Linhas |
-| --- | --- |
-| Coberto | **81** |
-| Parcial | 5 |
-| Superficial | **0** |
-| Não coberto | **3** |
-| Fora do navegador (smoke/carga, por escolha declarada) | 9 |
-| Não existe ainda (tela das perguntas) | 1 |
+| Status na matriz                                       | Linhas |
+| ------------------------------------------------------ | ------ |
+| Coberto                                                | **81** |
+| Parcial                                                | 5      |
+| Superficial                                            | **0**  |
+| Não coberto                                            | **3**  |
+| Fora do navegador (smoke/carga, por escolha declarada) | 9      |
+| Não existe ainda (tela das perguntas)                  | 1      |
 
 O **R1** da auditoria — `/admin` como a única superfície com poder sobre **todas** as clínicas e sem
 E2E autenticado — **está fechado**. Tem os dois lados: a negativa (`admin-boundary-rbac`) e a jornada
@@ -4781,32 +4853,32 @@ Conferido após a execução da jornada do `super_admin`:
 
 Ficam registrados porque um relatório que só lista acertos é um relatório que não dá para auditar.
 
-| O que eu errei | Como apareceu | O que ficou |
-| --- | --- | --- |
-| Afirmei "quatro call sites" de captcha; são **três** | ao implementar: `VerifyTokenHashParams` não tem `options` | D113; ADR-060 corrigido |
-| Persegui um bug fantasma no `next/script` | minhas observações estavam contaminadas por um dev server com erro de módulo em cache | **retratei a afirmação no comentário do código**, em vez de enviar uma asserção não provada |
-| Escrevi um spec que se auto-bloqueava no orçamento de IP do próprio produto | a segunda execução falhava | D116; `serial`, uma sessão só, e skip anotado |
-| O teste do CSV de auditoria procurava palavras clínicas e **reprovou** | `recurso_tipo` legitimamente contém `prontuario` | **D124** — **o teste estava errado, não o produto**: saber que alguém tocou um recurso do tipo prontuário é o **propósito** da trilha; o que não pode sair é o **conteúdo**. Trocado por cabeçalho travado |
-| Assumi que a clínica do Preview estava desconectada do Asaas | o spec falhou | **D125** — premissa minha, não defeito do produto; e uma asserção mais frouxa teria **substituído a chave de alguém**. A metade mutante virou condicional (R2) |
-| O `seed:super-admin-mfa` fazia metade do enrollment | o login continuava exigindo enrollment | **D123** — a política do ADR-038 tem duas fontes: o fator no GoTrue e `profiles.mfa_enrolled_at` |
+| O que eu errei                                                              | Como apareceu                                                                         | O que ficou                                                                                                                                                                                                |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Afirmei "quatro call sites" de captcha; são **três**                        | ao implementar: `VerifyTokenHashParams` não tem `options`                             | D113; ADR-060 corrigido                                                                                                                                                                                    |
+| Persegui um bug fantasma no `next/script`                                   | minhas observações estavam contaminadas por um dev server com erro de módulo em cache | **retratei a afirmação no comentário do código**, em vez de enviar uma asserção não provada                                                                                                                |
+| Escrevi um spec que se auto-bloqueava no orçamento de IP do próprio produto | a segunda execução falhava                                                            | D116; `serial`, uma sessão só, e skip anotado                                                                                                                                                              |
+| O teste do CSV de auditoria procurava palavras clínicas e **reprovou**      | `recurso_tipo` legitimamente contém `prontuario`                                      | **D124** — **o teste estava errado, não o produto**: saber que alguém tocou um recurso do tipo prontuário é o **propósito** da trilha; o que não pode sair é o **conteúdo**. Trocado por cabeçalho travado |
+| Assumi que a clínica do Preview estava desconectada do Asaas                | o spec falhou                                                                         | **D125** — premissa minha, não defeito do produto; e uma asserção mais frouxa teria **substituído a chave de alguém**. A metade mutante virou condicional (R2)                                             |
+| O `seed:super-admin-mfa` fazia metade do enrollment                         | o login continuava exigindo enrollment                                                | **D123** — a política do ADR-038 tem duas fontes: o fator no GoTrue e `profiles.mfa_enrolled_at`                                                                                                           |
 
 O quarto caso é exatamente o que a regra permanente manda perguntar **antes** de mexer num teste
-vermelho: *o teste estava errado, ou o produto?* Responder isso é a diferença entre consertar e apagar
+vermelho: _o teste estava errado, ou o produto?_ Responder isso é a diferença entre consertar e apagar
 o alarme em vez de olhar a fumaça.
 
 ### 34.7 O que continua sem prova — e por quê
 
-| Item | Por que não foi provado |
-| --- | --- |
-| **Tela das quatro perguntas** | não existe ainda. É o próximo trabalho |
-| **Auto-login pós-checkout** | exige checkout pago completo, e a fatia **vai mudar**: o checkout hospedado troca o provisionamento para webhook. Cobrir agora seria testar código com data de validade |
-| **Consentimento (conceder / revogar)** | toca dado de **paciente**. Exige fixture própria e cleanup provado; nem em Preview um teste deve decidir exercitar revogação sem isso |
-| **Troca de plano / reativação** | muta billing no Asaas; precisa de assinatura sandbox dedicada |
-| **Ciclo conectar/desconectar Asaas** (R2) | a clínica do Preview já tem conta conectada; conectar por cima substituiria a configuração de quem usa o ambiente |
-| **Captcha ativo** (R3) | segue desligado no Supabase, por ordem. O código já envia o token, que era o pré-requisito |
-| **Os 40 `production-*`** (R5) | falam com o Postgres de produção. Automatizá-los é decisão de produto, não de engenharia |
-| **Perfil do WhatsApp Business** | especificado na §33, não implementado |
-| **Qualquer coisa em produção** | por decisão explícita do fundador (§34.2). As três migrations do cadastro anônimo (`0096`–`0098`) seguem fora de produção |
+| Item                                      | Por que não foi provado                                                                                                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tela das quatro perguntas**             | **PASS local após esta auditoria**; implementação e E2E em §35.5. Preview/produção não foram revalidados                                                                |
+| **Auto-login pós-checkout**               | exige checkout pago completo, e a fatia **vai mudar**: o checkout hospedado troca o provisionamento para webhook. Cobrir agora seria testar código com data de validade |
+| **Consentimento (conceder / revogar)**    | toca dado de **paciente**. Exige fixture própria e cleanup provado; nem em Preview um teste deve decidir exercitar revogação sem isso                                   |
+| **Troca de plano / reativação**           | muta billing no Asaas; precisa de assinatura sandbox dedicada                                                                                                           |
+| **Ciclo conectar/desconectar Asaas** (R2) | a clínica do Preview já tem conta conectada; conectar por cima substituiria a configuração de quem usa o ambiente                                                       |
+| **Captcha ativo** (R3)                    | segue desligado no Supabase, por ordem. O código já envia o token, que era o pré-requisito                                                                              |
+| **Os 40 `production-*`** (R5)             | falam com o Postgres de produção. Automatizá-los é decisão de produto, não de engenharia                                                                                |
+| **Perfil do WhatsApp Business**           | especificado na §33, não implementado                                                                                                                                   |
+| **Qualquer coisa em produção**            | por decisão explícita do fundador (§34.2). As três migrations do cadastro anônimo (`0096`–`0098`) seguem fora de produção                                               |
 
 ### 34.8 Catálogo completo das ADRs vigentes
 
@@ -4818,67 +4890,689 @@ já viraram código —, mas a lacuna fica visível em vez de invisível.
 Os números **006, 026 e 030 não existem**: foram descartados antes de virarem decisão. A ausência é
 real, não um arquivo perdido.
 
-| ADR | Assunto | Status declarado | Onde aparece |
-| --- | --- | --- | --- |
-| [001](adr/001-bounded-contexts.md) | Bounded contexts isolados via DDD | accepted | fundação (13 contextos, §32.1) |
-| [002](adr/002-rls-postgres.md) | RLS do Postgres como defesa de isolamento | accepted | §32.3 |
-| [003](adr/003-outbox-pattern.md) | Outbox transacional para eventos cross-context | accepted | fundação |
-| [004](adr/004-meta-cloud-api.md) | Meta Cloud API (WhatsApp) com fallback ZAPI | accepted | §32.7 · §33 |
-| [005](adr/005-supabase-vs-firebase.md) | Supabase (Postgres) escolhido sobre Firebase | accepted | fundação |
-| [007](adr/007-rls-implementation-patterns.md) | Padrão de RLS — `withTenant`, GUC, tabelas globais §10 | Accepted · Reference | §32.3 · §34.3.B |
-| [008](adr/008-identity-patterns.md) | Identidade e RBAC — 6 roles, 30 permissions | Accepted · Reference | §32.2 |
-| [009](adr/009-claims-drift-mitigation.md) | Mitigação de drift de claims (`claims_version`) | Accepted · Reference | §32.2 |
-| [010](adr/010-security-definer-patterns.md) | Funções privilegiadas com allowlist mínima | Accepted · Reference | §32.3 |
-| [011](adr/011-outbox-audit-idempotency-patterns.md) | Outbox, audit e idempotência | Accepted · Reference | §32.3 · §34.5 |
-| [012](adr/012-encryption-strategy.md) | Cifra por tenant (AES-256-GCM + lookup HMAC) | accepted | §32.3 |
-| [013](adr/013-clinical-data-ownership.md) | `patient_clinical_data` em C5, C7 como futuro owner | accepted | §32.4 |
-| [014](adr/014-scheduling-patterns.md) | Scheduling Core (C6): contratos congelados | accepted | §32.5 |
-| [015](adr/015-event-versioning.md) | Versionamento de eventos do outbox | accepted | fundação |
-| [016](adr/016-clinic-lifecycle.md) | Semântica do ciclo de vida de clínica | accepted | §32.6 |
-| [017](adr/017-clinical-record-retention-vs-lgpd.md) | Retenção de prontuário (CFM) vs hard-delete LGPD | accepted | §32.4 · §34.7 (consentimento) |
-| [018](adr/018-ui-design-foundation.md) | UI / Design Foundation | accepted | base da tela das perguntas |
-| [019](adr/019-consultorio-chamadas.md) | Consultório (C8): orquestração e Realtime | accepted | §32.4 |
-| [020](adr/020-messaging-provider-patterns.md) | Contrato de provider de mensageria | Accepted parcialmente | §32.7 |
-| [021](adr/021-lgpd-anonymization-on-clinical-retention.md) | Anonimização LGPD quando o hard-delete é bloqueado | accepted | §32.4 · `tenant-settings-screens` |
-| [022](adr/022-ai-agent-foundation.md) | Fundação do agente de IA | Accepted parcialmente | §32.7 |
-| [023](adr/023-ai-agent-intents.md) | AI Agent Intents Core (C12) | accepted | §32.7 |
-| [024](adr/024-plan-model.md) | Planos: só limites, sem overage nem feature-gating | accepted | §34.7 (troca de plano) |
-| [025](adr/025-billing-architecture.md) | Billing: Asaas é adapter, não o centro | accepted | §32.6 · §34.3.G (checkout hospedado) |
-| [027](adr/027-onboarding-magic-invite.md) | Onboarding de clínicas via convite mágico | Accepted | §32.2 · antecessor do Track O |
-| [028](adr/028-white-label-scope-pdf-only.md) | White-label restrito aos PDFs | accepted | §32.4 |
-| [029](adr/029-observability-stack.md) | Stack de observabilidade (Sentry + logger + envelope) | accepted | §32.8 · **§34.3.E** |
-| [031](adr/031-design-system-v2-rebrand.md) | Design System v2 + governança de UI | accepted | base da tela das perguntas |
-| [032](adr/032-mvp-identity-practitioner-model.md) | Colapso User=Employee=Practitioner | accepted | §32.2 |
-| [033](adr/033-consultorio-board-scope-practitioner.md) | Board do Consultório: a própria fila | accepted | §32.4 |
-| [034](adr/034-invite-resend-copy-link.md) | Reenvio de convite por link copiável | accepted | §32.2 |
-| [035](adr/035-palette-rebrand-navy-orchid.md) | Paleta navy/orchid e wordmark Qoro | accepted | base da tela das perguntas |
-| [036](adr/036-asconflict-permanece-no-contexto.md) | `asConflict` permanece em cada contexto | accepted | §34.3.C (mesma família: onde a cópia cabe e onde não cabe) |
-| [037](adr/037-server-authoritative-session.md) | Sessão server-authoritative por request (auth epoch) | accepted | §32.2 · **§34.3.D** |
-| [038](adr/038-mfa-policy.md) | Política de MFA (obrigatória só para `super_admin`) | accepted | §32.2 · **§34.3.D** · `admin-superadmin-journey` |
-| [039](adr/039-member-lifecycle.md) | Ciclo de vida de membro | accepted | §32.2 |
-| [040](adr/040-invite-acceptance-gate.md) | Aceite do convite como gate de sessão | accepted | §32.2 |
-| [041](adr/041-authz-tables-are-not-tenant-tables.md) | Tabela de autorização não é tabela de tenant | accepted | §32.3 |
-| [042](adr/042-rls-initplan-and-public-least-privilege.md) | Policy v2 (InitPlan) + least-privilege no `public` | accepted | §32.3 |
-| [043](adr/043-messaging-retention-not-partitioning.md) | Retenção, não particionamento, da mensageria raw | accepted | §32.3 |
-| [044](adr/044-clinical-content-encryption.md) | Cifra do conteúdo clínico | accepted | §32.3 · §34.6 (por que o CSV não carrega conteúdo) |
-| [045](adr/045-observability-execution-boundary.md) | Fronteira de observabilidade (`withCron`, contexto) | accepted | §32.8 · **§34.3.E** |
-| [046](adr/046-no-login-gate-clinical-record-access.md) | Inadimplência não bloqueia leitura do prontuário | accepted | §32.4 |
-| [047](adr/047-ai-conversations-human-handoff.md) | Painel de Conversas IA e intervenção humana | proposed | §32.7 · `admin-superadmin-journey` (tela) |
-| [048](adr/048-ai-agent-conversational-safety.md) | Segurança conversacional do agente | Accepted · Reference | §32.7 |
-| [049](adr/049-pagamentos-paciente-sinal.md) | Pagamento de paciente e sinal anti-no-show | Proposto | §32.6 · migration `0094` **em produção** |
-| [050](adr/050-identidade-de-pagamento-do-paciente.md) | Identidade de pagamento do paciente | Aprovado | §32.6 |
-| [051](adr/051-conciliacao-sinal-e-recebivel.md) | Conciliação cobrança ⇄ recebível | Aprovado | §32.6 |
-| [052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md) | Risco e reversão de pagamento | Aceita | §32.6 |
-| [053](adr/053-cadastro-autonomo-seguro.md) | Cadastro autônomo seguro e atribuição de aquisição | Proposed | §32.9 · **§34.3.B** |
-| [054](adr/054-documento-de-pagamento-e-recibo-fiscal.md) | Documento de pagamento e recibo fiscal | Superseded in part | §32.6 |
-| [055](adr/055-documentos-clinicos-fora-da-consulta.md) | Documentos clínicos fora da consulta | Accepted | §32.4 |
-| [056](adr/056-spike-integracao-memed.md) | Spike Memed | **Deferred** (Track M) | §32.4 · §24 |
-| [057](adr/057-recuperacao-falta-retorno.md) | Recuperação após falta e retorno clínico | Accepted | §32.5 · migration `0095` **em produção** |
-| [058](adr/058-exportacao-financeira-contabilidade.md) | Exportação financeira mensal para contabilidade | Accepted | §32.6 · §22 |
-| [059](adr/059-acesso-autenticado-pdfs-clinicos.md) | Acesso autenticado a PDFs clínicos, sem bearer na URL | Accepted | §32.4 |
-| [060](adr/060-sessao-anonima-de-cadastro.md) | Fatia O-2: sessão anônima de cadastro | **O-2a Accepted; O-2b Accepted no servidor** | §32.9 · **§34.3.A, §34.3.B, §34.3.G** |
+| ADR                                                         | Assunto                                                | Status declarado                             | Onde aparece                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------- | ---------------------------------------------------------- |
+| [001](adr/001-bounded-contexts.md)                          | Bounded contexts isolados via DDD                      | accepted                                     | fundação (13 contextos, §32.1)                             |
+| [002](adr/002-rls-postgres.md)                              | RLS do Postgres como defesa de isolamento              | accepted                                     | §32.3                                                      |
+| [003](adr/003-outbox-pattern.md)                            | Outbox transacional para eventos cross-context         | accepted                                     | fundação                                                   |
+| [004](adr/004-meta-cloud-api.md)                            | Meta Cloud API (WhatsApp) com fallback ZAPI            | accepted                                     | §32.7 · §33                                                |
+| [005](adr/005-supabase-vs-firebase.md)                      | Supabase (Postgres) escolhido sobre Firebase           | accepted                                     | fundação                                                   |
+| [007](adr/007-rls-implementation-patterns.md)               | Padrão de RLS — `withTenant`, GUC, tabelas globais §10 | Accepted · Reference                         | §32.3 · §34.3.B                                            |
+| [008](adr/008-identity-patterns.md)                         | Identidade e RBAC — 6 roles, 30 permissions            | Accepted · Reference                         | §32.2                                                      |
+| [009](adr/009-claims-drift-mitigation.md)                   | Mitigação de drift de claims (`claims_version`)        | Accepted · Reference                         | §32.2                                                      |
+| [010](adr/010-security-definer-patterns.md)                 | Funções privilegiadas com allowlist mínima             | Accepted · Reference                         | §32.3                                                      |
+| [011](adr/011-outbox-audit-idempotency-patterns.md)         | Outbox, audit e idempotência                           | Accepted · Reference                         | §32.3 · §34.5                                              |
+| [012](adr/012-encryption-strategy.md)                       | Cifra por tenant (AES-256-GCM + lookup HMAC)           | accepted                                     | §32.3                                                      |
+| [013](adr/013-clinical-data-ownership.md)                   | `patient_clinical_data` em C5, C7 como futuro owner    | accepted                                     | §32.4                                                      |
+| [014](adr/014-scheduling-patterns.md)                       | Scheduling Core (C6): contratos congelados             | accepted                                     | §32.5                                                      |
+| [015](adr/015-event-versioning.md)                          | Versionamento de eventos do outbox                     | accepted                                     | fundação                                                   |
+| [016](adr/016-clinic-lifecycle.md)                          | Semântica do ciclo de vida de clínica                  | accepted                                     | §32.6                                                      |
+| [017](adr/017-clinical-record-retention-vs-lgpd.md)         | Retenção de prontuário (CFM) vs hard-delete LGPD       | accepted                                     | §32.4 · §34.7 (consentimento)                              |
+| [018](adr/018-ui-design-foundation.md)                      | UI / Design Foundation                                 | accepted                                     | base da tela das perguntas                                 |
+| [019](adr/019-consultorio-chamadas.md)                      | Consultório (C8): orquestração e Realtime              | accepted                                     | §32.4                                                      |
+| [020](adr/020-messaging-provider-patterns.md)               | Contrato de provider de mensageria                     | Accepted parcialmente                        | §32.7                                                      |
+| [021](adr/021-lgpd-anonymization-on-clinical-retention.md)  | Anonimização LGPD quando o hard-delete é bloqueado     | accepted                                     | §32.4 · `tenant-settings-screens`                          |
+| [022](adr/022-ai-agent-foundation.md)                       | Fundação do agente de IA                               | Accepted parcialmente                        | §32.7                                                      |
+| [023](adr/023-ai-agent-intents.md)                          | AI Agent Intents Core (C12)                            | accepted                                     | §32.7                                                      |
+| [024](adr/024-plan-model.md)                                | Planos: só limites, sem overage nem feature-gating     | accepted                                     | §34.7 (troca de plano)                                     |
+| [025](adr/025-billing-architecture.md)                      | Billing: Asaas é adapter, não o centro                 | accepted                                     | §32.6 · §34.3.G (checkout hospedado)                       |
+| [027](adr/027-onboarding-magic-invite.md)                   | Onboarding de clínicas via convite mágico              | Accepted                                     | §32.2 · antecessor do Track O                              |
+| [028](adr/028-white-label-scope-pdf-only.md)                | White-label restrito aos PDFs                          | accepted                                     | §32.4                                                      |
+| [029](adr/029-observability-stack.md)                       | Stack de observabilidade (Sentry + logger + envelope)  | accepted                                     | §32.8 · **§34.3.E**                                        |
+| [031](adr/031-design-system-v2-rebrand.md)                  | Design System v2 + governança de UI                    | accepted                                     | base da tela das perguntas                                 |
+| [032](adr/032-mvp-identity-practitioner-model.md)           | Colapso User=Employee=Practitioner                     | accepted                                     | §32.2                                                      |
+| [033](adr/033-consultorio-board-scope-practitioner.md)      | Board do Consultório: a própria fila                   | accepted                                     | §32.4                                                      |
+| [034](adr/034-invite-resend-copy-link.md)                   | Reenvio de convite por link copiável                   | accepted                                     | §32.2                                                      |
+| [035](adr/035-palette-rebrand-navy-orchid.md)               | Paleta navy/orchid e wordmark Qoro                     | accepted                                     | base da tela das perguntas                                 |
+| [036](adr/036-asconflict-permanece-no-contexto.md)          | `asConflict` permanece em cada contexto                | accepted                                     | §34.3.C (mesma família: onde a cópia cabe e onde não cabe) |
+| [037](adr/037-server-authoritative-session.md)              | Sessão server-authoritative por request (auth epoch)   | accepted                                     | §32.2 · **§34.3.D**                                        |
+| [038](adr/038-mfa-policy.md)                                | Política de MFA (obrigatória só para `super_admin`)    | accepted                                     | §32.2 · **§34.3.D** · `admin-superadmin-journey`           |
+| [039](adr/039-member-lifecycle.md)                          | Ciclo de vida de membro                                | accepted                                     | §32.2                                                      |
+| [040](adr/040-invite-acceptance-gate.md)                    | Aceite do convite como gate de sessão                  | accepted                                     | §32.2                                                      |
+| [041](adr/041-authz-tables-are-not-tenant-tables.md)        | Tabela de autorização não é tabela de tenant           | accepted                                     | §32.3                                                      |
+| [042](adr/042-rls-initplan-and-public-least-privilege.md)   | Policy v2 (InitPlan) + least-privilege no `public`     | accepted                                     | §32.3                                                      |
+| [043](adr/043-messaging-retention-not-partitioning.md)      | Retenção, não particionamento, da mensageria raw       | accepted                                     | §32.3                                                      |
+| [044](adr/044-clinical-content-encryption.md)               | Cifra do conteúdo clínico                              | accepted                                     | §32.3 · §34.6 (por que o CSV não carrega conteúdo)         |
+| [045](adr/045-observability-execution-boundary.md)          | Fronteira de observabilidade (`withCron`, contexto)    | accepted                                     | §32.8 · **§34.3.E**                                        |
+| [046](adr/046-no-login-gate-clinical-record-access.md)      | Inadimplência não bloqueia leitura do prontuário       | accepted                                     | §32.4                                                      |
+| [047](adr/047-ai-conversations-human-handoff.md)            | Painel de Conversas IA e intervenção humana            | proposed                                     | §32.7 · `admin-superadmin-journey` (tela)                  |
+| [048](adr/048-ai-agent-conversational-safety.md)            | Segurança conversacional do agente                     | Accepted · Reference                         | §32.7                                                      |
+| [049](adr/049-pagamentos-paciente-sinal.md)                 | Pagamento de paciente e sinal anti-no-show             | Proposto                                     | §32.6 · migration `0094` **em produção**                   |
+| [050](adr/050-identidade-de-pagamento-do-paciente.md)       | Identidade de pagamento do paciente                    | Aprovado                                     | §32.6                                                      |
+| [051](adr/051-conciliacao-sinal-e-recebivel.md)             | Conciliação cobrança ⇄ recebível                       | Aprovado                                     | §32.6                                                      |
+| [052](adr/052-risco-e-reversao-de-pagamento-do-paciente.md) | Risco e reversão de pagamento                          | Aceita                                       | §32.6                                                      |
+| [053](adr/053-cadastro-autonomo-seguro.md)                  | Cadastro autônomo seguro e atribuição de aquisição     | Proposed                                     | §32.9 · **§34.3.B**                                        |
+| [054](adr/054-documento-de-pagamento-e-recibo-fiscal.md)    | Documento de pagamento e recibo fiscal                 | Superseded in part                           | §32.6                                                      |
+| [055](adr/055-documentos-clinicos-fora-da-consulta.md)      | Documentos clínicos fora da consulta                   | Accepted                                     | §32.4                                                      |
+| [056](adr/056-spike-integracao-memed.md)                    | Spike Memed                                            | **Deferred** (Track M)                       | §32.4 · §24                                                |
+| [057](adr/057-recuperacao-falta-retorno.md)                 | Recuperação após falta e retorno clínico               | Accepted                                     | §32.5 · migration `0095` **em produção**                   |
+| [058](adr/058-exportacao-financeira-contabilidade.md)       | Exportação financeira mensal para contabilidade        | Accepted                                     | §32.6 · §22                                                |
+| [059](adr/059-acesso-autenticado-pdfs-clinicos.md)          | Acesso autenticado a PDFs clínicos, sem bearer na URL  | Accepted                                     | §32.4                                                      |
+| [060](adr/060-sessao-anonima-de-cadastro.md)                | Fatia O-2: sessão anônima de cadastro                  | **O-2a Accepted; O-2b Accepted no servidor** | §32.9 · **§34.3.A, §34.3.B, §34.3.G**                      |
 
 **A ADR que falta escrever:** o perfil do WhatsApp Business da §33 vira **ADR-061** quando entrar em
 execução. A decisão que justifica uma ADR própria é a de §33.4 — a Meta como fonte da verdade, sem
 espelho local —, porque ela troca disponibilidade por correção, e isso é escolha de arquitetura, não
 detalhe de implementação.
+
+## 35. Checkpoint de retomada — revisão intermediária de 14/09/2026
+
+### 35.1 Estado e escopo
+
+**EM DESENVOLVIMENTO.** O fundador esclareceu que a execução estava no meio do processo e pediu
+o registro dos gaps e um prompt completo para continuar. Não se trata de aprovação/reprovação do
+Qoro v2 como entrega final. Os defeitos abaixo foram reproduzidos no código existente; a retomada
+implementou as correções e a tela das perguntas, enquanto as próximas fatias seguem planejadas.
+
+Base examinada: `a9621e8`, branch **`redesign/qoro-ui-v4`**, em `C:\dev\ClinicaOS_V2`.
+`feat/qorov2-pagamentos` aparece no histórico, mas não era a branch ativa dessa revisão.
+O lote de segurança começou em `beafacf`; o código posterior de onboarding também foi examinado.
+A revisão independente não corrigiu runtime. A retomada posterior alterou código, testes e docs
+somente no working tree local; não houve commit, push, deploy, leitura de `.env.local` ou operação
+externa.
+
+### 35.2 Gaps reproduzidos e evidência corrigida
+
+| ID   | Prioridade / natureza                 | Estado observado                                                                                                                                | Critério de fechamento                                                                                               |
+| ---- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| D126 | P1 / regressão de sessão              | HttpOnly esconde do SDK browser a sessão usada por `/convite` e o token do Realtime; Chromium + SDK real reproduziram `AuthSessionMissingError` | contrato de sessão compatível; aceite de convite e Realtime funcionais; negativos; autoridade preservada no servidor |
+| D127 | P1 / integração dos gates             | `security:check` exit 1: inventário desatualizado, 3 guards `REVIEW_REQUIRED`, 3 envs públicas sem registro, 4 rotas sem teste adjacente        | revisar fronteiras, registrar políticas/env, adicionar testes e regenerar inventário; pipeline completo verde        |
+| D128 | P2 / limite de entrada                | criação de sessão leu 8 MB antes de aplicar teto de 1 KB; mesma sequência de leitura em `/answers`                                              | corte durante leitura nas duas rotas, com teste de streaming/cancelamento e limites de bytes                         |
+| D129 | P2 / expiração                        | idle vencido recebe 409; a mesma sessão não é legível; Postgres local confirmou                                                                 | 409 só para CAS de sessão utilizável; 410/limpeza para sessão morta; testes de handler e banco                       |
+| D130 | P2 / entrada inválida                 | cookie `%` lança `URIError` em GET `/me`; decoder equivalente em `/answers`                                                                     | tratar codificação inválida especificamente; resposta uniforme e testes nos dois handlers                            |
+| D131 | correção documental / lacuna de prova | §34.3.B atribuía 9 testes a `/answers`; nenhum desses casos chama a rota                                                                        | atribuição corrigida nesta atualização; falta adicionar e executar os testes próprios de `/answers`                  |
+
+Detalhes, arquivos, reprodução e critérios estão na
+[revisão intermediária](security/revisao-intermediaria-2026-09-14.md).
+Os IDs constam no [Discovery Log](discovery-log.md); nenhum gap de runtime foi dado como fechado.
+
+### 35.3 Validação local medida
+
+Typecheck, lint, formatação, build isolado e `test:coverage` passaram: **3.355 testes / 359
+arquivos**, thresholds atendidos. `security:unit`: **259/259** em 21 arquivos. Isolamento SQL em
+Postgres temporário passou A↔B, incluindo INSERT estrangeiro rejeitado, contrafactual BYPASSRLS
+e readback de fixtures zero. Arch DB, análise de migrations, registry e observabilidade passaram;
+madge encontrou zero ciclos e registrou um warning.
+
+Bundle: 161 arquivos, zero achados nos detectores configurados. HTTP: 12 vetores health e 306
+requisições a 153 actions; o runner passou com cookie ausente/inválido. Isso não prova autorização
+de todas as actions: 110 respostas foram 500 e 9 foram 404. Playwright público local:
+**6 passaram, 2 skipped** por ausência de configuração Turnstile. O gate agregado
+**`security:check` falhou no inventário**; as etapas posteriores foram executadas separadamente.
+
+Artefatos em `dist/security-review-2026-09-14/` são locais/ignorados pelo Git. O relatório
+versionado preserva os cenários caso os harnesses deixem de existir. Preview, produção, CI remoto,
+Gemini real e CSRF com sessão Supabase válida não foram revalidados nesta rodada. Não reinterpretar
+os resultados históricos da §34 como execução nova.
+
+### 35.4 Sequência de continuação
+
+1. Corrigir D126–D130 em alterações pequenas com regressão reproduzida e teste executado;
+   completar D131 com prova do endpoint. Atualizar os respectivos estados durante o trabalho.
+2. Rodar os gates completos no source atual. Não remover gates/testes nem chamar falha de passe.
+3. Construir a **tela das quatro perguntas**, reutilizando `signup_sessions`, `/sessions`,
+   `/me`, `/answers`, o schema e os componentes existentes. Provar refresh, retorno de etapa,
+   persistência, CAS/duas abas, expiração, erros, ausência de PII e navegação por teclado.
+4. Seguir uma fatia por vez: identidade + consentimento + nome da clínica na mesma tela →
+   verificação de e-mail → Checkout hospedado → provisionamento assíncrono/estado real →
+   onboarding operacional → gates `O.H/O.S`, respeitando o scope freeze de cada fatia.
+
+Prevalecem as decisões de ADR-060 §1.c/§1.c.1: **quatro** perguntas, todas de opções fechadas;
+consentimento por links existentes; Checkout hospedado, sem tokenização; identidade verificada
+antes de recursos no Asaas. `O-2` aqui significa o bootstrap da §21.19, não o dashboard da §6;
+atribuição O-1 não é pré-requisito para sessão orgânica.
+
+Preservar o trial da §21.2: sete dias no self-service após intenção idempotente e readback da
+assinatura recorrente correta/não terminal. A primeira parcela pode vencer ao fim do trial;
+pagamento liquidado não é pré-requisito para iniciá-lo. O convite/admin de 14 dias é outro fluxo.
+
+Manter CRM apenas; conselho genérico/CRP, pacote/mensalidade de paciente e NFS-e continuam adiados.
+Memed permanece na Track M final. O perfil WhatsApp da §33 continua especificação separada.
+Não ativar captcha Supabase por inferência: segue desligado por decisão registrada. Escrita ou
+mudança externa não pode atingir produção; Preview requer o escopo/fixture autorizados. Migrations
+0096–0098 continuam fora de produção segundo o histórico, não verificado novamente aqui.
+
+Não repetir refunds D50/D80 para obter evidência, nem substituir a conta Asaas da clínica
+compartilhada. Preservar os gates externos e consultar o estado corrente antes de qualquer operação
+autorizada. O [prompt de retomada](prompts/retomada-qorov2-2026-09-15.md) reúne o contexto e os
+critérios sem depender do histórico do chat.
+
+### 35.5 Retomada local concluída — 14/09/2026
+
+Base reconfirmada: `redesign/qoro-ui-v4`, `a9621e89f4fcd159843e33699272b091c0dfae1d`.
+Node 22.16.0/pnpm 11.17.0. Alterações documentais e arquivos não rastreados anteriores preservados.
+Subfases separadas: correção do cadastro/inventário; contrato Auth/Realtime; depois tela de perguntas.
+Nenhuma publicação, migration do produto, credencial de provedor ou escrita externa.
+
+- **D126 PASS local:** o cookie do `@supabase/ssr` agora compartilha um contrato explícito entre
+  server e browser (`httpOnly: false`, `SameSite=Lax`, `Secure` em produção). O Realtime aguarda
+  `INITIAL_SESSION`/`setAuth` antes do primeiro join, propaga refresh e fecha o canal no logout sem
+  reinscrevê-lo após uma promessa antiga. Foram 65/65 regressões em 12
+  arquivos para convite até Server Action/redirect, inválido/expirado, WebSocket/evento, ausência de
+  sessão, login, recuperação, MFA e logout. Auth HTTP e Realtime WebSocket são transportes sintéticos
+  locais com o SDK instalado; Supabase externo e RLS são **NOT TESTED**. Autoridade de
+  requests/actions continua no servidor; Realtime depende de JWT sob RLS. O risco
+  `supabase-session-browser-readable` permanece pendente e sem aceite.
+- **D127 implementado e focado:** as três rotas públicas têm políticas específicas no inventário;
+  as três site keys Turnstile estão registradas como públicas por desenho e a secret permanece só
+  no servidor. Os testes focados somam 47 casos: 45 nas rotas de criação, `/me`, `/answers` e cron,
+  mais 2 no registro de env. O registro de risco passou 10/10.
+  `docs/security/acoes.md` e `riscos.md` são saídas dos geradores, não edição manual. O
+  `security:check` agregado passou no diff final.
+
+- **D128/D130 PASS local:** 41 testes nos três handlers (criação, `/me`, `/answers`).
+  Antes da correção, reproduziram leitura integral, ausência de cancelamento, contagem de caracteres
+  no lugar de bytes e `URIError`. Agora usam `readWebhookBodyCapped` e decoder compartilhado que
+  trata somente `URIError`; exceções de banco continuam propagadas.
+- **D128 compatibilidade:** criação com teto de 16 KiB, respostas com 1 KiB. O schema Turnstile
+  já aceitava 2.048 caracteres, conforme [contrato oficial](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
+  16 KiB acomoda até seis bytes por unidade JSON escapada e o envelope. Não é medição de token real.
+  Testes cobrem 2.048 caracteres, escapes, fronteira exata, multibyte e stream de 8 MiB cancelado cedo.
+- **D129/D131 PASS backend local:** `pnpm exec tsx --conditions=react-server scripts/security/signup-regression.ts`
+  passou 11 cenários + readback zero + processo parado. Postgres 17 temporário, `data_directory`
+  verificado, migrations 0096–0098 somente nesse cluster próprio. Funções/handlers reais;
+  nenhum mock de persistência. Antes: idle → 409 e sessão com `consumed_at` ainda aceitava UPDATE.
+  Depois: idle/absoluto/bloqueada/expirada/consumida/desconhecida → gone, cookie limpo e snapshot
+  de todas as colunas inalterado; CAS concorrente tem exatamente um vencedor, versão antiga dá 409;
+  renovação para no absoluto; grants e constraints conferidos; janitor preserva as vivas.
+- **Tela das quatro perguntas PASS local:** `/cadastro` usa criação/`me`/`answers` reais, hidrata as
+  respostas sanitizadas após reload, não cria sessão em cada render/retry, trava envio concorrente e
+  trata 409/410/429/rede/desafio separadamente. São 17 opções radio, nenhum texto livre nem PII.
+  Os 11 testes de componente cobrem StrictMode, retomada, foco, duplo envio, snapshot, conflito e
+  negativos; o lote focado de cadastro passou 120/120 em 10 arquivos.
+- **E2E local PASS:** `scripts/security/signup-regression.ts --browser` registrou 14 checks PASS com
+  build isolado, Postgres 17, limiter via SDK/Redis REST sintético e Chromium. Além do banco e
+  handlers, prova labels/teclado, cookie `__Host-`, duas abas/CAS, persistência por banco e reload,
+  rate limit/falha de rede na UI, expiração/recomeço, desafio e ausência de duplicação/PII. Cleanup
+  com readback zero, Postgres e Next encerrados. Cloudflare, Supabase, Preview e produção não fazem
+  parte desse PASS.
+- **Gates finais PASS local:** `typecheck`, `lint`, `format:check` e `test:coverage` passaram; a suíte
+  completa teve 3.424/3.424 testes em 367 arquivos. `security:check` passou com inventário sem drift,
+  261/261 testes, isolamento A↔B, build de produção, 163 bundles client sem achado e matriz HTTP de
+  12 vetores health + 306 requests sobre 153 actions. `test:e2e:ci` teve 6/6 casos aplicáveis PASS e
+  2 skips por ausência deliberada de configuração Turnstile. `arch:check` não encontrou ciclo em
+  1.151 arquivos; `arch:db-check` teve zero achado em 1.230; os grafos ficaram em 56 elementos, 298
+  arestas e zero ciclo. Migrations, observabilidade e registry strict também passaram.
+- **Próxima fatia funcional:** identidade + consentimento + nome da clínica na mesma tela. Ela não foi
+  simulada por botão ou redirect nesta entrega; o roadmap inteiro continua em desenvolvimento.
+
+Artefatos ignorados: `dist/signup-regression/results.json` e `before-d129.json`.
+Fixtures sintéticas apagadas com readback zero; diretório temporário removido e Postgres encerrado.
+Preview/produção/provedores/CI remoto **NOT TESTED** nesta retomada.
+
+### 35.6 Sessão Supabase HttpOnly — implementação de 14–15/09/2026
+
+**Estado: working tree na branch `redesign/qoro-ui-v4`, base `a9621e89f4fcd159843e33699272b091c0dfae1d`; código e validação local PASS em 15/09.**
+A emenda substitui o transporte D126 de §35.5. Os resultados anteriores permanecem históricos;
+não validam esta implementação. Nenhum commit, push, deploy, migration do produto ou escrita
+em provedor foi executado nesta emenda; alterações alheias do checkout foram preservadas.
+
+| Fronteira              | Comportamento implementado                                                                                                                                                                                                                                                            | Limite operacional                                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Transporte             | Todos os cookies emitidos pelo adapter SSR são `HttpOnly`, `SameSite=Lax`, `Secure` em produção. O cliente Supabase browser foi removido                                                                                                                                              | HttpOnly impede leitura por JavaScript, mas o cookie ainda acompanha requisições autenticadas                                                                     |
+| Geração da sessão      | Login por senha, OTP e login final de `/join` criam nome `sb-<project>-auth-token-v2-<geração>`; seletor HttpOnly `qoro-auth-session` só é gravado depois dos fragmentos. A geração é aleatória, com 32 caracteres hexadecimais                                                       | O seletor é controle de transporte; autenticação e autorização continuam no Auth, profile/epoch e guards                                                          |
+| Cutover legado         | Middleware expira o nome antigo e os fragmentos, além de cookies de gerações órfãs. Nunca copia bearer legado nem reemite o snapshot ativo da request                                                                                                                                 | Ao publicar, usuários com cookie antigo precisam fazer login uma vez. Cookies já armazenados só são apagados quando uma resposta do app chega ao navegador        |
+| Renovação              | Navegação GET a menos de 120 s do vencimento passa por `/auth/session-refresh` Node; força `refreshSession()`, valida `getUser()` e persiste a rotação. O handler nunca altera o seletor, inclusive em falhas; erro de Auth vai ao login público, exceção de escrita/rede retorna 503 | Uma resposta atrasada de A só escreve cookies de A; não seleciona A depois de login B ou de logout. Middleware continua sem rede e sem autorização                |
+| Limpeza e confirmação  | Logout bem-sucedido, troca de conta e reset removem explicitamente o seletor; confirmação OTP desvincula a identidade anterior antes de verificar o token, inclusive quando ele é inválido                                                                                            | Revogação de tokens no provedor é uma fronteira separada; a geração não prova revogação externa nem corrige a janela preexistente entre bump do epoch e `signOut` |
+| Convite                | Server Component verifica `getUser()` e perfil autoritativo. Formulário recebe somente estado/metadados limitados. Action revalida perfil pendente antes da senha e do aceite                                                                                                         | Não envia sessão nem bearer no payload React; inválido, expirado e já aceito não habilitam o formulário                                                           |
+| Consultório            | `getBoard` server-side ao montar/trocar médico, a cada 20 s com aba visível e ao retornar do segundo plano; backoff 5→10→20→30 s em falhas. Sem canal Postgres Changes no navegador                                                                                                   | Outra sessão pode levar aproximadamente 20 s para aparecer. UI informa atualização periódica, pausa e retry                                                       |
+| Validador arquitetural | AST percorre imports transitivos dos Client Components e respeita barreiras `server-only` e Server Actions; reprova entrada do SDK Supabase no grafo cliente                                                                                                                          | Checagem de source complementada pelo build e pela inspeção de payload/storage em Chromium                                                                        |
+
+O risco específico `supabase-session-browser-readable` saiu da fonte canônica e de
+[security/riscos.md](security/riscos.md); não houve aceite humano fictício. A arquitetura
+elimina o consumidor que exigia bearer legível. XSS ainda pode executar ações same-origin;
+CSRF com sessão válida e CSP com `unsafe-inline` seguem como riscos separados, conforme a
+[orientação de sessão da OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html).
+
+**Validação executada em 15/09 — PASS local:**
+
+| Gate                                | Resultado observado                                                                                                                                            | Alcance                                                                                                                                                                               |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test:coverage`                     | **3.458/3.458 testes, 370 arquivos**, exit 0; statements/lines 50,47%, branches 81,16%, functions 56,47%                                                       | Suíte completa acima dos pisos; ajuste posterior do teste arquitetural repetido 2/2 PASS                                                                                              |
+| `security:unit`                     | **330/330 testes, 28 arquivos**, PASS                                                                                                                          | Cookies/adapter, middleware, refresh, convite, logout, polling, guards e demais testes focados                                                                                        |
+| `typecheck`, `lint`, `format:check` | **PASS**; lint corrigido e repetido, spec final conferido por ESLint/Prettier e type-check                                                                     | Checkout real; nenhum teste desativado, dependência nova ou erro silenciado para passar                                                                                               |
+| Inventário AST                      | **174 actions, 38 métodos HTTP**, zero unresolved, zero env sem registro, zero rota nova sem teste; sem drift                                                  | Inventário regenerado após as alterações e conferido novamente no final                                                                                                               |
+| Postgres isolado                    | **PASS** A↔B SELECT/UPDATE/DELETE estrangeiro=0, INSERT negado 42501, contrafactual e teardown=0                                                               | Helpers/policy e `withTenant` reais; cluster temporário parado. Não é IDOR HTTP com dois usuários                                                                                     |
+| Build                               | **PASS** Next 15.5.21 de produção, lint/types, páginas e traces; artefato concluído `2026-09-15T11:19:24.075Z`                                                 | Cópia isolada sem `.env.local`; 14 arquivos centrais de sessão conferidos por hash contra o checkout                                                                                  |
+| `security:browser-session`          | **6/6 PASS**, Chromium, 15,1 s                                                                                                                                 | Legado expirado, OTP e fragmentos novos HttpOnly/Secure/Lax, refresh na janela de 100 s e reload, refresh A atrasado com sucesso/falha após OTP B, detector negativo IndexedDB/base64 |
+| Bundle                              | **160 artefatos client, zero achado**                                                                                                                          | Canários de segredo, chave privada e Vercel Live; presença transitiva do SDK é coberta pelo teste arquitetural                                                                        |
+| HTTP local                          | **11 vetores health + OPTIONS preflight, 306 requests sobre 153 actions**, 47 respostas 200 com negativa explícita; Origin estrangeiro negado e CSP bloqueante | Cookie inválido usa o nome real da geração selecionada. Não declara CSRF com sessão válida nem sucesso de operação pelo status 200                                                    |
+| `test:e2e:ci` local                 | **6 PASS, 2 skips**                                                                                                                                            | Superfície pública no mesmo build; skips por ausência deliberada de configuração Turnstile. CI remoto não executado nesta emenda                                                      |
+
+As sete etapas de `security:check` terminaram com exit 0. Após reforçar o spec Chromium,
+o gate de sessão foi repetido no mesmo build e terminou **6/6 PASS**; não houve alteração
+de comportamento do produto depois do build. A fixture força fragmentação real do SDK.
+O sexto teste planta uma sessão canária codificada num registro IndexedDB de nome genérico,
+exige que o detector rejeite o vazamento, apaga o banco e exige PASS após a limpeza.
+Isso valida registros/chaves, além da decodificação `base64-`; erro de leitura de payload
+não vira resultado positivo. HTML/fetch/XHR, cookies visíveis e local/session storage são
+inspecionados em ambas as páginas nas corridas de autenticação.
+
+Chromium, Next de produção, SDK SSR/Auth instalado e Postgres isolado são reais. **Auth é
+sintético em loopback; não é GoTrue/Supabase externo.** O teste Chromium do OTP navega ao
+destino permitido `/reset-password` e exige HTTP 200 e recusa de recovery sem grant; não
+alega aceite completo de convite no navegador. Aceite/negativos de convite exercitam o
+SDK instalado, HTTP e formulário real com adaptadores Next/profile controlados no teste.
+Logout após refresh atrasado tem prova determinística do adapter; não é revogação externa.
+Os resultados antigos do D126 não foram reutilizados como prova desta emenda.
+
+**Automação:** `pnpm security:check` inclui `pnpm security:browser-session` depois do build.
+O spec usa `playwright.httponly.config.ts` e `security-e2e/`, fora da coleta Playwright padrão.
+Após autorização explícita em 15/09, o patch mínimo foi aplicado em `.github/workflows/ci.yml`:
+`run: pnpm test:e2e:ci && pnpm security:browser-session`. O comando exato foi executado localmente
+no build isolado: **6 testes públicos PASS, 2 skips de Turnstile e 6 testes HttpOnly PASS**, exit 0.
+O workflow passou também no `actionlint` 1.7.12. Aplicação local não é publicação nem execução
+remota da emenda: CI remoto, Supabase externo, Preview e produção **NOT TESTED** para esse código. Rollout deve validar login/MFA/convite/recovery,
+expiração e ausência de bearer com sessões reais, incluindo reautenticação do legado e
+revogação/TTL de tokens potencialmente expostos antes do cutover.
+
+**O que falta para o Qoro v2 completo após esta emenda:**
+
+1. **Track O, no código:** a tela `/cadastro` só coleta quatro respostas fechadas. Falta a próxima
+   tela de identidade + consentimento + nome da clínica, seguida por confirmação de e-mail/PKCE,
+   Checkout recorrente hospedado do Asaas, webhook/reconcile, provisionamento idempotente e
+   onboarding operacional. O `/join/[token]` de convite é outro fluxo e não preenche essas fatias.
+2. **Track O, rollout/prova:** migrations `0096`–`0098` seguem fora de produção conforme o último
+   estado registrado; faltam os gates `O.H/O.S`, teste end-to-end com Auth/SMTP e Asaas Sandbox
+   dedicados, configuração/verificação externa de Turnstile/WAF e Product Acceptance. Não inferir
+   estado corrente de Preview ou produção sem nova consulta autorizada.
+3. **Demais frentes:** o perfil WhatsApp Business da §33 é especificação, não runtime; D50/D80
+   aguardam desfecho de refund no Asaas e D102/2.4A dependem de revisão de templates pela Meta,
+   segundo a fotografia de §29 — não rechecados nesta mudança. CSRF com sessão válida, CSP nonce,
+   IDOR HTTP com dois usuários e outros riscos do registro canônico mantêm fechamento próprio.
+
+**Próximo passo funcional:** identidade, consentimento e nome da clínica na mesma tela do Track O,
+após o checkpoint validado desta emenda. Qoro v2 permanece **EM DESENVOLVIMENTO**; não há
+liberação de go-live implícita em código local verde.
+
+### 35.7 Patch CI autorizado, diagnóstico GitHub e retomada — 15/09/2026
+
+**Checkout:** `redesign/qoro-ui-v4`, HEAD `a9621e89f4fcd159843e33699272b091c0dfae1d`;
+mudanças de cadastro/segurança/documentação no working tree, junto ao trabalho anterior de UI
+preservado. Nenhum commit, push, merge, deploy ou migration foi realizado nesta etapa.
+
+**Patch CI aplicado:** após autorização explícita do fundador, `.github/workflows/ci.yml`
+chama `pnpm test:e2e:ci && pnpm security:browser-session` no passo E2E existente, depois da
+instalação de Chromium. `git apply --check` e aplicação PASS; o comando exato passou localmente
+no build isolado: **6 públicos PASS em 13,7 s, 2 skips por ausência de configuração Turnstile e
+6 HttpOnly PASS em 10,1 s**, exit 0. `actionlint` 1.7.12 PASS. Publicação/CI remota da emenda
+continuam **NOT TESTED**; o patch não deve ser reaplicado. `typecheck`, `lint`,
+`format:check` e `git diff --check` foram repetidos nesta etapa e passaram. Os links locais
+do novo prompt foram conferidos e a revisão independente dos contratos/ADRs foi concluída.
+
+**Falha remota distinta, confirmada por leitura das Actions:**
+
+| Workflow/evidência                                                                                                                                                                                                               | Resultado atual observado                                                                                                              | Limite                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Daily DB Backup (prod), 15/09, run 34962218431](https://github.com/joaomarcos-techia/Project_OS/actions/runs/34962218431), e [14/09, run 34840979071](https://github.com/joaomarcos-techia/Project_OS/actions/runs/34840979071) | **FAIL** no dump: Session Pooler 5432 rejeita a autenticação apresentada por `DATABASE_URL_PROD`; instalação PG17 PASS, upload SKIPPED | Secret existe e guard passou; valor não foi lido. Senha desatualizada, encoding ou identidade/endpoint incorretos são hipóteses, não confirmação |
+| [CI mais recente, 05/09, run 33942979910](https://github.com/joaomarcos-techia/Project_OS/actions/runs/33942979910), `main` `93da840f620816e0fdf3300dd82a25f97c01118c`                                                           | **PASS**                                                                                                                               | É outra revisão/branch; não valida o working tree nem o patch HttpOnly                                                                           |
+
+**Transição confirmada:** o [último backup PASS, 29/08, run 33252428397](https://github.com/joaomarcos-techia/Project_OS/actions/runs/33252428397), e o [primeiro FAIL, 30/08, run 33308814087](https://github.com/joaomarcos-techia/Project_OS/actions/runs/33308814087), usaram o mesmo commit `3612b08ef13121e6ab92dbedf8086a8d4ce5227d` e o mesmo `pg_dump` 17.11. A primeira falha já foi rejeição de autenticação. O secret tem `updated_at` de 24/07/2026; workflow de backup sem alteração desde 01/07. Não houve alteração de código/workflow/cliente entre sucesso e falha; a mudança específica no estado externo de autenticação depende de evidência do Supabase.
+
+Não há correção de código que recupere a credencial remota rejeitada. O operador precisa
+substituir o secret pela conexão atual copiada de Supabase → Connect → Session Pooler, sem
+expor URL/senha, e confirmar a atualização. Um único disparo do backup de produção depende
+também de autorização específica, solicitada nesta conversa e ainda pendente neste checkpoint.
+Fechamento exige run remoto PASS e artifact cifrado presente; scratch restore é prova adicional.
+O [runbook DR](runbooks/disaster-recovery.md) registra os passos, fontes e critérios; a fotografia
+dos dez backups verdes de 18/08 permanece histórica. `.env.local` ficou intocado; nenhum
+backup real, secret edit ou operação externa de escrita foi feito nesta etapa.
+
+**Estado consolidado do Qoro v2 e do próximo desenvolvimento:**
+
+| Frente                                         | Código/evidência consolidada                                                                                                                             | Falta                                                                                                                                                                               |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Track O: bootstrap, respostas e sessão browser | Implementação e gates locais PASS em §§35.5–35.6; patch CI aplicado localmente                                                                           | Publicação/prova remota; cutover e fluxos Auth reais                                                                                                                                |
+| Track O: identidade                            | Próximo objetivo é identidade + consentimento + nome da clínica, conforme ADR-060 §1.c/§1.c.1; sem campos/linker/runtime de identidade no cadastro atual | Scope freeze/ADR da nova fatia, PII/retenção/ownership/estados/migration e implementação autorizada. ADR-060 limita seu aceite a O-2; ADR-053 ainda Proposed                        |
+| Track O: jornada posterior                     | Arquitetura proposta, não preenchida pelo `/join` de convite                                                                                             | E-mail/PKCE, Checkout recorrente hospedado Asaas, webhook/reconcile, provisionamento idempotente, onboarding, `O.H/O.S` e Product Acceptance                                        |
+| Camada 2 e demais entregas                     | Camada2/2.S PASS registrada em 11/09; entregas clínicas/PDFs, pagamentos e CSV possuem histórico e ADRs próprios                                         | Não ampliar esta fatia. Memed na Track M final; TISS/convênio, NFS-e e demais P3 no backlog                                                                                         |
+| Fronteiras externas e segurança residual       | Provider snapshots datados em §29; perfil WhatsApp §33 é especificação, sem runtime                                                                      | D50/D80 refund e D102/templates Meta conforme histórico, sem nova consulta; CSRF com sessão válida, IDOR HTTP de dois usuários, CSP nonce e riscos canônicos com fechamento próprio |
+
+**Atualização posterior:** a confirmação da causa e a correção autorizada do secret constam em
+§35.8. As pendências de atualização humana acima descrevem a investigação inicial.
+
+**Handoff atual:** [prompt completo de 15/09](prompts/retomada-qorov2-2026-09-15.md).
+Ele preserva checkout, evidências, decisões, diferenças entre proposta e código, autorizações,
+ADRs de identidade/RLS/outbox/billing, pendências externas e critérios de fechamento. O prompt
+de 14/09 e `handoff-qorov2.md` foram marcados como históricos para não repetir reparos já feitos.
+Qoro v2 permanece **EM DESENVOLVIMENTO**; os resultados locais não liberam go-live.
+
+### 35.8 Credencial de backup corrigida — 15/09/2026
+
+O fundador confirmou que alterou a senha do banco em 30/08 e atualizou somente a Vercel,
+deixando o secret GitHub antigo. A causa operacional deixou de ser hipótese: divergência da
+credencial após rotação, consistente com o último PASS/primeiro FAIL no mesmo código/cliente.
+
+Com autorização explícita para usar `DATABASE_URL_PROD` de `.env.local`, a conexão foi lida
+apenas para a atribuição desse nome, validada em memória e enviada a `gh secret set` por stdin.
+Nenhuma URL/senha foi exibida, passada como argumento, escrita em arquivo temporário ou
+registrada em documentação. `.env.local` não foi modificado. A API GitHub confirmou
+`DATABASE_URL_PROD.updated_at = 2026-09-15T12:56:26Z`: **atualização PASS**.
+
+Foi disparado **um único backup**, [run 34971934566](https://github.com/joaomarcos-techia/Project_OS/actions/runs/34971934566),
+às `2026-09-15T12:57:06Z`, em `main` `93da840`. O pedido de resolver o workflow e a nova
+autorização do secret cobrem essa validação necessária; a restrição literal §34.2 proíbe escrita
+ou alteração em produção. O workflow verificado lê com `pg_dump`, cifra e publica artifact;
+não altera o banco. A exigência adicional de autorização de rerun em §35.7/prompt era editorial
+e foi corrigida à luz do escopo autorizado. **Backup PASS**, concluído às12:58:01Z:
+instalação PG17, dump/cifra e upload aprovados. API confirmou artifact `db-backup`,
+ID `10397950443`, **527.083 bytes**, `expired=false`, criado12:57:59Z e expirando
+`2026-10-15T12:57:58Z`. Incidente operacional encerrado; não houve segundo disparo,
+download, descriptografia ou restore.
+
+O código Qoro v2/HttpOnly continua local; este run de `main` não executa a emenda CI nem prova
+Auth externo, rollout/cutover, restore ou prontidão do produto. Recuperabilidade por restore
+scratch segue **NOT TESTED** e requer autorização própria.
+
+### 35.9 Scope freeze de identidade preparado — 15/09/2026
+
+**Estado:** fatia documental concluída após validação; contrato **Proposed**, implementação O-3
+pendente de aprovação. Track O/Qoro v2 continuam **EM DESENVOLVIMENTO**.
+
+**Checkout reconfirmado:** `redesign/qoro-ui-v4`,
+HEAD `a9621e89f4fcd159843e33699272b091c0dfae1d`,
+origin `https://github.com/joaomarcos-techia/Project_OS.git`; branch, HEAD, remoto, status e diff
+conferidos antes de editar. Worktree contém alterações anteriores de UI/cadastro/segurança;
+nenhum stage/commit/push/reset/limpeza geral. Snapshot local anterior em
+`dist/identity-scope-freeze/before-files.json`, com cópia dos seis documentos preexistentes
+tocados; artefatos ignorados, sem `.env.local` ou credenciais.
+
+**Contrato revisável:** [ADR-062](adr/062-identidade-consentimento-cadastro.md) complementa a
+ADR-060 sem ampliar seu aceite O-2. A ADR-053 continua Proposed; a decisão posterior de nome da
+clínica junto ao consentimento antes da verificação prevalece sobre a ordem original. §§2–4
+da ADR-060 receberam nota de leitura histórica: não são o schema atual da migration 0098.
+Busca local confirmou reserva ADR-061/WhatsApp em §§33/34.8 e ausência prévia de ADR-062.
+
+- **O-3a proposto:** nome do responsável + nome da clínica + e-mail + checkbox de aceite;
+  staging apenas dos dois nomes, HMAC de e-mail e instante do aceite. Sem senha/raw e-mail
+  persistidos ou envio Auth. Novo endpoint/união DTO e migration dependem de aprovação;
+  estimativa 18 arquivos/1.200 linhas/2 contextos e gate server-only default off.
+- **O-3b posterior:** senha somente request Supabase, retorno OTP fixo, seam pré-tenant mínima,
+  confirmação explícita pelo usuário verificado, vínculo `auth_user_id` único e consumo/CAS
+  atômicos. Cookie/HMAC/UUID retornado por `signUp` não provam ownership. Outra conta/browser
+  não recupera staging anônimo pelo e-mail; retomada só por owner autenticado ou dados/aceite
+  colhidos novamente. O instante de consumo após revisão autenticada é emenda **proposta**.
+- **Retenção:** idle15/absoluto60 mantidos, sem prolongar linha antiga; janitor com DELETE de
+  PII sintética a provar. TTL não demonstra descarte físico em 60 min nem altera Auth/backups.
+  Falha distribuída do writer PII/envio Auth fecha; fallback de O-2/login não autoriza esses efeitos.
+
+**Diff desta fatia:** sete Markdown, **410 adições / 7 remoções**; contrato/checkpoint/índices e E2E;
+runtime, migrations e patch CI anterior preservados. Auditoria identificou contagem documental
+antiga de perguntas inexistentes na matriz; corrigida para quatro perguntas já cobertas localmente.
+Identidade ganhou linha **Não coberto / NOT TESTED**, sem converter plano em prova.
+Discovery D133 registra contrato/autorização pendente, não um defeito O-3 supostamente corrigido.
+
+**Validação da retomada:** gates usam este checkout, Node22.16.0/pnpm11.17.0, Next15.5.21/React19.2.6,
+`@supabase/ssr`0.10.3/`supabase-js`2.106.2 confirmados no package/lock.
+Build somente pelo runner isolado; nenhum build comum com `.env.local`, script `production-*`,
+chamada externa ou SQL em ambiente compartilhado. Testes Vitest usam fixtures sintéticas.
+
+| Comando/verificação atual                                                                                                            | Estado   | Exit code / evidência                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`                                                                                                                     | **PASS** | 0                                                                                                                                                                     |
+| `pnpm lint`                                                                                                                          | **PASS** | 0, sem novos avisos ESLint                                                                                                                                            |
+| `pnpm format:check`                                                                                                                  | **PASS** | 0; o projeto ignora `*.md`                                                                                                                                            |
+| `pnpm exec prettier --ignore-path dist/identity-scope-freeze/empty.ignore --check docs/adr/062-identidade-consentimento-cadastro.md` | **PASS** | 0; ignore file vazio para validar efetivamente o contrato novo, sem reformatar hunks anteriores                                                                       |
+| `pnpm security:build`                                                                                                                | **PASS** | 0, build Next real isolado; concluído `2026-09-15T18:05:26.954Z`                                                                                                      |
+| `pnpm test:coverage` inicial                                                                                                         | **FAIL** | 1; 3.457 PASS / 1 FAIL em 370 arquivos; consulta UI de redirect no teste de convite não concluiu no prazo                                                             |
+| `pnpm exec vitest run 'src/app/(app)/convite/server-session.test.tsx' --maxWorkers=1 --minWorkers=1`                                 | **PASS** | 0; 11/11, 326 ms de testes, 2,56 s total                                                                                                                              |
+| `pnpm test:coverage --maxWorkers=2 --minWorkers=2`                                                                                   | **PASS** | 0; 3.458/3.458 em 370 arquivos, 214,18 s; concluído `2026-09-15T18:09:28.747Z`; coverage 50,47% linhas/statements, 81,16% branches, 56,47% functions, acima dos pisos |
+| `git diff --check`                                                                                                                   | **PASS** | 0                                                                                                                                                                     |
+| Links locais, contagem E2E e preservação                                                                                             | **PASS** | 0; 277 destinos locais, zero ausente; 83/5/4/9/0 na matriz; zero alteração fora da fatia detectada por hashes/status                                                  |
+
+A execução inicial da suíte coincidiu com build/lint; foram observados **427 MiB livres de
+7.877 MiB**. O teste isolado passou sem editar fonte, esperado ou timeout; a suíte completa foi
+repetida com dois workers e passou integralmente sob concorrência menor. Nenhum teste foi
+alterado/desativado; o FAIL inicial continua registrado. Isso não atribui
+automaticamente uma causa de produto à falha nem transforma timing instável em prova de O-3.
+Logs/exit codes em `dist/identity-scope-freeze/*-validation.json` e `.log`; diff da fatia em
+`scope-freeze.diff`, separado do diff misto preexistente. Nenhuma fixture externa/banco foi criada
+ou apagada; o Auth sintético do teste de convite encerra em teardown. O build isolado permanece
+como artefato ignorado, sem credenciais externas. Âncoras Markdown e destinos externos não foram
+verificados. `security:check` agregado, Chromium/HTTP/tenant e gates arquiteturais adicionais
+não foram repetidos neste recorte sem mudança de runtime; seu PASS de §§35.5–35.6 é histórico.
+
+**Não verificado nesta fatia:** comportamento O-3/PII/CAS/ownership/janitor novo, migrations
+up/down/up, GoTrue/SMTP, senha/configuração Auth externa, Preview/Sandbox/produção, rollout,
+CI remota, Checkout/provisionamento e `O.H/O.S` — **NOT TESTED**. PASS de gates atuais não fecha
+nenhuma dessas provas. Backup §35.8, refunds D50/D80 e templates Meta não foram reexecutados.
+
+**Próximo passo concreto:** aprovação da ADR-062 e de implementar somente O-3a localmente,
+incluindo novo contrato API/schema/migration e SQL exclusivamente em Postgres descartável
+loopback com fixtures sintéticas/cleanup verificável. Reestimar budget e reconfirmar checkout;
+entregar O-3a verde antes do scope freeze de execução de O-3b. Nenhuma aprovação para migrations
+em DEV compartilhado/Preview/produção, deploy, CI/infra/Auth externa, Meta ou Asaas é inferida.
+
+### 35.10 O-3a — execução local autorizada em 15/09/2026
+
+O fundador aprovou o contrato de §35.9/ADR-062 com “aprovo”. Checkout permanece
+`redesign/qoro-ui-v4`, HEAD `a9621e89f4fcd159843e33699272b091c0dfae1d`; sem stage/commit/push.
+Snapshot da execução em `dist/identity-o3a/before-files.json`; alterações preexistentes preservadas.
+API/schema/migration autorizadas apenas em Postgres descartável de loopback com dados sintéticos.
+
+Reestimativa: implementação e provas formam uma fatia funcional; inventário gerado/checkpoint
+formam fatia documental separada (posições de linhas e largura de tabelas geram diff mecânico).
+Cada fatia mantém até 25 arquivos/1.500 linhas; onboarding + infraestrutura, sem novo contexto.
+
+**O-3a local PASS:** nomes/HMAC/aceite atômicos por CAS, estado `identity_pending`,
+perguntas congeladas após avanço, gate server-only default false, origem confiável e limite
+UTF-8 4 KiB; Redis indisponível/timeout bloqueia staging. Retomada anônima nunca devolve PII.
+A interface não pede senha e informa criação da conta indisponível; não envia confirmação.
+
+**Manutenção necessária ao gate CI:** audit detectou três advisories preexistentes em Next
+15.5.21/Sharp 0.35.0. Next/eslint-config-next foram atualizados para 15.5.24 e o override Sharp
+para 0.35.4, com lockfile revisado e teste nativo PASS. Sem nova dependência ou alteração de
+CI/build/deploy. [Next Windows](https://github.com/advisories/GHSA-p293-qw3h-jr36),
+[Next AVIF](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4) e
+[Sharp/libheif](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c).
+
+| Gate final / ambiente local sintético                              | Resultado                                                                                                                         |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`, `pnpm lint`, `pnpm format:check`                 | PASS, exit 0                                                                                                                      |
+| `pnpm test:coverage --maxWorkers=2 --minWorkers=2`                 | PASS, 3.518/3.518, 372 arquivos; cobertura 50,72/81,40/56,65, acima dos floors                                                    |
+| `pnpm security:build`                                              | PASS, Next 15.5.24, exit 0; `2026-09-15T23:20:24.079Z`                                                                            |
+| `signup-regression.ts --browser`                                   | PASS, 19 checks: SQL real/Chromium/SDK instalado, CAS, PII, TTL, janitor, cleanup zero e Postgres parado                          |
+| `pnpm security:browser-session`, `pnpm test:e2e:ci`                | PASS, 6 HttpOnly + 6 públicos; 2 skips por configuração Turnstile ausente                                                         |
+| Segurança unitária / isolamento                                    | PASS, 330/330 (também na suíte completa atual); tenant A↔B/contrafactual, cleanup zero                                            |
+| `pnpm security:bundle`, `pnpm security:http`                       | PASS, 160 client files sem achados; 320 requests/306 chamadas a 153 actions, 47 negativas explícitas em 200                       |
+| Inventário / arquitetura / registry / migrations / observabilidade | PASS, zero drift/unresolved; 174 actions/39 métodos; graphs 56 elementos/297 arestas/0 ciclos; registry 67/25 + 42 producer-ahead |
+| `pnpm audit --prod --audit-level high`                             | PASS, nenhuma vulnerabilidade conhecida                                                                                           |
+
+Logs, snapshots e diff da fatia em `dist/identity-o3a`; artefatos ignorados. Registry foi
+executado em cwd isolado com ambiente sintético, sem ler `.env.local`. Falhas intermediárias
+de teste/geração foram corrigidas e repetidas; nenhum teste foi desativado. Revisão final
+preserva o trabalho anterior e separa implementação, manutenção de dependências e documentação.
+
+**NOT TESTED:** O-3b/GoTrue/SMTP/Upstash externo, cadência do janitor externo, migrations em
+ambiente compartilhado/produção, deploy, CI remota, Checkout/provisionamento e `O.H/O.S`.
+Gate `SIGNUP_IDENTITY_ENABLED` permanece default false; migration 0099 deve preceder rollout
+do código e ativação, cada ação com alvo/autorização próprios. Nada foi publicado.
+**Próximo passo:** scope freeze de execução O-3b/Auth/ownership da ADR-062 §5–§6; nenhuma senha,
+verificação ou recurso Asaas foi implementado nesta fatia. Qoro v2 continua EM DESENVOLVIMENTO.
+
+### 35.11 O-3b — scope freeze de execução em 15/09/2026
+
+Retomada após “vamos continuar com Auth/e-mail O-3b”. Branch `redesign/qoro-ui-v4`,
+HEAD `a9621e89f4fcd159843e33699272b091c0dfae1d`, remoto Project_OS reconfirmados;
+sem stage/commit/push. Snapshot novo em `dist/auth-email-o3b-freeze/before-files.json`,
+preservando O-3a, manutenção e demais alterações preexistentes. Nenhuma leitura de `.env.local`.
+
+[ADR-062 §9](adr/062-identidade-consentimento-cadastro.md#9-scope-freeze-de-execução-o-3b--15092026)
+apresenta contratos concretos, ainda **Proposed**: POST auth/resend, GET/POST draft verificado,
+OTP com destino fixo sem query/fragmento, reserva CAS anterior a Auth I/O, resultado incerto,
+ownership/consumo únicos e restart transacional após TTL. Migrations 0100/0101 propostas;
+nenhuma criada/aplicada. Gate Auth server-only default false, sem ativação externa.
+
+Reestimativa dividida antes de código: O-3b.1 envio inicial (18 arquivos/1.450 linhas),
+O-3b.2 OTP/seam/login pré-tenant (14/1.300), O-3b.3 ownership (16/1.450), O-3b.4 reenvio
+(9/1.100), O-3b.5 UI (15/1.400) e O-3b.6 prova integrada (6/1.400). Tetos incluem testes,
+por subfatia; documentação/inventário em recorte próprio. Onboarding + infraestrutura Auth,
+sem writer em outro bounded context.
+
+Leitura do SDK instalado confirmou SSR forçando PKCE; proposta mantém SDK/cookies atuais e usa
+template TokenHash/verifyOtp server-side. Não acrescenta callback code, não presume que a
+configuração GoTrue/SMTP aceite o template proposto e não vincula UUID de signUp. Seam só para
+usuário comprovadamente verificado sem profile; perfis existentes continuam nos guards/epoch.
+Signup deve recusar gravação de sessão inesperada por auto-confirmação, sem afetar a anterior.
+Login atual nega ausência de profile; extensão proposta encaminha só usuário verificado
+pré-tenant para continuar quando o gate estiver ativo, conservando guard/MFA dos demais.
+
+**Pendente antes de O-3b.1:** política efetiva de senha (mínimo/classes/vazamento), solicitada
+ao fundador sem credenciais, e aprovação dos novos contratos Auth/API/schema e SQL **somente**
+em Postgres loopback descartável com dados sintéticos/cleanup comprovado. A aprovação anterior
+cobre O-3a; a regra AGENTS sobre API pública/SQL e ADR-062 §8 exigem aprovação própria.
+
+**PASS nesta preparação:** typecheck/lint/format, 108/108 testes dos contratos Auth atuais,
+probe SDK instalado com 7 checks/6 chamadas em loopback sintético (servidor encerrado),
+239 links locais sem quebra e matriz 84/5/0/4/9 preservada. ADR conferida explicitamente pelo
+Prettier com ignore vazio, pois MD é ignorado no comando global. Diff somente em quatro docs,
+zero alteração de runtime e zero stage. Não repetir build/suíte completa de código inalterado.
+Logs/diff/revisão em `dist/auth-email-o3b-freeze`.
+Nenhum teste da implementação futura foi executado. **NOT TESTED:** O-3b runtime/SQL/Chromium
+integrado, GoTrue/SMTP/Upstash/Turnstile externos e configuração/template/redirect do alvo.
+Os PASS de O-3a §35.10 continuam evidência datada, não prova de O-3b.
+
+**Próximo passo concreto:** aprovar ADR-062 §9 e confirmar política de senha; executar somente
+O-3b.1 até verde, atualizar checkpoint e então avançar sequencialmente. Autorização solicitada
+não inclui Auth/SQL compartilhado, Preview/Sandbox/produção, config, commit/push/deploy ou
+comunicação externa. Qoro v2 permanece EM DESENVOLVIMENTO.
+
+### 35.12 O-3b.1 — execução local aprovada
+
+O fundador aprovou ADR-062 §9 e execução local sequencial, com SQL somente em Postgres
+descartável loopback, dados sintéticos e cleanup verificável. Definiu filtro Qoro de senha:
+oito caracteres no mínimo, maiúscula, minúscula, número e especial. Configuração real de
+senha/SMTP/captcha/template Supabase **não confirmada**; nenhuma alteração de painel autorizada.
+
+Checkout `redesign/qoro-ui-v4`, HEAD `a9621e89f4fcd159843e33699272b091c0dfae1d` reconfirmado;
+snapshot novo `dist/auth-email-o3b1/before-files.json`. O-3b.1 validado localmente: schema/tentativa CAS,
+POST auth, limite distribuído fechado, proteção contra sessão inesperada e pending congelado.
+Recortes sequenciais reestimados antes de ampliar a prova e medidos contra o snapshot:
+implementação/unitários em 17 arquivos/912 linhas; harness SQL/HTTP/SDK/Chromium em
+1 arquivo/511 linhas; documentação/inventário em 7 arquivos/123 linhas. Onboarding + Auth.
+Sem senha/UI Auth conectada, OTP novo, ownership, reenvio, recursos Asaas ou SQL externo nesta
+subfatia. SQL/Chromium local **PASS**, 22 checks principais e 13 cenários HTTP/SDK: migration
+0100 vazio/up-down-up/populado com 2.000 registros, CAS concorrente com uma chamada Auth,
+timeout 20 s, sessão inesperada, resposta perdida, limite fechado, GET sem renovar TTL e janitor;
+cleanup zero e Postgres encerrado. Build isolado Next 15.5.24, typecheck, lint, formato,
+migration safety, inventário e arquitetura PASS. Suíte integral PASS, 3.594/3.594 em 374 arquivos,
+cobertura 50,94%/81,56%/56,85% (linhas/branches/funções). GoTrue/SMTP/config/SQL externo,
+OTP/ownership/reenvio e formulário de senha seguem NOT TESTED; Qoro v2 EM DESENVOLVIMENTO.
+
+### 35.13 O-3b.2 — confirmação e retomada pré-tenant locais
+
+O callback de signup agora fixa `/cadastro/continuar`, descarta query/fragmento e revalida a
+sessão por `getUser()` server-side. Somente usuário não anônimo com e-mail confirmado e sem
+profile entra no estado pré-tenant; profile existente volta aos guards atuais de MFA, role, epoch,
+ativo/deletado e convite. O login aceita a mesma retomada restrita sem alterar o caminho de quem
+já possui profile. Erros do provider viram motivo categorizado, sem mensagem/e-mail bruto no log.
+
+Recorte medido contra `dist/auth-email-o3b2/before-files.json`: implementação e testes em
+10 arquivos/580 linhas; harness separado em 1 arquivo/168 linhas. Testes focados PASS 73/73;
+suíte integral PASS 3.644/3.644 em 377 arquivos, cobertura 51,02%/81,75%/56,83%; typecheck,
+lint focado, formato e build isolado Next 15.5.24 PASS. O harness descartável passou 22 checks
+principais e 15 cenários HTTP/SDK, incluindo `token_hash` sem cookie PKCE, quatro destinos hostis,
+duas validações `getUser()`, cookies HttpOnly, OTP expirado/inválido, cleanup zero e Postgres parado.
+
+GoTrue/SMTP/template/configuração/entrega externa, Preview e produção permanecem **NOT TESTED**.
+O-3b.2 não cria clínica/profile nem vincula ou consome o staging; confirmação explícita dos dados,
+ownership e unicidade entre contas seguem para O-3b.3. Qoro v2 permanece EM DESENVOLVIMENTO.
+
+### 35.14 O-3b.3 — ownership e consumo locais
+
+A migration 0101 e a rota autenticada `/api/signup/draft` implementam o vínculo de uso único
+entre o staging anônimo e o usuário verificado. O link exige owner/e-mail da seam `getUser()`,
+cookie original, HMAC compatível, versão e dois TTLs vivos; grava owner, consumo, dados confirmados
+e versão no mesmo CAS. GET retorna apenas o draft sanitizado sem renovar prazo. Restart remove
+somente a linha vencida daquele owner, recusa draft vivo e cria credencial aleatória server-side
+que não é emitida. Nenhum desses caminhos cria clínica, profile, role, plano ou trial.
+
+Recorte medido contra `dist/auth-email-o3b3/before-files.json`: 17 arquivos/1.080 linhas de
+implementação, testes e guards; harness separado em 1 arquivo/392 linhas. A corrida real mostrou
+que o Drizzle encapsula `23505` em `cause`; o tratamento foi restringido a esse código direto ou
+encapsulado, com teste que continua propagando qualquer outro erro.
+
+Testes focados PASS 110/110. Suíte integral PASS 3.689/3.689 em 380 arquivos, cobertura
+51,08%/81,87%/57,04%. Build isolado Next 15.5.24, typecheck, lint, formato, migration safety,
+inventário, grafos, DB guard, madge e observabilidade PASS. O harness descartável passou 23 checks
+principais e 16 cenários HTTP/SDK: migration vazio/up-down-up/2.000 linhas, RLS/grants intactos,
+e-mail/versão divergentes sem mutação, A→B/replay negados, unique concorrente, leitura sem renovar
+TTL, restart/purge, link via browser e replay com cópia do cookie anterior à limpeza. Cleanup zero
+e Postgres encerrado. Inventário: 174 actions, 42 métodos e zero guard/rota-teste pendente.
+
+Migration compartilhada, GoTrue/SMTP/Upstash externos, template/configuração/entrega, Preview e
+produção permanecem **NOT TESTED**. Reenvio e UI de senha/revisão seguem para O-3b.4/O-3b.5.
+Qoro v2 permanece EM DESENVOLVIMENTO.
+
+### 35.15 O-3b.4 — reenvio explícito local
+
+Foi criado `POST /api/signup/sessions/resend` sem senha: entrada estrita com e-mail, versão, aceite
+e captcha opcional; origem, corpo de 16 KiB e cookie são validados antes do writer/SDK. Os limites
+fail-closed são independentes do envio inicial: IP 10/h, sessão 3/h e HMAC de e-mail 3/h. O writer
+reserva `resend` por CAS somente após cooldown DB de 60 s, recupera tentativa concluída, incerta ou
+reserva abandonada e não renova TTL. O SDK executa `auth.resend({ type: 'signup' })` uma vez; a
+finalização exige kind e versão da própria reserva, impedindo resposta antiga de concluir a nova.
+
+Recorte medido contra `dist/auth-email-o3b4/before-files.json`: 7 arquivos/728 linhas de
+implementação e testes; harness separado em 1 arquivo/260 linhas; inventário em 1 arquivo/4 linhas.
+Testes focados PASS 173/173. Suíte integral PASS 3.742/3.742 em 381 arquivos, cobertura
+51,26%/82%/57,15%. Build isolado Next 15.5.24, typecheck, lint, formato, migration safety,
+inventário, grafos, DB guard, madge e observabilidade PASS.
+
+O harness descartável passou 24 checks principais e 21 cenários HTTP/SDK: cooldown calculado pelo
+Postgres, um vencedor concorrente/uma chamada ao provider, TTL congelado, recuperação dos três
+estados, finalização tardia negada, repetição imediata 429, 5xx/timeout incertos sem retry, limite
+de e-mail e Redis indisponível antes de CAS/provider. Cleanup zero e Postgres encerrado. Inventário:
+174 actions, 43 métodos e zero guard/rota-teste pendente.
+
+GoTrue/SMTP/Upstash externos, caixa real, template/configuração/entrega, Preview e produção
+permanecem **NOT TESTED**. A UI de senha/revisão segue para O-3b.5. Como SMTP não é idempotente,
+tentativa incerta antiga pode entregar depois; a copy não promete exatamente um e-mail.
+Qoro v2 permanece EM DESENVOLVIMENTO.
+
+### 35.16 O-3b.5 — senha, espera e revisão autenticada locais
+
+O cadastro agora coleta a senha junto com identidade/aceite e reutiliza o schema server-side:
+8–72 caracteres (até 72 bytes), maiúscula, minúscula, número e símbolo aceito pelo Supabase, sem espaços/controles e sem
+normalização. A UI escreve staging antes de Auth, encadeia a versão devolvida e apaga senha/captcha
+depois da tentativa. Falha ambígua relê `/me`; não há repetição automática de `signUp` ou resend.
+
+A espera `email_pending` usa copy uniforme, oferece login existente e reenvio explícito sem senha.
+`/cadastro/continuar` continua protegida pela seam e ganhou revisão real: GET do owner primeiro,
+`link` com respostas do cookie original e nomes em branco, ou `restart` com redigitação completa em
+outro navegador. Os dois modos exigem aceite e confirmam o resultado com GET autenticado. Nenhuma
+etapa cria profile, clínica, tenant, role, plano, trial ou checkout.
+
+Escopo funcional medido: 10 arquivos/1.100 linhas, sob o teto 15/1.400. Testes focados PASS 83/83;
+typecheck, lint e formato PASS; build isolado Next 15.5.24 PASS com as duas rotas dinâmicas. A revisão
+corrigiu o schema compartilhado que ainda aceitava espaços quando as outras classes estavam
+presentes.
+
+Este era o checkpoint local da UI antes do fechamento O-3b.6. Chromium integrado, suíte completa,
+`security:check`, E2E, arquitetura/inventário e fechamento documental ficaram reservados para a
+subfatia seguinte. GoTrue/SMTP/Upstash externos, configuração Supabase, caixa real, Preview,
+produção e entrega de e-mail permanecem **NOT TESTED**.
+
+### 35.17 O-3b.6 — fechamento integrado local
+
+O fechamento integrado executou a jornada real de cadastro em Next/Chromium com SDKs instalados e
+Postgres descartável. A UI recusou senha fraca antes da rede; resposta perdida do staging preservou o
+commit e limpou a senha; reload não expôs PII/senha/storage; a redigitação chamou Auth exatamente uma
+vez; e a perda da resposta Auth foi reconciliada por `/me`, sem retry. Cooldown, reenvio explícito,
+OTP, continuação protegida e os modos `link`/`restart` foram exercitados pela UI. O harness terminou
+24/24 e a fixture HTTP/Auth 22/22, com cleanup zero e Postgres próprio encerrado.
+
+A suíte integral passou 3.747/3.747 em 382 arquivos (51,58% linhas, 81,89% branches, 57,65%
+funções). Também passaram build isolado Next 15.5.24, typecheck, lint, formato, security unit 331,
+tenant isolation, browser-session 6/6, bundle 165 arquivos, HTTP 12 vetores/306 requests sobre 153
+actions, E2E público 6 casos aplicáveis com 2 skips condicionais de Turnstile, DB guard 1.259
+arquivos/zero achados, grafos 56/297/zero ciclos, registry 67/25 + 42 producer-ahead, migrations e
+observabilidade. O inventário regenerado ficou em 174 actions/43 métodos, sem gap conhecido.
+
+O escopo O-3b.6 ficou em 3 arquivos/186 linhas: harness 140 adições + 33 remoções e correção
+fail-closed/teste 12 adições + 1 remoção, sob o teto 6/1.400. A revisão final fez uma resposta `200`
+malformada de `/me` ficar indisponível em vez de liberar `restart`; os focados passaram 84/84.
+A implementação local Auth/e-mail O-3b.1–6 está encerrada. GoTrue/SMTP/Upstash externos, configuração
+Supabase, migrations compartilhadas, caixa real, Preview, produção e entrega de e-mail permanecem
+**NOT TESTED**. Nenhum serviço externo, banco compartilhado, commit, push ou deploy foi executado.
+Track O e Qoro v2 continuam EM DESENVOLVIMENTO para as próximas fatias e o rollout.

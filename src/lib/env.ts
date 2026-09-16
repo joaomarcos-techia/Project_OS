@@ -68,6 +68,23 @@ const EnvSchema = z
     // Origem canônica, controlada no servidor, usada nos links transacionais e
     // redirects do Supabase Auth. Nunca derive links autenticados do header Origin.
     APP_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    // ADR-062 O-3a: opt-in server-only; rollout externo separado dos testes locais.
+    SIGNUP_IDENTITY_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v === 'true'),
+    ),
+
+    // ADR-062 O-3b: desligado até rollout autorizado e configuração Auth comprovada.
+    SIGNUP_AUTH_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v === 'true'),
+    ),
 
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
