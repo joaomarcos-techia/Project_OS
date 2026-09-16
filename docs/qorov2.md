@@ -15,12 +15,11 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Checkpoint atual — 15/09/2026: EM DESENVOLVIMENTO.** A revisão independente examinou o
-HEAD `a9621e8` na branch `redesign/qoro-ui-v4` e reproduziu D126–D130, além de corrigir a atribuição
-D131. A retomada local na mesma base implementou as seis correções e a tela `/cadastro` das
-**quatro perguntas** e depois o staging O-3a de identidade/aceite/nome da clínica. Este registro
-**não é avaliação de uma entrega final do Qoro v2**: Auth/e-mail, checkout, provisionamento e
-onboarding continuam em fatias posteriores.
+**Checkpoint atual — 16/09/2026: EM DESENVOLVIMENTO.** O-3a e O-3b.1–6 estão fechados localmente.
+No rollout DEV autorizado, as migrations 0099–0101, o envio SMTP e a confirmação de uma conta real
+passaram. O primeiro link expôs um callback antigo para a branch de pagamentos; a correção
+server-side está publicada no Preview isolado e ainda requer instalar o novo template e executar um
+novo clique real. Checkout, provisionamento, onboarding e produção continuam em fatias posteriores.
 Detalhes e limites estão em [§35](#35-checkpoint-de-retomada--revisão-intermediária-de-14092026),
 no [Discovery Log](discovery-log.md) e no
 [prompt completo de retomada](prompts/retomada-qorov2-2026-09-15.md).
@@ -37,9 +36,10 @@ concluiu **PASS**, com artifact cifrado publicado. O Track O e o Qoro v2 complet
 **Retomada de identidade em 15–16/09:** o fundador aprovou O-3a e a execução local sequencial de
 O-3b, incluindo SQL exclusivamente em Postgres descartável de loopback. O-3a e O-3b.1–6 estão
 validados localmente; a implementação local Auth/e-mail O-3b foi fechada na
-[ADR-062](adr/062-identidade-consentimento-cadastro.md). Detalhes em §§35.10–35.17; o filtro de
+[ADR-062](adr/062-identidade-consentimento-cadastro.md). O rollout DEV autorizado e a correção do
+callback estão em §35.18. O filtro de
 senha exige 8–72 caracteres (até 72 bytes), maiúscula, minúscula, número e símbolo aceito pelo Supabase, sem espaços ou
-controles. Sem publicação ou autorização externa; Track O e Qoro v2 seguem EM DESENVOLVIMENTO.
+controles. Track O e Qoro v2 seguem EM DESENVOLVIMENTO.
 
 **Referência histórica do bloco abaixo:** verificação de 2026-09-08 na branch
 `feat/qorov2-pagamentos`. Para a sequência atual, prevalecem este checkpoint, §§31.4–35 e as
@@ -5576,3 +5576,28 @@ A implementação local Auth/e-mail O-3b.1–6 está encerrada. GoTrue/SMTP/Upst
 Supabase, migrations compartilhadas, caixa real, Preview, produção e entrega de e-mail permanecem
 **NOT TESTED**. Nenhum serviço externo, banco compartilhado, commit, push ou deploy foi executado.
 Track O e Qoro v2 continuam EM DESENVOLVIMENTO para as próximas fatias e o rollout.
+
+### 35.18 O-3b — rollout DEV parcial e callback server-side
+
+O rollout explicitamente autorizado aplicou e releu as migrations 0099–0101 no banco DEV e publicou
+O-3b na branch isolada `preview/auth-email-o3b`. Um cadastro real consentido completou a sequência
+HTTP `201/200/200/200`; o SMTP entregou a mensagem e o clique confirmou o usuário. O readback após
+o clique mostrou zero sessões Auth ativas, zero refresh tokens e um draft ainda `email_pending`, sem
+owner e não consumido.
+
+Esse clique usou o template antigo com `ConfirmationURL` e chegou ao Preview protegido da branch de
+pagamentos, que não contém `/cadastro` nem `/cadastro/continuar`. A credencial de confirmação do link
+foi consumida e não deixou sessão reutilizável, mas a jornada não vinculou o draft. O template agora
+usa `RedirectTo` + `TokenHash`, enquanto signup/resend fixam `/auth/confirm`; o endpoint troca o OTP
+no servidor e permite somente `/cadastro/continuar` para signup. A regressão impede a volta de
+`ConfirmationURL`.
+
+A revisão também encontrou que o scrubber do Sentry redigia `token=`, mas deixava `token_hash=` na
+URL de uma eventual exceção. O redactor e sua regressão agora removem essa credencial antes da
+telemetria. Passaram 104/104 testes focados, 3.760/3.760 testes em 384 arquivos, typecheck, lint,
+formato, build de segurança e a regressão SQL/Next/Chromium 24/24 com cleanup zero.
+
+Migrations DEV, entrega e confirmação pelo template anterior e publicação no alias estável
+`project-os-git-preview-auth-email-o3b-clinic-os-v2-s-projects.vercel.app` são **PASS**. Confirmar
+`APP_BASE_URL` nesse alias, instalar o template corrigido, permitir o callback exato no Supabase e
+executar um clique novo até a continuação são **NOT TESTED**. Produção não foi alterada.

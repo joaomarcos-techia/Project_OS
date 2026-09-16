@@ -2,12 +2,13 @@
 
 - **Status:** O-3a Accepted local, aprovado em 15/09/2026 pelo fundador (“aprovo”) e validado.
   Contratos O-3b de §9 aprovados para execução local sequencial; O-3b.1–6 validados localmente
-  e implementação local O-3b encerrada.
-  Aprovação de API/schema/migration limitada ao Postgres descartável
-  de loopback, com fixtures sintéticas e cleanup; sem rollout externo.
+  e implementação local O-3b encerrada. Rollout DEV autorizado em 16/09/2026: migrations
+  0099–0101, entrega SMTP e confirmação de uma conta real verificadas; correção do callback
+  server-side publicada em Preview e ainda sem novo clique externo.
 - **Data:** 2026-09-15.
-- **Checkout:** `redesign/qoro-ui-v4`, HEAD `a9621e89f4fcd159843e33699272b091c0dfae1d`;
-  alterações anteriores de UI/cadastro/segurança preservadas, sem commit/push desta fatia.
+- **Atualizado:** 2026-09-16.
+- **Checkout de rollout:** branch `preview/auth-email-o3b` em worktree isolada; base histórica
+  `redesign/qoro-ui-v4` no commit `a9621e89f4fcd159843e33699272b091c0dfae1d`.
 - **Contextos por subfatia:** onboarding + `lib/db` em O-3a; onboarding + infraestrutura Auth em
   O-3b. Não alterar o contexto identity/RBAC nem adicionar tenancy/billing.
 - **Relaciona:** [ADR-060 §1.c/§1.c.1/§1.d/§5–§8](060-sessao-anonima-de-cadastro.md),
@@ -648,3 +649,45 @@ Com isso, a implementação **local** O-3b.1–6 está fechada. GoTrue/SMTP/Upst
 Supabase, caixa real, migrations compartilhadas, Preview, produção e entrega de e-mail permanecem
 **NOT TESTED**. Nenhuma configuração, migration compartilhada, publicação ou chamada externa foi
 executada. Track O e Qoro v2 continuam EM DESENVOLVIMENTO para as fatias posteriores e o rollout.
+
+### 9.14 Evidência externa DEV e correção do callback — 16/09/2026
+
+O rollout autorizado ficou restrito ao banco DEV, à branch `preview/auth-email-o3b` e a uma caixa
+consentida. As migrations 0099–0101 foram aplicadas e relidas no DEV. O cadastro real concluiu os
+quatro requests HTTP (`201/200/200/200`), o SMTP entregou a mensagem e o clique confirmou o usuário
+no Auth. Depois do clique, o readback encontrou zero sessões Auth ativas e zero refresh tokens;
+o draft permaneceu `email_pending`, sem owner e não consumido.
+
+O clique também revelou uma falha no template instalado: `ConfirmationURL` apontava para o Preview
+da branch de pagamentos, protegido pelo login da Vercel e sem as rotas do O-3b. A credencial de
+confirmação presente no link era esperada e foi consumida uma única vez; não foi encontrada sessão
+reutilizável. O risco observado estava no callback incorreto e no uso do fluxo pronto do provider,
+que pode devolver material de sessão ao browser, e não na simples existência do token descartável.
+
+O template versionado passou a montar o link com `RedirectTo`, `TokenHash`, `type=signup` e destino
+interno fixo. Signup e resend agora fornecem como `RedirectTo` somente a origem canônica mais
+`/auth/confirm`; esse endpoint executa `verifyOtp` no servidor e só então segue para
+`/cadastro/continuar`. O template não contém `ConfirmationURL`.
+
+A revisão da telemetria encontrou ainda que o scrubber de URLs reconhecia `token=`, mas não
+`token_hash=`. Uma exceção no callback poderia, portanto, enviar a credencial de confirmação ao
+Sentry. O redactor agora cobre `token_hash` e possui regressão que mantém apenas rota, tipo e destino
+não secretos. O callback não inclui o token nos logs estruturados da aplicação.
+
+| Verificação | Resultado |
+| --- | --- |
+| Migrations 0099–0101 no DEV e readback de schema/RLS/grants | **PASS** |
+| Envio SMTP, recebimento e consumo do primeiro link real | **PASS** |
+| Ausência de sessão/refresh token reutilizável depois do clique observado | **PASS**, zero/zero no readback |
+| Testes focados do callback/template/redaction | **PASS**, 104/104 |
+| Suíte integral | **PASS**, 3.760/3.760 em 384 arquivos |
+| Build de segurança, typecheck, lint, formato e regressão SQL/Next/Chromium | **PASS**, regressão 24/24 e cleanup zero |
+| Publicação isolada da correção | **PASS**, branch `preview/auth-email-o3b`; alias estável `project-os-git-preview-auth-email-o3b-clinic-os-v2-s-projects.vercel.app` |
+| Template corrigido instalado no Supabase e novo clique real até `/cadastro/continuar` | **NOT TESTED** |
+
+O próximo gate externo exige confirmar `APP_BASE_URL` com a origem do alias estável, instalar o HTML
+versionado no template **Confirm signup**, permitir exatamente
+`https://project-os-git-preview-auth-email-o3b-clinic-os-v2-s-projects.vercel.app/auth/confirm` e
+testar com uma identidade ainda não confirmada. Até esse clique, a entrega antiga está comprovada,
+mas o callback corrigido permanece sem evidência externa end-to-end. Produção continua fora deste
+rollout.
