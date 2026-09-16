@@ -688,6 +688,7 @@ não secretos. O callback não inclui o token nos logs estruturados da aplicaç�
 | Reuso do mesmo link no computador | **PASS**, rejeitado como token de uso único já consumido; o intervalo de 27 minutos não prova expiração por TTL |
 | Continuação em outro navegador | **PASS**, modo `restart` sem recuperar PII/respostas do cookie anônimo ausente, conforme contrato O-3b.5 |
 | Layout móvel da aplicação no Preview | **PASS**, 320 px e 390 px sem overflow horizontal; a sobreposição observada era `vercel-live-feedback`, injetada pelo Preview |
+| Cleanup da identidade consentida no DEV | **PASS**, um usuário Auth e um draft pendente removidos; readback zero/zero |
 
 `APP_BASE_URL`, os dois gates de signup, o template **Confirm signup** e o callback permitido ficaram
 restritos ao Preview da branch. A repetição com `x-vercel-skip-toolbar` removeu apenas a barra externa
@@ -698,4 +699,6 @@ acesso, no computador, precisava falhar mesmo antes do TTL porque replay não é
 Como a confirmação ocorreu em outro navegador, sem o cookie anônimo que criou o staging, o fluxo não
 vinculou o draft automaticamente nem recuperou seus dados. A sessão autenticada chegou a
 `/cadastro/continuar` e apresentou a redigitação completa por `restart`, que é a proteção prevista
-contra associação por e-mail entre navegadores. Produção continua fora deste rollout.
+contra associação por e-mail entre navegadores. Encerrada a prova, a identidade do alias e seu único
+draft pendente foram removidos do DEV com guards de projeto, estado e cardinalidade; o readback final
+foi zero. Produção continua fora deste rollout.

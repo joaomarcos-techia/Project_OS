@@ -5624,4 +5624,6 @@ inalterado; não houve correção CSS porque a aplicação não era a origem do 
 O callback corrigido, a confirmação, a criação da sessão, a rejeição de replay e o comportamento
 cross-browser são **PASS** no Preview DEV. Produção não foi alterada. A barra pode ser desativada
 somente para esta branch com `VERCEL_PREVIEW_FEEDBACK_ENABLED=0` em uma próxima configuração do
-Preview; isso não é requisito funcional do O-3b.
+Preview; isso não é requisito funcional do O-3b. Ao encerrar a prova, o usuário Auth do alias e seu
+único draft `email_pending` sem owner/consumo foram removidos com guards do projeto DEV, estado e
+cardinalidade. O readback final encontrou zero usuário e zero draft.
