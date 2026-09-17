@@ -5677,3 +5677,31 @@ Documentação complementar deste lote:
 
 Track O e Qoro v2 continuam **EM DESENVOLVIMENTO** até O-5 e as fatias posteriores; este fechamento
 não representa prontidão de produção.
+
+### 35.21 Verificação do Upstash configurado na Vercel — 17/09/2026
+
+A inspeção autenticada do projeto `project-os`, no time `clinic-os-v2-s-projects`, confirmou
+`UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` como secrets protegidos nos targets Preview e
+Production. A Vercel não entrega o valor de variáveis marcadas como Sensitive ao CLI; nenhum valor de
+URL ou token foi lido, impresso ou copiado durante a verificação.
+
+**Preview PASS comportamental:** no deployment da branch `preview/auth-email-o3b`, o request
+`tt45x-1789614950389-db33d67a78c6` chamou `POST /api/signup/sessions/answers` com um JSON vazio. A rota
+executa o limiter Upstash antes de validar o corpo; respondeu `400 {"error":"invalid_body"}` e não
+emitiu `auth.ratelimit.degraded`. A validação encerrou o fluxo antes de ler cookie ou chamar o writer,
+portanto não criou sessão nem alterou o banco. Isso prova uso válido do par URL/token real do target,
+sem extrair a credencial.
+
+**Production PASS operacional:** o deployment ativo `dpl_3jAYdyUiLZzRH7tMuWji347XE8en`, em `main`,
+está `Ready` e recebeu o probe autenticado de `/api/health` aproximadamente a cada três minutos. O
+request `ss8vt-1789615022550-e14c76084dbd`, às 00:17 BRT, respondeu `200`; as amostras anteriores do
+mesmo monitor também responderam `200`. Nesse monitor, `strict=1` implica check profundo e
+`pingRedis()` executa `GET <UPSTASH_REDIS_REST_URL>/ping` com Bearer
+`UPSTASH_REDIS_REST_TOKEN`. Falha, timeout, token recusado ou configuração ausente degradariam
+`redis`, emitiriam `health.external.degraded` e fariam o endpoint strict responder `503`; nenhum desses
+sinais apareceu na janela observada.
+
+O limite desta evidência é de ambiente: ela valida o Upstash externo compartilhado de Preview e
+Production. O request de Preview percorreu O-3b, e o de Production percorreu o health vigente; a tela e
+as rotas novas de O-4 continuam sem publicação em Preview e, portanto, o aceite funcional de O-4 no
+Preview continua **NOT TESTED**.
