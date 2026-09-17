@@ -16,8 +16,13 @@ export {
 export type { SignupAnswerValues } from './internal/signup-answer-values';
 export {
   readSignupDraft,
+  readSignupPlan,
   signupDraftMutationSchema,
+  signupPlanMutationSchema,
   writeSignupDraft,
+  writeSignupPlan,
+  type SignupPlan,
+  type SignupPlanState,
   type SignupDraftState,
   type WriteSignupDraftInput,
 } from './internal/signup-draft';
@@ -70,4 +75,4 @@ export {
   type StepState,
 } from './internal/step-state';
 export type { ClinicInviteRow, ClinicInviteInsert } from './schema';
-export { formatTrialDays, QORO_TRIAL_DAYS } from './trial';
+export { formatTrialDays, QORO_SELF_SERVICE_TRIAL_DAYS, QORO_TRIAL_DAYS } from './trial';

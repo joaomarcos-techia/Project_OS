@@ -266,6 +266,14 @@ export function collectInventory(root: string): Inventory {
       guard: 'origin-verified-pretenant-user-hmac-write-limit-cas',
       call: 'writeSignupDraft',
     },
+    'src/app/api/signup/plan/route.ts#GET': {
+      guard: 'verified-pretenant-user-hmac-read-limit',
+      call: 'readSignupPlan',
+    },
+    'src/app/api/signup/plan/route.ts#PUT': {
+      guard: 'origin-verified-pretenant-user-hmac-write-limit-cas',
+      call: 'writeSignupPlan',
+    },
     'src/app/api/webhooks/meta/route.ts#GET': { guard: 'meta-handshake-token', call: 'safeEqual' },
     'src/app/api/webhooks/meta/route.ts#POST': {
       guard: 'meta-hmac',

@@ -1,6 +1,6 @@
 /** Local real Postgres + real handlers. No dotenv, provider credentials or external targets. */
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { fork, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -11,6 +11,9 @@ import postgres from 'postgres';
 import selfsigned from 'selfsigned';
 
 const root = process.cwd();
+const SELF_SERVICE_PLAN_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
+const SELF_SERVICE_OTHER_PLAN_ID = 'bbbbbbbb-2222-4222-8222-222222222222';
+const SELF_SERVICE_INACTIVE_PLAN_ID = 'cccccccc-3333-4333-8333-333333333333';
 const bin =
   process.env.SECURITY_PG_BIN ??
   (process.platform === 'win32'
@@ -98,34 +101,6 @@ async function readJsonBody(request: import('node:http').IncomingMessage): Promi
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-function redisCommandResult(
-  value: unknown,
-  counters: Map<string, number>,
-): { result: [number, number] } {
-  assert.ok(Array.isArray(value), 'Redis fixture expects a command array');
-  assert.equal(String(value[0]).toLowerCase(), 'evalsha');
-  const keyCount = Number(value[2]);
-  assert.equal(keyCount, 3, 'Redis fixture expects the sliding-window script');
-  const currentKey = value[3];
-  const previousKey = value[4];
-  assert.equal(typeof currentKey, 'string');
-  assert.equal(typeof previousKey, 'string');
-  const argsAt = 3 + keyCount;
-  const limit = Number(value[argsAt]);
-  const now = Number(value[argsAt + 1]);
-  const windowMs = Number(value[argsAt + 2]);
-  const incrementBy = Number(value[argsAt + 3]);
-  assert.ok(
-    [limit, now, windowMs, incrementBy].every(Number.isFinite),
-    'Redis fixture received invalid numeric arguments',
-  );
-  const current = (counters.get(currentKey) ?? 0) + incrementBy;
-  counters.set(currentKey, current);
-  const previous = counters.get(previousKey) ?? 0;
-  const previousWeighted = Math.floor((1 - (now % windowMs) / windowMs) * previous);
-  return { result: [limit - (current + previousWeighted), limit] };
-}
-
 async function runBrowserJourney(
   databaseUrl: string,
   sql: ReturnType<typeof postgres>,
@@ -152,37 +127,93 @@ async function runBrowserJourney(
   const appPort = 3217;
   const baseUrl = `http://127.0.0.1:${appPort}`;
   const redisPort = 55449;
-  const redisCounters = new Map<string, number>();
+  const redisObservations: {
+    commandCount: number;
+    durationMs: number;
+    error?: string;
+    path: string;
+    status: number;
+  }[] = [];
+  const redisFailures: string[] = [];
   let redisRequests = 0;
-  let redisUnavailable = false;
-  const redisServer = createServer(async (request, response) => {
-    try {
-      if (redisUnavailable) {
-        response.writeHead(503, { 'content-type': 'application/json' });
-        response.end(JSON.stringify({ error: 'synthetic unavailable' }));
+  let redisControlId = 0;
+  const redisControls = new Map<number, { reject: (error: Error) => void; resolve: () => void }>();
+  const redisFixture = fork(path.join(root, 'scripts/security/signup-redis-fixture.mjs'), [], {
+    cwd: root,
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  let redisFixtureLog = '';
+  redisFixture.stdout?.on('data', (chunk: Buffer) => {
+    redisFixtureLog += chunk.toString();
+  });
+  redisFixture.stderr?.on('data', (chunk: Buffer) => {
+    redisFixtureLog += chunk.toString();
+  });
+  const redisReady = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Redis fixture readiness timeout')), 10_000);
+    redisFixture.on('message', (message: unknown) => {
+      if (typeof message !== 'object' || message === null || !('type' in message)) return;
+      if (message.type === 'ready') {
+        clearTimeout(timeout);
+        resolve();
         return;
       }
-      assert.equal(request.method, 'POST');
-      assert.equal(request.headers.authorization, 'Bearer synthetic-upstash-token');
-      const body = await readJsonBody(request);
-      const commands = Array.isArray(body) && Array.isArray(body[0]) ? body : null;
-      const payload = commands
-        ? commands.map((command) => redisCommandResult(command, redisCounters))
-        : redisCommandResult(body, redisCounters);
-      redisRequests += commands?.length ?? 1;
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify(payload));
-    } catch (error) {
-      response.writeHead(400, { 'content-type': 'application/json' });
-      response.end(
-        JSON.stringify({ error: error instanceof Error ? error.message : 'invalid request' }),
-      );
-    }
+      if (message.type === 'fatal') {
+        const detail = 'error' in message ? String(message.error) : 'Redis fixture failed';
+        redisFailures.push(detail);
+        clearTimeout(timeout);
+        reject(new Error(detail));
+        return;
+      }
+      if (message.type === 'observation') {
+        const observation = message as (typeof redisObservations)[number] & {
+          type: 'observation';
+        };
+        const observationError =
+          typeof observation.error === 'string' ? observation.error : undefined;
+        redisRequests += observation.commandCount;
+        if (observationError) redisFailures.push(observationError);
+        redisObservations.push({
+          commandCount: observation.commandCount,
+          durationMs: observation.durationMs,
+          path: observation.path,
+          status: observation.status,
+          ...(observationError ? { error: observationError } : {}),
+        });
+        return;
+      }
+      if (message.type === 'ack' && 'id' in message && typeof message.id === 'number') {
+        const pending = redisControls.get(message.id);
+        if (!pending) return;
+        redisControls.delete(message.id);
+        if ('error' in message && message.error) pending.reject(new Error(String(message.error)));
+        else pending.resolve();
+      }
+    });
+    redisFixture.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    redisFixture.once('exit', (code) => {
+      if (code !== 0) {
+        clearTimeout(timeout);
+        reject(new Error(`Redis fixture exited ${code}: ${redisFixtureLog}`));
+      }
+    });
   });
-  await new Promise<void>((resolve, reject) => {
-    redisServer.once('error', reject);
-    redisServer.listen(redisPort, '127.0.0.1', resolve);
-  });
+  await redisReady;
+  async function controlRedis(command: 'clear' | 'stop' | 'unavailable', value?: boolean) {
+    const id = ++redisControlId;
+    await new Promise<void>((resolve, reject) => {
+      redisControls.set(id, { reject, resolve });
+      redisFixture.send({ type: 'control', id, command, value }, (error) => {
+        if (!error) return;
+        redisControls.delete(id);
+        reject(error);
+      });
+    });
+  }
   const appEnv: NodeJS.ProcessEnv = {
     ...parsedRuntime,
     NODE_ENV: 'development', // Loopback HTTP fixture; the inspected Next build remains production.
@@ -406,8 +437,6 @@ async function runBrowserJourney(
     }
     assert.ok(ready, `next start timeout: ${appLog}`);
 
-    const { chromium } = await import('@playwright/test');
-    browser = await chromium.launch({ headless: true });
     const authProofs: { name: string; status: 'PASS'; durationMs?: number }[] = [];
     async function seedAuth(label: string, email = 'synthetic@example.invalid') {
       const token = createHash('sha256').update(`http-auth-${label}`).digest('base64url');
@@ -420,16 +449,59 @@ async function runBrowserJourney(
           '2_5', '21_50', 'outro_sistema', 'indicacao_colega', now(), 'Synthetic owner', 'Synthetic clinic', ${hashEmail(email)}, now())`;
       return token;
     }
-    const postAuth = (token: string, email = 'synthetic@example.invalid', rowVersion = 3) =>
-      fetch(`${baseUrl}/api/signup/sessions/auth`, {
-        method: 'POST',
-        headers: {
-          origin: baseUrl,
-          cookie: `__Host-qoro_signup=${token}; qoro-auth-session=${'a'.repeat(32)}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ rowVersion, email, password: 'Abcdef1!', accepted: true }),
-      });
+    async function postAuth(
+      token: string,
+      email = 'synthetic@example.invalid',
+      rowVersion = 3,
+    ): Promise<Response> {
+      const tokenHash = hashToken(token);
+      const [before] =
+        await sql`SELECT status, row_version, auth_attempt_state FROM signup_sessions WHERE token_hash = ${tokenHash}`;
+      const callsBefore = providerCalls;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          return await fetch(`${baseUrl}/api/signup/sessions/auth`, {
+            method: 'POST',
+            headers: {
+              origin: baseUrl,
+              cookie: `__Host-qoro_signup=${token}; qoro-auth-session=${'a'.repeat(32)}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({ rowVersion, email, password: 'Abcdef1!', accepted: true }),
+          });
+        } catch (error) {
+          const [after] =
+            await sql`SELECT status, row_version, auth_attempt_state FROM signup_sessions WHERE token_hash = ${tokenHash}`;
+          const unchanged = JSON.stringify(after) === JSON.stringify(before);
+          if (attempt === 3 || !unchanged || providerCalls !== callsBefore) throw error;
+        }
+      }
+      throw new Error('Unreachable signup auth transport retry');
+    }
+    async function postAuthAfterLocalLimiterReady(
+      token: string,
+      email = 'synthetic@example.invalid',
+      rowVersion = 3,
+    ): Promise<{ durationMs: number; response: Response }> {
+      const tokenHash = hashToken(token);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const [before] =
+          await sql`SELECT status, row_version, auth_attempt_state FROM signup_sessions WHERE token_hash = ${tokenHash}`;
+        const callsBefore = providerCalls;
+        const startedAt = performance.now();
+        const response = await postAuth(token, email, rowVersion);
+        const durationMs = Math.round(performance.now() - startedAt);
+        if (response.status !== 503) return { durationMs, response };
+        const [after] =
+          await sql`SELECT status, row_version, auth_attempt_state FROM signup_sessions WHERE token_hash = ${tokenHash}`;
+        const limiterOnlyFailure =
+          JSON.stringify(after) === JSON.stringify(before) && providerCalls === callsBefore;
+        if (!limiterOnlyFailure || attempt === 3) return { durationMs, response };
+        await controlRedis('clear');
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      throw new Error('Unreachable local limiter retry');
+    }
     async function seedResend(
       label: string,
       state: 'reserved' | 'completed' | 'uncertain' = 'completed',
@@ -466,10 +538,21 @@ async function runBrowserJourney(
       });
     providerMode = 'new';
     const warmToken = await seedAuth('warm');
-    assert.equal((await postAuth(warmToken)).status, 200);
+    const { response: warmResponse } = await postAuthAfterLocalLimiterReady(warmToken);
+    if (warmResponse.status !== 200) {
+      const [warmRow] =
+        await sql`SELECT status, row_version, auth_attempt_state FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      throw new Error(
+        `warm auth ${warmResponse.status}: ${await warmResponse.text()}; ` +
+          `row=${JSON.stringify(warmRow)} providerCalls=${providerCalls} redisRequests=${redisRequests} ` +
+          `redisObservations=${JSON.stringify(redisObservations)} ` +
+          `redisFailures=${JSON.stringify(redisFailures)} providerFailures=${JSON.stringify(providerFailures)}`,
+      );
+    }
     await sql`DELETE FROM signup_sessions WHERE token_hash = ${activeHash}`;
-    redisCounters.clear();
+    await controlRedis('clear');
     const accountDurationSamples: number[] = [];
+    let pendingUiToken = '';
     for (const mode of [
       'new',
       'verified',
@@ -481,19 +564,27 @@ async function runBrowserJourney(
       'finish-conflict',
       'timeout',
     ]) {
-      redisCounters.clear();
+      await controlRedis('clear');
       providerMode = mode;
       const token = await seedAuth(mode),
         callsBefore = providerCalls;
-      const startedAt = performance.now();
-      const response = await postAuth(token),
+      const { durationMs: requestDurationMs, response } =
+          await postAuthAfterLocalLimiterReady(token),
         failed = ['provider-5xx', 'unexpected-session', 'finish-conflict', 'timeout'].includes(
           mode,
         );
-      const requestDurationMs = Math.round(performance.now() - startedAt);
-      if (['new', 'verified', 'unverified', 'user_already_exists'].includes(mode))
-        accountDurationSamples.push(requestDurationMs);
-      assert.equal(response.status, failed ? 503 : 200, `real SDK ${mode}`);
+      const expectedStatus = failed ? 503 : 200;
+      if (response.status !== expectedStatus) {
+        const [failedRow] =
+          await sql`SELECT status, row_version, auth_attempt_state FROM signup_sessions WHERE token_hash = ${activeHash}`;
+        throw new Error(
+          `real SDK ${mode}: expected ${expectedStatus}, received ${response.status} ` +
+            `body=${await response.text()} row=${JSON.stringify(failedRow)} ` +
+            `providerCalls=${providerCalls} redisRequests=${redisRequests} ` +
+            `redisObservations=${JSON.stringify(redisObservations.slice(-5))} ` +
+            `redisFailures=${JSON.stringify(redisFailures)} providerFailures=${JSON.stringify(providerFailures)}`,
+        );
+      }
       assert.deepEqual(
         await response.json(),
         failed ? { error: 'unavailable' } : { rowVersion: 5 },
@@ -540,43 +631,55 @@ async function runBrowserJourney(
         await sql`SELECT idle_expires_at, absolute_expires_at FROM signup_sessions WHERE token_hash = ${activeHash}`;
       assert.equal(after?.idle_expires_at.getTime(), pending?.idle_expires_at.getTime());
       assert.equal(after?.absolute_expires_at.getTime(), pending?.absolute_expires_at.getTime());
-      if (mode === 'new') {
-        const context = await browser.newContext({ baseURL: baseUrl });
-        try {
-          await context.addCookies([
-            {
-              name: '__Host-qoro_signup',
-              value: token,
-              domain: '127.0.0.1',
-              path: '/',
-              httpOnly: true,
-              secure: true,
-              sameSite: 'Lax',
-            },
-          ]);
-          const page = await context.newPage();
-          await page.goto('/cadastro');
-          await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
-          assert.equal(await page.getByRole('radio').count(), 17);
-          assert.equal(await page.getByRole('radio').first().isDisabled(), true);
-          assert.equal(await page.getByLabel('Seu nome').count(), 0);
-          assert.equal(await page.getByRole('button', { name: 'Salvar e continuar' }).count(), 0);
-          assert.equal(providerCalls - callsBefore, 1);
-        } finally {
-          await context.close();
-        }
-      }
+      if (mode === 'new') pendingUiToken = token;
       authProofs.push({
         name: `real HTTP/SDK ${mode}: uniform response, no retry/session, frozen pending`,
         status: 'PASS',
         durationMs: requestDurationMs,
       });
     }
+    for (const mode of ['new', 'verified', 'unverified', 'user_already_exists']) {
+      await controlRedis('clear');
+      providerMode = mode;
+      const token = await seedAuth(`timing-${mode}`);
+      const { durationMs, response } = await postAuthAfterLocalLimiterReady(token);
+      accountDurationSamples.push(durationMs);
+      assert.equal(response.status, 200, `warmed account timing ${mode}`);
+      assert.deepEqual(await response.json(), { rowVersion: 5 });
+    }
     assert.ok(
       Math.max(...accountDurationSamples) - Math.min(...accountDurationSamples) <= 500,
       `Synthetic account timing spread exceeded 500ms: ${accountDurationSamples.join(',')}`,
     );
-    redisCounters.clear();
+    assert.ok(pendingUiToken, 'Pending UI token was not captured');
+    const { chromium } = await import('@playwright/test');
+    browser = await chromium.launch({ headless: true });
+    const pendingUiCallsBefore = providerCalls;
+    const pendingUiContext = await browser.newContext({ baseURL: baseUrl });
+    try {
+      await pendingUiContext.addCookies([
+        {
+          name: '__Host-qoro_signup',
+          value: pendingUiToken,
+          domain: '127.0.0.1',
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        },
+      ]);
+      const page = await pendingUiContext.newPage();
+      await page.goto('/cadastro');
+      await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
+      assert.equal(await page.getByRole('radio').count(), 17);
+      assert.equal(await page.getByRole('radio').first().isDisabled(), true);
+      assert.equal(await page.getByLabel('Seu nome').count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Salvar e continuar' }).count(), 0);
+      assert.equal(providerCalls, pendingUiCallsBefore);
+    } finally {
+      await pendingUiContext.close();
+    }
+    await controlRedis('clear');
     providerMode = 'concurrent';
     const concurrentToken = await seedAuth('concurrent'),
       callsBefore = providerCalls;
@@ -587,7 +690,7 @@ async function runBrowserJourney(
       name: 'real HTTP concurrent requests: one CAS winner and one SDK call',
       status: 'PASS',
     });
-    redisCounters.clear();
+    await controlRedis('clear');
     providerMode = 'new';
     const lostToken = await seedAuth('lost-response'),
       lostBefore = providerCalls;
@@ -652,7 +755,7 @@ async function runBrowserJourney(
       name: 'real Chromium lost POST response: committed attempt survives reload without resend',
       status: 'PASS',
     });
-    redisCounters.clear();
+    await controlRedis('clear');
     providerMode = 'new';
     const rateBefore = providerCalls;
     for (let attempt = 1; attempt <= 4; attempt++) {
@@ -666,8 +769,8 @@ async function runBrowserJourney(
       name: 'real Upstash SDK: fourth email HMAC bucket request blocked before Auth',
       status: 'PASS',
     });
-    redisCounters.clear();
-    redisUnavailable = true;
+    await controlRedis('clear');
+    await controlRedis('unavailable', true);
     const unavailableToken = await seedAuth('redis-unavailable'),
       unavailableBefore = providerCalls;
     assert.equal((await postAuth(unavailableToken)).status, 503);
@@ -676,15 +779,15 @@ async function runBrowserJourney(
       await sql`SELECT status, auth_attempt_kind FROM signup_sessions WHERE token_hash = ${activeHash}`;
     assert.equal(notReserved?.status, 'identity_pending');
     assert.equal(notReserved?.auth_attempt_kind, null);
-    redisUnavailable = false;
-    redisCounters.clear();
+    await controlRedis('unavailable', false);
+    await controlRedis('clear');
     authProofs.push({
       name: 'real HTTP unavailable Redis: zero CAS/provider, no fallback',
       status: 'PASS',
     });
 
     for (const state of ['completed', 'uncertain', 'reserved'] as const) {
-      redisCounters.clear();
+      await controlRedis('clear');
       resendMode = 'success';
       const seeded = await seedResend(`recover-${state}`, state);
       const callsBefore = resendCalls;
@@ -717,7 +820,7 @@ async function runBrowserJourney(
       status: 'PASS',
     });
 
-    redisCounters.clear();
+    await controlRedis('clear');
     resendMode = 'concurrent';
     const concurrentResend = await seedResend('concurrent');
     const resendBefore = resendCalls;
@@ -734,7 +837,7 @@ async function runBrowserJourney(
     });
 
     for (const mode of ['provider-5xx', 'timeout'] as const) {
-      redisCounters.clear();
+      await controlRedis('clear');
       resendMode = mode;
       const seeded = await seedResend(mode);
       const callsBefore = resendCalls;
@@ -759,7 +862,7 @@ async function runBrowserJourney(
       status: 'PASS',
     });
 
-    redisCounters.clear();
+    await controlRedis('clear');
     resendMode = 'success';
     const rateResends: { token: string; tokenHash: string }[] = [];
     const rateCallsBefore = resendCalls;
@@ -778,9 +881,9 @@ async function runBrowserJourney(
       status: 'PASS',
     });
 
-    redisCounters.clear();
+    await controlRedis('clear');
     const unavailableResend = await seedResend('redis-unavailable');
-    redisUnavailable = true;
+    await controlRedis('unavailable', true);
     const unavailableResendBefore = resendCalls;
     assert.equal((await postResend(unavailableResend.token)).status, 503);
     assert.equal(resendCalls, unavailableResendBefore);
@@ -791,7 +894,7 @@ async function runBrowserJourney(
       auth_attempt_state: 'completed',
       row_version: 5,
     });
-    redisUnavailable = false;
+    await controlRedis('unavailable', false);
     await sql`DELETE FROM signup_sessions WHERE token_hash = ${unavailableResend.tokenHash}`;
     authProofs.push({
       name: 'real HTTP resend unavailable Redis: zero reservation/provider and no fallback',
@@ -883,7 +986,7 @@ async function runBrowserJourney(
       status: 'PASS',
     });
 
-    redisCounters.clear();
+    await controlRedis('clear');
     providerMode = 'otp-success';
     const draftToken = createHash('sha256').update('http-verified-draft').digest('base64url');
     const draftHash = hashToken(draftToken);
@@ -996,6 +1099,96 @@ async function runBrowserJourney(
         afterReplay?.absolute_expires_at.getTime(),
         afterRead?.absolute_expires_at.getTime(),
       );
+
+      await controlRedis('clear');
+      await page.getByRole('link', { name: 'Escolher plano' }).click();
+      await page.getByRole('heading', { name: 'Escolha seu plano' }).waitFor();
+      await page.waitForFunction(
+        () => document.querySelectorAll<HTMLInputElement>('input[type="radio"]').length === 2,
+      );
+      assert.equal(await page.getByRole('radio').count(), 2);
+      const planBody = await page.locator('body').innerText();
+      assert.match(planBody, /R\$\s*149,00 por mês/u);
+      assert.match(planBody, /7 dias grátis/u);
+      const planRead = await page.evaluate(async () => {
+        const response = await fetch('/api/signup/plan');
+        return { status: response.status, body: await response.json() };
+      });
+      assert.equal(planRead.status, 200);
+      assert.equal(planRead.body.clinicName, input.clinicName);
+      assert.equal(planRead.body.trialDays, 7);
+      assert.deepEqual(
+        planRead.body.plans.map((plan: { code: string; priceCents: number }) => [
+          plan.code,
+          plan.priceCents,
+        ]),
+        [
+          ['completo', 24_990],
+          ['essencial', 14_900],
+        ],
+      );
+      const injected = await page.evaluate(async (planId) => {
+        const response = await fetch('/api/signup/plan', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ rowVersion: 6, planId, priceCents: 1, trialDays: 999 }),
+        });
+        return { status: response.status, body: await response.json() };
+      }, SELF_SERVICE_PLAN_ID);
+      assert.deepEqual(injected, { status: 400, body: { error: 'invalid_body' } });
+
+      await page.getByText('Essencial', { exact: true }).click();
+      assert.equal(await page.getByRole('radio', { name: /Essencial/u }).isChecked(), true);
+      await page.getByRole('button', { name: 'Salvar plano' }).click();
+      await page.getByText('Plano salvo', { exact: true }).waitFor();
+      const [selectedPlan] = await sql`SELECT selected_plan_id, row_version, idle_expires_at,
+        absolute_expires_at FROM signup_sessions WHERE token_hash = ${draftHash}`;
+      assert.equal(selectedPlan?.selected_plan_id, SELF_SERVICE_PLAN_ID);
+      assert.equal(selectedPlan?.row_version, 7);
+      assert.ok(selectedPlan?.idle_expires_at.getTime() > afterRead?.idle_expires_at.getTime());
+      assert.ok(
+        selectedPlan?.idle_expires_at.getTime() <= selectedPlan?.absolute_expires_at.getTime(),
+      );
+
+      const retry = await page.evaluate(
+        async ({ planId }) => {
+          const response = await fetch('/api/signup/plan', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ rowVersion: 6, planId }),
+          });
+          return { status: response.status, body: await response.json() };
+        },
+        { planId: SELF_SERVICE_PLAN_ID },
+      );
+      assert.deepEqual(retry, {
+        status: 200,
+        body: { rowVersion: 7, selectedPlanId: SELF_SERVICE_PLAN_ID },
+      });
+      const staleOther = await page.evaluate(
+        async ({ planId }) => {
+          const response = await fetch('/api/signup/plan', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ rowVersion: 6, planId }),
+          });
+          return { status: response.status, body: await response.json() };
+        },
+        { planId: SELF_SERVICE_OTHER_PLAN_ID },
+      );
+      assert.deepEqual(staleOther, { status: 409, body: { error: 'conflict' } });
+      const inactive = await page.evaluate(
+        async ({ planId }) => {
+          const response = await fetch('/api/signup/plan', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ rowVersion: 7, planId }),
+          });
+          return { status: response.status, body: await response.json() };
+        },
+        { planId: SELF_SERVICE_INACTIVE_PLAN_ID },
+      );
+      assert.deepEqual(inactive, { status: 422, body: { error: 'invalid_plan' } });
     } finally {
       if (replayContext) await replayContext.close();
       await draftContext.close();
@@ -1006,6 +1199,7 @@ async function runBrowserJourney(
       status: 'PASS',
     });
 
+    await controlRedis('clear');
     const restartContext = await browser.newContext({ baseURL: baseUrl });
     try {
       const restartPage = await restartContext.newPage();
@@ -1259,7 +1453,7 @@ async function runBrowserJourney(
       activeHash = hashToken(cookie.value);
       expectedReservedVersion = 5;
       providerMode = 'new';
-      redisCounters.clear();
+      await controlRedis('clear');
       const providerBeforeUi = providerCalls;
       let authPosts = 0;
       const lostAuthResponse = async (route: Route) => {
@@ -1310,7 +1504,7 @@ async function runBrowserJourney(
 
       await sql`UPDATE signup_sessions SET auth_attempted_at = now() - interval '61 seconds'
         WHERE token_hash = ${activeHash}`;
-      redisCounters.clear();
+      await controlRedis('clear');
       resendMode = 'success';
       await resendEmail.fill('synthetic@example.invalid');
       await resendAccepted.check();
@@ -1349,10 +1543,11 @@ async function runBrowserJourney(
     }
     assert.ok(redisRequests > 0, 'E2E não atravessou o limiter Redis real');
   } catch (error) {
-    throw new Error(
-      `${error instanceof Error ? error.message : 'browser journey failed'}\nnext start log:\n${appLog.slice(-4_000)}`,
-      { cause: error },
-    );
+    const detail =
+      error instanceof Error
+        ? `${error.stack ?? error.message}${error.cause ? `\ncause: ${String(error.cause)}` : ''}`
+        : 'browser journey failed';
+    throw new Error(`${detail}\nnext start log:\n${appLog.slice(-4_000)}`, { cause: error });
   } finally {
     await browser?.close();
     providerServer.closeAllConnections();
@@ -1365,9 +1560,17 @@ async function runBrowserJourney(
       new Promise<void>((resolve) => appServer.once('exit', () => resolve())),
       new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
     ]);
-    await new Promise<void>((resolve, reject) => {
-      redisServer.close((error) => (error ? reject(error) : resolve()));
-    });
+    await controlRedis('stop');
+    if (redisFixture.exitCode === null)
+      await Promise.race([
+        new Promise<void>((resolve) => redisFixture.once('exit', () => resolve())),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Redis fixture stop timeout: ${redisFixtureLog}`)),
+            5_000,
+          ),
+        ),
+      ]);
     assert.ok(
       appServer.exitCode !== null || appServer.signalCode !== null,
       'next start não encerrou após o E2E',
@@ -1557,6 +1760,77 @@ try {
       await admin`DELETE FROM signup_sessions`;
     },
   );
+  await admin.unsafe(`CREATE TABLE plans (
+      id uuid PRIMARY KEY,
+      code text NOT NULL UNIQUE,
+      name text NOT NULL,
+      ativo boolean NOT NULL DEFAULT true
+    );`);
+  const planMigration = await readFile(
+    path.join(root, 'drizzle/migrations/0102_signup_plan_selection.sql'),
+    'utf8',
+  );
+  async function downPlanSelection() {
+    const [selected] =
+      await admin`SELECT count(*)::int AS n FROM signup_sessions WHERE selected_plan_id IS NOT NULL`;
+    assert.equal(selected?.n, 0, 'down refused while selected plans exist; purge first');
+    await admin.unsafe(`ALTER TABLE signup_sessions
+      DROP CONSTRAINT signup_sessions_selected_plan_id_fk;
+      ALTER TABLE signup_sessions DROP COLUMN selected_plan_id;
+      DELETE FROM _schema_version WHERE version = 'signup-plan-selection';`);
+  }
+  await check(
+    'migration 0102 empty up/down/up, populated 2000 rows, FK, RLS and grants preserved',
+    async () => {
+      await admin.unsafe(planMigration);
+      await downPlanSelection();
+      await admin.unsafe(planMigration);
+      await downPlanSelection();
+      await admin.unsafe(`INSERT INTO signup_sessions (token_hash, idle_expires_at, absolute_expires_at)
+        SELECT md5(('plan-old-' || n)::text) || md5(n::text), now() + interval '10 minutes',
+          now() + interval '45 minutes' FROM generate_series(1, 2000) n;`);
+      const before =
+        await admin`SELECT to_jsonb(s) AS row FROM signup_sessions s ORDER BY token_hash`;
+      await admin.unsafe(planMigration);
+      const after = await admin`SELECT to_jsonb(s) - 'selected_plan_id' AS row
+        FROM signup_sessions s ORDER BY token_hash`;
+      assert.equal(after.length, 2000);
+      assert.deepEqual(after, before);
+      const [fk] = await admin`SELECT confdeltype FROM pg_constraint
+        WHERE conname = 'signup_sessions_selected_plan_id_fk'
+          AND conrelid = 'signup_sessions'::regclass`;
+      assert.equal(fk?.confdeltype, 'r');
+      for (const role of ['anon', 'authenticated', 'qoro_runtime', 'service_role']) {
+        const [grants] =
+          await admin`SELECT has_table_privilege(${role}, 'signup_sessions', 'SELECT,INSERT,UPDATE,DELETE') AS allowed`;
+        assert.equal(grants?.allowed, role === 'service_role');
+      }
+      const [rls] = await admin`SELECT relrowsecurity, relforcerowsecurity,
+        (SELECT count(*)::int FROM pg_policy WHERE polrelid = 'signup_sessions'::regclass) AS policies
+        FROM pg_class WHERE oid = 'signup_sessions'::regclass`;
+      assert.deepEqual(rls, { relrowsecurity: true, relforcerowsecurity: true, policies: 0 });
+      await admin`DELETE FROM signup_sessions`;
+    },
+  );
+  await admin.unsafe(`CREATE TABLE prices (
+      id uuid PRIMARY KEY,
+      plan_id uuid NOT NULL REFERENCES plans(id) ON DELETE RESTRICT,
+      amount numeric(12,2) NOT NULL,
+      currency text NOT NULL DEFAULT 'BRL',
+      billing_cycle text NOT NULL,
+      active_from timestamptz NOT NULL DEFAULT now(),
+      active_until timestamptz,
+      campaign_code text
+    );
+    INSERT INTO plans (id, code, name, ativo) VALUES
+      ('${SELF_SERVICE_PLAN_ID}', 'essencial', 'Essencial', true),
+      ('${SELF_SERVICE_OTHER_PLAN_ID}', 'completo', 'Completo', true),
+      ('${SELF_SERVICE_INACTIVE_PLAN_ID}', 'inativo', 'Inativo', false);
+    INSERT INTO prices (id, plan_id, amount, currency, billing_cycle, campaign_code) VALUES
+      ('dddddddd-4444-4444-8444-444444444444', '${SELF_SERVICE_PLAN_ID}', 149.00, 'BRL', 'monthly', NULL),
+      ('eeeeeeee-5555-4555-8555-555555555555', '${SELF_SERVICE_PLAN_ID}', 49.00, 'BRL', 'monthly', 'fundador'),
+      ('ffffffff-6666-4666-8666-666666666666', '${SELF_SERVICE_OTHER_PLAN_ID}', 249.90, 'BRL', 'monthly', NULL),
+      ('11111111-7777-4777-8777-777777777777', '${SELF_SERVICE_INACTIVE_PLAN_ID}', 9.90, 'BRL', 'monthly', NULL);`);
   await admin.unsafe(`CREATE TABLE clinics (
       id uuid PRIMARY KEY,
       nome text NOT NULL

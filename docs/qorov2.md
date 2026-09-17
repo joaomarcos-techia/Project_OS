@@ -5627,3 +5627,53 @@ somente para esta branch com `VERCEL_PREVIEW_FEEDBACK_ENABLED=0` em uma próxima
 Preview; isso não é requisito funcional do O-3b. Ao encerrar a prova, o usuário Auth do alias e seu
 único draft `email_pending` sem owner/consumo foram removidos com guards do projeto DEV, estado e
 cardinalidade. O readback final encontrou zero usuário e zero draft.
+
+### 35.20 O-4 — clínica e plano no draft autenticado
+
+O draft verificado agora guarda `selected_plan_id` na mesma `signup_sessions` que já contém o nome da
+clínica. A migration 0102 mantém a tabela global pré-tenant e acrescenta somente a FK restritiva para
+o catálogo; não muda grants nem RLS. O ciclo up/down/up passou em Postgres 17 descartável com 2.000
+linhas preexistentes. Em seguida, a migration foi aplicada no DEV autorizado e o readback confirmou
+marker, coluna UUID nullable, FK `ON DELETE RESTRICT`, RLS/FORCE RLS e ausência de grants para
+`anon`, `authenticated` e `public`.
+
+A API autenticada `/api/signup/plan` expõe GET e PUT sob a seam pré-tenant, limites HMAC e resposta
+`no-store`. O cliente envia apenas `planId` e `rowVersion`. O servidor resolve plano ativo e preço
+mensal BRL de tabela, exclui campanhas, fixa sete dias para o cadastro autônomo e grava a escolha por
+CAS com renovação limitada do idle. Retry após resposta perdida da mesma gravação é idempotente;
+plano inativo, draft vencido e versão concorrente permanecem resultados distintos.
+
+`/cadastro/continuar` conduz o owner confirmado para `/cadastro/plano`. A nova tela mostra clínica,
+planos, preço mensal e o trial informado pelo servidor, com radio cards acessíveis e estados de
+carregamento, sessão encerrada, expiração, catálogo vazio, conflito e rate limit. Salvar a escolha
+informa que nenhuma cobrança foi iniciada. O-4 não chama Asaas, não cria checkout, não inicia trial e
+não provisiona tenant/profile/role/assinatura.
+
+Testes focados passaram 59/59 e a suíte integral 3.800/3.800 em 386 arquivos. Build isolado Next
+15.5.24, typecheck, lint integral, formato, migration safety, inventário e DB guard passaram. O
+inventário ficou em 174 actions e 45 métodos, sem guard ou teste de rota pendente; o DB guard leu
+1.264 arquivos sem achados. A regressão integrada passou **25/25** com migrations 0099–0102,
+Postgres real, build Next, Chromium, catálogo de planos e SDKs Auth/Redis sintéticos; validou preço e
+trial resolvidos no servidor, payload adulterado, CAS, retry idempotente, plano inativo, TTLs, janitor,
+cleanup zero e encerramento do banco. O Redis sintético roda em processo isolado; um retry local só
+ocorre depois de comprovar zero mudança no banco e no contador do provider.
+
+A migration 0102 está **PASS no DEV**. Preview O-4, Upstash externo, Asaas e produção continuam
+**NOT TESTED**. Uma leitura somente do catálogo DEV encontrou os três planos mensais BRL de tabela
+elegíveis (`solo`, `clinica`, `pro`), portanto o teste de Preview não depende de seed manual. O próximo
+passo funcional é O-5: criar intenção/lease, abrir Checkout recorrente
+hospedado com URL de retorno fixa, confirmar o resultado por webhook/reconcile e só então provisionar
+tenant, profile, owner role, assinatura e trial. Antes disso, o operador precisa publicar esta branch
+em Preview isolado e executar um cadastro consentido até salvar o plano; deve conferir `200` no GET e
+PUT de `/api/signup/plan`, a persistência de `selected_plan_id` e incremento único de `row_version`,
+sem cobrança ou recurso Asaas. Nenhuma mudança manual adicional de banco é necessária no DEV.
+
+Documentação complementar deste lote:
+
+- [ADR-062 §9.15](adr/062-identidade-consentimento-cadastro.md#915-evidência-o-4--clínica-e-plano-no-draft-autenticado): contrato, limites e evidência O-4;
+- [matriz E2E](quality/e2e-coverage-matrix.md#2-cadastro-autônomo-adr-060): cobertura positiva e negativa do cadastro autônomo;
+- [guia de testes](development/testing.md#cadastro-autônomo-local-com-persistência-real): comando e composição do runner integrado;
+- [inventário de ações](security/acoes.md): guards e testes das rotas `/api/signup/plan`.
+
+Track O e Qoro v2 continuam **EM DESENVOLVIMENTO** até O-5 e as fatias posteriores; este fechamento
+não representa prontidão de produção.

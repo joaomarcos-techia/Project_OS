@@ -702,3 +702,42 @@ vinculou o draft automaticamente nem recuperou seus dados. A sessão autenticada
 contra associação por e-mail entre navegadores. Encerrada a prova, a identidade do alias e seu único
 draft pendente foram removidos do DEV com guards de projeto, estado e cardinalidade; o readback final
 foi zero. Produção continua fora deste rollout.
+
+### 9.15 Evidência O-4 — clínica e plano no draft autenticado
+
+O nome da clínica já pertence ao draft verificado da O-3b. A O-4 acrescenta a seleção do plano na
+mesma linha pré-tenant, sem criar outra entidade parcial. A migration 0102 adiciona
+`selected_plan_id` com FK restritiva para `plans`; grants e RLS permanecem inalterados. O SQL foi
+validado primeiro em Postgres 17 descartável com 2.000 linhas preexistentes e ciclo up/down/up. Depois
+da prova local, a migration foi aplicada no DEV autorizado e relida no catálogo do banco.
+
+`GET /api/signup/plan` exige a seam de usuário verificado sem profile e devolve somente o draft do
+owner, os planos ativos com preço mensal BRL de tabela e o trial autônomo de sete dias. Campanhas de
+convite, inclusive `fundador`, ficam fora dessa resolução. `PUT /api/signup/plan` aceita apenas
+`{ rowVersion, planId }`: origem, rate limit e corpo limitado são verificados antes da escrita; o
+servidor trava e revalida plano/preço ativos, aplica CAS na mesma linha, renova apenas o idle até o
+limite absoluto e trata retry da mesma escrita de forma idempotente. Preço, trial, campanha, owner e
+clínica enviados pelo browser são rejeitados pelo schema estrito.
+
+A nova tela `/cadastro/plano` reutiliza a seam pré-tenant, mostra a clínica já confirmada e apresenta
+cards de plano acessíveis. A confirmação deixa explícito que nenhuma cobrança começou. Esta fatia
+não chama Asaas, não abre checkout, não inicia trial e não cria clinic, profile, role, assinatura ou
+recursos operacionais; essas transições continuam reservadas às próximas fatias.
+
+| Verificação | Evidência local |
+| --- | --- |
+| Testes focados de domínio, rota, continuação e UI | **PASS**, 59/59 |
+| Suíte integral | **PASS**, 3.800/3.800 em 386 arquivos |
+| Build isolado Next 15.5.24 | **PASS**; `/api/signup/plan` e `/cadastro/plano` dinâmicas no manifesto |
+| Typecheck, lint integral e formato | **PASS**, exit 0 |
+| Inventário e arquitetura DB | **PASS**; 174 actions/45 métodos, zero guard ou teste de rota pendente; 1.264 arquivos/zero achados |
+| Migration safety | **PASS**; 0102 aditiva, sem operação destrutiva |
+| SQL/HTTP/Chromium integrado | **PASS**, 25/25 em Postgres 17 descartável + Next produzido + Chromium + SDK Auth/Redis; migration 0102 com 2.000 linhas, catálogo de planos, CAS/idempotência, TTL, negativas, cleanup zero e Postgres parado |
+| Migration 0102 no DEV | **PASS**; marker `signup-plan-selection`, coluna UUID nullable, FK `ON DELETE RESTRICT`, RLS/FORCE RLS e grants exclusivos de `postgres`/`service_role` relidos; catálogo contém 3 planos mensais BRL de tabela elegíveis |
+| Preview O-4, Upstash externo, Asaas e produção | **NOT TESTED**; nenhum deploy, chamada Asaas ou recurso de produção foi alterado |
+
+O fixture Redis do runner fica em processo isolado e implementa o formato real de pipeline/EVALSHA
+do SDK instalado. Em falha transitória local, o runner só repete o request depois de provar que banco
+e contador do provider não mudaram; por isso o retry do harness não encobre efeito colateral. A matriz
+viva está em [`docs/quality/e2e-coverage-matrix.md`](../quality/e2e-coverage-matrix.md) e a execução do
+runner está documentada em [`docs/development/testing.md`](../development/testing.md).

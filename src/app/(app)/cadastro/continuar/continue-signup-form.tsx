@@ -292,8 +292,8 @@ export function ContinueSignupForm() {
           Revise o resumo abaixo. A criação da clínica ainda não foi iniciada.
         </Alert>
         <ReviewList draft={owned} />
-        <a href="/login" className={buttonVariants({ variant: 'secondary' })}>
-          Voltar para o login
+        <a href="/cadastro/plano" className={buttonVariants({ variant: 'primary' })}>
+          Escolher plano
         </a>
       </div>
     );

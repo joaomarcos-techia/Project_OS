@@ -58,11 +58,13 @@ _poderiam_ estar.
 | Ownership + consumo O-3b.3                 | confirmar dados e consumir/vincular uma vez                                           | verificado pré-tenant  | Postgres/Next/Auth sintético/Chromium local | A→B, e-mail/versão divergentes, unique, consumo/replay, TTL e restart             | janitor sintético      | `signup-regression.ts --browser` + testes de rota/writer/seam/limiter                   | **Coberto**       |
 | Reenvio Auth O-3b.4                        | intenção explícita após cooldown, sem repetir signup                                  | anônimo com staging    | Postgres/SDK/Redis sintético/Chromium local | completed/uncertain/reserved, concorrência, cooldown, 5xx/timeout, 429/503        | —                      | `signup-regression.ts --browser` + testes de rota/writer/limiter                        | **Coberto**       |
 | UI e fechamento O-3b.5–6                  | senha sem retenção, espera, revisão e reconciliação sem retry                          | anônimo/pré-tenant     | Next/SDK/Postgres/Chromium local            | senha fraca, respostas perdidas, reload, cooldown, link/restart, provider indisponível | —                   | `signup-regression.ts --browser` + testes UI/HTTP/SDK e suíte integral                   | **Coberto**       |
+| Clínica e plano O-4                        | listar catálogo elegível e salvar `selected_plan_id` por CAS                           | verificado pré-tenant  | Postgres/Next/Chromium/SDKs sintéticos      | payload de preço/trial, campanha, inativo, versão concorrente, retry e TTL        | —                      | `signup-regression.ts --browser` + testes de domínio/rota/UI                            | **Coberto**       |
 
-O-3a e O-3b.1–O-3b.6 têm prova local em Postgres descartável/Next/Chromium, com Auth e Redis REST
-sintéticos pelos SDKs instalados. Supabase/SMTP/Upstash externos, migration compartilhada e
-produção permanecem **NOT TESTED**. Evidências em Qoro v2 §§35.10 e 35.12–35.17. A prova local
-não comprova entrega pelo GoTrue/SMTP.
+O-3a, O-3b.1–O-3b.6 e O-4 têm prova local em Postgres descartável/Next/Chromium, com Auth e Redis REST
+sintéticos pelos SDKs instalados. As migrations 0099–0102 estão aplicadas e relidas no DEV. A prova
+real consentida de Supabase/SMTP/callback do O-3b está na ADR-062 §9.14; o O-4 ainda não foi publicado
+ou exercitado no Preview. Upstash externo do O-4 e produção permanecem **NOT TESTED**. Evidências em
+Qoro v2 §§35.10, 35.12–35.20. A prova local do O-4 não comprova provider externo.
 
 ¹ Com chaves de **teste** da Cloudflare, o token forjado é aceito de propósito.
 Ver R4 da auditoria.
@@ -222,7 +224,7 @@ Contadas do próprio arquivo, não estimadas.
 
 | Status            | Linhas |
 | ----------------- | ------ |
-| Coberto           | 89     |
+| Coberto           | 90     |
 | Parcial           | 5      |
 | Superficial       | **0**  |
 | Não coberto       | **3**  |
@@ -231,9 +233,9 @@ Contadas do próprio arquivo, não estimadas.
 **De 14 para 3 em 14/09**, e "superficial" zerou — a categoria existia para nomear cobertura
 aparente (rota visitada, `status < 500`), e não sobrou nenhuma.
 
-**Atualização de 16/09:** as quatro perguntas/staging O-3a e O-3b.1–O-3b.6 possuem prova local
-(89 cobertas). Ownership/consumo, reenvio, UI e fechamento integrado saíram da lista pendente;
-permanecem somente as três dependências externas abaixo.
+**Atualização de 16/09:** as quatro perguntas/staging O-3a, O-3b.1–O-3b.6 e a seleção de clínica/plano
+O-4 possuem prova local (90 cobertas). Ownership/consumo, reenvio, UI, fechamento integrado e seleção
+server-side de plano saíram da lista pendente; permanecem somente as três dependências externas abaixo.
 
 Os três que restam não sobraram por esquecimento; cada um tem um motivo que não se resolve
 escrevendo mais teste:

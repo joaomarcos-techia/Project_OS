@@ -70,11 +70,19 @@ Depois de `pnpm security:build`, execute:
 pnpm exec tsx --conditions=react-server scripts/security/signup-regression.ts --browser
 ```
 
-O runner não carrega `.env.local`: cria Postgres 17 temporário, aplica somente migrations
-0096–0098, usa um Redis REST sintético local através do SDK de rate limit e abre o build isolado no
-Chromium. Ele cobre `/cadastro`, criação/`me`/`answers`, duas abas/CAS, reload/readback, expiração,
-rate limit/falha de rede na UI e cleanup zero. Cloudflare e Supabase externos permanecem fora dessa
-prova. As portas locais usadas são 55447 (Postgres), 55449 (Redis) e 3217 (Next); deixe-as livres.
+O runner não carrega `.env.local`: cria Postgres 17 temporário, aplica migrations 0096–0102, inicia
+Auth e Redis REST sintéticos pelos SDKs instalados e abre o build isolado no Chromium. O fixture Redis
+roda em processo separado, implementa pipeline/EVALSHA e pode simular indisponibilidade sem bloquear o
+Next. Um retry de transporte local só é permitido depois de provar que banco e contador do provider
+não mudaram.
+
+Ele cobre `/cadastro`, criação/`me`/`answers`, duas abas/CAS, identidade, confirmação, ownership,
+reenvio, `/cadastro/continuar`, `/cadastro/plano`, catálogo elegível, preço/trial server-side,
+adulteração do payload, seleção idempotente, plano inativo, TTL, rate limit/falha de rede na UI e
+cleanup zero. O resultado é gravado em `dist/signup-regression/results.json`; uma execução completa
+deve terminar com todos os checks `PASS`, cleanup zero e `own Postgres stopped`. Cloudflare, Upstash,
+Supabase e SMTP externos permanecem fora dessa prova. As portas locais usadas são 55447 (Postgres),
+55449 (Redis) e 3217 (Next); deixe-as livres.
 
 ## Verificações contra o provedor real (sandbox)
 

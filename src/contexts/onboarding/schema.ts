@@ -84,6 +84,8 @@ export const signupSessions = pgTable('signup_sessions', {
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
   /** Owner Auth verificado; sem FK porque ainda não existe profile/tenant. */
   authUserId: uuid('auth_user_id').unique(),
+  /** Plano de tabela escolhido no draft; a FK cross-context vive na migration. */
+  selectedPlanId: uuid('selected_plan_id'),
 
   /* --- As QUATRO perguntas (ADR-060 §1.c.1, migration 0098) ------------
    * IMPESSOAIS por decisão: são sobre a CLÍNICA, nunca sobre a pessoa. É o que

@@ -2,14 +2,19 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 
-import { and, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+/* eslint-disable boundaries/element-types -- O-4 resolve o catálogo global de Billing
+   no servidor; signup_sessions continua pré-tenant e não recebe preço do browser. */
+import { plans, prices } from '@/contexts/billing/schema';
+/* eslint-enable boundaries/element-types */
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { hashEmail } from '@/lib/auth/email-hash';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 
+import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
 import {
   hashSignupToken,
@@ -48,11 +53,41 @@ export interface SignupDraftState {
   absoluteExpiresAt: string;
 }
 
+export const signupPlanMutationSchema = z
+  .object({
+    rowVersion: z.number().int().min(1).max(2_147_483_646),
+    planId: z.string().uuid(),
+  })
+  .strict();
+
+export interface SignupPlan {
+  id: string;
+  code: string;
+  name: string;
+  priceCents: number;
+  cycle: 'monthly';
+}
+
+export interface SignupPlanState {
+  status: 'email_verified';
+  rowVersion: number;
+  clinicName: string;
+  selectedPlanId: string | null;
+  plans: SignupPlan[];
+  trialDays: number;
+}
+
 type DraftOutcome =
   | { ok: true; rowVersion: number }
   | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
 type DraftReadOutcome =
   | { ok: true; draft: SignupDraftState }
+  | { ok: false; reason: 'gone' | 'unavailable' };
+type PlanWriteOutcome =
+  | { ok: true; rowVersion: number; selectedPlanId: string }
+  | { ok: false; reason: 'gone' | 'conflict' | 'invalid_plan' | 'unavailable' };
+type PlanReadOutcome =
+  | { ok: true; state: SignupPlanState }
   | { ok: false; reason: 'gone' | 'unavailable' };
 
 function enabled(): boolean {
@@ -79,6 +114,137 @@ function ownerDraftCondition(userId: string) {
     gt(signupSessions.idleExpiresAt, sql`now()`),
     gt(signupSessions.absoluteExpiresAt, sql`now()`),
   );
+}
+
+function priceToCents(value: string): number {
+  const match = /^(\d{1,10})(?:\.(\d{1,2}))?$/u.exec(value);
+  if (!match) throw new Error('[signup] invalid_catalog_price');
+  const major = Number(match[1]);
+  const minor = Number((match[2] ?? '').padEnd(2, '0'));
+  return major * 100 + minor;
+}
+
+/** Catálogo autônomo: somente preço mensal BRL de tabela, nunca campanha de convite. */
+async function listSelfServicePlans(): Promise<SignupPlan[]> {
+  const rows = await dbAdmin
+    .select({
+      id: plans.id,
+      code: plans.code,
+      name: plans.name,
+      amount: prices.amount,
+    })
+    .from(plans)
+    .innerJoin(
+      prices,
+      and(
+        eq(prices.planId, plans.id),
+        eq(prices.billingCycle, 'monthly'),
+        eq(prices.currency, 'BRL'),
+        lte(prices.activeFrom, sql`now()`),
+        isNull(prices.activeUntil),
+        isNull(prices.campaignCode),
+      ),
+    )
+    .where(eq(plans.ativo, true))
+    .orderBy(asc(plans.name));
+
+  return rows.map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    priceCents: priceToCents(row.amount),
+    cycle: 'monthly',
+  }));
+}
+
+/** Lê draft e catálogo sem renovar TTL nem aceitar preço do cliente. */
+export async function readSignupPlan(userId: string): Promise<PlanReadOutcome> {
+  if (!enabled() || !userIdSchema.safeParse(userId).success)
+    return { ok: false, reason: 'unavailable' };
+
+  const [draft] = await dbAdmin
+    .select({
+      rowVersion: signupSessions.rowVersion,
+      clinicName: signupSessions.clinicName,
+      selectedPlanId: signupSessions.selectedPlanId,
+    })
+    .from(signupSessions)
+    .where(ownerDraftCondition(userId))
+    .limit(1);
+  if (!draft) return { ok: false, reason: 'gone' };
+  if (!draft.clinicName) return { ok: false, reason: 'unavailable' };
+
+  return {
+    ok: true,
+    state: {
+      status: 'email_verified',
+      rowVersion: draft.rowVersion,
+      clinicName: draft.clinicName,
+      selectedPlanId: draft.selectedPlanId,
+      plans: await listSelfServicePlans(),
+      trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+    },
+  };
+}
+
+/** Salva apenas o plano ativo; preço e trial continuam resolvidos no servidor. */
+export async function writeSignupPlan(userId: string, input: unknown): Promise<PlanWriteOutcome> {
+  if (!enabled()) return { ok: false, reason: 'unavailable' };
+  if (!userIdSchema.safeParse(userId).success) throw new Error('[signup] invalid_plan_owner');
+  const parsed = signupPlanMutationSchema.safeParse(input);
+  if (!parsed.success) throw new Error('[signup] invalid_plan');
+
+  const { planId, rowVersion } = parsed.data;
+  return dbAdmin.transaction(async (tx) => {
+    const [availablePlan] = await tx
+      .select({ id: plans.id })
+      .from(plans)
+      .innerJoin(
+        prices,
+        and(
+          eq(prices.planId, plans.id),
+          eq(prices.billingCycle, 'monthly'),
+          eq(prices.currency, 'BRL'),
+          lte(prices.activeFrom, sql`now()`),
+          isNull(prices.activeUntil),
+          isNull(prices.campaignCode),
+        ),
+      )
+      .where(and(eq(plans.id, planId), eq(plans.ativo, true)))
+      .for('share')
+      .limit(1);
+    if (!availablePlan) return { ok: false, reason: 'invalid_plan' };
+
+    const [saved] = await tx
+      .update(signupSessions)
+      .set({
+        selectedPlanId: planId,
+        rowVersion: sql`${signupSessions.rowVersion} + 1`,
+        idleExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
+      })
+      .where(and(ownerDraftCondition(userId), eq(signupSessions.rowVersion, rowVersion)))
+      .returning({
+        rowVersion: signupSessions.rowVersion,
+        selectedPlanId: signupSessions.selectedPlanId,
+      });
+    if (saved?.selectedPlanId) {
+      return { ok: true, rowVersion: saved.rowVersion, selectedPlanId: saved.selectedPlanId };
+    }
+
+    const [live] = await tx
+      .select({
+        rowVersion: signupSessions.rowVersion,
+        selectedPlanId: signupSessions.selectedPlanId,
+      })
+      .from(signupSessions)
+      .where(ownerDraftCondition(userId))
+      .limit(1);
+    if (!live) return { ok: false, reason: 'gone' };
+    if (live.selectedPlanId === planId && live.rowVersion === rowVersion + 1) {
+      return { ok: true, rowVersion: live.rowVersion, selectedPlanId: planId };
+    }
+    return { ok: false, reason: 'conflict' };
+  });
 }
 
 /** Leitura autenticada, sem renovar nenhum dos dois TTLs. */

@@ -50,6 +50,10 @@ describe('continuação autenticada O-3b.5', () => {
     expect(screen.getByText('Ana')).toBeTruthy();
     expect(screen.getByText('Clínica Teste')).toBeTruthy();
     expect(screen.getByText('2 a 5 profissionais')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Escolher plano' })).toHaveProperty(
+      'href',
+      'http://localhost:3000/cadastro/plano',
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/signup/draft');
     expect(fetchMock.mock.calls[0]?.[1]).toEqual({ cache: 'no-store' });

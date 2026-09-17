@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 174 actions (0 inline); 43 métodos em 41 handlers; 14 props com referência de action; 193 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
+Contagem: 174 actions (0 inline); 45 métodos em 42 handlers; 14 props com referência de action; 186 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -226,6 +226,8 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/health/route.ts:77#GET`                                 | health-token-or-admin   | health-token-or-admin                                | `src/app/api/health/route.ts:77#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                                      |
 | `src/app/api/signup/draft/route.ts:52#GET`                           | NEW                     | verified-pretenant-user-hmac-read-limit              | `src/app/api/signup/draft/route.ts:64#readSignupDraft`                                                                                                                       |
 | `src/app/api/signup/draft/route.ts:74#POST`                          | NEW                     | origin-verified-pretenant-user-hmac-write-limit-cas  | `src/app/api/signup/draft/route.ts:112#writeSignupDraft`                                                                                                                     |
+| `src/app/api/signup/plan/route.ts:46#GET`                            | NEW                     | verified-pretenant-user-hmac-read-limit              | `src/app/api/signup/plan/route.ts:59#readSignupPlan`                                                                                                                         |
+| `src/app/api/signup/plan/route.ts:69#PUT`                            | NEW                     | origin-verified-pretenant-user-hmac-write-limit-cas  | `src/app/api/signup/plan/route.ts:107#writeSignupPlan`                                                                                                                       |
 | `src/app/api/signup/sessions/answers/route.ts:34#POST`               | NEW                     | signup-cookie-cas-and-read-rate-limit                | `src/app/api/signup/sessions/answers/route.ts:74#recordSignupAnswers`                                                                                                        |
 | `src/app/api/signup/sessions/auth/route.ts:38#POST`                  | NEW                     | SIGNUP_AUTH_ENABLED-origin-limit-cookie-cas          | `src/app/api/signup/sessions/auth/route.ts:80#reserveSignupAuthAttempt`                                                                                                      |
 | `src/app/api/signup/sessions/identity/route.ts:24#POST`              | NEW                     | SIGNUP_IDENTITY_ENABLED-origin-limit-cookie-cas      | `src/app/api/signup/sessions/identity/route.ts:62#recordSignupIdentity`                                                                                                      |
@@ -410,10 +412,11 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/run-hard-delete.ts:24`                    | `HARD_DELETE_LIMIT`                    | `process.env.HARD_DELETE_LIMIT`                    |
 | `scripts/security/local-build.ts:75`               | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/local-build.ts:75`               | `<dynamic>`                            | `process.env[key]`                                 |
-| `scripts/security/signup-regression.ts:15`         | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
-| `scripts/security/signup-regression.ts:31`         | `<object>`                             | `process.env`                                      |
-| `scripts/security/signup-regression.ts:31`         | `<dynamic>`                            | `process.env[key]`                                 |
-| `scripts/security/signup-regression.ts:1568`       | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-regression.ts:18`         | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
+| `scripts/security/signup-regression.ts:34`         | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-regression.ts:34`         | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/security/signup-regression.ts:143`        | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-regression.ts:1849`       | `<object>`                             | `process.env`                                      |
 | `scripts/security/tenant-isolation.ts:12`          | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
 | `scripts/security/tenant-isolation.ts:120`         | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/tenant-isolation.ts:121`         | `<object>`                             | `process.env`                                      |
@@ -458,14 +461,6 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/smoke-payments-post-recovery.ts:118`      | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/smoke-payments-post-recovery.ts:119`      | `ASAAS_BASE_URL_DEV`                   | `process.env.ASAAS_BASE_URL_DEV`                   |
 | `scripts/smoke-payments-post-recovery.ts:122`      | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
-| `scripts/tmp-run-deposit-refund-e2e.ts:82`         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
-| `scripts/tmp-run-deposit-refund-e2e.ts:88`         | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
-| `scripts/tmp-run-deposit-refund-e2e.ts:96`         | `PAYMENTS_D77_E2E`                     | `process.env.PAYMENTS_D77_E2E`                     |
-| `scripts/tmp-run-deposit-refund-e2e.ts:98`         | `PAYMENTS_D77_OPERATOR_GATE`           | `process.env.PAYMENTS_D77_OPERATOR_GATE`           |
-| `scripts/tmp-run-deposit-refund-e2e.ts:385`        | `PAYMENTS_D77_RESUME`                  | `process.env.PAYMENTS_D77_RESUME`                  |
-| `scripts/tmp-run-deposit-refund-e2e.ts:454`        | `PAYMENTS_D77_RESUME`                  | `process.env.PAYMENTS_D77_RESUME`                  |
-| `scripts/tmp-run-patient-excess-refund-e2e.ts:134` | `PAYMENTS_D50_E2E`                     | `process.env.PAYMENTS_D50_E2E`                     |
-| `scripts/tmp-run-patient-excess-refund-e2e.ts:146` | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `sentry.edge.config.ts:9`                          | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`               |
 | `sentry.edge.config.ts:10`                         | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                           |
 | `sentry.edge.config.ts:16`                         | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
