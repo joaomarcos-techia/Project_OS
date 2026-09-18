@@ -240,9 +240,28 @@ try {
     path.join(output, 'tenant-results.txt'),
     [...results, serverLog, stop.stdout, stop.stderr].join('\n'),
   );
-  if (stop.error) throw stop.error;
-  assert.equal(stop.status, 0, stop.stderr);
-  console.log(
-    `Cluster temporário parado: ${cluster}; evidência em dist/security-local/tenant-results.txt`,
-  );
+  /*
+   * NÃO lançar daqui.
+   *
+   * Um `throw` no `finally` APAGA o erro que trouxe a execução até aqui. Foi
+   * exatamente isso que aconteceu no CI: o cluster morreu durante o teste, o
+   * `pg_ctl stop` não achou o PID file e a única coisa que sobrou no log foi
+   * "PID file does not exist" — o sintoma do teardown, não a causa.
+   *
+   * O harness de cadastro já tinha levado esse mesmo tombo e foi corrigido; este
+   * ficou para trás. Agora o desfecho do teardown vira código de saída próprio e
+   * imprime o log do servidor, que é onde a causa real está.
+   */
+  if (stop.error || stop.status !== 0) {
+    console.error(
+      `[tenant-isolation] teardown do cluster falhou: ${stop.error?.message ?? stop.stderr}`,
+    );
+    console.error(`[tenant-isolation] log do servidor:
+${serverLog.slice(-4_000)}`);
+    process.exitCode = 1;
+  } else {
+    console.log(
+      `Cluster temporário parado: ${cluster}; evidência em dist/security-local/tenant-results.txt`,
+    );
+  }
 }
