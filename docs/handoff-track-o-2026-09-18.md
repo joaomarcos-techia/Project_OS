@@ -218,16 +218,44 @@ auditoria, que é ferramenta operada por pessoa.
 
 ```text
 branch        feature/clinic-plan-o4
-HEAD inicial  a15517c
-HEAD final    33068e0
-commits       8 (veredito, portão, O-5/O-6, documento, provas, 503+inventário,
-              teardown diagnosticável, socket Unix)
+HEAD final    434e926
+commits       14 no total; 6 nesta sessão de fechamento (O-7, harnesses+carga,
+              snapshots, negativa explícita, docs, inventário)
 push          origin/feature/clinic-plan-o4
 PR            #9 (DRAFT, base main) — não mesclado
+CI            PASS em `434e926` — seis verificações
 Preview       project-os-git-feature-clinic-plan-o4-clinic-os-v2-s-projects.vercel.app
 ```
 
 O PR é **draft de propósito**: serve para rodar o CI e permitir revisão, não para mesclar.
+
+### CI: a falha antes do verde
+
+O push de `22fdd4e` **falhou** em `security:inventory --check`. O inventário grava o NÚMERO DA LINHA
+de cada Server Action, e `fetchOnboardingProgress` saiu da linha 59 para a 70 ao ganhar o envelope de
+negativa — eu havia regenerado o inventário ANTES dessa mudança. Mesmo gate, mesma falha de processo
+da sessão anterior.
+
+A evidência estava na tela local e passou despercebida: os gates foram encadeados como
+`prettier --check . | tail -3 && … && inventory --check`. O `tail` zera o status do pipeline, então a
+cadeia seguiu; e quando o `inventory` falhou, o `&&` apenas parou de imprimir. Saída truncada é
+indistinguível de saída completa. Corrigido em `434e926`, com cada gate executado isoladamente e o
+`exit` conferido um a um.
+
+### Preview no SHA final, medido
+
+| Requisição                                 | Resposta          | O que prova                                   |
+| ------------------------------------------ | ----------------- | --------------------------------------------- |
+| `GET /`                                    | `307 → /login`    | sem superfície de marketing neste repositório  |
+| `GET /login`                               | `200`             | porta de entrada de pé                         |
+| `GET /cadastro`                            | `200`             | funil fechado (identidade ausente em Preview)  |
+| `GET /documentacao`                        | `307 → /login`    | rota nova é autenticada no ambiente real       |
+| `GET /documentacao/primeiros-passos`       | `307 → /login`    | idem para o tópico                             |
+| `GET /documentacao/nao-existe`             | `307 → /login`    | anônimo não consegue nem enumerar slugs válidos |
+| `GET /dashboard`                           | `307 → /login`    | destino do onboarding continua protegido       |
+| `POST /api/signup/sessions` (com Origin)   | `503 unavailable` | a conversão 500→503 funcionando de verdade     |
+| `POST /api/signup/checkout` sem Origin     | `403 blocked`     | Fetch Metadata/Origin no ambiente real         |
+| `POST /api/signup/checkout` com Origin     | `401 unauthorized`| exige identidade verificada                    |
 
 ---
 

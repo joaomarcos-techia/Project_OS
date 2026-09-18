@@ -9,7 +9,7 @@ aparece como `NOT TESTED` ou `BLOCKED`, nunca em branco.
 > **Esta matriz não substitui a §10.9 da ADR-062.** Aquela seção é a evidência da emenda de identidade
 > e continua com o significado dela. Esta aqui é por fatia.
 
-SHA de referência: `a8e09f9` (branch `feature/clinic-plan-o4`).
+SHA de referência: `434e926` (branch `feature/clinic-plan-o4`), com **CI verde nas seis verificações**.
 
 ## Legenda de ambiente
 
@@ -241,8 +241,8 @@ foi executado num worktree do commit `8df4ab7` — anterior a todo o trabalho de
 | E2E `test:e2e:ci` (fatia sem conta)   | **PASS** — 6 passaram, 2 skips condicionais por ambiente            |
 | E2E da jornada completa autenticada   | **NOT TESTED** — exige conta sintética e Postgres de auditoria      |
 | `test:simulation` (30 dias)           | **PASS** em `DEV` — ver abaixo                                      |
-| Preview deploy                        | **PASS** — publicado e exercitado com o bypass documentado          |
-| CI (GitHub Actions)                   | **PASS** — seis verificações verdes em `33068e0` e `5178e72`        |
+| Preview deploy                        | **PASS** — SHA final medido, incl. `/documentacao` protegida        |
+| CI (GitHub Actions)                   | **PASS** — seis verificações verdes em `434e926`                    |
 | Product Acceptance humano             | **BLOCKED** — exige pessoa real                                     |
 
 ### Kill switch no navegador — `signup-kill-switch-browser.ts`
@@ -273,6 +273,21 @@ Ele abortou na primeira tentativa por uma **pré-condição de ambiente**: a fil
 `clinical.prontuario.created` pendentes desde 11/09 com 0 tentativas. Esse tipo de evento **não tem
 handler registrado**, então o worker os classifica como `skipped` terminal — sem retry, sem circuito e
 sem chamada externa. Uma volta do worker real (`processed: 0, failed: 0, skipped: 2`) liberou o gate.
+
+### Preview no SHA final
+
+| Requisição                                | Resposta           | O que prova                                     |
+| ----------------------------------------- | ------------------ | ----------------------------------------------- |
+| `GET /`                                   | `307 → /login`     | sem superfície de marketing neste repositório    |
+| `GET /login`                              | `200`              | porta de entrada de pé                           |
+| `GET /cadastro`                           | `200`              | funil fechado (identidade ausente em Preview)    |
+| `GET /documentacao`                       | `307 → /login`     | rota nova é autenticada no ambiente real         |
+| `GET /documentacao/primeiros-passos`      | `307 → /login`     | idem para o tópico                               |
+| `GET /documentacao/nao-existe`            | `307 → /login`     | anônimo não enumera slugs válidos                |
+| `GET /dashboard`                          | `307 → /login`     | destino do onboarding continua protegido         |
+| `POST /api/signup/sessions` (com Origin)  | `503 unavailable`  | a conversão 500→503 funcionando de verdade       |
+| `POST /api/signup/checkout` sem Origin    | `403 blocked`      | Fetch Metadata/Origin no ambiente real           |
+| `POST /api/signup/checkout` com Origin    | `401 unauthorized` | exige identidade verificada                      |
 
 ---
 
