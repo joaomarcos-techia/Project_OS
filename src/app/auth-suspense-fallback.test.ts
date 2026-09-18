@@ -40,6 +40,12 @@ describe('P-15 — fallbacks de autenticação', () => {
     expect(recovery).not.toContain('href="/reset-password"');
   });
 
+  it('liga o convite de cadastro do login ao início do fluxo autônomo', () => {
+    const login = readFileSync(resolve(process.cwd(), 'src/app/(app)/login/page.tsx'), 'utf8');
+
+    expect(login).toMatch(/href="\/cadastro"[\s\S]*Cadastre-se/u);
+  });
+
   it('orienta links expirados para a recuperação autônoma disponível no login', () => {
     const reset = readFileSync(
       resolve(process.cwd(), 'src/app/(app)/reset-password/page.tsx'),

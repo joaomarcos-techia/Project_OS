@@ -10,6 +10,7 @@ const {
   getStatusBreakdown,
   list,
   listAtRisk,
+  listSignupIntakes,
   emitMetric,
 } = vi.hoisted(() => ({
   captureException: vi.fn(),
@@ -19,6 +20,7 @@ const {
   getStatusBreakdown: vi.fn(),
   list: vi.fn(),
   listAtRisk: vi.fn(),
+  listSignupIntakes: vi.fn(),
   emitMetric: vi.fn(),
 }));
 
@@ -29,7 +31,7 @@ vi.mock('./_lib/repositories/metrics.repo', () => ({
   adminMetricsRepository: { getDashboard, getMrrTrend, getStatusBreakdown },
 }));
 vi.mock('./_lib/repositories/clinics.repo', () => ({
-  clinicRepository: { list, listAtRisk },
+  clinicRepository: { list, listAtRisk, listSignupIntakes },
 }));
 
 import AdminError from './error';
@@ -61,6 +63,18 @@ const riskClinic = {
   status: 'pending_payment',
 };
 
+const signupIntake = {
+  id: '33333333-3333-4333-8333-333333333333',
+  clinicName: 'Clínica em cadastro',
+  status: 'email_pending',
+  professionalsBand: '2_5',
+  weeklyAppointmentsBand: '21_50',
+  currentTooling: 'outro_sistema',
+  discoverySource: 'indicacao_colega',
+  planCode: null,
+  updatedAt: '2026-08-20T11:30:00.000Z',
+};
+
 describe('AdminDashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -77,6 +91,7 @@ describe('AdminDashboardPage', () => {
     getStatusBreakdown.mockResolvedValue({ active: 12, trial: 4, atRisk: 1, cancelled: 2 });
     list.mockResolvedValue({ items: [recentClinic], total: 1, page: 1, pageSize: 4 });
     listAtRisk.mockResolvedValue([riskClinic]);
+    listSignupIntakes.mockResolvedValue([signupIntake]);
   });
 
   afterEach(() => {
@@ -105,6 +120,7 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByRole('region', { name: 'Distribuição de clínicas' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Novas clínicas' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Clínicas em risco' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Cadastros autônomos em andamento' })).toBeTruthy();
     expect(screen.getByText('ago')).toBeTruthy();
     expect(screen.getByText('Ativas')).toBeTruthy();
     expect(screen.getByText('Clínica Aurora')).toBeTruthy();
@@ -112,6 +128,12 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByText('pro')).toBeTruthy();
     expect(screen.getByText('Clínica Horizonte')).toBeTruthy();
     expect(screen.getByText('Aguardando pagamento')).toBeTruthy();
+    expect(screen.getByText('Clínica em cadastro')).toBeTruthy();
+    expect(screen.getByText('2 a 5 profissionais')).toBeTruthy();
+    expect(screen.getByText('21 a 50 por semana')).toBeTruthy();
+    expect(screen.getByText('Outro sistema')).toBeTruthy();
+    expect(screen.getByText('Indicação de colega')).toBeTruthy();
+    expect(screen.getByText('Aguardando e-mail')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Pagamentos' }).getAttribute('href')).toBe(
       '/admin/billing',
     );
@@ -125,6 +147,7 @@ describe('AdminDashboardPage', () => {
     expect(getStatusBreakdown).toHaveBeenCalledOnce();
     expect(list).toHaveBeenCalledWith({ pageSize: 4 });
     expect(listAtRisk).toHaveBeenCalledWith(4);
+    expect(listSignupIntakes).toHaveBeenCalledWith(8);
   });
 
   it('não inicia nenhuma leitura quando o guard admin bloqueia a rota', async () => {
@@ -137,6 +160,7 @@ describe('AdminDashboardPage', () => {
     expect(getStatusBreakdown).not.toHaveBeenCalled();
     expect(list).not.toHaveBeenCalled();
     expect(listAtRisk).not.toHaveBeenCalled();
+    expect(listSignupIntakes).not.toHaveBeenCalled();
   });
 
   it('mantém zeros e estados vazios quando eles são respostas reais', async () => {
@@ -152,6 +176,7 @@ describe('AdminDashboardPage', () => {
     getStatusBreakdown.mockResolvedValue({ active: 0, trial: 0, atRisk: 0, cancelled: 0 });
     list.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 4 });
     listAtRisk.mockResolvedValue([]);
+    listSignupIntakes.mockResolvedValue([]);
 
     render(await AdminDashboardPage());
 
@@ -160,6 +185,7 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByText('Nenhuma clínica cadastrada.')).toBeTruthy();
     expect(screen.getByText('Nenhuma clínica ainda.')).toBeTruthy();
     expect(screen.getByText(/Nenhuma clínica em risco/u)).toBeTruthy();
+    expect(screen.getByText('Nenhum cadastro autônomo em andamento.')).toBeTruthy();
   });
 
   it('propaga erro de leitura em vez de renderizar zero ou lista vazia', async () => {

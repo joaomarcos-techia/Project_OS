@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { config, reserve, finish, limit, create, signUp, calls } = vi.hoisted(() => ({
+const { config, reserve, finish, abort, limit, create, signUp, calls } = vi.hoisted(() => ({
   config: {
     SIGNUP_AUTH_ENABLED: true,
     SIGNUP_IDENTITY_ENABLED: true,
@@ -9,6 +9,7 @@ const { config, reserve, finish, limit, create, signUp, calls } = vi.hoisted(() 
   },
   reserve: vi.fn(),
   finish: vi.fn(),
+  abort: vi.fn(),
   limit: vi.fn(),
   create: vi.fn(),
   signUp: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('@/contexts/onboarding', async () => {
     signupAuthSchema,
     reserveSignupAuthAttempt: reserve,
     finishSignupAuthAttempt: finish,
+    abortSignupAuthAttempt: abort,
     hashSignupToken: () => 'a'.repeat(64),
   };
 });
@@ -100,24 +102,88 @@ describe('POST signup auth', () => {
     });
     expect(finish).toHaveBeenCalledWith(token, 4, 'completed');
   });
-  it.each([
-    'new',
-    'verified',
-    'unverified',
-    'user_already_exists',
-    'email_exists',
-    'weak_password',
-    'user_banned',
-  ])('resposta pública uniforme: %s', async (kind) => {
+  it.each(['new', 'verified', 'unverified', 'user_already_exists', 'email_exists', 'user_banned'])(
+    'resposta pública uniforme: %s',
+    async (kind) => {
+      signUp.mockResolvedValue({
+        data: { user: { id: kind, email: input.email, identities: [] }, session: null },
+        error: kind.includes('_') ? { code: kind, message: `raw provider ${input.email}` } : null,
+      });
+      const response = await POST(request());
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ rowVersion: 5 });
+      expect(finish).toHaveBeenCalledWith(token, 4, 'completed');
+    },
+  );
+
+  it('devolve a reserva e pede outra senha quando o provider recusa a senha', async () => {
+    // Recusa por senha não depende de conta: o GoTrue avalia o valor enviado
+    // antes de olhar o usuário. Tratá-la como desfecho uniforme deixava a pessoa
+    // numa espera que nunca terminaria, porque e-mail nenhum havia saído.
     signUp.mockResolvedValue({
-      data: { user: { id: kind, email: input.email, identities: [] }, session: null },
-      error: kind.includes('_') ? { code: kind, message: `raw provider ${input.email}` } : null,
+      data: { user: null, session: null },
+      error: { code: 'weak_password', message: `raw provider ${input.email}` },
     });
+    abort.mockResolvedValue({ ok: true, rowVersion: 5 });
+
     const response = await POST(request());
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ rowVersion: 5 });
-    expect(finish).toHaveBeenCalledWith(token, 4, 'completed');
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: 'weak_password' });
+    expect(abort).toHaveBeenCalledWith(token, 4);
+    // A tentativa volta ao estado anterior: nada de `completed`/`uncertain`,
+    // que gastariam a reserva e jogariam a pessoa no cooldown de reenvio.
+    expect(finish).not.toHaveBeenCalled();
   });
+
+  it('não vaza e-mail nem texto do provider na recusa de senha', async () => {
+    signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { code: 'weak_password', message: `raw provider ${input.email} pwned` },
+    });
+    abort.mockResolvedValue({ ok: true, rowVersion: 5 });
+
+    const body = JSON.stringify(await (await POST(request())).json());
+
+    expect(body).not.toContain(input.email);
+    expect(body).not.toContain('pwned');
+    expect(body).not.toContain(input.password);
+  });
+
+  it('fecha em 503 quando a devolução da reserva perde o CAS', async () => {
+    signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { code: 'weak_password', message: 'weak' },
+    });
+    abort.mockResolvedValue({ ok: false, reason: 'conflict' });
+
+    const response = await POST(request());
+
+    // Reserva ainda de pé: o caminho conservador não pode afirmar envio nem
+    // liberar uma nova tentativa sobre um estado que não voltou.
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'unavailable' });
+    expect(finish).not.toHaveBeenCalled();
+  });
+
+  it('sessão inesperada com senha fraca continua sendo resultado incerto', async () => {
+    // Se o provider devolveu sessão, a premissa "nada foi enviado" caiu por
+    // terra; não há reserva a devolver.
+    signUp.mockResolvedValue({
+      data: {
+        user: { id: 'u', email: input.email, identities: [] },
+        session: { access_token: 'x' },
+      },
+      error: { code: 'weak_password', message: 'weak' },
+    });
+
+    const response = await POST(request());
+
+    expect(abort).not.toHaveBeenCalled();
+    expect(finish).toHaveBeenCalledWith(token, 4, 'uncertain');
+    expect(response.status).toBe(503);
+  });
+
   it.each([
     'auth-gate',
     'identity-gate',

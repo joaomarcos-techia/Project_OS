@@ -65,9 +65,7 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
     const password = String(fields.get('password') ?? '');
     if (!signupPasswordSchema.safeParse(password).success) {
       form.querySelector<HTMLInputElement>('input[name="password"]')?.focus();
-      setMessage(
-        'Use de 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula, número e caractere especial.',
-      );
+      setMessage('Use de 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número.');
       return;
     }
 
@@ -154,6 +152,13 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
       }
       if (authResponse.status === 410) {
         onGone();
+      } else if (authResponse.status === 422) {
+        // A senha foi recusada pelo provedor e a tentativa foi devolvida: dá
+        // para escolher outra agora, sem esperar cooldown nenhum.
+        form.querySelector<HTMLInputElement>('input[name="password"]')?.focus();
+        setMessage(
+          'Essa senha aparece em vazamentos conhecidos e foi recusada. Escolha outra e tente novamente.',
+        );
       } else if (authResponse.status === 409 || authResponse.status === 503) {
         await onReconcile(authResponse.status === 409 ? 'conflict' : 'uncertain');
       } else {
@@ -253,8 +258,8 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
                 aria-describedby="signup-password-help"
               />
               <p id="signup-password-help" className="text-xs leading-relaxed text-fg-subtle">
-                De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula, número e
-                caractere especial.
+                De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número. Símbolos
+                são opcionais.
               </p>
             </div>
             <div className="flex min-h-10 items-start gap-3 pt-2">

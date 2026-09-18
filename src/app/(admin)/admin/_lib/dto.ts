@@ -46,6 +46,18 @@ export interface ClinicListResultDTO {
   pageSize: number;
 }
 
+export interface SignupIntakeDTO {
+  id: string;
+  clinicName: string | null;
+  status: string;
+  professionalsBand: string;
+  weeklyAppointmentsBand: string;
+  currentTooling: string;
+  discoverySource: string;
+  planCode: string | null;
+  updatedAt: string;
+}
+
 export interface ClinicDetailDTO {
   general: {
     id: string;

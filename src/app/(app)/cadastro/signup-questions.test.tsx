@@ -2,7 +2,7 @@
 
 import { StrictMode } from 'react';
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SignupAnswerValues, SignupSessionState } from '@/contexts/onboarding';
@@ -39,6 +39,10 @@ const SAVED_SESSION: SignupSessionState = {
   answers: ANSWERS,
 };
 
+/** Mesmos números do componente: cabem 30 leituras de 20 s no limite por IP. */
+const POLL_INTERVAL_MS = 20_000;
+const POLL_MAX_ATTEMPTS = 30;
+
 it.each([false, true])(
   'email_pending congela perguntas/identidade, inclusive gate %s, sem repetir Auth',
   async (identityEnabled) => {
@@ -46,11 +50,10 @@ it.each([false, true])(
       json(200, { session: { ...SAVED_SESSION, status: 'email_pending', rowVersion: 5 } }),
     );
     render(<SignupQuestions identityEnabled={identityEnabled} />);
-    await screen.findByText(/Se houver uma etapa de confirmação/u);
-    expect(screen.getAllByRole('radio').every((radio) => radio.hasAttribute('disabled'))).toBe(
-      true,
-    );
-    expect(screen.queryByRole('button', { name: 'Salvar respostas' })).toBeNull();
+    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+    expect(screen.getByText(/Se houver uma etapa de confirmação/u)).toBeTruthy();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Salvar e continuar' })).toBeNull();
     expect(screen.queryByLabelText('Seu nome')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Substituir dados salvos' })).toBeNull();
     expect(screen.queryByText(/Nenhum e-mail de confirmação foi enviado/u)).toBeNull();
@@ -78,13 +81,23 @@ function deferredResponse() {
 async function renderReady(session: SignupSessionState = EMPTY_SESSION) {
   fetchMock.mockResolvedValueOnce(json(200, { session }));
   render(<SignupQuestions />);
-  await screen.findByRole('heading', { name: 'Conte como sua clínica funciona hoje' });
+  if (session.answers) {
+    await screen.findByText('Respostas salvas');
+  } else {
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+  }
 }
 
-function chooseAll(): void {
+async function chooseAll(): Promise<void> {
   fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+  await screen.findByRole('heading', { name: 'Quantos atendimentos são realizados por semana?' });
   fireEvent.click(screen.getByRole('radio', { name: '21 a 50' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+  await screen.findByRole('heading', { name: 'Como a clínica se organiza hoje?' });
   fireEvent.click(screen.getByRole('radio', { name: 'Outro sistema' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+  await screen.findByRole('heading', { name: 'Como você conheceu a Qoro?' });
   fireEvent.click(screen.getByRole('radio', { name: 'Indicação de um colega' }));
 }
 
@@ -95,6 +108,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -110,12 +124,12 @@ describe('cadastro — quatro perguntas impessoais', () => {
       </StrictMode>,
     );
 
-    await screen.findByRole('heading', { name: 'Conte como sua clínica funciona hoje' });
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/signup/sessions/me');
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/signup/sessions');
     expect(fetchMock.mock.calls[1]?.[1]?.method).toBe('POST');
-    expect(screen.getAllByRole('radio')).toHaveLength(17);
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(
       document.querySelector('input[type="password"], input[type="email"], textarea'),
@@ -126,24 +140,56 @@ describe('cadastro — quatro perguntas impessoais', () => {
     await renderReady(SAVED_SESSION);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
-    expect(screen.getByRole('radio', { name: '21 a 50' })).toHaveProperty('checked', true);
-    expect(screen.getByRole('radio', { name: 'Outro sistema' })).toHaveProperty('checked', true);
-    expect(screen.getByRole('radio', { name: 'Indicação de um colega' })).toHaveProperty(
-      'checked',
-      true,
-    );
+    expect(screen.getByText('Respostas salvas')).toBeTruthy();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
     expect(screen.getByRole('alert').textContent).toContain('Carregamos as respostas salvas');
+  });
+
+  it('avança uma pergunta por tela e preserva a escolha ao voltar', async () => {
+    await renderReady();
+
+    expect(screen.getByText('Pergunta 1 de 4')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Voltar' })).toBeNull();
+    expect(screen.getByText(/Nenhuma pede nome, contato ou dados de pacientes/u)).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    await screen.findByRole('heading', {
+      name: 'Quantos atendimentos são realizados por semana?',
+    });
+    expect(screen.getByText('Pergunta 2 de 4')).toBeTruthy();
+    expect(screen.queryByRole('radio', { name: '2 a 5' })).toBeNull();
+    // O contexto é dito uma vez, antes da primeira resposta; repeti-lo nas
+    // quatro telas seria ruído e tiraria a hierarquia do título.
+    expect(screen.queryByText(/Nenhuma pede nome, contato ou dados de pacientes/u)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
+    // Navegar entre perguntas é estado de tela: nada vai ao servidor antes da
+    // quarta resposta, então o bootstrap continua sendo a única chamada.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém a última pergunta como a única que salva, com o rótulo próprio', async () => {
+    await renderReady();
+    await chooseAll();
+
+    expect(screen.getByText('Pergunta 4 de 4')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Continuar' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Salvar e continuar' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('foca a primeira pergunta ausente e não envia formulário incompleto', async () => {
     await renderReady();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
 
     const first = screen.getByRole('radio', { name: '1 profissional' });
     expect(document.activeElement).toBe(first);
-    expect(screen.getByRole('alert').textContent).toContain('Marque uma opção em cada pergunta');
+    expect(screen.getByRole('alert').textContent).toContain('Escolha uma opção para continuar');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('radiogroup', { name: 'Quantidade de profissionais' })).toBeTruthy();
   });
@@ -153,10 +199,10 @@ describe('cadastro — quatro perguntas impessoais', () => {
     fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
     fetchMock.mockImplementationOnce(() => pending.promise);
     render(<SignupQuestions />);
-    await screen.findByRole('heading', { name: 'Conte como sua clínica funciona hoje' });
-    chooseAll();
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await chooseAll();
 
-    const submit = screen.getByRole('button', { name: 'Salvar respostas' });
+    const submit = screen.getByRole('button', { name: 'Salvar e continuar' });
     fireEvent.click(submit);
     fireEvent.click(submit);
 
@@ -164,8 +210,11 @@ describe('cadastro — quatro perguntas impessoais', () => {
     expect(screen.getAllByRole('radio').every((radio) => radio.hasAttribute('disabled'))).toBe(
       true,
     );
-    fireEvent.click(screen.getByRole('radio', { name: '1 profissional' }));
-    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByRole('radio', { name: 'Outro' }));
+    expect(screen.getByRole('radio', { name: 'Indicação de um colega' })).toHaveProperty(
+      'checked',
+      true,
+    );
 
     const body = fetchMock.mock.calls[1]?.[1]?.body;
     expect(JSON.parse(String(body))).toEqual({ ...ANSWERS, rowVersion: 1 });
@@ -173,12 +222,12 @@ describe('cadastro — quatro perguntas impessoais', () => {
 
     await screen.findByText(/Respostas salvas\. A etapa de criação da conta será conectada/u);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
   });
 
   it('resolve CAS perdido relendo e exibindo as respostas vencedoras', async () => {
     await renderReady();
-    chooseAll();
+    await chooseAll();
     const winner: SignupSessionState = {
       ...SAVED_SESSION,
       answers: {
@@ -192,27 +241,22 @@ describe('cadastro — quatro perguntas impessoais', () => {
       .mockResolvedValueOnce(json(409, { error: 'conflict' }))
       .mockResolvedValueOnce(json(200, { session: winner }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
 
     await screen.findByText(/Outra aba salvou primeiro/u);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(screen.getByRole('radio', { name: '1 profissional' })).toHaveProperty('checked', true);
-    expect(screen.getByRole('radio', { name: 'Até 20' })).toHaveProperty('checked', true);
-    expect(screen.getByRole('radio', { name: 'Agenda genérica' })).toHaveProperty('checked', true);
-    expect(screen.getByRole('radio', { name: 'Evento ou congresso' })).toHaveProperty(
-      'checked',
-      true,
-    );
+    expect(screen.getByText('Respostas salvas')).toBeTruthy();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
   });
 
   it('transforma 409 seguido de 410 em reinício de sessão, não em erro de rede', async () => {
     await renderReady();
-    chooseAll();
+    await chooseAll();
     fetchMock
       .mockResolvedValueOnce(json(409, { error: 'conflict' }))
       .mockResolvedValueOnce(json(410, { error: 'gone' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
 
     expect(await screen.findByRole('button', { name: 'Começar novamente' })).toBeTruthy();
     expect(screen.getByText(/Esta sessão expirou/u)).toBeTruthy();
@@ -220,22 +264,22 @@ describe('cadastro — quatro perguntas impessoais', () => {
 
   it('mantém o estado pronto quando a releitura do conflito recebe 429', async () => {
     await renderReady();
-    chooseAll();
+    await chooseAll();
     fetchMock
       .mockResolvedValueOnce(json(409, { error: 'conflict' }))
       .mockResolvedValueOnce(json(429, { error: 'rate_limited' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
 
     await screen.findByText(/a releitura atingiu o limite/u);
-    expect(screen.getByRole('button', { name: 'Salvar respostas' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Salvar e continuar' })).toBeTruthy();
   });
 
   it('distingue sessão expirada e rate limit ao salvar', async () => {
     await renderReady();
-    chooseAll();
+    await chooseAll();
     fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
     expect(await screen.findByRole('button', { name: 'Começar novamente' })).toBeTruthy();
 
     cleanup();
@@ -244,25 +288,24 @@ describe('cadastro — quatro perguntas impessoais', () => {
       .mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }))
       .mockResolvedValueOnce(json(429, { error: 'rate_limited' }));
     render(<SignupQuestions />);
-    await screen.findByRole('heading', { name: 'Conte como sua clínica funciona hoje' });
-    chooseAll();
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    await chooseAll();
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
     await screen.findByText(/Aguarde um minuto antes de salvar/u);
-    expect(
-      screen.getAllByRole('radio').filter((radio) => radio.hasAttribute('checked')),
-    ).toHaveLength(0);
-    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: 'Indicação de um colega' })).toHaveProperty(
+      'checked',
+      true,
+    );
   });
 
   it('preserva as escolhas quando a rede falha antes da confirmação', async () => {
     await renderReady();
-    chooseAll();
+    await chooseAll();
     fetchMock.mockRejectedValueOnce(new TypeError('network'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
 
     await screen.findByText(/A conexão falhou antes da confirmação/u);
-    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
     expect(screen.getByRole('radio', { name: 'Indicação de um colega' })).toHaveProperty(
       'checked',
       true,
@@ -281,7 +324,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     expect(screen.getByText(/Conclua a verificação de segurança/u)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
 
-    await screen.findByRole('heading', { name: 'Conte como sua clínica funciona hoje' });
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({});
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
@@ -318,8 +361,95 @@ describe('cadastro — conta e espera O-3b.5', () => {
       target: { value: ' Clínica Teste ' },
     });
     fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'ana@example.test' } });
-    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Senha123!' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Senha1234' } });
   }
+
+  it('atualiza o computador quando o e-mail é confirmado em outro aparelho', async () => {
+    const pendingSession: SignupSessionState = {
+      ...SAVED_SESSION,
+      status: 'email_pending',
+      rowVersion: 5,
+    };
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(json(200, { session: pendingSession }));
+    render(<SignupQuestions identityEnabled />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(
+      screen.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
+    ).toBeTruthy();
+    fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    });
+
+    expect(screen.getByRole('heading', { name: 'E-mail confirmado' })).toBeTruthy();
+    // Um destino serve aos dois casos: com sessão verificada a continuação
+    // segue, sem ela a própria página manda ao login.
+    expect(screen.getByRole('link', { name: 'Continuar cadastro' }).getAttribute('href')).toBe(
+      '/cadastro/continuar',
+    );
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/sessions/me',
+      '/api/signup/sessions/me',
+    ]);
+  });
+
+  it('para a espera no teto de leituras, em vez de gastar o limite por IP até o fim do TTL', async () => {
+    const pendingSession: SignupSessionState = {
+      ...SAVED_SESSION,
+      status: 'email_pending',
+      rowVersion: 5,
+    };
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(json(200, { session: pendingSession }));
+    render(<SignupQuestions identityEnabled />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * (POLL_MAX_ATTEMPTS + 20));
+    });
+
+    // 1 bootstrap + o teto de leituras da espera, nem uma a mais.
+    expect(fetchMock).toHaveBeenCalledTimes(POLL_MAX_ATTEMPTS + 1);
+    expect(
+      screen.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
+    ).toBeTruthy();
+  });
+
+  it('encerra a espera quando a sessão morre, sem insistir contra o limite', async () => {
+    const pendingSession: SignupSessionState = {
+      ...SAVED_SESSION,
+      status: 'email_pending',
+      rowVersion: 5,
+    };
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(json(200, { session: pendingSession }));
+    render(<SignupQuestions identityEnabled />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fetchMock.mockResolvedValue(json(410, { error: 'gone' }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 5);
+    });
+
+    expect(screen.getByRole('heading', { name: 'Vamos retomar daqui' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 
   it('mantém o gate fechado e só abre os dados depois das quatro respostas', async () => {
     await renderReady(SAVED_SESSION);
@@ -328,15 +458,15 @@ describe('cadastro — conta e espera O-3b.5', () => {
     await renderIdentity(identitySession);
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.getByRole('status').textContent).toContain('solicitação da conta ainda não foi');
-    expect(screen.queryByRole('button', { name: 'Salvar respostas' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Salvar e continuar' })).toBeNull();
     cleanup();
     fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
     render(<SignupQuestions identityEnabled />);
-    await screen.findByRole('heading', { name: 'Conte como sua clínica funciona hoje' });
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
     expect(screen.queryByRole('textbox')).toBeNull();
-    chooseAll();
+    await chooseAll();
     fetchMock.mockResolvedValueOnce(json(200, { rowVersion: 2 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar respostas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
     await screen.findByLabelText('Seu nome');
     expect(document.activeElement).toBe(screen.getByLabelText('Seu nome'));
   });
@@ -359,6 +489,46 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Senha'));
     expect(screen.getByText(/Use de 8 a 72 caracteres, sem espaços/u)).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('pede outra senha quando o provedor recusa, sem perder dados nem esperar cooldown', async () => {
+    // O filtro do Qoro aceita `Senha1234`; o provedor recusa por vazamento
+    // conhecido. Antes isso virava a tela de espera e nenhum e-mail chegava.
+    await renderIdentity();
+    fillIdentity();
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Senha1234' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fetchMock
+      .mockResolvedValueOnce(json(200, { rowVersion: 4 }))
+      .mockResolvedValueOnce(json(422, { error: 'weak_password' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
+
+    await screen.findByText(/aparece em vazamentos conhecidos/u);
+    // Continua na tela de dados: nada de espera por um e-mail que não saiu.
+    expect(
+      screen.queryByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
+    ).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText('Senha'));
+    // A senha some, o resto do formulário fica: só a escolha recusada é refeita.
+    expect(screen.getByLabelText('Senha')).toHaveProperty('value', '');
+    expect(screen.getByLabelText('Seu nome')).toHaveProperty('value', ' Ana ');
+    expect(screen.getByLabelText('E-mail')).toHaveProperty('value', 'ana@example.test');
+
+    // Nova tentativa imediata, sem releitura de `/me` no caminho.
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'OutraSenha7' } });
+    fetchMock
+      .mockResolvedValueOnce(json(200, { rowVersion: 5 }))
+      .mockResolvedValueOnce(json(200, { rowVersion: 6 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
+
+    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/sessions/me',
+      '/api/signup/sessions/identity',
+      '/api/signup/sessions/auth',
+      '/api/signup/sessions/identity',
+      '/api/signup/sessions/auth',
+    ]);
   });
 
   it('salva staging e chama Auth uma vez com a versão nova, senha e captcha efêmeros', async () => {
@@ -386,14 +556,12 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
       rowVersion: 3,
       email: 'ana@example.test',
-      password: 'Senha123!',
+      password: 'Senha1234',
       accepted: true,
       captchaToken: 'challenge-token',
     });
     expect(screen.queryByLabelText('Senha')).toBeNull();
-    expect(screen.getAllByRole('radio').every((radio) => radio.hasAttribute('disabled'))).toBe(
-      true,
-    );
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
   });
 
   it('retoma identity_pending sem PII/senha e exige redigitação para continuar', async () => {

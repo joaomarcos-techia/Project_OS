@@ -116,8 +116,9 @@ export function SignupEmailPending({ rowVersion, onUpdated, onReconcile, onGone 
         Aguardando a confirmação do e-mail
       </h2>
       <p className="mt-3 text-pretty text-sm leading-relaxed text-fg-muted">
-        Se o endereço puder continuar, você receberá uma mensagem com o link de confirmação. Depois
-        de confirmar, volte por esse link para revisar os dados. Se já confirmou, entre novamente.
+        Se o endereço puder continuar, você receberá uma mensagem com o link de confirmação. Abra o
+        link neste ou em outro aparelho: esta tela reconhece a confirmação sozinha. Se já confirmou
+        e nada mudou aqui, recarregue a página ou entre novamente.
       </p>
       <a
         href="/login"

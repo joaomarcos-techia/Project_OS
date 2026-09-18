@@ -22,18 +22,50 @@ const RISK_LABEL: Record<string, string> = {
   suspended: 'Suspensa por inadimplência',
   pending_payment: 'Aguardando pagamento',
 };
+const SIGNUP_STATUS_LABEL: Record<string, string> = {
+  details_complete: 'Perfil respondido',
+  identity_pending: 'Dados da conta',
+  email_pending: 'Aguardando e-mail',
+  email_verified: 'E-mail confirmado',
+};
+const PROFESSIONALS_LABEL: Record<string, string> = {
+  '1': '1 profissional',
+  '2_5': '2 a 5 profissionais',
+  '6_15': '6 a 15 profissionais',
+  '16_plus': '16 ou mais profissionais',
+};
+const APPOINTMENTS_LABEL: Record<string, string> = {
+  ate_20: 'Até 20 por semana',
+  '21_50': '21 a 50 por semana',
+  '51_100': '51 a 100 por semana',
+  '100_plus': 'Mais de 100 por semana',
+};
+const TOOLING_LABEL: Record<string, string> = {
+  nada_papel: 'Nada ou papel',
+  agenda_generica: 'Agenda genérica',
+  outro_sistema: 'Outro sistema',
+};
+const DISCOVERY_LABEL: Record<string, string> = {
+  busca_google: 'Busca no Google',
+  indicacao_colega: 'Indicação de colega',
+  redes_sociais: 'Redes sociais',
+  grupo_comunidade: 'Grupo ou comunidade',
+  evento: 'Evento ou congresso',
+  outro: 'Outro',
+};
 
 export default async function AdminDashboardPage() {
   await guardAdminAccess();
   // O overview precisa distinguir zero real de leitura indisponível. Cada consulta
   // tem deadline para não pendurar; timeout/erro sobe ao error boundary da rota,
   // que registra a falha e oferece retry sem exibir KPIs ou listas enganosos.
-  const [m, trend, breakdown, recent, atRisk] = await Promise.all([
+  const [m, trend, breakdown, recent, atRisk, signupIntakes] = await Promise.all([
     withQueryDeadline('admin.getDashboard', adminMetricsRepository.getDashboard()),
     withQueryDeadline('admin.getMrrTrend', adminMetricsRepository.getMrrTrend(6)),
     withQueryDeadline('admin.getStatusBreakdown', adminMetricsRepository.getStatusBreakdown()),
     withQueryDeadline('admin.list', clinicRepository.list({ pageSize: 4 })),
     withQueryDeadline('admin.listAtRisk', clinicRepository.listAtRisk(4)),
+    withQueryDeadline('admin.listSignupIntakes', clinicRepository.listSignupIntakes(8)),
   ]);
 
   const maxMrr = Math.max(1, ...trend.map((t) => t.cents));
@@ -218,6 +250,80 @@ export default async function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card role="region" aria-labelledby="admin-signup-intakes-title" className="mt-(--sp-4)">
+        <CardHeader>
+          <CardTitle id="admin-signup-intakes-title">Cadastros autônomos em andamento</CardTitle>
+          <CardDescription>
+            Perfil declarado antes da ativação da clínica, limitado aos cadastros ainda válidos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0 pt-(--sp-3)">
+          {signupIntakes.length === 0 ? (
+            <EmptyState
+              variant="compact"
+              className="border-t border-border"
+              title="Nenhum cadastro autônomo em andamento."
+              description="As respostas aparecerão aqui depois que o perfil da clínica for concluído."
+            />
+          ) : (
+            <ul className="divide-y divide-border border-t border-border">
+              {signupIntakes.map((signup) => (
+                <li key={signup.id} className="px-(--card-pad) py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-(length:--fs-sm) font-semibold text-fg">
+                        {signup.clinicName ?? 'Clínica ainda não informada'}
+                      </p>
+                      <p className="mt-0.5 text-(length:--fs-xs) text-fg-muted">
+                        atualizado em {formatDateTime(signup.updatedAt)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {signup.planCode ? <Badge tone="blue">{signup.planCode}</Badge> : null}
+                      <Badge tone={signup.status === 'email_verified' ? 'green' : 'amber'}>
+                        {SIGNUP_STATUS_LABEL[signup.status] ?? signup.status}
+                      </Badge>
+                    </div>
+                  </div>
+                  <dl className="mt-3 grid gap-3 text-(length:--fs-xs) sm:grid-cols-2 xl:grid-cols-4">
+                    <SignupAnswer
+                      label="Profissionais"
+                      value={
+                        PROFESSIONALS_LABEL[signup.professionalsBand] ?? signup.professionalsBand
+                      }
+                    />
+                    <SignupAnswer
+                      label="Atendimentos"
+                      value={
+                        APPOINTMENTS_LABEL[signup.weeklyAppointmentsBand] ??
+                        signup.weeklyAppointmentsBand
+                      }
+                    />
+                    <SignupAnswer
+                      label="Organização atual"
+                      value={TOOLING_LABEL[signup.currentTooling] ?? signup.currentTooling}
+                    />
+                    <SignupAnswer
+                      label="Origem"
+                      value={DISCOVERY_LABEL[signup.discoverySource] ?? signup.discoverySource}
+                    />
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </>
+  );
+}
+
+function SignupAnswer({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="font-medium text-fg-subtle">{label}</dt>
+      <dd className="mt-0.5 text-fg">{value}</dd>
+    </div>
   );
 }

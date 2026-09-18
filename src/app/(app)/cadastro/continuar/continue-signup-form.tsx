@@ -10,7 +10,6 @@ import { fieldControlClassName, Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { SignupAnswerValues, SignupDraftState } from '@/contexts/onboarding';
 
-type Mode = 'link' | 'restart';
 type Phase = 'loading' | 'form' | 'owned' | 'unavailable' | 'signed_out';
 
 const LABELS = {
@@ -72,20 +71,6 @@ function isOwnedDraft(value: unknown): value is SignupDraftState {
   );
 }
 
-function readOriginalSession(
-  value: unknown,
-): { rowVersion: number; answers: SignupAnswerValues } | null {
-  if (!isRecord(value) || !isRecord(value.session)) return null;
-  const { session } = value;
-  return session.status === 'email_pending' &&
-    typeof session.rowVersion === 'number' &&
-    Number.isInteger(session.rowVersion) &&
-    session.rowVersion >= 1 &&
-    isAnswers(session.answers)
-    ? { rowVersion: session.rowVersion, answers: session.answers }
-    : null;
-}
-
 async function responseJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -96,8 +81,6 @@ async function responseJson(response: Response): Promise<unknown> {
 
 export function ContinueSignupForm() {
   const [phase, setPhase] = useState<Phase>('loading');
-  const [mode, setMode] = useState<Mode>('restart');
-  const [rowVersion, setRowVersion] = useState<number | null>(null);
   const [answers, setAnswers] = useState<Partial<SignupAnswerValues>>({});
   const [owned, setOwned] = useState<SignupDraftState | null>(null);
   const [accepted, setAccepted] = useState(false);
@@ -127,25 +110,11 @@ export function ContinueSignupForm() {
         return;
       }
 
-      const originalResponse = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
-      const originalBody = await responseJson(originalResponse);
-      const original = originalResponse.ok ? readOriginalSession(originalBody) : null;
-      if (original) {
-        setMode('link');
-        setRowVersion(original.rowVersion);
-        setAnswers(original.answers);
-        setPhase('form');
-        return;
-      }
-      if (originalResponse.status === 410) {
-        setMode('restart');
-        setRowVersion(null);
-        setAnswers({});
-        setPhase('form');
-        return;
-      }
-      setMessage('Não foi possível verificar o navegador original. Tente novamente.');
-      setPhase('unavailable');
+      // 410 aqui significa que o servidor procurou pelo e-mail já verificado e
+      // não achou cadastro vivo nenhum — o prazo absoluto venceu, ou nunca
+      // houve. Só neste caso pedimos os dados de novo.
+      setAnswers({});
+      setPhase('form');
     } catch {
       setMessage('A conexão falhou durante a consulta. Tente novamente.');
       setPhase('unavailable');
@@ -200,14 +169,12 @@ export function ContinueSignupForm() {
     }
     if (!accepted) {
       form.querySelector<HTMLButtonElement>('[role="checkbox"]')?.focus();
-      setMessage('Confirme o aceite para vincular os dados verificados.');
+      setMessage('Confirme o aceite para concluir o cadastro verificado.');
       return;
     }
     if (!(owner instanceof HTMLInputElement) || !(clinic instanceof HTMLInputElement)) return;
 
     const body = {
-      mode,
-      ...(mode === 'link' && rowVersion !== null ? { rowVersion } : {}),
       ownerName: owner.value.trim(),
       clinicName: clinic.value.trim(),
       answers,
@@ -229,13 +196,8 @@ export function ContinueSignupForm() {
         }
       } else if (response.status === 409) {
         if (!(await loadOwnedAfterWrite())) {
-          setMessage('Outra aba vinculou dados primeiro. Recarregue para revisar o resultado.');
+          setMessage('Outra aba concluiu o cadastro primeiro. Recarregue para ver o resultado.');
         }
-      } else if (response.status === 410) {
-        setMessage('O cadastro temporário expirou. Preencha os dados novamente.');
-        setMode('restart');
-        setRowVersion(null);
-        setAnswers({});
       } else if (response.status === 401 || response.status === 403) {
         setPhase('signed_out');
       } else if (response.status === 429) {
@@ -288,8 +250,9 @@ export function ContinueSignupForm() {
   if (phase === 'owned' && owned) {
     return (
       <div className="space-y-5">
-        <Alert variant="success" title="Dados vinculados à conta verificada">
-          Revise o resumo abaixo. A criação da clínica ainda não foi iniciada.
+        <Alert variant="success" title="Cadastro recuperado na conta verificada">
+          Estes são os dados do seu cadastro, mesmo que você tenha começado em outro aparelho. A
+          criação da clínica ainda não foi iniciada.
         </Alert>
         <ReviewList draft={owned} />
         <a href="/cadastro/plano" className={buttonVariants({ variant: 'primary' })}>
@@ -302,9 +265,8 @@ export function ContinueSignupForm() {
   return (
     <form onSubmit={submit} noValidate className="space-y-5">
       <Alert variant="info" title="E-mail confirmado">
-        {mode === 'link'
-          ? 'Encontramos as respostas deste navegador. Confirme os dados para vinculá-los à conta.'
-          : 'Este navegador não possui o cadastro original. Preencha novamente os dados para continuar.'}
+        Não encontramos um cadastro em andamento para este endereço — ele pode ter expirado.
+        Preencha os dados novamente para continuar.
       </Alert>
       <fieldset disabled={saving} className="space-y-4">
         <div className="space-y-2">
@@ -327,11 +289,7 @@ export function ContinueSignupForm() {
             required
           />
         </div>
-        {mode === 'link' && isAnswers(answers) ? (
-          <ReviewAnswers answers={answers} />
-        ) : (
-          <AnswerFields answers={answers} onChange={changeAnswer} />
-        )}
+        <AnswerFields answers={answers} onChange={changeAnswer} />
         <div className="flex min-h-10 items-start gap-3 pt-1">
           <Checkbox
             id="continue-accepted"
@@ -347,7 +305,7 @@ export function ContinueSignupForm() {
       </fieldset>
       <div aria-live="polite">{message ? <Alert variant="warning">{message}</Alert> : null}</div>
       <Button type="submit" loading={saving} className="w-full">
-        Confirmar e revisar dados
+        Confirmar e continuar
       </Button>
     </form>
   );
@@ -425,23 +383,6 @@ function SelectField<T extends string>({
         ))}
       </select>
     </div>
-  );
-}
-
-function ReviewAnswers({ answers }: { answers: SignupAnswerValues }) {
-  return (
-    <dl className="grid gap-3 rounded-(--r-md) bg-surface-inset p-4 text-sm sm:grid-cols-2">
-      <ReviewItem
-        label="Profissionais"
-        value={LABELS.professionalsBand[answers.professionalsBand]}
-      />
-      <ReviewItem
-        label="Atendimentos"
-        value={LABELS.weeklyAppointmentsBand[answers.weeklyAppointmentsBand]}
-      />
-      <ReviewItem label="Organização" value={LABELS.currentTooling[answers.currentTooling]} />
-      <ReviewItem label="Origem" value={LABELS.discoverySource[answers.discoverySource]} />
-    </dl>
   );
 }
 

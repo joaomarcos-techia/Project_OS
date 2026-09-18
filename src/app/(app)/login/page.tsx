@@ -1,6 +1,7 @@
 'use client';
 
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
 import { Suspense, useActionState, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -164,12 +165,14 @@ function LoginScreen() {
               </div>
             </div>
 
-            {/* "Cadastre-se" é órfão de propósito (decisão do founder, 2026-09-10):
-                o self-serve ainda não existe, e o destino entra depois. Fica como
-                texto, não <a> — um link que não navega é pior que nenhum. */}
             <p className="mt-6 text-center text-[13px] leading-none text-fg-subtle">
               Sua clínica ainda não usa a Qoro?{' '}
-              <span className="font-semibold text-(--text-link)">Cadastre-se</span>
+              <Link
+                href="/cadastro"
+                className="inline-flex min-h-10 items-center font-semibold text-(--text-link) underline-offset-4 hover:underline focus-visible:rounded-(--r-sm) focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
+              >
+                Cadastre-se
+              </Link>
             </p>
           </div>
 

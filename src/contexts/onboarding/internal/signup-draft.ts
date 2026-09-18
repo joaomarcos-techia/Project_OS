@@ -2,7 +2,7 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 
-import { and, asc, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 /* eslint-disable boundaries/element-types -- O-4 resolve o catálogo global de Billing
@@ -16,32 +16,26 @@ import { env } from '@/lib/env';
 
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
-import {
-  hashSignupToken,
-  SIGNUP_ABSOLUTE_TTL_SECONDS,
-  SIGNUP_IDLE_TTL_SECONDS,
-  signupNameSchema,
-} from './signup-session';
+import { hashSignupToken, SIGNUP_ABSOLUTE_TTL_SECONDS, signupNameSchema } from './signup-session';
 
 const userIdSchema = z.string().uuid();
 const verifiedEmailSchema = z.string().max(160).email();
-const confirmedFields = {
-  ownerName: signupNameSchema,
-  clinicName: signupNameSchema,
-  answers: signupAnswerValuesSchema,
-  accepted: z.literal(true),
-};
-
-export const signupDraftMutationSchema = z.discriminatedUnion('mode', [
-  z
-    .object({
-      mode: z.literal('link'),
-      rowVersion: z.number().int().min(1).max(2_147_483_646),
-      ...confirmedFields,
-    })
-    .strict(),
-  z.object({ mode: z.literal('restart'), ...confirmedFields }).strict(),
-]);
+/**
+ * Recomeço explícito: o único POST do draft depois que o e-mail foi verificado.
+ *
+ * Não existe modo de vínculo pelo cookie anônimo. Quem já tem um cadastro vivo é
+ * reencontrado no servidor por `claimSignupDraftByVerifiedEmail`, antes de
+ * qualquer formulário; este corpo só aparece quando não há nada a recuperar e a
+ * pessoa reescreve tudo. Ids, versão, plano, preço, papel e tenant são recusados.
+ */
+export const signupDraftMutationSchema = z
+  .object({
+    ownerName: signupNameSchema,
+    clinicName: signupNameSchema,
+    answers: signupAnswerValuesSchema,
+    accepted: z.literal(true),
+  })
+  .strict();
 
 export interface SignupDraftState {
   status: 'email_verified';
@@ -77,12 +71,16 @@ export interface SignupPlanState {
   trialDays: number;
 }
 
+/** Sem `gone`: criar não depende de linha anterior; o que falha é disputa ou gate. */
 type DraftOutcome =
   | { ok: true; rowVersion: number }
-  | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
+  | { ok: false; reason: 'conflict' | 'unavailable' };
 type DraftReadOutcome =
   | { ok: true; draft: SignupDraftState }
   | { ok: false; reason: 'gone' | 'unavailable' };
+export type ClaimSignupDraftOutcome =
+  | { ok: true; rowVersion: number }
+  | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
 type PlanWriteOutcome =
   | { ok: true; rowVersion: number; selectedPlanId: string }
   | { ok: false; reason: 'gone' | 'conflict' | 'invalid_plan' | 'unavailable' };
@@ -218,9 +216,11 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
     const [saved] = await tx
       .update(signupSessions)
       .set({
+        // Sem tocar em `idle_expires_at`: num draft já vinculado ele é igual ao
+        // absoluto, e `least(now() + idle, absoluto)` ENCURTARIA o prazo a cada
+        // escolha de plano — a leitura autenticada não renova nada depois.
         selectedPlanId: planId,
         rowVersion: sql`${signupSessions.rowVersion} + 1`,
-        idleExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
       })
       .where(and(ownerDraftCondition(userId), eq(signupSessions.rowVersion, rowVersion)))
       .returning({
@@ -290,14 +290,98 @@ export async function readSignupDraft(userId: string): Promise<DraftReadOutcome>
   };
 }
 
+/**
+ * Vincula o draft ao usuário que acabou de provar o mesmo e-mail no Auth.
+ *
+ * O e-mail verificado substitui com segurança o cookie anônimo quando o link é
+ * aberto em outro aparelho. O candidato mais recente é travado e consumido por
+ * CAS; nenhum nome, resposta ou aceite vem novamente do navegador.
+ *
+ * `auth_attempt_state` NÃO filtra o candidato: a constraint da migration 0100 já
+ * exige tentativa em `email_pending`, e uma reserva cuja finalização se perdeu
+ * (`reserved`) descreve justamente o e-mail que pode ter sido entregue. Quem
+ * chega aqui carrega um OTP válido daquele endereço — recusar a reserva órfã
+ * devolveria a redigitação que esta correção existe para eliminar.
+ */
+export async function claimSignupDraftByVerifiedEmail(
+  userId: string,
+  email: string,
+): Promise<ClaimSignupDraftOutcome> {
+  if (!enabled()) return { ok: false, reason: 'unavailable' };
+  const identity = z.object({ userId: userIdSchema, email: verifiedEmailSchema }).safeParse({
+    userId,
+    email,
+  });
+  if (!identity.success) return { ok: false, reason: 'unavailable' };
+
+  try {
+    return await dbAdmin.transaction(async (tx) => {
+      const [owned] = await tx
+        .select({ rowVersion: signupSessions.rowVersion })
+        .from(signupSessions)
+        .where(ownerDraftCondition(identity.data.userId))
+        .for('update')
+        .limit(1);
+      if (owned) return { ok: true, rowVersion: owned.rowVersion };
+
+      const [candidate] = await tx
+        .select({ id: signupSessions.id, rowVersion: signupSessions.rowVersion })
+        .from(signupSessions)
+        .where(
+          and(
+            eq(signupSessions.emailHash, hashEmail(identity.data.email)),
+            eq(signupSessions.status, 'email_pending'),
+            isNotNull(signupSessions.authAttemptedAt),
+            isNull(signupSessions.authUserId),
+            isNull(signupSessions.consumedAt),
+            gt(signupSessions.absoluteExpiresAt, sql`now()`),
+          ),
+        )
+        .orderBy(desc(signupSessions.authAttemptedAt), desc(signupSessions.createdAt))
+        .for('update')
+        .limit(1);
+      if (!candidate) return { ok: false, reason: 'gone' };
+
+      const [claimed] = await tx
+        .update(signupSessions)
+        .set({
+          status: 'email_verified',
+          authUserId: identity.data.userId,
+          consumedAt: sql`now()`,
+          idleExpiresAt: signupSessions.absoluteExpiresAt,
+          rowVersion: sql`${signupSessions.rowVersion} + 1`,
+        })
+        .where(
+          and(
+            eq(signupSessions.id, candidate.id),
+            eq(signupSessions.rowVersion, candidate.rowVersion),
+            eq(signupSessions.status, 'email_pending'),
+            isNull(signupSessions.authUserId),
+            isNull(signupSessions.consumedAt),
+          ),
+        )
+        .returning({ rowVersion: signupSessions.rowVersion });
+      return claimed
+        ? { ok: true, rowVersion: claimed.rowVersion }
+        : { ok: false, reason: 'conflict' };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, reason: 'conflict' };
+    throw error;
+  }
+}
+
 export interface WriteSignupDraftInput {
   userId: string;
   email: string;
-  rawToken: string | null;
   input: unknown;
 }
 
-/** Link CAS ou restart do próprio owner; nunca cria profile, tenant, role ou plano. */
+/**
+ * Cria o draft verificado do próprio usuário; nunca cria profile, tenant, role
+ * ou plano. Só chega aqui quem não tinha nada a recuperar: a linha nasce já
+ * consumida, sem devolver credencial anônima nova ao navegador.
+ */
 export async function writeSignupDraft(args: WriteSignupDraftInput): Promise<DraftOutcome> {
   if (!enabled()) return { ok: false, reason: 'unavailable' };
   const identity = z
@@ -310,65 +394,6 @@ export async function writeSignupDraft(args: WriteSignupDraftInput): Promise<Dra
     return await dbAdmin.transaction(async (tx) => {
       const { userId, email } = identity.data;
       const data = input.data;
-      if (data.mode === 'link') {
-        if (!args.rawToken || !/^[A-Za-z0-9_-]{43}$/u.test(args.rawToken)) {
-          return { ok: false, reason: 'gone' };
-        }
-        const tokenHash = hashSignupToken(args.rawToken);
-        const [saved] = await tx
-          .update(signupSessions)
-          .set({
-            status: 'email_verified',
-            authUserId: userId,
-            consumedAt: sql`now()`,
-            ownerName: data.ownerName,
-            clinicName: data.clinicName,
-            emailHash: hashEmail(email),
-            acceptedAt: sql`now()`,
-            professionalsBand: data.answers.professionalsBand,
-            weeklyAppointmentsBand: data.answers.weeklyAppointmentsBand,
-            currentTooling: data.answers.currentTooling,
-            discoverySource: data.answers.discoverySource,
-            answeredAt: sql`now()`,
-            rowVersion: sql`${signupSessions.rowVersion} + 1`,
-          })
-          .where(
-            and(
-              eq(signupSessions.tokenHash, tokenHash),
-              eq(signupSessions.status, 'email_pending'),
-              eq(signupSessions.emailHash, hashEmail(email)),
-              eq(signupSessions.rowVersion, data.rowVersion),
-              isNull(signupSessions.authUserId),
-              isNull(signupSessions.consumedAt),
-              gt(signupSessions.idleExpiresAt, sql`now()`),
-              gt(signupSessions.absoluteExpiresAt, sql`now()`),
-            ),
-          )
-          .returning({ rowVersion: signupSessions.rowVersion });
-        if (saved) return { ok: true, rowVersion: saved.rowVersion };
-
-        const [owned] = await tx
-          .select({ id: signupSessions.id })
-          .from(signupSessions)
-          .where(eq(signupSessions.authUserId, userId))
-          .limit(1);
-        if (owned) return { ok: false, reason: 'conflict' };
-        const [original] = await tx
-          .select({ id: signupSessions.id })
-          .from(signupSessions)
-          .where(
-            and(
-              eq(signupSessions.tokenHash, tokenHash),
-              eq(signupSessions.status, 'email_pending'),
-              isNull(signupSessions.consumedAt),
-              gt(signupSessions.idleExpiresAt, sql`now()`),
-              gt(signupSessions.absoluteExpiresAt, sql`now()`),
-            ),
-          )
-          .limit(1);
-        return { ok: false, reason: original ? 'conflict' : 'gone' };
-      }
-
       await tx
         .delete(signupSessions)
         .where(
@@ -403,7 +428,13 @@ export async function writeSignupDraft(args: WriteSignupDraftInput): Promise<Dra
           currentTooling: data.answers.currentTooling,
           discoverySource: data.answers.discoverySource,
           answeredAt: sql`now()`,
-          idleExpiresAt: sql`now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS})`,
+          // Idle igual ao absoluto, como no claim: a janela de inatividade
+          // existe para limitar a credencial ANÔNIMA, e esta linha
+          // já nasce consumida e presa a um usuário verificado. Mantê-la em 15
+          // min com leitura que não renova (`readSignupDraft`) apagaria o
+          // cadastro que a pessoa acabou de redigitar. O teto absoluto de 60
+          // min continua valendo e é o único prazo desta linha.
+          idleExpiresAt: sql`now() + make_interval(secs => ${SIGNUP_ABSOLUTE_TTL_SECONDS})`,
           absoluteExpiresAt: sql`now() + make_interval(secs => ${SIGNUP_ABSOLUTE_TTL_SECONDS})`,
         })
         .returning({ rowVersion: signupSessions.rowVersion });

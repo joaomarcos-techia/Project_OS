@@ -15,6 +15,7 @@ vi.mock('@/lib/env', () => ({ env }));
 vi.mock('@/lib/db', () => ({ dbAdmin: { update, select } }));
 
 import {
+  abortSignupAuthAttempt,
   finishSignupAuthAttempt,
   finishSignupResendAttempt,
   reserveSignupAuthAttempt,
@@ -49,7 +50,6 @@ describe('senha e contrato inicial', () => {
     'abcdef1!',
     'ABCDEF1!',
     'Abcdefg!',
-    'Abcdef12',
     'Aa1!abc',
     'Aa1!ab😀',
     'Aa1!abc\n',
@@ -66,8 +66,8 @@ describe('senha e contrato inicial', () => {
     );
     expect(update).not.toHaveBeenCalled();
   });
-  it.each(['Abcdef1!', 'Aa1!áááá', 'Aa1!' + 'a'.repeat(68)])(
-    'aceita as classes do Supabase e preserva caracteres adicionais sem normalizar',
+  it.each(['Abcdef1!', 'Abcdef12', 'Aa1ááááá', 'Aa1' + 'a'.repeat(69)])(
+    'aceita maiúscula, minúscula e número sem exigir símbolo nem normalizar',
     (password) => {
       expect(signupAuthSchema.parse({ ...valid, password }).password).toBe(password);
     },
@@ -119,14 +119,89 @@ describe('senha e contrato inicial', () => {
     expect(Object.values(fields)).not.toContain(valid.password);
     expect(Object.values(fields)).not.toContain(valid.email);
   });
-  it.each(['completed', 'uncertain'] as const)('finalização %s não renova TTL', async (outcome) => {
-    expect(await finishSignupAuthAttempt(token, 4, outcome)).toEqual({ ok: true, rowVersion: 4 });
-    expect(Object.keys(set.mock.calls[0]?.[0]).sort()).toEqual(['authAttemptState', 'rowVersion']);
-  });
+  it.each(['completed', 'uncertain'] as const)(
+    'finalização %s estende a espera somente até o teto absoluto',
+    async (outcome) => {
+      expect(await finishSignupAuthAttempt(token, 4, outcome)).toEqual({
+        ok: true,
+        rowVersion: 4,
+      });
+      expect(Object.keys(set.mock.calls[0]?.[0]).sort()).toEqual([
+        'authAttemptState',
+        'idleExpiresAt',
+        'rowVersion',
+      ]);
+    },
+  );
   it.each([0, 1.5, 2_147_483_647])('recusa versão de resultado inválida %s', async (version) => {
     await expect(finishSignupAuthAttempt(token, version, 'completed')).rejects.toThrow(
       '[signup] invalid_auth_result',
     );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('devolve a reserva ao estado anterior, sem tocar em prazo nem em staging', async () => {
+    expect(await abortSignupAuthAttempt(token, 4)).toEqual({ ok: true, rowVersion: 4 });
+
+    const fields = set.mock.calls[0]?.[0] as Record<string, unknown>;
+    // Exatamente o estado de antes da reserva: etapa de volta e tentativa
+    // zerada. Os CHECKs de 0099 exigem staging/aceite intactos, e a 0100 aceita
+    // a tentativa toda nula — por isso nada disso é regravado aqui.
+    expect(Object.keys(fields).sort()).toEqual([
+      'authAttemptKind',
+      'authAttemptState',
+      'authAttemptedAt',
+      'rowVersion',
+      'status',
+    ]);
+    expect(fields.status).toBe('identity_pending');
+    expect(fields.authAttemptKind).toBeNull();
+    expect(fields.authAttemptState).toBeNull();
+    expect(fields.authAttemptedAt).toBeNull();
+    // Abortar não é atividade humana nova: nenhum dos dois prazos se move.
+    expect(fields).not.toHaveProperty('idleExpiresAt');
+    expect(fields).not.toHaveProperty('absoluteExpiresAt');
+    expect(Object.values(fields)).not.toContain(valid.password);
+    expect(Object.values(fields)).not.toContain(valid.email);
+  });
+
+  it('distingue linha viva de linha morta quando o CAS de devolução não casa', async () => {
+    set.mockReturnValue({ where: () => ({ returning: async () => [] }) });
+
+    select.mockReturnValue({
+      from: () => ({ where: () => ({ limit: async () => [{ rowVersion: 9 }] }) }),
+    });
+    expect(await abortSignupAuthAttempt(token, 4)).toEqual({ ok: false, reason: 'conflict' });
+
+    select.mockReturnValue({ from: () => ({ where: () => ({ limit: async () => [] }) }) });
+    expect(await abortSignupAuthAttempt(token, 4)).toEqual({ ok: false, reason: 'gone' });
+  });
+
+  it.each([0, 1.5, 2_147_483_647])('recusa versão de devolução inválida %s', async (version) => {
+    await expect(abortSignupAuthAttempt(token, version)).rejects.toThrow(
+      '[signup] invalid_auth_result',
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it.each(['auth', 'identity'] as const)(
+    'fecha gate %s antes de devolver reserva',
+    async (gate) => {
+      if (gate === 'auth') env.SIGNUP_AUTH_ENABLED = false;
+      if (gate === 'identity') env.SIGNUP_IDENTITY_ENABLED = false;
+      expect(await abortSignupAuthAttempt(token, 4)).toEqual({
+        ok: false,
+        reason: 'unavailable',
+      });
+      expect(update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('trata token malformado como sessão inexistente, sem tocar no banco', async () => {
+    expect(await abortSignupAuthAttempt('curto-demais', 4)).toEqual({
+      ok: false,
+      reason: 'gone',
+    });
     expect(update).not.toHaveBeenCalled();
   });
 });

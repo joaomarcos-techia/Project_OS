@@ -31,6 +31,22 @@ function json(status: number, body: unknown): Response {
   });
 }
 
+function fillRestartForm() {
+  fireEvent.change(screen.getByLabelText('Seu nome'), { target: { value: 'Bia' } });
+  fireEvent.change(screen.getByLabelText('Nome da clínica'), { target: { value: 'Clínica B' } });
+  fireEvent.change(screen.getByLabelText('Profissionais'), { target: { value: '2_5' } });
+  fireEvent.change(screen.getByLabelText('Atendimentos por semana'), {
+    target: { value: '21_50' },
+  });
+  fireEvent.change(screen.getByLabelText('Organização atual'), {
+    target: { value: 'outro_sistema' },
+  });
+  fireEvent.change(screen.getByLabelText('Como conheceu a Qoro'), {
+    target: { value: 'indicacao_colega' },
+  });
+  fireEvent.click(screen.getByRole('checkbox'));
+}
+
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
@@ -41,103 +57,74 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('continuação autenticada O-3b.5', () => {
-  it('carrega o draft já pertencente ao usuário sem disparar escrita', async () => {
+describe('continuação autenticada do cadastro verificado', () => {
+  it('recupera o cadastro pela identidade verificada, sem redigitar nada', async () => {
     fetchMock.mockResolvedValueOnce(json(200, OWNED));
     render(<ContinueSignupForm />);
 
-    await screen.findByText('Dados vinculados à conta verificada');
+    await screen.findByText('Cadastro recuperado na conta verificada');
     expect(screen.getByText('Ana')).toBeTruthy();
     expect(screen.getByText('Clínica Teste')).toBeTruthy();
     expect(screen.getByText('2 a 5 profissionais')).toBeTruthy();
+    expect(screen.queryByLabelText('Seu nome')).toBeNull();
+    expect(screen.queryByLabelText('Senha')).toBeNull();
     expect(screen.getByRole('link', { name: 'Escolher plano' })).toHaveProperty(
       'href',
       'http://localhost:3000/cadastro/plano',
     );
+    // Uma única leitura: o vínculo acontece no servidor, dentro deste GET.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/signup/draft');
     expect(fetchMock.mock.calls[0]?.[1]).toEqual({ cache: 'no-store' });
   });
 
-  it('vincula o navegador original por CAS, sem recuperar nomes nem pedir senha', async () => {
-    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' })).mockResolvedValueOnce(
-      json(200, {
-        session: {
-          status: 'email_pending',
-          rowVersion: 5,
-          riskLevel: 0,
-          expiresAt: '2026-09-16T15:00:00.000Z',
-          answers: ANSWERS,
-        },
-      }),
-    );
+  it('não consulta a sessão anônima: 410 já significa que não há nada a recuperar', async () => {
+    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
     render(<ContinueSignupForm />);
 
-    await screen.findByText(/Encontramos as respostas deste navegador/u);
-    expect(screen.getByText('2 a 5 profissionais')).toBeTruthy();
-    expect(screen.getByLabelText('Seu nome')).toHaveProperty('value', '');
-    expect(screen.queryByLabelText('Senha')).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    fireEvent.change(screen.getByLabelText('Seu nome'), { target: { value: ' Ana ' } });
-    fireEvent.change(screen.getByLabelText('Nome da clínica'), {
-      target: { value: ' Clínica Teste ' },
-    });
-    fireEvent.click(screen.getByRole('checkbox'));
-    fetchMock
-      .mockResolvedValueOnce(json(200, { rowVersion: 6 }))
-      .mockResolvedValueOnce(json(200, OWNED));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e revisar dados' }));
-
-    await screen.findByText('Dados vinculados à conta verificada');
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
-      mode: 'link',
-      rowVersion: 5,
-      ownerName: 'Ana',
-      clinicName: 'Clínica Teste',
-      answers: ANSWERS,
-      accepted: true,
-    });
-    expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/signup/draft');
+    await screen.findByText(/Não encontramos um cadastro em andamento/u);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain('/api/signup/sessions/me');
   });
 
-  it('reinicia todos os dados em outro navegador e omite rowVersion/token', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json(410, { error: 'gone' }))
-      .mockResolvedValueOnce(json(410, { error: 'gone' }));
+  it('recomeça com todos os dados e envia só o contrato do recomeço', async () => {
+    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
     render(<ContinueSignupForm />);
 
-    await screen.findByText(/não possui o cadastro original/u);
+    await screen.findByText(/Não encontramos um cadastro em andamento/u);
     expect(screen.getAllByRole('combobox')).toHaveLength(4);
-    fireEvent.change(screen.getByLabelText('Seu nome'), { target: { value: 'Bia' } });
-    fireEvent.change(screen.getByLabelText('Nome da clínica'), { target: { value: 'Clínica B' } });
-    fireEvent.change(screen.getByLabelText('Profissionais'), { target: { value: '2_5' } });
-    fireEvent.change(screen.getByLabelText('Atendimentos por semana'), {
-      target: { value: '21_50' },
-    });
-    fireEvent.change(screen.getByLabelText('Organização atual'), {
-      target: { value: 'outro_sistema' },
-    });
-    fireEvent.change(screen.getByLabelText('Como conheceu a Qoro'), {
-      target: { value: 'indicacao_colega' },
-    });
-    fireEvent.click(screen.getByRole('checkbox'));
+    fillRestartForm();
     fetchMock
       .mockResolvedValueOnce(json(200, { rowVersion: 1 }))
       .mockResolvedValueOnce(json(200, { ...OWNED, ownerName: 'Bia', clinicName: 'Clínica B' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e revisar dados' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e continuar' }));
 
-    await screen.findByText('Dados vinculados à conta verificada');
-    const body = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body));
+    await screen.findByText('Cadastro recuperado na conta verificada');
+    const body = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(body).toEqual({
-      mode: 'restart',
       ownerName: 'Bia',
       clinicName: 'Clínica B',
       answers: ANSWERS,
       accepted: true,
     });
+    expect(body).not.toHaveProperty('mode');
     expect(body).not.toHaveProperty('rowVersion');
-    expect(String(fetchMock.mock.calls[2]?.[1]?.body)).not.toMatch(/password|token/iu);
+    expect(String(fetchMock.mock.calls[1]?.[1]?.body)).not.toMatch(/password|token/iu);
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/signup/draft');
+  });
+
+  it('relê o resultado quando outra aba concluiu primeiro, em vez de sobrescrever', async () => {
+    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
+    render(<ContinueSignupForm />);
+    await screen.findByText(/Não encontramos um cadastro em andamento/u);
+    fillRestartForm();
+    fetchMock
+      .mockResolvedValueOnce(json(409, { error: 'conflict' }))
+      .mockResolvedValueOnce(json(200, OWNED));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e continuar' }));
+
+    await screen.findByText('Cadastro recuperado na conta verificada');
+    expect(screen.getByText('Ana')).toBeTruthy();
   });
 
   it('não trata indisponibilidade como navegador novo e permite repetir só a leitura', async () => {
@@ -148,35 +135,39 @@ describe('continuação autenticada O-3b.5', () => {
     expect(screen.queryByLabelText('Seu nome')).toBeNull();
     fetchMock.mockResolvedValueOnce(json(200, OWNED));
     fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
-    await screen.findByText('Dados vinculados à conta verificada');
+    await screen.findByText('Cadastro recuperado na conta verificada');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('não trata resposta 200 malformada da sessão original como restart', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json(410, { error: 'gone' }))
-      .mockResolvedValueOnce(json(200, { session: { status: 'email_pending' } }));
+  it('não trata 200 malformado do draft como cadastro recuperado', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { status: 'email_verified' }));
     render(<ContinueSignupForm />);
 
-    await screen.findByText(/Não foi possível verificar o navegador original/u);
+    await screen.findByText(/Não foi possível consultar seu cadastro/u);
     expect(screen.queryByLabelText('Seu nome')).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('valida o restart antes do POST e mantém a confirmação explícita', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json(410, { error: 'gone' }))
-      .mockResolvedValueOnce(json(410, { error: 'gone' }));
+  it('manda para o login quando a sessão verificada não vale mais', async () => {
+    fetchMock.mockResolvedValueOnce(json(401, { error: 'unauthorized' }));
     render(<ContinueSignupForm />);
-    await screen.findByText(/não possui o cadastro original/u);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e revisar dados' }));
+    await screen.findByText('Sessão encerrada');
+    expect(screen.getByRole('link', { name: 'Ir para o login' })).toBeTruthy();
+  });
+
+  it('valida o recomeço antes do POST e mantém a confirmação explícita', async () => {
+    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
+    render(<ContinueSignupForm />);
+    await screen.findByText(/Não encontramos um cadastro em andamento/u);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e continuar' }));
     expect(document.activeElement).toBe(screen.getByLabelText('Seu nome'));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     fireEvent.change(screen.getByLabelText('Seu nome'), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText('Nome da clínica'), { target: { value: 'Clínica' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e revisar dados' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar e continuar' }));
     await waitFor(() => expect(screen.getByText(/Revise as quatro respostas/u)).toBeTruthy());
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

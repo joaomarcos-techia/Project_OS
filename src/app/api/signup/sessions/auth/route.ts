@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import {
+  abortSignupAuthAttempt,
   finishSignupAuthAttempt,
   hashSignupToken,
   reserveSignupAuthAttempt,
@@ -19,13 +20,19 @@ import { readSignupCookie, SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const MAX_AUTH_BODY_BYTES = 16_384;
-// Inclusive força adicional rejeitada pelo provider: mesma resposta pública por conta.
-const ACCOUNT_OUTCOMES = new Set([
-  'user_already_exists',
-  'email_exists',
-  'weak_password',
-  'user_banned',
-]);
+/**
+ * Recusas que DEPENDEM da conta. Todas recebem a mesma resposta pública, porque
+ * diferenciá-las diria a um terceiro se aquele endereço já existe (§6).
+ *
+ * `weak_password` saiu deste conjunto em 17/09/2026. Ela não depende de conta
+ * nenhuma: o GoTrue avalia comprimento, classes e HIBP a partir do valor
+ * enviado, antes de olhar o usuário — e um e-mail já confirmado recebe sucesso
+ * ofuscado, nunca `weak_password`. Mantê-la aqui transformava uma senha comum
+ * numa espera que nunca termina: com `password_hibp_enabled` ligado no projeto,
+ * `Senha1234` passa no filtro do Qoro e é recusada lá, e a pessoa via a tela de
+ * espera sem que e-mail algum tivesse saído.
+ */
+const ACCOUNT_OUTCOMES = new Set(['user_already_exists', 'email_exists', 'user_banned']);
 
 function json(body: { error: string } | { rowVersion: number }, status = 200): NextResponse {
   const response = NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -84,6 +91,7 @@ export async function POST(req: Request): Promise<Response> {
         reserved.reason === 'gone' ? 410 : reserved.reason === 'conflict' ? 409 : 503,
       );
     let completed = false;
+    let rejectedPassword = false;
     try {
       const supabase = await createServerClient({
         newSession: true,
@@ -95,10 +103,24 @@ export async function POST(req: Request): Promise<Response> {
         password,
         options: { emailRedirectTo: redirectUrl, ...captchaOptions(captchaToken) },
       });
+      rejectedPassword = !data.session && error?.code === 'weak_password';
       completed = !data.session && (!error || ACCOUNT_OUTCOMES.has(error.code ?? ''));
     } catch {
       completed = false;
     } // Provider/cookies podem ter falhado após envio; não repetir.
+
+    // Senha recusada é o único desfecho em que o provider prova que não enviou
+    // nada. Devolver a reserva deixa a pessoa tentar outra senha na hora, em vez
+    // de gastar a tentativa e cair no cooldown de reenvio. Se o CAS de devolução
+    // perder, a linha continua reservada e o caminho conservador vale: 503, sem
+    // afirmar envio. Nenhum detalhe do provider atravessa a resposta.
+    if (rejectedPassword) {
+      const aborted = await abortSignupAuthAttempt(token, reserved.rowVersion);
+      return aborted.ok
+        ? json({ error: 'weak_password' }, 422)
+        : json({ error: 'unavailable' }, 503);
+    }
+
     const finished = await finishSignupAuthAttempt(
       token,
       reserved.rowVersion,

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   writeLimit: vi.fn(),
   readDraft: vi.fn(),
   writeDraft: vi.fn(),
+  claimDraft: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/auth/pretenant-onboarding', () => ({ resolvePreTenantOnboarding: mocks.resolve }));
@@ -29,6 +30,7 @@ vi.mock('@/contexts/onboarding', async () => {
     signupDraftMutationSchema,
     readSignupDraft: mocks.readDraft,
     writeSignupDraft: mocks.writeDraft,
+    claimSignupDraftByVerifiedEmail: mocks.claimDraft,
   };
 });
 
@@ -42,9 +44,7 @@ const answers = {
   currentTooling: 'outro_sistema',
   discoverySource: 'indicacao_colega',
 } as const;
-const link = {
-  mode: 'link',
-  rowVersion: 5,
+const restart = {
   ownerName: 'Pessoa Sintética',
   clinicName: 'Clínica Sintética',
   answers,
@@ -53,8 +53,8 @@ const link = {
 const draft = {
   status: 'email_verified',
   rowVersion: 6,
-  ownerName: link.ownerName,
-  clinicName: link.clinicName,
+  ownerName: restart.ownerName,
+  clinicName: restart.clinicName,
   answers,
   idleExpiresAt: '2026-09-16T05:15:00.000Z',
   absoluteExpiresAt: '2026-09-16T06:00:00.000Z',
@@ -62,7 +62,7 @@ const draft = {
 
 function request(
   method: 'GET' | 'POST',
-  body: string | undefined = method === 'POST' ? JSON.stringify(link) : undefined,
+  body: string | undefined = method === 'POST' ? JSON.stringify(restart) : undefined,
   cookie: string | undefined = token,
 ): Request {
   return new Request('https://app.qoro.test/api/signup/draft', {
@@ -94,6 +94,7 @@ beforeEach(() => {
   mocks.writeLimit.mockResolvedValue({ ok: true });
   mocks.readDraft.mockResolvedValue({ ok: true, draft });
   mocks.writeDraft.mockResolvedValue({ ok: true, rowVersion: 6 });
+  mocks.claimDraft.mockResolvedValue({ ok: false, reason: 'gone' });
 });
 
 describe('GET /api/signup/draft', () => {
@@ -104,10 +105,74 @@ describe('GET /api/signup/draft', () => {
     expect(await response.json()).toEqual(draft);
     expect(mocks.readLimit).toHaveBeenCalledWith('127.0.0.1', 'c'.repeat(64));
     expect(mocks.readDraft).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.claimDraft).not.toHaveBeenCalled();
     expect(JSON.stringify(await (await GET(request('GET'))).json())).not.toContain(
       'verified@example.invalid',
     );
   });
+
+  it('vincula pelo e-mail verificado quando o navegador não tem o cadastro e relê o resultado', async () => {
+    mocks.readDraft
+      .mockResolvedValueOnce({ ok: false, reason: 'gone' })
+      .mockResolvedValueOnce({ ok: true, draft });
+    mocks.claimDraft.mockResolvedValue({ ok: true, rowVersion: 6 });
+
+    const response = await GET(request('GET'));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(draft);
+    expect(mocks.claimDraft).toHaveBeenCalledWith(USER_ID, 'verified@example.invalid');
+    expect(mocks.readDraft).toHaveBeenCalledTimes(2);
+    // Quem limpa o cookie é o `/me` da aba original, que também precisa contar a
+    // ela que o e-mail foi confirmado; limpar aqui a faria anunciar expiração.
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('não vincula por navegação cross-site, mesmo com sessão verificada', async () => {
+    const cross = new Request('https://app.qoro.test/api/signup/draft', {
+      headers: { 'sec-fetch-site': 'cross-site', cookie: `__Host-qoro_signup=${token}` },
+    });
+
+    expect((await GET(cross)).status).toBe(403);
+    expect(mocks.resolve).not.toHaveBeenCalled();
+    expect(mocks.claimDraft).not.toHaveBeenCalled();
+    expect(mocks.readDraft).not.toHaveBeenCalled();
+  });
+
+  it('mantém 410 quando não há draft do usuário nem candidato pelo e-mail verificado', async () => {
+    mocks.readDraft.mockResolvedValue({ ok: false, reason: 'gone' });
+    mocks.claimDraft.mockResolvedValue({ ok: false, reason: 'gone' });
+
+    const response = await GET(request('GET'));
+
+    expect(response.status).toBe(410);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('fecha em 503 quando o vínculo fica indisponível, sem inventar 410', async () => {
+    mocks.readDraft.mockResolvedValue({ ok: false, reason: 'gone' });
+    mocks.claimDraft.mockResolvedValue({ ok: false, reason: 'unavailable' });
+
+    expect((await GET(request('GET'))).status).toBe(503);
+  });
+
+  it.each(['conflict', 'gone'] as const)(
+    'devolve o draft que a outra aba acabou de vincular quando o vínculo perde por %s',
+    async (reason) => {
+      mocks.readDraft
+        .mockResolvedValueOnce({ ok: false, reason: 'gone' })
+        .mockResolvedValueOnce({ ok: true, draft });
+      mocks.claimDraft.mockResolvedValue({ ok: false, reason });
+
+      const response = await GET(request('GET'));
+
+      // A perdedora da disputa não pode receber 410: o cadastro existe, e 410
+      // mandaria redigitar.
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(draft);
+      expect(response.headers.get('set-cookie')).toBeNull();
+    },
+  );
 
   it.each([
     ['invalid_session', 401],
@@ -120,6 +185,7 @@ describe('GET /api/signup/draft', () => {
     expect((await GET(request('GET'))).status).toBe(status);
     expect(mocks.readLimit).not.toHaveBeenCalled();
     expect(mocks.readDraft).not.toHaveBeenCalled();
+    expect(mocks.claimDraft).not.toHaveBeenCalled();
   });
 
   it('recusa profile existente e fecha limiter/reader indisponíveis', async () => {
@@ -138,42 +204,40 @@ describe('GET /api/signup/draft', () => {
     expect(rate.status).toBe(429);
     expect(rate.headers.get('retry-after')).toBe('45');
     mocks.readLimit.mockResolvedValue({ ok: true });
-    mocks.readDraft.mockResolvedValue({ ok: false, reason: 'gone' });
-    expect((await GET(request('GET'))).status).toBe(410);
+    mocks.readDraft.mockResolvedValue({ ok: false, reason: 'unavailable' });
+    expect((await GET(request('GET'))).status).toBe(503);
+    expect(mocks.claimDraft).not.toHaveBeenCalled();
   });
 });
 
 describe('POST /api/signup/draft', () => {
-  it('liga cookie original ao owner e limpa bootstrap só depois do commit', async () => {
+  it('cria o draft do usuário verificado e limpa o bootstrap só depois do commit', async () => {
     const response = await POST(request('POST'));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ rowVersion: 6 });
+    // Nenhum token do navegador atravessa a fronteira: a autoridade é a
+    // identidade verificada, e o corpo não carrega id, versão nem modo.
     expect(mocks.writeDraft).toHaveBeenCalledWith({
       userId: USER_ID,
       email: 'verified@example.invalid',
-      rawToken: token,
-      input: link,
+      input: restart,
     });
     expect(response.headers.get('set-cookie')).toContain('__Host-qoro_signup=');
     expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
   });
 
-  it('restart não exige nem emite cookie anônimo', async () => {
-    const restart = { ...link, mode: 'restart' as const };
-    Reflect.deleteProperty(restart, 'rowVersion');
+  it('não exige cookie anônimo nenhum para recomeçar em outro aparelho', async () => {
     const response = await POST(request('POST', JSON.stringify(restart), undefined));
     expect(response.status).toBe(200);
     expect(mocks.writeDraft).toHaveBeenCalledWith({
       userId: USER_ID,
       email: 'verified@example.invalid',
-      rawToken: null,
       input: restart,
     });
     expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
   });
 
   it.each([
-    ['gone', 410],
     ['conflict', 409],
     ['unavailable', 503],
   ] as const)('mapeia writer %s sem limpar cookie', async (reason, status) => {
@@ -202,10 +266,11 @@ describe('POST /api/signup/draft', () => {
   it.each([
     '{',
     '{}',
-    JSON.stringify({ ...link, accepted: false }),
-    JSON.stringify({ ...link, role: 'owner' }),
-    JSON.stringify({ ...link, authUserId: USER_ID }),
-    JSON.stringify({ ...link, answers: { ...answers, discoverySource: 'livre' } }),
+    JSON.stringify({ ...restart, accepted: false }),
+    JSON.stringify({ ...restart, role: 'owner' }),
+    JSON.stringify({ ...restart, authUserId: USER_ID }),
+    JSON.stringify({ ...restart, mode: 'link', rowVersion: 5 }),
+    JSON.stringify({ ...restart, answers: { ...answers, discoverySource: 'livre' } }),
   ])('recusa body estrito depois do limite, sem writer: %s', async (body) => {
     const response = await POST(request('POST', body));
     expect(response.status).toBe(400);
@@ -228,7 +293,7 @@ describe('POST /api/signup/draft', () => {
   });
 
   it('aplica teto real UTF-8 e cancela stream excedente', async () => {
-    const body = JSON.stringify(link);
+    const body = JSON.stringify(restart);
     expect(
       (await POST(request('POST', body + ' '.repeat(4096 - Buffer.byteLength(body))))).status,
     ).toBe(200);

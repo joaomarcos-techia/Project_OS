@@ -1,16 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { hashEmail as HashEmail } from '@/lib/auth/email-hash';
+
 const mocks = vi.hoisted(() => ({
-  env: { SIGNUP_AUTH_ENABLED: true, SIGNUP_IDENTITY_ENABLED: true },
+  env: {
+    SIGNUP_AUTH_ENABLED: true,
+    SIGNUP_IDENTITY_ENABLED: true,
+    LOGIN_HASH_PEPPER: 'synthetic-signup-draft-email-pepper',
+    MAGIC_TOKEN_SECRET: 'synthetic-signup-draft-token-secret',
+  },
   select: vi.fn(),
   transaction: vi.fn(),
+  hashedEmails: [] as string[],
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/db', () => ({
   dbAdmin: { select: mocks.select, transaction: mocks.transaction },
 }));
+// Espia o HMAC sem trocá-lo: o que precisa ser provado é QUAL endereço vira
+// chave de busca do draft, não o algoritmo — que continua o de produção.
+vi.mock('@/lib/auth/email-hash', async (importOriginal) => {
+  const actual = await importOriginal<{ hashEmail: typeof HashEmail }>();
+  return {
+    ...actual,
+    hashEmail: (value: string) => {
+      mocks.hashedEmails.push(value);
+      return actual.hashEmail(value);
+    },
+  };
+});
 
 import {
+  claimSignupDraftByVerifiedEmail,
   readSignupPlan,
   signupDraftMutationSchema,
   signupPlanMutationSchema,
@@ -27,13 +48,13 @@ const answers = {
 const context = {
   userId: '11111111-1111-4111-8111-111111111111',
   email: 'verified@example.invalid',
-  rawToken: 'a'.repeat(43),
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.env.SIGNUP_AUTH_ENABLED = true;
   mocks.env.SIGNUP_IDENTITY_ENABLED = true;
+  mocks.hashedEmails.length = 0;
 });
 
 function selectChain(rows: unknown[]) {
@@ -62,19 +83,20 @@ function updateChain(rows: unknown[]) {
   return chain;
 }
 
+function orderedSelectChain(rows: unknown[]) {
+  const chain = selectChain(rows);
+  chain.orderBy.mockReturnValue(chain);
+  return chain;
+}
+
 describe('signup draft contract', () => {
-  it.each([
-    {
-      mode: 'link',
-      rowVersion: 5,
+  it('aceita o recomeço explícito, normaliza nomes e mantém respostas fechadas', () => {
+    const parsed = signupDraftMutationSchema.parse({
       ownerName: ' Ana ',
       clinicName: ' Clínica ',
       answers,
       accepted: true,
-    },
-    { mode: 'restart', ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: true },
-  ])('aceita %s, normaliza nomes e mantém respostas fechadas', (input) => {
-    const parsed = signupDraftMutationSchema.parse(input);
+    });
     expect(parsed.ownerName).toBe('Ana');
     expect(parsed.clinicName).toBe('Clínica');
     expect(parsed.answers).toEqual(answers);
@@ -82,32 +104,26 @@ describe('signup draft contract', () => {
 
   it.each([
     {},
-    { mode: 'link', ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: true },
+    // `mode`/`rowVersion` eram o vínculo pelo cookie anônimo; não existem mais.
     {
-      mode: 'restart',
+      mode: 'link',
       rowVersion: 5,
       ownerName: 'Ana',
       clinicName: 'Clínica',
       answers,
       accepted: true,
     },
-    { mode: 'restart', ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: false },
-    { mode: 'restart', ownerName: 'Ana\n', clinicName: 'Clínica', answers, accepted: true },
+    { mode: 'restart', ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: true },
+    { rowVersion: 5, ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: true },
+    { ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: false },
+    { ownerName: 'Ana\n', clinicName: 'Clínica', answers, accepted: true },
     {
-      mode: 'restart',
       ownerName: 'Ana',
       clinicName: 'Clínica',
       answers: { ...answers, discoverySource: 'texto livre' },
       accepted: true,
     },
-    {
-      mode: 'restart',
-      ownerName: 'Ana',
-      clinicName: 'Clínica',
-      answers,
-      accepted: true,
-      role: 'owner',
-    },
+    { ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: true, role: 'owner' },
   ])('recusa entrada fora do contrato sem transação %#', async (input) => {
     expect(signupDraftMutationSchema.safeParse(input).success).toBe(false);
     await expect(writeSignupDraft({ ...context, input })).rejects.toThrow('[signup] invalid_draft');
@@ -129,9 +145,8 @@ describe('signup draft contract', () => {
 
   it('mapeia disputa unique direta ou embrulhada pelo Drizzle e propaga outros erros', async () => {
     const valid = {
-      mode: 'restart',
       ownerName: 'Ana',
-      clinicName: 'ClÃ­nica',
+      clinicName: 'Clínica',
       answers,
       accepted: true,
     } as const;
@@ -153,6 +168,167 @@ describe('signup draft contract', () => {
     const unavailable = new Error('database unavailable');
     mocks.transaction.mockRejectedValueOnce(unavailable);
     await expect(writeSignupDraft({ ...context, input: valid })).rejects.toBe(unavailable);
+  });
+
+  it('cria o recomeço com idle igual ao absoluto, para a redigitação não vencer em 15 min', async () => {
+    const insertChain = {
+      values: vi.fn(),
+      returning: vi.fn().mockResolvedValue([{ rowVersion: 1 }]),
+    };
+    insertChain.values.mockReturnValue(insertChain);
+    const tx = {
+      delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+      select: vi.fn().mockReturnValue(selectChain([])),
+      insert: vi.fn().mockReturnValue(insertChain),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(
+      writeSignupDraft({
+        ...context,
+        input: { ownerName: 'Ana', clinicName: 'Clínica', answers, accepted: true },
+      }),
+    ).resolves.toEqual({ ok: true, rowVersion: 1 });
+
+    const values = insertChain.values.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(values.status).toBe('email_verified');
+    expect(values.authUserId).toBe(context.userId);
+    // A leitura autenticada não renova prazo nenhum: se o idle nascesse menor
+    // que o absoluto, o cadastro recém-redigitado morreria antes do checkout.
+    expect(values.idleExpiresAt).toEqual(values.absoluteExpiresAt);
+  });
+});
+
+describe('claim cross-device do draft verificado', () => {
+  it('é idempotente quando o usuário já possui o draft', async () => {
+    const owned = selectChain([{ rowVersion: 8 }]);
+    const tx = {
+      select: vi.fn().mockReturnValue(owned),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+      ok: true,
+      rowVersion: 8,
+    });
+    expect(owned.for).toHaveBeenCalledWith('update');
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it('vincula por e-mail verificado o draft mais recente ainda dentro do teto absoluto', async () => {
+    const owned = selectChain([]);
+    const candidate = orderedSelectChain([{ id: 'draft-id', rowVersion: 5 }]);
+    const claimed = updateChain([{ rowVersion: 6 }]);
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
+      update: vi.fn().mockReturnValue(claimed),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+      ok: true,
+      rowVersion: 6,
+    });
+    expect(candidate.orderBy).toHaveBeenCalledOnce();
+    expect(candidate.for).toHaveBeenCalledWith('update');
+    expect(claimed.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'email_verified',
+        authUserId: context.userId,
+        rowVersion: expect.anything(),
+      }),
+    );
+  });
+
+  it('procura o candidato pelo HMAC do e-mail verificado, nunca pelo endereço em claro', async () => {
+    const owned = selectChain([]);
+    const candidate = orderedSelectChain([{ id: 'draft-id', rowVersion: 5 }]);
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
+      update: vi.fn().mockReturnValue(updateChain([{ rowVersion: 6 }])),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await claimSignupDraftByVerifiedEmail(context.userId, context.email);
+
+    // Só o endereço devolvido por getUser() vira chave; nada além dele é
+    // hasheado, e o claim não regrava e-mail, nome, resposta nem aceite.
+    expect(mocks.hashedEmails).toEqual([context.email]);
+    expect(tx.update.mock.results[0]?.value.set).toHaveBeenCalledWith(
+      expect.not.objectContaining({ emailHash: expect.anything() }),
+    );
+  });
+
+  it('não vincula nada quando nenhum draft vivo carrega aquele e-mail verificado', async () => {
+    const owned = selectChain([]);
+    const candidate = orderedSelectChain([]);
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+      ok: false,
+      reason: 'gone',
+    });
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it('devolve conflito quando o CAS do candidato perde a corrida, sem sobrescrever', async () => {
+    const owned = selectChain([]);
+    const candidate = orderedSelectChain([{ id: 'draft-id', rowVersion: 5 }]);
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
+      update: vi.fn().mockReturnValue(updateChain([])),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+      ok: false,
+      reason: 'conflict',
+    });
+  });
+
+  it('traduz a disputa do unique de owner em conflito, não em erro cru', async () => {
+    mocks.transaction.mockRejectedValueOnce(Object.assign(new Error('unique'), { code: '23505' }));
+
+    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+      ok: false,
+      reason: 'conflict',
+    });
+  });
+
+  it.each(['auth', 'identity'] as const)('fecha gate %s antes de tocar o DB', async (gate) => {
+    if (gate === 'auth') mocks.env.SIGNUP_AUTH_ENABLED = false;
+    if (gate === 'identity') mocks.env.SIGNUP_IDENTITY_ENABLED = false;
+
+    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it('recusa identidade não verificada pelo contrato antes da transação', async () => {
+    await expect(claimSignupDraftByVerifiedEmail('invalid-user', 'invalid-email')).resolves.toEqual(
+      { ok: false, reason: 'unavailable' },
+    );
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.hashedEmails).toEqual([]);
   });
 });
 

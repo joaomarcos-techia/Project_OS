@@ -46,5 +46,9 @@ export async function GET(req: Request): Promise<Response> {
   const state = await readSignupSession(rawToken);
   if (!state) return gone();
 
-  return NextResponse.json({ session: state }, { status: 200 });
+  const response = NextResponse.json({ session: state }, { status: 200 });
+  if (state.status === 'email_verified') {
+    response.cookies.set(SIGNUP_SESSION_COOKIE, '', SIGNUP_COOKIE_CLEAR_OPTIONS);
+  }
+  return response;
 }

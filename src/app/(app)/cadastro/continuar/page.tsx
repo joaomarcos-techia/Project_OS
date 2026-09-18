@@ -12,6 +12,9 @@ export default async function ContinueSignupPage() {
   const onboarding = await resolvePreTenantOnboarding();
   if (!onboarding.ok) redirect('/login');
   if (onboarding.kind === 'redirect') redirect(onboarding.route);
+  // O vínculo do draft NÃO acontece aqui: renderizar é leitura, e escrever no
+  // render ficaria fora do rate limit e engoliria a falha. Quem vincula é o
+  // `GET /api/signup/draft` chamado pelo formulário abaixo.
 
   return (
     <main
@@ -24,6 +27,9 @@ export default async function ContinueSignupPage() {
         </div>
         <Card>
           <CardContent>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+              Etapa 4 · revisão
+            </p>
             <h1 className="mb-5 text-balance font-display text-2xl font-semibold">
               Revise seu cadastro
             </h1>

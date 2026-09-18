@@ -1,11 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ redirect: vi.fn(), resolve: vi.fn() }));
+const mocks = vi.hoisted(() => ({ redirect: vi.fn(), resolve: vi.fn(), claim: vi.fn() }));
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 vi.mock('@/lib/auth/pretenant-onboarding', () => ({
   resolvePreTenantOnboarding: mocks.resolve,
+}));
+vi.mock('@/contexts/onboarding', () => ({
+  claimSignupDraftByVerifiedEmail: mocks.claim,
 }));
 
 import ContinueSignupPage from './page';
@@ -21,6 +24,7 @@ beforeEach(() => {
     userId: '11111111-1111-4111-8111-111111111111',
     email: 'private@example.invalid',
   });
+  mocks.claim.mockResolvedValue({ ok: true, rowVersion: 6 });
 });
 
 describe('/cadastro/continuar', () => {
@@ -32,6 +36,11 @@ describe('/cadastro/continuar', () => {
     expect(html).not.toContain('11111111-1111-4111-8111-111111111111');
   });
 
+  it('não vincula draft durante o render: o vínculo é do endpoint limitado', async () => {
+    renderToStaticMarkup(await ContinueSignupPage());
+    expect(mocks.claim).not.toHaveBeenCalled();
+  });
+
   it.each([
     [{ ok: false, reason: 'invalid_session' }, '/login'],
     [{ ok: false, reason: 'email_unverified' }, '/login'],
@@ -40,5 +49,6 @@ describe('/cadastro/continuar', () => {
   ])('redireciona estados que não são pré-tenant %#', async (result, destination) => {
     mocks.resolve.mockResolvedValue(result);
     await expect(ContinueSignupPage()).rejects.toThrow(`REDIRECT:${destination}`);
+    expect(mocks.claim).not.toHaveBeenCalled();
   });
 });

@@ -1,10 +1,9 @@
 'use client';
 
-import { ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
-import { Logo } from '@/components/shared/logo';
 import { TurnstileWidget } from '@/components/shared/turnstile-widget';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -24,8 +23,12 @@ type CurrentTooling = SignupAnswerValues['currentTooling'];
 type DiscoverySource = SignupAnswerValues['discoverySource'];
 type Draft = Partial<SignupAnswerValues>;
 type Phase = 'loading' | 'challenge' | 'ready' | 'expired' | 'unavailable';
+type QuestionIndex = 0 | 1 | 2 | 3;
 
 const EMPTY_DRAFT: Draft = {};
+const QUESTION_COUNT = 4;
+const CONFIRMATION_POLL_INTERVAL_MS = 20_000;
+const CONFIRMATION_POLL_MAX_ATTEMPTS = 30;
 
 const PROFESSIONAL_OPTIONS: OptionCard<ProfessionalsBand>[] = [
   { value: '1', label: '1 profissional' },
@@ -53,12 +56,12 @@ const DISCOVERY_OPTIONS: OptionCard<DiscoverySource>[] = [
   { value: 'outro', label: 'Outro' },
 ];
 
-const FIELD_NAMES: (keyof SignupAnswerValues)[] = [
+const FIELD_NAMES = [
   'professionalsBand',
   'weeklyAppointmentsBand',
   'currentTooling',
   'discoverySource',
-];
+] as const satisfies readonly (keyof SignupAnswerValues)[];
 
 function isProfessionalsBand(value: unknown): value is ProfessionalsBand {
   return value === '1' || value === '2_5' || value === '6_15' || value === '16_plus';
@@ -97,6 +100,7 @@ function isSessionStatus(value: unknown): value is SignupSessionStatus {
     value === 'details_complete' ||
     value === 'identity_pending' ||
     value === 'email_pending' ||
+    value === 'email_verified' ||
     value === 'blocked' ||
     value === 'expired'
   );
@@ -130,17 +134,16 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   const [messageKind, setMessageKind] = useState<'danger' | 'warning' | 'success'>('danger');
   const [saving, setSaving] = useState(false);
   const [challengeAttempt, setChallengeAttempt] = useState(0);
+  const [questionIndex, setQuestionIndex] = useState<QuestionIndex>(0);
   const startedRef = useRef(false);
   const submitInFlight = useRef(false);
-  const answersFrozen =
-    session?.status === 'identity_pending' || session?.status === 'email_pending';
 
-  function expireSession() {
+  const expireSession = useCallback(() => {
     setSession(null);
     setPhase('expired');
     setMessage('Esta sessão expirou. Inicie novamente para responder com segurança.');
     setMessageKind('warning');
-  }
+  }, []);
 
   const hydrateSession = useCallback(
     (next: SignupSessionState) => {
@@ -149,7 +152,8 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
       setMessage(
         next.status === 'email_pending'
           ? 'Se houver uma etapa de confirmação para este endereço, você receberá as instruções. Se já tem conta, entre para continuar.'
-          : next.status === 'identity_pending' && !identityEnabled
+          : // `email_verified` não usa `message`: aquela tela tem copy própria.
+            next.status === 'identity_pending' && !identityEnabled
             ? 'Dados salvos; criação da conta ainda indisponível. Nenhum e-mail de confirmação foi enviado.'
             : next.answers
               ? 'Carregamos as respostas salvas nesta sessão.'
@@ -230,6 +234,47 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
     void bootstrap();
   }, [bootstrap]);
 
+  /**
+   * Espera pela confirmação feita em outro aparelho.
+   *
+   * O intervalo e o teto não são estéticos: `GET /me` tem limite de 120
+   * requisições por 15 min POR IP, compartilhado com as outras abas e com quem
+   * mais estiver atrás do mesmo NAT. A 10 s a própria espera estouraria o
+   * limite antes da metade do TTL absoluto e passaria a receber 429 justamente
+   * enquanto a pessoa aguarda. A 20 s, por até 10 min, o pior caso fica em 45
+   * leituras por janela. Esgotado o teto, quem confirmar depois recarrega a
+   * página — o cookie continua válido e a primeira leitura mostra o resultado.
+   */
+  useEffect(() => {
+    if (phase !== 'ready' || session?.status !== 'email_pending') return;
+    let active = true;
+    let attempts = 0;
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      if (attempts >= CONFIRMATION_POLL_MAX_ATTEMPTS) window.clearInterval(interval);
+      void (async () => {
+        try {
+          const response = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
+          const body = await responseBody(response);
+          if (!active) return;
+          if (response.ok && isSession(body?.session)) hydrateSession(body.session);
+          // 410 é a sessão morta de verdade: insistir só gastaria o limite e
+          // deixaria a tela mentindo que ainda há uma espera em andamento.
+          else if (response.status === 410) {
+            window.clearInterval(interval);
+            expireSession();
+          }
+        } catch {
+          // A tela de espera continua utilizável; o próximo ciclo tenta de novo.
+        }
+      })();
+    }, CONFIRMATION_POLL_INTERVAL_MS);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [expireSession, hydrateSession, phase, session?.status]);
+
   function answer<K extends keyof SignupAnswerValues>(field: K, value: SignupAnswerValues[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
     setMessage(null);
@@ -293,7 +338,9 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
 
   async function submitAnswers(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session || answersFrozen || submitInFlight.current) return;
+    // Etapas já congeladas (identidade, espera, confirmado) nem renderizam as
+    // perguntas: os ramos acima saem antes. Aqui sobra impedir envio duplo.
+    if (!session || submitInFlight.current) return;
     const missing = FIELD_NAMES.find((field) => draft[field] === undefined);
     if (missing) {
       document.querySelector<HTMLInputElement>(`input[name="${missing}"]`)?.focus();
@@ -397,159 +444,251 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
     );
   }
 
+  if (session?.status === 'email_verified') {
+    return (
+      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
+        <div className="rounded-(--r-2xl) bg-surface-raised p-6 text-center shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8">
+          <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success-600" />
+          <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+            Etapa 3 · confirmação
+          </p>
+          <h1 className="mt-3 text-balance font-display text-3xl font-semibold tracking-[-0.03em]">
+            E-mail confirmado
+          </h1>
+          {/* A confirmação pode ter sido nesta máquina, em outra aba ou no
+              celular — a tela não sabe qual, e afirmar "em outro dispositivo"
+              estaria errado no caso mais comum. O destino serve aos três: com
+              sessão verificada a continuação segue; sem ela, manda ao login. */}
+          <p className="mx-auto mt-3 max-w-[48ch] text-pretty text-sm leading-relaxed text-fg-muted">
+            Seu cadastro continua de onde parou, com as respostas já salvas. Se você confirmou em
+            outro aparelho, entre com a conta verificada para seguir aqui.
+          </p>
+          <a
+            href="/cadastro/continuar"
+            className="mt-6 inline-flex min-h-10 items-center justify-center rounded-(--r-md) bg-primary px-5 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
+          >
+            Continuar cadastro
+          </a>
+        </div>
+      </section>
+    );
+  }
+
+  if (session?.status === 'email_pending') {
+    return (
+      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-1 sm:px-8 lg:pt-5">
+        {message ? (
+          <div className="mt-4">
+            <Alert variant={messageKind}>{message}</Alert>
+          </div>
+        ) : null}
+        <SignupEmailPending
+          rowVersion={session.rowVersion}
+          onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
+          onReconcile={reconcileSession}
+          onGone={expireSession}
+        />
+      </section>
+    );
+  }
+
+  if (identityEnabled && session?.answers) {
+    return (
+      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-1 sm:px-8 lg:pt-5">
+        {message ? (
+          <div className="mt-4">
+            <Alert variant={messageKind}>{message}</Alert>
+          </div>
+        ) : null}
+        <SignupIdentity
+          key={session.rowVersion}
+          rowVersion={session.rowVersion}
+          saved={session.status === 'identity_pending'}
+          onEmailPending={(rowVersion) => {
+            setSession({ ...session, status: 'email_pending', rowVersion });
+            setMessage(null);
+          }}
+          onReconcile={reconcileSession}
+          onGone={expireSession}
+        />
+      </section>
+    );
+  }
+
+  if (session?.answers) {
+    return (
+      <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
+        <Alert variant={message ? messageKind : 'success'} title="Respostas salvas">
+          {message ?? 'A próxima etapa do cadastro ainda não está disponível neste ambiente.'}
+        </Alert>
+      </section>
+    );
+  }
+
+  const currentField = FIELD_NAMES[questionIndex];
+  const currentValue = draft[currentField];
+  const handleQuestionSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (questionIndex === QUESTION_COUNT - 1) {
+      void submitAnswers(event);
+      return;
+    }
+    event.preventDefault();
+    if (currentValue === undefined) {
+      document.querySelector<HTMLInputElement>(`input[name="${currentField}"]`)?.focus();
+      setMessage('Escolha uma opção para continuar.');
+      setMessageKind('warning');
+      return;
+    }
+    setMessage(null);
+    setQuestionIndex((questionIndex + 1) as QuestionIndex);
+  };
+
   return (
-    <section className="mx-auto grid w-full max-w-[1120px] gap-8 px-5 pb-16 pt-5 sm:px-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-12 lg:pt-9">
-      <div className="min-w-0">
+    <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
+      <div className="flex items-center justify-between gap-4">
         <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
           Etapa 1 · perfil da clínica
         </p>
-        <h1 className="mt-3 max-w-[19ch] text-balance font-display text-3xl font-semibold leading-[1.12] tracking-[-0.03em] sm:text-4xl">
-          Conte como sua clínica funciona hoje
-        </h1>
-        <p className="mt-3 max-w-[62ch] text-pretty text-sm leading-relaxed text-fg-muted">
-          São quatro perguntas de marcar. Não pedimos nome, contato ou dados de pacientes nesta
-          etapa.
-        </p>
-
-        <form
-          onSubmit={submitAnswers}
-          className="mt-8 rounded-(--r-2xl) bg-surface-raised p-5 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-7"
-        >
-          <div className="grid gap-x-7 gap-y-7 lg:grid-cols-2">
-            <Question number="01" title="Quantos profissionais atendem na clínica?">
-              <OptionCardGroup<ProfessionalsBand>
-                name="professionalsBand"
-                aria-label="Quantidade de profissionais"
-                value={draft.professionalsBand}
-                onValueChange={(value) => answer('professionalsBand', value)}
-                options={PROFESSIONAL_OPTIONS}
-                disabled={saving || answersFrozen}
-                className="grid grid-cols-2"
-              />
-            </Question>
-            <Question number="02" title="Quantos atendimentos por semana, aproximadamente?">
-              <OptionCardGroup<WeeklyAppointmentsBand>
-                name="weeklyAppointmentsBand"
-                aria-label="Atendimentos por semana"
-                value={draft.weeklyAppointmentsBand}
-                onValueChange={(value) => answer('weeklyAppointmentsBand', value)}
-                options={APPOINTMENT_OPTIONS}
-                disabled={saving || answersFrozen}
-                className="grid grid-cols-2"
-              />
-            </Question>
-            <Question number="03" title="O que você usa hoje para organizar a clínica?">
-              <OptionCardGroup<CurrentTooling>
-                name="currentTooling"
-                aria-label="Ferramenta atual"
-                value={draft.currentTooling}
-                onValueChange={(value) => answer('currentTooling', value)}
-                options={TOOLING_OPTIONS}
-                disabled={saving || answersFrozen}
-              />
-            </Question>
-            <Question number="04" title="Por onde ficou sabendo da Qoro?">
-              <OptionCardGroup<DiscoverySource>
-                name="discoverySource"
-                aria-label="Como conheceu a Qoro"
-                value={draft.discoverySource}
-                onValueChange={(value) => answer('discoverySource', value)}
-                options={DISCOVERY_OPTIONS}
-                disabled={saving || answersFrozen}
-                className="grid grid-cols-1 sm:grid-cols-2"
-              />
-            </Question>
-          </div>
-
-          <div aria-live="polite" className="mt-7">
-            {message ? <Alert variant={messageKind}>{message}</Alert> : null}
-          </div>
-          <div className="mt-6 flex flex-col-reverse items-stretch justify-between gap-4 border-t border-border pt-5 sm:flex-row sm:items-center">
-            <span className="inline-flex items-center justify-center gap-2 text-pretty text-xs text-fg-subtle sm:justify-start">
-              <LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
-              Sessão protegida e temporária
-            </span>
-            {!answersFrozen ? (
-              <Button
-                type="submit"
-                loading={saving}
-                className="min-w-44 gap-2 pl-4 pr-3.5 active:scale-[0.96]"
-              >
-                Salvar respostas <ArrowRight aria-hidden="true" className="size-4" />
-              </Button>
-            ) : null}
-          </div>
-        </form>
-        {identityEnabled &&
-        session &&
-        session.status !== 'initiated' &&
-        session.status !== 'email_pending' ? (
-          <SignupIdentity
-            key={session.rowVersion}
-            rowVersion={session.rowVersion}
-            saved={answersFrozen}
-            onEmailPending={(rowVersion) => {
-              setSession({ ...session, status: 'email_pending', rowVersion });
-              setMessage(
-                'A solicitação está em espera. Se o endereço puder continuar, você receberá as instruções.',
-              );
-              setMessageKind('success');
-            }}
-            onReconcile={reconcileSession}
-            onGone={expireSession}
-          />
-        ) : null}
-        {identityEnabled && session?.status === 'email_pending' ? (
-          <SignupEmailPending
-            rowVersion={session.rowVersion}
-            onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
-            onReconcile={reconcileSession}
-            onGone={expireSession}
-          />
-        ) : null}
+        <span className="whitespace-nowrap font-mono text-xs font-medium tabular-nums text-fg-subtle">
+          Pergunta {questionIndex + 1} de {QUESTION_COUNT}
+        </span>
+      </div>
+      <div
+        className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-inset"
+        role="progressbar"
+        aria-label="Progresso do perfil da clínica"
+        aria-valuemin={1}
+        aria-valuemax={QUESTION_COUNT}
+        aria-valuenow={questionIndex + 1}
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-200"
+          style={{ width: `${((questionIndex + 1) / QUESTION_COUNT) * 100}%` }}
+        />
       </div>
 
-      <aside className="self-start rounded-(--r-xl) bg-(--primary-soft) p-5 text-(--primary-active) lg:sticky lg:top-8">
-        <Logo className="h-auto w-[64px] opacity-80" />
-        <h2 className="mt-8 text-balance font-display text-xl font-semibold tracking-[-0.02em]">
-          {identityEnabled
-            ? 'Um começo simples e protegido'
-            : 'Um começo simples e sem dados pessoais'}
-        </h2>
-        <p className="mt-2 text-pretty text-sm leading-relaxed opacity-80">
-          Suas respostas ficam ligadas apenas a esta sessão temporária.
-        </p>
-        <div className="mt-6 border-t border-current/15 pt-5 text-xs leading-relaxed opacity-75">
-          {identityEnabled
-            ? 'Depois das quatro perguntas, seus dados, senha e aceite são preenchidos juntos abaixo.'
-            : 'Depois desta etapa, identidade e consentimento serão tratados juntos em uma tela própria.'}
+      <form
+        onSubmit={handleQuestionSubmit}
+        className="mt-7 rounded-(--r-2xl) bg-surface-raised p-5 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8"
+      >
+        {questionIndex === 0 ? (
+          <QuestionPage
+            title="Quantos profissionais atendem na clínica?"
+            hint="São quatro perguntas de marcar, uma por tela. Nenhuma pede nome, contato ou dados de pacientes."
+          >
+            <OptionCardGroup<ProfessionalsBand>
+              name="professionalsBand"
+              aria-label="Quantidade de profissionais"
+              value={draft.professionalsBand}
+              onValueChange={(value) => answer('professionalsBand', value)}
+              options={PROFESSIONAL_OPTIONS}
+              disabled={saving}
+              className="grid grid-cols-2"
+            />
+          </QuestionPage>
+        ) : null}
+        {questionIndex === 1 ? (
+          <QuestionPage title="Quantos atendimentos são realizados por semana?">
+            <OptionCardGroup<WeeklyAppointmentsBand>
+              name="weeklyAppointmentsBand"
+              aria-label="Atendimentos por semana"
+              value={draft.weeklyAppointmentsBand}
+              onValueChange={(value) => answer('weeklyAppointmentsBand', value)}
+              options={APPOINTMENT_OPTIONS}
+              disabled={saving}
+              className="grid grid-cols-2"
+            />
+          </QuestionPage>
+        ) : null}
+        {questionIndex === 2 ? (
+          <QuestionPage title="Como a clínica se organiza hoje?">
+            <OptionCardGroup<CurrentTooling>
+              name="currentTooling"
+              aria-label="Ferramenta atual"
+              value={draft.currentTooling}
+              onValueChange={(value) => answer('currentTooling', value)}
+              options={TOOLING_OPTIONS}
+              disabled={saving}
+            />
+          </QuestionPage>
+        ) : null}
+        {questionIndex === 3 ? (
+          <QuestionPage title="Como você conheceu a Qoro?">
+            <OptionCardGroup<DiscoverySource>
+              name="discoverySource"
+              aria-label="Como conheceu a Qoro"
+              value={draft.discoverySource}
+              onValueChange={(value) => answer('discoverySource', value)}
+              options={DISCOVERY_OPTIONS}
+              disabled={saving}
+              className="grid grid-cols-1 sm:grid-cols-2"
+            />
+          </QuestionPage>
+        ) : null}
+
+        <div aria-live="polite" className="mt-6">
+          {message ? <Alert variant={messageKind}>{message}</Alert> : null}
         </div>
-      </aside>
+        <div className="mt-6 flex flex-col-reverse gap-4 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-h-10 items-center">
+            {questionIndex > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="gap-2 active:scale-[0.96]"
+                onClick={() => {
+                  setMessage(null);
+                  setQuestionIndex((questionIndex - 1) as QuestionIndex);
+                }}
+              >
+                <ArrowLeft aria-hidden="true" className="size-4" /> Voltar
+              </Button>
+            ) : (
+              <span className="inline-flex items-center gap-2 text-pretty text-xs text-fg-subtle">
+                <LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
+                Sessão protegida e temporária
+              </span>
+            )}
+          </div>
+          <Button type="submit" loading={saving} className="min-w-40 gap-2 active:scale-[0.96]">
+            {questionIndex === QUESTION_COUNT - 1 ? 'Salvar e continuar' : 'Continuar'}
+            <ArrowRight aria-hidden="true" className="size-4" />
+          </Button>
+        </div>
+      </form>
     </section>
   );
 }
 
-function Question({
-  number,
+/**
+ * `hint` existe só para a primeira tela. Repetir um subtítulo genérico nas
+ * quatro perguntas não informa nada e rouba a hierarquia do título; o que
+ * precisa ser dito — quantas perguntas são e que nenhuma pede dado pessoal —
+ * precisa ser dito antes da primeira resposta, e só uma vez.
+ */
+function QuestionPage({
   title,
+  hint,
   children,
 }: {
-  number: string;
   title: string;
+  hint?: string;
   children: ReactNode;
 }) {
   return (
-    <fieldset className="min-w-0 border-t border-border pt-4">
-      <legend className="mb-3 flex w-full items-start gap-3 text-left">
-        <span
-          aria-hidden="true"
-          className="font-mono text-xs font-semibold tabular-nums text-primary"
-        >
-          {number}
-        </span>
-        <span className="text-pretty text-sm font-semibold leading-snug text-fg">{title}</span>
-      </legend>
-      {children}
-    </fieldset>
+    <div role="group" aria-labelledby="signup-question-title">
+      <h1
+        id="signup-question-title"
+        className="max-w-[22ch] text-balance font-display text-3xl font-semibold leading-[1.12] tracking-[-0.03em] sm:text-4xl"
+      >
+        {title}
+      </h1>
+      {hint ? (
+        <p className="mt-3 max-w-[52ch] text-pretty text-sm leading-relaxed text-fg-muted">
+          {hint}
+        </p>
+      ) : null}
+      <div className="mt-6">{children}</div>
+    </div>
   );
 }
