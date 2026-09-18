@@ -128,6 +128,10 @@ Agora existe tenant provisionado para essas telas apoiarem, o que antes não exi
 | Cross-tenant A→B                                  | `SCHEMA`  | **PASS**  |
 | Segredo em resposta/log                           | `LOCAL`   | **PASS** (`cpfcnpj` em `SENSITIVE_KEYS`) |
 | Carga scratch (`test:load`)                       | `NONE`    | **NOT TESTED** |
+| `security:build` (= gate build)                   | `LOCAL`   | **PASS** exit 0 |
+| `security:bundle`                                 | `LOCAL`   | **PASS** 168 arquivos de cliente, 0 falhas |
+| `security:http`                                   | `LOCAL`   | **PASS** |
+| `security:tenant`                                 | `SCRATCH` | **PASS** com contrafactual de role-switch |
 | Chaos/degradação de Redis sobre os caminhos novos | `NONE`    | **NOT TESTED** |
 
 ---
@@ -138,7 +142,8 @@ Agora existe tenant provisionado para essas telas apoiarem, o que antes não exi
 | --------------------------------- | ------ |
 | Kill switch (`SIGNUP_ENABLED`)    | **PASS** em unit; **NOT TESTED** em Preview |
 | Rollback/cutover documentado      | **PASS** — runbook de incidentes |
-| E2E da jornada completa            | **NOT TESTED** |
+| E2E `test:e2e:ci` (fatia sem conta) | **PASS** — 6 passaram, 2 skips condicionais por ambiente |
+| E2E da jornada completa autenticada | **NOT TESTED** — exige conta sintética e Postgres de auditoria |
 | Preview deploy                     | **PASS** — publicado e exercitado com o bypass documentado |
 | CI (GitHub Actions)                | **PASS** — seis verificações verdes em `33068e0` |
 | Product Acceptance humano          | **BLOCKED** — exige pessoa real |

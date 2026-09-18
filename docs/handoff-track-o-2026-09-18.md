@@ -159,7 +159,12 @@ thresholds 29 / 74 / 41 / 29 — PASS
 (168 arquivos de cliente, 0 falhas), **`security:http`**, **`security:tenant`** (com contrafactual):
 **todos PASS**.
 
-**Não executados:** `test:e2e:ci`, `test:load`, `test:simulation`, `security:browser-session`.
+**`test:e2e:ci`**: **PASS** — 6 passaram, 2 **skips condicionais por ambiente** (sem
+`TURNSTILE_SECRET_KEY` e sem `NEXT_PUBLIC_TURNSTILE_SITE_KEY` nas fixtures públicas). São skips
+pré-existentes, decididos em runtime pelo próprio spec; nenhum foi criado aqui.
+
+**Não executados:** `test:load`, `test:simulation`, `security:browser-session`, e o E2E da jornada
+autenticada completa (exige conta sintética e o Postgres de auditoria).
 
 ---
 
