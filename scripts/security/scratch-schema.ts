@@ -156,13 +156,7 @@ export async function startScratchSchema(options: { port: number }): Promise<Scr
 
   try {
     await sql.unsafe(SUPABASE_SCAFFOLD);
-    const root = process.cwd();
-    const dir = path.join(root, 'drizzle/migrations');
-    const files = readdirSync(dir)
-      .filter((f) => f.endsWith('.sql'))
-      .sort();
-    for (const file of files) {
-      const body = await readFile(path.join(dir, file), 'utf8');
+    for (const { file, body } of await readMigrations()) {
       try {
         await sql.unsafe(body);
       } catch (error) {
@@ -176,4 +170,30 @@ export async function startScratchSchema(options: { port: number }): Promise<Scr
     await stop();
     throw error;
   }
+}
+
+/** As migrations do repositório, em ordem — a ordem é o contrato. */
+export async function readMigrations(): Promise<{ file: string; body: string }[]> {
+  const dir = path.join(process.cwd(), 'drizzle/migrations');
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+  return Promise.all(
+    files.map(async (file) => ({ file, body: await readFile(path.join(dir, file), 'utf8') })),
+  );
+}
+
+/**
+ * O schema inteiro como UM script, para quem aplica por `psql` em vez de por
+ * driver — hoje o gate de carga, que antes só sabia extrair o schema do DEV.
+ *
+ * As migrations são a fonte mais fiel que existe: o DEV é um efeito delas, e
+ * costuma estar atrás. Um gate de carga que depende de DEV também não roda em
+ * CI nem em máquina sem credencial.
+ */
+export async function buildSchemaSqlFromMigrations(): Promise<string> {
+  const migrations = await readMigrations();
+  // O cabeçalho por arquivo é o que transforma um erro de `psql` em diagnóstico:
+  // sem ele, a falha aponta para uma linha de um script de 20 mil linhas.
+  return migrations.map(({ file, body }) => [`-- >>> ${file}`, body, ''].join('\n')).join('\n');
 }

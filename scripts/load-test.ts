@@ -31,6 +31,7 @@ import { performance } from 'node:perf_hooks';
 import postgres, { type Sql } from 'postgres';
 import { generate as generateCertificate } from 'selfsigned';
 
+import { buildSchemaSqlFromMigrations } from './security/scratch-schema';
 import {
   assertEphemeralScratchTarget,
   assertEphemeralTempDirectory,
@@ -442,11 +443,19 @@ async function waitForCount(
 async function main(): Promise<void> {
   assertLoadTestConfirmation(process.env.LOAD_TEST_CONFIRM);
   const sourceUrlValue = process.env.DATABASE_URL_DEV;
-  const sourceUrl = assertSafeSchemaSource({
-    sourceUrl: sourceUrlValue,
-    productionUrl: process.env.DATABASE_URL_PROD,
-    projectEnv: process.env.SUPABASE_PROJECT_ENV,
-  });
+  // Sem DEV configurado, o schema sai das MIGRATIONS do proprio repositorio.
+  // Elas sao a fonte da qual o DEV e um efeito -- e costumam estar a frente
+  // dele. Amarrar um gate de carga a uma credencial de DEV tambem o impedia de
+  // rodar em CI ou em maquina limpa. Quando DEV existe, nada muda: o caminho do
+  // dump continua identico, com os mesmos guards.
+  const schemaFromMigrations = !sourceUrlValue;
+  const sourceUrl = schemaFromMigrations
+    ? undefined
+    : assertSafeSchemaSource({
+        sourceUrl: sourceUrlValue,
+        productionUrl: process.env.DATABASE_URL_PROD,
+        projectEnv: process.env.SUPABASE_PROJECT_ENV,
+      });
 
   assert(
     existsSync(resolve(ROOT, '.next', 'BUILD_ID')),
@@ -473,7 +482,7 @@ async function main(): Promise<void> {
   const databaseUrl = `postgresql://postgres@127.0.0.1:${pgPort}/${databaseName}?sslmode=require`;
   const adminUrl = `postgresql://postgres@127.0.0.1:${pgPort}/postgres?sslmode=require`;
   const sourceMarker = 'postgresql://schema-source.invalid/postgres?sslmode=require';
-  assertEphemeralScratchTarget(databaseUrl, sourceUrlValue!);
+  assertEphemeralScratchTarget(databaseUrl, sourceUrlValue ?? sourceMarker);
 
   const timezone = dynamicSendTimezone();
   const cryptoKey = randomBytes(32).toString('base64');
@@ -487,41 +496,48 @@ async function main(): Promise<void> {
   const evidence = {} as PhaseEvidence;
 
   try {
-    process.stdout.write('[load] 1/8 extraindo somente o schema do DEV...\n');
-    runChecked(
-      pgDump,
-      [
-        ...pgConnectionArgs(sourceUrl),
-        '--schema=public',
-        '--schema-only',
-        '--clean',
-        '--if-exists',
-        '--no-owner',
-        '--no-privileges',
-        '--file',
+    if (sourceUrl === undefined) {
+      process.stdout.write('[load] 1/8 montando o schema a partir das migrations...\n');
+      // As extensões vêm por CREATE EXTENSION dentro das próprias migrations,
+      // então aqui não há o remendo que o dump exige.
+      writeFileSync(schemaPath, await buildSchemaSqlFromMigrations(), { encoding: 'utf8' });
+    } else {
+      process.stdout.write('[load] 1/8 extraindo somente o schema do DEV...\n');
+      runChecked(
+        pgDump,
+        [
+          ...pgConnectionArgs(sourceUrl),
+          '--schema=public',
+          '--schema-only',
+          '--clean',
+          '--if-exists',
+          '--no-owner',
+          '--no-privileges',
+          '--file',
+          schemaPath,
+        ],
+        { env: pgPasswordEnv(sourceUrl), maxBuffer: 32 * 1024 * 1024 },
+      );
+      // `pg_dump --schema=public` inclui constraints que usam as extensões, mas
+      // não inclui o objeto EXTENSION. No DEV, btree_gist e pg_trgm vivem em
+      // public; recriá-las logo após o próprio dump recriar o schema preserva a
+      // mesma resolução de opclass/função e mantém ON_ERROR_STOP=1 no restore.
+      const publicSchemaMarker = 'CREATE SCHEMA public;';
+      const schemaDump = readFileSync(schemaPath, 'utf8');
+      assert(
+        schemaDump.includes(publicSchemaMarker),
+        '[load] dump sem CREATE SCHEMA public; formato inesperado.',
+      );
+      writeFileSync(
         schemaPath,
-      ],
-      { env: pgPasswordEnv(sourceUrl), maxBuffer: 32 * 1024 * 1024 },
-    );
-    // `pg_dump --schema=public` inclui constraints que usam as extensões, mas
-    // não inclui o objeto EXTENSION. No DEV, btree_gist e pg_trgm vivem em
-    // public; recriá-las logo após o próprio dump recriar o schema preserva a
-    // mesma resolução de opclass/função e mantém ON_ERROR_STOP=1 no restore.
-    const publicSchemaMarker = 'CREATE SCHEMA public;';
-    const schemaDump = readFileSync(schemaPath, 'utf8');
-    assert(
-      schemaDump.includes(publicSchemaMarker),
-      '[load] dump sem CREATE SCHEMA public; formato inesperado.',
-    );
-    writeFileSync(
-      schemaPath,
-      schemaDump.replace(
-        publicSchemaMarker,
-        `${publicSchemaMarker}\nCREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;\n` +
-          'CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;',
-      ),
-      { encoding: 'utf8' },
-    );
+        schemaDump.replace(
+          publicSchemaMarker,
+          `${publicSchemaMarker}\nCREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;\n` +
+            'CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;',
+        ),
+        { encoding: 'utf8' },
+      );
+    }
 
     process.stdout.write('[load] 2/8 iniciando PostgreSQL TLS descartável...\n');
     runChecked(initdb, [
@@ -584,7 +600,20 @@ async function main(): Promise<void> {
         `CREATE SCHEMA IF NOT EXISTS extensions;\n` +
         `CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;\n` +
         `CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA extensions;\n` +
+        // Só as migrations exercitam estes dois, mas ambos são idempotentes e
+        // inertes no caminho do dump — manter UM bootstrap evita que os dois
+        // modos divirjam em silêncio.
+        `DO $$ BEGIN CREATE ROLE qoro_runtime NOLOGIN NOBYPASSRLS; EXCEPTION WHEN duplicate_object THEN NULL; END $$;\n` +
+        `GRANT authenticated TO qoro_runtime;\n` +
+        // Event trigger gerenciado pelo Supabase: a 0038 faz REVOKE sobre ela
+        // sem nunca criá-la, porque no projeto real ela já existe.
+        `CREATE OR REPLACE FUNCTION public.rls_auto_enable() RETURNS event_trigger LANGUAGE plpgsql AS $$ BEGIN RETURN; END $$;\n` +
         `CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);\n` +
+        `ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email text;\n` +
+        `ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz;\n` +
+        `ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_app_meta_data jsonb DEFAULT '{}'::jsonb;\n` +
+        `ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_user_meta_data jsonb DEFAULT '{}'::jsonb;\n` +
+        `ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();\n` +
         `CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;\n` +
         `CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT coalesce(nullif(current_setting('request.jwt.claim', true), '')::jsonb, '{}'::jsonb) $$;\n` +
         `CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.role', true), '') $$;\n` +
