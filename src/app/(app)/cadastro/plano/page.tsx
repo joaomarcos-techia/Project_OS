@@ -25,7 +25,7 @@ export default async function SignupPlanPage() {
         <Card>
           <CardContent>
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-              Cadastro da clínica
+              Etapa 5 · plano
             </p>
             <h1 className="text-balance font-display text-2xl font-semibold">Escolha seu plano</h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-fg-muted">

@@ -64,7 +64,7 @@ describe('seleção de plano O-4', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
   });
 
-  it('salva somente planId e rowVersion e confirma que não iniciou cobrança', async () => {
+  it('salva somente planId e rowVersion, e só então oferece a ativação', async () => {
     fetchMock
       .mockResolvedValueOnce(json(200, STATE))
       .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }));
@@ -74,10 +74,15 @@ describe('seleção de plano O-4', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
 
     await screen.findByText('Plano salvo');
-    expect(
-      screen.getByText('A escolha foi vinculada ao cadastro. Nenhuma cobrança foi iniciada.'),
-    ).toBeTruthy();
+    // O texto mudou quando O-5 passou a existir: salvar o plano deixou de ser o
+    // fim do funil e virou o passo anterior à ativação. O que segue valendo, e
+    // é o ponto do caso, é que salvar NÃO cobra nada.
+    expect(screen.getByText(/dias grátis começam quando a clínica for ativada/u)).toBeTruthy();
+    expect(screen.getByText(/nós não pedimos cartão aqui/u)).toBeTruthy();
+    // A ativação é um segundo ato explícito, nunca efeito colateral do salvar.
+    expect(screen.getByRole('button', { name: 'Ativar clínica e entrar' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.some((call) => call[0] === '/api/signup/checkout')).toBe(false);
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/signup/plan');
     expect(fetchMock.mock.calls[1]?.[1]).toEqual({
       method: 'PUT',
