@@ -87,6 +87,23 @@ export const signupSessions = pgTable('signup_sessions', {
   /** Plano de tabela escolhido no draft; a FK cross-context vive na migration. */
   selectedPlanId: uuid('selected_plan_id'),
 
+  /* --- O-5: intenção de assinatura recorrente (migration 0103) -------------
+   * NENHUM dado de cartão entra aqui, nem cifrado. O Asaas coleta o meio na
+   * página dele; o Qoro guarda só identificadores do provedor e o estado da
+   * tentativa, no padrão de reserva+CAS que a 0100 criou para o envio de e-mail.
+   *
+   * `creation_unknown` é estado de primeira classe, não erro: o Asaas não aceita
+   * Idempotency-Key em POST, então um timeout deixa indeterminado se a assinatura
+   * existe. Retry cego nesse estado é como se cria cobrança duplicada. */
+  /** 'reserved' | 'active' | 'creation_unknown' | 'failed' */
+  billingAttemptState: text('billing_attempt_state'),
+  billingAttemptedAt: timestamp('billing_attempted_at', { withTimezone: true }),
+  asaasCustomerId: text('asaas_customer_id'),
+  /** UNIQUE: uma assinatura pertence a no máximo um cadastro. */
+  asaasSubscriptionId: text('asaas_subscription_id'),
+  /** Código sanitizado. NUNCA corpo do provedor — um 4xx pode refletir o request. */
+  billingFailureCode: text('billing_failure_code'),
+
   /* --- As QUATRO perguntas (ADR-060 §1.c.1, migration 0098) ------------
    * IMPESSOAIS por decisão: são sobre a CLÍNICA, nunca sobre a pessoa. É o que
    * permite coletá-las ANTES do consentimento, e o que mantém a propriedade de

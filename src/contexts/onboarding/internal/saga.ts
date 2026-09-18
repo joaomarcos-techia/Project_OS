@@ -96,14 +96,32 @@ export interface ProvisionArgs {
   asaasSubscriptionId: string | null;
 }
 
+/** O que qualquer origem precisa fornecer para um tenant nascer. */
+export type TenantSeed = Omit<ProvisionArgs, 'inviteId' | 'inviteVersion'>;
+
+/**
+ * Passo que marca a ORIGEM como consumida, dentro da mesma transação.
+ *
+ * É aqui que mora a garantia de "tenant nasce uma única vez": cada origem traz
+ * seu próprio predicado de vencedor único (convite guardado por `version`,
+ * sessão de cadastro removida por `DELETE ... RETURNING`). Se o claim não
+ * encontra o que esperava, ele lança e a transação inteira desaparece —
+ * incluindo a clínica recém-inserida.
+ */
+export type ProvisionClaim = (tx: Tx, clinicId: string) => Promise<void>;
+
 /**
  * Escreve TUDO atômico: clínica trial + owner profile + ai_config + billing customer
- * + subscription trial + convite `completed` (guarded por version). Publica os eventos
- * de billing (downstream: quota/dunning/access-resolver). Recebe a `tx` da action.
+ * + subscription trial + o claim da origem. Publica os eventos de billing
+ * (downstream: quota/dunning/access-resolver). Recebe a `tx` de quem chamou.
+ *
+ * O claim entra entre a subscription e os eventos, exatamente onde o convite
+ * entrava antes da extração: quem perde a disputa não chega a publicar evento.
  */
-export async function provisionTenantFromInviteTx(
+export async function provisionTenantCoreTx(
   tx: Tx,
-  args: ProvisionArgs,
+  args: TenantSeed,
+  claim: ProvisionClaim,
 ): Promise<{ clinicId: string }> {
   // 1. Clínica — nasce `trial` de ACESSO (datas de trial vivem na subscription).
   // A8: id gerado na app para poder cifrar o CNPJ com ele (salt HKDF = id) ANTES
@@ -183,23 +201,8 @@ export async function provisionTenantFromInviteTx(
     .onConflictDoNothing({ target: subscriptions.clinicId })
     .returning({ id: subscriptions.id });
 
-  // 6. Convite → completed (guarded por version: a 2ª aba/dupla-submissão perde).
-  const [doneInvite] = await tx
-    .update(clinicInvites)
-    .set({
-      status: 'completed',
-      completedAt: sql`now()`,
-      provisionedClinicId: clinicId,
-      version: args.inviteVersion + 1,
-    })
-    .where(and(eq(clinicInvites.id, args.inviteId), eq(clinicInvites.version, args.inviteVersion)))
-    .returning({ id: clinicInvites.id });
-  if (!doneInvite) {
-    throw new OnboardingProvisionError(
-      'convite já concluído/alterado (race)',
-      'invite_version_conflict',
-    );
-  }
+  // 6. Claim da origem (convite por version, cadastro por DELETE).
+  await claim(tx, clinicId);
 
   // 7. Eventos de billing (downstream reage: quota, dunning, access-resolver).
   if (sub) {
@@ -224,6 +227,36 @@ export async function provisionTenantFromInviteTx(
   }
 
   return { clinicId };
+}
+
+/** Claim do convite: guardado por `version`, a 2ª aba/dupla-submissão perde. */
+function inviteClaim(inviteId: string, inviteVersion: number): ProvisionClaim {
+  return async (tx, clinicId) => {
+    const [doneInvite] = await tx
+      .update(clinicInvites)
+      .set({
+        status: 'completed',
+        completedAt: sql`now()`,
+        provisionedClinicId: clinicId,
+        version: inviteVersion + 1,
+      })
+      .where(and(eq(clinicInvites.id, inviteId), eq(clinicInvites.version, inviteVersion)))
+      .returning({ id: clinicInvites.id });
+    if (!doneInvite) {
+      throw new OnboardingProvisionError(
+        'convite já concluído/alterado (race)',
+        'invite_version_conflict',
+      );
+    }
+  };
+}
+
+/** Provisionamento a partir de convite (F1 · ADR-027). Contrato inalterado. */
+export async function provisionTenantFromInviteTx(
+  tx: Tx,
+  args: ProvisionArgs,
+): Promise<{ clinicId: string }> {
+  return provisionTenantCoreTx(tx, args, inviteClaim(args.inviteId, args.inviteVersion));
 }
 
 /** Abre a tx dbAdmin e roda o provisionamento (entrypoint da action). */

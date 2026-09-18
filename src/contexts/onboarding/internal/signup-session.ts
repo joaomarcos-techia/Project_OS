@@ -84,6 +84,7 @@ export const SIGNUP_FUNNEL_ORDER = [
   'details_complete',
   'identity_pending',
   'email_pending',
+  'email_verified',
   'blocked',
   'expired',
 ] as const;
@@ -344,7 +345,33 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
       discoverySource: signupSessions.discoverySource,
     });
 
-  if (!row) return null;
+  if (!row) {
+    const [verified] = await dbAdmin
+      .select({
+        riskLevel: signupSessions.riskLevel,
+        rowVersion: signupSessions.rowVersion,
+        absoluteExpiresAt: signupSessions.absoluteExpiresAt,
+      })
+      .from(signupSessions)
+      .where(
+        and(
+          eq(signupSessions.tokenHash, tokenHash),
+          eq(signupSessions.status, 'email_verified'),
+          isNotNull(signupSessions.consumedAt),
+          gt(signupSessions.absoluteExpiresAt, sql`now()`),
+        ),
+      )
+      .limit(1);
+    return verified
+      ? {
+          status: 'email_verified',
+          riskLevel: verified.riskLevel,
+          expiresAt: verified.absoluteExpiresAt.toISOString(),
+          rowVersion: verified.rowVersion,
+          answers: null,
+        }
+      : null;
+  }
   const status = SIGNUP_FUNNEL_ORDER.find((value) => value === row.status);
   if (!status) throw new Error('[signup] invalid_persisted_status');
 
@@ -367,6 +394,12 @@ export interface SignupPurgeResult {
   deleted: number;
   /** Quantas continuam vivas — é o SLI que alimenta o check de saúde. */
   live: number;
+  /**
+   * Vencidas que NÃO foram apagadas por carregarem assinatura no Asaas (O-5).
+   * Maior que zero é risco de cobrança órfã e precisa de conciliação humana —
+   * por isso vira métrica própria em vez de sumir dentro de `deleted`.
+   */
+  retainedWithSubscription: number;
 }
 
 /**
@@ -381,19 +414,40 @@ export interface SignupPurgeResult {
 export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPurgeResult> {
   const now = new Date();
 
+  const expiredCondition = or(
+    lte(signupSessions.idleExpiresAt, now),
+    lte(signupSessions.absoluteExpiresAt, now),
+  );
+
+  /*
+   * O janitor apagava QUALQUER linha vencida. Depois da 0103 isso apagaria também
+   * a linha que guarda a assinatura recorrente já criada no Asaas — e o Qoro
+   * perderia o único vínculo com uma cobrança que continua existindo do outro
+   * lado. Uma linha órfã é barata; uma assinatura órfã cobra alguém todo mês.
+   *
+   * Reter não é vazamento de PII: a retenção vale só para quem tem assinatura, e
+   * a saída normal é o provisionamento (O-6) consumir a linha. O contador abaixo
+   * é o que torna a retenção visível em vez de silenciosa.
+   */
   const deletedRows = await dbAdmin
     .delete(signupSessions)
     .where(
       sql`${signupSessions.id} IN (
         SELECT id FROM ${signupSessions}
-         WHERE ${or(
-           lte(signupSessions.idleExpiresAt, now),
-           lte(signupSessions.absoluteExpiresAt, now),
-         )}
+         WHERE ${and(expiredCondition, isNull(signupSessions.asaasSubscriptionId))}
          LIMIT ${batch}
       )`,
     )
     .returning({ id: signupSessions.id });
+
+  const [retainedRow] = await dbAdmin
+    .select({ n: sql<number>`count(*)::int` })
+    .from(signupSessions)
+    .where(and(expiredCondition, isNotNull(signupSessions.asaasSubscriptionId)));
+  const retainedWithSubscription = retainedRow?.n ?? 0;
+  if (retainedWithSubscription > 0) {
+    metrics.emit('signup.session.subscription_retained', { retained: retainedWithSubscription });
+  }
 
   const [row] = await dbAdmin
     .select({ live: sql<number>`count(*)::int` })
@@ -405,7 +459,7 @@ export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPur
     metrics.emit('signup.session.expired', { deleted: deletedRows.length, live });
   }
 
-  return { deleted: deletedRows.length, live };
+  return { deleted: deletedRows.length, live, retainedWithSubscription };
 }
 
 /**
@@ -566,7 +620,7 @@ export async function reserveSignupAuthAttempt(
   return { ok: false, reason: live ? 'conflict' : 'gone' };
 }
 
-/** Finalização tardia não modifica uma reserva nova nem renova TTL por máquina. */
+/** Finalização tardia não modifica reserva nova; a espera pelo e-mail usa o TTL absoluto. */
 export async function finishSignupAuthAttempt(
   rawToken: string,
   reservedVersion: number,
@@ -587,6 +641,7 @@ export async function finishSignupAuthAttempt(
     .update(signupSessions)
     .set({
       authAttemptState: outcome,
+      idleExpiresAt: signupSessions.absoluteExpiresAt,
       rowVersion: sql`${signupSessions.rowVersion} + 1`,
     })
     .where(
@@ -601,6 +656,63 @@ export async function finishSignupAuthAttempt(
     )
     .returning({ rowVersion: signupSessions.rowVersion });
   if (finished) return { ok: true, rowVersion: finished.rowVersion };
+  const [live] = await dbAdmin
+    .select({ rowVersion: signupSessions.rowVersion })
+    .from(signupSessions)
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
+}
+
+/**
+ * Devolve a reserva quando o provider recusou a SENHA, sem enviar nada.
+ *
+ * `weak_password` é a única recusa que prova, sozinha, que nenhum e-mail saiu e
+ * nenhum usuário nasceu: ela é avaliada a partir do valor enviado, antes de o
+ * GoTrue olhar a conta. Tratá-la como `uncertain` gastaria a tentativa e jogaria
+ * um erro de escolha de senha para trás do cooldown de reenvio — a pessoa
+ * ficaria presa por um minuto por ter digitado uma senha comum.
+ *
+ * A linha volta a `identity_pending` com a tentativa zerada, que é exatamente o
+ * estado anterior à reserva: staging e aceite continuam lá (os CHECKs de 0099
+ * exigem isso), `consumed_at` segue nulo, e a tentativa toda nula é aceita pelo
+ * `num_nonnulls(...) IN (0, 3)` de 0100. Nenhum prazo é tocado: abortar não é
+ * atividade humana nova, e a reserva já havia renovado o idle.
+ */
+export async function abortSignupAuthAttempt(
+  rawToken: string,
+  reservedVersion: number,
+): Promise<IdentityOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  if (!Number.isInteger(reservedVersion) || reservedVersion < 2 || reservedVersion > 2_147_483_646)
+    throw new Error('[signup] invalid_auth_result');
+  const tokenHash = hashSignupToken(rawToken);
+  const [aborted] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      status: 'identity_pending',
+      authAttemptKind: null,
+      authAttemptState: null,
+      authAttemptedAt: null,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        liveCondition(),
+        eq(signupSessions.status, 'email_pending'),
+        // Só a reserva INICIAL volta atrás. Um reenvio recusado por senha não
+        // existe — o reenvio não manda senha —, e uma reserva já finalizada
+        // pode ter enviado e-mail: essas não podem ser desfeitas.
+        eq(signupSessions.authAttemptKind, 'initial'),
+        eq(signupSessions.authAttemptState, 'reserved'),
+        eq(signupSessions.rowVersion, reservedVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (aborted) return { ok: true, rowVersion: aborted.rowVersion };
   const [live] = await dbAdmin
     .select({ rowVersion: signupSessions.rowVersion })
     .from(signupSessions)

@@ -47,7 +47,14 @@ type Chain = Promise<unknown> & Record<string, () => Chain>;
 function chain<T>(rows: T[]): Chain {
   const c = Promise.resolve(rows) as unknown as Chain;
   const self = (): Chain => c;
-  Object.assign(c, { from: self, where: self, values: self, set: self, returning: self });
+  Object.assign(c, {
+    from: self,
+    where: self,
+    values: self,
+    set: self,
+    returning: self,
+    limit: self,
+  });
   return c;
 }
 
@@ -299,8 +306,23 @@ describe('desafio de bot (O-2b)', () => {
 describe('leitura de sessão', () => {
   it('devolve null para token desconhecido — resposta genérica, sem distinguir casos', async () => {
     updateMock.mockReturnValue(chain([]));
+    selectMock.mockReturnValue(chain([]));
 
     expect(await readSignupSession('token-que-nao-existe')).toBeNull();
+  });
+
+  it('expõe ao navegador original somente que o e-mail foi confirmado em outro aparelho', async () => {
+    const absoluteExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    updateMock.mockReturnValue(chain([]));
+    selectMock.mockReturnValue(chain([{ riskLevel: 0, rowVersion: 6, absoluteExpiresAt }]));
+
+    await expect(readSignupSession('confirmado-em-outro-aparelho')).resolves.toEqual({
+      status: 'email_verified',
+      riskLevel: 0,
+      expiresAt: absoluteExpiresAt.toISOString(),
+      rowVersion: 6,
+      answers: null,
+    });
   });
 
   it('renova o prazo de inatividade sem deixar passar do absoluto', async () => {
@@ -383,20 +405,39 @@ describe('leitura de sessão', () => {
 describe('janitor', () => {
   it('APAGA as vencidas e reporta quantas seguem vivas', async () => {
     deleteMock.mockReturnValue(chain([{ id: 'a' }, { id: 'b' }]));
-    selectMock.mockReturnValue(chain([{ live: 7 }]));
+    // Dois SELECT, nesta ordem: retidas por assinatura e, depois, vivas.
+    selectMock.mockReturnValueOnce(chain([{ n: 0 }])).mockReturnValueOnce(chain([{ live: 7 }]));
 
     const resultado = await purgeExpiredSignupSessions();
 
-    expect(resultado).toEqual({ deleted: 2, live: 7 });
+    expect(resultado).toEqual({ deleted: 2, live: 7, retainedWithSubscription: 0 });
     expect(emitMock).toHaveBeenCalledWith(
       'signup.session.expired',
       expect.objectContaining({ deleted: 2, live: 7 }),
     );
+    expect(emitMock).not.toHaveBeenCalledWith(
+      'signup.session.subscription_retained',
+      expect.anything(),
+    );
+  });
+
+  it('NÃO apaga vencida que guarda assinatura, e denuncia a retenção', async () => {
+    // O ponto: a linha vencida com `asaas_subscription_id` é o único vínculo do
+    // Qoro com uma cobrança recorrente que continua existindo no Asaas. Apagar
+    // aqui trocaria uma linha órfã barata por uma assinatura órfã que cobra
+    // alguém todo mês — por isso o janitor a preserva e grita.
+    deleteMock.mockReturnValue(chain([{ id: 'a' }]));
+    selectMock.mockReturnValueOnce(chain([{ n: 3 }])).mockReturnValueOnce(chain([{ live: 4 }]));
+
+    const resultado = await purgeExpiredSignupSessions();
+
+    expect(resultado).toEqual({ deleted: 1, live: 4, retainedWithSubscription: 3 });
+    expect(emitMock).toHaveBeenCalledWith('signup.session.subscription_retained', { retained: 3 });
   });
 
   it('fica quieto quando não havia nada a apagar', async () => {
     deleteMock.mockReturnValue(chain([]));
-    selectMock.mockReturnValue(chain([{ live: 0 }]));
+    selectMock.mockReturnValueOnce(chain([{ n: 0 }])).mockReturnValueOnce(chain([{ live: 0 }]));
 
     const resultado = await purgeExpiredSignupSessions();
 

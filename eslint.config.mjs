@@ -151,6 +151,9 @@ const config = [
       // Bootstrap do cluster temporário: loopback fixo e data_directory verificado.
       'scripts/security/tenant-isolation.ts',
       'scripts/security/signup-regression.ts',
+      // Mesmo bootstrap, para o harness de provisionamento O-6: cluster efêmero
+      // sob o TEMP do SO, loopback fixo, migrations reais aplicadas em ordem.
+      'scripts/security/scratch-schema.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
@@ -267,6 +270,14 @@ const config = [
       // O draft verificado ainda nÃ£o tem clinic_id; RLS FORCE sem policy e grant
       // exclusivo a service_role mantÃªm a fronteira atÃ© o provisionamento.
       'src/contexts/onboarding/internal/signup-draft.ts',
+      // O-5 (0103): intenção de assinatura no MESMO signup_sessions pré-tenant.
+      // O draft verificado ainda não tem clinic_id; a reserva precisa acontecer
+      // antes de existir tenant, então não há GUC para withTenant setar. RLS FORCE
+      // sem policy e grant exclusivo a service_role seguem sendo a fronteira.
+      'src/contexts/onboarding/internal/signup-billing.ts',
+      // O-6: provisionamento a partir do cadastro pré-tenant. Lê/apaga
+      // signup_sessions e cria o tenant na MESMA tx — irmão da saga de convite.
+      'src/contexts/onboarding/internal/signup-provision.ts',
       // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
       // authenticated (D31). Mesma justificativa da saga de onboarding.

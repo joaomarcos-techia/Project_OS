@@ -15,6 +15,7 @@ export {
 } from './internal/signup-answers';
 export type { SignupAnswerValues } from './internal/signup-answer-values';
 export {
+  claimSignupDraftByVerifiedEmail,
   readSignupDraft,
   readSignupPlan,
   signupDraftMutationSchema,
@@ -24,6 +25,7 @@ export {
   type SignupPlan,
   type SignupPlanState,
   type SignupDraftState,
+  type ClaimSignupDraftOutcome,
   type WriteSignupDraftInput,
 } from './internal/signup-draft';
 export {
@@ -39,6 +41,7 @@ export {
   signupResendSchema,
   reserveSignupAuthAttempt,
   reserveSignupResendAttempt,
+  abortSignupAuthAttempt,
   finishSignupAuthAttempt,
   finishSignupResendAttempt,
   SIGNUP_RESEND_COOLDOWN_SECONDS,
@@ -65,6 +68,21 @@ export {
   type CheckoutArgs,
   type ProvisionArgs,
 } from './internal/saga';
+/* O-5/O-6. Só a orquestração sai daqui: reserva, ativação, marcação e
+   reconciliação de linha são passos INTERNOS de `signup-checkout`, e expô-los
+   convidaria a chamar um deles fora de ordem — que é exatamente como se cria
+   assinatura duplicada. O tipo do estado sai porque a UI precisa nomeá-lo. */
+export type { SignupBillingAttemptState } from './internal/signup-billing';
+export {
+  startSignupSubscription,
+  reconcileSignupSubscription,
+  type StartSignupSubscriptionOutcome,
+  type ReconcileSignupSubscriptionOutcome,
+} from './internal/signup-checkout';
+export {
+  provisionTenantFromSignup,
+  type ProvisionSignupOutcome,
+} from './internal/signup-provision';
 export {
   ONBOARDING_STEPS,
   EMPTY_STEP_STATE,

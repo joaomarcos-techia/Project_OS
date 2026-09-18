@@ -44,6 +44,7 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   // Cluster temporário próprio, loopback fixo e data_directory conferido antes do DDL.
   'scripts/security/tenant-isolation.ts',
   'scripts/security/signup-regression.ts',
+  'scripts/security/scratch-schema.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.
@@ -100,6 +101,11 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // ADR-062 O-3b.3: ownership do mesmo signup_sessions global prÃ©-tenant;
     // permanece sem clinic_id e protegido por RLS FORCE sem policy/service_role.
     'src/contexts/onboarding/internal/signup-draft.ts',
+    // O-5 (0103): intenção de assinatura no mesmo signup_sessions pré-tenant.
+    // Irmão dos três acima; a reserva precede o tenant, logo precede o GUC.
+    'src/contexts/onboarding/internal/signup-billing.ts',
+    // O-6: consome signup_sessions e cria o tenant na mesma tx (ADR-027).
+    'src/contexts/onboarding/internal/signup-provision.ts',
     // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
     // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
     'src/contexts/identity/internal/members.ts',
