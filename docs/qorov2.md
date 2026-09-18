@@ -6092,3 +6092,84 @@ continua aplicada **somente** em cluster descartável — DEV e produção intoc
 **O que continua aberto:** O-7 (checklist, tour, `/documentacao`) não existe; `test:e2e:ci` e
 `test:load` não rodaram; o webhook para assinatura originada no cadastro é reuso por desenho, não
 prova; Product Acceptance humano segue **BLOCKED**.
+
+### 35.27 O-7 existe, o webhook deixou de ser suposição e os gates que faltavam rodaram — 18/09/2026
+
+A §35.26 fechou O-5/O-6 e publicou em Preview, mas deixou quatro coisas em aberto: O-7 não existia,
+`test:load` e `test:simulation` nunca tinham rodado, e o webhook da assinatura originada no cadastro
+era "reuso por desenho, não prova". Esta sessão fechou as quatro.
+
+**O-7, e a decisão de não duplicar o que já existia.** O checklist de ativação já estava lá, derivado
+de presença de dado (`dashboard/data.ts`). Derivação é estritamente mais forte que estado marcado: não
+há id vindo do browser, não há como concluir sem fazer, não há como concluir para outro tenant. Trocar
+isso por uma tabela de "etapas marcadas" teria enfraquecido o que já funcionava. O que ganhou tabela
+(`onboarding_progress`, migration 0104) é só o que não é derivável de dado nenhum — passo do tour, se
+pulou, se abriu a ajuda, se dispensou o checklist.
+
+A tabela é escopada por **(clínica, pessoa)**: as policies exigem os DOIS GUCs que
+`withTenant(clinic, fn, actor)` estabelece, então um colega da mesma clínica não lê nem escreve o
+progresso alheio. A pré-condição de cada ação viaja no `WHERE` do `UPDATE`, não num `SELECT` anterior
+— é o que remove a janela por onde duas abas passariam juntas. **13/13** contra as 105 migrations
+reais, incluindo concorrência, RLS por usuário e cinco estados impossíveis recusados pelo banco.
+
+**Fechar o tour É pular.** Se fechar deixasse `in_progress`, ou o tour reabriria na navegação seguinte
+(e fechar não significaria nada), ou nunca mais reabriria (e o refresh perderia o fluxo). Pular
+preserva o passo, então quem reabre pela central de ajuda volta de onde parou. Não existe um "aberto"
+que só o componente conheça: a janela está aberta exatamente quando o estado persistido é não-terminal.
+
+**O webhook, provado.** O runner cria assinatura REAL no sandbox, provisiona o tenant a partir dela e
+entrega eventos à MESMA rota de produção — que busca o estado autoritativo com `getPayment()` contra a
+API real. Forjar o corpo não adianta, e é essa a propriedade sob teste. **9/9**: fluxo feliz na clínica
+certa, replay sem segunda invoice, e os ataques (sem token, token errado, corpo inválido, corpo de
+1,2 MB, cobrança de outro tenant).
+
+**Contrato do provedor, medido.** `DELETE /subscriptions/{id}` pode responder **HTTP 500 e ainda assim
+ter apagado**. Aconteceu nas duas assinaturas da primeira execução; a leitura seguinte trouxe
+`deleted: true` para ambas. É a mesma família do achado sobre cobrança apagada (200 com `deleted`, não
+404): o status da resposta do Asaas não é a verdade sobre o estado. A limpeza passou a ser verificada
+por readback.
+
+**O defeito que só o build real pegou.** `product-tour.tsx` é client component e importava o barril
+público do contexto, que reexporta módulos `server-only`. Typecheck passava, os 11 testes de
+componente passavam, e o `next build` quebrou. Os passos do tour passaram a chegar como prop do
+servidor; do contexto o cliente importa só tipos, que são apagados na compilação.
+
+**O que `security:http` cobrou.** `fetchOnboardingProgress` devolvia `null` com sessão inválida. O
+gate recusou — "200 sem negativa explícita" — e tinha razão: `null` faz quem chama ler a negativa como
+"você ainda não tem progresso", que é um estado legítimo e diferente. Virou envelope.
+
+**Carga, pela primeira vez.** `test:load` exigia credencial de DEV para extrair o schema, o que o
+impedia de rodar em CI ou em máquina limpa. Sem DEV configurado ele agora monta o schema das
+**migrations** — a fonte da qual o DEV é um efeito. `[load] PASS`: webhooks p99 210 ms (SLO 2.000),
+jobs proativos p99 2.114 ms (SLO 30.000), SQL p99 2,33 ms (SLO 100), **0 deadlock**, cleanup
+verificado. Nenhum SLO foi alterado.
+
+**Kill switch no navegador.** O unitário provava a tela; faltava o que importa numa emergência — que
+com a chave desligada nenhuma linha nasce. Três variantes servidas de verdade, Chromium real, contagem
+no Postgres, e a verificação de que quem já é cliente não é atingido: `/login` responde 200 e
+`/dashboard` continua mandando para o login, nunca para a tela de cadastro fechado.
+
+**Nada foi aceito verde sem provar que sabe falhar.** Removido o CAS do avanço do tour, 3 casos falham
+(entre eles "esperava um avanço, houve 2"). Removida a condição de `user_id` da policy, só o caso de
+colega da mesma clínica falha. Removida a condição `SIGNUP_ENABLED` do gate, só a variante B do kill
+switch falha. Esse último exercício também expôs um limite honesto: nesta fixture o funil aberto
+tampouco escreve, então quem distingue aberto de fechado é a asserção de DOM, não a contagem de linhas
+— e isso ficou registrado no runner em vez de virar um verde confortável.
+
+**Atribuição de falha, não suposição.** `security:browser-session` falha em 4 testes. Em vez de chamar
+de pré-existente por conveniência, o gate foi executado num worktree do commit `8df4ab7` — anterior a
+todo este trabalho — e falhou nos mesmos 4, com a mesma assinatura. Fica registrado como `FAIL`
+pré-existente.
+
+**Validação.** Suíte **3.964/3.964** em 394 arquivos, 0 falha, 0 skip, exit 0, executada depois da
+última alteração funcional. `typecheck`, `eslint`, `prettier`, `arch:db-check` (1293), `arch:graphs`
+(56 elementos, 298 arestas, 0 ciclos), `madge`, `check:migrations`, `check:observability`,
+`check:registry:strict`, `security:inventory`, `security:unit` (332), `security:build`,
+`security:bundle` (170), `security:http` (49 actions com negativa explícita), `security:tenant`,
+`security:risks`, `test:load` e `test:simulation`: **todos PASS**.
+
+**O que continua aberto:** o E2E da jornada autenticada completa (exige conta sintética e o Postgres
+de auditoria, ferramenta operada por pessoa), chaos de Redis sobre os caminhos novos, carga sobre os
+caminhos do Track O (o harness é de Camada 1), O-1 (outro repositório) e o Product Acceptance humano,
+que agora tem roteiro reproduzível no handoff. As migrations 0103 e 0104 continuam aplicadas **somente**
+em cluster descartável.

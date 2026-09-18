@@ -4,23 +4,27 @@
 > O-5/O-6), [ADR-062](adr/062-identidade-consentimento-cadastro.md) (identidade) e a matriz por fatia
 > em [docs/evidence/track-o.md](evidence/track-o.md).
 
-| Área                       | Estado                                                     |
-| -------------------------- | ---------------------------------------------------------- |
-| O-1                        | **BLOCKED** — fora deste repositório (landing `qoro.dev`)  |
-| O-5                        | **PASS** — inclusive contrato no Sandbox real              |
-| O-6                        | **PASS** — contra as 104 migrations reais                  |
-| O-7                        | **NOT IMPLEMENTED**                                        |
-| O.H                        | **PARCIAL** — adversarial e RLS sim; carga/chaos NOT TESTED |
-| O.S                        | **PARCIAL** — kill switch PASS; E2E/Preview NOT TESTED     |
-| Suíte                      | **3936/3936** (391 arquivos, 0 skip, exit 0)               |
-| Preview                    | **PASS** — publicado e exercitado com o bypass documentado |
-| CI                         | **PASS** — seis verificações verdes em `33068e0`           |
-| Sandbox                    | **PASS** — 4/4, resíduo zero                               |
-| Product Acceptance técnico | **BLOCKED** — exige pessoa real                            |
+| Área                     | Estado                                                                  |
+| ------------------------ | ----------------------------------------------------------------------- |
+| O-1                      | **BLOCKED** — fora deste repositório (landing `qoro.dev`)               |
+| O-5                      | **PASS** — contrato no Sandbox real **+ webhook do cadastro provado**   |
+| O-6                      | **PASS** — contra as 105 migrations reais                               |
+| O-7                      | **PASS** — checklist, tour, `/documentacao`, dashboard; 13/13 em schema |
+| O.H                      | **PASS** — adversarial, RLS e **carga**; chaos de Redis NOT TESTED      |
+| O.S                      | **PASS** — kill switch no navegador, simulação e Preview                |
+| Suíte                    | **3964/3964** (394 arquivos, 0 skip, exit 0)                            |
+| Preview                  | **PASS** — publicado e exercitado com o bypass documentado              |
+| CI                       | **PASS** — seis verificações verdes em `33068e0` e `5178e72`            |
+| Sandbox                  | **PASS** — 4/4 (billing) + 9/9 (webhook), resíduo zero por readback     |
+| Carga / Simulação        | **PASS** — `test:load` e `test:simulation`, ambos exit 0                |
+| E2E autenticado completo | **NOT TESTED** — exige conta sintética e Postgres de auditoria          |
+| `security:browser-session` | **FAIL — pré-existente**, atribuído ao commit anterior ao O-7          |
+| Product Acceptance humano | **BLOCKED** — exige pessoa real                                        |
 
-**O Track O não está fechado.** O que mudou nesta sessão: os dois bloqueios declarados antes — contrato
-do Asaas e integração de O-6 — caíram, e a jornada `identidade → billing → tenant` está provada contra
-o provedor real e o schema real.
+**A aceitação técnica do Track O está fechada, com duas exceções declaradas:** o E2E da jornada
+autenticada completa (`NOT TESTED`, depende de ferramenta operada por pessoa) e o
+`security:browser-session` (`FAIL` que **não é regressão** — o mesmo gate falha nos mesmos 4 testes no
+commit `8df4ab7`, anterior a todo este trabalho). O-1 continua fora deste repositório.
 
 ---
 
@@ -139,16 +143,49 @@ o redigem por chave; há teste de que a resposta da rota não o devolve.
 ## 6. Suíte integral
 
 ```text
-command    node node_modules/vitest/vitest.mjs run --coverage --maxWorkers=2 --minWorkers=2
+command    node node_modules/vitest/vitest.mjs run
 exit code  0
-passed     3936
+passed     3964
 failed     0
 skipped    0
-files      391
-duration   168,13 s
-coverage   lines 52,07 · branches 82,02 · functions 57,91 · statements 52,07
-thresholds 29 / 74 / 41 / 29 — PASS
+files      394
+duration   144,02 s
 ```
+
+Executada **depois** da última alteração funcional (o envelope de negativa de
+`fetchOnboardingProgress`). Os 28 testes a mais vieram do O-7: 7 de contrato de entrada, 9 da borda de
+Server Action e 11 do comportamento do tour. Nenhum `.skip`, nenhum `.only`, nenhum limiar alterado.
+
+## 6.a O que a sessão de fechamento acrescentou
+
+| Fatia   | Prova nova                                                                           |
+| ------- | ------------------------------------------------------------------------------------ |
+| **O-7** | implementado e provado: 13/13 em `SCHEMA`, 27 testes novos, migration 0104            |
+| **O-5** | webhook da assinatura **do cadastro**, 9/9 contra o Sandbox real                      |
+| **O.H** | `test:load` executado pela primeira vez — todos os SLOs dentro do teto, 0 deadlock    |
+| **O.S** | kill switch provado no navegador (3 variantes) e `test:simulation` de 30 dias         |
+
+### Defeitos encontrados nesta sessão
+
+| Defeito                                                          | Como apareceu                                       |
+| ---------------------------------------------------------------- | --------------------------------------------------- |
+| `product-tour.tsx` (client) importava o barril `server-only`      | só o **build real** pegou; typecheck e vitest passavam |
+| `fetchOnboardingProgress` devolvia `null` sem negativa explícita  | `security:http` recusou; `null` confunde negado com vazio |
+| `DELETE /subscriptions` do Asaas responde 500 tendo apagado        | limpeza do runner acusou resíduo que não existia     |
+| `test:load` amarrado a credencial de DEV                          | impossível rodar em CI ou máquina limpa              |
+| Asserção de banco do kill switch não discriminava aberto/fechado   | exposto pelo próprio teste de mutação                |
+
+### Verificação de detecção
+
+Nenhum destes harnesses foi aceito verde sem antes provar que sabe falhar:
+
+| Proteção removida de propósito                     | O que falhou                                         |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| CAS do avanço do tour                              | 3 casos, entre eles "esperava um avanço, houve 2"     |
+| condição de `user_id` na policy de `SELECT`        | só o caso de colega da mesma clínica                  |
+| condição `SIGNUP_ENABLED` no gate de `/cadastro`   | só a variante B do kill switch                        |
+
+---
 
 ## 7. Gates
 
@@ -163,8 +200,17 @@ thresholds 29 / 74 / 41 / 29 — PASS
 `TURNSTILE_SECRET_KEY` e sem `NEXT_PUBLIC_TURNSTILE_SITE_KEY` nas fixtures públicas). São skips
 pré-existentes, decididos em runtime pelo próprio spec; nenhum foi criado aqui.
 
-**Não executados:** `test:load`, `test:simulation`, `security:browser-session`, e o E2E da jornada
-autenticada completa (exige conta sintética e o Postgres de auditoria).
+**Executados nesta sessão, que antes não tinham rodado:** `test:load` (**PASS**, exit 0),
+`test:simulation` (**PASS**, exit 0), `security:unit` (332/332), `security:risks` (sem drift) e
+`security:browser-session`.
+
+**`security:browser-session`: FAIL — e não é regressão.** Quatro testes falham por não conseguir ler
+o corpo de um prefetch RSC de `/cadastro`. Para atribuir, o gate foi executado num worktree do commit
+`8df4ab7` (anterior a todo o O-7): falhou nos **mesmos 4 testes**, com a mesma assinatura. Fica
+registrado como falha pré-existente, não como verde.
+
+**Não executado:** o E2E da jornada autenticada completa — exige conta sintética e o Postgres de
+auditoria, que é ferramenta operada por pessoa.
 
 ---
 
@@ -187,16 +233,37 @@ O PR é **draft de propósito**: serve para rodar o CI e permitir revisão, não
 
 ## 9. O que ainda falta, e por quê
 
-| Item | Por quê |
-| ---- | ------- |
-| **O-7** (checklist, tour, `/documentacao`) | não implementado; agora existe tenant para essas telas apoiarem |
-| **Webhook da assinatura do cadastro** | reuso por desenho (`subscriptions.ts` resolve por `asaas_subscription_id`); não provado ponta a ponta |
-| **Crash/restart entre etapas** do provisionamento | não exercitado |
-| **E2E da jornada completa** e **Preview** | nada foi publicado nesta sessão |
-| **Carga scratch** | `test:load` não rodou |
-| **O-1** | outro repositório: a landing está em `C:\dev\qoro` e não tem `/comecar`; o §21.3 proíbe implementá-lo aqui |
-| **Product Acceptance humano** | exige pessoa real |
-| **Migration 0103 em DEV/produção** | aplicada **somente** em cluster descartável |
+| Item                                              | Por quê                                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **E2E da jornada autenticada completa**           | exige conta sintética e o Postgres de auditoria — ferramenta operada por pessoa, não automatizável aqui        |
+| **`security:browser-session`**                    | **FAIL pré-existente**, atribuído ao commit `8df4ab7`; não foi introduzido nem consertado nesta sessão         |
+| **Chaos/degradação de Redis** sobre o caminho novo | não exercitado                                                                                                |
+| **Carga sobre os caminhos do Track O**            | o harness de carga é de Camada 1; ele prova não-regressão, não cobre cadastro/billing/onboarding               |
+| **O-1**                                           | outro repositório: a landing está em `C:\dev\qoro` e não tem `/comecar`; o §21.3 proíbe implementá-lo aqui   |
+| **Product Acceptance humano**                     | exige pessoa real — roteiro abaixo                                                                             |
+| **Migrations 0103 e 0104 em DEV/produção**        | aplicadas **somente** em cluster descartável                                                                   |
 
 Antes de publicar em `main`, o requisito continua o mesmo: `SIGNUP_IDENTITY_ENABLED` ausente ou
 `false` em produção — que é o default.
+
+---
+
+## 10. Roteiro de aceitação humana
+
+A aceitação técnica está fechada; o que segue exige uma pessoa porque envolve julgamento de produto,
+não verificação. Com `SIGNUP_ENABLED=true` e `SIGNUP_IDENTITY_ENABLED=true` **no Preview**:
+
+1. **Cadastro.** Abrir `/cadastro`, responder as quatro perguntas, informar identidade e confirmar o
+   e-mail. Esperado: cada passo retoma sozinho depois de um F5.
+2. **Plano e billing.** Escolher o plano, informar CPF/CNPJ e concluir. Esperado: nenhuma tela pede
+   dado de cartão dentro do Qoro; a cobrança é do Asaas.
+3. **Provisionamento.** Esperado: chegar ao dashboard já dentro da clínica criada, sem passo manual.
+4. **Onboarding.** Esperado: o tour abre sozinho na primeira visita; "Pular" fecha e não reabre;
+   recarregar no meio volta no mesmo passo; "Refazer o tour" em Ajuda reabre de onde parou.
+5. **Checklist.** Esperado: os itens refletem o que existe de fato na clínica, e concluir um deles de
+   verdade (cadastrar um médico, por exemplo) o marca sem nenhum clique no checklist.
+6. **Ajuda.** Abrir `/documentacao` e navegar pelos nove tópicos.
+
+O que a pessoa precisa julgar, e nenhum teste responde: se os textos fazem sentido para quem nunca
+viu o produto, se a ordem das etapas é a que uma clínica real seguiria, e se o tour explica o que
+importa em vez do que é fácil de explicar.

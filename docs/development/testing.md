@@ -99,6 +99,35 @@ $env:NODE_OPTIONS = '--conditions=react-server'
 node node_modules/tsx/dist/cli.mjs scripts/security/signup-regression.ts --browser
 ```
 
+### Onboarding operacional (O-7) e kill switch, com banco e navegador reais
+
+```powershell
+$env:NODE_OPTIONS = '--conditions=react-server'
+node node_modules/tsx/dist/cli.mjs scripts/security/onboarding-progress-db.ts
+node node_modules/tsx/dist/cli.mjs scripts/security/signup-kill-switch-browser.ts
+```
+
+O primeiro sobe Postgres descartável com **todas** as migrations e exercita a máquina de estados do
+tour por `withTenant` — concorrência, idempotência, RLS por (clínica, pessoa) e os CHECKs que recusam
+estado impossível. O segundo serve o build de produção três vezes, com as duas chaves do cadastro em
+combinações diferentes, e confere no banco que o funil fechado não escreve nada.
+
+O runner do kill switch exige `pnpm build` antes (ele serve o `.next` da raiz) e **zera
+`NODE_OPTIONS`** para o `next start` filho: `--conditions=react-server` herdado muda a resolução de
+módulos do servidor e o Next não sobe com ele.
+
+### Carga sem credencial de DEV
+
+```powershell
+$env:LOAD_TEST_CONFIRM = 'LOCAL_SCRATCH_ONLY'
+$env:NODE_OPTIONS = '--conditions=react-server'
+node node_modules/tsx/dist/cli.mjs scripts/load-test.ts
+```
+
+Sem `DATABASE_URL_DEV` configurado, o gate monta o schema a partir das **migrations do repositório**
+em vez de extrair do DEV. Com `DATABASE_URL_DEV` presente, o caminho do `pg_dump` continua idêntico e
+com os mesmos guards. Precisa de `pnpm build` antes.
+
 ## Verificações contra o provedor real (sandbox)
 
 ```bash
