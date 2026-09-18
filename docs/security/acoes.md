@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 174 actions (0 inline); 46 métodos em 43 handlers; 14 props com referência de action; 203 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
+Contagem: 174 actions (0 inline); 46 métodos em 43 handlers; 14 props com referência de action; 204 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -234,7 +234,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/signup/sessions/identity/route.ts:24#POST`              | NEW                     | SIGNUP_IDENTITY_ENABLED-origin-limit-cookie-cas                | `src/app/api/signup/sessions/identity/route.ts:62#recordSignupIdentity`                                                                                                      |
 | `src/app/api/signup/sessions/me/route.ts:33#GET`                     | NEW                     | signup-cookie-and-read-rate-limit                              | `src/app/api/signup/sessions/me/route.ts:46#readSignupSession`                                                                                                               |
 | `src/app/api/signup/sessions/resend/route.ts:31#POST`                | NEW                     | SIGNUP_AUTH_ENABLED-origin-resend-limit-cooldown-cas           | `src/app/api/signup/sessions/resend/route.ts:75#reserveSignupResendAttempt`                                                                                                  |
-| `src/app/api/signup/sessions/route.ts:60#POST`                       | NEW                     | public-signup-rate-limit-risk-and-cap                          | `src/app/api/signup/sessions/route.ts:91#createSignupSession`                                                                                                                |
+| `src/app/api/signup/sessions/route.ts:60#POST`                       | NEW                     | public-signup-rate-limit-risk-and-cap                          | `src/app/api/signup/sessions/route.ts:105#createSignupSession`                                                                                                               |
 | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:68#POST`          | asaas-tenant-token      | asaas-tenant-token                                             | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:108#safeEqual` → `src/lib/payments/asaas/index.ts:1041#safeEqual`                                                         |
 | `src/app/api/webhooks/asaas/route.ts:90#POST`                        | asaas-shared-token      | asaas-shared-token                                             | `src/app/api/webhooks/asaas/route.ts:110#asaasProvider.validateWebhookToken`                                                                                                 |
 | `src/app/api/webhooks/meta/route.ts:61#GET`                          | meta-handshake-token    | meta-handshake-token                                           | `src/app/api/webhooks/meta/route.ts:74#safeEqual`                                                                                                                            |
@@ -419,22 +419,23 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-billing-sandbox.ts:66`    | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
 | `scripts/security/signup-billing-sandbox.ts:131`   | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
 | `scripts/security/signup-billing-sandbox.ts:322`   | `<object>`                             | `process.env`                                      |
-| `scripts/security/signup-provision-db.ts:47`       | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
-| `scripts/security/signup-provision-db.ts:48`       | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
-| `scripts/security/signup-provision-db.ts:49`       | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                  |
-| `scripts/security/signup-provision-db.ts:50`       | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
-| `scripts/security/signup-provision-db.ts:51`       | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
-| `scripts/security/signup-provision-db.ts:52`       | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                   |
-| `scripts/security/signup-provision-db.ts:53`       | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
-| `scripts/security/signup-provision-db.ts:56`       | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                |
-| `scripts/security/signup-provision-db.ts:57`       | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                 |
-| `scripts/security/signup-provision-db.ts:58`       | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                   |
-| `scripts/security/signup-provision-db.ts:59`       | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                            |
+| `scripts/security/signup-provision-db.ts:68`       | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/security/signup-provision-db.ts:69`       | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
+| `scripts/security/signup-provision-db.ts:70`       | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                  |
+| `scripts/security/signup-provision-db.ts:71`       | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/security/signup-provision-db.ts:72`       | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `scripts/security/signup-provision-db.ts:73`       | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                   |
+| `scripts/security/signup-provision-db.ts:74`       | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
+| `scripts/security/signup-provision-db.ts:77`       | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                |
+| `scripts/security/signup-provision-db.ts:78`       | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                 |
+| `scripts/security/signup-provision-db.ts:79`       | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                   |
+| `scripts/security/signup-provision-db.ts:80`       | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                            |
+| `scripts/security/signup-provision-db.ts:327`      | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-regression.ts:18`         | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
 | `scripts/security/signup-regression.ts:34`         | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-regression.ts:34`         | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/signup-regression.ts:159`        | `<object>`                             | `process.env`                                      |
-| `scripts/security/signup-regression.ts:2105`       | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-regression.ts:2106`       | `<object>`                             | `process.env`                                      |
 | `scripts/security/tenant-isolation.ts:12`          | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
 | `scripts/security/tenant-isolation.ts:120`         | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/tenant-isolation.ts:121`         | `<object>`                             | `process.env`                                      |

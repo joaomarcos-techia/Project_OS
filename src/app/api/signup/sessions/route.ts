@@ -88,12 +88,32 @@ export async function POST(req: Request): Promise<Response> {
     turnstileToken = check.data.turnstileToken;
   }
 
-  const result = await createSignupSession({
-    ip: getClientIp(req.headers),
-    origin: req.headers.get('origin'),
-    expectedHost: expectedHostOf(req),
-    ...(turnstileToken ? { turnstileToken } : {}),
-  });
+  /*
+   * Falha de infraestrutura vira `503 unavailable`, não `500` opaco.
+   *
+   * Esta era a única rota do grupo sem essa rede: draft, plano e checkout já
+   * envolviam o serviço. A diferença apareceu no Preview, onde uma janela
+   * transitória devolveu `500` com **corpo vazio** — sem código de erro, sem
+   * `Retry-After`, nada para o cliente decidir o que fazer. O cliente do funil
+   * trata `503` como "tente de novo em instantes"; `500` ele não trata.
+   *
+   * Não engole o problema: o erro continua subindo para a observabilidade pelo
+   * caminho normal do runtime, e a métrica de bloqueio/criação segue no serviço.
+   */
+  let result: Awaited<ReturnType<typeof createSignupSession>>;
+  try {
+    result = await createSignupSession({
+      ip: getClientIp(req.headers),
+      origin: req.headers.get('origin'),
+      expectedHost: expectedHostOf(req),
+      ...(turnstileToken ? { turnstileToken } : {}),
+    });
+  } catch {
+    return NextResponse.json(
+      { error: 'unavailable' },
+      { status: 503, headers: { 'Retry-After': '60' } },
+    );
+  }
 
   if (!result.ok) {
     // Quatro desfechos, quatro códigos. Colapsar em um só apagaria a distinção

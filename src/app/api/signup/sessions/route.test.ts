@@ -44,6 +44,31 @@ describe('POST signup sessions', () => {
     expect(res.headers.get('set-cookie')).toBeNull();
   });
 
+  it('falha de infraestrutura vira 503 acionavel, nao 500 opaco', async () => {
+    // Medido no Preview: uma janela transitória devolvia `500` com corpo VAZIO —
+    // sem código, sem Retry-After, nada que o cliente do funil saiba tratar.
+    // As rotas irmãs (draft, plano, checkout) já convertiam; esta não.
+    create.mockRejectedValue(new Error('conexao caiu no meio'));
+
+    const res = await POST(request('{}'));
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    expect(res.headers.get('retry-after')).toBe('60');
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('nao esconde o erro do cliente atras de um sucesso', async () => {
+    create.mockRejectedValue(new Error('segredo: postgres://user:senha@host/db'));
+
+    const res = await POST(request('{}'));
+    const body = await res.text();
+
+    expect(res.status).toBe(503);
+    expect(body).not.toContain('postgres://');
+    expect(body).not.toContain('senha');
+  });
+
   it('recusa antes de ler o corpo, mesmo num corpo que seria rejeitado depois', async () => {
     env.SIGNUP_ENABLED = false;
     // Sem o portão este corpo daria 400 (JSON inválido). Com ele, 503 prova que
@@ -143,8 +168,25 @@ describe('POST signup sessions', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('propagates service unavailability', async () => {
+  /*
+   * Este caso mudou de significado em 18/09/2026.
+   *
+   * Ele fixava o comportamento antigo: deixar a exceção subir, o que no runtime
+   * vira `500` com corpo VAZIO. O Preview mostrou o custo disso — o cliente do
+   * funil recebia um status que não sabe tratar, sem código e sem Retry-After,
+   * numa janela transitória de infraestrutura.
+   *
+   * As três rotas irmãs (draft, plano, checkout) já convertiam para `503`. O
+   * contrato do grupo era esse; esta rota é que era a exceção. O caso agora
+   * prova a conversão, e os dois casos acima provam que ela não engole detalhe
+   * nem vaza segredo.
+   */
+  it('converte indisponibilidade do servico em 503, em vez de propagar', async () => {
     create.mockRejectedValue(new Error('database unavailable'));
-    await expect(POST(request('{}'))).rejects.toThrow('database unavailable');
+
+    const res = await POST(request('{}'));
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
   });
 });
