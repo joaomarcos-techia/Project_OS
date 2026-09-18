@@ -6019,3 +6019,60 @@ etapas do provisionamento não foi exercitado. `test:load`, `test:e2e:ci`, `test
 `security:*` de build/http/browser, Preview e CI **não rodaram**. O-7 não existe. Product Acceptance
 humano continua **BLOCKED**. A 0103 segue aplicada **somente** em cluster descartável — DEV e produção
 intocados. Nenhum commit, push ou deploy.
+
+### 35.26 Publicado em Preview, CI e os defeitos que só o ambiente real mostrou — 18/09/2026
+
+A §35.25 fechou O-5/O-6 com Sandbox e schema reais, mas tudo ainda era local. Esta sessão levou o
+trabalho para fora: cinco commits, push, PR em draft (#9), CI, Vercel Preview e os gates que nunca
+tinham rodado.
+
+**Gates que faltavam, agora executados.** `arch:graphs --check` acusou drift (os módulos novos mudaram
+o acoplamento) e foi regenerado: 56 elementos, 298 arestas, **0 ciclos**. `security:build` — que é o
+gate `build` — **PASS**, exit 0. `security:bundle`: 168 arquivos de cliente varridos, 0 falhas.
+`security:http`: **PASS**. `security:tenant`: **PASS**, com um contrafactual que vale registrar — sem
+`SET LOCAL ROLE`, o papel do pool (BYPASSRLS) LÊ a linha da outra clínica; quem isola é a troca de
+papel, não a RLS sozinha.
+
+**Crash/restart, que era NOT TESTED.** O processo de provisionamento passou a ser morto em seis
+instantes distintos (40, 90, 160, 260, 420 e 700 ms), caindo depois do claim, da clínica, do owner, da
+config, do billing e do outbox. Em todos: zero estado parcial e retomada convergindo. O mecanismo é
+uma transação única — matar o processo derruba a conexão e o Postgres aborta o que estava aberto. O
+harness de O-6 foi a **8/8**.
+
+**O 500 que o Preview revelou.** Exercitando o deploy com o bypass de automação documentado,
+`POST /api/signup/sessions` devolveu `500` com **corpo vazio** numa janela transitória. A investigação
+descartou a hipótese de schema (o caminho usa colunas explícitas) e mostrou que o 500 não era o
+problema em si — era o sintoma. Esta era a **única rota do grupo sem try/catch** em volta do serviço:
+draft, plano e checkout já convertiam falha de infraestrutura em `503 unavailable` com `Retry-After`.
+O cliente do funil trata `503`; `500` ele não trata. Corrigido, com dois casos novos provando a
+conversão e a ausência de vazamento.
+
+O teste que fixava o comportamento antigo (`rejects.toThrow`) foi **corrigido, não removido**: ele
+codificava a exceção, e a exceção é que estava errada — as três rotas irmãs já diziam qual era o
+contrato.
+
+**O CI pegou um erro meu.** `security:inventory --check` falhou em `6db827d`: regenerei
+`docs/security/acoes.md` ANTES de acrescentar o bloco de crash ao harness e commitei sem regenerar
+depois. A contagem de acessos a `process.env` ficou em 203 quando já era 204. É exatamente o tipo de
+divergência que o gate existe para pegar, e ele pegou.
+
+**Preview, medido.** Com o bypass documentado: `/` e `/login` respondem 200; `POST /api/signup/checkout`
+sem Origin responde `403 blocked` e com Origin responde `401 unauthorized` — os dois guards corretos,
+no ambiente real. `POST /api/signup/sessions` sem Origin responde `401 challenge_required`, que é o
+risco moderado exigindo Turnstile. A comparação com o deploy do commit anterior (`6307612`) serviu
+para isolar causalidade: o comportamento é o mesmo nos dois, o 500 era transitório.
+
+**Validação.** Suíte integral **PASS 3.936/3.936** em 391 arquivos, 0 falha, 0 skip, exit 0, 168,1 s,
+cobertura 52,07 / 82,02 / 57,91 / 52,07. Runner de provisionamento **8/8** contra as 104 migrations
+reais. Sandbox Asaas **4/4** com resíduo zero. `typecheck`, `eslint .`, `prettier --check .`,
+`git diff --check`, `inventory --check`, `arch:db-check` (1277), `arch:graphs --check`,
+`madge --circular`, `check:migrations`, `check:observability`, `check:registry:strict`,
+`security:build`, `security:bundle`, `security:http`, `security:tenant`: **todos PASS**.
+
+**Estado de entrega.** Branch `feature/clinic-plan-o4` empurrada; PR **#9 em draft** contra `main`,
+com Vercel Preview publicado. Nada foi mesclado. A migration 0103 continua aplicada **somente** em
+cluster descartável — DEV e produção intocados.
+
+**O que continua aberto:** O-7 (checklist, tour, `/documentacao`) não existe; `test:e2e:ci` e
+`test:load` não rodaram; o webhook para assinatura originada no cadastro é reuso por desenho, não
+prova; Product Acceptance humano segue **BLOCKED**.

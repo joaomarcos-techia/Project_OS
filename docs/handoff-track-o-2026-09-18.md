@@ -12,8 +12,9 @@
 | O-7                        | **NOT IMPLEMENTED**                                        |
 | O.H                        | **PARCIAL** — adversarial e RLS sim; carga/chaos NOT TESTED |
 | O.S                        | **PARCIAL** — kill switch PASS; E2E/Preview NOT TESTED     |
-| Suíte                      | **3934/3934** (391 arquivos, 0 skip, exit 0)               |
-| Preview                    | **NOT TESTED**                                             |
+| Suíte                      | **3936/3936** (391 arquivos, 0 skip, exit 0)               |
+| Preview                    | **PASS** — publicado e exercitado com o bypass documentado |
+| CI                         | ver §9 — falhou, causa corrigida, reexecutando             |
 | Sandbox                    | **PASS** — 4/4, resíduo zero                               |
 | Product Acceptance técnico | **BLOCKED** — exige pessoa real                            |
 
@@ -66,7 +67,17 @@ Resolvido usando `spawn` do `postgres` direto, como o harness que já funcionava
 O guard do bug 1 expôs isso na hora. **Corrigido**: os seeds e as asserções passaram a usar os códigos
 reais, e o runner voltou a 27/27 com 22/22 provas.
 
-**7. Duas quebras de template literal** por crase dentro de SQL embutido em JS.
+**7. `POST /api/signup/sessions` devolvia `500` com corpo vazio.** Exercitando o **Preview real**, uma
+janela transitória produziu `500` sem código de erro e sem `Retry-After`. A causa não era o erro em si:
+era esta ser a **única rota do grupo sem try/catch** em volta do serviço — draft, plano e checkout já
+convertiam para `503 unavailable`. O cliente do funil trata `503`; `500` ele não trata. **Corrigido**,
+e o teste que fixava o comportamento antigo foi corrigido junto, com o motivo escrito.
+
+**8. Inventário de segurança commitado desatualizado.** O **CI pegou**: regenerei `acoes.md` antes de
+acrescentar o bloco de crash ao harness e commitei sem regenerar depois (203 acessos a `process.env`
+registrados quando já eram 204). É exatamente para isso que o gate existe.
+
+**9. Duas quebras de template literal** por crase dentro de SQL embutido em JS.
 
 ---
 
@@ -124,23 +135,25 @@ o redigem por chave; há teste de que a resposta da rota não o devolve.
 ```text
 command    node node_modules/vitest/vitest.mjs run --coverage --maxWorkers=2 --minWorkers=2
 exit code  0
-passed     3934
+passed     3936
 failed     0
 skipped    0
 files      391
-duration   178,99 s
-coverage   lines 52,07 · branches 82,01 · functions 57,91 · statements 52,07
+duration   168,13 s
+coverage   lines 52,07 · branches 82,02 · functions 57,91 · statements 52,07
 thresholds 29 / 74 / 41 / 29 — PASS
 ```
 
 ## 7. Gates
 
 `typecheck`, `eslint .`, `prettier --check .`, `git diff --check`, `inventory --check`,
-`arch:db-check` (1277 arquivos, 0 findings), `madge --circular`, `check:migrations`,
-`check:observability` (19 crons), `check:registry:strict` (catalog 67 ⇔ registry 25): **todos PASS**.
+`arch:db-check` (1277 arquivos, 0 findings), `arch:graphs --check` (56 elementos, 298 arestas, 0 ciclos),
+`madge --circular`, `check:migrations`, `check:observability` (19 crons), `check:registry:strict`
+(catalog 67 ⇔ registry 25), **`security:build`** (= gate `build`, exit 0), **`security:bundle`**
+(168 arquivos de cliente, 0 falhas), **`security:http`**, **`security:tenant`** (com contrafactual):
+**todos PASS**.
 
-**Não executados:** `build`, `test:e2e:ci`, `test:load`, `test:simulation`, `security:build`,
-`security:http`, `security:browser-session`.
+**Não executados:** `test:e2e:ci`, `test:load`, `test:simulation`, `security:browser-session`.
 
 ---
 
@@ -149,10 +162,14 @@ thresholds 29 / 74 / 41 / 29 — PASS
 ```text
 branch        feature/clinic-plan-o4
 HEAD inicial  a15517c
-HEAD final    a15517c   (nenhum commit criado)
-push          nenhum
-Preview SHA   —         (nada publicado)
+HEAD final    263dd11
+commits       6 (veredito, portão, O-5/O-6, documento, provas, correção)
+push          origin/feature/clinic-plan-o4
+PR            #9 (DRAFT, base main) — não mesclado
+Preview       project-os-git-feature-clinic-plan-o4-clinic-os-v2-s-projects.vercel.app
 ```
+
+O PR é **draft de propósito**: serve para rodar o CI e permitir revisão, não para mesclar.
 
 ---
 
