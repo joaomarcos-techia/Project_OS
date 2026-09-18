@@ -4,9 +4,12 @@
   Contratos O-3b de §9 aprovados para execução local sequencial; O-3b.1–6 validados localmente
   e implementação local O-3b encerrada. Rollout DEV autorizado em 16/09/2026: migrations
   0099–0101, entrega SMTP e confirmação de uma conta real verificadas; correção do callback
-  server-side publicada e verificada de ponta a ponta no Preview isolado.
+  server-side publicada e verificada de ponta a ponta no Preview isolado. Em 17/09/2026 o fundador
+  emitiu o veredito de produto de §10, que emenda §5.6/§5.9 e §9.3: a retomada do cadastro passa a
+  usar o e-mail já verificado em vez do cookie anônimo. Implementação local validada; Preview e
+  produção seguem NOT TESTED para essa emenda.
 - **Data:** 2026-09-15.
-- **Atualizado:** 2026-09-16.
+- **Atualizado:** 2026-09-17.
 - **Checkout de rollout:** branch `preview/auth-email-o3b` em worktree isolada; base histórica
   `redesign/qoro-ui-v4` no commit `a9621e89f4fcd159843e33699272b091c0dfae1d`.
 - **Contextos por subfatia:** onboarding + `lib/db` em O-3a; onboarding + infraestrutura Auth em
@@ -71,7 +74,7 @@ estritos; campos desconhecidos, ids de usuário/tenant, role, preço, trial e pl
 | Nome da clínica           | 1–120 caracteres após trim                                                                | `clinic_name`, staging protegido; não cria clínica                                                                        | Mesmo limite de acesso do nome                                    |
 | E-mail                    | Endereço validado, trim, máximo 160 caracteres, conforme antecedente de convite           | Somente `email_hash` por `hashEmail` de `lib/auth/email-hash.ts`; raw e-mail apenas em memória/request e no Supabase Auth | Redigitar depois de reload; hash não permite reconstruir endereço |
 | Aceite                    | Checkbox desmarcada; literal `true` no envio                                              | `accepted_at` pelo relógio do banco, junto aos nomes/hash no mesmo CAS                                                    | Novo aceite explícito ao substituir dados ou recomeçar            |
-| Senha, somente O-3b       | 8–72 caracteres, até 72 bytes, com ASCII maiúscula, minúscula, número e símbolo aceito pelo Supabase; sem espaço, controle ou `trim` | Nunca em staging, metadata, logs, URL, outbox, storage ou DTO                                                             | Sempre redigitar; não restaurar                                   |
+| Senha, somente O-3b       | 8–72 caracteres, até 72 bytes, com ASCII maiúscula, minúscula e número; símbolo opcional; sem espaço, controle ou `trim` | Nunca em staging, metadata, logs, URL, outbox, storage ou DTO                                                             | Sempre redigitar; não restaurar                                   |
 
 Não pedir CPF/CNPJ, telefone, endereço, especialidade, contato de terceiro, dados clínicos ou
 pagador. Sem chave de clínica, não fabricar um tenant para usar `encryptForTenant`. A proposta
@@ -172,10 +175,11 @@ e apresentar endpoint/schema/estimativa próprios antes de mudar o contrato púb
 5. Consultar profile autoritativo: usuário sem profile pode continuar apenas neste draft.
    Profile existente segue guards/epoch e destino do produto; `invite_pending`, desativado,
    excluído ou claims antigas não passam pela seam como se fossem usuários novos.
-6. Ownership requer confirmação explícita de dados/aceite pelo usuário verificado em POST
-   same-origin. Com cookie original vivo e hash compatível com seu e-mail, revisar/reenviar dados
-   e respostas antes de ligar a linha. Hash só confere consistência; não autoriza claim sozinho.
-   Não carregar automaticamente nomes submetidos por terceiro na conta confirmada.
+6. **Emendado em 17/09/2026 — ver §10.** Ownership requer confirmação explícita de dados/aceite
+   pelo usuário verificado em POST same-origin. Com cookie original vivo e hash compatível com seu
+   e-mail, revisar/reenviar dados e respostas antes de ligar a linha. Hash só confere consistência;
+   não autoriza claim sozinho. Não carregar automaticamente nomes submetidos por terceiro na conta
+   confirmada.
 7. Propor `auth_user_id` único, escrito somente pelo servidor após essas provas, junto de
    `consumed_at`, `email_verified` e incremento de versão **na mesma transação/CAS**. Unique
    resolve duas sessões disputando o mesmo usuário. Ownership nunca muda de A para B. Consumir
@@ -185,10 +189,11 @@ e apresentar endpoint/schema/estimativa próprios antes de mudar o contrato púb
    Auth verificada; a confirmação autenticada e explícita do draft conclui vínculo/consumo.
    Nenhum passo posterior aceita esse usuário/draft antes do consumo. Evita atribuir PII de uma
    submissão anônima a uma conta existente só porque ela confirmou o e-mail.
-9. No outro navegador, não buscar staging sem owner pelo HMAC de e-mail/UUID de `signUp`, nem
-   transferir cookie. Depois de autenticar, retomar somente draft já pertencente ao próprio
-   `auth_user_id`; se não existir, colher novamente as quatro respostas, nomes e aceite e criar
-   um draft verificado, já consumido, sem nova credencial anônima. E-mail vem de `getUser()`.
+9. **Emendado em 17/09/2026 — ver §10.** No outro navegador, não buscar staging sem owner pelo
+   HMAC de e-mail/UUID de `signUp`, nem transferir cookie. Depois de autenticar, retomar somente
+   draft já pertencente ao próprio `auth_user_id`; se não existir, colher novamente as quatro
+   respostas, nomes e aceite e criar um draft verificado, já consumido, sem nova credencial
+   anônima. E-mail vem de `getUser()`.
 10. Retomada autenticada consulta ownership + status + TTLs a cada request, não token consumido.
     Outra conta não lê nem altera o draft. Replay anônimo continua `410`; retry autenticado lê
     seu único draft sem vincular/consumir novamente. Expirou: negar acesso, purgar a linha antiga
@@ -460,10 +465,10 @@ Todos fechados em ausência/erro/timeout, inclusive `success:true` com reason ti
 Reutilizar redisKey, hashEmail e ipRateLimitKey; HMAC de usuário com domínio separado do bootstrap,
 sem id/email/IP bruto em chaves/logs. Nenhum fallback local autoriza envio/PII/ownership.
 
-**Filtro Qoro aprovado pelo fundador:** mínimo oito caracteres, ao menos uma letra maiúscula,
-uma minúscula, um número e um caractere especial. Aplicar no servidor antes de Auth e reutilizar
-o mesmo validador na UI O-3b.5. As classes obrigatórias e os símbolos seguem os conjuntos
-publicados pelo Supabase; espaço/controle não é aceito. O teto é 72 bytes, limite do Auth, sem
+**Filtro Qoro atualizado pelo fundador em 17/09/2026:** mínimo oito caracteres, ao menos uma letra
+maiúscula, uma minúscula e um número; caractere especial é opcional. Aplicar no servidor antes de
+Auth e reutilizar o mesmo validador na UI O-3b.5. Símbolos continuam aceitos; espaço/controle não é
+aceito. O teto é 72 bytes, limite do Auth, sem
 `trim` ou normalização da senha. Recusa dependente da conta não produz enumeração. A configuração
 efetiva do provider continua NOT TESTED até a verificação no painel.
 
@@ -603,7 +608,7 @@ um e-mail. A tela de senha/revisão continua em O-3b.5; Track O e Qoro v2 seguem
 ### 9.12 Evidência O-3b.5 — senha, espera e revisão autenticada locais
 
 A tela de dados aplica o mesmo schema do servidor: 8–72 caracteres, até 72 bytes, maiúscula,
-minúscula, número e símbolo do conjunto aceito pelo Supabase, sem espaço/controle e sem `trim`. O submit valida
+minúscula e número, com símbolo opcional, sem espaço/controle e sem `trim`. O submit valida
 dados/aceite/senha, grava o staging e só então chama Auth com a versão confirmada. Senha e captcha
 somem depois da tentativa. Resposta Auth ambígua relê `/me` e nunca dispara `signUp` de novo.
 
@@ -741,3 +746,240 @@ do SDK instalado. Em falha transitória local, o runner só repete o request dep
 e contador do provider não mudaram; por isso o retry do harness não encobre efeito colateral. A matriz
 viva está em [`docs/quality/e2e-coverage-matrix.md`](../quality/e2e-coverage-matrix.md) e a execução do
 runner está documentada em [`docs/development/testing.md`](../development/testing.md).
+
+---
+
+## 10. Emenda de 17/09/2026 — retomada entre aparelhos e uma pergunta por tela
+
+### 10.1 O problema medido, não suposto
+
+A prova de Preview de §9.14 e [Qoro v2 §35.19](../qorov2.md) terminou com um defeito real de
+produto, não de implementação: o cadastro começou no computador, o link de confirmação foi aberto no
+celular, e **o celular não tinha o cookie anônimo** `__Host-qoro_signup`. A barreira desenhada em §5.6
+e §5.9 fez exatamente o que estava escrito — recusou reencontrar o staging — e a continuação ofereceu
+`restart`, exigindo redigitar nome, clínica e as quatro respostas. Ao mesmo tempo, o computador
+continuava parado na tela de espera, sem nenhuma forma de saber que a confirmação já tinha ocorrido.
+
+O fundador tratou isso como bloqueio de produto e emitiu o veredito abaixo. Ele **revoga** as partes
+de §5.6 e §5.9 que exigiam cookie original para reencontrar o draft; tudo o mais de §5 continua
+valendo, em especial os itens 1–5, 7, 8 e 10.
+
+### 10.2 O que foi decidido
+
+| Decisão                                   | Conteúdo                                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Entrada do cadastro                       | “Cadastre-se”, no login, passa a ser link para `/cadastro`                                                                            |
+| Senha                                     | Símbolo deixa de ser obrigatório: 8–72 caracteres (72 bytes), maiúscula, minúscula e número; símbolos seguem aceitos                 |
+| Card lateral de `/cadastro`               | Removido, com o conteúdo do fluxo em coluna única                                                                                     |
+| Retomada entre aparelhos                  | O servidor reencontra o draft pelo **e-mail já verificado**, sem cookie anônimo                                                       |
+| Sincronização no aparelho original        | A espera reconhece sozinha a confirmação feita em outro aparelho                                                                      |
+| Perguntas do perfil                       | Uma pergunta por tela, com progresso, voltar e estado preservado                                                                      |
+| Respostas no `/admin`                     | As quatro respostas, nome da clínica, etapa e plano ficam visíveis no painel, sem e-mail, hash, credencial ou id interno              |
+
+### 10.2.a Senha recusada pelo provider — medição e eliminação do alçapão
+
+Afrouxar o filtro local não afrouxa o Supabase, e a primeira redação desta seção tratava isso como
+um item de checklist a conferir no painel antes do rollout. A medição mostrou que checklist não
+resolveria: o problema não era a configuração que alguém poderia ter posto lá, era o que a rota
+fazia com a recusa.
+
+**Readback do projeto DEV `pqhkirrszzpwezdaqrai`, 17/09/2026**, pela Management API e pelo próprio
+GoTrue:
+
+| Campo                           | Valor medido | Leitura                                                     |
+| ------------------------------- | ------------ | ----------------------------------------------------------- |
+| `password_required_characters`  | `""`         | Nenhuma classe exigida — remover o símbolo não quebra nada  |
+| `password_min_length`           | `6`          | O filtro do Qoro, com 8, é mais estrito                      |
+| `password_hibp_enabled`         | `true`       | **Senha vazada é recusada pelo provider**                    |
+| `disable_signup`                | `false`      | Cadastro aberto                                              |
+| `mailer_autoconfirm`            | `false`      | Confirmação por e-mail exigida, como o fluxo pressupõe       |
+| `security_captcha_enabled`      | `false`      | O desafio é o Turnstile do Qoro; o do provider segue desligado |
+
+O achado original — exigência de símbolo — **não existe neste projeto**. Mas o HIBP ligado produz o
+mesmo alçapão com senha real em vez de configuração hipotética. Prova executada contra o DEV, com a
+senha literal dos testes de UI do cadastro:
+
+```
+POST /auth/v1/signup  password='Senha1234'  ->  422
+{"error_code":"weak_password","weak_password":{"reasons":["pwned"]}}
+```
+
+`Senha1234` tem maiúscula, minúscula, dígito e nove caracteres: **aprovada por
+`signupPasswordSchema`**. Nenhum usuário foi criado e nenhum e-mail saiu — a recusa é avaliada a
+partir do valor enviado. E, com `weak_password` dentro de `ACCOUNT_OUTCOMES`, a rota devolvia `200`,
+a UI abria a tela de espera, e a pessoa aguardava para sempre um e-mail que nunca existiu.
+
+**A correção tira `weak_password` do conjunto e devolve a reserva.** O argumento de §6 não se aplica
+a ela: comprimento, classes e HIBP dependem só da senha enviada, o GoTrue os avalia antes de olhar a
+conta, e um endereço já confirmado recebe sucesso ofuscado — nunca `weak_password`. Diferenciá-la não
+diz nada sobre existência de conta.
+
+Devolver a reserva importa tanto quanto: tratada como `uncertain`, a tentativa seria gasta e a pessoa
+cairia no cooldown de 60 s do reenvio por ter escolhido uma senha comum. `abortSignupAuthAttempt`
+faz o CAS inverso do `reserve` — de (`email_pending`, `reserved`, versão reservada) para
+(`identity_pending`, tentativa nula) — e só aceita a reserva `initial`, porque reenvio não manda
+senha e reserva finalizada pode ter enviado e-mail. Os CHECKs permitem: `identity_pending` exige
+staging, aceite e `consumed_at IS NULL`, tudo preservado, e `num_nonnulls(...) IN (0, 3)` da 0100
+aceita a tentativa toda nula. **Nenhuma migration.** Nenhum prazo é tocado: abortar não é atividade
+humana nova. Se o CAS de devolução perder, a resposta volta a ser `503` — o caminho conservador, que
+não afirma envio sobre um estado que não voltou.
+
+O efeito arquitetural é maior que a correção: **a dependência do painel desaparece**. Qualquer que
+seja a política do provider, hoje ou depois de alguém mexer nela, a recusa vira erro acionável na
+tela em vez de espera silenciosa. O HIBP continua ligado, e deve continuar — o defeito era engolirmos
+o veredito dele, não ele existir.
+
+Limite honesto: o projeto de **produção `shlcbxawrxuaebazuiue` não foi lido**. Não é mais um gate de
+rollout, porque a correção não depende da configuração; continua valendo como informação útil antes
+de publicar.
+
+### 10.3 Vínculo pela identidade verificada — por que é seguro
+
+`claimSignupDraftByVerifiedEmail(userId, email)` roda **no servidor**, dentro de uma transação, e a
+única entrada que aceita vem de `resolvePreTenantOnboarding()`, ou seja, de `getUser()` com
+`email_confirmed_at` presente e usuário não anônimo. Nada vem do cliente: nem e-mail, nem id, nem
+versão, nem cookie. O candidato é procurado por `email_hash = hashEmail(<e-mail verificado>)` entre
+linhas `email_pending`, sem owner, não consumidas e dentro do teto absoluto; é travado com
+`FOR UPDATE`, ordenado pela tentativa mais recente, e vinculado por CAS na mesma transação
+(`status`, `auth_user_id`, `consumed_at`, `row_version`). O `UNIQUE` de `auth_user_id` resolve
+disputa entre abas, e ownership continua sem poder mudar de A para B.
+
+O filtro por `auth_attempt_state` foi deliberadamente removido do candidato. A constraint da
+migration 0100 já exige tentativa em `email_pending`, e uma reserva cuja finalização se perdeu
+(`reserved`) descreve justamente o envio que pode ter chegado. Quem abre a continuação carrega um OTP
+válido daquele endereço: recusar a reserva órfã devolveria a redigitação que esta emenda elimina.
+
+O que se perde em relação a §5.6: os nomes do staging passam a ser carregados sem uma segunda
+confirmação explícita. O risco residual é alguém iniciar um cadastro com o endereço de outra pessoa e
+essa pessoa confirmar o e-mail — cenário que já existia antes desta emenda, porque `signUp` cria a
+conta com a senha de quem submeteu, e que §6 trata com resposta uniforme. O vínculo do draft não
+amplia esse risco: não cria clínica, tenant, papel, plano, trial nem cobrança, e a tela de
+continuação mostra os dados recuperados antes de qualquer passo seguinte.
+
+### 10.4 Onde o vínculo roda, e onde não roda
+
+O vínculo **não** acontece no render de `/cadastro/continuar`. Escrever durante o render ficaria fora
+do rate limit, engoliria a falha e voltaria a rodar a cada carga da página. Ele roda dentro de
+`GET /api/signup/draft`, que já exige a seam pré-tenant e os limites por IP e por HMAC do usuário, e
+só depois de a leitura do próprio draft devolver `gone` — quem já é dono paga apenas o `SELECT`.
+
+Isso emenda a linha de §9.3 que dizia que o GET “não escreve”: ele passa a poder executar **um**
+vínculo idempotente. Esse vínculo não renova prazo nenhum — fixa `idle_expires_at` no
+`absolute_expires_at` que a linha já tinha — e o GET ganhou recusa de Fetch Metadata `cross-site`,
+para que navegação de terceiro não dispare o efeito. Uma indisponibilidade do vínculo responde `503`;
+nunca `410`, que significaria “não há cadastro”.
+
+Quando o vínculo **falha**, o GET relê o draft antes de decidir. Duas abas do mesmo usuário abrindo a
+continuação ao mesmo tempo fazem a perdedora receber `conflict` — ou `gone`, porque `FOR UPDATE`
+reavalia a linha já vinculada e ela deixa de casar com o predicado. Nos dois casos o cadastro existe:
+responder `410` ali mandaria a pessoa redigitar o que acabou de ser recuperado. Só a requisição que
+efetivamente vinculou limpa o cookie.
+
+### 10.5 O modo `link` deixa de existir
+
+Com o vínculo por e-mail verificado cobrindo todo candidato vivo, `POST /api/signup/draft` no modo
+`link` virou caminho sem saída: quando o GET não vincula é porque o hash não bate, e nesse estado o
+`link` só poderia responder `409`. A tela chegava a prometer “Encontramos as respostas deste
+navegador” para um envio que nunca concluiria. O modo foi removido do schema, do writer, da rota e da
+tela, com aprovação explícita do fundador por ser contrato público.
+
+O corpo de `POST /api/signup/draft` passa a ser um objeto único e estrito
+`{ ownerName, clinicName, answers, accepted: true }`, sem `mode`, sem `rowVersion` e sem token. Ele
+cobre o único caso restante: não havia nada a recuperar, e a pessoa reescreveu tudo. O cookie anônimo
+é limpo tanto nesse POST quanto no GET que vincula.
+
+### 10.6 Prazos do draft vinculado
+
+Um draft já vinculado não tem mais credencial anônima a limitar, e a leitura autenticada não renova
+nada. Por isso `idle_expires_at` passa a nascer igual a `absolute_expires_at` também no recomeço, e a
+escolha de plano deixou de tocar no prazo. A versão anterior encurtava a vida do draft a cada
+`PUT /api/signup/plan` — `least(now() + 15 min, absoluto)` — e podia apagar, em quinze minutos e sem
+renovação possível, o cadastro que a pessoa tinha acabado de redigitar. O teto absoluto de 60 minutos
+de §4 permanece intocado e continua sendo o único prazo dessas linhas.
+
+### 10.7 Espera no aparelho original
+
+A tela de espera relê `GET /api/signup/sessions/me`, que passou a reconhecer `email_verified` para o
+token do navegador original, devolver apenas esse estado — sem respostas nem PII — e limpar o cookie
+consumido. O intervalo é de 20 s com teto de 30 leituras (10 min): `/me` tem limite de 120 por 15 min
+**por IP**, compartilhado com outras abas e com quem mais estiver atrás do mesmo NAT, e a versão
+inicial de 10 s estouraria esse limite antes da metade do TTL, passando a receber `429` justamente
+enquanto a pessoa aguarda. Esgotado o teto, recarregar a página mostra o resultado. Um `410` durante a
+espera encerra a espera em vez de insistir contra o limite.
+
+### 10.8 Perguntas e painel
+
+As quatro perguntas continuam as mesmas, fechadas e impessoais; muda só a apresentação: uma por tela,
+com “Pergunta N de 4”, barra de progresso, botão Voltar e escolha preservada ao navegar. Navegar não
+escreve no banco — a gravação continua sendo um único `POST /answers` na quarta tela, porque a
+constraint `answers_all_or_none` não admite linha meio respondida. O card lateral saiu e o conteúdo
+ficou em coluna única.
+
+No `/admin`, `listSignupIntakes` lê apenas cadastros ainda válidos e devolve id, nome da clínica
+quando informado, etapa, as quatro respostas, o código do plano escolhido e o instante da última
+atualização. E-mail, `email_hash`, token, tentativa, senha e `auth_user_id` ficam fora do DTO e da
+tela. O guard `super_admin` + AAL2 e a natureza read-only do painel não mudam.
+
+### 10.9 Evidência desta emenda
+
+Números da reexecução integral de **18/09/2026**, já com o portão de entrada da §10.10 e com O-5/O-6
+(§35.24 do qorov2) no lugar. Eles substituem a medição parcial do dia anterior (772 testes focados, 24
+checks do runner), que era de uma execução intermediária desta mesma emenda, não de outro escopo. O
+runner cresceu de 25 para 27 checks porque O-5 acrescentou a migration 0103 e a disputa de CAS do
+billing — nada aqui foi reclassificado, só remedido.
+
+| Verificação                                    | Resultado                                                                                                                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Suíte integral do projeto                      | **PASS**, 3.903/3.903 em 390 arquivos, 0 falha e 0 skip, exit 0, 180,7 s; cobertura 52,02 / 81,95 / 57,83 / 52,02 sobre pisos 29/74/41/29                     |
+| Runner `signup-regression --browser`           | **PASS**, 27/27 checks e 22/22 provas de Auth/HTTP/browser, 0 FAIL; migrations 0099–0103 up/down/up vazio e com 2000 linhas, RLS/FORCE/grants preservados     |
+| Limpeza do runner                              | **PASS**, readback zero de fixture e cluster Postgres encerrado                                                                                              |
+| Typecheck, lint, formato e `git diff --check`  | **PASS**, exit 0                                                                                                                                             |
+| Gates de arquitetura, banco e observabilidade  | **PASS** — `security:inventory --check`, `arch:db-check` (1265 arquivos, 0 findings), `madge --circular`, `check:migrations`, `check:observability` (19 crons), `check:registry:strict` (catalog 67 ⇔ registry 25) |
+
+O ambiente do runner é, nas palavras do próprio artefato
+(`dist/signup-regression/auth-http-results.json`), "loopback synthetic Auth/Redis, real installed SDK
+and disposable Postgres". **Nenhuma dessas 22 provas é prova de provider externo** — o SDK é real, o
+Auth do outro lado não é.
+
+Limites desta emenda, sem exceção: Preview, produção, GoTrue/SMTP reais, Upstash externo, Asaas e
+qualquer configuração de painel permanecem **NOT TESTED** aqui. O portão da §10.10 está provado em
+unit, não no browser: exercitá-lo lá pediria um segundo build do Next com a variável desligada.
+Nenhuma migration foi criada ou aplicada — a emenda não muda schema. Nenhum commit, push ou deploy foi
+executado.
+
+### 10.10 Consequência não prevista: a entrada passou a existir antes da saída
+
+O item 3.1 do veredito — "Cadastre-se" vira link — foi implementado como pedido, e por isso mesmo
+criou um risco que não existia antes. Enquanto era um `<span>` órfão, `/cadastro` não tinha como ser
+alcançado por quem não digitasse a URL. Com o link vivo, a página vira porta de entrada real na tela
+mais visitada do produto.
+
+O problema é o que há do outro lado. **O funil não tem saída.** Ele termina em
+`/cadastro/plano` com "Plano salvo — a escolha foi vinculada ao cadastro, nenhuma cobrança foi
+iniciada", e para por ali: `resolvePreTenantOnboarding` devolve `pretenant` para sempre, porque nada
+cria profile ou tenant a partir de uma `signup_session`. `provisionTenantFromInviteTx` existe, mas
+exige `clinic_invites` — é a saga do convite, não a do cadastro autônomo. O-5 (billing), O-6
+(provisionamento) e O-7 (onboarding) não existem em código.
+
+Sem portão, publicar esta emenda entregaria a um visitante quatro perguntas, uma conta verificada por
+e-mail real e um beco sem saída — mais uma linha em `signup_sessions` por visita, já que
+`SignupQuestions` faz bootstrap no `useEffect` de montagem.
+
+**Decisão:** `/cadastro` só abre o funil quando `SIGNUP_ENABLED` **e** `SIGNUP_IDENTITY_ENABLED`
+estiverem ligados; fechado, renderiza uma tela de indisponibilidade que não monta `SignupQuestions` —
+logo, não cria linha. `SIGNUP_IDENTITY_ENABLED` já nasce desligado, então **produção fica fechada por
+default**, sem depender de alguém lembrar de configurar. `SIGNUP_ENABLED` é novo e nasce ligado: é o
+kill switch de operação do §21.20, que fecha a entrada (página e `POST /api/signup/sessions`) sem
+tocar em login, sessão viva ou tenant existente. Os dois portões são server-only e não vão ao bundle.
+
+Por que dois e não um: eles respondem a perguntas diferentes. "A fatia seguinte já existe?" é rollout,
+nasce fechado e abre quando o código existe. "Preciso parar a aquisição agora?" é incidente, nasce
+aberto e fecha por decisão. Colapsar os dois num só obrigaria a escolher qual significado perder.
+
+A tela fechada não diz qual portão fechou — para quem chega, o fato útil é que não dá para criar conta
+agora e que o login continua funcionando. Operação e visitante têm necessidades diferentes de
+informação, e a página é do visitante.
+
+O que este portão **não** é: defesa. Rate limit por IP, teto de sessões vivas, risco/Turnstile e
+janitor continuam sendo o que segura abuso. Um portão em variável de ambiente segura decisão, não
+adversário.

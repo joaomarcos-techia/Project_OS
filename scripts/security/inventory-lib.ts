@@ -266,6 +266,10 @@ export function collectInventory(root: string): Inventory {
       guard: 'origin-verified-pretenant-user-hmac-write-limit-cas',
       call: 'writeSignupDraft',
     },
+    'src/app/api/signup/checkout/route.ts#POST': {
+      guard: 'origin-verified-pretenant-user-hmac-write-limit-empty-body-cas',
+      call: 'startSignupSubscription',
+    },
     'src/app/api/signup/plan/route.ts#GET': {
       guard: 'verified-pretenant-user-hmac-read-limit',
       call: 'readSignupPlan',

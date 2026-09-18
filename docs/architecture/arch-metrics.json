@@ -1,9 +1,9 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 769,
+    "modules": 777,
     "elements": 56,
-    "importEdges": 297,
+    "importEdges": 298,
     "moduleCycles": 0,
     "events": 67,
     "eventsWithoutConsumer": 42
@@ -87,7 +87,7 @@
       "id": "app:api",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 21,
+      "fanOut": 22,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -109,7 +109,8 @@
         "lib:outbox",
         "lib:payments",
         "lib:platform-settings",
-        "lib:storage"
+        "lib:storage",
+        "lib:validation"
       ]
     },
     {
@@ -736,7 +737,7 @@
     {
       "id": "lib:validation",
       "kind": "lib",
-      "fanIn": 2,
+      "fanIn": 3,
       "fanOut": 0,
       "dependsOn": []
     }

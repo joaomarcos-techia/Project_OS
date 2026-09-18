@@ -67,6 +67,7 @@ const admin = postgres(url, {
 const results: { name: string; status: 'PASS' | 'FAIL'; detail?: string }[] = [];
 let verified = false;
 let schemaReady = false;
+let stopped: { ok: true } | { ok: false; detail: string } = { ok: false, detail: 'not attempted' };
 async function check(name: string, run: () => Promise<void>) {
   try {
     await run();
@@ -99,6 +100,21 @@ async function readJsonBody(request: import('node:http').IncomingMessage): Promi
     chunks.push(buffer);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+/** Percorre as quatro telas do perfil e para na última, sem salvar ainda. */
+async function answerAllQuestions(page: import('@playwright/test').Page): Promise<void> {
+  const steps: [string, string][] = [
+    ['2 a 5', 'Quantos atendimentos são realizados por semana?'],
+    ['21 a 50', 'Como a clínica se organiza hoje?'],
+    ['Outro sistema', 'Como você conheceu a Qoro?'],
+  ];
+  for (const [option, nextHeading] of steps) {
+    await page.getByText(option, { exact: true }).click();
+    await page.getByRole('button', { name: 'Continuar' }).click();
+    await page.getByRole('heading', { name: nextHeading }).waitFor();
+  }
+  await page.getByText('Indicação de um colega', { exact: true }).click();
 }
 
 async function runBrowserJourney(
@@ -558,7 +574,6 @@ async function runBrowserJourney(
       'verified',
       'unverified',
       'user_already_exists',
-      'weak_password',
       'provider-5xx',
       'unexpected-session',
       'finish-conflict',
@@ -638,6 +653,61 @@ async function runBrowserJourney(
         durationMs: requestDurationMs,
       });
     }
+    // Senha recusada pelo provider: contrato próprio, porque não depende de conta
+    // e prova que nada foi enviado. A reserva volta atrás e a pessoa tenta de novo
+    // na hora — sem isso, `password_hibp_enabled` transformava senha comum em
+    // espera eterna.
+    {
+      await controlRedis('clear');
+      providerMode = 'weak_password';
+      const token = await seedAuth('weak-password');
+      const callsBefore = providerCalls;
+      const { response } = await postAuthAfterLocalLimiterReady(token);
+
+      assert.equal(response.status, 422);
+      const rejected = await response.text();
+      assert.deepEqual(JSON.parse(rejected), { error: 'weak_password' });
+      assert.equal(rejected.includes('synthetic@example.invalid'), false);
+      assert.equal(rejected.includes('Abcdef1!'), false);
+      assert.equal(providerCalls - callsBefore, 1);
+
+      const [returned] = await sql`SELECT status, row_version, auth_attempt_kind,
+        auth_attempt_state, auth_attempted_at, owner_name, clinic_name, accepted_at
+        FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      // Estado anterior à reserva, inteiro: etapa de volta, tentativa zerada e
+      // staging preservado — os CHECKs de 0099 recusariam qualquer outra coisa.
+      assert.equal(returned?.status, 'identity_pending');
+      assert.equal(returned?.auth_attempt_kind, null);
+      assert.equal(returned?.auth_attempt_state, null);
+      assert.equal(returned?.auth_attempted_at, null);
+      assert.equal(returned?.owner_name, 'Synthetic owner');
+      assert.ok(returned?.accepted_at instanceof Date);
+      assert.equal(returned?.row_version, 5);
+
+      const meAfter = await fetch(`${baseUrl}/api/signup/sessions/me`, {
+        headers: { cookie: `__Host-qoro_signup=${token}` },
+      });
+      assert.equal((await meAfter.json()).session.status, 'identity_pending');
+
+      // Nova senha imediatamente: sem cooldown, sem reenvio, uma chamada a mais.
+      providerMode = 'new';
+      expectedReservedVersion = 6;
+      const retry = await postAuth(token, 'synthetic@example.invalid', 5);
+      assert.equal(retry.status, 200);
+      assert.deepEqual(await retry.json(), { rowVersion: 7 });
+      assert.equal(providerCalls - callsBefore, 2);
+      const [sent] = await sql`SELECT status, auth_attempt_state FROM signup_sessions
+        WHERE token_hash = ${activeHash}`;
+      assert.equal(sent?.status, 'email_pending');
+      assert.equal(sent?.auth_attempt_state, 'completed');
+      expectedReservedVersion = 4;
+      await sql`DELETE FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      authProofs.push({
+        name: 'real HTTP/SDK weak_password: reservation returned, retry allowed immediately, no email claimed',
+        status: 'PASS',
+      });
+    }
+
     for (const mode of ['new', 'verified', 'unverified', 'user_already_exists']) {
       await controlRedis('clear');
       providerMode = mode;
@@ -671,8 +741,10 @@ async function runBrowserJourney(
       const page = await pendingUiContext.newPage();
       await page.goto('/cadastro');
       await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
-      assert.equal(await page.getByRole('radio').count(), 17);
-      assert.equal(await page.getByRole('radio').first().isDisabled(), true);
+      // A espera não reabre pergunta nenhuma: as quatro telas saem do DOM, em
+      // vez de ficarem renderizadas e desabilitadas.
+      assert.equal(await page.getByRole('radio').count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Continuar' }).count(), 0);
       assert.equal(await page.getByLabel('Seu nome').count(), 0);
       assert.equal(await page.getByRole('button', { name: 'Salvar e continuar' }).count(), 0);
       assert.equal(providerCalls, pendingUiCallsBefore);
@@ -739,7 +811,7 @@ async function runBrowserJourney(
       assert.equal(lost, true);
       await page.reload();
       await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
-      assert.equal(await page.getByRole('radio').first().isDisabled(), true);
+      assert.equal(await page.getByRole('radio').count(), 0);
       assert.equal(providerCalls - lostBefore, 1);
       const [saved] =
         await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${activeHash}`;
@@ -1017,34 +1089,31 @@ async function runBrowserJourney(
         },
       ]);
       const page = await draftContext.newPage();
-      await page.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
-      await page.getByText(/Encontramos as respostas deste navegador/u).waitFor();
-      assert.equal(await page.getByLabel('Seu nome').inputValue(), '');
-      assert.equal(await page.getByLabel('Nome da clínica').inputValue(), '');
-      assert.equal(await page.locator('input[type=password]').count(), 0);
-      const copiedCookies = await draftContext.cookies();
-      replayContext = await browser.newContext({ baseURL: baseUrl });
-      await replayContext.addCookies(copiedCookies);
-      const input = {
-        mode: 'link',
-        rowVersion: 5,
-        ownerName: 'Pessoa HTTP',
-        clinicName: 'ClÃ­nica HTTP',
-        answers: {
-          professionalsBand: '2_5',
-          weeklyAppointmentsBand: '21_50',
-          currentTooling: 'outro_sistema',
-          discoverySource: 'indicacao_colega',
-        },
-        accepted: true,
-      } as const;
-      const [beforeLink] = await sql`SELECT idle_expires_at, absolute_expires_at
+      const [beforeClaim] = await sql`SELECT idle_expires_at, absolute_expires_at
         FROM signup_sessions WHERE token_hash = ${draftHash}`;
-      await page.getByLabel('Seu nome').fill(input.ownerName);
-      await page.getByLabel('Nome da clínica').fill(input.clinicName);
-      await page.getByRole('checkbox').check();
-      await page.getByRole('button', { name: 'Confirmar e revisar dados' }).click();
-      await page.getByText('Dados vinculados à conta verificada', { exact: true }).waitFor();
+      await page.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
+      // Sem formulário nenhum: o servidor reencontra o cadastro pelo e-mail que
+      // o OTP acabou de verificar e devolve os dados do staging.
+      await page.getByText('Cadastro recuperado na conta verificada', { exact: true }).waitFor();
+      const recovered = await page.locator('body').innerText();
+      assert.match(recovered, /Bootstrap owner/u);
+      assert.match(recovered, /Bootstrap clinic/u);
+      assert.equal(await page.getByLabel('Seu nome').count(), 0);
+      assert.equal(await page.locator('input[type=password]').count(), 0);
+      // O cookie sobrevive ao vínculo de propósito: quem limpa é o `/me` que
+      // conta à aba original que o e-mail foi confirmado. Limpar antes faria
+      // aquela aba anunciar "sessão expirou" logo depois da confirmação.
+      assert.equal(
+        (await draftContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
+        true,
+      );
+      const pendingTab = await page.evaluate(async () => {
+        const response = await fetch('/api/signup/sessions/me');
+        return { status: response.status, body: await response.json() };
+      });
+      assert.equal(pendingTab.status, 200);
+      assert.equal(pendingTab.body.session.status, 'email_verified');
+      assert.equal(pendingTab.body.session.answers, null);
       assert.equal(
         (await draftContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
         false,
@@ -1072,22 +1141,40 @@ async function runBrowserJourney(
       assert.equal(afterRead?.status, 'email_verified');
       assert.equal(afterRead?.auth_user_id, verifiedOtpUser.id);
       assert.ok(afterRead?.consumed_at instanceof Date);
-      assert.equal(afterRead?.idle_expires_at.getTime(), beforeLink?.idle_expires_at.getTime());
+      assert.equal(
+        afterRead?.idle_expires_at.getTime(),
+        afterRead?.absolute_expires_at.getTime(),
+        'draft vinculado perde a janela de inatividade separada',
+      );
       assert.equal(
         afterRead?.absolute_expires_at.getTime(),
-        beforeLink?.absolute_expires_at.getTime(),
+        beforeClaim?.absolute_expires_at.getTime(),
       );
 
+      // Outro navegador com a MESMA sessão verificada copiada não recria nem
+      // sobrescreve nada: o usuário já é dono de um draft, e o recomeço dá 409.
+      replayContext = await browser.newContext({ baseURL: baseUrl });
+      await replayContext.addCookies(await draftContext.cookies());
       const replayPage = await replayContext.newPage();
       await replayPage.goto('/cadastro/continuar');
-      const replay = await replayPage.evaluate(async (body) => {
+      const replay = await replayPage.evaluate(async () => {
         const response = await fetch('/api/signup/draft', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            ownerName: 'Pessoa HTTP',
+            clinicName: 'Clínica HTTP',
+            answers: {
+              professionalsBand: '2_5',
+              weeklyAppointmentsBand: '21_50',
+              currentTooling: 'outro_sistema',
+              discoverySource: 'indicacao_colega',
+            },
+            accepted: true,
+          }),
         });
         return { status: response.status, body: await response.json() };
-      }, input);
+      });
       assert.deepEqual(replay, { status: 409, body: { error: 'conflict' } });
       const [afterReplay] = await sql`SELECT row_version, auth_user_id, consumed_at,
         idle_expires_at, absolute_expires_at FROM signup_sessions WHERE token_hash = ${draftHash}`;
@@ -1115,16 +1202,17 @@ async function runBrowserJourney(
         return { status: response.status, body: await response.json() };
       });
       assert.equal(planRead.status, 200);
-      assert.equal(planRead.body.clinicName, input.clinicName);
+      assert.equal(planRead.body.clinicName, 'Bootstrap clinic');
       assert.equal(planRead.body.trialDays, 7);
       assert.deepEqual(
         planRead.body.plans.map((plan: { code: string; priceCents: number }) => [
           plan.code,
           plan.priceCents,
         ]),
+        // Ordenado por NOME: "Clinica" antes de "Solo".
         [
-          ['completo', 24_990],
-          ['essencial', 14_900],
+          ['clinica', 24_990],
+          ['solo', 14_900],
         ],
       );
       const injected = await page.evaluate(async (planId) => {
@@ -1137,17 +1225,24 @@ async function runBrowserJourney(
       }, SELF_SERVICE_PLAN_ID);
       assert.deepEqual(injected, { status: 400, body: { error: 'invalid_body' } });
 
-      await page.getByText('Essencial', { exact: true }).click();
-      assert.equal(await page.getByRole('radio', { name: /Essencial/u }).isChecked(), true);
+      await page.getByText('Solo', { exact: true }).click();
+      assert.equal(await page.getByRole('radio', { name: /Solo/u }).isChecked(), true);
       await page.getByRole('button', { name: 'Salvar plano' }).click();
       await page.getByText('Plano salvo', { exact: true }).waitFor();
       const [selectedPlan] = await sql`SELECT selected_plan_id, row_version, idle_expires_at,
         absolute_expires_at FROM signup_sessions WHERE token_hash = ${draftHash}`;
       assert.equal(selectedPlan?.selected_plan_id, SELF_SERVICE_PLAN_ID);
       assert.equal(selectedPlan?.row_version, 7);
-      assert.ok(selectedPlan?.idle_expires_at.getTime() > afterRead?.idle_expires_at.getTime());
-      assert.ok(
-        selectedPlan?.idle_expires_at.getTime() <= selectedPlan?.absolute_expires_at.getTime(),
+      // Escolher plano NÃO mexe no prazo: num draft vinculado o idle já é o
+      // absoluto, e renovar com `least(now() + idle, absoluto)` o encurtaria.
+      assert.equal(
+        selectedPlan?.idle_expires_at.getTime(),
+        afterRead?.idle_expires_at.getTime(),
+        'escolher plano não pode encurtar nem estender o prazo do draft',
+      );
+      assert.equal(
+        selectedPlan?.absolute_expires_at.getTime(),
+        afterRead?.absolute_expires_at.getTime(),
       );
 
       const retry = await page.evaluate(
@@ -1195,7 +1290,7 @@ async function runBrowserJourney(
       await sql`DELETE FROM signup_sessions WHERE token_hash = ${draftHash}`;
     }
     authProofs.push({
-      name: 'real Auth/browser UI link: blank PII, explicit review, consumed owner, stable TTL and copied-cookie replay denied',
+      name: 'real Auth/browser UI claim: cross-device recovery without retyping, consumed owner, stable TTL and copied-cookie replay denied',
       status: 'PASS',
     });
 
@@ -1204,7 +1299,7 @@ async function runBrowserJourney(
     try {
       const restartPage = await restartContext.newPage();
       await restartPage.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
-      await restartPage.getByText(/não possui o cadastro original/u).waitFor();
+      await restartPage.getByText(/Não encontramos um cadastro em andamento/u).waitFor();
       assert.equal(
         (await restartContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
         false,
@@ -1216,8 +1311,10 @@ async function runBrowserJourney(
       await restartPage.getByLabel('Organização atual').selectOption('outro_sistema');
       await restartPage.getByLabel('Como conheceu a Qoro').selectOption('indicacao_colega');
       await restartPage.getByRole('checkbox').check();
-      await restartPage.getByRole('button', { name: 'Confirmar e revisar dados' }).click();
-      await restartPage.getByText('Dados vinculados à conta verificada', { exact: true }).waitFor();
+      await restartPage.getByRole('button', { name: 'Confirmar e continuar' }).click();
+      await restartPage
+        .getByText('Cadastro recuperado na conta verificada', { exact: true })
+        .waitFor();
       const [restarted] = await sql`SELECT status, auth_user_id, consumed_at, owner_name,
         clinic_name, row_version FROM signup_sessions WHERE auth_user_id = ${verifiedOtpUser.id}`;
       assert.equal(restarted?.status, 'email_verified');
@@ -1256,9 +1353,13 @@ async function runBrowserJourney(
       const [before] = await sql`SELECT count(*)::int AS n FROM signup_sessions`;
       const page = await context.newPage();
       await page.goto('/cadastro');
-      await page.getByRole('heading', { name: 'Conte como sua clínica funciona hoje' }).waitFor();
+      // Uma pergunta por tela: só as opções da pergunta atual existem no DOM.
+      await page
+        .getByRole('heading', { name: 'Quantos profissionais atendem na clínica?' })
+        .waitFor();
 
-      assert.equal(await page.getByRole('radio').count(), 17);
+      assert.equal(await page.getByRole('radio').count(), 4);
+      assert.equal(await page.getByText('Pergunta 1 de 4').count(), 1);
       assert.equal(await page.getByRole('textbox').count(), 0);
       assert.equal(
         await page.locator('input[type=email], input[type=password], textarea').count(),
@@ -1289,15 +1390,28 @@ async function runBrowserJourney(
       await first.focus();
       await page.keyboard.press('ArrowRight');
       assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
-      await page.getByText('21 a 50', { exact: true }).click();
-      await page.getByText('Outro sistema', { exact: true }).click();
-      await page.getByText('Indicação de um colega', { exact: true }).click();
+
+      // Avançar e voltar não perde a escolha, e nada vai ao servidor no caminho.
+      await page.getByRole('button', { name: 'Continuar' }).click();
+      await page
+        .getByRole('heading', { name: 'Quantos atendimentos são realizados por semana?' })
+        .waitFor();
+      await page.getByRole('button', { name: 'Voltar' }).click();
+      await page
+        .getByRole('heading', { name: 'Quantos profissionais atendem na clínica?' })
+        .waitFor();
+      assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
+      const [afterNavigation] = await sql`SELECT row_version FROM signup_sessions
+        WHERE token_hash = ${hashToken(cookie.value)}`;
+      assert.equal(afterNavigation?.row_version, 1, 'navegar entre perguntas escreveu no banco');
+
+      await answerAllQuestions(page);
 
       // A segunda aba lê a mesma versão antes de a primeira vencer o CAS.
       const secondPage = await context.newPage();
       await secondPage.goto('/cadastro');
       await secondPage
-        .getByRole('heading', { name: 'Conte como sua clínica funciona hoje' })
+        .getByRole('heading', { name: 'Quantos profissionais atendem na clínica?' })
         .waitFor();
 
       const rateLimited = async (route: Route) => {
@@ -1308,14 +1422,18 @@ async function runBrowserJourney(
         });
       };
       await page.route('**/api/signup/sessions/answers', rateLimited);
-      await page.getByRole('button', { name: 'Salvar respostas' }).click();
+      await page.getByRole('button', { name: 'Salvar e continuar' }).click();
       await page.getByText(/Aguarde um minuto antes de salvar/u).waitFor();
       await page.unroute('**/api/signup/sessions/answers', rateLimited);
-      assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
+      // A tela continua na última pergunta, com a escolha preservada.
+      assert.equal(
+        await page.getByRole('radio', { name: 'Indicação de um colega' }).isChecked(),
+        true,
+      );
 
       const disconnected = async (route: Route) => route.abort('failed');
       await page.route('**/api/signup/sessions/answers', disconnected);
-      await page.getByRole('button', { name: 'Salvar respostas' }).click();
+      await page.getByRole('button', { name: 'Salvar e continuar' }).click();
       await page.getByText(/A conexão falhou antes da confirmação/u).waitFor();
       await page.unroute('**/api/signup/sessions/answers', disconnected);
 
@@ -1330,7 +1448,7 @@ async function runBrowserJourney(
         await route.continue();
       };
       await page.route('**/api/signup/sessions/answers', delayed);
-      const submit = page.getByRole('button', { name: 'Salvar respostas' });
+      const submit = page.getByRole('button', { name: 'Salvar e continuar' });
       await submit.click();
       await page.waitForFunction(() =>
         [...document.querySelectorAll<HTMLInputElement>('input[type=radio]')].every(
@@ -1354,27 +1472,35 @@ async function runBrowserJourney(
       assert.equal(saved?.current_tooling, 'outro_sistema');
       assert.equal(saved?.discovery_source, 'indicacao_colega');
 
-      await secondPage.getByText('16 ou mais', { exact: true }).click();
-      await secondPage.getByText('Mais de 100', { exact: true }).click();
-      await secondPage.getByText('Nada ou papel', { exact: true }).click();
+      // A aba perdedora escolhe OUTRAS respostas nas quatro telas e perde o CAS.
+      const loserSteps: [string, string][] = [
+        ['16 ou mais', 'Quantos atendimentos são realizados por semana?'],
+        ['Mais de 100', 'Como a clínica se organiza hoje?'],
+        ['Nada ou papel', 'Como você conheceu a Qoro?'],
+      ];
+      for (const [option, nextHeading] of loserSteps) {
+        await secondPage.getByText(option, { exact: true }).click();
+        await secondPage.getByRole('button', { name: 'Continuar' }).click();
+        await secondPage.getByRole('heading', { name: nextHeading }).waitFor();
+      }
       await secondPage.getByText('Evento ou congresso', { exact: true }).click();
-      await secondPage.getByRole('button', { name: 'Salvar respostas' }).click();
+      await secondPage.getByRole('button', { name: 'Salvar e continuar' }).click();
       await secondPage.getByText(/Outra aba salvou primeiro/u).waitFor();
-      assert.equal(await secondPage.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
-      assert.equal(await secondPage.getByRole('radio', { name: '21 a 50' }).isChecked(), true);
-      assert.equal(
-        await secondPage.getByRole('radio', { name: 'Outro sistema' }).isChecked(),
-        true,
-      );
-      assert.equal(
-        await secondPage.getByRole('radio', { name: 'Indicação de um colega' }).isChecked(),
-        true,
-      );
+      // A releitura traz as respostas vencedoras e a etapa já avançou: nenhuma
+      // pergunta continua editável nesta aba, e nada da escolha perdedora foi gravado.
+      await secondPage.getByRole('heading', { name: 'Seus dados e o nome da clínica' }).waitFor();
+      assert.equal(await secondPage.getByRole('radio').count(), 0);
+      const [notOverwritten] = await sql`SELECT professionals_band, discovery_source, row_version
+        FROM signup_sessions ORDER BY created_at DESC LIMIT 1`;
+      assert.equal(notOverwritten?.professionals_band, '2_5');
+      assert.equal(notOverwritten?.discovery_source, 'indicacao_colega');
+      assert.equal(notOverwritten?.row_version, 2);
 
       await page.reload();
-      await page.getByRole('heading', { name: 'Conte como sua clínica funciona hoje' }).waitFor();
-      assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
+      // Recarregar não volta ao começo: as respostas salvas levam direto à etapa
+      // seguinte, sem recriar sessão nem reabrir as quatro telas.
       await page.getByText('Carregamos as respostas salvas nesta sessão.').waitFor();
+      assert.equal(await page.getByRole('radio').count(), 0);
       const [afterReload] = await sql`SELECT count(*)::int AS n FROM signup_sessions`;
       assert.equal(afterReload?.n, afterOpen?.n);
 
@@ -1586,7 +1712,9 @@ try {
     });
     server.once('exit', (code) => {
       clearTimeout(timer);
-      reject(new Error(`Local PG exit ${code}`));
+      // Sem o log do servidor, "exit 1" não diz nada: é o texto do Postgres que
+      // aponta porta ocupada, permissão do data dir ou falha de SSL.
+      reject(new Error(`Local PG exit ${code}\n${serverLog.slice(-2_000)}`));
     });
     server.stderr.on('data', (chunk: Buffer) => {
       if (chunk.toString().includes('ready to accept connections')) {
@@ -1823,14 +1951,143 @@ try {
       campaign_code text
     );
     INSERT INTO plans (id, code, name, ativo) VALUES
-      ('${SELF_SERVICE_PLAN_ID}', 'essencial', 'Essencial', true),
-      ('${SELF_SERVICE_OTHER_PLAN_ID}', 'completo', 'Completo', true),
-      ('${SELF_SERVICE_INACTIVE_PLAN_ID}', 'inativo', 'Inativo', false);
+      ('${SELF_SERVICE_PLAN_ID}', 'solo', 'Solo', true),
+      ('${SELF_SERVICE_OTHER_PLAN_ID}', 'clinica', 'Clinica', true),
+      ('${SELF_SERVICE_INACTIVE_PLAN_ID}', 'pro', 'Pro', false);
     INSERT INTO prices (id, plan_id, amount, currency, billing_cycle, campaign_code) VALUES
       ('dddddddd-4444-4444-8444-444444444444', '${SELF_SERVICE_PLAN_ID}', 149.00, 'BRL', 'monthly', NULL),
       ('eeeeeeee-5555-4555-8555-555555555555', '${SELF_SERVICE_PLAN_ID}', 49.00, 'BRL', 'monthly', 'fundador'),
       ('ffffffff-6666-4666-8666-666666666666', '${SELF_SERVICE_OTHER_PLAN_ID}', 249.90, 'BRL', 'monthly', NULL),
       ('11111111-7777-4777-8777-777777777777', '${SELF_SERVICE_INACTIVE_PLAN_ID}', 9.90, 'BRL', 'monthly', NULL);`);
+  const billingMigration = await readFile(
+    path.join(root, 'drizzle/migrations/0103_signup_billing_attempt.sql'),
+    'utf8',
+  );
+  async function downBilling() {
+    const [attempts] = await admin`SELECT count(*)::int AS n FROM signup_sessions
+      WHERE billing_attempt_state IS NOT NULL OR asaas_subscription_id IS NOT NULL`;
+    assert.equal(attempts?.n, 0, 'down refused while billing attempts exist; reconcile first');
+    await admin.unsafe(`ALTER TABLE signup_sessions
+      DROP CONSTRAINT signup_sessions_billing_attempt_check,
+      DROP CONSTRAINT signup_sessions_billing_active_check,
+      DROP CONSTRAINT signup_sessions_billing_failure_check,
+      DROP CONSTRAINT signup_sessions_asaas_subscription_id_unique;
+      ALTER TABLE signup_sessions
+        DROP COLUMN billing_attempt_state,
+        DROP COLUMN billing_attempted_at,
+        DROP COLUMN asaas_customer_id,
+        DROP COLUMN asaas_subscription_id,
+        DROP COLUMN billing_failure_code;
+      DELETE FROM _schema_version WHERE version = 'signup-billing-attempt';`);
+  }
+  async function seedVerifiedForBilling(suffix: string, plan: string | null) {
+    const hash = 'b'.repeat(32) + suffix.padStart(32, '0');
+    const user = `00000000-0000-4000-8000-${suffix.padStart(12, '0')}`;
+    await admin`INSERT INTO signup_sessions (token_hash, status, idle_expires_at,
+      absolute_expires_at, consumed_at, auth_user_id, owner_name, clinic_name, email_hash,
+      accepted_at, answered_at, professionals_band, weekly_appointments_band, current_tooling,
+      discovery_source, selected_plan_id)
+      VALUES (${hash}, 'email_verified', now() + interval '30 minutes',
+        now() + interval '45 minutes', now(), ${user}::uuid, 'Ana', 'Clinica',
+        ${createHash('sha256')
+          .update('billing-' + suffix)
+          .digest('hex')},
+        now(), now(), '2_5', '21_50', 'outro_sistema', 'indicacao_colega', ${plan}::uuid)`;
+    return { hash, user };
+  }
+  await check(
+    'migration 0103 empty up/down/up, populated 2000 rows, unique subscription and no privilege expansion',
+    async () => {
+      await admin.unsafe(billingMigration);
+      await downBilling();
+      await admin.unsafe(billingMigration);
+      await downBilling();
+      await admin.unsafe(`INSERT INTO signup_sessions (token_hash, idle_expires_at, absolute_expires_at)
+        SELECT md5(('billing-old-' || n)::text) || md5(n::text), now() + interval '10 minutes',
+          now() + interval '45 minutes' FROM generate_series(1, 2000) n;`);
+      const before =
+        await admin`SELECT to_jsonb(s) AS row FROM signup_sessions s ORDER BY token_hash`;
+      await admin.unsafe(billingMigration);
+      const after =
+        await admin`SELECT to_jsonb(s) - 'billing_attempt_state' - 'billing_attempted_at'
+        - 'asaas_customer_id' - 'asaas_subscription_id' - 'billing_failure_code' AS row
+        FROM signup_sessions s ORDER BY token_hash`;
+      assert.equal(after.length, 2000);
+      assert.deepEqual(after, before);
+
+      // Linha antiga segue legal: tentativa toda nula, e o CHECK aceita zero.
+      const [untouched] = await admin`SELECT count(*)::int AS n FROM signup_sessions
+        WHERE billing_attempt_state IS NULL AND asaas_subscription_id IS NULL`;
+      assert.equal(untouched?.n, 2000);
+      await admin`DELETE FROM signup_sessions`;
+
+      // --- o que os CHECKs precisam recusar ---------------------------------
+      const semPlano = await seedVerifiedForBilling('1', null);
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET billing_attempt_state = 'reserved',
+          billing_attempted_at = now() WHERE token_hash = ${semPlano.hash}`,
+        /signup_sessions_billing_attempt_check/u,
+        'tentativa sem plano deve ser recusada pelo banco',
+      );
+
+      const comPlano = await seedVerifiedForBilling('2', SELF_SERVICE_PLAN_ID);
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET billing_attempt_state = 'reserved'
+          WHERE token_hash = ${comPlano.hash}`,
+        /signup_sessions_billing_attempt_check/u,
+        'tentativa pela metade deve ser recusada pelo banco',
+      );
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET billing_attempt_state = 'pago', billing_attempted_at = now()
+          WHERE token_hash = ${comPlano.hash}`,
+        /signup_sessions_billing_attempt_check/u,
+        'estado inventado deve ser recusado pelo banco',
+      );
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET billing_attempt_state = 'active', billing_attempted_at = now()
+          WHERE token_hash = ${comPlano.hash}`,
+        /signup_sessions_billing_active_check/u,
+        'ativo sem assinatura deve ser recusado pelo banco',
+      );
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET billing_attempt_state = 'failed', billing_attempted_at = now(),
+          asaas_subscription_id = 'sub_x', asaas_customer_id = 'cus_x'
+          WHERE token_hash = ${comPlano.hash}`,
+        /signup_sessions_billing_active_check/u,
+        'assinatura fora de active deve ser recusada pelo banco',
+      );
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET billing_attempt_state = 'reserved', billing_attempted_at = now(),
+          billing_failure_code = 'qualquer' WHERE token_hash = ${comPlano.hash}`,
+        /signup_sessions_billing_failure_check/u,
+        'motivo em reserva deve ser recusado pelo banco',
+      );
+
+      // Caminho legítimo, e a unicidade da assinatura entre cadastros.
+      await admin`UPDATE signup_sessions SET billing_attempt_state = 'active',
+        billing_attempted_at = now(), asaas_customer_id = 'cus_1', asaas_subscription_id = 'sub_1'
+        WHERE token_hash = ${comPlano.hash}`;
+      const outro = await seedVerifiedForBilling('3', SELF_SERVICE_PLAN_ID);
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET billing_attempt_state = 'active', billing_attempted_at = now(),
+          asaas_customer_id = 'cus_2', asaas_subscription_id = 'sub_1'
+          WHERE token_hash = ${outro.hash}`,
+        /signup_sessions_asaas_subscription_id_unique/u,
+        'mesma assinatura em dois cadastros deve ser recusada pelo banco',
+      );
+
+      for (const role of ['anon', 'authenticated', 'qoro_runtime', 'service_role']) {
+        const [grants] =
+          await admin`SELECT has_table_privilege(${role}, 'signup_sessions', 'SELECT,INSERT,UPDATE,DELETE') AS allowed`;
+        assert.equal(grants?.allowed, role === 'service_role');
+      }
+      const [rls] = await admin`SELECT relrowsecurity, relforcerowsecurity,
+        (SELECT count(*)::int FROM pg_policy WHERE polrelid = 'signup_sessions'::regclass) AS policies
+        FROM pg_class WHERE oid = 'signup_sessions'::regclass`;
+      assert.deepEqual(rls, { relrowsecurity: true, relforcerowsecurity: true, policies: 0 });
+      await admin`DELETE FROM signup_sessions`;
+    },
+  );
   await admin.unsafe(`CREATE TABLE clinics (
       id uuid PRIMARY KEY,
       nome text NOT NULL
@@ -1870,7 +2127,14 @@ try {
   } = await import('../../src/contexts/onboarding/internal/signup-session');
   const { recordSignupAnswers } =
     await import('../../src/contexts/onboarding/internal/signup-answers');
-  const { readSignupDraft, writeSignupDraft } =
+  const {
+    reserveSignupBillingAttempt,
+    activateSignupBillingAttempt,
+    markSignupBillingIssue,
+    reconcileSignupBillingAttempt,
+    readSignupBilling,
+  } = await import('../../src/contexts/onboarding/internal/signup-billing');
+  const { claimSignupDraftByVerifiedEmail, readSignupDraft, writeSignupDraft } =
     await import('../../src/contexts/onboarding/internal/signup-draft');
   const { hashEmail } = await import('../../src/lib/auth/email-hash');
   const { POST } = await import('../../src/app/api/signup/sessions/answers/route');
@@ -2186,7 +2450,11 @@ try {
       });
       const [done] = await snapshot(token);
       assert.equal(done?.auth_attempt_state, 'completed');
-      assert.equal(done?.idle_expires_at.getTime(), read?.idle_expires_at.getTime());
+      // Finalizar a tentativa fixa o idle no absoluto: a espera pelo e-mail dura
+      // o que o teto permitir, sem depender de o navegador continuar aberto — e
+      // sem estender nada, porque o absoluto segue intocado.
+      assert.equal(done?.idle_expires_at.getTime(), done?.absolute_expires_at.getTime());
+      assert.equal(done?.absolute_expires_at.getTime(), read?.absolute_expires_at.getTime());
       assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'uncertain'), conflictingIdentity);
       assert.deepEqual((await snapshot(token))[0], done);
       await assert.rejects(downAuth(), /down refused while attempts exist/u);
@@ -2339,7 +2607,7 @@ try {
     },
   );
   await check(
-    'draft owner: atomic link, replay/transfer denial, no TTL renewal, exclusive restart and purge',
+    'draft owner: cross-device claim by verified e-mail, mismatch denial, no TTL renewal, exclusive restart and purge',
     async () => {
       const ownerA = '44444444-4444-4444-8444-444444444444';
       const ownerB = '55555555-5555-4555-8555-555555555555';
@@ -2348,64 +2616,86 @@ try {
       const ownerE = '88888888-8888-4888-8888-888888888888';
       const ownerF = '99999999-9999-4999-8999-999999999999';
       const email = 'verified.draft@example.invalid';
-      const draftInput = {
-        mode: 'link',
-        rowVersion: 5,
-        ownerName: '  Pessoa Verificada  ',
-        clinicName: '  ClÃ­nica Verificada  ',
-        answers: answerValues,
-        accepted: true,
-      } as const;
       const restartInput = {
-        mode: 'restart',
-        ownerName: 'Pessoa Reiniciada',
-        clinicName: 'ClÃ­nica Reiniciada',
+        ownerName: '  Pessoa Reiniciada  ',
+        clinicName: '  Clínica Reiniciada  ',
         answers: answerValues,
         accepted: true,
       } as const;
-      const linkToken = identityToken('draft-link');
+      const claimToken = identityToken('draft-claim');
+      const olderToken = identityToken('draft-claim-older');
+      const reservedToken = identityToken('draft-reserved');
       const mismatchToken = identityToken('draft-mismatch');
-      const staleToken = identityToken('draft-stale');
       const raceTokens = [identityToken('draft-race-a'), identityToken('draft-race-b')];
-      const seededTokens = [linkToken, mismatchToken, staleToken, ...raceTokens];
+      const seededTokens = [claimToken, olderToken, reservedToken, mismatchToken, ...raceTokens];
 
-      async function seedEmailPending(token: string, pendingEmail = email) {
+      async function seedEmailPending(
+        token: string,
+        pendingEmail = email,
+        attemptState = 'completed',
+        ageMinutes = 0,
+      ) {
         await admin`INSERT INTO signup_sessions (
           token_hash, status, row_version, idle_expires_at, absolute_expires_at,
           professionals_band, weekly_appointments_band, current_tooling, discovery_source,
           answered_at, owner_name, clinic_name, email_hash, accepted_at,
           auth_attempt_kind, auth_attempt_state, auth_attempted_at
         ) VALUES (
-          ${hashSignupToken(token)}, 'email_pending', 5, now() + interval '10 minutes',
+          ${hashSignupToken(token)}, 'email_pending', 5, now() + interval '45 minutes',
           now() + interval '45 minutes', ${answerValues.professionalsBand},
           ${answerValues.weeklyAppointmentsBand}, ${answerValues.currentTooling},
           ${answerValues.discoverySource}, now(), 'Bootstrap Owner', 'Bootstrap Clinic',
-          ${hashEmail(pendingEmail)}, now(), 'initial', 'completed', now()
+          ${hashEmail(pendingEmail)}, now(), 'initial', ${attemptState},
+          now() - make_interval(mins => ${ageMinutes})
         )`;
       }
 
-      for (const token of seededTokens) await seedEmailPending(token);
-      const [linkBefore] = await snapshot(linkToken);
-      assert.deepEqual(
-        await writeSignupDraft({ userId: ownerA, email, rawToken: linkToken, input: draftInput }),
-        { ok: true, rowVersion: 6 },
-      );
-      const [linked] = await snapshot(linkToken);
-      assert.equal(linked?.status, 'email_verified');
-      assert.equal(linked?.auth_user_id, ownerA);
-      assert.ok(linked?.consumed_at instanceof Date);
-      assert.equal(linked?.owner_name, 'Pessoa Verificada');
-      assert.equal(linked?.clinic_name, 'ClÃ­nica Verificada');
-      assert.equal(linked?.row_version, 6);
-      assert.equal(linked?.idle_expires_at.getTime(), linkBefore?.idle_expires_at.getTime());
+      // Aparelho diferente: nenhum cookie anônimo chega aqui, só a identidade já
+      // verificada. Entre dois cadastros do MESMO e-mail, vincula o mais recente.
+      await seedEmailPending(olderToken, email, 'completed', 5);
+      await seedEmailPending(claimToken);
+      await seedEmailPending(reservedToken, 'reserved.draft@example.invalid', 'reserved');
+      await seedEmailPending(mismatchToken, 'mismatch.draft@example.invalid');
+      for (const token of raceTokens) await seedEmailPending(token, 'race.draft@example.invalid');
+      const [claimBefore] = await snapshot(claimToken);
+      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerA, email), {
+        ok: true,
+        rowVersion: 6,
+      });
+      const [claimed] = await snapshot(claimToken);
+      assert.equal(claimed?.status, 'email_verified');
+      assert.equal(claimed?.auth_user_id, ownerA);
+      assert.ok(claimed?.consumed_at instanceof Date);
+      assert.equal(claimed?.owner_name, 'Bootstrap Owner');
+      assert.equal(claimed?.clinic_name, 'Bootstrap Clinic');
+      assert.equal(claimed?.row_version, 6);
       assert.equal(
-        linked?.absolute_expires_at.getTime(),
-        linkBefore?.absolute_expires_at.getTime(),
+        claimed?.idle_expires_at.getTime(),
+        claimed?.absolute_expires_at.getTime(),
+        'draft vinculado nao guarda janela de inatividade propria',
       );
+      assert.equal(
+        claimed?.absolute_expires_at.getTime(),
+        claimBefore?.absolute_expires_at.getTime(),
+        'vincular nao estende o teto absoluto',
+      );
+      // A linha mais antiga do mesmo e-mail fica intocada: uma confirmação
+      // vincula UM cadastro, nunca varre tudo que carrega aquele hash.
+      const [older] = await snapshot(olderToken);
+      assert.equal(older?.status, 'email_pending');
+      assert.equal(older?.auth_user_id, null);
+      assert.equal(older?.consumed_at, null);
+
+      // Reabrir a continuação não vincula de novo nem mexe na linha.
+      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerA, email), {
+        ok: true,
+        rowVersion: 6,
+      });
+      assert.deepEqual((await snapshot(claimToken))[0], claimed);
 
       const read = await readSignupDraft(ownerA);
       assert.equal(read.ok, true);
-      if (!read.ok) throw new Error('linked owner draft not readable');
+      if (!read.ok) throw new Error('claimed owner draft not readable');
       assert.deepEqual(Object.keys(read.draft).sort(), [
         'absoluteExpiresAt',
         'answers',
@@ -2418,82 +2708,84 @@ try {
       const publicDraft = JSON.stringify(read.draft);
       assert.equal(publicDraft.includes(email), false);
       assert.equal(publicDraft.includes(ownerA), false);
-      assert.equal(publicDraft.includes(linkToken), false);
-      const [afterRead] = await snapshot(linkToken);
-      assert.equal(afterRead?.idle_expires_at.getTime(), linked?.idle_expires_at.getTime());
-      assert.equal(afterRead?.absolute_expires_at.getTime(), linked?.absolute_expires_at.getTime());
-
-      assert.deepEqual(
-        await writeSignupDraft({ userId: ownerA, email, rawToken: linkToken, input: draftInput }),
-        { ok: false, reason: 'conflict' },
-      );
-      assert.deepEqual(
-        await writeSignupDraft({ userId: ownerB, email, rawToken: linkToken, input: draftInput }),
-        { ok: false, reason: 'gone' },
+      assert.equal(publicDraft.includes(claimToken), false);
+      const [afterRead] = await snapshot(claimToken);
+      assert.equal(afterRead?.idle_expires_at.getTime(), claimed?.idle_expires_at.getTime());
+      assert.equal(
+        afterRead?.absolute_expires_at.getTime(),
+        claimed?.absolute_expires_at.getTime(),
       );
 
+      // Reserva cuja finalização se perdeu: o e-mail pode ter sido entregue, e
+      // quem chega com OTP válido daquele endereço não redigita nada por isso.
+      const reservedEmail = 'reserved.draft@example.invalid';
+      assert.equal((await snapshot(reservedToken))[0]?.auth_attempt_state, 'reserved');
+      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerB, reservedEmail), {
+        ok: true,
+        rowVersion: 6,
+      });
+      assert.equal((await snapshot(reservedToken))[0]?.auth_user_id, ownerB);
+
+      // E-mail verificado diferente não alcança o cadastro de outra pessoa.
       const mismatchBefore = await snapshot(mismatchToken);
-      assert.deepEqual(
-        await writeSignupDraft({
-          userId: ownerC,
-          email: 'different@example.invalid',
-          rawToken: mismatchToken,
-          input: draftInput,
-        }),
-        { ok: false, reason: 'conflict' },
-      );
+      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerC, 'different@example.invalid'), {
+        ok: false,
+        reason: 'gone',
+      });
       assert.deepEqual(await snapshot(mismatchToken), mismatchBefore);
-      const staleBefore = await snapshot(staleToken);
-      assert.deepEqual(
-        await writeSignupDraft({
-          userId: ownerD,
-          email,
-          rawToken: staleToken,
-          input: { ...draftInput, rowVersion: 4 },
-        }),
-        { ok: false, reason: 'conflict' },
-      );
-      assert.deepEqual(await snapshot(staleToken), staleBefore);
+      assert.deepEqual(await readSignupDraft(ownerC), { ok: false, reason: 'gone' });
 
-      const raceOutcomes = await Promise.all(
-        raceTokens.map((rawToken) =>
-          writeSignupDraft({ userId: ownerE, email, rawToken, input: draftInput }),
-        ),
-      );
-      assert.equal(raceOutcomes.filter((outcome) => outcome.ok).length, 1);
-      assert.ok(raceOutcomes.some((outcome) => !outcome.ok && outcome.reason === 'conflict'));
+      // Teto absoluto vencido também fecha o vínculo: expirar encerra autoridade.
+      await admin`UPDATE signup_sessions SET absolute_expires_at = now() - interval '1 second'
+        WHERE token_hash IN (${hashSignupToken(mismatchToken)}, ${hashSignupToken(olderToken)})`;
+      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerD, email), {
+        ok: false,
+        reason: 'gone',
+      });
+
+      // Duas abas do mesmo usuário disputando: um único owner, sem linha extra.
+      const raceEmail = 'race.draft@example.invalid';
+      const raceOutcomes = await Promise.all([
+        claimSignupDraftByVerifiedEmail(ownerE, raceEmail),
+        claimSignupDraftByVerifiedEmail(ownerE, raceEmail),
+      ]);
+      assert.ok(raceOutcomes.some((outcome) => outcome.ok));
       const [exclusiveOwner] =
         await admin`SELECT count(*)::int AS n FROM signup_sessions WHERE auth_user_id = ${ownerE}`;
       assert.equal(exclusiveOwner?.n, 1);
 
-      await admin`UPDATE signup_sessions SET idle_expires_at = now() - interval '1 second'
-        WHERE auth_user_id = ${ownerA}`;
+      await admin`UPDATE signup_sessions SET idle_expires_at = now() - interval '1 second',
+        absolute_expires_at = now() - interval '1 second' WHERE auth_user_id = ${ownerA}`;
       assert.deepEqual(await readSignupDraft(ownerA), { ok: false, reason: 'gone' });
       const [restartClock] = await admin`SELECT now() AS at`;
-      assert.deepEqual(
-        await writeSignupDraft({ userId: ownerA, email, rawToken: null, input: restartInput }),
-        { ok: true, rowVersion: 1 },
-      );
+      assert.deepEqual(await writeSignupDraft({ userId: ownerA, email, input: restartInput }), {
+        ok: true,
+        rowVersion: 1,
+      });
       const [restarted] = await admin`SELECT * FROM signup_sessions WHERE auth_user_id = ${ownerA}`;
       assert.equal(restarted?.status, 'email_verified');
-      assert.equal(restarted?.owner_name, restartInput.ownerName);
-      assert.equal(restarted?.token_hash === hashSignupToken(linkToken), false);
+      assert.equal(restarted?.owner_name, 'Pessoa Reiniciada');
+      assert.equal(restarted?.token_hash === hashSignupToken(claimToken), false);
       assert.match(String(restarted?.token_hash), /^[0-9a-f]{64}$/u);
       assert.ok(restarted?.idle_expires_at > restartClock?.at);
-      assert.ok(restarted?.absolute_expires_at > restarted?.idle_expires_at);
+      assert.equal(
+        restarted?.idle_expires_at.getTime(),
+        restarted?.absolute_expires_at.getTime(),
+        'redigitacao nao pode vencer em 15 min sem renovacao possivel',
+      );
       assert.equal(
         JSON.stringify(await readSignupDraft(ownerA)).includes(restarted?.token_hash),
         false,
       );
-      assert.deepEqual(
-        await writeSignupDraft({ userId: ownerA, email, rawToken: null, input: restartInput }),
-        { ok: false, reason: 'conflict' },
-      );
+      assert.deepEqual(await writeSignupDraft({ userId: ownerA, email, input: restartInput }), {
+        ok: false,
+        reason: 'conflict',
+      });
       await assert.rejects(downOwnership(), /down refused while owned\/consumed drafts exist/u);
 
       const concurrentRestart = await Promise.all([
-        writeSignupDraft({ userId: ownerF, email, rawToken: null, input: restartInput }),
-        writeSignupDraft({ userId: ownerF, email, rawToken: null, input: restartInput }),
+        writeSignupDraft({ userId: ownerF, email, input: restartInput }),
+        writeSignupDraft({ userId: ownerF, email, input: restartInput }),
       ]);
       assert.equal(concurrentRestart.filter((outcome) => outcome.ok).length, 1);
       assert.ok(concurrentRestart.some((outcome) => !outcome.ok && outcome.reason === 'conflict'));
@@ -2511,6 +2803,125 @@ try {
       for (const token of seededTokens) {
         await admin`DELETE FROM signup_sessions WHERE token_hash = ${hashSignupToken(token)}`;
       }
+      await admin`DELETE FROM signup_sessions WHERE auth_user_id IS NOT NULL`;
+    },
+  );
+  await check(
+    'billing O-5: reserva CAS com vencedor unico, creation_unknown nao retenta, reconcilia e janitor preserva assinatura',
+    async () => {
+      const owner = '00000000-0000-4000-8000-0000000000b1';
+      const seedOwner = async () => {
+        await admin`DELETE FROM signup_sessions WHERE auth_user_id = ${owner}::uuid`;
+        await admin`INSERT INTO signup_sessions (token_hash, status, idle_expires_at,
+          absolute_expires_at, consumed_at, auth_user_id, owner_name, clinic_name, email_hash,
+          accepted_at, answered_at, professionals_band, weekly_appointments_band, current_tooling,
+          discovery_source, selected_plan_id)
+          VALUES (${createHash('sha256').update('billing-cas').digest('hex')}, 'email_verified',
+            now() + interval '30 minutes', now() + interval '45 minutes', now(), ${owner}::uuid,
+            'Ana', 'Clinica Aurora',
+            ${createHash('sha256').update('billing-cas-email').digest('hex')},
+            now(), now(), '2_5', '21_50', 'outro_sistema', 'indicacao_colega',
+            ${SELF_SERVICE_PLAN_ID}::uuid)`;
+      };
+
+      // Duas abas pedindo checkout ao mesmo tempo: uma reserva, a outra perde.
+      await seedOwner();
+      const disputed = await Promise.all([
+        reserveSignupBillingAttempt(owner),
+        reserveSignupBillingAttempt(owner),
+      ]);
+      assert.equal(disputed.filter((outcome) => outcome.ok).length, 1, 'uma unica reserva vence');
+      assert.ok(
+        disputed.some((outcome) => !outcome.ok && outcome.reason === 'conflict'),
+        'a perdedora recebe conflict',
+      );
+      const winner = disputed.find((outcome) => outcome.ok);
+      assert.ok(winner?.ok);
+      // Preco e plano vem do catalogo, nao do chamador.
+      assert.equal(winner.intent.priceCents, 14900);
+      assert.equal(winner.intent.planCode, 'solo');
+      assert.ok(winner.intent.externalReference.startsWith('signup:'));
+
+      // Ativacao com versao velha perde; com a versao reservada, vence.
+      const stale = await activateSignupBillingAttempt({
+        userId: owner,
+        reservedVersion: winner.rowVersion - 1,
+        asaasCustomerId: 'cus_cas',
+        asaasSubscriptionId: 'sub_cas',
+      });
+      assert.deepEqual(stale, { ok: false, reason: 'conflict' });
+      const activated = await activateSignupBillingAttempt({
+        userId: owner,
+        reservedVersion: winner.rowVersion,
+        asaasCustomerId: 'cus_cas',
+        asaasSubscriptionId: 'sub_cas',
+      });
+      assert.ok(activated.ok);
+
+      // De `active` nao se reserva de novo: seria a segunda assinatura.
+      assert.deepEqual(await reserveSignupBillingAttempt(owner), {
+        ok: false,
+        reason: 'already_active',
+      });
+
+      // `creation_unknown` nao e retentavel — so reconciliacao sai dali.
+      await seedOwner();
+      const second = await reserveSignupBillingAttempt(owner);
+      assert.ok(second.ok);
+      const unknown = await markSignupBillingIssue({
+        userId: owner,
+        reservedVersion: second.rowVersion,
+        outcome: 'creation_unknown',
+        failureCode: 'subscription_creation_unknown',
+        asaasCustomerId: 'cus_lost',
+      });
+      assert.ok(unknown.ok);
+      assert.deepEqual(await reserveSignupBillingAttempt(owner), {
+        ok: false,
+        reason: 'reconcile_required',
+      });
+      const reconciled = await reconcileSignupBillingAttempt({
+        userId: owner,
+        asaasCustomerId: 'cus_lost',
+        asaasSubscriptionId: 'sub_lost',
+      });
+      assert.ok(reconciled.ok);
+      const snapshot = await readSignupBilling(owner);
+      assert.ok(snapshot.ok);
+      assert.equal(snapshot.snapshot.state, 'active');
+      assert.equal(snapshot.snapshot.asaasSubscriptionId, 'sub_lost');
+      assert.equal(snapshot.snapshot.failureCode, null);
+
+      // `failed` (4xx conhecido) CONTINUA retentavel — a diferenca que importa.
+      await seedOwner();
+      const third = await reserveSignupBillingAttempt(owner);
+      assert.ok(third.ok);
+      const failed = await markSignupBillingIssue({
+        userId: owner,
+        reservedVersion: third.rowVersion,
+        outcome: 'failed',
+        failureCode: 'invalid_cpfcnpj',
+      });
+      assert.ok(failed.ok);
+      const retried = await reserveSignupBillingAttempt(owner);
+      assert.ok(retried.ok, 'apos 4xx a pessoa pode tentar de novo');
+
+      // O janitor NAO pode apagar linha que guarda assinatura no Asaas.
+      await activateSignupBillingAttempt({
+        userId: owner,
+        reservedVersion: retried.rowVersion,
+        asaasCustomerId: 'cus_keep',
+        asaasSubscriptionId: 'sub_keep',
+      });
+      await admin`UPDATE signup_sessions SET idle_expires_at = now() - interval '1 second'
+        WHERE auth_user_id = ${owner}::uuid`;
+      const purged = await purgeExpiredSignupSessions();
+      assert.equal(purged.retainedWithSubscription, 1, 'assinatura viva retem a linha');
+      const [kept] = await admin`SELECT count(*)::int AS n FROM signup_sessions
+        WHERE auth_user_id = ${owner}::uuid`;
+      assert.equal(kept?.n, 1, 'cobranca orfa seria o resultado de apagar aqui');
+
+      await admin`DELETE FROM signup_sessions WHERE auth_user_id = ${owner}::uuid`;
     },
   );
   if (process.argv.includes('--browser')) {
@@ -2540,10 +2951,17 @@ try {
         ['-D', data, '-m', 'fast', '-w', 'stop'],
         { windowsHide: true, encoding: 'utf8' },
       );
-      assert.equal(stop.status, 0, stop.stderr);
+      // `throw` aqui apagaria o erro que trouxe a execução ao finally — foi o
+      // que escondeu a causa real quando o cluster sequer subiu. O resultado
+      // vira FAIL no relatório e no exit code, sem substituir o erro original.
+      stopped = stop.status === 0 ? { ok: true } : { ok: false, detail: stop.stderr };
     }
   }
-  results.push({ name: 'own Postgres stopped', status: 'PASS' });
+  results.push(
+    stopped.ok
+      ? { name: 'own Postgres stopped', status: 'PASS' }
+      : { name: 'own Postgres stopped', status: 'FAIL', detail: stopped.detail },
+  );
   const resolved = path.resolve(cluster);
   assert.equal(path.dirname(resolved), path.resolve(os.tmpdir()));
   assert.ok(path.basename(resolved).startsWith('qoro-signup-regression-'));

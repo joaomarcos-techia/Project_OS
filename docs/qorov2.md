@@ -15,11 +15,16 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Checkpoint atual — 16/09/2026: EM DESENVOLVIMENTO.** O-3a e O-3b.1–6 estão fechados localmente.
-No rollout DEV autorizado, as migrations 0099–0101, o envio SMTP e a confirmação de uma conta real
-passaram. O primeiro link expôs um callback antigo para a branch de pagamentos; a correção
-server-side está publicada no Preview isolado e ainda requer instalar o novo template e executar um
-novo clique real. Checkout, provisionamento, onboarding e produção continuam em fatias posteriores.
+**Checkpoint atual — 17/09/2026: EM DESENVOLVIMENTO.** O-3a, O-3b.1–6 e O-4 estão fechados
+localmente. As migrations 0099–0102 estão aplicadas no DEV; SMTP, callback corrigido, confirmação e
+sessão real passaram no Preview O-3b. O veredito do fundador sobre o cadastro gerou a correção local
+de UX e de retomada entre aparelhos registrada em §35.22 e na
+[ADR-062 §10](adr/062-identidade-consentimento-cadastro.md): o cadastro é reencontrado pelo e-mail já
+verificado, o modo `link` do draft saiu e as perguntas viraram uma por tela. Essa correção foi
+validada localmente, inclusive no runner com Postgres/Chromium reais, e **não** foi publicada nem
+validada no Preview. A medição do DEV também fechou um alçapão herdado: senha recusada pelo provider
+(HIBP está ligado) virava espera silenciosa, e agora vira erro acionável com a tentativa devolvida.
+Checkout, provisionamento, onboarding e produção continuam em fatias posteriores.
 Detalhes e limites estão em [§35](#35-checkpoint-de-retomada--revisão-intermediária-de-14092026),
 no [Discovery Log](discovery-log.md) e no
 [prompt completo de retomada](prompts/retomada-qorov2-2026-09-15.md).
@@ -37,9 +42,9 @@ concluiu **PASS**, com artifact cifrado publicado. O Track O e o Qoro v2 complet
 O-3b, incluindo SQL exclusivamente em Postgres descartável de loopback. O-3a e O-3b.1–6 estão
 validados localmente; a implementação local Auth/e-mail O-3b foi fechada na
 [ADR-062](adr/062-identidade-consentimento-cadastro.md). O rollout DEV autorizado e a correção do
-callback estão em §35.18. O filtro de
-senha exige 8–72 caracteres (até 72 bytes), maiúscula, minúscula, número e símbolo aceito pelo Supabase, sem espaços ou
-controles. Track O e Qoro v2 seguem EM DESENVOLVIMENTO.
+callback estão em §35.18. A decisão mais recente removeu a obrigação de símbolo: o filtro do
+cadastro autônomo exige 8–72 caracteres (até 72 bytes), maiúscula, minúscula e número, sem espaços
+ou controles; símbolos continuam permitidos. Track O e Qoro v2 seguem EM DESENVOLVIMENTO.
 
 **Referência histórica do bloco abaixo:** verificação de 2026-09-08 na branch
 `feat/qorov2-pagamentos`. Para a sequência atual, prevalecem este checkpoint, §§31.4–35 e as
@@ -2922,7 +2927,11 @@ prova e-mail, Ads, Turnstile, Asaas ou isolamento tenant.
 - [ ] `/comecar` tem destino fixo; GCLID/UTMs/linker sobrevivem sem transportar PII ou auth.
 - [ ] Consentimento e conversões Google foram testados com Tag Assistant e campanha controlada.
 - [ ] Unit, integration, contract, adversarial, load e E2E estão verdes; externos são rotulados honestamente.
-- [ ] Rollback/kill switch impede novos cadastros sem derrubar login/tenants existentes.
+- [x] Rollback/kill switch impede novos cadastros sem derrubar login/tenants existentes.
+      `SIGNUP_ENABLED=false` fecha `/cadastro` e `POST /api/signup/sessions`; `SIGNUP_IDENTITY_ENABLED`
+      fecha também quem está em curso. Mecanismo e provas em §35.23 e no
+      [runbook de incidentes](runbooks/incident-response.md). Provado em unit; **NOT TESTED** em
+      Preview e produção.
 - [ ] Product Acceptance owner e jornada de aquisição foram assinados antes do rollout amplo.
 
 **Decisões humanas concluídas em 02/09:** (a) o trial começa após criação idempotente e readback
@@ -5533,8 +5542,8 @@ Qoro v2 permanece EM DESENVOLVIMENTO.
 ### 35.16 O-3b.5 — senha, espera e revisão autenticada locais
 
 O cadastro agora coleta a senha junto com identidade/aceite e reutiliza o schema server-side:
-8–72 caracteres (até 72 bytes), maiúscula, minúscula, número e símbolo aceito pelo Supabase, sem espaços/controles e sem
-normalização. A UI escreve staging antes de Auth, encadeia a versão devolvida e apaga senha/captcha
+8–72 caracteres (até 72 bytes), maiúscula, minúscula e número, sem espaços/controles e sem
+normalização; símbolos são opcionais. A UI escreve staging antes de Auth, encadeia a versão devolvida e apaga senha/captcha
 depois da tentativa. Falha ambígua relê `/me`; não há repetição automática de `signUp` ou resend.
 
 A espera `email_pending` usa copy uniforme, oferece login existente e reenvio explícito sem senha.
@@ -5705,3 +5714,308 @@ O limite desta evidência é de ambiente: ela valida o Upstash externo compartil
 Production. O request de Preview percorreu O-3b, e o de Production percorreu o health vigente; a tela e
 as rotas novas de O-4 continuam sem publicação em Preview e, portanto, o aceite funcional de O-4 no
 Preview continua **NOT TESTED**.
+
+### 35.22 Veredito do fundador sobre o cadastro — execução local de 17/09/2026
+
+O aceite do Preview O-3b (§35.19) terminou com um defeito de produto, não de código: o link de
+confirmação aberto no celular caiu num aparelho sem o cookie anônimo, a barreira desenhada na ADR-062
+§5.6/§5.9 recusou reencontrar o cadastro e a continuação exigiu redigitar tudo — enquanto o
+computador ficava parado na espera, sem saber que a confirmação já tinha acontecido. O fundador
+tratou isso como bloqueio e emitiu um veredito com sete itens. A decisão completa, com a emenda formal
+às invariantes, está na [ADR-062 §10](adr/062-identidade-consentimento-cadastro.md).
+
+**O que mudou, item a item.** “Cadastre-se” no login virou link para `/cadastro` — antes era um
+`<span>` órfão, por decisão de 10/09 que o self-serve tornou obsoleta. A senha deixou de exigir
+símbolo: 8–72 caracteres (72 bytes), maiúscula, minúscula e número, com símbolos ainda aceitos; o
+mesmo schema continua servindo UI e servidor. O card lateral de `/cadastro` saiu e o fluxo ficou em
+coluna única. As quatro perguntas passaram a uma por tela, com “Pergunta N de 4”, barra de progresso e
+botão Voltar; navegar entre elas não escreve no banco, porque a constraint `answers_all_or_none` não
+admite linha meio respondida — a gravação segue sendo um `POST /answers` único na quarta tela.
+
+**A retomada entre aparelhos.** O servidor passa a reencontrar o draft pelo e-mail já verificado, e
+não mais pelo cookie. O vínculo roda em `claimSignupDraftByVerifiedEmail`, dentro de uma transação,
+alimentado só por `getUser()` com `email_confirmed_at`; procura por `email_hash`, trava o candidato
+com `FOR UPDATE`, vincula por CAS e depende do `UNIQUE` de `auth_user_id` para resolver duas abas.
+Nada vem do cliente — nem e-mail, nem id, nem versão, nem cookie. Ele foi tirado do render de
+`/cadastro/continuar`, onde ficava fora do rate limit e engolia a falha, e vive em
+`GET /api/signup/draft`, atrás da seam pré-tenant, dos limites por IP e por HMAC do usuário e de uma
+recusa de Fetch Metadata `cross-site`; só é tentado quando a leitura do próprio draft devolve `gone`.
+
+Com isso, o modo `link` do `POST /api/signup/draft` virou caminho sem saída — quando o GET não vincula
+é porque o hash não bate, e nesse estado o `link` só responderia `409`, depois de a tela prometer
+“Encontramos as respostas deste navegador”. O modo foi removido com aprovação explícita do fundador,
+por ser contrato público. Sobrou um corpo único e estrito, sem `mode`, `rowVersion` ou token, para o
+único caso restante: não havia nada a recuperar e a pessoa reescreveu tudo.
+
+**Dois prazos que estavam errados.** Um draft já vinculado não tem credencial anônima a limitar, e a
+leitura autenticada não renova nada — mas o recomeço nascia com `idle` de 15 minutos e a escolha de
+plano fazia `least(now() + 15 min, absoluto)`, **encurtando** a vida do cadastro a cada gravação. Nos
+dois casos o `idle` agora acompanha o absoluto, e o teto de 60 minutos da ADR-062 §4 segue intocado.
+
+**A espera no aparelho original.** `GET /me` reconhece `email_verified` para o token original,
+devolve só o estado — sem respostas nem PII — e limpa o cookie consumido. A releitura é de 20 s com
+teto de 30 leituras: `/me` tem limite de 120 por 15 min **por IP**, compartilhado entre abas e por
+quem estiver atrás do mesmo NAT, e o intervalo inicial de 10 s estouraria esse limite antes da metade
+do TTL, entregando `429` justamente a quem espera. Esgotado o teto, recarregar mostra o resultado;
+`410` encerra a espera em vez de insistir.
+
+**No `/admin`,** o dashboard ganhou a lista de cadastros autônomos em andamento: nome da clínica
+quando informado, etapa, as quatro respostas e o plano escolhido, ordenados por atualização e
+limitados aos cadastros ainda válidos. E-mail, `email_hash`, token, tentativa, senha e `auth_user_id`
+ficam fora do DTO e da tela; o guard `super_admin` + AAL2 e o caráter read-only do painel não mudaram.
+
+**O alçapão que a medição encontrou — e que foi fechado.** Afrouxar o filtro local não afrouxa o
+Supabase. A leitura do DEV pela Management API mostrou `password_required_characters = ""` (o achado
+original do símbolo não existe ali) mas `password_hibp_enabled = true`. E com `weak_password` dentro
+de `ACCOUNT_OUTCOMES`, uma senha recusada pelo provider virava `200` com copy de espera e **nenhum
+e-mail**. A prova usou a senha literal dos nossos testes de UI: `Senha1234` passa em
+`signupPasswordSchema` e é recusada pelo GoTrue do DEV com `reasons: ["pwned"]`.
+
+A correção tirou `weak_password` do conjunto — ela não depende de conta, o GoTrue a avalia antes de
+olhar o usuário, e endereço já confirmado recebe sucesso ofuscado — e devolve a reserva por CAS
+inverso (`abortSignupAuthAttempt`), para que a pessoa escolha outra senha na hora em vez de gastar a
+tentativa e cair no cooldown de reenvio. Os CHECKs de 0099/0100 aceitam a volta a `identity_pending`
+com tentativa nula: **sem migration**. O efeito maior é que a dependência do painel some — qualquer
+política do provider vira erro acionável, não espera silenciosa. O HIBP fica ligado; o defeito era
+engolir o veredito dele. Detalhe na [ADR-062 §10.2.a](adr/062-identidade-consentimento-cadastro.md).
+
+O projeto de produção não foi lido; deixou de ser gate de rollout, porque a correção não depende
+dessa configuração.
+
+**Validação executada.** Testes focados de cadastro, draft, rotas, UI e painel: **PASS 772/772** em 53
+arquivos. Runner integrado `signup-regression --browser` contra Postgres 17 descartável, build Next
+isolado e Chromium: **PASS 25/25 checks e 22/22 provas de Auth/HTTP/browser**, com o bloco novo
+cobrindo vínculo entre aparelhos, recusa por e-mail divergente, reserva órfã cuja finalização se
+perdeu, disputa entre abas com owner único, prazos e purga; a jornada real percorreu as quatro telas
+de pergunta, voltar sem escrever no banco, CAS entre abas e a recuperação sem redigitação — cleanup
+zero e cluster encerrado. Build isolado Next 15.5.24, typecheck, lint integral, formato e
+`git diff --check`: **PASS**.
+
+A execução também consertou dois defeitos do próprio runner: o `finally` apagava o erro real ao falhar
+no `pg_ctl stop`, e o motivo da queda do Postgres não aparecia no erro. Registre-se o ambiente: o
+runner precisa ser executado a partir do PowerShell. Sob Git Bash as variáveis vêm em caixa alta
+(`SYSTEMROOT`), a allow list do script só preserva `SystemRoot`, e o Postgres sobe sem Winsock
+utilizável — falha com `could not create IPv4 socket for address "???"`.
+
+**Limites, sem exceção.** Nada foi publicado. Preview, produção, GoTrue/SMTP reais, Upstash externo,
+Asaas e qualquer configuração de painel continuam **NOT TESTED** para esta fatia. Nenhuma migration foi criada ou aplicada: a emenda não muda schema. Nenhum commit, push ou
+deploy foi executado.
+
+### 35.23 Auditoria do Track O e portão de entrada do funil — 18/09/2026
+
+A sessão começou com um pedido de fechar O-1, O-5, O-6, O-7, O.H e O.S. A auditoria prévia encontrou
+três premissas que o repositório não sustenta, e elas mudam o que "fechar" significa. O relato
+completo está em [handoff-track-o-2026-09-18](handoff-track-o-2026-09-18.md); o resumo:
+
+**A §10.9 da ADR-062 não é a tabela do Track O.** Ela se chama "Evidência desta emenda" e registra a
+emenda de 17/09 — retomada entre aparelhos e uma pergunta por tela. Não usa os identificadores de
+fatia, de nenhuma das duas numerações. Não existe tabela de evidência por fatia em ADR nenhuma. A
+§10.9 foi atualizada com os números medidos agora; não foi convertida em outra coisa.
+
+**O-1 é, em quase toda a extensão, de outro domínio.** O §21.2/§21.3 situam `/comecar` em `qoro.dev`,
+a landing. Este repositório é `app.qoro.dev`: `src/app/page.tsx` manda `/` para `/login` e não há
+superfície de marketing. Não há arquivo `comecar` em `src/app`, a única ocorrência de `gclid` no
+código é um comentário, e `signup_sessions` não tem coluna de atribuição — coerente com o §21.3, que
+manda "não criar outra base de dados de marketing", e com o §31.4, que já registrava que O-2 não
+depende de O-1. Implementar O-1 aqui contrariaria duas decisões registradas.
+
+**O funil não tem saída.** `/cadastro/plano` termina em "Plano salvo — nenhuma cobrança foi iniciada";
+`resolvePreTenantOnboarding` devolve `pretenant` para sempre, porque nada cria profile ou tenant a
+partir de uma `signup_session`; `provisionTenantFromInviteTx` existe mas exige `clinic_invites`, isto
+é, é a saga do convite. O-5, O-6 e O-7 não são melhorias pendentes: são a saída que falta.
+
+**O que isso torna urgente.** O item 3.1 do veredito de 17/09 transformou "Cadastre-se" em link vivo.
+Com o funil sem saída, publicar entregaria a um visitante quatro perguntas, uma conta verificada por
+e-mail real e um beco sem saída — mais uma linha em `signup_sessions` por visita, porque
+`SignupQuestions` faz bootstrap na montagem.
+
+**O portão entregue.** `/cadastro` só abre o funil com `SIGNUP_ENABLED` **e**
+`SIGNUP_IDENTITY_ENABLED`; fechado, renderiza indisponibilidade e **não monta** `SignupQuestions`,
+logo não cria linha. `SIGNUP_ENABLED` é novo, server-only e nasce **ligado** — é o kill switch do
+§21.20, que fecha entrada (página e `POST /api/signup/sessions`, antes de ler corpo ou gastar limite)
+sem tocar em login, sessão viva ou tenant. `SIGNUP_IDENTITY_ENABLED` já nascia desligado, então
+produção fica fechada por default, sem depender de alguém configurar. Dois portões porque respondem a
+perguntas diferentes: "a fatia seguinte existe?" é rollout; "preciso parar a aquisição agora?" é
+incidente. Detalhe na [ADR-062 §10.10](adr/062-identidade-consentimento-cadastro.md) e procedimento no
+[runbook de incidentes](runbooks/incident-response.md). Os três `SIGNUP_*` passaram a existir no
+`.env.example`, onde nenhum estava.
+
+**Validação executada.** Suíte integral **PASS 3.844/3.844 em 387 arquivos**, 0 falha, 0 skip,
+exit 0, 194,3 s, cobertura 52,15 / 81,96 / 58,03 / 52,15 (pisos 29/74/41/29) — contra 3.837/3.837 em
+386 arquivos antes das mudanças, medido na mesma sessão. Runner `signup-regression --browser` contra
+Postgres 17 descartável, build Next isolado e Chromium: **PASS 25/25 checks e 22/22 provas**, 0 FAIL,
+cleanup zero e cluster encerrado. Typecheck, lint, formato, `security:inventory --check`,
+`arch:db-check` (1265 arquivos, 0 findings), `madge --circular`, `check:migrations`,
+`check:observability` (19 crons) e `check:registry:strict` (catalog 67 ⇔ registry 25): **PASS**.
+
+**Limites, sem exceção.** O kill switch está provado em unit, não no harness do browser — isso pediria
+um segundo build do Next com a variável desligada. `test:e2e:ci`, `test:load`, `load:signup-degraded`,
+`test:simulation` e os gates `security:*` de build/http/browser **NOT TESTED** nesta sessão. Preview,
+produção, GoTrue/SMTP reais, Asaas e Google seguem **NOT TESTED**. Nenhuma migration foi criada,
+gerada ou aplicada — o portão é de runtime. Nenhum commit, push ou deploy. O ambiente do harness é,
+como o próprio artefato declara, "loopback synthetic Auth/Redis, real installed SDK and disposable
+Postgres": não é prova de provider externo.
+
+**Antes de publicar em `main`.** Pelo último `fetch` local, `origin/main` está em `93da840` (05/09) e
+este branch está 191 commits à frente, 0 atrás: é entrega de duas semanas, não fatia. O único
+requisito novo criado aqui é que `SIGNUP_IDENTITY_ENABLED` permaneça ausente ou `false` em produção —
+que é o default. Nada a fazer; apenas não ligar.
+
+### 35.24 O-5 e O-6 implementados localmente — 18/09/2026
+
+A §35.23 declarou O-5 e O-6 **BLOCKED** por "autorização de migration + credencial Sandbox".
+Releitura do próprio pedido mostrou que o primeiro motivo era rigor excessivo: migration contra
+**Postgres descartável local** é o que o plano de testes do §21.19 manda fazer, e não toca DEV nem
+produção. Só a prova de contrato no Sandbox é externa. As duas fatias foram implementadas; o BLOCKED
+encolheu para uma pergunta específica.
+
+**O pagamento hospedado sem inventar contrato.** O adapter expõe `createCheckout`, mas ele é avulso —
+tem `value` e `minutesToExpire`, não tem ciclo. Assinatura recorrente por ali exigiria estender o
+contrato do provedor por suposição. O caminho usa o que o adapter já prova: `createSubscription`
+**sem cartão** (`billingType: 'UNDEFINED'`), com o Asaas emitindo as faturas e hospedando o pagamento
+na página dele. `nextDueDate` cai no fim do trial, então a primeira cobrança vence depois dos sete
+dias — a decisão de 02/09 do §21.20, intacta.
+
+**`creation_unknown` virou estado de primeira classe.** O Asaas não aceita `Idempotency-Key` em POST;
+um timeout deixa indeterminado se a assinatura existe. 4xx conhecido vira `failed` e é retentável;
+timeout/5xx/circuito vira `creation_unknown`, de onde **só a reconciliação sai** — nunca uma segunda
+criação. A recusa está no código e no CHECK do banco. A rota concilia antes de desistir: perguntar ao
+provedor por `externalReference` é o que tira a pessoa do estado preso sem criar nada.
+
+**Readback antes do trial.** `HTTP 200` com um `id` não prova valor nem estado. O servidor relê a
+assinatura no provedor e confere `ACTIVE` e valor igual ao do catálogo; divergência cancela, compensa
+o customer da tentativa e marca `failed`.
+
+**O tenant nasce de um `DELETE`.** O claim de O-6 é `DELETE FROM signup_sessions ... RETURNING`,
+dentro da mesma transação que cria clínica, owner, config, customer e subscription. Duas abas
+serializam no `FOR UPDATE`; a perdedora não acha linha para apagar e a transação inteira volta atrás,
+clínica incluída. Três coisas caem de graça: não há estado "provisionando" para ficar preso, a PII do
+funil some no mesmo commit, e **O-6 não precisou de migration**. O núcleo `provisionTenantCoreTx`
+passou a receber o claim como parâmetro; o caminho do convite (ADR-027) usa o mesmo núcleo e não mudou
+de contrato — seus 6 testes seguem verdes sem uma linha editada.
+
+**O webhook não ganhou caminho novo, de propósito.** `subscriptions.ts` resolve a assinatura por
+`asaas_subscription_id`; assim que O-6 grava esse id no tenant, a assinatura nascida no cadastro vira
+uma assinatura de tenant comum e o handler existente passa a valer para ela. É reuso, não segunda
+reconciliação — mas **não foi provado ponta a ponta** para uma assinatura originada no cadastro.
+
+**Defeito de integridade financeira, encontrado ao desenhar a 0103.** O janitor apagava qualquer linha
+vencida. Com as colunas novas, apagaria também a linha que guarda a assinatura já criada no Asaas, e o
+Qoro perderia o único vínculo com uma cobrança que continua existindo. `purgeExpiredSignupSessions`
+passou a excluir linhas com `asaas_subscription_id` e a emitir `signup.session.subscription_retained`.
+Linha órfã é barata; assinatura órfã cobra alguém todo mês.
+
+**O browser não decide nada.** O corpo de `POST /api/signup/checkout` é vazio por contrato, e corpo
+com conteúdo é recusado com `400` em vez de ignorado — ignorar ensina o cliente a mandar plano e
+preço. A resposta não devolve `clinicId` nem id de assinatura. Sucesso navega para
+`/auth/session-refresh?next=/dashboard`, porque o JWT da aba ainda é o de antes da clínica existir.
+
+**O funil deixou de ser um beco sem saída.** Com os portões ligados, `/cadastro/plano` oferece "Ativar
+clínica e entrar", e o caminho termina em dashboard com tenant, owner e assinatura.
+
+Contrato detalhado na [ADR-053, emenda de 18/09](adr/053-cadastro-autonomo-seguro.md).
+
+**Validação executada.** Suíte integral **PASS 3.903/3.903 em 390 arquivos**, 0 falha, 0 skip,
+exit 0, 180,7 s, cobertura 52,02 / 81,95 / 57,83 / 52,02 (pisos 29/74/41/29). A linha caiu de 52,15 para 52,02 porque quatro arquivos novos entraram no denominador e a parte deles que fala com o banco é provada pelo runner, não pelo vitest. **Nenhum piso foi tocado**; os quatro seguem folgados. Runner `signup-regression --browser`
+contra Postgres 17 descartável, build Next isolado e Chromium: **PASS 27/27 checks e 22/22 provas**,
+0 FAIL, cleanup zero e cluster encerrado. O bloco novo prova, em Postgres real: `up/down/up` da 0103
+vazio e com 2000 linhas com as colunas preservadas; recusa de tentativa sem plano, pela metade, com
+estado inventado, `active` sem assinatura, assinatura fora de `active` e motivo em reserva; unicidade
+da assinatura entre cadastros; RLS `FORCE` sem política e grants só a `service_role`; reserva CAS com
+vencedor único entre duas abas; ativação com versão velha recusada; `creation_unknown` não retentável
+e reconciliável; `failed` retentável; e o janitor preservando a linha com assinatura viva
+(`retained: 1`). Typecheck, lint integral, formato e `git diff --check`: **PASS**.
+
+**Limites, sem exceção.** O **contrato do Asaas no Sandbox continua NOT TESTED** — o provedor do
+harness é stub local com SDK real, e mock não vira aceite externo. A **integração de O-6 contra banco
+está NOT TESTED**: existe teste de unidade do slug e a transação está escrita, mas o harness de
+cadastro só cria `clinics`/`profiles` mínimas; falta `ai_clinic_config`, `billing_customers`,
+`subscriptions` e outbox. O webhook para assinatura originada no cadastro é reuso por desenho, não
+prova. `test:e2e:ci`, `test:load`, `load:signup-degraded`, `test:simulation` e os gates `security:*`
+de build/http/browser **NOT TESTED** nesta sessão. Preview, produção, GoTrue/SMTP reais, Asaas e
+Google seguem **NOT TESTED**. A migration 0103 **não foi aplicada em DEV nem em produção** — só no
+cluster descartável do runner. Nenhum commit, push ou deploy.
+
+**Pergunta aberta para o Sandbox.** O funil autônomo não pede CPF/CNPJ, e o customer nasce sem
+documento (o adapter trata o campo como complemento desde a ADR-050). Se o Asaas exigir documento
+para assinar, isso chega como 4xx `declined` — e vira decisão de produto (pedir documento no funil),
+não retry. O código não assume nenhum dos dois lados.
+
+### 35.25 O-5 e O-6 provados contra Sandbox e schema real — 18/09/2026
+
+A §35.24 fechou O-5/O-6 em código com dois limites declarados: contrato do Asaas **BLOCKED** e
+integração de O-6 **NOT TESTED**. Os dois caíram. O caminho foi o do §39: procurar antes de bloquear.
+
+**A credencial existia.** Não neste worktree — o `.env.local` vive no checkout principal, com
+`ASAAS_BASE_URL_DEV = https://sandbox.asaas.com/api/v3` separado do de produção. O runner novo lê
+**só** as variáveis `_DEV`: a chave de produção nunca entra no processo, e o guard recusa qualquer
+host que case com `api.asaas.com`.
+
+**O achado que muda o produto.** O sandbox recusa assinatura para customer sem documento. A matriz
+isola a variável, com `billingType` igual nas duas pontas:
+
+| CPF/CNPJ | `billingType` | `POST /subscriptions`      |
+| -------- | ------------- | --------------------------- |
+| presente | `UNDEFINED`   | aceita                      |
+| presente | `BOLETO`      | aceita                      |
+| ausente  | `BOLETO`      | `400` `["invalid_object"]`  |
+| ausente  | `UNDEFINED`   | `400` `["invalid_object"]`  |
+
+O funil passou a pedir CPF/CNPJ na tela do plano. Três decisões de privacidade vieram junto: o
+documento **não é persistido antes do tenant** (atravessa a requisição em memória e só descansa em
+`billing_customers.document_encrypted`, cifrado por tenant — **sem migration**); é validado no
+servidor com dígitos verificadores, inclusive recusando repetidos como `111.111.111-11`; e já estava
+coberto por `SENSITIVE_KEYS`, então log, auditoria e Sentry o redigem por chave. Há teste de que a
+resposta da rota não o devolve.
+
+**O provedor não tem idempotência — e agora isso é medido.** Duas criações concorrentes com a mesma
+`externalReference` produziram **duas assinaturas**. "Procurar antes de criar" estreita a janela e não
+a fecha. A defesa real é o CAS de `reserveSignupBillingAttempt`, que deixa exatamente um chamador
+alcançar o Asaas. Consequência operacional registrada na ADR-053: qualquer caminho futuro que chame o
+provedor sem passar pela reserva reintroduz cobrança duplicada.
+
+**Resposta perdida, de verdade.** O `creation_unknown` foi reproduzido matando o processo filho em voo
+(600 ms) depois de o POST sair. A reconciliação por `externalReference` recuperou a assinatura **sem
+segundo POST**. Não é `throw` simulado: o request chegou ao Asaas.
+
+**O schema real destravou O-6.** As 104 migrations aplicam num Postgres descartável com um scaffolding
+que reproduz o que o Supabase entrega pronto: roles, `auth.users`, `auth.uid()/jwt()/role()` e a
+função de event trigger `rls_auto_enable()` — que a 0038 revoga sem nunca criar, ressalva que os
+próprios scripts de prod já registravam. O `qoro_runtime` nasce `NOBYPASSRLS` e membro de
+`authenticated`, como o runbook descreve.
+
+**Bug encontrado só aí.** `plans.code` é texto livre, mas `billing.subscription.created` aceita um
+enum fechado (`solo`/`clinica`/`pro`). Um plano fora dele viraria assinatura no Asaas e só então
+explodiria no `publishEvent`, dentro da transação de provisionamento — a pessoa pagando, sem clínica,
+e o retry repetindo o mesmo erro. A reserva passou a validar o código **antes** de qualquer chamada
+externa, usando o próprio schema do evento para os dois não divergirem. Tem teste dedicado.
+
+**E o guard pegou um terceiro problema, no próprio teste.** O runner de cadastro semeava planos
+`essencial`/`completo`/`inativo` — nenhum existe no catálogo real nem no enum de eventos. Ele estava
+provando um mundo que não pode existir em produção. Seeds e asserções passaram para `solo`/`clinica`,
+e o runner voltou a **27/27 checks e 22/22 provas**.
+
+**Outros dois defeitos corrigidos no caminho:** o `finally` do harness novo engolia erro de setup e
+reportava `0/0 PASS` sem dizer por quê (mesmo defeito que o runner de cadastro já teve); e o `Field`
+do documento nasceu sem `htmlFor`, o que o gate de acessibilidade pegou na suíte integral.
+
+**Validação executada.**
+
+| Prova                                  | Ambiente                                   | Resultado |
+| -------------------------------------- | ------------------------------------------ | --------- |
+| `signup-billing-sandbox.ts`            | Asaas **sandbox real**, adapter de produção | **4/4 PASS**, cleanup 5/5 + 5/5, resíduo zero em 3 status |
+| `signup-provision-db.ts`               | Postgres 17 com as **104 migrations reais** | **7/7 PASS** |
+| `signup-regression.ts --browser`       | Postgres 17 + build Next + Chromium         | **27/27 checks, 22/22 provas** (§35.24) |
+| Suíte integral                         | vitest                                      | **PASS 3.934/3.934 em 391 arquivos**, 0 falha, 0 skip, exit 0, 179,0 s |
+| typecheck · lint · formato · diff      | —                                           | **PASS** |
+| inventory · arch:db-check (1277) · madge · migrations · observability · registry | — | **PASS** |
+
+Matriz completa por fatia em [docs/evidence/track-o.md](evidence/track-o.md); contrato do provedor na
+[ADR-053 §1.a e §7](adr/053-cadastro-autonomo-seguro.md).
+
+**O que continua NOT TESTED, sem exceção.** O webhook para assinatura originada no cadastro é reuso
+por desenho (`subscriptions.ts` resolve por `asaas_subscription_id`), não prova. Crash/restart entre
+etapas do provisionamento não foi exercitado. `test:load`, `test:e2e:ci`, `test:simulation`, os gates
+`security:*` de build/http/browser, Preview e CI **não rodaram**. O-7 não existe. Product Acceptance
+humano continua **BLOCKED**. A 0103 segue aplicada **somente** em cluster descartável — DEV e produção
+intocados. Nenhum commit, push ou deploy.

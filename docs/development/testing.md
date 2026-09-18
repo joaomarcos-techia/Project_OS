@@ -84,6 +84,21 @@ deve terminar com todos os checks `PASS`, cleanup zero e `own Postgres stopped`.
 Supabase e SMTP externos permanecem fora dessa prova. As portas locais usadas são 55447 (Postgres),
 55449 (Redis) e 3217 (Next); deixe-as livres.
 
+**No Windows, rode a partir do PowerShell.** O runner limpa o ambiente antes de subir o Postgres e a
+allow list preserva `SystemRoot`. Sob Git Bash as variáveis chegam em caixa alta (`SYSTEMROOT`), a
+limpeza remove essa, e o Postgres sobe sem Winsock utilizável — falha com
+`could not create IPv4 socket for address "???"`, sem relação com o código sob teste.
+
+**E exporte `NODE_OPTIONS=--conditions=react-server`.** A primeira fase (migrations e SQL) roda sem
+isso, mas a segunda importa o código da aplicação e morre em `server-only` — "This module cannot be
+imported from a Client Component module". Passar `--conditions` na linha do `node` não basta: o
+transformer CJS do tsx não herda a flag, só a variável.
+
+```powershell
+$env:NODE_OPTIONS = '--conditions=react-server'
+node node_modules/tsx/dist/cli.mjs scripts/security/signup-regression.ts --browser
+```
+
 ## Verificações contra o provedor real (sandbox)
 
 ```bash
