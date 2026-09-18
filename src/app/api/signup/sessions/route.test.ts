@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { create } = vi.hoisted(() => ({ create: vi.fn() }));
+const { create, env } = vi.hoisted(() => ({
+  create: vi.fn(),
+  // Mutável de propósito: o kill switch do §21.20 é lido A CADA requisição, e o
+  // teste precisa virá-lo entre casos sem reimportar a rota.
+  env: { APP_BASE_URL: 'https://localhost', SIGNUP_ENABLED: true },
+}));
 vi.mock('@/contexts/onboarding', () => ({ createSignupSession: create }));
 vi.mock('@/lib/auth/rate-limit', () => ({ getClientIp: () => '127.0.0.1' }));
-vi.mock('@/lib/env', () => ({ env: { APP_BASE_URL: 'https://localhost' } }));
+vi.mock('@/lib/env', () => ({ env }));
 
 import { POST } from './route';
 
@@ -24,7 +29,29 @@ const request = (body: string) =>
 describe('POST signup sessions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    env.SIGNUP_ENABLED = true;
     create.mockResolvedValue({ ok: true, rawToken: 'synthetic-cookie', state });
+  });
+
+  it('fecha a entrada quando o kill switch está desligado, sem tocar no serviço', async () => {
+    env.SIGNUP_ENABLED = false;
+    const res = await POST(request('{}'));
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    // O ponto do portão: nenhuma linha, nenhum cookie, nenhum orçamento gasto.
+    expect(create).not.toHaveBeenCalled();
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('recusa antes de ler o corpo, mesmo num corpo que seria rejeitado depois', async () => {
+    env.SIGNUP_ENABLED = false;
+    // Sem o portão este corpo daria 400 (JSON inválido). Com ele, 503 prova que
+    // a decisão vem ANTES de qualquer leitura — é o que o torna barato sob abuso.
+    const res = await POST(request('{'));
+
+    expect(res.status).toBe(503);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('creates only the sanitized state and a host-only HttpOnly cookie', async () => {

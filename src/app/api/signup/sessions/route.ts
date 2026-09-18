@@ -58,6 +58,11 @@ function expectedHostOf(req: Request): string {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  // Kill switch do §21.20, ANTES de ler corpo, gastar orçamento de limite ou
+  // escrever linha: desligado, esta rota não é degrau de nada. Login, sessões
+  // vivas e tenants existentes não passam por aqui e seguem intactos.
+  if (!env.SIGNUP_ENABLED) return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+
   const declared = Number(req.headers.get('content-length') ?? '0');
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
     return NextResponse.json({ error: 'body_too_large' }, { status: 413 });

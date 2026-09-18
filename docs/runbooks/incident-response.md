@@ -24,6 +24,33 @@ Canonical — triagem comum e cenários de provider/segurança.
 | outbox acumulada | lock, heartbeat, failed/circuit, DB pool | corrigir causa; replay seletivo/idempotente |
 | super-admin bloqueado | sessão, profile, AAL2, epoch e recovery | recovery controlado; nunca baixar guard |
 | possível vazamento/LGPD | escopo, logs, buckets, actor/audit | conter acesso, preservar evidência e iniciar avaliação de 72 h |
+| cadastro autônomo sob abuso | `signup_sessions` vivas, limites por IP, risco/Turnstile, e-mails enviados | fechar a entrada pelo kill switch (abaixo); não mexer em login |
+
+## Cadastro autônomo — kill switch
+
+Três portões server-only, todos em variável de ambiente. Nenhum exige deploy de código; nenhum toca
+login, sessão viva ou tenant existente.
+
+| Variável                  | Default   | O que fecha                                                                                      |
+| ------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
+| `SIGNUP_ENABLED=false`    | ligado    | a ENTRADA: `/cadastro` e `POST /api/signup/sessions`. Quem já verificou o e-mail termina o que começou |
+| `SIGNUP_IDENTITY_ENABLED` | desligado | identidade, reenvio, draft e plano — inclusive de quem está em curso                              |
+| `SIGNUP_AUTH_ENABLED`     | desligado | envio de e-mail/criação no provider e, junto com o de cima, draft e plano                         |
+
+Precisão que importa na hora do incidente: os portões de identidade/auth vivem nas **rotas**, não nas
+páginas. `/cadastro/continuar` e `/cadastro/plano` continuam renderizando com eles desligados — o que
+some é o dado, porque `GET /api/signup/draft` e `/api/signup/plan` exigem `SIGNUP_AUTH_ENABLED` **e**
+`SIGNUP_IDENTITY_ENABLED` e respondem `503 unavailable`. A tela mostra o estado indisponível; ninguém
+avança.
+
+Escolha pelo objetivo, não pela força: abuso de volume fecha a entrada (`SIGNUP_ENABLED`); suspeita
+sobre a própria identidade/vínculo fecha a identidade (`SIGNUP_IDENTITY_ENABLED`), e aí quem estava no
+meio do funil também para — é o preço de conter, e deve ser dito no comunicado.
+
+Readback esperado com a entrada fechada: `GET /cadastro` responde 200 com "Cadastro indisponível" e
+**sem** criar linha; `POST /api/signup/sessions` responde `503 {"error":"unavailable"}` antes de ler
+corpo ou gastar orçamento de limite. Confirme pela contagem de `signup_sessions` estável, não pelo
+status HTTP sozinho.
 
 ## Billing
 

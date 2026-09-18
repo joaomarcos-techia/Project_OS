@@ -86,6 +86,23 @@ const EnvSchema = z
         .transform((v) => v === 'true'),
     ),
 
+    // §21.20: kill switch de aquisição. Fecha a ENTRADA do cadastro autônomo sem
+    // tocar em login, sessão ou tenant existente — é o botão que a operação
+    // aperta quando o funil precisa parar (abuso, incidente, custo).
+    //
+    // Default LIGADO, ao contrário dos dois acima, porque o significado é outro:
+    // aqueles são portões de rollout de fatia (nasce fechado, abre quando a
+    // fatia existe); este é uma parada de emergência (nasce aberto, fecha sob
+    // decisão). Por isso `!== 'false'`: só o valor explícito `false` desliga, e
+    // ausência/erro de digitação nunca derruba a aquisição por acidente.
+    SIGNUP_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v !== 'false'),
+    ),
+
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
     // Default unset; only set in the operator's shell session right before a prod operation.
