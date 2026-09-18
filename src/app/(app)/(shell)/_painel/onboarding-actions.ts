@@ -55,9 +55,20 @@ export async function submitOnboardingAction(input: unknown): Promise<Onboarding
   return { ok: true, progress: outcome.progress, changed: outcome.changed };
 }
 
-/** Releitura para o cliente se recuperar de `stale` sem recarregar a página. */
-export async function fetchOnboardingProgress(): Promise<OnboardingProgressState | null> {
+/**
+ * Releitura para o cliente se recuperar de `stale` sem recarregar a página.
+ *
+ * Devolve um envelope, e nunca `null`: `null` confundiria "sua sessão não vale"
+ * com "você ainda não tem progresso", e quem chama trataria uma negativa como
+ * estado inicial. É também o contrato que `security:http` cobra de toda Server
+ * Action — 200 só é aceitável com negativa EXPLÍCITA no corpo.
+ */
+export type FetchOnboardingProgressResult =
+  | { ok: true; progress: OnboardingProgressState }
+  | { ok: false; reason: 'denied' };
+
+export async function fetchOnboardingProgress(): Promise<FetchOnboardingProgressResult> {
   const who = await scope();
-  if (!who) return null;
-  return readOnboardingProgress(who.clinicId, who.userId);
+  if (!who) return { ok: false, reason: 'denied' };
+  return { ok: true, progress: await readOnboardingProgress(who.clinicId, who.userId) };
 }

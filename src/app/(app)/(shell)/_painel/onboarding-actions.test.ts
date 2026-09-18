@@ -119,13 +119,15 @@ describe('fetchOnboardingProgress', () => {
   });
 
   it('lê pelo escopo da sessão', async () => {
-    expect(await fetchOnboardingProgress()).toEqual(progress);
+    expect(await fetchOnboardingProgress()).toEqual({ ok: true, progress });
     expect(readOnboardingProgress).toHaveBeenCalledWith(SESSION_CLINIC, SESSION_USER);
   });
 
-  it('devolve null sem sessão, em vez de um estado inventado', async () => {
+  it('NEGA explicitamente sem sessão, em vez de devolver vazio', async () => {
     requireUser.mockRejectedValue(new AuthError('TOKEN_INVALID'));
-    expect(await fetchOnboardingProgress()).toBeNull();
+    // Vazio seria lido como "ainda não tem progresso" por quem chama, e
+    // `security:http` recusa 200 sem negativa explícita no corpo.
+    expect(await fetchOnboardingProgress()).toEqual({ ok: false, reason: 'denied' });
     expect(readOnboardingProgress).not.toHaveBeenCalled();
   });
 });

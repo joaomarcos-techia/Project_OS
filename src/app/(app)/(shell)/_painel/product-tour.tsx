@@ -67,7 +67,7 @@ export function ProductTour({
         return;
       }
       const fresh = await fetchOnboardingProgress();
-      if (fresh) setProgress(fresh);
+      if (fresh.ok) setProgress(fresh.progress);
     });
   }, []);
 

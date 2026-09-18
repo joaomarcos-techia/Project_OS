@@ -124,9 +124,10 @@ describe('ProductTour', () => {
 
   it('relê do servidor quando a recusa vem sem estado', async () => {
     submitOnboardingAction.mockResolvedValue({ ok: false, reason: 'invalid' });
-    fetchOnboardingProgress.mockResolvedValue(
-      state({ tourState: 'in_progress', tourStep: 3, rowVersion: 7 }),
-    );
+    fetchOnboardingProgress.mockResolvedValue({
+      ok: true,
+      progress: state({ tourState: 'in_progress', tourStep: 3, rowVersion: 7 }),
+    });
     render(
       <ProductTour steps={TOUR_STEPS} initial={state({ tourState: 'in_progress', tourStep: 1 })} />,
     );
