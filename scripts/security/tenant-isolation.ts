@@ -31,7 +31,23 @@ await writeFile(path.join(data, 'server.crt'), cert.cert);
 await writeFile(path.join(data, 'server.key'), cert.private, { mode: 0o600 });
 const server = spawn(
   path.join(bin, `postgres${suffix}`),
-  ['-D', data, '-p', String(port), '-h', '127.0.0.1', '-c', 'ssl=on'],
+  [
+    '-D',
+    data,
+    '-p',
+    String(port),
+    '-h',
+    '127.0.0.1',
+    '-c',
+    'ssl=on',
+    // O socket Unix vai para o diretório do PRÓPRIO cluster. O default é
+    // `/var/run/postgresql`, onde o runner do CI não tem permissão de escrita —
+    // e o servidor morria com "could not create lock file ... Permission denied"
+    // antes de aceitar a primeira conexão. Aqui tudo é TCP em 127.0.0.1; o
+    // socket só precisa existir em algum lugar gravável. No Windows é ignorado.
+    '-c',
+    `unix_socket_directories=${cluster}`,
+  ],
   { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
 );
 let serverLog = '';

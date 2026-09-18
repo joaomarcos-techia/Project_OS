@@ -50,7 +50,20 @@ await writeFile(path.join(data, 'server.crt'), cert.cert);
 await writeFile(path.join(data, 'server.key'), cert.private, { mode: 0o600 });
 const server = spawn(
   path.join(bin, `postgres${suffix}`),
-  ['-D', data, '-p', String(port), '-h', '127.0.0.1', '-c', 'ssl=on'],
+  [
+    '-D',
+    data,
+    '-p',
+    String(port),
+    '-h',
+    '127.0.0.1',
+    '-c',
+    'ssl=on',
+    // Socket Unix no diretório do próprio cluster: o default `/var/run/postgresql`
+    // não é gravável no runner do CI. Tudo aqui é TCP em 127.0.0.1.
+    '-c',
+    `unix_socket_directories=${cluster}`,
+  ],
   { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
 );
 let serverLog = '';

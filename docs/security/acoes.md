@@ -434,11 +434,11 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-regression.ts:18`         | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
 | `scripts/security/signup-regression.ts:34`         | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-regression.ts:34`         | `<dynamic>`                            | `process.env[key]`                                 |
-| `scripts/security/signup-regression.ts:159`        | `<object>`                             | `process.env`                                      |
-| `scripts/security/signup-regression.ts:2106`       | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-regression.ts:172`        | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-regression.ts:2119`       | `<object>`                             | `process.env`                                      |
 | `scripts/security/tenant-isolation.ts:12`          | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
-| `scripts/security/tenant-isolation.ts:120`         | `<dynamic>`                            | `process.env[key]`                                 |
-| `scripts/security/tenant-isolation.ts:121`         | `<object>`                             | `process.env`                                      |
+| `scripts/security/tenant-isolation.ts:136`         | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/security/tenant-isolation.ts:137`         | `<object>`                             | `process.env`                                      |
 | `scripts/seed-c9-test.ts:38`                       | `SEED_C9_PASSWORD`                     | `process.env.SEED_C9_PASSWORD`                     |
 | `scripts/seed-clinic-user.ts:36`                   | `SEED_USER_EMAIL`                      | `process.env.SEED_USER_EMAIL`                      |
 | `scripts/seed-clinic-user.ts:37`                   | `SEED_USER_PASSWORD`                   | `process.env.SEED_USER_PASSWORD`                   |
