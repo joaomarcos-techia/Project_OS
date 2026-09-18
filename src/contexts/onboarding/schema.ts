@@ -13,7 +13,7 @@
  * internal/step-state.ts); NUNCA guarda senha nem dado de cartão.
  */
 import { sql } from 'drizzle-orm';
-import { integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgTable, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { uuidPk } from '@/lib/db/types';
 
@@ -145,3 +145,38 @@ export const signupSessions = pgTable('signup_sessions', {
 
 export type SignupSessionRow = typeof signupSessions.$inferSelect;
 export type SignupSessionInsert = typeof signupSessions.$inferInsert;
+
+/* =====================================================================
+   O-7 — onboarding OPERACIONAL (depois de a clínica existir).
+
+   Categoria (ADR-007 §10): TENANT + USER. Diferente de `signup_sessions`
+   (GLOBAL PROTECTED, pré-tenant), esta linha vive DENTRO de um tenant e
+   pertence a UMA pessoa: o par (clinic_id, user_id) é a chave, e as policies
+   da migration 0104 exigem os dois GUCs que `withTenant(clinic, fn, actor)`
+   estabelece. Um colega da mesma clínica não lê nem escreve este progresso.
+
+   Guarda só o que NÃO é derivável de dado: o checklist de ativação continua
+   derivado de presença (dashboard/data.ts) porque derivação não tem o que
+   falsificar. Tour e visitas são estado de quem usa.
+   ===================================================================== */
+export const onboardingProgress = pgTable('onboarding_progress', {
+  clinicId: uuid('clinic_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  /** 'not_started' | 'in_progress' | 'completed' | 'skipped' (CHECK na 0104). */
+  tourState: text('tour_state').notNull().default('not_started'),
+  tourStep: smallint('tour_step').notNull().default(0),
+  tourStartedAt: timestamp('tour_started_at', { withTimezone: true }),
+  tourFinishedAt: timestamp('tour_finished_at', { withTimezone: true }),
+  docsVisitedAt: timestamp('docs_visited_at', { withTimezone: true }),
+  checklistDismissedAt: timestamp('checklist_dismissed_at', { withTimezone: true }),
+  /** CAS — duas abas avançando o tour é o caso comum, não o exótico. */
+  rowVersion: integer('row_version').notNull().default(1),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .default(sql`now()`),
+});
+
+export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;

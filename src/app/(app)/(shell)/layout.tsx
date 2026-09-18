@@ -16,6 +16,10 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getActiveAnnouncement } from '@/lib/platform-announcements';
 
 import { HandoffWatcher } from './_painel/handoff-watcher';
+import { TOUR_STEPS } from '@/contexts/onboarding';
+
+import { currentOnboardingProgress } from './_painel/onboarding-progress';
+import { ProductTour } from './_painel/product-tour';
 import { firstSettingsHref, visibleSettingsNavigation } from './configuracoes/settings-navigation';
 
 import { stopImpersonationAction } from '../../(admin)/admin/actions/impersonation';
@@ -78,6 +82,11 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   const settingsHref =
     settingsGroups.length > 0 ? '/configuracoes' : firstSettingsHref(settingsGroups);
 
+  // Depois do guard de `user`: a leitura abre `withTenant`, e abrir transação
+  // para quem o layout vai redirecionar seria trabalho jogado fora. Memoizada
+  // por request, então o dashboard reaproveita a mesma linha. Nunca cria linha.
+  const onboarding = await currentOnboardingProgress();
+
   return (
     <>
       {announcement ? <AnnouncementPopup announcement={announcement} /> : null}
@@ -88,6 +97,10 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           cliente, então não há polling nem payload de fila para quem não pode
           ver conversa. A action reautoriza por conta própria. */}
       {user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS) ? <HandoffWatcher /> : null}
+      {/* O-7 — o tour mora no shell para sobreviver à troca de rota. Só monta
+          para quem tem clínica: super_admin sem impersonate nem chega aqui, e
+          `onboarding_progress` é por (clínica, pessoa). */}
+      {onboarding ? <ProductTour initial={onboarding} steps={TOUR_STEPS} /> : null}
       <PainelShell
         userName={id.userName}
         userRole={id.userRole}

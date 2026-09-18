@@ -34,6 +34,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { formatBRL } from '@/lib/format';
 
+import { currentOnboardingProgress } from '../_painel/onboarding-progress';
+
 import { ActivationChecklist } from './_components/activation-checklist';
 import { ActivityFeed } from './_components/activity-feed';
 import { RefreshButton } from './_components/refresh-button';
@@ -111,9 +113,11 @@ export default async function DashboardPage() {
   // Gráfico: faturamento (recebido) dos últimos 7 dias. Histórico vem do
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
   // roda 1x/dia, então ainda não fechou o dia corrente).
-  const [d, checklist, flow, serie, activity, handoff] = await Promise.all([
+  const [d, checklist, onboarding, flow, serie, activity, handoff] = await Promise.all([
     getDashboard(clinicId, tz),
     getActivationChecklist(clinicId),
+    // Memoizado por request: o layout já leu esta linha para montar o tour.
+    currentOnboardingProgress(),
     // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
     // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
     canViewFinancial ? getCashFlowToday(clinicId, from, to) : Promise.resolve(NO_CASH_FLOW),
@@ -179,7 +183,7 @@ export default async function DashboardPage() {
       {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
           tela — e no rodapé ninguém a encontrava. Não polui o dashboard maduro
           porque o componente se remove sozinho quando os passos terminam. */}
-      <ActivationChecklist data={checklist} />
+      <ActivationChecklist data={checklist} dismissed={Boolean(onboarding?.checklistDismissedAt)} />
 
       {/* ---- stat tiles (dados reais) ---- */}
       <PanelCard

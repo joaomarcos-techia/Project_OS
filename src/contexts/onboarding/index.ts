@@ -92,5 +92,22 @@ export {
   type OnboardingStep,
   type StepState,
 } from './internal/step-state';
+/* O-7 — onboarding operacional (pos-tenant). Sai a leitura, a aplicacao de
+   acao e a lista de passos; `mutate` continua privado porque cada UPDATE carrega
+   a sua propria pre-condicao e chamar um deles fora de ordem e como se cria
+   estado impossivel. */
+export {
+  TOUR_STEPS,
+  TOUR_LAST_STEP,
+  applyOnboardingAction,
+  onboardingActionSchema,
+  readOnboardingProgress,
+  tourStepAt,
+  type OnboardingAction,
+  type OnboardingActionOutcome,
+  type OnboardingProgressState,
+  type TourState,
+  type TourStep,
+} from './internal/operational-onboarding';
 export type { ClinicInviteRow, ClinicInviteInsert } from './schema';
 export { formatTrialDays, QORO_SELF_SERVICE_TRIAL_DAYS, QORO_TRIAL_DAYS } from './trial';

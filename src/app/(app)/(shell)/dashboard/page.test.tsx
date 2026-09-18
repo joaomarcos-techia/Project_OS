@@ -13,6 +13,7 @@ const {
   listCashFlowDaily,
   redirect,
   countOpenHandoffs,
+  currentOnboardingProgress,
 } = vi.hoisted(() => ({
   getActivationChecklist: vi.fn(),
   getCashFlowToday: vi.fn(),
@@ -24,6 +25,7 @@ const {
   listCashFlowDaily: vi.fn(),
   redirect: vi.fn(),
   countOpenHandoffs: vi.fn(),
+  currentOnboardingProgress: vi.fn(),
 }));
 
 // `useRouter` entra no mock por causa do botao "Atualizar", que e client e
@@ -37,6 +39,12 @@ vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
 vi.mock('@/contexts/financial/queries', () => ({ getCashFlowToday, listCashFlowDaily }));
 vi.mock('@/lib/audit/recent', () => ({ getRecentActivity }));
 vi.mock('./data', () => ({ getActivationChecklist, getDashboard }));
+// O-7 — a leitura de `onboarding_progress` abre `withTenant`, que quer banco de
+// verdade. Aqui interessa a COMPOSIÇÃO da tela, e o comportamento do progresso
+// tem prova própria em operational-onboarding.test.ts (unidade) e no harness de
+// banco. Sem este mock o teste tentaria conectar e falharia por rede, não por
+// regressão de dashboard.
+vi.mock('../_painel/onboarding-progress', () => ({ currentOnboardingProgress }));
 
 import DashboardPage from './page';
 
@@ -102,6 +110,17 @@ describe('DashboardPage', () => {
     getClinicTimezone.mockResolvedValue('America/Sao_Paulo');
     getDashboard.mockResolvedValue(dashboard);
     getActivationChecklist.mockResolvedValue(checklist);
+    // Onboarding intocado: tour não começado e checklist NÃO dispensado — o
+    // estado em que os asserts sobre a ativação abaixo fazem sentido.
+    currentOnboardingProgress.mockResolvedValue({
+      tourState: 'not_started',
+      tourStep: 0,
+      tourFinishedAt: null,
+      docsVisitedAt: null,
+      checklistDismissedAt: null,
+      rowVersion: 0,
+      shouldAutoOpenTour: true,
+    });
     getCashFlowToday.mockResolvedValue({
       receber: 42_000,
       pagar: 0,

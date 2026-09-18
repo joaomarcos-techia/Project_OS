@@ -6,9 +6,23 @@ import { cn } from '@/lib/ui/cn';
 
 import type { ActivationChecklistDTO } from '../data';
 
-/** Checklist de ativação (Fase 2) — some quando os passos estão concluídos. */
-export function ActivationChecklist({ data }: { data: ActivationChecklistDTO }) {
-  if (data.complete) return null;
+import { ChecklistDismiss } from './checklist-dismiss';
+
+/**
+ * Checklist de ativação (Fase 2) — some quando os passos estão concluídos.
+ *
+ * O-7: some também quando a pessoa dispensa. São duas razões diferentes para o
+ * mesmo desaparecimento — "a clínica terminou" é fato derivado do banco, "não
+ * quero mais ver" é escolha de quem usa. Dispensar não marca nada como feito.
+ */
+export function ActivationChecklist({
+  data,
+  dismissed = false,
+}: {
+  data: ActivationChecklistDTO;
+  dismissed?: boolean;
+}) {
+  if (data.complete || dismissed) return null;
   const pending = data.items.find((item) => !item.done);
   return (
     <Card className="mb-3.5 overflow-hidden">
@@ -32,7 +46,12 @@ export function ActivationChecklist({ data }: { data: ActivationChecklistDTO }) 
             className="size-4 shrink-0 text-fg-subtle transition-transform group-open:rotate-180"
           />
         </summary>
-        <ul className="flex flex-col border-t border-border px-4 py-1">
+        {/* Fora do <summary>: dentro dele, o clique no botão também abriria e
+            fecharia o <details>, e dispensar viraria um gesto duplo. */}
+        <div className="flex justify-end border-t border-border px-4 pt-2">
+          <ChecklistDismiss />
+        </div>
+        <ul className="flex flex-col px-4 py-1">
           {data.items.map((it) => (
             <li key={it.key} className="border-b border-border last:border-b-0">
               <Link
