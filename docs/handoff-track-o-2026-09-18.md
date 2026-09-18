@@ -14,7 +14,7 @@
 | O.S                        | **PARCIAL** — kill switch PASS; E2E/Preview NOT TESTED     |
 | Suíte                      | **3936/3936** (391 arquivos, 0 skip, exit 0)               |
 | Preview                    | **PASS** — publicado e exercitado com o bypass documentado |
-| CI                         | ver §9 — falhou, causa corrigida, reexecutando             |
+| CI                         | **PASS** — seis verificações verdes em `33068e0`           |
 | Sandbox                    | **PASS** — 4/4, resíduo zero                               |
 | Product Acceptance técnico | **BLOCKED** — exige pessoa real                            |
 
@@ -77,7 +77,13 @@ e o teste que fixava o comportamento antigo foi corrigido junto, com o motivo es
 acrescentar o bloco de crash ao harness e commitei sem regenerar depois (203 acessos a `process.env`
 registrados quando já eram 204). É exatamente para isso que o gate existe.
 
-**9. Duas quebras de template literal** por crase dentro de SQL embutido em JS.
+**9. Socket Unix do cluster efêmero em diretório não gravável.** O CI falhava com
+`could not create lock file "/var/run/postgresql/..." : Permission denied` — e o log só aparecia
+depois de corrigir o `finally` do `tenant-isolation`, que mascarava a causa com a queixa do
+`pg_ctl stop`. **Os três harnesses** que sobem cluster tinham o defeito; dois em estado latente, por
+nunca terem rodado no Linux. **Corrigido.**
+
+**10. Duas quebras de template literal** por crase dentro de SQL embutido em JS.
 
 ---
 
@@ -162,8 +168,9 @@ thresholds 29 / 74 / 41 / 29 — PASS
 ```text
 branch        feature/clinic-plan-o4
 HEAD inicial  a15517c
-HEAD final    263dd11
-commits       6 (veredito, portão, O-5/O-6, documento, provas, correção)
+HEAD final    33068e0
+commits       8 (veredito, portão, O-5/O-6, documento, provas, 503+inventário,
+              teardown diagnosticável, socket Unix)
 push          origin/feature/clinic-plan-o4
 PR            #9 (DRAFT, base main) — não mesclado
 Preview       project-os-git-feature-clinic-plan-o4-clinic-os-v2-s-projects.vercel.app

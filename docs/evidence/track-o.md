@@ -139,8 +139,25 @@ Agora existe tenant provisionado para essas telas apoiarem, o que antes não exi
 | Kill switch (`SIGNUP_ENABLED`)    | **PASS** em unit; **NOT TESTED** em Preview |
 | Rollback/cutover documentado      | **PASS** — runbook de incidentes |
 | E2E da jornada completa            | **NOT TESTED** |
-| Preview deploy                     | **NOT TESTED** |
+| Preview deploy                     | **PASS** — publicado e exercitado com o bypass documentado |
+| CI (GitHub Actions)                | **PASS** — seis verificações verdes em `33068e0` |
 | Product Acceptance humano          | **BLOCKED** — exige pessoa real |
+
+### Preview medido
+
+Com o bypass de automação documentado (`e2e/vercel-bypass.ts`):
+
+| Requisição                                | Resposta                 | O que prova                            |
+| ----------------------------------------- | ------------------------ | -------------------------------------- |
+| `GET /` e `GET /login`                    | `200`                    | aplicação de pé                        |
+| `POST /api/signup/checkout` sem Origin    | `403 blocked`            | Fetch Metadata/Origin no ambiente real |
+| `POST /api/signup/checkout` com Origin    | `401 unauthorized`       | exige identidade verificada            |
+| `POST /api/signup/sessions` sem Origin    | `401 challenge_required` | risco moderado exige Turnstile         |
+
+Uma janela transitória devolveu `500` de corpo vazio em `POST /api/signup/sessions`. A comparação com
+o deploy do commit anterior isolou a causalidade — mesmo comportamento nos dois — e o achado virou
+correção: aquela era a única rota do grupo sem `try/catch`, e agora converte para `503 unavailable`
+com `Retry-After`, como as irmãs.
 
 ---
 

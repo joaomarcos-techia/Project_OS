@@ -6069,9 +6069,25 @@ reais. Sandbox Asaas **4/4** com resíduo zero. `typecheck`, `eslint .`, `pretti
 `madge --circular`, `check:migrations`, `check:observability`, `check:registry:strict`,
 `security:build`, `security:bundle`, `security:http`, `security:tenant`: **todos PASS**.
 
-**Estado de entrega.** Branch `feature/clinic-plan-o4` empurrada; PR **#9 em draft** contra `main`,
-com Vercel Preview publicado. Nada foi mesclado. A migration 0103 continua aplicada **somente** em
-cluster descartável — DEV e produção intocados.
+**O CI pegou mais um, e o diagnóstico exigiu desmascarar.** Depois do inventário, o CI falhou em
+`security:tenant` com `pg_ctl: PID file does not exist` — sintoma do teardown, não causa. O `finally`
+daquele harness fazia `assert.equal(stop.status, 0)`, e um throw no `finally` apaga o erro que trouxe
+a execução até ali. O harness de cadastro já tinha levado esse tombo e fora corrigido; este ficara
+para trás. Com o teardown imprimindo o log do servidor, a causa apareceu:
+
+```text
+FATAL: could not create lock file "/var/run/postgresql/.s.PGSQL.55439.lock": Permission denied
+```
+
+O Postgres criava o socket Unix no default `/var/run/postgresql`, onde o runner não escreve, e morria
+antes da primeira conexão. No Windows nunca apareceu porque a opção é ignorada. Os **três** harnesses
+que sobem cluster próprio tinham o mesmo defeito — dois em estado latente, por nunca terem rodado no
+Linux. O socket passou a ficar no diretório efêmero do próprio cluster, mesma regra dos dados.
+
+**Estado de entrega.** Branch `feature/clinic-plan-o4` empurrada; PR **#9 em draft** contra `main`.
+**CI verde nas seis verificações** (Lint+Typecheck+Test+Build, semgrep, Snyk, ADR, Vercel, Preview
+Comments) em `33068e0`. Vercel Preview publicado e exercitado. Nada foi mesclado. A migration 0103
+continua aplicada **somente** em cluster descartável — DEV e produção intocados.
 
 **O que continua aberto:** O-7 (checklist, tour, `/documentacao`) não existe; `test:e2e:ci` e
 `test:load` não rodaram; o webhook para assinatura originada no cadastro é reuso por desenho, não
