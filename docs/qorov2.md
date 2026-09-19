@@ -6173,3 +6173,58 @@ de auditoria, ferramenta operada por pessoa), chaos de Redis sobre os caminhos n
 caminhos do Track O (o harness é de Camada 1), O-1 (outro repositório) e o Product Acceptance humano,
 que agora tem roteiro reproduzível no handoff. As migrations 0103 e 0104 continuam aplicadas **somente**
 em cluster descartável.
+
+### 35.28 O journal estava mentindo — e era ele a causa do 500 — 19/09/2026
+
+A §35.27 terminou com uma frase que parecia um detalhe de processo: "as migrations 0103 e 0104
+continuam aplicadas **somente** em cluster descartável". Não era um detalhe. Era um defeito.
+
+**As duas migrations nunca seriam aplicadas em lugar nenhum.** Elas foram escritas à mão, sem
+`drizzle-kit generate`, e o `drizzle/migrations/meta/_journal.json` ficou parado na 0102. Os arquivos
+estavam commitados. `check:migrations` passava — ele varre o CONTEÚDO dos `.sql` procurando operação
+destrutiva, não a lista. A suíte passava. O CI passava. E mesmo assim `db:migrate:dev` e
+`db:migrate:prod` aplicariam 103 migrations e pulariam as duas, em silêncio, porque o migrator do
+drizzle lê o journal e não o diretório.
+
+Isso reclassifica o `500 em /dashboard` da sessão anterior. Na hora, a explicação foi "o banco do
+Preview ainda não tem a 0104" — uma frase que soa como pendência de rollout. A causa real era que
+**nenhum banco jamais teria**, e a descoberta só podia acontecer em runtime, no ambiente mais caro
+possível. A degradação que implementei continua certa (um tour não pode derrubar agenda, consultório
+e caixa), mas ela tratava o sintoma.
+
+**O que nenhum gate cobria: a paridade.** Os gates olhavam o conteúdo das migrations e o
+comportamento do código; ninguém olhava se a lista de embarque batia com quem estava no avião.
+`src/lib/db/migration-journal.test.ts` fecha isso — arquivo órfão, entrada órfã, `idx` divergente e
+`when` não-crescente (este último importa porque é o `when` que define o que "ainda falta aplicar";
+um timestamp fora de ordem faz uma migration nova nascer no passado e nunca ser aplicada). Teste de
+inversão: removendo as duas entradas, 2 dos 5 casos falham e o arquivo sai com exit 1.
+
+**DEV migrado, e conferido por leitura independente.** Alvo confirmado por impressão digital antes de
+qualquer escrita — o host de `DATABASE_URL_DEV` difere do de `DATABASE_URL_PROD`. Antes: 103
+aplicadas, nenhuma das duas estruturas presente. Depois: 105. A 0103 entregou 5/5 colunas em
+`signup_sessions`; a 0104 entregou `onboarding_progress` com `rls=true`, `force=true`, 3 policies, 6
+CHECKs, `authenticated` com SELECT/INSERT/UPDATE e **sem DELETE**, e `anon` sem grant nenhum.
+
+**Os dois SKIP do E2E viraram prova — e a prova mais forte veio do banco, não do navegador.** Com a
+0104 no banco do Preview, o spec passa **5/5** sem skip, três execuções seguidas. Depois das três
+execuções, cada uma abrindo duas abas, `onboarding_progress` tem **uma única linha**:
+`tour_state=skipped`, `row_version=3`, `tour_finished_at` e `docs_visited_at` preenchidos. Uma linha
+para seis sessões de navegador é a resposta empírica à pergunta que o Track O fez desde o começo — a
+autoridade é o servidor, não a aba —, e `row_version=3` mostra que cada mutação passou pelo CAS em
+vez de sobrescrever.
+
+**Uma execução falhou e está registrada.** A primeira, logo após a migration, falhou em 4 dos 5
+testes; o quinto, o mais lento, passou. Não reproduziu nas três seguintes. A hipótese é cold start do
+Preview contra o timeout de 30 s, e é hipótese mesmo: os artefatos foram sobrescritos pelas execuções
+seguintes. Registrar a hipótese como hipótese custa menos que transformá-la em conclusão.
+
+**O merge, e o que ele não pode carregar.** Produção **não** foi migrada — estava fora da autorização
+desta sessão. Hoje isso é inofensivo por duas razões verificadas, não presumidas: `app.qoro.dev/
+cadastro` responde 307 → `/login`, ou seja, o cadastro autônomo está fechado lá; e `onboarding_progress`
+é lida com degradação provada por teste. A precondição fica explícita no handoff: abrir `/cadastro`
+em produção **antes** de rodar `db:migrate:prod` quebra o cadastro na primeira tentativa de cobrança,
+porque as colunas `billing_*`/`asaas_*` de `signup_sessions` não existem lá.
+
+**Validação.** Suíte **3.974/3.974** em 396 arquivos, 0 falha, 0 skip, exit 0. `typecheck`, `eslint`,
+`prettier`, `check:migrations`, `security:inventory` e `arch:graphs` (56 elementos, 298 arestas, 0
+ciclos): todos PASS, cada um com exit code registrado em comando próprio.
