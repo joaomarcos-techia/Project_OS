@@ -453,6 +453,62 @@ restaurado em seguida.
 
 ---
 
+## Produção migrada — e o incidente que o merge revelou
+
+**O merge do PR #9 publicou em produção código que o banco de produção não suportava.** Produção
+estava em **96 migrations** — nem `signup_sessions` existia. O plano dizia que isso era inofensivo
+porque `/cadastro` respondia 307 → `/login`; a medição depois do deploy mostrou que a premissa estava
+errada pela metade.
+
+O que de fato aconteceu, medido:
+
+| Superfície                       | Antes do merge | Depois do merge          | Avaliação                             |
+| -------------------------------- | -------------- | ------------------------ | ------------------------------------- |
+| `/` e `/dashboard` (anônimo)      | 307            | 307                      | inalterado                            |
+| `/login`                          | 200            | 200                      | inalterado                            |
+| `/cadastro`                       | 307 → `/login` | 200 "Cadastro indisponível" | **kill switch funcionando** — sem formulário |
+| `/admin` (super_admin)            | ok             | **estouraria**           | lê `signup_sessions` com `withQueryDeadline`, que relança |
+| cron `signup-sessions-cleanup`    | ok             | **falhou às 16:40:19Z**  | registrado em `cron_heartbeats` com a query exata |
+
+O 307 anterior em `/cadastro` não era o kill switch: a rota simplesmente **não existia** naquele
+build. Depois do deploy a rota passou a existir e o kill switch assumiu — `SIGNUP_IDENTITY_ENABLED`
+está desligado em produção, a página renderiza "Cadastro indisponível no momento" e não há campo de
+e-mail nem de senha. Essa parte funcionou como projetado.
+
+O que não funcionou foi o resto do raio. O `/admin` lê `signup_sessions` num `Promise.all` com
+`withQueryDeadline`, que **relança** (existe um `withQueryDeadlineOrFallback` irmão, reservado para
+"visão geral onde vazio é aceitável"); com a tabela ausente, o painel do operador ia inteiro para o
+error boundary. E o janitor de sessões roda a cada 10 min — a falha dele está gravada com a query
+completa, citando `asaas_subscription_id`, coluna da 0103.
+
+**Migração aplicada com autorização explícita**, depois de expor a medição acima:
+
+| Etapa                                                       | Resultado |
+| ----------------------------------------------------------- | --------- |
+| `check:migrations` — pré-flight fail-closed dentro do script | **PASS**  |
+| 0096–0104 conferidas uma a uma: zero `DROP`/`TRUNCATE`       | **PASS**  |
+| backup cifrado diário de 19/09 10:25 UTC                     | **PASS**  |
+| `pg_dump` pré-migration (2,7 MB) antes de tocar no schema    | **PASS**  |
+| `pg_advisory_lock(4242)` no session pooler, liberado ao fim  | **PASS**  |
+| `drizzle-kit migrate` — exit 0                               | **PASS**  |
+| leitura DEPOIS: `migrations_aplicadas=105`                   | **PASS**  |
+| 0103 — 5/5 colunas em `signup_sessions`                      | **PASS**  |
+| 0104 — `onboarding_progress` `rls=true` `force=true` 3 policies | **PASS** |
+| paridade DEV × PROD nas tabelas de signup/onboarding          | **idêntica** |
+| `anon` sem grant em `signup_sessions` e `onboarding_progress` | **PASS**  |
+| rotas públicas de produção depois da migration                | **inalteradas** |
+| cron `signup-sessions-cleanup` no tick seguinte (16:50:19Z)   | **PASS** — recuperado sozinho |
+
+**O que se aprende disto.** A degradação que eu tinha construído para `onboarding_progress` era certa
+e salvou o shell — mas eu a tratei como se cobrisse todo o Track O. Não cobria: `/admin` e o cron
+dependiam de outra tabela, por outro caminho, sem degradação nenhuma. "O produto degrada" não é uma
+propriedade global; é uma propriedade de cada leitura, e só vale onde foi escrita. A conclusão prática
+é que o par **deploy + migration** não é sequenciável por conveniência: publicar código à frente do
+schema só é seguro quando TODA leitura nova tem degradação provada, e verificar isso é mais caro do
+que simplesmente migrar antes.
+
+---
+
 ## Como reproduzir
 
 ```bash
