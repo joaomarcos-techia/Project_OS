@@ -497,6 +497,7 @@ completa, citando `asaas_subscription_id`, coluna da 0103.
 | paridade DEV × PROD nas tabelas de signup/onboarding          | **idêntica** |
 | `anon` sem grant em `signup_sessions` e `onboarding_progress` | **PASS**  |
 | rotas públicas de produção depois da migration                | **inalteradas** |
+| cron `signup-sessions-cleanup` no tick seguinte (16:50:19Z)   | **PASS** — recuperado sozinho |
 
 **O que se aprende disto.** A degradação que eu tinha construído para `onboarding_progress` era certa
 e salvou o shell — mas eu a tratei como se cobrisse todo o Track O. Não cobria: `/admin` e o cron

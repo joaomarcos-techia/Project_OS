@@ -6270,5 +6270,9 @@ de 2,7 MB antes de tocar no schema, sob `pg_advisory_lock(4242)` no session pool
 `onboarding_progress` com `rls=true`, `force=true` e 3 policies — idêntica ao DEV, e `anon` sem grant
 em nenhuma das duas. As rotas públicas responderam igual antes e depois.
 
+**A recuperação tem carimbo de tempo.** O janitor falhou às 16:40:19Z, a migration terminou às
+16:44:47Z e o tick seguinte, às **16:50:19Z**, gravou `success` — sem intervenção, sem redeploy. A
+cadeia causal inteira está no `cron_heartbeats` de produção, que é onde ela deveria estar.
+
 **A regra que fica.** Deploy à frente da migration só é seguro quando TODA leitura nova tem degradação
 provada — e verificar isso, leitura por leitura, custa mais caro do que simplesmente migrar antes.
