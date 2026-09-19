@@ -71,7 +71,7 @@ banco DEV (que é o banco do Preview) e o spec passa 5/5, sem skip, em três exe
 1. commitar a feature da landing + `/comecar` (dono da landing);
 2. ~~aplicar as migrations do Track O ao banco DEV~~ — **feito em 19/09/2026** (103 → 105);
 3. ~~mesclar o PR #9~~ — **feito em 19/09/2026**;
-4. `SIGNUP_IDENTITY_ENABLED` no app — **já configurado pelo dono**;
+4. `SIGNUP_IDENTITY_ENABLED` no app — **já configurado**: ligado no Preview (`/cadastro` responde 200) e fechado em produção (307 → /login), que é exatamente a configuração que torna o merge seguro sem migrar produção;
 5. ligar `PONTE_ATIVA` na landing;
 6. rodar o roteiro de aceitação humana.
 
