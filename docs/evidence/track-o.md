@@ -76,6 +76,18 @@ para a **mesma rota de produção**. A rota não confia no corpo: ela busca o es
 | W4e   | corpo de 1,2 MB → `413` antes de qualquer leitura                                                 |
 | W4f   | pagamento de OUTRO tenant → pousa em B, **nunca** em A                                            |
 
+**Achado no próprio janitor (18/09/2026).** Uma varredura independente do sandbox, depois de um
+`--cleanup-orphans` que se declarou bem-sucedido, encontrou uma assinatura `signup-sandbox:p2`
+**ACTIVE**. Duas causas, ambas corrigidas:
+
+1. a flag **não era exclusiva** — o dispatch chamava o janitor sem `await` e caía no `else` que roda a
+   suíte inteira em paralelo, de modo que pedir limpeza CRIAVA assinatura nova, e o `process.exit()`
+   do janitor matava a suíte no meio, deixando o que ela acabara de criar;
+2. a limpeza contava respostas em vez de reler o estado — o contador fechou "3/3" com resíduo vivo.
+
+Agora o janitor limpa e só limpa, e o veredito vem do **readback**. Readback independente após a
+correção: **0 assinaturas** e **0 customers de teste** no sandbox.
+
 **Achado de contrato do provedor (18/09/2026).** `DELETE /subscriptions/{id}` pode responder
 **HTTP 500 e ainda assim ter apagado**: aconteceu nas duas assinaturas da primeira execução, e a
 leitura seguinte trouxe `status: INACTIVE, deleted: true` para ambas. É a mesma família do achado já
