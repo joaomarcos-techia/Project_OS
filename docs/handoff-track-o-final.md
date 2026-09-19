@@ -57,13 +57,15 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
-| **Publicar `/comecar`** | a landing tem feature inteira do usuário não commitada | o dono commita a feature dele e a ponte junto |
-| **`PONTE_ATIVA = false`** | `app.qoro.dev/cadastro` responde 200 "Cadastro indisponível" — a página existe, o cadastro não está aberto | ligar `SIGNUP_IDENTITY_ENABLED` em produção e, só então, trocar `PONTE_ATIVA` para `true` em `src/lib/comecar.ts` |
+| **`PONTE_ATIVA = false`** | último interruptor: o cadastro já está aberto em produção | trocar para `true` em `src/lib/comecar.ts:40`, rodar `npm run comecar` (o verificador troca de ramo) e publicar |
 | **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro em `handoff-track-o-2026-09-18.md` §10 |
 
 **Resolvidos em 19/09/2026:**
 
+- **o cadastro autônomo aberto em produção** — as duas flags estavam só em Preview, e uma cópia da
+  `SIGNUP_IDENTITY_ENABLED` tinha ido parar no projeto Vercel da landing, onde nada lê env;
+- **`/comecar` publicado** na landing, no estado desligado (200, `noindex`, fora do sitemap, sem link para o app);
 - os 2 skips do E2E de tour — DEV (banco do Preview) migrado, spec 5/5 sem skip em quatro execuções;
 - o journal do drizzle parado na 0102, que faria `db:migrate` pular a 0103 e a 0104 em silêncio;
 - **produção migrada** de 96 para 105, com backup pré-migration, advisory lock e leitura de
@@ -71,23 +73,48 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 
 ## Ordem de release
 
-1. commitar a feature da landing + `/comecar` (dono da landing) — **pendente**;
+1. ~~commitar a feature da landing + `/comecar`~~ — **feito** (`df44192`, publicado: `qoro.dev/comecar`
+   responde 200 no estado desligado, fora do sitemap, com `noindex`);
 2. ~~aplicar as migrations do Track O ao banco DEV~~ — **feito** (103 → 105);
 3. ~~mesclar o PR #9~~ — **feito** (`7dbfa5d`);
 4. ~~aplicar as migrations ao banco de PRODUÇÃO~~ — **feito** (96 → 105, com backup e advisory lock);
-5. ligar `SIGNUP_IDENTITY_ENABLED` em **produção** — **pendente**; hoje `/cadastro` responde 200 com
-   "Cadastro indisponível no momento", sem formulário;
-6. ligar `PONTE_ATIVA` na landing (`src/lib/comecar.ts`, `false` → `true`) — **depois** do passo 5;
-7. rodar o roteiro de aceitação humana.
+5. ~~abrir o cadastro autônomo em produção~~ — **feito** em 19/09/2026 22:30 UTC;
+6. ligar `PONTE_ATIVA` na landing (`src/lib/comecar.ts`, `false` → `true`) — **pendente**;
+7. rodar o roteiro de aceitação humana — **pendente**.
 
-**O que a ordem passou a significar.** Era "não ligue a ponte antes de migrar"; virou "não ligue a
-ponte antes de abrir o cadastro". Produção já tem o schema, então a ponte não cairia mais num erro de
-banco — cairia numa página que diz educadamente que o cadastro não está aberto, que é pior para uma
-campanha paga do que um erro, porque parece intencional.
+### O passo 5, e a variável que estava no projeto errado
 
-**A lição que o passo 4 deixou.** Ele foi originalmente planejado para DEPOIS do merge, com o
-argumento de que produção estava protegida pelo kill switch. A medição pós-deploy mostrou que o
-argumento cobria `/cadastro` e o shell autenticado, mas não `/admin` (que lê `signup_sessions` sem
-degradação) nem o cron `signup-sessions-cleanup` (que falhou às 16:40:19Z e ficou registrado em
-`cron_heartbeats`). Deploy à frente do schema só é seguro quando TODA leitura nova degrada, e conferir
-isso custa mais do que migrar antes.
+O cadastro ficou fechado mais tempo do que devia por uma razão banal e difícil de enxergar: as duas
+flags existiam **só em Preview** no projeto `project-os`, e uma cópia de `SIGNUP_IDENTITY_ENABLED`
+tinha sido criada no projeto **da landing**, onde nada lê variável de ambiente — o `src` inteiro da
+landing não tem um `process.env` sequer. Uma variável no projeto errado não dá erro: ela simplesmente
+não faz nada, e parece feita.
+
+O que fechou o diagnóstico foi comparar os **nomes** das variáveis entre Preview e Production no
+projeto do app. A diferença era exatamente três: as duas flags e o `VERCEL_AUTOMATION_BYPASS_SECRET`
+(que é de Preview por desenho). Todo o resto — Asaas, Turnstile, Upstash, Supabase — já estava lá.
+Diffar nomes de configuração entre ambientes é mais barato que ler log de aplicação, e teria
+encontrado isto em um minuto.
+
+Estado final medido depois do redeploy:
+
+| Verificação                                | Antes                          | Depois                     |
+| ------------------------------------------ | ------------------------------ | -------------------------- |
+| `/login`                                    | 200                            | 200 (app sobe, env válida) |
+| `/dashboard` anônimo                        | 307                            | 307                        |
+| `/cadastro`                                 | 200 "Cadastro indisponível"    | 200, funil aberto          |
+| `POST /api/signup/draft` sem sessão         | **503** `{"error":"unavailable"}` | **403** `{"error":"blocked"}` |
+| `POST /api/signup/sessions` (navegador)     | —                              | **201**                    |
+| `GET /api/signup/sessions/me` (1ª visita)   | —                              | **410**, como esperado     |
+
+O `503 → 403` é a prova exata de que o portão abriu: `unavailable` é a flag desligada; `blocked` é a
+recusa de origem para uma requisição sem sessão. A segunda é a defesa normal funcionando.
+
+**Uma sessão anônima foi criada em produção** pela verificação no navegador: `status=initiated`, sem
+respostas, sem usuário, sem assinatura, com TTL ocioso de 15 min e absoluto de 60 min. O janitor
+`signup-sessions-cleanup` está `success` e roda a cada 10 min — é ele que a remove. Nenhum dado
+pessoal foi inserido e o funil não foi avançado além da primeira tela.
+
+**A partir daqui há dinheiro real em jogo.** O cadastro aberto cria assinatura de verdade no Asaas de
+produção no passo de checkout. O `ASAAS_API_KEY` de Production tem 94 dias e já atende clientes
+pagantes; o webhook de assinatura responde 401 sem token no alias estável, que é a recusa correta.
