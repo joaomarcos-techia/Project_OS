@@ -72,10 +72,36 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
     expect(erros, erros.join(' | ')).toEqual([]);
   });
 
+  /**
+   * O onboarding está de fato disponível neste ambiente?
+   *
+   * O shell DEGRADA quando a leitura de `onboarding_progress` falha — foi assim
+   * que o 500 do dashboard foi corrigido. A consequência é que, num banco sem a
+   * migration 0104, o tour simplesmente não aparece, e um teste que só
+   * verificasse "o tour não está na tela" passaria NO VAZIO.
+   *
+   * O sinal de que a máquina está viva: ou o tour aparece (estado não-terminal),
+   * ou a central de ajuda oferece "Refazer o tour" (estado terminal). Nenhum dos
+   * dois significa que a leitura devolveu `null`.
+   */
+  async function onboardingDisponivel(page: Page): Promise<boolean> {
+    if (await page.getByTestId('product-tour').count()) return true;
+    await page.goto('/documentacao');
+    return (await page.getByTestId('restart-tour').count()) > 0;
+  }
+
   test('o tour some ao ser dispensado e não reabre sozinho', async ({ page }) => {
     const { erros } = vigiar(page);
     await authenticate(page);
 
+    const disponivel = await onboardingDisponivel(page);
+    test.skip(
+      !disponivel,
+      'onboarding indisponível neste ambiente (banco sem a migration 0104): ' +
+        'o shell degrada e não há tour para exercitar. Skip anotado, nunca verde vazio.',
+    );
+
+    await page.goto('/dashboard');
     const tour = page.getByTestId('product-tour');
     if (await tour.count()) {
       await page.getByTestId('tour-skip').click();
@@ -95,6 +121,12 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
       const abaA = await contexto.newPage();
       const { erros } = vigiar(abaA);
       await authenticate(abaA);
+
+      test.skip(
+        !(await onboardingDisponivel(abaA)),
+        'onboarding indisponível neste ambiente (banco sem a migration 0104).',
+      );
+      await abaA.goto('/dashboard');
 
       const abaB = await contexto.newPage();
       await abaB.goto('/dashboard');
