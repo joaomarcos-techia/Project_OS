@@ -6,7 +6,7 @@
 
 | Área                     | Estado                                                                  |
 | ------------------------ | ----------------------------------------------------------------------- |
-| O-1                      | **BLOCKED** — fora deste repositório (landing `qoro.dev`)               |
+| O-1                      | **NOT STARTED** — landing `qoro.dev` existe e está disponível; não iniciado |
 | O-5                      | **PASS** — contrato no Sandbox real **+ webhook do cadastro provado**   |
 | O-6                      | **PASS** — contra as 105 migrations reais                               |
 | O-7                      | **PASS** — checklist, tour, `/documentacao`, dashboard; 13/13 em schema |
@@ -267,7 +267,7 @@ indistinguível de saída completa. Corrigido em `434e926`, com cada gate execut
 | **`security:browser-session`**                    | **FAIL pré-existente**, atribuído ao commit `8df4ab7`; não foi introduzido nem consertado nesta sessão         |
 | **Chaos/degradação de Redis** sobre o caminho novo | não exercitado                                                                                                |
 | **Carga sobre os caminhos do Track O**            | o harness de carga é de Camada 1; ele prova não-regressão, não cobre cadastro/billing/onboarding               |
-| **O-1**                                           | outro repositório: a landing está em `C:\dev\qoro` e não tem `/comecar`; o §21.3 proíbe implementá-lo aqui   |
+| **O-1**                                           | **não-iniciado, não bloqueado**: a landing em `C:\dev\qoro` existe e é o projeto certo; exige fatia inteira num segundo código (rota, UTM/GCLID, consentimento, linker) e aprovação nos 14 verificadores do build dela |
 | **Product Acceptance humano**                     | exige pessoa real — roteiro abaixo                                                                             |
 | **Migrations 0103 e 0104 em DEV/produção**        | aplicadas **somente** em cluster descartável                                                                   |
 

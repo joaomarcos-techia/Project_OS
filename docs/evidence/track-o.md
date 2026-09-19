@@ -129,9 +129,18 @@ lados).
 
 ## O-1 — atribuição
 
-| Item                              | Estado                               |
-| --------------------------------- | ------------------------------------ |
-| `/comecar`, linker, consentimento | **BLOCKED — fora deste repositório** |
+| Item                              | Estado                                                 |
+| --------------------------------- | ------------------------------------------------------ |
+| `/comecar`, linker, consentimento | **NOT STARTED — outro repositório, disponível**         |
+
+**Correção de classificação (18/09/2026).** Até aqui isto constava como `BLOCKED`, o que virou
+meia-verdade. O checkout existe em `C:\dev\qoro`, é o projeto certo (remote `landing_page.git`) e
+**não** tem nenhuma referência a `comecar` — reverificado, não herdado. Ou seja: não é impossível, é
+não-iniciado. O que ele exige é uma fatia inteira num segundo código: rota nova em `routes.tsx`,
+captura de UTM/GCLID, consentimento, linker cross-domain para `app.qoro.dev/cadastro` e aprovação nos
+**14 scripts de verificação** que o `build` daquele projeto encadeia (conteúdo, similaridade, links,
+FAQ, llms, HTML e segurança). Não foi iniciado nesta sessão, e chamar isso de bloqueio externo seria
+confortável demais.
 
 A landing existe localmente em `C:\dev\qoro` (Vite + React, `index.html`, `api/`, `vercel.json`) e
 **não contém** nenhuma rota `comecar`. Este repositório é `app.qoro.dev` e não tem superfície de
