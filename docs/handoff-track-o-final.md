@@ -59,7 +59,7 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 | -------- | ------- | ---------------- |
 | **`PONTE_ATIVA = false`** | último interruptor: o cadastro já está aberto em produção | trocar para `true` em `src/lib/comecar.ts:40`, rodar `npm run comecar` (o verificador troca de ramo) e publicar |
 | **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
-| **Product Acceptance humano** | exige julgamento de produto | roteiro em `handoff-track-o-2026-09-18.md` §10 |
+| **Product Acceptance humano** | exige julgamento de produto | roteiro completo em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md) — rodar no Preview, com Sandbox |
 
 **Resolvidos em 19/09/2026:**
 
