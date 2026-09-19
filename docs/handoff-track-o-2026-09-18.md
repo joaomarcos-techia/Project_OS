@@ -6,18 +6,18 @@
 
 | Área                     | Estado                                                                  |
 | ------------------------ | ----------------------------------------------------------------------- |
-| O-1                      | **NOT STARTED** — landing `qoro.dev` existe e está disponível; não iniciado |
+| O-1                      | **PASS** — `/comecar` implementada e provada; publicação BLOCKED por WIP do usuário |
 | O-5                      | **PASS** — contrato no Sandbox real **+ webhook do cadastro provado**   |
 | O-6                      | **PASS** — contra as 105 migrations reais                               |
 | O-7                      | **PASS** — checklist, tour, `/documentacao`, dashboard; 13/13 em schema |
 | O.H                      | **PASS** — adversarial, RLS e **carga**; chaos de Redis NOT TESTED      |
 | O.S                      | **PASS** — kill switch no navegador, simulação e Preview                |
-| Suíte                    | **3964/3964** (394 arquivos, 0 skip, exit 0)                            |
+| Suíte                    | **3969/3969** (395 arquivos, 0 skip, exit 0)                            |
 | Preview                  | **PASS** — publicado e exercitado com o bypass documentado              |
 | CI                       | **PASS** — seis verificações verdes em `33068e0` e `5178e72`            |
 | Sandbox                  | **PASS** — 4/4 (billing) + 9/9 (webhook), resíduo zero por readback     |
 | Carga / Simulação        | **PASS** — `test:load` e `test:simulation`, ambos exit 0                |
-| E2E autenticado completo | **NOT TESTED** — exige conta sintética e Postgres de auditoria          |
+| E2E autenticado (O-7)    | **PASS** — 3/3 no Preview com sessão real; 2 skips anotados            |
 | `security:browser-session` | **FAIL — pré-existente**, atribuído ao commit anterior ao O-7          |
 | Product Acceptance humano | **BLOCKED** — exige pessoa real                                        |
 

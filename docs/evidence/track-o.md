@@ -9,7 +9,7 @@ aparece como `NOT TESTED` ou `BLOCKED`, nunca em branco.
 > **Esta matriz não substitui a §10.9 da ADR-062.** Aquela seção é a evidência da emenda de identidade
 > e continua com o significado dela. Esta aqui é por fatia.
 
-SHA de referência: `434e926` (branch `feature/clinic-plan-o4`), com **CI verde nas seis verificações**.
+SHA de referência: `f2ba564` (branch `feature/clinic-plan-o4`).
 
 ## Legenda de ambiente
 
@@ -127,32 +127,62 @@ lados).
 
 ---
 
-## O-1 — atribuição
+## O-1 - atribuicao
 
-| Item                              | Estado                                                 |
-| --------------------------------- | ------------------------------------------------------ |
-| `/comecar`, linker, consentimento | **NOT STARTED — outro repositório, disponível**         |
+| Item                                        | Ambiente  | Resultado                    |
+| ------------------------------------------- | --------- | ---------------------------- |
+| `/comecar` implementada e servida           | `BROWSER` | **PASS**                     |
+| Allowlist de parametros (5 UTM)             | `LOCAL`   | **PASS**                     |
+| Open redirect (17 vetores)                  | `LOCAL`   | **PASS**                     |
+| Poluicao de parametro e codificacao dupla   | `LOCAL`   | **PASS**                     |
+| Atribuicao nao e autorizacao                | `LOCAL`   | **PASS**                     |
+| Linker cross-domain configurado             | `LOCAL`   | **PASS**                     |
+| Evento `start_signup` separado da conclusao | `LOCAL`   | **PASS**                     |
+| Fora do sitemap / llms.txt / `noindex`      | `BROWSER` | **PASS**                     |
+| Build completo da landing (14 gates)        | `LOCAL`   | **PASS**                     |
+| **Publicacao em qoro.dev**                  | -         | **BLOCKED - WIP do usuario** |
 
-**Correção de classificação (18/09/2026).** Até aqui isto constava como `BLOCKED`, o que virou
-meia-verdade. O checkout existe em `C:\dev\qoro`, é o projeto certo (remote `landing_page.git`) e
-**não** tem nenhuma referência a `comecar` — reverificado, não herdado. Ou seja: não é impossível, é
-não-iniciado. O que ele exige é uma fatia inteira num segundo código: rota nova em `routes.tsx`,
-captura de UTM/GCLID, consentimento, linker cross-domain para `app.qoro.dev/cadastro` e aprovação nos
-**14 scripts de verificação** que o `build` daquele projeto encadeia (conteúdo, similaridade, links,
-FAQ, llms, HTML e segurança). Não foi iniciado nesta sessão, e chamar isso de bloqueio externo seria
-confortável demais.
+Implementado em `C:\dev\qoro` (remote `landing_page.git`) em 19/09/2026. Runner proprio:
+`scripts/verificar-comecar.mjs`, **19/19 PASS**, encadeado no `build` do repositorio.
 
-A landing existe localmente em `C:\dev\qoro` (Vite + React, `index.html`, `api/`, `vercel.json`) e
-**não contém** nenhuma rota `comecar`. Este repositório é `app.qoro.dev` e não tem superfície de
-marketing: `src/app/page.tsx` redireciona `/` para `/login`. A fronteira é:
+**Desenho.** O destino e uma CONSTANTE (`https://app.qoro.dev/cadastro`) e nao existe parametro de
+destino -- nem `next`, nem `redirect`, nem `url`, nem `return_to`. Isso elimina a classe inteira de
+open redirect por construcao, nao por filtro: nao ha allowlist de host a manter porque nao ha host
+vindo de fora. Os 17 vetores do paragrafo 9/35 sao recusados por essa propriedade.
 
-```text
-qoro.dev/comecar  →  atribuição, linker, consentimento  →  app.qoro.dev/cadastro  →  signup_sessions
-```
+**Atribuicao nao e autorizacao.** Atravessam so os cinco campos de UTM que `lib/atribuicao.ts` ja
+reconhece. `clinic_id`, `role`, `price`, `trial`, `plan` e `token` sao descartados -- provado tanto em
+unidade quanto no navegador.
 
-O §21.3 proíbe a atribuição de criar `signup_sessions` e manda "não criar outra base de dados de
-marketing" — coerente com a ausência de coluna de atribuição no schema. Implementar `/comecar` aqui
-contrariaria duas decisões registradas. O trabalho é na landing, que é outro projeto.
+**Linker cross-domain.** O Google tag do repositorio ja tinha Consent Mode v2 e `url_passthrough`, mas
+**nao** tinha `linker.domains`. Sem isso o cookie de medicao nao atravessa de `qoro.dev` para
+`app.qoro.dev` e a conversao do outro lado apareceria como "direta" -- clique pago, venda nao
+creditada. `gclid` continua a cargo do tag, nao reimplementado a mao.
+
+**Prova no navegador.** Com a ponte apontada para o Preview do app, a URL de SSO da Vercel capturada
+carregava exatamente `/cadastro?utm_source=google-ads&utm_medium=cpc&utm_campaign=clinicas-sp` -- com
+o hifen preservado e **sem** `next`, `clinic_id`, `role` ou `price`.
+
+**Interruptor proprio, desligado.** `PONTE_ATIVA = false`. Medido em 19/09/2026:
+`app.qoro.dev/cadastro` responde **307 para /login** e descarta a querystring, porque o Track O ainda
+nao foi para producao. Com a ponte ligada antes disso, uma campanha paga levaria a pessoa a um beco
+sem saida e a atribuicao morreria no caminho. Ligar e acao de release, junto com o merge.
+
+**Bug encontrado na propria implementacao.** A validacao de valores usava uma classe de regex escrita
+com escapes de controle. Os escapes foram gravados como os BYTES correspondentes e a classe degenerou
+para uma que **recusava hifen** -- quebrando `utm_source=google-ads` -- e aceitava quase todo
+caractere de controle. Os testes seguiam verdes porque atacavam justamente os dois codigos que
+sobraram. Corrigido com comparacao por codigo de caractere, mais duas regressoes: valores reais de
+campanha e varredura de toda a faixa 0x00-0x1f.
+
+**Verificacao de deteccao.** Introduzido um open redirect de proposito, exatamente o teste de vetores
+falhou; restaurado, 19/19.
+
+**BLOQUEIO REAL, e e o unico.** O repositorio da landing tem **uma feature inteira do usuario em
+andamento e nao commitada** -- `src/lib/conversao.ts`, `docs/GOOGLE-ADS.md`, as paginas de verticais e
+mais nove arquivos modificados. Commitar `/comecar` arrastaria esse trabalho inacabado junto, e
+commitar so os meus arquivos deixaria a arvore sem a rota registrada. O codigo esta pronto e provado
+na arvore de trabalho; **quem commita e quem sabe quando a propria feature esta pronta**.
 
 ---
 
@@ -223,7 +253,8 @@ O harness foi conferido contra falsos verdes, alterando o produto de propósito:
 | `security:unit`                                   | `LOCAL`   | **PASS** 332/332                           |
 | `security:risks`                                  | `LOCAL`   | **PASS** sem drift                         |
 | `security:browser-session`                        | `BROWSER` | **FAIL — pré-existente**, ver abaixo       |
-| Chaos/degradação de Redis sobre os caminhos novos | `NONE`    | **NOT TESTED**                             |
+| Chaos/degradação de Redis                         | `LOCAL`   | **PASS** — 59/59, ver abaixo               |
+| Carga específica do Track O                       | `SCHEMA`  | **PASS** — 8/8, ver abaixo                 |
 
 ### Carga (`test:load`) — primeira execução
 
@@ -260,7 +291,7 @@ foi executado num worktree do commit `8df4ab7` — anterior a todo o trabalho de
 | Kill switch (`SIGNUP_ENABLED`)        | **PASS** em `LOCAL` e em `BROWSER` — ver abaixo                     |
 | Rollback/cutover documentado          | **PASS** — runbook de incidentes                                    |
 | E2E `test:e2e:ci` (fatia sem conta)   | **PASS** — 6 passaram, 2 skips condicionais por ambiente            |
-| E2E da jornada completa autenticada   | **NOT TESTED** — exige conta sintética e Postgres de auditoria      |
+| E2E autenticado do O-7 (navegador)    | **PASS** — 3/3 contra o Preview; 2 skips anotados, ver abaixo       |
 | `test:simulation` (30 dias)           | **PASS** em `DEV` — ver abaixo                                      |
 | Preview deploy                        | **PASS** — SHA final medido, incl. `/documentacao` protegida        |
 | CI (GitHub Actions)                   | **PASS** — seis verificações verdes em `434e926`                    |
@@ -309,6 +340,69 @@ sem chamada externa. Uma volta do worker real (`processed: 0, failed: 0, skipped
 | `POST /api/signup/sessions` (com Origin)  | `503 unavailable`  | a conversão 500→503 funcionando de verdade       |
 | `POST /api/signup/checkout` sem Origin    | `403 blocked`      | Fetch Metadata/Origin no ambiente real           |
 | `POST /api/signup/checkout` com Origin    | `401 unauthorized` | exige identidade verificada                      |
+
+---
+
+## Chaos — Redis
+
+| Prova                                                                   | Onde                   |
+| ----------------------------------------------------------------------- | ---------------------- |
+| `invite` / `mfa` / `accept`: Redis fora → operação continua, loga, mede  | `rate-limit.test.ts`   |
+| fail-open **NÃO é barra-livre**: o fallback ainda bloqueia acima do teto | `rate-limit.test.ts`   |
+| consequência documentada: burst de borda = 2×limite − 1                  | `rate-limit.test.ts`   |
+| fecha sem credencial ou em exceção de Redis                              | `rate-limit.test.ts`   |
+| funil de cadastro com fixture de Redis indisponível/parado               | `signup-regression.ts` |
+
+**59/59** e **27/27**, ambos exit 0. A pergunta do §27 — "Redis down não pode transformar operações
+caras em execução ilimitada" — é exatamente o caso `fail-open NÃO é barra-livre`, que existia antes
+desta sessão e foi executado nela.
+
+Billing, provisionamento e onboarding **não usam Redis**: não há limitador nesses caminhos, então
+Redis fora do ar não os alcança. É ausência de dependência, não tolerância a falha.
+
+---
+
+## Carga específica do Track O — `track-o-load.ts`
+
+Ambiente `SCHEMA`. **8/8 PASS**, exit 0. Complementa o `test:load` (que é da Camada 1 e não toca
+cadastro, billing, provisionamento ou onboarding); não o substitui.
+
+| Cenário                         | Concorrência | p95    | p99    | Invariante provada              |
+| ------------------------------- | ------------ | ------ | ------ | ------------------------------- |
+| criação de sessão de cadastro   | 10 × 4       | 115 ms | 141 ms | 40 sessões, nenhuma colisão     |
+| provisionamento **disputado**   | 10 → 1       | 287 ms | 287 ms | 1 tenant, 1 owner, 1 assinatura |
+| provisionamentos independentes  | 10 → 10      | 253 ms | 253 ms | 10 tenants, slugs únicos        |
+| avanço de tour **disputado**    | 10 × 3       | 166 ms | 233 ms | 1 avanço por passo              |
+| linha de onboarding sob corrida | 10 → 1       | —      | —      | 1 linha por (clínica, pessoa)   |
+| deadlocks                       | —            | —      | —      | **0**                           |
+
+SLOs comparados: p95 500 ms e p99 1000 ms, os já documentados. **Nenhum foi alterado.**
+
+---
+
+## E2E autenticado do O-7 — `e2e/onboarding-o7.spec.ts`
+
+Ambiente `BROWSER` contra o **Preview**, com sessão real (cookies, middleware, Server Actions e
+contexto de tenant reais) e conta sintética de teste.
+
+| Prova                                                     | Resultado        |
+| --------------------------------------------------------- | ---------------- |
+| dashboard abre com sessão real, sem 5xx e sem `pageerror`  | **PASS**         |
+| `/documentacao` autenticada, listando os tópicos           | **PASS**         |
+| tópico abre; slug inexistente devolve **404**, não 500     | **PASS**         |
+| tour dispensado não reabre após reload                     | **SKIP anotado** |
+| duas abas convergem para o mesmo estado                    | **SKIP anotado** |
+
+**O 500 que este spec encontrou.** Na primeira execução ele falhou com `500 em /dashboard`. A causa
+era minha: a leitura de `onboarding_progress` estava no LAYOUT do shell, por onde passa toda página
+autenticada, e o banco do Preview não tem a migration 0104 — agenda, consultório, caixa e dashboard
+caíram juntos por causa de um tour. Corrigido com degradação: sem progresso, o shell renderiza sem o
+tour, e a falha vai para a observabilidade em vez de virar 500.
+
+**Os dois SKIP são anotados, e antes eram verde vazio.** Como o shell degrada, o tour não aparece num
+banco sem a 0104 — e "o tour não está na tela" passava sem provar nada. O spec agora detecta se a
+máquina está viva (tour presente, ou "Refazer o tour" na central de ajuda) e pula com motivo quando
+não está. **Desbloqueio:** aplicar as migrations do Track O ao banco do Preview.
 
 ---
 
