@@ -6228,3 +6228,47 @@ porque as colunas `billing_*`/`asaas_*` de `signup_sessions` não existem lá.
 **Validação.** Suíte **3.974/3.974** em 396 arquivos, 0 falha, 0 skip, exit 0. `typecheck`, `eslint`,
 `prettier`, `check:migrations`, `security:inventory` e `arch:graphs` (56 elementos, 298 arestas, 0
 ciclos): todos PASS, cada um com exit code registrado em comando próprio.
+
+### 35.29 O merge foi para produção antes do schema — e o que isso ensinou sobre "degrada" — 19/09/2026
+
+O PR #9 foi mesclado com um argumento explícito, escrito no próprio corpo do PR: produção não
+precisava ser migrada antes, porque `app.qoro.dev/cadastro` respondia **307 → /login** (cadastro
+fechado) e `onboarding_progress` era lida com degradação provada por teste. O argumento estava certo
+nas duas premissas que citava. Estava errado no que não citava.
+
+**A primeira premissa nem era o que eu pensava.** Depois do deploy, `/cadastro` passou a responder
+**200**. Não porque a flag tivesse mudado: porque a rota **não existia** no build anterior de
+produção, e o 307 era o redirecionamento genérico de rota desconhecida. Com a rota publicada, o kill
+switch assumiu de verdade — a página serve "Cadastro indisponível no momento", sem campo de e-mail
+nem de senha. Foi a primeira vez que o kill switch do O-2 foi observado ao vivo em produção, e ele
+funcionou. Mas a evidência que eu tinha usado para justificar o merge (o 307) não era evidência do
+que eu achava que era.
+
+**O que o argumento não cobria.** Produção estava em **96 migrations** — nem `signup_sessions`
+existia. Duas leituras novas iam para essa tabela por caminhos sem degradação nenhuma:
+
+- `/admin` monta o painel com um `Promise.all` de seis leituras, todas em `withQueryDeadline`, que
+  **relança**. Existe um `withQueryDeadlineOrFallback` irmão, com o comentário "só para visão geral
+  onde vazio é aceitável" — a página escolheu deliberadamente o estrito, para não mostrar zero falso
+  ao operador. Com a tabela ausente, o painel inteiro ia para o error boundary;
+- o cron `signup-sessions-cleanup` roda a cada 10 min. Ele falhou às **16:40:19Z**, e o
+  `cron_heartbeats` guardou a query completa, citando `asaas_subscription_id` — coluna da 0103.
+
+Nenhum dos dois é defeito de desenho: os dois assumem, corretamente, o próprio schema. O defeito era
+publicar o código à frente dele.
+
+**A generalização indevida.** Eu tinha construído a degradação de `onboarding_progress` depois do
+`500 em /dashboard`, e ela salvou o shell de novo aqui. O erro foi tratá-la como propriedade do Track
+O inteiro. "O produto degrada" não é global: é uma propriedade de **cada leitura**, escrita uma a
+uma, e vale exatamente onde foi escrita. Duas leituras que eu não tinha tocado não herdaram nada.
+
+**Como foi fechado.** Medição primeiro, autorização depois: as nove migrations pendentes (0096–0104)
+foram conferidas uma a uma como estritamente aditivas — zero `DROP`, zero `TRUNCATE` —, o backup
+cifrado diário das 10:25 UTC estava verde, e o script de produção ainda tirou seu próprio `pg_dump`
+de 2,7 MB antes de tocar no schema, sob `pg_advisory_lock(4242)` no session pooler. Produção foi de
+96 para 105. A leitura de conferência mostra `signup_sessions` com as 5 colunas da 0103 e
+`onboarding_progress` com `rls=true`, `force=true` e 3 policies — idêntica ao DEV, e `anon` sem grant
+em nenhuma das duas. As rotas públicas responderam igual antes e depois.
+
+**A regra que fica.** Deploy à frente da migration só é seguro quando TODA leitura nova tem degradação
+provada — e verificar isso, leitura por leitura, custa mais caro do que simplesmente migrar antes.

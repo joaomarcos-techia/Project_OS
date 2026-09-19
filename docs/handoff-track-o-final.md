@@ -58,30 +58,36 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
 | **Publicar `/comecar`** | a landing tem feature inteira do usuário não commitada | o dono commita a feature dele e a ponte junto |
-| **Migrar o banco de PRODUÇÃO** | fora da autorização desta sessão (só DEV) | `SUPABASE_PROJECT_ENV=prod ... pnpm db:migrate:prod`, **antes** de abrir `/cadastro` em produção |
-| **`PONTE_ATIVA = false`** | `app.qoro.dev/cadastro` responde 307 → /login | trocar para `true` em `src/lib/comecar.ts` quando `/cadastro` estiver de pé |
+| **`PONTE_ATIVA = false`** | `app.qoro.dev/cadastro` responde 200 "Cadastro indisponível" — a página existe, o cadastro não está aberto | ligar `SIGNUP_IDENTITY_ENABLED` em produção e, só então, trocar `PONTE_ATIVA` para `true` em `src/lib/comecar.ts` |
 | **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro em `handoff-track-o-2026-09-18.md` §10 |
 
-**Resolvido em 19/09/2026:** os 2 skips do E2E de tour. As migrations do Track O foram aplicadas ao
-banco DEV (que é o banco do Preview) e o spec passa 5/5, sem skip, em três execuções seguidas.
+**Resolvidos em 19/09/2026:**
+
+- os 2 skips do E2E de tour — DEV (banco do Preview) migrado, spec 5/5 sem skip em quatro execuções;
+- o journal do drizzle parado na 0102, que faria `db:migrate` pular a 0103 e a 0104 em silêncio;
+- **produção migrada** de 96 para 105, com backup pré-migration, advisory lock e leitura de
+  conferência — ver a seção de produção na matriz de evidência.
 
 ## Ordem de release
 
-1. commitar a feature da landing + `/comecar` (dono da landing);
-2. ~~aplicar as migrations do Track O ao banco DEV~~ — **feito em 19/09/2026** (103 → 105);
-3. ~~mesclar o PR #9~~ — **feito em 19/09/2026**;
-4. `SIGNUP_IDENTITY_ENABLED` no app — **já configurado**: ligado no Preview (`/cadastro` responde 200) e fechado em produção (307 → /login), que é exatamente a configuração que torna o merge seguro sem migrar produção;
-5. ligar `PONTE_ATIVA` na landing;
-6. rodar o roteiro de aceitação humana.
+1. commitar a feature da landing + `/comecar` (dono da landing) — **pendente**;
+2. ~~aplicar as migrations do Track O ao banco DEV~~ — **feito** (103 → 105);
+3. ~~mesclar o PR #9~~ — **feito** (`7dbfa5d`);
+4. ~~aplicar as migrations ao banco de PRODUÇÃO~~ — **feito** (96 → 105, com backup e advisory lock);
+5. ligar `SIGNUP_IDENTITY_ENABLED` em **produção** — **pendente**; hoje `/cadastro` responde 200 com
+   "Cadastro indisponível no momento", sem formulário;
+6. ligar `PONTE_ATIVA` na landing (`src/lib/comecar.ts`, `false` → `true`) — **depois** do passo 5;
+7. rodar o roteiro de aceitação humana.
 
-**O passo que ficou, e por que ele é o primeiro de verdade.** Mesclar o PR publica em produção, e o
-banco de produção **não** foi migrado — isso está fora da autorização desta sessão. Hoje isso é
-inofensivo: `app.qoro.dev/cadastro` responde 307 → `/login`, ou seja, o cadastro autônomo está
-fechado em produção, e a única outra estrutura nova (`onboarding_progress`) é lida com degradação
-provada — sem a tabela, o shell renderiza sem o tour em vez de devolver 500. Mas abrir `/cadastro` em
-produção **antes** de rodar `db:migrate:prod` quebra o cadastro na primeira tentativa de cobrança:
-as colunas `billing_*`/`asaas_*` de `signup_sessions` não existem lá.
+**O que a ordem passou a significar.** Era "não ligue a ponte antes de migrar"; virou "não ligue a
+ponte antes de abrir o cadastro". Produção já tem o schema, então a ponte não cairia mais num erro de
+banco — cairia numa página que diz educadamente que o cadastro não está aberto, que é pior para uma
+campanha paga do que um erro, porque parece intencional.
 
-A ordem importa: ligar a ponte (passo 5) antes de migrar produção leva campanha paga para um beco sem
-saída.
+**A lição que o passo 4 deixou.** Ele foi originalmente planejado para DEPOIS do merge, com o
+argumento de que produção estava protegida pelo kill switch. A medição pós-deploy mostrou que o
+argumento cobria `/cadastro` e o shell autenticado, mas não `/admin` (que lê `signup_sessions` sem
+degradação) nem o cron `signup-sessions-cleanup` (que falhou às 16:40:19Z e ficou registrado em
+`cron_heartbeats`). Deploy à frente do schema só é seguro quando TODA leitura nova degrada, e conferir
+isso custa mais do que migrar antes.
