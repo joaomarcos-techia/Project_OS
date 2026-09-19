@@ -25,8 +25,9 @@ import { SCHEDULING_EVENTS, type AppointmentCompletedPayload } from '@/contexts/
 /* eslint-enable boundaries/element-types */
 
 import { FINANCIAL_EVENTS } from '../../events';
-import { atendimentoDescricao, round2 } from '../../logic';
-import { faturamentoPendencias, lancamentos } from '../../schema';
+import { allocateCreditsTo, atendimentoDescricao, round2, statusAoCriar } from '../../logic';
+import { faturamentoPendencias, lancamentos, paymentTransactions } from '../../schema';
+import { allocateCredit, listAvailableCredits } from '../credit-store';
 
 // Timeout do handler (spec: 5s). Aplicado como `statement_timeout` no nível do
 // banco (SET LOCAL na TX do worker) em vez de um Promise.race em JS. Motivo: o
@@ -106,6 +107,18 @@ async function faturarAtendimento(ctx: {
   );
   const tz = tzRows[0]?.timezone ?? DEFAULT_TZ;
 
+  // ADR-051 1.5b.2 — dinheiro que já entrou por este atendimento (sinal pago
+  // antes de ele acontecer). Lê a PRÓPRIA tabela do Financial, nunca
+  // `patient_charges`: é isso que mantém o Caixa independente do modelo interno
+  // do Payments.
+  const creditos = await listAvailableCredits(tx, clinicId, payload.appointmentId);
+  const valorBruto = round2(payload.valor);
+  const { allocations, total: creditoAplicado } = allocateCreditsTo(
+    valorBruto,
+    creditos.map((c) => ({ id: c.id, amount: Number(c.amount) })),
+  );
+  const status = statusAoCriar(valorBruto, creditoAplicado);
+
   const [row] = await tx
     .insert(lancamentos)
     .values({
@@ -113,9 +126,16 @@ async function faturarAtendimento(ctx: {
       unitId: payload.unitId,
       tipo: 'receber',
       descricao: atendimentoDescricao(payload.snapshotProcedureName),
-      valor: round2(payload.valor).toFixed(2),
-      valorPago: '0',
-      status: 'pendente',
+      // BRUTO, sempre (invariante 3 do ADR-051). Criar o recebível líquido do
+      // sinal fecharia o saldo e apagaria a informação de que o atendimento
+      // faturou o valor cheio — faturamento e recebimento são coisas distintas.
+      valor: valorBruto.toFixed(2),
+      valorPago: creditoAplicado.toFixed(2),
+      status,
+      // O schema exige `paid_at` para todo lançamento já criado como pago.
+      // Isso ocorre quando os créditos recebidos antes do atendimento cobrem
+      // integralmente o valor bruto.
+      paidAt: status === 'pago' ? sql`now()` : null,
       dueDate: todayInTz(tz),
       patientId: payload.patientId,
       appointmentId: payload.appointmentId,
@@ -130,6 +150,39 @@ async function faturarAtendimento(ctx: {
     .returning({ id: lancamentos.id });
 
   if (!row) return; // já existia (UNIQUE appointment_id) ⇒ idempotente, não republica.
+
+  // Consome os créditos e deixa a baixa no ledger. Roda na MESMA transação do
+  // insert: se a alocação falhar, o lançamento cai junto — o oposto deixaria um
+  // recebível dizendo "R$ 100 pagos" com o crédito ainda `available`, livre para
+  // ser alocado de novo em outro lançamento.
+  for (const alloc of allocations) {
+    const [payment] = await tx
+      .insert(paymentTransactions)
+      .values({
+        clinicId,
+        lancamentoId: row.id,
+        kind: 'payment',
+        amount: alloc.amount.toFixed(2),
+        paymentMethod: creditos.find((c) => c.id === alloc.id)?.paymentMethod ?? null,
+        // `createdBy` nulo: quem deu a baixa foi o worker, não uma pessoa.
+      })
+      .returning({ id: paymentTransactions.id });
+    if (!payment) throw new Error(`ledger não registrou a baixa do crédito ${alloc.id}`);
+
+    const consumed = await allocateCredit(tx, {
+      clinicId,
+      creditId: alloc.id,
+      lancamentoId: row.id,
+      paymentTransactionId: payment.id,
+      amount: alloc.amount,
+    });
+    // Corrida: outra transação alocou primeiro. Sob `UNIQUE(appointment_id)` no
+    // lançamento isso não deveria ocorrer; se ocorrer, abortar é o certo — o
+    // `valorPago` já gravado ficaria sem lastro.
+    if (!consumed) {
+      throw new Error(`crédito ${alloc.id} não estava disponível ao alocar em ${row.id}`);
+    }
+  }
 
   // Resolve qualquer pendência aberta deste atendimento (recuperação de falha anterior).
   await tx

@@ -9,9 +9,12 @@
 import { env } from '@/lib/env';
 
 import type {
+  DepositLinkPayload,
   DunningPayload,
   FollowupPayload,
+  NoShowFollowupPayload,
   ReminderPayload,
+  RemainderLinkPayload,
   WaitlistOfferPayload,
 } from '../domain/types';
 import type { ProactiveJobType } from '../schema';
@@ -69,6 +72,21 @@ const moneyFmt = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 2,
 });
 
+/**
+ * O link é a razão de existir desta mensagem — sem ele não há o que enviar.
+ *
+ * Lança em vez de cair para string vazia: a Meta recusa variável vazia, mas o
+ * modo de falha ruim seria o oposto — a mensagem SAIR com "pague neste link:"
+ * seguido de nada, para um paciente que perde a consulta se não pagar.
+ */
+function requireInvoiceUrl(
+  type: 'deposit_link' | 'remainder_link',
+  url: string | undefined,
+): string {
+  if (!url) throw new Error(`[c14] ${type} exige invoiceUrl resolvido no send-time`);
+  return url;
+}
+
 // --- builders ----------------------------------------------------------------
 
 function envName(type: ProactiveJobType): string {
@@ -79,7 +97,13 @@ function envName(type: ProactiveJobType): string {
         ? env.META_TEMPLATE_DUNNING_FRIENDLY_ID
         : type === 'waitlist_offer'
           ? env.META_TEMPLATE_WAITLIST_OFFER_ID
-          : env.META_TEMPLATE_FOLLOWUP_RETURN_ID;
+          : type === 'followup'
+            ? env.META_TEMPLATE_FOLLOWUP_RETURN_ID
+            : type === 'no_show_followup'
+              ? env.META_TEMPLATE_NO_SHOW_FOLLOWUP_ID
+              : type === 'deposit_link'
+                ? env.META_TEMPLATE_DEPOSIT_LINK_ID
+                : env.META_TEMPLATE_REMAINDER_LINK_ID;
   if (!name) throw new TemplateNotConfiguredError(type);
   return name;
 }
@@ -90,9 +114,21 @@ function envName(type: ProactiveJobType): string {
  */
 export function buildProactiveTemplate(
   type: ProactiveJobType,
-  payload: ReminderPayload | DunningPayload | FollowupPayload | WaitlistOfferPayload,
+  payload:
+    | ReminderPayload
+    | DunningPayload
+    | FollowupPayload
+    | NoShowFollowupPayload
+    | WaitlistOfferPayload
+    | DepositLinkPayload
+    | RemainderLinkPayload,
   patientNome: string,
   tz: string,
+  /**
+   * 1.6a — o link do sinal. Resolvido no SEND-TIME e passado como argumento, e
+   * nao lido do payload: link de pagamento nao fica em repouso na fila.
+   */
+  extra?: { invoiceUrl?: string },
 ): ProactiveTemplate {
   const languageCode = env.META_TEMPLATE_LANG;
   const templateName = envName(type);
@@ -115,10 +151,34 @@ export function buildProactiveTemplate(
       horarioLocal(p.scheduledAt, tz),
       p.doctorNome ?? 'nossa equipe',
     ];
-  } else {
+  } else if (type === 'deposit_link') {
+    const p = payload as DepositLinkPayload;
+    // O prazo vai com DATA e hora, não só hora: o hold pode vencer amanhã, e
+    // "até as 14:00" num aviso recebido hoje diria a coisa errada. Prazo errado
+    // numa mensagem de pagamento é pior que prazo nenhum.
+    variables = [
+      patientNome,
+      moneyFmt.format(p.amount),
+      `${dataLocalBr(p.holdExpiresAt, tz)} às ${horarioLocal(p.holdExpiresAt, tz)}`,
+      requireInvoiceUrl(type, extra?.invoiceUrl),
+    ];
+  } else if (type === 'remainder_link') {
+    const p = payload as RemainderLinkPayload;
+    variables = [
+      patientNome,
+      moneyFmt.format(p.amount),
+      requireInvoiceUrl(type, extra?.invoiceUrl),
+    ];
+  } else if (type === 'followup') {
     const p = payload as FollowupPayload;
     // "Oi {nome}, Dr {nome} pediu retorno. Quer marcar pra essa semana?"
     variables = [patientNome, p.doctorNome ?? 'seu médico'];
+  } else if (type === 'no_show_followup') {
+    // `no_show_followup`: só o nome atual do contato; nenhum dado clínico ou financeiro.
+    variables = [patientNome];
+  } else {
+    const unsupported: never = type;
+    throw new TemplateNotConfiguredError(unsupported);
   }
 
   return { templateName, languageCode, variables };

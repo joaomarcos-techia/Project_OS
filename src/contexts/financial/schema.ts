@@ -35,6 +35,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   type AnyPgColumn,
@@ -67,6 +68,21 @@ export const paymentProofType = pgEnum('payment_proof_type', [
 ]);
 
 export const paymentTransactionKind = pgEnum('payment_transaction_kind', ['payment', 'refund']);
+
+export const patientCreditDisputeStatus = pgEnum('patient_credit_dispute_status', [
+  'requested',
+  'in_dispute',
+  'awaiting_reversal',
+  'reversed',
+  'lost',
+  'cash_undone',
+]);
+
+export const patientCreditAdjustmentKind = pgEnum('patient_credit_adjustment_kind', [
+  'excess_refund',
+  'chargeback_loss',
+  'cash_undone',
+]);
 
 export const pendenciaStatus = pgEnum('pendencia_status', ['aberta', 'resolvida']);
 
@@ -185,6 +201,105 @@ export const lancamentos = pgTable(
 export type LancamentoRow = typeof lancamentos.$inferSelect;
 export type LancamentoInsert = typeof lancamentos.$inferInsert;
 
+// --- patient_credits (ADR-051 1.5b.1) ------------------------------------
+
+export const patientCreditKind = pgEnum('patient_credit_kind', ['deposit', 'remaining_payment']);
+export const patientCreditStatus = pgEnum('patient_credit_status', [
+  'available',
+  'allocated',
+  'refunded',
+  'retained',
+]);
+
+/**
+ * Dinheiro do paciente que chegou ANTES de existir a obrigacao (ADR-051 D3).
+ *
+ * O sinal e pago quando o agendamento e marcado; o `lancamento` do atendimento
+ * so nasce quando ele e concluido. `payment_transactions` nao serve para isso —
+ * `lancamento_id` e NOT NULL, ou seja, baixa nao existe sem lancamento. O credito
+ * e a representacao do intervalo entre as duas coisas.
+ *
+ * Mora no FINANCIAL, e nao no Payments, porque e ele a fonte da verdade
+ * financeira: `patient_charges` descreve tentativas de cobranca num gateway,
+ * nao obrigacoes. E quem le os creditos no faturamento le a PROPRIA tabela —
+ * e isso que mantem o Financial independente do modelo interno do Payments.
+ *
+ * `patientChargeId` NAO tem FK de proposito: e chave de idempotencia opaca vinda
+ * de outro context (ver a migration 0088).
+ */
+export const patientCredits = pgTable(
+  'patient_credits',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    patientId: uuid('patient_id'),
+    appointmentId: uuid('appointment_id'),
+    patientChargeId: uuid('patient_charge_id').notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    allocatedAmount: numeric('allocated_amount', { precision: 12, scale: 2 })
+      .notNull()
+      .default('0'),
+    allocatedLancamentoId: uuid('allocated_lancamento_id').references(() => lancamentos.id, {
+      onDelete: 'set null',
+    }),
+    allocatedPaymentTransactionId: uuid('allocated_payment_transaction_id').references(
+      () => paymentTransactions.id,
+      { onDelete: 'restrict' },
+    ),
+    /** Parcela nunca aplicada e posteriormente devolvida/perdida no provider. */
+    unallocatedReversedAmount: numeric('unallocated_reversed_amount', {
+      precision: 12,
+      scale: 2,
+    })
+      .notNull()
+      .default('0'),
+    /** Parcela aplicada ao recebível e depois compensada no ledger. */
+    allocatedReversedAmount: numeric('allocated_reversed_amount', {
+      precision: 12,
+      scale: 2,
+    })
+      .notNull()
+      .default('0'),
+    disputeStatus: patientCreditDisputeStatus('dispute_status'),
+    kind: patientCreditKind('kind').notNull().default('deposit'),
+    status: patientCreditStatus('status').notNull().default('available'),
+    paymentMethod: text('payment_method').references(() => paymentMethods.code),
+    grantedAt: timestamp('granted_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({
+    clinicIdx: index('patient_credits_clinic_idx').on(t.clinicId),
+    availableAppointmentIdx: index('patient_credits_available_appointment_idx').on(t.appointmentId),
+    chargeUniq: uniqueIndex('patient_credits_charge_uniq').on(t.clinicId, t.patientChargeId),
+    amountChk: check('patient_credits_amount_chk', sql`${t.amount} > 0`),
+    allocatedChk: check(
+      'patient_credits_allocated_chk',
+      sql`${t.allocatedAmount} >= 0 AND ${t.allocatedAmount} <= ${t.amount}`,
+    ),
+    reversedChk: check(
+      'patient_credits_reversed_amounts_chk',
+      sql`${t.unallocatedReversedAmount} >= 0
+        AND ${t.allocatedReversedAmount} >= 0
+        AND ${t.unallocatedReversedAmount} <= ${t.amount} - ${t.allocatedAmount}
+        AND ${t.allocatedReversedAmount} <= ${t.allocatedAmount}`,
+    ),
+    allocatedPaymentIdx: uniqueIndex('patient_credits_allocated_payment_transaction_idx')
+      .on(t.allocatedPaymentTransactionId)
+      .where(sql`${t.allocatedPaymentTransactionId} is not null`),
+  }),
+);
+
+export type PatientCreditRow = typeof patientCredits.$inferSelect;
+export type PatientCreditInsert = typeof patientCredits.$inferInsert;
+
 // --- payment_transactions (ledger financeiro imutavel) -------------------
 
 export const paymentTransactions = pgTable(
@@ -232,6 +347,36 @@ export const paymentTransactions = pgTable(
 
 export type PaymentTransactionRow = typeof paymentTransactions.$inferSelect;
 export type PaymentTransactionInsert = typeof paymentTransactions.$inferInsert;
+
+// --- patient_credit_adjustments (D50/D27 append-only) ---------------------
+
+export const patientCreditAdjustments = pgTable(
+  'patient_credit_adjustments',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    patientCreditId: uuid('patient_credit_id')
+      .notNull()
+      .references(() => patientCredits.id, { onDelete: 'restrict' }),
+    /** Id opaco do Payments: correlação/idempotência, nunca navegação por FK. */
+    patientChargeId: uuid('patient_charge_id').notNull(),
+    kind: patientCreditAdjustmentKind('kind').notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    sourceEventId: uuid('source_event_id').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    creditIdx: index('patient_credit_adjustments_credit_idx').on(t.patientCreditId, t.occurredAt),
+    chargeIdx: index('patient_credit_adjustments_charge_idx').on(t.clinicId, t.patientChargeId),
+    sourceEventUniq: unique('patient_credit_adjustments_source_event_uniq').on(
+      t.clinicId,
+      t.sourceEventId,
+    ),
+  }),
+);
+
+export type PatientCreditAdjustmentRow = typeof patientCreditAdjustments.$inferSelect;
 
 // --- payment_proofs (comprovantes; append-only; preparado p/ OCR) ----------
 

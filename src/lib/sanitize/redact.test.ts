@@ -116,3 +116,23 @@ describe('redactOpaqueId', () => {
     expect(redactOpaqueId('short-id')).toBe('[REDACTED]');
   });
 });
+
+describe('credencial de pagamento (ADR-049)', () => {
+  it('redige a chave Asaas em qualquer das formas que ela trafega', () => {
+    const out = sanitizePayload({
+      apiKey: '$aact_chave_em_claro',
+      apiKeyEncrypted: 'CIPHERTEXT_BLOB',
+      apiKeyHash: 'HMAC_BLOB',
+      api_key_encrypted: 'CIPHERTEXT_SNAKE',
+      accountName: 'Clínica Exemplo',
+    });
+
+    const serialized = JSON.stringify(out);
+    expect(serialized).not.toContain('$aact_chave_em_claro');
+    expect(serialized).not.toContain('CIPHERTEXT_BLOB');
+    expect(serialized).not.toContain('HMAC_BLOB');
+    expect(serialized).not.toContain('CIPHERTEXT_SNAKE');
+    // Metadado não sensível continua legível — senão a auditoria perde utilidade.
+    expect(serialized).toContain('Clínica Exemplo');
+  });
+});

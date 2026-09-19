@@ -21,7 +21,7 @@ vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: transactionMock } }));
 vi.mock('@/lib/auth/supabase-admin', () => ({
   createAdminClient: () => ({ auth: { admin: { createUser: createUserMock } } }),
 }));
-vi.mock('@/contexts/billing/internal/providers/asaas', () => ({
+vi.mock('@/lib/payments/asaas', () => ({
   asaasProvider: provider,
   BillingProviderError: BillingProviderErrorMock,
   BillingProviderUnreachableError: class BillingProviderUnreachableError extends Error {},

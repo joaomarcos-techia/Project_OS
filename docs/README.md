@@ -1,67 +1,64 @@
-# Documentação do Qoro — porta de entrada
+# Documentação do ClinicaOS
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-23
->
-> 🎯 Teste de sucesso: *"uma pessoa nova entende o sistema e acha o que ler para uma tarefa, sem abrir os 100+ arquivos."*
+## Status
 
-> ⚙️ **Reestruturação em andamento (2026-07-23).** A base está sendo reorganizada em ondas. Alguns links
-> para `domains/`, `security/` e `operations/` só resolvem conforme as ondas avançam. Fonte da verdade
-> sobre o estado atual: **[CURRENT-STATE.md](./CURRENT-STATE.md)**.
+Canonical — índice da documentação atual.
 
----
+## Scope
 
-## O que é o Qoro
+Esta pasta descreve o código presente neste repositório. O nome técnico é **ClinicaOS**; a marca exibida no produto é **Qoro**. Evidência histórica não é usada como prova de estado atual.
 
-SaaS multi-tenant para clínicas pequenas (psicologia, nutrição, estética, consultórios): agenda,
-prontuário, consultório (kanban), financeiro, cobrança (você cobra as clínicas via Asaas) e um agente de
-IA que atende no WhatsApp. Arquitetura: **bounded contexts isolados** sobre Postgres/Supabase com **RLS**,
-single deploy no Vercel. Detalhe em [architecture/overview.md](./architecture/overview.md).
+## Ordem de autoridade
 
-## Como esta documentação funciona
+1. Código, migrations e configuração versionada.
+2. Testes e scripts executáveis.
+3. Documentos canônicos abaixo.
+4. Evidência histórica e intenção futura.
 
-| Você quer saber… | Vá para |
-|---|---|
-| **O que existe hoje** (estado atual) | [CURRENT-STATE.md](./CURRENT-STATE.md) |
-| **Por que foi decidido assim** (decisões) | [adr/](./adr/) + [adr/README.md](./adr/README.md) (índice de status) |
-| **Regras de código** (naming, imports, RLS, threat model) | [CONVENTIONS.md](./CONVENTIONS.md) |
-| **Qual doc vence num conflito** | [governance/authority.md](./governance/authority.md) |
+`IMPLEMENTADO` significa que há implementação no repositório. Não significa que migration, credencial, webhook, template ou deploy estejam ativos em produção.
 
-### Hierarquia de autoridade (resumo)
+## Leitura recomendada
 
-```
-Código/Banco/Testes  →  ADRs  →  CONVENTIONS  →  CURRENT-STATE/architecture/domains/security/operations  →  planning/  →  history/
-   (o que existe)     (decisão)   (regras)                (estado atual descrito)                          (futuro)   (passado)
-```
-Código diz **o que existe**; ADR diz **o que foi decidido**. Divergência entre eles se **classifica**,
-não se resolve automaticamente — ver [governance/authority.md](./governance/authority.md).
+1. [Estado atual](CURRENT-STATE.md)
+2. [Arquitetura](VisãoGeral.md)
+3. [Mapa de contexts](architecture/context-map.md)
+4. Documento do domínio a alterar
+5. [Testes e gates](development/testing.md)
 
-## Mapa por intenção — "o que ler para a tarefa X"
+## Fontes canônicas
 
-| Vou mexer em… | Leia (nesta ordem) |
-|---|---|
-| 🏛️ Arquitetura geral | [architecture/overview.md](./architecture/overview.md) · [architecture/context-map.md](./architecture/context-map.md) |
-| 🔐 Auth / identidade / sessão | `domains/identity.md` · ADR-008/032/037/038/039/040/041 |
-| 🏢 Multi-tenant / RLS | ADR-002/007/042/041 · [CONVENTIONS.md](./CONVENTIONS.md) (Threat Model) |
-| 💳 Billing / planos / cobrança | `domains/billing.md` · ADR-024/025 · [contracts/events/billing.md](./contracts/events/billing.md) |
-| 🗓️ Agenda / scheduling | `domains/scheduling.md` · ADR-014 |
-| 🩺 Prontuário / clínico / receituário | `domains/clinical.md` · ADR-012/013/017/021/044 |
-| 💬 WhatsApp / mensageria | `domains/messaging.md` · ADR-004/020/043 · [whatsapp-connection-flow.md](./whatsapp-connection-flow.md) |
-| 🤖 Agente de IA | `domains/ai-agent.md` · ADR-022/023/026/047 |
-| 🛠️ Platform Admin (`/admin`) | `domains/platform-admin.md` · ADR-028 |
-| 🔒 Segurança / LGPD / cripto | `security/` · ADR-012/030/044 |
-| 🚨 Operação / incidentes / observabilidade | `operations/` (runbooks + observability) |
-| 🧑‍💻 Rodar o projeto | [development/setup.md](./development/setup.md) · [development/environment.md](./development/environment.md) · [development/onboarding.md](./development/onboarding.md) |
-| 🌱 O que ainda **não** existe (planos) | `planning/` |
+| Assunto | Documento |
+| --- | --- |
+| Arquitetura e fluxos principais | [Visão geral](VisãoGeral.md) |
+| Bounded contexts e dependências | [Context map](architecture/context-map.md) |
+| Visão C4, grafos gerados e riscos | [C4](architecture/c4.md) e [riscos](architecture/risks.md) |
+| Achados adiados durante a execução | [Discovery log](discovery-log.md) |
+| Cobertura E2E: auditoria e matriz | [Auditoria E2E](quality/e2e-coverage-audit.md) e [matriz](quality/e2e-coverage-matrix.md) |
+| Inventário do implementado, com ADRs | [qorov2 §32](qorov2.md#32-inventário-do-implementado--mapa-com-adrs-14092026) |
+| Continuação em andamento e gaps da revisão | [qorov2 §35](qorov2.md#35-checkpoint-de-retomada--revisão-intermediária-de-14092026) e [prompt completo](prompts/retomada-qorov2-2026-09-15.md) |
+| Banco, migrations, pools e RLS | [Schema e tenancy](database/schema.md) |
+| Backend, APIs, crons e outbox | [HTTP, jobs e outbox](backend/http-jobs-outbox.md) |
+| Frontend, rotas e acesso | [Rotas e permissões](frontend/routes-and-access.md) |
+| Identidade e onboarding | [Onboarding](onboarding-spec.md) |
+| Pacientes, clínica e LGPD | [Paciente, clínico e LGPD](domains/patient-clinical-lgpd.md) |
+| Agenda e financeiro da clínica | [Scheduling e financial](domains/scheduling-financial.md) |
+| Agente e tools de IA | [Agente de IA](ai/agent.md) |
+| Planos, cobrança e acesso | [Billing](billing/subscriptions.md) |
+| Providers externos | [Integrações](integrations/providers.md) |
+| Autenticação, autorização e criptografia | [Modelo de segurança](security/model.md) |
+| Deploy, observabilidade e retenção | [Operações](operations/deployment-observability.md) |
+| Ambiente local | [Setup](development/setup.md) e [variáveis](development/environment.md) |
+| Processo de mudança | [Guia de decisão](engineering/decision-guide.md) e [Definition of Done](engineering/definition-of-done.md) |
+| Decisões arquiteturais vigentes | [Decisões](adr/README.md) |
+| Limitações e validações externas | [Limitações conhecidas](roadmap/known-limitations.md) |
+| Procedimentos operacionais | [Runbooks](runbooks/README.md) |
 
-## Processo de engenharia
+## Estados documentais
 
-[engineering/git-workflow.md](./engineering/git-workflow.md) · [decision-guide.md](./engineering/decision-guide.md)
-("isto precisa de ADR/migration/evento?") · [definition-of-done.md](./engineering/definition-of-done.md) ·
-[ai-development.md](./engineering/ai-development.md) (trabalhar com Claude Code + Documentação Automática).
+- `Canonical`: fonte documental principal do assunto.
+- `Reference`: complemento operacional; não redefine um documento canônico.
+- `Historical`: evidência datada; não descreve o presente.
+- `REQUIRES_MANUAL_VALIDATION`: não determinável apenas pelo repositório.
+- `NOT_IMPLEMENTED`: contrato, skeleton ou intenção sem comportamento funcional.
 
-## Governança da doc
-[governance/authority.md](./governance/authority.md) (quem vence) · [governance/lifecycle.md](./governance/lifecycle.md)
-(status, exclusão, fontes) · [governance/doc-audit.md](./governance/doc-audit.md) (inventário code-verified).
-
-## Convenção de ícones
-🔒 decisão permanente · 🔓 temporária · ⚠️ armadilha conhecida · 💡 insight de experiência · 📌 onde "o eu do futuro" tende a se ferrar.
+Documentos antigos redundantes foram removidos. O resumo do material histórico preservado está em [evidence snapshots](archive/evidence-snapshots.md); versões completas continuam recuperáveis pelo Git.

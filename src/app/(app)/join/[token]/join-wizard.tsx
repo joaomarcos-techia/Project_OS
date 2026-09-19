@@ -23,6 +23,8 @@ import {
   type JoinStepState,
 } from './actions';
 
+import { TurnstileWidget } from '@/components/shared/turnstile-widget';
+
 type View = 'welcome' | OnboardingStep | 'processing' | 'done';
 const INITIAL: JoinStepState = { error: null };
 const STEPS: OnboardingStep[] = ['clinic', 'owner', 'plan', 'checkout'];
@@ -704,9 +706,16 @@ function StepCheckout({
   const [state, action, pending] = useActionState(submitCheckoutAction, {
     error: null,
   } as CheckoutState);
+  // Token de uso único: cada tentativa de ativação precisa de um novo. Cartão
+  // recusado é o caso comum de reenvio, e sem o reset a segunda tentativa
+  // falharia por captcha em vez de dizer o que houve com o cartão.
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   useEffect(() => {
     if (state.ok) onActivated();
   }, [state.ok, onActivated]);
+  useEffect(() => {
+    if (state.error) setCaptchaAttempt((n) => n + 1);
+  }, [state.error]);
   // Senha vive só no cliente; em retomada (outra aba/sessão) o estado some → pede de novo.
   const needsPassword = !ownerPassword;
   const mt = { marginTop: 'var(--sp-5)' };
@@ -926,6 +935,10 @@ function StepCheckout({
               </div>
             </div>
           </div>
+
+          {/* O token gasto aqui é o do auto-login pós-checkout: o
+              provisionamento usa a service role e não passa por captcha. */}
+          <TurnstileWidget action="checkout" resetSignal={captchaAttempt} />
 
           {state.error && !state.cardError ? (
             <p style={{ color: 'var(--danger-600)', fontSize: 13, marginTop: 10 }}>{state.error}</p>

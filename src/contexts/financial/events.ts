@@ -22,6 +22,8 @@ export const FINANCIAL_EVENTS = {
   LANCAMENTO_CANCELLED: 'financial.lancamento.cancelled',
   LANCAMENTO_ESTORNADO: 'financial.lancamento.estornado',
   FATURAMENTO_PENDENTE: 'financial.faturamento.pendente',
+  /** D50: o valor recebido excedeu o saldo e deve voltar ao paciente. */
+  EXCESS_REFUND_REQUESTED: 'financial.patient_refund.requested',
 } as const;
 
 const uuid = z.string().uuid();
@@ -84,8 +86,19 @@ export const FaturamentoPendenteSchema = z.object({
 });
 export type FaturamentoPendentePayload = z.infer<typeof FaturamentoPendenteSchema>;
 
+// --- patient_refund.requested (D50) ---------------------------------------
+export const ExcessRefundRequestedSchema = z.object({
+  clinicId: uuid,
+  appointmentId: uuid,
+  chargeId: uuid,
+  amount: z.number().positive(),
+  requestedAt: z.string().datetime(),
+});
+export type ExcessRefundRequestedPayload = z.infer<typeof ExcessRefundRequestedSchema>;
+
 registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_CREATED, LancamentoCreatedSchema);
 registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_PAID, LancamentoPaidSchema);
 registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_CANCELLED, LancamentoCancelledSchema);
 registerEventSchema(FINANCIAL_EVENTS.LANCAMENTO_ESTORNADO, LancamentoEstornadoSchema);
 registerEventSchema(FINANCIAL_EVENTS.FATURAMENTO_PENDENTE, FaturamentoPendenteSchema);
+registerEventSchema(FINANCIAL_EVENTS.EXCESS_REFUND_REQUESTED, ExcessRefundRequestedSchema);

@@ -19,7 +19,6 @@ import { messagingApiV1 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
 import { decryptForTenant, hashForLookup, normalizePhone } from '@/lib/crypto';
-import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { maskPhone } from '@/lib/format';
 import { metrics } from '@/lib/observability/metrics';
@@ -84,10 +83,7 @@ export interface PendingHandoff {
  * `resolvedAt IS NULL` é o mesmo predicado do dedup da fila: uma linha aberta é
  * exatamente uma espera não atendida.
  */
-export async function listOpenHandoffs(
-  clinicId: string,
-  limit = 20,
-): Promise<PendingHandoff[]> {
+export async function listOpenHandoffs(clinicId: string, limit = 20): Promise<PendingHandoff[]> {
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
       .select({
@@ -104,6 +100,34 @@ export async function listOpenHandoffs(
       createdAt: r.createdAt.toISOString(),
       priority: r.priority,
     }));
+  });
+}
+
+/** Pulso da fila de handoff para o alerta do Dashboard. */
+export interface HandoffPulse {
+  /** Conversas esperando um humano agora. */
+  abertos: number;
+  /** Subconjunto de `abertos` cujo `dueAt` já passou (SLA vencido). */
+  vencidos: number;
+}
+
+/**
+ * Contagem da fila de handoff — dois inteiros, nada mais.
+ *
+ * Existe separada de `listOpenHandoffs` porque o alerta precisa do `dueAt` para
+ * saber o que venceu, e carregar linhas só para contá-las no Node desperdiça
+ * banda a cada render do Dashboard. Continua sem PII, pelo mesmo motivo.
+ */
+export async function countOpenHandoffs(clinicId: string): Promise<HandoffPulse> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({
+        abertos: sql<number>`count(*)::int`,
+        vencidos: sql<number>`count(*) filter (where ${aiHandoffQueue.dueAt} < now())::int`,
+      })
+      .from(aiHandoffQueue)
+      .where(and(eq(aiHandoffQueue.clinicId, clinicId), isNull(aiHandoffQueue.resolvedAt)));
+    return { abertos: row?.abertos ?? 0, vencidos: row?.vencidos ?? 0 };
   });
 }
 
@@ -216,12 +240,32 @@ export async function listConversations(
       (earliest, row) => (!earliest || row.startedAt < earliest ? row.startedAt : earliest),
       null,
     );
-    const latestMessages =
+    // UMA varredura em `ai_messages`, não duas.
+    //
+    // Eram dois `DISTINCT ON` sobre a mesma tabela particionada, com o mesmo
+    // predicado, um esperando o outro: a última mensagem (preview) e o último
+    // INBOUND (janela da Meta). Numa transação isso custa dois tempos — uma
+    // transação é UMA conexão, e o Postgres atende um statement por vez.
+    //
+    // A janela da Meta continua contando do último INBOUND, não da última
+    // mensagem (responder não reabre nada): o `FILTER` faz essa distinção dentro
+    // da mesma passada. Combinar é legítimo porque funções de janela são
+    // avaliadas ANTES do DISTINCT ON — a janela enxerga todas as linhas da
+    // conversa, e só depois o DISTINCT ON escolhe a mais recente.
+    const resumoPorConversa =
       conversationIds.length > 0 && earliestConversationStart
         ? await tx
             .selectDistinctOn([aiMessages.conversationId], {
               conversationId: aiMessages.conversationId,
               contentEncrypted: aiMessages.contentEncrypted,
+              // EPOCH, não o timestamp cru: numa coluna CALCULADA o driver não
+              // aplica o mapeamento de tipo que aplicaria numa coluna conhecida,
+              // e o valor chegava como string — `isWindowOpen` quebrava com
+              // "lastInboundAt.getTime is not a function". Milissegundos desde a
+              // época não têm ambiguidade de fuso nem de formato.
+              lastInboundEpochMs: sql<
+                string | null
+              >`extract(epoch from max(${aiMessages.createdAt}) FILTER (WHERE ${aiMessages.direction} = 'in') OVER (PARTITION BY ${aiMessages.conversationId})) * 1000`,
             })
             .from(aiMessages)
             .where(
@@ -236,26 +280,34 @@ export async function listConversations(
             .orderBy(aiMessages.conversationId, desc(aiMessages.createdAt))
         : [];
     const lastMessageByConversation = new Map(
-      latestMessages.map((message) => [message.conversationId, message.contentEncrypted]),
+      resumoPorConversa.map((message) => [message.conversationId, message.contentEncrypted]),
     );
+    const lastInboundByConversation = new Map(
+      resumoPorConversa.map((message) => [
+        message.conversationId,
+        message.lastInboundEpochMs == null ? null : new Date(Number(message.lastInboundEpochMs)),
+      ]),
+    );
+    const agora = new Date();
 
     const items = await Promise.all(
       rows.map(async (r): Promise<AIConversationListItem> => {
         const nome = r.patientName ?? null;
+        const contactPhone = await decryptForTenant(clinicId, r.patientPhoneEncrypted);
         const lastMessage = lastMessageByConversation.get(r.id);
         return {
           id: r.id,
           patientDisplayName: nome,
-          // Telefone só aparece quando não há nome, e SEMPRE mascarado.
-          maskedPhone: nome
-            ? null
-            : maskPhone(await decryptForTenant(clinicId, r.patientPhoneEncrypted)),
+          // Preserva o fallback mascarado; a UI autorizada usa o contato separado.
+          maskedPhone: nome ? null : maskPhone(contactPhone),
+          contactPhone: contactPhone || null,
           lastMessagePreview: lastMessage
             ? preview(await decryptForTenant(clinicId, lastMessage))
             : null,
           status: r.status,
           lastMessageAt: toIso(r.lastMessageAt)!,
           intentAtual: r.intentAtual,
+          windowOpen: isWindowOpen(lastInboundByConversation.get(r.id) ?? null, agora),
           handoff:
             r.status === 'handoff' && r.handoffDueAt && r.handoffPriority
               ? {
@@ -307,15 +359,6 @@ function partitionScopedConversation(
   )!;
 }
 
-async function getPatientName(tx: Tx, clinicId: string, patientId: string): Promise<string | null> {
-  const [row] = await tx
-    .select({ nome: patients.nome })
-    .from(patients)
-    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
-    .limit(1);
-  return row?.nome ?? null;
-}
-
 /**
  * Thread completa, decifrada, em ordem cronológica. `null` quando a conversa não
  * existe OU pertence a outra clínica (RLS já não a devolve — o null não
@@ -326,17 +369,36 @@ export async function getConversationThread(
   conversationId: string,
 ): Promise<AIConversationThread | null> {
   return withTenant(clinicId, async (tx) => {
+    // TRÊS queries, não cinco. A fila de handoff e o nome do paciente saíam de
+    // SELECTs próprios, cada um esperando o anterior — e a listagem ao lado já
+    // resolvia os dois por LEFT JOIN. Aqui é o mesmo JOIN, pelo mesmo motivo.
     const [conv] = await tx
       .select({
         id: aiConversations.id,
         patientId: aiConversations.patientId,
+        patientName: patients.nome,
         patientPhoneEncrypted: aiConversations.patientPhoneEncrypted,
         status: aiConversations.status,
         intentAtual: aiConversations.intentAtual,
         startedAt: aiConversations.startedAt,
         lastMessageAt: aiConversations.lastMessageAt,
+        assignedToUserId: aiHandoffQueue.assignedTo,
+        handoffPriority: aiHandoffQueue.priority,
+        handoffDueAt: aiHandoffQueue.dueAt,
       })
       .from(aiConversations)
+      .leftJoin(
+        aiHandoffQueue,
+        and(
+          eq(aiHandoffQueue.clinicId, clinicId),
+          eq(aiHandoffQueue.conversationId, aiConversations.id),
+          isNull(aiHandoffQueue.resolvedAt),
+        ),
+      )
+      .leftJoin(
+        patients,
+        and(eq(patients.id, aiConversations.patientId), eq(patients.clinicId, clinicId)),
+      )
       .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)))
       .limit(1);
     if (!conv) return null;
@@ -360,24 +422,17 @@ export async function getConversationThread(
       .orderBy(aiMessages.createdAt)
       .limit(MAX_THREAD_MESSAGES);
 
-    const [handoffRow] =
-      conv.status === 'handoff'
-        ? await tx
-            .select({
-              assignedToUserId: aiHandoffQueue.assignedTo,
-              priority: aiHandoffQueue.priority,
-              dueAt: aiHandoffQueue.dueAt,
-            })
-            .from(aiHandoffQueue)
-            .where(
-              and(
-                eq(aiHandoffQueue.clinicId, clinicId),
-                eq(aiHandoffQueue.conversationId, conversationId),
-                isNull(aiHandoffQueue.resolvedAt),
-              ),
-            )
-            .limit(1)
-        : [];
+    // Mesma condição de antes, agora sobre o que o JOIN trouxe: só conversa em
+    // `handoff` expõe a fila, e a linha precisa existir — o LEFT JOIN devolve
+    // nulos quando ela já foi resolvida.
+    const handoffRow =
+      conv.status === 'handoff' && conv.handoffDueAt && conv.handoffPriority
+        ? {
+            assignedToUserId: conv.assignedToUserId,
+            priority: conv.handoffPriority,
+            dueAt: conv.handoffDueAt,
+          }
+        : null;
 
     // Estado de entrega só das mensagens humanas — as do agente já foram
     // enviadas de forma síncrona no próprio turno.
@@ -411,7 +466,8 @@ export async function getConversationThread(
 
     const lastInboundAt = [...rows].reverse().find((r) => r.direction === 'in')?.createdAt ?? null;
     const now = new Date();
-    const nome = conv.patientId ? await getPatientName(tx, clinicId, conv.patientId) : null;
+    const nome = conv.patientName ?? null;
+    const contactPhone = await decryptForTenant(clinicId, conv.patientPhoneEncrypted);
 
     metrics.emit('ai_agent.conversation.opened', {
       clinicId,
@@ -423,7 +479,8 @@ export async function getConversationThread(
     return {
       id: conv.id,
       patientDisplayName: nome,
-      maskedPhone: maskPhone(await decryptForTenant(clinicId, conv.patientPhoneEncrypted)),
+      maskedPhone: maskPhone(contactPhone),
+      contactPhone: contactPhone || null,
       status: conv.status,
       intentAtual: conv.intentAtual,
       startedAt: toIso(conv.startedAt)!,

@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { cn } from '@/lib/ui/cn';
 
 const btn = cn(
-  'inline-flex h-7.5 min-w-7.5 items-center justify-center rounded-(--r-sm) px-2 text-(length:--fs-sm) tabular-nums',
-  'text-fg-muted transition-all duration-(--dur-fast) hover:bg-surface-hover hover:text-fg',
+  'inline-flex h-(--hit-target) min-w-(--hit-target) items-center justify-center rounded-(--r-sm) px-2 text-(length:--fs-sm) tabular-nums',
+  'text-fg-muted transition-[background-color,color] duration-(--dur-fast) hover:bg-surface-hover hover:text-fg',
 );
 
 /**
@@ -36,7 +36,7 @@ export function TablePager({
   }
 
   return (
-    <nav aria-label="Paginação" className={cn('inline-flex gap-0.75', className)}>
+    <nav aria-label="Paginação" className={cn('inline-flex gap-1', className)}>
       {page > 1 ? (
         <Link href={hrefFor(page - 1)} aria-label="Página anterior" className={btn}>
           <ChevronLeft className="size-4" />

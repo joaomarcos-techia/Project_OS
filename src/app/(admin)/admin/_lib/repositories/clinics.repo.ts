@@ -6,7 +6,20 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 
 import { aiConversations, aiMessages } from '@/contexts/ai-agent/schema';
 import {
@@ -18,6 +31,7 @@ import {
 } from '@/contexts/billing/schema';
 import { profiles } from '@/contexts/identity/schema';
 import { clinicWhatsappNumbers } from '@/contexts/messaging/schema';
+import { signupSessions } from '@/contexts/onboarding/schema';
 import { clinics } from '@/contexts/tenancy/schema';
 import { decryptForTenant } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
@@ -28,6 +42,7 @@ import type {
   ClinicDetailDTO,
   ClinicListItemDTO,
   ClinicListResultDTO,
+  SignupIntakeDTO,
 } from '../dto';
 import { toCents } from '../format';
 
@@ -137,6 +152,68 @@ export class ClinicRepository {
       )
       .orderBy(desc(clinics.createdAt))
       .limit(limit);
+  }
+
+  /** Respostas declaradas nos cadastros autônomos ainda ativos, sem e-mail ou hashes. */
+  async listSignupIntakes(limit = 8): Promise<SignupIntakeDTO[]> {
+    const rows = await dbAdmin
+      .select({
+        id: signupSessions.id,
+        clinicName: signupSessions.clinicName,
+        status: signupSessions.status,
+        professionalsBand: signupSessions.professionalsBand,
+        weeklyAppointmentsBand: signupSessions.weeklyAppointmentsBand,
+        currentTooling: signupSessions.currentTooling,
+        discoverySource: signupSessions.discoverySource,
+        planCode: plans.code,
+        updatedAt: signupSessions.updatedAt,
+      })
+      .from(signupSessions)
+      .leftJoin(plans, eq(plans.id, signupSessions.selectedPlanId))
+      .where(
+        and(
+          isNotNull(signupSessions.answeredAt),
+          isNotNull(signupSessions.professionalsBand),
+          isNotNull(signupSessions.weeklyAppointmentsBand),
+          isNotNull(signupSessions.currentTooling),
+          isNotNull(signupSessions.discoverySource),
+          inArray(signupSessions.status, [
+            'details_complete',
+            'identity_pending',
+            'email_pending',
+            'email_verified',
+          ]),
+          gt(signupSessions.absoluteExpiresAt, sql`now()`),
+        ),
+      )
+      .orderBy(desc(signupSessions.updatedAt))
+      .limit(Math.min(Math.max(limit, 1), 20));
+
+    return rows.map((row) => {
+      if (
+        !row.professionalsBand ||
+        !row.weeklyAppointmentsBand ||
+        !row.currentTooling ||
+        !row.discoverySource
+      ) {
+        throw new Error('[admin] signup_intake_answers_missing');
+      }
+
+      const updatedAt = iso(row.updatedAt);
+      if (!updatedAt) throw new Error('[admin] signup_intake_updated_at_missing');
+
+      return {
+        id: row.id,
+        clinicName: row.clinicName,
+        status: row.status,
+        professionalsBand: row.professionalsBand,
+        weeklyAppointmentsBand: row.weeklyAppointmentsBand,
+        currentTooling: row.currentTooling,
+        discoverySource: row.discoverySource,
+        planCode: row.planCode ?? null,
+        updatedAt,
+      };
+    });
   }
 
   /** Opções (id+nome) para selects de filtro (conversas/audit). Bounded. */

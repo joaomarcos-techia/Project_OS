@@ -12,7 +12,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type * as AsaasProviderModule from '@/contexts/billing/internal/providers/asaas';
+import type * as AsaasProviderModule from '@/lib/payments/asaas';
 
 const { transactionMock, getPayment, validateWebhookToken, emit } = vi.hoisted(() => ({
   transactionMock: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('@/lib/env', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   assertBillingWebhookReady: () => {},
 }));
-vi.mock('@/contexts/billing/internal/providers/asaas', async (orig) => {
+vi.mock('@/lib/payments/asaas', async (orig) => {
   const actual = await orig<typeof AsaasProviderModule>();
   return {
     ...actual,
@@ -74,7 +74,7 @@ import {
   markInvoiceRefunded,
   syncInvoiceFromProviderPayment,
 } from '@/contexts/billing/internal/subscriptions';
-import { BillingProviderError } from '@/contexts/billing/internal/providers/asaas';
+import { BillingProviderError } from '@/lib/payments/asaas';
 
 import { POST } from './route';
 
@@ -87,6 +87,7 @@ const PAYMENT = {
   subscriptionId: 'sub_1',
   billingType: 'PIX',
   externalReference: null,
+  deleted: false,
 };
 
 /** tx falso com dedup real: o 1º insert de um eventId ganha, os seguintes perdem. */
@@ -134,6 +135,37 @@ describe('token', () => {
     expect(res.status).toBe(401);
     expect(getPayment).not.toHaveBeenCalled();
   });
+});
+
+describe('stream size guard', () => {
+  it.each([undefined, '1', 'invalid'])(
+    'caps a stream with content-length %s before auth or provider calls',
+    async (contentLength) => {
+      const cancel = vi.fn();
+      let chunks = 0;
+      const pull = vi.fn((controller: ReadableStreamDefaultController<Uint8Array>) => {
+        controller.enqueue(new Uint8Array(600_000));
+        if (++chunks === 4) controller.close();
+      });
+      const body = new ReadableStream<Uint8Array>({ pull, cancel }, { highWaterMark: 0 });
+      const headers = new Headers();
+      if (contentLength !== undefined) headers.set('content-length', contentLength);
+      const init: RequestInit & { duplex: 'half' } = {
+        method: 'POST',
+        headers,
+        body,
+        duplex: 'half',
+      };
+      const response = await POST(new Request('http://localhost/api/webhooks/asaas', init));
+
+      expect(response.status).toBe(413);
+      expect(pull).toHaveBeenCalledTimes(2);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(validateWebhookToken).not.toHaveBeenCalled();
+      expect(getPayment).not.toHaveBeenCalled();
+      expect(transactionMock).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('dedup key (A2)', () => {
@@ -344,6 +376,76 @@ describe('BILLING-002 — update e delete do painel', () => {
     // Delete NUNCA vira estorno.
     expect(markInvoiceRefunded).not.toHaveBeenCalled();
     expect(markInvoicePaid).not.toHaveBeenCalled();
+  });
+
+  it('PAYMENT_DELETED com 200 + deleted:true também cancela a invoice', async () => {
+    // Contrato real do Asaas: cobrança removida preserva o status antigo e
+    // responde 200. Ignorar `deleted` deixaria a invoice aberta para sempre.
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'PENDING', deleted: true });
+
+    const res = await post({
+      id: 'evt_del_200',
+      event: 'PAYMENT_DELETED',
+      payment: { id: 'pay_1' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(ensureInvoiceForPayment).not.toHaveBeenCalled();
+    const [, , , provider, opts] = vi.mocked(syncInvoiceFromProviderPayment).mock.calls[0]!;
+    expect(provider).toEqual({ exists: false });
+    expect(opts).toMatchObject({ providerConfirmedMissing: true });
+    expect(markInvoiceRefunded).not.toHaveBeenCalled();
+  });
+
+  it('PAYMENT_RESTORED consulta o estado atual e envia cobrança viva ao sincronizador', async () => {
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'PENDING', deleted: false });
+
+    const res = await post({
+      id: 'evt_restore',
+      event: 'PAYMENT_RESTORED',
+      payment: { id: 'pay_1' },
+    });
+
+    expect(res.status).toBe(200);
+    const [, , , provider] = vi.mocked(syncInvoiceFromProviderPayment).mock.calls[0]!;
+    expect(provider).toMatchObject({ exists: true, status: 'open' });
+  });
+
+  it('PAYMENT_RESTORED fora de ordem já pago segue até markInvoicePaid', async () => {
+    vi.mocked(syncInvoiceFromProviderPayment).mockResolvedValueOnce({
+      action: { kind: 'restore', status: 'open', amountChanged: false },
+      invoice: {
+        id: 'inv-1',
+        clinicId: 'clinic-1',
+        status: 'open',
+        dueDate: '2026-08-24',
+        totalAmount: '199.00',
+      },
+    } as never);
+    getPayment.mockResolvedValue({ ...PAYMENT, status: 'RECEIVED', deleted: false });
+
+    const res = await post({
+      id: 'evt_restore_paid',
+      event: 'PAYMENT_RESTORED',
+      payment: { id: 'pay_1' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(markInvoicePaid).toHaveBeenCalledWith(
+      expect.anything(),
+      'clinic-1',
+      expect.objectContaining({ status: 'open' }),
+      expect.objectContaining({ idemSuffix: 'evt_restore_paid' }),
+    );
+  });
+
+  it('replay de PAYMENT_RESTORED é deduplicado antes da segunda transição', async () => {
+    const body = { id: 'evt_restore_dup', event: 'PAYMENT_RESTORED', payment: { id: 'pay_1' } };
+
+    await post(body);
+    await post(body);
+
+    expect(syncInvoiceFromProviderPayment).toHaveBeenCalledTimes(1);
   });
 
   it('404 em evento que NÃO alega remoção continua sendo 500 (anomalia)', async () => {

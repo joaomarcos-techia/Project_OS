@@ -1,0 +1,94 @@
+/* Referencia: tres SECOES em cartao branco, larguras fixas nas laterais e o
+   atendimento levando a folga. Antes eram colunas soltas com um sublinhado, e
+   a do meio — que e o coracao da tela — nao se distinguia do fundo. */
+.board {
+  display: grid;
+  grid-template-columns: 296px minmax(0, 1fr) 320px;
+  align-items: stretch;
+  gap: 14px;
+  min-width: 0;
+  /* Altura da janela (ver `main[data-page-layout='workspace']` em globals.css):
+     as três colunas do turno ficam visíveis juntas e cada uma rola sozinha. */
+  min-height: 0;
+}
+.board > section > :last-child {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+.board > section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.columnTitle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+/* Corpo da fila: a referencia respira 12px e separa os cartoes por 10px. */
+.waiting > div:not(.columnTitle) {
+  padding: 12px;
+  gap: 10px;
+}
+/* Atendimento e finalizadas sangram ate a borda — cabecalho, barra do
+   prontuario e linhas ja trazem o proprio respiro. */
+.attending > *:not(.columnTitle),
+.finished > *:not(.columnTitle) {
+  min-width: 0;
+}
+.attending :global([data-slot='attending-panel']) {
+  gap: 12px;
+}
+.attending :global([data-slot='attending-panel']) > div {
+  box-shadow: none;
+}
+.attending :global([data-slot='attending-panel']) > div:first-child {
+  border-color: var(--primary);
+}
+.waiting :global([data-slot='waiting-card']) {
+  box-shadow: none;
+  border-left-width: 3px;
+}
+.waiting :global([data-slot='waiting-card']) p {
+  white-space: normal;
+}
+.finished ul {
+  gap: 0;
+}
+.finished li + li {
+  border-top: 1px solid var(--border);
+}
+.finished li button {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+@media (max-width: 1279px) {
+  .board {
+    grid-template-columns: 264px minmax(0, 1fr);
+  }
+  .finished {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 767px) {
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .attending {
+    grid-row: 1;
+  }
+  .finished {
+    grid-column: auto;
+  }
+}

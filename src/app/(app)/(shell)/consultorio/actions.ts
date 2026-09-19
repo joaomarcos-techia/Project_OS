@@ -16,7 +16,7 @@ import {
   createProntuario,
   signProntuario,
 } from '@/contexts/clinical/actions';
-import { getProntuarioByAppointment } from '@/contexts/clinical/queries';
+import { readProntuarioAudited } from '@/contexts/clinical/prontuario-access';
 import type {
   CreateMedicalDocumentInput,
   CreatePrescriptionInput,
@@ -192,7 +192,9 @@ export async function loadAtendimento(
 
     const [cards, existing] = await Promise.all([
       appt.patientId ? listPatientCards(clinicId, [appt.patientId]) : Promise.resolve([]),
-      getProntuarioByAppointment(clinicId, appointmentId),
+      // LGPD (peso 5): o painel decifra o SOAP; a leitura grava
+      // `clinical.prontuario.viewed` na mesma tx (ver prontuario-access.ts).
+      readProntuarioAudited(clinicId, 'consultorio_atendimento', { appointmentId }),
     ]);
     const card = cards[0];
     let prontuario: ProntuarioDetail | null = existing;

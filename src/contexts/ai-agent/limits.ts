@@ -106,3 +106,30 @@ export const COALESCE_MAX_MESSAGES = 4;
  * é assunto anterior que ficou para trás, e merece o próprio turno.
  */
 export const COALESCE_MAX_AGE_MS = 90_000;
+
+/**
+ * Teto de custo do agente por clínica, em USD, dentro de
+ * `AI_COST_WINDOW_MINUTES` (auditoria 2026-09-10, item 11). Aplicado por
+ * `checkQuota` ANTES de qualquer chamada ao provider.
+ *
+ * Aritmética que sustenta o número, para que ele seja discutível em vez de
+ * arbitrário. Preço congelado de gemini-2.5-flash (`AI_PRICE_TABLE_USD_PER_1M`):
+ * $0,30/1M de entrada e $2,50/1M de saída. Um turno típico do agente monta
+ * prompt de ~3.000 tokens e responde ~300 → ~$0,0009 + ~$0,00075 ≈ **$0,0017**.
+ * Com US$ 1,00 por hora, o teto só é alcançado por volta de **~600 turnos na
+ * mesma clínica em 60 minutos** — ordem de grandeza que nenhuma recepção
+ * humana produz por WhatsApp, e que caracteriza loop de integração,
+ * reprocessamento em rajada ou abuso.
+ *
+ * O objetivo NÃO é economizar em uso legítimo: é ter um piso de dano quando
+ * algo entra em loop às 3h. Se o modelo, o preço ou o tamanho do prompt
+ * mudarem, esta conta muda junto — e é por isso que ela está escrita aqui.
+ */
+export const MAX_AI_COST_USD_PER_CLINIC_WINDOW = 1.0;
+
+/**
+ * Janela deslizante do teto acima, em minutos. Uma hora é curta o bastante
+ * para conter o estrago de um loop e longa o bastante para não punir um pico
+ * legítimo de mensagens (mutirão, retorno de feriado).
+ */
+export const AI_COST_WINDOW_MINUTES = 60;

@@ -16,7 +16,7 @@ export function NovoProntuarioButton({ patientId }: { patientId: string }) {
     <form action={action}>
       <input type="hidden" name="patientId" value={patientId} />
       <input type="hidden" name="idempotencyKey" value={key} />
-      <Button type="submit" size="sm" loading={pending}>
+      <Button type="submit" size="sm" className="min-h-(--hit-target)" loading={pending}>
         Novo prontuário
       </Button>
       {state.error ? <p className="mt-1 text-sm text-danger-600">{state.error}</p> : null}

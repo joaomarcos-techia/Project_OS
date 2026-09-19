@@ -1,0 +1,239 @@
+/**
+ * O-6 — provisionamento do tenant a partir do cadastro autônomo. SERVER-ONLY.
+ *
+ * O que garante "tenant nasce uma única vez" aqui não é uma flag: é o
+ * `DELETE ... RETURNING` da própria `signup_sessions`, dentro da mesma transação
+ * que cria a clínica. Duas abas disputando serializam no `FOR UPDATE`; a
+ * perdedora encontra a linha já removida e não chega nem a inserir. Não há
+ * estado "provisionando" para ficar preso, e não há migration nova: a sessão de
+ * cadastro é efêmera por construção e seu fim natural é desaparecer.
+ *
+ * Efeito colateral bem-vindo: apagar a linha apaga também `owner_name`,
+ * `clinic_name` e `email_hash`. A PII do funil não sobrevive ao provisionamento.
+ *
+ * Nada aqui vem do browser. `clinic_id`, papel, plano, preço e slug são
+ * decididos no servidor; a única entrada é o `userId` verificado de `getUser()`.
+ */
+import 'server-only';
+
+import { randomBytes } from 'node:crypto';
+
+import { and, eq, gt, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { z } from 'zod';
+
+/* eslint-disable boundaries/element-types -- O-6 orquestra tenancy+billing a
+   partir do cadastro pré-tenant, como a saga de convite (ADR-027 autoriza). */
+import { plans, prices } from '@/contexts/billing/schema';
+import { clinics, reservedSlugs } from '@/contexts/tenancy/schema';
+/* eslint-enable boundaries/element-types */
+import { signupSessions } from '@/contexts/onboarding/schema';
+import { dbAdmin, type Tx } from '@/lib/db';
+import { env } from '@/lib/env';
+import { metrics } from '@/lib/observability/metrics';
+
+import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
+import { OnboardingProvisionError, provisionTenantCoreTx } from './saga';
+
+const userIdSchema = z.string().uuid();
+
+/** Contrato do banco: `^[a-z0-9-]{3,30}$` (clinics_slug_format, migration 0001). */
+const SLUG_MIN = 3;
+const SLUG_MAX = 30;
+const SLUG_ATTEMPTS = 12;
+
+export type ProvisionSignupOutcome =
+  | { ok: true; clinicId: string }
+  | {
+      ok: false;
+      reason: 'gone' | 'not_paid' | 'no_plan' | 'invalid_plan' | 'slug_unavailable' | 'unavailable';
+    };
+
+/** Candidato a partir do nome; a unicidade e os reservados são resolvidos depois. */
+export function slugifyClinicName(nome: string): string {
+  return nome
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '')
+    .slice(0, SLUG_MAX)
+    .replace(/-+$/gu, '');
+}
+
+/**
+ * Resolve um slug livre dentro da transação.
+ *
+ * Três coisas dão errado com nome escolhido por quem se cadastra, e todas são
+ * tratadas aqui em vez de virarem violação de constraint:
+ *   - nome que vira slug curto demais ("Dr. A") ou vazio ("+++");
+ *   - nome que colide com clínica existente;
+ *   - nome que bate num subdomínio reservado da plataforma ("admin", "api").
+ *
+ * A checagem roda em `share` sobre `_reserved_slugs` e consulta `clinics` na
+ * mesma transação; a corrida final continua protegida pelo UNIQUE do banco.
+ */
+async function resolveAvailableSlug(tx: Tx, clinicName: string): Promise<string | null> {
+  const base = slugifyClinicName(clinicName);
+  // Base curta demais não é erro do usuário: é um nome legítimo que não vira
+  // subdomínio. Cai direto para o sufixo aleatório, sem tentar o inválido.
+  const seed = base.length >= SLUG_MIN ? base : `clinica-${base}`.slice(0, SLUG_MAX);
+
+  for (let attempt = 0; attempt < SLUG_ATTEMPTS; attempt += 1) {
+    const candidate =
+      attempt === 0 && seed.length >= SLUG_MIN
+        ? seed
+        : `${seed.slice(0, SLUG_MAX - 5)}-${randomBytes(2).toString('hex')}`.replace(/^-+/u, '');
+
+    if (candidate.length < SLUG_MIN || candidate.length > SLUG_MAX) continue;
+
+    const [reserved] = await tx
+      .select({ slug: reservedSlugs.slug })
+      .from(reservedSlugs)
+      .where(eq(reservedSlugs.slug, candidate))
+      .limit(1);
+    if (reserved) continue;
+
+    const [taken] = await tx
+      .select({ id: clinics.id })
+      .from(clinics)
+      .where(eq(clinics.slug, candidate))
+      .limit(1);
+    if (!taken) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Provisiona o tenant do cadastro autônomo.
+ *
+ * Pré-condição inegociável: a assinatura já existe e foi confirmada por readback
+ * (`billing_attempt_state = 'active'`). É a decisão de 02/09 registrada no
+ * §21.20 — o trial começa depois da assinatura recorrente correta, não antes.
+ */
+export async function provisionTenantFromSignup(input: {
+  userId: string;
+  /** Vem de `getUser()`, nunca do corpo da requisição. Vira contato de cobrança. */
+  verifiedEmail: string;
+  /**
+   * CPF/CNPJ já validado, vindo da MESMA requisição que criou a assinatura.
+   * É aqui — e só aqui — que ele é persistido, cifrado pela chave do tenant que
+   * acabou de nascer. Antes disso não havia tenant para cifrar com.
+   */
+  cpfCnpj: string;
+}): Promise<ProvisionSignupOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  if (!userIdSchema.safeParse(input.userId).success)
+    throw new Error('[signup] invalid_provision_owner');
+
+  return dbAdmin.transaction(async (tx) => {
+    // Trava a sessão antes de ler: é o ponto onde duas abas viram uma.
+    const [draft] = await tx
+      .select({
+        id: signupSessions.id,
+        ownerName: signupSessions.ownerName,
+        clinicName: signupSessions.clinicName,
+        selectedPlanId: signupSessions.selectedPlanId,
+        billingState: signupSessions.billingAttemptState,
+        asaasCustomerId: signupSessions.asaasCustomerId,
+        asaasSubscriptionId: signupSessions.asaasSubscriptionId,
+      })
+      .from(signupSessions)
+      .where(
+        and(
+          eq(signupSessions.authUserId, input.userId),
+          eq(signupSessions.status, 'email_verified'),
+          isNotNull(signupSessions.consumedAt),
+          gt(signupSessions.absoluteExpiresAt, sql`now()`),
+        ),
+      )
+      .for('update')
+      .limit(1);
+
+    if (!draft) return { ok: false, reason: 'gone' };
+    if (!draft.ownerName || !draft.clinicName) return { ok: false, reason: 'gone' };
+    if (!draft.selectedPlanId) return { ok: false, reason: 'no_plan' };
+    // Sem assinatura confirmada não nasce tenant. `creation_unknown` cai aqui de
+    // propósito: provisionar sobre estado indeterminado é criar clínica que
+    // talvez não esteja paga.
+    if (draft.billingState !== 'active' || !draft.asaasSubscriptionId || !draft.asaasCustomerId) {
+      return { ok: false, reason: 'not_paid' };
+    }
+
+    const [priced] = await tx
+      .select({
+        planId: plans.id,
+        planCode: plans.code,
+        priceId: prices.id,
+        amount: prices.amount,
+      })
+      .from(plans)
+      .innerJoin(
+        prices,
+        and(
+          eq(prices.planId, plans.id),
+          eq(prices.billingCycle, 'monthly'),
+          eq(prices.currency, 'BRL'),
+          lte(prices.activeFrom, sql`now()`),
+          isNull(prices.activeUntil),
+          isNull(prices.campaignCode),
+        ),
+      )
+      .where(and(eq(plans.id, draft.selectedPlanId), eq(plans.ativo, true)))
+      .for('share')
+      .limit(1);
+    if (!priced) return { ok: false, reason: 'invalid_plan' };
+
+    const slug = await resolveAvailableSlug(tx, draft.clinicName);
+    if (!slug) return { ok: false, reason: 'slug_unavailable' };
+
+    const provisioned = await provisionTenantCoreTx(
+      tx,
+      {
+        clinic: { nome: draft.clinicName, slug },
+        // O papel é `owner`, fixado pelo núcleo. O browser não escolhe papel, e
+        // não existe caminho que aceite um vindo dele.
+        owner: { userId: input.userId, nome: draft.ownerName },
+        customer: {
+          name: draft.ownerName,
+          // O contato de cobrança do tenant é o e-mail JÁ VERIFICADO da conta.
+          // Ele chega de `getUser()`; o corpo da requisição não participa.
+          email: input.verifiedEmail,
+          // `provisionTenantCoreTx` cifra com `encryptForTenant(clinicId, ...)`.
+          document: input.cpfCnpj,
+        },
+        planId: priced.planId,
+        planCode: priced.planCode,
+        priceId: priced.priceId,
+        priceAmount: Number(priced.amount),
+        billingCycle: 'monthly',
+        trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+        asaasCustomerId: draft.asaasCustomerId,
+        asaasSubscriptionId: draft.asaasSubscriptionId,
+      },
+      async (innerTx) => {
+        // O claim: a sessão some. Quem não encontrar linha para apagar perdeu a
+        // corrida, e a transação inteira volta atrás — inclusive a clínica.
+        const [consumed] = await innerTx
+          .delete(signupSessions)
+          .where(
+            and(
+              eq(signupSessions.id, draft.id),
+              eq(signupSessions.authUserId, input.userId),
+              eq(signupSessions.billingAttemptState, 'active'),
+            ),
+          )
+          .returning({ id: signupSessions.id });
+        if (!consumed) {
+          throw new OnboardingProvisionError(
+            'cadastro já provisionado ou alterado (race)',
+            'signup_already_provisioned',
+          );
+        }
+      },
+    );
+
+    metrics.emit('signup.provisioned', { planCode: priced.planCode });
+    return { ok: true, clinicId: provisioned.clinicId };
+  });
+}

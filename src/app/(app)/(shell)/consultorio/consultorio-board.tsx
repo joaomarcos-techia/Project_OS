@@ -1,49 +1,78 @@
 'use client';
 
+import { Calendar, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/ui/cn';
 import {
-  useConsultorioRealtime,
-  type RealtimeState,
-} from '@/lib/realtime/use-consultorio-realtime';
+  useConsultorioPolling,
+  type ConsultorioRefreshState,
+} from '@/lib/realtime/use-consultorio-polling';
 
 import { callNextPatient, checkInPatient, completeConsulta, getBoard, markAbsent } from './actions';
 import { AttendingPanel } from './attending-panel';
 import type { ActionResult, BoardDTO } from './board-types';
 import { CheckinStrip } from './checkin-strip';
 import { FinalizedList } from './finalized-list';
+import { waitMinutes } from './priority';
 import { WaitingCard } from './waiting-card';
 import { uuidv4 } from '@/lib/ui/uuid';
+import styles from './consultorio.module.css';
 
-const CONN_BADGE: Record<RealtimeState, { tone: 'green' | 'amber' | 'gray'; label: string }> = {
-  live: { tone: 'green', label: 'Tempo real' },
-  polling: { tone: 'amber', label: 'Reconectando…' },
-  connecting: { tone: 'gray', label: 'Conectando…' },
+const REFRESH_BADGE: Record<
+  ConsultorioRefreshState,
+  { tone: 'green' | 'amber' | 'gray'; label: string }
+> = {
+  active: { tone: 'green', label: 'Atualiza a cada 20 s' },
+  retrying: { tone: 'amber', label: 'Tentando atualizar…' },
+  paused: { tone: 'gray', label: 'Pausado em segundo plano' },
+  connecting: { tone: 'gray', label: 'Atualizando…' },
 };
 
-function ColumnTitle({ children, count }: { children: React.ReactNode; count?: number | null }) {
+/**
+ * Cabeçalho de coluna do board. Título em texto de leitura com a contagem ao
+ * lado, como na referência — o uppercase mono de 10.5px lia como etiqueta de
+ * sistema, não como o nome de uma fila que a recepção acompanha o dia inteiro.
+ */
+function ColumnTitle({
+  children,
+  count,
+  tone = 'default',
+  hint,
+}: {
+  children: React.ReactNode;
+  count?: number | null;
+  /** `warning` marca fila com espera acima do previsto, como na referência. */
+  tone?: 'default' | 'warning';
+  /** Texto de contexto à direita ("maior espera 24 min", "somente leitura"). */
+  hint?: React.ReactNode;
+}) {
   return (
-    <div className="mb-2 flex items-center justify-between px-1">
-      <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.09em] text-fg-subtle">
-        {children}
-      </span>
+    <div className={styles.columnTitle ?? ''}>
+      <h2 className="text-(length:--fs-subsection) font-semibold text-fg">{children}</h2>
       {count != null ? (
-        <span className="rounded-full bg-surface-inset px-2 py-0.5 text-xs text-fg-muted">
+        <span
+          className={cn(
+            'font-mono text-(length:--fs-sm) font-semibold tabular-nums',
+            tone === 'warning' ? 'text-warning-700' : 'text-fg-subtle',
+          )}
+        >
           {count}
         </span>
       ) : null}
+      {hint ? <span className="ml-auto text-(length:--fs-2xs) text-fg-subtle">{hint}</span> : null}
     </div>
   );
 }
 
 export function ConsultorioBoard({
-  clinicId,
   isPractitioner,
   initialBoard,
 }: {
@@ -68,29 +97,19 @@ export function ConsultorioBoard({
     return () => clearInterval(t);
   }, []);
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (): Promise<boolean> => {
     try {
       setBoard(await getBoard({ doctorId: selectedDoctorId }));
+      return true;
     } catch {
-      // getBoard só lança em auth; Realtime/polling tentará de novo.
+      // O hook sinaliza a falha e tenta de novo com backoff.
+      return false;
     }
   }, [selectedDoctorId]);
 
-  const conn = useConsultorioRealtime({ clinicId, tables: ['appointments'], onChange: refetch });
-
-  // Troca de médico (gestor/atendente) → refetch.
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
-
-  // Rede de segurança: polling lento (20s) APENAS quando o Realtime não está ao
-  // vivo. Com o canal "live", o Realtime entrega as mudanças e o próprio hook tem
-  // backoff se cair — então não há getBoard ocioso a cada 20s (board mais leve).
-  useEffect(() => {
-    if (conn === 'live') return;
-    const t = setInterval(() => void refetch(), 20_000);
-    return () => clearInterval(t);
-  }, [conn, refetch]);
+  // Uma única fonte de atualização: leitura autorizada no servidor, de imediato
+  // na montagem/troca de médico e a cada 20 s enquanto a aba está visível.
+  const refreshState = useConsultorioPolling(refetch);
 
   // A seleção do painel central é dirigida pelo usuário (Chamar / clicar finalizada /
   // Fechar / Encerrar). Aqui só LIMPAMOS se o selecionado sumiu do board — nunca
@@ -136,10 +155,10 @@ export function ConsultorioBoard({
       return r;
     });
 
-  const badge = CONN_BADGE[conn];
+  const badge = REFRESH_BADGE[refreshState];
 
   // Card atual (do board) do appointment selecionado → o painel central recarrega
-  // quando o status muda (ex.: em_atendimento → atendido após Encerrar, ou via Realtime).
+  // quando o status muda (ex.: em_atendimento → atendido após Encerrar, ou após refetch).
   const selectedCard =
     [...board.aChegar, ...board.salaEspera, ...board.emAtendimento, ...board.finalizadas].find(
       (c) => c.appointmentId === selectedAppt,
@@ -147,12 +166,28 @@ export function ConsultorioBoard({
   const selectedStatus = selectedCard?.status ?? null;
   const viewingFinalizada = selectedStatus === 'atendido';
 
+  // Maior espera da fila — o mesmo número que o cabeçalho da referência mostra.
+  // `waitMinutes` devolve null sem check-in registrado, e aí o cabeçalho fica
+  // neutro em vez de anunciar uma espera que ninguém mediu.
+  const maiorEsperaMin = board.salaEspera.reduce<number | null>((maior, card) => {
+    const minutos = waitMinutes(card.checkInAt, now);
+    if (minutos === null) return maior;
+    return maior === null || minutos > maior ? minutos : maior;
+  }, null);
+
+  const diaVazio =
+    board.salaEspera.length === 0 &&
+    board.emAtendimento.length === 0 &&
+    board.aChegar.length === 0 &&
+    board.finalizadas.length === 0;
+
   return (
     <>
       <PageHeader
         crumbs={[{ label: 'Operação' }, { label: 'Consultório' }]}
         title="Consultório"
         description="Atenda um turno inteiro sem trocar de tela."
+        meta={`${board.salaEspera.length} na fila · ${board.emAtendimento.length} em atendimento`}
         actions={
           <div className="flex items-center gap-2">
             {!isPractitioner && board.doctors.length > 0 ? (
@@ -170,9 +205,16 @@ export function ConsultorioBoard({
                 ))}
               </Select>
             ) : null}
-            <Badge tone={badge.tone} dot>
+            <Badge tone={badge.tone} aria-live="polite">
+              <RefreshCw aria-hidden="true" className="size-3 shrink-0" />
               {badge.label}
             </Badge>
+            {/* A referência mantém a saída para a Agenda à mão: quando falta
+                alguém, a correção do dia é lá, não aqui. */}
+            <Link href="/agenda" className={buttonVariants({ variant: 'secondary' })}>
+              <Calendar aria-hidden="true" className="size-4 text-fg-subtle" />
+              Ver agenda
+            </Link>
           </div>
         }
       />
@@ -195,84 +237,93 @@ export function ConsultorioBoard({
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_2fr_1fr]">
-        {/* Coluna 1 — Sala de Espera (25%) */}
-        <section>
-          <ColumnTitle count={board.salaEspera.length}>Sala de espera</ColumnTitle>
-          <div className="flex flex-col gap-2">
-            {board.salaEspera.length === 0 ? (
-              <p className="px-1 text-sm text-fg-subtle">Ninguém aguardando.</p>
-            ) : (
-              board.salaEspera.map((c) => (
-                <WaitingCard
-                  key={c.appointmentId}
-                  card={c}
-                  now={now}
-                  busy={busyId === c.appointmentId}
-                  onCall={onCall}
-                />
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* Coluna 2 — Em Atendimento (50%, o coração) */}
-        <section className="flex flex-col gap-3">
-          <ColumnTitle count={viewingFinalizada ? null : board.emAtendimento.length}>
-            {viewingFinalizada ? 'Consulta finalizada' : 'Em atendimento'}
-          </ColumnTitle>
-          {!viewingFinalizada && board.emAtendimento.length > 1 ? (
-            <div className="flex flex-wrap gap-2">
-              {board.emAtendimento.map((c) => (
-                <button
-                  key={c.appointmentId}
-                  type="button"
-                  onClick={() => setSelectedAppt(c.appointmentId)}
-                  className={cn(
-                    'rounded-full border px-3 py-1 text-sm transition-colors',
-                    selectedAppt === c.appointmentId
-                      ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-600/15 dark:text-primary-300'
-                      : 'border-border text-fg-muted hover:bg-surface-inset',
-                  )}
-                >
-                  {c.pacienteNome}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <AttendingPanel
-            appointmentId={selectedAppt}
-            boardStatus={selectedStatus}
-            checkInAt={selectedCard?.checkInAt ?? null}
-            busy={busyId === selectedAppt}
-            onComplete={onComplete}
-            onClose={() => setSelectedAppt(null)}
-            onBoardRefresh={() => void refetch()}
-          />
-        </section>
-
-        {/* Coluna 3 — Finalizadas (25%) */}
-        <section>
-          <ColumnTitle count={board.finalizadas.length}>Finalizadas</ColumnTitle>
-          <FinalizedList
-            cards={board.finalizadas}
-            selectedId={selectedAppt}
-            onOpen={(id) => setSelectedAppt(id)}
-          />
-        </section>
-      </div>
-
-      {board.salaEspera.length === 0 &&
-      board.emAtendimento.length === 0 &&
-      board.aChegar.length === 0 &&
-      board.finalizadas.length === 0 ? (
-        <div className="mt-6">
+      {diaVazio ? (
+        /* Dia sem nada: UMA frase, não quatro. Com o quadro montado, "Ninguém
+           aguardando" + "Nenhum paciente em atendimento" + "Nenhuma consulta
+           finalizada" + este bloco diziam a mesma coisa em quatro lugares, e
+           nenhum deles explicava o que fazer. */
+        <div className="qoro-fill grid place-items-center">
           <EmptyState
             title="Nada na agenda de hoje"
             description="Quando houver agendamentos para hoje, eles aparecem aqui para check-in e atendimento."
           />
         </div>
-      ) : null}
+      ) : (
+        <div className={cn('qoro-fill', styles.board)}>
+          {/* Coluna 1 — Sala de Espera (25%) */}
+          <section className={styles.waiting ?? ''}>
+            <ColumnTitle
+              count={board.salaEspera.length}
+              tone={maiorEsperaMin !== null ? 'warning' : 'default'}
+              {...(maiorEsperaMin !== null ? { hint: `maior espera ${maiorEsperaMin} min` } : {})}
+            >
+              Sala de espera
+            </ColumnTitle>
+            <div className="flex flex-col gap-2">
+              {board.salaEspera.length === 0 ? (
+                <p className="px-1 text-sm text-fg-subtle">Ninguém aguardando.</p>
+              ) : (
+                board.salaEspera.map((c) => (
+                  <WaitingCard
+                    key={c.appointmentId}
+                    card={c}
+                    now={now}
+                    busy={busyId === c.appointmentId}
+                    onCall={onCall}
+                  />
+                ))
+              )}
+            </div>
+          </section>
+
+          {/* Coluna 2 — Em Atendimento (50%, o coração) */}
+          <section className={styles.attending ?? ''}>
+            <ColumnTitle count={viewingFinalizada ? null : board.emAtendimento.length}>
+              {viewingFinalizada ? 'Consulta finalizada' : 'Em atendimento'}
+            </ColumnTitle>
+            {!viewingFinalizada && board.emAtendimento.length > 1 ? (
+              <div className="flex flex-wrap gap-2">
+                {board.emAtendimento.map((c) => (
+                  <button
+                    key={c.appointmentId}
+                    type="button"
+                    onClick={() => setSelectedAppt(c.appointmentId)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-sm transition-colors',
+                      selectedAppt === c.appointmentId
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-600/15 dark:text-primary-300'
+                        : 'border-border text-fg-muted hover:bg-surface-inset',
+                    )}
+                  >
+                    {c.pacienteNome}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <AttendingPanel
+              appointmentId={selectedAppt}
+              boardStatus={selectedStatus}
+              checkInAt={selectedCard?.checkInAt ?? null}
+              busy={busyId === selectedAppt}
+              onComplete={onComplete}
+              onClose={() => setSelectedAppt(null)}
+              onBoardRefresh={() => void refetch()}
+            />
+          </section>
+
+          {/* Coluna 3 — Finalizadas (25%) */}
+          <section className={styles.finished ?? ''}>
+            <ColumnTitle count={board.finalizadas.length} hint="somente leitura">
+              Finalizadas
+            </ColumnTitle>
+            <FinalizedList
+              cards={board.finalizadas}
+              selectedId={selectedAppt}
+              onOpen={(id) => setSelectedAppt(id)}
+            />
+          </section>
+        </div>
+      )}
     </>
   );
 }

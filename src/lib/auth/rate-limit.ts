@@ -124,6 +124,8 @@ const fallback = {
   loginEmail: new BoundedFallbackLimiter(5, FIFTEEN_MIN_MS),
   resetIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
   resetEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
+  resetCompletionIp: new BoundedFallbackLimiter(10, ONE_HOUR_MS),
+  resetCompletionEmail: new BoundedFallbackLimiter(3, ONE_HOUR_MS),
   joinIp: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
   acceptIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
   inviteClinic: new BoundedFallbackLimiter(60, ONE_HOUR_MS),
@@ -134,6 +136,16 @@ const fallback = {
   mfaIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
   pdfUser: new BoundedFallbackLimiter(10, FIFTEEN_MIN_MS),
   pdfClinic: new BoundedFallbackLimiter(30, FIFTEEN_MIN_MS),
+  clinicalPdfUser: new BoundedFallbackLimiter(60, FIFTEEN_MIN_MS),
+  clinicalPdfClinic: new BoundedFallbackLimiter(600, FIFTEEN_MIN_MS),
+  // ADR-060 (O-2a): criação de sessão anônima de cadastro. Teto por IP mais
+  // generoso que o do login porque aqui não há conta a proteger — o que se
+  // contém é volume, e quem contém o pior caso é o teto de sessões vivas.
+  signupIp: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
+  // Leitura do próprio estado: bem mais generosa que a criação, porque refresh,
+  // troca de aba e polling são uso LEGÍTIMO e frequente — mas não ilimitada,
+  // porque cada leitura renova o TTL e portanto ESCREVE uma linha.
+  signupReadIp: new BoundedFallbackLimiter(120, FIFTEEN_MIN_MS),
 };
 
 /**
@@ -234,7 +246,18 @@ export function classifyRedisError(err: unknown): DegradedReason {
  * crua, sanitizada nos dois emissores) fica só como diagnóstico, nunca como lógica.
  */
 function degraded(
-  kind: 'login' | 'reset' | 'join' | 'accept' | 'invite' | 'resend' | 'mfa' | 'pdf',
+  kind:
+    | 'login'
+    | 'reset'
+    | 'reset_completion'
+    | 'join'
+    | 'accept'
+    | 'invite'
+    | 'resend'
+    | 'mfa'
+    | 'pdf'
+    | 'clinical_pdf'
+    | 'signup',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -312,6 +335,29 @@ const lazyResetLimiters = (() => {
   };
 })();
 
+const lazyResetCompletionLimiters = (() => {
+  let cached: { ip: Ratelimit; email: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      ip: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '1 h'),
+        prefix: redisKey.global('rl', 'reset-completion', 'ip'),
+        analytics: false,
+      }),
+      email: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(3, '1 h'),
+        prefix: redisKey.global('rl', 'reset-completion', 'email'),
+        analytics: false,
+      }),
+    };
+    return cached;
+  };
+})();
+
 /**
  * Chama AMBOS os limites (IP + email_hash). Bloqueia se QUALQUER um exceder.
  * F-08: nunca lança — falha do Upstash → degradado (fail-open + fallback local).
@@ -361,6 +407,400 @@ export async function assertPasswordResetAllowed(
     return degraded('reset', err, ipOk && emailOk);
   }
 }
+
+/**
+ * Orçamento separado para EFETIVAR uma senha após grant de recovery válido.
+ * Um anônimo pode esgotar o limite de envio de links; ele não pode consumir o
+ * orçamento que a vítima precisa depois de apresentar o token one-time.
+ */
+export async function assertPasswordResetCompletionAllowed(
+  ip: string,
+  emailHash: string,
+): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const { ip: ipLimiter, email: emailLimiter } = lazyResetCompletionLimiters();
+    const [ipResult, emailResult] = await Promise.all([
+      ipLimiter.limit(ipKey),
+      emailLimiter.limit(emailHash),
+    ]);
+    if (!ipResult.success || !emailResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const ipOk = fallback.resetCompletionIp.hit(ipKey);
+    const emailOk = fallback.resetCompletionEmail.hit(emailHash);
+    return degraded('reset_completion', err, ipOk && emailOk);
+  }
+}
+
+/**
+ * ADR-060 (O-2a) — criação de sessão anônima de cadastro.
+ *
+ * Superfície PÚBLICA e anônima: não há conta, e-mail nem tenant para usar como
+ * dimensão, então o IP é a única disponível nesta fatia. As outras dimensões do
+ * §21.7 (hash de e-mail, dispositivo) entram nas fatias que passam a conhecê-las.
+ *
+ * DEGRADA quando o Redis cai, como o resto do módulo — e aqui isso é decisão
+ * registrada, não herança: nesta fatia uma sessão excedente custa uma linha que
+ * expira em 60 min, sem PII e sem chamada externa. Fechar o cadastro inteiro por
+ * queda de um terceiro trocaria custo desprezível por indisponibilidade de
+ * aquisição. O pior caso é contido por `SIGNUP_SESSION_CEILING`, não por aqui.
+ */
+export async function assertSignupSessionAllowed(ip: string): Promise<SignupLimitOutcome> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const r = await lazySignupLimiter().limit(ipKey);
+    // `budgetUsed` alimenta o classificador de risco (ADR-060 O-2b): pedir prova
+    // ANTES de o balde estourar é o que transforma o limite de muro em pedágio.
+    const budgetUsed = r.limit > 0 ? 1 - r.remaining / r.limit : 0;
+    return { allowed: r.success, budgetUsed, degraded: false };
+  } catch (err) {
+    const allowed = degraded('signup', err, fallback.signupIp.hit(ipKey)).ok;
+    // Degradado, o balde distribuído não existe — não há fração a reportar.
+    // Quem consome trata `degraded` como sinal próprio, e não finge saber.
+    return { allowed, budgetUsed: 0, degraded: true };
+  }
+}
+
+/**
+ * Desfecho do limite de criação de sessão, mais rico que `LimitResult`.
+ *
+ * Existe separado porque o O-2b precisa de dois sinais que o resto do módulo
+ * não usa: quanto do balde já foi gasto e se estamos operando degradados.
+ */
+export interface SignupLimitOutcome {
+  allowed: boolean;
+  /** 0..1 — fração do balde por IP consumida. 0 quando degradado (desconhecido). */
+  budgetUsed: number;
+  /** true quando o limiter distribuído falhou e caímos no fallback local. */
+  degraded: boolean;
+}
+
+/**
+ * ADR-060 (O-2a) — leitura do próprio estado de cadastro.
+ *
+ * Tem limite próprio, e não é zelo: `GET /api/signup/sessions/me` **escreve** —
+ * renovar o prazo de inatividade é um UPDATE por chamada (§21.6). Sem limite, um
+ * portador de token válido poderia martelar a rota e transformar uma leitura
+ * barata em carga de escrita sustentada.
+ *
+ * Orçamento separado do de criação, de propósito: leitura é frequente e
+ * legítima, criação é rara. Compartilhar o balde faria um refresh insistente
+ * consumir a cota de iniciar cadastro.
+ */
+export async function assertSignupReadAllowed(ip: string): Promise<LimitResult> {
+  const ipKey = ipRateLimitKey(ip);
+  try {
+    const r = await lazySignupReadLimiter().limit(ipKey);
+    return r.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  } catch (err) {
+    return degraded('signup', err, fallback.signupReadIp.hit(ipKey));
+  }
+}
+
+type SignupIdentityLimitResult =
+  | { ok: true }
+  | { ok: false; reason: 'unavailable' }
+  | { ok: false; reason: 'rate_limited'; retryAfter: number };
+
+const SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS = 2_000;
+const lazySignupIdentityLimiters = (() => {
+  let cached: { ip: Ratelimit; session: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/identity] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (scope: string, requests: number) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, '15 m'),
+        prefix: redisKey.global('rl', 'signup', 'identity', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = { ip: create('ip', 10), session: create('session', 5) };
+    return cached;
+  };
+})();
+
+/** PII staging requires both distributed buckets; no local fallback (ADR-062). */
+export async function assertSignupIdentityAllowed(
+  ip: string,
+  tokenHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+    return { ok: false, reason: 'unavailable' };
+  }
+  try {
+    const limiters = lazySignupIdentityLimiters();
+    const results = await Promise.all([
+      limiters.ip.limit(ipRateLimitKey(ip)),
+      limiters.session.limit(tokenHash),
+    ]);
+    // Upstash returns success:true on its timeout; that cannot authorize PII.
+    if (results.some((result) => result.reason === 'timeout')) {
+      return { ok: false, reason: 'unavailable' };
+    }
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length) {
+      const retryAfter = Math.max(
+        1,
+        Math.ceil((Math.max(...blocked.map((r) => r.reset)) - Date.now()) / 1_000),
+      );
+      return { ok: false, reason: 'rate_limited', retryAfter };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+const lazySignupAuthLimiters = (() => {
+  let cached: { ip: Ratelimit; session: Ratelimit; email: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/auth] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (
+      scope: string,
+      requests: number,
+      window: Parameters<typeof Ratelimit.slidingWindow>[1],
+    ) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, window),
+        prefix: redisKey.global('rl', 'signup', 'auth', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = {
+      ip: create('ip', 10, '15 m'),
+      session: create('session', 5, '1 h'),
+      email: create('email', 3, '1 h'),
+    };
+    return cached;
+  };
+})();
+
+/** Nenhuma degradação local autoriza criar conta ou enviar confirmação. */
+export async function assertSignupAuthAllowed(
+  ip: string,
+  tokenHash: string,
+  emailHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+    return { ok: false, reason: 'unavailable' };
+  try {
+    const limiters = lazySignupAuthLimiters();
+    const results = await Promise.all([
+      limiters.ip.limit(ipRateLimitKey(ip)),
+      limiters.session.limit(tokenHash),
+      limiters.email.limit(emailHash),
+    ]);
+    if (results.some((result) => result.reason === 'timeout'))
+      return { ok: false, reason: 'unavailable' };
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length)
+      return {
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: Math.max(
+          1,
+          Math.ceil((Math.max(...blocked.map((result) => result.reset)) - Date.now()) / 1_000),
+        ),
+      };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+const lazySignupResendLimiters = (() => {
+  let cached: { ip: Ratelimit; session: Ratelimit; email: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/resend] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (scope: string, requests: number) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, '1 h'),
+        prefix: redisKey.global('rl', 'signup', 'resend', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = {
+      ip: create('ip', 10),
+      session: create('session', 3),
+      email: create('email', 3),
+    };
+    return cached;
+  };
+})();
+
+/** Reenvio explícito: IP 10/h + sessão 3/h + e-mail 3/h, sempre fail-closed. */
+export async function assertSignupResendAllowed(
+  ip: string,
+  tokenHash: string,
+  emailHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+    return { ok: false, reason: 'unavailable' };
+  try {
+    const limiters = lazySignupResendLimiters();
+    const results = await Promise.all([
+      limiters.ip.limit(ipRateLimitKey(ip)),
+      limiters.session.limit(tokenHash),
+      limiters.email.limit(emailHash),
+    ]);
+    if (results.some((result) => result.reason === 'timeout'))
+      return { ok: false, reason: 'unavailable' };
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length)
+      return {
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: Math.max(
+          1,
+          Math.ceil((Math.max(...blocked.map((result) => result.reset)) - Date.now()) / 1_000),
+        ),
+      };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+const lazySignupDraftLimiters = (() => {
+  let cached: {
+    readIp: Ratelimit;
+    readUser: Ratelimit;
+    writeIp: Ratelimit;
+    writeUser: Ratelimit;
+  } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/draft] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (scope: string, requests: number) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, '15 m'),
+        prefix: redisKey.global('rl', 'signup', 'draft', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = {
+      readIp: create('read-ip', 120),
+      readUser: create('read-user', 60),
+      writeIp: create('write-ip', 10),
+      writeUser: create('write-user', 5),
+    };
+    return cached;
+  };
+})();
+
+async function assertSignupDraftAllowed(
+  kind: 'read' | 'write',
+  ip: string,
+  userHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+    return { ok: false, reason: 'unavailable' };
+  try {
+    const limiters = lazySignupDraftLimiters();
+    const [ipResult, userResult] = await Promise.all([
+      limiters[`${kind}Ip`].limit(ipRateLimitKey(ip)),
+      limiters[`${kind}User`].limit(userHash),
+    ]);
+    const results = [ipResult, userResult];
+    if (results.some((result) => result.reason === 'timeout'))
+      return { ok: false, reason: 'unavailable' };
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length)
+      return {
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: Math.max(
+          1,
+          Math.ceil((Math.max(...blocked.map((result) => result.reset)) - Date.now()) / 1_000),
+        ),
+      };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+/** Leitura autenticada do próprio draft: IP 120/15m + usuário 60/15m, fail-closed. */
+export function assertSignupDraftReadAllowed(
+  ip: string,
+  userHash: string,
+): Promise<SignupIdentityLimitResult> {
+  return assertSignupDraftAllowed('read', ip, userHash);
+}
+
+/** Vínculo/restart: IP 10/15m + usuário 5/15m, fail-closed. */
+export function assertSignupDraftWriteAllowed(
+  ip: string,
+  userHash: string,
+): Promise<SignupIdentityLimitResult> {
+  return assertSignupDraftAllowed('write', ip, userHash);
+}
+
+const lazySignupReadLimiter = (() => {
+  let cached: Ratelimit | null = null;
+  return () => {
+    if (cached) return cached;
+    cached = new Ratelimit({
+      redis: lazyRedis(),
+      limiter: Ratelimit.slidingWindow(120, '15 m'),
+      prefix: redisKey.global('rl', 'signup', 'read'),
+      analytics: false,
+    });
+    return cached;
+  };
+})();
+
+const lazySignupLimiter = (() => {
+  let cached: Ratelimit | null = null;
+  return () => {
+    if (cached) return cached;
+    cached = new Ratelimit({
+      redis: lazyRedis(),
+      limiter: Ratelimit.slidingWindow(20, '15 m'),
+      prefix: redisKey.global('rl', 'signup', 'ip'),
+      analytics: false,
+    });
+    return cached;
+  };
+})();
 
 const lazyJoinLimiter = (() => {
   let cached: Ratelimit | null = null;
@@ -648,6 +1088,55 @@ export async function assertPdfExportAllowed(
   }
 }
 
+const lazyClinicalPdfLimiters = (() => {
+  let cached: { user: Ratelimit; clinic: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      user: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(60, '15 m'),
+        prefix: redisKey.global('rl', 'clinical-pdf', 'user'),
+        analytics: false,
+      }),
+      clinic: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(600, '15 m'),
+        prefix: redisKey.global('rl', 'clinical-pdf', 'clinic'),
+        analytics: false,
+      }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * Contém download repetitivo de PDF clínico por conta comprometida sem usar o
+ * orçamento menor dos renders caros. A autorização já ocorreu; as chaves são
+ * pós-auth e separadas por ambiente, usuário e clínica.
+ */
+export async function assertClinicalPdfDownloadAllowed(
+  clinicId: string,
+  userId: string,
+): Promise<LimitResult> {
+  try {
+    const { user, clinic } = lazyClinicalPdfLimiters();
+    const [userResult, clinicResult] = await Promise.all([
+      user.limit(userId),
+      clinic.limit(clinicId),
+    ]);
+    if (!userResult.success || !clinicResult.success) {
+      return { ok: false, reason: 'rate_limited' };
+    }
+    return { ok: true };
+  } catch (err) {
+    const userOk = fallback.clinicalPdfUser.hit(userId);
+    const clinicOk = fallback.clinicalPdfClinic.hit(clinicId);
+    return degraded('clinical_pdf', err, userOk && clinicOk);
+  }
+}
+
 /**
  * Extrai o IP do client a partir de headers Vercel. Devolve o IP COMPLETO (o
  * caller usa também no audit trail `login_attempts` — a normalização /64 para
@@ -669,5 +1158,12 @@ export function getClientIp(headers: Headers): string {
   return '0.0.0.0';
 }
 
-/** Test-only — expõe o ponto privado de emissão de degradação (padrão do repo). */
-export const __testing__ = { degraded, envSegment };
+/** Test-only — emissão de degradação e buckets de signup (padrão do repo). */
+export const __testing__ = {
+  degraded,
+  envSegment,
+  signupIdentityLimiters: lazySignupIdentityLimiters,
+  signupAuthLimiters: lazySignupAuthLimiters,
+  signupResendLimiters: lazySignupResendLimiters,
+  signupDraftLimiters: lazySignupDraftLimiters,
+};

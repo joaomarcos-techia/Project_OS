@@ -1,8 +1,8 @@
 /**
  * GET /api/cron/proactive-followup (C14). Roda a cada ~15min na janela 8-20h
- * local. Os jobs followup já foram agendados pelo handler de
- * `clinical.prontuario.signed` (return_date − 2 dias); aqui só despacha os
- * vencidos. Auth idêntica aos demais crons.
+ * local. Despacha tanto retorno clínico (`followup`) quanto recuperação após
+ * falta (`no_show_followup`) pela mesma infraestrutura. Auth idêntica aos demais
+ * crons.
  */
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { withCron } from '@/lib/http/cron';
@@ -29,8 +29,19 @@ export const GET = withCron(
       return Response.json({ ok: true, skipped: 'disabled' }, { status: 200 });
     }
 
-    const batch = await processProactiveBatch('followup');
-    await recordHeartbeat('proactive-followup', 'success', { sent: batch.sent });
-    return Response.json({ ok: true, ...batch }, { status: 200 });
+    const followup = await processProactiveBatch('followup');
+    const noShowFollowup = await processProactiveBatch('no_show_followup');
+    const totals = {
+      scanned: followup.scanned + noShowFollowup.scanned,
+      sent: followup.sent + noShowFollowup.sent,
+      cancelled: followup.cancelled + noShowFollowup.cancelled,
+      retried: followup.retried + noShowFollowup.retried,
+      failed: followup.failed + noShowFollowup.failed,
+    };
+    await recordHeartbeat('proactive-followup', 'success', totals);
+    return Response.json(
+      { ok: true, ...totals, batches: { followup, noShowFollowup } },
+      { status: 200 },
+    );
   },
 );

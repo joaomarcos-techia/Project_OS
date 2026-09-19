@@ -89,6 +89,7 @@ async function cancelFutureForPatient(
         toStatus: 'cancelado',
         cancelReason: reason,
         reason,
+        cancelledAt: new Date().toISOString(),
       },
       idempotencyKey: `${reason}:${eventId}:${appt.id}`,
       correlationId: eventId,

@@ -31,8 +31,9 @@ export default async function SugestoesPage() {
   return (
     <>
       <PageHeader
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Sugestões' }]}
         title="Sugestões"
-        description="Envie ideias, melhorias ou bugs diretamente para o time do ClinicaOS."
+        description="Envie ideias, melhorias ou bugs diretamente para o time da Qoro."
       />
       <div className="grid gap-(--sp-5) xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.72fr)]">
         <Card>

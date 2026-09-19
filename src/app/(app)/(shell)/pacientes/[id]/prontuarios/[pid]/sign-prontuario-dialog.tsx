@@ -90,8 +90,19 @@ export function SignProntuarioDialog({
               Paciente precisa retornar
             </label>
             {needsReturn ? (
-              <Field label="Retornar em (dias)" className="max-w-40">
-                <Input type="number" name="returnDays" min={1} max={3650} defaultValue={90} />
+              <Field
+                label="Retornar em (dias)"
+                htmlFor="medical-record-return-days"
+                className="max-w-40"
+              >
+                <Input
+                  id="medical-record-return-days"
+                  type="number"
+                  name="returnDays"
+                  min={1}
+                  max={3650}
+                  defaultValue={90}
+                />
               </Field>
             ) : null}
             {state.error ? <p className="text-sm text-danger-600">{state.error}</p> : null}

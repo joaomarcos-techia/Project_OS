@@ -113,7 +113,7 @@ export default async function MetricasPage() {
                     <TableRow key={i}>
                       <TableCell>
                         <span className="flex items-center gap-2.5 font-medium">
-                          <ClinicMark nome={t.nome} tint="var(--accent-500)" />
+                          <ClinicMark nome={t.nome} tint="var(--brand-accent-500)" />
                           {t.nome}
                         </span>
                       </TableCell>
@@ -126,7 +126,7 @@ export default async function MetricasPage() {
                       <TableCell numeric>{formatUSD(t.costUsd)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2.5">
-                          <div className="h-1.75 w-24 overflow-hidden rounded-full bg-viz-track">
+                          <div className="h-2 w-24 overflow-hidden rounded-full bg-viz-track">
                             <i
                               className="block h-full rounded-full bg-ai"
                               style={{ width: `${pct}%` }}

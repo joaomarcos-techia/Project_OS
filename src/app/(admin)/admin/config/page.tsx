@@ -1,14 +1,27 @@
 import type { ReactNode } from 'react';
+import {
+  Clock,
+  Lock,
+  PenLine,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
-import { Icon } from '@/components/painel/icons';
 
 import { PROMPT_HASH, PROMPT_VERSION, RAW_TEMPLATE } from '@/contexts/ai-agent/prompts/system';
 import { env } from '@/lib/env';
 import { getPlatformSettingsMeta, PLATFORM_FLAG_KEYS } from '@/lib/platform-settings';
 import { listAnnouncementsForAdmin } from '@/lib/platform-announcements';
+import { cn } from '@/lib/ui/cn';
 
 import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime, formatNumber } from '../_lib/format';
@@ -32,10 +45,105 @@ const SUBS = [
 
 function KV({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-border py-2.5 text-sm last:border-0">
-      <span className="text-fg-muted">{label}</span>
-      <span className="text-right font-mono text-xs">{value}</span>
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border py-2.5 text-(length:--fs-sm) last:border-0">
+      <dt className="min-w-0 flex-1 text-fg-muted">{label}</dt>
+      <dd className="ml-auto max-w-full text-right font-mono text-(length:--fs-xs) tabular-nums">
+        {value}
+      </dd>
     </div>
+  );
+}
+
+function ConfigSection({
+  title,
+  description,
+  meta,
+  children,
+  flush = true,
+  className,
+}: {
+  title: string;
+  description?: ReactNode;
+  meta?: ReactNode;
+  children: ReactNode;
+  flush?: boolean;
+  className?: string;
+}) {
+  return (
+    <Card role="region" aria-label={title} className={cn('min-w-0', className)}>
+      <CardHeader className="flex-row items-start justify-between gap-3">
+        <div className="min-w-0">
+          <CardTitle>{title}</CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </div>
+        {meta ? <div className="shrink-0">{meta}</div> : null}
+      </CardHeader>
+      <CardContent className={flush ? 'p-0 pt-(--sp-3)' : undefined}>{children}</CardContent>
+    </Card>
+  );
+}
+
+function ConfigList({ children }: { children: ReactNode }) {
+  return <ul className="divide-y divide-border border-t border-border">{children}</ul>;
+}
+
+function ConfigRow({
+  leading,
+  title,
+  description,
+  trailing,
+}: {
+  leading?: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  trailing?: ReactNode;
+}) {
+  return (
+    <li className="flex min-h-(--hit-target) flex-wrap items-center gap-3 px-(--card-pad) py-3">
+      {leading}
+      <div className="min-w-0 flex-1 basis-48">
+        <div className="text-pretty text-(length:--fs-sm) font-medium">{title}</div>
+        {description ? (
+          <div className="mt-0.5 text-pretty text-(length:--fs-xs) text-fg-muted">
+            {description}
+          </div>
+        ) : null}
+      </div>
+      {trailing ? (
+        <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2.5">
+          {trailing}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function ConfigIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="grid size-9 shrink-0 place-items-center rounded-(--r-md) border border-border bg-surface-inset text-fg-muted"
+    >
+      <Icon aria-hidden="true" className="size-4" />
+    </span>
+  );
+}
+
+function HealthDot({ tone = 'gray' }: { tone?: 'green' | 'red' | 'amber' | 'gray' }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'size-2 shrink-0 rounded-full',
+        tone === 'green'
+          ? 'bg-success-500'
+          : tone === 'red'
+            ? 'bg-danger-500'
+            : tone === 'amber'
+              ? 'bg-warning-500'
+              : 'bg-neutral-400',
+      )}
+    />
   );
 }
 
@@ -76,6 +184,10 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
               },
               { label: 'Template dunning', ok: Boolean(env.META_TEMPLATE_DUNNING_FRIENDLY_ID) },
               { label: 'Template followup', ok: Boolean(env.META_TEMPLATE_FOLLOWUP_RETURN_ID) },
+              {
+                label: 'Template recuperação de falta',
+                ok: Boolean(env.META_TEMPLATE_NO_SHOW_FOLLOWUP_ID),
+              },
             ],
           },
           {
@@ -105,20 +217,26 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
     {
       label: 'Lembrete (confirmação)',
       desc: 'Disparado antes da consulta',
-      icon: 'clock',
+      icon: Clock,
       id: env.META_TEMPLATE_CONFIRMATION_REMINDER_ID,
     },
     {
       label: 'Dunning (cobrança)',
       desc: 'Sequência de cobrança amigável',
-      icon: 'wallet',
+      icon: Wallet,
       id: env.META_TEMPLATE_DUNNING_FRIENDLY_ID,
     },
     {
       label: 'Follow-up (retorno)',
       desc: 'Convite de retorno pós-consulta',
-      icon: 'refresh',
+      icon: RefreshCw,
       id: env.META_TEMPLATE_FOLLOWUP_RETURN_ID,
+    },
+    {
+      label: 'Recuperação após falta',
+      desc: 'Convite operacional para remarcar no próximo dia útil',
+      icon: RefreshCw,
+      id: env.META_TEMPLATE_NO_SHOW_FOLLOWUP_ID,
     },
   ];
 
@@ -130,12 +248,13 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
         description="Prompt do sistema e templates — versionados em código (somente leitura no MVP)."
       />
 
-      <nav className="subtabs">
+      <nav className="subtabs" aria-label="Seções de configuração">
         {SUBS.map((s) => (
           <Link
             key={s.id}
             href={`/admin/config?tab=${s.id}`}
             className={`subtab${tab === s.id ? ' active' : ''}`}
+            aria-current={tab === s.id ? 'page' : undefined}
           >
             {s.label}
           </Link>
@@ -144,77 +263,68 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
 
       {tab === 'operacao' ? (
         <>
-          <div className="cardblock">
-            <div className="cardblock-head">
-              <h4>Kill-switches operacionais</h4>
-              <span className="sub">efeito em até ~30s</span>
-            </div>
-            <div className="listrows">
-              <div className="listrow">
-                <span className="st-ico" style={{ width: 34, height: 34, borderRadius: 8 }}>
-                  <Icon name="send" size={16} />
-                </span>
-                <div className="lr-main">
-                  <b>Jobs proativos</b>
-                  <span
-                    className="lr-sub"
-                    style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}
-                  >
-                    Lembrete, dunning e followup. Desligado: nenhuma mensagem proativa sai.
+          <ConfigSection title="Kill-switches operacionais" description="Efeito em até ~30s">
+            <ConfigList>
+              <ConfigRow
+                leading={<ConfigIcon icon={Send} />}
+                title="Jobs proativos"
+                description={
+                  <>
+                    Lembrete, dunning, retorno e recuperação de falta. Desligado: nenhuma mensagem
+                    proativa sai.
                     {proactiveRow
                       ? ` · alterado ${formatDateTime(proactiveRow.updatedAt.toISOString())}`
                       : ' · default'}
-                  </span>
-                </div>
-                <div className="lr-end" style={{ gap: 10 }}>
-                  <Badge tone={proactiveEnabled ? 'green' : 'red'}>
-                    {proactiveEnabled ? 'Ligado' : 'Desligado'}
-                  </Badge>
-                  <FlagToggle
-                    flagKey={PLATFORM_FLAG_KEYS.proactiveEnabled}
-                    on={proactiveEnabled}
-                    valueWhenOn={true}
-                    valueWhenOff={false}
-                    label="Alternar jobs proativos"
-                  />
-                </div>
-              </div>
+                  </>
+                }
+                trailing={
+                  <>
+                    <Badge tone={proactiveEnabled ? 'green' : 'red'}>
+                      {proactiveEnabled ? 'Ligado' : 'Desligado'}
+                    </Badge>
+                    <FlagToggle
+                      flagKey={PLATFORM_FLAG_KEYS.proactiveEnabled}
+                      on={proactiveEnabled}
+                      valueWhenOn={true}
+                      valueWhenOff={false}
+                      label="Alternar jobs proativos"
+                    />
+                  </>
+                }
+              />
 
-              <div className="listrow">
-                <span className="st-ico" style={{ width: 34, height: 34, borderRadius: 8 }}>
-                  <Icon name="ai" size={16} />
-                </span>
-                <div className="lr-main">
-                  <b>Agente de IA ativo</b>
-                  <span
-                    className="lr-sub"
-                    style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}
-                  >
+              <ConfigRow
+                leading={<ConfigIcon icon={Sparkles} />}
+                title="Agente de IA ativo"
+                description={
+                  <>
                     Desligado: responde só “um atendente já te retorna” (sem custo Gemini).
                     {aiRow
                       ? ` · alterado ${formatDateTime(aiRow.updatedAt.toISOString())}`
                       : ' · default'}
-                  </span>
-                </div>
-                <div className="lr-end" style={{ gap: 10 }}>
-                  <Badge tone={aiMode === 'normal' ? 'green' : 'amber'}>
-                    {aiMode === 'normal' ? 'Normal' : 'Fallback'}
-                  </Badge>
-                  <FlagToggle
-                    flagKey={PLATFORM_FLAG_KEYS.aiAgentMode}
-                    on={aiMode === 'normal'}
-                    valueWhenOn={'normal'}
-                    valueWhenOff={'fallback_only'}
-                    label="Alternar agente de IA"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+                  </>
+                }
+                trailing={
+                  <>
+                    <Badge tone={aiMode === 'normal' ? 'green' : 'amber'}>
+                      {aiMode === 'normal' ? 'Normal' : 'Fallback'}
+                    </Badge>
+                    <FlagToggle
+                      flagKey={PLATFORM_FLAG_KEYS.aiAgentMode}
+                      on={aiMode === 'normal'}
+                      valueWhenOn={'normal'}
+                      valueWhenOff={'fallback_only'}
+                      label="Alternar agente de IA"
+                    />
+                  </>
+                }
+              />
+            </ConfigList>
+          </ConfigSection>
 
-          <div className="alert info" style={{ marginTop: 'var(--sp-4)' }}>
+          <div className="alert info mt-(--sp-4)">
             <span className="al-ico">
-              <Icon name="shield" size={17} sw={1.9} />
+              <ShieldCheck aria-hidden="true" className="size-4.5" strokeWidth={1.9} />
             </span>
             <div>
               <b>Ação auditada</b>
@@ -228,57 +338,59 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
 
       {tab === 'saude' ? (
         <>
-          <div className="cardblock">
-            <div className="cardblock-head">
-              <h4>Saúde dos jobs</h4>
-              <span className="sub">crons internos</span>
-            </div>
-            <div className="listrows">
-              {jobs.map((j) => (
-                <div key={j.job} className="listrow">
-                  <span
-                    className={`hc-dot ${j.health === 'ok' ? 'green' : j.health === 'late' ? 'red' : ''}`}
+          <ConfigSection title="Saúde dos jobs" description="Crons internos">
+            {jobs.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                className="border-t border-border"
+                title="Nenhum job monitorado."
+                description="Os jobs configurados aparecerão nesta lista."
+              />
+            ) : (
+              <ConfigList>
+                {jobs.map((j) => (
+                  <ConfigRow
+                    key={j.job}
+                    leading={
+                      <HealthDot
+                        tone={j.health === 'ok' ? 'green' : j.health === 'late' ? 'red' : 'gray'}
+                      />
+                    }
+                    title={j.label}
+                    description={
+                      <>
+                        {j.cadence}
+                        {j.lastRunAt
+                          ? ` · último ${formatDateTime(j.lastRunAt)}`
+                          : ' · nunca executou'}
+                      </>
+                    }
+                    trailing={
+                      <Badge
+                        tone={j.health === 'ok' ? 'green' : j.health === 'late' ? 'red' : 'gray'}
+                      >
+                        {j.health === 'ok'
+                          ? 'Em dia'
+                          : j.health === 'late'
+                            ? 'Atrasado'
+                            : 'Sem registro'}
+                      </Badge>
+                    }
                   />
-                  <div className="lr-main">
-                    <b>{j.label}</b>
-                    <span
-                      className="lr-sub"
-                      style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}
-                    >
-                      {j.cadence}
-                      {j.lastRunAt
-                        ? ` · último ${formatDateTime(j.lastRunAt)}`
-                        : ' · nunca executou'}
-                    </span>
-                  </div>
-                  <div className="lr-end">
-                    <Badge
-                      tone={j.health === 'ok' ? 'green' : j.health === 'late' ? 'red' : 'gray'}
-                    >
-                      {j.health === 'ok'
-                        ? 'Em dia'
-                        : j.health === 'late'
-                          ? 'Atrasado'
-                          : 'Sem registro'}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </ConfigList>
+            )}
+          </ConfigSection>
 
           {retention ? (
-            <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
-              <div className="cardblock-head">
-                <h4>Retenção &amp; partições</h4>
-              </div>
-              <div className="px-5 py-3">
+            <ConfigSection title="Retenção & partições" flush={false} className="mt-(--sp-4)">
+              <dl>
                 {retention.partitions.map((p) => (
                   <KV
                     key={p.parent}
                     label={p.parent}
                     value={
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span className="inline-flex flex-wrap items-center justify-end gap-2">
                         {p.count} partições · cobre +{p.monthsAhead} mês(es)
                         {p.monthsAhead < 1 ? <Badge tone="amber">criar partição</Badge> : null}
                         {p.defaultCount > 0 ? (
@@ -308,60 +420,63 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
                       : retention.proactiveByStatus.map((s) => `${s.status}: ${s.n}`).join(' · ')
                   }
                 />
-              </div>
-            </div>
+              </dl>
+            </ConfigSection>
           ) : null}
         </>
       ) : null}
 
       {tab === 'broadcast' ? (
         <>
-          <div className="cardblock">
-            <div className="cardblock-head">
-              <h4>Novo aviso</h4>
-              <span className="sub">exibido no topo de todas as clínicas</span>
-            </div>
-            <div className="px-5 py-4">
-              <AnnouncementForm />
-            </div>
-          </div>
+          <ConfigSection
+            title="Novo aviso"
+            description="Exibido no topo de todas as clínicas"
+            flush={false}
+          >
+            <AnnouncementForm />
+          </ConfigSection>
 
-          <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
-            <div className="cardblock-head">
-              <h4>Avisos ativos</h4>
-              <span className="sub">{announcements.length}</span>
-            </div>
+          <ConfigSection
+            title="Avisos ativos"
+            meta={
+              <span className="font-mono text-(length:--fs-xs) text-fg-subtle tabular-nums">
+                {announcements.length}
+              </span>
+            }
+            className="mt-(--sp-4)"
+          >
             {announcements.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-fg-subtle">Nenhum aviso ativo.</p>
+              <EmptyState
+                variant="compact"
+                className="border-t border-border"
+                title="Nenhum aviso ativo."
+                description="Avisos publicados aparecerão nesta fila."
+              />
             ) : (
-              <div className="listrows">
+              <ConfigList>
                 {announcements.map((a) => (
-                  <div key={a.id} className="listrow">
-                    <span className={`hc-dot ${a.level === 'warning' ? 'amber' : ''}`} />
-                    <div className="lr-main">
-                      <b style={{ fontWeight: 500 }}>{a.title || a.message}</b>
-                      <span
-                        className="lr-sub"
-                        style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}
-                      >
+                  <ConfigRow
+                    key={a.id}
+                    leading={<HealthDot tone={a.level === 'warning' ? 'amber' : 'gray'} />}
+                    title={a.title || a.message}
+                    description={
+                      <>
                         {a.title ? `${a.message} · ` : ''}
                         {a.level === 'warning' ? 'Atenção' : 'Informativo'} · publicado{' '}
                         {formatDateTime(a.createdAt)}
                         {a.endsAt ? ` · expira ${formatDateTime(a.endsAt)}` : ''}
-                      </span>
-                    </div>
-                    <div className="lr-end">
-                      <DeactivateAnnouncementButton id={a.id} />
-                    </div>
-                  </div>
+                      </>
+                    }
+                    trailing={<DeactivateAnnouncementButton id={a.id} />}
+                  />
                 ))}
-              </div>
+              </ConfigList>
             )}
-          </div>
+          </ConfigSection>
 
-          <div className="alert info" style={{ marginTop: 'var(--sp-4)' }}>
+          <div className="alert info mt-(--sp-4)">
             <span className="al-ico">
-              <Icon name="shield" size={17} sw={1.9} />
+              <ShieldCheck aria-hidden="true" className="size-4.5" strokeWidth={1.9} />
             </span>
             <div>
               <b>Ação auditada</b>
@@ -376,34 +491,28 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
 
       {tab === 'integracoes' ? (
         <>
-          {integrations.map((grp, i) => (
-            <div
-              key={grp.group}
-              className="cardblock"
-              style={i === 0 ? undefined : { marginTop: 'var(--sp-4)' }}
-            >
-              <div className="cardblock-head">
-                <h4>{grp.group}</h4>
-              </div>
-              <div className="listrows">
-                {grp.items.map((it) => (
-                  <div key={it.label} className="listrow">
-                    <div className="lr-main">
-                      <b>{it.label}</b>
-                    </div>
-                    <div className="lr-end">
-                      <Badge tone={it.ok ? 'green' : 'gray'}>
-                        {it.ok ? 'Configurado' : 'Pendente'}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="alert info" style={{ marginTop: 'var(--sp-4)' }}>
+          <div className="space-y-(--sp-4)">
+            {integrations.map((grp) => (
+              <ConfigSection key={grp.group} title={grp.group}>
+                <ConfigList>
+                  {grp.items.map((it) => (
+                    <ConfigRow
+                      key={it.label}
+                      title={it.label}
+                      trailing={
+                        <Badge tone={it.ok ? 'green' : 'gray'}>
+                          {it.ok ? 'Configurado' : 'Pendente'}
+                        </Badge>
+                      }
+                    />
+                  ))}
+                </ConfigList>
+              </ConfigSection>
+            ))}
+          </div>
+          <div className="alert info mt-(--sp-4)">
             <span className="al-ico">
-              <Icon name="lock" size={17} sw={1.9} />
+              <Lock aria-hidden="true" className="size-4.5" strokeWidth={1.9} />
             </span>
             <div>
               <b>Somente presença</b>
@@ -418,28 +527,29 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
 
       {tab === 'prompt' ? (
         <>
-          <div className="cardblock" style={{ overflow: 'hidden' }}>
-            <div className="cardblock-head">
-              <h4>Prompt do sistema · global</h4>
-              <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <ConfigSection
+            title="Prompt do sistema · global"
+            meta={
+              <span className="flex items-center gap-2">
                 <Badge tone="gray">somente leitura</Badge>
-                <span className="sub">{PROMPT_VERSION}</span>
+                <span className="font-mono text-(length:--fs-xs) text-fg-subtle">
+                  {PROMPT_VERSION}
+                </span>
               </span>
-            </div>
+            }
+            className="overflow-hidden"
+          >
             <pre className="prompt-block">{RAW_TEMPLATE}</pre>
-          </div>
-          <div className="cardblock" style={{ marginTop: 'var(--sp-4)' }}>
-            <div className="cardblock-head">
-              <h4>Integridade</h4>
-            </div>
-            <div className="px-5 py-3">
+          </ConfigSection>
+          <ConfigSection title="Integridade" flush={false} className="mt-(--sp-4)">
+            <dl>
               <KV label="Versão" value={PROMPT_VERSION} />
               <KV label="Hash (SHA256)" value={`${PROMPT_HASH.slice(0, 24)}…`} />
-            </div>
-          </div>
-          <div className="alert info" style={{ marginTop: 'var(--sp-4)' }}>
+            </dl>
+          </ConfigSection>
+          <div className="alert info mt-(--sp-4)">
             <span className="al-ico">
-              <Icon name="edit" size={17} sw={1.9} />
+              <PenLine aria-hidden="true" className="size-4.5" strokeWidth={1.9} />
             </span>
             <div>
               <b>Edição via código</b>
@@ -454,43 +564,36 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
 
       {tab === 'emails' ? (
         <>
-          <div className="cardblock">
-            <div className="cardblock-head">
-              <h4>Templates (Meta WhatsApp)</h4>
-              <span className="sub">idioma {env.META_TEMPLATE_LANG}</span>
-            </div>
-            <div className="listrows">
+          <ConfigSection
+            title="Templates (Meta WhatsApp)"
+            description={`Idioma ${env.META_TEMPLATE_LANG}`}
+          >
+            <ConfigList>
               {templates.map((t) => (
-                <div key={t.label} className="listrow">
-                  <span className="st-ico" style={{ width: 34, height: 34, borderRadius: 8 }}>
-                    <Icon name={t.icon} size={16} />
-                  </span>
-                  <div className="lr-main">
-                    <b>{t.label}</b>
-                    <span
-                      className="lr-sub"
-                      style={{ fontFamily: 'var(--font-sans)', color: 'var(--text-2)' }}
-                    >
-                      {t.desc}
-                    </span>
-                  </div>
-                  <div className="lr-end">
-                    {t.id ? (
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                        {t.id}
-                      </span>
-                    ) : null}
-                    <Badge tone={t.id ? 'green' : 'gray'}>
-                      {t.id ? 'Configurado' : 'Pendente'}
-                    </Badge>
-                  </div>
-                </div>
+                <ConfigRow
+                  key={t.label}
+                  leading={<ConfigIcon icon={t.icon} />}
+                  title={t.label}
+                  description={t.desc}
+                  trailing={
+                    <>
+                      {t.id ? (
+                        <code className="break-all font-mono text-(length:--fs-2xs) text-fg-subtle">
+                          {t.id}
+                        </code>
+                      ) : null}
+                      <Badge tone={t.id ? 'green' : 'gray'}>
+                        {t.id ? 'Configurado' : 'Pendente'}
+                      </Badge>
+                    </>
+                  }
+                />
               ))}
-            </div>
-          </div>
-          <div className="alert info" style={{ marginTop: 'var(--sp-4)' }}>
+            </ConfigList>
+          </ConfigSection>
+          <div className="alert info mt-(--sp-4)">
             <span className="al-ico">
-              <Icon name="lock" size={17} sw={1.9} />
+              <Lock aria-hidden="true" className="size-4.5" strokeWidth={1.9} />
             </span>
             <div>
               <b>Templates aprovados pela Meta</b>

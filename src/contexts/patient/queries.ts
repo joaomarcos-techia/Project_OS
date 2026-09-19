@@ -11,11 +11,20 @@
  */
 import 'server-only';
 
-import { and, desc, eq, ilike, inArray, isNull, type SQL, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
-import { decryptForTenant, hashForLookup, normalizeCpf, normalizePhone } from '@/lib/crypto';
+import {
+  decryptForTenant,
+  hashForLookup,
+  normalizeCpf,
+  normalizePhone,
+  validateCpf,
+} from '@/lib/crypto';
+import { redactCpf } from '@/lib/format';
+import { maskPhoneBR } from '@/lib/masks';
 
 import {
   patientAddresses,
@@ -32,6 +41,8 @@ import {
 } from './schema';
 import type {
   DecryptedPatient,
+  PatientListItem,
+  PatientListResult,
   PatientRelationshipDTO,
   PatientSummary,
   ProactiveContact,
@@ -49,8 +60,103 @@ export function patientsActiveFilter(): SQL {
 const toIso = (v: Date | string | null): string | null =>
   v == null ? null : v instanceof Date ? v.toISOString() : v;
 
+type PatientSummaryRow = Pick<
+  PatientRow,
+  | 'id'
+  | 'clinicId'
+  | 'nome'
+  | 'email'
+  | 'dataNascimento'
+  | 'sexo'
+  | 'obitoEm'
+  | 'mergedIntoPatientId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'deletedAt'
+>;
+
+const patientSummaryColumns = {
+  id: patients.id,
+  clinicId: patients.clinicId,
+  nome: patients.nome,
+  email: patients.email,
+  dataNascimento: patients.dataNascimento,
+  sexo: patients.sexo,
+  obitoEm: patients.obitoEm,
+  mergedIntoPatientId: patients.mergedIntoPatientId,
+  createdAt: patients.createdAt,
+  updatedAt: patients.updatedAt,
+  deletedAt: patients.deletedAt,
+};
+
+const patientListItemColumns = {
+  id: patients.id,
+  nome: patients.nome,
+  email: patients.email,
+  dataNascimento: patients.dataNascimento,
+  cpfEncrypted: patients.cpfEncrypted,
+  telefoneEncrypted: patients.telefoneEncrypted,
+  deletedAt: patients.deletedAt,
+};
+
+/**
+ * Decifra o CPF e devolve **só a máscara**. Falha de decifragem vira `null`, não
+ * exceção: uma linha com ciphertext de chave antiga não pode derrubar a lista
+ * inteira da clínica.
+ */
+async function maskedCpf(clinicId: string, ciphertext: string | null): Promise<string | null> {
+  if (!ciphertext) return null;
+  try {
+    return redactCpf(await decryptForTenant(clinicId, ciphertext)) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decifra e FORMATA o telefone. Diferente do CPF, não é redigido: a coluna
+ * Contato existe para ser discada, e meio número não disca. Falha de decifragem
+ * vira `null` pela mesma razão do CPF — uma linha ruim não derruba a lista.
+ */
+async function telefoneFormatado(
+  clinicId: string,
+  ciphertext: string | null,
+): Promise<string | null> {
+  if (!ciphertext) return null;
+  try {
+    return maskPhoneBR(await decryptForTenant(clinicId, ciphertext)) || null;
+  } catch {
+    return null;
+  }
+}
+
+function toPatientListItem(
+  row: {
+    id: string;
+    nome: string;
+    email: string | null;
+    dataNascimento: string | Date | null;
+    deletedAt: Date | string | null;
+  },
+  cpfMascarado: string | null,
+  telefone: string | null,
+): PatientListItem {
+  return {
+    id: row.id,
+    nome: row.nome,
+    email: row.email,
+    telefone,
+    dataNascimento:
+      row.dataNascimento instanceof Date
+        ? row.dataNascimento.toISOString().slice(0, 10)
+        : row.dataNascimento,
+    cpfMascarado,
+    deletedAt: toIso(row.deletedAt),
+  };
+}
+
 /** Non-sensitive projection — safe for lists, events and audit. */
-export function toPatientSummary(row: PatientRow): PatientSummary {
+export function toPatientSummary(row: PatientSummaryRow): PatientSummary {
   return {
     id: row.id,
     clinicId: row.clinicId,
@@ -100,14 +206,16 @@ export interface ListPatientsOpts {
   offset?: number;
 }
 
-/** Paginated list. No decryption — name/email only (5.13: lists never decrypt). */
-export async function listPatients(
-  clinicId: string,
-  opts: ListPatientsOpts = {},
-): Promise<PatientSummary[]> {
-  const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
-  const offset = Math.max(opts.offset ?? 0, 0);
-  const conds: SQL[] = [];
+export type ListPatientsPageOpts = Omit<ListPatientsOpts, 'limit' | 'offset'> & {
+  page?: number;
+};
+
+const PATIENTS_PAGE_SIZE = 30;
+
+function patientListConditions(clinicId: string, opts: ListPatientsOpts): SQL[] {
+  // Defesa em profundidade: o predicado explícito acompanha o RLS configurado
+  // por `withTenant`, evitando que a segurança dependa de uma única barreira.
+  const conds: SQL[] = [eq(patients.clinicId, clinicId)];
   if (opts.onlyDeleted) {
     conds.push(sql`${patients.deletedAt} IS NOT NULL` as SQL);
     // Anonimizado é irrecuperável: mostrá-lo na lixeira ofereceria um botão
@@ -117,28 +225,106 @@ export async function listPatients(
     conds.push(patientsActiveFilter());
   }
   // UX-001 — candidatos de AGENDAMENTO não incluem falecidos. O core já recusa
-  // no submit (`assertPatientInClinic` exige `obito_em IS NULL`), mas oferecer o
-  // nome no seletor e só negar depois é retrabalho num contexto sensível. A
-  // guarda do backend permanece: isto é filtro de candidatos, não a barreira.
+  // no submit; isto evita oferecer um candidato inválido, sem substituir a guarda.
   if (opts.excludeDeceased) conds.push(isNull(patients.obitoEm) as SQL);
-  // F-12: bound the search term (trim + cap 64 chars). The value is parameterized
-  // by Drizzle (no SQL injection) and the GIN trigram index serves `%term%`, but
-  // an unbounded string is needless DoS surface. Empty-after-trim → no filter.
-  if (opts.search) {
-    const term = opts.search.trim().slice(0, 64);
-    if (term) conds.push(ilike(patients.nome, `%${term}%`) as SQL);
-  }
+
+  // F-12: valor parametrizado, normalizado e limitado antes do ILIKE.
+  const term = opts.search?.trim().slice(0, 64) ?? '';
+  if (term) conds.push(ilike(patients.nome, `%${term}%`) as SQL);
+  return conds;
+}
+
+/** Paginated list. No decryption — name/email only (5.13: lists never decrypt). */
+export async function listPatients(
+  clinicId: string,
+  opts: ListPatientsOpts = {},
+): Promise<PatientSummary[]> {
+  const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const conds = patientListConditions(clinicId, opts);
 
   return withTenant(clinicId, async (tx) => {
     const rows = await tx
-      .select()
+      .select(patientSummaryColumns)
       .from(patients)
-      .where(conds.length ? and(...conds) : undefined)
-      .orderBy(desc(patients.updatedAt))
+      .where(and(...conds))
+      .orderBy(desc(patients.updatedAt), desc(patients.id))
       .limit(limit)
       .offset(offset);
     return rows.map(toPatientSummary);
   });
+}
+
+/**
+ * Lista paginada para `/pacientes`. Itens e total usam exatamente os mesmos
+ * filtros dentro do mesmo contexto de tenant.
+ *
+ * O CPF é a ÚNICA coluna cifrada lida aqui, por decisão do founder (2026-09-10):
+ * a referência mostra o CPF mascarado sob o nome, e é como a recepção confere
+ * identidade. A decifragem acontece neste servidor e o que sai é a máscara —
+ * uma página tem no máximo `PATIENTS_PAGE_SIZE` linhas, então o custo é limitado
+ * pela paginação, não pelo tamanho da base.
+ */
+export async function listPatientsPage(
+  clinicId: string,
+  opts: ListPatientsPageOpts = {},
+): Promise<PatientListResult> {
+  return withTenant(clinicId, (tx) => listPatientsPageTx(tx, clinicId, opts));
+}
+
+/**
+ * A mesma leitura, recebendo a transação de fora.
+ *
+ * Existe porque abrir um `withTenant` NÃO é de graça: são BEGIN, SET LOCAL ROLE,
+ * set_config e COMMIT antes de qualquer SELECT. Medido (2026-09-12, pooler
+ * Supabase): um `withTenant` vazio custa 820 ms no link daqui, contra 162 ms de
+ * um round trip adicional dentro dele. A página lia lista e vínculos em DOIS
+ * wrappers em série e pagava esse preço duas vezes — daí a versão `Tx`.
+ */
+async function listPatientsPageTx(
+  tx: Tx,
+  clinicId: string,
+  opts: ListPatientsPageOpts,
+): Promise<PatientListResult> {
+  const page =
+    opts.page != null && Number.isSafeInteger(opts.page) && opts.page > 0 ? opts.page : 1;
+  const offset = (page - 1) * PATIENTS_PAGE_SIZE;
+  const where = and(...patientListConditions(clinicId, opts));
+
+  // `Promise.all` aqui não sobrepõe execução — uma transação é UMA conexão, e o
+  // Postgres atende um statement por vez. O que ele economiza é o round trip de
+  // pipeline (medido: ~160 ms), então continua valendo; o que NÃO vale é supor
+  // que duas queries na mesma transação custam o tempo de uma.
+  const [rows, [countRow]] = await Promise.all([
+    tx
+      .select(patientListItemColumns)
+      .from(patients)
+      .where(where)
+      .orderBy(desc(patients.updatedAt), desc(patients.id))
+      .limit(PATIENTS_PAGE_SIZE)
+      .offset(offset),
+    tx
+      .select({ total: sql<number>`count(*)::int` })
+      .from(patients)
+      .where(where),
+  ]);
+
+  const items = await Promise.all(
+    rows.map(async (row) =>
+      toPatientListItem(
+        row,
+        await maskedCpf(clinicId, row.cpfEncrypted),
+        await telefoneFormatado(clinicId, row.telefoneEncrypted),
+      ),
+    ),
+  );
+
+  return {
+    items,
+    total: countRow?.total ?? 0,
+    page,
+    pageSize: PATIENTS_PAGE_SIZE,
+  };
 }
 
 /**
@@ -231,6 +417,119 @@ export async function hasLegalGuardian(clinicId: string, patientId: string): Pro
   });
 }
 
+/** Vínculo resumido de um paciente na LISTA — nunca o grafo inteiro. */
+export interface PatientBondSummary {
+  /** Nome de quem responde por este paciente, quando ele é dependente. */
+  responsavelNome: string | null;
+  /** Quantos dependentes este paciente responde. */
+  dependentes: number;
+}
+
+/**
+ * Vínculos de um LOTE de pacientes, para a coluna "Vínculo" da lista.
+ *
+ * Existe separada de `listPatientRelationships` (que é por paciente e devolve o
+ * DTO completo) porque a lista mostra até 20 linhas: chamar a versão unitária
+ * por linha seriam 20 idas ao banco por render. Agora é UMA ida — o nome do
+ * responsável vem no mesmo SELECT.
+ */
+export async function listPatientBonds(
+  clinicId: string,
+  patientIds: string[],
+): Promise<Map<string, PatientBondSummary>> {
+  if (patientIds.length === 0) return new Map();
+  return withTenant(clinicId, (tx) => listPatientBondsTx(tx, clinicId, patientIds));
+}
+
+async function listPatientBondsTx(
+  tx: Tx,
+  clinicId: string,
+  patientIds: string[],
+): Promise<Map<string, PatientBondSummary>> {
+  const out = new Map<string, PatientBondSummary>();
+  if (patientIds.length === 0) return out;
+
+  // Auto-join em `patients`: o nome do responsável saía de um SEGUNDO select que
+  // só podia partir depois do primeiro voltar — um round trip inteiro para ler
+  // uma coluna de uma tabela do próprio contexto. O alias é o que permite
+  // referenciar `patients` como "o responsável desta linha".
+  const responsavel = alias(patients, 'responsavel');
+  const rows = await tx
+    .select({
+      responsiblePatientId: patientRelationships.responsiblePatientId,
+      dependentPatientId: patientRelationships.dependentPatientId,
+      responsavelNome: responsavel.nome,
+    })
+    .from(patientRelationships)
+    // LEFT, não INNER: um vínculo cujo responsável sumiu ainda precisa contar
+    // como dependente do outro lado. INNER apagaria a linha inteira.
+    .leftJoin(
+      responsavel,
+      and(
+        eq(responsavel.id, patientRelationships.responsiblePatientId),
+        eq(responsavel.clinicId, clinicId),
+      ),
+    )
+    .where(
+      and(
+        eq(patientRelationships.clinicId, clinicId),
+        // `inArray`, não `= ANY(...)`: o drizzle interpola um array JS como
+        // lista de parâmetros `($1,$2,$3)`, e o Postgres recusa isso à direita
+        // de ANY ("requires array on right side").
+        or(
+          inArray(patientRelationships.responsiblePatientId, patientIds),
+          inArray(patientRelationships.dependentPatientId, patientIds),
+        ),
+      ),
+    );
+  if (rows.length === 0) return out;
+
+  const wanted = new Set(patientIds);
+  for (const row of rows) {
+    if (wanted.has(row.dependentPatientId)) {
+      const bond = out.get(row.dependentPatientId) ?? { responsavelNome: null, dependentes: 0 };
+      bond.responsavelNome ??= row.responsavelNome ?? null;
+      out.set(row.dependentPatientId, bond);
+    }
+    if (wanted.has(row.responsiblePatientId)) {
+      const bond = out.get(row.responsiblePatientId) ?? { responsavelNome: null, dependentes: 0 };
+      bond.dependentes += 1;
+      out.set(row.responsiblePatientId, bond);
+    }
+  }
+  return out;
+}
+
+/** Resultado da lista com a coluna "Vínculo" já resolvida na mesma transação. */
+export interface PatientListPageWithBonds extends PatientListResult {
+  bonds: Map<string, PatientBondSummary>;
+}
+
+/**
+ * Lista + vínculos numa transação só.
+ *
+ * Os vínculos DEPENDEM dos ids da página, então não há como sobrepor as duas
+ * leituras — mas não há motivo para pagar DOIS `withTenant`. Medido daqui
+ * (2026-09-12): a rota gastava 1.481 ms na lista e mais 1.491 ms nos vínculos,
+ * dos quais ~820 ms eram só a abertura do segundo wrapper.
+ */
+export async function listPatientsPageWithBonds(
+  clinicId: string,
+  opts: ListPatientsPageOpts & { withBonds: boolean },
+): Promise<PatientListPageWithBonds> {
+  return withTenant(clinicId, async (tx) => {
+    const result = await listPatientsPageTx(tx, clinicId, opts);
+    const bonds = opts.withBonds
+      ? await listPatientBondsTx(
+          tx,
+          clinicId,
+          result.items.map((item) => item.id),
+        )
+      : new Map<string, PatientBondSummary>();
+    return { ...result, bonds };
+  });
+}
+
 export async function listPatientRelationships(
   clinicId: string,
   patientId: string,
@@ -274,6 +573,40 @@ export async function listPatientRelationships(
  * usado em listas; é 1 read por job no send-time. Retorna null se o paciente
  * não existe / foi soft-deleted (RLS via withTenant garante o tenant).
  */
+/**
+ * ADR-050 — identidade MÍNIMA para criar o customer de pagamento na conta Asaas
+ * da clínica: nome + CPF, e nada mais.
+ *
+ * Por que este seam existe e não uma leitura direta do Payments: decifrar PII é
+ * responsabilidade de quem é dono do dado. O Payments pede o que precisa por um
+ * contrato nomeado — e o nome do método diz para QUE serve, então fica auditável
+ * quem chamou e por quê. Não é um `getDecryptedPatient` genérico.
+ *
+ * Devolve `null` quando o paciente não existe, está inativo, ou o CPF guardado não
+ * passa em `validateCpf`. **`null` significa NÃO COBRAR** — nunca "cobrar sem
+ * identificar o pagador" (ADR-050 D6).
+ */
+export async function getPaymentIdentity(
+  clinicId: string,
+  patientId: string,
+): Promise<{ nome: string; cpf: string } | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ nome: patients.nome, cpfEncrypted: patients.cpfEncrypted })
+      .from(patients)
+      .where(and(eq(patients.id, patientId), patientsActiveFilter()))
+      .limit(1);
+    if (!row?.cpfEncrypted) return null;
+
+    const cpf = normalizeCpf(await decryptForTenant(clinicId, row.cpfEncrypted));
+    // CPF inválido no cadastro (legado, importação) reprova AQUI, sem gastar uma
+    // chamada ao gateway para tomar 400 — e sem cobrar às cegas.
+    if (!validateCpf(cpf)) return null;
+
+    return { nome: row.nome, cpf };
+  });
+}
+
 export async function getProactiveContact(
   clinicId: string,
   patientId: string,

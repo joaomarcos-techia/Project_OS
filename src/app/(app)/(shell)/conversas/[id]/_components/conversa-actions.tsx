@@ -12,10 +12,12 @@
  * mesma chave e o servidor devolve o resultado original em vez de duplicar.
  */
 import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { Clock } from 'lucide-react';
 
 import type { AIHandoffState } from '@/contexts/ai-agent/types';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useActionFeedback } from '@/components/ui/use-action-feedback';
 import { uuidv4 } from '@/lib/ui/uuid';
@@ -203,34 +205,13 @@ function HandoffPanel({
 
   return (
     <div className="flex flex-col gap-(--sp-4)">
-      <Alert
-        variant={handoff.overdue ? 'danger' : handoff.priority === 'urgent' ? 'warning' : 'info'}
-        title={handoff.overdue ? 'SLA vencido' : 'Atendimento sob sua responsabilidade'}
-      >
-        Prazo: {new Date(handoff.dueAt).toLocaleString('pt-BR')} · prioridade{' '}
-        {handoff.priority === 'urgent' ? 'urgente' : 'normal'}.
-      </Alert>
-
-      <form action={priorityAction} className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="conversationId" value={conversationId} />
-        <input type="hidden" name="idempotencyKey" value={priorityKey} />
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Prioridade
-          <select
-            name="priority"
-            defaultValue={handoff.priority}
-            disabled={prioritizing}
-            className="h-9 rounded-(--r-sm) border border-border bg-surface px-3 text-sm"
-          >
-            <option value="normal">Normal</option>
-            <option value="urgent">Urgente</option>
-          </select>
-        </label>
-        <Button type="submit" variant="secondary" size="sm" disabled={prioritizing}>
-          Atualizar
-        </Button>
-      </form>
-      {windowOpen ? null : (
+      {/* O SLA já é a PRIMEIRA coisa da conversa, em faixa vermelha no topo do
+          painel. Repeti-lo aqui embaixo não avisa ninguém duas vezes: só empurra
+          o campo de resposta para longe e ensina o operador a ignorar avisos.
+          O que o rodapé precisa dizer é outra coisa — se ainda dá para escrever. */}
+      {windowOpen ? (
+        <JanelaAberta closesAt={windowClosesAt} />
+      ) : (
         <Alert variant="warning" title="Janela de 24h da Meta expirada">
           {lastInboundAt
             ? `A última mensagem do paciente foi em ${new Date(lastInboundAt).toLocaleString('pt-BR')}. `
@@ -243,8 +224,8 @@ function HandoffPanel({
       <form action={replyAction} className="flex flex-col gap-(--sp-2)">
         <input type="hidden" name="conversationId" value={conversationId} />
         <input type="hidden" name="idempotencyKey" value={replyKey} />
-        <label htmlFor={textId} className="sr-only">
-          Resposta ao paciente
+        <label htmlFor={textId} className="text-(length:--fs-sm) font-semibold text-fg">
+          Responder ao paciente
         </label>
         <Textarea
           id={textId}
@@ -261,8 +242,11 @@ function HandoffPanel({
           aria-describedby={windowOpen && windowClosesAt ? `${textId}-hint` : undefined}
         />
         <div className="flex flex-wrap items-center justify-between gap-(--sp-2)">
+          {/* O prazo da janela já está em `JanelaAberta`, acima do campo. Aqui
+              fica só a âncora acessível: quem navega por teclado ouve o prazo ao
+              focar o campo, sem que a mesma frase apareça duas vezes na tela. */}
           {windowOpen && windowClosesAt ? (
-            <span id={`${textId}-hint`} className="text-(length:--fs-xs) text-fg-subtle">
+            <span id={`${textId}-hint`} className="sr-only">
               A janela fecha em {new Date(windowClosesAt).toLocaleString('pt-BR')}.
             </span>
           ) : (
@@ -272,6 +256,28 @@ function HandoffPanel({
             {replying ? 'Enviando…' : 'Enviar resposta'}
           </Button>
         </div>
+      </form>
+
+      <Separator />
+
+      <form action={priorityAction} className="flex flex-wrap items-end gap-2">
+        <input type="hidden" name="conversationId" value={conversationId} />
+        <input type="hidden" name="idempotencyKey" value={priorityKey} />
+        <label className="flex flex-col gap-1 text-(length:--fs-sm) font-medium">
+          Prioridade
+          <select
+            name="priority"
+            defaultValue={handoff.priority}
+            disabled={prioritizing}
+            className="h-(--control-h) rounded-(--r-sm) border border-border bg-surface px-3 text-(length:--fs-sm)"
+          >
+            <option value="normal">Normal</option>
+            <option value="urgent">Urgente</option>
+          </select>
+        </label>
+        <Button type="submit" variant="secondary" size="sm" disabled={prioritizing}>
+          Atualizar
+        </Button>
       </form>
 
       <form action={returnAction}>
@@ -291,6 +297,78 @@ function HandoffPanel({
  * MESMA chave e o servidor devolve o resultado do primeiro. Gerar a chave a
  * cada render transformaria cada clique numa mensagem nova.
  */
+/**
+ * Quanto tempo ainda dá para responder em texto livre.
+ *
+ * A Meta conta 24 h a partir da última mensagem do PACIENTE. O operador não
+ * precisa do horário absoluto para decidir — precisa saber se escreve agora ou
+ * se já perdeu a janela —, então o tempo restante vem por extenso e o horário
+ * fica como referência.
+ */
+/**
+ * "Agora", só DEPOIS da hidratação, atualizado a cada minuto.
+ *
+ * Devolve `null` no servidor e no primeiro render do cliente. Isso conserta dois
+ * problemas de uma vez:
+ *
+ * 1. **Mismatch de hidratação.** `Date.now()` durante o render faz o servidor
+ *    escrever "15 min" e o cliente, segundos depois, "14 min". O React descarta
+ *    a subárvore e reporta o erro — capturado no Sentry em 11/09 com exatamente
+ *    `+14 / -15` dentro do `<span className="font-mono …">`.
+ * 2. **O contador não contava.** Calculado uma vez no render, ficava congelado:
+ *    um relógio de janela de 24 h que não anda é pior que não ter relógio, porque
+ *    o operador decide se ainda dá tempo de escrever olhando para ele.
+ *
+ * O intervalo é de 1 min porque a granularidade exibida é o minuto — despertar
+ * mais vezes gastaria render sem mudar um pixel.
+ */
+function useAgoraAposMontar(): number | null {
+  const [agora, setAgora] = useState<number | null>(null);
+  useEffect(() => {
+    setAgora(Date.now());
+    const id = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return agora;
+}
+
+export function JanelaAberta({ closesAt }: { closesAt: string | null }) {
+  const agora = useAgoraAposMontar();
+  if (!closesAt) return null;
+  const fecha = new Date(closesAt);
+
+  // O horário ABSOLUTO vem do prop e é estável — pode sair no servidor. Só o
+  // relativo depende de "agora", e é ele que espera a montagem.
+  const horario = fecha.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+
+  const restamMin =
+    agora === null ? null : Math.max(0, Math.round((fecha.getTime() - agora) / 60_000));
+  const horas = restamMin === null ? 0 : Math.floor(restamMin / 60);
+  const hoje = agora === null ? null : new Date(agora).toDateString() === fecha.toDateString();
+
+  return (
+    <p className="flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)">
+      <Clock aria-hidden="true" className="size-3.5 text-success-700" />
+      <span className="font-medium text-success-700">Janela de 24 h aberta</span>
+      <span className="text-fg-subtle">
+        fecha às {horario}
+        {hoje === null ? '' : hoje ? ' de hoje' : ' de amanhã'}
+        {restamMin === null ? '' : ' · restam'}
+      </span>
+      {restamMin === null ? null : (
+        <span className="font-mono font-semibold tabular-nums text-fg-muted">
+          {horas > 0 ? `${horas} h ` : ''}
+          {restamMin % 60} min
+        </span>
+      )}
+    </p>
+  );
+}
+
 function useIdempotencyKey(succeeded: boolean): string {
   const [key, setKey] = useState(newKey);
   const prev = useRef(succeeded);

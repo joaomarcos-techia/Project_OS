@@ -12,9 +12,9 @@ import { Spinner } from './spinner';
  */
 export const buttonVariants = cva(
   [
-    'relative inline-flex select-none items-center justify-center gap-1.75 whitespace-nowrap',
-    'h-(--control-h) rounded-(--btn-radius) border px-(--control-px) text-(length:--control-fs) font-medium',
-    'transition-all duration-(--dur-fast) ease-out',
+    'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap',
+    'h-(--control-h) min-h-(--hit-target) rounded-(--btn-radius) border px-(--control-px) text-(length:--control-fs) font-medium',
+    'transition-[background-color,border-color,color,box-shadow,filter,transform] duration-(--dur-fast) ease-out',
     'focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
     'active:translate-y-[0.5px]',
     'disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none',
@@ -30,19 +30,19 @@ export const buttonVariants = cva(
         ghost:
           'border-transparent bg-transparent text-fg-muted shadow-none hover:bg-surface-hover hover:text-fg',
         accent:
-          'border-transparent bg-accent text-on-accent shadow-[0_1px_2px_oklch(0.5_0.12_320/0.25),inset_0_1px_0_oklch(1_0_0/0.14)] hover:brightness-105',
+          'border-transparent bg-ai text-on-ai shadow-[0_1px_2px_oklch(0.5_0.12_320/0.25),inset_0_1px_0_oklch(1_0_0/0.14)] hover:brightness-105',
         danger:
           'border-transparent bg-danger-600 text-[oklch(0.99_0.01_27)] shadow-[0_1px_2px_oklch(0.5_0.2_27/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-danger-700',
         success:
           'border-transparent bg-success-600 text-[oklch(0.99_0.01_152)] shadow-[0_1px_2px_oklch(0.5_0.1_151/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-success-700',
       },
       size: {
-        sm: 'h-(--control-h-sm) gap-1.25 px-2.5 text-(length:--fs-xs)',
+        sm: 'h-(--control-h-sm) gap-1.5 px-2.5 text-(length:--fs-xs)',
         md: '',
         lg: 'h-(--control-h-lg) px-5 text-(length:--fs-base)',
       },
       icon: {
-        true: 'w-(--control-h) px-0',
+        true: 'min-h-(--hit-target) min-w-(--hit-target) w-(--control-h) px-0',
         false: '',
       },
     },

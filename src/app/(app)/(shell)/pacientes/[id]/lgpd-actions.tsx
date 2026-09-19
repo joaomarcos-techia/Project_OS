@@ -4,17 +4,28 @@ import { useActionState, useMemo } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { uuidv4 } from '@/lib/ui/uuid';
 
 import { requestLgpdDeleteForm, requestLgpdExportForm, type LgpdFormState } from '../actions';
 
 const INITIAL: LgpdFormState = { error: null, message: null };
 
-export function LgpdActions({ id }: { id: string }) {
+export function LgpdActions({
+  id,
+  canExport,
+  canDelete,
+}: {
+  id: string;
+  canExport: boolean;
+  canDelete: boolean;
+}) {
   const [exportState, exportAction, exporting] = useActionState(requestLgpdExportForm, INITIAL);
   const [deleteState, deleteAction, deleting] = useActionState(requestLgpdDeleteForm, INITIAL);
   const exportKey = useMemo(() => uuidv4(), []);
   const deleteKey = useMemo(() => uuidv4(), []);
+
+  if (!canExport && !canDelete) return null;
 
   return (
     <section className="mt-8 border-t border-border pt-4">
@@ -26,44 +37,59 @@ export function LgpdActions({ id }: { id: string }) {
         formal de eliminação (Art. 18) — diferente da exclusão operacional acima.
       </p>
       <div className="flex flex-wrap gap-3">
-        <form action={exportAction}>
-          <input type="hidden" name="id" value={id} />
-          <input type="hidden" name="idempotencyKey" value={exportKey} />
-          <Button type="submit" variant="secondary" size="sm" loading={exporting}>
-            Exportar dados (LGPD)
-          </Button>
-        </form>
+        {canExport ? (
+          <form action={exportAction}>
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="idempotencyKey" value={exportKey} />
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              className="min-h-(--hit-target)"
+              loading={exporting}
+            >
+              Exportar dados (LGPD)
+            </Button>
+          </form>
+        ) : null}
 
-        <form action={deleteAction}>
-          <input type="hidden" name="id" value={id} />
-          <input type="hidden" name="idempotencyKey" value={deleteKey} />
-          <Button
-            type="submit"
-            variant="danger"
-            size="sm"
+        {canDelete ? (
+          <ConfirmDialog
+            trigger={
+              <Button type="button" variant="danger" size="sm" className="min-h-(--hit-target)">
+                Solicitar exclusão (LGPD)
+              </Button>
+            }
+            title="Registrar solicitação de exclusão LGPD"
+            description="O pedido formal do titular é registrado para compliance, o cadastro recebe soft delete agora e a remoção definitiva ocorre em 30 dias."
+            confirmLabel="Registrar solicitação"
+            cancelLabel="Voltar"
+            tone="danger"
+            action={deleteAction}
             loading={deleting}
-            onClick={(e) => {
-              if (
-                !confirm(
-                  'Registrar pedido de exclusão LGPD do titular? Soft delete agora + registro de compliance; remoção definitiva em 30 dias.',
-                )
-              ) {
-                e.preventDefault();
-              }
-            }}
+            formFields={
+              <>
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="idempotencyKey" value={deleteKey} />
+              </>
+            }
           >
-            Solicitar exclusão (LGPD)
-          </Button>
-        </form>
+            {deleteState.error ? (
+              <p role="alert" className="text-(length:--fs-sm) text-danger-600">
+                {deleteState.error}
+              </p>
+            ) : null}
+          </ConfirmDialog>
+        ) : null}
       </div>
 
-      {exportState.message ? (
+      {canExport && exportState.message ? (
         <Alert variant="success" className="mt-3">
           {exportState.message}
         </Alert>
       ) : null}
-      {exportState.error || deleteState.error ? (
-        <p className="mt-2 text-sm text-danger-600">{exportState.error ?? deleteState.error}</p>
+      {canExport && exportState.error ? (
+        <p className="mt-2 text-sm text-danger-600">{exportState.error}</p>
       ) : null}
     </section>
   );

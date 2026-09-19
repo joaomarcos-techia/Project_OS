@@ -193,9 +193,15 @@ const ConnectMyClinicSchema = z.object({
   code: z.string().min(1),
   /** PIN de 2FA da Cloud API; usado uma única vez no Graph e nunca persistido. */
   registrationPin: z.string().regex(/^\d{6}$/, 'O PIN do WhatsApp deve ter 6 dígitos.'),
-  /** Sugestões do evento WA_EMBEDDED_SIGNUP; só valem se o token as alcança. */
-  wabaHint: z.string().min(1).optional(),
-  phoneHint: z.string().min(1).optional(),
+  /**
+   * D78 — ids do evento oficial `WA_EMBEDDED_SIGNUP`. `wabaId` deixou de ser
+   * uma sugestão opcional: sem ele não há caminho de menor privilégio para
+   * descobrir a WABA. Continua `.optional()` no schema apenas para que a
+   * ausência vire `MetaConnectError('signup_incomplete')` — auditada e com
+   * mensagem específica — em vez de um `ZodError` genérico na tela.
+   */
+  wabaId: z.string().min(1).optional(),
+  phoneNumberId: z.string().min(1).optional(),
 });
 export type ConnectMyClinicInput = z.input<typeof ConnectMyClinicSchema>;
 
@@ -225,12 +231,20 @@ export async function connectMyClinicWhatsapp(
   // nenhuma escrita no número (Caso 3).
   let meta: { token: string; waba: WabaPhone };
   try {
+    // Antes de qualquer chamada à Meta: sem a `waba_id` do evento não existe
+    // resolução de menor privilégio (o fallback por portfólio foi removido em D78).
+    if (!data.wabaId) {
+      throw new MetaConnectError('[meta] Embedded Signup concluiu sem waba_id', {
+        stage: 'signup_incomplete',
+      });
+    }
     const token = await exchangeCodeForToken(data.code);
-    await validateTokenScopes(token);
-    const waba = await resolveWabaAndPhone(token, {
-      wabaId: data.wabaHint,
-      phoneNumberId: data.phoneHint,
-    });
+    const grant = await validateTokenScopes(token);
+    const waba = await resolveWabaAndPhone(
+      token,
+      { wabaId: data.wabaId, phoneNumberId: data.phoneNumberId },
+      grant,
+    );
     await registerPhoneNumber(waba.phoneNumberId, token, data.registrationPin);
     await subscribeAppToWaba(waba.wabaId, token);
     meta = { token, waba };
@@ -290,6 +304,18 @@ export async function connectMyClinicWhatsapp(
         // cadastrar o que faltou na WhatsApp Manager daquela clínica.
         logger.error('messaging.whatsapp.template_provision_failed', {
           templates: failed.map((o) => o.name).join(','),
+        });
+      }
+      // D104 — template que a Meta reclassificou continua existindo e sendo
+      // aceito no envio, mas passa a valer a régua de opt-in de marketing, que
+      // o Qoro não enxerga: o job termina `sent` e a mensagem pode não chegar.
+      // Editar não muda categoria; a correção é criar outro, com nome novo.
+      const drifted = outcomes.filter((o) => o.categoryDrift);
+      if (drifted.length > 0) {
+        logger.error('messaging.whatsapp.template_category_drift', {
+          templates: drifted
+            .map((o) => `${o.name}:${o.categoryDrift!.expected}->${o.categoryDrift!.actual}`)
+            .join(','),
         });
       }
     });

@@ -35,7 +35,7 @@ export function TableSortHeader({
     >
       <Link
         href={href}
-        className="flex items-center gap-1.25 px-3.5 py-2.5 transition-colors select-none hover:text-fg"
+        className="flex items-center gap-1.5 px-3.5 py-2.5 transition-colors select-none hover:text-fg"
       >
         {children}
         <span className="inline-flex flex-col" aria-hidden="true">

@@ -85,6 +85,8 @@ export function toAppointmentSummary(row: AppointmentRow): AppointmentSummary {
     createdVia: row.createdVia,
     urgencia: row.urgencia,
     faturamentoPendente: row.faturamentoPendente,
+    depositStatus: row.depositStatus,
+    holdExpiresAt: toIso(row.holdExpiresAt),
     observacoes: row.observacoes ?? null,
     rescheduledFromAppointmentId: row.rescheduledFromAppointmentId ?? null,
     recurrenceSeriesId: row.recurrenceSeriesId ?? null,
@@ -270,6 +272,41 @@ export interface ListDoctorAbsencesOpts {
   limit?: number;
 }
 
+export type DoctorAbsencePeriod = 'upcoming' | 'past' | 'all';
+
+export interface ListDoctorAbsencesPageOpts {
+  doctorId?: string;
+  period?: DoctorAbsencePeriod;
+  /** Instante de corte injetável para lista e total compartilharem a mesma janela. */
+  asOf?: Date;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedDoctorAbsences {
+  items: DoctorAbsenceDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+const DEFAULT_DOCTOR_ABSENCES_PAGE_SIZE = 30;
+const MAX_DOCTOR_ABSENCES_PAGE_SIZE = 100;
+
+function toDoctorAbsenceDTO(row: typeof doctorAbsences.$inferSelect): DoctorAbsenceDTO {
+  return {
+    id: row.id,
+    doctorId: row.doctorId,
+    startsAt: toIso(row.startsAt)!,
+    endsAt: toIso(row.endsAt)!,
+    reason: row.reason,
+    strategy: row.strategy,
+    replacementDoctorId: row.replacementDoctorId ?? null,
+    affectedAppointments: row.affectedAppointments,
+    createdAt: toIso(row.createdAt)!,
+  };
+}
+
 /** Ausências que intersectam o período informado, ordenadas pelo início. */
 export async function listDoctorAbsences(
   clinicId: string,
@@ -286,19 +323,64 @@ export async function listDoctorAbsences(
       .select()
       .from(doctorAbsences)
       .where(and(...conds))
-      .orderBy(asc(doctorAbsences.startsAt))
+      .orderBy(asc(doctorAbsences.startsAt), asc(doctorAbsences.id))
       .limit(limit);
-    return rows.map((row) => ({
-      id: row.id,
-      doctorId: row.doctorId,
-      startsAt: toIso(row.startsAt)!,
-      endsAt: toIso(row.endsAt)!,
-      reason: row.reason,
-      strategy: row.strategy,
-      replacementDoctorId: row.replacementDoctorId ?? null,
-      affectedAppointments: row.affectedAppointments,
-      createdAt: toIso(row.createdAt)!,
-    }));
+    return rows.map(toDoctorAbsenceDTO);
+  });
+}
+
+/**
+ * Página de ausências para o histórico operacional. Lista e `count(*)` usam o
+ * mesmo predicado tenant-scoped; o `id` fecha empates de data entre páginas.
+ */
+export async function listDoctorAbsencesPage(
+  clinicId: string,
+  opts: ListDoctorAbsencesPageOpts = {},
+): Promise<PaginatedDoctorAbsences> {
+  const page =
+    typeof opts.page === 'number' && Number.isSafeInteger(opts.page) && opts.page > 0
+      ? opts.page
+      : 1;
+  const pageSize =
+    typeof opts.pageSize === 'number' && Number.isSafeInteger(opts.pageSize) && opts.pageSize > 0
+      ? Math.min(opts.pageSize, MAX_DOCTOR_ABSENCES_PAGE_SIZE)
+      : DEFAULT_DOCTOR_ABSENCES_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+  const period = opts.period ?? 'upcoming';
+  const asOf = opts.asOf ?? new Date();
+  const conds: SQL[] = [eq(doctorAbsences.clinicId, clinicId)];
+
+  if (opts.doctorId) conds.push(eq(doctorAbsences.doctorId, opts.doctorId));
+  if (period === 'upcoming') conds.push(gte(doctorAbsences.endsAt, asOf));
+  if (period === 'past') conds.push(lt(doctorAbsences.endsAt, asOf));
+
+  const where = and(...conds);
+  const newestFirst = period !== 'upcoming';
+
+  return withTenant(clinicId, async (tx) => {
+    const [rows, [countRow]] = await Promise.all([
+      tx
+        .select()
+        .from(doctorAbsences)
+        .where(where)
+        .orderBy(
+          newestFirst ? desc(doctorAbsences.startsAt) : asc(doctorAbsences.startsAt),
+          newestFirst ? desc(doctorAbsences.id) : asc(doctorAbsences.id),
+        )
+        .limit(pageSize)
+        .offset(offset),
+      tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(doctorAbsences)
+        .where(where),
+    ]);
+
+    return {
+      items: rows.map(toDoctorAbsenceDTO),
+      total: Number(countRow?.total ?? 0),
+      page,
+      pageSize,
+    };
   });
 }
 
@@ -378,6 +460,40 @@ export async function hasSubsequentCompletedAppointment(
       .select({ id: appointments.id })
       .from(appointments)
       .where(and(...conditions))
+      .limit(1);
+    return Boolean(row);
+  });
+}
+
+/**
+ * ADR-057 / 2.4B — o paciente já remarcou o mesmo procedimento?
+ *
+ * A equivalência fica no Scheduling, não no worker de mensagens. Consideramos
+ * remarcação uma consulta futura ativa do mesmo paciente e procedimento.
+ */
+export async function hasFutureEquivalentAppointment(
+  clinicId: string,
+  input: {
+    patientId: string;
+    procedureId: string;
+    after: Date;
+    excludeAppointmentId: string;
+  },
+): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.patientId, input.patientId),
+          eq(appointments.procedureId, input.procedureId),
+          inArray(appointments.status, ['agendado', 'confirmado']),
+          gte(appointments.scheduledAt, input.after),
+          ne(appointments.id, input.excludeAppointmentId),
+        ),
+      )
       .limit(1);
     return Boolean(row);
   });
@@ -673,6 +789,62 @@ export async function getAppointmentStats(
  * inclui todos os atendimentos; `appointmentIds` é o seam necessário para a
  * camada de relatórios associar recebimentos sem JOIN entre contextos.
  */
+/** Uma semana da série de atendimentos — segunda a domingo no fuso da clínica. */
+export interface AtendimentosSemana {
+  /** Segunda-feira da semana, `YYYY-MM-DD`, já no fuso da clínica. */
+  weekStart: string;
+  atendido: number;
+  total: number;
+}
+
+/**
+ * Atendimentos agregados POR SEMANA, para a tabela de Relatórios.
+ *
+ * Espelha `getFaturamentoPorSemana` no corte de semana — `date_trunc('week', …
+ * AT TIME ZONE tz)` — para que a mesma linha da tabela junte dinheiro e volume
+ * do MESMO intervalo. Semanas sem consulta não voltam, pelo mesmo motivo: quem
+ * chama distingue "não houve" de "não sabemos".
+ */
+export async function getAtendimentosPorSemana(
+  clinicId: string,
+  from: Date,
+  to: Date,
+  timeZone: string,
+): Promise<AtendimentosSemana[]> {
+  const weekStart = sql<string>`to_char(date_trunc('week', ${appointments.scheduledAt} AT TIME ZONE ${timeZone}), 'YYYY-MM-DD')`;
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        weekStart,
+        atendido: sql<number>`coalesce(sum(case when ${appointments.status} = 'atendido' then 1 else 0 end), 0)::int`,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          gte(appointments.scheduledAt, from),
+          lt(appointments.scheduledAt, to),
+        ),
+      )
+      // GROUP BY/ORDER BY por POSIÇÃO, e não repetindo a expressão: o drizzle
+      // renderiza a mesma referência de coluna qualificada na cláusula de grupo
+      // ("appointments"."scheduled_at") e sem qualificar na projeção
+      // ("scheduled_at"). O Postgres compara as duas SINTATICAMENTE, conclui que
+      // a projeção não está agrupada e recusa a query com "must appear in the
+      // GROUP BY clause". O ordinal aponta para a mesma expressão sem depender
+      // de como cada lado é impresso.
+      .groupBy(sql`1`)
+      .orderBy(sql`1`);
+
+    return rows.map((row) => ({
+      weekStart: row.weekStart,
+      atendido: row.atendido ?? 0,
+      total: row.total ?? 0,
+    }));
+  });
+}
+
 export async function getAppointmentStatsByDoctor(
   clinicId: string,
   from: Date,
@@ -891,5 +1063,47 @@ export async function getAvailableSlots(opts: GetAvailableSlotsOpts): Promise<Sl
         durationMin: s.endMin - s.startMin,
       };
     });
+  });
+}
+
+/**
+ * Carimbos da fila do consultório para um lote de atendimentos.
+ *
+ * `queued_at` é o check-in e `started_at` é a chamada — é deles que sai "há
+ * quanto tempo esta pessoa espera" e "há quanto tempo está em atendimento". A
+ * Agenda precisa disso porque o status sozinho ("Aguardando") não distingue
+ * quem chegou agora de quem está lá há 40 minutos, que é a única diferença que
+ * muda o que a recepção faz.
+ */
+export interface QueueTimestamps {
+  appointmentId: string;
+  queuedAt: string;
+  startedAt: string | null;
+}
+
+export async function listQueueTimestamps(
+  clinicId: string,
+  appointmentIds: readonly string[],
+): Promise<QueueTimestamps[]> {
+  if (appointmentIds.length === 0) return [];
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        appointmentId: waitingQueueEntries.appointmentId,
+        queuedAt: waitingQueueEntries.queuedAt,
+        startedAt: waitingQueueEntries.startedAt,
+      })
+      .from(waitingQueueEntries)
+      .where(
+        and(
+          eq(waitingQueueEntries.clinicId, clinicId),
+          inArray(waitingQueueEntries.appointmentId, [...appointmentIds]),
+        ),
+      );
+    return rows.map((row) => ({
+      appointmentId: row.appointmentId,
+      queuedAt: toIso(row.queuedAt)!,
+      startedAt: toIso(row.startedAt),
+    }));
   });
 }

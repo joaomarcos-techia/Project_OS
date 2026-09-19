@@ -7,7 +7,7 @@ import 'server-only';
 
 import { withTenant } from '@/lib/db/tenant';
 
-import { asaasProvider } from './providers/asaas';
+import { asaasProvider } from '@/lib/payments/asaas';
 import {
   getUpgradePaymentContext,
   linkUpgradePayment,

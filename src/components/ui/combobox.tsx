@@ -90,7 +90,12 @@ export function Combobox({
 
   if (value) {
     return (
-      <div className="flex h-(--control-h) items-center gap-2">
+      <div
+        role="group"
+        aria-labelledby={id ? `${id}-label` : undefined}
+        aria-label={id ? undefined : ariaLabel}
+        className="flex h-(--control-h) items-center gap-2"
+      >
         <span className="inline-flex min-w-0 items-center gap-1.5 rounded-(--r-md) border border-[color-mix(in_oklch,var(--primary)_26%,transparent)] bg-(--primary-soft) py-1 pr-1.5 pl-2.5 text-(length:--fs-sm) font-medium text-(--primary-active) dark:text-fg">
           <Check aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="truncate">{value.label}</span>

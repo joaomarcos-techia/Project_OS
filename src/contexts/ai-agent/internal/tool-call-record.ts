@@ -56,7 +56,9 @@ function isScalar(v: unknown): v is string | number | boolean {
  * Converte as tool calls do turno na forma persistida em `ai_messages.tool_calls`.
  * Entrada NÃO confiável: `args` vem do modelo e pode ser qualquer coisa.
  */
-export function toToolCallRecords(calls: ReadonlyArray<{ name: string; args: unknown }>): ToolCallRecord[] {
+export function toToolCallRecords(
+  calls: ReadonlyArray<{ name: string; args: unknown }>,
+): ToolCallRecord[] {
   return calls.map((call) => {
     const record: ToolCallRecord = { name: call.name };
     if (!call.args || typeof call.args !== 'object' || Array.isArray(call.args)) return record;

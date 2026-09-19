@@ -6,6 +6,8 @@ import { useRef, useState, useTransition, type ChangeEvent } from 'react';
 import { updateClinicProfile, uploadClinicLogo } from '@/contexts/tenancy/actions';
 import type { ClinicProfile } from '@/contexts/tenancy/types';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { maskCnpj, maskPhoneBR } from '@/lib/masks';
@@ -103,50 +105,67 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
   }
 
   return (
-    <div className="stack" style={{ maxWidth: 560 }}>
-      {/* Dados do documento */}
-      <div className="cardblock wrap-pad flex flex-col gap-3">
-        <h4 className="text-sm font-semibold">Dados da clínica (aparecem nos documentos)</h4>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-fg-muted">Nome *</span>
-          <Input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={160} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-fg-muted">Endereço</span>
-          <Input value={endereco} onChange={(e) => setEndereco(e.target.value)} maxLength={240} />
-        </label>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-fg-muted">Telefone</span>
+    <div className="flex max-w-190 flex-col gap-(--sp-4)">
+      <Card className="flex flex-col gap-(--sp-4) p-(--card-pad)">
+        <div>
+          <h2 className="text-(length:--fs-subsection) font-semibold">Dados da clínica</h2>
+          <p className="mt-1 text-(length:--fs-body-sm) text-fg-muted">
+            Aparecem no cabeçalho do receituário e dos documentos.
+          </p>
+        </div>
+        <Field label="Nome" htmlFor="clinica-nome" required>
+          <Input
+            id="clinica-nome"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            maxLength={160}
+          />
+        </Field>
+        <Field label="Endereço" htmlFor="clinica-endereco">
+          <Input
+            id="clinica-endereco"
+            value={endereco}
+            onChange={(e) => setEndereco(e.target.value)}
+            maxLength={240}
+          />
+        </Field>
+        <div className="grid gap-(--sp-4) sm:grid-cols-3">
+          <Field label="Telefone" htmlFor="clinica-telefone">
             <Input
+              id="clinica-telefone"
               value={telefone}
               onChange={(e) => setTelefone(maskPhoneBR(e.target.value))}
               type="tel"
               inputMode="tel"
               maxLength={16}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-fg-muted">CNPJ</span>
+          </Field>
+          <Field label="CNPJ" htmlFor="clinica-cnpj">
             <Input
+              id="clinica-cnpj"
               value={cnpj}
               onChange={(e) => setCnpj(maskCnpj(e.target.value))}
               inputMode="numeric"
               maxLength={18}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-fg-muted">CNES</span>
-            <Input value={cnes} onChange={(e) => setCnes(e.target.value)} maxLength={20} />
-          </label>
+          </Field>
+          <Field label="CNES" htmlFor="clinica-cnes">
+            <Input
+              id="clinica-cnes"
+              value={cnes}
+              onChange={(e) => setCnes(e.target.value)}
+              maxLength={20}
+            />
+          </Field>
         </div>
-      </div>
+      </Card>
 
-      {/* Logo do receituário */}
-      <div className="cardblock wrap-pad flex flex-col gap-3">
-        <h4 className="text-sm font-semibold">Logo no receituário</h4>
-        <div className="flex items-center gap-3">
-          <div className="flex size-16 items-center justify-center overflow-hidden rounded border border-border bg-surface-subtle">
+      <Card className="flex flex-col gap-(--sp-4) p-(--card-pad)">
+        <h2 className="text-(length:--fs-subsection) font-semibold">Logo no receituário</h2>
+        <div className="flex items-center gap-(--sp-4)">
+          {/* `bg-surface-subtle` não existe como token — a moldura ficava sem
+              fundo desde sempre. Agora usa a superfície recuada do DS. */}
+          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-(--r-md) border border-border bg-surface-2">
             {shownLogo ? (
               // eslint-disable-next-line @next/next/no-img-element -- preview simples de asset remoto (Supabase); next/image exigiria allowlist de domínio.
               <img
@@ -155,10 +174,10 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
                 className="max-h-full max-w-full object-contain"
               />
             ) : (
-              <span className="text-xs text-fg-subtle">sem logo</span>
+              <span className="text-(length:--fs-xs) text-fg-subtle">sem logo</span>
             )}
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             <input
               ref={fileRef}
               type="file"
@@ -182,15 +201,15 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
                 </Button>
               ) : null}
             </div>
-            <span className="text-xs text-fg-subtle">
+            <span className="text-(length:--fs-xs) text-fg-subtle">
               PNG, JPG ou WEBP · mín. {MIN_LOGO_PX}×{MIN_LOGO_PX}px · até {CLINIC_LOGO_MAX_LABEL}.
             </span>
           </div>
         </div>
-      </div>
+      </Card>
 
       <div>
-        <Button type="button" size="sm" loading={saving} onClick={save}>
+        <Button type="button" loading={saving} onClick={save}>
           Salvar perfil
         </Button>
       </div>

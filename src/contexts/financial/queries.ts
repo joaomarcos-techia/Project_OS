@@ -7,7 +7,7 @@
  */
 import 'server-only';
 
-import { and, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
@@ -24,6 +24,7 @@ import {
   type SupplierRow,
 } from './schema';
 import type {
+  AccountingMovementDTO,
   CashFlowDTO,
   CollectionCaseDTO,
   FaturamentoPendenciaDTO,
@@ -35,6 +36,7 @@ import type {
   PaymentTransactionSummary,
   SupplierSummary,
 } from './types';
+import { accountingCashEffect } from './accounting-export';
 
 const toIso = (v: Date | string | null | undefined): string | null =>
   v == null ? null : v instanceof Date ? v.toISOString() : v;
@@ -162,6 +164,55 @@ export async function listPendingByPatient(
       .orderBy(desc(lancamentos.createdAt))
       .limit(50);
     return rows.map(toLancamentoSummary);
+  });
+}
+
+/**
+ * Saldo em aberto do recebível de um atendimento (ADR-051 1.5b.3a).
+ *
+ * **Por que este seam existe:** o Payments precisa saber quanto ainda falta para
+ * decidir se cobra o restante — e essa resposta é do FINANCIAL, que é a fonte da
+ * verdade. Se o Payments calculasse por conta própria (valor do procedimento
+ * menos o que ELE recebeu), um pagamento feito em dinheiro na recepção e lançado
+ * no Caixa não apareceria: o paciente receberia um link cobrando algo que já
+ * pagou. É o pior desfecho possível desta fase.
+ *
+ * `null` quando não há recebível do atendimento — e `null` significa **não
+ * cobrar**, o mesmo modo de falha seguro do `resolveDepositAmount`.
+ *
+ * Estados terminais (`cancelado`, `estornado`) são excluídos: não há saldo a
+ * perseguir num lançamento que deixou de existir como obrigação.
+ */
+export async function getAppointmentBalance(
+  clinicId: string,
+  appointmentId: string,
+): Promise<{ lancamentoId: string; valor: number; valorPago: number; saldo: number } | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = await tx
+      .select({
+        id: lancamentos.id,
+        valor: lancamentos.valor,
+        valorPago: lancamentos.valorPago,
+      })
+      .from(lancamentos)
+      .where(
+        and(
+          eq(lancamentos.clinicId, clinicId),
+          eq(lancamentos.appointmentId, appointmentId),
+          eq(lancamentos.tipo, 'receber'),
+          inArray(lancamentos.status, ['pendente', 'parcial']),
+        ),
+      )
+      .limit(1);
+    if (!row) return null;
+    const valor = Number(row.valor);
+    const valorPago = Number(row.valorPago);
+    return {
+      lancamentoId: row.id,
+      valor,
+      valorPago,
+      saldo: Math.round((valor - valorPago + Number.EPSILON) * 100) / 100,
+    };
   });
 }
 
@@ -307,6 +358,11 @@ export async function getCashFlowToday(
       .select({
         receber: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'receber' then ${lancamentos.valor} - ${lancamentos.valorPago} else 0 end), 0)`,
         pagar: sql<string>`coalesce(sum(case when ${lancamentos.tipo} = 'pagar' then ${lancamentos.valor} - ${lancamentos.valorPago} else 0 end), 0)`,
+        // Contagens vêm da MESMA varredura dos totais: uma query a mais só para
+        // contar as linhas que já estão sendo somadas seria ida redundante.
+        qtdReceber: sql<number>`coalesce(count(*) filter (where ${lancamentos.tipo} = 'receber'), 0)::int`,
+        qtdPagar: sql<number>`coalesce(count(*) filter (where ${lancamentos.tipo} = 'pagar'), 0)::int`,
+        qtdReceberVencidos: sql<number>`coalesce(count(*) filter (where ${lancamentos.tipo} = 'receber' and ${lancamentos.dueDate} < current_date), 0)::int`,
       })
       .from(lancamentos)
       .where(inArray(lancamentos.status, ['pendente', 'parcial']));
@@ -321,6 +377,12 @@ export async function getCashFlowToday(
           when (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
             or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')
           then ${paymentTransactions.amount} else 0 end), 0)`,
+        qtdRecebimentos: sql<number>`coalesce(count(*) filter (where
+          (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'refund')), 0)::int`,
+        qtdPagamentos: sql<number>`coalesce(count(*) filter (where
+          (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')), 0)::int`,
       })
       .from(paymentTransactions)
       .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
@@ -340,6 +402,13 @@ export async function getCashFlowToday(
       recebidoHoje,
       pagoHoje,
       saldoHoje: Math.round((recebidoHoje - pagoHoje) * 100) / 100,
+      contagens: {
+        receber: aberto?.qtdReceber ?? 0,
+        receberVencidos: aberto?.qtdReceberVencidos ?? 0,
+        pagar: aberto?.qtdPagar ?? 0,
+        recebimentos: liquidado?.qtdRecebimentos ?? 0,
+        pagamentos: liquidado?.qtdPagamentos ?? 0,
+      },
     };
   });
 }
@@ -349,6 +418,80 @@ export async function getCashFlowToday(
  * janela [from, to). Mesma semântica do getCashFlowToday (não depende do rollup
  * cash_flow_daily estar populado). Estornos (status='estornado') ficam de fora.
  */
+/** Uma semana da série de faturamento — segunda a domingo no fuso da clínica. */
+export interface FaturamentoSemana {
+  /** Segunda-feira da semana, `YYYY-MM-DD`, já no fuso da clínica. */
+  weekStart: string;
+  recebido: number;
+  pago: number;
+  saldo: number;
+}
+
+/**
+ * Faturamento agregado POR SEMANA, para a série de Relatórios.
+ *
+ * Mesma regra de sinal de `getFaturamentoPeriodo` (um estorno de "receber" conta
+ * como saída, e vice-versa) — se as duas divergissem, o total do período não
+ * fecharia com a soma das semanas.
+ *
+ * O corte de semana usa `date_trunc('week', … AT TIME ZONE tz)`: o Postgres
+ * trunca para segunda-feira, e o `AT TIME ZONE` garante que a virada de semana
+ * seja a da clínica, não a do UTC. Semanas sem movimento NÃO voltam como zero —
+ * elas simplesmente não existem no resultado, e quem chama decide se aquilo é
+ * "sem dado" ou "R$ 0" (as duas coisas são diferentes num relatório).
+ */
+export async function getFaturamentoPorSemana(
+  clinicId: string,
+  from: Date,
+  to: Date,
+  timeZone: string,
+): Promise<FaturamentoSemana[]> {
+  const weekStart = sql<string>`to_char(date_trunc('week', ${paymentTransactions.occurredAt} AT TIME ZONE ${timeZone}), 'YYYY-MM-DD')`;
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        weekStart,
+        recebido: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
+        pago: sql<string>`coalesce(sum(case
+          when (${lancamentos.tipo} = 'pagar' and ${paymentTransactions.kind} = 'payment')
+            or (${lancamentos.tipo} = 'receber' and ${paymentTransactions.kind} = 'refund')
+          then ${paymentTransactions.amount} else 0 end), 0)`,
+      })
+      .from(paymentTransactions)
+      .innerJoin(lancamentos, eq(lancamentos.id, paymentTransactions.lancamentoId))
+      .where(
+        and(
+          eq(paymentTransactions.clinicId, clinicId),
+          gte(paymentTransactions.occurredAt, from),
+          lt(paymentTransactions.occurredAt, to),
+        ),
+      )
+      // GROUP BY/ORDER BY por POSIÇÃO, e não repetindo a expressão: o drizzle
+      // renderiza a mesma referência de coluna qualificada na cláusula de grupo
+      // ("appointments"."scheduled_at") e sem qualificar na projeção
+      // ("scheduled_at"). O Postgres compara as duas SINTATICAMENTE, conclui que
+      // a projeção não está agrupada e recusa a query com "must appear in the
+      // GROUP BY clause". O ordinal aponta para a mesma expressão sem depender
+      // de como cada lado é impresso.
+      .groupBy(sql`1`)
+      .orderBy(sql`1`);
+
+    return rows.map((row) => {
+      const recebido = num(row.recebido);
+      const pago = num(row.pago);
+      return {
+        weekStart: row.weekStart,
+        recebido,
+        pago,
+        saldo: Math.round((recebido - pago) * 100) / 100,
+      };
+    });
+  });
+}
+
 export async function getFaturamentoPeriodo(
   clinicId: string,
   from: Date,
@@ -378,6 +521,86 @@ export async function getFaturamentoPeriodo(
     const recebido = num(r?.recebido);
     const pago = num(r?.pago);
     return { recebido, pago, saldo: Math.round((recebido - pago) * 100) / 100 };
+  });
+}
+
+/**
+ * Ledger detalhado para o relatório mensal enviado à contabilidade.
+ *
+ * A consulta não seleciona paciente nem conteúdo clínico. Os dois lados do JOIN
+ * carregam o predicado de tenant, além da RLS ativada por `withTenant`.
+ */
+export async function listAccountingMovements(
+  clinicId: string,
+  from: Date,
+  to: Date,
+  limit: number,
+): Promise<AccountingMovementDTO[]> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = await tx
+      .select({
+        transactionId: paymentTransactions.id,
+        lancamentoId: paymentTransactions.lancamentoId,
+        occurredAt: paymentTransactions.occurredAt,
+        transactionKind: paymentTransactions.kind,
+        lancamentoTipo: lancamentos.tipo,
+        description: lancamentos.descricao,
+        amount: paymentTransactions.amount,
+        paymentMethod: paymentTransactions.paymentMethod,
+        paymentMethodLabel: paymentMethods.label,
+        dueDate: lancamentos.dueDate,
+        lancamentoStatus: lancamentos.status,
+        createdVia: lancamentos.createdVia,
+        supplierName: suppliers.razaoSocial,
+        supplierCnpj: suppliers.cnpj,
+        originalPaymentId: paymentTransactions.originalPaymentId,
+        reason: paymentTransactions.reason,
+      })
+      .from(paymentTransactions)
+      .innerJoin(
+        lancamentos,
+        and(
+          eq(lancamentos.id, paymentTransactions.lancamentoId),
+          eq(lancamentos.clinicId, clinicId),
+        ),
+      )
+      .leftJoin(
+        suppliers,
+        and(eq(suppliers.id, lancamentos.supplierId), eq(suppliers.clinicId, clinicId)),
+      )
+      .leftJoin(paymentMethods, eq(paymentMethods.code, paymentTransactions.paymentMethod))
+      .where(
+        and(
+          eq(paymentTransactions.clinicId, clinicId),
+          gte(paymentTransactions.occurredAt, from),
+          lt(paymentTransactions.occurredAt, to),
+        ),
+      )
+      .orderBy(asc(paymentTransactions.occurredAt), asc(paymentTransactions.id))
+      .limit(limit);
+
+    return rows.map((row) => {
+      const amount = num(row.amount);
+      return {
+        transactionId: row.transactionId,
+        lancamentoId: row.lancamentoId,
+        occurredAt: toIso(row.occurredAt)!,
+        transactionKind: row.transactionKind,
+        lancamentoTipo: row.lancamentoTipo,
+        description: row.description,
+        amount,
+        cashEffect: accountingCashEffect(row.lancamentoTipo, row.transactionKind, amount),
+        paymentMethod: row.paymentMethod ?? null,
+        paymentMethodLabel: row.paymentMethodLabel ?? null,
+        dueDate: row.dueDate ?? null,
+        lancamentoStatus: row.lancamentoStatus,
+        createdVia: row.createdVia,
+        supplierName: row.supplierName ?? null,
+        supplierCnpj: row.supplierCnpj ?? null,
+        originalPaymentId: row.originalPaymentId ?? null,
+        reason: row.reason ?? null,
+      };
+    });
   });
 }
 
@@ -455,6 +678,23 @@ export interface ListLancamentosFilter {
   limit?: number;
 }
 
+export interface ListLancamentosPageFilter {
+  tipo?: LancamentoTipo;
+  status?: LancamentoStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedLancamentos {
+  items: LancamentoSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+const DEFAULT_LANCAMENTOS_PAGE_SIZE = 50;
+const MAX_LANCAMENTOS_PAGE_SIZE = 200;
+
 export async function listLancamentos(
   clinicId: string,
   filter: ListLancamentosFilter = {},
@@ -470,6 +710,57 @@ export async function listLancamentos(
       .orderBy(desc(lancamentos.createdAt))
       .limit(filter.limit ?? 50);
     return rows.map(toLancamentoSummary);
+  });
+}
+
+export async function listLancamentosPage(
+  clinicId: string,
+  filter: ListLancamentosPageFilter = {},
+): Promise<PaginatedLancamentos> {
+  const requestedPage = filter.page;
+  const requestedPageSize = filter.pageSize;
+  const page =
+    typeof requestedPage === 'number' && Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? requestedPage
+      : 1;
+  const pageSize =
+    typeof requestedPageSize === 'number' &&
+    Number.isSafeInteger(requestedPageSize) &&
+    requestedPageSize > 0
+      ? Math.min(requestedPageSize, MAX_LANCAMENTOS_PAGE_SIZE)
+      : DEFAULT_LANCAMENTOS_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+
+  return withTenant(clinicId, async (tx) => {
+    // RLS continua sendo a barreira autoritativa. O predicado explícito reduz a
+    // superfície de erro e garante que lista e total usem exatamente o mesmo tenant.
+    const conds = [eq(lancamentos.clinicId, clinicId)];
+    if (filter.tipo) conds.push(eq(lancamentos.tipo, filter.tipo));
+    if (filter.status) conds.push(eq(lancamentos.status, filter.status));
+    const where = and(...conds);
+
+    const [rows, [countRow]] = await Promise.all([
+      tx
+        .select()
+        .from(lancamentos)
+        .where(where)
+        // created_at não é único; id fecha o empate para evitar itens pulando
+        // entre páginas quando dois lançamentos são criados no mesmo instante.
+        .orderBy(desc(lancamentos.createdAt), desc(lancamentos.id))
+        .limit(pageSize)
+        .offset(offset),
+      tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(lancamentos)
+        .where(where),
+    ]);
+
+    return {
+      items: rows.map(toLancamentoSummary),
+      total: Number(countRow?.total ?? 0),
+      page,
+      pageSize,
+    };
   });
 }
 

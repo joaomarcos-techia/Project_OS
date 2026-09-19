@@ -100,7 +100,9 @@ describe('toToolCallRecords — o que a auditoria precisa responder', () => {
   });
 
   it('booleano seguro atravessa como booleano', () => {
-    const rec = toToolCallRecords([{ name: 'collect_patient_data', args: { confirmed: true } }])[0]!;
+    const rec = toToolCallRecords([
+      { name: 'collect_patient_data', args: { confirmed: true } },
+    ])[0]!;
     expect(rec.args).toEqual({ confirmed: true });
   });
 });

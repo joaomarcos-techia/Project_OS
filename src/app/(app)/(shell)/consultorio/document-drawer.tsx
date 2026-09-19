@@ -1,7 +1,7 @@
 'use client';
 
-import { FileText } from 'lucide-react';
-import { useState, useTransition } from 'react';
+import { FileCheck, FileText, FlaskConical, Share2 } from 'lucide-react';
+import { useState, useTransition, type ReactNode } from 'react';
 
 import type { CreateMedicalDocumentInput, MedicalDocumentType } from '@/contexts/clinical/types';
 import { Alert } from '@/components/ui/alert';
@@ -16,8 +16,9 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import { Field } from '@/components/ui/field';
+import { FormSection } from '@/components/ui/form-section';
+import { OptionCardGroup } from '@/components/ui/option-card-group';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 
@@ -31,9 +32,31 @@ const DOC_LABEL: Record<MedicalDocumentType, string> = {
   encaminhamento: 'Encaminhamento',
 };
 
+/** O que cada tipo serve para — a descrição existe porque o rótulo sozinho não
+ *  distingue atestado de declaração para quem não emite documento todo dia. */
+const DOC_DESCRIPTION: Record<MedicalDocumentType, string> = {
+  atestado: 'Justificar afastamento ou incapacidade.',
+  exame: 'Pedir exames ou procedimentos complementares.',
+  declaracao: 'Comprovar comparecimento ou acompanhamento.',
+  encaminhamento: 'Encaminhar para outro profissional.',
+};
+
+const DOC_ICON: Record<MedicalDocumentType, ReactNode> = {
+  atestado: <FileCheck />,
+  exame: <FlaskConical />,
+  declaracao: <FileText />,
+  encaminhamento: <Share2 />,
+};
+
 /** Emissão de documento médico em Drawer (atestado/exame/declaração/encaminhamento). */
-export function DocumentDrawer({ patientId }: { patientId: string }) {
-  const [open, setOpen] = useState(false);
+export function DocumentDrawer({
+  patientId,
+  defaultOpen = false,
+}: {
+  patientId: string;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const [type, setType] = useState<MedicalDocumentType>('atestado');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -127,19 +150,20 @@ export function DocumentDrawer({ patientId }: { patientId: string }) {
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-4">
           {error ? <Alert variant="danger">{error}</Alert> : null}
-          <Field label="Tipo" htmlFor="document-type">
-            <Select
-              id="document-type"
+          <FormSection label="Tipo de documento">
+            <OptionCardGroup
+              name="document-type"
+              aria-label="Tipo de documento"
               value={type}
-              onChange={(e) => setType(e.target.value as MedicalDocumentType)}
-            >
-              {(Object.keys(DOC_LABEL) as MedicalDocumentType[]).map((t) => (
-                <option key={t} value={t}>
-                  {DOC_LABEL[t]}
-                </option>
-              ))}
-            </Select>
-          </Field>
+              onValueChange={setType}
+              options={(Object.keys(DOC_LABEL) as MedicalDocumentType[]).map((t) => ({
+                value: t,
+                label: DOC_LABEL[t],
+                description: DOC_DESCRIPTION[t],
+                icon: DOC_ICON[t],
+              }))}
+            />
+          </FormSection>
 
           {type === 'atestado' ? (
             <>

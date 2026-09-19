@@ -17,12 +17,18 @@ import boundaries from 'eslint-plugin-boundaries';
 import prettierConfig from 'eslint-config-prettier';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,
+  // pnpm mantém os plugins como dependências do eslint-config-next.
+  // Resolve também no lint iniciado pelo next build em uma cópia do checkout.
+  resolvePluginsRelativeTo: path.dirname(
+    createRequire(import.meta.url).resolve('eslint-config-next/package.json'),
+  ),
 });
 
 const config = [
@@ -36,6 +42,7 @@ const config = [
       'coverage/**',
       // Artefatos gerados pelo Playwright são necessários como evidência de E2E,
       // mas contêm bundles de terceiros minificados — não são código da aplicação.
+      '.playwright/**',
       'playwright-report/**',
       'test-results/**',
       'next-env.d.ts',
@@ -124,8 +131,8 @@ const config = [
 
   // C1 db guard #1: `postgres` driver may ONLY be imported by:
   //   - src/lib/db/index.ts (canonical pool factory for the app)
-  //   - scripts/db-migrate-prod.ts, scripts/delete-test-clinics-prod.ts and
-  //     scripts/reset-prod-data.ts
+  //   - scripts/db-migrate-prod.ts, scripts/delete-test-clinics-prod.ts,
+  //     scripts/reset-prod-data.ts and the P8 disposable load runners
   //     (each needs a dedicated one-shot connection against DATABASE_URL_PROD;
   //     src/lib/db is bound to env.DATABASE_URL at boot and can't target a
   //     different URL).
@@ -137,6 +144,16 @@ const config = [
       'src/lib/db/index.ts',
       'scripts/db-migrate-prod.ts',
       'scripts/delete-test-clinics-prod.ts',
+      // P8: conexões one-shot exclusivamente contra PostgreSQL loopback criado
+      // pelo próprio harness. Guardas recusam Preview/prod/DEV compartilhado.
+      'scripts/load-test.ts',
+      'scripts/load-test-seed-runner.ts',
+      // Bootstrap do cluster temporário: loopback fixo e data_directory verificado.
+      'scripts/security/tenant-isolation.ts',
+      'scripts/security/signup-regression.ts',
+      // Mesmo bootstrap, para o harness de provisionamento O-6: cluster efêmero
+      // sob o TEMP do SO, loopback fixo, migrations reais aplicadas em ordem.
+      'scripts/security/scratch-schema.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
@@ -219,6 +236,17 @@ const config = [
       'src/contexts/scheduling/reminder-candidates.ts',
       'src/contexts/financial/dunning-candidates.ts',
       'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
+      // ADR-049 1.3b: mesma forma, para o sinal. `deposit-candidates` é o
+      // read-model do Scheduling ("quem ainda pode ser cobrado"); `deposit-scan`
+      // lê as clínicas que ligaram a política — tabela do próprio Payments, sem
+      // clinic_id de request. Ambos read-only, bound por LIMIT; a cobrança em si
+      // volta para withTenant. Também na allowlist do arch:db-check.
+      'src/contexts/scheduling/deposit-candidates.ts',
+      'src/contexts/payments/internal/deposit-scan.ts',
+      // ADR-049 1.3: varredura de holds vencidos. Read-only cross-tenant, bound
+      // por LIMIT; o CANCELAMENTO de cada agendamento volta para withTenant e passa
+      // pela máquina de estados congelada (applyTransition).
+      'src/contexts/scheduling/internal/deposit-hold.ts',
       // WAIT-001: mesma forma — o SCAN de ofertas de lista de espera vencidas é
       // cross-tenant e devolve só ids; a liberação/repasse de cada uma roda em
       // withTenant, sob RLS. O privilégio descobre o trabalho, não o executa.
@@ -229,6 +257,27 @@ const config = [
       // justificativa dos read-models acima — também na allowlist do arch:db-check.
       'src/contexts/onboarding/internal/invites.ts',
       'src/contexts/onboarding/internal/saga.ts',
+      // ADR-060 (O-2a): signup_sessions é global pré-tenant, como clinic_invites —
+      // nasce ANTES de existir clínica, então não há GUC de tenant para withTenant
+      // setar. A tabela tem RLS ENABLE+FORCE SEM NENHUMA POLICY, grant só a
+      // service_role e REVOKE explícito de anon/authenticated (migration 0096).
+      'src/contexts/onboarding/internal/signup-session.ts',
+      // ADR-060 §1.c.1: as quatro perguntas escrevem na MESMA tabela global
+      // pré-tenant. Mesma justificativa do irmão acima — `withTenant` não tem
+      // GUC de tenant para setar numa linha que nasce antes de existir clínica.
+      'src/contexts/onboarding/internal/signup-answers.ts',
+      // ADR-062 O-3b.3: ownership do mesmo signup_sessions global prÃ©-tenant.
+      // O draft verificado ainda nÃ£o tem clinic_id; RLS FORCE sem policy e grant
+      // exclusivo a service_role mantÃªm a fronteira atÃ© o provisionamento.
+      'src/contexts/onboarding/internal/signup-draft.ts',
+      // O-5 (0103): intenção de assinatura no MESMO signup_sessions pré-tenant.
+      // O draft verificado ainda não tem clinic_id; a reserva precisa acontecer
+      // antes de existir tenant, então não há GUC para withTenant setar. RLS FORCE
+      // sem policy e grant exclusivo a service_role seguem sendo a fronteira.
+      'src/contexts/onboarding/internal/signup-billing.ts',
+      // O-6: provisionamento a partir do cadastro pré-tenant. Lê/apaga
+      // signup_sessions e cria o tenant na MESMA tx — irmão da saga de convite.
+      'src/contexts/onboarding/internal/signup-provision.ts',
       // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
       // authenticated (D31). Mesma justificativa da saga de onboarding.

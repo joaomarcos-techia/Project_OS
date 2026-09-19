@@ -15,6 +15,7 @@
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { safeEqual } from '@/lib/auth/secret-compare';
 import { assertMessagingRuntimeReady, env } from '@/lib/env';
+import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { runWithContext } from '@/lib/observability/context';
 import {
@@ -35,29 +36,6 @@ export const maxDuration = 60;
 
 const MAX_WEBHOOK_BYTES = 1_000_000;
 const PROVIDER = 'meta' as const;
-
-/** Lê o body com teto de bytes (defesa contra Content-Length mentiroso). */
-async function readBodyCapped(req: Request, cap: number): Promise<string | null> {
-  if (!req.body) {
-    const text = await req.text();
-    return Buffer.byteLength(text, 'utf8') > cap ? null : text;
-  }
-  const reader = req.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > cap) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
 
 function groupByPhoneId(
   messages: ParsedInboundMessage[],
@@ -145,7 +123,7 @@ async function handleWebhook(req: Request): Promise<Response> {
     metrics.emit('messaging.webhook.oversized', { contentLength });
     return new Response('payload too large', { status: 413 });
   }
-  const raw = await readBodyCapped(req, MAX_WEBHOOK_BYTES);
+  const raw = await readWebhookBodyCapped(req, MAX_WEBHOOK_BYTES);
   if (raw === null) {
     metrics.emit('messaging.webhook.oversized', {});
     return new Response('payload too large', { status: 413 });

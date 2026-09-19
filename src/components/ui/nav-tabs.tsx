@@ -33,7 +33,13 @@ export function NavTabs({ tabs, className }: { tabs: NavTab[]; className?: strin
   const pathname = usePathname();
   const search = useSearchParams();
   return (
-    <nav className={cn('flex gap-0.5 border-b border-border', className)}>
+    <nav
+      aria-label="Navegação da seção"
+      className={cn(
+        'flex max-w-full gap-0.5 overflow-x-auto overscroll-x-contain border-b border-border whitespace-nowrap',
+        className,
+      )}
+    >
       {tabs.map((tab) => {
         const active = isActive(pathname, search, tab);
         return (
@@ -42,7 +48,7 @@ export function NavTabs({ tabs, className }: { tabs: NavTab[]; className?: strin
             href={tab.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'relative px-3.5 py-2.5 text-(length:--fs-sm) font-medium transition-colors duration-(--dur-fast)',
+              'relative shrink-0 px-3.5 py-2.5 text-(length:--fs-sm) font-medium transition-colors duration-(--dur-fast)',
               'after:absolute after:right-2 after:-bottom-px after:left-2 after:h-0.5 after:bg-primary after:transition-opacity',
               active
                 ? 'text-primary after:opacity-100'

@@ -24,6 +24,26 @@ export function maskPhone(phone: string | null | undefined): string {
   return `+${prefix}${stars}${last4}`;
 }
 
+/**
+ * REDIGE um CPF, preservando os 6 primeiros e os 2 últimos dígitos:
+ * `41290871104` → `412.908.***-04`. É o formato da referência de setembro/2026.
+ *
+ * Nome diferente de `maskCpf` (lib/masks) de propósito: aquele é FORMATADOR de
+ * input, que completa a pontuação enquanto se digita e devolve o CPF inteiro.
+ * Este REMOVE dígitos e não tem volta — trocar um pelo outro num campo de
+ * formulário salvaria um CPF com asteriscos.
+ *
+ * Redigir é responsabilidade de QUEM DECIFRA, no servidor: o valor completo
+ * nunca deve atravessar a fronteira para o cliente só para a UI escondê-lo.
+ * Entrada que não tem 11 dígitos devolve string vazia — CPF inválido não é
+ * exibido pela metade.
+ */
+export function redactCpf(cpf: string | null | undefined): string {
+  const digits = (cpf ?? '').replace(/\D/g, '');
+  if (digits.length !== 11) return '';
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.***-${digits.slice(9)}`;
+}
+
 const DATE_PT = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
   month: '2-digit',

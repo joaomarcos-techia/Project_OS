@@ -40,6 +40,17 @@ describe('env validation (C1 contract)', () => {
     expect(parsed.DATABASE_URL).toContain('postgres://');
   });
 
+  it('aceita o segredo opcional de bypass da Vercel', () => {
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        VERCEL_ENV: 'preview',
+        VERCEL_AUTOMATION_BYPASS_SECRET: 'segredo-de-preview',
+      }),
+    );
+    expect(parsed.VERCEL_AUTOMATION_BYPASS_SECRET).toBe('segredo-de-preview');
+  });
+
   it('treats empty strings as undefined for optional fields', () => {
     const parsed = loadEnv(
       asEnv({
@@ -98,6 +109,57 @@ describe('env validation (C1 contract)', () => {
     expect(parsed.ASAAS_WEBHOOK_TOKEN).toBe('asaas-webhook-dev');
     expect(parsed.RESEND_API_KEY).toBe('re_dev_test');
     expect(parsed.EMAIL_FROM).toBe('Qoro <dev@qoro.test>');
+  });
+
+  it('Turnstile: _LOCAL vence _DEV, que vence o nome canônico', () => {
+    // Hostnames DIFERENTES na Cloudflare: `localhost` e `*.vercel.app` têm
+    // chaves próprias. Usar a de homologação em localhost faz o widget recusar,
+    // e a recusa aparece como "o desafio não passa" — que não aponta para
+    // configuração nenhuma.
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'site-prod',
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV: 'site-dev',
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL: 'site-local',
+        TURNSTILE_SECRET_KEY: 'secret-prod',
+        TURNSTILE_SECRET_KEY_DEV: 'secret-dev',
+        TURNSTILE_SECRET_KEY_LOCAL: 'secret-local',
+      }),
+    );
+    expect(parsed.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBe('site-local');
+    expect(parsed.TURNSTILE_SECRET_KEY).toBe('secret-local');
+  });
+
+  it('Turnstile: sem _LOCAL, cai no _DEV', () => {
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'site-prod',
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV: 'site-dev',
+        TURNSTILE_SECRET_KEY_DEV: 'secret-dev',
+      }),
+    );
+    expect(parsed.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBe('site-dev');
+    expect(parsed.TURNSTILE_SECRET_KEY).toBe('secret-dev');
+  });
+
+  it('Turnstile: em produção NENHUM alias é lido — nem _DEV, nem _LOCAL', () => {
+    // A Vercel constrói o PREVIEW com NODE_ENV=production. Um `*_DEV` no painel
+    // para o escopo Preview nunca é lido — foi exatamente o diagnóstico de
+    // 13/09, quando a rota recusou com `not_configured`.
+    const parsed = loadEnv(
+      asEnv({
+        ...baseValid,
+        NODE_ENV: 'production',
+        DATABASE_URL_PROD: 'postgres://u:p@prod-host:5432/db?sslmode=require',
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV: 'site-dev',
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL: 'site-local',
+        TURNSTILE_SECRET_KEY_LOCAL: 'secret-local',
+      }),
+    );
+    expect(parsed.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBeUndefined();
+    expect(parsed.TURNSTILE_SECRET_KEY).toBeUndefined();
   });
 
   it('does not map development aliases in production', () => {

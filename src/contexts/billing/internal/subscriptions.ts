@@ -242,7 +242,7 @@ export async function ensureInvoiceForPayment(
  * NÃO paga nem vence invoice: `paid`/`overdue` continuam saindo do caminho
  * monotônico existente (`markInvoicePaid`/`markInvoiceOverdue`), para que exista
  * UM único lugar que quita uma cobrança. Aqui só se trata o que não tinha dono:
- * data, valor, cancelamento e divergência.
+ * data, valor, cancelamento, restauração autoritativa e divergência.
  *
  * Devolve a ação decidida — inclusive as que não aplicou — para o caller rotear
  * e para o teste afirmar sobre a decisão, não sobre o efeito colateral.
@@ -265,6 +265,36 @@ export async function syncInvoiceFromProviderPayment(
   );
 
   if (action.kind === 'noop') return { action, invoice };
+
+  if (action.kind === 'restore') {
+    // Exceção estreita ao terminal `cancelled`: o getPayment autoritativo
+    // confirmou que a mesma cobrança voltou a existir. O CAS impede duas
+    // entregas/eventos concorrentes de restaurarem e auditarem duas vezes.
+    const restored = await tx
+      .update(invoices)
+      .set({
+        status: action.status,
+        ...(action.dueDate ? { dueDate: action.dueDate } : {}),
+        ...(action.totalCents !== undefined
+          ? { totalAmount: toReaisString(action.totalCents) }
+          : {}),
+      })
+      .where(and(eq(invoices.id, invoice.id), eq(invoices.status, 'cancelled')))
+      .returning();
+    if (restored.length === 0) {
+      return { action: { kind: 'noop', reason: 'lost_cas' }, invoice };
+    }
+
+    await recordBillingEvent(tx, clinicId, 'invoice.restored', {
+      invoiceId: invoice.id,
+      reason: 'provider_restored',
+    });
+    metrics.emit('billing.invoice.restored', { clinicId, invoiceId: invoice.id });
+    if (action.amountChanged) {
+      metrics.emit('billing.invoice.amount_changed', { clinicId, invoiceId: invoice.id });
+    }
+    return { action, invoice: restored[0]! };
+  }
 
   if (action.kind === 'flag_divergence') {
     // Sem confirmação autoritativa não se decide nada: registra para revisão e

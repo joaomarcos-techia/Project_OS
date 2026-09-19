@@ -11,6 +11,8 @@ const READ_ONLY_ROUTES = [
   '/caixa',
   '/financeiro',
   '/financeiro/fornecedores',
+  // O índice É a tela: desde a remoção das rotas de categoria, `/configuracoes`
+  // é a lista única e não redireciona para lugar nenhum.
   '/configuracoes',
   '/configuracoes/agente',
   '/configuracoes/assinatura',

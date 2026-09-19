@@ -58,7 +58,7 @@ export function AuditExportForm() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Configurações' }, { label: 'Auditoria' }]}
+        crumbs={[{ label: 'Configurações', href: '/configuracoes' }, { label: 'Auditoria' }]}
         title="Auditoria"
         description="Exporte a trilha de ações da clínica em CSV."
       />

@@ -1,24 +1,43 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { isPractitioner } from '@/contexts/identity';
 import { getProfileNames, listEmployees } from '@/contexts/identity/queries';
 import { administersTeamSchedule } from '@/contexts/scheduling/internal/availability-scope';
-import { listDoctorAbsences } from '@/contexts/scheduling/queries';
+import { listDoctorAbsencesPage } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
+import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { FilterBar } from '@/components/ui/filter-bar';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
+import { Select } from '@/components/ui/select';
+import {
+  TableBody,
+  TableCell,
+  TableCellStack,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 
 import { DoctorAbsenceForm } from './doctor-absence-form';
+import {
+  doctorAbsencePageHref,
+  parseDoctorAbsencePage,
+  parseDoctorAbsencePeriod,
+} from './pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DoctorAbsencesPage() {
+type SP = { profissional?: string; periodo?: string; page?: string };
+
+export default async function DoctorAbsencesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requireUser();
   if (!user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY)) {
     return (
@@ -33,6 +52,9 @@ export default async function DoctorAbsencesPage() {
   // de `manage:availability`. Quem não administra a equipe só pode registrar a
   // própria ausência; a mesma regra é reaplicada na action (a UI não é o gate).
   const canManageTeam = administersTeamSchedule(user);
+  const filterDoctors = employees
+    .filter((employee) => !employee.pending && isPractitioner(employee))
+    .map((employee) => ({ id: employee.id, nome: employee.nome }));
   const doctors = employees
     .filter((employee) => employee.ativo && !employee.pending && isPractitioner(employee))
     .filter((employee) => canManageTeam || employee.id === user.userId)
@@ -48,12 +70,36 @@ export default async function DoctorAbsencesPage() {
       </Alert>
     );
   }
-  const absences = await listDoctorAbsences(clinicId, { from: new Date(), limit: 100 });
-  const timezone = (await getClinicTimezone(clinicId)) ?? 'America/Sao_Paulo';
+  const sp = await searchParams;
+  const page = parseDoctorAbsencePage(sp.page);
+  const period = parseDoctorAbsencePeriod(sp.periodo);
+  const doctorId = filterDoctors.some((doctor) => doctor.id === sp.profissional)
+    ? sp.profissional
+    : undefined;
+  const filters = {
+    ...(doctorId ? { doctorId } : {}),
+    ...(period !== 'upcoming' ? { period } : {}),
+  };
+  const asOf = new Date();
+  const [result, timezoneResult] = await Promise.all([
+    listDoctorAbsencesPage(clinicId, { ...filters, period, page, asOf }),
+    getClinicTimezone(clinicId),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  if (page > totalPages) redirect(doctorAbsencePageHref(filters, totalPages));
+
+  const absences = result.items;
+  const timezone = timezoneResult ?? 'America/Sao_Paulo';
   const names = await getProfileNames(
     clinicId,
     absences.flatMap((absence) => [absence.doctorId, absence.replacementDoctorId ?? '']),
   );
+  const periodTitle =
+    period === 'past'
+      ? 'Histórico de ausências'
+      : period === 'all'
+        ? 'Todas as ausências'
+        : 'Ausências atuais e futuras';
 
   return (
     <>
@@ -71,44 +117,106 @@ export default async function DoctorAbsencesPage() {
           </Link>
         }
       />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(18rem,0.75fr)_minmax(0,1.25fr)]">
         <PanelCard title="Registrar ausência">
           <DoctorAbsenceForm doctors={doctors} />
         </PanelCard>
-        <PanelCard title="Ausências atuais e futuras" meta={`${absences.length}`}>
-          {absences.length === 0 ? (
-            <EmptyState
-              title="Nenhuma ausência registrada"
-              description="Os próximos períodos aparecerão aqui."
-            />
-          ) : (
-            <ul className="flex flex-col divide-y divide-border">
+        <section aria-labelledby="absence-list-title" className="min-w-0">
+          <h2 id="absence-list-title" className="mb-2 text-balance text-sm font-semibold text-fg">
+            {periodTitle}
+          </h2>
+          <FilterBar>
+            <form className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <div className="min-w-44 flex-1">
+                <Select
+                  name="profissional"
+                  defaultValue={doctorId ?? ''}
+                  aria-label="Filtrar ausências por profissional"
+                >
+                  <option value="">Todos os profissionais</option>
+                  {filterDoctors.map((doctor) => (
+                    <option key={doctor.id} value={doctor.id}>
+                      {doctor.nome}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="min-w-40 flex-1">
+                <Select
+                  name="periodo"
+                  defaultValue={period === 'upcoming' ? '' : period}
+                  aria-label="Filtrar ausências por período"
+                >
+                  <option value="">Atuais e futuras</option>
+                  <option value="past">Encerradas</option>
+                  <option value="all">Todas</option>
+                </Select>
+              </div>
+              <button
+                type="submit"
+                className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+              >
+                Filtrar
+              </button>
+            </form>
+          </FilterBar>
+
+          <DataTable
+            total={absences.length === 0 ? 0 : result.total}
+            page={page}
+            pageCount={totalPages}
+            pageSize={result.pageSize}
+            unit={{ one: 'ausência', many: 'ausências' }}
+            hrefFor={(targetPage) => doctorAbsencePageHref(filters, targetPage)}
+            empty={
+              <EmptyState
+                title="Nenhuma ausência registrada"
+                description="Ajuste os filtros ou registre um novo período de ausência."
+              />
+            }
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead>Profissional</TableHead>
+                <TableHead>Período</TableHead>
+                <TableHead>Estratégia</TableHead>
+                <TableHead numeric>Afetados</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {absences.map((absence) => (
-                <li key={absence.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <strong className="text-sm">
-                      {names.get(absence.doctorId) ?? 'Profissional'}
-                    </strong>
+                <TableRow key={absence.id}>
+                  <TableCell>
+                    <TableCellStack
+                      main={names.get(absence.doctorId) ?? 'Profissional'}
+                      sub={absence.reason}
+                    />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-muted tabular-nums">
+                    {new Date(absence.startsAt).toLocaleString('pt-BR', {
+                      timeZone: timezone,
+                    })}{' '}
+                    até{' '}
+                    {new Date(absence.endsAt).toLocaleString('pt-BR', {
+                      timeZone: timezone,
+                    })}
+                  </TableCell>
+                  <TableCell>
                     <Badge tone={absence.strategy === 'transfer' ? 'blue' : 'amber'}>
                       {absence.strategy === 'transfer' ? 'Transferência' : 'Cancelamento'}
                     </Badge>
-                  </div>
-                  <p className="text-pretty text-xs text-fg-muted">{absence.reason}</p>
-                  <p className="text-xs text-fg-subtle tabular-nums">
-                    {new Date(absence.startsAt).toLocaleString('pt-BR', { timeZone: timezone })} até{' '}
-                    {new Date(absence.endsAt).toLocaleString('pt-BR', { timeZone: timezone })}
-                  </p>
-                  <p className="text-xs text-fg-subtle">
-                    {absence.affectedAppointments} atendimento(s) afetado(s)
-                    {absence.replacementDoctorId
-                      ? ` · substituto: ${names.get(absence.replacementDoctorId) ?? 'Profissional'}`
-                      : ''}
-                  </p>
-                </li>
+                    {absence.replacementDoctorId ? (
+                      <p className="mt-1 text-pretty text-xs text-fg-subtle">
+                        Substituto: {names.get(absence.replacementDoctorId) ?? 'Profissional'}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell numeric>{absence.affectedAppointments}</TableCell>
+                </TableRow>
               ))}
-            </ul>
-          )}
-        </PanelCard>
+            </TableBody>
+          </DataTable>
+        </section>
       </div>
     </>
   );

@@ -4,21 +4,82 @@
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install --frozen-lockfile",
   "crons": [
-    { "path": "/api/cron/outbox", "schedule": "* * * * *" },
-    { "path": "/api/cron/patient-hard-delete", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/audit-partitions", "schedule": "0 4 1 * *" },
-    { "path": "/api/cron/cash-flow-rollup", "schedule": "30 3 * * *" },
-    { "path": "/api/cron/metrics-rollup", "schedule": "0 5 * * *" },
-    { "path": "/api/cron/financial-reconcile", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/data-retention", "schedule": "0 5 1 * *" },
-    { "path": "/api/cron/invites-cleanup", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/billing-dunning", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/billing-reconcile", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/whatsapp-health", "schedule": "0 */6 * * *" },
-    { "path": "/api/cron/proactive-reminders", "schedule": "*/15 11-23 * * *" },
-    { "path": "/api/cron/proactive-dunning", "schedule": "*/15 11-23 * * *" },
-    { "path": "/api/cron/proactive-followup", "schedule": "*/15 11-23 * * *" },
-    { "path": "/api/cron/proactive-waitlist", "schedule": "*/15 11-23 * * *" }
+    {
+      "path": "/api/cron/outbox",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/patient-hard-delete",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/audit-partitions",
+      "schedule": "0 4 1 * *"
+    },
+    {
+      "path": "/api/cron/cash-flow-rollup",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/metrics-rollup",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/financial-reconcile",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/payments-deposit",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/data-retention",
+      "schedule": "0 5 1 * *"
+    },
+    {
+      "path": "/api/cron/invites-cleanup",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/billing-dunning",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/billing-reconcile",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/whatsapp-health",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/proactive-reminders",
+      "schedule": "*/15 11-23 * * *"
+    },
+    {
+      "path": "/api/cron/proactive-dunning",
+      "schedule": "*/15 11-23 * * *"
+    },
+    {
+      "path": "/api/cron/proactive-followup",
+      "schedule": "*/15 11-23 * * *"
+    },
+    {
+      "path": "/api/cron/proactive-waitlist",
+      "schedule": "*/15 11-23 * * *"
+    },
+    {
+      "path": "/api/cron/proactive-deposit-link",
+      "schedule": "*/15 11-23 * * *"
+    },
+    {
+      "path": "/api/cron/proactive-remainder-link",
+      "schedule": "*/15 11-23 * * *"
+    },
+    {
+      "path": "/api/cron/signup-sessions-cleanup",
+      "schedule": "*/10 * * * *"
+    }
   ],
   "outputDirectory": ".next"
 }

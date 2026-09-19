@@ -2,42 +2,89 @@
  * /documentos — feed unificado de documentos clínicos (prescrições + atestados/
  * declarações/exames/encaminhamentos) da clínica. Server component; só leitura.
  * Tenant scope via requireClinicId + RLS; nome do paciente vem do snapshot (R8).
- * Cada item linka para a página de PDF existente (signed URL fresca lá — R4).
+ * Cada item linka para a página autenticada de PDF; o token do Storage não é
+ * exposto ao navegador.
  */
-import { Files, Search } from 'lucide-react';
+import {
+  CornerUpRight,
+  ExternalLink,
+  FileBadge,
+  FileCheck,
+  FileText,
+  Files,
+  ListFilter,
+  Search,
+  ShieldAlert,
+  TestTube,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
-import { listClinicalDocumentFeed } from '@/contexts/clinical/queries';
-import { PERMISSIONS } from '@/lib/auth/permissions';
+import {
+  listClinicalDocumentFeedPage,
+  type ClinicalDocumentKind,
+  type ClinicalDocumentType,
+} from '@/contexts/clinical/queries';
+import { PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
-import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
+import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
-import { fieldControlClassName } from '@/components/ui/input';
+import { EntityCell } from '@/components/ui/entity-cell';
+import { Badge } from '@/components/ui/badge';
+import { FilterBar, SearchField } from '@/components/ui/filter-bar';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFoot,
-  TableFootInfo,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableScroll,
-  TableWrap,
-} from '@/components/ui/table';
-import { TableToolbar } from '@/components/ui/table-toolbar';
-import { cn } from '@/lib/ui/cn';
+import { StatsInline } from '@/components/ui/stats-inline';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+import { documentosPageHref, parseDocumentosPage, type DocumentosSearchParams } from './pagination';
+import { NewClinicalDocumentDrawer } from './new-clinical-document-drawer';
+import styles from './documents.module.css';
 
 export const dynamic = 'force-dynamic';
+/**
+ * Cada tipo tem ícone próprio — o badge é o que se varre numa lista de 184
+ * linhas, e seis rótulos na mesma cor cinza obrigam a LER todos eles.
+ *
+ * Controle especial é o único em vermelho: é receituário de lista controlada,
+ * com regra de dispensação própria, e a diferença precisa saltar de longe.
+ */
+const TIPO: Record<ClinicalDocumentType, { Icon: LucideIcon; tone: 'blue' | 'red' | 'gray' }> = {
+  simples: { Icon: FileText, tone: 'blue' },
+  controle_especial: { Icon: ShieldAlert, tone: 'red' },
+  atestado: { Icon: FileCheck, tone: 'gray' },
+  exame: { Icon: TestTube, tone: 'gray' },
+  declaracao: { Icon: FileBadge, tone: 'gray' },
+  encaminhamento: { Icon: CornerUpRight, tone: 'gray' },
+};
+
+interface DocumentosPageUser {
+  isSuperAdmin?: boolean;
+  aal?: string | null;
+  permissions: readonly string[];
+}
+
+/** Descoberta de UI; as Server Actions reaplicam os mesmos gates no backend. */
+export function documentosPageCapabilities(user: DocumentosPageUser) {
+  const has = (permission: Permission) =>
+    user.isSuperAdmin === true ? user.aal === 'aal2' : user.permissions.includes(permission);
+  const canSelectPatient = has(PERMISSIONS.VIEW_PATIENT);
+  const canCreateProntuario = canSelectPatient && has(PERMISSIONS.CREATE_PRONTUARIO);
+  const canCreateDocument = canSelectPatient && has(PERMISSIONS.CREATE_PRESCRIPTION);
+  return {
+    canCreateProntuario,
+    canCreateDocument,
+    canOpenLauncher: canCreateProntuario || canCreateDocument,
+  };
+}
 
 export default async function DocumentosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tipo?: string }>;
+  searchParams: Promise<DocumentosSearchParams>;
 }) {
   // AUTHZ-003 — o feed mistura DOIS tipos, e o gate segue o tipo do recurso,
   // não um OR generoso. Ambos os tipos são "família prescrição" pela decisão do
@@ -55,116 +102,164 @@ export default async function DocumentosPage({
       />
     );
   }
-  const { clinicId } = gate;
-  const { q, tipo } = await searchParams;
-  const kind = tipo === 'prescription' || tipo === 'document' ? tipo : undefined;
+  const { clinicId, user } = gate;
+  const capabilities = documentosPageCapabilities(user);
+  const { q: rawSearch, tipo, page: rawPage } = await searchParams;
+  const q = rawSearch?.trim().slice(0, 64) || undefined;
+  const kind: ClinicalDocumentKind | undefined =
+    tipo === 'prescription' || tipo === 'document' ? tipo : undefined;
+  const page = parseDocumentosPage(rawPage);
+  const filters = {
+    ...(q ? { q } : {}),
+    ...(kind ? { kind } : {}),
+  };
 
-  const items = await listClinicalDocumentFeed(clinicId, {
+  const result = await listClinicalDocumentFeedPage(clinicId, {
     ...(q ? { search: q } : {}),
     ...(kind ? { kind } : {}),
-    limit: 100,
+    page,
   });
+  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  if (page > totalPages) {
+    redirect(documentosPageHref(filters, totalPages));
+  }
+  const items = result.items;
 
   const filtrando = Boolean(q || kind);
 
   return (
     <>
       <PageHeader
+        actions={
+          capabilities.canOpenLauncher ? (
+            <NewClinicalDocumentDrawer
+              canCreateProntuario={capabilities.canCreateProntuario}
+              canCreateDocument={capabilities.canCreateDocument}
+            />
+          ) : undefined
+        }
         crumbs={[{ label: 'Clínico' }, { label: 'Documentos' }]}
-        title="Documentos"
-        description="Receitas e documentos médicos emitidos na clínica."
+        title="Documentos emitidos"
+        description="Histórico de receitas e documentos. A emissão acontece no Consultório e no prontuário."
+        meta={
+          <span className="font-mono tabular-nums">
+            {result.total.toLocaleString('pt-BR')} documento{result.total === 1 ? '' : 's'}
+          </span>
+        }
       />
 
-      <TableWrap>
-        <TableToolbar>
-          <form className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <span className="relative block min-w-52 flex-1 sm:max-w-90">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-subtle"
-              />
-              <input
-                name="q"
-                defaultValue={q ?? ''}
-                placeholder="Buscar por paciente…"
-                aria-label="Buscar documentos por nome do paciente"
-                className={cn(fieldControlClassName, 'pl-9')}
-              />
-            </span>
-            <Select
-              name="tipo"
-              defaultValue={kind ?? ''}
-              aria-label="Filtrar por tipo de documento"
-              className="max-w-48"
-            >
-              <option value="">Todos os tipos</option>
-              <option value="prescription">Receitas</option>
-              <option value="document">Documentos médicos</option>
-            </Select>
-            <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Filtrar
-            </button>
-          </form>
-        </TableToolbar>
-        {items.length === 0 ? (
+      <FilterBar className="qoro-toolbar">
+        <form className="flex min-w-0 flex-wrap items-center gap-(--sp-2)" role="search">
+          <SearchField
+            name="q"
+            defaultValue={q ?? ''}
+            placeholder="Buscar por paciente…"
+            aria-label="Buscar documentos por nome do paciente"
+            className="min-w-0 sm:w-68 sm:flex-none"
+          />
+          <Select
+            name="tipo"
+            defaultValue={kind ?? ''}
+            aria-label="Filtrar por tipo de documento"
+            className="max-w-48"
+          >
+            <option value="">Todos os tipos</option>
+            <option value="prescription">Receitas</option>
+            <option value="document">Documentos médicos</option>
+          </Select>
+          <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+            <ListFilter aria-hidden="true" className="size-4" />
+            Filtrar
+          </button>
+        </form>
+        <StatsInline
+          className="ml-auto"
+          items={[
+            {
+              label: `${result.total.toLocaleString('pt-BR')} documento${result.total === 1 ? '' : 's'}`,
+            },
+            ...(filtrando ? [{ label: 'filtro aplicado', tone: 'attention' as const }] : []),
+          ]}
+        />
+      </FilterBar>
+
+      <DataTable
+        className={styles.table ?? ''}
+        total={items.length === 0 ? 0 : result.total}
+        page={page}
+        pageCount={totalPages}
+        pageSize={result.pageSize}
+        unit={{ one: 'documento', many: 'documentos' }}
+        hrefFor={(targetPage) => documentosPageHref(filters, targetPage)}
+        empty={
           <EmptyState
-            icon={<Files />}
+            icon={filtrando ? <Search /> : <Files />}
             title={filtrando ? 'Nenhum documento encontrado' : 'Nenhum documento ainda'}
             description={
               filtrando
                 ? 'Ajuste a busca ou o filtro de tipo.'
-                : 'Receitas e documentos emitidos no Consultório aparecem aqui.'
+                : 'Crie um documento para um paciente ou consulte o histórico da clínica.'
             }
           />
-        ) : (
-          <>
-            <TableScroll>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Paciente</TableHead>
-                    <TableHead>Emitido em</TableHead>
-                    <TableHead className="w-28" aria-label="Ações" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((d) => (
-                    <TableRow key={`${d.kind}:${d.id}`}>
-                      <TableCell>
-                        <Badge tone={d.kind === 'prescription' ? 'blue' : 'teal'}>{d.label}</Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{d.patientNome}</TableCell>
-                      <TableCell className="text-fg-muted">
-                        {new Date(d.createdAt).toLocaleString('pt-BR')}
-                        {!d.hasPdf ? (
-                          <span className="ml-2 text-(length:--fs-xs) text-fg-subtle">
-                            PDF pendente
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          href={d.pdfHref}
-                          className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-                        >
-                          {d.hasPdf ? 'Abrir' : 'Gerar PDF'}
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableScroll>
-            <TableFoot>
-              <TableFootInfo>
-                {items.length} documento{items.length === 1 ? '' : 's'}
-                {items.length === 100 ? ' (mostrando os 100 mais recentes)' : ''}
-              </TableFootInfo>
-            </TableFoot>
-          </>
-        )}
-      </TableWrap>
+        }
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>Tipo</TableHead>
+            <TableHead>Paciente</TableHead>
+            <TableHead>Emitido por</TableHead>
+            <TableHead>Emissão</TableHead>
+            <TableHead className="w-28" aria-label="Ações" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((d) => (
+            <TableRow key={`${d.kind}:${d.id}`}>
+              <TableCell>
+                <Badge tone={TIPO[d.type]?.tone ?? 'gray'} className={styles.tipo}>
+                  {(() => {
+                    const Icon = TIPO[d.type]?.Icon ?? FileText;
+                    return <Icon aria-hidden="true" className="size-3" />;
+                  })()}
+                  {d.label}
+                </Badge>
+                {!d.hasPdf ? (
+                  <p className="mt-1 text-(length:--fs-xs) text-fg-subtle">PDF pendente</p>
+                ) : null}
+              </TableCell>
+              <TableCell>
+                <EntityCell name={d.patientNome} />
+              </TableCell>
+              <TableCell className="min-w-0 text-fg-muted">
+                <span className="block truncate">{d.emitidoPor}</span>
+                {d.emitidoPorCrm ? (
+                  <span className="mt-0.5 block font-mono text-(length:--fs-xs) tabular-nums text-fg-subtle">
+                    {d.emitidoPorCrm}
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell className="font-mono text-fg-muted tabular-nums">
+                <span className="block">{new Date(d.createdAt).toLocaleDateString('pt-BR')}</span>
+                <span className="mt-0.5 block text-(length:--fs-xs) text-fg-subtle">
+                  {new Date(d.createdAt).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </TableCell>
+              <TableCell>
+                <Link
+                  href={d.pdfHref}
+                  className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+                >
+                  <ExternalLink aria-hidden="true" className="size-4" />
+                  {d.hasPdf ? 'Abrir PDF' : 'Gerar PDF'}
+                </Link>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </DataTable>
     </>
   );
 }

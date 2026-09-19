@@ -67,11 +67,16 @@ export function createAuthRedirectUrl(): string {
   return configuredApplicationUrl('/convite');
 }
 
+/** Allowlisted destination for password recovery initiated from Login. */
+export function createPasswordResetRedirectUrl(): string {
+  return configuredApplicationUrl('/reset-password');
+}
+
 /**
  * Creates the server-side confirmation URL for a one-time Supabase email token.
  *
  * The token hash is intentionally kept in the query string only long enough for
- * `/auth/confirm` to exchange it for the HTTP-only session cookies. Returning the
+ * `/auth/confirm` to exchange it for the @supabase/ssr session cookies. Returning the
  * raw Auth action link would instead redirect the recipient to `/convite` with
  * bearer credentials in the URL fragment, which is not a supported SSR flow.
  */

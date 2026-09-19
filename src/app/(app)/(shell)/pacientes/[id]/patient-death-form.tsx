@@ -3,6 +3,7 @@
 import { useActionState, useMemo } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { uuidv4 } from '@/lib/ui/uuid';
@@ -16,41 +17,48 @@ export function PatientDeathForm({ id }: { id: string }) {
   const idempotencyKey = useMemo(() => uuidv4(), []);
 
   return (
-    <form action={action} className="mt-8 border-t border-border pt-4">
+    <section className="mt-8 border-t border-border pt-4">
       <h2 className="mb-1 text-sm font-semibold uppercase text-fg-subtle">Registrar falecimento</h2>
       <p className="mb-3 text-xs text-fg-subtle">
-        Esta acao bloqueia novas consultas, cobrancas automaticas e mensagens, alem de cancelar
+        Esta ação bloqueia novas consultas, cobranças automáticas e mensagens, além de cancelar
         agendamentos futuros e entradas na lista de espera.
       </p>
-      <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-      <div className="grid max-w-xl gap-3 sm:grid-cols-2">
-        <label className="grid gap-1 text-sm">
-          Data do falecimento
-          <Input name="deceasedAt" type="date" required />
-        </label>
-        <label className="grid gap-1 text-sm sm:col-span-2">
-          Motivo ou fonte da informacao
-          <Textarea name="reason" required minLength={3} maxLength={500} />
-        </label>
-      </div>
-      <Button
-        type="submit"
-        variant="danger"
-        size="sm"
-        className="mt-3"
+      <ConfirmDialog
+        trigger={
+          <Button type="button" variant="danger" size="sm" className="min-h-(--hit-target)">
+            Registrar falecimento
+          </Button>
+        }
+        title="Registrar falecimento"
+        description="Esta ação bloqueia novas consultas, cobranças automáticas e mensagens, além de cancelar agendamentos futuros e entradas na lista de espera."
+        confirmLabel="Confirmar falecimento"
+        cancelLabel="Voltar"
+        tone="danger"
+        action={action}
         loading={pending}
-        onClick={(event) => {
-          if (
-            !confirm('Confirmar o registro de falecimento? Esta acao bloqueia operacoes futuras.')
-          ) {
-            event.preventDefault();
-          }
-        }}
+        formFields={
+          <>
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+          </>
+        }
       >
-        Registrar falecimento
-      </Button>
-      {state.error ? <p className="mt-2 text-sm text-danger-600">{state.error}</p> : null}
-    </form>
+        <div className="grid gap-3">
+          <label className="grid gap-1 text-(length:--fs-sm)">
+            Data do falecimento
+            <Input name="deceasedAt" type="date" required />
+          </label>
+          <label className="grid gap-1 text-(length:--fs-sm)">
+            Motivo ou fonte da informação
+            <Textarea name="reason" required minLength={3} maxLength={500} />
+          </label>
+          {state.error ? (
+            <p role="alert" className="text-(length:--fs-sm) text-danger-600">
+              {state.error}
+            </p>
+          ) : null}
+        </div>
+      </ConfirmDialog>
+    </section>
   );
 }

@@ -13,6 +13,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  CircleQuestionMark,
   Clock,
   Download,
   Ellipsis,
@@ -88,6 +89,7 @@ const ICONS: Record<string, LucideIcon> = {
   refresh: RefreshCw,
   heart: Heart,
   send: Send,
+  help: CircleQuestionMark,
 };
 
 export type IconName = keyof typeof ICONS;

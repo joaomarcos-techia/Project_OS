@@ -6,6 +6,10 @@
 - Status: accepted
 - Camada: C8 (Consultório UI)
 
+> **Estado do código local em 14/09/2026:** o board deixou de receber Postgres Changes diretamente
+> no browser. A emenda abaixo substitui somente o transporte D4 por `getBoard` server-side a cada
+> 20 s; a prova anterior de Realtime continua histórica. Preview/produção não foram revalidados.
+
 > **Update (2026-06-03): TV `/chamadas` descopada.** Durante a validação do C8 o
 > founder removeu a TV ("inútil no momento"). Saíram do produto: a rota `/chamadas`,
 > o botão "Chamar de novo", a gravação de chamada (`recordChamada` deixou de ser
@@ -15,7 +19,7 @@
 > CASCADE`) — o caminho "zero rastro" foi tomado (0018 permanece imutável apenas no
 > histórico de migrations). Logo: D1 (onde `chamadas` vivia) e o débito da TV-com-login
 > em "Consequences" valem como **registro histórico**, não como estado atual.
-> D2/D3/D4/D5 seguem vigentes (o board e seu Realtime operam só sobre `appointments`).
+> D2/D3/D5 seguem vigentes; o transporte de D4 foi substituído pela emenda de 14/09 abaixo.
 - Refs: VisãoGeral §4.5 (Módulo Consultório), ADR-014 (Scheduling C6), ADR-017
   (retenção de prontuário), ADR-018 (UI foundation), ADR-007 (RLS), ADR-011
   (outbox/audit/idempotency)
@@ -43,7 +47,7 @@ actions de C6 (`SELECT … FOR UPDATE` + `assertTransition` + outbox na mesma TX
 As Server Actions de C8 (`callNextPatient`, `markAbsent`, `completeConsulta`, …)
 são **orquestração fina** — zero regra de negócio. Concorrência (dois médicos,
 mesmo appointment) resolve no banco: o segundo recebe `InvalidTransitionError` e
-o board reflete o vencedor via Realtime. "Apenas um vence" é garantia de C6.
+o board reflete o vencedor na próxima leitura server-side. "Apenas um vence" é garantia de C6.
 
 **D3 — Prontuário garantido de forma síncrona no `callNextPatient`.** O worker de
 outbox roda ~1×/dia no Vercel Hobby; depender do handler async
@@ -60,6 +64,17 @@ autenticado só recebe linhas do seu tenant via `current_clinic_id()`); o `filte
 é relevância/perf. Se o canal cair, entra polling com backoff 5→10→15→30s; ao
 reconectar, desliga e refaz o fetch. Transições de Realtime/polling são logadas
 (observabilidade C8).
+
+**Emenda de 14/09/2026 — transporte sem JWT no navegador.** A decisão D4 acima é o contrato
+histórico. Com a sessão Supabase convertida para `HttpOnly`, o Consultório deixou de inscrever o
+browser em Postgres Changes: isso exigiria entregar ao JavaScript um access token reutilizável.
+O board agora chama exclusivamente `getBoard` no servidor ao montar/trocar médico, depois a cada
+20 s enquanto a aba está visível; ao voltar para primeiro plano, consulta imediatamente. Falhas
+seguem backoff 5→10→20→30 s. Ações do próprio usuário continuam refazendo a leitura em seguida.
+O isolamento é aplicado pelos guards e pela consulta tenant-scoped do servidor. A contrapartida
+é uma atualização de até aproximadamente 20 s para ações feitas em outra sessão, em vez do evento
+imediato do canal. A UI mostra a cadência e os estados de pausa/retry; qualquer requisito futuro
+de menor latência precisa de um transporte que não exponha bearer ao browser e de prova própria.
 
 **D5 — Finalizadas = somente leitura.** Reabrir uma consulta atendida carrega o
 prontuário assinado read-only no painel central. Correção pós-assinatura
@@ -86,10 +101,11 @@ prontuário assinado read-only no painel central. Correção pós-assinatura
   captura rechamada (mesmo estado) e o contrato C8 pede a tabela `chamadas`.
 - **Depender do handler async para criar o prontuário:** rejeitado — cron 1×/dia
   no Hobby; o inline não abriria a tempo (D3).
-- **WebSocket próprio:** proibido pelo escopo C8; usamos Supabase Realtime.
+- **WebSocket próprio:** proibido pelo escopo C8. O Realtime Supabase foi a decisão histórica D4;
+  a emenda atual usa polling server-side.
 
 ## References
 - `src/contexts/clinical/schema.ts` (`chamadas`), `drizzle/migrations/0018_consultorio_chamadas.sql`
 - `src/app/(app)/(shell)/consultorio/*`, `src/app/(app)/chamadas/*`
-- `src/lib/realtime/use-consultorio-realtime.ts`
+- `src/lib/realtime/use-consultorio-polling.ts`
 - `docs/runbooks/c8-validation.md`

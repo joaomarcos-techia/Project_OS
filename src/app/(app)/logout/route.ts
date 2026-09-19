@@ -23,7 +23,7 @@
 import { redirect } from 'next/navigation';
 
 import { bumpSessionEpoch } from '@/lib/auth/session-epoch';
-import { createServerClient } from '@/lib/auth/supabase-server';
+import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { logger } from '@/lib/observability/logger';
 
@@ -31,14 +31,19 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(): Promise<Response> {
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
   // Sem sessão válida não há epoch a bumpar (nem token vivo a matar): limpar
   // cookies e seguir para o login é o comportamento correto e idempotente.
   const user = await getCurrentUser();
 
   if (user) {
     try {
-      await bumpSessionEpoch(user.userId, 'logout');
+      const revoked = await bumpSessionEpoch(user.userId, 'logout');
+      if (!revoked) {
+        return new Response('Não foi possível encerrar a sessão. Tente novamente.', {
+          status: 503,
+        });
+      }
     } catch (err) {
       // Fail-closed: a sessão continua válida e o usuário vê que não saiu.
       // O contrário — 303 para /login com o token ainda bom — é o achado.
@@ -49,6 +54,13 @@ export async function POST(): Promise<Response> {
     }
   }
 
-  await supabase.auth.signOut({ scope: 'global' });
+  const { error } = await supabase.auth.signOut({ scope: 'global' });
+  if (error) {
+    // O epoch mata o access token, mas só o Auth revoga o refresh token.
+    // Um erro retornado pelo SDK não pode virar confirmação de logout global.
+    logger.error('logout.refresh_revoke_failed', { code: error.code ?? 'unknown' });
+    return new Response('Não foi possível encerrar a sessão. Tente novamente.', { status: 503 });
+  }
+  await clearSupabaseSessionSelector();
   redirect('/login');
 }

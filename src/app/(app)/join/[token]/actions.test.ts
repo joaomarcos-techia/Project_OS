@@ -186,7 +186,13 @@ describe('saveStepAction — transição clínica → responsável', () => {
   it('campos opcionais vazios não viram string vazia no estado', async () => {
     await saveStepAction(
       { error: null },
-      stepForm('clinic', { nome: 'Clínica Simples', cnpj: '', telefone: '', email: '', endereco: '' }),
+      stepForm('clinic', {
+        nome: 'Clínica Simples',
+        cnpj: '',
+        telefone: '',
+        email: '',
+        endereco: '',
+      }),
     );
     const clinic = persistedState().clinic as Record<string, unknown>;
     expect(clinic.cnpj).toBeUndefined();
@@ -269,14 +275,16 @@ describe('saveStepAction — o step_state NUNCA carrega dado de cobrança', () =
     );
 
     const persisted = JSON.stringify(persistedState());
-    for (const proibido of ['12345678901', '123.456.789-01', 'pagador@example.test', '4111', '123']) {
+    for (const proibido of [
+      '12345678901',
+      '123.456.789-01',
+      'pagador@example.test',
+      '4111',
+      '123',
+    ]) {
       expect(persisted).not.toContain(proibido);
     }
-    expect(Object.keys(persistedState()).sort()).toEqual([
-      'clinic',
-      'completed',
-      'currentStep',
-    ]);
+    expect(Object.keys(persistedState()).sort()).toEqual(['clinic', 'completed', 'currentStep']);
   });
 });
 
@@ -417,9 +425,9 @@ describe('submitCheckoutAction — validação do titular e do cartão', () => {
     ['validade malformada', { cardExpiry: '13-30' }],
     ['senha com menos de 8 caracteres', { password: 'curta' }],
   ])('recusa %s antes de tocar no Asaas', async (_caso, override) => {
-    await expect(
-      submitCheckoutAction({ error: null }, checkoutForm(override)),
-    ).resolves.toEqual({ error: INVALIDO });
+    await expect(submitCheckoutAction({ error: null }, checkoutForm(override))).resolves.toEqual({
+      error: INVALIDO,
+    });
     expect(mocks.resolveCheckoutPlan).not.toHaveBeenCalled();
     expect(mocks.runCheckout).not.toHaveBeenCalled();
   });
@@ -472,7 +480,9 @@ describe('submitCheckoutAction — guardas e falhas de provisão', () => {
   });
 
   it('provedor fora do ar vira mensagem de tentar de novo', async () => {
-    mocks.runCheckout.mockRejectedValue(new mocks.ProvisionError('timeout', 'provider_unreachable'));
+    mocks.runCheckout.mockRejectedValue(
+      new mocks.ProvisionError('timeout', 'provider_unreachable'),
+    );
     const r = await submitCheckoutAction({ error: null }, checkoutForm());
     expect(r.error).toContain('indisponível agora');
     expect(r.cardError).toBeUndefined();

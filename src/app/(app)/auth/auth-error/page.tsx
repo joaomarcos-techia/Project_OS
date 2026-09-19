@@ -12,19 +12,19 @@ export const dynamic = 'force-dynamic';
 const REASONS: Record<string, { title: string; body: string }> = {
   missing_token: {
     title: 'Link inválido',
-    body: 'Este link está incompleto. Peça um novo ao administrador da clínica.',
+    body: 'Este link está incompleto. Volte ao login para solicitar outro ou, se for um convite, contate o administrador.',
   },
   invalid_type: {
     title: 'Link inválido',
-    body: 'Não reconhecemos este link. Peça um novo ao administrador da clínica.',
+    body: 'Não reconhecemos este link. Volte ao login para solicitar outro ou, se for um convite, contate o administrador.',
   },
   invalid_token: {
     title: 'Link inválido ou já utilizado',
-    body: 'Este link não é mais válido. Peça um novo ao administrador da clínica.',
+    body: 'Este link não é mais válido. Volte ao login para solicitar outro ou, se for um convite, contate o administrador.',
   },
   expired: {
     title: 'Link expirado',
-    body: 'Este link expirou. Peça um novo ao administrador da clínica.',
+    body: 'Este link expirou. Volte ao login para solicitar outro ou, se for um convite, contate o administrador.',
   },
 };
 

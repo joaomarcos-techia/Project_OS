@@ -28,6 +28,25 @@ export interface WabaPhone {
   phoneNumber: string;
 }
 
+/**
+ * O que o TOKEN do cliente realmente concede, lido do próprio `debug_token`.
+ *
+ * `wabaIds` vem de `granular_scopes[scope=whatsapp_business_management].target_ids`
+ * — o caminho documentado pela Meta para descobrir a WABA compartilhada por um
+ * token de Embedded Signup, sem pedir `business_management`. A doc diz que as
+ * WABAs mais recentes vêm primeiro; NÃO usamos essa ordem para escolher nada
+ * (escolher o primeiro de uma lista ambígua seria adivinhar). A lista é usada
+ * só como ALLOWLIST: o id vindo do navegador precisa estar nela.
+ *
+ * Pode vir vazia — há apps cujo `debug_token` não devolve `target_ids`. Nesse
+ * caso o gate é pulado e resta apenas `/{waba-id}/phone_numbers`, que prova que
+ * o token ALCANÇA o asset, não que o cliente o escolheu. A ausência da lista
+ * nunca autoriza uma WABA: só deixa de recusá-la antecipadamente.
+ */
+export interface MetaTokenGrant {
+  wabaIds: string[];
+}
+
 function onboardingEnv(): { appId: string; appSecret: string } {
   const appId = env.META_APP_ID;
   const appSecret = env.META_APP_SECRET;
@@ -70,22 +89,172 @@ async function graphFetch<T>(
     res = await fetch(url, request);
   } catch (err) {
     // timeout / abort / reset — não inclui token; `path` é seguro (sem segredo).
+    // Sem resposta não há como afirmar recusa; num POST, nem sequer que nada
+    // mudou do outro lado.
     throw new MetaConnectError(`[meta] graph inalcançável (${init.method} ${path})`, {
       cause: err,
-      stage: init.stage,
+      stage: failureStage('indeterminate', init.method, init.stage),
     });
   }
 
   const raw: unknown = await res.json().catch(() => null);
   if (!res.ok) {
-    // Só o error.code numérico do Meta (não sensível) — nunca o corpo/URL/token.
-    const code = (raw as { error?: { code?: number } } | null)?.error?.code;
-    throw new MetaConnectError(`[meta] graph HTTP ${res.status}${code ? ` code=${code}` : ''}`, {
-      stage: init.stage,
-      graphStatus: res.status,
-    });
+    // Só os campos numéricos do erro Meta (não sensíveis) — nunca o corpo, a
+    // URL (que pode carregar client_secret) nem o token. O `error_subcode` entra
+    // porque a Meta transporta semântica nele (ex.: 100/33), e sem ele a
+    // classificação teria de adivinhar pela classe HTTP.
+    const err = (raw as { error?: { code?: number; error_subcode?: number } } | null)?.error;
+    const code = numeric(err?.code);
+    const subcode = numeric(err?.error_subcode);
+    // D78 — a classificação vive AQUI, não em cada chamador: antes só o
+    // resolver de WABA a aplicava, e um `429` na troca de code, na validação de
+    // escopos, no `/register` ou no `/subscribed_apps` continuava aparecendo
+    // como recusa da Meta.
+    const kind = classifySignal(res.status, code, subcode);
+    throw new MetaConnectError(
+      `[meta] graph HTTP ${res.status}${code !== null ? ` code=${code}` : ''}${
+        subcode !== null ? ` subcode=${subcode}` : ''
+      }`,
+      {
+        stage: failureStage(kind, init.method, init.stage),
+        graphStatus: res.status,
+        graphCode: code,
+        graphSubcode: subcode,
+      },
+    );
   }
   return raw as T;
+}
+
+/**
+ * Etapa reportada para cada classe de falha.
+ *
+ * `denied` preserva a etapa FUNCIONAL (autorização, permissões, conta, registro,
+ * webhook) — é a única classe em que o provedor realmente recusou. As outras
+ * duas descrevem o canal, não a conta, e por isso trocam a etapa: mandar o
+ * operador revisar credenciais durante um pico de tráfego é o mesmo erro de
+ * diagnóstico que D78 expôs.
+ *
+ * A separação por método é o ponto crítico: num `GET` a indeterminação é
+ * inofensiva (nada muda), enquanto num `POST`/`DELETE` o resultado externo é
+ * DESCONHECIDO — pode ter sido aplicado. Sem read-back não se afirma "nada foi
+ * alterado" nem se repete a mutação às cegas.
+ */
+function failureStage(
+  kind: GraphFailureKind,
+  method: 'GET' | 'POST' | 'DELETE',
+  stage: MetaConnectFailureStage,
+): MetaConnectFailureStage {
+  if (kind === 'denied') return stage;
+  if (kind === 'rate_limited') return 'provider_rate_limited';
+  return method === 'GET' ? 'provider_unavailable' : 'provider_outcome_unknown';
+}
+
+function numeric(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+// ===========================================================================
+// D78 — classificação ÚNICA de falha do Graph.
+//
+// A regra anterior ("status >= 400 && < 500 ⇒ negativa autoritativa") vivia
+// duplicada no connect e na sonda de saúde e estava errada: `429 Too Many
+// Requests` é rate limit temporário pelo RFC 6585 §4, e a Meta também
+// transporta semântica transitória no corpo, fora da classe HTTP.
+//
+// Conservador por construção: NADA é negativa autoritativa a menos que a
+// documentação oficial da Meta diga que é. Todo o resto vira indeterminação,
+// que preserva o estado anterior em vez de acusar um canal saudável.
+// ===========================================================================
+
+/** Rate limit / throttling documentado pela Meta. */
+const GRAPH_RATE_LIMIT_CODES = new Set([
+  // Graph API — "Handling errors": 4 "Muitas chamadas de API", 17 "Muitas
+  // chamadas de usuário de API", 341 "Limite do aplicativo atingido".
+  4, 17, 341,
+  // WhatsApp Cloud API — "Error codes", tabela Throttling errors.
+  80007, 130429, 133016,
+]);
+
+/** Indisponibilidade temporária documentada pela Meta. */
+const GRAPH_TRANSIENT_CODES = new Set([
+  // Graph API: 2 "Serviço de API — problema temporário".
+  2,
+  // Cloud API: 131016 "A service is temporarily unavailable",
+  // 133004 "Server is temporarily unavailable".
+  131016, 133004,
+]);
+
+/**
+ * Negativa autoritativa de token/permissão/asset, toda ela documentada:
+ * Graph API "Handling errors" (10, 102, 190, 200–299), Cloud API "Error codes",
+ * tabela Authorization errors (0, 3, 10, 190, 200–299, 131005), e 33 "The
+ * business phone number has been deleted" — negativa sobre o próprio asset.
+ */
+function isDocumentedDenialCode(code: number): boolean {
+  if (code >= 200 && code <= 299) return true;
+  return (
+    code === 0 ||
+    code === 3 ||
+    code === 10 ||
+    code === 33 ||
+    code === 102 ||
+    code === 190 ||
+    code === 131005
+  );
+}
+
+/**
+ * Status HTTP tratados como falha FUNCIONAL da etapa. `400` NÃO entra: a Meta o
+ * usa para quase tudo, inclusive throttling, então o veredito ali depende do
+ * código do corpo.
+ *
+ * `401` e `403` são negativas de autorização na própria semântica HTTP. `404` é
+ * diferente e está aqui por outro motivo: pelo RFC 9110 ele significa que o
+ * servidor não encontrou representação atual para o alvo — e pode ser usado
+ * também para não revelar a existência do recurso. Ou seja, NÃO prova falta de
+ * permissão; prova apenas que o recurso não está acessível por esta requisição.
+ * Para o connect e para a sonda o efeito é o mesmo (a etapa falhou e o asset não
+ * é utilizável), e por isso ele não é tratado como indeterminação — mas a causa
+ * não deve ser reportada como "permissão negada".
+ */
+const DENIAL_HTTP_STATUSES = new Set([401, 403, 404]);
+
+export type GraphFailureKind = 'denied' | 'rate_limited' | 'indeterminate';
+
+/**
+ * Traduz uma falha do Graph em uma das três semânticas. `denied` é a única que
+ * autoriza dizer "o provedor recusou"; as outras duas nunca degradam um canal.
+ *
+ * Ordem importa: rate limit e transitório vencem a classe HTTP, porque a Meta
+ * devolve alguns deles com status 400.
+ */
+export function classifyGraphFailure(err: unknown): GraphFailureKind {
+  if (!(err instanceof MetaConnectError)) return 'indeterminate';
+  return classifySignal(err.graphStatus, err.graphCode, err.graphSubcode);
+}
+
+/** Forma pura, usada pelo próprio `graphFetch` antes de o erro existir. */
+function classifySignal(
+  status: number | null,
+  code: number | null,
+  subcode: number | null,
+): GraphFailureKind {
+  if (code !== null && GRAPH_RATE_LIMIT_CODES.has(code)) return 'rate_limited';
+  // RFC 6585 §4: 429 é excesso de requisições, nunca negativa de acesso.
+  if (status === 429) return 'rate_limited';
+  if (code !== null && GRAPH_TRANSIENT_CODES.has(code)) return 'indeterminate';
+
+  if (code !== null && isDocumentedDenialCode(code)) return 'denied';
+  // Marketing API error reference: 100/33 é token sem a permissão de usuário do
+  // sistema necessária. É o subcode que carrega a negativa — o 100 sozinho é
+  // "Invalid parameter" e não prova falta de acesso.
+  if (code === 100 && subcode === 33) return 'denied';
+  if (status !== null && DENIAL_HTTP_STATUSES.has(status)) return 'denied';
+
+  // Inclui 5xx, timeout (`status === null`) e todo 4xx — 400 e 429 entre eles —
+  // sem código documentado como negativa.
+  return 'indeterminate';
 }
 
 /** Troca o `code` do Embedded Signup por um access token (server-side). */
@@ -105,13 +274,18 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
 }
 
 /**
- * Valida que o token é válido e tem os escopos do WhatsApp Business. Evita
- * persistir uma conexão quebrada (sem permissão de gerência/mensageria).
+ * Valida que o token é válido e tem os escopos do WhatsApp Business, e devolve
+ * as WABAs que ele alcança. Evita persistir uma conexão quebrada (sem permissão
+ * de gerência/mensageria) e alimenta a allowlist anti-sequestro do resolver.
  */
-export async function validateTokenScopes(token: string): Promise<void> {
+export async function validateTokenScopes(token: string): Promise<MetaTokenGrant> {
   const { appId, appSecret } = onboardingEnv();
   const res = await graphFetch<{
-    data?: { is_valid?: boolean; scopes?: string[]; granular_scopes?: { scope?: string }[] };
+    data?: {
+      is_valid?: boolean;
+      scopes?: string[];
+      granular_scopes?: { scope?: string; target_ids?: string[] }[];
+    };
   }>('debug_token', {
     method: 'GET',
     stage: 'permissions',
@@ -121,53 +295,150 @@ export async function validateTokenScopes(token: string): Promise<void> {
   if (!data?.is_valid) {
     throw new MetaConnectError('[meta] token inválido (debug_token)', { stage: 'permissions' });
   }
+  const granular = data.granular_scopes ?? [];
   const scopes = new Set<string>([
     ...(data.scopes ?? []),
-    ...(data.granular_scopes ?? [])
-      .map((g) => g.scope)
-      .filter((s): s is string => typeof s === 'string'),
+    ...granular.map((g) => g.scope).filter((s): s is string => typeof s === 'string'),
   ]);
   for (const required of REQUIRED_SCOPES) {
     if (!scopes.has(required)) {
       throw new MetaConnectError(`[meta] escopo ausente: ${required}`, { stage: 'permissions' });
     }
   }
+  // Só o escopo de GERÊNCIA carrega as WABAs administráveis; `messaging` pode
+  // trazer o mesmo conjunto, mas não é ele que autoriza register/subscribe.
+  const wabaIds = [
+    ...new Set(
+      granular
+        .filter((g) => g.scope === 'whatsapp_business_management')
+        .flatMap((g) => g.target_ids ?? [])
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ];
+  return { wabaIds };
 }
 
 /**
- * Resolve `waba_id` + `phone_number_id` + número AUTORITATIVAMENTE pelo que o
- * TOKEN alcança (anti-sequestro: o `hint` do client só vale se o token o acessa).
- * Sem hint válido, fallback robusto businesses → owned WABAs → phone_numbers.
+ * Resolve `phone_number_id` + número da WABA que o Embedded Signup declarou,
+ * provando AUTORITATIVAMENTE pelo token que ela pertence a quem autorizou.
+ *
+ * D78 — o fallback antigo (`GET /me/businesses` → `/{business-id}/owned_whatsapp_business_accounts`)
+ * foi REMOVIDO. Ele pressupõe um token que enxerga o portfólio empresarial, o
+ * que exige `business_management`; a configuração de Embedded Signup emite
+ * token de usuário do sistema com apenas os dois escopos WhatsApp, e no Graph
+ * API Explorer `/me/businesses` não devolveu dado útil para esse token. Manter
+ * o fallback significaria pedir uma permissão de portfólio que o produto não
+ * usa — e, pior, aceitar uma WABA que o cliente não escolheu no pop-up.
+ *
+ * O que cada verificação prova — e o que NÃO prova:
+ *  1. allowlist do token (`granular_scopes.target_ids`), quando a Meta a
+ *     devolve: recusa um id que o cliente não outorgou;
+ *  2. `GET /{waba-id}/phone_numbers` com o token do cliente: prova que o token
+ *     ALCANÇA aquele asset. Não prova que o id foi escolhido pelo cliente — ele
+ *     continua vindo do evento no navegador. Com a allowlist vazia, esta é a
+ *     única verificação restante.
  */
 export async function resolveWabaAndPhone(
   token: string,
-  hint?: { wabaId?: string | undefined; phoneNumberId?: string | undefined },
+  claim: { wabaId: string; phoneNumberId?: string | undefined },
+  grant: MetaTokenGrant,
 ): Promise<WabaPhone> {
-  if (hint?.wabaId) {
-    const phone = await pickPhoneFromWaba(token, hint.wabaId, hint.phoneNumberId);
-    if (phone) return { wabaId: hint.wabaId, ...phone };
+  // Anti-sequestro: `wabaId` chega do navegador. Se o token declara quais WABAs
+  // concede, o id precisa estar lá — senão é uma conta que o cliente não outorgou.
+  if (grant.wabaIds.length > 0 && !grant.wabaIds.includes(claim.wabaId)) {
+    throw new MetaConnectError('[meta] a WABA informada não foi concedida a este app', {
+      stage: 'account',
+    });
   }
 
-  const businesses = await graphFetch<{ data?: { id?: string }[] }>('me/businesses', {
-    method: 'GET',
-    stage: 'account',
-    token,
-  });
-  for (const biz of businesses.data ?? []) {
-    if (!biz.id) continue;
-    const wabas = await graphFetch<{ data?: { id?: string }[] }>(
-      `${encodeURIComponent(biz.id)}/owned_whatsapp_business_accounts`,
-      { method: 'GET', stage: 'account', token },
-    );
-    for (const waba of wabas.data ?? []) {
-      if (!waba.id) continue;
-      const phone = await pickPhoneFromWaba(token, waba.id, hint?.phoneNumberId);
-      if (phone) return { wabaId: waba.id, ...phone };
-    }
+  const phones = await listWabaPhones(token, claim.wabaId);
+  if (phones.length === 0) {
+    throw new MetaConnectError('[meta] a WABA autorizada não tem número WhatsApp', {
+      stage: 'account',
+    });
   }
-  throw new MetaConnectError('[meta] nenhum número WhatsApp encontrado para a conta autorizada', {
-    stage: 'account',
+
+  const chosen = pickPhone(phones, claim.phoneNumberId);
+  return {
+    wabaId: claim.wabaId,
+    phoneNumberId: chosen.id,
+    phoneNumber: normalizeDisplayPhone(chosen.display_phone_number ?? ''),
+  };
+}
+
+interface WabaPhoneEntry {
+  id: string;
+  display_phone_number?: string;
+}
+
+/**
+ * Escolhe o número SEM nunca cair em posição de lista ambígua.
+ *
+ * D78 — o contrato anterior era `(preferPhoneId && find(...)) || phones[0]`, e
+ * o `||` transformava duas situações distintas em "pega o primeiro":
+ *  - o evento indicou um número que não existe naquela WABA (id de outra conta,
+ *    número removido, payload adulterado);
+ *  - o evento não indicou número e a WABA tem vários.
+ * Nos dois casos o Qoro registraria, assinaria e persistiria um número que o
+ * cliente não escolheu. Agora cada um falha com a sua causa.
+ */
+function pickPhone(phones: WabaPhoneEntry[], preferPhoneId?: string): WabaPhoneEntry {
+  if (preferPhoneId) {
+    const exact = phones.find((p) => p.id === preferPhoneId);
+    if (!exact) {
+      // Correspondência exata ou falha: nunca substituir pelo primeiro.
+      throw new MetaConnectError('[meta] o número informado não pertence à WABA autorizada', {
+        stage: 'account',
+      });
+    }
+    return exact;
+  }
+  // Sem `phone_number_id` (típico de FINISH_ONLY_WABA): só é seguro quando não
+  // há escolha a fazer.
+  if (phones.length === 1) return phones[0]!;
+  throw new MetaConnectError('[meta] a WABA autorizada tem mais de um número', {
+    stage: 'phone_ambiguous',
   });
+}
+
+/**
+ * Lista os números de uma WABA com o token do cliente.
+ *
+ * D78 — classificação delegada a `classifyGraphFailure()`. Só uma negativa
+ * DOCUMENTADA pela Meta significa "este token não alcança esta WABA"; rate limit
+ * (429 e códigos de throttling), 5xx, timeout e todo 4xx sem código documentado
+ * são INDETERMINAÇÃO. O `catch` original convertia tudo em "inacessível", então
+ * a tela acusava conta inexistente durante instabilidade ou pico de tráfego. O
+ * sinal sanitizado (status/code/subcode) sobe junto, com o erro original em
+ * `cause`.
+ */
+async function listWabaPhones(token: string, wabaId: string): Promise<WabaPhoneEntry[]> {
+  let res: { data?: { id?: string; display_phone_number?: string }[] };
+  try {
+    res = await graphFetch(`${encodeURIComponent(wabaId)}/phone_numbers`, {
+      method: 'GET',
+      stage: 'account',
+      token,
+    });
+  } catch (err) {
+    // `graphFetch` já classificou: só a negativa documentada mantém a etapa
+    // `account`, e só ela autoriza dizer que o token não alcança a WABA. Rate
+    // limit e indeterminação sobem como vieram, com `graphStatus`/`graphCode`
+    // preservados — nada foi provado sobre a conta.
+    if (err instanceof MetaConnectError && err.stage === 'account') {
+      throw new MetaConnectError('[meta] o token não alcança a WABA informada', {
+        cause: err,
+        stage: 'account',
+        graphStatus: err.graphStatus,
+        graphCode: err.graphCode,
+        graphSubcode: err.graphSubcode,
+      });
+    }
+    throw err;
+  }
+  return (res.data ?? []).filter(
+    (p): p is WabaPhoneEntry => typeof p.id === 'string' && p.id.length > 0,
+  );
 }
 
 /**
@@ -200,6 +471,20 @@ export async function subscribeAppToWaba(wabaId: string, token: string): Promise
 export interface TemplateProvisionOutcome {
   name: string;
   status: 'created' | 'already_exists' | 'failed';
+  /**
+   * D104 — preenchido só quando o template JÁ existe e a categoria que a Meta
+   * reporta hoje diverge da que o catálogo submete.
+   *
+   * A Meta recategoriza template aprovado por conta própria: um `UTILITY` que
+   * ela julgue promocional vira `MARKETING` com a mensagem "não atendeu às
+   * nossas diretrizes de utilidade". Isso não é cosmético — marketing exige
+   * opt-in de marketing e tem limite por usuário, então a mensagem pode não ser
+   * entregue enquanto a API responde `accepted` e o job termina `sent`.
+   *
+   * Só reporta: recriar não resolveria (a Meta recusa nome duplicado) e editar
+   * não muda categoria. A correção é criar um template novo, com nome novo.
+   */
+  categoryDrift?: { expected: string; actual: string };
 }
 
 /**
@@ -225,13 +510,25 @@ export async function ensureMessageTemplates(
 ): Promise<TemplateProvisionOutcome[]> {
   if (definitions.length === 0) return [];
 
-  let existing: Set<string>;
+  // D104 — a consulta traz `category` junto com o nome. Antes pedia só `name`,
+  // então um template reclassificado pela Meta passava por `already_exists` sem
+  // que ninguém ficasse sabendo.
+  let existing: Map<string, string | undefined>;
   try {
-    const res = await graphFetch<{ data?: Array<{ name?: string }> }>(
+    const res = await graphFetch<{ data?: Array<{ name?: string; category?: string }> }>(
       `${encodeURIComponent(wabaId)}/message_templates`,
-      { method: 'GET', stage: 'template_provisioning', token, query: { fields: 'name', limit: '250' } },
+      {
+        method: 'GET',
+        stage: 'template_provisioning',
+        token,
+        query: { fields: 'name,category', limit: '250' },
+      },
     );
-    existing = new Set((res.data ?? []).map((t) => t.name).filter((n): n is string => !!n));
+    existing = new Map(
+      (res.data ?? [])
+        .filter((t): t is { name: string; category?: string } => Boolean(t.name))
+        .map((t) => [t.name, t.category]),
+    );
   } catch {
     // Sem a lista não dá para decidir o que falta. Criar às cegas duplicaria
     // pedidos de revisão na Meta; melhor reportar e deixar o health/retry expor.
@@ -241,7 +538,15 @@ export async function ensureMessageTemplates(
   const outcomes: TemplateProvisionOutcome[] = [];
   for (const definition of definitions) {
     if (existing.has(definition.name)) {
-      outcomes.push({ name: definition.name, status: 'already_exists' });
+      const actual = existing.get(definition.name);
+      outcomes.push({
+        name: definition.name,
+        status: 'already_exists',
+        // Categoria ausente na resposta não é divergência: é falta de dado.
+        ...(actual && actual !== definition.category
+          ? { categoryDrift: { expected: definition.category, actual } }
+          : {}),
+      });
       continue;
     }
     try {
@@ -290,11 +595,11 @@ export async function unsubscribeAppFromWaba(wabaId: string, token: string): Pro
 // colateral de abrir a tela de configurações.
 // ===========================================================================
 
-/** 4xx = o provedor NEGOU (evidência); 5xx/timeout = não sabemos (sem evidência). */
+/** Negativa documentada = o provedor NEGOU; rate limit/indeterminação = não sabemos. */
 function outcomeFromGraphError(err: unknown): MetaProbeOutcome {
-  const status = err instanceof MetaConnectError ? err.graphStatus : null;
-  if (status !== null && status >= 400 && status < 500) return 'failed';
-  return 'unknown';
+  // D78 — mesmo contrato do connect. Antes qualquer 4xx virava `failed`, então
+  // um `429` durante um pico degradava o canal de toda clínica sondada.
+  return classifyGraphFailure(err) === 'denied' ? 'failed' : 'unknown';
 }
 
 /**
@@ -419,44 +724,13 @@ export async function probeMetaChannel(input: {
       },
     );
     const review = account?.account_review_status;
-    probe.accountReview = typeof review === 'string' && review.toUpperCase() === 'REJECTED'
-      ? 'failed'
-      : 'ok';
+    probe.accountReview =
+      typeof review === 'string' && review.toUpperCase() === 'REJECTED' ? 'failed' : 'ok';
   } catch (err) {
     probe.accountReview = outcomeFromGraphError(err);
   }
 
   return probe;
-}
-
-/**
- * Lista os números de uma WABA com o token; escolhe o `preferPhoneId` (hint) ou o
- * primeiro. Retorna null se o token não alcança a WABA (cai no fallback).
- */
-async function pickPhoneFromWaba(
-  token: string,
-  wabaId: string,
-  preferPhoneId?: string,
-): Promise<{ phoneNumberId: string; phoneNumber: string } | null> {
-  let res: { data?: { id?: string; display_phone_number?: string }[] };
-  try {
-    res = await graphFetch(`${encodeURIComponent(wabaId)}/phone_numbers`, {
-      method: 'GET',
-      stage: 'account',
-      token,
-    });
-  } catch {
-    return null; // token sem acesso a esta WABA — não é a do owner.
-  }
-  const phones = (res.data ?? []).filter(
-    (p): p is { id: string; display_phone_number?: string } => typeof p.id === 'string',
-  );
-  if (phones.length === 0) return null;
-  const chosen = (preferPhoneId && phones.find((p) => p.id === preferPhoneId)) || phones[0]!;
-  return {
-    phoneNumberId: chosen.id,
-    phoneNumber: normalizeDisplayPhone(chosen.display_phone_number ?? ''),
-  };
 }
 
 /** `+55 11 99999-9999` → `+5511999999999`. */

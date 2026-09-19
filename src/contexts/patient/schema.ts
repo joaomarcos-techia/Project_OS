@@ -61,7 +61,20 @@ export const consentPurpose = pgEnum('consent_purpose', [
   'cobranca_whatsapp',
   'marketing',
   'pesquisa',
+  // ADR-049 (1.2): aceite da política de cancelamento/sinal. O paciente precisa
+  // ter concordado ANTES de o sistema reter dinheiro por falta — sem esse aceite,
+  // reter é surpresa, não regra combinada. Enum estendido na migration 0082.
+  'politica_cancelamento',
 ]);
+
+/**
+ * Todo propósito que PODE existir na tabela — superconjunto do `ConsentType`
+ * (types.ts), que lista só os que o usuário liga/desliga no cadastro do paciente.
+ * `politica_cancelamento` é aceite de fluxo (acontece no agendamento, ADR-049) e
+ * de propósito NÃO entra no `ConsentType`: ninguém deve poder alterá-lo por um
+ * toggle na ficha, e a UI de consentimentos não deve exibi-lo como opção.
+ */
+export type StoredConsentPurpose = (typeof consentPurpose.enumValues)[number];
 export const suppressionPurpose = pgEnum('suppression_purpose', [
   'all',
   'billing',

@@ -15,7 +15,7 @@
  * types dos nossos fluxos e validamos.
  *
  * Segurança: `next` é sanitizado (só path interno — anti open-redirect). Antes do
- * verifyOtp fazemos signOut local para não misturar com uma sessão pré-existente
+ * verifyOtp removemos o seletor e criamos uma geração isolada da sessão pré-existente
  * (ex.: alguém logado abre o convite de outra pessoa → estabelece a identidade
  * do TOKEN, não a antiga).
  *
@@ -32,36 +32,45 @@ import {
   RECOVERY_GRANT_TTL_SECONDS,
   signRecoveryGrant,
 } from '@/lib/auth/recovery-grant';
-import { createServerClient } from '@/lib/auth/supabase-server';
+import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
+import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/observability/logger';
 
-import { isValidOtpType, safeNext, verifyErrorReason } from './confirm-logic';
+import { isValidOtpType, safeNextForOtp, verifyErrorReason } from './confirm-logic';
 
 export async function GET(request: NextRequest): Promise<never> {
   const { searchParams } = new URL(request.url);
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type');
-  const next = safeNext(searchParams.get('next'));
 
   const fail = (reason: string): never => redirect(`/auth/auth-error?reason=${reason}`);
 
   if (!tokenHash) return fail('missing_token');
   if (!isValidOtpType(type)) return fail('invalid_type');
+  const next = safeNextForOtp(searchParams.get('next'), type);
 
-  const supabase = await createServerClient();
-
-  // Limpa qualquer sessão local antes de estabelecer a do token (evita
-  // "usuário errado abre o convite"). `local` não faz round-trip ao servidor.
-  await supabase.auth.signOut({ scope: 'local' }).catch(() => {
-    /* sem sessão prévia — no-op */
-  });
+  // A identidade anterior deixa de ser selecionada, inclusive se o OTP falhar.
+  // A geração nova não lê o cookie anterior nem disputa com refreshes em voo.
+  await clearSupabaseSessionSelector();
+  const supabase = await createServerClient({ cookieWrites: 'required', newSession: true });
 
   const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
   if (error) {
-    logger.warn('auth.confirm.verify_failed', { type, message: error.message });
-    return fail(verifyErrorReason(error.message));
+    const reason = verifyErrorReason(error.message);
+    logger.warn('auth.confirm.verify_failed', { type, reason });
+    return fail(reason);
+  }
+
+  if (type === 'signup') {
+    const onboarding = await resolvePreTenantOnboarding(supabase);
+    if (!onboarding.ok) {
+      await supabase.auth.signOut({ scope: 'local' });
+      await clearSupabaseSessionSelector();
+      return fail('invalid_token');
+    }
+    redirect(onboarding.kind === 'pretenant' ? next : onboarding.route);
   }
 
   // AUTH-006 — ESTE é o único ponto do sistema que prova "apresentou um token

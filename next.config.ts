@@ -9,7 +9,10 @@ import { buildContentSecurityPolicy } from './src/lib/http/content-security-poli
 import { CLINIC_LOGO_ACTION_BODY_SIZE_LIMIT } from './src/lib/storage/clinic-logo-policy';
 
 /** Política base, exportada para o teste de não-regressão do Embedded Signup. */
-export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(undefined);
+export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(
+  undefined,
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+);
 
 export const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -55,17 +58,22 @@ export const nextConfig: NextConfig = {
       },
     ];
   },
-  // C16 (FASE 10) — security headers. CSP em REPORT-ONLY de propósito: NUNCA
-  // bloqueia, só reporta violações no console do browser. Promover a bloqueante
-  // (com nonce via middleware) só DEPOIS de observar — app clínico não pode
-  // quebrar hydration/scripts/analytics do Next. HSTS / anti-clickjacking /
-  // nosniff / referrer / permissions são seguros e entram já bloqueantes.
+  // C16 (FASE 10) — security headers.
+  //
+  // 2026-09-10 (auditoria, item 10): a CSP saiu de Report-Only e passa a
+  // BLOQUEAR. Report-Only não impedia exfiltração — `connect-src https: wss:`
+  // deixava qualquer script mandar prontuário para qualquer host TLS, e o
+  // navegador só reclamava no console. A política agora nomeia as origens
+  // (Supabase, SDK do Facebook) e não tem mais `'unsafe-eval'`; o racional e o
+  // que ficou de fora estão em src/lib/http/content-security-policy.ts.
   async headers() {
     // `vercel.live` é liberado somente em Preview para o Vercel Toolbar. Em
-    // Production a origem continua ausente. 'unsafe-inline'/'unsafe-eval' são
-    // toleráveis apenas enquanto a política permanece Report-Only; a versão
-    // bloqueante usará nonce.
-    const csp = buildContentSecurityPolicy(process.env.VERCEL_ENV);
+    // Production a origem continua ausente.
+    const csp = buildContentSecurityPolicy(
+      process.env.VERCEL_ENV,
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+      process.env.NODE_ENV,
+    );
     return [
       {
         source: '/(.*)',
@@ -81,7 +89,7 @@ export const nextConfig: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
           },
-          { key: 'Content-Security-Policy-Report-Only', value: csp },
+          { key: 'Content-Security-Policy', value: csp },
         ],
       },
     ];

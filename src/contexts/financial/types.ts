@@ -63,6 +63,18 @@ export interface CashFlowDTO {
   recebidoHoje: number;
   pagoHoje: number;
   saldoHoje: number; // recebidoHoje - pagoHoje
+  /**
+   * Contagens que acompanham os totais. A referência de setembro/2026 escreve
+   * "12 lançamentos · 1 vencido" sob o valor: sem elas a sublinha só repetia o
+   * rótulo ("Pendências em aberto"), que o número acima já dizia.
+   */
+  contagens: {
+    receber: number;
+    receberVencidos: number;
+    pagar: number;
+    recebimentos: number;
+    pagamentos: number;
+  };
 }
 
 export interface SupplierSummary {
@@ -94,6 +106,32 @@ export interface PaymentTransactionSummary {
   createdBy: string | null;
   /** Disponivel apenas para pagamentos; zero para reembolsos. */
   refundableAmount: number;
+}
+
+/**
+ * Movimento imutável do ledger preparado para exportação contábil.
+ *
+ * Não carrega paciente, CPF nem conteúdo clínico. `cashEffect` é positivo
+ * quando o movimento aumenta o caixa e negativo quando o reduz.
+ */
+export interface AccountingMovementDTO {
+  transactionId: string;
+  lancamentoId: string;
+  occurredAt: string;
+  transactionKind: PaymentTransactionKind;
+  lancamentoTipo: LancamentoTipo;
+  description: string;
+  amount: number;
+  cashEffect: number;
+  paymentMethod: string | null;
+  paymentMethodLabel: string | null;
+  dueDate: string | null;
+  lancamentoStatus: LancamentoStatus;
+  createdVia: LancamentoCreatedVia;
+  supplierName: string | null;
+  supplierCnpj: string | null;
+  originalPaymentId: string | null;
+  reason: string | null;
 }
 
 export interface CollectionCaseDTO {

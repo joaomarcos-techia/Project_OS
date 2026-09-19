@@ -43,6 +43,9 @@ export * from '@/contexts/ai-agent/proactive-jobs/schema';
 // billing.* no catálogo do outbox.
 export * from '@/contexts/billing/schema';
 export * from '@/contexts/feedback/schema';
+// ADR-049 — Payments (cobranca de PACIENTE na conta da propria clinica).
+// Sem eventos proprios nesta fase: 1.1 e so a credencial.
+export * from '@/contexts/payments/schema';
 // C4 infra — cross-cutting tables (outbox, audit_events, super_admin_actions,
 // idempotency_keys). Not a bounded context, so not under src/contexts/. The
 // drizzle.config.ts glob './src/lib/db/schema/**/*' picks them up.

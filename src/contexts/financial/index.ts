@@ -35,9 +35,11 @@ export type {
   LancamentoCancelledPayload,
   LancamentoEstornadoPayload,
   FaturamentoPendentePayload,
+  ExcessRefundRequestedPayload,
 } from './events';
 
 export type {
+  AccountingMovementDTO,
   LancamentoTipo,
   LancamentoStatus,
   LancamentoCreatedVia,

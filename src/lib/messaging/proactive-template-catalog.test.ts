@@ -20,11 +20,14 @@ describe('catálogo de templates proativos', () => {
     (kind) => [kind, PROACTIVE_TEMPLATE_BODIES[kind]] as const,
   );
 
-  it('cobre os quatro tipos proativos', () => {
-    expect(entries).toHaveLength(4);
+  it('cobre todos os tipos proativos', () => {
+    expect(entries).toHaveLength(7);
     expect([...PROACTIVE_TEMPLATE_KINDS].sort()).toEqual([
+      'deposit_link',
       'dunning',
       'followup',
+      'no_show_followup',
+      'remainder_link',
       'reminder',
       'waitlist_offer',
     ]);
@@ -62,10 +65,54 @@ describe('catálogo de templates proativos', () => {
     for (const sample of def.example) expect(sample.trim(), kind).not.toBe('');
   });
 
-  it('mantém o "R$" literal no corpo da cobrança', () => {
+  it('mantém o "R$" literal no corpo das cobranças', () => {
     // `moneyFmt` formata só o número; sem o literal o paciente veria "150,00".
     expect(PROACTIVE_TEMPLATE_BODIES.dunning.body).toContain('R$ {{3}}');
+    expect(PROACTIVE_TEMPLATE_BODIES.remainder_link.body).toContain('R$ {{2}}');
   });
+
+  it('copy do restante fala do atendimento ocorrido sem linguagem de reserva', () => {
+    const body = PROACTIVE_TEMPLATE_BODIES.remainder_link.body;
+
+    expect(body).toContain('atendimento já realizado');
+    expect(body).toContain('valor restante');
+    expect(body).toContain('pendente de pagamento');
+    expect(body).toContain('link');
+    expect(body).not.toMatch(/garant|reserv|horário|vaga|hold|confirm/iu);
+  });
+
+  it('copy da recuperação de falta é operacional e não expõe conteúdo sensível', () => {
+    const body = PROACTIVE_TEMPLATE_BODIES.no_show_followup.body;
+
+    // Enquadramento UTILITY: informa o estado de um agendamento específico e dá
+    // o próximo passo procedimental. Não convida, não oferece.
+    expect(body).toContain('agendamento');
+    expect(body).toContain('não realizada');
+    expect(body).toContain('reagendar');
+    expect(body).toContain('responda');
+    expect(body).not.toMatch(
+      /procedimento|especialidade|diagnóstico|tratamento|pagamento|sinal|estorno|dívida|valor|R\$/iu,
+    );
+  });
+
+  /**
+   * D102 — a Meta reclassificou estes três para MARKETING, o que sujeita o envio
+   * a opt-in de marketing e a limite por usuário: a mensagem pode simplesmente
+   * não ser entregue. Linguagem de convite/oferta é o que puxa a reclassificação,
+   * então ela fica travada por teste nos templates que PRECISAM ser operacionais.
+   *
+   * `waitlist_offer` está fora de propósito: oferecer uma vaga é a função dele.
+   */
+  it.each(['reminder', 'followup', 'no_show_followup'] as const)(
+    'copy de %s não usa linguagem de convite/oferta (mantém enquadramento UTILITY)',
+    (kind) => {
+      const body = PROACTIVE_TEMPLATE_BODIES[kind].body;
+
+      expect(body).not.toMatch(/\bquer\b|\bqueres\b|gostaria|aproveite|oferta|promo/iu);
+      // Abre nomeando o fato/transação, não com saudação promocional.
+      expect(body).toMatch(/^(Confirmação|Acompanhamento|Atualização)/u);
+    },
+  );
 });
 
 describe('countTemplateVariables', () => {

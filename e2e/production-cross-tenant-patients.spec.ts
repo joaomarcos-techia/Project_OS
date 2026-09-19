@@ -47,7 +47,7 @@ function validCpf(seed: string): string {
 async function login(context: BrowserContext, email: string, password: string): Promise<Page> {
   const page = await context.newPage();
   await page.goto('/login');
-  await page.getByLabel('Email').fill(email);
+  await page.locator('#email').fill(email);
   await page.locator('input[name="password"]').fill(password);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u, { timeout: 30_000 });

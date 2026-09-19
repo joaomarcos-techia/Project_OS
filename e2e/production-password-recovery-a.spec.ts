@@ -178,7 +178,6 @@ test.describe('produção: recovery de senha na Clínica A', () => {
       expect(forgedTokenDenied).toBe(true);
       const normalSessionChangedPassword = false;
 
-
       const generated = await admin.auth.admin.generateLink({
         type: 'recovery',
         email: syntheticEmail,

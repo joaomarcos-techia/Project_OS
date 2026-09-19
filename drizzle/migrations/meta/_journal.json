@@ -659,6 +659,83 @@
       "when": 1788300900000,
       "tag": "0093_ai_clinic_config_convenios",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1788560100000,
+      "tag": "0094_patient_refund_terminal_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1788783000000,
+      "tag": "0095_proactive_no_show_followup",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1789256256141,
+      "tag": "0096_signup_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1789258657051,
+      "tag": "0097_signup_sessions_runtime_revoke",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1789342146785,
+      "tag": "0098_signup_session_answers",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1789473600000,
+      "tag": "0099_signup_session_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1789518398429,
+      "tag": "0100_signup_auth_attempt",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1789526400000,
+      "tag": "0101_signup_draft_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1789603200000,
+      "tag": "0102_signup_plan_selection",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1789732094000,
+      "tag": "0103_signup_billing_attempt",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1789767364000,
+      "tag": "0104_onboarding_progress",
+      "breakpoints": true
     }
   ]
 }

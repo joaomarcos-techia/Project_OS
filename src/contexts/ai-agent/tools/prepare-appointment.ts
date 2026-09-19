@@ -24,7 +24,11 @@ import {
   assertAgentSchedulingIdentity,
   proposePendingAction,
 } from '../internal/pending-action';
-import { reconcileRequestedTime, resolveRequestedDateTime, zonedParts } from '../internal/relative-datetime';
+import {
+  reconcileRequestedTime,
+  resolveRequestedDateTime,
+  zonedParts,
+} from '../internal/relative-datetime';
 import { agentSlotFloor } from './list-slots';
 import { registerTool } from './registry';
 

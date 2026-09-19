@@ -4,6 +4,44 @@ Os cenários padrão usam Playwright e Chromium e não criam nem alteram dados.
 Os fluxos mutáveis exigem opt-in explícito e seguem as proteções descritas
 abaixo.
 
+## Três famílias, propósitos diferentes
+
+| Família | Precisa de | Roda em CI? |
+| --- | --- | --- |
+| `public-surface.spec.ts` | nada (ou `E2E_BASE_URL`) | **sim** — `pnpm test:e2e:ci` |
+| `signup-session-api.spec.ts` | `E2E_BASE_URL` | não (precisa de banco) |
+| `admin-boundary-rbac.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (precisa de credencial) |
+| `payments-account-lifecycle.spec.ts` | `E2E_BASE_URL` **de Preview** + `ASAAS_CLINIC_SANDBOX_KEY` | não (cria estado no Asaas) |
+| `admin-superadmin-journey.spec.ts` | `E2E_BASE_URL` **de Preview** + `SUPER_ADMIN_*_DEV` + `DATABASE_URL` | não (muta estado GLOBAL) |
+| `tenant-settings-screens.spec.ts` | `E2E_BASE_URL` + conta de clínica descartável | não (cria e apaga modelo de receita) |
+| `production-*.spec.ts` (40) | variável de autorização + credenciais de clínica sintética + `DATABASE_URL_PROD` | não, por design |
+| mutáveis locais | `E2E_MUTATION=1` + banco de desenvolvimento | não |
+
+**Regra do fundador (13/09): escrita e alteração acontecem SOMENTE em Preview.**
+`payments-account-lifecycle` e `admin-superadmin-journey` recusam `app.qoro.dev`
+com **erro**, não com skip: o primeiro pode registrar webhook no Asaas, o segundo
+muta o kill-switch GLOBAL e cria sessão de impersonate.
+
+O `admin-superadmin-journey` precisa de uma conta de plataforma própria, e ela se
+prepara sozinha — sem passo manual:
+
+```bash
+# SUPER_ADMIN_EMAIL_DEV / SUPER_ADMIN_PASSWORD_DEV no .env.local
+pnpm seed:super-admin        # cria o usuário e o profile super_admin
+pnpm seed:super-admin-mfa    # enrollment do TOTP pela API pública
+```
+
+O segredo do TOTP **não** fica em arquivo: o spec o lê de `auth.mfa_factors` na
+hora de rodar. Um segundo fator num `.env` deixa de ser segundo fator — e ler do
+banco não amplia exposição, porque quem roda o teste já tem o `DATABASE_URL` de
+admin, bem mais poderoso que seis dígitos.
+
+Os `production-*` escrevem em **produção** com clínicas sintéticas: o atrito das
+60 variáveis `E2E_*` é a proteção, não burocracia. A consequência é que eles são
+uma **ferramenta de auditoria operada por gente** — o gate automático é só o
+`public-surface`. O diagnóstico completo está em
+[`docs/quality/e2e-coverage-audit.md`](../docs/quality/e2e-coverage-audit.md).
+
 ## Rodar localmente
 
 1. Preencha `.env.local` com o ambiente de desenvolvimento.
@@ -30,7 +68,10 @@ pnpm test:e2e
 ```
 
 Os artefatos de falha (trace, vídeo e relatório) são locais e ficam ignorados
-no Git.
+no Git, mas podem registrar o DOM e os valores digitados. Use somente credenciais
+descartáveis. Depois de uma falha de autenticação, mantenha `E2E_ARTIFACTS=0`,
+remova os artefatos gerados e rotacione a credencial antes de repetir. Nunca
+publique, anexe ou abra trace/relatório autenticado sem sanitização.
 
 Para uma auditoria autenticada ampla contra ambiente remoto, reutilize uma única
 sessão. Assim cada spec não consome uma nova tentativa de login nem aciona o
@@ -67,3 +108,21 @@ interrompida, a próxima execução mutável remove antes a fixture pendente.
 recarrega a página para provar a persistência e restaura o valor anterior no
 `finally`. A resposta do agente pelo pipeline real, sem Meta/Gemini externos, é
 validada também por `pnpm smoke:c11`.
+
+## Auditoria visual responsiva
+
+A matriz visual fica isolada dos specs de mutação e produção. Ela gera 40
+capturas locais (5 rotas × 4 viewports × 2 temas), desliga trace/vídeo e valida
+tema, overflow horizontal, foco inicial e ausência de telas de “Sem acesso”.
+
+```powershell
+$env:E2E_BASE_URL='https://preview.example.test'
+$env:E2E_USER_EMAIL='conta-descartavel@example.test'
+$env:E2E_USER_PASSWORD='...'
+$env:E2E_AUTH_REUSE='1'
+pnpm exec playwright test --config playwright.visual.config.ts
+```
+
+Os artefatos ficam em `.playwright/ui-visual-results/`, já ignorado pelo Git.
+Sem as quatro variáveis, os cenários ficam explicitamente pulados; isso não deve
+ser reportado como aprovação visual.

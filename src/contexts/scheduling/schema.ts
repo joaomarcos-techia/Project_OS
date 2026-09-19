@@ -72,6 +72,21 @@ export const appointmentImportStatus = pgEnum('appointment_import_status', [
   'failed',
 ]);
 
+/**
+ * ADR-049 — estado do SINAL no agendamento. Dimensão ORTOGONAL ao `status`: um
+ * agendamento pode estar `agendado` com sinal pendente, pago ou vencido, e quem
+ * move `status` continua sendo `assertTransition`. Projeção de
+ * `patient_charges.status`; `cancelled`/`failed` da cobrança viram `none` aqui,
+ * porque do ponto de vista da AGENDA não há hold segurando a vaga.
+ */
+export const appointmentDepositStatus = pgEnum('appointment_deposit_status', [
+  'none',
+  'pending',
+  'paid',
+  'expired',
+  'refunded',
+]);
+
 export const appointmentActorType = pgEnum('appointment_actor_type', [
   'user',
   'ai_agent',
@@ -408,6 +423,11 @@ export const appointments = pgTable(
     createdVia: appointmentCreatedVia('created_via').notNull().default('attendant'),
     urgencia: boolean('urgencia').notNull().default(false),
     faturamentoPendente: boolean('faturamento_pendente').notNull().default(false), // owner = Financial (C9)
+    // ADR-049 — hold do sinal. Owner = Scheduling (o Payments NÃO escreve aqui;
+    // ele publica `payments.patient_charge.*` e o handler daqui projeta). CHECK na
+    // migration 0085 garante `hold_expires_at IS NOT NULL` ⇔ `pending`.
+    depositStatus: appointmentDepositStatus('deposit_status').notNull().default('none'),
+    holdExpiresAt: timestamp('hold_expires_at', { withTimezone: true }),
     observacoes: text('observacoes'),
     createdBy: uuid('created_by'), // FK auth.users via migration
     rescheduledFromAppointmentId: uuid('rescheduled_from_appointment_id').references(

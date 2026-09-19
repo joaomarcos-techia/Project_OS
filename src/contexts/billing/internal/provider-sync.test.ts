@@ -116,9 +116,42 @@ describe('decideProviderSync — terminais não regridem', () => {
     expect(action).toEqual({ kind: 'noop', reason: 'local_terminal:paid' });
   });
 
-  it('invoice já CANCELADA é terminal', () => {
+  it('invoice CANCELADA reabre quando getPayment confirma cobrança viva e pagável', () => {
     const action = decideProviderSync(local({ status: 'cancelled' }), PROVIDER_SAME);
-    expect(action.kind).toBe('noop');
+    expect(action).toEqual({ kind: 'restore', status: 'open', amountChanged: false });
+  });
+
+  it('invoice CANCELADA não reabre para estado desconhecido/refunded', () => {
+    const action = decideProviderSync(local({ status: 'cancelled' }), {
+      ...PROVIDER_SAME,
+      status: null,
+    });
+    expect(action).toEqual({ kind: 'noop', reason: 'local_terminal:cancelled' });
+  });
+
+  it('invoice CANCELADA permanece terminal se a cobrança segue removida', () => {
+    const action = decideProviderSync(
+      local({ status: 'cancelled' }),
+      { exists: false },
+      { providerConfirmedMissing: true },
+    );
+    expect(action).toEqual({ kind: 'noop', reason: 'local_terminal:cancelled' });
+  });
+
+  it('restauração sincroniza data/valor antes da próxima transição', () => {
+    const action = decideProviderSync(local({ status: 'cancelled' }), {
+      ...PROVIDER_SAME,
+      status: 'paid',
+      dueDate: '2026-09-05',
+      totalCents: 24_900,
+    });
+    expect(action).toEqual({
+      kind: 'restore',
+      status: 'open',
+      dueDate: '2026-09-05',
+      totalCents: 24_900,
+      amountChanged: true,
+    });
   });
 
   it('invoice OVERDUE ainda aceita reconciliação de data/valor', () => {

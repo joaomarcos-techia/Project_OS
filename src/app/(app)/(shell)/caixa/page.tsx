@@ -1,4 +1,5 @@
 import { listPatientCards } from '@/contexts/patient/queries';
+import { paymentsApiV1 } from '@/contexts/payments';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import {
@@ -41,37 +42,66 @@ export default async function CaixaPage() {
   }
 
   const clinicId = user.clinicId;
-  const tz = await getClinicTimezone(clinicId);
+  // TRÊS RODADAS, não cinco. Cada consulta é um `withTenant` próprio — um round
+  // trip completo — então esperar o fuso para só então disparar o que não
+  // depende dele custava uma ida inteira à toa. Medido no Preview: esta rota
+  // streamava o documento por ~2,8 s com TTFB de 70 ms; o tempo estava aqui.
+  //
+  // `withQueryDeadline` (modo FALHA ALTO): financeiro nunca mostra
+  // vazio-por-timeout como se fosse a verdade — se estolar, cai no error
+  // boundary do shell ("tente de novo"), nunca pendura. Conserto estrutural:
+  // pool runtime max:6.
+  //
+  // Rodada 1: tudo que não depende de nada — inclusive o fuso e as cobranças
+  // falhas, que antes esperavam sem precisar.
+  const [tz, pagaveis, pendencias, methods, collectionCases, failedCharges] =
+    await withQueryDeadline(
+      'caixa.load',
+      Promise.all([
+        getClinicTimezone(clinicId),
+        getCaixaPagaveis(clinicId),
+        listPendenciasAbertas(clinicId),
+        listPaymentMethods(clinicId),
+        listOpenCollectionCases(clinicId),
+        paymentsApiV1.listFailedCharges(clinicId),
+      ]),
+    );
+
   const { from, to } = clinicDayBounds(tz);
 
-  // Fan-out do caixa. `withQueryDeadline` (modo FALHA ALTO): financeiro nunca mostra
-  // vazio-por-timeout como se fosse a verdade — se estolar, cai no error boundary do
-  // shell ("tente de novo"), nunca pendura. Conserto estrutural: pool runtime max:6.
-  const [lancs, pagaveis, pendencias, methods, collectionCases] = await withQueryDeadline(
-    'caixa.load',
+  // Rodada 2: lançamentos do dia precisam da janela; os estornos em excesso
+  // precisam das pendências. Um não depende do outro.
+  const [lancs, excessRefundStatuses] = await withQueryDeadline(
+    'caixa.day',
     Promise.all([
       getCaixaLancamentos(clinicId, from, to),
-      getCaixaPagaveis(clinicId),
-      listPendenciasAbertas(clinicId),
-      listPaymentMethods(clinicId),
-      listOpenCollectionCases(clinicId),
+      paymentsApiV1.listExcessRefundStatuses(
+        clinicId,
+        pendencias.map((item) => item.appointmentId),
+      ),
     ]),
   );
 
   // Caixa patient-first: resolve nomes via contexto patient (camada page — sem
   // JOIN cross-context; igual ao consultório).
   const all = [...lancs.pendentes, ...lancs.parciais, ...lancs.pagosHoje, ...pagaveis];
-  const paymentTransactions: PaymentTransactionSummary[] = await withQueryDeadline(
-    'caixa.paymentTransactions',
-    listPaymentTransactionsForLancamentos(
-      clinicId,
-      all.map((l) => l.id),
-    ),
-  );
-  const patientIds = [...new Set(all.filter((l) => l.patientId).map((l) => l.patientId!))];
-  const cards = await withQueryDeadline(
-    'caixa.patientCards',
-    listPatientCards(clinicId, patientIds),
+  const patientIds = [
+    ...new Set([
+      ...all.filter((l) => l.patientId).map((l) => l.patientId!),
+      ...failedCharges.filter((c) => c.patientId).map((c) => c.patientId!),
+    ]),
+  ];
+
+  // Rodada 3: transações e fichas saem dos lançamentos, mas não uma da outra.
+  const [paymentTransactions, cards] = await withQueryDeadline(
+    'caixa.enrich',
+    Promise.all([
+      listPaymentTransactionsForLancamentos(
+        clinicId,
+        all.map((l) => l.id),
+      ) as Promise<PaymentTransactionSummary[]>,
+      listPatientCards(clinicId, patientIds),
+    ]),
   );
   const nameById = new Map(cards.map((c) => [c.id, c.nome]));
   const enrich = (l: LancamentoSummary): CaixaItem => ({
@@ -86,11 +116,29 @@ export default async function CaixaPage() {
 
   return (
     <CaixaView
+      // Data e relógio vêm do SERVIDOR no fuso da clínica: calcular no cliente
+      // daria fuso do navegador e divergência de hidratação no primeiro render.
+      hoje={new Intl.DateTimeFormat('pt-BR', {
+        timeZone: tz,
+        day: 'numeric',
+        month: 'long',
+      }).format(new Date())}
+      atualizadoEm={new Intl.DateTimeFormat('pt-BR', {
+        timeZone: tz,
+        hourCycle: 'h23',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date())}
       pendentes={lancs.pendentes.map(enrich)}
       parciais={lancs.parciais.map(enrich)}
       pagosHoje={lancs.pagosHoje.map(enrich)}
       aPagar={pagaveis.map(enrich)}
       pendencias={pendencias}
+      failedCharges={failedCharges.map((charge) => ({
+        ...charge,
+        pacienteNome: charge.patientId ? (nameById.get(charge.patientId) ?? null) : null,
+      }))}
+      excessRefundStatuses={excessRefundStatuses}
       collectionCases={collectionCases}
       methods={methods}
       paymentTransactions={paymentTransactions}

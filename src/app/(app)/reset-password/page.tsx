@@ -65,7 +65,7 @@ export default async function ResetPasswordPage({
               <ResetPasswordForm />
             ) : (
               <Alert variant="danger" title="Link inválido ou expirado">
-                Peça um novo link de redefinição ao administrador da clínica.
+                Volte ao login e solicite um novo link de redefinição.
               </Alert>
             )}
           </CardContent>

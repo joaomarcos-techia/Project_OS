@@ -175,7 +175,7 @@ export function ProntuarioEditor({
       ) : (
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium text-fg-muted">Template</span>
+            <span className="text-(length:--fs-xs) font-medium text-fg-muted">Template</span>
             <Select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
@@ -231,7 +231,7 @@ export function ProntuarioEditor({
       <div className="flex flex-col gap-4">
         {template.fields.map((f) => (
           <div key={f.key} className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-subtle">
+            <label className="text-(length:--fs-2xs) font-semibold uppercase tracking-(--tracking-label) text-fg-subtle">
               {f.label}
             </label>
             <Textarea

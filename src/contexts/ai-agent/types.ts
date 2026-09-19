@@ -126,12 +126,21 @@ export interface AIConversationListItem {
   patientDisplayName: string | null;
   /** Fallback de identificação quando não há nome. Sempre mascarado. */
   maskedPhone: string | null;
+  /** Contato completo para a UI autorizada de conversas. Nunca usar em logs. */
+  contactPhone: string | null;
   /** Trecho da última mensagem, truncado. Decifrado no servidor. */
   lastMessagePreview: string | null;
   status: AIConversationStatus;
   lastMessageAt: string;
   intentAtual: string | null;
   handoff: AIHandoffState | null;
+  /**
+   * Janela de 24 h da Meta ainda aberta. Vem na LISTA, não só na conversa
+   * aberta, porque "não dá para responder em texto livre" muda o que o
+   * operador faz com a linha — e ele decide isso varrendo a fila, antes de
+   * abrir qualquer uma.
+   */
+  windowOpen: boolean;
 }
 
 export interface AIConversationListResult {
@@ -178,6 +187,8 @@ export interface AIConversationThread {
   id: string;
   patientDisplayName: string | null;
   maskedPhone: string | null;
+  /** Decifrado no servidor somente dentro da clínica autorizada. */
+  contactPhone: string | null;
   status: AIConversationStatus;
   intentAtual: string | null;
   startedAt: string;

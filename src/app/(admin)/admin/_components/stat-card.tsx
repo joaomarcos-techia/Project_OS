@@ -28,7 +28,17 @@ export function StatCard({
       label={label}
       value={value}
       {...(delta && deltaTone
-        ? { delta: { direction: deltaTone, label: delta } }
+        ? {
+            delta: {
+              direction: deltaTone,
+              // No console de plataforma, subir é bom e cair é ruim em todas as
+              // métricas que usam este wrapper (clínicas, MRR, crescimento). O
+              // tom acompanha a direção AQUI porque o domínio é esse, não porque
+              // direção e tom sejam a mesma coisa — ver StatDelta.
+              tone: deltaTone === 'up' ? ('positive' as const) : ('negative' as const),
+              label: delta,
+            },
+          }
         : { hint: delta ?? hint })}
     />
   );

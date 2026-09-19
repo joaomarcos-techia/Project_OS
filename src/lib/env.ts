@@ -10,6 +10,9 @@
  */
 import { z } from 'zod';
 
+import { DEVELOPMENT_ENV_ALIASES } from './env-aliases';
+import { checkEnvironmentCoherence } from './env-coherence';
+
 // Empty strings from `.env.local` (e.g. `FOO=`) become `undefined` so that
 // `.optional()` actually means "not set" rather than "set to empty string".
 // Without this, an empty `NEXT_PUBLIC_SUPABASE_URL=` would fail `.url()` validation.
@@ -57,9 +60,48 @@ const EnvSchema = z
       emptyToUndefined,
       z.enum(['production', 'preview', 'development']).optional(),
     ),
+    // Gerado pela Vercel quando Protection Bypass for Automation está ativo.
+    // Em Preview protegido, acompanha SOMENTE URLs de webhook server-to-server;
+    // nunca vai para o browser, log ou resposta. Opcional porque produção/dev
+    // local não precisam dele e builds sem Deployment Protection devem continuar.
+    VERCEL_AUTOMATION_BYPASS_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Origem canônica, controlada no servidor, usada nos links transacionais e
     // redirects do Supabase Auth. Nunca derive links autenticados do header Origin.
     APP_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    // ADR-062 O-3a: opt-in server-only; rollout externo separado dos testes locais.
+    SIGNUP_IDENTITY_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v === 'true'),
+    ),
+
+    // ADR-062 O-3b: desligado até rollout autorizado e configuração Auth comprovada.
+    SIGNUP_AUTH_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v === 'true'),
+    ),
+
+    // §21.20: kill switch de aquisição. Fecha a ENTRADA do cadastro autônomo sem
+    // tocar em login, sessão ou tenant existente — é o botão que a operação
+    // aperta quando o funil precisa parar (abuso, incidente, custo).
+    //
+    // Default LIGADO, ao contrário dos dois acima, porque o significado é outro:
+    // aqueles são portões de rollout de fatia (nasce fechado, abre quando a
+    // fatia existe); este é uma parada de emergência (nasce aberto, fecha sob
+    // decisão). Por isso `!== 'false'`: só o valor explícito `false` desliga, e
+    // ausência/erro de digitação nunca derruba a aquisição por acidente.
+    SIGNUP_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => v !== 'false'),
+    ),
 
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
@@ -261,10 +303,20 @@ const EnvSchema = z
     ),
     META_TEMPLATE_DUNNING_FRIENDLY_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     META_TEMPLATE_FOLLOWUP_RETURN_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // ADR-057 / 2.4B — recuperação operacional após falta. Nome aprovado na
+    // Meta; não é template clínico do prontuário.
+    META_TEMPLATE_NO_SHOW_FOLLOWUP_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // WAIT-001 — oferta de vaga da lista de espera. Como os demais, o NOME
     // aprovado na Meta vem do ambiente; sem ele o job falha com
     // `template_not_configured` em vez de enviar algo não aprovado.
     META_TEMPLATE_WAITLIST_OFFER_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // ADR-049 1.6a — link do sinal. Este template carrega uma URL DE PAGAMENTO,
+    // então ele precisa ser aprovado na Meta com esse conteúdo em mente. Sem a
+    // variável configurada o job falha com `template_not_configured` e fica
+    // visível — nunca envia texto livre nem link fora de template aprovado.
+    META_TEMPLATE_DEPOSIT_LINK_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // D35 / 1.6c — saldo restante após atendimento. Copy distinta do sinal.
+    META_TEMPLATE_REMAINDER_LINK_ID: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Idioma BCP-47 dos templates (default pt_BR).
     META_TEMPLATE_LANG: z.preprocess(
       emptyToUndefined,
@@ -295,6 +347,19 @@ const EnvSchema = z
     // Org/projeto Sentry para o upload de source maps (build-time).
     SENTRY_ORG: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     SENTRY_PROJECT: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+
+    // --- ADR-060 (O-2b): desafio de bot no cadastro autônomo ---
+    // Site key é PÚBLICA por natureza — o widget roda no browser e qualquer
+    // visitante a vê no HTML. O `NEXT_PUBLIC_` não é estilo: é o que faz o Next
+    // inliná-la no bundle do cliente.
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // Secret key: SÓ servidor, usada no `siteverify`. Sem `NEXT_PUBLIC_` — com o
+    // prefixo ela iria para o bundle que todo visitante baixa.
+    //
+    // Ausentes → o desafio não é exigido (O-2a segue protegido por rate limit e
+    // pelo teto de sessões vivas). É degradação declarada, não silenciosa: a
+    // ausência aparece no `/api/health` quando o O-2b passar a depender delas.
+    TURNSTILE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   })
   .superRefine((data, ctx) => {
     // C1: at least one Supabase publishable/anon key must be present.
@@ -329,6 +394,19 @@ const EnvSchema = z
       }
     }
 
+    // SEC-041 (auditoria adversarial 2026-09-11) — coerência de ambiente.
+    // Autenticar contra um projeto Supabase e ler o banco de outro faz o
+    // `clinic_id` do JWT não significar nada no banco consultado; e preview
+    // apontando para produção é uma cópia pública da base real. O detalhe do
+    // que é e do que NÃO é detectável daqui está em env-coherence.ts.
+    for (const issue of checkEnvironmentCoherence(data)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [issue.path],
+        message: issue.message,
+      });
+    }
+
     // Note: DATABASE_URL_PROD validation lives in scripts/_env.ts.assertProdContext().
     // It is NEVER read by app runtime (only by db:migrate:prod / db:backup:prod),
     // so validating it in env.ts would needlessly break `next build` whenever
@@ -347,22 +425,21 @@ export type Env = z.infer<typeof EnvSchema>;
  */
 function normalizeDevelopmentAliases(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (source.NODE_ENV === 'production') return source;
-  return {
-    ...source,
-    // Um alias DEV explícito prevalece localmente: assim uma chave antiga com
-    // o nome padrão não consegue redirecionar uma homologação para outra conta.
-    // Em produção os aliases nem são lidos (guard acima).
-    DATABASE_URL: source.DATABASE_URL_DEV ?? source.DATABASE_URL,
-    SUPABASE_SECRET_KEY: source.SECRET_KEY_DEV ?? source.SUPABASE_SECRET_KEY,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-      source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV ??
-      source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-    ASAAS_API_KEY: source.ASAAS_API_KEY_DEV ?? source.ASAAS_API_KEY,
-    ASAAS_BASE_URL: source.ASAAS_BASE_URL_DEV ?? source.ASAAS_BASE_URL,
-    ASAAS_WEBHOOK_TOKEN: source.ASAAS_WEBHOOK_TOKEN_DEV ?? source.ASAAS_WEBHOOK_TOKEN,
-    RESEND_API_KEY: source.RESEND_API_KEY_DEV ?? source.RESEND_API_KEY,
-    EMAIL_FROM: source.EMAIL_FROM_DEV ?? source.EMAIL_FROM,
-  };
+  // A tabela vive em `env-aliases.ts` e é compartilhada com `scripts/_env.ts`.
+  // Antes ela era copiada nos dois arquivos e divergiu: as chaves do Turnstile
+  // entraram aqui e não lá, o que faria um script local usar a chave de
+  // PRODUÇÃO em silêncio.
+  //
+  // Um alias explícito prevalece localmente: assim uma chave antiga sob o nome
+  // padrão não consegue redirecionar uma homologação para outra conta.
+  const result: NodeJS.ProcessEnv = { ...source };
+  for (const [canonical, ...aliases] of DEVELOPMENT_ENV_ALIASES) {
+    // Primeiro alias com valor vence. Truthiness, não `??`: um `FOO=` no
+    // `.env.local` vira STRING VAZIA, e com `??` a vazia ganharia da chave boa.
+    const value = aliases.map((name) => source[name]).find(Boolean);
+    if (value) result[canonical] = value;
+  }
+  return result;
 }
 
 function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {

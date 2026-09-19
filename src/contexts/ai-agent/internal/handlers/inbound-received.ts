@@ -66,9 +66,11 @@ import { patientApiV1 } from '@/contexts/patient';
 
 import { AI_AGENT_EVENTS } from '../../events';
 import {
+  AI_COST_WINDOW_MINUTES,
   COALESCE_MAX_AGE_MS,
   COALESCE_MAX_MESSAGES,
   COLLECT_STALE_RESET_DAYS,
+  MAX_AI_COST_USD_PER_CLINIC_WINDOW,
   MAX_COLLECT_STAGNATION,
   MAX_MUTATIONS_PER_TURN,
   MAX_TOOL_ROUNDS,
@@ -118,6 +120,7 @@ import {
 import type { ActiveConversation } from '../conversation';
 import { buildContext, patientRegistrationState } from '../context-builder';
 import { isExplicitConfirmation } from '../pending-action';
+import { checkQuota, type QuotaCheck } from '../quota';
 import { sanitizeAiFailurePayload } from '../sanitize';
 import { toToolCallRecords } from '../tool-call-record';
 import {
@@ -699,6 +702,20 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   let snapshot: string | null = null;
   let alreadyPersisted = false;
 
+  // R4 — teto de custo. A consulta só roda se a cadeia de ramos chegar até ela
+  // (replay, pré-filtro clínico e kill-switch já responderam sem provider e sem
+  // gastar uma query). `quotaExceeded` guarda o resultado para a métrica do ramo.
+  let quotaCheck: QuotaCheck = {
+    blocked: false,
+    spendUsd: 0,
+    limitUsd: MAX_AI_COST_USD_PER_CLINIC_WINDOW,
+    windowMinutes: AI_COST_WINDOW_MINUTES,
+  };
+  const quotaExceeded = async (): Promise<boolean> => {
+    quotaCheck = await phase(clinicId, (tx) => checkQuota(tx, clinicId));
+    return quotaCheck.blocked;
+  };
+
   // G4 + F-01 — o pré-filtro precisa saber se este é um turno de CADASTRO, que é
   // conduzido pelo servidor sem LLM (e portanto não pode ser barrado por conter
   // um sintoma no campo `motivo`). Uma leitura curta e indexada por conversa.
@@ -770,6 +787,28 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     );
     outcome = escalated ? 'handoff' : 'fallback';
     metrics.emit('ai_agent.mode.fallback_only', { clinicId, aiRequestId });
+  } else if (await quotaExceeded()) {
+    // R4 — teto de custo por clínica na janela (item 11 da auditoria
+    // 2026-09-10). Vem DEPOIS do kill-switch e ANTES da FASE B: o objetivo é
+    // não chamar o provider, então nada de contexto, prompt ou tool roda.
+    // Mesmo tratamento do kill-switch: fallback operacional, custo zero, e o
+    // contador de fallback escalona para humano em vez de deixar o paciente
+    // num loop de "atendente responde em breve".
+    responseText = OPERATIONAL_FALLBACK;
+    const { escalated } = await phase(clinicId, (tx) =>
+      incrementFallback(tx, clinicId, conversation.id),
+    );
+    // `quota_blocked` já existia no contrato do evento e o Billing já o ignora
+    // na contagem de conversas — o outcome só nunca tinha sido gerado.
+    outcome = escalated ? 'handoff' : 'quota_blocked';
+    metrics.emit('ai_agent.quota.blocked', {
+      clinicId,
+      aiRequestId,
+      spendUsd: quotaCheck.spendUsd,
+      limitUsd: quotaCheck.limitUsd,
+      windowMinutes: quotaCheck.windowMinutes,
+      escalated,
+    });
   } else {
     // FASE B — contexto (TX curta de leitura) e LLM (SEM TX — R2).
     const promptCtx = await phase(clinicId, (tx) =>

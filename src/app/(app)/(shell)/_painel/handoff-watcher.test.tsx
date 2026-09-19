@@ -73,9 +73,7 @@ describe('HandoffWatcher', () => {
 
   it('NÃO repete o aviso do mesmo handoff a cada ciclo', async () => {
     // O risco central: um toast a cada 20 segundos até alguém assumir.
-    mocks.fetchOpenHandoffs
-      .mockResolvedValueOnce([])
-      .mockResolvedValue([handoff('c1')]);
+    mocks.fetchOpenHandoffs.mockResolvedValueOnce([]).mockResolvedValue([handoff('c1')]);
     render(<HandoffWatcher />);
     await tick();
     await poll();

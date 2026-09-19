@@ -11,7 +11,8 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof Checkbox
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        'grid size-4.5 shrink-0 cursor-pointer place-items-center rounded-(--r-xs) border-[1.5px] border-border-strong bg-surface',
+        'relative grid size-4.5 shrink-0 cursor-pointer place-items-center rounded-(--r-xs) border-[1.5px] border-border-strong bg-surface',
+        "before:absolute before:top-1/2 before:left-1/2 before:size-(--hit-target) before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']",
         'transition-colors duration-(--dur-fast)',
         'data-[state=checked]:border-primary data-[state=checked]:bg-primary',
         'data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary',

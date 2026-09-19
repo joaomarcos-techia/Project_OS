@@ -31,7 +31,7 @@ function ElapsedChip({ since }: { since: string }) {
   const label =
     mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
   return (
-    <span className="inline-flex items-center gap-1.25 rounded-full bg-surface-inset px-2.5 py-1 font-mono text-(length:--fs-2xs) text-fg-muted">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-inset px-2.5 py-1 font-mono text-(length:--fs-2xs) text-fg-muted">
       <Clock3 aria-hidden="true" className="size-3" />
       na clínica há {label}
     </span>
@@ -111,7 +111,7 @@ export function AttendingPanel({
   const podeEmitir = emAtendimento && data.prontuario && data.patientId;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div data-slot="attending-panel" className="flex flex-col gap-4">
       {/* Cartão de sessão — identidade + tempo + ações no mesmo lugar */}
       <div className="rounded-(--r-lg) border border-border bg-surface shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3 p-4">

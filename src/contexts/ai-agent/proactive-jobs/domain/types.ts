@@ -43,6 +43,50 @@ export const FollowupPayloadSchema = z.object({
 });
 export type FollowupPayload = z.infer<typeof FollowupPayloadSchema>;
 
+/** ADR-057 / 2.4B — recuperação operacional no próximo dia útil após falta. */
+export const NoShowFollowupPayloadSchema = z.object({
+  patientId: uuid,
+  appointmentId: uuid,
+  /** Instante autoritativo da transição para `faltou`; agenda o próximo dia útil. */
+  noShowAt: z.string().datetime(),
+});
+export type NoShowFollowupPayload = z.infer<typeof NoShowFollowupPayloadSchema>;
+
+/**
+ * ADR-049 1.6a — link do sinal a caminho do paciente.
+ *
+ * `chargeId` e a chave do ciclo, e o payload **nao carrega o link**: ele e
+ * resolvido no send-time por `paymentsApiV1.getPayableCharge`, que devolve
+ * `null` se a cobranca ja tiver sido paga, estornada ou expirada. Guardar o link
+ * aqui deixaria uma URL de pagamento em repouso numa fila que operador e worker
+ * leem — e ainda por cima uma que pode estar obsoleta na hora do envio.
+ */
+export const DepositLinkPayloadSchema = z.object({
+  patientId: uuid,
+  chargeId: uuid,
+  appointmentId: uuid,
+  /** Valor do sinal, em reais — entra no texto da mensagem. */
+  amount: z.number().positive(),
+  /** Prazo para pagar. E o que da urgencia a mensagem, e o que a torna honesta. */
+  holdExpiresAt: z.string().datetime(),
+});
+export type DepositLinkPayload = z.infer<typeof DepositLinkPayloadSchema>;
+
+/**
+ * D35 / 1.6c — link do restante após o atendimento.
+ *
+ * Não há prazo de hold: a consulta já aconteceu. Como no sinal, o link não fica
+ * no job; o worker o resolve no send-time pelo seam do Payments.
+ */
+export const RemainderLinkPayloadSchema = z.object({
+  patientId: uuid,
+  chargeId: uuid,
+  appointmentId: uuid,
+  /** Saldo restante referente ao atendimento, em reais. */
+  amount: z.number().positive(),
+});
+export type RemainderLinkPayload = z.infer<typeof RemainderLinkPayloadSchema>;
+
 /**
  * WAIT-001 — vaga liberada por cancelamento, ofertada ao 1º elegível da fila.
  *
@@ -64,14 +108,20 @@ export const PROACTIVE_PAYLOAD_SCHEMAS = {
   reminder: ReminderPayloadSchema,
   dunning: DunningPayloadSchema,
   followup: FollowupPayloadSchema,
+  no_show_followup: NoShowFollowupPayloadSchema,
   waitlist_offer: WaitlistOfferPayloadSchema,
+  deposit_link: DepositLinkPayloadSchema,
+  remainder_link: RemainderLinkPayloadSchema,
 } satisfies Record<ProactiveJobType, z.ZodTypeAny>;
 
 export type ProactivePayload =
   | ReminderPayload
   | DunningPayload
   | FollowupPayload
-  | WaitlistOfferPayload;
+  | NoShowFollowupPayload
+  | WaitlistOfferPayload
+  | DepositLinkPayload
+  | RemainderLinkPayload;
 
 /** Resultado da política de envio (suppression/consent/contato). */
 export interface ProactivePolicyResult {

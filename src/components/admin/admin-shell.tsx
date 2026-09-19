@@ -25,7 +25,7 @@ import { AdminNav } from './admin-nav';
  */
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { dark, toggle } = useTheme();
+  const { theme, toggle } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         <ShellSidebar open={navOpen}>
           <div className="flex items-center justify-between pr-(--sp-5)">
             <Wordmark />
-            <span className="rounded-(--r-xs) bg-secondary px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
+            <span className="rounded-(--r-xs) bg-secondary px-1.5 py-0.5 font-mono text-(length:--fs-3xs) font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
               Admin
             </span>
           </div>
@@ -53,25 +53,30 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </span>
             <span className="flex min-w-0 flex-col">
               <span className="text-(length:--fs-sm) leading-tight font-semibold">Plataforma</span>
-              <span className="font-mono text-[10px] text-fg-subtle">Console multi-tenant</span>
+              <span className="font-mono text-(length:--fs-3xs) text-fg-subtle">
+                Console multi-tenant
+              </span>
             </span>
           </div>
 
           <AdminNav />
 
           <div className="flex flex-col gap-1 border-t border-border p-(--sp-3)">
-            <ThemeFootToggle dark={dark} onToggle={toggle} />
+            <ThemeFootToggle theme={theme} onToggle={toggle} />
             <form action="/logout" method="post">
               <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
             </form>
-            <span className="px-0.5 font-mono text-[10px] leading-normal text-fg-subtle">
+            <span className="px-0.5 font-mono text-(length:--fs-3xs) leading-normal text-fg-subtle">
               super_admin — toda ação auditada.
             </span>
           </div>
         </ShellSidebar>
 
         <div className="flex min-w-0 flex-col bg-canvas">
-          <main className="mx-auto w-full max-w-330 flex-1 px-(--sp-8) pt-(--sp-6) pb-(--sp-16) max-md:px-(--sp-4)">
+          <main
+            data-page-layout="data"
+            className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb) max-nav:pt-(--page-pt-mobile)"
+          >
             {children}
           </main>
         </div>

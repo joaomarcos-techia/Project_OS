@@ -96,9 +96,7 @@ async function createPatient(
 test.describe('produção: autorização do deep-link de prontuário na Clínica A', () => {
   test.describe.configure({ retries: 0 });
 
-  test('roles sem view:prontuario nao leem SOAP nem alcancam o editor', async ({
-    browser,
-  }) => {
+  test('roles sem view:prontuario nao leem SOAP nem alcancam o editor', async ({ browser }) => {
     test.setTimeout(240_000);
     test.skip(!authorized, 'Exige E2E_PRODUCTION_CLINICAL_RBAC=ALLOW_SYNTHETIC_CLINIC_A.');
     if (!baseUrl || new URL(baseUrl).hostname !== 'app.qoro.dev') {

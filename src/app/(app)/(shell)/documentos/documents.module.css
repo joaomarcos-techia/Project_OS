@@ -1,0 +1,85 @@
+/* Larguras da referência: o tipo é coluna FIXA porque é por ele que se varre a
+   lista; paciente e emitente dividem o que sobra. */
+.table td:first-child,
+.table th:first-child {
+  width: 206px;
+}
+.table td:nth-child(4),
+.table th:nth-child(4) {
+  width: 150px;
+}
+
+/* Todos os badges de tipo com a MESMA largura: alinhados, a coluna vira uma
+   régua de leitura — desalinhados, o olho reencontra o início de cada rótulo a
+   cada linha. */
+.tipo {
+  min-width: 190px;
+}
+
+.table td:last-child {
+  text-align: right;
+}
+
+@media (max-width: 639px) {
+  .tipo {
+    min-width: 0;
+  }
+
+  .table td:first-child,
+  .table th:first-child,
+  .table td:nth-child(4),
+  .table th:nth-child(4) {
+    width: auto;
+  }
+
+  .table table,
+  .table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: var(--sp-1) var(--sp-2);
+    white-space: normal;
+    height: auto;
+    border: 0;
+  }
+
+  .table td:first-child {
+    grid-column: 1 / -1;
+    width: auto;
+  }
+
+  .table td:nth-child(2),
+  .table td:nth-child(3) {
+    grid-column: 1;
+  }
+
+  .table td:last-child {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: center;
+  }
+}

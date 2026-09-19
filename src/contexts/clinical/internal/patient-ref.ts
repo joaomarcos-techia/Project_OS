@@ -6,7 +6,7 @@
  * leitura cross-context PONTUAL (sem JOIN, só `nome` por id), DENTRO do tx
  * tenant-scoped (RLS aplica). Mesmo padrão de exceção de tenant-context.ts (profiles).
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
 /* eslint-disable boundaries/element-types -- leitura pontual do nome do paciente p/ snapshot legal; sem JOIN; RLS aplica via tx tenant-scoped. */
@@ -16,14 +16,27 @@ import { patients } from '@/contexts/patient/schema';
 import { ClinicalValidationError } from '../errors';
 
 /** Retorna `patients.nome` (não-criptografado) do paciente no tenant atual. */
-export async function resolvePatientNome(tx: Tx, patientId: string): Promise<string> {
+export async function resolvePatientNome(
+  tx: Tx,
+  clinicId: string,
+  patientId: string,
+): Promise<string> {
   const [row] = await tx
-    .select({ nome: patients.nome, deletedAt: patients.deletedAt })
+    .select({
+      nome: patients.nome,
+      deletedAt: patients.deletedAt,
+      obitoEm: patients.obitoEm,
+    })
     .from(patients)
-    .where(eq(patients.id, patientId))
+    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
     .limit(1);
   if (!row || row.deletedAt) {
     throw new ClinicalValidationError('Paciente não encontrado para emissão do documento.');
+  }
+  if (row.obitoEm) {
+    throw new ClinicalValidationError(
+      'Paciente falecido não pode receber um novo documento clínico.',
+    );
   }
   return row.nome;
 }

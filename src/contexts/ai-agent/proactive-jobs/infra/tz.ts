@@ -100,6 +100,17 @@ export function addCalendarDays(dateYMD: string, n: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/** Próximo dia útil simples (segunda–sexta). Feriados exigem calendário próprio. */
+export function nextWeekday(dateYMD: string): string {
+  let candidate = addCalendarDays(dateYMD, 1);
+  while (true) {
+    const [year, month, day] = parseYMD(candidate);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    if (weekday !== 0 && weekday !== 6) return candidate;
+    candidate = addCalendarDays(candidate, 1);
+  }
+}
+
 /** Dias-CALENDÁRIO inteiros entre dois instantes, no tz da clínica (b − a). */
 export function calendarDaysBetween(tz: string, a: Date, b: Date): number {
   const [ay, am, ad] = parseYMD(localDateYMD(tz, a));

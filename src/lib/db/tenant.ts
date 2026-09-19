@@ -54,6 +54,23 @@ import { db, type Db } from './index';
 
 type TxArg = Parameters<Parameters<Db['transaction']>[0]>[0];
 
+/**
+ * Role que a transação DEVE assumir. Se ela não assumir, o pool continua com o
+ * papel BYPASSRLS e RLS não avalia nada — o cenário que o cabeçalho deste
+ * arquivo descreve como "isolamento PERDIDO".
+ */
+const TENANT_ROLE = 'authenticated';
+
+export class TenantRoleError extends Error {
+  constructor(readonly actual: string) {
+    super(
+      `withTenant: a transação continua como "${actual}", não "${TENANT_ROLE}". ` +
+        'RLS não avalia para um papel BYPASSRLS — abortando antes de qualquer leitura.',
+    );
+    this.name = 'TenantRoleError';
+  }
+}
+
 export async function withTenant<T>(
   clinicId: string,
   fn: (tx: TxArg) => Promise<T>,
@@ -61,7 +78,24 @@ export async function withTenant<T>(
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET LOCAL ROLE authenticated`);
-    await tx.execute(sql`SELECT set_config('app.current_clinic', ${clinicId}, true)`);
+    // V1.4 (auditoria adversarial 2026-09-11, SEC-002) — VERIFICA o role-switch
+    // em vez de confiar nele.
+    //
+    // O comentário do topo deste arquivo já dizia a parte difícil: se o
+    // `SET LOCAL ROLE` falhar como erro duro, a transação aborta e está tudo
+    // bem; mas se ele **silenciosamente não surtir efeito**, o isolamento some
+    // e nada reclama — as queries seguem rodando com um papel que ignora RLS e
+    // devolvem dados de todos os tenants com aparência de normalidade. Era a
+    // única forma de perder isolamento sem nenhum sinal.
+    //
+    // A leitura de `current_user` viaja na MESMA ida ao banco que o
+    // `set_config` que já existia: custo zero de round-trip nos 162 call sites.
+    // Divergiu → lança, a transação aborta, `fn` nunca roda. Fail-closed.
+    const [scope] = await tx.execute<{ role: string }>(
+      sql`SELECT set_config('app.current_clinic', ${clinicId}, true), current_user AS role`,
+    );
+    const role = scope?.role;
+    if (role !== TENANT_ROLE) throw new TenantRoleError(String(role ?? 'desconhecido'));
     if (actorUserId) {
       await tx.execute(sql`SELECT set_config('app.current_user', ${actorUserId}, true)`);
     }

@@ -75,7 +75,8 @@ describe('registrationFieldFromMessage', () => {
   it('mantém o pedido de CPF quando a mensagem não contém um CPF válido', () => {
     expect(__testing__.registrationFieldFromMessage('cpf', '123.456.789-00')).toMatchObject({
       accepted: false,
-      patientMessage: 'O CPF informado é inválido. Envie novamente os 11 dígitos, com ou sem pontuação.',
+      patientMessage:
+        'O CPF informado é inválido. Envie novamente os 11 dígitos, com ou sem pontuação.',
     });
   });
 

@@ -88,8 +88,13 @@ export function SignDialog({
             Precisa retornar
           </label>
           {needsReturn ? (
-            <Field label="Retornar em (dias)" className="max-w-40">
+            <Field
+              label="Retornar em (dias)"
+              htmlFor="consultation-return-days"
+              className="max-w-40"
+            >
               <Input
+                id="consultation-return-days"
                 type="number"
                 min={1}
                 max={3650}

@@ -25,7 +25,7 @@ export function TableSelectionBar({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 border-b border-[color-mix(in_oklch,var(--primary)_25%,transparent)] bg-(--primary-soft) px-3.5 py-2.25 text-(length:--fs-sm) dark:bg-surface-2',
+        'flex items-center gap-3 border-b border-[color-mix(in_oklch,var(--primary)_25%,transparent)] bg-(--primary-soft) px-3.5 py-2 text-(length:--fs-sm) dark:bg-surface-2',
         className,
       )}
     >

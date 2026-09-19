@@ -1,7 +1,4 @@
-import Link from 'next/link';
-
 import { Alert } from '@/components/ui/alert';
-import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { administersTeamSchedule } from '@/contexts/scheduling/internal/availability-scope';
 import { listSchedulableResources } from '@/contexts/scheduling/queries';
@@ -15,17 +12,6 @@ export const dynamic = 'force-dynamic';
 export default async function RecursosPage() {
   const user = await requireUser();
   const clinicId = await requireClinicId();
-  const breadcrumb = (
-    <>
-      <Link href="/configuracoes">Configurações</Link> <span className="sep">›</span>{' '}
-      <b>Salas e equipamentos</b>
-    </>
-  );
-  const backLink = (
-    <Link href="/configuracoes" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
-      Voltar
-    </Link>
-  );
 
   // AUTHZ-007 — sala/equipamento é recurso COMPARTILHADO: desativar um afeta a
   // agenda de toda a clínica. Exige a mesma capacidade administrativa que a
@@ -36,7 +22,13 @@ export default async function RecursosPage() {
   ) {
     return (
       <div>
-        <PageHeader breadcrumb={breadcrumb} title="Salas e equipamentos" actions={backLink} />
+        <PageHeader
+          crumbs={[
+            { label: 'Configurações', href: '/configuracoes' },
+            { label: 'Salas e equipamentos' },
+          ]}
+          title="Salas e equipamentos"
+        />
         <Alert variant="warning" title="Sem acesso">
           Seu perfil não tem permissão para gerenciar recursos da agenda.
         </Alert>
@@ -48,10 +40,12 @@ export default async function RecursosPage() {
   return (
     <div>
       <PageHeader
-        breadcrumb={breadcrumb}
+        crumbs={[
+          { label: 'Configurações', href: '/configuracoes' },
+          { label: 'Salas e equipamentos' },
+        ]}
         title="Salas e equipamentos"
         description="Cadastre os recursos compartilhados usados nos atendimentos. O sistema impede reservas sobrepostas."
-        actions={backLink}
       />
       <ResourcesManager initial={resources} />
     </div>

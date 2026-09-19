@@ -48,8 +48,9 @@ export function DoctorAbsenceForm({ doctors }: { doctors: DoctorOption[] }) {
         uma única operação. Revise o período e a estratégia antes de confirmar.
       </Alert>
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Profissional ausente" required>
+        <Field label="Profissional ausente" htmlFor="absence-doctor" required>
           <Select
+            id="absence-doctor"
             name="doctorId"
             value={doctorId}
             onChange={(event) => setDoctorId(event.target.value)}
@@ -64,8 +65,9 @@ export function DoctorAbsenceForm({ doctors }: { doctors: DoctorOption[] }) {
             ))}
           </Select>
         </Field>
-        <Field label="Estratégia" required>
+        <Field label="Estratégia" htmlFor="absence-strategy" required>
           <Select
+            id="absence-strategy"
             name="strategy"
             value={strategy}
             onChange={(event) => setStrategy(event.target.value as 'cancel' | 'transfer')}
@@ -75,15 +77,31 @@ export function DoctorAbsenceForm({ doctors }: { doctors: DoctorOption[] }) {
             <option value="cancel">Cancelar atendimentos</option>
           </Select>
         </Field>
-        <Field label="Início no fuso da clínica" required>
-          <Input type="datetime-local" name="startsAt" required disabled={pending} />
+        <Field label="Início no fuso da clínica" htmlFor="absence-start" required>
+          <Input
+            id="absence-start"
+            type="datetime-local"
+            name="startsAt"
+            required
+            disabled={pending}
+          />
         </Field>
-        <Field label="Fim no fuso da clínica" required>
-          <Input type="datetime-local" name="endsAt" required disabled={pending} />
+        <Field label="Fim no fuso da clínica" htmlFor="absence-end" required>
+          <Input id="absence-end" type="datetime-local" name="endsAt" required disabled={pending} />
         </Field>
         {strategy === 'transfer' ? (
-          <Field label="Profissional substituto" required className="md:col-span-2">
-            <Select name="replacementDoctorId" required disabled={pending}>
+          <Field
+            label="Profissional substituto"
+            htmlFor="absence-replacement-doctor"
+            required
+            className="md:col-span-2"
+          >
+            <Select
+              id="absence-replacement-doctor"
+              name="replacementDoctorId"
+              required
+              disabled={pending}
+            >
               <option value="">Selecione</option>
               {doctors
                 .filter((doctor) => doctor.id !== doctorId)
@@ -95,8 +113,8 @@ export function DoctorAbsenceForm({ doctors }: { doctors: DoctorOption[] }) {
             </Select>
           </Field>
         ) : null}
-        <Field label="Motivo" required className="md:col-span-2">
-          <Textarea name="reason" required maxLength={500} disabled={pending} />
+        <Field label="Motivo" htmlFor="absence-reason" required className="md:col-span-2">
+          <Textarea id="absence-reason" name="reason" required maxLength={500} disabled={pending} />
         </Field>
       </div>
       <Button

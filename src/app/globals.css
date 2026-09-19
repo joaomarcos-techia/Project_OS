@@ -1,5 +1,720 @@
 @import 'tailwindcss';
 
+[data-qoro-shell='tenant'] .qoro-cash-metrics {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+[data-qoro-shell='tenant'] .qoro-cash-metrics > div {
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+}
+[data-qoro-shell='tenant'] .qoro-cash-metrics > div:last-child {
+  border-right: 0;
+}
+[data-qoro-shell='tenant'] .qoro-cash-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+/* Caixa: "A receber" leva o dobro da largura porque e onde o turno acontece;
+   recebidos e a pagar dividem a coluna estreita, como na referencia. */
+[data-qoro-shell='tenant'] .qoro-cash-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
+}
+@media (max-width: 1199px) {
+  [data-qoro-shell='tenant'] .qoro-cash-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+[data-qoro-shell='tenant'] .qoro-cash-queue {
+  min-width: 0;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue table {
+  display: block;
+  min-width: 0;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue tbody {
+  display: block;
+  padding: 10px;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue tbody > tr {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue tbody > tr[aria-selected='true'] {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+[data-qoro-shell='tenant']
+  .qoro-cash-queue
+  tr[data-status='pendente']:not([aria-selected='true'])
+  td:nth-child(1) {
+  grid-column: 1 / 3;
+}
+[data-qoro-shell='tenant']
+  .qoro-cash-queue
+  tr[data-status='pendente']:not([aria-selected='true'])
+  td:nth-child(2) {
+  grid-column: 1 / 3;
+  grid-row: 2;
+  justify-self: start;
+}
+[data-qoro-shell='tenant']
+  .qoro-cash-queue
+  tr[data-status='pendente']:not([aria-selected='true'])
+  td:nth-child(3) {
+  grid-column: 3;
+  grid-row: 2;
+}
+[data-qoro-shell='tenant']
+  .qoro-cash-queue
+  tr[data-status='pendente']:not([aria-selected='true'])
+  td:nth-child(4) {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--fs-base);
+}
+[data-qoro-shell='tenant']
+  .qoro-cash-queue
+  tr[data-status='pendente']:not([aria-selected='true'])
+  td:nth-child(4)::before,
+[data-qoro-shell='tenant']
+  .qoro-cash-queue
+  tr[data-status='pendente']:not([aria-selected='true'])
+  td:nth-child(5),
+[data-qoro-shell='tenant']
+  .qoro-cash-queue
+  tr[data-status='pendente']:not([aria-selected='true'])
+  td:nth-child(6) {
+  display: none;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue tbody td {
+  height: auto;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue td:nth-child(2) {
+  font-size: var(--fs-xs);
+  justify-self: center;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue td:nth-child(3) {
+  justify-self: end;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue td[data-label] {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue td[data-label]::before {
+  content: attr(data-label);
+  display: block;
+  color: var(--text-3);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue td:last-child:not([colspan]) {
+  grid-column: 1 / -1;
+  padding-top: 10px;
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue tbody > tr:has([colspan]) {
+  display: block;
+  border-color: var(--primary);
+  background: var(--surface-2);
+}
+[data-qoro-shell='tenant'] .qoro-cash-queue td[colspan] {
+  display: block;
+}
+@media (min-width: 1200px) {
+  [data-qoro-shell='tenant'] .qoro-cash-layout:has(aside) {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 0.4fr);
+  }
+}
+@media (max-width: 640px) {
+  [data-qoro-shell='tenant'] .qoro-cash-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-qoro-shell='tenant'] .qoro-cash-metrics > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  [data-qoro-shell='tenant'] .qoro-cash-queue tbody > tr {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  [data-qoro-shell='tenant'] .qoro-cash-queue tbody td:first-child {
+    grid-column: 1 / -1;
+  }
+  [data-qoro-shell='tenant'] .qoro-cash-queue tbody td:nth-child(2) {
+    grid-column: 1 / span 2;
+    justify-self: start;
+  }
+}
+
+/* Referências HTML Qoro de setembro/2026 — somente a clínica.
+   O marcador é renderizado no servidor pelo PainelShell. :has() aplica também
+   os tokens aos portais Radix no body; ao sair do tenant o admin recupera os
+   tokens originais sem efeito, estado global ou alteração de tema.
+
+   `data-qoro-tokens='qorov2'` é o segundo marcador, para telas públicas que
+   seguem os mesmos designs mas não vivem no shell (auth). Ele traz só a camada
+   de tokens — nenhuma regra estrutural `[data-qoro-shell='tenant'] …` casa com
+   ele, então o login não herda sidebar, nav nem grid de tabela do painel. */
+body:has([data-qoro-shell='tenant']),
+body:has([data-qoro-tokens='qorov2']) {
+  --background: oklch(0.988 0.0035 98);
+  --foreground: oklch(0.216 0.006 106);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.478 0.15 264);
+  --primary-50: oklch(0.938 0.028 263);
+  --primary-600: var(--primary);
+  --primary-700: oklch(0.41 0.13 265);
+  --primary-800: oklch(0.35 0.108 266);
+  --primary-900: var(--primary-800);
+  --primary-foreground: oklch(0.99 0.004 263);
+  --primary-hover: var(--primary-700);
+  --primary-active: var(--primary-800);
+  --primary-soft: var(--primary-50);
+  --secondary: oklch(0.957 0.005 98);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--secondary);
+  --muted-foreground: oklch(0.406 0.008 102);
+  --accent: var(--secondary);
+  --accent-foreground: var(--foreground);
+  --border: oklch(0.918 0.006 98);
+  --border-2: oklch(0.846 0.009 98);
+  --border-strong: oklch(0.612 0.009 98);
+  --input: var(--border);
+  --ring: var(--primary);
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent: oklch(0.934 0.006 98);
+  /* Item de navegação em repouso: um degrau ACIMA de --text-2, para que a
+     faixa Administração (que herda --text-2) leia como secundária de fato. */
+  --nav-link-fg: oklch(0.292 0.007 104);
+  --sidebar-border: var(--border);
+  --bg: var(--background);
+  --bg-subtle: var(--secondary);
+  --surface: var(--card);
+  --surface-2: var(--secondary);
+  --surface-inset: var(--secondary);
+  --surface-hover: var(--accent);
+  --text: var(--foreground);
+  --text-2: var(--muted-foreground);
+  --text-3: oklch(0.498 0.009 100);
+  --text-on-primary: var(--primary-foreground);
+  --text-link: var(--primary-700);
+  --on-primary: var(--primary-foreground);
+  --ai: var(--brand-accent-600);
+  --on-ai: oklch(0.99 0.01 330);
+  --ai-soft: var(--brand-accent-50);
+  --ai-border: var(--brand-accent-200);
+  --ai-tint: color-mix(in oklch, var(--brand-accent-50) 70%, var(--surface));
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), var(--font-sans);
+  --font-heading: var(--font-display);
+  --fs-h1: 26px;
+  --fs-h2: 24px;
+  --fs-h3: 16px;
+  --fs-h4: 14px;
+  --fs-base: 14px;
+  --fs-sm: 13px;
+  --fs-xs: 12px;
+  --fs-2xs: 11.5px;
+  --fs-page: 19px;
+  --fs-section: 14px;
+  --fs-subsection: 13.5px;
+  --fs-body: 14px;
+  --fs-body-sm: 13px;
+  --fs-caption: 12px;
+  --fs-micro: 11px;
+  --sidebar-w: 200px;
+  --page-px: 24px;
+  --page-pt: 0px;
+  --page-pb: 20px;
+  --card-pad: 16px;
+  --card-bg: var(--surface);
+  --card-border: var(--border);
+  --card-radius: 10px;
+  --btn-radius: 6px;
+  --field-radius: 6px;
+  --field-bg: var(--surface);
+  --field-bg-hover: var(--surface);
+  --field-bg-focus: var(--surface);
+  --field-border: var(--border);
+  --field-border-hover: var(--border-2);
+  --field-border-focus: var(--primary);
+  --field-ring-focus: color-mix(in oklch, var(--primary) 22%, transparent);
+  --field-text: var(--text);
+  --field-placeholder: var(--text-3);
+  --control-h: 40px;
+  --control-px: 12px;
+  --control-fs: 13px;
+  --row-h: 48px;
+  --cell-py: 8px;
+  --table-header-bg: var(--surface);
+  --table-stripe: var(--surface-2);
+  --viz-grid: var(--border);
+  --viz-track: var(--surface-2);
+  --chart-1: oklch(0.78 0.07 264);
+  --chart-2: oklch(0.66 0.1 264);
+  --chart-3: var(--primary);
+  --chart-4: var(--primary-700);
+  --chart-5: var(--primary-800);
+  --viz-1: var(--chart-1);
+  --viz-2: var(--chart-2);
+  --viz-3: var(--chart-3);
+  --viz-4: var(--chart-4);
+  --viz-5: var(--chart-5);
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.dark body:has([data-qoro-shell='tenant']),
+.dark body:has([data-qoro-tokens='qorov2']) {
+  --background: oklch(0.18 0.008 106);
+  --foreground: oklch(0.95 0.006 98);
+  --card: oklch(0.225 0.008 106);
+  --primary: oklch(0.72 0.12 264);
+  --primary-50: oklch(0.28 0.04 264);
+  --primary-600: var(--primary);
+  --primary-700: oklch(0.79 0.09 264);
+  --primary-800: oklch(0.85 0.07 264);
+  --primary-foreground: oklch(0.18 0.03 264);
+  --secondary: oklch(0.27 0.008 106);
+  --muted-foreground: oklch(0.78 0.009 100);
+  --border: oklch(0.34 0.009 106);
+  --border-2: oklch(0.43 0.009 106);
+  --border-strong: oklch(0.58 0.009 106);
+  --sidebar-accent: oklch(0.31 0.009 106);
+  --nav-link-fg: oklch(0.88 0.007 104);
+  --text-3: oklch(0.73 0.009 100);
+  --ai: var(--brand-accent-300);
+  --on-ai: oklch(0.18 0.04 322);
+  --ai-soft: oklch(0.28 0.04 322);
+  --ai-border: oklch(0.43 0.07 322);
+  --ai-tint: color-mix(in oklch, var(--ai-soft) 60%, var(--surface));
+  --chart-1: oklch(0.57 0.08 264);
+  --chart-2: oklch(0.66 0.1 264);
+}
+.dark body:has([data-qoro-shell='tenant']) :is(.text-danger-600, .text-danger-700) {
+  color: var(--danger-200);
+}
+.dark body:has([data-qoro-shell='tenant']) :is(.text-warning-600, .text-warning-700) {
+  color: var(--warning-200);
+}
+.dark body:has([data-qoro-shell='tenant']) :is(.text-success-600, .text-success-700) {
+  color: var(--success-200);
+}
+
+[data-qoro-shell='tenant'] main {
+  max-width: none;
+  outline: none;
+}
+[data-qoro-shell='tenant'] [data-slot='shell-sidebar'] {
+  gap: 18px;
+  padding-top: 20px;
+}
+[data-qoro-shell='tenant'] [data-slot='wordmark'] {
+  min-height: 24px;
+  padding-inline: 18px;
+}
+[data-qoro-shell='tenant'] [data-slot='wordmark'] svg {
+  width: 74px;
+  height: auto;
+}
+[data-qoro-shell='tenant'] nav[aria-label='Navegação principal'] {
+  padding-inline: 10px;
+}
+[data-qoro-shell='tenant'] nav[aria-label='Navegação principal'] > div {
+  margin-top: 15px;
+}
+[data-qoro-shell='tenant'] nav[aria-label='Navegação principal'] > div:first-child {
+  margin-top: 0;
+}
+[data-qoro-shell='tenant'] [data-slot='nav-group-label'] {
+  margin-bottom: 7px;
+  padding-inline: 8px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+[data-qoro-shell='tenant'] [data-slot='nav-link'] {
+  min-height: 38px;
+  gap: 9px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--nav-link-fg);
+}
+[data-qoro-shell='tenant'] [data-slot='nav-link'] svg {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+}
+/* Administração é a única faixa que a referência desenha mais leve (peso 400)
+   em TODAS as 12 telas. Não é descuido: configurar a clínica é tarefa de
+   exceção, e igualar o peso a Dashboard/Agenda faria a lista inteira competir
+   pela mesma atenção o dia todo. A COR já é `--text-2` herdada da regra base;
+   só o peso cai. O item ativo volta ao peso cheio pela regra abaixo. */
+[data-qoro-shell='tenant'] [data-nav-group='Administração'] [data-slot='nav-link'] {
+  font-weight: 400;
+}
+[data-qoro-shell='tenant'] [data-slot='nav-link'][aria-current='page'] {
+  background: var(--sidebar-accent);
+  color: var(--text);
+  font-weight: 600;
+}
+[data-qoro-shell='tenant'] [data-slot='nav-link'][aria-current='page'] svg {
+  color: var(--primary);
+}
+[data-qoro-shell='tenant'] .qoro-handoff-badge {
+  border: 1px solid var(--ai-border);
+  border-radius: 5px;
+  background: var(--ai-soft);
+  color: var(--ai);
+  font: 600 11.5px/1.5 var(--font-mono);
+}
+[data-qoro-shell='tenant'] .qoro-sidebar-footer {
+  margin: auto 10px 14px;
+  padding: 12px 0 0;
+}
+[data-qoro-shell='tenant'] [data-slot='sidebar-user'] {
+  padding-inline: 8px;
+  min-height: 44px;
+}
+[data-qoro-shell='tenant'] [data-slot='sidebar-user'] > span:first-child {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+[data-qoro-shell='tenant'] .qoro-sidebar-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+[data-qoro-shell='tenant'] .qoro-sidebar-actions > button:first-child {
+  flex: 1;
+  padding-inline: 6px;
+  font-size: 12px;
+}
+/* Faixa de alerta acionável — Dashboard, Agenda e Caixa usam a MESMA peça.
+   Cada linha é um destino: cor diz o domínio, texto carrega para onde o clique
+   leva. Vive aqui, e não num module por tela, porque três cópias divergiriam
+   (Governança de UI, regra 5). `data-tone` escolhe a família de cor. */
+[data-qoro-shell='tenant'] .qoro-alert-row {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: border-color var(--dur-fast) ease;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row > svg:last-child {
+  width: 15px;
+  height: 15px;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row-text {
+  flex: 1;
+  min-width: 0;
+  text-wrap: pretty;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row-cta {
+  flex: none;
+  font-size: var(--fs-caption);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning'] {
+  border-color: var(--warning-200);
+  background: var(--warning-50);
+  color: var(--warning-700);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning']:hover {
+  border-color: var(--warning-600);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning'] > svg {
+  color: var(--warning-600);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger'] {
+  border-color: var(--danger-200);
+  background: var(--danger-50);
+  color: var(--danger-700);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger']:hover {
+  border-color: var(--danger-500);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger'] > svg {
+  color: var(--danger-500);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai'] {
+  border-color: var(--ai-border);
+  background: var(--ai-soft);
+  color: var(--ai);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai']:hover {
+  border-color: var(--brand-accent-500);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai'] > svg {
+  color: var(--brand-accent-500);
+}
+
+[data-qoro-shell='tenant'] .qoro-skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: var(--z-command);
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-link);
+  transform: translateY(-200%);
+}
+[data-qoro-shell='tenant'] .qoro-skip-link:focus {
+  transform: translateY(0);
+  box-shadow: var(--focus-ring);
+}
+
+[data-qoro-shell='tenant'] [data-slot='page-header'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 68px;
+  align-content: center;
+  gap: 6px;
+  margin: 0 calc(-1 * var(--page-px)) 16px;
+  padding: 12px var(--page-px);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > :first-child:not([data-slot]) {
+  grid-column: 1;
+  margin-bottom: 0;
+  font-size: 12px;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-row'] {
+  display: contents;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-copy'] {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-copy'] h1 {
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-copy'] p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+/* O filete é o que permite a métrica encostar no título sem virar legenda dele:
+   separa sem afastar. Mono + tabular-nums porque é sempre número contado. */
+[data-qoro-shell='tenant'] [data-slot='page-header-meta'] {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  gap: 8px;
+}
+[data-qoro-shell='tenant'] .qoro-toolbar {
+  display: flex;
+  min-height: 56px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -16px calc(-1 * var(--page-px)) 16px;
+  padding: 8px var(--page-px);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+[data-qoro-shell='tenant'] .qoro-toolbar span:has(> select) {
+  width: auto;
+  max-width: 100%;
+}
+[data-qoro-shell='tenant'] .qoro-toolbar select {
+  background-color: var(--surface);
+}
+[data-qoro-shell='tenant'] .qoro-page-content {
+  min-width: 0;
+}
+[data-qoro-shell='tenant'] .qoro-section {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+[data-qoro-shell='tenant'] .qoro-section-header {
+  display: flex;
+  min-height: 44px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+body:has([data-qoro-shell='tenant']) [data-slot='card'],
+body:has([data-qoro-shell='tenant']) [data-slot='panel-card'],
+body:has([data-qoro-shell='tenant']) [data-slot='stat-card'] {
+  box-shadow: none;
+}
+[data-qoro-shell='tenant'] [data-slot='panel-header'] {
+  min-height: 44px;
+  margin: var(--panel-header-margin, -16px -16px 12px);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+[data-qoro-shell='tenant'] [data-slot='stat-label'] {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+[data-qoro-shell='tenant'] [data-slot='stat-label'] > span:first-child {
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+[data-qoro-shell='tenant'] [data-slot='stat-label'] svg {
+  width: 14px;
+  height: 14px;
+}
+[data-qoro-shell='tenant'] [data-slot='stat-value'] {
+  font-family: var(--font-mono);
+  font-size: var(--stat-value-size, 24px);
+  font-weight: 500;
+  line-height: 1.2;
+}
+[data-qoro-shell='tenant'] .qoro-grouped-metric [data-slot='stat-value'] {
+  overflow-wrap: anywhere;
+  font-size: 22px;
+}
+[data-qoro-shell='tenant'] [data-slot='avatar'] {
+  border-radius: 6px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] thead th {
+  height: 38px;
+  padding-block: 8px;
+  font-size: 12px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-foot'] {
+  min-height: 48px;
+  padding-block: 6px;
+  background: var(--surface);
+}
+body:has([data-qoro-shell='tenant']) :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+@media (min-width: 900px) {
+  [data-qoro-shell='tenant'] [data-slot='page-header'] {
+    position: relative;
+    padding-right: var(--page-px);
+  }
+}
+@media (max-width: 899px) {
+  [data-qoro-shell='tenant'] [data-slot='shell-sidebar'][data-open='false'] {
+    visibility: hidden;
+  }
+  body:has([data-qoro-shell='tenant']) {
+    --page-px: 16px;
+    --page-pt-mobile: 0px;
+  }
+  [data-qoro-shell='tenant'] main {
+    padding-top: 0;
+  }
+  [data-qoro-shell='tenant'] [data-slot='page-header'] {
+    min-height: 68px;
+    padding-left: 64px;
+  }
+  [data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    width: 100%;
+  }
+  [data-qoro-shell='tenant'] [data-slot='page-header-actions'] > div {
+    flex-wrap: wrap;
+  }
+  [data-qoro-shell='tenant'] .qoro-toolbar > * {
+    max-width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-qoro-shell='tenant'] *,
+  [data-qoro-shell='tenant'] *::before,
+  [data-qoro-shell='tenant'] *::after {
+    scroll-behavior: auto;
+    transition-duration: 0s;
+    animation-duration: 0s;
+  }
+}
+
 /* Dark mode é dirigido pela classe `.dark` no <html> (não por prefers-color-scheme).
    Light é o default — ver ADR-018/ADR-031. Os shells também aplicam
    `data-theme="dark"` para o CSS legado; os blocos abaixo cobrem os dois. */
@@ -14,35 +729,30 @@
    O CSS legado (ds.css, app-shell.css, admin.css) consome estas vars.
    ========================================================================= */
 :root {
-  /* Primary — navy (oklch, hue 264). O azul da marca Qoro: profundo,
-     confiável, clínico. (Rebrand petrol→navy — ver ADR-035.) */
-  --primary-50: oklch(0.971 0.013 263);
-  --primary-100: oklch(0.938 0.028 263);
-  --primary-200: oklch(0.884 0.052 264);
-  --primary-300: oklch(0.8 0.086 264);
-  --primary-400: oklch(0.672 0.128 264);
-  --primary-500: oklch(0.56 0.15 264);
-  --primary-600: oklch(0.478 0.15 264);
-  --primary-700: oklch(0.41 0.13 265);
-  --primary-800: oklch(0.35 0.108 266);
-  --primary-900: oklch(0.298 0.098 266);
-  --primary-950: oklch(0.232 0.076 268);
+  /* Primary — blue oficial do preset b5J5Qtmtc. */
+  --primary-50: oklch(0.97 0.014 254.604);
+  --primary-100: oklch(0.932 0.032 255.585);
+  --primary-200: oklch(0.882 0.059 254.128);
+  --primary-300: oklch(0.809 0.105 251.813);
+  --primary-400: oklch(0.707 0.165 254.624);
+  --primary-500: oklch(0.623 0.214 259.815);
+  --primary-600: oklch(0.546 0.245 262.881);
+  --primary-700: oklch(0.488 0.243 264.376);
+  --primary-800: oklch(0.424 0.199 265.638);
+  --primary-900: oklch(0.379 0.146 265.522);
+  --primary-950: oklch(0.282 0.091 267.935);
 
-  /* Secondary — ink (superfícies sóbrias), retonalizado para o hue do dark */
-  --secondary: oklch(0.3 0.02 265);
-  --secondary-fg: oklch(0.97 0.004 265);
-
-  /* Accent — orchid (hue ~320). O único acento expressivo: o polo magenta
-     do gradiente Qoro. Reservado a IA + ênfase rara. (clay→orchid, ADR-035.) */
-  --accent-50: oklch(0.966 0.018 330);
-  --accent-100: oklch(0.934 0.04 328);
-  --accent-200: oklch(0.888 0.072 326);
-  --accent-300: oklch(0.818 0.11 324);
-  --accent-400: oklch(0.73 0.15 322);
-  --accent-500: oklch(0.64 0.188 321);
-  --accent-600: oklch(0.566 0.194 320);
-  --accent-700: oklch(0.488 0.172 319);
-  --accent-800: oklch(0.418 0.146 318);
+  /* Orchid Qoro — reservado à marca e IA. `--accent` abaixo segue a semântica
+     neutral/subtle do shadcn e não pode voltar a representar IA. */
+  --brand-accent-50: oklch(0.966 0.018 330);
+  --brand-accent-100: oklch(0.934 0.04 328);
+  --brand-accent-200: oklch(0.888 0.072 326);
+  --brand-accent-300: oklch(0.818 0.11 324);
+  --brand-accent-400: oklch(0.73 0.15 322);
+  --brand-accent-500: oklch(0.64 0.188 321);
+  --brand-accent-600: oklch(0.566 0.194 320);
+  --brand-accent-700: oklch(0.488 0.172 319);
+  --brand-accent-800: oklch(0.418 0.146 318);
 
   /* Success (hue 151) */
   --success-50: oklch(0.966 0.02 152);
@@ -76,62 +786,91 @@
   --info-600: oklch(0.546 0.15 242);
   --info-700: oklch(0.476 0.135 242);
 
-  /* Neutral — porcelana/tinta quentes (hue 98–108) */
+  /* Neutral — zinc oficial do preset. */
   --neutral-0: oklch(1 0 0);
-  --neutral-50: oklch(0.988 0.0035 98);
-  --neutral-100: oklch(0.973 0.0045 98);
-  --neutral-150: oklch(0.957 0.005 98);
-  --neutral-200: oklch(0.934 0.006 98);
-  --neutral-300: oklch(0.886 0.007 98);
-  --neutral-400: oklch(0.766 0.008 98);
-  --neutral-500: oklch(0.612 0.009 98);
-  --neutral-600: oklch(0.498 0.009 100);
-  --neutral-700: oklch(0.406 0.008 102);
-  --neutral-800: oklch(0.292 0.007 104);
-  --neutral-900: oklch(0.216 0.006 106);
-  --neutral-950: oklch(0.158 0.006 108);
+  --neutral-50: oklch(0.985 0 0);
+  --neutral-100: oklch(0.967 0.001 286.375);
+  --neutral-150: color-mix(in oklch, var(--neutral-100) 50%, var(--neutral-200));
+  --neutral-200: oklch(0.92 0.004 286.32);
+  --neutral-300: oklch(0.871 0.006 286.286);
+  --neutral-400: oklch(0.705 0.015 286.067);
+  --neutral-500: oklch(0.552 0.016 285.938);
+  --neutral-600: oklch(0.442 0.017 285.786);
+  --neutral-700: oklch(0.37 0.013 285.805);
+  --neutral-800: oklch(0.274 0.006 286.033);
+  --neutral-900: oklch(0.21 0.006 285.885);
+  --neutral-950: oklch(0.141 0.005 285.823);
 
-  /* Data-viz categórica — lightness perceptual única (~0.63) */
-  --viz-1: oklch(0.56 0.15 264);
-  --viz-2: oklch(0.64 0.188 321);
-  --viz-3: oklch(0.56 0.14 300);
-  --viz-4: oklch(0.628 0.11 151);
-  --viz-5: oklch(0.76 0.128 86);
+  /* Charts 1–5 — Sky oficial do preset; 6–8 preservam categorias adicionais. */
+  --chart-1: oklch(0.828 0.111 230.318);
+  --chart-2: oklch(0.685 0.169 237.323);
+  --chart-3: oklch(0.588 0.158 241.966);
+  --chart-4: oklch(0.5 0.134 242.749);
+  --chart-5: oklch(0.443 0.11 240.79);
+  --viz-1: var(--chart-1);
+  --viz-2: var(--chart-2);
+  --viz-3: var(--chart-3);
+  --viz-4: var(--chart-4);
+  --viz-5: var(--chart-5);
   --viz-6: oklch(0.62 0.15 12);
   --viz-7: oklch(0.62 0.11 240);
   --viz-8: oklch(0.64 0.09 180);
   --viz-grid: var(--neutral-200);
   --viz-track: var(--neutral-150);
 
-  /* Semantic (light) */
-  --bg: var(--neutral-100);
-  --bg-subtle: var(--neutral-150);
-  --surface: var(--neutral-0);
-  --surface-2: var(--neutral-50);
+  /* Semantic (light) — nomes shadcn exatos + aliases do DS existente. */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.97 0.014 254.604);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.546 0.245 262.881);
+  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
+
+  --bg: var(--background);
+  --bg-subtle: var(--neutral-50);
+  --surface: var(--card);
+  --surface-2: var(--muted);
   --surface-inset: var(--neutral-100);
-  --surface-hover: var(--neutral-100);
-  --border: oklch(0.918 0.006 98);
-  --border-2: oklch(0.872 0.007 98);
-  --border-strong: oklch(0.82 0.008 100);
-  --text: var(--neutral-900);
-  --text-2: var(--neutral-600);
-  --text-3: var(--neutral-500);
+  --surface-hover: var(--accent);
+  --border-2: var(--neutral-300);
+  --border-strong: var(--neutral-400);
+  --text: var(--foreground);
+  --text-2: var(--muted-foreground);
+  --text-3: var(--muted-foreground);
   --text-inverse: var(--neutral-50);
-  --text-on-primary: oklch(0.99 0.004 263);
+  --text-on-primary: var(--primary-foreground);
   --text-link: var(--primary-700);
-  --ring: var(--primary-500);
   --focus-ring:
     0 0 0 2px var(--surface), 0 0 0 4px color-mix(in oklch, var(--ring) 65%, transparent);
 
-  --primary: var(--primary-600);
-  --primary-hover: var(--primary-700);
-  --primary-active: var(--primary-800);
+  --primary-hover: var(--primary-800);
+  --primary-active: var(--primary-900);
   --primary-soft: var(--primary-50);
   --on-primary: var(--text-on-primary);
-
-  --accent: var(--accent-600);
-  --accent-soft: var(--accent-50);
-  --on-accent: oklch(0.99 0.01 330);
+  --secondary-fg: var(--secondary-foreground);
+  --accent-soft: var(--accent);
+  --on-accent: var(--accent-foreground);
 
   /* Gradiente da marca Qoro — azul → violeta → magenta → coral. O ativo
      expressivo assinatura; usar com parcimônia (hero, logo, marcas). */
@@ -142,33 +881,49 @@
     oklch(0.6 0.22 322),
     oklch(0.67 0.16 16)
   );
-  --brand-gradient-soft: linear-gradient(100deg, var(--accent-50), var(--primary-50));
+  --brand-gradient-soft: linear-gradient(100deg, var(--brand-accent-50), var(--primary-50));
 
   /* IA / agente — trabalho automatizado é marcado por ESTE tratamento */
-  --ai: var(--accent-600);
-  --ai-soft: var(--accent-50);
-  --ai-border: color-mix(in oklch, var(--accent-500) 42%, transparent);
-  --ai-tint: color-mix(in oklch, var(--accent-500) 7%, var(--surface));
+  --ai: var(--brand-accent-600);
+  --on-ai: oklch(0.99 0.01 330);
+  --ai-soft: var(--brand-accent-50);
+  --ai-border: color-mix(in oklch, var(--brand-accent-500) 42%, transparent);
+  --ai-tint: color-mix(in oklch, var(--brand-accent-500) 7%, var(--surface));
 
-  /* Tipografia (next/font expõe --font-hanken/--font-inter/--font-plex) */
-  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display:
-    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* DM Sans vem do preset; headings herdam a mesma família. */
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: var(--font-sans);
+  --font-heading: var(--font-sans);
   --font-mono: var(--font-plex), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  --fs-display: 56px;
-  --lh-display: 1.02;
-  --fs-h1: 38px;
-  --fs-h2: 30px;
-  --fs-h3: 23px;
-  --fs-h4: 18px;
-  --fs-lg: 17px;
+  /* Escala crua. Titulos encolheram: 38px de titulo de pagina competia com o
+     conteudo e empurrava tudo para baixo — a referencia le ~28px em 1440. */
+  --fs-display: 40px;
+  --lh-display: 1.05;
+  --fs-h1: 28px;
+  --fs-h2: 22px;
+  --fs-h3: 18px;
+  --fs-h4: 16px;
+  --fs-lg: 16px;
   --fs-base: 15px;
   --fs-sm: 13.5px;
   --fs-xs: 12px;
   --fs-2xs: 11px;
+  /* Degrau mínimo — contador de badge e etiqueta auxiliar. Existe para que
+     esses casos parem de virar text-[9.5px]/text-[10px] soltos. */
+  --fs-3xs: 10px;
   --tracking-tight: -0.02em;
   --tracking-label: 0.08em;
+
+  /* Papeis — o que os componentes consomem. A escala crua acima pode ser
+     reafinada sem cacar tamanho solto em 209 arquivos. */
+  --fs-page: var(--fs-h1);
+  --fs-section: var(--fs-h3);
+  --fs-subsection: var(--fs-h4);
+  --fs-body: var(--fs-base);
+  --fs-body-sm: var(--fs-sm);
+  --fs-caption: var(--fs-xs);
+  --fs-micro: var(--fs-3xs);
 
   /* Spacing — base 4px (consumido pelo CSS legado e pelos primitivos) */
   --sp-1: 4px;
@@ -184,13 +939,15 @@
   --sp-20: 80px;
   --sp-24: 96px;
 
-  /* Radius */
+  /* Radius medium do preset: escala Nova concêntrica. */
   --r-xs: 3px;
-  --r-sm: 5px;
-  --r-md: 7px;
+  --r-sm: 6px;
+  --r-md: 8px;
   --r-lg: 10px;
   --r-xl: 14px;
-  --r-2xl: 20px;
+  --r-2xl: 18px;
+  --r-3xl: 22px;
+  --r-4xl: 26px;
   --r-full: 999px;
 
   /* Elevação — nomeada e intencional; --sh-* são os nomes históricos */
@@ -231,23 +988,35 @@
   --control-h: 38px;
   --control-h-sm: 30px;
   --control-h-lg: 46px;
+  --hit-target: 40px;
   --control-px: 14px;
   --control-fs: var(--fs-sm);
   --field-gap: 7px;
   --row-h: 48px;
   --cell-py: 12px;
-  --card-pad: 24px;
+  --card-pad: 20px;
   --stack: 16px;
 
   /* Component hooks — componentes referenciam SÓ estes; retematizar
      nunca alcança o interior do componente */
   --btn-radius: var(--r-md);
-  --field-bg: var(--surface);
-  --field-border: var(--border-strong);
+  /* Campos preenchidos, sem borda em repouso. O hover mistura com --foreground
+     em vez de usar --neutral-*: o bloco .dark nao inverte a rampa neutra, entao
+     um neutral cru sairia claro no tema escuro. Misturar com o texto escurece no
+     claro e clareia no escuro, sem ramo por tema. */
+  --field-bg: var(--surface-2);
+  --field-bg-hover: color-mix(in oklch, var(--surface-2) 94%, var(--foreground));
+  --field-bg-focus: var(--surface);
+  --field-border: transparent;
+  --field-border-hover: var(--border);
+  /* Sem borda em repouso, o foco e a UNICA affordance de interacao — por isso
+     usa a primaria, nao o --ring neutro do preset (que segue valendo no resto). */
+  --field-border-focus: var(--primary-600);
+  --field-ring-focus: color-mix(in oklch, var(--primary-600) 18%, transparent);
   --field-radius: var(--r-md);
   --field-text: var(--text);
   --field-placeholder: var(--text-3);
-  --card-bg: var(--surface);
+  --card-bg: var(--card);
   --card-border: var(--border);
   --card-radius: var(--r-lg);
   --table-header-bg: var(--surface-2);
@@ -255,8 +1024,41 @@
 
   /* Layout */
   --sidebar-w: 256px;
-  --content-maxw: 1080px;
-  --maxw: var(--content-maxw);
+  --page-maxw: 1440px;
+  --page-px: 32px;
+  --page-pt: 20px;
+  --page-pt-mobile: 48px;
+  --page-pb: 32px;
+}
+
+[data-page-layout='workspace'] {
+  --page-maxw: 1600px;
+}
+
+/* Telas de TURNO (Consultório, Conversas, Agenda) ocupam a altura da janela e
+   rolam POR DENTRO de cada painel, como na referência. Um chat e um kanban que
+   empurram a página para baixo obrigam o operador a rolar o shell inteiro para
+   ver a fila — e a perder de vista quem está em atendimento. As telas de
+   tabela seguem fluindo: ali a lista é longa por natureza e cortar é pior.
+
+   `min-height: 0` é o que permite o filho encolher abaixo do conteúdo; sem
+   ele o flex item usa `min-height: auto` e o overflow interno nunca acontece. */
+[data-qoro-shell='tenant'] main[data-page-layout='workspace'] {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+[data-qoro-shell='tenant'] main[data-page-layout='workspace'] > .qoro-fill {
+  min-height: 0;
+  flex: 1;
+}
+
+[data-page-layout='data'] {
+  --page-maxw: 1440px;
+}
+
+[data-page-layout='read'] {
+  --page-maxw: 1120px;
 }
 
 [data-density='compact'] {
@@ -268,48 +1070,78 @@
   --field-gap: 5px;
   --row-h: 36px;
   --cell-py: 7px;
-  --card-pad: 18px;
+  --card-pad: 16px;
   --stack: 12px;
 }
 
-/* Dark — paridade; o sistema é afinado light-first. Sobrepõe só semânticos.
-   Duplo seletor: `.dark` (utilities Tailwind) e `[data-theme]` (CSS legado). */
+@media (pointer: coarse) {
+  :root {
+    --hit-target: 44px;
+  }
+}
+
+@media (max-width: 47.999rem) {
+  :root {
+    --page-px: 16px;
+  }
+}
+
+/* Dark oficial do preset, preservando aliases e orchid exclusivo de IA. */
 .dark,
 [data-theme='dark'] {
-  --bg: oklch(0.176 0.012 265);
-  --bg-subtle: oklch(0.15 0.012 265);
-  --surface: oklch(0.214 0.013 265);
-  --surface-2: oklch(0.246 0.014 265);
-  --surface-inset: oklch(0.19 0.012 265);
-  --surface-hover: oklch(0.262 0.015 265);
-  --border: oklch(0.3 0.015 265);
-  --border-2: oklch(0.346 0.016 265);
-  --border-strong: oklch(0.404 0.018 265);
-  --text: oklch(0.962 0.004 265);
-  --text-2: oklch(0.762 0.012 265);
-  --text-3: oklch(0.624 0.014 265);
-  --text-inverse: oklch(0.2 0.008 265);
-  --text-on-primary: oklch(0.15 0.03 265);
-  /* navy-700 não passa AA sobre --bg escuro; sobe para 300 (desvio documentado
-     no design-system-map) */
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.424 0.199 265.638);
+  --primary-foreground: oklch(0.97 0.014 254.604);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.623 0.214 259.815);
+  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
+
+  --bg: var(--background);
+  --bg-subtle: var(--neutral-950);
+  --surface: var(--card);
+  --surface-2: var(--muted);
+  --surface-inset: var(--background);
+  --surface-hover: var(--accent);
+  --border-2: oklch(1 0 0 / 16%);
+  --border-strong: oklch(1 0 0 / 24%);
+  --text: var(--foreground);
+  --text-2: var(--muted-foreground);
+  --text-3: var(--muted-foreground);
+  --text-inverse: var(--neutral-900);
+  --text-on-primary: var(--primary-foreground);
   --text-link: var(--primary-300);
+  --primary-hover: var(--primary-700);
+  --primary-active: var(--primary-900);
+  --primary-soft: color-mix(in oklch, var(--primary-500) 22%, transparent);
+  --secondary-fg: var(--secondary-foreground);
+  --accent-soft: var(--accent);
+  --on-accent: var(--accent-foreground);
 
-  /* Utilities numéricas sobem no dark p/ o semântico --primary = navy-400 do DS
-     (--primary vem de --primary-600; ring vem de --primary-500) */
-  --primary-500: var(--primary-400);
-  --primary-600: var(--primary-400);
-  --primary-hover: var(--primary-300);
-  --primary-active: var(--primary-200);
-  --primary-soft: color-mix(in oklch, oklch(0.56 0.15 264) 22%, transparent);
-
-  --accent: var(--accent-400);
-  --accent-soft: color-mix(in oklch, var(--accent-500) 18%, transparent);
-  --on-accent: oklch(0.18 0.04 322);
-
-  --ai: var(--accent-400);
-  --ai-soft: color-mix(in oklch, var(--accent-500) 16%, transparent);
-  --ai-border: color-mix(in oklch, var(--accent-400) 42%, transparent);
-  --ai-tint: color-mix(in oklch, var(--accent-500) 12%, var(--surface));
+  --ai: var(--brand-accent-400);
+  --on-ai: oklch(0.18 0.04 322);
+  --ai-soft: color-mix(in oklch, var(--brand-accent-500) 16%, transparent);
+  --ai-border: color-mix(in oklch, var(--brand-accent-400) 42%, transparent);
+  --ai-tint: color-mix(in oklch, var(--brand-accent-500) 12%, var(--surface));
 
   --table-stripe: color-mix(in oklch, var(--neutral-0) 3%, transparent);
 
@@ -341,21 +1173,25 @@
 
   --color-secondary: var(--secondary);
   --color-secondary-fg: var(--secondary-fg);
+  --color-secondary-foreground: var(--secondary-foreground);
 
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
-  --color-accent-50: var(--accent-50);
-  --color-accent-100: var(--accent-100);
-  --color-accent-200: var(--accent-200);
-  --color-accent-300: var(--accent-300);
-  --color-accent-400: var(--accent-400);
-  --color-accent-500: var(--accent-500);
-  --color-accent-600: var(--accent-600);
-  --color-accent-700: var(--accent-700);
-  --color-accent-800: var(--accent-800);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-brand-accent-50: var(--brand-accent-50);
+  --color-brand-accent-100: var(--brand-accent-100);
+  --color-brand-accent-200: var(--brand-accent-200);
+  --color-brand-accent-300: var(--brand-accent-300);
+  --color-brand-accent-400: var(--brand-accent-400);
+  --color-brand-accent-500: var(--brand-accent-500);
+  --color-brand-accent-600: var(--brand-accent-600);
+  --color-brand-accent-700: var(--brand-accent-700);
+  --color-brand-accent-800: var(--brand-accent-800);
 
   --color-ai: var(--ai);
+  --color-on-ai: var(--on-ai);
   --color-ai-soft: var(--ai-soft);
   --color-ai-border: var(--ai-border);
   --color-ai-tint: var(--ai-tint);
@@ -413,6 +1249,32 @@
   --color-viz-grid: var(--viz-grid);
   --color-viz-track: var(--viz-track);
 
+  /* Aliases do registry shadcn. */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-input: var(--input);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   /* Semânticos */
   --color-canvas: var(--bg);
   --color-canvas-subtle: var(--bg-subtle);
@@ -441,6 +1303,8 @@
   --radius-lg: var(--r-lg);
   --radius-xl: var(--r-xl);
   --radius-2xl: var(--r-2xl);
+  --radius-3xl: var(--r-3xl);
+  --radius-4xl: var(--r-4xl);
   --radius-full: var(--r-full);
 
   --shadow-xs: var(--sh-xs);
@@ -567,5 +1431,20 @@
     background: var(--border-strong);
     border-radius: 99px;
     border: 3px solid var(--bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

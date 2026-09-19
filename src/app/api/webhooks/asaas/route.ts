@@ -30,15 +30,12 @@ import { eq } from 'drizzle-orm';
 import { buildRequestContext } from '@/lib/audit/request-context';
 import { dbAdmin } from '@/lib/db';
 import { assertBillingWebhookReady } from '@/lib/env';
+import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { captureBackgroundError } from '@/lib/observability/capture';
 import { runWithContext } from '@/lib/observability/context';
 import { metrics } from '@/lib/observability/metrics';
 
-import {
-  asaasProvider,
-  BillingProviderError,
-  type ProviderPayment,
-} from '@/contexts/billing/internal/providers/asaas';
+import { asaasProvider, BillingProviderError, type ProviderPayment } from '@/lib/payments/asaas';
 import { applyPaidUpgradeForPayment } from '@/contexts/billing/internal/plan-changes';
 import { providerStatusToInvoiceStatus } from '@/contexts/billing/internal/provider-sync';
 import {
@@ -104,8 +101,8 @@ async function handleWebhook(req: Request): Promise<Response> {
     metrics.emit('billing.webhook.oversized', { contentLength });
     return new Response('payload too large', { status: 413 });
   }
-  const raw = await req.text();
-  if (Buffer.byteLength(raw, 'utf8') > MAX_WEBHOOK_BYTES) {
+  const raw = await readWebhookBodyCapped(req, MAX_WEBHOOK_BYTES);
+  if (raw === null) {
     return new Response('payload too large', { status: 413 });
   }
 
@@ -177,11 +174,13 @@ async function handleWebhook(req: Request): Promise<Response> {
         .returning({ id: processedWebhooks.asaasEventId });
       if (dedup.length === 0) return { status: 'duplicate' as const };
 
-      // BILLING-002 — remoção CONFIRMADA por 404 do GET. Não há `payment` para
-      // materializar: localiza a invoice já persistida e deixa a reconciliação
-      // decidir. Delete NUNCA vira refund — nada foi pago nem devolvido.
-      if (payment === null) {
-        const inv = await findInvoiceByProviderPayment(tx, parsed.paymentId!);
+      // BILLING-002/D20 — remoção autoritativa pode chegar como 404 OU como
+      // `200 { deleted: true }` mantendo o status antigo. Em ambos os casos não
+      // se materializa cobrança morta: localiza a invoice persistida e deixa a
+      // reconciliação cancelar. Delete NUNCA vira refund.
+      if (payment === null || payment.deleted) {
+        const providerPaymentId = payment?.paymentId ?? parsed.paymentId!;
+        const inv = await findInvoiceByProviderPayment(tx, providerPaymentId);
         if (!inv) return { status: 'ignored' as const, reason: 'unknown_payment' };
         await tx
           .update(processedWebhooks)
@@ -286,8 +285,8 @@ async function handleWebhook(req: Request): Promise<Response> {
     // O detalhe fica na métrica, que é interna.
     metrics.emit('billing.webhook.received', {
       event: parsed.event,
-      // `null` = remoção confirmada por 404: não existe status de provedor.
-      provider_status: payment?.status ?? 'deleted',
+      // `null` ou `deleted:true` = remoção confirmada autoritativamente.
+      provider_status: payment === null || payment.deleted ? 'deleted' : payment.status,
       ...result,
     });
     return Response.json({ received: true }, { status: 200 });

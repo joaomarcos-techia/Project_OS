@@ -48,10 +48,7 @@ describe('patientRegistrationState', () => {
 describe('formatClinicDateTime', () => {
   it('ancora a data e hora no fuso da clínica', () => {
     expect(
-      __testing__.formatClinicDateTime(
-        new Date('2026-08-13T22:24:18.000Z'),
-        'America/Sao_Paulo',
-      ),
+      __testing__.formatClinicDateTime(new Date('2026-08-13T22:24:18.000Z'), 'America/Sao_Paulo'),
     ).toBe('13/08/2026 às 19:24');
   });
 });

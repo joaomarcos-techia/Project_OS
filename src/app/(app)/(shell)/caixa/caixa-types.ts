@@ -3,6 +3,13 @@
  * components (um arquivo `'use server'` só exporta funções async → tipos/consts
  * vivem aqui). Mesmo contrato `ActionResult` do consultório (C8).
  */
+/**
+ * Qual painel de ação está aberto num lançamento. Mora aqui, e não em
+ * `cash-queue`, porque a fila e o cartão precisam do mesmo tipo — tê-lo na fila
+ * fazia o cartão importar de quem o importa (ciclo pego por `arch:check`).
+ */
+export type CashPanelMode = 'confirm' | 'cancel' | 'estorno';
+
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string };

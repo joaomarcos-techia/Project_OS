@@ -559,11 +559,9 @@ test.describe('produção: importação histórica da Agenda na Clínica A', () 
       // era recusado). Para exercitar a idempotencia de verdade, forcamos a
       // chave ORIGINAL de volta: mesma chave + mesma carga = retry legitimo, e
       // o servidor deve devolver o lote original sem duplicar nada.
-      await ownerPage
-        .locator('input[name="idempotencyKey"]')
-        .evaluate((element, value) => {
-          (element as HTMLInputElement).value = value;
-        }, validIdempotencyKey);
+      await ownerPage.locator('input[name="idempotencyKey"]').evaluate((element, value) => {
+        (element as HTMLInputElement).value = value;
+      }, validIdempotencyKey);
       await expect(ownerPage.locator('input[name="idempotencyKey"]')).toHaveValue(
         validIdempotencyKey,
       );

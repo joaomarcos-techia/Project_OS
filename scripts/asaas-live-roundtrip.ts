@@ -16,7 +16,7 @@ import { sql } from 'drizzle-orm';
 import { dbAdmin } from '@/lib/db';
 import { redactOpaqueId } from '@/lib/sanitize/redact';
 
-import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
+import { asaasProvider } from '@/lib/payments/asaas';
 import { provisionTenant } from '@/contexts/billing/internal/provisioning';
 import { checkoutSessions } from '@/contexts/billing/schema';
 

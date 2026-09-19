@@ -47,4 +47,14 @@ export const MODULES: NavModule[] = [
     group: 'Administração',
     href: '/configuracoes',
   },
+  // O-7. `documentacao` (ajuda do produto) e `documentos` (documentos clínicos do
+  // paciente) são coisas diferentes com nomes parecidos — daí o rótulo "Ajuda" e
+  // o ícone próprio, para que ninguém escolha um querendo o outro.
+  {
+    id: 'ajuda',
+    icon: 'help',
+    label: 'Ajuda',
+    group: 'Administração',
+    href: '/documentacao',
+  },
 ];

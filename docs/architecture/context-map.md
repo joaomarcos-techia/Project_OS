@@ -1,102 +1,48 @@
-# Context Map — Bounded Contexts
+# Mapa de bounded contexts
 
-> **Status:** Ativo · **Owner:** João Marcos (Qoro) · **Última revisão:** 2026-07-01 · **Próxima revisão:** 2027-01-01
->
-> ↩︎ Volta para o [índice mestre](../README.md).
+## Status
 
-Mapa de leitura rápida dos **8 bounded contexts** e de como eles conversam. A fonte canônica é [VisãoGeral §2.1, §2.7 e §4](../VisãoGeral.md) e os ADRs [001](../adr/001-bounded-contexts.md) (contexts), [003](../adr/003-outbox-pattern.md)/[011](../adr/011-outbox-audit-idempotency-patterns.md) (outbox) e [015](../adr/015-event-versioning.md) (versionamento de evento). Este doc destila; ele **não** substitui aquelas fontes.
+Canonical — ownership e dependências de domínio.
 
----
+## Source of Truth
 
-## Regra de ouro
+`src/contexts/*`, barrels públicos `index.ts`/`api.ts`, `eslint.config.mjs` e checks `arch:*`.
 
-🔒 Contextos **não** fazem JOIN cross-context nem se importam diretamente. Comunicam por **eventos no outbox** (assíncrono) ou **API interna explícita** via `@/contexts/<X>` (síncrono, só `api.ts`/`events.ts`). Isso é o que evita o "efeito hidra" do v1. Ver [CONVENTIONS.md](../CONVENTIONS.md) (matriz de imports) e ADR-001.
+## Contexts
 
----
+| Context | Owns | Integrações principais |
+| --- | --- | --- |
+| `tenancy` | clínicas, unidades, slugs | base de todos os dados tenant-scoped |
+| `identity` | profiles, roles, permissions e login attempts | Supabase Auth, tenancy e billing quota |
+| `onboarding` | convites e `step_state` | Asaas, Supabase Auth, tenancy, identity e billing |
+| `patient` | cadastro, PII, consentimento, vínculos e LGPD | scheduling, clinical, Storage e outbox |
+| `scheduling` | agenda, procedimentos, disponibilidade, recursos, fila e waitlist | patient, financial, AI e messaging |
+| `clinical` | prontuário, versões, prescrições e documentos | patient, scheduling, Storage e crypto |
+| `financial` | lançamentos, pagamentos, estornos, fornecedores e caixa | scheduling, messaging e outbox |
+| `messaging` | números WhatsApp, inbound/outbound e status de provider | Meta, AI e outbox |
+| `ai-agent` | conversas, mensagens, tools, pending actions e handoff | Gemini e APIs públicas de outros contexts |
+| `billing` | catálogo de planos, clientes, assinaturas, invoices e uso | Asaas, identity, tenancy e outbox |
+| `feedback` | sugestões privadas e histórico | identity/actor GUC e super-admin |
+| `platform-admin` | consultas e operações cross-tenant do admin | `dbAdmin`, impersonação e auditoria |
 
-## Os 8 contextos
+## Regras de dependência
 
-| # | Contexto | Dono de… | Camada |
-|---|---|---|---|
-| 1 | **Identity** | auth, usuários, roles, permissions, claims JWT | C3 |
-| 2 | **Tenancy & Billing** | clínicas, planos, assinatura, mensalidade (Asaas), MRR/churn | C2 / C13 |
-| 3 | **Patient** | pacientes, contato, consentimentos LGPD, dados clínicos persistentes | C5 |
-| 4 | **Scheduling** | agenda, slots, agendamentos, procedimentos, state machine | C6 |
-| 5 | **Clinical** | prontuário, prescrições, documentos/PDF, consultório | C7 / C8 |
-| 6 | **Financial** | lançamentos, caixa, pagamentos do paciente, fornecedores | C9 |
-| 7 | **AI Agent** | conversas WhatsApp, intents, memória, orçamento IA | C10–C12 |
-| 8 | **Platform Admin** | audit events, export PDF, ações super_admin, métricas | C15 |
+- Um context expõe contratos por `index.ts`, `api.ts` ou eventos. `internal/*` é privado.
+- FK cross-context só existe quando a migration/arquitetura a autoriza; import direto de schema alheio é bloqueado.
+- `src/lib` não depende de context. A infraestrutura oferece primitivas; o domínio decide quando usá-las.
+- Contexts não compartilham transações abrindo novos pools. O chamador passa `Tx` para repositories envolvidos.
+- Eventos são contratos versionados e validados. Um producer pode existir antes do consumer; o registry lista isso como `PRODUCER_AHEAD`.
 
-Cada um vive em [`src/contexts/<nome>/`](../../src/contexts/) com `README.md` descrevendo sua responsabilidade.
+## Fluxos entre contexts
 
----
-
-## Fluxo de eventos (o "quem depende de quem")
-
-```mermaid
-flowchart TD
-    Ident[Identity]
-    Tenancy[Tenancy & Billing]
-    Patient[Patient]
-    Sched[Scheduling]
-    Clinical[Clinical]
-    Fin[Financial]
-    AI[AI Agent]
-    Admin[Platform Admin]
-
-    AI -- coleta/agenda --> Sched
-    Sched -- appointment.completed --> Fin
-    Sched -- appointment.created --> Tenancy
-    Sched -- appointment.created --> Patient
-    Clinical -- prontuario.signed (needs_return) --> Sched
-    Clinical -- prontuario.signed --> Patient
-    AI -- conversation.completed --> Tenancy
-    Tenancy -- clinic.suspended/deleted --> Ident
-    Tenancy -- clinic.deleted (cascade) --> Patient
-    Patient -- patient.deleted --> Sched
-
-    Admin -. observa (audit) .-> Sched
-    Admin -. observa (audit) .-> Fin
-    Admin -. observa (audit) .-> Clinical
+```text
+onboarding -> tenancy + identity + billing
+patient <-> scheduling -> financial
+patient -> clinical
+messaging -> ai-agent -> patient/scheduling/financial
+scheduling/ai-agent -> billing usage metrics
+billing -> tenancy access mode
+all mutations -> audit + outbox
 ```
 
-> Todos os contextos escrevem em `audit_events` (Platform Admin observa). Todo evento passa pelo **outbox** transacional — nunca chamada direta.
-
-### Principais arestas (canônico: VisãoGeral §4)
-
-| Emissor | Evento | Consumidor | Efeito |
-|---|---|---|---|
-| Scheduling | `scheduling.appointment.completed` | **Financial** | Cria lançamento ("nenhum atendimento sem faturamento") |
-| Scheduling | `scheduling.appointment.created` | Tenancy, Patient | Incrementa `usage_metrics`; atualiza `last_appointment_at` |
-| Clinical | `clinical.prontuario.signed` (+`needs_return`) | Scheduling, Patient | Cria task de follow-up; atualiza `last_visit_at` |
-| AI Agent | `ai_agent.conversation.completed` | Tenancy | Incrementa `usage_metrics` de IA |
-| Tenancy | `tenancy.clinic.suspended` / `.deleted` | Identity, Patient | Revoga sessions; hard-delete cascateado (LGPD) |
-| Patient | `patient.deleted` | Scheduling | Cancela agendamentos futuros |
-
-Nomes exatos e payloads dos eventos: VisãoGeral §4 por contexto + [contracts/events/billing.md](../contracts/events/billing.md). Versionamento: [ADR-015](../adr/015-event-versioning.md).
-
----
-
-## Planos arquiteturais (mesmo deploy, **mesmo host**)
-
-- **Data Plane** (rotas `(app)/`) — operação das clínicas.
-- **Control Plane** (rotas `(admin)/`) — operação da Qoro (Platform Admin).
-
-Separação é **lógica** (RLS + rotas + role `super_admin`), não física. Ver VisãoGeral §2.4 e [ADR-008](../adr/008-identity-patterns.md).
-
-> ⚠️ **Ambos vivem em `app.qoro.dev` (2026-07-16).** Este documento dizia
-> `admin.qoro.dev` para o Control Plane — **esse subdomínio nunca foi provisionado e não
-> resolve**. Decisão do founder: adiado, e o registro está em
-> [PROGRESS §Dívida pós-C16 — D7](../PROGRESS.md). O painel **não fica mais exposto por
-> isso**: a defesa é `guardAdminAccess()` → super_admin + AAL2 → **404 absoluto**, que não
-> depende de hostname.
-
----
-
-## Veja também
-
-- [VisãoGeral.md](../VisãoGeral.md) — §2 (filosofia) e §4 (cada contexto em detalhe).
-- [adr/001-bounded-contexts.md](../adr/001-bounded-contexts.md) — a decisão de isolar por domínio.
-- [adr/003-outbox-pattern.md](../adr/003-outbox-pattern.md) · [adr/011-...](../adr/011-outbox-audit-idempotency-patterns.md) — como os eventos trafegam.
-- [CONVENTIONS.md](../CONVENTIONS.md) — matriz de imports (enforcement).
-- [README.md](../README.md) — índice mestre.
+As setas indicam fluxo, não autorização para importar internals. Para regras específicas, use o documento canônico do domínio no [índice](../README.md).

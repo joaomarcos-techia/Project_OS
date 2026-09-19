@@ -6,12 +6,10 @@
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { PageNoAccess } from '@/components/shared/page-no-access';
-import { buttonVariants } from '@/components/ui/button';
-import Link from 'next/link';
 
 import { AgendaCalendar, AgendaNav } from './agenda-calendar';
+import { AgendaPageActions } from './agenda-page-actions';
 import { getAgendaData } from './data';
-import { NewAppointmentDrawer } from './new-appointment-drawer';
 import { isAgendaView } from './range';
 
 export const dynamic = 'force-dynamic';
@@ -52,36 +50,15 @@ export default async function AgendaPage({
       <PageHeader
         crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
         title="Agenda"
-        description="Veja os atendimentos por mês, semana ou dia."
-        actions={
-          <>
-            <Link
-              href="/agenda/importar"
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-            >
-              Importar historico
-            </Link>
-            <Link
-              href="/agenda/lista-espera"
-              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-            >
-              Lista de espera
-            </Link>
-            {data.canManageAvailability ? (
-              <Link
-                href="/agenda/ausencias"
-                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-              >
-                Ausencias medicas
-              </Link>
-            ) : null}
-            {data.canEditAgenda ? <NewAppointmentDrawer data={data} /> : null}
-          </>
-        }
+        description="Consultas, encaixes e correções do dia."
+        meta={`${data.appointments.length} atendimento${data.appointments.length === 1 ? '' : 's'}`}
+        actions={<AgendaPageActions data={data} />}
       />
 
       <AgendaNav data={data} />
-      <AgendaCalendar data={data} />
+      <div className="qoro-page-content">
+        <AgendaCalendar data={data} />
+      </div>
     </>
   );
 }

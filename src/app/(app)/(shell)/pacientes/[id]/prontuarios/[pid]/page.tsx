@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
-import { getProntuarioById } from '@/contexts/clinical/queries';
+import { readProntuarioAudited } from '@/contexts/clinical/prontuario-access';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
 import { buttonVariants } from '@/components/ui/button';
@@ -29,8 +29,10 @@ export default async function ProntuarioEditorPage({
   params: Promise<{ id: string; pid: string }>;
   searchParams: Promise<{ assinar?: string }>;
 }) {
-  // AUTHZ-003-V1 — `getProntuarioById` decifra o SOAP. O gate precede a
-  // consulta; sem `view:prontuario` a rota é indistinguível de inexistente.
+  // AUTHZ-003-V1 — a leitura decifra o SOAP. O gate precede a consulta; sem
+  // `view:prontuario` a rota é indistinguível de inexistente. LGPD (peso 5):
+  // `readProntuarioAudited` grava `clinical.prontuario.viewed` na MESMA tx da
+  // leitura — sem trilha não há resposta a "quem viu meu prontuário".
   const gate = await resourceGate([PERMISSIONS.VIEW_PRONTUARIO]);
   if (!gate) notFound();
   const { clinicId, user } = gate;
@@ -40,7 +42,9 @@ export default async function ProntuarioEditorPage({
   const pidParsed = z.string().uuid().safeParse(pid);
   if (!patParsed.success || !pidParsed.success) notFound();
 
-  const prontuario = await getProntuarioById(clinicId, pidParsed.data);
+  const prontuario = await readProntuarioAudited(clinicId, 'prontuario_editor', {
+    prontuarioId: pidParsed.data,
+  });
   if (!prontuario || prontuario.patientId !== patParsed.data) notFound();
 
   // AUTHZ-003 — cada controle deriva da SUA capacidade, não da presença na

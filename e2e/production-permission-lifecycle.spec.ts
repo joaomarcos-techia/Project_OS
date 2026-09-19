@@ -631,7 +631,7 @@ test.describe('produção: ciclo de permissões granulares', () => {
           `/pacientes/${prontuarioSample.patient_id}/prontuarios/${prontuarioSample.id}`,
         );
         prontuarioRouteVisibleWithoutPermission =
-          (await targetPage.getByRole('heading', { name: /ProntuÃ¡rio/u }).count()) > 0;
+          (await targetPage.getByRole('heading', { name: /Prontuário/u }).count()) > 0;
         const visibleContent = await targetPage
           .locator('textarea')
           .evaluateAll((elements) =>

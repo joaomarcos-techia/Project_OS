@@ -1,7 +1,10 @@
 /**
  * Máquinas de estado de billing (C13 — ADR-025 F4). Transições MONOTÔNICAS:
  * tratam webhook fora de ordem (ex.: OVERDUE chega depois de RECEIVED). Estados
- * terminais não regridem (`paid` nunca volta a `overdue`; invoice `cancelled` é fim).
+ * terminais não regridem (`paid` nunca volta a `overdue`; invoice `cancelled` é fim
+ * para transições genéricas). A restauração autoritativa de cobrança removida é
+ * uma exceção estreita dentro de `syncInvoiceFromProviderPayment`, não uma aresta
+ * aberta nesta máquina.
  * A assinatura de billing pode voltar de `cancelled` para `active` apenas pelo
  * fluxo auditado de reativação, depois da confirmação do Asaas.
  *
@@ -16,7 +19,7 @@ const INVOICE_ALLOWED: Record<InvoiceStatus, ReadonlySet<InvoiceStatus>> = {
   partial: new Set(['paid', 'overdue', 'cancelled']),
   overdue: new Set(['paid', 'cancelled']), // pagamento atrasado recebido → paid
   paid: new Set([]), // terminal (refund é modelado em payment_attempts, não aqui)
-  cancelled: new Set([]), // terminal
+  cancelled: new Set([]), // terminal; restauração do provider usa seam dedicado
 };
 
 // `cancelled -> active` is intentionally limited to the audited reactivation

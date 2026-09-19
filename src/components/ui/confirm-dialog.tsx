@@ -17,10 +17,39 @@ import {
   DialogTrigger,
 } from './dialog';
 
+type ConfirmBehavior =
+  | {
+      /** Server/React form action da confirmação. */
+      action: (formData: FormData) => void | Promise<void>;
+      onConfirm?: never;
+    }
+  | {
+      /** Mutação client-side disparada sem converter o clique em form action. */
+      action?: never;
+      onConfirm: () => void | Promise<void>;
+    };
+
+type ConfirmDialogProps = {
+  trigger?: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  confirmLabel: string;
+  cancelLabel?: string;
+  tone?: 'primary' | 'danger';
+  loading?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Campos sem UI (por exemplo, ids e chaves idempotentes) enviados pelo form. */
+  formFields?: ReactNode;
+  /** Conteúdo visível do form (resumo, campos ou erro da confirmação). */
+  children?: ReactNode;
+} & ConfirmBehavior;
+
 /**
  * Diálogo de confirmação para ações críticas/destrutivas (assinar, excluir,
  * encerrar). O confirmar é um submit de form — a server action (com auditoria)
- * permanece intocada; `children` recebe hidden inputs quando necessário.
+ * permanece intocada; `formFields` recebe campos sem UI e `children`, conteúdo
+ * visível que contextualiza a decisão ou mostra erro.
  */
 export function ConfirmDialog({
   trigger,
@@ -30,33 +59,28 @@ export function ConfirmDialog({
   cancelLabel = 'Cancelar',
   tone = 'primary',
   action,
+  onConfirm,
   loading = false,
   open,
   onOpenChange,
+  formFields,
   children,
-}: {
-  /** Elemento que abre o diálogo (vira DialogTrigger asChild). */
-  trigger?: ReactNode;
-  title: ReactNode;
-  description?: ReactNode;
-  confirmLabel: string;
-  cancelLabel?: string;
-  tone?: 'primary' | 'danger';
-  /** Server action do form de confirmação. */
-  action: (formData: FormData) => void | Promise<void>;
-  loading?: boolean;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  /** Conteúdo extra do form (hidden inputs, resumo do que será confirmado). */
-  children?: ReactNode;
-}) {
+}: ConfirmDialogProps) {
   return (
     <Dialog
       {...(open !== undefined ? { open } : {})}
       {...(onOpenChange !== undefined ? { onOpenChange } : {})}
     >
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
-      <DialogContent>
+      <DialogContent
+        showClose={!loading}
+        onEscapeKeyDown={(event) => {
+          if (loading) event.preventDefault();
+        }}
+        onPointerDownOutside={(event) => {
+          if (loading) event.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogHeaderIcon tone={tone}>
             {tone === 'danger' ? <CircleAlert /> : <ShieldCheck />}
@@ -66,15 +90,21 @@ export function ConfirmDialog({
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </div>
         </DialogHeader>
-        <form action={action}>
+        <form {...(action ? { action } : {})}>
+          {formFields}
           {children ? <DialogBody>{children}</DialogBody> : null}
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="secondary">
+              <Button type="button" variant="secondary" disabled={loading}>
                 {cancelLabel}
               </Button>
             </DialogClose>
-            <Button type="submit" variant={tone} loading={loading}>
+            <Button
+              type={onConfirm ? 'button' : 'submit'}
+              variant={tone}
+              loading={loading}
+              onClick={onConfirm}
+            >
               {confirmLabel}
             </Button>
           </DialogFooter>

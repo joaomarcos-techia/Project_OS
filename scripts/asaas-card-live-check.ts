@@ -9,7 +9,7 @@
  */
 import './_env';
 
-import { asaasProvider } from '@/contexts/billing/internal/providers/asaas';
+import { asaasProvider } from '@/lib/payments/asaas';
 import { redactOpaqueId } from '@/lib/sanitize/redact';
 
 const SANDBOX_CARD = {

@@ -8,6 +8,7 @@ import {
   buildApplicationUrl,
   createAuthConfirmationUrl,
   createOnboardingInviteUrl,
+  createPasswordResetRedirectUrl,
 } from './application-url';
 
 describe('buildApplicationUrl', () => {
@@ -37,6 +38,10 @@ describe('buildApplicationUrl', () => {
     expect(createAuthConfirmationUrl('token-hash-de-teste', 'recovery')).toBe(
       'https://app.qoro.test/auth/confirm?token_hash=token-hash-de-teste&type=recovery&next=%2Fconvite',
     );
+  });
+
+  it('constrói o destino allowlisted da recuperação de senha', () => {
+    expect(createPasswordResetRedirectUrl()).toBe('https://app.qoro.test/reset-password');
   });
 
   it('mantém o token pré-clínica no fragmento, fora da requisição inicial', () => {

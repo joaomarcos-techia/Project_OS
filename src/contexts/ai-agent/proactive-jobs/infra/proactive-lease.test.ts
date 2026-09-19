@@ -30,6 +30,7 @@ describe('proactive job lease and fairness', () => {
     expect(repository).toContain('lease_expires_at = now() + make_interval');
     expect(repository).toContain('lease_token = gen_random_uuid()::text');
     expect(repository).toContain("j.status = 'processing' AND j.lease_expires_at <= now()");
+    expect(repository).toContain('FOR UPDATE OF j SKIP LOCKED');
     expect(migration).toContain('ai_proactive_jobs_lease_chk');
   });
 

@@ -11,10 +11,13 @@
  * ser testável nos onze cenários exigidos sem rede. O I/O fica em
  * `meta-onboarding.probeMetaChannel()`; aqui só se interpreta o resultado.
  *
- * Distinção central: uma NEGATIVA do provedor (4xx, `is_valid=false`, lista de
- * apps sem o nosso) prova que o canal está quebrado; um Graph inalcançável
- * (timeout/5xx) NÃO prova nada. Degradar a conexão de todas as clínicas durante
- * uma instabilidade da Meta seria trocar uma mentira por outra.
+ * Distinção central: uma NEGATIVA documentada do provedor (`is_valid=false`,
+ * lista de apps sem o nosso, ou um código/status que a Meta documenta como
+ * recusa de token/permissão) prova que o canal está quebrado; um Graph
+ * inalcançável — timeout, 5xx, `429` de rate limit ou 4xx sem código documentado
+ * — NÃO prova nada. Degradar a conexão de todas as clínicas durante uma
+ * instabilidade ou um pico de tráfego seria trocar uma mentira por outra. A
+ * classificação vive em `meta-onboarding.classifyGraphFailure()`.
  */
 
 /** Resultado de UMA verificação. `unknown` = não deu para checar, não é veredito. */

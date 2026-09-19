@@ -18,7 +18,8 @@
  * Origins + per-file allowlists:
  *   - bare `postgres`                        → src/lib/db/index.ts, scripts/db-migrate-prod.ts,
  *                                               scripts/delete-test-clinics-prod.ts,
- *                                               scripts/reset-prod-data.ts
+ *                                               scripts/reset-prod-data.ts,
+ *                                               scripts/load-test.ts + seed runner
  *   - `drizzle` from drizzle-orm/postgres-js  → src/lib/db/index.ts
  *   - `db`      (named export of @/lib/db)    → src/lib/db/tenant.ts (withTenant)
  *   - `dbAdmin` (named export of @/lib/db)    → ALLOWED_DB_VALUE_IMPORTS.dbAdmin
@@ -40,8 +41,15 @@ const DB_ORIGIN = 'src/lib/db/index.ts';
 
 const ALLOWED_POSTGRES_IMPORTS = new Set([
   'src/lib/db/index.ts',
+  // Cluster temporário próprio, loopback fixo e data_directory conferido antes do DDL.
+  'scripts/security/tenant-isolation.ts',
+  'scripts/security/signup-regression.ts',
+  'scripts/security/scratch-schema.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
+  // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.
+  'scripts/load-test.ts',
+  'scripts/load-test-seed-runner.ts',
   // Reset operacional one-shot: não pode usar o pool do runtime porque recebe
   // DATABASE_URL_PROD após opt-in explícito e gera backup antes da transação.
   'scripts/reset-prod-data.ts',
@@ -83,6 +91,21 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // por version rodam via dbAdmin/BYPASSRLS. A saga de provisionamento também.
     'src/contexts/onboarding/internal/invites.ts',
     'src/contexts/onboarding/internal/saga.ts',
+    // ADR-060 (O-2a): signup_sessions é global pré-tenant (sem clinic_id), com RLS
+    // ENABLE+FORCE sem policy, grant só a service_role e REVOKE de
+    // anon/authenticated na 0096. withTenant não se aplica.
+    'src/contexts/onboarding/internal/signup-session.ts',
+    // ADR-060 §1.c.1: as quatro perguntas escrevem na MESMA tabela global
+    // pré-tenant. Irmão do arquivo acima, mesma justificativa.
+    'src/contexts/onboarding/internal/signup-answers.ts',
+    // ADR-062 O-3b.3: ownership do mesmo signup_sessions global prÃ©-tenant;
+    // permanece sem clinic_id e protegido por RLS FORCE sem policy/service_role.
+    'src/contexts/onboarding/internal/signup-draft.ts',
+    // O-5 (0103): intenção de assinatura no mesmo signup_sessions pré-tenant.
+    // Irmão dos três acima; a reserva precede o tenant, logo precede o GUC.
+    'src/contexts/onboarding/internal/signup-billing.ts',
+    // O-6: consome signup_sessions e cria o tenant na mesma tx (ADR-027).
+    'src/contexts/onboarding/internal/signup-provision.ts',
     // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
     // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
     'src/contexts/identity/internal/members.ts',
@@ -108,6 +131,19 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // number-store): upsert/desativa o número + audita em audit_events via
     // service_role. F-01 proíbe dbAdmin no contexto; a escrita do owner mora aqui.
     'src/lib/messaging/connection-store.ts',
+    // ADR-049 1.1 — seam privilegiado de ESCRITA da conta de pagamento da clinica
+    // (irmao direto do connection-store). `clinic_payment_accounts.api_key_encrypted`
+    // esta FORA do grant de `authenticated` (0080), entao `withTenant` (SET LOCAL ROLE
+    // authenticated) nao consegue escrever por construcao. Comando estreito, sempre
+    // com WHERE clinic_id, e audita na MESMA tx.
+    'src/lib/payments/account-store.ts',
+    // ADR-049 1.3b — varredura do sinal: lê as clínicas que ligaram a política
+    // (tabela do próprio Payments, cross-tenant como os crons financeiros). A
+    // cobrança em si volta para withTenant.
+    'src/contexts/payments/internal/deposit-scan.ts',
+    // ADR-049 1.3 — varredura de holds vencidos (scan cross-tenant read-only);
+    // o cancelamento de cada um volta para withTenant + applyTransition.
+    'src/contexts/scheduling/internal/deposit-hold.ts',
     'src/app/api/cron/patient-hard-delete/route.ts',
     'src/app/api/cron/audit-partitions/route.ts',
     // C9 — crons financeiros: scan cross-tenant (reconcile) + rollup do caixa.
@@ -138,6 +174,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // por LIMIT; writes per-clínica continuam via withTenant. Mesma justificativa
     // dos crons C9/C13. (Os crons proactive-* NUNCA tocam dbAdmin: só estes 3.)
     'src/contexts/scheduling/reminder-candidates.ts',
+    // ADR-049 1.3b — irmão do reminder-candidates: read-model privilegiado que
+    // lista agendamentos elegíveis a sinal em várias clínicas num scan só.
+    'src/contexts/scheduling/deposit-candidates.ts',
     'src/contexts/financial/dunning-candidates.ts',
     // WAIT-001 — mesma forma: o SCAN de ofertas vencidas é cross-tenant e só
     // devolve ids; a liberação/repasse de cada uma roda em withTenant, sob RLS.

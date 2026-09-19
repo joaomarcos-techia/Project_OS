@@ -2,6 +2,9 @@
 
 import { useActionState } from 'react';
 
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+
 import { regeneratePrescriptionPdfForm, type FormState } from './actions';
 
 const INITIAL: FormState = { error: null };
@@ -9,16 +12,12 @@ const INITIAL: FormState = { error: null };
 export function RegeneratePdfButton({ id, label }: { id: string; label: string }) {
   const [state, action, pending] = useActionState(regeneratePrescriptionPdfForm, INITIAL);
   return (
-    <form action={action}>
+    <form action={action} className="grid gap-2">
       <input type="hidden" name="id" value={id} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-50"
-      >
-        {pending ? 'Gerando…' : label}
-      </button>
-      {state.error ? <p className="mt-1 text-sm text-red-600">{state.error}</p> : null}
+      <Button type="submit" variant="secondary" loading={pending}>
+        {label}
+      </Button>
+      {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
     </form>
   );
 }

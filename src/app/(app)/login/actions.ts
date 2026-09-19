@@ -4,14 +4,23 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 
+import {
+  CAPTCHA_ERROR_MESSAGE,
+  captchaOptions,
+  isCaptchaError,
+  readCaptchaToken,
+} from '@/lib/auth/captcha';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
 import { recordLoginAttempt } from '@/lib/auth/login-audit';
-import { assertLoginAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
+import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import { getAal } from '@/lib/auth/mfa';
 import { isRole } from '@/lib/auth/roles';
+import { createPasswordResetRedirectUrl } from '@/lib/http/application-url';
+import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
 const LoginSchema = z.object({
@@ -22,6 +31,63 @@ const LoginSchema = z.object({
 export type LoginActionState = {
   error: string | null;
 };
+
+const ForgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+});
+
+export type ForgotPasswordActionState = {
+  error: string | null;
+  sent: boolean;
+};
+
+/**
+ * Inicia recovery sem revelar se o endereço pertence a uma conta. A mensagem de
+ * sucesso é idêntica para usuário ausente, rate-limit e falha do provedor; o
+ * detalhe operacional fica somente nos logs sanitizados.
+ */
+export async function forgotPasswordAction(
+  _prev: ForgotPasswordActionState,
+  formData: FormData,
+): Promise<ForgotPasswordActionState> {
+  const parsed = ForgotPasswordSchema.safeParse({ email: formData.get('email') });
+  if (!parsed.success) {
+    return { error: 'Informe um e-mail válido.', sent: false };
+  }
+
+  const email = parsed.data.email;
+  const limit = await assertPasswordResetAllowed(getClientIp(await headers()), hashEmail(email));
+  if (!limit.ok) {
+    metrics.emit('auth.ratelimit.tripped', { route: 'forgot-password' });
+    return { error: null, sent: true };
+  }
+
+  try {
+    const supabase = await createServerClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: createPasswordResetRedirectUrl(),
+      // Presente só quando o widget produziu um token. Com o captcha desligado
+      // no projeto, o GoTrue ignora o campo.
+      ...captchaOptions(readCaptchaToken(formData)),
+    });
+    if (error) {
+      // O motivo distingue desafio reprovado de rejeição do provedor — são
+      // incidentes diferentes e o conserto de cada um é outro. A RESPOSTA ao
+      // usuário continua idêntica nos dois casos: esta action nunca revela se
+      // o endereço existe, e um erro visível de captcha aqui seria um oráculo
+      // a menos de ruído para quem enumera contas.
+      logger.warn('forgot_password.request_failed', {
+        reason: isCaptchaError(error) ? 'captcha_failed' : 'provider_rejected',
+      });
+    }
+  } catch (error) {
+    logger.error('forgot_password.request_failed', {
+      reason: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+
+  return { error: null, sent: true };
+}
 
 export async function loginAction(
   _prev: LoginActionState,
@@ -50,9 +116,23 @@ export async function loginAction(
     return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
   }
 
-  const supabase = await createServerClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const supabase = await createServerClient({ cookieWrites: 'required', newSession: true });
+  // `options` é omitido quando não há token: mandar `{ captchaToken: '' }` faz o
+  // GoTrue tratar como token INVÁLIDO, não como ausente.
+  const options = captchaOptions(readCaptchaToken(formData));
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    ...(options ? { options } : {}),
+  });
   if (error || !data.user) {
+    // Captcha reprovado NÃO é tentativa de credencial: contá-lo como falha de
+    // login envenenaria o rate limit por e-mail (um widget expirado bloquearia
+    // a conta de quem digitou a senha certa) e o sinal de brute-force.
+    if (isCaptchaError(error)) {
+      metrics.emit('auth.login.failed', { reason: 'captcha_failed' });
+      return { error: CAPTCHA_ERROR_MESSAGE };
+    }
     await recordLoginAttempt(emailHash, ip, false);
     // A1: alimenta a saved-search de brute-force (> N/5min). `reason` distingue
     // credencial inválida de bloqueio — são incidentes diferentes.
@@ -64,7 +144,15 @@ export async function loginAction(
   // Leitura server-side autoritativa. Não usa PostgREST/Data API: o navegador
   // fica restrito ao Auth/Realtime/Storage e não ganha uma superfície SQL CRUD.
   const profile = await readAuthoritativeProfile(data.user.id);
-  if (!profile || !profile.role || !isRole(profile.role)) {
+  if (!profile) {
+    const onboarding = await resolvePreTenantOnboarding(supabase);
+    if (onboarding.ok) {
+      redirect(onboarding.kind === 'pretenant' ? '/cadastro/continuar' : onboarding.route);
+    }
+    await supabase.auth.signOut({ scope: 'local' });
+    return { error: 'Profile inválido. Contate o administrador.' };
+  }
+  if (!profile.role || !isRole(profile.role)) {
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Profile inválido. Contate o administrador.' };
   }

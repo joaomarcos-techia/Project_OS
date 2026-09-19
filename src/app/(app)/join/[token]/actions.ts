@@ -20,6 +20,7 @@ import {
   stepStateSchema,
   type OnboardingStep,
 } from '@/contexts/onboarding';
+import { captchaOptions, isCaptchaError, readCaptchaToken } from '@/lib/auth/captcha';
 import { assertJoinAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { isOnboardingInviteToken } from '@/lib/auth/onboarding-invite-fragment';
 import { createServerClient } from '@/lib/auth/supabase-server';
@@ -253,9 +254,28 @@ export async function submitCheckoutAction(
 
   // Auto-login do owner — "entra na hora" (decisão de produto). Define os cookies
   // de sessão nesta server action. Best-effort: se falhar, o owner só loga manual.
+  //
+  // O token do Turnstile deste formulário é gasto AQUI, e só aqui: o
+  // provisionamento usa `admin.auth.admin.createUser` (service role), que não
+  // passa por captcha. Um token por envio basta — e é bom que baste, porque o
+  // usuário não tem como resolver um segundo desafio depois que o cartão já
+  // foi cobrado.
   try {
-    const supabase = await createServerClient();
-    await supabase.auth.signInWithPassword({ email: st.owner.email, password });
+    const supabase = await createServerClient({ cookieWrites: 'required', newSession: true });
+    const options = captchaOptions(readCaptchaToken(formData));
+    const { error } = await supabase.auth.signInWithPassword({
+      email: st.owner.email,
+      password,
+      ...(options ? { options } : {}),
+    });
+    if (error) {
+      // Visível de propósito: a clínica JÁ está ativa e paga. Sem este log, um
+      // captcha mal configurado apareceria apenas como "cadastrei e caí no
+      // login" — indistinguível de decisão de produto.
+      logger.warn('checkout.autologin_failed', {
+        reason: isCaptchaError(error) ? 'captcha_failed' : 'auth_rejected',
+      });
+    }
   } catch {
     /* não-fatal — a clínica já está ativa; o owner entra pelo /login */
   }

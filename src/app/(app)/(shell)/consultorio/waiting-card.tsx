@@ -3,6 +3,7 @@
 import { TriangleAlert } from 'lucide-react';
 import { memo } from 'react';
 
+import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/ui/cn';
@@ -38,52 +39,60 @@ function WaitingCardImpl({
   const tone = waitTone(mins);
   return (
     <div
+      data-slot="waiting-card"
       className={cn(
         'rounded-lg border border-border border-l-4 bg-surface p-3 shadow-xs',
         LEFT_BORDER[tone],
       )}
     >
+      {/* Avatar + nome + motivo, como na referência: numa fila, quem chega
+          reconhece a pessoa antes de ler o horário. */}
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate font-medium text-fg">{card.pacienteNome}</p>
-          {demographicsLine(card.idade, card.sexo) ? (
-            <p className="truncate text-xs text-fg-subtle">
-              {demographicsLine(card.idade, card.sexo)}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Avatar name={card.pacienteNome} />
+          <div className="min-w-0">
+            <p className="truncate font-medium text-fg">{card.pacienteNome}</p>
+            <p className="truncate text-(length:--fs-xs) text-fg-muted">
+              {[demographicsLine(card.idade, card.sexo), card.motivo].filter(Boolean).join(' · ')}
             </p>
-          ) : null}
-          <p className="truncate text-xs text-fg-muted">
-            {formatHora(card.horario)} · {card.motivo}
-          </p>
+          </div>
         </div>
         {card.urgencia ? <Badge tone="red">Urgência</Badge> : null}
       </div>
 
-      <div className="mt-2">
+      {/* Horário à esquerda, espera à direita — a referência põe os dois na
+          mesma linha porque a leitura é "marcado para X, esperando há Y". */}
+      <div className="mt-2.5 flex items-center justify-between gap-2 text-(length:--fs-xs)">
+        <span className="text-fg-muted tabular-nums">{formatHora(card.horario)}</span>
         <Badge tone={WAIT_BADGE[tone]} dot>
           {formatWait(mins)} aguardando
         </Badge>
-        {card.queuePosition != null ? (
-          <span className="ml-2 text-xs text-fg-muted">
-            {card.queuePosition}º na fila · previsão inicial de {card.estimatedWaitMinutes ?? 0} min
-          </span>
-        ) : null}
       </div>
 
+      {card.queuePosition != null ? (
+        <p className="mt-1.5 text-(length:--fs-xs) text-fg-subtle">
+          {card.queuePosition}º na fila · previsão inicial de {card.estimatedWaitMinutes ?? 0} min
+        </p>
+      ) : null}
+
       {card.alergias.length > 0 ? (
-        <p className="mt-2 flex items-start gap-1 text-xs text-danger-700">
+        <p className="mt-2 flex items-start gap-1 text-(length:--fs-xs) text-danger-700">
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
           <span>
             <b>Alergias:</b> {card.alergias.join(', ')}
           </span>
         </p>
       ) : (
-        <p className="mt-2 text-xs text-fg-subtle">Sem alergias registradas</p>
+        <p className="mt-2 text-(length:--fs-xs) text-fg-subtle">Sem alergias registradas</p>
       )}
 
       <div className="mt-3 flex gap-2">
+        {/* Largura total: é a única ação do card e a fila é operada com pressa —
+            alvo grande economiza mira. */}
         <Button
           size="sm"
           variant="primary"
+          className="w-full"
           loading={busy}
           onClick={() => onCall(card.appointmentId)}
         >

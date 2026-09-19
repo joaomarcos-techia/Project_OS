@@ -6,6 +6,7 @@ import { cn } from '@/lib/ui/cn';
 export function Card({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
+      data-slot="card"
       className={cn(
         'rounded-(--card-radius) border border-(--card-border) bg-(--card-bg) shadow-sm',
         className,

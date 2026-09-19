@@ -109,7 +109,7 @@ async function responseFailureDetail(response: Awaited<ReturnType<Page['goto']>>
 async function login(context: BrowserContext, email: string, password: string): Promise<Page> {
   const page = await context.newPage();
   await page.goto('/login');
-  await page.getByLabel('Email').fill(email);
+  await page.locator('#email').fill(email);
   await page.locator('input[name="password"]').fill(password);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u, { timeout: 60_000 });
@@ -456,7 +456,7 @@ test.describe('produção: equipe e papéis autorizados na conta de teste', () =
         timeout: 30_000,
       });
 
-      await attendantPage.getByLabel('Email').fill(attendant.email);
+      await attendantPage.locator('#email').fill(attendant.email);
       await attendantPage.locator('input[name="password"]').fill(attendant.password);
       await attendantPage.getByRole('button', { name: 'Entrar' }).click();
       await expect(attendantPage).toHaveURL(/\/dashboard(?:\?|$)/u, { timeout: 30_000 });

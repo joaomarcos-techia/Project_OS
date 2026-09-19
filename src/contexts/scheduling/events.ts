@@ -45,6 +45,10 @@ export const cancelReasonEnum = z.enum([
   'patient_deceased',
   'reschedule',
   'doctor_absence',
+  // ADR-049: o hold do sinal venceu sem pagamento. Motivo PRÓPRIO de propósito —
+  // marcar como 'user' diria que alguém cancelou, e ninguém cancelou: o prazo
+  // passou. A diferença aparece no histórico do paciente e no que a clínica lê.
+  'deposit_expired',
 ]);
 export type CreatedVia = z.infer<typeof createdViaEnum>;
 export type CancelReason = z.infer<typeof cancelReasonEnum>;
@@ -122,6 +126,19 @@ export const AppointmentCancelledSchema = z.object({
   toStatus: statusEnum,
   cancelReason: cancelReasonEnum,
   reason: z.string().nullable(),
+  /**
+   * ADR-049 1.5 — QUANDO o cancelamento aconteceu. O estorno do sinal é uma regra
+   * de ANTECEDÊNCIA (`isRefundableCancellation`), e o consumidor roda no worker,
+   * minutos depois: julgar com o relógio dele faria um cancelamento feito a tempo
+   * virar "tarde demais" toda vez que o outbox atrasasse — o paciente perderia
+   * dinheiro por causa de uma fila nossa.
+   *
+   * **`optional` só por causa da janela de deploy**: eventos já enfileirados
+   * quando esta versão subir não têm a chave, e um campo obrigatório os faria
+   * falhar no `schema.parse` do worker — cancelamentos travados numa fila de
+   * retry. Todo publicador novo preenche; o consumidor mede quantos chegam sem.
+   */
+  cancelledAt: z.string().datetime().optional(),
 });
 export type AppointmentCancelledPayload = z.infer<typeof AppointmentCancelledSchema>;
 
@@ -132,6 +149,11 @@ export const AppointmentNoShowSchema = z.object({
   patientId: uuid.nullable(),
   fromStatus: statusEnum,
   toStatus: statusEnum,
+  /**
+   * ADR-057 / 2.4B. Opcional para manter eventos históricos válidos; somente
+   * eventos novos, que carregam o instante autoritativo, geram recuperação.
+   */
+  noShowAt: z.string().datetime().optional(),
 });
 export type AppointmentNoShowPayload = z.infer<typeof AppointmentNoShowSchema>;
 

@@ -1,36 +1,47 @@
 import {
+  Ban,
   Banknote,
+  CalendarClock,
   CalendarDays,
+  ChevronRight,
   Clock3,
-  RefreshCw,
   Sparkles,
   Stethoscope,
-  Users,
+  Timer,
+  TriangleAlert,
+  UserX,
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { buttonVariants } from '@/components/ui/button';
+import { MetricStrip } from '@/components/ui/metric-strip';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
 import { StatCard } from '@/components/ui/stat-card';
 import { AppointmentStatusBadge } from '@/components/ui/status-badge';
+import { cn } from '@/lib/ui/cn';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { clinicDayBounds } from '@/contexts/financial/logic';
 import { getCashFlowToday, listCashFlowDaily } from '@/contexts/financial/queries';
 import type { CashFlowDTO } from '@/contexts/financial/types';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
+import { countOpenHandoffs, type HandoffPulse } from '@/contexts/ai-agent/queries';
 import { getRecentActivity, type AuditActivity } from '@/lib/audit/recent';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { formatBRL } from '@/lib/format';
 
+import { currentOnboardingProgress } from '../_painel/onboarding-progress';
+
 import { ActivationChecklist } from './_components/activation-checklist';
 import { ActivityFeed } from './_components/activity-feed';
+import { RefreshButton } from './_components/refresh-button';
 import { RevenueChart } from './_components/revenue-chart';
 import { getActivationChecklist, getDashboard } from './data';
+import styles from './dashboard.module.css';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +70,7 @@ const NO_CASH_FLOW: CashFlowDTO = {
   recebidoHoje: 0,
   pagoHoje: 0,
   saldoHoje: 0,
+  contagens: { receber: 0, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
 };
 
 function hora(iso: string): string {
@@ -93,13 +105,19 @@ export default async function DashboardPage() {
   const canViewFinancial =
     (user.isSuperAdmin && user.aal === 'aal2') ||
     user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
+  // Mesmo gate do item de menu: sem `view:conversations` a fila de handoff nem
+  // e consultada, entao o alerta da IA nao existe no HTML.
+  const canViewConversations = user.permissions.includes(PERMISSIONS.VIEW_CONVERSATIONS);
+  const NO_HANDOFF: HandoffPulse = { abertos: 0, vencidos: 0 };
 
   // Gráfico: faturamento (recebido) dos últimos 7 dias. Histórico vem do
   // consolidado diário (cash_flow_daily); "hoje" usa o valor ao vivo (o rollup
   // roda 1x/dia, então ainda não fechou o dia corrente).
-  const [d, checklist, flow, serie, activity] = await Promise.all([
+  const [d, checklist, onboarding, flow, serie, activity, handoff] = await Promise.all([
     getDashboard(clinicId, tz),
     getActivationChecklist(clinicId),
+    // Memoizado por request: o layout já leu esta linha para montar o tour.
+    currentOnboardingProgress(),
     // DTO neutro em vez da query: o zero aqui nunca é renderizado (os blocos
     // financeiros somem abaixo), ele só mantém o tipo sem consultar o caixa.
     canViewFinancial ? getCashFlowToday(clinicId, from, to) : Promise.resolve(NO_CASH_FLOW),
@@ -107,6 +125,7 @@ export default async function DashboardPage() {
       ? listCashFlowDaily(clinicId, dias[0]!, ymd(tz, 1))
       : Promise.resolve<Awaited<ReturnType<typeof listCashFlowDaily>>>([]),
     canAudit ? getRecentActivity(clinicId, 7) : Promise.resolve<AuditActivity[]>([]),
+    canViewConversations ? countOpenHandoffs(clinicId) : Promise.resolve(NO_HANDOFF),
   ]);
   const recByDate = new Map(serie.map((s) => [s.date, s.totalRecebido]));
   const chart = dias.map((date, i) => ({
@@ -122,150 +141,266 @@ export default async function DashboardPage() {
     : new Map<string, string>();
 
   const hoje = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: tz,
     weekday: 'long',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   }).format(new Date());
 
+  // hourCycle:'h23' e nao hour12:false — o mesmo bug do ICU que renderiza
+  // meia-noite como "24" ja mordeu em data.ts.
+  const relogio = (opts: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('pt-BR', { timeZone: tz, hourCycle: 'h23', ...opts }).format(
+      new Date(),
+    );
+  const horaLocal = Number(relogio({ hour: '2-digit' }));
+  const periodo = horaLocal < 12 ? 'Bom dia' : horaLocal < 18 ? 'Boa tarde' : 'Boa noite';
+  const primeiroNome = (user.name ?? '').trim().split(/\s+/)[0] ?? '';
+  const atualizadoEm = relogio({ hour: '2-digit', minute: '2-digit' });
+
+  // Quem ja chegou e ainda espera — o nome que o cartao "Aguardando" anuncia.
+  const proximoNaFila = d.proximos.find((consulta) => consulta.status === 'chegou');
+
   return (
     <>
       <PageHeader
         crumbs={[{ label: 'Dashboard' }, { label: `Hoje · ${hoje}` }]}
-        title="Visão operacional"
-        description="O pulso da clínica em tempo real — agenda, atendimento, caixa e inteligência num só lugar."
+        title={primeiroNome ? `${periodo}, ${primeiroNome}` : periodo}
+        description="O pulso da clínica agora"
+        meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
         actions={
-          <Link href="/dashboard" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-            <RefreshCw className="size-3.5" />
-            Atualizar
-          </Link>
+          <>
+            <RefreshButton />
+            <Link href="/consultorio" className={buttonVariants()}>
+              <Stethoscope aria-hidden="true" className="size-4" />
+              Abrir o Consultório
+            </Link>
+          </>
         }
       />
 
-      <ActivationChecklist data={checklist} />
+      {/* Antes do resto: enquanto a ativação não fecha, ela É a prioridade da
+          tela — e no rodapé ninguém a encontrava. Não polui o dashboard maduro
+          porque o componente se remove sozinho quando os passos terminam. */}
+      <ActivationChecklist data={checklist} dismissed={Boolean(onboarding?.checklistDismissedAt)} />
 
       {/* ---- stat tiles (dados reais) ---- */}
-      <div className="grid grid-cols-2 gap-(--sp-4) lg:grid-cols-3 2xl:grid-cols-5">
-        <StatCard
-          label="Consultas hoje"
-          value={d.consultasHoje}
-          hint={`${d.finalizadas} finalizadas`}
-          icon={<CalendarDays />}
-        />
-        <StatCard
-          label="Aguardando"
-          value={d.aguardando}
-          hint="na sala de espera"
-          icon={<Clock3 />}
-        />
-        <StatCard
-          label="Em atendimento"
-          value={d.emAtendimento}
-          hint="agora"
-          icon={<Stethoscope />}
-        />
+      <PanelCard
+        title="Agora"
+        regionLabel="Sala de espera e atendimento"
+        action={{ label: 'Ver fila no Consultório', href: '/consultorio' }}
+        className={styles.metricsPanel ?? ''}
+      >
+        <MetricStrip className={styles.liveMetrics ?? ''}>
+          <StatCard
+            label="Aguardando"
+            value={d.aguardando}
+            hint={proximoNaFila ? `${proximoNaFila.nome} é o próximo` : 'na sala de espera'}
+            icon={<Clock3 />}
+          />
+          {/* Só ganha o tom de alerta quando alguém está de fato atrasado; fila
+              em dia mostra o mesmo cartão neutro, sem gritar por nada. */}
+          <StatCard
+            label="Maior espera"
+            value={d.maiorEsperaMin === null ? '—' : d.maiorEsperaMin}
+            {...(d.maiorEsperaMin === null ? {} : { suffix: 'min' })}
+            hint={
+              d.maiorEsperaNome
+                ? `${d.maiorEsperaNome} · acima do previsto`
+                : 'ninguém acima do previsto'
+            }
+            icon={<Timer />}
+            {...(d.maiorEsperaMin === null ? {} : { className: styles.metricAlert ?? '' })}
+          />
+          <StatCard
+            label="Em atendimento"
+            value={d.emAtendimento}
+            hint="agora"
+            icon={<Stethoscope />}
+          />
+          <StatCard
+            label="Próxima consulta"
+            value={d.proximos[0] ? hora(d.proximos[0].horario) : '—'}
+            hint={
+              d.proximos[0]
+                ? `${d.proximos[0].nome} · ${d.proximos[0].procedimento}`
+                : 'Nenhuma consulta na fila de hoje'
+            }
+            icon={<CalendarClock />}
+          />
+        </MetricStrip>
+      </PanelCard>
+
+      <div className={styles.summaryGrid ?? ''}>
+        <PanelCard
+          title="Operação do turno"
+          regionLabel="Operação do turno"
+          className={styles.metricsPanel ?? ''}
+        >
+          <MetricStrip className={styles.summaryMetrics ?? ''}>
+            <StatCard
+              label="Consultas hoje"
+              value={d.consultasHoje}
+              hint={`${d.finalizadas} ${d.finalizadas === 1 ? 'finalizada' : 'finalizadas'}`}
+              icon={<CalendarDays />}
+            />
+            <StatCard
+              label="Faltas"
+              value={d.faltas}
+              hint={d.faltaNome ?? (d.faltas === 0 ? 'ninguém faltou' : 'registradas hoje')}
+              icon={<UserX />}
+            />
+            <StatCard
+              label="Cancelados"
+              value={d.cancelados}
+              hint={d.cancelados === 0 ? 'nenhum cancelamento' : 'cancelados hoje'}
+              icon={<Ban />}
+            />
+          </MetricStrip>
+        </PanelCard>
         {canViewFinancial ? (
-          <>
-            <StatCard
-              label="A receber"
-              value={formatBRL(flow.receber)}
-              hint="pendências em aberto"
-              icon={<Wallet />}
-            />
-            <StatCard
-              label="Faturado hoje"
-              value={formatBRL(flow.recebidoHoje)}
-              hint="recebido hoje"
-              icon={<Banknote />}
-            />
-          </>
+          <PanelCard
+            title="Resumo financeiro"
+            regionLabel="Resumo financeiro"
+            action={{ label: 'Abrir o Financeiro', href: '/financeiro' }}
+            className={styles.metricsPanel ?? ''}
+          >
+            <MetricStrip className={styles.summaryMetrics ?? ''}>
+              <StatCard
+                label="A receber"
+                value={formatBRL(flow.receber)}
+                valueTone={flow.receber > 0 ? 'warning' : 'default'}
+                hint="pendências em aberto"
+                icon={<Wallet />}
+              />
+              <StatCard
+                label="Recebido hoje"
+                value={formatBRL(flow.recebidoHoje)}
+                valueTone={flow.recebidoHoje > 0 ? 'positive' : 'default'}
+                hint="recebido hoje"
+                icon={<Banknote />}
+              />
+              <StatCard
+                label="Saldo do dia"
+                value={formatBRL(flow.saldoHoje)}
+                hint="depois das saídas"
+                icon={<Wallet />}
+              />
+            </MetricStrip>
+          </PanelCard>
         ) : null}
       </div>
 
-      <div className="mt-(--sp-4) grid gap-(--sp-4) xl:grid-cols-[3fr_2fr]">
-        <div className="flex flex-col gap-(--sp-4)">
+      {/* Pendências que valem interromper a leitura: dinheiro que ficou para
+          trás e gente esperando um humano. Cada faixa é um link para o lugar
+          onde aquilo se resolve — nunca um aviso mudo. */}
+      {(canViewFinancial && d.naoFaturados > 0) || handoff.abertos > 0 ? (
+        <div className={styles.alerts ?? ''}>
+          {canViewFinancial && d.naoFaturados > 0 ? (
+            <Link href="/caixa" className={cn(styles.alert, styles.alertBilling)}>
+              <TriangleAlert aria-hidden="true" />
+              <span className={styles.alertText ?? ''}>
+                {d.naoFaturados === 1
+                  ? '1 atendimento concluído hoje ainda não foi faturado'
+                  : `${d.naoFaturados} atendimentos concluídos hoje ainda não foram faturados`}
+              </span>
+              <span className={styles.alertCta ?? ''}>Abrir o Caixa</span>
+              <ChevronRight aria-hidden="true" />
+            </Link>
+          ) : null}
+          {handoff.abertos > 0 ? (
+            <Link href="/conversas" className={cn(styles.alert, styles.alertAi)}>
+              <Sparkles aria-hidden="true" />
+              <span className={styles.alertText ?? ''}>
+                {handoff.abertos === 1
+                  ? '1 conversa do agente aguardando atendimento humano'
+                  : `${handoff.abertos} conversas do agente aguardando atendimento humano`}
+                {handoff.vencidos > 0 ? ` · ${handoff.vencidos} com SLA vencido` : ''}
+              </span>
+              <span className={styles.alertCta ?? ''}>Abrir Conversas IA</span>
+              <ChevronRight aria-hidden="true" />
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className={canAudit ? styles.contentGrid : styles.contentSingle}>
+        <div className={styles.mainColumn ?? ''}>
+          <PanelCard
+            title="Próximos na agenda"
+            regionLabel="Próximos na agenda"
+            action={{ label: 'Ver agenda do dia', href: '/agenda' }}
+            className={styles.panel ?? ''}
+          >
+            {d.proximos.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                icon={<CalendarDays />}
+                title="Agenda livre hoje"
+                description="Nenhum atendimento está agendado para hoje."
+              />
+            ) : (
+              <ul className={styles.appointments ?? ''}>
+                {d.proximos.map((p) => (
+                  <li key={p.appointmentId}>
+                    <span className={styles.appointmentTime ?? ''}>{hora(p.horario)}</span>
+                    <span className={styles.patientName ?? ''}>{p.nome}</span>
+                    <span className={styles.appointmentProcedure ?? ''}>{p.procedimento}</span>
+                    <AppointmentStatusBadge status={p.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PanelCard>
           {/* AUTHZ-005 — série, total e o link para /financeiro só existem no
-              HTML quando a permissão existe. */}
+            HTML quando a permissão existe. */}
           {canViewFinancial ? (
             <PanelCard
-              title="Faturamento · últimos 7 dias"
+              title="Faturamento recebido"
               action={{ label: 'Financeiro', href: '/financeiro' }}
+              regionLabel="Faturamento recebido"
+              className={styles.panel ?? ''}
             >
               {chartTotal === 0 ? (
-                <p className="py-(--sp-6) text-center text-(length:--fs-sm) text-fg-subtle">
-                  Sem recebimentos registrados no período.
-                </p>
+                <EmptyState
+                  variant="compact"
+                  icon={<Banknote />}
+                  title="Sem recebimentos no período"
+                  description="Os valores recebidos aparecem aqui assim que forem registrados."
+                />
               ) : (
                 <RevenueChart points={chart} />
               )}
             </PanelCard>
           ) : null}
+        </div>
 
-          <div className="grid gap-(--sp-4) md:grid-cols-2">
+        {canAudit ? (
+          <div className={styles.rightColumn ?? ''}>
             <PanelCard
-              title="Próximos na agenda"
-              action={{ label: 'Ver consultório', href: '/consultorio' }}
+              title="Atividade recente"
+              regionLabel="Atividade recente"
+              className={styles.panel ?? ''}
             >
-              {d.proximos.length === 0 ? (
-                <p className="py-2 text-(length:--fs-sm) text-fg-subtle">Nada para hoje.</p>
+              {activity.length === 0 ? (
+                <EmptyState
+                  variant="compact"
+                  icon={<Clock3 />}
+                  title="Sem atividade recente"
+                  description="As próximas ações da equipe aparecerão aqui."
+                />
               ) : (
-                <ul className="flex flex-col">
-                  {d.proximos.map((p) => (
-                    <li
-                      key={p.appointmentId}
-                      className="flex items-center gap-3 border-b border-border py-2 text-(length:--fs-sm) last:border-b-0"
-                    >
-                      <span className="font-mono text-(length:--fs-xs) text-fg-subtle">
-                        {hora(p.horario)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate font-medium">{p.nome}</span>
-                      <AppointmentStatusBadge status={p.status} />
-                    </li>
-                  ))}
-                </ul>
+                <ActivityFeed activity={activity} actorNames={actorNames} />
               )}
             </PanelCard>
-
-            <PanelCard title="Ocupação por profissional" meta="em breve">
-              <EmptyState
-                className="px-(--sp-4) py-(--sp-8)"
-                icon={<Users />}
-                title="Em breve"
-                description="Ocupação por médico chega com a Agenda."
-              />
-            </PanelCard>
+            {/* Dizer o que a tela ainda NÃO mostra é mais honesto que deixar o
+                canto vazio parecendo carregamento travado. */}
+            <p className={styles.note ?? ''}>
+              Ocupação por profissional ainda não tem fonte de dados nesta clínica.
+            </p>
           </div>
-        </div>
-
-        <div className="flex flex-col gap-(--sp-4)">
-          <PanelCard
-            className="border-ai-border"
-            title="Alertas da IA"
-            titleIcon={<Sparkles className="text-ai" />}
-            meta="em breve"
-          >
-            <EmptyState
-              className="px-(--sp-4) py-(--sp-8)"
-              icon={<Sparkles />}
-              title="Em breve"
-              description="Alertas (no-show, cobrança ausente, retorno vencido) chegam com o Agente de IA."
-            />
-          </PanelCard>
-
-          <PanelCard title="Atividade recente">
-            {!canAudit ? (
-              <p className="py-2 text-(length:--fs-sm) text-fg-subtle">
-                A trilha de atividade fica disponível para gestores.
-              </p>
-            ) : activity.length === 0 ? (
-              <p className="py-2 text-(length:--fs-sm) text-fg-subtle">
-                Nenhuma atividade registrada ainda.
-              </p>
-            ) : (
-              <ActivityFeed activity={activity} actorNames={actorNames} />
-            )}
-          </PanelCard>
-        </div>
+        ) : null}
       </div>
     </>
   );

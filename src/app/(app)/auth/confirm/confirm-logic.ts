@@ -18,19 +18,36 @@ export function isValidOtpType(v: string | null): v is EmailOtpType {
   return v !== null && (VALID_OTP_TYPES as readonly string[]).includes(v);
 }
 
+const SAFE_NEXT_PATHS = new Set(['/dashboard', '/convite', '/reset-password']);
+const INTERNAL_ORIGIN = 'https://auth-confirm.internal';
+
 /**
- * Sanitiza `next` — INVARIANTE de segurança: só path relativo INTERNO. Bloqueia
- * open-redirect (`//evil.com`, `https://evil.com`, `/\evil.com`, backslashes,
- * URLs absolutas com esquema). Fallback seguro: `/dashboard`.
+ * Sanitiza `next` — INVARIANTE de segurança: somente destinos internos
+ * necessários pelos fluxos de OTP. A allowlist evita ambiguidades do parser com
+ * controles ASCII, whitespace, barras invertidas e URLs protocol-relative.
  */
 export function safeNext(raw: string | null | undefined): string {
   const fallback = '/dashboard';
   if (!raw) return fallback;
-  // precisa começar com "/" e NÃO ser "//" ou "/\" (protocol-relative / escape)
-  if (raw[0] !== '/' || raw[1] === '/' || raw[1] === '\\') return fallback;
-  // rejeita qualquer coisa com esquema explícito ou backslash (defensivo)
-  if (raw.includes('\\') || /^\/*[a-z][a-z0-9+.-]*:/i.test(raw.slice(1))) return fallback;
-  return raw;
+  if (!raw.startsWith('/') || /[\u0000-\u0020\u007f]/u.test(raw) || raw.includes('\\')) {
+    return fallback;
+  }
+
+  try {
+    const parsed = new URL(raw, INTERNAL_ORIGIN);
+    if (parsed.origin !== INTERNAL_ORIGIN || parsed.hash || !SAFE_NEXT_PATHS.has(parsed.pathname)) {
+      return fallback;
+    }
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Signup sempre termina no onboarding; query/fragmento e `next` arbitrário são ignorados. */
+export function safeNextForOtp(raw: string | null | undefined, type: EmailOtpType): string {
+  if (type === 'signup') return '/cadastro/continuar';
+  return safeNext(raw);
 }
 
 /** Motivo → mensagem amigável (matriz de erros do plano). */

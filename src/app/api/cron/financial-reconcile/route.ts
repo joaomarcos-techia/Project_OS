@@ -26,6 +26,8 @@ import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
+import { ORPHAN_CREDIT_AGE_DAYS, scanOrphanCredits } from './orphan-credit-scan';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,6 +36,7 @@ const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 1000;
 const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
+const TERMINAL_APPOINTMENT_STATUSES = new Set(['atendido', 'cancelado', 'faltou']);
 
 export const GET = withCron(
   {
@@ -50,26 +53,55 @@ export const GET = withCron(
 
     // Atendimentos atendidos, fora da janela de carência, sem lançamento e ainda
     // não sinalizados como pendentes.
-    const rows = (await dbAdmin.transaction(async (tx) => {
+    const scan = await dbAdmin.transaction(async (tx) => {
       // O Transaction Pooler pode entregar a conexão administrativa ainda no
       // papel `authenticator`. Este scan é o bypass cross-tenant explicitamente
       // autorizado nesta rota; restaura o principal da conexão apenas dentro
-      // desta transação curta, antes da única leitura administrativa.
+      // desta transação curta, antes das duas leituras administrativas.
       await tx.execute(sql`RESET ROLE`);
-      return tx.execute(sql`SELECT a.id::text AS id, a.clinic_id::text AS clinic_id, a.valor::text AS valor
-                              FROM appointments a
-                             WHERE a.status = 'atendido'
-                               AND a.faturamento_pendente = false
-                               AND a.updated_at < now() - ${sql.raw(GRACE)}
-                               AND NOT EXISTS (SELECT 1 FROM lancamentos l WHERE l.appointment_id = a.id)
-                             ORDER BY a.updated_at ASC
-                             LIMIT ${limit}`);
-    })) as unknown as Array<{ id: string; clinic_id: string; valor: string }>;
+      const receivables =
+        await tx.execute(sql`SELECT a.id::text AS id, a.clinic_id::text AS clinic_id, a.valor::text AS valor
+                                                FROM appointments a
+                                               WHERE a.status = 'atendido'
+                                                 AND a.faturamento_pendente = false
+                                                 AND a.updated_at < now() - ${sql.raw(GRACE)}
+                                                 AND NOT EXISTS (SELECT 1 FROM lancamentos l WHERE l.appointment_id = a.id)
+                                               ORDER BY a.updated_at ASC
+                                               LIMIT ${limit}`);
+      const orphanCredits = await scanOrphanCredits(tx);
+      return { receivables, orphanCredits };
+    });
+    const rows = scan.receivables as unknown as Array<{
+      id: string;
+      clinic_id: string;
+      valor: string;
+    }>;
 
-    if (rows.length === 0) {
-      metrics.emit('financial.reconcile.run', { opened: 0, clinics: 0 });
-      await recordHeartbeat('financial-reconcile', 'success', { opened: 0, clinics: 0 });
-      return Response.json({ ok: true, opened: 0, clinics: 0 }, { status: 200 });
+    const orphanClinicIds = new Set(scan.orphanCredits.map((group) => group.clinicId));
+    let orphanCredits = 0;
+    let terminalCredits = 0;
+    let staleActiveCredits = 0;
+    let missingAppointmentCredits = 0;
+    for (const group of scan.orphanCredits) {
+      orphanCredits += group.count;
+      if (group.appointmentStatus === 'missing') {
+        missingAppointmentCredits += group.count;
+      } else if (TERMINAL_APPOINTMENT_STATUSES.has(group.appointmentStatus)) {
+        terminalCredits += group.count;
+      } else {
+        staleActiveCredits += group.count;
+      }
+    }
+
+    if (orphanCredits > 0) {
+      metrics.emit('financial.reconcile.orphan_credit_detected', {
+        credits: orphanCredits,
+        clinics: orphanClinicIds.size,
+        terminal: terminalCredits,
+        staleActive: staleActiveCredits,
+        missingAppointment: missingAppointmentCredits,
+        ageDays: ORPHAN_CREDIT_AGE_DAYS,
+      });
     }
 
     const byClinic = new Map<string, Array<{ id: string; valor: string }>>();
@@ -120,9 +152,17 @@ export const GET = withCron(
       });
     }
 
-    metrics.emit('financial.reconcile.pendencia_opened', { opened, clinics: byClinic.size });
-    metrics.emit('financial.reconcile.run', { opened, clinics: byClinic.size });
-    await recordHeartbeat('financial-reconcile', 'success', { opened, clinics: byClinic.size });
+    if (opened > 0) {
+      metrics.emit('financial.reconcile.pendencia_opened', { opened, clinics: byClinic.size });
+    }
+    const runFields = {
+      opened,
+      clinics: byClinic.size,
+      orphanCredits,
+      orphanClinics: orphanClinicIds.size,
+    };
+    metrics.emit('financial.reconcile.run', runFields);
+    await recordHeartbeat('financial-reconcile', 'success', runFields);
     return Response.json({ ok: true, opened, clinics: byClinic.size }, { status: 200 });
   },
 );
