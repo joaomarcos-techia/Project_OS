@@ -17,6 +17,7 @@ Canonical index — procedimentos operacionais atuais.
 | Proatividade/WhatsApp | [C14](c14-validation.md) |
 | Cobrança do paciente (conta da clínica) | [payment account connect](payment-account-connect.md) |
 | Assinatura do Qoro (webhook da nossa conta) | [asaas webhook assinatura](asaas-webhook-assinatura.md) |
+| Aceitação humana do cadastro autônomo | [aceitacao humana cadastro](aceitacao-humana-cadastro.md) |
 | Incidente de provider/segurança | [incident response](incident-response.md) |
 | Backup/restore | [disaster recovery](disaster-recovery.md) |
 
