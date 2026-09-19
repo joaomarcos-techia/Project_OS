@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 176 actions (0 inline); 46 métodos em 43 handlers; 16 props com referência de action; 230 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
+Contagem: 176 actions (0 inline); 46 métodos em 43 handlers; 16 props com referência de action; 241 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -469,6 +469,17 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/tenant-isolation.ts:12`           | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
 | `scripts/security/tenant-isolation.ts:136`          | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/tenant-isolation.ts:137`          | `<object>`                             | `process.env`                                      |
+| `scripts/security/track-o-load.ts:90`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/security/track-o-load.ts:91`               | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
+| `scripts/security/track-o-load.ts:92`               | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                  |
+| `scripts/security/track-o-load.ts:93`               | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/security/track-o-load.ts:94`               | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `scripts/security/track-o-load.ts:95`               | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                   |
+| `scripts/security/track-o-load.ts:96`               | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
+| `scripts/security/track-o-load.ts:97`               | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                |
+| `scripts/security/track-o-load.ts:98`               | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                 |
+| `scripts/security/track-o-load.ts:99`               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                   |
+| `scripts/security/track-o-load.ts:100`              | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                            |
 | `scripts/seed-c9-test.ts:38`                        | `SEED_C9_PASSWORD`                     | `process.env.SEED_C9_PASSWORD`                     |
 | `scripts/seed-clinic-user.ts:36`                    | `SEED_USER_EMAIL`                      | `process.env.SEED_USER_EMAIL`                      |
 | `scripts/seed-clinic-user.ts:37`                    | `SEED_USER_PASSWORD`                   | `process.env.SEED_USER_PASSWORD`                   |
