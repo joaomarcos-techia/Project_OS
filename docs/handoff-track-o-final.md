@@ -10,7 +10,7 @@
 | **O-1** | **PASS** (publicação BLOCKED) | `qoro/scripts/verificar-comecar.mjs` 19/19 + navegador |
 | **O-5** | **PASS** | Sandbox 4/4 + webhook 9/9 |
 | **O-6** | **PASS** | 8/8 contra 105 migrations reais |
-| **O-7** | **PASS** | 13/13 em schema real + 3/3 E2E autenticado |
+| **O-7** | **PASS** | 13/13 em schema real + **5/5** E2E autenticado, sem skip |
 | **O.H** | **PASS** | carga geral + carga Track O 8/8 + chaos 59/59 |
 | **O.S** | **PASS** | kill switch 9/9 + simulação + Preview + CI |
 
@@ -58,18 +58,30 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
 | **Publicar `/comecar`** | a landing tem feature inteira do usuário não commitada | o dono commita a feature dele e a ponte junto |
-| **2 skips do E2E de tour** | banco do Preview sem a migration 0104 | aplicar as migrations do Track O ao banco do Preview |
-| **`PONTE_ATIVA = false`** | `app.qoro.dev/cadastro` responde 307 → /login | ligar junto com o merge do Track O |
+| **Migrar o banco de PRODUÇÃO** | fora da autorização desta sessão (só DEV) | `SUPABASE_PROJECT_ENV=prod ... pnpm db:migrate:prod`, **antes** de abrir `/cadastro` em produção |
+| **`PONTE_ATIVA = false`** | `app.qoro.dev/cadastro` responde 307 → /login | trocar para `true` em `src/lib/comecar.ts` quando `/cadastro` estiver de pé |
 | **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro em `handoff-track-o-2026-09-18.md` §10 |
+
+**Resolvido em 19/09/2026:** os 2 skips do E2E de tour. As migrations do Track O foram aplicadas ao
+banco DEV (que é o banco do Preview) e o spec passa 5/5, sem skip, em três execuções seguidas.
 
 ## Ordem de release
 
 1. commitar a feature da landing + `/comecar` (dono da landing);
-2. aplicar as migrations do Track O ao banco do ambiente alvo;
-3. mesclar o PR #9;
-4. ligar `SIGNUP_IDENTITY_ENABLED` no app;
+2. ~~aplicar as migrations do Track O ao banco DEV~~ — **feito em 19/09/2026** (103 → 105);
+3. ~~mesclar o PR #9~~ — **feito em 19/09/2026**;
+4. `SIGNUP_IDENTITY_ENABLED` no app — **já configurado pelo dono**;
 5. ligar `PONTE_ATIVA` na landing;
 6. rodar o roteiro de aceitação humana.
 
-A ordem importa: ligar a ponte antes do passo 2 leva campanha paga para um beco sem saída.
+**O passo que ficou, e por que ele é o primeiro de verdade.** Mesclar o PR publica em produção, e o
+banco de produção **não** foi migrado — isso está fora da autorização desta sessão. Hoje isso é
+inofensivo: `app.qoro.dev/cadastro` responde 307 → `/login`, ou seja, o cadastro autônomo está
+fechado em produção, e a única outra estrutura nova (`onboarding_progress`) é lida com degradação
+provada — sem a tabela, o shell renderiza sem o tour em vez de devolver 500. Mas abrir `/cadastro` em
+produção **antes** de rodar `db:migrate:prod` quebra o cadastro na primeira tentativa de cobrança:
+as colunas `billing_*`/`asaas_*` de `signup_sessions` não existem lá.
+
+A ordem importa: ligar a ponte (passo 5) antes de migrar produção leva campanha paga para um beco sem
+saída.

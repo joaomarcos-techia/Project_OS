@@ -722,6 +722,20 @@
       "when": 1789603200000,
       "tag": "0102_signup_plan_selection",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1789732094000,
+      "tag": "0103_signup_billing_attempt",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1789767364000,
+      "tag": "0104_onboarding_progress",
+      "breakpoints": true
     }
   ]
 }

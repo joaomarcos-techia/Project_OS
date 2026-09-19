@@ -9,7 +9,7 @@ aparece como `NOT TESTED` ou `BLOCKED`, nunca em branco.
 > **Esta matriz não substitui a §10.9 da ADR-062.** Aquela seção é a evidência da emenda de identidade
 > e continua com o significado dela. Esta aqui é por fatia.
 
-SHA de referência: `f2ba564` (branch `feature/clinic-plan-o4`).
+SHA de referência: a ponta de `feature/clinic-plan-o4`. Última atualização: 19/09/2026.
 
 ## Legenda de ambiente
 
@@ -390,8 +390,8 @@ contexto de tenant reais) e conta sintética de teste.
 | dashboard abre com sessão real, sem 5xx e sem `pageerror`  | **PASS**         |
 | `/documentacao` autenticada, listando os tópicos           | **PASS**         |
 | tópico abre; slug inexistente devolve **404**, não 500     | **PASS**         |
-| tour dispensado não reabre após reload                     | **SKIP anotado** |
-| duas abas convergem para o mesmo estado                    | **SKIP anotado** |
+| tour dispensado não reabre após reload                     | **PASS**         |
+| duas abas convergem para o mesmo estado                    | **PASS**         |
 
 **O 500 que este spec encontrou.** Na primeira execução ele falhou com `500 em /dashboard`. A causa
 era minha: a leitura de `onboarding_progress` estava no LAYOUT do shell, por onde passa toda página
@@ -399,10 +399,57 @@ autenticada, e o banco do Preview não tem a migration 0104 — agenda, consult�
 caíram juntos por causa de um tour. Corrigido com degradação: sem progresso, o shell renderiza sem o
 tour, e a falha vai para a observabilidade em vez de virar 500.
 
-**Os dois SKIP são anotados, e antes eram verde vazio.** Como o shell degrada, o tour não aparece num
-banco sem a 0104 — e "o tour não está na tela" passava sem provar nada. O spec agora detecta se a
-máquina está viva (tour presente, ou "Refazer o tour" na central de ajuda) e pula com motivo quando
-não está. **Desbloqueio:** aplicar as migrations do Track O ao banco do Preview.
+**Os dois SKIP eram verde vazio; hoje são prova.** Como o shell degrada, o tour não aparece num banco
+sem a 0104 — e "o tour não está na tela" passava sem provar nada. O spec passou a detectar se a
+máquina está viva (tour presente, ou "Refazer o tour" na central de ajuda) e a pular com motivo
+quando não está. Em 19/09/2026 as migrations do Track O foram aplicadas ao banco DEV, que é o banco
+do Preview, e os **cinco** testes passam sem skip — três execuções seguidas, 5/5, exit 0.
+
+**A leitura de conferência no banco é o que fecha o argumento.** Depois das três execuções (cada uma
+com duas abas), `onboarding_progress` tem **uma única linha**: `tour_state=skipped`, `tour_step=0`,
+`row_version=3`, `tour_finished_at` e `docs_visited_at` preenchidos. Uma linha para seis sessões de
+navegador é a prova de que a autoridade é o servidor e não a aba — e o `row_version=3` é a prova de
+que cada mutação passou pelo CAS em vez de sobrescrever cegamente.
+
+**Uma execução transitória falhou, e ela está registrada.** A primeira execução logo após a migration
+falhou em 4 dos 5 testes (o quinto, o mais lento, passou). Não reproduziu: as três execuções
+seguintes deram 5/5. A causa mais provável é cold start do Preview contra o timeout de 30 s — os
+artefatos daquela execução foram sobrescritos pelas seguintes, então isto é a hipótese, não a
+conclusão.
+
+---
+
+## Migrations do Track O aplicadas em DEV — e o defeito que isso revelou
+
+**O journal estava mentindo.** `0103_signup_billing_attempt` e `0104_onboarding_progress` foram
+escritas à mão, sem `drizzle-kit generate`, e o `drizzle/migrations/meta/_journal.json` ficou parado
+na 0102. Os dois arquivos estavam commitados; `check:migrations` passava (ele varre o CONTEÚDO dos
+`*.sql`, não a lista); a suíte estava verde; o CI também. Mesmo assim `pnpm db:migrate:dev` e
+`db:migrate:prod` aplicariam 103 migrations e **pulariam as duas, em silêncio** — o migrator do
+drizzle lê o journal, não o diretório.
+
+Isto não era um detalhe de tooling: era exatamente a causa do `500 em /dashboard`. A tabela existia
+no repositório e não existia em banco nenhum, e a descoberta vinha em runtime.
+
+| Prova                                                                    | Resultado |
+| ------------------------------------------------------------------------ | --------- |
+| `check:migrations` (nenhuma operação destrutiva não-aprovada)             | **PASS**  |
+| leitura ANTES: `migrations_aplicadas=103`, ambas as estruturas ausentes   | **PASS**  |
+| `db:migrate:dev` — guard de contexto DEV + aplicação                      | **PASS**  |
+| leitura DEPOIS: `migrations_aplicadas=105`                                | **PASS**  |
+| 0103 — 5/5 colunas em `signup_sessions`                                   | **PASS**  |
+| 0104 — `onboarding_progress` com `rls=true`, `force=true`, 3 policies     | **PASS**  |
+| grants: `authenticated` = SELECT/INSERT/UPDATE (sem DELETE); `anon` = nada | **PASS**  |
+| 6 CHECKs presentes (estado, passo, terminal, iniciado, `row_version`)     | **PASS**  |
+
+O alvo foi confirmado por impressão digital antes de qualquer escrita: o host de `DATABASE_URL_DEV`
+difere do de `DATABASE_URL_PROD`, ambos com `sslmode=require`. Produção **não** foi migrada — e não
+precisa ser para o merge, porque o shell degrada sem a tabela (ver a seção do E2E).
+
+**A regressão que impede a recaída:** `src/lib/db/migration-journal.test.ts` exige paridade entre os
+`*.sql` e o journal (arquivo órfão, entrada órfã, `idx` divergente, `when` não-crescente). Teste de
+inversão: removendo as duas entradas do journal, 2 dos 5 casos falham e o arquivo sai com exit 1;
+restaurado em seguida.
 
 ---
 
