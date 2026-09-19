@@ -176,7 +176,31 @@ async function cleanupOrphans(): Promise<never> {
     }
   }
   console.log(`[sandbox] ${removed}/${testCustomers.length} customers de teste removidos`);
-  process.exit(cancelled === ours.length && removed === testCustomers.length ? 0 : 1);
+
+  // READBACK, e não o contador acima. Duas razões medidas em 18/09/2026:
+  //   1. `DELETE /subscriptions/{id}` pode responder HTTP 500 e ainda assim ter
+  //      apagado — contar a exceção como falha inventaria resíduo que não existe;
+  //   2. o inverso também acontece: o contador fechou "3/3" e a varredura
+  //      seguinte achou uma assinatura ACTIVE.
+  // O que decide é o estado lido depois, não o código de retorno.
+  const after = await fetch(`${base}/subscriptions?limit=100`, {
+    headers: { access_token: key, 'Content-Type': 'application/json' },
+  });
+  assert.ok(after.ok, `[sandbox] readback falhou: HTTP ${after.status}`);
+  const afterBody = (await after.json()) as {
+    data?: { id: string; status?: string; deleted?: boolean; externalReference?: string }[];
+  };
+  const stillBilling = (afterBody.data ?? []).filter(
+    (row) =>
+      /^(signup-sandbox|probe|signup-webhook):/u.test(row.externalReference ?? '') &&
+      row.status === 'ACTIVE' &&
+      row.deleted !== true,
+  );
+  for (const row of stillBilling) {
+    console.log(`[sandbox] RESIDUO ainda ACTIVE: ${redactOpaqueId(row.id)}`);
+  }
+  console.log(`[sandbox] readback: ${stillBilling.length} assinatura(s) ainda cobrando`);
+  process.exit(stillBilling.length === 0 ? 0 : 1);
 }
 
 async function main(): Promise<void> {
@@ -492,11 +516,16 @@ async function main(): Promise<void> {
 }
 
 const childArgs = process.argv.slice(2);
+const lostFlag = childArgs.find((a) => a.startsWith('--lost-post='));
+// EXCLUSIVO, e não sequencial. Antes, `--cleanup-orphans` disparava o janitor
+// SEM `await` e a execução caía no `else` abaixo, que rodava a suíte inteira em
+// paralelo: pedir limpeza CRIAVA assinatura nova, e o `process.exit()` do
+// janitor matava a suíte no meio, deixando o que ela tinha acabado de criar.
+// Observado em 18/09/2026 — a varredura seguinte achou uma `signup-sandbox:p2`
+// ACTIVE logo depois de um "cleanup" que se declarou bem-sucedido.
 if (childArgs.includes('--cleanup-orphans')) {
   void cleanupOrphans();
-}
-const lostFlag = childArgs.find((a) => a.startsWith('--lost-post='));
-if (lostFlag) {
+} else if (lostFlag) {
   const [customerId, externalReference] = lostFlag.slice('--lost-post='.length).split('|');
   assert.ok(customerId && externalReference, '[sandbox] argumentos do modo filho incompletos');
   void lostPostChild(customerId, externalReference);

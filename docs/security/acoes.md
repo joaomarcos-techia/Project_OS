@@ -431,7 +431,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-billing-sandbox.ts:58`     | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
 | `scripts/security/signup-billing-sandbox.ts:66`     | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
 | `scripts/security/signup-billing-sandbox.ts:131`    | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
-| `scripts/security/signup-billing-sandbox.ts:322`    | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-billing-sandbox.ts:346`    | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-kill-switch-browser.ts:54` | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-provision-db.ts:68`        | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
 | `scripts/security/signup-provision-db.ts:69`        | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
