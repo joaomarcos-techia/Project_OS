@@ -59,8 +59,8 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
-| **Nenhum CTA aponta para `/comecar`** | a ponte está ligada e publicada, mas **inalcançável**: 0 links em `/`, `/para/psiquiatria` e `/precos`, medido no HTML de produção | acrescentar "Criar conta" em `/precos` e no fim das páginas de vertical, na landing |
 | **Google Ads não mede** | `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` da landing | preencher as duas constantes; roteiro em `docs/GOOGLE-ADS.md` da landing |
+| **Regra de Firewall órfã em `/api/lead`** | o endpoint saiu, mas a regra de painel ficou: `POST` devolve 429 onde deveria dar 404 | apagar em Vercel → Project → Firewall; não há nada no repositório que a produza |
 | **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro completo em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md) — rodar no Preview, com Sandbox |
 
@@ -85,7 +85,10 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 6. ~~ligar `PONTE_ATIVA` na landing (`src/lib/comecar.ts`, `false` → `true`)~~ — **feito**
    (`13a2fea`; medido em 20/09: `qoro.dev/comecar` responde 200 com o link de fallback para
    `app.qoro.dev/cadastro`, que é o que o verificador exige no estado ligado);
-7. dar **entrada** ao funil: nenhuma página da landing linka para `/comecar` — **pendente**;
+7. ~~dar **entrada** ao funil~~ — **feito** em 20/09 (`1338f90`): todo CTA leva ao cadastro e o
+   formulário de diagnóstico saiu da aquisição. Medido em produção: 8 / 5 / 4 links para `/comecar`
+   em `/`, `/precos` e `/para/psiquiatria`, e 0 `wa.me` nas três — com o canal da LGPD intacto na
+   política de privacidade;
 8. rodar o roteiro de aceitação humana — **pendente**.
 
 ### O passo 5, e a variável que estava no projeto errado

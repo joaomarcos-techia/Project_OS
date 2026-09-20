@@ -6489,7 +6489,7 @@ Dividido pelo que de fato separa os itens: **quem pode fazer**.
 | Item | Estado |
 | ---- | ------ |
 | `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` | **pendente** — sem eles o tag nunca carrega, e conversão em `app.qoro.dev` aparece como "direta" |
-| Nenhum CTA aponta para `/comecar` | **pendente** — medido no HTML de produção: 0 links em `/`, `/para/psiquiatria` e `/precos`. A ponte está no ar, ligada e **inalcançável** |
+| ~~Nenhum CTA aponta para `/comecar`~~ | **resolvido em 20/09** — todo CTA da landing leva ao cadastro e o formulário de diagnóstico saiu do funil. Medido por mim em produção: **8 / 5 / 4** links em `/`, `/precos` e `/para/psiquiatria`, e **0** `wa.me` nas três. A ponte deixou de ser um corredor sem porta |
 | Ação de conversão criada no Google Ads | **pendente** — roteiro em `docs/GOOGLE-ADS.md`, no repositório da landing |
 
 #### Exige julgamento de produto — uma pessoa
@@ -6506,6 +6506,13 @@ Dividido pelo que de fato separa os itens: **quem pode fazer**.
 | **ADR-053 continua `Proposed`** | os seis itens de "Evidência necessária para Accepted" estão cumpridos — contrato do provider, threat model, prova de assinatura hospedada sem PAN/CVV no Qoro, desenho de migration/grants/RLS/reconcile, plano de testes e responsáveis. Falta promover |
 | §21.20 — a maioria dos itens segue sem marcar | vários já têm prova nesta seção e na matriz; a lista nunca foi reconciliada contra a evidência |
 | O-5, O-6 e O-7 sem ADR própria | cobertos pela emenda de 18/09 na ADR-053, não por decisão dedicada |
+
+#### Aberto do lado do painel, não do código
+
+| Item | Estado |
+| ---- | ------ |
+| Regra de Vercel Firewall em `/api/lead` | **pendente** — o endpoint foi removido (`GET` devolve 404), mas `POST` ainda devolve **429** com `X-Vercel-Mitigated: challenge`. Reproduzi com controle: `POST` num caminho irmão inexistente devolve 404, então a regra está presa a este caminho. Ela veio da recomendação em `docs/LEAD-CAPTURE.md:118` da landing e, por ser configuração de painel, sobreviveu ao arquivo. Some em Project → Firewall |
+| `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no projeto da landing | **órfãs** — nenhum código as lê desde a remoção do endpoint. Uma chave que ignora RLS sem consumidor é credencial sem propósito |
 
 #### Conhecido e aceito
 
