@@ -6484,13 +6484,38 @@ O padrão é um só: **contar resposta não é ler estado**. Três dos cinco vê
 
 Dividido pelo que de fato separa os itens: **quem pode fazer**.
 
-#### Bloqueia a medição da campanha — repositório da landing
+#### A medição da campanha — fechada em 20/09
 
 | Item | Estado |
 | ---- | ------ |
-| `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` | **pendente** — sem eles o tag nunca carrega, e conversão em `app.qoro.dev` aparece como "direta" |
-| ~~Nenhum CTA aponta para `/comecar`~~ | **resolvido em 20/09** — todo CTA da landing leva ao cadastro e o formulário de diagnóstico saiu do funil. Medido por mim em produção: **8 / 5 / 4** links em `/`, `/precos` e `/para/psiquiatria`, e **0** `wa.me` nas três. A ponte deixou de ser um corredor sem porta |
-| Ação de conversão criada no Google Ads | **pendente** — roteiro em `docs/GOOGLE-ADS.md`, no repositório da landing |
+| ~~Nenhum CTA aponta para `/comecar`~~ | **resolvido** — todo CTA leva ao cadastro e o formulário de diagnóstico saiu do funil. Medido em produção: **8 / 5 / 4** links em `/`, `/precos` e `/para/psiquiatria`, e **0** `wa.me` nas três |
+| ~~`GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios~~ | **resolvido** — `AW-18384694179` / `Q4QJCIDelv8cEKPXwL5E`. Verificado por mim em produção: `config:AW-18384694179` processado, `google_tag_data.gl` carregado, `_gcl_au` gravado, e `event:conversion` enfileirado na travessia de `/comecar` |
+| ~~Ação de conversão no Google Ads~~ | **criada** — "Cadastro iniciado", Leads → Inscrever-se, contagem Uma, janela 30 dias |
+
+**O defeito que ligar a medição revelou, e a ordem que o causou.** `conversaoGoogleAds()` era chamada
+em `ComecarPage`, e no React **o efeito do filho roda antes do efeito do pai** — `useSessao()` vive em
+`PageShell`. Quando a ponte pedia a conversão, `window.gtag` ainda não existia, o guarda desviava e o
+evento **nunca era empilhado**. Não era corrida de rede; era ordem de montagem. Ficou invisível
+enquanto as constantes estavam vazias, porque a função saía cedo de qualquer jeito — ou seja, o
+momento de ligar a medição era exatamente o momento em que o defeito apareceria. Corrigido garantindo
+o tag antes de usá-lo, apoiado em o shim `window.gtag` ser atribuído de forma síncrona.
+
+**O prazo fixo cortava o sinal mesmo no caso bom.** A ponte encaminhava em 400 ms fixos; medido, a
+navegação guiada pelo `event_callback` acontece aos **583 ms** com o tag respondendo rápido. O prazo
+antigo cortava a saída 183 ms antes de o sinal partir — no caso favorável, não no de borda. Hoje a
+navegação espera o sinal, com teto próprio de 1200 ms para o caso de o `gtag.js` nunca chegar
+(medido: 1720 ms até a navegação, ninguém fica preso).
+
+**O `_gl` não decora, e a hipótese de por quê estava errada.** Eu supus que a causa fosse o linker só
+agir em clique de âncora, enquanto a ponte navega por `location.replace`. O controle refuta:
+**nenhum dos dois caminhos** carrega `_gl` — nem o automático, nem o clique real na âncora. Então
+trocar o mecanismo de navegação não resolveria, e cobraria entrada no histórico mais risco de loop.
+A inferência que sobra, não medida: `linker.domains` no `gtag('config')` é construto de GA4, e num
+tag só-Ads a decoração cross-domain depende da configuração de domínios no painel.
+
+Isso **não bloqueia nada hoje**: o `_gl` existe para o destino reconstruir a sessão de medição, e
+`app.qoro.dev` não tem tag para recebê-lo. A conversão é creditada em `qoro.dev`, onde dispara. O
+`_gl` é pré-requisito da tarefa da tag no app, não desta.
 
 #### Exige julgamento de produto — uma pessoa
 
@@ -6522,7 +6547,7 @@ Dividido pelo que de fato separa os itens: **quem pode fazer**.
 | Sinais de e-mail e dispositivo no risco | **não existem** — a ordem A põe as perguntas depois |
 | Compensação de recurso externo em `SCHEMA` | **PARCIAL** — coberta em unit, não em banco real |
 | `security:browser-session` | **FAIL pré-existente**, atribuído ao commit `8df4ab7`, anterior ao O-7 |
-| Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte |
+| Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte. É também o que torna o `_gl` inútil por enquanto: não há destinatário. Fechar isto é uma tarefa deste repositório, não da landing |
 
 **A pendência de maior valor não é técnica.** Tudo que é verificável está verde. O que falta é (a)
 um botão na landing, sem o qual o funil inteiro não tem entrada, e (b) vinte minutos de uma pessoa
