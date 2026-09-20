@@ -1,13 +1,15 @@
 # Track O — handoff final (19/09/2026)
 
-> Detalhe por fatia em [docs/evidence/track-o.md](evidence/track-o.md). Histórico narrativo em
-> [§35 do qorov2](qorov2.md). O handoff de 18/09 permanece como registro daquela sessão.
+> **Inventário de engenharia consolidado em [§36 do qorov2](qorov2.md)** — o que foi construído,
+> como, e o que está pendente. Detalhe por fatia em [docs/evidence/track-o.md](evidence/track-o.md).
+> Histórico narrativo em [§35 do qorov2](qorov2.md). O handoff de 18/09 permanece como registro
+> daquela sessão.
 
 ## Estado final
 
 | Fatia | Resultado | Onde a prova está |
 | ----- | --------- | ----------------- |
-| **O-1** | **PASS** (publicação BLOCKED) | `qoro/scripts/verificar-comecar.mjs` 19/19 + navegador |
+| **O-1** | **PASS** (publicado e ligado) | `qoro/scripts/verificar-comecar.mjs` 19/19 + navegador |
 | **O-5** | **PASS** | Sandbox 4/4 + webhook 9/9 |
 | **O-6** | **PASS** | 8/8 contra 105 migrations reais |
 | **O-7** | **PASS** | 13/13 em schema real + **5/5** E2E autenticado, sem skip |
@@ -57,7 +59,8 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
-| **`PONTE_ATIVA = false`** | último interruptor: o cadastro já está aberto em produção | trocar para `true` em `src/lib/comecar.ts:40`, rodar `npm run comecar` (o verificador troca de ramo) e publicar |
+| **Nenhum CTA aponta para `/comecar`** | a ponte está ligada e publicada, mas **inalcançável**: 0 links em `/`, `/para/psiquiatria` e `/precos`, medido no HTML de produção | acrescentar "Criar conta" em `/precos` e no fim das páginas de vertical, na landing |
+| **Google Ads não mede** | `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` da landing | preencher as duas constantes; roteiro em `docs/GOOGLE-ADS.md` da landing |
 | **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro completo em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md) — rodar no Preview, com Sandbox |
 
@@ -79,8 +82,11 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 3. ~~mesclar o PR #9~~ — **feito** (`7dbfa5d`);
 4. ~~aplicar as migrations ao banco de PRODUÇÃO~~ — **feito** (96 → 105, com backup e advisory lock);
 5. ~~abrir o cadastro autônomo em produção~~ — **feito** em 19/09/2026 22:30 UTC;
-6. ligar `PONTE_ATIVA` na landing (`src/lib/comecar.ts`, `false` → `true`) — **pendente**;
-7. rodar o roteiro de aceitação humana — **pendente**.
+6. ~~ligar `PONTE_ATIVA` na landing (`src/lib/comecar.ts`, `false` → `true`)~~ — **feito**
+   (`13a2fea`; medido em 20/09: `qoro.dev/comecar` responde 200 com o link de fallback para
+   `app.qoro.dev/cadastro`, que é o que o verificador exige no estado ligado);
+7. dar **entrada** ao funil: nenhuma página da landing linka para `/comecar` — **pendente**;
+8. rodar o roteiro de aceitação humana — **pendente**.
 
 ### O passo 5, e a variável que estava no projeto errado
 

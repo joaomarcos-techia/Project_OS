@@ -15,7 +15,25 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Checkpoint atual — 17/09/2026: EM DESENVOLVIMENTO.** O-3a, O-3b.1–6 e O-4 estão fechados
+**Checkpoint atual — 20/09/2026: TRACK O EM PRODUÇÃO, AGUARDANDO ACEITAÇÃO HUMANA.** As nove fatias
+do §21.19 estão implementadas; O-1 vive no repositório da landing e as demais neste. O banco de
+**produção** está em **105 migrations** (`0096`–`0104` aplicadas em 19/09 com backup, advisory lock e
+leitura de conferência), o cadastro autônomo está **aberto** em `app.qoro.dev/cadastro`, e a ponte
+`/comecar` está publicada e ligada. O inventário completo do que foi construído, com as invariantes
+e o porquê de cada decisão, está em **§36**; a prova por fatia continua na
+[matriz de evidência](evidence/track-o.md), e o diário em §35.23–§35.29.
+
+**A partir daqui há dinheiro real em jogo:** o cadastro aberto cria clínica de verdade e assinatura
+cobrada de verdade no Asaas de produção. Aceitação é no **Preview**, que usa Sandbox e banco DEV —
+roteiro em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md).
+
+**O que falta, e nada disso é código deste repositório:** (a) a landing não tem CTA apontando para
+`/comecar` — medido em produção, 0 links —, então o funil não tem entrada; (b) `GOOGLE_TAG_ID` e
+`ROTULO_CONVERSAO` estão vazios, então a campanha não mede; (c) o roteiro de aceitação humana não foi
+rodado; (d) a **ADR-053 continua `Proposed`** embora os seis itens de "Evidência necessária para
+Accepted" estejam cumpridos. Detalhe em §36.8.
+
+**Checkpoint anterior — 17/09/2026 (histórico).** O-3a, O-3b.1–6 e O-4 estão fechados
 localmente. As migrations 0099–0102 estão aplicadas no DEV; SMTP, callback corrigido, confirmação e
 sessão real passaram no Preview O-3b. O veredito do fundador sobre o cadastro gerou a correção local
 de UX e de retomada entre aparelhos registrada em §35.22 e na
@@ -6276,3 +6294,231 @@ cadeia causal inteira está no `cron_heartbeats` de produção, que é onde ela 
 
 **A regra que fica.** Deploy à frente da migration só é seguro quando TODA leitura nova tem degradação
 provada — e verificar isso, leitura por leitura, custa mais caro do que simplesmente migrar antes.
+
+---
+
+## 36. Track O — inventário de engenharia: o que foi construído, e como — 20/09/2026
+
+> **Esta seção é o consolidado.** O §21 é o **plano**, o §35.x é o **diário** e a
+> [matriz de evidência](evidence/track-o.md) é a **prova por fatia**. Aqui está o que efetivamente
+> existe em código, por que cada peça está do jeito que está, e o que continua pendente. Onde houver
+> divergência entre esta seção e o código, vale o código — e a seção está errada.
+
+### 36.1 O tamanho, medido
+
+Entre `fd3ddd5` (antes do scope freeze do O-2, em 12/09) e a ponta de hoje:
+
+| Medida                                                     | Valor                                        |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| commits de código                                           | 42 (70 com os de documentação)                |
+| arquivos tocados em `src/`, `scripts/`, `drizzle/`, `e2e/`  | **195** (+26.876 / −682)                      |
+| arquivos novos de produção                                  | 72                                            |
+| arquivos novos de teste                                     | 52                                            |
+| linhas novas: produção × teste                              | 14.994 × 8.781 (**0,59 linha de teste por linha de produção**) |
+| migrations                                                  | 9 (`0096`–`0104`)                             |
+| rotas de API novas                                          | 10 (9 de cadastro + 1 cron)                   |
+| páginas novas                                               | 5 (`/cadastro`, `/cadastro/continuar`, `/cadastro/plano`, `/documentacao`, `/documentacao/[topic]`) |
+| runners de evidência novos                                  | 12 em `scripts/`                              |
+| specs Playwright novos                                      | 7                                             |
+
+A suíte inteira foi reexecutada em 20/09/2026 para escrever esta seção: **3.974 testes em 396
+arquivos, todos passando**, exit 0, 255 s.
+
+A razão teste/produção não conta a história inteira, porque a prova mais cara deste track não está em
+`*.test.ts`: está nos **runners de ambiente real** (`scripts/security/*.ts`), que sobem Postgres
+efêmero com as migrations do repositório, falam com o Asaas Sandbox de verdade e dirigem Chromium
+contra o build de produção. Esses doze arquivos são a diferença entre "o mock concorda comigo" e "o
+mundo concorda comigo".
+
+### 36.2 O mapa — onde cada fatia vive
+
+| Fatia | O que é | Onde o código está |
+| ----- | ------- | ------------------ |
+| **O-1** atribuição | `/comecar`, allowlist de UTM, linker cross-domain | repositório **da landing** (`C:\dev\qoro`), fora deste |
+| **O-2** bootstrap | sessão anônima, cookie/HMAC/TTL, risco, Turnstile, janitor | `contexts/onboarding/internal/signup-session.ts`, `signup-risk.ts`, `turnstile.ts`, `api/signup/sessions/*`, `api/cron/signup-sessions-cleanup` |
+| **O-3** identidade | Supabase `signUp`, confirmação, anti-enumeração, vínculo | `signup-auth`, `api/signup/sessions/{auth,identity,resend}`, `auth/confirm` |
+| **O-4** clínica/plano | draft autenticado, plano resolvido no servidor | `signup-draft.ts`, `api/signup/draft`, `api/signup/plan`, `/cadastro/plano` |
+| **O-5** billing | intenção, reserva, assinatura recorrente, reconciliação | `signup-billing.ts`, `signup-checkout.ts`, `api/signup/checkout` |
+| **O-6** provisionamento | tenant/owner/config em uma transação | `signup-provision.ts` |
+| **O-7** onboarding operacional | checklist, tour, central de ajuda | `operational-onboarding.ts`, `_painel/product-tour.tsx`, `_painel/onboarding-*.ts`, `/documentacao` |
+| **O.H/O.S** | adversarial, carga, chaos, kill switch | `scripts/security/*`, `scripts/load-signup-degraded.ts`, `scripts/security/track-o-load.ts` |
+
+**O-1 mora em outro repositório, e isso é desenho.** A landing é Vite com prerender; o app é Next.
+Manter a ponte lá é o que garante que a superfície pública de marketing não compartilhe build,
+dependência nem cookie com o produto autenticado.
+
+### 36.3 As quatro identidades, transformadas em código
+
+O §21.1 separou quatro identidades no papel. O que as mantém separadas na prática:
+
+1. **Atribuição** — cinco UTM numa allowlist, num repositório que não tem acesso ao banco. O destino
+   da ponte é uma **constante**; não existe parâmetro de destino, então a classe inteira de open
+   redirect não é filtrada, é **inexistente**. `clinic_id`, `role`, `price`, `trial` e `token` são
+   descartados na travessia: *atribuição não é autorização*.
+2. **Sessão anônima** — 32 bytes aleatórios, dos quais o servidor guarda **só o HMAC**, entregues em
+   cookie `__Host-qoro_signup`. O prefixo `__Host-` é o que impede a própria landing, num
+   comprometimento, de escrever uma sessão de cadastro no app: o navegador recusa o cookie se ele
+   tiver `Domain`. `secure` é sempre `true`, inclusive em dev — um `__Host-` sem `Secure` não seria
+   "menos seguro em dev", seria "não funciona em dev".
+3. **Identidade verificada** — usuário do Supabase depois de confirmar o e-mail. O draft é
+   reencontrado por `claimSignupDraftByVerifiedEmail`, e **não** pelo cookie: foi o veredito do
+   fundador de 17/09, e é o que faz o cadastro sobreviver a trocar de aparelho no meio.
+4. **Sessão do produto** — só nasce depois do provisionamento confirmado.
+
+**Os prazos são contados pelo relógio do banco, não pelo do processo.** `idle_expires_at` e
+`absolute_expires_at` são gravados com `now()` do Postgres e comparados em SQL. Se a validade viesse
+do relógio de uma instância serverless e fosse comparada pelo do banco, qualquer deriva entre os dois
+viraria sessão morrendo cedo ou vivendo demais — e ninguém reproduziria, porque dependeria de qual
+instância atendeu a requisição.
+
+### 36.4 O banco — nove migrations, e o que cada uma torna impossível
+
+`signup_sessions` é **GLOBAL PROTECTED** (ADR-007 §10): nasce antes de existir clínica, então não tem
+`clinic_id` e `withTenant` não teria GUC para setar. O que a protege é RLS `ENABLE` + `FORCE` **sem
+nenhuma policy** — negação por padrão para qualquer role sem `BYPASSRLS` —, mais grant só para
+`service_role` e `REVOKE` explícito de `anon` e `authenticated`.
+
+| Migration | O que acrescenta | O que passa a ser impossível |
+| --------- | ---------------- | ---------------------------- |
+| `0096` | tabela, TTLs, `row_version`, RLS sem policy | o navegador tocar a tabela; status fora do escopo da fatia |
+| `0097` | least privilege, parte 2 | `qoro_runtime` herdar DML pelo default ACL do `postgres` |
+| `0098` | as quatro perguntas | responder sem sessão viva |
+| `0099` | identidade e consentimento | PII sem aceite registrado |
+| `0100` | tentativa de envio (reserva + CAS) | reenvio virar spam; envio perdido virar estado mudo |
+| `0101` | ownership Auth e consumo atômico | dois usuários reivindicarem o mesmo draft |
+| `0102` | plano selecionado | plano e preço virem do browser |
+| `0103` | tentativa de billing | `id` de assinatura sem estado; `active` sem assinatura; a mesma assinatura em dois cadastros (`UNIQUE`) |
+| `0104` | `onboarding_progress` | colega da mesma clínica ler o tour alheio; estado terminal sem data; passo fora da faixa |
+
+**O padrão que se repete, e que é a espinha do track:** `text` + `CHECK` em vez de `pgEnum`. O
+conjunto é fechado, mas quase sempre cresce — e `ALTER TYPE ... ADD VALUE` não roda dentro de
+transação no Postgres, enquanto `DROP`/`ADD CONSTRAINT` roda. Cada fatia **substitui** o CHECK da
+anterior acrescentando os seus estados, o que transforma o scope freeze em constraint de banco em vez
+de comentário em documento.
+
+**A ordem do funil está em código, não no banco.** `status` é `text`; ordenar por ele daria ordem
+alfabética, onde `blocked` viria antes de `initiated`. Quem precisa comparar etapas usa
+`SIGNUP_FUNNEL_ORDER`.
+
+### 36.5 As seis invariantes que o código defende
+
+**1. O browser nunca escolhe `clinic_id`, papel, plano, preço, ciclo nem trial.** Não é validação: é
+ausência de porta de entrada. Os corpos são `.strict()`, então um `clinicId` enviado é **recusado**,
+não descartado em silêncio — a diferença importa, porque descartar deixa quem tentou achando que
+funcionou. `userId` vem sempre de `getUser()`.
+
+**2. Não existe cobrança duplicada.** O Asaas **não aceita `Idempotency-Key` em POST** — medido, não
+suposto. A defesa é em três camadas: a intenção é reservada no banco **por CAS antes de qualquer
+I/O**, de modo que um timeout nunca deixe o sistema sem saber que tentou; `creation_unknown` é
+terminal-para-retry, e dali só se sai por reconciliação via `externalReference`, jamais por segunda
+criação; e a constraint `UNIQUE` em `asaas_subscription_id` é a rede de baixo. O sandbox provou que
+"procurar antes de criar" **estreita a janela e não a fecha** — duas criações concorrentes com a
+mesma referência produzem duas assinaturas. Quem fecha é o CAS.
+
+**3. Nenhum dado de cartão passa pelo Qoro.** `createSubscription` sem cartão
+(`billingType: 'UNDEFINED'`); o Asaas emite as faturas e hospeda o pagamento na página dele. O corpo
+de um 4xx do provedor pode refletir o request, então ele **nunca** é persistido, logado ou exibido —
+só um código curto e nosso. `cpfcnpj` entrou em `SENSITIVE_KEYS` do scrub do Sentry.
+
+**4. O tenant nasce exatamente uma vez.** Não por flag, e sim porque o claim é um
+`DELETE FROM signup_sessions ... RETURNING` dentro da mesma transação que cria clínica, owner,
+config, customer e assinatura. Duas abas serializam no `FOR UPDATE`; a perdedora encontra a linha já
+removida e não chega a inserir. Não existe estado "provisionando" para ficar preso. Efeito colateral
+bem-vindo: apagar a linha apaga `owner_name`, `clinic_name` e `email_hash` — **a PII do funil não
+sobrevive ao provisionamento**.
+
+**5. O trial começa depois da assinatura confirmada, não do HTTP 200.** Um `200` com um `id` não
+prova valor nem estado; o servidor relê a assinatura no provedor e confere `ACTIVE` e valor igual ao
+do catálogo. Divergência cancela, compensa o customer e marca `failed`.
+`provisionTenantFromSignup` exige `billing_attempt_state = 'active'` como pré-condição inegociável.
+
+**6. O que a clínica fez é derivado; o que a pessoa viu é guardado.** O checklist de ativação
+continua sendo **derivação de presença de dado** — "cadastre um médico" está feito se, e somente se,
+existe médico. Derivação é estritamente mais forte que estado marcado: não há id vindo do browser,
+não há como concluir sem fazer, não há como concluir para outro tenant. Só o que **não é derivável**
+— passo do tour, se pulou, se abriu a ajuda, se dispensou o checklist — ganhou tabela. E ganhou com
+escopo duplo `(clinic_id, user_id)` nas três policies, porque a recepcionista não herda o tour da
+dona da clínica.
+
+### 36.6 O que este track mudou fora dele
+
+Nem tudo que este trabalho produziu é cadastro. As mudanças estruturais que ficaram para o produto
+inteiro:
+
+- **`/cadastro` e `/api/signup` viraram caminhos públicos no middleware**, com a justificativa
+  escrita no próprio arquivo: quem chega ali ainda não tem conta, então exigir cookie redirecionaria
+  todo visitante para `/login`. O que protege essas rotas não é sessão — é rate limit por IP, teto de
+  sessões vivas e desafio adaptativo;
+- **transporte de sessão Supabase por cookie HttpOnly**, com geração e seletor, mais
+  `/auth/session-refresh` como Route Handler Node gravável, para que o Edge continue só com operações
+  síncronas;
+- **limitadores graduados**, com quatro orçamentos separados (criar sessão, ler estado, identidade,
+  auth). O de leitura existe porque `GET /sessions/me` **escreve** — renovar o prazo de inatividade é
+  um UPDATE por chamada, e sem limite um portador de token válido transformaria leitura barata em
+  carga de escrita sustentada;
+- **`env-aliases.ts`** — uma tabela de aliases `*_DEV` compartilhada e testada, no lugar do
+  espalhamento anterior;
+- **`validation/document.ts`** — CPF/CNPJ, que existe porque o contrato do provedor exige documento
+  para assinar (bisecção medida no sandbox), não por precaução;
+- **`/admin` ganhou a visão do funil vivo** — as respostas declaradas nos cadastros em andamento, sem
+  e-mail e sem hashes. É esta leitura que estourou quando o merge foi para produção antes do schema
+  (§35.29);
+- **`migration-journal.test.ts`** — paridade entre os `*.sql` e o journal do drizzle. É a regressão
+  que impede a recaída descrita em §35.28.
+
+### 36.7 Os cinco defeitos que o próprio trabalho encontrou
+
+Todos foram achados por um gate ou por releitura crítica de um verde, nenhum por um usuário:
+
+| Defeito | Quem achou | Por que era invisível |
+| ------- | ---------- | --------------------- |
+| journal do drizzle parado na 0102 | leitura do `_journal.json` antes de migrar | `check:migrations` varre o **conteúdo** dos `.sql`, não a lista; suíte e CI verdes |
+| `500 em /dashboard` no Preview | E2E autenticado, primeira execução | a leitura estava no **layout do shell**; um tour derrubava agenda, consultório e caixa |
+| classe de regex que recusava hífen | inspeção de bytes do arquivo | os testes atacavam justamente os dois códigos que sobraram |
+| dois testes de tour passando no vazio | releitura do próprio verde | o shell degrada, então "o tour não está na tela" passava sem provar nada |
+| `--cleanup-orphans` que criava resíduo | varredura independente do sandbox **depois** do "sucesso" | a limpeza contava respostas em vez de reler estado |
+
+O padrão é um só: **contar resposta não é ler estado**. Três dos cinco vêm daí.
+
+### 36.8 O que está pendente
+
+Dividido pelo que de fato separa os itens: **quem pode fazer**.
+
+#### Bloqueia a medição da campanha — repositório da landing
+
+| Item | Estado |
+| ---- | ------ |
+| `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` | **pendente** — sem eles o tag nunca carrega, e conversão em `app.qoro.dev` aparece como "direta" |
+| Nenhum CTA aponta para `/comecar` | **pendente** — medido no HTML de produção: 0 links em `/`, `/para/psiquiatria` e `/precos`. A ponte está no ar, ligada e **inalcançável** |
+| Ação de conversão criada no Google Ads | **pendente** — roteiro em `docs/GOOGLE-ADS.md`, no repositório da landing |
+
+#### Exige julgamento de produto — uma pessoa
+
+| Item | Estado |
+| ---- | ------ |
+| Roteiro de aceitação humana | **pendente** — [runbook](runbooks/aceitacao-humana-cadastro.md), ~20 min, rodar no **Preview** com Sandbox |
+| Product Acceptance owner e jornada de aquisição assinados | **pendente** (§21.20) |
+
+#### Dívida de registro, não de código
+
+| Item | Estado |
+| ---- | ------ |
+| **ADR-053 continua `Proposed`** | os seis itens de "Evidência necessária para Accepted" estão cumpridos — contrato do provider, threat model, prova de assinatura hospedada sem PAN/CVV no Qoro, desenho de migration/grants/RLS/reconcile, plano de testes e responsáveis. Falta promover |
+| §21.20 — a maioria dos itens segue sem marcar | vários já têm prova nesta seção e na matriz; a lista nunca foi reconciliada contra a evidência |
+| O-5, O-6 e O-7 sem ADR própria | cobertos pela emenda de 18/09 na ADR-053, não por decisão dedicada |
+
+#### Conhecido e aceito
+
+| Item | Estado |
+| ---- | ------ |
+| WAF/DDoS por rota | **não existe** — o classificador já tem o lugar reservado (a função é pura e recebe sinais prontos), mas o sinal de WAF não existe |
+| Sinais de e-mail e dispositivo no risco | **não existem** — a ordem A põe as perguntas depois |
+| Compensação de recurso externo em `SCHEMA` | **PARCIAL** — coberta em unit, não em banco real |
+| `security:browser-session` | **FAIL pré-existente**, atribuído ao commit `8df4ab7`, anterior ao O-7 |
+| Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte |
+
+**A pendência de maior valor não é técnica.** Tudo que é verificável está verde. O que falta é (a)
+um botão na landing, sem o qual o funil inteiro não tem entrada, e (b) vinte minutos de uma pessoa
+percorrendo o cadastro para dizer se os textos fazem sentido para quem nunca viu o produto.
+
+---
