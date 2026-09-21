@@ -31,6 +31,7 @@ import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { listProactiveTemplateDefinitions } from '@/lib/messaging/proactive-template-catalog';
 import { superAdminAction } from '@/lib/audit/super-admin';
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import { assertWhatsappProfileAllowed } from '@/lib/auth/rate-limit';
 import {
   requireClinicId,
   requireFreshPermission,
@@ -44,11 +45,21 @@ import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 import {
   deactivateTenantConnection,
+  loadConnectionForHealth,
   recordConnectionFailure,
+  recordProfileUpdated,
   upsertTenantConnection,
 } from '@/lib/messaging';
 
-import { MetaConnectError, NumberNotConnectedError } from './errors';
+import {
+  camposAlterados,
+  PerfilWhatsappSchema,
+  type PerfilCampo,
+  type PerfilLido,
+  type PerfilWhatsappInput,
+} from './business-profile-contract';
+import { MessagingRateLimitedError, MetaConnectError, NumberNotConnectedError } from './errors';
+import { getBusinessProfile, updateBusinessProfile } from './internal/meta-business-profile';
 import {
   exchangeCodeForToken,
   registerPhoneNumber,
@@ -380,4 +391,118 @@ export async function disconnectMyClinicWhatsapp(): Promise<{ disconnected: bool
     });
   }
   return { disconnected: result.disconnected };
+}
+
+// ===========================================================================
+// §33 — Perfil público do WhatsApp da clínica
+//
+// A Meta é a fonte da verdade (§33.4): não há coluna nem tabela espelhando
+// estes campos. Ler custa uma chamada Graph por abertura da tela, e salvar
+// custa três (ler → escrever → reler). É caro para uma rota de atendimento e
+// barato para uma tela de configuração, que é o que esta é.
+//
+// As quatro invariantes da §33.3, e onde cada uma vive:
+//   1. `phoneNumberId` NUNCA vem do input — sai de `loadConnectionForHealth`
+//      com o `clinicId` de `requireClinicId()`. `clinic_whatsapp_numbers` é
+//      lida com `service_role`, então a RLS NÃO protege esta consulta; quem
+//      protege é o `WHERE clinic_id = …` lá dentro. Aceitar um id do corpo
+//      daria a qualquer clínica autenticada o poder de reescrever o perfil
+//      público de outra;
+//   2. tudo aqui é público — o aviso vive no contrato, não no JSX;
+//   3. o token não sai do servidor: `decryptForTenant` aqui, `graphFetch` lá;
+//   4. permissão FRESCA, igual a `updateClinicProfile`.
+// ===========================================================================
+
+/**
+ * Carrega a conexão ativa e devolve `phoneNumberId` + token em claro.
+ *
+ * Ponto ÚNICO em que o par (número, credencial) é resolvido para o perfil. Se
+ * um segundo caminho aparecer, é aqui que a invariante nº 1 se perde.
+ */
+async function resolverConexaoDoPerfil(
+  clinicId: string,
+): Promise<{ connectionId: string; phoneNumberId: string; token: string }> {
+  const conn = await loadConnectionForHealth(clinicId);
+  if (!conn) throw new NumberNotConnectedError(clinicId);
+  return {
+    connectionId: conn.id,
+    phoneNumberId: conn.metaPhoneId,
+    token: await decryptForTenant(clinicId, conn.tokenCiphertext),
+  };
+}
+
+/**
+ * Lê o perfil que o paciente vê hoje.
+ *
+ * Falha de leitura SOBE. A tela precisa distinguir "perfil em branco" de "não
+ * consegui ler", porque o passo natural de quem vê um formulário vazio é
+ * preencher e salvar — apagando o que já estava lá (§33.5).
+ */
+export async function getMyClinicWhatsappProfile(): Promise<PerfilLido> {
+  await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS);
+  const clinicId = await requireClinicId();
+
+  const limite = await assertWhatsappProfileAllowed(clinicId, 'read');
+  if (!limite.ok) throw new MessagingRateLimitedError('read');
+
+  const { phoneNumberId, token } = await resolverConexaoDoPerfil(clinicId);
+  return getBusinessProfile(phoneNumberId, token);
+}
+
+export interface AtualizacaoDePerfil extends PerfilLido {
+  /** Campos que de fato mudaram. Vazio = nada foi enviado à Meta. */
+  alterados: PerfilCampo[];
+}
+
+/**
+ * Valida, escreve na Meta e RELÊ.
+ *
+ * A releitura não é zelo: sem espelho local, o que a tela mostrar depois de
+ * salvar ou vem da Meta ou é chute. Dois administradores salvando ao mesmo
+ * tempo → o último vence, lá (§33.4). Não há CAS possível sobre estado que mora
+ * fora, e inventar um `row_version` local seria fingir controle.
+ *
+ * O diff é calculado contra uma leitura FRESCA do servidor, nunca contra o que
+ * o cliente afirma ser o estado anterior. Isso decide duas coisas: o que vai no
+ * POST (só campo alterado) e o que vai na auditoria.
+ */
+export async function updateMyClinicWhatsappProfile(
+  input: PerfilWhatsappInput,
+): Promise<AtualizacaoDePerfil> {
+  const user = await requireUser();
+  await requireFreshPermission(PERMISSIONS.MANAGE_SETTINGS);
+  const clinicId = await requireClinicId();
+
+  const limite = await assertWhatsappProfileAllowed(clinicId, 'write');
+  if (!limite.ok) throw new MessagingRateLimitedError('write');
+
+  // Parse ANTES de qualquer I/O: entrada inválida não gasta decrypt nem Graph.
+  const desejado = PerfilWhatsappSchema.parse(input);
+  const ctx = await requestContext();
+  const { connectionId, phoneNumberId, token } = await resolverConexaoDoPerfil(clinicId);
+
+  const antes = await getBusinessProfile(phoneNumberId, token);
+  const alterados = camposAlterados(antes.perfil, desejado);
+
+  // Nada mudou: nem POST, nem linha de auditoria. Uma auditoria que registra
+  // "alterou" quando ninguém alterou nada é ruído que envelhece o registro.
+  if (alterados.length === 0) return { ...antes, alterados: [] };
+
+  await updateBusinessProfile(phoneNumberId, token, desejado, alterados);
+
+  // Relê ANTES de auditar: auditar o que se pretendia escrever, e não o que
+  // ficou, é como contar resposta em vez de ler estado — a classe de erro que
+  // mais custou neste repositório.
+  const depois = await getBusinessProfile(phoneNumberId, token);
+  await recordProfileUpdated({
+    clinicId,
+    userId: user.userId,
+    connectionId,
+    changedFields: camposAlterados(antes.perfil, depois.perfil),
+    requestContext: ctx,
+  });
+
+  metrics.emit('messaging.whatsapp.profile_updated', { fields: alterados.length });
+  return { ...depois, alterados };
 }

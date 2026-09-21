@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { MetaConnectError } from '@/contexts/messaging/errors';
+import { PerfilWhatsappSchema } from '@/contexts/messaging/business-profile-contract';
+import {
+  MessagingRateLimitedError,
+  MetaConnectError,
+  NumberNotConnectedError,
+} from '@/contexts/messaging/errors';
 
 import { fail } from './wa-types';
 
@@ -97,4 +102,88 @@ describe('fail', () => {
       message: 'Não foi possível conectar o WhatsApp. Tente novamente.',
     });
   });
+});
+
+describe('fail — §33, perfil público', () => {
+  it('distingue o teto de LEITURA do de escrita', () => {
+    // A frase do teto de escrita, dita a quem só abriu a tela, mandaria a
+    // pessoa procurar uma alteração que ela não fez.
+    const leitura = fail(new MessagingRateLimitedError('read'));
+    const escrita = fail(new MessagingRateLimitedError('write'));
+
+    expect(leitura.ok).toBe(false);
+    expect(escrita.ok).toBe(false);
+    if (leitura.ok || escrita.ok) return;
+
+    expect(leitura.message).toContain('consultado muitas vezes');
+    expect(leitura.message).not.toContain('alterações seguidas');
+    expect(escrita.message).toContain('alterações seguidas');
+    // Fomos nós que recusamos: "nada foi enviado" é afirmação segura, e é o
+    // que separa este caso de `provider_rate_limited`.
+    expect(escrita.message).toContain('Nada foi enviado');
+  });
+
+  it('devolve a mensagem por campo de um erro de validação', () => {
+    const erro = PerfilWhatsappSchema.safeParse({
+      about: 'a'.repeat(200),
+      description: '',
+      address: '',
+      email: '',
+      websites: [],
+      vertical: 'HEALTH',
+    });
+    expect(erro.success).toBe(false);
+    if (erro.success) return;
+
+    const r = fail(erro.error);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe('validation');
+    expect(r.fields?.about).toContain('139');
+    expect(r.message).toContain('campos destacados');
+  });
+
+  it('NÃO promete campo destacado quando a recusa é de raiz', () => {
+    // Corpo com chave desconhecida — o caminho de adulteração. Não há campo a
+    // realçar, e mandar "revise os campos destacados" seria mandar procurar um
+    // realce que não existe.
+    const erro = PerfilWhatsappSchema.safeParse({
+      about: '',
+      description: '',
+      address: '',
+      email: '',
+      websites: [],
+      vertical: 'HEALTH',
+      phoneNumberId: 'phone-de-outra-clinica',
+    });
+    expect(erro.success).toBe(false);
+    if (erro.success) return;
+
+    const r = fail(erro.error);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.message).not.toContain('destacados');
+    expect(r.message).toContain('Nada foi alterado');
+  });
+
+  it('traduz número não conectado sem expor o clinicId da mensagem interna', () => {
+    const r = fail(new NumberNotConnectedError('11111111-1111-1111-1111-111111111111'));
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.code).toBe('number_not_connected');
+    expect(r.message).not.toContain('11111111');
+  });
+
+  it.each(['profile_read', 'profile_write'] as const)(
+    'tem mensagem própria para a etapa %s',
+    (stage) => {
+      const r = fail(new MetaConnectError('[meta] graph HTTP 400 code=100', { stage }));
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.message.length).toBeGreaterThan(20);
+      // A da leitura precisa dizer que nada mudou: é o que impede a pessoa de
+      // concluir que o perfil está vazio e salvar por cima.
+      if (stage === 'profile_read') expect(r.message).toContain('Nada foi alterado');
+    },
+  );
 });

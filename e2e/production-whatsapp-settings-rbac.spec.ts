@@ -126,17 +126,29 @@ test.describe('produção: RBAC das configurações do WhatsApp', () => {
       await expect(page.getByText(lastFourDigits!)).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Desconectar' })).toHaveCount(0);
 
+      // §33 — o perfil PUBLICO entra no mesmo gate. Ele e a cara da clinica para
+      // o paciente: quem nao pode gerenciar as configuracoes nao pode reescrever
+      // recado, endereco e e-mail de contato. O `pageGate` da rota ja barra tudo,
+      // e esta assercao existe para que acrescentar a secao nunca abra a excecao.
+      await expect(page.locator('[data-slot="whatsapp-profile"]')).toHaveCount(0);
+      await expect(page.getByLabel('E-mail de contato da clínica')).toHaveCount(0);
+
       console.log(
+        // O payload anterior descrevia o ACHADO (metadado exposto), nao o estado
+        // provado pelas assercoes logo acima, que exigem ausencia desde o
+        // AUTHZ-006. Quem colasse isto como evidencia reportaria o oposto do que
+        // o teste verifica.
         `[whatsapp-settings-rbac] ${JSON.stringify({
           role: 'doctor',
           hasManageSettings: false,
           protectedProfileDenied: true,
           protectedSubscriptionDenied: true,
-          whatsappConnectionStatusVisible: true,
-          maskedPhoneVisible: true,
-          disconnectControlVisible: true,
+          whatsappConnectionStatusVisible: false,
+          maskedPhoneVisible: false,
+          disconnectControlVisible: false,
+          whatsappPublicProfileSectionVisible: false,
           mutationAttempted: false,
-          result: 'whatsapp-settings-metadata-and-control-exposed-without-permission',
+          result: 'whatsapp-settings-denied-without-manage-settings',
         })}`,
       );
     } finally {

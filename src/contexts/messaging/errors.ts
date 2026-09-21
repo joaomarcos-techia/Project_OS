@@ -60,6 +60,15 @@ export const META_CONNECT_FAILURE_STAGES = [
   // Provisionamento de template no connect. Nunca aborta a conexao: so aparece
   // em log/metrica, porque o canal serve conversa de servico sem template.
   'template_provisioning',
+  // §33 — perfil publico do numero (`/{phone-number-id}/whatsapp_business_profile`).
+  // Leitura e escrita sao etapas SEPARADAS de proposito: a acao do operador e
+  // diferente em cada uma. Numa leitura recusada nada mudou e a tela nao pode
+  // oferecer formulario vazio; numa escrita recusada a Meta rejeitou o conteudo
+  // e o que vale dizer e qual campo. So sobrevivem a `failureStage()` quando a
+  // classe e `denied` — indeterminacao e throttling continuam virando
+  // `provider_unavailable` / `provider_outcome_unknown` / `provider_rate_limited`.
+  'profile_read',
+  'profile_write',
   'persistence',
   'unknown',
 ] as const;
@@ -101,6 +110,30 @@ export class MetaConnectError extends Error {
     this.graphStatus = options?.graphStatus ?? null;
     this.graphCode = options?.graphCode ?? null;
     this.graphSubcode = options?.graphSubcode ?? null;
+  }
+}
+
+/**
+ * Teto local de chamadas ao perfil (§33.7) — NÃO é recusa da Meta.
+ *
+ * Separado de `provider_rate_limited` de propósito: ali quem recusou foi o
+ * provedor e não sabemos se a requisição chegou a ser processada; aqui a
+ * requisição nem saiu daqui, então "nada foi alterado" é afirmação segura. Dizer
+ * "a Meta está limitando" quando fomos nós mandaria o operador procurar o
+ * problema do lado errado.
+ */
+export class MessagingRateLimitedError extends Error {
+  readonly code = 'messaging_rate_limited';
+  readonly httpStatus = 429;
+  /**
+   * Qual balde estourou. A UI precisa disto: "muitas alterações seguidas" dito a
+   * quem só abriu a tela manda a pessoa procurar uma alteração que ela não fez.
+   */
+  readonly operacao: 'read' | 'write';
+  constructor(operacao: 'read' | 'write') {
+    super(`Limite local de chamadas ao perfil WhatsApp atingido (${operacao}).`);
+    this.name = 'MessagingRateLimitedError';
+    this.operacao = operacao;
   }
 }
 

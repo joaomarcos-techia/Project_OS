@@ -146,6 +146,13 @@ const fallback = {
   // troca de aba e polling são uso LEGÍTIMO e frequente — mas não ilimitada,
   // porque cada leitura renova o TTL e portanto ESCREVE uma linha.
   signupReadIp: new BoundedFallbackLimiter(120, FIFTEEN_MIN_MS),
+  // §33 — perfil público do WhatsApp. O teto é por CLÍNICA porque o recurso
+  // limitado é a cota do app na Meta, que é compartilhada: um tenant em laço
+  // levaria todos os outros ao 429. Escrita bem mais apertada que leitura — um
+  // humano editando um formulário salva poucas vezes, e o que este número
+  // contém é botão travado ou script.
+  whatsappProfileWriteClinic: new BoundedFallbackLimiter(20, FIFTEEN_MIN_MS),
+  whatsappProfileReadClinic: new BoundedFallbackLimiter(60, FIFTEEN_MIN_MS),
 };
 
 /**
@@ -257,7 +264,8 @@ function degraded(
     | 'mfa'
     | 'pdf'
     | 'clinical_pdf'
-    | 'signup',
+    | 'signup'
+    | 'whatsapp_profile',
   err: unknown,
   fallbackAllowed: boolean,
 ): LimitResult {
@@ -1134,6 +1142,64 @@ export async function assertClinicalPdfDownloadAllowed(
     const userOk = fallback.clinicalPdfUser.hit(userId);
     const clinicOk = fallback.clinicalPdfClinic.hit(clinicId);
     return degraded('clinical_pdf', err, userOk && clinicOk);
+  }
+}
+
+const lazyWhatsappProfileLimiters = (() => {
+  let cached: { read: Ratelimit; write: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    const redis = lazyRedis();
+    cached = {
+      read: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(60, '15 m'),
+        prefix: redisKey.global('rl', 'wa-profile', 'read'),
+        analytics: false,
+      }),
+      write: new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(20, '15 m'),
+        prefix: redisKey.global('rl', 'wa-profile', 'write'),
+        analytics: false,
+      }),
+    };
+    return cached;
+  };
+})();
+
+/**
+ * Teto do perfil público do WhatsApp (§33.7), por CLÍNICA.
+ *
+ * A chave é o tenant, e não o usuário, porque o recurso escasso está do outro
+ * lado: a cota do app na Meta é do APP, compartilhada por todas as clínicas.
+ * Um tenant em laço não gastaria só o próprio orçamento — levaria o app inteiro
+ * ao 429, e o sintoma apareceria em quem não fez nada.
+ *
+ * Recusar aqui é melhor que colecionar 429 da Meta por um motivo prático: aqui
+ * dá para dizer "aguarde alguns minutos"; lá volta uma falha de provedor que o
+ * operador vai tentar diagnosticar como problema de conta.
+ *
+ * Leitura e escrita têm baldes separados. Somados, um retry travado na leitura
+ * consumiria o orçamento de salvar, e a pessoa perderia o texto que escreveu
+ * por causa de um botão de recarregar.
+ *
+ * Nunca lança (fail-open + fallback por instância), como os demais.
+ */
+export async function assertWhatsappProfileAllowed(
+  clinicId: string,
+  operacao: 'read' | 'write',
+): Promise<LimitResult> {
+  try {
+    const limiters = lazyWhatsappProfileLimiters();
+    const result = await limiters[operacao].limit(clinicId);
+    return result.success ? { ok: true } : { ok: false, reason: 'rate_limited' };
+  } catch (err) {
+    const allowed =
+      operacao === 'write'
+        ? fallback.whatsappProfileWriteClinic.hit(clinicId)
+        : fallback.whatsappProfileReadClinic.hit(clinicId);
+    return degraded('whatsapp_profile', err, allowed);
   }
 }
 
