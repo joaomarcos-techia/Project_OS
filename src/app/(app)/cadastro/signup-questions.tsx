@@ -22,6 +22,7 @@ type WeeklyAppointmentsBand = SignupAnswerValues['weeklyAppointmentsBand'];
 type CurrentTooling = SignupAnswerValues['currentTooling'];
 type DiscoverySource = SignupAnswerValues['discoverySource'];
 type Draft = Partial<SignupAnswerValues>;
+type LocalDraft = { answers: Draft; expiresAt: number };
 type Phase = 'loading' | 'challenge' | 'ready' | 'expired' | 'unavailable';
 type QuestionIndex = 0 | 1 | 2 | 3;
 
@@ -29,6 +30,8 @@ const EMPTY_DRAFT: Draft = {};
 const QUESTION_COUNT = 4;
 const CONFIRMATION_POLL_INTERVAL_MS = 20_000;
 const CONFIRMATION_POLL_MAX_ATTEMPTS = 30;
+const LOCAL_DRAFT_KEY = 'qoro-signup-answers-v1';
+const LOCAL_DRAFT_TTL_MS = 60 * 60 * 1_000;
 
 const PROFESSIONAL_OPTIONS: OptionCard<ProfessionalsBand>[] = [
   { value: '1', label: '1 profissional' },
@@ -94,6 +97,63 @@ function isAnswers(value: unknown): value is SignupAnswerValues {
     isDiscoverySource(value.discoverySource)
   );
 }
+function isDraft(value: unknown): value is Draft {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  return (
+    keys.every((key) => FIELD_NAMES.some((field) => field === key)) &&
+    (value.professionalsBand === undefined || isProfessionalsBand(value.professionalsBand)) &&
+    (value.weeklyAppointmentsBand === undefined ||
+      isWeeklyAppointmentsBand(value.weeklyAppointmentsBand)) &&
+    (value.currentTooling === undefined || isCurrentTooling(value.currentTooling)) &&
+    (value.discoverySource === undefined || isDiscoverySource(value.discoverySource))
+  );
+}
+function clearLocalDraft(): void {
+  try {
+    window.localStorage.removeItem(LOCAL_DRAFT_KEY);
+  } catch {
+    // O cadastro continua funcional quando o navegador bloqueia armazenamento local.
+  }
+}
+function readLocalDraft(): LocalDraft | null {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_DRAFT_KEY);
+    if (!raw) return null;
+    const stored: unknown = JSON.parse(raw);
+    if (
+      !isRecord(stored) ||
+      stored.version !== 1 ||
+      typeof stored.expiresAt !== 'number' ||
+      !Number.isFinite(stored.expiresAt) ||
+      stored.expiresAt <= Date.now() ||
+      stored.expiresAt > Date.now() + LOCAL_DRAFT_TTL_MS ||
+      !isDraft(stored.answers)
+    ) {
+      clearLocalDraft();
+      return null;
+    }
+    return { answers: stored.answers, expiresAt: stored.expiresAt };
+  } catch {
+    clearLocalDraft();
+    return null;
+  }
+}
+function writeLocalDraft(answers: Draft): void {
+  try {
+    const expiresAt = readLocalDraft()?.expiresAt ?? Date.now() + LOCAL_DRAFT_TTL_MS;
+    window.localStorage.setItem(
+      LOCAL_DRAFT_KEY,
+      JSON.stringify({ version: 1, expiresAt, answers }),
+    );
+  } catch {
+    // Falta de quota ou armazenamento bloqueado não pode interromper o cadastro.
+  }
+}
+function firstUnansweredQuestion(answers: Draft): QuestionIndex {
+  const missing = FIELD_NAMES.findIndex((field) => answers[field] === undefined);
+  return (missing === -1 ? QUESTION_COUNT - 1 : missing) as QuestionIndex;
+}
 function isSessionStatus(value: unknown): value is SignupSessionStatus {
   return (
     value === 'initiated' ||
@@ -139,6 +199,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   const submitInFlight = useRef(false);
 
   const expireSession = useCallback(() => {
+    clearLocalDraft();
     setSession(null);
     setPhase('expired');
     setMessage('Esta sessão expirou. Inicie novamente para responder com segurança.');
@@ -146,9 +207,16 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   }, []);
 
   const hydrateSession = useCallback(
-    (next: SignupSessionState) => {
+    (next: SignupSessionState, restoreLocal = true) => {
+      const localDraft =
+        restoreLocal && next.status === 'initiated' && next.answers === null
+          ? readLocalDraft()
+          : null;
+      const nextDraft = next.answers ?? localDraft?.answers ?? EMPTY_DRAFT;
+      if (next.answers || next.status !== 'initiated') clearLocalDraft();
       setSession(next);
-      setDraft(next.answers ?? EMPTY_DRAFT);
+      setDraft(nextDraft);
+      setQuestionIndex(firstUnansweredQuestion(nextDraft));
       setMessage(
         next.status === 'email_pending'
           ? 'Se houver uma etapa de confirmação para este endereço, você receberá as instruções. Se já tem conta, entre para continuar.'
@@ -195,7 +263,10 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
         });
         const createdBody = await responseBody(created);
         if (created.status === 201 && isSession(createdBody?.session)) {
-          hydrateSession(createdBody.session);
+          // Um 201 identifica uma sessão nova. Respostas locais da sessão
+          // anterior não podem atravessar esse limite silenciosamente.
+          clearLocalDraft();
+          hydrateSession(createdBody.session, false);
           return;
         }
         if (created.status === 401 && createdBody?.error === 'challenge_required') {
@@ -276,7 +347,9 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   }, [expireSession, hydrateSession, phase, session?.status]);
 
   function answer<K extends keyof SignupAnswerValues>(field: K, value: SignupAnswerValues[K]) {
-    setDraft((current) => ({ ...current, [field]: value }));
+    const next = { ...draft, [field]: value };
+    writeLocalDraft(next);
+    setDraft(next);
     setMessage(null);
   }
 
@@ -367,6 +440,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
         Number.isInteger(body.rowVersion) &&
         body.rowVersion >= 1
       ) {
+        clearLocalDraft();
         setDraft(submittedAnswers);
         setSession({
           ...session,

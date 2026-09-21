@@ -313,11 +313,20 @@ describe('O-5 — reconciliação, a única saída de creation_unknown', () => {
     billing.target.mockResolvedValue({
       externalReference: INTENT.externalReference,
       asaasCustomerId: 'cus_1',
+      priceCents: INTENT.priceCents,
+      rowVersion: 8,
     });
   });
 
   it('registra a assinatura que o timeout escondeu, sem criar nada', async () => {
     const client = fakeProvider({
+      getSubscription: vi.fn().mockResolvedValue({
+        subscriptionId: 'sub_perdida',
+        status: 'ACTIVE',
+        value: 349,
+        customerId: 'cus_1',
+        externalReference: INTENT.externalReference,
+      }),
       findSubscriptionByExternalReference: vi.fn().mockResolvedValue({
         subscriptionId: 'sub_perdida',
         status: 'ACTIVE',
@@ -334,9 +343,56 @@ describe('O-5 — reconciliação, a única saída de creation_unknown', () => {
     expect(client.createCustomer).not.toHaveBeenCalled();
     expect(billing.reconcile).toHaveBeenCalledWith({
       userId: USER,
+      expectedVersion: 8,
       asaasCustomerId: 'cus_1',
       asaasSubscriptionId: 'sub_perdida',
     });
+    expect(client.getSubscription).toHaveBeenCalledWith('sub_perdida');
+  });
+
+  it.each([
+    { status: 'INACTIVE' },
+    { status: 'EXPIRED' },
+    { value: 1 },
+    { customerId: 'cus_other' },
+    { externalReference: 'signup:another-draft' },
+    { subscriptionId: 'sub_other' },
+  ])('não ativa nem libera outra criação quando o readback diverge: %j', async (mismatch) => {
+    const valid = {
+      subscriptionId: 'sub_1',
+      status: 'ACTIVE',
+      value: 349,
+      customerId: 'cus_1',
+      externalReference: INTENT.externalReference,
+    };
+    const client = fakeProvider({
+      findSubscriptionByExternalReference: vi.fn().mockResolvedValue(valid),
+      getSubscription: vi.fn().mockResolvedValue({ ...valid, ...mismatch }),
+    });
+    expect(await reconcileSignupSubscription({ userId: USER, client })).toEqual({
+      ok: false,
+      reason: 'conflict',
+    });
+    expect(billing.reconcile).not.toHaveBeenCalled();
+    expect(billing.mark).not.toHaveBeenCalled();
+    expect(client.createSubscription).not.toHaveBeenCalled();
+    expect(client.deleteCustomer).not.toHaveBeenCalled();
+  });
+
+  it('readback indisponível mantém creation_unknown', async () => {
+    const client = fakeProvider({
+      findSubscriptionByExternalReference: vi.fn().mockResolvedValue({
+        subscriptionId: 'sub_1',
+        customerId: 'cus_1',
+      }),
+      getSubscription: vi.fn().mockRejectedValue(new BillingProviderUnreachableError('timeout')),
+    });
+    expect(await reconcileSignupSubscription({ userId: USER, client })).toEqual({
+      ok: false,
+      reason: 'provider_unreachable',
+    });
+    expect(billing.reconcile).not.toHaveBeenCalled();
+    expect(billing.mark).not.toHaveBeenCalled();
   });
 
   it('não encontrando nada, mantém o estado e não libera nova criação', async () => {

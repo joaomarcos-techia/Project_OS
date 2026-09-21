@@ -10,7 +10,12 @@ aparece como `NOT TESTED` ou `BLOCKED`, nunca em branco.
 > e continua com o significado dela. Esta aqui é por fatia.
 
 SHAs de referência da reconciliação: app `4d51cef` em `docs/funil-com-entrada`; landing `048b9ce`
-em `main`. Última atualização: 20/09/2026.
+em `main`. Última atualização: 21/09/2026.
+
+**Revalidação atual:** [relatório de 21/09](track-o-revalidacao-2026-09-21.md). Corrige a retomada
+das perguntas, a validação da reconciliação, as provas P2/P3 do Sandbox e a captura RSC do gate de
+sessão. Os números abaixo documentam execuções históricas; a tabela do relatório identifica quais
+foram repetidas e quais configurações externas continuam sem prova.
 
 ## Legenda de ambiente
 
@@ -30,7 +35,7 @@ em `main`. Última atualização: 20/09/2026.
 
 | Requisito                              | Código                           | Unit                           | Integração            | Contrato externo        | Resultado |
 | -------------------------------------- | -------------------------------- | ------------------------------ | --------------------- | ----------------------- | --------- |
-| Checkout hospedado, sem cartão no Qoro  | `signup-checkout.ts`             | `signup-checkout.test.ts` (20) | —                     | `SANDBOX` P1            | **PASS**  |
+| Checkout hospedado, sem cartão no Qoro  | `signup-checkout.ts`             | `signup-checkout.test.ts` (27) | —                     | `SANDBOX` P1            | **PASS**  |
 | Plano/preço resolvidos no servidor      | `signup-billing.ts`              | `checkout/route.test.ts` (33)  | `SCRATCH` billing O-5 | —                       | **PASS**  |
 | Trial 7d, 1ª cobrança no fim            | `signup-checkout.ts`             | `signup-checkout.test.ts`      | —                     | `SANDBOX` P2            | **PASS**  |
 | Intenção antes do I/O + lease/CAS       | `signup-billing.ts`              | ordem de invocação asseverada  | `SCRATCH` billing O-5 | —                       | **PASS**  |
@@ -48,23 +53,27 @@ pela reserva reintroduz cobrança duplicada.
 
 ### Artefato Sandbox (P1–P4)
 
-`dist/track-o-sandbox/asaas-results.json` — host `sandbox.asaas.com`, **4/4 PASS**,
-cleanup 5/5 assinaturas e 5/5 customers, readback de resíduo zero em `ACTIVE`/`INACTIVE`/`EXPIRED`.
+Reexecutado em 21/09: `dist/track-o-sandbox/asaas-results.json` — host `sandbox.asaas.com`,
+**P1–P4 4/4 PASS + cleanup 2/2 PASS**, exit 0. Readback confirmou a remoção de cinco assinaturas e
+cinco customers. Um DELETE respondeu 500, apesar da exclusão; o contador HTTP foi 4/5,
+e o readback, 5/5. Não confundir contador de resposta com estado final.
 
 | Prova | Estabelecido                                                                                |
 | ----- | ------------------------------------------------------------------------------------------- |
 | P1    | documento obrigatório; variável isolada `cpfCnpj` (com/sem documento × `UNDEFINED`/`BOLETO`) |
-| P2    | valor pedido 149 = valor devolvido 149; `ACTIVE`; `externalReference` ida e volta            |
-| P3    | resposta perdida real (processo filho morto em voo, 600 ms) recuperada **sem segundo POST**  |
+| P2    | valor 149, `ACTIVE`, ciclo mensal e primeira cobrança no fim do trial de sete dias; `externalReference` ida e volta |
+| P3    | um POST real; perda de transporte injetada após resposta HTTP, antes do adapter consumi-la; GET recupera **sem segundo POST** |
 | P4    | provedor sem idempotência — duas assinaturas para a mesma referência                         |
 
 ### Webhook da assinatura originada no cadastro — `signup-webhook-sandbox.ts`
 
-Ambiente `SCHEMA` + `SANDBOX`. **9/9 PASS**, cleanup 2/2 assinaturas e 2/2 customers **por readback**.
+Ambiente `SCHEMA` + `SANDBOX`. **11/11 PASS em 21/09**: nove provas originais e duas de reconciliação,
+cleanup 2/2 assinaturas e 2/2 customers **por readback**.
 
 A assinatura é criada de verdade no sandbox, o tenant é provisionado a partir dela e os eventos vão
 para a **mesma rota de produção**. A rota não confia no corpo: ela busca o estado autoritativo com
-`getPayment()` contra a API real. Forjar o corpo não muda nada — é essa a propriedade sob teste.
+`getPayment()` contra a API real. O harness entrega os eventos à rota: esta prova não atesta a
+entrega automática pelo webhook configurado no painel. Forjar o corpo não muda a leitura autoritativa.
 
 | Prova | Estabelecido                                                                                     |
 | ----- | ------------------------------------------------------------------------------------------------ |
@@ -76,6 +85,7 @@ para a **mesma rota de produção**. A rota não confia no corpo: ela busca o es
 | W4d   | evento sem pagamento → `200` ignorado, zero mutação                                               |
 | W4e   | corpo de 1,2 MB → `413` antes de qualquer leitura                                                 |
 | W4f   | pagamento de OUTRO tenant → pousa em B, **nunca** em A                                            |
+| R-a/b | preço divergente bloqueia a reconciliação; preço correto exige readback ACTIVE antes de ativar e provisionar cada tenant |
 
 **Achado no próprio janitor (18/09/2026).** Uma varredura independente do sandbox, depois de um
 `--cleanup-orphans` que se declarou bem-sucedido, encontrou uma assinatura `signup-sandbox:p2`
@@ -99,7 +109,9 @@ Asaas não é a verdade sobre o estado**. A limpeza deste runner passou a ser ve
 
 ## O-6 — provisionamento
 
-Artefato: `dist/track-o-provision/results.json`. Ambiente `SCHEMA`. **8/8 PASS.**
+Artefato: `dist/track-o-provision/results.json`. Ambiente `SCHEMA`. **12/12 PASS em 21/09**, exit 0.
+Todas as 105 migrations foram aplicadas no cluster descartável. Oito drafts dos casos negativos
+permaneceram até a destruição desse cluster; o runner não cria recursos externos.
 
 | Requisito                                  | Como foi provado                                                              | Resultado   |
 | ------------------------------------------ | ----------------------------------------------------------------------------- | ----------- |
@@ -108,7 +120,7 @@ Artefato: `dist/track-o-provision/results.json`. Ambiente `SCHEMA`. **8/8 PASS.*
 | `clinic_id` nunca vem do browser            | rota com `.strict()`; corpo só aceita `cpfCnpj`                               | **PASS**    |
 | Slug respeita `clinics_slug_format`         | readback com regex `^[a-z0-9-]{3,30}$` + 13 casos adversariais em unit         | **PASS**    |
 | Documento cifrado por tenant                | `document_encrypted` presente e **não contém** o CPF em claro                  | **PASS**    |
-| Transação: rollback sem tenant parcial      | corrida de duas abas; a perdedora insere clínica e volta atrás (Δ clinics = 1) | **PASS**    |
+| Transação: rollback sem tenant parcial      | erro SQL no outbox após as entidades e DELETE do draft; seis contagens iguais e draft restaurado, depois retomada | **PASS** |
 | Concorrência: vencedor único                | `Promise.all` de dois provisionamentos; exatamente 1 `ok`                      | **PASS**    |
 | Retry depois do sucesso                     | segunda chamada devolve `gone`; contagem de clínicas inalterada                | **PASS**    |
 | Não provisiona sem assinatura confirmada    | `reserved`, `creation_unknown` e ausente → `not_paid`, nada criado             | **PASS**    |
@@ -116,8 +128,9 @@ Artefato: `dist/track-o-provision/results.json`. Ambiente `SCHEMA`. **8/8 PASS.*
 | Plano fora do enum de eventos                | recusado na reserva, **antes** de qualquer chamada externa                    | **PASS**    |
 | RLS tenant A ↛ B                            | role `qoro_runtime` (NOBYPASSRLS, membro de `authenticated`) + GUC real        | **PASS**    |
 | Least privilege em `clinics`/`profiles`     | `permission denied` asseverado como NEGATIVA                                  | **PASS**    |
-| Crash/restart entre etapas                  | processo morto em 40/90/160/260/420/700 ms; zero estado parcial e retomada OK  | **PASS**    |
-| Compensação de recurso externo              | coberta em unit (`signup-checkout.test.ts`), não em `SCHEMA`                   | **PARCIAL** |
+| Crash/restart entre etapas                  | bloqueio SQL observado em sete triggers AFTER antes de matar o processo Node real; zero entidade parcial e retomada | **PASS** |
+| Decisão de compensação com SQL real         | recusa, mismatch e perda de CAS; reserva commitada antes de I/O; cancel/delete em provider **stub** explícito | **PASS em SCHEMA** |
+| Compensação externa no mesmo cenário        | cancel/delete reais testados separadamente no Sandbox, sem reunir a falha SQL e o provider real nessa prova | **NOT TESTED** |
 
 ### Billing → provisionamento, juntos
 

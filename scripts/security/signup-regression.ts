@@ -1393,6 +1393,11 @@ async function runBrowserJourney(
         fullPage: true,
       });
       await page.setViewportSize({ width: 390, height: 844 });
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        true,
+        'cadastro transborda a largura do celular',
+      );
       await page.screenshot({
         path: path.join(root, 'dist/signup-regression/signup-page-mobile.png'),
         fullPage: true,
@@ -1406,6 +1411,10 @@ async function runBrowserJourney(
 
       // Avançar e voltar não perde a escolha, e nada vai ao servidor no caminho.
       await page.getByRole('button', { name: 'Continuar' }).click();
+      await page
+        .getByRole('heading', { name: 'Quantos atendimentos são realizados por semana?' })
+        .waitFor();
+      await page.reload();
       await page
         .getByRole('heading', { name: 'Quantos atendimentos são realizados por semana?' })
         .waitFor();
@@ -1423,6 +1432,14 @@ async function runBrowserJourney(
       // A segunda aba lê a mesma versão antes de a primeira vencer o CAS.
       const secondPage = await context.newPage();
       await secondPage.goto('/cadastro');
+      await secondPage.getByRole('heading', { name: 'Como você conheceu a Qoro?' }).waitFor();
+      assert.equal(
+        await secondPage.getByRole('radio', { name: 'Indicação de um colega' }).isChecked(),
+        true,
+      );
+      for (let step = 0; step < 3; step += 1) {
+        await secondPage.getByRole('button', { name: 'Voltar' }).click();
+      }
       await secondPage
         .getByRole('heading', { name: 'Quantos profissionais atendem na clínica?' })
         .waitFor();
@@ -2145,9 +2162,10 @@ try {
     activateSignupBillingAttempt,
     markSignupBillingIssue,
     reconcileSignupBillingAttempt,
+    readSignupBillingReconcileTarget,
     readSignupBilling,
   } = await import('../../src/contexts/onboarding/internal/signup-billing');
-  const { claimSignupDraftByVerifiedEmail, readSignupDraft, writeSignupDraft } =
+  const { claimSignupDraftByVerifiedEmail, readSignupDraft, writeSignupDraft, writeSignupPlan } =
     await import('../../src/contexts/onboarding/internal/signup-draft');
   const { hashEmail } = await import('../../src/lib/auth/email-hash');
   const { POST } = await import('../../src/app/api/signup/sessions/answers/route');
@@ -2836,6 +2854,27 @@ try {
             now(), now(), '2_5', '21_50', 'outro_sistema', 'indicacao_colega',
             ${SELF_SERVICE_PLAN_ID}::uuid)`;
       };
+      const assertPlanFrozen = async (rowVersion: number, state: string) => {
+        assert.deepEqual(
+          await writeSignupPlan(owner, { rowVersion, planId: SELF_SERVICE_OTHER_PLAN_ID }),
+          { ok: false, reason: 'conflict' },
+          `plano nao pode mudar enquanto billing esta ${state}`,
+        );
+        // O fallback de retry idempotente tambem nao pode admitir nova escrita
+        // depois que a versao avancou por causa da cobranca.
+        assert.deepEqual(
+          await writeSignupPlan(owner, {
+            rowVersion: rowVersion - 1,
+            planId: SELF_SERVICE_PLAN_ID,
+          }),
+          { ok: false, reason: 'conflict' },
+        );
+        const [unchanged] = await admin`SELECT selected_plan_id, row_version,
+          billing_attempt_state FROM signup_sessions WHERE auth_user_id = ${owner}::uuid`;
+        assert.equal(unchanged?.selected_plan_id, SELF_SERVICE_PLAN_ID);
+        assert.equal(unchanged?.row_version, rowVersion);
+        assert.equal(unchanged?.billing_attempt_state, state);
+      };
 
       // Duas abas pedindo checkout ao mesmo tempo: uma reserva, a outra perde.
       await seedOwner();
@@ -2854,6 +2893,7 @@ try {
       assert.equal(winner.intent.priceCents, 14900);
       assert.equal(winner.intent.planCode, 'solo');
       assert.ok(winner.intent.externalReference.startsWith('signup:'));
+      await assertPlanFrozen(winner.rowVersion, 'reserved');
 
       // Ativacao com versao velha perde; com a versao reservada, vence.
       const stale = await activateSignupBillingAttempt({
@@ -2870,6 +2910,7 @@ try {
         asaasSubscriptionId: 'sub_cas',
       });
       assert.ok(activated.ok);
+      await assertPlanFrozen(activated.rowVersion, 'active');
 
       // De `active` nao se reserva de novo: seria a segunda assinatura.
       assert.deepEqual(await reserveSignupBillingAttempt(owner), {
@@ -2889,12 +2930,28 @@ try {
         asaasCustomerId: 'cus_lost',
       });
       assert.ok(unknown.ok);
+      await assertPlanFrozen(unknown.rowVersion, 'creation_unknown');
       assert.deepEqual(await reserveSignupBillingAttempt(owner), {
         ok: false,
         reason: 'reconcile_required',
       });
+      const target = await readSignupBillingReconcileTarget(owner);
+      assert.ok(target);
+      assert.equal(target.rowVersion, unknown.rowVersion);
+      assert.equal(target.priceCents, second.intent.priceCents);
+      assert.equal(target.externalReference, second.intent.externalReference);
+      assert.deepEqual(
+        await reconcileSignupBillingAttempt({
+          userId: owner,
+          expectedVersion: unknown.rowVersion - 1,
+          asaasCustomerId: 'cus_lost',
+          asaasSubscriptionId: 'sub_lost',
+        }),
+        { ok: false, reason: 'conflict' },
+      );
       const reconciled = await reconcileSignupBillingAttempt({
         userId: owner,
+        expectedVersion: unknown.rowVersion,
         asaasCustomerId: 'cus_lost',
         asaasSubscriptionId: 'sub_lost',
       });
@@ -2916,8 +2973,15 @@ try {
         failureCode: 'invalid_cpfcnpj',
       });
       assert.ok(failed.ok);
+      const afterFailure = await writeSignupPlan(owner, {
+        rowVersion: failed.rowVersion,
+        planId: SELF_SERVICE_OTHER_PLAN_ID,
+      });
+      assert.ok(afterFailure.ok, 'falha definitiva permite escolher outro plano');
       const retried = await reserveSignupBillingAttempt(owner);
       assert.ok(retried.ok, 'apos 4xx a pessoa pode tentar de novo');
+      assert.equal(retried.intent.planId, SELF_SERVICE_OTHER_PLAN_ID);
+      assert.equal(retried.intent.priceCents, 24990);
 
       // O janitor NAO pode apagar linha que guarda assinatura no Asaas.
       await activateSignupBillingAttempt({
@@ -2933,6 +2997,27 @@ try {
       const [kept] = await admin`SELECT count(*)::int AS n FROM signup_sessions
         WHERE auth_user_id = ${owner}::uuid`;
       assert.equal(kept?.n, 1, 'cobranca orfa seria o resultado de apagar aqui');
+
+      // Escolha e reserva concorrentes: a reserva deve capturar exatamente o
+      // plano que ficou congelado, independentemente de qual transacao venceu.
+      await seedOwner();
+      const [planChanged, reservation] = await Promise.all([
+        writeSignupPlan(owner, { rowVersion: 1, planId: SELF_SERVICE_OTHER_PLAN_ID }),
+        reserveSignupBillingAttempt(owner),
+      ]);
+      assert.ok(reservation.ok);
+      const [frozen] = await admin`SELECT selected_plan_id, billing_attempt_state
+        FROM signup_sessions WHERE auth_user_id = ${owner}::uuid`;
+      assert.equal(frozen?.billing_attempt_state, 'reserved');
+      assert.equal(frozen?.selected_plan_id, reservation.intent.planId);
+      if (planChanged.ok) {
+        assert.equal(reservation.intent.planId, SELF_SERVICE_OTHER_PLAN_ID);
+        assert.equal(reservation.intent.priceCents, 24990);
+      } else {
+        assert.deepEqual(planChanged, { ok: false, reason: 'conflict' });
+        assert.equal(reservation.intent.planId, SELF_SERVICE_PLAN_ID);
+        assert.equal(reservation.intent.priceCents, 14900);
+      }
 
       await admin`DELETE FROM signup_sessions WHERE auth_user_id = ${owner}::uuid`;
     },

@@ -104,10 +104,12 @@ async function chooseAll(): Promise<void> {
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
+  window.localStorage.clear();
 });
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -172,6 +174,97 @@ describe('cadastro — quatro perguntas impessoais', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('retoma a primeira pergunta ainda não respondida depois de recarregar a página', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
+    const firstRender = render(<SignupQuestions />);
+
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findByRole('heading', {
+      name: 'Quantos atendimentos são realizados por semana?',
+    });
+
+    firstRender.unmount();
+    fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
+    render(<SignupQuestions />);
+
+    await screen.findByRole('heading', {
+      name: 'Quantos atendimentos são realizados por semana?',
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('não leva respostas locais para uma sessão nova', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { session: EMPTY_SESSION }));
+    const firstRender = render(<SignupQuestions />);
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await screen.findByRole('heading', {
+      name: 'Quantos atendimentos são realizados por semana?',
+    });
+    firstRender.unmount();
+
+    fetchMock
+      .mockResolvedValueOnce(json(410, { error: 'gone' }))
+      .mockResolvedValueOnce(json(201, { session: EMPTY_SESSION }));
+    render(<SignupQuestions />);
+
+    await screen.findByRole('heading', { name: 'Quantos profissionais atendem na clínica?' });
+    expect(screen.getByRole('radio', { name: '2 a 5' })).toHaveProperty('checked', false);
+    expect(window.localStorage).toHaveLength(0);
+  });
+
+  it('descarta escolhas locais após uma hora, sem renovar o prazo ao editar', async () => {
+    const start = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(start);
+    await renderReady();
+    fireEvent.click(screen.getByRole('radio', { name: '2 a 5' }));
+    clock.mockReturnValue(start + 30 * 60 * 1_000);
+    fireEvent.click(screen.getByRole('radio', { name: '1 profissional' }));
+    cleanup();
+    clock.mockReturnValue(start + 60 * 60 * 1_000);
+
+    await renderReady();
+    for (const radio of screen.getAllByRole('radio')) {
+      expect(radio).toHaveProperty('checked', false);
+    }
+    expect(window.localStorage).toHaveLength(0);
+  });
+
+  it.each([
+    '{invalid',
+    JSON.stringify({ version: 1, expiresAt: Date.now() + 60_000, answers: { role: 'owner' } }),
+    JSON.stringify({
+      version: 1,
+      expiresAt: Date.now() + 60_000,
+      answers: { professionalsBand: 'arbitrary' },
+    }),
+  ])('descarta armazenamento adulterado e permite recomeçar (%#)', async (stored) => {
+    window.localStorage.setItem('qoro-signup-answers-v1', stored);
+    await renderReady();
+    expect(window.localStorage).toHaveLength(0);
+    expect(screen.getByText('Pergunta 1 de 4')).toBeTruthy();
+  });
+
+  it('continua o cadastro quando o navegador bloqueia o armazenamento', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Blocked', 'SecurityError');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+    await renderReady();
+    await chooseAll();
+    fetchMock.mockResolvedValueOnce(json(200, { rowVersion: 2 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e continuar' }));
+    await screen.findByText('Respostas salvas');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('mantém a última pergunta como a única que salva, com o rótulo próprio', async () => {
     await renderReady();
     await chooseAll();
@@ -223,6 +316,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     await screen.findByText(/Respostas salvas\. A etapa de criação da conta será conectada/u);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(window.localStorage).toHaveLength(0);
   });
 
   it('resolve CAS perdido relendo e exibindo as respostas vencedoras', async () => {

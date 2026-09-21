@@ -90,6 +90,8 @@ const { asaasProvider } = await import('../../src/lib/payments/asaas');
 const { redactOpaqueId } = await import('../../src/lib/sanitize/redact');
 const { provisionTenantFromSignup } =
   await import('../../src/contexts/onboarding/internal/signup-provision');
+const { reconcileSignupSubscription } =
+  await import('../../src/contexts/onboarding/internal/signup-checkout');
 const { POST } = await import('../../src/app/api/webhooks/asaas/route');
 
 const WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN!;
@@ -127,8 +129,10 @@ async function createSandboxSubscription(tag: string): Promise<{
   customerId: string;
   subscriptionId: string;
   externalReference: string;
+  signupSessionId: string;
 }> {
-  const externalReference = `signup-webhook:${tag}:${Date.now()}`;
+  const signupSessionId = randomUUID();
+  const externalReference = `signup:${signupSessionId}`;
   const { customerId } = await asaasProvider.createCustomer({
     name: `Clinica Webhook ${tag}`,
     email: `webhook-${tag}@example.invalid`,
@@ -145,15 +149,16 @@ async function createSandboxSubscription(tag: string): Promise<{
     externalReference,
   });
   createdSubscriptions.add(subscriptionId);
-  return { customerId, subscriptionId, externalReference };
+  return { customerId, subscriptionId, externalReference, signupSessionId };
 }
 
-/** Provisiona o tenant a partir de uma sessão de cadastro já paga. */
+/** Reconcilia no provedor real antes de permitir provisionar o tenant. */
 async function provisionFromSignup(
   tag: string,
   planId: string,
   customerId: string,
   subscriptionId: string,
+  signupSessionId: string,
 ): Promise<string> {
   const userId = randomUUID();
   await sql`INSERT INTO auth.users (id, email, email_confirmed_at)
@@ -161,16 +166,48 @@ async function provisionFromSignup(
   const tokenHash = createHash('sha256').update(`webhook-${tag}-${Date.now()}`).digest('hex');
   const emailHash = createHash('sha256').update(`webhook-${tag}@example.invalid`).digest('hex');
   await sql`INSERT INTO signup_sessions (
-      token_hash, status, idle_expires_at, absolute_expires_at, consumed_at, auth_user_id,
+      id, token_hash, status, idle_expires_at, absolute_expires_at, consumed_at, auth_user_id,
       owner_name, clinic_name, email_hash, accepted_at, answered_at, professionals_band,
       weekly_appointments_band, current_tooling, discovery_source, selected_plan_id,
       billing_attempt_state, billing_attempted_at, asaas_customer_id, asaas_subscription_id)
     VALUES (
-      ${tokenHash}, 'email_verified', now() + interval '30 minutes',
+      ${signupSessionId}::uuid, ${tokenHash}, 'email_verified', now() + interval '30 minutes',
       now() + interval '45 minutes', now(), ${userId}::uuid,
       'Ana Prado', ${`Clinica Webhook ${tag}`}, ${emailHash}, now(), now(),
       '2_5', '21_50', 'outro_sistema', 'indicacao_colega', ${planId}::uuid,
-      'active', now(), ${customerId}, ${subscriptionId})`;
+      'creation_unknown', now(), ${customerId}, NULL)`;
+
+  await check(
+    `R-${tag}`,
+    'reconcile real rejeita valor divergente e ativa apenas após readback válido',
+    async () => {
+      // O preço é fixture do SCHEMA efêmero. Nenhum catálogo externo é alterado.
+      const prior = await sql`SELECT id, amount FROM prices WHERE plan_id = ${planId}::uuid`;
+      try {
+        await sql`UPDATE prices SET amount = 1 WHERE plan_id = ${planId}::uuid`;
+        assert.deepEqual(await reconcileSignupSubscription({ userId }), {
+          ok: false,
+          reason: 'conflict',
+        });
+        const [blocked] =
+          await sql`SELECT billing_attempt_state, asaas_subscription_id FROM signup_sessions WHERE id = ${signupSessionId}::uuid`;
+        assert.equal(blocked?.billing_attempt_state, 'creation_unknown');
+        assert.equal(blocked?.asaas_subscription_id, null);
+      } finally {
+        for (const price of prior) {
+          await sql`UPDATE prices SET amount = ${price.amount} WHERE id = ${price.id}::uuid`;
+        }
+      }
+      assert.deepEqual(await reconcileSignupSubscription({ userId }), {
+        ok: true,
+        state: 'active',
+      });
+      const [active] =
+        await sql`SELECT billing_attempt_state, asaas_subscription_id FROM signup_sessions WHERE id = ${signupSessionId}::uuid`;
+      assert.equal(active?.billing_attempt_state, 'active');
+      assert.equal(active?.asaas_subscription_id, subscriptionId);
+    },
+  );
 
   const outcome = await provisionTenantFromSignup({
     userId,
@@ -193,11 +230,23 @@ try {
 
   // --- tenant A: o cadastro de verdade, com assinatura de verdade -----------
   const a = await createSandboxSubscription('a');
-  const clinicA = await provisionFromSignup('a', planId, a.customerId, a.subscriptionId);
+  const clinicA = await provisionFromSignup(
+    'a',
+    planId,
+    a.customerId,
+    a.subscriptionId,
+    a.signupSessionId,
+  );
 
   // --- tenant B: existe só para provar que o webhook de A não o alcança -----
   const b = await createSandboxSubscription('b');
-  const clinicB = await provisionFromSignup('b', planId, b.customerId, b.subscriptionId);
+  const clinicB = await provisionFromSignup(
+    'b',
+    planId,
+    b.customerId,
+    b.subscriptionId,
+    b.signupSessionId,
+  );
 
   console.log(
     `contexto: clinicaA=${redactOpaqueId(clinicA)} clinicaB=${redactOpaqueId(clinicB)} ` +

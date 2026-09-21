@@ -6303,6 +6303,9 @@ provada — e verificar isso, leitura por leitura, custa mais caro do que simple
 > [matriz de evidência](evidence/track-o.md) é a **prova por fatia**. Aqui está o que efetivamente
 > existe em código, por que cada peça está do jeito que está, e o que continua pendente. Onde houver
 > divergência entre esta seção e o código, vale o código — e a seção está errada.
+> **Revalidação de 21/09:** [correções, comandos, resultados e pendências](evidence/track-o-revalidacao-2026-09-21.md).
+> Inclui [handoff](handoff-track-o-final.md), [roteiro humano corrigido](runbooks/aceitacao-humana-cadastro.md)
+> e [inventário de segurança regenerado](security/acoes.md).
 
 ### 36.1 O tamanho, medido
 
@@ -6327,8 +6330,10 @@ Para tornar a contagem reproduzível, “arquivo de teste” significa arquivo n
 linhas de produção e teste são as adições nesses arquivos novos, não as adições feitas em arquivos
 preexistentes.
 
-A suíte inteira foi reexecutada depois da reconciliação independente: **3.979 testes em 397
-arquivos, todos passando**, exit 0, 135,85 s.
+A suíte inteira foi reexecutada em 21/09 após as correções de retomada e reconciliação:
+**3.993 testes em 397 arquivos, todos passando**, exit 0, 159,21 s.
+As contagens de código da tabela acima são o snapshot da reconciliação de 20/09, não uma contagem
+da ponta móvel da branch. A atualização de 21/09 está discriminada na evidência vinculada acima.
 
 A razão teste/produção não conta a história inteira, porque a prova mais cara deste track não está em
 `*.test.ts`: está nos **runners de ambiente real** (`scripts/security/*.ts`), que sobem Postgres
@@ -6402,8 +6407,9 @@ constraints dessas migrations. Na 0102, o browser escolhe `planId`, enquanto o s
 plano está ativo e relê preço, ciclo e trial.
 
 **O padrão que se repete, e que é a espinha do track:** `text` + `CHECK` em vez de `pgEnum`. O
-conjunto é fechado, mas quase sempre cresce — e `ALTER TYPE ... ADD VALUE` não roda dentro de
-transação no Postgres, enquanto `DROP`/`ADD CONSTRAINT` roda. Cada fatia **substitui** o CHECK da
+conjunto é fechado, mas quase sempre cresce. No PostgreSQL 17, `ALTER TYPE ... ADD VALUE` pode
+rodar em transação, mas o valor novo só pode ser usado após o commit; substituir um CHECK permite
+alterar e usar o conjunto na mesma transação ([contrato do PostgreSQL](https://www.postgresql.org/docs/17/sql-altertype.html#SQL-ALTERTYPE-NOTES)). Cada fatia **substitui** o CHECK da
 anterior acrescentando os seus estados, o que transforma o scope freeze em constraint de banco em vez
 de comentário em documento.
 
@@ -6443,6 +6449,15 @@ sobrevive ao provisionamento**.
 prova valor nem estado; o servidor relê a assinatura no provedor e confere `ACTIVE` e valor igual ao
 do catálogo. Divergência cancela, compensa o customer e marca `failed`.
 `provisionTenantFromSignup` exige `billing_attempt_state = 'active'` como pré-condição inegociável.
+Na reconciliação de `creation_unknown`, a revisão de 21/09 encontrou uma exceção a essa regra:
+o código ativava a referência encontrada sem readback. Corrigido para validar estado, valor,
+assinatura, customer e referência antes de atualizar, com CAS e TTL no banco. Divergência nesse
+caminho mantém `creation_unknown` e exige resolução operacional, sem liberar outra cobrança.
+Outra regressão real impedia garantir a correspondência com o plano: `PUT /api/signup/plan`
+aceitava trocar `selectedPlanId` após a reserva, inclusive com assinatura `active`. Corrigido na
+reanálise: troca só antes do billing ou após `failed`; estado e versão são verificados no mesmo
+UPDATE. O harness reproduziu a falha antes da correção e passou a exercitar também a corrida
+entre troca de plano e reserva.
 
 **6. O que a clínica fez é derivado; o que a pessoa viu é guardado.** O checklist de ativação
 continua sendo **derivação de presença de dado** — "cadastre um médico" está feito se, e somente se,
@@ -6555,7 +6570,7 @@ final no painel não foi revalidado. O `_gl` é pré-requisito da tarefa da tag 
 | Item | Estado |
 | ---- | ------ |
 | Regra de Vercel Firewall em `/api/lead` | **resolvida** — verificação independente: GET e POST em `/api/lead`, além de POST em caminho irmão inexistente, devolvem 404 e nenhum traz `X-Vercel-Mitigated` |
-| Variáveis antigas do endpoint no painel da landing | **não auditado nesta reconciliação** — o código e `.env.example` não declaram mais as variáveis; confirmar ou remover configuração órfã continua sendo tarefa de painel |
+| Variáveis antigas do endpoint no painel da landing | **PASS em 21/09** — `npx vercel env ls`, exit 0: nenhuma variável no projeto `landing-page`; Supabase órfão ausente |
 
 #### Conhecido e aceito
 
@@ -6563,12 +6578,15 @@ final no painel não foi revalidado. O `_gl` é pré-requisito da tarefa da tag 
 | ---- | ------ |
 | WAF/DDoS por rota | **não existe** — o classificador já tem o lugar reservado (a função é pura e recebe sinais prontos), mas o sinal de WAF não existe |
 | Sinais de e-mail e dispositivo no risco | **não existem** — a ordem A põe as perguntas depois |
-| Compensação de recurso externo em `SCHEMA` | **PARCIAL** — coberta em unit, não em banco real |
-| `security:browser-session` | **FAIL pré-existente**, atribuído ao commit `8df4ab7`, anterior ao O-7 |
+| Compensação de recurso externo em `SCHEMA` | **SCHEMA validado em 21/09**, recusa/mismatch/CAS com banco real e provider stub; falha SQL + cancel/delete externo no mesmo cenário continuam **NOT TESTED** |
+| `security:browser-session` | **corrigido em 21/09** — o teste navegava antes de terminar o prefetch RSC e perdia acesso ao corpo no Chromium; sincronização corrigida sem ignorar falhas de leitura, com controles de detecção; resultado final na revalidação |
 | Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte. É também o que torna o `_gl` inútil por enquanto: não há destinatário. Fechar isto é uma tarefa deste repositório, não da landing |
 
 **A pendência de maior valor não é técnica.** O funil já tem entrada na landing. Falta uma pessoa
 percorrer o cadastro por cerca de vinte minutos e dizer se os textos e a ordem fazem sentido para
 quem nunca viu o produto. A tag no app permanece uma tarefa separada para medir a assinatura final.
+O aceite humano não encerra as verificações externas pendentes: crédito final no Ads, configuração
+administrativa Supabase e entrega automática do webhook ainda têm os limites descritos na
+[revalidação de 21/09](evidence/track-o-revalidacao-2026-09-21.md).
 
 ---

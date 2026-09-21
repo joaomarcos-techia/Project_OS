@@ -2,11 +2,9 @@
 
 ## Status
 
-Canonical. Este é o único passo do Track O que uma pessoa precisa executar, porque exige **julgamento
-de produto**, não verificação. Tudo que é verificável já está coberto por teste, harness e gate.
-
-A aceitação técnica está fechada: suíte 3979/3979, E2E autenticado 5/5 contra Preview, Sandbox 4/4,
-webhook 9/9, carga e chaos verdes, banco de produção em 105 migrations. Nada aqui re-testa isso.
+Canonical para **julgamento de produto**. A revalidação técnica e os limites de acesso aos painéis
+estão em [revalidação de 21/09](../evidence/track-o-revalidacao-2026-09-21.md).
+O aceite humano não substitui essas provas, e os testes não substituem este julgamento.
 
 ## O que você vai julgar
 
@@ -22,7 +20,8 @@ não vira "conhecido".
 ## Onde rodar, e por que não em produção
 
 **Rode no Preview.** O Preview usa o **Sandbox** do Asaas e o banco DEV, então você pode percorrer o
-funil inteiro, inclusive o cartão, sem criar cliente real nem cobrança real.
+funil inteiro sem criar assinatura em produção. O cadastro atual não solicita cartão: a primeira
+fatura vence ao fim dos sete dias e o pagamento é hospedado pelo Asaas.
 
 Em produção cada passagem cria **uma clínica de verdade e uma assinatura cobrada de verdade**. Não
 use produção para aceitação, e se algum dia precisar, trate como operação com dinheiro: cancele a
@@ -31,32 +30,25 @@ assinatura e remova o tenant depois, com autorização e registro.
 ### Endereço
 
 O Preview vive por branch. Se houver um PR aberto, use o link que o bot da Vercel comenta nele.
-Enquanto o alias da branch do Track O existir, ele serve:
+Para as correções da revalidação, use o Preview do [PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15).
+O endereço abaixo corresponde à branch antiga; não o use como prova do código novo:
 
 ```
 https://project-os-git-feature-clinic-plan-o4-clinic-os-v2-s-projects.vercel.app/cadastro
 ```
 
-Se ele tiver expirado: abra qualquer PR (mesmo de uma linha em doc) e use o Preview dele. As flags
+Depois do merge, use um Preview cuja revisão contenha o merge do PR #15. Se não houver um disponível,
+gere um Preview dessa revisão e confirme no detalhe do deployment o commit e o ambiente. As flags
 `SIGNUP_IDENTITY_ENABLED` e `SIGNUP_AUTH_ENABLED` já estão no escopo **Preview** do projeto
-`project-os`, então qualquer Preview nasce com o cadastro aberto.
+`project-os`; confira também que Supabase é DEV e Asaas é Sandbox antes do cadastro.
 
 ### O que ter em mãos
 
 - **Login da Vercel** — o Preview é protegido; a primeira visita pede autenticação.
-- **Um e-mail que você consiga abrir.** Use um descartável ou um alias (`voce+aceite1@…`). Vai chegar
-  um código de confirmação. **Não use e-mail de cliente.**
-- **O cartão de teste do Sandbox** (valor público do Asaas, não é segredo):
-
-  | Campo | Valor |
-  | --- | --- |
-  | número | `4444444444444444` |
-  | validade | `12/2030` |
-  | CVV | `123` |
-  | titular | qualquer nome |
-
-  **Nunca use cartão real neste roteiro.** Se a tela pedir cartão e você estiver em produção por
-  engano, pare.
+- **Um e-mail que você consiga abrir.** Use um alias consentido (`voce+aceite1@…`) e confirme pelo
+  link recebido. **Não use e-mail de cliente.**
+- **CPF/CNPJ sintético válido para o Sandbox.** Use a fixture aprovada do ambiente de teste.
+  Não é necessário cartão para concluir o cadastro e iniciar o trial.
 
 ## O roteiro
 
@@ -66,22 +58,27 @@ o sinal que os testes não capturam.
 ### 1. Cadastro
 
 Abra `/cadastro` e responda as quatro perguntas de perfil. Depois informe a identidade e confirme o
-e-mail com o código que chegar.
+e-mail pelo link recebido.
 
-**Esperado:** cada passo retoma sozinho depois de um F5. Feche a aba no meio e volte: você deve cair
-onde parou, não no começo.
+**Esperado:** durante as quatro perguntas, F5 ou reabrir a aba no mesmo navegador retoma a primeira
+pergunta não respondida, enquanto a sessão continuar válida. O rascunho impessoal local expira em
+até uma hora e é apagado quando uma sessão nova é criada ou as respostas são salvas no servidor.
+Nome, e-mail, senha e aceite não ficam em armazenamento local: esses campos podem exigir
+redigitação. Depois de confirmar o e-mail, inclusive em outro aparelho, as respostas completas
+salvas são recuperadas pelo usuário verificado. A tela do primeiro aparelho consulta a confirmação
+a cada 20 segundos, por até dez minutos; depois disso, use F5.
 
 **Julgue:** as quatro perguntas são as que você faria? Alguma parece intrusiva ou inútil para quem
 ainda não confia no produto?
 
 ### 2. Plano e billing
 
-Escolha o plano, informe CPF/CNPJ e conclua com o cartão de teste.
+Escolha o plano, informe CPF/CNPJ sintético e conclua a criação da assinatura.
 
 **Esperado:** nenhuma tela pede dado de cartão **dentro** do Qoro — quem coleta é o Asaas. Se você vir
 um campo de cartão com a cara do Qoro, isso é um achado, e é grave.
 
-**Julgue:** o preço e o que está incluído ficam claros antes de pedir o cartão? Dá para saber o que
+**Julgue:** o preço e o que está incluído ficam claros antes de confirmar? Dá para saber o que
 acontece no fim do trial?
 
 ### 3. Provisionamento
@@ -89,7 +86,7 @@ acontece no fim do trial?
 **Esperado:** chegar ao dashboard **já dentro da clínica criada**, sem passo manual, sem "aguarde um
 e-mail", sem tela de configuração inicial.
 
-**Julgue:** o tempo entre pagar e estar dentro é aceitável? O que aparece durante a espera explica o
+**Julgue:** o tempo entre confirmar a assinatura e estar dentro é aceitável? O que aparece durante a espera explica o
 que está acontecendo?
 
 ### 4. Onboarding

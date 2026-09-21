@@ -1,4 +1,4 @@
-# Track O — handoff final (reconciliado em 20/09/2026)
+# Track O — handoff final (reconciliado em 21/09/2026)
 
 > **Inventário de engenharia consolidado em [§36 do qorov2](qorov2.md)** — o que foi construído,
 > como, e o que está pendente. Detalhe por fatia em [docs/evidence/track-o.md](evidence/track-o.md).
@@ -7,16 +7,23 @@
 
 ## Estado final
 
+**Atualização de 21/09:** [revalidação e correções](evidence/track-o-revalidacao-2026-09-21.md).
+A releitura encontrou retomada perdida após F5, validação incompleta na reconciliação de billing,
+troca de plano depois da reserva e falhas nos próprios runners de Sandbox/sessão. Foram corrigidas
+com regressões; o relatório separa
+execuções atuais das históricas e detalha as ações ainda necessárias. O aceite humano continua
+pendente, assim como crédito Ads e as configurações administrativas ainda inacessíveis.
+
 | Fatia | Resultado | Onde a prova está |
 | ----- | --------- | ----------------- |
 | **O-1** | **PASS** (publicado, ligado e com requisição de conversão emitida) | `qoro/scripts/verificar-comecar.mjs` 27/27 + navegador |
-| **O-5** | **PASS** | Sandbox 4/4 + webhook 9/9 |
-| **O-6** | **PASS** | 8/8 contra 105 migrations reais |
+| **O-5** | **PASS** | Sandbox 4/4 + cleanup 2/2; webhook/reconciliação 11/11 em 21/09 |
+| **O-6** | **PASS em SCHEMA** | 12/12 contra 105 migrations reais; compensação usa provider stub explícito |
 | **O-7** | **PASS** | 13/13 em schema real + **5/5** E2E autenticado, sem skip |
 | **O.H** | **PASS** | carga geral + carga Track O 8/8 + chaos 59/59 |
 | **O.S** | **PASS** | kill switch 9/9 + simulação + Preview + CI |
 
-## O que esta sessão acrescentou
+## Histórico da entrega original (18–20/09)
 
 ### O-1 — a ponte existe
 
@@ -25,9 +32,9 @@ a classe de open redirect por construção — 17 vetores recusados sem nenhum f
 vindo de fora. Só os cinco UTM da allowlist atravessam; `clinic_id`, `role`, `price`, `trial` e
 `token` são descartados. **Atribuição não é autorização.**
 
-O linker cross-domain foi a peça que faltava: o Google tag já tinha Consent Mode v2 e
-`url_passthrough`, mas não `linker.domains` — sem ele a conversão em `app.qoro.dev` apareceria como
-"direta", pagando o clique sem creditar a venda.
+O linker cross-domain foi configurado na landing. A medição independente posterior encontrou
+`_gl` no clique da âncora, mas não no encaminhamento automático. O app não tem tag receptora:
+atribuição da assinatura e crédito final no Ads continuam sem prova, como registra o §36.8.
 
 Provado no navegador com a ponte apontada para o Preview: a URL capturada carregava
 `?utm_source=google-ads&utm_medium=cpc&utm_campaign=clinicas-sp`, com hífen preservado e sem nenhum
@@ -59,7 +66,7 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
-| **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
+| **`security:browser-session`** | falha anterior de captura RSC, corrigida | **PASS 7/7 em 21/09**, incluindo controles que precisam detectar vazamento e corpo ilegível |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro completo em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md) — rodar no Preview, com Sandbox |
 
 Google Ads está configurado e a requisição de conversão sai de `/comecar`. A regra órfã de firewall

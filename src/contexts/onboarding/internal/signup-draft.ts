@@ -222,7 +222,19 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
         selectedPlanId: planId,
         rowVersion: sql`${signupSessions.rowVersion} + 1`,
       })
-      .where(and(ownerDraftCondition(userId), eq(signupSessions.rowVersion, rowVersion)))
+      .where(
+        and(
+          ownerDraftCondition(userId),
+          eq(signupSessions.rowVersion, rowVersion),
+          // A reserva congela o plano que foi enviado ao provedor. Troca após
+          // esse ponto permitiria provisionar outro plano com a mesma cobrança.
+          // O predicado no UPDATE serializa esta escrita com a reserva por CAS.
+          or(
+            isNull(signupSessions.billingAttemptState),
+            eq(signupSessions.billingAttemptState, 'failed'),
+          ),
+        ),
+      )
       .returning({
         rowVersion: signupSessions.rowVersion,
         selectedPlanId: signupSessions.selectedPlanId,
@@ -235,11 +247,15 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
       .select({
         rowVersion: signupSessions.rowVersion,
         selectedPlanId: signupSessions.selectedPlanId,
+        billingAttemptState: signupSessions.billingAttemptState,
       })
       .from(signupSessions)
       .where(ownerDraftCondition(userId))
       .limit(1);
     if (!live) return { ok: false, reason: 'gone' };
+    if (live.billingAttemptState !== null && live.billingAttemptState !== 'failed') {
+      return { ok: false, reason: 'conflict' };
+    }
     if (live.selectedPlanId === planId && live.rowVersion === rowVersion + 1) {
       return { ok: true, rowVersion: live.rowVersion, selectedPlanId: planId };
     }

@@ -390,7 +390,7 @@ describe('signup plan contract O-4', () => {
     });
   });
 
-  it('salva plano ativo por CAS e renova somente o idle do mesmo draft', async () => {
+  it('salva plano ativo por CAS sem mudar o prazo do draft', async () => {
     const available = selectChain([{ id: planId }]);
     const update = updateChain([{ rowVersion: 8, selectedPlanId: planId }]);
     const tx = {
@@ -411,6 +411,9 @@ describe('signup plan contract O-4', () => {
     expect(update.set).toHaveBeenCalledWith(
       expect.objectContaining({ selectedPlanId: planId, rowVersion: expect.anything() }),
     );
+    expect(update.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ idleExpiresAt: expect.anything() }),
+    );
   });
 
   it.each([
@@ -425,7 +428,21 @@ describe('signup plan contract O-4', () => {
       name: 'retry idempotente',
       planRows: [{ id: planId }],
       savedRows: [],
-      liveRows: [{ rowVersion: 8, selectedPlanId: planId }],
+      liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState: null }],
+      expected: { ok: true, rowVersion: 8, selectedPlanId: planId },
+    },
+    ...(['reserved', 'active', 'creation_unknown'] as const).map((billingAttemptState) => ({
+      name: `retry idempotente bloqueado com billing ${billingAttemptState}`,
+      planRows: [{ id: planId }],
+      savedRows: [],
+      liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState }],
+      expected: { ok: false, reason: 'conflict' },
+    })),
+    {
+      name: 'retry idempotente depois de falha definitiva',
+      planRows: [{ id: planId }],
+      savedRows: [],
+      liveRows: [{ rowVersion: 8, selectedPlanId: planId, billingAttemptState: 'failed' }],
       expected: { ok: true, rowVersion: 8, selectedPlanId: planId },
     },
     {
