@@ -1,4 +1,4 @@
-# Track O — handoff final (19/09/2026)
+# Track O — handoff final (reconciliado em 20/09/2026)
 
 > **Inventário de engenharia consolidado em [§36 do qorov2](qorov2.md)** — o que foi construído,
 > como, e o que está pendente. Detalhe por fatia em [docs/evidence/track-o.md](evidence/track-o.md).
@@ -9,7 +9,7 @@
 
 | Fatia | Resultado | Onde a prova está |
 | ----- | --------- | ----------------- |
-| **O-1** | **PASS** (publicado e ligado) | `qoro/scripts/verificar-comecar.mjs` 19/19 + navegador |
+| **O-1** | **PASS** (publicado, ligado e com requisição de conversão emitida) | `qoro/scripts/verificar-comecar.mjs` 27/27 + navegador |
 | **O-5** | **PASS** | Sandbox 4/4 + webhook 9/9 |
 | **O-6** | **PASS** | 8/8 contra 105 migrations reais |
 | **O-7** | **PASS** | 13/13 em schema real + **5/5** E2E autenticado, sem skip |
@@ -35,10 +35,10 @@ parâmetro proibido.
 
 ### O-7 — o E2E autenticado, e o 500 que ele achou
 
-3/3 contra o Preview com sessão real. Na PRIMEIRA execução falhou: `500 em /dashboard`. A causa era
-minha — a leitura de `onboarding_progress` estava no layout do shell, por onde passa toda página
-autenticada, e o banco do Preview não tem a migration 0104. Um tour derrubava agenda, consultório e
-caixa. Corrigido com degradação observável.
+5/5 contra o Preview com sessão real, sem skip. Na PRIMEIRA execução anterior à migration 0104 houve
+`500 em /dashboard`: a leitura de `onboarding_progress` estava no layout do shell, por onde passa toda
+página autenticada. Um tour derrubava agenda, consultório e caixa. Corrigido com degradação observável;
+depois da migration, cinco testes passaram em três execuções seguidas.
 
 ### Carga e chaos
 
@@ -59,10 +59,12 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
-| **Google Ads não mede** | `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` da landing | preencher as duas constantes; roteiro em `docs/GOOGLE-ADS.md` da landing |
-| **Regra de Firewall órfã em `/api/lead`** | o endpoint saiu, mas a regra de painel ficou: `POST` devolve 429 onde deveria dar 404 | apagar em Vercel → Project → Firewall; não há nada no repositório que a produza |
 | **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro completo em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md) — rodar no Preview, com Sandbox |
+
+Google Ads está configurado e a requisição de conversão sai de `/comecar`. A regra órfã de firewall
+também não aparece mais: GET e POST em `/api/lead` devolvem 404 sem `X-Vercel-Mitigated`. O app ainda
+não possui tag Google; medir a assinatura final continua sendo uma tarefa separada.
 
 **Resolvidos em 19/09/2026:**
 

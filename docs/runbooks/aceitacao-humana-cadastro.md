@@ -5,7 +5,7 @@
 Canonical. Este é o único passo do Track O que uma pessoa precisa executar, porque exige **julgamento
 de produto**, não verificação. Tudo que é verificável já está coberto por teste, harness e gate.
 
-A aceitação técnica está fechada: suíte 3974/3974, E2E autenticado 5/5 contra Preview, Sandbox 4/4,
+A aceitação técnica está fechada: suíte 3979/3979, E2E autenticado 5/5 contra Preview, Sandbox 4/4,
 webhook 9/9, carga e chaos verdes, banco de produção em 105 migrations. Nada aqui re-testa isso.
 
 ## O que você vai julgar
@@ -140,12 +140,12 @@ Anote em `docs/evidence/track-o.md`, na seção do O-7, com data e ambiente. Tr�
 
 Não registre o e-mail usado, o código recebido, nem nada do cartão.
 
-## Pendência conhecida, e que não é deste roteiro
+## Medição da campanha, fora deste roteiro
 
-O Google Ads da landing ainda não mede nada: `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` estão vazios em
-`src/lib/conversao.ts` (no repositório da landing), então o tag nunca carrega. A ponte `/comecar` está
-no ar, é segura e leva os cinco UTM corretamente — mas enquanto essas duas constantes estiverem
-vazias, **conversão em `app.qoro.dev` vai aparecer como "direta"**, e o `gclid` de um clique pago não
-chega ao app. O `linker.domains` já está no código; ele só roda quando o tag carrega.
+O Google Ads da landing está ligado. O tag carrega em `/comecar`, o evento de conversão é enfileirado
+e a requisição sai para o Google antes da navegação. O encaminhamento automático por
+`location.replace` não recebe `_gl`; o clique real na âncora de fallback recebe. Isso não afeta a
+conversão registrada na landing hoje, porque o app ainda não carrega tag Google.
 
-Isso não bloqueia a aceitação do produto. Bloqueia a medição da campanha.
+Este roteiro julga o produto. Medir a assinatura final no app e confirmar atribuição no painel do
+Google Ads são tarefas separadas.

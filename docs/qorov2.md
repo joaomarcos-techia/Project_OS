@@ -6306,29 +6306,35 @@ provada — e verificar isso, leitura por leitura, custa mais caro do que simple
 
 ### 36.1 O tamanho, medido
 
-Entre `fd3ddd5` (antes do scope freeze do O-2, em 12/09) e a ponta de hoje:
+Entre `fd3ddd5` (antes do scope freeze do O-2, em 12/09) e a ponta que inclui a reconciliação
+independente de 20/09:
 
 | Medida                                                     | Valor                                        |
 | ---------------------------------------------------------- | -------------------------------------------- |
-| commits de código                                           | 42 (70 com os de documentação)                |
-| arquivos tocados em `src/`, `scripts/`, `drizzle/`, `e2e/`  | **195** (+26.876 / −682)                      |
+| commits de código                                           | 44 (80 com os de documentação)                |
+| arquivos tocados em `src/`, `scripts/`, `drizzle/`, `e2e/`  | **196** (+27.106 / −705)                      |
 | arquivos novos de produção                                  | 72                                            |
-| arquivos novos de teste                                     | 52                                            |
-| linhas novas: produção × teste                              | 14.994 × 8.781 (**0,59 linha de teste por linha de produção**) |
+| arquivos novos de teste                                     | 53                                            |
+| linhas novas: produção × teste                              | 14.992 × 8.872 (**0,59 linha de teste por linha de produção**) |
 | migrations                                                  | 9 (`0096`–`0104`)                             |
 | rotas de API novas                                          | 10 (9 de cadastro + 1 cron)                   |
 | páginas novas                                               | 5 (`/cadastro`, `/cadastro/continuar`, `/cadastro/plano`, `/documentacao`, `/documentacao/[topic]`) |
-| runners de evidência novos                                  | 12 em `scripts/`                              |
+| scripts novos do Track O                                    | 12: 9 runners + 3 apoios                      |
 | specs Playwright novos                                      | 7                                             |
 
-A suíte inteira foi reexecutada em 20/09/2026 para escrever esta seção: **3.974 testes em 396
-arquivos, todos passando**, exit 0, 255 s.
+Para tornar a contagem reproduzível, “arquivo de teste” significa arquivo novo cujo nome contém
+`.test.` ou `.spec.`; os demais arquivos novos entram em produção, inclusive fixtures e runners. As
+linhas de produção e teste são as adições nesses arquivos novos, não as adições feitas em arquivos
+preexistentes.
+
+A suíte inteira foi reexecutada depois da reconciliação independente: **3.979 testes em 397
+arquivos, todos passando**, exit 0, 135,85 s.
 
 A razão teste/produção não conta a história inteira, porque a prova mais cara deste track não está em
 `*.test.ts`: está nos **runners de ambiente real** (`scripts/security/*.ts`), que sobem Postgres
 efêmero com as migrations do repositório, falam com o Asaas Sandbox de verdade e dirigem Chromium
-contra o build de produção. Esses doze arquivos são a diferença entre "o mock concorda comigo" e "o
-mundo concorda comigo".
+contra o build de produção. São nove runners; `scratch-schema.ts`, `signup-redis-fixture.mjs` e
+`seed-super-admin-mfa.ts` dão suporte a eles. Essa separação evita contar fixture como prova executável.
 
 ### 36.2 O mapa — onde cada fatia vive
 
@@ -6336,7 +6342,7 @@ mundo concorda comigo".
 | ----- | ------- | ------------------ |
 | **O-1** atribuição | `/comecar`, allowlist de UTM, linker cross-domain | repositório **da landing** (`C:\dev\qoro`), fora deste |
 | **O-2** bootstrap | sessão anônima, cookie/HMAC/TTL, risco, Turnstile, janitor | `contexts/onboarding/internal/signup-session.ts`, `signup-risk.ts`, `turnstile.ts`, `api/signup/sessions/*`, `api/cron/signup-sessions-cleanup` |
-| **O-3** identidade | Supabase `signUp`, confirmação, anti-enumeração, vínculo | `signup-auth`, `api/signup/sessions/{auth,identity,resend}`, `auth/confirm` |
+| **O-3** identidade | Supabase `signUp`, confirmação, anti-enumeração, vínculo | `contexts/onboarding/internal/signup-session.ts`, `signup-auth.test.ts`, `api/signup/sessions/{auth,identity,resend}`, `auth/confirm` |
 | **O-4** clínica/plano | draft autenticado, plano resolvido no servidor | `signup-draft.ts`, `api/signup/draft`, `api/signup/plan`, `/cadastro/plano` |
 | **O-5** billing | intenção, reserva, assinatura recorrente, reconciliação | `signup-billing.ts`, `signup-checkout.ts`, `api/signup/checkout` |
 | **O-6** provisionamento | tenant/owner/config em uma transação | `signup-provision.ts` |
@@ -6382,13 +6388,18 @@ nenhuma policy** — negação por padrão para qualquer role sem `BYPASSRLS` �
 | --------- | ---------------- | ---------------------------- |
 | `0096` | tabela, TTLs, `row_version`, RLS sem policy | o navegador tocar a tabela; status fora do escopo da fatia |
 | `0097` | least privilege, parte 2 | `qoro_runtime` herdar DML pelo default ACL do `postgres` |
-| `0098` | as quatro perguntas | responder sem sessão viva |
+| `0098` | as quatro perguntas | valor fora das opções fechadas; conjunto de respostas parcial |
 | `0099` | identidade e consentimento | PII sem aceite registrado |
-| `0100` | tentativa de envio (reserva + CAS) | reenvio virar spam; envio perdido virar estado mudo |
-| `0101` | ownership Auth e consumo atômico | dois usuários reivindicarem o mesmo draft |
-| `0102` | plano selecionado | plano e preço virem do browser |
+| `0100` | tentativa de envio | `email_pending` sem tentativa registrada; trio de tentativa parcial ou incoerente |
+| `0101` | ownership Auth e consumo atômico | o mesmo usuário Auth possuir dois drafts; `email_verified` sem ownership e consumo completos |
+| `0102` | plano selecionado | `selected_plan_id` apontar para plano inexistente |
 | `0103` | tentativa de billing | `id` de assinatura sem estado; `active` sem assinatura; a mesma assinatura em dois cadastros (`UNIQUE`) |
 | `0104` | `onboarding_progress` | colega da mesma clínica ler o tour alheio; estado terminal sem data; passo fora da faixa |
+
+Esta coluna descreve somente o que o **SQL** impede. Vivacidade na 0098, cooldown/rate limit na 0100
+e claim concorrente na 0101 são garantias adicionais das queries e transações da aplicação; não são
+constraints dessas migrations. Na 0102, o browser escolhe `planId`, enquanto o servidor valida que o
+plano está ativo e relê preço, ciclo e trial.
 
 **O padrão que se repete, e que é a espinha do track:** `text` + `CHECK` em vez de `pgEnum`. O
 conjunto é fechado, mas quase sempre cresce — e `ALTER TYPE ... ADD VALUE` não roda dentro de
@@ -6402,10 +6413,11 @@ alfabética, onde `blocked` viria antes de `initiated`. Quem precisa comparar et
 
 ### 36.5 As seis invariantes que o código defende
 
-**1. O browser nunca escolhe `clinic_id`, papel, plano, preço, ciclo nem trial.** Não é validação: é
-ausência de porta de entrada. Os corpos são `.strict()`, então um `clinicId` enviado é **recusado**,
-não descartado em silêncio — a diferença importa, porque descartar deixa quem tentou achando que
-funcionou. `userId` vem sempre de `getUser()`.
+**1. O browser escolhe somente o identificador do plano; nunca escolhe `clinic_id`, papel, preço,
+ciclo nem trial.** `planId` é parte explícita do contrato porque a pessoa precisa selecionar uma das
+ofertas ativas. O servidor relê o plano e o preço vigentes e decide ciclo e trial. Os corpos são
+`.strict()`, então um `clinicId`, preço ou trial enviado é **recusado**, não descartado em silêncio.
+`userId` vem sempre de `getUser()`.
 
 **2. Não existe cobrança duplicada.** O Asaas **não aceita `Idempotency-Key` em POST** — medido, não
 suposto. A defesa é em três camadas: a intenção é reservada no banco **por CAS antes de qualquer
@@ -6480,17 +6492,24 @@ Todos foram achados por um gate ou por releitura crítica de um verde, nenhum po
 
 O padrão é um só: **contar resposta não é ler estado**. Três dos cinco vêm daí.
 
+**Reconciliação independente de 20/09.** A releitura posterior encontrou o janitor comparando os TTLs
+com `new Date()` do processo, apesar do contrato exigir o relógio do banco. O código passou a usar
+`now()` do PostgreSQL e o teste agora inspeciona a condição do DELETE. A mesma releitura removeu um
+byte NUL literal de `signup-provision.test.ts` — preservado como `\u0000` — que fazia o Git tratar o
+arquivo como binário e o excluir das contagens de linhas. As divergências restantes foram resolvidas
+fazendo este inventário descrever o contrato realmente implementado.
+
 ### 36.8 O que está pendente
 
 Dividido pelo que de fato separa os itens: **quem pode fazer**.
 
-#### A medição da campanha — fechada em 20/09
+#### Instrumentação da campanha — ativa em 20/09
 
 | Item | Estado |
 | ---- | ------ |
 | ~~Nenhum CTA aponta para `/comecar`~~ | **resolvido** — todo CTA leva ao cadastro e o formulário de diagnóstico saiu do funil. Medido em produção: **8 / 5 / 4** links em `/`, `/precos` e `/para/psiquiatria`, e **0** `wa.me` nas três |
-| ~~`GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios~~ | **resolvido** — `AW-18384694179` / `Q4QJCIDelv8cEKPXwL5E`. Verificado por mim em produção: `config:AW-18384694179` processado, `google_tag_data.gl` carregado, `_gcl_au` gravado, e `event:conversion` enfileirado na travessia de `/comecar` |
-| ~~Ação de conversão no Google Ads~~ | **criada** — "Cadastro iniciado", Leads → Inscrever-se, contagem Uma, janela 30 dias |
+| ~~`GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios~~ | **resolvido** — `AW-18384694179` / `Q4QJCIDelv8cEKPXwL5E`. Em produção: config processado, `google_tag_data.gl` carregado, `_gcl_au` gravado e requisições de conversão iniciadas para os endpoints do Google; crédito final no painel não revalidado |
+| Ação de conversão no Google Ads | **configuração declarada pelo painel** — "Cadastro iniciado", Leads → Inscrever-se, contagem Uma, janela 30 dias; a auditoria independente provou a saída da requisição, não o crédito final no painel |
 
 **O defeito que ligar a medição revelou, e a ordem que o causou.** `conversaoGoogleAds()` era chamada
 em `ComecarPage`, e no React **o efeito do filho roda antes do efeito do pai** — `useSessao()` vive em
@@ -6506,16 +6525,15 @@ antigo cortava a saída 183 ms antes de o sinal partir — no caso favorável, n
 navegação espera o sinal, com teto próprio de 1200 ms para o caso de o `gtag.js` nunca chegar
 (medido: 1720 ms até a navegação, ninguém fica preso).
 
-**O `_gl` não decora, e a hipótese de por quê estava errada.** Eu supus que a causa fosse o linker só
-agir em clique de âncora, enquanto a ponte navega por `location.replace`. O controle refuta:
-**nenhum dos dois caminhos** carrega `_gl` — nem o automático, nem o clique real na âncora. Então
-trocar o mecanismo de navegação não resolveria, e cobraria entrada no histórico mais risco de loop.
-A inferência que sobra, não medida: `linker.domains` no `gtag('config')` é construto de GA4, e num
-tag só-Ads a decoração cross-domain depende da configuração de domínios no painel.
+**O `_gl` decora o clique de âncora, mas não o encaminhamento automático.** A verificação independente
+de 20/09 interceptou os dois caminhos: `location.replace` saiu sem `_gl`; o clique real numa âncora
+para `app.qoro.dev/cadastro` saiu com `_gl`. Portanto o linker do tag Ads está funcionando, mas não
+participa da navegação programática. Se o app passar a carregar tag Google, a ponte terá de navegar
+por clique real ou usar uma URL decorada de forma suportada para preservar a sessão cross-domain.
 
 Isso **não bloqueia nada hoje**: o `_gl` existe para o destino reconstruir a sessão de medição, e
-`app.qoro.dev` não tem tag para recebê-lo. A conversão é creditada em `qoro.dev`, onde dispara. O
-`_gl` é pré-requisito da tarefa da tag no app, não desta.
+`app.qoro.dev` não tem tag para recebê-lo. O evento de conversão é emitido em `qoro.dev`; o crédito
+final no painel não foi revalidado. O `_gl` é pré-requisito da tarefa da tag no app, não desta.
 
 #### Exige julgamento de produto — uma pessoa
 
@@ -6532,12 +6550,12 @@ Isso **não bloqueia nada hoje**: o `_gl` existe para o destino reconstruir a se
 | §21.20 — a maioria dos itens segue sem marcar | vários já têm prova nesta seção e na matriz; a lista nunca foi reconciliada contra a evidência |
 | O-5, O-6 e O-7 sem ADR própria | cobertos pela emenda de 18/09 na ADR-053, não por decisão dedicada |
 
-#### Aberto do lado do painel, não do código
+#### Estado externo ao código
 
 | Item | Estado |
 | ---- | ------ |
-| Regra de Vercel Firewall em `/api/lead` | **pendente** — o endpoint foi removido (`GET` devolve 404), mas `POST` ainda devolve **429** com `X-Vercel-Mitigated: challenge`. Reproduzi com controle: `POST` num caminho irmão inexistente devolve 404, então a regra está presa a este caminho. Ela veio da recomendação em `docs/LEAD-CAPTURE.md:118` da landing e, por ser configuração de painel, sobreviveu ao arquivo. Some em Project → Firewall |
-| `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no projeto da landing | **órfãs** — nenhum código as lê desde a remoção do endpoint. Uma chave que ignora RLS sem consumidor é credencial sem propósito |
+| Regra de Vercel Firewall em `/api/lead` | **resolvida** — verificação independente: GET e POST em `/api/lead`, além de POST em caminho irmão inexistente, devolvem 404 e nenhum traz `X-Vercel-Mitigated` |
+| Variáveis antigas do endpoint no painel da landing | **não auditado nesta reconciliação** — o código e `.env.example` não declaram mais as variáveis; confirmar ou remover configuração órfã continua sendo tarefa de painel |
 
 #### Conhecido e aceito
 
@@ -6549,8 +6567,8 @@ Isso **não bloqueia nada hoje**: o `_gl` existe para o destino reconstruir a se
 | `security:browser-session` | **FAIL pré-existente**, atribuído ao commit `8df4ab7`, anterior ao O-7 |
 | Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte. É também o que torna o `_gl` inútil por enquanto: não há destinatário. Fechar isto é uma tarefa deste repositório, não da landing |
 
-**A pendência de maior valor não é técnica.** Tudo que é verificável está verde. O que falta é (a)
-um botão na landing, sem o qual o funil inteiro não tem entrada, e (b) vinte minutos de uma pessoa
-percorrendo o cadastro para dizer se os textos fazem sentido para quem nunca viu o produto.
+**A pendência de maior valor não é técnica.** O funil já tem entrada na landing. Falta uma pessoa
+percorrer o cadastro por cerca de vinte minutos e dizer se os textos e a ordem fazem sentido para
+quem nunca viu o produto. A tag no app permanece uma tarefa separada para medir a assinatura final.
 
 ---

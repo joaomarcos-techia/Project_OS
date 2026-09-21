@@ -9,7 +9,8 @@ aparece como `NOT TESTED` ou `BLOCKED`, nunca em branco.
 > **Esta matriz não substitui a §10.9 da ADR-062.** Aquela seção é a evidência da emenda de identidade
 > e continua com o significado dela. Esta aqui é por fatia.
 
-SHA de referência: a ponta de `feature/clinic-plan-o4`. Última atualização: 19/09/2026.
+SHAs de referência da reconciliação: app `4d51cef` em `docs/funil-com-entrada`; landing `048b9ce`
+em `main`. Última atualização: 20/09/2026.
 
 ## Legenda de ambiente
 
@@ -139,11 +140,11 @@ lados).
 | Linker cross-domain configurado             | `LOCAL`   | **PASS**                     |
 | Evento `start_signup` separado da conclusao | `LOCAL`   | **PASS**                     |
 | Fora do sitemap / llms.txt / `noindex`      | `BROWSER` | **PASS**                     |
-| Build completo da landing (14 gates)        | `LOCAL`   | **PASS**                     |
-| **Publicacao em qoro.dev**                  | -         | **BLOCKED - WIP do usuario** |
+| Build completo da landing                   | `LOCAL`   | **PASS**                     |
+| **Publicacao em qoro.dev**                  | `PROD`    | **PASS** — 8/5/4 CTAs medidos |
 
 Implementado em `C:\dev\qoro` (remote `landing_page.git`) em 19/09/2026. Runner proprio:
-`scripts/verificar-comecar.mjs`, **19/19 PASS**, encadeado no `build` do repositorio.
+`scripts/verificar-comecar.mjs`, **27/27 PASS**, encadeado no `build` do repositorio.
 
 **Desenho.** O destino e uma CONSTANTE (`https://app.qoro.dev/cadastro`) e nao existe parametro de
 destino -- nem `next`, nem `redirect`, nem `url`, nem `return_to`. Isso elimina a classe inteira de
@@ -163,10 +164,13 @@ creditada. `gclid` continua a cargo do tag, nao reimplementado a mao.
 carregava exatamente `/cadastro?utm_source=google-ads&utm_medium=cpc&utm_campaign=clinicas-sp` -- com
 o hifen preservado e **sem** `next`, `clinic_id`, `role` ou `price`.
 
-**Interruptor proprio, desligado.** `PONTE_ATIVA = false`. Medido em 19/09/2026:
-`app.qoro.dev/cadastro` responde **307 para /login** e descarta a querystring, porque o Track O ainda
-nao foi para producao. Com a ponte ligada antes disso, uma campanha paga levaria a pessoa a um beco
-sem saida e a atribuicao morreria no caminho. Ligar e acao de release, junto com o merge.
+Na produção atual, a requisição de conversão sai antes da navegação. O encaminhamento automático por
+`location.replace` preserva os cinco UTM e não recebe `_gl`; o controle com clique numa âncora real
+para o mesmo destino recebe `_gl`. O app ainda não possui tag Google para consumir esse parâmetro.
+
+**Interruptor ligado e entrada publicada.** `PONTE_ATIVA = true`; o destino é a constante
+`https://app.qoro.dev/cadastro`. Medido em produção em 20/09/2026: 8 / 5 / 4 links para `/comecar`
+em `/`, `/precos` e `/para/psiquiatria`, zero `wa.me` nas três e HTTP 200 em `/cadastro`.
 
 **Bug encontrado na propria implementacao.** A validacao de valores usava uma classe de regex escrita
 com escapes de controle. Os escapes foram gravados como os BYTES correspondentes e a classe degenerou
@@ -176,13 +180,8 @@ sobraram. Corrigido com comparacao por codigo de caractere, mais duas regressoes
 campanha e varredura de toda a faixa 0x00-0x1f.
 
 **Verificacao de deteccao.** Introduzido um open redirect de proposito, exatamente o teste de vetores
-falhou; restaurado, 19/19.
-
-**BLOQUEIO REAL, e e o unico.** O repositorio da landing tem **uma feature inteira do usuario em
-andamento e nao commitada** -- `src/lib/conversao.ts`, `docs/GOOGLE-ADS.md`, as paginas de verticais e
-mais nove arquivos modificados. Commitar `/comecar` arrastaria esse trabalho inacabado junto, e
-commitar so os meus arquivos deixaria a arvore sem a rota registrada. O codigo esta pronto e provado
-na arvore de trabalho; **quem commita e quem sabe quando a propria feature esta pronta**.
+falhou. Em auditoria independente, um link direto para `app.qoro.dev/cadastro` fora de `/comecar`
+também fez o build falhar; restaurado, **27/27**.
 
 ---
 
@@ -291,7 +290,7 @@ foi executado num worktree do commit `8df4ab7` — anterior a todo o trabalho de
 | Kill switch (`SIGNUP_ENABLED`)        | **PASS** em `LOCAL` e em `BROWSER` — ver abaixo                     |
 | Rollback/cutover documentado          | **PASS** — runbook de incidentes                                    |
 | E2E `test:e2e:ci` (fatia sem conta)   | **PASS** — 6 passaram, 2 skips condicionais por ambiente            |
-| E2E autenticado do O-7 (navegador)    | **PASS** — 3/3 contra o Preview; 2 skips anotados, ver abaixo       |
+| E2E autenticado do O-7 (navegador)    | **PASS** — 5/5 contra o Preview, sem skip; ver abaixo               |
 | `test:simulation` (30 dias)           | **PASS** em `DEV` — ver abaixo                                      |
 | Preview deploy                        | **PASS** — SHA final medido, incl. `/documentacao` protegida        |
 | CI (GitHub Actions)                   | **PASS** — seis verificações verdes em `434e926`                    |
