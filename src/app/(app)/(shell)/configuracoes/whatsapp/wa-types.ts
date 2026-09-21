@@ -3,11 +3,28 @@
  * Actions e client (um arquivo `'use server'` só exporta funções async → tipos/
  * consts vivem aqui). Mesmo contrato `ActionResult` do caixa/consultório.
  */
-import { MetaConnectError, type MetaConnectFailureStage } from '@/contexts/messaging/errors';
+import { ZodError } from 'zod';
+
+import {
+  MessagingRateLimitedError,
+  MetaConnectError,
+  NumberNotConnectedError,
+  type MetaConnectFailureStage,
+} from '@/contexts/messaging/errors';
 
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }
-  | { ok: false; code: string; message: string };
+  | {
+      ok: false;
+      code: string;
+      message: string;
+      /**
+       * Mensagem por CAMPO, quando a recusa foi de validação (§33.5: "4xx →
+       * mensagem por campo, nada foi alterado"). Um resumo genérico obrigaria a
+       * pessoa a caçar qual dos seis campos estourou o limite.
+       */
+      fields?: Record<string, string>;
+    };
 
 export function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };
@@ -53,13 +70,65 @@ const META_FAILURE_MESSAGES: Record<MetaConnectFailureStage, string> = {
   // best-effort). A mensagem existe só para a exaustividade do Record.
   template_provisioning:
     'O número foi conectado, mas os modelos de mensagem não puderam ser criados. Cadastre-os na WhatsApp Manager.',
+  // §33 — só chegam aqui quando a classe é `denied`, ou seja, a Meta recusou de
+  // verdade. Indeterminação e throttling viram as etapas de provedor acima.
+  // Na LEITURA é seguro afirmar que nada mudou, e é obrigatório dizer para a
+  // pessoa não concluir que o perfil está vazio (§33.5).
+  profile_read:
+    'Não foi possível ler o perfil do WhatsApp agora. Nada foi alterado — tente novamente antes de editar, para não sobrescrever o que já está publicado.',
+  // Na ESCRITA a Meta recusou o conteúdo. Não repetimos o texto cru do provedor
+  // (pode refletir o request); o que ajuda é dizer onde olhar.
+  profile_write:
+    'A Meta recusou os dados do perfil. Revise o recado, a descrição, o endereço, o e-mail e os sites — e confira se algum texto foi rejeitado por conteúdo.',
   persistence:
     'Este número já está conectado ou não foi possível salvar a conexão. Tente novamente.',
   unknown: 'Não foi possível conectar o WhatsApp. Tente novamente.',
 };
 
+/**
+ * Primeira mensagem de cada campo recusado pelo Zod.
+ *
+ * `issue.path[0]` é o nome do campo; em `websites` o path é `['websites', 0]` e
+ * o índice é descartado de propósito — a tela mostra os dois sites juntos, e um
+ * erro apontando para "websites.1" não teria onde aparecer.
+ */
+function camposDoZod(err: ZodError): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const issue of err.issues) {
+    const campo = typeof issue.path[0] === 'string' ? issue.path[0] : '_';
+    fields[campo] ??= issue.message;
+  }
+  return fields;
+}
+
 /** Mapeia erros de domínio (por `name`) → ActionResult sem vazar internals. */
 export function fail(err: unknown): ActionResult<never> {
+  if (err instanceof ZodError) {
+    const fields = camposDoZod(err);
+    return {
+      ok: false,
+      code: 'validation',
+      message: 'Revise os campos destacados. Nada foi alterado.',
+      fields,
+    };
+  }
+  if (err instanceof MessagingRateLimitedError) {
+    // Fomos NÓS que recusamos, não a Meta — e por isso "nada foi enviado" é
+    // afirmação segura, diferente de `provider_rate_limited`.
+    return {
+      ok: false,
+      code: 'rate_limited',
+      message:
+        'Muitas alterações seguidas no perfil. Nada foi enviado à Meta. Aguarde alguns minutos e tente de novo.',
+    };
+  }
+  if (err instanceof NumberNotConnectedError) {
+    return {
+      ok: false,
+      code: 'number_not_connected',
+      message: 'Nenhum número de WhatsApp está conectado nesta clínica.',
+    };
+  }
   if (err instanceof MetaConnectError) {
     // Código estável para suporte; a mensagem só expõe uma etapa finita e segura.
     return {

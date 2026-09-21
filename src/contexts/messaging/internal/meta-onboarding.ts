@@ -60,8 +60,15 @@ function onboardingEnv(): { appId: string; appSecret: string } {
 /**
  * Fetch genérico ao Graph. `path` NUNCA contém segredo (segredos vão em `query`,
  * que não é logada). Classifica erro como `MetaConnectError` sem vazar token.
+ *
+ * Exportado para `meta-business-profile.ts` (§33), que fala com o mesmo Graph e
+ * precisa exatamente das mesmas garantias: timeout, classificação D78 por
+ * método, e nenhum token em mensagem de erro. Reimplementar lá seria criar um
+ * segundo caminho de saída para a Meta com regras próprias — e a regra que
+ * escapasse seria justamente a de não vazar credencial. Continua `internal/`:
+ * a superfície pública do contexto não o expõe.
  */
-async function graphFetch<T>(
+export async function graphFetch<T>(
   path: string,
   init: {
     method: 'GET' | 'POST' | 'DELETE';

@@ -11,8 +11,15 @@
 import {
   connectMyClinicWhatsapp,
   disconnectMyClinicWhatsapp,
+  getMyClinicWhatsappProfile,
+  updateMyClinicWhatsappProfile,
+  type AtualizacaoDePerfil,
   type ConnectMyClinicInput,
 } from '@/contexts/messaging/actions';
+import type {
+  PerfilLido,
+  PerfilWhatsappInput,
+} from '@/contexts/messaging/business-profile-contract';
 
 import { fail, ok, type ActionResult } from './wa-types';
 
@@ -30,6 +37,35 @@ export async function connectWhatsappAction(
 export async function disconnectWhatsappAction(): Promise<ActionResult<{ disconnected: boolean }>> {
   try {
     return ok(await disconnectMyClinicWhatsapp());
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * §33 — perfil público do número.
+ *
+ * `read` existe para o botão "Tentar de novo": quando o GET da página falha, a
+ * tela NÃO renderiza formulário vazio (§33.5), e a pessoa precisa de um caminho
+ * para recarregar só esta seção sem perder o resto da página.
+ */
+export async function readWhatsappProfileAction(): Promise<ActionResult<PerfilLido>> {
+  try {
+    return ok(await getMyClinicWhatsappProfile());
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Salva e devolve o que a Meta passou a reportar — não o que foi enviado.
+ * Sem espelho local, o estado exibido depois de salvar ou vem de lá ou é chute.
+ */
+export async function saveWhatsappProfileAction(
+  input: PerfilWhatsappInput,
+): Promise<ActionResult<AtualizacaoDePerfil>> {
+  try {
+    return ok(await updateMyClinicWhatsappProfile(input));
   } catch (err) {
     return fail(err);
   }
