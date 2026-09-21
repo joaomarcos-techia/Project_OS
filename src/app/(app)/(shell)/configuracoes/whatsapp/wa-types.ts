@@ -105,21 +105,34 @@ function camposDoZod(err: ZodError): Record<string, string> {
 export function fail(err: unknown): ActionResult<never> {
   if (err instanceof ZodError) {
     const fields = camposDoZod(err);
+    // "Revise os campos destacados" só é verdade se algum campo FOI destacado.
+    // Uma recusa de raiz — corpo com chave desconhecida, que é o caminho de
+    // adulteração — não destaca nada, e a frase mandaria a pessoa procurar um
+    // realce que não existe.
+    const temCampo = Object.keys(fields).some((k) => k !== '_');
     return {
       ok: false,
       code: 'validation',
-      message: 'Revise os campos destacados. Nada foi alterado.',
+      message: temCampo
+        ? 'Revise os campos destacados. Nada foi alterado.'
+        : 'Os dados enviados não foram aceitos. Nada foi alterado.',
       fields,
     };
   }
   if (err instanceof MessagingRateLimitedError) {
     // Fomos NÓS que recusamos, não a Meta — e por isso "nada foi enviado" é
     // afirmação segura, diferente de `provider_rate_limited`.
+    //
+    // Leitura e escrita têm frases distintas porque a do outro caso seria
+    // falsa: dizer "muitas alterações seguidas" a quem só abriu a tela manda
+    // procurar uma alteração que ninguém fez.
     return {
       ok: false,
       code: 'rate_limited',
       message:
-        'Muitas alterações seguidas no perfil. Nada foi enviado à Meta. Aguarde alguns minutos e tente de novo.',
+        err.operacao === 'write'
+          ? 'Muitas alterações seguidas no perfil. Nada foi enviado à Meta. Aguarde alguns minutos e tente de novo.'
+          : 'O perfil foi consultado muitas vezes seguidas. Aguarde alguns minutos e recarregue.',
     };
   }
   if (err instanceof NumberNotConnectedError) {

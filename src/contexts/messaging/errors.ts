@@ -125,9 +125,15 @@ export class MetaConnectError extends Error {
 export class MessagingRateLimitedError extends Error {
   readonly code = 'messaging_rate_limited';
   readonly httpStatus = 429;
+  /**
+   * Qual balde estourou. A UI precisa disto: "muitas alterações seguidas" dito a
+   * quem só abriu a tela manda a pessoa procurar uma alteração que ela não fez.
+   */
+  readonly operacao: 'read' | 'write';
   constructor(operacao: 'read' | 'write') {
     super(`Limite local de chamadas ao perfil WhatsApp atingido (${operacao}).`);
     this.name = 'MessagingRateLimitedError';
+    this.operacao = operacao;
   }
 }
 
