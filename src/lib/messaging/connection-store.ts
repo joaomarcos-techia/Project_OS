@@ -289,6 +289,40 @@ export async function recordConnectionHealth(input: {
  * do lifecycle sem tabela paralela. Best-effort (o caller não deve mascarar o
  * MetaConnectError original por causa de uma falha de auditoria).
  */
+/**
+ * Audita uma alteração do perfil PÚBLICO do número (§33.7).
+ *
+ * Grava os NOMES dos campos alterados, nunca os valores. O conteúdo é público e
+ * não seria vazamento registrá-lo, mas guardar cada versão de cada texto
+ * transformaria `audit_events` num histórico de redação — e o que a forense
+ * precisa é quem mexeu em quê, quando. `before`/`after` seguem a forma dos
+ * outros eventos deste recurso para o painel não precisar de caso especial.
+ *
+ * Não abre transação própria com escrita de domínio junto: o estado mora na
+ * Meta (§33.4), então esta linha é o único registro local do fato — e por isso
+ * ela NÃO é best-effort. Se a auditoria falhar, o caller fica sabendo.
+ */
+export async function recordProfileUpdated(input: {
+  clinicId: string;
+  userId: string;
+  connectionId: string;
+  changedFields: readonly string[];
+  requestContext: RequestContext;
+}): Promise<void> {
+  await dbAdmin.transaction(async (tx: Tx) => {
+    await logAudit(tx, {
+      clinicId: input.clinicId,
+      userId: input.userId,
+      action: 'messaging.whatsapp.profile_updated',
+      resourceType: 'whatsapp_number',
+      resourceId: input.connectionId,
+      before: null,
+      after: { changedFields: [...input.changedFields] },
+      requestContext: input.requestContext,
+    });
+  });
+}
+
 export async function recordConnectionFailure(input: {
   clinicId: string;
   userId: string;

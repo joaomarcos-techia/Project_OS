@@ -3,8 +3,10 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
 
+import { readWhatsappProfileAction } from './actions';
 import { loadWhatsappStatus } from './data';
 import { WhatsappConnect } from './whatsapp-connect';
+import { WhatsappProfile, type PerfilCarregado } from './whatsapp-profile';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,17 +33,47 @@ export default async function WhatsappSettingsPage() {
     );
   }
   const status = await loadWhatsappStatus();
+
+  // §33.5 — sem número ativo, a seção de perfil nem aparece: não há o que
+  // configurar, e oferecer um formulário para um número inexistente seria
+  // prometer uma escrita que a action recusaria.
+  //
+  // O gatilho é `hasActiveNumber`, e NÃO `connected`: um canal degradado
+  // (número ativo, webhook caído) continua tendo perfil público — o paciente vê
+  // a mesma foto e o mesmo recado. Esconder a seção ali deixaria a clínica sem
+  // como corrigir o que o paciente enxerga justamente quando algo está errado.
+  const perfil: PerfilCarregado | null = status.hasActiveNumber ? await carregarPerfil() : null;
+
   const appId = env.META_APP_ID ?? null;
   const configId = env.META_CONFIG_ID ?? null;
   const ready = Boolean(appId && configId && env.META_APP_SECRET);
 
   return (
-    <WhatsappConnect
-      status={status}
-      appId={appId}
-      configId={configId}
-      graphVersion={env.META_GRAPH_API_VERSION}
-      ready={ready}
-    />
+    // `min-w-0` também aqui: sem ele, um endereço longo no perfil empurraria a
+    // largura da coluna do shell em vez de quebrar linha.
+    <div className="min-w-0">
+      <WhatsappConnect
+        status={status}
+        appId={appId}
+        configId={configId}
+        graphVersion={env.META_GRAPH_API_VERSION}
+        ready={ready}
+      />
+      {perfil ? <WhatsappProfile inicial={perfil} /> : null}
+    </div>
   );
+}
+
+/**
+ * Lê o perfil na Meta para a carga da página.
+ *
+ * A falha é CAPTURADA aqui, e não propagada: uma indisponibilidade da Meta não
+ * pode derrubar a tela inteira de configuração do WhatsApp, que é exatamente
+ * onde a pessoa vai quando desconfia que algo está errado com o canal. O que
+ * sobe para o componente é "não consegui ler", que tem ramo próprio — e que
+ * nunca vira formulário vazio (§33.5).
+ */
+async function carregarPerfil(): Promise<PerfilCarregado> {
+  const r = await readWhatsappProfileAction();
+  return r.ok ? { ok: true, lido: r.data } : { ok: false, message: r.message };
 }

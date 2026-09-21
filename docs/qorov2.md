@@ -4474,16 +4474,21 @@ foi provado, em qual ambiente, e o que continua sem prova está na
 
 ---
 
-## 33. Perfil do WhatsApp Business da clínica — spec
+## 33. Perfil do WhatsApp Business da clínica — spec e execução
 
-**Status:** especificado, **não implementado**. Sem ADR própria ainda; quando entrar em execução,
-vira ADR-061 (a decisão que justifica ADR é a nº 2 abaixo — Meta como fonte da verdade).
+**Status:** **implementado em 20/09/2026**, exceto a foto de perfil, que continua fora de escopo por
+decisão própria (§33.6). A spec abaixo (§33.1–§33.8) fica como estava escrita, porque ela é o
+contrato contra o qual a implementação foi conferida; o que a execução decidiu por conta própria, o
+que ela contrariou e o que ela encontrou estão na **§33.9**.
 
-### 33.1 O que falta, em uma frase
+Sem ADR própria ainda; quando promovida, vira ADR-061 (a decisão que justifica ADR é a nº 2 abaixo —
+Meta como fonte da verdade). A decisão continua valendo e foi confirmada pela implementação.
 
-A clínica conecta o número pelo Embedded Signup e, a partir dali, **não consegue mexer em nada do que
-o paciente vê**: foto, bio, descrição, endereço, e-mail e site continuam sendo editados à mão no
-Business Manager da Meta.
+### 33.1 O que faltava, em uma frase
+
+A clínica conectava o número pelo Embedded Signup e, a partir dali, **não conseguia mexer em nada do
+que o paciente vê**: foto, bio, descrição, endereço, e-mail e site eram editados à mão no Business
+Manager da Meta.
 
 Isso já estava escrito e nunca virou escopo — `docs/handoff-meta-embedded-signup.md` §4 registra:
 
@@ -4642,6 +4647,146 @@ Sem isto a fatia não está pronta — e o que **não** serve como prova está d
 O round-trip real é o único que prova a fatia de verdade, e ele exige um número de teste conectado —
 **em Preview**, pela regra de 13/09 (escrita só em Preview). Um mock provaria que o nosso código chama
 o que achamos que a Meta expõe, não que a Meta aceita.
+
+---
+
+### 33.9 Execução — 20/09/2026
+
+> A spec acima descreve o que se pretendia. Esta subseção descreve o que ficou, onde a implementação
+> discordou dela, e o que só apareceu ao escrever o código. Onde as duas divergirem, vale o código.
+
+#### 33.9.1 O que existe, arquivo por arquivo
+
+| Camada | Arquivo | O que faz |
+| ------ | ------- | --------- |
+| Contrato | `contexts/messaging/business-profile-contract.ts` | limites, enum, schema `.strict()`, diff, aviso público. Módulo puro — a tela é client component e importa daqui |
+| Graph | `contexts/messaging/internal/meta-business-profile.ts` | `getBusinessProfile` / `updateBusinessProfile` sobre o `graphFetch` existente |
+| Actions | `contexts/messaging/actions.ts` | `getMyClinicWhatsappProfile`, `updateMyClinicWhatsappProfile` |
+| Teto | `lib/auth/rate-limit.ts` | `assertWhatsappProfileAllowed(clinicId, leitura ou escrita)` |
+| Auditoria | `lib/messaging/connection-store.ts` | `recordProfileUpdated` — grava `messaging.whatsapp.profile_updated` |
+| Tela | `configuracoes/whatsapp/whatsapp-profile.tsx` | seção nova, visível só com número ativo |
+
+A superfície da Meta é a que a §33.2 previu, e o escopo `whatsapp_business_management` já estava
+concedido: **nenhuma reconexão, nenhum consentimento novo**. Os limites de `description`, `address`,
+`email`, `websites` e o enum de `vertical` foram reconferidos contra a documentação pública antes de
+codificar, como a §33.2 manda.
+
+Uma escolha de fronteira: `graphFetch` passou a ser exportado de `meta-onboarding.ts` em vez de
+reimplementado aqui. Um segundo caminho de saída para a Meta teria regras próprias — e a regra que
+escapasse seria justamente a de não vazar credencial em mensagem de erro.
+
+#### 33.9.2 As três decisões que a spec não tinha
+
+**1. A escrita envia só o campo ALTERADO.** A spec dizia "POST na Meta"; a implementação manda um
+POST parcial, com os campos que o diff acusou. Duas razões, as duas de correção:
+
+- o endpoint é de atualização parcial, então campo não enviado fica como está — e é isso que
+  **preserva um `vertical` que a Meta conhece e nós não**;
+- o raio de alcance de um salvamento passa a ser o que a pessoa mexeu. Reenviar os seis campos faria
+  "corrigi uma vírgula no recado" reescrever endereço, e-mail e sites com o que a tela tinha
+  carregado — que pode estar velho, justamente porque o Business Manager continua disponível.
+
+O diff é calculado **no servidor, contra uma leitura fresca**, nunca contra o que o cliente afirma ser
+o estado anterior. Ele decide duas coisas: o que entra no POST e o que entra na auditoria.
+
+**2. `verticalDesconhecida` é reportado à tela.** A Meta acrescenta valores ao enum sem aviso.
+Normalizar um valor desconhecido para `UNDEFINED` e ficar quieto faria a tela exibir uma categoria que
+não é a real e, pior, transformaria qualquer salvamento num apagamento silencioso da escolha da
+clínica. Hoje o valor é preservado (decisão 1) e a tela diz, em voz alta, que ele existe.
+
+**3. Salvar custa três chamadas ao Graph, não duas.** Ler antes de escrever não é zelo: é o que
+torna o diff possível e o que permite **não escrever nada** quando os campos enviados já são os
+publicados. Em tela de configuração, aberta raramente e fora do caminho de atendimento, o custo é
+aceitável — e foi declarado aqui em vez de descoberto depois.
+
+#### 33.9.3 O defeito que a implementação encontrou
+
+**Um `400` da Meta recusando o conteúdo viraria "resultado desconhecido".**
+
+`classifySignal` (D78) só trata como `denied` os códigos documentados de autorização e os status
+401/403/404. Um `400 code=100` — que é exatamente o que a Meta devolve ao recusar o VALOR de um campo
+— cai em `indeterminate`, e `failureStage()` o converte em `provider_unavailable` no GET e
+`provider_outcome_unknown` no POST. Na prática: quem errasse o formato do endereço receberia *"a Meta
+não confirmou o resultado desta etapa… confira o número no WhatsApp Manager ou entre em contato com o
+suporte"*.
+
+A correção é local ao perfil e não afrouxa a regra geral. A cautela do D78 existe para **mutação de
+resultado desconhecido**: timeout e 5xx depois de um POST não dizem se a operação foi aplicada do
+outro lado. Um 4xx **com corpo de erro do Graph** é diferente — a requisição foi recebida, parseada e
+recusada —, então "nada foi alterado" é afirmação segura. `comoRecusaDePerfil()` reetiqueta só esse
+caso. Rate limit continua rate limit; 5xx e timeout continuam `provider_outcome_unknown`.
+
+O que torna isto uma correção e não uma conveniência: as duas afirmações que a mensagem faz ao
+usuário passaram a ser verdadeiras. Antes, uma delas não era.
+
+#### 33.9.4 As quatro invariantes da §33.3, e onde cada uma foi travada
+
+| Invariante | Onde vive | Trava |
+| ---------- | --------- | ----- |
+| `phone_number_id` nunca vem do input | `resolverConexaoDoPerfil(clinicId)`, ponto único | teste: `loadConnectionForHealth` recebe o `clinicId` da sessão, e o corpo com `phoneNumberId` é **recusado** |
+| tudo é público | `PERFIL_AVISO_PUBLICO`, no contrato | teste de tela: o aviso existe **e precede** o primeiro campo |
+| o token não sai do servidor | `decryptForTenant` na action, `graphFetch` no internal | teste: o token não aparece na mensagem nem na cadeia de causas; E2E: não aparece no HTML servido |
+| permissão fresca | `requireFreshPermission(MANAGE_SETTINGS)` | teste nas duas operações; E2E de RBAC: médico sem a permissão não vê a seção |
+
+O aviso vive no **contrato**, não no JSX, porque controle de segurança que mora só no markup some na
+primeira refatoração de layout sem ninguém perceber. O rótulo do e-mail diz **"de contato da
+clínica"** — um rótulo genérico convida alguém a colar o e-mail de um paciente num campo que o mundo
+inteiro enxerga.
+
+A auditoria grava os **nomes** dos campos alterados, e os nomes vêm da **releitura**, não do que se
+pretendia escrever. Se a Meta aplicar só parte do POST, é a parte aplicada que fica registrada —
+contar resposta não é ler estado.
+
+#### 33.9.5 A armadilha da §33.5, e como ela foi travada
+
+> "Formulário vazio por erro de leitura é uma armadilha."
+
+Quando o GET falha, a seção **não renderiza controle nenhum**: nem um `input`, nem um `select`. O que
+aparece é o motivo, um botão de tentar de novo, e a frase que explica por que o formulário sumiu.
+
+A asserção que protege isso é negativa — a contagem de `input, textarea, select` tem de ser **zero** —
+e foi verificada por mutação: forçando o ramo de erro a renderizar o formulário, o teste acusa
+"expected 7 to be +0".
+
+#### 33.9.6 A prova
+
+| Prova (§33.8) | Estado | Onde |
+| ------------- | ------ | ---- |
+| Contrato dos limites | **PASS** | `business-profile-contract.test.ts` — 30 casos |
+| Isolamento (corpo adulterado) | **PASS** | `profile-actions.test.ts` — `phoneNumberId`, `clinicId`, `metaPhoneId`, `profile_picture_url` recusados, sem chegar ao decrypt |
+| Sem número conectado | **PASS** | a seção não renderiza (página) e a action lança `NumberNotConnectedError` (teste) |
+| Leitura falha não esvazia | **PASS** | `whatsapp-profile.test.tsx` — asserção negativa, verificada por mutação |
+| Token não vaza | **PASS** em unit | mensagem e cadeia de causas; o E2E cobre o HTML servido |
+| **Round-trip real** | **NOT TESTED** | exige número de teste conectado em Preview; ver §33.9.7 |
+
+Suíte inteira depois da fatia: **4.062 testes em 401 arquivos, exit 0**, contra 3.979 em 397 na ponta
+anterior — +83 testes, +4 arquivos. Gates verdes: `typecheck`, `lint`, `arch:check` (sem ciclo),
+`arch:db-check`, `check:migrations`, `check:observability`, `security:inventory` (as quatro actions
+novas entram com guard `session` resolvido até `requireUser`).
+
+> **Correção de um número da §36.1.** Aquela seção registrou "3.974 testes em 396 arquivos". A ponta
+> de `main` media 3.979 em 397 quando esta fatia começou. A diferença é pequena e não muda nenhuma
+> conclusão, mas o número de lá é de um retrato anterior — quem for conferir deve remedir.
+
+**Verificação de detecção.** Seis mutações, seis reprovações, sem resíduo: remover o `.strict()`;
+auditar o pretendido em vez do relido; enviar todos os campos em vez dos alterados; remover o teto de
+chamadas; remover a reetiquetagem do 4xx; e fazer o erro de leitura renderizar formulário.
+
+#### 33.9.7 O que continua em aberto
+
+- **Round-trip real — `NOT TESTED`.** `e2e/whatsapp-profile.spec.ts` tem o caso escrito, e ele
+  **pula com o motivo anotado** quando não há número conectado ou quando
+  `E2E_WHATSAPP_PROFILE_WRITE=1` não está ligado. Não vira verde vazio. É a única prova que responde
+  "a Meta aceita o que mandamos", e só um número de teste em Preview a produz;
+- **foto de perfil** — fora de escopo (§33.6). Exige upload retomável e traz um risco que os campos
+  de texto não têm: alguém subir uma imagem com paciente nela;
+- **ADR-061** — a decisão nº 2 (Meta como fonte da verdade) continua sem ADR própria;
+- **concorrência** — dois administradores salvando ao mesmo tempo: o último vence, na Meta. Não há
+  CAS possível sobre estado que mora fora, e um `row_version` local seria fingir controle. A tela relê
+  depois de salvar, que é a única mitigação honesta;
+- **`about` (139)** — é o único limite que a referência pública do endpoint não repete por extenso. Se
+  a Meta recusar um recado dentro de 139, o caminho de `profile_write` recusado já dá a mensagem
+  certa, e o número se ajusta no contrato.
 
 ---
 
@@ -4904,7 +5049,7 @@ o alarme em vez de olhar a fumaça.
 | **Ciclo conectar/desconectar Asaas** (R2) | a clínica do Preview já tem conta conectada; conectar por cima substituiria a configuração de quem usa o ambiente                                                       |
 | **Captcha ativo** (R3)                    | segue desligado no Supabase, por ordem. O código já envia o token, que era o pré-requisito                                                                              |
 | **Os 40 `production-*`** (R5)             | falam com o Postgres de produção. Automatizá-los é decisão de produto, não de engenharia                                                                                |
-| **Perfil do WhatsApp Business**           | especificado na §33, não implementado                                                                                                                                   |
+| **Perfil do WhatsApp Business**           | ~~especificado na §33, não implementado~~ — **implementado em 20/09** (§33.9). O que segue sem prova é só o round-trip real contra a Meta                                |
 | **Qualquer coisa em produção**            | por decisão explícita do fundador (§34.2). As três migrations do cadastro anônimo (`0096`–`0098`) seguem fora de produção                                               |
 
 ### 34.8 Catálogo completo das ADRs vigentes
@@ -6330,8 +6475,9 @@ Para tornar a contagem reproduzível, “arquivo de teste” significa arquivo n
 linhas de produção e teste são as adições nesses arquivos novos, não as adições feitas em arquivos
 preexistentes.
 
-A suíte inteira foi reexecutada em 21/09 após as correções de retomada e reconciliação:
-**3.993 testes em 397 arquivos, todos passando**, exit 0, 159,21 s.
+A suíte inteira foi reexecutada em 21/09 após as correções de retomada, reconciliação e bloqueio
+de troca de plano durante billing: **3.997 testes em 397 arquivos, todos passando**, exit 0, 148,82 s,
+antes de integrar as alterações independentes do perfil WhatsApp vindas de `main`.
 As contagens de código da tabela acima são o snapshot da reconciliação de 20/09, não uma contagem
 da ponta móvel da branch. A atualização de 21/09 está discriminada na evidência vinculada acima.
 

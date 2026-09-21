@@ -32,7 +32,7 @@ As execuções abaixo capturam o estado desta revalidação; provas históricas 
 
 | Verificação | Resultado medido |
 | --- | --- |
-| Vitest completo | **PASS** — 3.993/3.993, 397 arquivos, 159,21 s, exit 0 |
+| Vitest completo da correção | **PASS** — 3.997/3.997, 397 arquivos, 148,82 s, exit 0; inclui as quatro regressões adicionais de congelamento do plano |
 | TypeScript e ESLint | **PASS** — `npx tsc --noEmit` e `npx eslint .`, exit 0 |
 | Next em modo produção | **PASS** — `npx tsx scripts/security/local-build.ts`, exit 0; build isolado com ambiente sintético, sem conectar ao banco de produção |
 | Sessão no navegador | **PASS** — `npx playwright test --config=playwright.httponly.config.ts`, 7/7, 35,9 s, exit 0 |
@@ -56,7 +56,8 @@ As execuções abaixo capturam o estado desta revalidação; provas históricas 
 Landing: correções documentais publicadas em `main`, `048b9ce`, com os seis gates acima aprovados.
 Arquivos locais preexistentes `.claude/settings.local.json` e `_to_delete/` foram preservados e não
 incluídos no push. App: integração acompanhada no [PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15),
-sem trocar a branch do worktree compartilhado e sem substituir as mudanças concorrentes de `main`.
+sem trocar a branch do worktree compartilhado. A atualização `9d2a668` de `main` (perfil WhatsApp,
+PR #16) foi preservada; o único conflito estava no inventário gerado, refeito a partir do código combinado.
 
 Comandos no worktree do app (binários diretos; não usar `pnpm <script>`):
 

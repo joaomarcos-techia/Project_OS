@@ -36,6 +36,7 @@ export {
   upsertTenantConnection,
   deactivateTenantConnection,
   recordConnectionFailure,
+  recordProfileUpdated,
   loadConnectionForHealth,
   listActiveConnectionsForHealth,
   recordConnectionHealth,

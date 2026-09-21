@@ -84,9 +84,13 @@ demonstrada.
 - `resolveWabaAndPhone()` valida primeiro o `waba_id` recebido do cliente consultando
   `/{waba-id}/phone_numbers`. Se o hint não for válido, cai em
   `GET /me/businesses → /{business-id}/owned_whatsapp_business_accounts → /{waba-id}/phone_numbers`.
-- O repositório não usa `public_profile`, `whatsapp_business_manage_events` nem
-  `/{phone-number-id}/whatsapp_business_profile`. Foto, bio, endereço e site continuam manuais porque
-  essa feature ainda não existe.
+- O repositório não usa `public_profile` nem `whatsapp_business_manage_events`.
+- **Atualizado em 20/09/2026:** `/{phone-number-id}/whatsapp_business_profile` passou a ser usado —
+  recado, descrição, endereço, e-mail de contato, sites e categoria são editáveis em
+  `/configuracoes/whatsapp` (§33.9 do `qorov2.md`). Não houve escopo novo: o
+  `whatsapp_business_management` que o Embedded Signup já concede é o que autoriza esse endpoint, e
+  nenhuma clínica precisou reconectar. **A FOTO continua manual** — upload retomável ficou fora de
+  escopo por decisão própria (§33.6).
 
 ## 5. Evidência real que os mocks não cobrem
 
