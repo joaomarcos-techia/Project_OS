@@ -412,11 +412,9 @@ export interface SignupPurgeResult {
  * segurar lock por muito tempo num pico.
  */
 export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPurgeResult> {
-  const now = new Date();
-
   const expiredCondition = or(
-    lte(signupSessions.idleExpiresAt, now),
-    lte(signupSessions.absoluteExpiresAt, now),
+    lte(signupSessions.idleExpiresAt, sql`now()`),
+    lte(signupSessions.absoluteExpiresAt, sql`now()`),
   );
 
   /*

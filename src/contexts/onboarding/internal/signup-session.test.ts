@@ -404,7 +404,13 @@ describe('leitura de sessão', () => {
 
 describe('janitor', () => {
   it('APAGA as vencidas e reporta quantas seguem vivas', async () => {
-    deleteMock.mockReturnValue(chain([{ id: 'a' }, { id: 'b' }]));
+    let deleteWhere: unknown;
+    deleteMock.mockReturnValue({
+      where: (condition: unknown) => {
+        deleteWhere = condition;
+        return chain([{ id: 'a' }, { id: 'b' }]);
+      },
+    });
     // Dois SELECT, nesta ordem: retidas por assinatura e, depois, vivas.
     selectMock.mockReturnValueOnce(chain([{ n: 0 }])).mockReturnValueOnce(chain([{ live: 7 }]));
 
@@ -419,6 +425,7 @@ describe('janitor', () => {
       'signup.session.subscription_retained',
       expect.anything(),
     );
+    expect(textoDe(deleteWhere)).toContain('now()');
   });
 
   it('NÃO apaga vencida que guarda assinatura, e denuncia a retenção', async () => {
