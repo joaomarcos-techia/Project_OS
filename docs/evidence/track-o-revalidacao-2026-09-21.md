@@ -101,6 +101,16 @@ exige URLs sintéticas locais e a chave pública sintética. Nenhum valor de cre
    final exige decisão própria sobre evento/consentimento/atribuição, não faz parte deste reparo.
 6. **Aceite documental.** ADR-053 continua Proposed e o checklist §21.20 ainda precisa registrar
    as decisões de aceite. Implementação não substitui a assinatura do responsável de produto.
+7. **Limpeza local — BLOCKED pela revisão automática.** O comando de remoção foi recusado antes
+   da execução. Os dois arquivos abaixo permanecem locais, ignorados pelo Git (`git check-ignore`,
+   exit 0); o primeiro contém a sessão de teste e não deve ser copiado ou anexado. Execute no PowerShell:
+
+   ```powershell
+   Remove-Item -LiteralPath 'C:\dev\ClinicaOS_V2_o4\.playwright\.auth\user.json'
+   Remove-Item -LiteralPath 'C:\dev\ClinicaOS_V2_o4\dist\track-o-run-sandbox.cjs'
+   ```
+
+   O segundo é somente o helper temporário de execução, sem valores de credenciais embutidos.
 
 A antiga lacuna de compensação externa foi fechada para o cenário de perda de CAS pelo C1 acima.
 Recusa e mismatch continuam com SQL real e provider stub no runner de provisionamento; o PASS
