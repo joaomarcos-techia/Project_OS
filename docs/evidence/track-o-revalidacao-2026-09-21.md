@@ -21,7 +21,8 @@ anteriores. Nenhuma migration nova ou escrita no banco de produção foi necess�
 | Dois hashes antigos do DEV sem origem identificada | `0051` e `0093`: não localizados no histórico Git. Schema atual comparado em transações READ ONLY: colunas/defaults, FK `ON DELETE RESTRICT`, duas permissões e sete vínculos de papel coincidem com SQL e produção. Proveniência dos bytes originais: **NOT TESTED**. |
 | Roteiro humano prometia cartão e retomada de todos os campos | Corrigido para o contrato implementado: cadastro sem cartão, cobrança futura hospedada pelo Asaas, perguntas retomáveis no mesmo navegador e identidade sujeita a redigitação. |
 | Corrida de provisionamento era descrita como prova de rollback | A perdedora aguarda `FOR UPDATE` e não chega a inserir. O runner agora provoca erro SQL depois do DELETE da sessão e verifica todas as entidades, além de observar sete etapas SQL antes de matar o processo real. O antigo teste com atrasos fixos não comprovava a etapa atingida. |
-| Compensação só tinha unit | O runner de provisionamento foi ampliado para recusa, valor divergente e perda do CAS com SQL real. O provider desses três cenários é um **stub explícito**: comprova a decisão de compensar e o estado do banco, não a remoção externa pelo Asaas. |
+| Compensação só tinha unit | O runner de provisionamento foi ampliado para recusa, valor divergente e perda do CAS com SQL real e **stub explícito**. Em seguida, o cenário C1 do runner Sandbox reuniu perda real do CAS no Postgres, orquestração de produção e cancel/delete no Asaas real; leu ambos os recursos excluídos antes do teardown, sem segundo POST ou tenant. |
+| Cleanup do webhook declarava readback de customer sem realizá-lo | Corrigido: assinatura e customer agora exigem `deleted=true` ou 404, com ID conferido; o contador HTTP não decide mais o veredito. O guard também exige endpoint HTTPS oficial do Sandbox. |
 
 Contrato do vencimento: [atualização de assinatura](https://docs.asaas.com/reference/atualizar-assinatura-existente)
 e [cobranças da assinatura](https://docs.asaas.com/reference/listar-cobrancas-de-uma-assinatura).
@@ -33,22 +34,24 @@ As execuções abaixo capturam o estado desta revalidação; provas históricas 
 | Verificação | Resultado medido |
 | --- | --- |
 | Vitest completo da correção | **PASS** — 3.997/3.997, 397 arquivos, 148,82 s, exit 0; inclui as quatro regressões adicionais de congelamento do plano |
+| Integração com a main atual | **PASS em CI** — `e0e8f15`, 4.086/4.086 testes, 401 arquivos, 270,31 s, exit 0; inclui perfil WhatsApp do PR #16. [Execução completa](https://github.com/joaomarcos-techia/Project_OS/actions/runs/35668163487) passou também audit de dependências, lint, tipos, arquitetura, migrations, observabilidade, cobertura, inventário, isolamento de tenants e build |
 | TypeScript e ESLint | **PASS** — `npx tsc --noEmit` e `npx eslint .`, exit 0 |
 | Next em modo produção | **PASS** — `npx tsx scripts/security/local-build.ts`, exit 0; build isolado com ambiente sintético, sem conectar ao banco de produção |
-| Sessão no navegador | **PASS** — `npx playwright test --config=playwright.httponly.config.ts`, 7/7, 35,9 s, exit 0 |
+| Sessão no navegador | **PASS** — `npx playwright test --config=playwright.httponly.config.ts`, 7/7, 44,0 s, exit 0, repetido no build com a trava de plano |
 | Vitest focado em perguntas e checkout | **PASS** — 60/60, dois arquivos, exit 0 |
 | Sandbox billing | **PASS** — P1–P4 4/4 + descoberta e readback de cleanup 2/2; exit 0; 5 assinaturas e 5 customers removidos |
 | Harness SQL de signup | **PASS** — 26/26, exit 0, cleanup zero e Postgres próprio encerrado; catálogo/versão de reconciliação e congelamento do plano conferidos; prova antes da correção falhou com `plano nao pode mudar enquanto billing esta reserved` |
 | Harness SQL + navegador | **PASS** — comando com `--browser`, 27/27, exit 0; F5 retoma a pergunta, segunda aba recupera escolhas, largura de 390 px sem overflow; Auth externo é fixture, não entrega real de e-mail |
 | Migrations PROD/DEV | **PASS** — 105/105 nos dois, leitura `transaction_read_only=on`; Track O com hashes exatos |
 | Origem dos dois hashes antigos DEV | **NOT TESTED** — nenhuma versão encontrada no histórico disponível; estruturas atuais equivalentes |
-| Reconciliação + webhook Sandbox + SCHEMA | **PASS** — 11/11, exit 0: nove casos de webhook preservados e dois casos novos de preço divergente → bloqueio → preço correto → ativação → provisionamento. Readback: 2/2 assinaturas e 2/2 customers removidos |
+| Reconciliação + webhook + compensação Sandbox/SCHEMA | **PASS** — 12/12, exit 0: nove casos de webhook, dois de reconciliação por preço/estado e C1 de compensação real após perda do CAS. C1 confirmou 1/1 assinatura e customer excluídos antes do teardown; cleanup dos outros dois tenants confirmou 2/2 assinaturas e 2/2 customers removidos |
 | Provisionamento isolado | **PASS** — `npx tsx --conditions=react-server scripts/security/signup-provision-db.ts`, 12/12, exit 0, 105 migrations reais; erro SQL após DELETE, crash em sete pontos observados e três compensações com provider stub. Oito drafts de casos negativos permaneceram até a destruição do cluster descartável; nenhum recurso externo criado por esse runner |
-| O-7 autenticado Preview | **PASS na execução anterior desta auditoria** — 5/5 sem skip; exige `E2E_AUTH_REUSE=1` para não fazer um login por teste |
+| O-7 autenticado Preview | **PASS** — `e0e8f15`, 5/5 sem skip, 1,1 min, exit 0; dashboard, documentação, 404, tour e convergência de duas abas. `E2E_AUTH_REUSE=1`; [Preview medido](https://project-cofoulm3e-clinic-os-v2-s-projects.vercel.app) |
 | Landing | **PASS** — `npm run comecar` 27/27; `conversao` 2/2 ligado; `seguranca` 20; lint, typecheck e build exit 0 |
 | Variáveis órfãs na landing | **PASS** — `npx vercel env ls`, exit 0: nenhuma variável no projeto `landing-page` |
 | Observabilidade | **PASS** — 19 crons coerentes e sete eventos de saved-search presentes, exit 0 |
 | Inventário de segurança | **PASS** — `npx tsx scripts/security/inventory.ts --check`, exit 0; [inventário regenerado](../security/acoes.md), sem guardas não resolvidos, env pública não registrada ou testes de rota ausentes |
+| E2E público do CI | **PASS no escopo executado** — 6 passaram, 2 skips condicionais às flags do ambiente sintético; os skips não contam como testes aprovados |
 | HTTP público de produção | **PASS** — GETs HTTP 200; CTAs 8/5/4 e WhatsApp zero em home/preços/psiquiatria; canais institucionais preservados; login direto; GET/POST `/api/lead` e POST irmão inexistente 404 sem challenge; nenhum cadastro enviado |
 
 ### Publicação
@@ -98,10 +101,11 @@ exige URLs sintéticas locais e a chave pública sintética. Nenhum valor de cre
    final exige decisão própria sobre evento/consentimento/atribuição, não faz parte deste reparo.
 6. **Aceite documental.** ADR-053 continua Proposed e o checklist §21.20 ainda precisa registrar
    as decisões de aceite. Implementação não substitui a assinatura do responsável de produto.
-7. **Compensação externa completa — NOT TESTED.** O Sandbox comprova cancel/delete com readback,
-   e o harness SCHEMA comprova quando a orquestração deve chamá-los. Falta reunir erro deliberado
-   no banco e compensação pelo provider real no mesmo cenário; os dois resultados separados não
-   foram apresentados como essa prova ponta a ponta.
+
+A antiga lacuna de compensação externa foi fechada para o cenário de perda de CAS pelo C1 acima.
+Recusa e mismatch continuam com SQL real e provider stub no runner de provisionamento; o PASS
+externo não é estendido a cenários não executados. A origem dos dois hashes históricos do DEV
+permanece sem prova documental, embora as estruturas atuais tenham sido comparadas.
 
 As falhas intermediárias de execução permanecem no relato: P3 original inconclusiva; P2 comparando
 o próximo ciclo ao primeiro vencimento; DELETE 500 com exclusão confirmada; captura RSC abortada;

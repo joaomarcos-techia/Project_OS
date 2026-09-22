@@ -6478,6 +6478,9 @@ preexistentes.
 A suíte inteira foi reexecutada em 21/09 após as correções de retomada, reconciliação e bloqueio
 de troca de plano durante billing: **3.997 testes em 397 arquivos, todos passando**, exit 0, 148,82 s,
 antes de integrar as alterações independentes do perfil WhatsApp vindas de `main`.
+Após essa integração (`e0e8f15`), o [CI](https://github.com/joaomarcos-techia/Project_OS/actions/runs/35668163487)
+mediu **4.086 testes em 401 arquivos**, todos passando, exit 0, 270,31 s. O aumento inclui o perfil
+WhatsApp do PR #16; não é atribuído integralmente ao Track O.
 As contagens de código da tabela acima são o snapshot da reconciliação de 20/09, não uma contagem
 da ponta móvel da branch. A atualização de 21/09 está discriminada na evidência vinculada acima.
 
@@ -6724,7 +6727,7 @@ final no painel não foi revalidado. O `_gl` é pré-requisito da tarefa da tag 
 | ---- | ------ |
 | WAF/DDoS por rota | **não existe** — o classificador já tem o lugar reservado (a função é pura e recebe sinais prontos), mas o sinal de WAF não existe |
 | Sinais de e-mail e dispositivo no risco | **não existem** — a ordem A põe as perguntas depois |
-| Compensação de recurso externo em `SCHEMA` | **SCHEMA validado em 21/09**, recusa/mismatch/CAS com banco real e provider stub; falha SQL + cancel/delete externo no mesmo cenário continuam **NOT TESTED** |
+| Compensação de recurso externo em `SCHEMA` | **PASS no cenário C1 em 21/09** — perda de CAS no SQL + orquestração real + cancel/delete no Sandbox, readback antes do teardown e nenhum tenant; recusa/mismatch adicionais usam provider stub explícito |
 | `security:browser-session` | **corrigido em 21/09** — o teste navegava antes de terminar o prefetch RSC e perdia acesso ao corpo no Chromium; sincronização corrigida sem ignorar falhas de leitura, com controles de detecção; resultado final na revalidação |
 | Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte. É também o que torna o `_gl` inútil por enquanto: não há destinatário. Fechar isto é uma tarefa deste repositório, não da landing |
 

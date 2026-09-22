@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 180 actions (0 inline); 46 métodos em 43 handlers; 16 props com referência de action; 242 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
+Contagem: 180 actions (0 inline); 46 métodos em 43 handlers; 16 props com referência de action; 244 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -455,22 +455,24 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-regression.ts:34`          | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/signup-regression.ts:172`         | `<object>`                             | `process.env`                                      |
 | `scripts/security/signup-regression.ts:2136`        | `<object>`                             | `process.env`                                      |
-| `scripts/security/signup-webhook-sandbox.ts:45`     | `SANDBOX_CONFIRM`                      | `process.env.SANDBOX_CONFIRM`                      |
-| `scripts/security/signup-webhook-sandbox.ts:48`     | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
-| `scripts/security/signup-webhook-sandbox.ts:56`     | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
-| `scripts/security/signup-webhook-sandbox.ts:57`     | `ASAAS_WEBHOOK_TOKEN`                  | `process.env.ASAAS_WEBHOOK_TOKEN`                  |
-| `scripts/security/signup-webhook-sandbox.ts:77`     | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
-| `scripts/security/signup-webhook-sandbox.ts:78`     | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
-| `scripts/security/signup-webhook-sandbox.ts:79`     | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                  |
-| `scripts/security/signup-webhook-sandbox.ts:80`     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
-| `scripts/security/signup-webhook-sandbox.ts:81`     | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
-| `scripts/security/signup-webhook-sandbox.ts:82`     | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                   |
-| `scripts/security/signup-webhook-sandbox.ts:83`     | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
-| `scripts/security/signup-webhook-sandbox.ts:84`     | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                |
-| `scripts/security/signup-webhook-sandbox.ts:85`     | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                 |
-| `scripts/security/signup-webhook-sandbox.ts:86`     | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                   |
-| `scripts/security/signup-webhook-sandbox.ts:87`     | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                            |
-| `scripts/security/signup-webhook-sandbox.ts:97`     | `ASAAS_WEBHOOK_TOKEN`                  | `process.env.ASAAS_WEBHOOK_TOKEN`                  |
+| `scripts/security/signup-webhook-sandbox.ts:48`     | `SANDBOX_CONFIRM`                      | `process.env.SANDBOX_CONFIRM`                      |
+| `scripts/security/signup-webhook-sandbox.ts:51`     | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/security/signup-webhook-sandbox.ts:64`     | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
+| `scripts/security/signup-webhook-sandbox.ts:65`     | `ASAAS_WEBHOOK_TOKEN`                  | `process.env.ASAAS_WEBHOOK_TOKEN`                  |
+| `scripts/security/signup-webhook-sandbox.ts:85`     | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/security/signup-webhook-sandbox.ts:86`     | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`              |
+| `scripts/security/signup-webhook-sandbox.ts:87`     | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                  |
+| `scripts/security/signup-webhook-sandbox.ts:88`     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/security/signup-webhook-sandbox.ts:89`     | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `scripts/security/signup-webhook-sandbox.ts:90`     | `MAGIC_TOKEN_SECRET`                   | `process.env.MAGIC_TOKEN_SECRET`                   |
+| `scripts/security/signup-webhook-sandbox.ts:91`     | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
+| `scripts/security/signup-webhook-sandbox.ts:92`     | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                |
+| `scripts/security/signup-webhook-sandbox.ts:93`     | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                 |
+| `scripts/security/signup-webhook-sandbox.ts:94`     | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                   |
+| `scripts/security/signup-webhook-sandbox.ts:95`     | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                            |
+| `scripts/security/signup-webhook-sandbox.ts:105`    | `ASAAS_WEBHOOK_TOKEN`                  | `process.env.ASAAS_WEBHOOK_TOKEN`                  |
+| `scripts/security/signup-webhook-sandbox.ts:240`    | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/security/signup-webhook-sandbox.ts:242`    | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
 | `scripts/security/tenant-isolation.ts:12`           | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
 | `scripts/security/tenant-isolation.ts:136`          | `<dynamic>`                            | `process.env[key]`                                 |
 | `scripts/security/tenant-isolation.ts:137`          | `<object>`                             | `process.env`                                      |

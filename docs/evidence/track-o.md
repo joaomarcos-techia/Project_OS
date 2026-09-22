@@ -67,8 +67,9 @@ e o readback, 5/5. Não confundir contador de resposta com estado final.
 
 ### Webhook da assinatura originada no cadastro — `signup-webhook-sandbox.ts`
 
-Ambiente `SCHEMA` + `SANDBOX`. **11/11 PASS em 21/09**: nove provas originais e duas de reconciliação,
-cleanup 2/2 assinaturas e 2/2 customers **por readback**.
+Ambiente `SCHEMA` + `SANDBOX`. **12/12 PASS em 21/09**: nove provas originais, duas de reconciliação
+e C1 de compensação. C1 relê uma assinatura e um customer excluídos pela aplicação antes do teardown;
+cleanup relê os outros 2/2 de cada tipo. Exige `deleted=true` ou 404 nos dois recursos.
 
 A assinatura é criada de verdade no sandbox, o tenant é provisionado a partir dela e os eventos vão
 para a **mesma rota de produção**. A rota não confia no corpo: ela busca o estado autoritativo com
@@ -86,6 +87,7 @@ entrega automática pelo webhook configurado no painel. Forjar o corpo não muda
 | W4e   | corpo de 1,2 MB → `413` antes de qualquer leitura                                                 |
 | W4f   | pagamento de OUTRO tenant → pousa em B, **nunca** em A                                            |
 | R-a/b | preço divergente bloqueia a reconciliação; preço correto exige readback ACTIVE antes de ativar e provisionar cada tenant |
+| C1 | perda de CAS injetada no SQL após readback real; orquestração cancela assinatura e remove customer; GET confirma exclusão, um único POST e nenhum tenant |
 
 **Achado no próprio janitor (18/09/2026).** Uma varredura independente do sandbox, depois de um
 `--cleanup-orphans` que se declarou bem-sucedido, encontrou uma assinatura `signup-sandbox:p2`
@@ -130,7 +132,7 @@ permaneceram até a destruição desse cluster; o runner não cria recursos exte
 | Least privilege em `clinics`/`profiles`     | `permission denied` asseverado como NEGATIVA                                  | **PASS**    |
 | Crash/restart entre etapas                  | bloqueio SQL observado em sete triggers AFTER antes de matar o processo Node real; zero entidade parcial e retomada | **PASS** |
 | Decisão de compensação com SQL real         | recusa, mismatch e perda de CAS; reserva commitada antes de I/O; cancel/delete em provider **stub** explícito | **PASS em SCHEMA** |
-| Compensação externa no mesmo cenário        | cancel/delete reais testados separadamente no Sandbox, sem reunir a falha SQL e o provider real nessa prova | **NOT TESTED** |
+| Compensação externa após perda de CAS        | C1 do runner webhook: SQL real + provider real; readback antes do teardown, nenhum tenant, sem novo POST | **PASS em SANDBOX** |
 
 ### Billing → provisionamento, juntos
 

@@ -17,8 +17,8 @@ pendente, assim como crédito Ads e as configurações administrativas ainda ina
 | Fatia | Resultado | Onde a prova está |
 | ----- | --------- | ----------------- |
 | **O-1** | **PASS** (publicado, ligado e com requisição de conversão emitida) | `qoro/scripts/verificar-comecar.mjs` 27/27 + navegador |
-| **O-5** | **PASS** | Sandbox 4/4 + cleanup 2/2; webhook/reconciliação 11/11 em 21/09 |
-| **O-6** | **PASS em SCHEMA** | 12/12 contra 105 migrations reais; compensação usa provider stub explícito |
+| **O-5** | **PASS** | Sandbox 4/4 + cleanup 2/2; webhook/reconciliação/compensação 12/12 em 21/09 |
+| **O-6** | **PASS em SCHEMA** | 12/12 contra 105 migrations reais; C1 adicional prova compensação externa após perda de CAS |
 | **O-7** | **PASS** | 13/13 em schema real + **5/5** E2E autenticado, sem skip |
 | **O.H** | **PASS** | carga geral + carga Track O 8/8 + chaos 59/59 |
 | **O.S** | **PASS** | kill switch 9/9 + simulação + Preview + CI |

@@ -29,12 +29,11 @@ assinatura e remova o tenant depois, com autorização e registro.
 
 ### Endereço
 
-O Preview vive por branch. Se houver um PR aberto, use o link que o bot da Vercel comenta nele.
-Para as correções da revalidação, use o Preview do [PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15).
-O endereço abaixo corresponde à branch antiga; não o use como prova do código novo:
+O Preview validado para as correções da revalidação é o da revisão `e0e8f15` do
+[PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15):
 
 ```
-https://project-os-git-feature-clinic-plan-o4-clinic-os-v2-s-projects.vercel.app/cadastro
+https://project-cofoulm3e-clinic-os-v2-s-projects.vercel.app/cadastro
 ```
 
 Depois do merge, use um Preview cuja revisão contenha o merge do PR #15. Se não houver um disponível,
