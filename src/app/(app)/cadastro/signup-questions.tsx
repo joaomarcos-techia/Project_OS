@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
@@ -15,6 +15,7 @@ import type {
 } from '@/contexts/onboarding';
 
 import { SignupEmailPending } from './signup-email-pending';
+import { SignupEmailVerified } from './signup-email-verified';
 import { SignupIdentity } from './signup-identity';
 
 type ProfessionalsBand = SignupAnswerValues['professionalsBand'];
@@ -25,11 +26,11 @@ type Draft = Partial<SignupAnswerValues>;
 type LocalDraft = { answers: Draft; expiresAt: number };
 type Phase = 'loading' | 'challenge' | 'ready' | 'expired' | 'unavailable';
 type QuestionIndex = 0 | 1 | 2 | 3;
+type ContinuationCredentials = { email: string; password: string };
 
 const EMPTY_DRAFT: Draft = {};
 const QUESTION_COUNT = 4;
 const CONFIRMATION_POLL_INTERVAL_MS = 20_000;
-const CONFIRMATION_POLL_MAX_ATTEMPTS = 30;
 const LOCAL_DRAFT_KEY = 'qoro-signup-answers-v1';
 const LOCAL_DRAFT_TTL_MS = 60 * 60 * 1_000;
 
@@ -195,10 +196,14 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   const [saving, setSaving] = useState(false);
   const [challengeAttempt, setChallengeAttempt] = useState(0);
   const [questionIndex, setQuestionIndex] = useState<QuestionIndex>(0);
+  // Só em memória, só nesta aba (ver o prop `email` de SignupEmailPending).
+  const [emailPendente, setEmailPendente] = useState<string | undefined>(undefined);
+  const continuationCredentials = useRef<ContinuationCredentials | null>(null);
   const startedRef = useRef(false);
   const submitInFlight = useRef(false);
 
   const expireSession = useCallback(() => {
+    continuationCredentials.current = null;
     clearLocalDraft();
     setSession(null);
     setPhase('expired');
@@ -218,10 +223,9 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
       setDraft(nextDraft);
       setQuestionIndex(firstUnansweredQuestion(nextDraft));
       setMessage(
-        next.status === 'email_pending'
-          ? 'Se houver uma etapa de confirmação para este endereço, você receberá as instruções. Se já tem conta, entre para continuar.'
-          : // `email_verified` não usa `message`: aquela tela tem copy própria.
-            next.status === 'identity_pending' && !identityEnabled
+        next.status === 'email_pending' || next.status === 'email_verified'
+          ? null
+          : next.status === 'identity_pending' && !identityEnabled
             ? 'Dados salvos; criação da conta ainda indisponível. Nenhum e-mail de confirmação foi enviado.'
             : next.answers
               ? 'Carregamos as respostas salvas nesta sessão.'
@@ -312,17 +316,14 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
    * requisições por 15 min POR IP, compartilhado com as outras abas e com quem
    * mais estiver atrás do mesmo NAT. A 10 s a própria espera estouraria o
    * limite antes da metade do TTL absoluto e passaria a receber 429 justamente
-   * enquanto a pessoa aguarda. A 20 s, por até 10 min, o pior caso fica em 45
-   * leituras por janela. Esgotado o teto, quem confirmar depois recarrega a
-   * página — o cookie continua válido e a primeira leitura mostra o resultado.
+   * enquanto a pessoa aguarda. A 20 s são no máximo 45 leituras por janela de
+   * 15 min. A espera termina quando o servidor confirma ou encerra a sessão;
+   * parar aos 10 min quebrava o caso real de quem abre o e-mail mais tarde.
    */
   useEffect(() => {
     if (phase !== 'ready' || session?.status !== 'email_pending') return;
     let active = true;
-    let attempts = 0;
     const interval = window.setInterval(() => {
-      attempts += 1;
-      if (attempts >= CONFIRMATION_POLL_MAX_ATTEMPTS) window.clearInterval(interval);
       void (async () => {
         try {
           const response = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
@@ -521,29 +522,16 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   if (session?.status === 'email_verified') {
     return (
       <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
-        <div className="rounded-(--r-2xl) bg-surface-raised p-6 text-center shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8">
-          <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success-600" />
-          <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-            Etapa 3 · confirmação
-          </p>
-          <h1 className="mt-3 text-balance font-display text-3xl font-semibold tracking-[-0.03em]">
-            E-mail confirmado
-          </h1>
-          {/* A confirmação pode ter sido nesta máquina, em outra aba ou no
-              celular — a tela não sabe qual, e afirmar "em outro dispositivo"
-              estaria errado no caso mais comum. O destino serve aos três: com
-              sessão verificada a continuação segue; sem ela, manda ao login. */}
-          <p className="mx-auto mt-3 max-w-[48ch] text-pretty text-sm leading-relaxed text-fg-muted">
-            Seu cadastro continua de onde parou, com as respostas já salvas. Se você confirmou em
-            outro aparelho, entre com a conta verificada para seguir aqui.
-          </p>
-          <a
-            href="/cadastro/continuar"
-            className="mt-6 inline-flex min-h-10 items-center justify-center rounded-(--r-md) bg-primary px-5 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
-          >
-            Continuar cadastro
-          </a>
-        </div>
+        <SignupEmailVerified
+          rowVersion={session.rowVersion}
+          preparedCredentials={continuationCredentials.current}
+          onCredentialsCleared={() => {
+            continuationCredentials.current = null;
+          }}
+          onReconcile={reconcileSession}
+          onGone={expireSession}
+          onCompleted={() => window.location.assign('/cadastro/plano')}
+        />
       </section>
     );
   }
@@ -558,6 +546,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
         ) : null}
         <SignupEmailPending
           rowVersion={session.rowVersion}
+          email={emailPendente}
           onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
           onReconcile={reconcileSession}
           onGone={expireSession}
@@ -578,7 +567,14 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           key={session.rowVersion}
           rowVersion={session.rowVersion}
           saved={session.status === 'identity_pending'}
-          onEmailPending={(rowVersion) => {
+          onCredentialsPrepared={(email, password) => {
+            continuationCredentials.current = { email, password };
+          }}
+          onCredentialsCleared={() => {
+            continuationCredentials.current = null;
+          }}
+          onEmailPending={(rowVersion, email) => {
+            setEmailPendente(email);
             setSession({ ...session, status: 'email_pending', rowVersion });
             setMessage(null);
           }}

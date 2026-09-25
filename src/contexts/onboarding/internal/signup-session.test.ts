@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 const { selectMock, insertMock, updateMock, deleteMock, limitMock, emitMock, verifyMock } =
   vi.hoisted(() => ({
@@ -25,15 +27,29 @@ vi.mock('@/lib/auth/rate-limit', () => ({ assertSignupSessionAllowed: limitMock 
 // parte do comportamento sob teste. O Turnstile é, porque fala com a rede.
 vi.mock('./turnstile', () => ({ verifyTurnstileToken: verifyMock }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: emitMock } }));
-vi.mock('@/lib/env', () => ({ env: { MAGIC_TOKEN_SECRET: 'segredo-de-teste' } }));
+vi.mock('@/lib/env', () => ({
+  env: {
+    MAGIC_TOKEN_SECRET: 'segredo-de-teste',
+    LOGIN_HASH_PEPPER: 'pepper-de-teste',
+    SIGNUP_AUTH_ENABLED: true,
+    SIGNUP_IDENTITY_ENABLED: true,
+  },
+}));
 
 import { hashToken } from './token';
 import {
   SIGNUP_SESSION_CEILING,
+  advanceSignupCredentialEpoch,
+  finishSignupCredentialEpoch,
   createSignupSession,
   purgeExpiredSignupSessions,
+  readReservedSignupAttemptEpoch,
+  readSignupDeliveryAttemptState,
+  readSignupReferenceLiveness,
+  readSignupContinuationIdentity,
   readSignupSession,
   resetSignupCeilingCache,
+  signupContinuationSchema,
 } from './signup-session';
 
 /**
@@ -53,6 +69,8 @@ function chain<T>(rows: T[]): Chain {
     values: self,
     set: self,
     returning: self,
+    orderBy: self,
+    for: self,
     limit: self,
   });
   return c;
@@ -325,6 +343,35 @@ describe('leitura de sessão', () => {
     });
   });
 
+  it('oferece handoff à segunda sessão somente depois que um draft irmão foi confirmado', async () => {
+    const idleExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    updateMock.mockReturnValue(
+      chain([
+        {
+          status: 'email_pending',
+          riskLevel: 0,
+          rowVersion: 5,
+          idleExpiresAt,
+          professionalsBand: '2_5',
+          weeklyAppointmentsBand: '21_50',
+          currentTooling: 'outro_sistema',
+          discoverySource: 'indicacao_colega',
+          emailHash: 'email-hash',
+          authAttemptState: 'completed',
+        },
+      ]),
+    );
+    selectMock.mockReturnValue(chain([{ id: 'verified-sibling' }]));
+
+    await expect(readSignupSession('segunda-sessao')).resolves.toEqual({
+      status: 'email_verified',
+      riskLevel: 0,
+      expiresAt: idleExpiresAt.toISOString(),
+      rowVersion: 5,
+      answers: null,
+    });
+  });
+
   it('renova o prazo de inatividade sem deixar passar do absoluto', async () => {
     const idle = new Date(Date.now() + 15 * 60 * 1000);
     let setArg: Record<string, unknown> | null = null;
@@ -402,6 +449,261 @@ describe('leitura de sessão', () => {
   });
 });
 
+describe('continuação Auth entre aparelhos', () => {
+  const rawToken = 'a'.repeat(43);
+  const continuation = {
+    rowVersion: 7,
+    email: 'ana@example.test',
+    password: 'SenhaForte7',
+    verificationCode: '12345678',
+  };
+
+  it('o schema é estrito e o browser não escolhe ids nem estado', () => {
+    expect(signupContinuationSchema.safeParse(continuation).success).toBe(true);
+    expect(signupContinuationSchema.safeParse({ ...continuation, userId: 'forged' }).success).toBe(
+      false,
+    );
+    expect(
+      signupContinuationSchema.safeParse({ ...continuation, clinicId: 'forged' }).success,
+    ).toBe(false);
+    expect(
+      signupContinuationSchema.safeParse({ ...continuation, captchaToken: 'ignored' }).success,
+    ).toBe(false);
+  });
+
+  it('devolve somente o user id gravado na linha que casa cookie, e-mail e versão', async () => {
+    selectMock.mockReturnValue(
+      chain([
+        {
+          userId: '11111111-1111-4111-8111-111111111111',
+          authAttemptedAt: new Date('2026-09-23T12:00:00.000Z'),
+          rowVersion: 7,
+          authAttemptState: 'completed',
+        },
+      ]),
+    );
+
+    await expect(readSignupContinuationIdentity(rawToken, continuation)).resolves.toEqual({
+      ok: true,
+      userId: '11111111-1111-4111-8111-111111111111',
+      attemptEpoch: Date.parse('2026-09-23T12:00:00.000Z'),
+      codeSignupRef: expect.any(String),
+      credentialRowVersion: 7,
+      credentialState: 'completed',
+      adoption: null,
+    });
+    expect(selectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('distingue corrida de credencial morta sem revelar outra identidade', async () => {
+    selectMock
+      .mockReturnValueOnce(chain([]))
+      .mockReturnValueOnce(chain([]))
+      .mockReturnValueOnce(chain([{ id: 'draft' }]));
+    await expect(readSignupContinuationIdentity(rawToken, continuation)).resolves.toEqual({
+      ok: false,
+      reason: 'conflict',
+    });
+
+    selectMock
+      .mockReturnValueOnce(chain([]))
+      .mockReturnValueOnce(chain([]))
+      .mockReturnValueOnce(chain([]));
+    await expect(readSignupContinuationIdentity(rawToken, continuation)).resolves.toEqual({
+      ok: false,
+      reason: 'gone',
+    });
+  });
+
+  it('lê do banco a referência confirmada que pode ser adotada pelo código', async () => {
+    const sourceSignupRef = 'd'.repeat(64);
+    selectMock
+      .mockReturnValueOnce(chain([]))
+      .mockReturnValueOnce(chain([{ emailHash: 'same-email-hash' }]))
+      .mockReturnValueOnce(
+        chain([
+          {
+            userId: '11111111-1111-4111-8111-111111111111',
+            tokenHash: sourceSignupRef,
+            authAttemptedAt: new Date('2026-09-23T12:00:00.000Z'),
+            rowVersion: 9,
+            authAttemptState: 'uncertain',
+          },
+        ]),
+      );
+
+    await expect(readSignupContinuationIdentity(rawToken, continuation)).resolves.toEqual({
+      ok: true,
+      userId: '11111111-1111-4111-8111-111111111111',
+      attemptEpoch: Date.parse('2026-09-23T12:00:00.000Z'),
+      codeSignupRef: sourceSignupRef,
+      credentialRowVersion: 9,
+      credentialState: 'uncertain',
+      adoption: { targetRowVersion: 7 },
+    });
+  });
+
+  it('recusa token e e-mail inválidos antes de consultar o banco', async () => {
+    await expect(readSignupContinuationIdentity('curto', continuation)).resolves.toEqual({
+      ok: false,
+      reason: 'gone',
+    });
+    await expect(
+      readSignupContinuationIdentity(rawToken, { ...continuation, email: 'invalido' }),
+    ).resolves.toEqual({ ok: false, reason: 'gone' });
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('epoch CAS de credencial pré-tenant', () => {
+  const input = {
+    userId: '11111111-1111-4111-8111-111111111111',
+    signupRef: 'd'.repeat(64),
+    expectedRowVersion: 7,
+    source: 'continuation' as const,
+  };
+
+  it('incrementa a versão antes do I/O externo e devolve o novo epoch', async () => {
+    updateMock.mockReturnValue(chain([{ rowVersion: 8 }]));
+
+    await expect(advanceSignupCredentialEpoch(input)).resolves.toEqual({
+      ok: true,
+      rowVersion: 8,
+    });
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [[{ id: 'draft' }], 'conflict'],
+    [[], 'gone'],
+  ] as const)('distingue epoch concorrente de draft morto: %s', async (rows, reason) => {
+    updateMock.mockReturnValue(chain([]));
+    selectMock.mockReturnValue(chain([...rows]));
+
+    await expect(advanceSignupCredentialEpoch(input)).resolves.toEqual({ ok: false, reason });
+  });
+
+  it('recusa identidade, referência e versão inválidas antes do banco', async () => {
+    await expect(advanceSignupCredentialEpoch({ ...input, signupRef: 'curta' })).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    await expect(
+      advanceSignupCredentialEpoch({ ...input, expectedRowVersion: 2_147_483_647 }),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it('fecha a reserva e permite reparar marker set sem nova Admin API', async () => {
+    updateMock.mockReturnValue(chain([{ rowVersion: 9 }]));
+    await expect(
+      finishSignupCredentialEpoch({
+        userId: input.userId,
+        signupRef: input.signupRef,
+        expectedRowVersion: 8,
+        outcome: 'completed',
+      }),
+    ).resolves.toEqual({ ok: true, rowVersion: 9 });
+  });
+
+  it('é idempotente quando o estado já terminou na mesma versão', async () => {
+    updateMock.mockReturnValue(chain([]));
+    selectMock.mockReturnValue(chain([{ rowVersion: 9, authAttemptState: 'completed' }]));
+    await expect(
+      finishSignupCredentialEpoch({
+        userId: input.userId,
+        signupRef: input.signupRef,
+        expectedRowVersion: 9,
+        outcome: 'completed',
+      }),
+    ).resolves.toEqual({ ok: true, rowVersion: 9 });
+  });
+});
+
+describe('epoch do codigo de handoff', () => {
+  it('le somente a reserva exata gravada pelo relogio do banco', async () => {
+    selectMock.mockReturnValue(chain([{ authAttemptedAt: new Date('2026-09-23T12:01:00.000Z') }]));
+    await expect(readReservedSignupAttemptEpoch('a'.repeat(43), 6, 'resend')).resolves.toBe(
+      Date.parse('2026-09-23T12:01:00.000Z'),
+    );
+  });
+
+  it('falha fechado sem reserva ou com entrada invalida', async () => {
+    selectMock.mockReturnValue(chain([]));
+    await expect(readReservedSignupAttemptEpoch('a'.repeat(43), 6, 'initial')).resolves.toBeNull();
+    await expect(readReservedSignupAttemptEpoch('curto', 6, 'initial')).resolves.toBeNull();
+  });
+});
+
+describe('revalidacao pos-generateLink', () => {
+  const input = {
+    signupRef: 'd'.repeat(64),
+    attemptEpoch: Date.parse('2026-09-23T12:01:00.000Z'),
+    kind: 'resend' as const,
+    userId: '11111111-1111-4111-8111-111111111111',
+  };
+
+  it.each([
+    [{ status: 'email_pending', authUserId: null }, 'pending'],
+    [{ status: 'email_verified', authUserId: input.userId }, 'verified'],
+    [undefined, 'stale'],
+  ] as const)('classifica a tentativa exata sem confiar no provider: %#', async (row, state) => {
+    selectMock.mockReturnValue(chain(row ? [row] : []));
+    await expect(readSignupDeliveryAttemptState(input)).resolves.toBe(state);
+  });
+
+  it('aceita somente pending+reserved ou verified+completed na corrida do reenvio', async () => {
+    let where: unknown;
+    selectMock.mockReturnValue({
+      from: () => ({
+        where: (condition: unknown) => {
+          where = condition;
+          return {
+            limit: () => Promise.resolve([{ status: 'email_verified', authUserId: input.userId }]),
+          };
+        },
+      }),
+    });
+
+    await expect(readSignupDeliveryAttemptState(input)).resolves.toBe('verified');
+    const compiled = new PgDialect().sqlToQuery(where as SQL);
+    expect(compiled.params).toEqual([
+      input.signupRef,
+      input.kind,
+      new Date(input.attemptEpoch).toISOString(),
+      'email_pending',
+      'reserved',
+      'email_verified',
+      'completed',
+      input.userId,
+    ]);
+  });
+});
+
+describe('estabilidade do link de outro draft pending', () => {
+  const input = {
+    userId: '11111111-1111-4111-8111-111111111111',
+    email: 'ana@example.test',
+    signupRef: 'd'.repeat(64),
+  };
+
+  it.each([
+    [[{ id: 'session-id' }], 'live'],
+    [[], 'gone'],
+  ] as const)('classifica a referencia sem expor dados: %#', async (rows, expected) => {
+    selectMock.mockReturnValue(chain([...rows]));
+    await expect(readSignupReferenceLiveness(input)).resolves.toBe(expected);
+  });
+
+  it('falha fechado quando o banco esta indisponivel', async () => {
+    selectMock.mockImplementationOnce(() => {
+      throw new Error('db unavailable');
+    });
+    await expect(readSignupReferenceLiveness(input)).resolves.toBe('unavailable');
+  });
+});
+
 describe('janitor', () => {
   it('APAGA as vencidas e reporta quantas seguem vivas', async () => {
     let deleteWhere: unknown;
@@ -425,14 +727,18 @@ describe('janitor', () => {
       'signup.session.subscription_retained',
       expect.anything(),
     );
-    expect(textoDe(deleteWhere)).toContain('now()');
+    const deleteSql = textoDe(deleteWhere);
+    expect(deleteSql).toContain('now()');
+    expect(deleteSql).toContain('billing_attempt_state');
+    expect(deleteSql).toContain('billing_attempted_at');
+    expect(deleteSql).toContain('asaas_customer_id');
+    expect(deleteSql).toContain('asaas_subscription_id');
   });
 
-  it('NÃO apaga vencida que guarda assinatura, e denuncia a retenção', async () => {
-    // O ponto: a linha vencida com `asaas_subscription_id` é o único vínculo do
-    // Qoro com uma cobrança recorrente que continua existindo no Asaas. Apagar
-    // aqui trocaria uma linha órfã barata por uma assinatura órfã que cobra
-    // alguém todo mês — por isso o janitor a preserva e grita.
+  it('NÃO apaga vencida com qualquer tentativa de billing, e denuncia a retenção', async () => {
+    // O ponto: qualquer marca de billing pode ser a única trilha de uma operação
+    // que precisa de reconciliação. Apagar aqui pode perder a ligação com um
+    // customer ou uma assinatura que segue existindo no Asaas.
     deleteMock.mockReturnValue(chain([{ id: 'a' }]));
     selectMock.mockReturnValueOnce(chain([{ n: 3 }])).mockReturnValueOnce(chain([{ live: 4 }]));
 

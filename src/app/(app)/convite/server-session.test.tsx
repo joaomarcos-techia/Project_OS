@@ -14,6 +14,11 @@ import {
 
 const seams = vi.hoisted(() => ({
   env: {
+    // `/auth/confirm` also serves the self-service signup callback. Its public
+    // onboarding facade initializes the DB client at module load, even though
+    // this fixture only exercises the invite branch and never opens a query.
+    DATABASE_URL: 'postgres://test:test@localhost:5432/test?sslmode=require',
+    APP_BASE_URL: 'http://localhost:3000',
     NEXT_PUBLIC_SUPABASE_URL: '',
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'synthetic-public-key',
   },
@@ -23,6 +28,8 @@ const seams = vi.hoisted(() => ({
   readProfile: vi.fn(),
   redirect: vi.fn(),
 }));
+
+const applicationOrigin = 'http://localhost:3000';
 
 vi.mock('@/lib/env', () => ({ env: seams.env }));
 vi.mock('next/headers', () => ({
@@ -55,7 +62,7 @@ vi.mock('@/lib/observability/logger', () => ({ logger: { warn: vi.fn() } }));
 
 import ConvitePage from './page';
 import { acceptInviteAction } from './actions';
-import { GET as confirm } from '../auth/confirm/route';
+import { GET as confirmationBridge, POST as confirm } from '../auth/confirm/route';
 import { GET as refresh } from '../auth/session-refresh/route';
 
 class RedirectSignal extends Error {
@@ -103,13 +110,50 @@ afterAll(async () => {
 });
 
 async function confirmInvite(token = 'valid-invite', destination = '/convite') {
-  await expect(
-    confirm(
-      new NextRequest(
-        `${fixture.origin}/auth/confirm?token_hash=${token}&type=invite&next=/convite`,
-      ),
-    ),
-  ).rejects.toMatchObject({ destination });
+  const body = new URLSearchParams({ token_hash: token, type: 'invite', next: '/convite' });
+  const verificationsBefore = fixture.requests.filter((request) =>
+    request.startsWith('POST /auth/v1/verify'),
+  ).length;
+
+  // GET is deliberately inert: mail scanners and prefetchers receive only the
+  // fragment bridge. The browser then submits the secret in a same-origin POST.
+  const bridge = await confirmationBridge(
+    new NextRequest(`${applicationOrigin}/auth/confirm?${body.toString()}`),
+  );
+  expect(bridge.status).toBe(200);
+  expect(await bridge.text()).not.toContain(token);
+  expect(
+    fixture.requests.filter((request) => request.startsWith('POST /auth/v1/verify')).length,
+  ).toBe(verificationsBefore);
+
+  const request = new NextRequest(`${applicationOrigin}/auth/confirm`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      origin: applicationOrigin,
+      'sec-fetch-site': 'same-origin',
+    },
+    body: body.toString(),
+  });
+  // happy-dom strips forbidden browser request headers from RequestInit. The
+  // real bridge fetch supplies both; expose only those two values at the route
+  // boundary while keeping the genuine body stream from NextRequest.
+  const requestHeaders = request.headers;
+  const requestOrigin = new URL(request.url).origin;
+  Object.defineProperty(request, 'headers', {
+    value: {
+      get(name: string) {
+        if (name.toLowerCase() === 'origin') return requestOrigin;
+        if (name.toLowerCase() === 'sec-fetch-site') return 'same-origin';
+        return requestHeaders.get(name);
+      },
+    },
+  });
+  expect(request.headers.get('origin')).toBe(requestOrigin);
+  expect(request.headers.get('sec-fetch-site')).toBe('same-origin');
+  const response = await confirm(request);
+  expect(response.status).toBe(303);
+  expect(response.headers.get('location')).toBe(new URL(destination, requestOrigin).toString());
 }
 
 function expireStoredSession(): void {

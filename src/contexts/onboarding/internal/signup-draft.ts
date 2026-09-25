@@ -20,6 +20,7 @@ import { hashSignupToken, SIGNUP_ABSOLUTE_TTL_SECONDS, signupNameSchema } from '
 
 const userIdSchema = z.string().uuid();
 const verifiedEmailSchema = z.string().max(160).email();
+const signupReferenceSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 /**
  * Recomeço explícito: o único POST do draft depois que o e-mail foi verificado.
  *
@@ -81,6 +82,13 @@ type DraftReadOutcome =
 export type ClaimSignupDraftOutcome =
   | { ok: true; rowVersion: number }
   | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
+export type EnsureSignupDraftOutcome =
+  | { ok: true; rowVersion: number }
+  | { ok: false; reason: 'gone' | 'unavailable' };
+export type OwnedSignupCredentialState = 'reserved' | 'completed' | 'uncertain' | null;
+export type OwnedSignupReferenceOutcome =
+  | { ok: true; signupRef: string; credentialState: OwnedSignupCredentialState }
+  | { ok: false; reason: 'gone' | 'unavailable' };
 type PlanWriteOutcome =
   | { ok: true; rowVersion: number; selectedPlanId: string }
   | { ok: false; reason: 'gone' | 'conflict' | 'invalid_plan' | 'unavailable' };
@@ -112,6 +120,58 @@ function ownerDraftCondition(userId: string) {
     gt(signupSessions.idleExpiresAt, sql`now()`),
     gt(signupSessions.absoluteExpiresAt, sql`now()`),
   );
+}
+
+/**
+ * Referência autoritativa do draft já vinculado à identidade verificada.
+ *
+ * Ela nunca vai ao browser. O callback usa esta leitura para reparar uma falha
+ * parcial entre o claim SQL e o rebind no Auth, e o login a usa somente para a
+ * compatibilidade das contas pré-tenant criadas antes do marker em app_metadata.
+ */
+export async function readOwnedSignupReference(
+  userId: string,
+  email: string,
+): Promise<OwnedSignupReferenceOutcome> {
+  if (!enabled()) return { ok: false, reason: 'unavailable' };
+  const identity = z.object({ userId: userIdSchema, email: verifiedEmailSchema }).safeParse({
+    userId,
+    email,
+  });
+  if (!identity.success) return { ok: false, reason: 'unavailable' };
+
+  try {
+    const [owned] = await dbAdmin
+      .select({
+        signupRef: signupSessions.tokenHash,
+        credentialState: signupSessions.authAttemptState,
+      })
+      .from(signupSessions)
+      .where(
+        and(
+          ownerDraftCondition(identity.data.userId),
+          eq(signupSessions.emailHash, hashEmail(identity.data.email)),
+        ),
+      )
+      .limit(1);
+    if (!owned) return { ok: false, reason: 'gone' };
+    const credentialState = owned.credentialState;
+    if (
+      credentialState !== null &&
+      credentialState !== 'reserved' &&
+      credentialState !== 'completed' &&
+      credentialState !== 'uncertain'
+    ) {
+      return { ok: false, reason: 'unavailable' };
+    }
+    return {
+      ok: true,
+      signupRef: owned.signupRef,
+      credentialState,
+    };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
 }
 
 function priceToCents(value: string): number {
@@ -264,9 +324,15 @@ export async function writeSignupPlan(userId: string, input: unknown): Promise<P
 }
 
 /** Leitura autenticada, sem renovar nenhum dos dois TTLs. */
-export async function readSignupDraft(userId: string): Promise<DraftReadOutcome> {
+export async function readSignupDraft(
+  userId: string,
+  expectedTokenHash?: string,
+): Promise<DraftReadOutcome> {
   if (!enabled() || !userIdSchema.safeParse(userId).success)
     return { ok: false, reason: 'unavailable' };
+  if (expectedTokenHash && !signupReferenceSchema.safeParse(expectedTokenHash).success) {
+    return { ok: false, reason: 'unavailable' };
+  }
   const [row] = await dbAdmin
     .select({
       rowVersion: signupSessions.rowVersion,
@@ -280,7 +346,12 @@ export async function readSignupDraft(userId: string): Promise<DraftReadOutcome>
       absoluteExpiresAt: signupSessions.absoluteExpiresAt,
     })
     .from(signupSessions)
-    .where(ownerDraftCondition(userId))
+    .where(
+      and(
+        ownerDraftCondition(userId),
+        expectedTokenHash ? eq(signupSessions.tokenHash, expectedTokenHash) : undefined,
+      ),
+    )
     .limit(1);
   if (!row) return { ok: false, reason: 'gone' };
   const answers = signupAnswerValuesSchema.safeParse({
@@ -322,6 +393,7 @@ export async function readSignupDraft(userId: string): Promise<DraftReadOutcome>
 export async function claimSignupDraftByVerifiedEmail(
   userId: string,
   email: string,
+  expectedTokenHash: string,
 ): Promise<ClaimSignupDraftOutcome> {
   if (!enabled()) return { ok: false, reason: 'unavailable' };
   const identity = z.object({ userId: userIdSchema, email: verifiedEmailSchema }).safeParse({
@@ -329,13 +401,41 @@ export async function claimSignupDraftByVerifiedEmail(
     email,
   });
   if (!identity.success) return { ok: false, reason: 'unavailable' };
+  if (!signupReferenceSchema.safeParse(expectedTokenHash).success) {
+    return { ok: false, reason: 'unavailable' };
+  }
 
   try {
     return await dbAdmin.transaction(async (tx) => {
+      // O UNIQUE(auth_user_id) inclui linhas expiradas ate o janitor remove-las.
+      // Limpar o ocupante morto dentro desta mesma transacao evita que uma conta
+      // Qoro pending confirmada fique impedida de adotar um draft novo.
+      await tx.delete(signupSessions).where(
+        and(
+          eq(signupSessions.authUserId, identity.data.userId),
+          // Qualquer tentativa de billing é trilha de reconciliação. Mesmo
+          // `failed` pode carregar customer/failure code e não deve sumir por
+          // efeito colateral de uma nova confirmação de e-mail.
+          isNull(signupSessions.billingAttemptState),
+          isNull(signupSessions.billingAttemptedAt),
+          isNull(signupSessions.asaasCustomerId),
+          isNull(signupSessions.asaasSubscriptionId),
+          or(
+            lte(signupSessions.idleExpiresAt, sql`now()`),
+            lte(signupSessions.absoluteExpiresAt, sql`now()`),
+          ),
+        ),
+      );
+
       const [owned] = await tx
         .select({ rowVersion: signupSessions.rowVersion })
         .from(signupSessions)
-        .where(ownerDraftCondition(identity.data.userId))
+        .where(
+          and(
+            ownerDraftCondition(identity.data.userId),
+            eq(signupSessions.tokenHash, expectedTokenHash),
+          ),
+        )
         .for('update')
         .limit(1);
       if (owned) return { ok: true, rowVersion: owned.rowVersion };
@@ -346,6 +446,7 @@ export async function claimSignupDraftByVerifiedEmail(
         .where(
           and(
             eq(signupSessions.emailHash, hashEmail(identity.data.email)),
+            eq(signupSessions.tokenHash, expectedTokenHash),
             eq(signupSessions.status, 'email_pending'),
             isNotNull(signupSessions.authAttemptedAt),
             isNull(signupSessions.authUserId),
@@ -364,6 +465,11 @@ export async function claimSignupDraftByVerifiedEmail(
           status: 'email_verified',
           authUserId: identity.data.userId,
           consumedAt: sql`now()`,
+          // Normaliza reservas/finalizações de entrega: a partir do claim,
+          // `completed` é o único estado que pode reservar a primeira mutação
+          // de senha. Isso impede que um `reserved` antigo pareça uma escrita
+          // de credencial já em andamento.
+          authAttemptState: 'completed',
           idleExpiresAt: signupSessions.absoluteExpiresAt,
           rowVersion: sql`${signupSessions.rowVersion} + 1`,
         })
@@ -384,6 +490,37 @@ export async function claimSignupDraftByVerifiedEmail(
   } catch (error) {
     if (isUniqueViolation(error)) return { ok: false, reason: 'conflict' };
     throw error;
+  }
+}
+
+/**
+ * Garante o vínculo de forma idempotente para o callback e sua página de
+ * destino. A releitura cobre a corrida em que outra requisição venceu o CAS e
+ * também a janela em que o SELECT do candidato já não enxerga a linha porque
+ * ela acabou de ser consumida.
+ */
+export async function ensureSignupDraftForVerifiedEmail(
+  userId: string,
+  email: string,
+  expectedTokenHash: string,
+): Promise<EnsureSignupDraftOutcome> {
+  try {
+    if (!signupReferenceSchema.safeParse(expectedTokenHash).success) {
+      return { ok: false, reason: 'unavailable' };
+    }
+    const existing = await readSignupDraft(userId, expectedTokenHash);
+    if (existing.ok) return { ok: true, rowVersion: existing.draft.rowVersion };
+    if (existing.reason === 'unavailable') return existing;
+    const claimed = await claimSignupDraftByVerifiedEmail(userId, email, expectedTokenHash);
+    if (claimed.ok) return claimed;
+    if (claimed.reason === 'unavailable') return { ok: false, reason: 'unavailable' };
+
+    const afterRace = await readSignupDraft(userId, expectedTokenHash);
+    return afterRace.ok
+      ? { ok: true, rowVersion: afterRace.draft.rowVersion }
+      : { ok: false, reason: afterRace.reason };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
   }
 }
 
@@ -410,17 +547,22 @@ export async function writeSignupDraft(args: WriteSignupDraftInput): Promise<Dra
     return await dbAdmin.transaction(async (tx) => {
       const { userId, email } = identity.data;
       const data = input.data;
-      await tx
-        .delete(signupSessions)
-        .where(
-          and(
-            eq(signupSessions.authUserId, userId),
-            or(
-              lte(signupSessions.idleExpiresAt, sql`now()`),
-              lte(signupSessions.absoluteExpiresAt, sql`now()`),
-            ),
+      await tx.delete(signupSessions).where(
+        and(
+          eq(signupSessions.authUserId, userId),
+          // Uma linha vencida pode ter parado no meio de uma operação do
+          // Asaas. Reiniciar o formulário não pode apagar a única trilha de
+          // reconciliação; nesse caso o SELECT abaixo devolve conflito.
+          isNull(signupSessions.billingAttemptState),
+          isNull(signupSessions.billingAttemptedAt),
+          isNull(signupSessions.asaasCustomerId),
+          isNull(signupSessions.asaasSubscriptionId),
+          or(
+            lte(signupSessions.idleExpiresAt, sql`now()`),
+            lte(signupSessions.absoluteExpiresAt, sql`now()`),
           ),
-        );
+        ),
+      );
       const [owned] = await tx
         .select({ id: signupSessions.id })
         .from(signupSessions)

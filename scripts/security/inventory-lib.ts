@@ -223,7 +223,11 @@ export function collectInventory(root: string): Inventory {
       call: 'supabase.auth.signOut',
     },
     'src/app/(app)/auth/confirm/route.ts#GET': {
-      guard: 'supabase-otp',
+      guard: 'public-static-confirmation-bridge',
+      call: 'bridgeHtml',
+    },
+    'src/app/(app)/auth/confirm/route.ts#POST': {
+      guard: 'same-origin-form-and-supabase-otp',
       call: 'supabase.auth.verifyOtp',
     },
     'src/app/(app)/auth/session-refresh/route.ts#GET': {
@@ -257,6 +261,14 @@ export function collectInventory(root: string): Inventory {
     'src/app/api/signup/sessions/resend/route.ts#POST': {
       guard: 'SIGNUP_AUTH_ENABLED-origin-resend-limit-cooldown-cas',
       call: 'reserveSignupResendAttempt',
+    },
+    'src/app/api/signup/sessions/continue/route.ts#POST': {
+      guard: 'SIGNUP_AUTH_ENABLED-origin-cookie-identity-limit-code-cas',
+      call: 'assertSignupContinuationAllowed',
+    },
+    'src/app/api/signup/runtime-fingerprint/route.ts#POST': {
+      guard: 'non-production-e2e-hmac-and-fresh-nonce',
+      call: 'safeEqual',
     },
     'src/app/api/signup/draft/route.ts#GET': {
       guard: 'verified-pretenant-user-hmac-read-limit',

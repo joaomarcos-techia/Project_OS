@@ -1,9 +1,9 @@
 'use client';
 
+import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { TurnstileWidget } from '@/components/shared/turnstile-widget';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,7 +14,15 @@ import { signupPasswordSchema } from '@/lib/auth/signup-password';
 type Props = {
   rowVersion: number;
   saved: boolean;
-  onEmailPending: (rowVersion: number) => void;
+  /**
+   * O e-mail vai junto porque a tela de espera precisa dele para reenviar, e
+   * NINGUÉM mais tem: o servidor guarda só o HMAC. Passá-lo em memória, entre
+   * dois componentes da mesma aba, é o que torna o reenvio um clique — sem
+   * inventar um armazenamento que a ADR-062 proibiu de propósito.
+   */
+  onCredentialsPrepared: (email: string, password: string) => void;
+  onCredentialsCleared: () => void;
+  onEmailPending: (rowVersion: number, email: string) => void;
   onReconcile: (reason: 'conflict' | 'uncertain') => Promise<void>;
   onGone: () => void;
 };
@@ -33,12 +41,24 @@ function readRowVersion(value: unknown, minimum: number): number | null {
   return value.rowVersion;
 }
 
-export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile, onGone }: Props) {
+export function SignupIdentity({
+  rowVersion,
+  saved,
+  onCredentialsPrepared,
+  onCredentialsCleared,
+  onEmailPending,
+  onReconcile,
+  onGone,
+}: Props) {
   const [editing, setEditing] = useState(!saved);
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [challengeAttempt, setChallengeAttempt] = useState(0);
+  // Uma senha que a pessoa não consegue conferir é uma senha que ela vai digitar
+  // errado e só descobrir no login, depois de já ter confirmado o e-mail. A
+  // regra desta tela (maiúscula, minúscula, número) torna o erro de digitação
+  // mais provável, não menos — por isso o olho existe aqui como existe no login.
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const currentVersion = useRef(rowVersion);
   const submitting = useRef(false);
@@ -77,8 +97,6 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
       email,
       accepted: true,
     } as const;
-    const captchaToken = String(fields.get('captchaToken') ?? '').trim() || undefined;
-
     submitting.current = true;
     setSaving(true);
     setMessage(null);
@@ -115,6 +133,10 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
         return;
       }
       currentVersion.current = identityVersion;
+      // A senha fica somente na memória desta aba. Depois da confirmação, ela
+      // só segue junto do código que veio no corpo do e-mail; nunca é persistida
+      // pelo browser enquanto a conta está pendente.
+      onCredentialsPrepared(email, password);
 
       let authResponse: Response;
       try {
@@ -126,7 +148,6 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
             email,
             password,
             accepted: true,
-            ...(captchaToken ? { captchaToken } : {}),
           }),
         });
       } catch {
@@ -144,24 +165,40 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
         }
         const authVersion = readRowVersion(authBody, identityVersion);
         if (authVersion !== null) {
-          onEmailPending(authVersion);
+          onEmailPending(authVersion, email);
           return;
         }
         await onReconcile('uncertain');
         return;
       }
       if (authResponse.status === 410) {
+        onCredentialsCleared();
         onGone();
       } else if (authResponse.status === 422) {
         // A senha foi recusada pelo provedor e a tentativa foi devolvida: dá
         // para escolher outra agora, sem esperar cooldown nenhum.
+        let retryBody: unknown;
+        try {
+          retryBody = await authResponse.json();
+        } catch {
+          await onReconcile('uncertain');
+          return;
+        }
+        const retryVersion = readRowVersion(retryBody, identityVersion);
+        if (retryVersion === null) {
+          await onReconcile('uncertain');
+          return;
+        }
+        currentVersion.current = retryVersion;
         form.querySelector<HTMLInputElement>('input[name="password"]')?.focus();
+        onCredentialsCleared();
         setMessage(
           'Essa senha aparece em vazamentos conhecidos e foi recusada. Escolha outra e tente novamente.',
         );
       } else if (authResponse.status === 409 || authResponse.status === 503) {
         await onReconcile(authResponse.status === 409 ? 'conflict' : 'uncertain');
       } else {
+        onCredentialsCleared();
         setMessage(
           authResponse.status === 429
             ? 'Muitas tentativas em pouco tempo. Aguarde antes de solicitar a conta.'
@@ -173,7 +210,9 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
     } finally {
       const passwordInput = form.querySelector<HTMLInputElement>('input[name="password"]');
       if (passwordInput) passwordInput.value = '';
-      setChallengeAttempt((attempt) => attempt + 1);
+      // O campo é limpo aqui; deixar o olho aberto exibiria a PRÓXIMA digitação
+      // sem que ninguém tivesse pedido.
+      setSenhaVisivel(false);
       submitting.current = false;
       setSaving(false);
     }
@@ -248,15 +287,31 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
             </div>
             <div className="space-y-2">
               <Label htmlFor="signup-password">Senha</Label>
-              <Input
-                id="signup-password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                maxLength={72}
-                aria-describedby="signup-password-help"
-              />
+              <div className="relative">
+                <Input
+                  id="signup-password"
+                  name="password"
+                  type={senhaVisivel ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  maxLength={72}
+                  aria-describedby="signup-password-help"
+                  className="pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSenhaVisivel((visivel) => !visivel)}
+                  aria-label={senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
+                  aria-pressed={senhaVisivel}
+                  className="absolute right-0 top-0 flex size-(--control-h) min-h-(--hit-target) items-center justify-center rounded-(--field-radius) text-fg-subtle transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
+                >
+                  {senhaVisivel ? (
+                    <EyeOff aria-hidden="true" className="size-4" />
+                  ) : (
+                    <Eye aria-hidden="true" className="size-4" />
+                  )}
+                </button>
+              </div>
               <p id="signup-password-help" className="text-xs leading-relaxed text-fg-subtle">
                 De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número. Símbolos
                 são opcionais.
@@ -292,7 +347,6 @@ export function SignupIdentity({ rowVersion, saved, onEmailPending, onReconcile,
                 .
               </Label>
             </div>
-            <TurnstileWidget action="signup_auth" resetSignal={challengeAttempt} />
           </fieldset>
           <div aria-live="polite" className="mt-5">
             {message ? <Alert variant="warning">{message}</Alert> : null}

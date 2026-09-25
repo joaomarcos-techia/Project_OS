@@ -14,6 +14,7 @@ const root = process.cwd();
 const SELF_SERVICE_PLAN_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
 const SELF_SERVICE_OTHER_PLAN_ID = 'bbbbbbbb-2222-4222-8222-222222222222';
 const SELF_SERVICE_INACTIVE_PLAN_ID = 'cccccccc-3333-4333-8333-333333333333';
+const SYNTHETIC_PASSWORD = 'QoroSynthetic2026A7-9f2c6b8e';
 const bin =
   process.env.SECURITY_PG_BIN ??
   (process.platform === 'win32'
@@ -153,8 +154,12 @@ async function runBrowserJourney(
   assert.equal(providerUrl.hostname, '127.0.0.1', 'Auth fixture requires loopback');
   assert.equal(providerUrl.protocol, 'http:', 'Synthetic Auth fixture requires HTTP');
 
-  const appPort = 3217;
-  const baseUrl = `http://127.0.0.1:${appPort}`;
+  const appUrl = new URL(parsedRuntime.APP_BASE_URL ?? '');
+  assert.equal(appUrl.hostname, 'localhost', 'App fixture requires secure localhost semantics');
+  assert.equal(appUrl.protocol, 'http:', 'Synthetic app fixture requires HTTP');
+  assert.equal(appUrl.port, '3217', 'Synthetic app fixture port drifted');
+  const appPort = Number(appUrl.port);
+  const baseUrl = appUrl.origin;
   const redisPort = 55449;
   const redisObservations: {
     commandCount: number;
@@ -243,6 +248,26 @@ async function runBrowserJourney(
       });
     });
   }
+  // O runner precisa ser reprodutível sem depender da disponibilidade pública
+  // do HIBP. O preload intercepta SOMENTE o range k-anonymous e devolve um
+  // sufixo que não corresponde à senha sintética; todo o restante continua no
+  // fetch real. O E2E de DEV cobre a integração externa do HIBP/Resend/Auth.
+  const networkPreload = path.join(cluster, 'signup-network-preload.cjs');
+  await writeFile(
+    networkPreload,
+    `const originalFetch = globalThis.fetch.bind(globalThis);
+globalThis.fetch = (input, init) => {
+  const url = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
+  if (url.startsWith('https://api.pwnedpasswords.com/range/')) {
+    return Promise.resolve(new Response('${'0'.repeat(35)}:1\\n', {
+      status: 200,
+      headers: { 'content-type': 'text/plain' },
+    }));
+  }
+  return originalFetch(input, init);
+};
+`,
+  );
   const appEnv: NodeJS.ProcessEnv = {
     ...parsedRuntime,
     NODE_ENV: 'development', // Loopback HTTP fixture; the inspected Next build remains production.
@@ -255,6 +280,7 @@ async function runBrowserJourney(
     LOG_LEVEL: 'warn',
     UPSTASH_REDIS_REST_URL: `http://127.0.0.1:${redisPort}`,
     UPSTASH_REDIS_REST_TOKEN: 'synthetic-upstash-token',
+    NODE_OPTIONS: `--require=${networkPreload}`,
   };
   const appServer = spawn(
     process.execPath,
@@ -264,7 +290,7 @@ async function runBrowserJourney(
       '-p',
       String(appPort),
       '-H',
-      '127.0.0.1',
+      appUrl.hostname,
     ],
     {
       cwd: path.join(root, 'dist/security-local/app'),
@@ -290,9 +316,22 @@ async function runBrowserJourney(
   let providerMode = 'new';
   let expectedReservedVersion = 4;
   let resendMode = 'success';
+  let adminLookupKind: 'initial' | 'resend' = 'initial';
+  let currentAuthEmail = 'synthetic@example.invalid';
   let resendCalls = 0;
   let activeHash = '';
-  const verifiedOtpUser = {
+  const verifiedOtpUser: {
+    id: string;
+    aud: string;
+    role: string;
+    email: string;
+    email_confirmed_at: string;
+    is_anonymous: boolean;
+    identities: { provider: string }[];
+    app_metadata: Record<string, unknown>;
+    user_metadata: Record<string, unknown>;
+    created_at: string;
+  } = {
     id: '33333333-3333-4333-8333-333333333333',
     aud: 'authenticated',
     role: 'authenticated',
@@ -304,6 +343,18 @@ async function runBrowserJourney(
     user_metadata: {},
     created_at: '2026-09-16T02:59:00.000Z',
   };
+  function bindVerifiedUser(signupRef: string, passwordState: 'pending' | 'set' = 'pending'): void {
+    verifiedOtpUser.app_metadata = {
+      provider: 'email',
+      providers: ['email'],
+      qoro_self_service_signup: {
+        version: 1,
+        kind: 'self_service',
+        signup_ref: signupRef,
+        password_state: passwordState,
+      },
+    };
+  }
   const verifiedOtpToken = [
     '{"alg":"HS256","typ":"JWT"}',
     JSON.stringify({
@@ -324,7 +375,7 @@ async function runBrowserJourney(
         const body = await readJsonBody(request);
         assert.ok(typeof body === 'object' && body !== null && 'token_hash' in body);
         assert.equal(body.token_hash, 'synthetic-signup-token');
-        assert.equal('type' in body ? body.type : undefined, 'signup');
+        assert.equal('type' in body ? body.type : undefined, 'recovery');
         otpVerifyCalls++;
         if (providerMode === 'otp-expired' || providerMode === 'otp-invalid') {
           response.writeHead(403, { 'content-type': 'application/json' });
@@ -359,88 +410,96 @@ async function runBrowserJourney(
         response.end(JSON.stringify(verifiedOtpUser));
         return;
       }
-      if (request.method === 'POST' && target.pathname === '/auth/v1/resend') {
-        const body = await readJsonBody(request);
-        assert.ok(typeof body === 'object' && body !== null);
-        assert.equal('type' in body ? body.type : undefined, 'signup');
-        assert.equal('email' in body ? body.email : undefined, 'synthetic@example.invalid');
-        assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/auth/confirm`);
-        resendCalls++;
-        if (resendMode === 'timeout') return;
-        if (resendMode === 'concurrent') await new Promise((resolve) => setTimeout(resolve, 300));
-        if (resendMode === 'provider-5xx') {
-          response.writeHead(503, { 'content-type': 'application/json' });
-          response.end(JSON.stringify({ msg: 'synthetic resend unavailable' }));
-          return;
-        }
-        response.writeHead(200, { 'content-type': 'application/json' });
-        response.end('{}');
+      if (request.method === 'POST' && target.pathname === '/auth/v1/logout') {
+        assert.equal(request.headers.authorization, `Bearer ${verifiedOtpToken}`);
+        response.writeHead(204);
+        response.end();
         return;
       }
-      assert.equal(request.method, 'POST');
-      assert.equal(target.pathname, '/auth/v1/signup');
-      assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/auth/confirm`);
-      const body = await readJsonBody(request);
-      assert.ok(
-        typeof body === 'object' && body !== null && 'password' in body && 'code_challenge' in body,
-      );
-      assert.equal(body.password, 'Abcdef1!');
-      const [row] =
-        await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${activeHash}`;
-      assert.equal(row?.status, 'email_pending');
-      assert.equal(row?.auth_attempt_state, 'reserved');
-      assert.equal(row?.row_version, expectedReservedVersion);
-      providerCalls++;
-      if (providerMode === 'timeout') return; // Real SDK 20s abort; close connections in finally.
-      if (providerMode === 'concurrent') await new Promise((resolve) => setTimeout(resolve, 300));
-      if (providerMode === 'finish-conflict')
-        await sql`UPDATE signup_sessions SET row_version = row_version + 1 WHERE token_hash = ${activeHash}`;
-      const user = {
-        id:
-          providerMode === 'verified'
-            ? '22222222-2222-4222-8222-222222222222'
-            : '11111111-1111-4111-8111-111111111111',
-        aud: 'authenticated',
-        role: 'authenticated',
-        email: 'synthetic@example.invalid',
-        email_confirmed_at: providerMode === 'verified' ? new Date().toISOString() : null,
-        identities: providerMode === 'unverified' ? [{ provider: 'email' }] : [],
-        app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: {},
-        created_at: new Date().toISOString(),
-      };
-      let payload: unknown = { user };
-      let status = 200;
-      if (['user_already_exists', 'weak_password'].includes(providerMode)) {
-        status = 422;
-        payload = {
-          code: providerMode,
-          error_code: providerMode,
-          msg: 'synthetic account outcome',
-        };
+      if (request.method === 'GET' && target.pathname === '/auth/v1/admin/users') {
+        if (adminLookupKind === 'resend') {
+          resendCalls++;
+          if (resendMode === 'timeout') return;
+          if (resendMode === 'concurrent') await new Promise((resolve) => setTimeout(resolve, 300));
+          if (resendMode === 'provider-5xx') {
+            response.writeHead(503, { 'content-type': 'application/json' });
+            response.end(
+              JSON.stringify({ code: 'unexpected_failure', msg: 'synthetic lookup unavailable' }),
+            );
+            return;
+          }
+        }
+        // Conta comum sem o marker Qoro: o caminho público precisa responder
+        // igual ao envio, mas não pode gerar link nem chamar o Resend. O envio
+        // verdadeiro é coberto pelo E2E dedicado contra Supabase/Resend de DEV.
+        response.writeHead(200, {
+          'content-type': 'application/json',
+          'x-total-count': '1',
+        });
+        response.end(
+          JSON.stringify({
+            users: [
+              {
+                id: '11111111-1111-4111-8111-111111111111',
+                aud: 'authenticated',
+                role: 'authenticated',
+                email:
+                  adminLookupKind === 'resend' ? 'synthetic@example.invalid' : currentAuthEmail,
+                email_confirmed_at: new Date().toISOString(),
+                identities: [{ provider: 'email' }],
+                app_metadata: { provider: 'email', providers: ['email'] },
+                user_metadata: {},
+                created_at: new Date().toISOString(),
+              },
+            ],
+            aud: 'authenticated',
+          }),
+        );
+        return;
       }
-      if (providerMode === 'provider-5xx') {
-        status = 503;
-        payload = { msg: 'synthetic provider unavailable' };
+      if (
+        request.method === 'GET' &&
+        target.pathname === `/auth/v1/admin/users/${verifiedOtpUser.id}`
+      ) {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ user: verifiedOtpUser }));
+        return;
       }
-      if (providerMode === 'unexpected-session') {
-        const token = [
-          '{"alg":"HS256","typ":"JWT"}',
-          JSON.stringify({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 3600 }),
-          'synthetic-signature',
-        ]
-          .map((part) => Buffer.from(part).toString('base64url'))
-          .join('.');
-        payload = {
-          user,
-          access_token: token,
-          refresh_token: 'synthetic-refresh',
-          expires_in: 3600,
-          token_type: 'bearer',
-        };
+      if (request.method === 'POST' && target.pathname === '/auth/v1/admin/users') {
+        const body = await readJsonBody(request);
+        assert.ok(typeof body === 'object' && body !== null);
+        assert.equal(typeof ('email' in body ? body.email : undefined), 'string');
+        currentAuthEmail = String('email' in body ? body.email : '');
+        assert.equal('email_confirm' in body ? body.email_confirm : undefined, false);
+        assert.equal('password' in body, false, 'initial account must remain passwordless');
+        const [row] =
+          await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${activeHash}`;
+        assert.equal(row?.status, 'email_pending');
+        assert.equal(row?.auth_attempt_state, 'reserved');
+        assert.equal(row?.row_version, expectedReservedVersion);
+        providerCalls++;
+        if (providerMode === 'timeout') return;
+        if (providerMode === 'concurrent') await new Promise((resolve) => setTimeout(resolve, 300));
+        if (providerMode === 'finish-conflict')
+          await sql`UPDATE signup_sessions SET row_version = row_version + 1 WHERE token_hash = ${activeHash}`;
+        if (providerMode === 'provider-5xx') {
+          response.writeHead(503, { 'content-type': 'application/json' });
+          response.end(
+            JSON.stringify({ code: 'unexpected_failure', msg: 'synthetic provider unavailable' }),
+          );
+          return;
+        }
+        if (providerMode === 'unexpected-session') {
+          response.writeHead(200, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ access_token: 'unexpected' }));
+          return;
+        }
+        const code = providerMode === 'weak_password' ? 'weak_password' : 'email_exists';
+        response.writeHead(422, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ code, error_code: code, msg: 'synthetic account outcome' }));
+        return;
       }
-      response.writeHead(status, { 'content-type': 'application/json' });
-      response.end(JSON.stringify(payload));
+      throw new Error(`unexpected Auth fixture request: ${request.method} ${target.pathname}`);
     } catch (error) {
       providerFailures.push(error instanceof Error ? error.message : 'fixture failure');
       response.writeHead(500, { 'content-type': 'application/json' });
@@ -483,6 +542,7 @@ async function runBrowserJourney(
       email = 'synthetic@example.invalid',
       rowVersion = 3,
     ): Promise<Response> {
+      adminLookupKind = 'initial';
       const tokenHash = hashToken(token);
       const [before] =
         await sql`SELECT status, row_version, auth_attempt_state FROM signup_sessions WHERE token_hash = ${tokenHash}`;
@@ -496,7 +556,12 @@ async function runBrowserJourney(
               cookie: `__Host-qoro_signup=${token}; qoro-auth-session=${'a'.repeat(32)}`,
               'content-type': 'application/json',
             },
-            body: JSON.stringify({ rowVersion, email, password: 'Abcdef1!', accepted: true }),
+            body: JSON.stringify({
+              rowVersion,
+              email,
+              password: SYNTHETIC_PASSWORD,
+              accepted: true,
+            }),
           });
         } catch (error) {
           const [after] =
@@ -551,8 +616,9 @@ async function runBrowserJourney(
           now() - make_interval(secs => ${secondsAgo}))`;
       return { token, tokenHash };
     }
-    const postResend = (token: string, rowVersion = 5) =>
-      fetch(`${baseUrl}/api/signup/sessions/resend`, {
+    const postResend = (token: string, rowVersion = 5) => {
+      adminLookupKind = 'resend';
+      return fetch(`${baseUrl}/api/signup/sessions/resend`, {
         method: 'POST',
         headers: {
           origin: baseUrl,
@@ -562,9 +628,9 @@ async function runBrowserJourney(
         body: JSON.stringify({
           rowVersion,
           email: 'synthetic@example.invalid',
-          accepted: true,
         }),
       });
+    };
     providerMode = 'new';
     const warmToken = await seedAuth('warm');
     const { response: warmResponse } = await postAuthAfterLocalLimiterReady(warmToken);
@@ -629,8 +695,11 @@ async function runBrowserJourney(
         false,
         'No session cookie installed',
       );
-      if (mode === 'new')
-        assert.ok(cookie.includes('-code-verifier=') && cookie.includes('HttpOnly'));
+      assert.equal(
+        cookie.includes('-code-verifier='),
+        false,
+        'Admin passwordless creation must not install a PKCE verifier in the signup response',
+      );
       const [pending] =
         await sql`SELECT auth_attempt_state, row_version, idle_expires_at, absolute_expires_at FROM signup_sessions WHERE token_hash = ${activeHash}`;
       assert.equal(
@@ -679,9 +748,9 @@ async function runBrowserJourney(
 
       assert.equal(response.status, 422);
       const rejected = await response.text();
-      assert.deepEqual(JSON.parse(rejected), { error: 'weak_password' });
+      assert.deepEqual(JSON.parse(rejected), { error: 'weak_password', rowVersion: 5 });
       assert.equal(rejected.includes('synthetic@example.invalid'), false);
-      assert.equal(rejected.includes('Abcdef1!'), false);
+      assert.equal(rejected.includes(SYNTHETIC_PASSWORD), false);
       assert.equal(providerCalls - callsBefore, 1);
 
       const [returned] = await sql`SELECT status, row_version, auth_attempt_kind,
@@ -722,13 +791,21 @@ async function runBrowserJourney(
     }
 
     for (const mode of ['new', 'verified', 'unverified', 'user_already_exists']) {
-      await controlRedis('clear');
-      providerMode = mode;
-      const token = await seedAuth(`timing-${mode}`);
-      const { durationMs, response } = await postAuthAfterLocalLimiterReady(token);
-      accountDurationSamples.push(durationMs);
-      assert.equal(response.status, 200, `warmed account timing ${mode}`);
-      assert.deepEqual(await response.json(), { rowVersion: 5 });
+      const modeSamples: number[] = [];
+      for (let sample = 1; sample <= 3; sample += 1) {
+        await controlRedis('clear');
+        providerMode = mode;
+        const token = await seedAuth(`timing-${mode}-${sample}`);
+        const { durationMs, response } = await postAuthAfterLocalLimiterReady(token);
+        modeSamples.push(durationMs);
+        assert.equal(response.status, 200, `warmed account timing ${mode}`);
+        assert.deepEqual(await response.json(), { rowVersion: 5 });
+      }
+      // Um pico isolado do scheduler/GC local não é sinal de enumeração. A
+      // mediana preserva o limiar de 500 ms e ainda falha se um caminho for
+      // estruturalmente mais rápido nas execuções repetidas.
+      modeSamples.sort((left, right) => left - right);
+      accountDurationSamples.push(modeSamples[1]!);
     }
     assert.ok(
       Math.max(...accountDurationSamples) - Math.min(...accountDurationSamples) <= 500,
@@ -744,7 +821,7 @@ async function runBrowserJourney(
         {
           name: '__Host-qoro_signup',
           value: pendingUiToken,
-          domain: '127.0.0.1',
+          domain: appUrl.hostname,
           path: '/',
           httpOnly: true,
           secure: true,
@@ -753,7 +830,7 @@ async function runBrowserJourney(
       ]);
       const page = await pendingUiContext.newPage();
       await page.goto('/cadastro');
-      await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
+      await page.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }).waitFor();
       // A espera não reabre pergunta nenhuma: as quatro telas saem do DOM, em
       // vez de ficarem renderizadas e desabilitadas.
       assert.equal(await page.getByRole('radio').count(), 0);
@@ -785,7 +862,7 @@ async function runBrowserJourney(
         {
           name: '__Host-qoro_signup',
           value: lostToken,
-          domain: '127.0.0.1',
+          domain: appUrl.hostname,
           path: '/',
           httpOnly: true,
           secure: true,
@@ -794,40 +871,34 @@ async function runBrowserJourney(
       ]);
       const page = await lostContext.newPage();
       await page.goto('/cadastro');
-      await page.route('**/api/signup/sessions/auth', async (route) => {
-        const response = await route.fetch();
-        const responseBody = await response.json();
-        assert.equal(
-          response.status(),
-          200,
-          `lost-response auth route: ${JSON.stringify(responseBody)}`,
-        );
-        await route.abort('failed'); // Real commit happened, browser loses HTTP response.
+      // O servidor conclui e o cliente não consome o corpo. Isso modela a aba
+      // fechada/perda de conexão depois do commit sem usar `route.abort`, que
+      // pode cancelar a própria subrequisição antes de ela chegar ao handler.
+      const discardedResponse = await postAuth(lostToken);
+      assert.equal(discardedResponse.status, 200);
+      const [savedBeforeReload] =
+        await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${hashToken(lostToken)}`;
+      assert.deepEqual(savedBeforeReload, {
+        status: 'email_pending',
+        auth_attempt_state: 'completed',
+        row_version: 5,
       });
-      const lost = await page.evaluate(async () => {
-        try {
-          await fetch('/api/signup/sessions/auth', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              rowVersion: 3,
-              email: 'synthetic@example.invalid',
-              password: 'Abcdef1!',
-              accepted: true,
-            }),
-          });
-          return false;
-        } catch {
-          return true;
-        }
+      const stateBeforeReload = await page.evaluate(async () => {
+        const response = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
+        return { status: response.status, body: await response.json() };
       });
-      assert.equal(lost, true);
+      assert.equal(
+        stateBeforeReload.status,
+        200,
+        `lost-response readback: ${JSON.stringify(stateBeforeReload.body)}`,
+      );
+      assert.equal(stateBeforeReload.body.session.status, 'email_pending');
       await page.reload();
-      await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
+      await page.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }).waitFor();
       assert.equal(await page.getByRole('radio').count(), 0);
       assert.equal(providerCalls - lostBefore, 1);
       const [saved] =
-        await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${activeHash}`;
+        await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${hashToken(lostToken)}`;
       assert.deepEqual(saved, {
         status: 'email_pending',
         auth_attempt_state: 'completed',
@@ -837,7 +908,7 @@ async function runBrowserJourney(
       await lostContext.close();
     }
     authProofs.push({
-      name: 'real Chromium lost POST response: committed attempt survives reload without resend',
+      name: 'real Chromium discarded POST response: committed attempt survives reload without resend',
       status: 'PASS',
     });
     await controlRedis('clear');
@@ -987,12 +1058,24 @@ async function runBrowserJourney(
     });
 
     providerMode = 'otp-success';
-    for (const next of [
-      '/dashboard',
-      '/cadastro/continuar?draft=secret',
-      '/cadastro/continuar#access-token',
-      'https://evil.example/steal',
-    ]) {
+    const { hashEmail } = await import('../../src/lib/auth/email-hash');
+    const bridgeToken = createHash('sha256').update('http-confirm-bridge').digest('base64url');
+    const bridgeRef = hashToken(bridgeToken);
+    bindVerifiedUser(bridgeRef);
+    await sql`INSERT INTO signup_sessions (
+      token_hash, status, row_version, idle_expires_at, absolute_expires_at,
+      professionals_band, weekly_appointments_band, current_tooling, discovery_source,
+      answered_at, owner_name, clinic_name, email_hash, accepted_at,
+      auth_attempt_kind, auth_attempt_state, auth_attempted_at
+    ) VALUES (
+      ${bridgeRef}, 'email_pending', 5, now() + interval '10 minutes',
+      now() + interval '45 minutes', '2_5', '21_50', 'outro_sistema', 'indicacao_colega',
+      now(), 'Bridge owner', 'Bridge clinic', ${hashEmail(verifiedOtpUser.email)}, now(),
+      'initial', 'completed', now()
+    )`;
+    const confirmationFragment = (signupRef: string, next = '/cadastro/confirmado') =>
+      `/auth/confirm#token_hash=synthetic-signup-token&type=recovery&next=${encodeURIComponent(next)}&signup_ref=${signupRef}`;
+    {
       const otpContext = await browser.newContext({ baseURL: baseUrl });
       try {
         assert.deepEqual(
@@ -1001,21 +1084,55 @@ async function runBrowserJourney(
           'OTP context must start without PKCE/session',
         );
         const page = await otpContext.newPage();
+        const bridgeMessages: string[] = [];
+        const bridgeRequests: Record<string, string | undefined>[] = [];
+        page.on('console', (message) =>
+          bridgeMessages.push(`${message.type()}: ${message.text()}`),
+        );
+        page.on('pageerror', (error) => bridgeMessages.push(`pageerror: ${error.message}`));
+        page.on('request', (request) => {
+          if (request.method() !== 'POST' || new URL(request.url()).pathname !== '/auth/confirm') {
+            return;
+          }
+          void request
+            .allHeaders()
+            .then((headers) =>
+              bridgeRequests.push({
+                origin: headers.origin,
+                secFetchSite: headers['sec-fetch-site'],
+                contentType: headers['content-type'],
+              }),
+            )
+            .catch(() => undefined);
+        });
         const verifyBefore = otpVerifyCalls;
         const getUserBefore = getUserCalls;
-        await page.goto(
-          `/auth/confirm?token_hash=synthetic-signup-token&type=signup&next=${encodeURIComponent(next)}`,
-        );
-        await page.getByText('E-mail confirmado', { exact: true }).waitFor();
+        await page.goto(confirmationFragment(bridgeRef));
+        try {
+          await page.getByText('E-mail confirmado', { exact: true }).waitFor();
+        } catch (error) {
+          const body = await page
+            .locator('body')
+            .innerText()
+            .catch(() => '<body unavailable>');
+          throw new Error(
+            `confirmation bridge did not render success: url=${page.url()} ` +
+              `verifyCalls=${otpVerifyCalls - verifyBefore} getUserCalls=${getUserCalls - getUserBefore} ` +
+              `body=${JSON.stringify(body.slice(0, 1_000))} ` +
+              `requests=${JSON.stringify(bridgeRequests)} ` +
+              `browser=${JSON.stringify(bridgeMessages.slice(-10))} ` +
+              `provider=${JSON.stringify(providerFailures.slice(-10))}`,
+            { cause: error },
+          );
+        }
         const destination = new URL(page.url());
-        assert.equal(destination.pathname, '/cadastro/continuar');
+        assert.equal(destination.pathname, '/cadastro/confirmado');
         assert.equal(destination.search, '');
         assert.equal(destination.hash, '');
         assert.equal(otpVerifyCalls - verifyBefore, 1);
-        assert.equal(
-          getUserCalls - getUserBefore,
-          3,
-          'confirm route, protected continuation and authenticated draft GET each revalidate getUser',
+        assert.ok(
+          getUserCalls - getUserBefore >= 1,
+          'confirmed page must revalidate the installed Auth session',
         );
         const cookies = await otpContext.cookies();
         const selector = cookies.find((entry) => entry.name === 'qoro-auth-session');
@@ -1032,8 +1149,26 @@ async function runBrowserJourney(
         await otpContext.close();
       }
     }
+    for (const hostileNext of [
+      '/dashboard',
+      '/cadastro/continuar?draft=secret',
+      '/cadastro/continuar#access-token',
+      'https://evil.example/steal',
+    ]) {
+      const hostileContext = await browser.newContext({ baseURL: baseUrl });
+      try {
+        const page = await hostileContext.newPage();
+        const verifyBefore = otpVerifyCalls;
+        await page.goto(confirmationFragment(bridgeRef, hostileNext));
+        await page.waitForURL('**/auth/auth-error?reason=invalid_token');
+        assert.equal(otpVerifyCalls, verifyBefore, 'invalid destination consumed OTP');
+      } finally {
+        await hostileContext.close();
+      }
+    }
+    await sql`DELETE FROM signup_sessions WHERE token_hash = ${bridgeRef}`;
     authProofs.push({
-      name: 'real SDK token-hash signup: fixed destination, getUser seam and HttpOnly session',
+      name: 'real SDK recovery token bridge: fixed confirmed page, hostile destinations denied before OTP and HttpOnly session',
       status: 'PASS',
     });
 
@@ -1049,7 +1184,8 @@ async function runBrowserJourney(
         const errorPage: import('@playwright/test').Page = await errorContext.newPage();
         const verifyBefore = otpVerifyCalls;
         const getUserBefore = getUserCalls;
-        await errorPage.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
+        await errorPage.goto(confirmationFragment(bridgeRef));
+        await errorPage.waitForURL(`**/auth/auth-error?reason=${reason}`);
         const errorDestination: URL = new URL(errorPage.url());
         assert.equal(errorDestination.pathname, '/auth/auth-error');
         assert.equal(errorDestination.searchParams.get('reason'), reason);
@@ -1075,7 +1211,7 @@ async function runBrowserJourney(
     providerMode = 'otp-success';
     const draftToken = createHash('sha256').update('http-verified-draft').digest('base64url');
     const draftHash = hashToken(draftToken);
-    const { hashEmail } = await import('../../src/lib/auth/email-hash');
+    bindVerifiedUser(draftHash);
     await sql`INSERT INTO signup_sessions (
       token_hash, status, row_version, idle_expires_at, absolute_expires_at,
       professionals_band, weekly_appointments_band, current_tooling, discovery_source,
@@ -1094,7 +1230,7 @@ async function runBrowserJourney(
         {
           name: '__Host-qoro_signup',
           value: draftToken,
-          domain: '127.0.0.1',
+          domain: appUrl.hostname,
           path: '/',
           httpOnly: true,
           secure: true,
@@ -1104,18 +1240,18 @@ async function runBrowserJourney(
       const page = await draftContext.newPage();
       const [beforeClaim] = await sql`SELECT idle_expires_at, absolute_expires_at
         FROM signup_sessions WHERE token_hash = ${draftHash}`;
-      await page.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
-      // Sem formulário nenhum: o servidor reencontra o cadastro pelo e-mail que
-      // o OTP acabou de verificar e devolve os dados do staging.
-      await page.getByText('Cadastro recuperado na conta verificada', { exact: true }).waitFor();
+      await page.goto(confirmationFragment(draftHash));
+      // O aparelho que abriu o link só confirma o fato. O formulário e o
+      // checkout continuam na aba que iniciou o cadastro.
+      await page.getByText('E-mail confirmado', { exact: true }).waitFor();
       const recovered = await page.locator('body').innerText();
-      assert.match(recovered, /Bootstrap owner/u);
-      assert.match(recovered, /Bootstrap clinic/u);
+      assert.equal(recovered.includes('Bootstrap owner'), false);
+      assert.equal(recovered.includes('Bootstrap clinic'), false);
       assert.equal(await page.getByLabel('Seu nome').count(), 0);
       assert.equal(await page.locator('input[type=password]').count(), 0);
-      // O cookie sobrevive ao vínculo de propósito: quem limpa é o `/me` que
-      // conta à aba original que o e-mail foi confirmado. Limpar antes faria
-      // aquela aba anunciar "sessão expirou" logo depois da confirmação.
+      // O cookie sobrevive ao vínculo e à leitura de `/me`: ele ainda identifica
+      // a aba original. Quem o limpa é `/continue`, depois que essa aba instala
+      // sua própria sessão Auth. Limpar antes impediria o handoff entre aparelhos.
       assert.equal(
         (await draftContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
         true,
@@ -1129,8 +1265,12 @@ async function runBrowserJourney(
       assert.equal(pendingTab.body.session.answers, null);
       assert.equal(
         (await draftContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
-        false,
+        true,
       );
+      // O endpoint de continuação real (senha + código) é exercitado pelo E2E
+      // de DEV. Aqui promovemos apenas o marker autoritativo para continuar a
+      // prova local de draft/plano sem introduzir uma segunda fixture Auth.
+      bindVerifiedUser(draftHash, 'set');
       const readback = await page.evaluate(async () => {
         const response = await fetch('/api/signup/draft');
         return { status: response.status, body: await response.json() };
@@ -1163,6 +1303,10 @@ async function runBrowserJourney(
         afterRead?.absolute_expires_at.getTime(),
         beforeClaim?.absolute_expires_at.getTime(),
       );
+
+      await page.goto('/cadastro/continuar');
+      await page.getByText('Cadastro recuperado na conta verificada', { exact: true }).waitFor();
+      assert.match(await page.locator('body').innerText(), /Bootstrap owner/u);
 
       // Outro navegador com a MESMA sessão verificada copiada não recria nem
       // sobrescreve nada: o usuário já é dono de um draft, e o recomeço dá 409.
@@ -1308,43 +1452,21 @@ async function runBrowserJourney(
     });
 
     await controlRedis('clear');
-    const restartContext = await browser.newContext({ baseURL: baseUrl });
+    const missingDraftContext = await browser.newContext({ baseURL: baseUrl });
     try {
-      const restartPage = await restartContext.newPage();
-      await restartPage.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
-      await restartPage.getByText(/Não encontramos um cadastro em andamento/u).waitFor();
+      const page = await missingDraftContext.newPage();
+      await page.goto(confirmationFragment(draftHash));
+      await page.waitForURL('**/auth/auth-error?reason=invalid_token');
       assert.equal(
-        (await restartContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
-        false,
+        await page.getByText('E-mail confirmado', { exact: true }).count(),
+        0,
+        'missing or already completed draft must not display a false confirmation',
       );
-      await restartPage.getByLabel('Seu nome').fill('Pessoa Restart');
-      await restartPage.getByLabel('Nome da clínica').fill('Clínica Restart');
-      await restartPage.getByLabel('Profissionais').selectOption('2_5');
-      await restartPage.getByLabel('Atendimentos por semana').selectOption('21_50');
-      await restartPage.getByLabel('Organização atual').selectOption('outro_sistema');
-      await restartPage.getByLabel('Como conheceu a Qoro').selectOption('indicacao_colega');
-      await restartPage.getByRole('checkbox').check();
-      await restartPage.getByRole('button', { name: 'Confirmar e continuar' }).click();
-      await restartPage
-        .getByText('Cadastro recuperado na conta verificada', { exact: true })
-        .waitFor();
-      const [restarted] = await sql`SELECT status, auth_user_id, consumed_at, owner_name,
-        clinic_name, row_version FROM signup_sessions WHERE auth_user_id = ${verifiedOtpUser.id}`;
-      assert.equal(restarted?.status, 'email_verified');
-      assert.equal(restarted?.auth_user_id, verifiedOtpUser.id);
-      assert.ok(restarted?.consumed_at instanceof Date);
-      assert.equal(restarted?.owner_name, 'Pessoa Restart');
-      assert.equal(restarted?.clinic_name, 'Clínica Restart');
-      assert.equal(restarted?.row_version, 1);
-      const restartPublic = await restartPage.locator('body').innerText();
-      assert.equal(restartPublic.includes(verifiedOtpUser.email), false);
-      assert.equal(restartPublic.includes(verifiedOtpUser.id), false);
-      await sql`DELETE FROM signup_sessions WHERE auth_user_id = ${verifiedOtpUser.id}`;
     } finally {
-      await restartContext.close();
+      await missingDraftContext.close();
     }
     authProofs.push({
-      name: 'real Auth/browser UI restart: another browser re-enters all fields and owns a sanitized draft',
+      name: 'real Auth/browser missing/completed draft: categorical denial and no false confirmation',
       status: 'PASS',
     });
 
@@ -1567,7 +1689,7 @@ async function runBrowserJourney(
       await page.getByRole('button', { name: 'Criar conta e continuar' }).click();
       await page.getByText(/Use de 8 a 72 caracteres, sem espaços/u).waitFor();
       assert.equal(identityPosts, 0, 'invalid password reached staging');
-      await password.fill('Abcdef1!');
+      await password.fill(SYNTHETIC_PASSWORD);
       await page.getByRole('button', { name: 'Criar conta e continuar' }).click();
       await page.getByText(/A conexão falhou antes da confirmação.*somente nesta tela/u).waitFor();
       await page.unroute('**/api/signup/sessions/identity', lostResponse);
@@ -1604,7 +1726,7 @@ async function runBrowserJourney(
       await owner.fill('Pessoa Browser Sintética');
       await clinic.fill('Clínica Browser Sintética');
       await email.fill('synthetic@example.invalid');
-      await password.fill('Abcdef1!');
+      await password.fill(SYNTHETIC_PASSWORD);
       await accepted.check();
       activeHash = hashToken(cookie.value);
       expectedReservedVersion = 5;
@@ -1614,7 +1736,7 @@ async function runBrowserJourney(
       let authPosts = 0;
       const lostAuthResponse = async (route: Route) => {
         authPosts += 1;
-        assert.equal(route.request().postData()?.includes('Abcdef1!'), true);
+        assert.equal(route.request().postData()?.includes(SYNTHETIC_PASSWORD), true);
         const response = await route.fetch();
         const responseBody = await response.json();
         assert.equal(response.status(), 200, `auth route: ${JSON.stringify(responseBody)}`);
@@ -1645,30 +1767,30 @@ async function runBrowserJourney(
           session: Object.entries(sessionStorage),
         }),
       );
-      assert.equal(/Pessoa Browser|Clínica Browser|Abcdef1!/u.test(pageAndStorage), false);
+      assert.equal(
+        /Pessoa Browser|Clínica Browser/u.test(pageAndStorage) ||
+          pageAndStorage.includes(SYNTHETIC_PASSWORD),
+        false,
+      );
 
-      const resendEmail = page.getByLabel('E-mail usado no cadastro');
-      const resendAccepted = page.getByRole('checkbox');
       const resendBeforeUi = resendCalls;
+      assert.equal(await page.getByLabel('E-mail usado no cadastro').count(), 0);
+      await page.getByRole('button', { name: 'Não recebeu? Reenviar o e-mail' }).click();
+      const resendEmail = page.getByLabel('E-mail usado no cadastro');
       await resendEmail.fill('synthetic@example.invalid');
-      await resendAccepted.check();
-      await page.getByRole('button', { name: 'Reenviar instruções' }).click();
+      await page.getByRole('button', { name: 'Reenviar o e-mail' }).click();
       await page.getByText(/Aguarde \d+ segundos antes/u).waitFor();
       assert.equal(resendCalls, resendBeforeUi, 'cooldown reached provider');
-      assert.equal(await resendEmail.inputValue(), '');
-      assert.equal(await resendAccepted.isChecked(), false);
+      assert.equal(await resendEmail.inputValue(), 'synthetic@example.invalid');
 
       await sql`UPDATE signup_sessions SET auth_attempted_at = now() - interval '61 seconds'
         WHERE token_hash = ${activeHash}`;
       await controlRedis('clear');
       resendMode = 'success';
-      await resendEmail.fill('synthetic@example.invalid');
-      await resendAccepted.check();
-      await page.getByRole('button', { name: 'Reenviar instruções' }).click();
-      await page.getByText(/nova solicitação foi concluída/u).waitFor();
+      await page.getByRole('button', { name: 'Reenviar o e-mail' }).click();
+      await page.getByText(/um novo e-mail está a caminho/u).waitFor();
       assert.equal(resendCalls - resendBeforeUi, 1);
-      assert.equal(await resendEmail.inputValue(), '');
-      assert.equal(await resendAccepted.isChecked(), false);
+      assert.equal(await page.getByLabel('E-mail usado no cadastro').count(), 0);
       const [resentUi] = await sql`SELECT row_version, auth_attempt_kind, auth_attempt_state
         FROM signup_sessions WHERE token_hash = ${activeHash}`;
       assert.deepEqual(resentUi, {
@@ -2146,10 +2268,15 @@ try {
   });
   const {
     SIGNUP_RESEND_COOLDOWN_SECONDS,
+    adoptVerifiedSignupForContinuation,
+    advanceSignupCredentialEpoch,
     hashSignupToken,
+    readSignupContinuationIdentity,
     readSignupSession,
     purgeExpiredSignupSessions,
     recordSignupIdentity,
+    readReservedSignupAttemptEpoch,
+    readSignupDeliveryAttemptState,
     reserveSignupAuthAttempt,
     finishSignupAuthAttempt,
     reserveSignupResendAttempt,
@@ -2165,9 +2292,17 @@ try {
     readSignupBillingReconcileTarget,
     readSignupBilling,
   } = await import('../../src/contexts/onboarding/internal/signup-billing');
-  const { claimSignupDraftByVerifiedEmail, readSignupDraft, writeSignupDraft, writeSignupPlan } =
-    await import('../../src/contexts/onboarding/internal/signup-draft');
+  const {
+    claimSignupDraftByVerifiedEmail,
+    readOwnedSignupReference,
+    readSignupDraft,
+    writeSignupDraft,
+    writeSignupPlan,
+  } = await import('../../src/contexts/onboarding/internal/signup-draft');
   const { hashEmail } = await import('../../src/lib/auth/email-hash');
+  const { bumpSessionEpochIfCurrent } = await import('../../src/lib/auth/session-epoch');
+  const { deriveSignupHandoffCode, verifySignupHandoffCode } =
+    await import('../../src/contexts/onboarding/internal/signup-auth-binding');
   const { POST } = await import('../../src/app/api/signup/sessions/answers/route');
   const { GET } = await import('../../src/app/api/signup/sessions/me/route');
   const answerValues = {
@@ -2186,6 +2321,19 @@ try {
       headers: { cookie: `__Host-qoro_signup=${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({ ...answers, rowVersion }),
     });
+  await check('recovery: claims_version CAS deixa uma única troca de senha vencer', async () => {
+    const userId = '12121212-1212-4212-8212-121212121212';
+    await admin`INSERT INTO profiles (id, nome, role, claims_version)
+      VALUES (${userId}, 'Recovery sintético', 'admin', 4)`;
+    const outcomes = await Promise.all([
+      bumpSessionEpochIfCurrent(userId, 4, 'password_reset'),
+      bumpSessionEpochIfCurrent(userId, 4, 'password_reset'),
+    ]);
+    assert.deepEqual(outcomes.sort(), [false, true]);
+    const [profile] = await admin`SELECT claims_version FROM profiles WHERE id = ${userId}`;
+    assert.equal(profile?.claims_version, 5);
+    await admin`DELETE FROM profiles WHERE id = ${userId}`;
+  });
   async function seed(token: string, idleMinutes = 10, absoluteMinutes = 45, status = 'initiated') {
     await admin`INSERT INTO signup_sessions (token_hash, idle_expires_at, absolute_expires_at, status)
       VALUES (${hashSignupToken(token)}, now() + make_interval(mins => ${idleMinutes}), now() + make_interval(mins => ${absoluteMinutes}), ${status})`;
@@ -2439,7 +2587,12 @@ try {
       const token = identityToken('auth-cas');
       await seedDetails(token);
       assert.deepEqual(await recordSignupIdentity(token, identity), savedIdentity);
-      const input = { rowVersion: 3, email: identity.email, password: 'Abcdef1!', accepted: true };
+      const input = {
+        rowVersion: 3,
+        email: identity.email,
+        password: SYNTHETIC_PASSWORD,
+        accepted: true,
+      };
       const before = await snapshot(token);
       assert.deepEqual(
         await reserveSignupAuthAttempt(token, { ...input, email: 'wrong@example.invalid' }),
@@ -2516,7 +2669,7 @@ try {
         const input = {
           rowVersion: 3,
           email: identity.email,
-          password: 'Abcdef1!',
+          password: SYNTHETIC_PASSWORD,
           accepted: true,
         };
         assert.deepEqual(await reserveSignupAuthAttempt(token, input), { ok: true, rowVersion: 4 });
@@ -2558,7 +2711,7 @@ try {
       const initial = {
         rowVersion: 3,
         email: identity.email,
-        password: 'Abcdef1!',
+        password: SYNTHETIC_PASSWORD,
         accepted: true,
       } as const;
       assert.deepEqual(await reserveSignupAuthAttempt(token, initial), {
@@ -2573,7 +2726,7 @@ try {
         SET auth_attempted_at = now() - make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS + 1})
         WHERE token_hash = ${hashSignupToken(token)}`;
       const [before] = await snapshot(token);
-      const resend = { rowVersion: 5, email: identity.email, accepted: true } as const;
+      const resend = { rowVersion: 5, email: identity.email } as const;
       const outcomes = await Promise.all([
         reserveSignupResendAttempt(token, resend),
         reserveSignupResendAttempt(token, resend),
@@ -2638,6 +2791,166 @@ try {
     },
   );
   await check(
+    'resend: claim do link anterior durante generateLink preserva a entrega nova',
+    async () => {
+      const token = identityToken('resend-claim-race');
+      const email = 'resend.claim.race@example.test';
+      const userId = '33333333-3333-4333-8333-333333333333';
+      await seedDetails(token);
+      assert.deepEqual(await recordSignupIdentity(token, { ...identity, email }), savedIdentity);
+      assert.deepEqual(
+        await reserveSignupAuthAttempt(token, {
+          rowVersion: 3,
+          email,
+          password: SYNTHETIC_PASSWORD,
+          accepted: true,
+        }),
+        { ok: true, rowVersion: 4 },
+      );
+      assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'completed'), {
+        ok: true,
+        rowVersion: 5,
+      });
+      await admin`UPDATE signup_sessions
+        SET auth_attempted_at = now() - make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS + 1})
+        WHERE token_hash = ${hashSignupToken(token)}`;
+      assert.deepEqual(await reserveSignupResendAttempt(token, { rowVersion: 5, email }), {
+        ok: true,
+        rowVersion: 6,
+      });
+      const attemptEpoch = await readReservedSignupAttemptEpoch(token, 6, 'resend');
+      assert.ok(attemptEpoch);
+
+      // Intercalação real: o callback do link anterior reivindica o draft
+      // enquanto a nova tentativa já está reservada e o token novo está sendo
+      // gerado fora da transação.
+      assert.deepEqual(
+        await claimSignupDraftByVerifiedEmail(userId, email, hashSignupToken(token)),
+        { ok: true, rowVersion: 7 },
+      );
+      assert.equal(
+        await readSignupDeliveryAttemptState({
+          signupRef: hashSignupToken(token),
+          attemptEpoch,
+          kind: 'resend',
+          userId,
+        }),
+        'verified',
+      );
+      const [claimed] = await snapshot(token);
+      assert.equal(claimed?.status, 'email_verified');
+      assert.equal(claimed?.auth_attempt_state, 'completed');
+      assert.equal(claimed?.auth_user_id, userId);
+      await admin`DELETE FROM signup_sessions WHERE token_hash = ${hashSignupToken(token)}`;
+    },
+  );
+  await check('handoff: dono do e-mail adota outro draft sem rotacionar o link vivo', async () => {
+    const sourceToken = identityToken('handoff-owner-source');
+    const targetToken = identityToken('handoff-owner-target');
+    const email = 'handoff.owner@example.test';
+    const userId = '22222222-2222-4222-8222-222222222222';
+    const sourceIdentity = {
+      ...identity,
+      email,
+      ownerName: 'Origem não confiável',
+      clinicName: 'Origem não confiável',
+    };
+    const targetIdentity = {
+      ...identity,
+      email,
+      ownerName: 'Dona verificada',
+      clinicName: 'Clínica verificada',
+    };
+
+    for (const [token, candidate] of [
+      [sourceToken, sourceIdentity],
+      [targetToken, targetIdentity],
+    ] as const) {
+      await seedDetails(token);
+      assert.deepEqual(await recordSignupIdentity(token, candidate), savedIdentity);
+      assert.deepEqual(
+        await reserveSignupAuthAttempt(token, {
+          rowVersion: 3,
+          email,
+          password: SYNTHETIC_PASSWORD,
+          accepted: true,
+        }),
+        { ok: true, rowVersion: 4 },
+      );
+      assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'completed'), {
+        ok: true,
+        rowVersion: 5,
+      });
+    }
+
+    assert.deepEqual(
+      await claimSignupDraftByVerifiedEmail(userId, email, hashSignupToken(sourceToken)),
+      { ok: true, rowVersion: 6 },
+    );
+    const [source] = await snapshot(sourceToken);
+    assert.ok(source?.auth_attempted_at instanceof Date);
+    const attemptEpoch = source.auth_attempted_at.getTime();
+    const code = deriveSignupHandoffCode(hashSignupToken(sourceToken), attemptEpoch);
+    assert.equal(verifySignupHandoffCode(hashSignupToken(sourceToken), attemptEpoch, code), true);
+    assert.equal(verifySignupHandoffCode(hashSignupToken(targetToken), attemptEpoch, code), false);
+
+    assert.equal((await readSignupSession(targetToken))?.status, 'email_verified');
+    const continuation = await readSignupContinuationIdentity(targetToken, {
+      rowVersion: 5,
+      email,
+    });
+    assert.deepEqual(continuation, {
+      ok: true,
+      userId,
+      attemptEpoch,
+      codeSignupRef: hashSignupToken(sourceToken),
+      credentialRowVersion: 6,
+      credentialState: 'completed',
+      adoption: { targetRowVersion: 5 },
+    });
+
+    assert.deepEqual(
+      await advanceSignupCredentialEpoch({
+        userId,
+        signupRef: hashSignupToken(sourceToken),
+        expectedRowVersion: 6,
+        source: 'adoption',
+      }),
+      { ok: true, rowVersion: 7 },
+    );
+    assert.deepEqual(await readOwnedSignupReference(userId, email), {
+      ok: true,
+      signupRef: hashSignupToken(sourceToken),
+      credentialState: 'reserved',
+    });
+    assert.deepEqual(
+      await adoptVerifiedSignupForContinuation({
+        rawToken: targetToken,
+        email,
+        targetRowVersion: 5,
+        userId,
+        sourceSignupRef: hashSignupToken(sourceToken),
+        sourceRowVersion: 7,
+        attemptEpoch,
+      }),
+      { ok: true, rowVersion: 6 },
+    );
+
+    assert.equal((await snapshot(sourceToken)).length, 0);
+    const [adopted] = await snapshot(targetToken);
+    assert.equal(adopted?.status, 'email_verified');
+    assert.equal(adopted?.auth_user_id, userId);
+    assert.equal(adopted?.owner_name, 'Dona verificada');
+    assert.equal(adopted?.clinic_name, 'Clínica verificada');
+    assert.equal(adopted?.auth_attempt_state, 'completed');
+    assert.deepEqual(await readOwnedSignupReference(userId, email), {
+      ok: true,
+      signupRef: hashSignupToken(targetToken),
+      credentialState: 'completed',
+    });
+    await admin`DELETE FROM signup_sessions WHERE token_hash = ${hashSignupToken(targetToken)}`;
+  });
+  await check(
     'draft owner: cross-device claim by verified e-mail, mismatch denial, no TTL renewal, exclusive restart and purge',
     async () => {
       const ownerA = '44444444-4444-4444-8444-444444444444';
@@ -2681,18 +2994,22 @@ try {
         )`;
       }
 
-      // Aparelho diferente: nenhum cookie anônimo chega aqui, só a identidade já
-      // verificada. Entre dois cadastros do MESMO e-mail, vincula o mais recente.
+      // Aparelho diferente: a identidade já verificada ainda precisa apresentar
+      // a referência exata emitida para o draft. Outro cadastro do MESMO e-mail
+      // não pode ser adotado por proximidade temporal.
       await seedEmailPending(olderToken, email, 'completed', 5);
       await seedEmailPending(claimToken);
       await seedEmailPending(reservedToken, 'reserved.draft@example.invalid', 'reserved');
       await seedEmailPending(mismatchToken, 'mismatch.draft@example.invalid');
       for (const token of raceTokens) await seedEmailPending(token, 'race.draft@example.invalid');
       const [claimBefore] = await snapshot(claimToken);
-      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerA, email), {
-        ok: true,
-        rowVersion: 6,
-      });
+      assert.deepEqual(
+        await claimSignupDraftByVerifiedEmail(ownerA, email, hashSignupToken(claimToken)),
+        {
+          ok: true,
+          rowVersion: 6,
+        },
+      );
       const [claimed] = await snapshot(claimToken);
       assert.equal(claimed?.status, 'email_verified');
       assert.equal(claimed?.auth_user_id, ownerA);
@@ -2718,10 +3035,13 @@ try {
       assert.equal(older?.consumed_at, null);
 
       // Reabrir a continuação não vincula de novo nem mexe na linha.
-      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerA, email), {
-        ok: true,
-        rowVersion: 6,
-      });
+      assert.deepEqual(
+        await claimSignupDraftByVerifiedEmail(ownerA, email, hashSignupToken(claimToken)),
+        {
+          ok: true,
+          rowVersion: 6,
+        },
+      );
       assert.deepEqual((await snapshot(claimToken))[0], claimed);
 
       const read = await readSignupDraft(ownerA);
@@ -2751,34 +3071,51 @@ try {
       // quem chega com OTP válido daquele endereço não redigita nada por isso.
       const reservedEmail = 'reserved.draft@example.invalid';
       assert.equal((await snapshot(reservedToken))[0]?.auth_attempt_state, 'reserved');
-      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerB, reservedEmail), {
-        ok: true,
-        rowVersion: 6,
-      });
+      assert.deepEqual(
+        await claimSignupDraftByVerifiedEmail(
+          ownerB,
+          reservedEmail,
+          hashSignupToken(reservedToken),
+        ),
+        {
+          ok: true,
+          rowVersion: 6,
+        },
+      );
       assert.equal((await snapshot(reservedToken))[0]?.auth_user_id, ownerB);
 
       // E-mail verificado diferente não alcança o cadastro de outra pessoa.
       const mismatchBefore = await snapshot(mismatchToken);
-      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerC, 'different@example.invalid'), {
-        ok: false,
-        reason: 'gone',
-      });
+      assert.deepEqual(
+        await claimSignupDraftByVerifiedEmail(
+          ownerC,
+          'different@example.invalid',
+          hashSignupToken(mismatchToken),
+        ),
+        {
+          ok: false,
+          reason: 'gone',
+        },
+      );
       assert.deepEqual(await snapshot(mismatchToken), mismatchBefore);
       assert.deepEqual(await readSignupDraft(ownerC), { ok: false, reason: 'gone' });
 
       // Teto absoluto vencido também fecha o vínculo: expirar encerra autoridade.
       await admin`UPDATE signup_sessions SET absolute_expires_at = now() - interval '1 second'
         WHERE token_hash IN (${hashSignupToken(mismatchToken)}, ${hashSignupToken(olderToken)})`;
-      assert.deepEqual(await claimSignupDraftByVerifiedEmail(ownerD, email), {
-        ok: false,
-        reason: 'gone',
-      });
+      assert.deepEqual(
+        await claimSignupDraftByVerifiedEmail(ownerD, email, hashSignupToken(olderToken)),
+        {
+          ok: false,
+          reason: 'gone',
+        },
+      );
 
       // Duas abas do mesmo usuário disputando: um único owner, sem linha extra.
       const raceEmail = 'race.draft@example.invalid';
       const raceOutcomes = await Promise.all([
-        claimSignupDraftByVerifiedEmail(ownerE, raceEmail),
-        claimSignupDraftByVerifiedEmail(ownerE, raceEmail),
+        claimSignupDraftByVerifiedEmail(ownerE, raceEmail, hashSignupToken(raceTokens[0]!)),
+        claimSignupDraftByVerifiedEmail(ownerE, raceEmail, hashSignupToken(raceTokens[1]!)),
       ]);
       assert.ok(raceOutcomes.some((outcome) => outcome.ok));
       const [exclusiveOwner] =

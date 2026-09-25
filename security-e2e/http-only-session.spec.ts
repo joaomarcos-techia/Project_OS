@@ -100,9 +100,20 @@ function collectBrowserPayloads(page: Page): {
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
   page.on('response', (response) => {
+    const request = response.request();
+    const redirectedFrom = request.redirectedFrom();
+    const redirectedFromBridge =
+      request.resourceType() === 'fetch' &&
+      redirectedFrom !== null &&
+      new URL(redirectedFrom.url()).pathname === '/auth/confirm';
     // Redirects e 204 não têm corpo disponível no protocolo do navegador.
+    // A ponte usa `fetch(..., redirect: 'follow')` só para descobrir o destino
+    // same-origin e então navega para ele. Essa primeira cópia do destino é
+    // abortada pela navegação e o Playwright deixa `response.text()` pendurado;
+    // a resposta document subsequente da MESMA URL continua sendo inspecionada.
     if (
-      ['document', 'fetch', 'xhr'].includes(response.request().resourceType()) &&
+      ['document', 'fetch', 'xhr'].includes(request.resourceType()) &&
+      !redirectedFromBridge &&
       !(response.status() >= 300 && response.status() < 400) &&
       response.status() !== 204
     ) {
@@ -117,6 +128,14 @@ function collectBrowserPayloads(page: Page): {
     }
   });
   return { bodies, requests };
+}
+
+async function confirmInviteThroughBridge(page: Page): Promise<void> {
+  const bridge = await page.goto(
+    '/auth/confirm#token_hash=valid-invite&type=invite&next=%2Freset-password',
+  );
+  expect(bridge?.status()).toBe(200);
+  await page.waitForURL((url) => url.pathname === '/reset-password');
 }
 
 async function expectNoBearerInBrowser(
@@ -302,10 +321,7 @@ test('confirmação server-side cria geração HttpOnly sem expor bearer ao brow
   const before = verifications;
 
   // Destino permitido do OTP; convite não emite grant de recovery nem abre formulário de senha.
-  const confirmation = await page.goto(
-    '/auth/confirm?token_hash=valid-invite&type=invite&next=%2Freset-password',
-  );
-  expect(confirmation?.status()).toBe(200);
+  await confirmInviteThroughBridge(page);
   expect(new URL(page.url()).pathname).toBe('/reset-password');
   await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'Link inválido ou expirado',
@@ -328,6 +344,7 @@ test('confirmação server-side cria geração HttpOnly sem expor bearer ao brow
   expect(observed.requests.some((url) => url.startsWith(runtimeEnv.NEXT_PUBLIC_SUPABASE_URL))).toBe(
     false,
   );
+  expect(observed.requests.some((url) => url.includes('valid-invite'))).toBe(false);
   await expectNoBearerInBrowser(page, observed.bodies);
 });
 
@@ -414,10 +431,7 @@ for (const outcome of ['success', 'failure'] as const) {
 
     try {
       await expect.poll(() => hold.entered).toBe(true);
-      const confirmation = await page.goto(
-        '/auth/confirm?token_hash=valid-invite&type=invite&next=%2Freset-password',
-      );
-      expect(confirmation?.status()).toBe(200);
+      await confirmInviteThroughBridge(page);
       expect(new URL(page.url()).pathname).toBe('/reset-password');
       await expect(page.getByRole('main').getByRole('alert')).toContainText(
         'Link inválido ou expirado',
@@ -455,6 +469,11 @@ for (const outcome of ['success', 'failure'] as const) {
       expect(
         [...observedOld.requests, ...observedNew.requests].some((url) =>
           url.startsWith(runtimeEnv.NEXT_PUBLIC_SUPABASE_URL),
+        ),
+      ).toBe(false);
+      expect(
+        [...observedOld.requests, ...observedNew.requests].some((url) =>
+          url.includes('valid-invite'),
         ),
       ).toBe(false);
       await expectNoBearerInBrowser(oldPage, observedOld.bodies);

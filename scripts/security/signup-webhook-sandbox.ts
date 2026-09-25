@@ -82,7 +82,16 @@ guard();
 const cluster = await startScratchSchema({ port: PORT });
 const sql = cluster.sql;
 
+// O runner deve medir SOMENTE o cluster descartável, mesmo quando é iniciado
+// por um shell que pré-carregou `.env.local`. Fora de production, `env.ts`
+// promove `DATABASE_URL_DEV` sobre a canônica; `DATABASE_URL_RUNTIME` também
+// poderia mandar os handlers tenant para outro banco. Fixar as três entradas
+// fecha essa fuga e foi provado pela execução que antes devolveu `gone` ao ler
+// um DEV herdado enquanto a fixture existia no scratch.
 process.env.DATABASE_URL = cluster.url;
+process.env.DATABASE_URL_DEV = cluster.url;
+process.env.DATABASE_URL_RUNTIME = cluster.url;
+process.env.SUPABASE_PROJECT_ENV = 'dev';
 process.env.SIGNUP_IDENTITY_ENABLED = 'true';
 process.env.SIGNUP_AUTH_ENABLED = 'true';
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'https://test.supabase.co';

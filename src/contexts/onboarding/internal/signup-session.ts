@@ -16,7 +16,7 @@ import 'server-only';
 
 import { createHmac, randomBytes } from 'node:crypto';
 
-import { and, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { assertSignupSessionAllowed } from '@/lib/auth/rate-limit';
@@ -343,6 +343,8 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
       weeklyAppointmentsBand: signupSessions.weeklyAppointmentsBand,
       currentTooling: signupSessions.currentTooling,
       discoverySource: signupSessions.discoverySource,
+      emailHash: signupSessions.emailHash,
+      authAttemptState: signupSessions.authAttemptState,
     });
 
   if (!row) {
@@ -375,6 +377,49 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
   const status = SIGNUP_FUNNEL_ORDER.find((value) => value === row.status);
   if (!status) throw new Error('[signup] invalid_persisted_status');
 
+  // Um terceiro pode ter iniciado primeiro um cadastro com este endereço. O
+  // link vivo continua preso ao draft original (ninguém o rotaciona só por
+  // conhecer o e-mail), mas depois que o dono confirma esse link uma segunda
+  // sessão do mesmo endereço precisa poder apresentar o código recebido. A
+  // resposta virtual não transfere ownership nem expõe ids: o código ainda é
+  // exigido e a adoção atômica acontece somente na rota de continuação.
+  if (
+    status === 'email_pending' &&
+    row.emailHash &&
+    (row.authAttemptState === 'completed' || row.authAttemptState === 'uncertain')
+  ) {
+    const [verifiedSibling] = await dbAdmin
+      .select({ id: signupSessions.id })
+      .from(signupSessions)
+      .where(
+        and(
+          ne(signupSessions.tokenHash, tokenHash),
+          eq(signupSessions.emailHash, row.emailHash),
+          eq(signupSessions.status, 'email_verified'),
+          isNotNull(signupSessions.authUserId),
+          isNotNull(signupSessions.consumedAt),
+          isNotNull(signupSessions.authAttemptedAt),
+          inArray(signupSessions.authAttemptState, ['completed', 'reserved', 'uncertain']),
+          isNull(signupSessions.selectedPlanId),
+          isNull(signupSessions.billingAttemptState),
+          isNull(signupSessions.billingAttemptedAt),
+          isNull(signupSessions.asaasCustomerId),
+          isNull(signupSessions.asaasSubscriptionId),
+          gt(signupSessions.absoluteExpiresAt, sql`now()`),
+        ),
+      )
+      .limit(1);
+    if (verifiedSibling) {
+      return {
+        status: 'email_verified',
+        riskLevel: row.riskLevel,
+        expiresAt: row.idleExpiresAt.toISOString(),
+        rowVersion: row.rowVersion,
+        answers: null,
+      };
+    }
+  }
+
   return {
     status,
     riskLevel: row.riskLevel,
@@ -394,11 +439,7 @@ export interface SignupPurgeResult {
   deleted: number;
   /** Quantas continuam vivas — é o SLI que alimenta o check de saúde. */
   live: number;
-  /**
-   * Vencidas que NÃO foram apagadas por carregarem assinatura no Asaas (O-5).
-   * Maior que zero é risco de cobrança órfã e precisa de conciliação humana —
-   * por isso vira métrica própria em vez de sumir dentro de `deleted`.
-   */
+  /** Vencidas retidas por carregarem qualquer tentativa de billing. */
   retainedWithSubscription: number;
 }
 
@@ -419,20 +460,27 @@ export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPur
 
   /*
    * O janitor apagava QUALQUER linha vencida. Depois da 0103 isso apagaria também
-   * a linha que guarda a assinatura recorrente já criada no Asaas — e o Qoro
-   * perderia o único vínculo com uma cobrança que continua existindo do outro
-   * lado. Uma linha órfã é barata; uma assinatura órfã cobra alguém todo mês.
+   * uma linha que já iniciou billing, inclusive antes de existir uma assinatura,
+   * e o Qoro perderia a evidência necessária para reconciliar ou compensar o
+   * efeito externo. Uma linha órfã é barata; uma cobrança órfã pode persistir.
    *
-   * Reter não é vazamento de PII: a retenção vale só para quem tem assinatura, e
-   * a saída normal é o provisionamento (O-6) consumir a linha. O contador abaixo
-   * é o que torna a retenção visível em vez de silenciosa.
+   * Reter não é acompanhamento comercial: vale apenas quando qualquer um dos
+   * quatro marcadores de billing existe, e a saída normal é o provisionamento
+   * (O-6) consumir a linha. O nome do contador/métrica é legado da primeira
+   * versão da 0103; seu valor conta todas as linhas com traço de billing.
    */
   const deletedRows = await dbAdmin
     .delete(signupSessions)
     .where(
       sql`${signupSessions.id} IN (
         SELECT id FROM ${signupSessions}
-         WHERE ${and(expiredCondition, isNull(signupSessions.asaasSubscriptionId))}
+         WHERE ${and(
+           expiredCondition,
+           isNull(signupSessions.billingAttemptState),
+           isNull(signupSessions.billingAttemptedAt),
+           isNull(signupSessions.asaasCustomerId),
+           isNull(signupSessions.asaasSubscriptionId),
+         )}
          LIMIT ${batch}
       )`,
     )
@@ -441,7 +489,17 @@ export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPur
   const [retainedRow] = await dbAdmin
     .select({ n: sql<number>`count(*)::int` })
     .from(signupSessions)
-    .where(and(expiredCondition, isNotNull(signupSessions.asaasSubscriptionId)));
+    .where(
+      and(
+        expiredCondition,
+        or(
+          isNotNull(signupSessions.billingAttemptState),
+          isNotNull(signupSessions.billingAttemptedAt),
+          isNotNull(signupSessions.asaasCustomerId),
+          isNotNull(signupSessions.asaasSubscriptionId),
+        ),
+      ),
+    );
   const retainedWithSubscription = retainedRow?.n ?? 0;
   if (retainedWithSubscription > 0) {
     metrics.emit('signup.session.subscription_retained', { retained: retainedWithSubscription });
@@ -559,7 +617,6 @@ export const signupAuthSchema = z
     email: z.string().trim().max(160).email(),
     password: signupPasswordSchema,
     accepted: z.literal(true),
-    captchaToken: z.string().trim().min(1).max(2_048).optional(),
   })
   .strict();
 
@@ -568,12 +625,643 @@ export const signupResendSchema = z
   .object({
     rowVersion: z.number().int().min(1).max(2_147_483_645),
     email: z.string().trim().max(160).email(),
-    accepted: z.literal(true),
-    captchaToken: z.string().trim().min(1).max(2_048).optional(),
   })
   .strict();
 
+/**
+ * Credenciais usadas uma única vez pela aba que iniciou o cadastro para abrir
+ * a sessão Auth depois que a confirmação aconteceu em outro aparelho.
+ *
+ * O corpo é estrito: o browser não escolhe user id nem estado do funil. Esses
+ * valores saem exclusivamente da linha identificada pelo cookie anônimo.
+ */
+export const signupContinuationSchema = z
+  .object({
+    rowVersion: z.number().int().min(1).max(2_147_483_646),
+    email: z.string().trim().max(160).email(),
+    password: signupPasswordSchema,
+    verificationCode: z.string().regex(/^\d{8}$/u),
+  })
+  .strict();
+
+type SignupContinuationIdentityOutcome =
+  | {
+      ok: true;
+      userId: string;
+      attemptEpoch: number;
+      /** Referência que derivou o código recebido; nunca vem do browser. */
+      codeSignupRef: string;
+      /** Epoch atual da linha que possui o usuário verificado. */
+      credentialRowVersion: number;
+      credentialState: 'completed' | 'reserved' | 'uncertain';
+      /** Presente quando o código vai recuperar outra sessão do mesmo e-mail. */
+      adoption: null | { targetRowVersion: number };
+    }
+  | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
+
+type SignupCredentialEpochOutcome =
+  | { ok: true; rowVersion: number }
+  | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
+
+export type SignupCredentialMutationSource = 'continuation' | 'recovery' | 'adoption';
+export type SignupCredentialMutationOutcome = 'completed' | 'uncertain';
+export type SignupReferenceLiveness = 'live' | 'gone' | 'unavailable';
+
+/**
+ * Diz se o marker pending ainda aponta para um draft utilizavel daquele e-mail.
+ *
+ * O envio consulta isto antes de gerar outro recovery token. Enquanto a
+ * referencia atual estiver viva, outro browser nao pode rotacionar o link por
+ * conhecer apenas o endereco. Depois do TTL, um novo draft pode assumir.
+ */
+export async function readSignupReferenceLiveness(input: {
+  userId: string;
+  email: string;
+  signupRef: string;
+}): Promise<SignupReferenceLiveness> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) return 'unavailable';
+  const parsed = z
+    .object({
+      userId: z.string().uuid(),
+      email: z.string().trim().max(160).email(),
+      signupRef: z.string().regex(/^[a-f0-9]{64}$/u),
+    })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return 'unavailable';
+
+  try {
+    const [row] = await dbAdmin
+      .select({ id: signupSessions.id })
+      .from(signupSessions)
+      .where(
+        and(
+          eq(signupSessions.tokenHash, parsed.data.signupRef),
+          eq(signupSessions.emailHash, hashEmail(parsed.data.email)),
+          // O callback aceita o link ate o teto absoluto mesmo quando a janela
+          // anonima de inatividade ja passou. A protecao contra rotacao precisa
+          // durar exatamente o mesmo prazo do link ainda consumivel.
+          gt(signupSessions.absoluteExpiresAt, sql`now()`),
+          or(
+            and(
+              eq(signupSessions.status, 'email_pending'),
+              isNull(signupSessions.authUserId),
+              isNull(signupSessions.consumedAt),
+            ),
+            and(
+              eq(signupSessions.status, 'email_verified'),
+              eq(signupSessions.authUserId, parsed.data.userId),
+              isNotNull(signupSessions.consumedAt),
+            ),
+          ),
+        ),
+      )
+      .limit(1);
+    return row ? 'live' : 'gone';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/**
+ * Resolve a identidade esperada sem confiar em nenhum id vindo do browser.
+ *
+ * Todas as provas precisam casar na MESMA linha: cookie (HMAC), e-mail (HMAC),
+ * versão observada pelo polling, estado consumido e user id gravado pelo claim.
+ * A senha nunca chega a esta função nem ao banco.
+ */
+export async function readSignupContinuationIdentity(
+  rawToken: string,
+  input: Pick<z.infer<typeof signupContinuationSchema>, 'rowVersion' | 'email'>,
+): Promise<SignupContinuationIdentityOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  const parsed = signupContinuationSchema.pick({ rowVersion: true, email: true }).safeParse({
+    rowVersion: input.rowVersion,
+    email: input.email,
+  });
+  if (!parsed.success) return { ok: false, reason: 'gone' };
+
+  const tokenHash = hashSignupToken(rawToken);
+  const [matched] = await dbAdmin
+    .select({
+      userId: signupSessions.authUserId,
+      authAttemptedAt: signupSessions.authAttemptedAt,
+      rowVersion: signupSessions.rowVersion,
+      authAttemptState: signupSessions.authAttemptState,
+    })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        eq(signupSessions.emailHash, hashEmail(parsed.data.email)),
+        eq(signupSessions.status, 'email_verified'),
+        isNotNull(signupSessions.authUserId),
+        isNotNull(signupSessions.consumedAt),
+        eq(signupSessions.rowVersion, parsed.data.rowVersion),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+      ),
+    )
+    .limit(1);
+  if (
+    matched?.userId &&
+    matched.authAttemptedAt &&
+    (matched.authAttemptState === 'completed' ||
+      matched.authAttemptState === 'reserved' ||
+      matched.authAttemptState === 'uncertain')
+  ) {
+    return {
+      ok: true,
+      userId: matched.userId,
+      attemptEpoch: matched.authAttemptedAt.getTime(),
+      codeSignupRef: tokenHash,
+      credentialRowVersion: matched.rowVersion,
+      credentialState: matched.authAttemptState,
+      adoption: null,
+    };
+  }
+
+  const [target] = await dbAdmin
+    .select({ emailHash: signupSessions.emailHash })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        eq(signupSessions.emailHash, hashEmail(parsed.data.email)),
+        eq(signupSessions.status, 'email_pending'),
+        isNull(signupSessions.authUserId),
+        isNull(signupSessions.consumedAt),
+        inArray(signupSessions.authAttemptState, ['completed', 'uncertain']),
+        eq(signupSessions.rowVersion, parsed.data.rowVersion),
+        isNull(signupSessions.selectedPlanId),
+        isNull(signupSessions.billingAttemptState),
+        isNull(signupSessions.billingAttemptedAt),
+        isNull(signupSessions.asaasCustomerId),
+        isNull(signupSessions.asaasSubscriptionId),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+      ),
+    )
+    .limit(1);
+  if (target?.emailHash) {
+    const [source] = await dbAdmin
+      .select({
+        userId: signupSessions.authUserId,
+        tokenHash: signupSessions.tokenHash,
+        authAttemptedAt: signupSessions.authAttemptedAt,
+        rowVersion: signupSessions.rowVersion,
+        authAttemptState: signupSessions.authAttemptState,
+      })
+      .from(signupSessions)
+      .where(
+        and(
+          ne(signupSessions.tokenHash, tokenHash),
+          eq(signupSessions.emailHash, target.emailHash),
+          eq(signupSessions.status, 'email_verified'),
+          isNotNull(signupSessions.authUserId),
+          isNotNull(signupSessions.consumedAt),
+          isNotNull(signupSessions.authAttemptedAt),
+          inArray(signupSessions.authAttemptState, ['completed', 'reserved', 'uncertain']),
+          isNull(signupSessions.selectedPlanId),
+          isNull(signupSessions.billingAttemptState),
+          isNull(signupSessions.billingAttemptedAt),
+          isNull(signupSessions.asaasCustomerId),
+          isNull(signupSessions.asaasSubscriptionId),
+          gt(signupSessions.absoluteExpiresAt, sql`now()`),
+        ),
+      )
+      .orderBy(desc(signupSessions.consumedAt))
+      .limit(1);
+    if (
+      source?.userId &&
+      source.authAttemptedAt &&
+      (source.authAttemptState === 'completed' ||
+        source.authAttemptState === 'reserved' ||
+        source.authAttemptState === 'uncertain')
+    ) {
+      return {
+        ok: true,
+        userId: source.userId,
+        attemptEpoch: source.authAttemptedAt.getTime(),
+        codeSignupRef: source.tokenHash,
+        credentialRowVersion: source.rowVersion,
+        credentialState: source.authAttemptState,
+        adoption: { targetRowVersion: parsed.data.rowVersion },
+      };
+    }
+  }
+
+  // Diferencia uma versão concorrente de cookie morto sem revelar nada a quem
+  // não possui a credencial anônima. A rota ainda responde de forma categórica.
+  const [live] = await dbAdmin
+    .select({ id: signupSessions.id })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        inArray(signupSessions.status, ['email_pending', 'email_verified']),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+      ),
+    )
+    .limit(1);
+  return live ? { ok: false, reason: 'conflict' } : { ok: false, reason: 'gone' };
+}
+
+type AdoptVerifiedSignupOutcome =
+  | { ok: true; rowVersion: number }
+  | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
+
+/**
+ * Move o ownership confirmado para a sessão que apresentou o mesmo e-mail e o
+ * código do link vivo. O chamador já verificou o código contra `sourceSignupRef`;
+ * ambos os ids abaixo foram lidos do banco, nunca escolhidos pelo browser.
+ *
+ * A fonte só pode desaparecer aqui antes de plano/billing. Delete + update
+ * vivem na mesma transação, portanto o UNIQUE(auth_user_id) nunca deixa um
+ * estado intermediário persistido.
+ */
+export async function adoptVerifiedSignupForContinuation(input: {
+  rawToken: string;
+  email: string;
+  targetRowVersion: number;
+  userId: string;
+  sourceSignupRef: string;
+  sourceRowVersion: number;
+  attemptEpoch: number;
+}): Promise<AdoptVerifiedSignupOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
+    return { ok: false, reason: 'unavailable' };
+  }
+  const parsed = z
+    .object({
+      rawToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/u),
+      email: z.string().trim().max(160).email(),
+      targetRowVersion: z.number().int().min(1).max(2_147_483_646),
+      userId: z.string().uuid(),
+      sourceSignupRef: z.string().regex(/^[a-f0-9]{64}$/u),
+      sourceRowVersion: z.number().int().min(1).max(2_147_483_646),
+      attemptEpoch: z.number().int().positive(),
+    })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, reason: 'gone' };
+
+  const targetSignupRef = hashSignupToken(parsed.data.rawToken);
+  if (targetSignupRef === parsed.data.sourceSignupRef) return { ok: false, reason: 'conflict' };
+  const emailHash = hashEmail(parsed.data.email);
+
+  try {
+    return await dbAdmin.transaction(async (tx) => {
+      const [target] = await tx
+        .select({ id: signupSessions.id, rowVersion: signupSessions.rowVersion })
+        .from(signupSessions)
+        .where(
+          and(
+            eq(signupSessions.tokenHash, targetSignupRef),
+            eq(signupSessions.emailHash, emailHash),
+            eq(signupSessions.status, 'email_pending'),
+            isNull(signupSessions.authUserId),
+            isNull(signupSessions.consumedAt),
+            inArray(signupSessions.authAttemptState, ['completed', 'uncertain']),
+            eq(signupSessions.rowVersion, parsed.data.targetRowVersion),
+            isNull(signupSessions.selectedPlanId),
+            isNull(signupSessions.billingAttemptState),
+            isNull(signupSessions.billingAttemptedAt),
+            isNull(signupSessions.asaasCustomerId),
+            isNull(signupSessions.asaasSubscriptionId),
+            gt(signupSessions.absoluteExpiresAt, sql`now()`),
+          ),
+        )
+        .for('update')
+        .limit(1);
+      if (!target) return { ok: false as const, reason: 'conflict' as const };
+
+      const [source] = await tx
+        .select({
+          id: signupSessions.id,
+          rowVersion: signupSessions.rowVersion,
+          authAttemptKind: signupSessions.authAttemptKind,
+          authAttemptedAt: signupSessions.authAttemptedAt,
+        })
+        .from(signupSessions)
+        .where(
+          and(
+            eq(signupSessions.tokenHash, parsed.data.sourceSignupRef),
+            eq(signupSessions.emailHash, emailHash),
+            eq(signupSessions.status, 'email_verified'),
+            eq(signupSessions.authUserId, parsed.data.userId),
+            isNotNull(signupSessions.consumedAt),
+            inArray(signupSessions.authAttemptState, ['reserved', 'uncertain']),
+            eq(signupSessions.authAttemptedAt, new Date(parsed.data.attemptEpoch)),
+            eq(signupSessions.rowVersion, parsed.data.sourceRowVersion),
+            isNull(signupSessions.selectedPlanId),
+            isNull(signupSessions.billingAttemptState),
+            isNull(signupSessions.billingAttemptedAt),
+            isNull(signupSessions.asaasCustomerId),
+            isNull(signupSessions.asaasSubscriptionId),
+            gt(signupSessions.absoluteExpiresAt, sql`now()`),
+          ),
+        )
+        .for('update')
+        .limit(1);
+      if (!source?.authAttemptKind || !source.authAttemptedAt) {
+        return { ok: false as const, reason: 'conflict' as const };
+      }
+
+      const [removed] = await tx
+        .delete(signupSessions)
+        .where(
+          and(
+            eq(signupSessions.id, source.id),
+            eq(signupSessions.rowVersion, source.rowVersion),
+            eq(signupSessions.authUserId, parsed.data.userId),
+            isNull(signupSessions.billingAttemptState),
+            isNull(signupSessions.asaasSubscriptionId),
+          ),
+        )
+        .returning({ id: signupSessions.id });
+      if (!removed) return { ok: false as const, reason: 'conflict' as const };
+
+      const [adopted] = await tx
+        .update(signupSessions)
+        .set({
+          status: 'email_verified',
+          authUserId: parsed.data.userId,
+          consumedAt: sql`now()`,
+          authAttemptKind: source.authAttemptKind,
+          authAttemptState: 'completed',
+          authAttemptedAt: source.authAttemptedAt,
+          idleExpiresAt: signupSessions.absoluteExpiresAt,
+          rowVersion: sql`${signupSessions.rowVersion} + 1`,
+        })
+        .where(
+          and(
+            eq(signupSessions.id, target.id),
+            eq(signupSessions.rowVersion, target.rowVersion),
+            eq(signupSessions.status, 'email_pending'),
+            isNull(signupSessions.authUserId),
+            isNull(signupSessions.consumedAt),
+          ),
+        )
+        .returning({ rowVersion: signupSessions.rowVersion });
+      if (!adopted) {
+        // A fonte já foi removida dentro desta transação; lançar é obrigatório
+        // para que o Postgres reverta o DELETE junto com o CAS perdido.
+        throw new Error('[signup] continuation adoption CAS lost');
+      }
+      return { ok: true as const, rowVersion: adopted.rowVersion };
+    });
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+/**
+ * CAS compartilhado por toda mutação de credencial do usuário pré-tenant.
+ *
+ * O incremento de `row_version` é o epoch: somente uma requisição que observou
+ * a versão atual pode tocar a Admin API. O I/O externo acontece depois deste
+ * CAS, portanto duas continuações concorrentes nunca instalam senhas distintas.
+ */
+export async function advanceSignupCredentialEpoch(input: {
+  userId: string;
+  signupRef: string;
+  expectedRowVersion: number;
+  source: SignupCredentialMutationSource;
+}): Promise<SignupCredentialEpochOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
+    return { ok: false, reason: 'unavailable' };
+  }
+  const parsed = z
+    .object({
+      userId: z.string().uuid(),
+      signupRef: z.string().regex(/^[a-f0-9]{64}$/u),
+      expectedRowVersion: z.number().int().min(1).max(2_147_483_646),
+      source: z.enum(['continuation', 'recovery', 'adoption']),
+    })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, reason: 'unavailable' };
+
+  const [advanced] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      // A mesma coluna já é um enum fechado e acompanha a tentativa Auth. Em
+      // `email_verified`, `reserved` passa a significar que uma única mutação
+      // de credencial possui o direito de chamar a Admin API. A versão sozinha
+      // não bastava: `/me` podia expor o novo epoch enquanto o I/O ainda estava
+      // em voo e uma segunda senha ganhava outro CAS.
+      authAttemptState: 'reserved',
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.authUserId, parsed.data.userId),
+        eq(signupSessions.tokenHash, parsed.data.signupRef),
+        eq(signupSessions.status, 'email_verified'),
+        isNotNull(signupSessions.consumedAt),
+        eq(signupSessions.rowVersion, parsed.data.expectedRowVersion),
+        parsed.data.source === 'recovery' || parsed.data.source === 'adoption'
+          ? inArray(signupSessions.authAttemptState, ['completed', 'uncertain'])
+          : eq(signupSessions.authAttemptState, 'completed'),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (advanced) return { ok: true, rowVersion: advanced.rowVersion };
+
+  const [live] = await dbAdmin
+    .select({ id: signupSessions.id })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.authUserId, parsed.data.userId),
+        eq(signupSessions.tokenHash, parsed.data.signupRef),
+        eq(signupSessions.status, 'email_verified'),
+        isNotNull(signupSessions.consumedAt),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+      ),
+    )
+    .limit(1);
+  return live ? { ok: false, reason: 'conflict' } : { ok: false, reason: 'gone' };
+}
+
+/**
+ * Fecha (ou repara) a reserva de credencial.
+ *
+ * Se a Admin API respondeu com sucesso, `completed` torna a linha novamente
+ * legível e idempotente. Se a resposta foi ambígua, `uncertain` impede qualquer
+ * nova escrita anônima; um novo OTP de recovery é necessário. Quando o marker
+ * Auth já está `set`, um retry pode promover `reserved/uncertain` a `completed`
+ * sem tocar na senha outra vez.
+ */
+export async function finishSignupCredentialEpoch(input: {
+  userId: string;
+  signupRef: string;
+  expectedRowVersion: number;
+  outcome: SignupCredentialMutationOutcome;
+}): Promise<SignupCredentialEpochOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
+    return { ok: false, reason: 'unavailable' };
+  }
+  const parsed = z
+    .object({
+      userId: z.string().uuid(),
+      signupRef: z.string().regex(/^[a-f0-9]{64}$/u),
+      expectedRowVersion: z.number().int().min(1).max(2_147_483_646),
+      outcome: z.enum(['completed', 'uncertain']),
+    })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, reason: 'unavailable' };
+
+  const finishableStates =
+    parsed.data.outcome === 'completed'
+      ? (['reserved', 'uncertain'] as const)
+      : (['reserved'] as const);
+  const [finished] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      authAttemptState: parsed.data.outcome,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.authUserId, parsed.data.userId),
+        eq(signupSessions.tokenHash, parsed.data.signupRef),
+        eq(signupSessions.status, 'email_verified'),
+        isNotNull(signupSessions.consumedAt),
+        eq(signupSessions.rowVersion, parsed.data.expectedRowVersion),
+        inArray(signupSessions.authAttemptState, finishableStates),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (finished) return { ok: true, rowVersion: finished.rowVersion };
+
+  const [live] = await dbAdmin
+    .select({
+      rowVersion: signupSessions.rowVersion,
+      authAttemptState: signupSessions.authAttemptState,
+    })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.authUserId, parsed.data.userId),
+        eq(signupSessions.tokenHash, parsed.data.signupRef),
+        eq(signupSessions.status, 'email_verified'),
+        isNotNull(signupSessions.consumedAt),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+      ),
+    )
+    .limit(1);
+  if (!live) return { ok: false, reason: 'gone' };
+  if (
+    parsed.data.outcome === 'completed' &&
+    live.authAttemptState === 'completed' &&
+    live.rowVersion === parsed.data.expectedRowVersion
+  ) {
+    return { ok: true, rowVersion: live.rowVersion };
+  }
+  return { ok: false, reason: 'conflict' };
+}
+
 type ResendReserveOutcome = IdentityOutcome | { ok: false; reason: 'cooldown'; retryAfter: number };
+
+/**
+ * Le o epoch gravado pelo relogio do banco para a reserva ainda vencedora.
+ * Ele entra no codigo humano, fazendo cada reenvio invalidar o codigo anterior.
+ */
+export async function readReservedSignupAttemptEpoch(
+  rawToken: string,
+  reservedVersion: number,
+  kind: 'initial' | 'resend',
+): Promise<number | null> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) return null;
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return null;
+  if (
+    !Number.isInteger(reservedVersion) ||
+    reservedVersion < 2 ||
+    reservedVersion > 2_147_483_646
+  ) {
+    return null;
+  }
+  const [reserved] = await dbAdmin
+    .select({ authAttemptedAt: signupSessions.authAttemptedAt })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.tokenHash, hashSignupToken(rawToken)),
+        liveCondition(),
+        eq(signupSessions.status, 'email_pending'),
+        eq(signupSessions.authAttemptKind, kind),
+        eq(signupSessions.authAttemptState, 'reserved'),
+        eq(signupSessions.rowVersion, reservedVersion),
+        isNotNull(signupSessions.authAttemptedAt),
+      ),
+    )
+    .limit(1);
+  const epoch = reserved?.authAttemptedAt?.getTime();
+  return typeof epoch === 'number' && Number.isSafeInteger(epoch) && epoch > 0 ? epoch : null;
+}
+
+export type SignupDeliveryAttemptState = 'pending' | 'verified' | 'stale';
+
+/**
+ * Revalida a mesma tentativa depois que o Auth gerou o token e antes do Resend.
+ * `verified` continua entregavel somente para o mesmo user/ref: cobre a corrida
+ * em que o callback do link anterior vence enquanto o reenvio esta em voo.
+ */
+export async function readSignupDeliveryAttemptState(input: {
+  signupRef: string;
+  attemptEpoch: number;
+  kind: 'initial' | 'resend';
+  userId: string;
+}): Promise<SignupDeliveryAttemptState> {
+  const parsed = z
+    .object({
+      signupRef: z.string().regex(/^[a-f0-9]{64}$/u),
+      attemptEpoch: z.number().int().positive(),
+      kind: z.enum(['initial', 'resend']),
+      userId: z.string().uuid(),
+    })
+    .strict()
+    .safeParse(input);
+  if (!parsed.success) return 'stale';
+
+  const [row] = await dbAdmin
+    .select({
+      status: signupSessions.status,
+      authUserId: signupSessions.authUserId,
+    })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.tokenHash, parsed.data.signupRef),
+        eq(signupSessions.authAttemptKind, parsed.data.kind),
+        eq(signupSessions.authAttemptedAt, new Date(parsed.data.attemptEpoch)),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
+        or(
+          and(
+            eq(signupSessions.status, 'email_pending'),
+            eq(signupSessions.authAttemptState, 'reserved'),
+            isNull(signupSessions.authUserId),
+            isNull(signupSessions.consumedAt),
+          ),
+          and(
+            eq(signupSessions.status, 'email_verified'),
+            eq(signupSessions.authAttemptState, 'completed'),
+            eq(signupSessions.authUserId, parsed.data.userId),
+            isNotNull(signupSessions.consumedAt),
+          ),
+        ),
+      ),
+    )
+    .limit(1);
+  if (row?.status === 'email_pending') return 'pending';
+  if (row?.status === 'email_verified' && row.authUserId === parsed.data.userId) return 'verified';
+  return 'stale';
+}
 
 /** CAS autoriza uma única chamada inicial ao Auth, sempre fora da transação. */
 export async function reserveSignupAuthAttempt(
@@ -592,7 +1280,7 @@ export async function reserveSignupAuthAttempt(
       status: 'email_pending',
       authAttemptKind: 'initial',
       authAttemptState: 'reserved',
-      authAttemptedAt: sql`now()`,
+      authAttemptedAt: sql`date_trunc('milliseconds', clock_timestamp())`,
       rowVersion: sql`${signupSessions.rowVersion} + 1`,
       idleExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
     })
@@ -736,7 +1424,7 @@ export async function reserveSignupResendAttempt(
     .set({
       authAttemptKind: 'resend',
       authAttemptState: 'reserved',
-      authAttemptedAt: sql`now()`,
+      authAttemptedAt: sql`date_trunc('milliseconds', clock_timestamp())`,
       rowVersion: sql`${signupSessions.rowVersion} + 1`,
     })
     .where(
@@ -821,6 +1509,48 @@ export async function finishSignupResendAttempt(
     )
     .returning({ rowVersion: signupSessions.rowVersion });
   if (finished) return { ok: true, rowVersion: finished.rowVersion };
+  const [live] = await dbAdmin
+    .select({ rowVersion: signupSessions.rowVersion })
+    .from(signupSessions)
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
+}
+
+/**
+ * Libera um reenvio que comprovadamente não criou usuário nem token.
+ * Mantém a sessão em `email_pending`, mas torna a próxima reserva imediata.
+ */
+export async function abortSignupResendAttempt(
+  rawToken: string,
+  reservedVersion: number,
+): Promise<IdentityOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  if (!Number.isInteger(reservedVersion) || reservedVersion < 2 || reservedVersion > 2_147_483_646)
+    throw new Error('[signup] invalid_resend_result');
+  const tokenHash = hashSignupToken(rawToken);
+  const retryableAt = sql`now() - make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS})`;
+  const [aborted] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      authAttemptState: 'uncertain',
+      authAttemptedAt: retryableAt,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        liveCondition(),
+        eq(signupSessions.status, 'email_pending'),
+        eq(signupSessions.authAttemptKind, 'resend'),
+        eq(signupSessions.authAttemptState, 'reserved'),
+        eq(signupSessions.rowVersion, reservedVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (aborted) return { ok: true, rowVersion: aborted.rowVersion };
   const [live] = await dbAdmin
     .select({ rowVersion: signupSessions.rowVersion })
     .from(signupSessions)

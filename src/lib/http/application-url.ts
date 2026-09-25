@@ -75,10 +75,9 @@ export function createPasswordResetRedirectUrl(): string {
 /**
  * Creates the server-side confirmation URL for a one-time Supabase email token.
  *
- * The token hash is intentionally kept in the query string only long enough for
- * `/auth/confirm` to exchange it for the @supabase/ssr session cookies. Returning the
- * raw Auth action link would instead redirect the recipient to `/convite` with
- * bearer credentials in the URL fragment, which is not a supported SSR flow.
+ * O token fica no fragmento: o primeiro GET não o envia ao servidor, ao
+ * Referer nem ao access log. A ponte de `/auth/confirm` limpa a URL e o entrega
+ * por POST ao verificador SSR.
  */
 export function createAuthConfirmationUrl(
   tokenHash: string,
@@ -89,8 +88,42 @@ export function createAuthConfirmationUrl(
   }
 
   const url = new URL(configuredApplicationUrl('/auth/confirm'));
-  url.searchParams.set('token_hash', tokenHash);
-  url.searchParams.set('type', type);
-  url.searchParams.set('next', '/convite');
+  url.hash = new URLSearchParams({
+    token_hash: tokenHash,
+    type,
+    next: '/convite',
+  }).toString();
+  return url.toString();
+}
+
+/**
+ * URL de confirmação do cadastro autônomo (§O-3b).
+ *
+ * Separada de `createAuthConfirmationUrl` porque o destino é outro: aquela leva
+ * ao aceite do convite, esta leva à tela que só diz "e-mail confirmado". E
+ * porque o `type` aqui não é decorativo — ele decide qual token o GoTrue espera
+ * em `verifyOtp`:
+ *
+ * `recovery` é usado porque confirma a conta pendente sem receber nem substituir
+ * a senha e, ao contrário de `magiclink`, falha quando o usuário não existe.
+ */
+export function createSignupConfirmationUrl(
+  tokenHash: string,
+  type: 'signup' | 'magiclink' | 'recovery',
+  signupRef: string,
+): string {
+  if (!tokenHash.trim()) {
+    throw new Error('[app-url] signup confirmation token hash is required');
+  }
+  if (!/^[a-f0-9]{64}$/u.test(signupRef)) {
+    throw new Error('[app-url] signup confirmation ref is invalid');
+  }
+  const url = new URL(configuredApplicationUrl('/auth/confirm'));
+  url.hash = new URLSearchParams({
+    token_hash: tokenHash,
+    type,
+    next: '/cadastro/confirmado',
+    signup_ref: signupRef,
+  }).toString();
   return url.toString();
 }

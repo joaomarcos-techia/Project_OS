@@ -16,6 +16,8 @@ vi.mock('@/components/shared/turnstile-widget', () => ({
 }));
 
 const fetchMock = vi.fn<typeof fetch>();
+/** O happy-dom não navega; `assign` prova o destino após o handoff explícito. */
+const assignMock = vi.fn<(url: string | URL) => void>();
 
 const ANSWERS: SignupAnswerValues = {
   professionalsBand: '2_5',
@@ -39,9 +41,8 @@ const SAVED_SESSION: SignupSessionState = {
   answers: ANSWERS,
 };
 
-/** Mesmos números do componente: cabem 30 leituras de 20 s no limite por IP. */
+/** Mesmo intervalo do componente: no máximo 45 leituras por janela de 15 min. */
 const POLL_INTERVAL_MS = 20_000;
-const POLL_MAX_ATTEMPTS = 30;
 
 it.each([false, true])(
   'email_pending congela perguntas/identidade, inclusive gate %s, sem repetir Auth',
@@ -51,7 +52,7 @@ it.each([false, true])(
     );
     render(<SignupQuestions identityEnabled={identityEnabled} />);
     await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
-    expect(screen.getByText(/Se houver uma etapa de confirmação/u)).toBeTruthy();
+    expect(screen.getByText(/enviaremos um link e um código de 8 dígitos/u)).toBeTruthy();
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Salvar e continuar' })).toBeNull();
     expect(screen.queryByLabelText('Seu nome')).toBeNull();
@@ -103,8 +104,12 @@ async function chooseAll(): Promise<void> {
 
 beforeEach(() => {
   fetchMock.mockReset();
+  assignMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
+  // `window.location` e read-only no happy-dom; so o metodo e substituivel.
+  vi.spyOn(window.location, 'assign').mockImplementation(assignMock);
   window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -458,20 +463,21 @@ describe('cadastro — conta e espera O-3b.5', () => {
     fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Senha1234' } });
   }
 
-  it('atualiza o computador quando o e-mail é confirmado em outro aparelho', async () => {
-    const pendingSession: SignupSessionState = {
-      ...SAVED_SESSION,
-      status: 'email_pending',
-      rowVersion: 5,
-    };
-    const verifiedSession: SignupSessionState = {
-      ...EMPTY_SESSION,
-      status: 'email_verified',
-      rowVersion: 6,
-    };
+  async function renderPendingOriginalTab() {
     vi.useFakeTimers();
-    fetchMock.mockResolvedValueOnce(json(200, { session: pendingSession }));
-    render(<SignupQuestions identityEnabled />);
+    fetchMock.mockResolvedValueOnce(json(200, { session: SAVED_SESSION }));
+    const view = render(<SignupQuestions identityEnabled />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    fillIdentity();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fetchMock
+      .mockResolvedValueOnce(json(200, { rowVersion: 3 }))
+      .mockResolvedValueOnce(json(200, { rowVersion: 5 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
@@ -479,6 +485,32 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(
       screen.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
     ).toBeTruthy();
+    return view;
+  }
+
+  function continuationCalls() {
+    return fetchMock.mock.calls.filter(([url]) => url === '/api/signup/sessions/continue');
+  }
+
+  function fillRefreshedContinuation() {
+    fireEvent.change(screen.getByLabelText('E-mail usado no cadastro'), {
+      target: { value: 'ana@example.test' },
+    });
+    fireEvent.change(screen.getByLabelText('Crie sua senha'), {
+      target: { value: 'Senha1234' },
+    });
+    fireEvent.change(screen.getByLabelText('Código do e-mail'), {
+      target: { value: '12345678' },
+    });
+  }
+
+  it('após confirmar exige o código e nunca lê o draft nem avança automaticamente', async () => {
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    await renderPendingOriginalTab();
     fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
 
     await act(async () => {
@@ -486,18 +518,234 @@ describe('cadastro — conta e espera O-3b.5', () => {
     });
 
     expect(screen.getByRole('heading', { name: 'E-mail confirmado' })).toBeTruthy();
-    // Um destino serve aos dois casos: com sessão verificada a continuação
-    // segue, sem ela a própria página manda ao login.
-    expect(screen.getByRole('link', { name: 'Continuar cadastro' }).getAttribute('href')).toBe(
-      '/cadastro/continuar',
-    );
+    expect(screen.getByLabelText('Código do e-mail')).toBeTruthy();
+    expect(screen.queryByLabelText('E-mail usado no cadastro')).toBeNull();
+    expect(screen.queryByLabelText('Crie sua senha')).toBeNull();
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       '/api/signup/sessions/me',
+      '/api/signup/sessions/identity',
+      '/api/signup/sessions/auth',
       '/api/signup/sessions/me',
     ]);
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/signup/draft')).toBe(false);
+    expect(continuationCalls()).toHaveLength(0);
+    expect(assignMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Código do e-mail'), {
+      target: { value: '12345678' },
+    });
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(assignMock).toHaveBeenCalledWith('/cadastro/plano');
+    expect(JSON.parse(String(continuationCalls()[0]?.[1]?.body))).toEqual({
+      rowVersion: 6,
+      email: 'ana@example.test',
+      password: 'Senha1234',
+      verificationCode: '12345678',
+    });
   });
 
-  it('para a espera no teto de leituras, em vez de gastar o limite por IP até o fim do TTL', async () => {
+  it('após refresh pede e-mail, nova senha com olho e código antes de continuar', async () => {
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
+    render(<SignupQuestions identityEnabled />);
+
+    await screen.findByRole('heading', { name: 'E-mail confirmado' });
+    const password = screen.getByLabelText('Crie sua senha');
+    expect(screen.getByLabelText('E-mail usado no cadastro')).toBeTruthy();
+    expect(password.getAttribute('type')).toBe('password');
+    expect(screen.getByLabelText('Código do e-mail').getAttribute('autocomplete')).toBe(
+      'one-time-code',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar senha' }));
+    expect(password.getAttribute('type')).toBe('text');
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar senha' }));
+    expect(password.getAttribute('type')).toBe('password');
+
+    fillRefreshedContinuation();
+    expect(window.localStorage).toHaveLength(0);
+    expect(window.sessionStorage).toHaveLength(0);
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith('/cadastro/plano'));
+    expect(JSON.parse(String(continuationCalls()[0]?.[1]?.body))).toEqual({
+      rowVersion: 6,
+      email: 'ana@example.test',
+      password: 'Senha1234',
+      verificationCode: '12345678',
+    });
+  });
+
+  it('recusa código incompleto no cliente sem chamar a continuação', async () => {
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
+    render(<SignupQuestions identityEnabled />);
+    await screen.findByRole('heading', { name: 'E-mail confirmado' });
+
+    fireEvent.change(screen.getByLabelText('E-mail usado no cadastro'), {
+      target: { value: 'ana@example.test' },
+    });
+    fireEvent.change(screen.getByLabelText('Crie sua senha'), {
+      target: { value: 'Senha1234' },
+    });
+    fireEvent.change(screen.getByLabelText('Código do e-mail'), {
+      target: { value: '1234567' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByText(/Digite os 8 dígitos/u)).toBeTruthy();
+    expect(continuationCalls()).toHaveLength(0);
+    expect(document.activeElement).toBe(screen.getByLabelText('Código do e-mail'));
+  });
+
+  it('código recusado mantém a continuação local e não oferece login impossível', async () => {
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
+    render(<SignupQuestions identityEnabled />);
+    await screen.findByRole('heading', { name: 'E-mail confirmado' });
+    fillRefreshedContinuation();
+    fetchMock.mockResolvedValueOnce(json(401, { error: 'unauthorized' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByText(/Não foi possível validar o código/u)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Entrar/u })).toBeNull();
+    expect(assignMock).not.toHaveBeenCalled();
+    expect(continuationCalls()).toHaveLength(1);
+    expect(screen.getByLabelText('E-mail usado no cadastro')).toHaveProperty(
+      'value',
+      'ana@example.test',
+    );
+    expect(screen.getByLabelText('Crie sua senha')).toHaveProperty('value', 'Senha1234');
+    expect(screen.getByLabelText('Código do e-mail')).toHaveProperty('value', '12345678');
+  });
+
+  it('senha recusada na aba original revela somente as credenciais que precisam ser refeitas', async () => {
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    await renderPendingOriginalTab();
+    fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    });
+    fireEvent.change(screen.getByLabelText('Código do e-mail'), {
+      target: { value: '12345678' },
+    });
+    fetchMock.mockResolvedValueOnce(json(422, { error: 'weak_password' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(/Essa senha não pode ser usada/u)).toBeTruthy();
+    expect(screen.queryByLabelText('E-mail usado no cadastro')).toBeNull();
+    expect(screen.getByLabelText('Crie sua senha')).toBeTruthy();
+    expect(screen.getByLabelText('Código do e-mail')).toHaveProperty('value', '12345678');
+    expect(screen.queryByRole('link', { name: /Entrar/u })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Crie sua senha'), {
+      target: { value: 'OutraSenha8' },
+    });
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(JSON.parse(String(continuationCalls()[1]?.[1]?.body))).toEqual({
+      rowVersion: 6,
+      email: 'ana@example.test',
+      password: 'OutraSenha8',
+      verificationCode: '12345678',
+    });
+    expect(assignMock).toHaveBeenCalledWith('/cadastro/plano');
+  });
+
+  it('409 relê a versão vencedora e mantém um novo envio explícito', async () => {
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
+    render(<SignupQuestions identityEnabled />);
+    await screen.findByRole('heading', { name: 'E-mail confirmado' });
+    fillRefreshedContinuation();
+    fetchMock
+      .mockResolvedValueOnce(json(409, { error: 'conflict' }))
+      .mockResolvedValueOnce(json(200, { session: { ...verifiedSession, rowVersion: 7 } }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+
+    expect(await screen.findByText(/mudou em outra aba/u)).toBeTruthy();
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/sessions/me',
+      '/api/signup/sessions/continue',
+      '/api/signup/sessions/me',
+    ]);
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Entrar/u })).toBeNull();
+    expect(screen.getByLabelText('E-mail usado no cadastro')).toHaveProperty(
+      'value',
+      'ana@example.test',
+    );
+    expect(screen.getByLabelText('Crie sua senha')).toHaveProperty('value', 'Senha1234');
+    expect(screen.getByLabelText('Código do e-mail')).toHaveProperty('value', '12345678');
+  });
+
+  it('410 encerra o handoff e 503 preserva o formulário para nova tentativa', async () => {
+    const verifiedSession: SignupSessionState = {
+      ...EMPTY_SESSION,
+      status: 'email_verified',
+      rowVersion: 6,
+    };
+    fetchMock.mockResolvedValueOnce(json(200, { session: verifiedSession }));
+    render(<SignupQuestions identityEnabled />);
+    await screen.findByRole('heading', { name: 'E-mail confirmado' });
+    fillRefreshedContinuation();
+    fetchMock.mockResolvedValueOnce(json(503, { error: 'unavailable' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(await screen.findByText(/Não foi possível continuar agora/u)).toBeTruthy();
+    expect(assignMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole('link', { name: /Entrar/u })).toBeNull();
+
+    cleanup();
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce(json(200, { session: verifiedSession }))
+      .mockResolvedValueOnce(json(410, { error: 'gone' }));
+    render(<SignupQuestions identityEnabled />);
+    await screen.findByRole('heading', { name: 'E-mail confirmado' });
+    fillRefreshedContinuation();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
+    expect(await screen.findByRole('button', { name: 'Começar novamente' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Entrar/u })).toBeNull();
+  });
+
+  it('continua verificando depois de 27 minutos e encerra somente quando a sessão morre', async () => {
     const pendingSession: SignupSessionState = {
       ...SAVED_SESSION,
       status: 'email_pending',
@@ -512,14 +760,21 @@ describe('cadastro — conta e espera O-3b.5', () => {
     });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * (POLL_MAX_ATTEMPTS + 20));
+      await vi.advanceTimersByTimeAsync(27 * 60 * 1_000);
     });
 
-    // 1 bootstrap + o teto de leituras da espera, nem uma a mais.
-    expect(fetchMock).toHaveBeenCalledTimes(POLL_MAX_ATTEMPTS + 1);
+    // 1 bootstrap + 81 leituras: o atraso real de 27 min não pode congelar a aba.
+    expect(fetchMock).toHaveBeenCalledTimes(82);
     expect(
       screen.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }),
     ).toBeTruthy();
+
+    fetchMock.mockResolvedValueOnce(json(410, { error: 'gone' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    });
+    expect(screen.getByRole('heading', { name: 'Vamos retomar daqui' })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(83);
   });
 
   it('encerra a espera quando a sessão morre, sem insistir contra o limite', async () => {
@@ -565,6 +820,39 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Seu nome'));
   });
 
+  it('a senha pode ser conferida antes de virar a única chave da conta', async () => {
+    await renderIdentity();
+    const campo = screen.getByLabelText('Senha');
+    // Sem isto, um erro de digitação só aparece no login — depois de a pessoa já
+    // ter confirmado o e-mail e criado a conta com a senha errada.
+    expect(campo.getAttribute('type')).toBe('password');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar senha' }));
+    expect(campo.getAttribute('type')).toBe('text');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar senha' }));
+    expect(campo.getAttribute('type')).toBe('password');
+  });
+
+  it('o olho volta a fechar quando a tentativa termina', async () => {
+    await renderIdentity();
+    fillIdentity();
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Senha1234' } });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar senha' }));
+    fetchMock
+      .mockResolvedValueOnce(json(200, { rowVersion: 3 }))
+      .mockResolvedValueOnce(json(422, { error: 'weak_password', rowVersion: 5 }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
+    await screen.findByText(/aparece em vazamentos conhecidos/u);
+
+    // O campo é limpo no fim da tentativa; deixar o olho aberto exporia a
+    // PRÓXIMA senha sem que ninguém tivesse pedido.
+    expect(screen.getByLabelText('Senha').getAttribute('type')).toBe('password');
+    expect(screen.getByRole('button', { name: 'Mostrar senha' })).toBeTruthy();
+  });
+
   it('aplica o mesmo filtro de senha da API antes de qualquer escrita', async () => {
     await renderIdentity();
     expect(screen.getByRole('checkbox').getAttribute('aria-checked')).toBe('false');
@@ -594,7 +882,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
     fireEvent.click(screen.getByRole('checkbox'));
     fetchMock
       .mockResolvedValueOnce(json(200, { rowVersion: 4 }))
-      .mockResolvedValueOnce(json(422, { error: 'weak_password' }));
+      .mockResolvedValueOnce(json(422, { error: 'weak_password', rowVersion: 5 }));
     fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
 
     await screen.findByText(/aparece em vazamentos conhecidos/u);
@@ -611,8 +899,8 @@ describe('cadastro — conta e espera O-3b.5', () => {
     // Nova tentativa imediata, sem releitura de `/me` no caminho.
     fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'OutraSenha7' } });
     fetchMock
-      .mockResolvedValueOnce(json(200, { rowVersion: 5 }))
-      .mockResolvedValueOnce(json(200, { rowVersion: 6 }));
+      .mockResolvedValueOnce(json(200, { rowVersion: 6 }))
+      .mockResolvedValueOnce(json(200, { rowVersion: 7 }));
     fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
 
     await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
@@ -623,9 +911,10 @@ describe('cadastro — conta e espera O-3b.5', () => {
       '/api/signup/sessions/identity',
       '/api/signup/sessions/auth',
     ]);
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body)).rowVersion).toBe(5);
   });
 
-  it('salva staging e chama Auth uma vez com a versão nova, senha e captcha efêmeros', async () => {
+  it('salva staging e chama Auth uma vez com a versão nova e senha efêmera', async () => {
     await renderIdentity();
     fillIdentity();
     fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
@@ -652,10 +941,32 @@ describe('cadastro — conta e espera O-3b.5', () => {
       email: 'ana@example.test',
       password: 'Senha1234',
       accepted: true,
-      captchaToken: 'challenge-token',
     });
     expect(screen.queryByLabelText('Senha')).toBeNull();
     expect(screen.queryAllByRole('radio')).toHaveLength(0);
+  });
+
+  it('reenvia em um clique na aba original usando apenas o e-mail em memória', async () => {
+    await renderIdentity();
+    fillIdentity();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fetchMock
+      .mockResolvedValueOnce(json(200, { rowVersion: 3 }))
+      .mockResolvedValueOnce(json(200, { rowVersion: 5 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta e continuar' }));
+    await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+
+    expect(screen.queryByLabelText('E-mail usado no cadastro')).toBeNull();
+    expect(screen.queryByLabelText('Senha escolhida')).toBeNull();
+    fetchMock.mockResolvedValueOnce(json(200, { rowVersion: 6 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reenviar o e-mail' }));
+
+    await screen.findByText(/novo e-mail está a caminho/u);
+    expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/signup/sessions/resend');
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
+      rowVersion: 5,
+      email: 'ana@example.test',
+    });
   });
 
   it('retoma identity_pending sem PII/senha e exige redigitação para continuar', async () => {
@@ -719,7 +1030,7 @@ describe('cadastro — conta e espera O-3b.5', () => {
     expect(screen.getByText(/Não repetimos automaticamente/u)).toBeTruthy();
   });
 
-  it('faz reenvio explícito sem senha, com redigitação, aceite e captcha novos', async () => {
+  it('reenvio é discreto e pede somente o e-mail quando a aba foi recarregada', async () => {
     const pendingSession: SignupSessionState = {
       ...identitySession,
       status: 'email_pending',
@@ -728,22 +1039,30 @@ describe('cadastro — conta e espera O-3b.5', () => {
     fetchMock.mockResolvedValueOnce(json(200, { session: pendingSession }));
     render(<SignupQuestions identityEnabled />);
     await screen.findByRole('heading', { name: 'Aguardando a confirmação do e-mail' });
+
+    // A tela de espera abre SÓ com a espera: nada de formulário à mostra.
     expect(screen.queryByLabelText('Senha')).toBeNull();
-    fireEvent.change(screen.getByLabelText('E-mail usado no cadastro'), {
+    expect(screen.queryByLabelText('E-mail usado no cadastro')).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+
+    // Esta aba foi recarregada (o e-mail só vive em memória, nunca no servidor),
+    // então o primeiro clique pede o endereço em vez de tentar um envio cego.
+    fireEvent.click(screen.getByRole('button', { name: 'Não recebeu? Reenviar o e-mail' }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(await screen.findByLabelText('E-mail usado no cadastro'), {
       target: { value: 'ana@example.test' },
     });
-    fireEvent.click(screen.getByRole('checkbox'));
+    expect(screen.queryByLabelText('Senha escolhida')).toBeNull();
+    expect(screen.queryByLabelText('Crie sua senha')).toBeNull();
     fetchMock.mockResolvedValueOnce(json(200, { rowVersion: 7 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reenviar instruções' }));
-    await screen.findByText(/nova solicitação foi concluída/u);
+    fireEvent.click(screen.getByRole('button', { name: 'Reenviar o e-mail' }));
+
+    await screen.findByText(/novo e-mail está a caminho/u);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/signup/sessions/resend');
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
       rowVersion: 5,
       email: 'ana@example.test',
-      accepted: true,
-      captchaToken: 'challenge-token',
     });
-    expect(String(fetchMock.mock.calls[1]?.[1]?.body)).not.toContain('password');
-    expect(screen.getByLabelText('E-mail usado no cadastro')).toHaveProperty('value', '');
-    expect(screen.getByRole('checkbox').getAttribute('aria-checked')).toBe('false');
   });
 });

@@ -69,7 +69,13 @@ const cluster = await startScratchSchema({ port: PORT });
 const sql = cluster.sql;
 
 // A aplicação lê a conexão de `DATABASE_URL` no momento do import.
+// Neutraliza aliases herdados: `env.ts` promove DATABASE_URL_DEV fora de
+// production, e o runtime pool prefere DATABASE_URL_RUNTIME. Todos os pools
+// desta prova precisam apontar para o mesmo Postgres descartável.
 process.env.DATABASE_URL = cluster.url;
+process.env.DATABASE_URL_DEV = cluster.url;
+process.env.DATABASE_URL_RUNTIME = cluster.url;
+process.env.SUPABASE_PROJECT_ENV = 'dev';
 process.env.SIGNUP_IDENTITY_ENABLED = 'true';
 process.env.SIGNUP_AUTH_ENABLED = 'true';
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'https://test.supabase.co';

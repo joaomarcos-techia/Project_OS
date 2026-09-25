@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
 
 import {
+  abortSignupResendAttempt,
   finishSignupResendAttempt,
   hashSignupToken,
+  readReservedSignupAttemptEpoch,
+  resendSignupConfirmation,
   reserveSignupResendAttempt,
   signupResendSchema,
 } from '@/contexts/onboarding';
-import { captchaOptions } from '@/lib/auth/captcha';
 import { hashEmail } from '@/lib/auth/email-hash';
 import { assertSignupResendAllowed, getClientIp } from '@/lib/auth/rate-limit';
-import { createServerClient } from '@/lib/auth/supabase-server';
+import { settleSignupAccountResponse } from '@/lib/auth/signup-response-timing';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
@@ -29,6 +31,7 @@ function json(body: { error: string } | { rowVersion: number }, status = 200): N
 }
 
 export async function POST(req: Request): Promise<Response> {
+  let accountOperationStartedAt: number | undefined;
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
     return json({ error: 'unavailable' }, 503);
   let redirectUrl: string;
@@ -59,7 +62,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     const check = signupResendSchema.safeParse(parsed);
     if (!check.success) return json({ error: 'invalid_body' }, 400);
-    const { email, captchaToken } = check.data;
+    const { email } = check.data;
     const limit = await assertSignupResendAllowed(
       getClientIp(req.headers),
       hashSignupToken(token),
@@ -88,30 +91,44 @@ export async function POST(req: Request): Promise<Response> {
         response.headers.set('Retry-After', String(reserved.retryAfter));
       return response;
     }
-
-    let completed = false;
-    try {
-      const supabase = await createServerClient({
-        cookieWrites: 'required',
-        sessionWrites: 'reject',
-      });
-      const { data, error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-        options: { emailRedirectTo: redirectUrl, ...captchaOptions(captchaToken) },
-      });
-      completed = !data.session && !error;
-    } catch {
-      completed = false;
+    const attemptEpoch = await readReservedSignupAttemptEpoch(token, reserved.rowVersion, 'resend');
+    if (attemptEpoch === null) {
+      await abortSignupResendAttempt(token, reserved.rowVersion);
+      return json({ error: 'unavailable' }, 503);
     }
+
+    // Mesmo caminho do primeiro envio, e pelo mesmo motivo (ver a rota `auth`):
+    // o token vem do `generate_link` e o e-mail sai pelo Resend com o template
+    // do repositório. Aqui o tipo é `recovery`: ele não recebe senha nem cria
+    // usuário implicitamente. Se a criação inicial teve resultado incerto e a
+    // busca exata prova que o usuário não existe, o módulo pode recriá-lo de
+    // forma explícita, ainda passwordless e preso à reserva deste draft.
+    // Mesmo motivo da rota irmã: uma exceção não pode escapar sem finalizar a
+    // reserva, senão a linha fica em `reserved` sem desfecho registrado.
+    accountOperationStartedAt = Date.now();
+    const outcome = await resendSignupConfirmation({
+      email,
+      signupRef: hashSignupToken(token),
+      attemptEpoch,
+    }).catch(() => ({ kind: 'uncertain' }) as const);
+    // `obfuscated` (por exemplo, conta já confirmada ou vínculo incompatível) responde como sucesso:
+    // distinguir contaria a um terceiro o estado daquele endereço.
+    const completed = outcome.kind === 'sent' || outcome.kind === 'obfuscated';
     const finished = await finishSignupResendAttempt(
       token,
       reserved.rowVersion,
       completed ? 'completed' : 'uncertain',
     );
-    if (!completed || !finished.ok) return json({ error: 'unavailable' }, 503);
+    await settleSignupAccountResponse(accountOperationStartedAt);
+    // A resposta publica nao revela se o endereco tinha conta nem se o
+    // provedor ficou indisponivel. `uncertain` segue persistido para impedir
+    // repeticao automatica e permitir somente um reenvio explicito posterior.
+    if (!finished.ok) return json({ error: 'unavailable' }, 503);
     return json({ rowVersion: finished.rowVersion });
   } catch {
+    if (accountOperationStartedAt !== undefined) {
+      await settleSignupAccountResponse(accountOperationStartedAt);
+    }
     return json({ error: 'unavailable' }, 503);
   }
 }

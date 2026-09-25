@@ -1,9 +1,104 @@
-# Track O — handoff final (reconciliado em 21/09/2026)
+# Track O — handoff final (reconciliado em 25/09/2026)
 
 > **Inventário de engenharia consolidado em [§36 do qorov2](qorov2.md)** — o que foi construído,
 > como, e o que está pendente. Detalhe por fatia em [docs/evidence/track-o.md](evidence/track-o.md).
 > Histórico narrativo em [§35 do qorov2](qorov2.md). O handoff de 18/09 permanece como registro
 > daquela sessão.
+
+## Atualização de identidade — 23/09/2026
+
+> Esta atualização substitui, para confirmação de e-mail, o estado chamado “final” abaixo. As
+> tabelas de 18–21/09 permanecem como histórico das execuções feitas naquela versão; elas não provam
+> a emenda de credencial. A evidência vigente começa nesta atualização.
+
+A revisão adversarial encontrou um problema de autoridade no conserto de 22/09: o clique legítimo no
+e-mail confirmava a caixa e também liberava a aba anônima que havia iniciado o cadastro. Como aquela
+aba já tinha escolhido a senha, um terceiro podia iniciar o fluxo com o e-mail da vítima e esperar o
+clique dela.
+
+O worktree passou a usar este contrato:
+
+- Admin `createUser` cria a conta sem senha, não confirmada, com binding Qoro exato e
+  `password_state=pending`;
+- o repositório gera o e-mail e o Resend transporta um link `recovery` mais um código de oito
+  dígitos; templates do painel Supabase não participam;
+- o token fica no fragmento; um GET sem credencial entrega uma ponte HTML `no-store`/`no-referrer`
+  que autoenvia POST, mantendo token, tipo e referência fora do request target, access log e
+  `Referer`;
+- links antigos com query têm compatibilidade transitória, também sem consumo no GET. Esse ramo não
+  consegue impedir o log do request target legado e deve ser removido depois do TTL dos e-mails já
+  emitidos;
+- o link termina em `/cadastro/confirmado` e apenas confirma o e-mail naquele aparelho;
+- a aba iniciadora precisa do código para concluir o handoff, instalar a senha por CAS e abrir
+  `/cadastro/plano`;
+- HIBP é consultado no envio e novamente imediatamente antes do CAS;
+- reenvio gira link e código; recovery separa grants `profile` e `pretenant`;
+- o gate `ready-owned` exige marker Auth `set`, a mesma referência possuída no banco e credencial
+  `completed`; uma conta apenas confirmada ou um estado parcial Auth→SQL não alcança draft, plano ou
+  checkout;
+- outro draft não pode girar uma referência pendente ainda viva nem provocar segundo e-mail; somente
+  o reenvio deliberado da mesma sessão gira token e código;
+- se o OTP foi consumido antes de uma falha transitória de claim/binding, um grant HMAC de 15 minutos
+  em cookie HttpOnly permite à tela confirmada repetir a operação para o mesmo usuário, sem levar
+  usuário ou referência à URL/DOM; antes do claim, essa referência assinada vence um marker Auth
+  pendente antigo; depois do claim, a referência possuída no banco vence somente no reparo pendente —
+  marker `set` divergente falha fechado;
+- recovery cobre também `pretenant_orphan` e tem um único vencedor concorrente: profile consome
+  `claims_version`, pré-tenant consome o epoch da credencial e órfão usa advisory lock mais releitura
+  de `Auth.updated_at` imediatamente antes de trocar a senha;
+- o lookup administrativo usa o filtro indexado do GoTrue e igualdade exata; legado markerless só é
+  adotado depois de OTP/reserva ou login por senha conhecido, conforme o estado;
+- marker Auth `set` divergente do banco falha fechado. Adoção por segundo draft usa o código da
+  tentativa viva; se o Auth ficar à frente do commit SQL, o gate bloqueia tudo até um retry concluir a
+  transferência sem escrever a senha outra vez;
+- depois que um envio começou, resultado aceito, ofuscado ou incerto usa o mesmo envelope público
+  `200`; o banco preserva o estado incerto, e a finalização do Resend aceita apenas combinações exatas
+  de estado e ownership.
+
+### Estado desta atualização
+
+| Gate | Estado | Critério para fechar |
+| ---- | ------ | -------------------- |
+| Implementação e testes locais focados | **PASS** | 238/238 em oito arquivos; inclui ready-owned, adoção parcial, recovery concorrente, resposta uniforme, repair grant, liveness, lookup exato e legado seguro |
+| Suíte integral e TypeScript | **PASS** | 4.378/4.378 em 414 arquivos, 185,27 s; `tsc --noEmit`, exit 0 |
+| Regressão HTTP/SQL do cadastro | **PASS** | `signup-regression.ts` 29/29, incluindo transferência de ownership; cleanup zero |
+| ESLint completo e Next build de produção | **PASS** | ESLint exit 0; Next 15.5.24 otimizado, exit 0 |
+| Segurança e inventário | **PASS** | inventário 180/49/16/254/9 e zero gaps; browser-session 7/7 em 45,5 s; tenant, bundle 174/0, HTTP 12/164/328, DB/arquitetura/migrations/observabilidade/registry, exit 0 |
+| Prettier | **PASS** | `npx prettier --check .`, exit 0; o único desvio de baseline era uma quebra de linha num teste de WhatsApp e foi normalizado sem mudança de comportamento |
+| E2E atual contra Supabase DEV + Resend | **PASS 5/5** | Chromium, 9,4 min contra `next dev`, um worker/zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero |
+| E2E atual em Preview | **NOT TESTED** | deployment do SHA final e execução no origin exato |
+| Inbox real | **NOT TESTED** | pessoa confirma recebimento, conteúdo e link na caixa consentida |
+| Aceitação de produto | **PENDENTE** | executar o runbook atualizado no Preview |
+| Billing e provisionamento nos runners próprios | **PASS** | Asaas 6/6, cleanup 5/5; webhook/provisionamento 12/12, cleanup 2/2 |
+| Billing pelo spec de confirmação | **FORA DO ALCANCE DO SPEC** | o spec para em `/cadastro/plano`; os PASS acima vêm de O-5/O-6 |
+
+### Ordem segura para continuar
+
+1. ~~Concluir ESLint/formato, build Next de produção, inventário e demais gates finais e registrar os
+   números atuais.~~ **Concluído; resultados na tabela acima.**
+2. revisar o diff, commitar e publicar a branch sem misturar trabalho alheio;
+3. aguardar o deployment Preview do **mesmo SHA** e repetir o E2E 5/5 no origin exato, contra DEV,
+   exigindo fingerprint e cleanup Auth/DB/fixture/lock zero; não usar produção;
+4. registrar a prova automatizada na
+   [matriz de evidência](evidence/track-o.md#emenda-de-identidade--23092026) e no
+   [§37 do qorov2](qorov2.md#378-evidência-válida-para-esta-emenda); com o SHA final verde, concluir o
+   merge técnico já autorizado pelo owner;
+5. executar a
+   [aceitação humana](runbooks/aceitacao-humana-cadastro.md#1-cadastro-e-handoff-entre-aparelhos),
+   incluindo a inspeção da mensagem numa caixa consentida, e registrar o veredito. Essa etapa não
+   bloqueia o merge autorizado, mas continua pendente até o fluxo poder ser chamado de aceito como
+   produto e não deve ser substituída por cadastro em produção.
+
+O novo E2E deve provar, sem imprimir token ou código: link no celular não avança a aba; conta
+`pending` não acessa plano/checkout; código incorreto e tentativa anterior falham; reenvio da mesma
+sessão produz link e código novos; outro draft não gira o link vivo nem recebe mensagem; senha não
+autentica antes do handoff e autentica depois; F5 exige redigitar e-mail/senha; legado seguro e
+limpeza sem resíduo também são exercitados. Em DEV, esses cinco cenários estão **PASS**; Preview ainda
+precisa repetir a mesma prova.
+
+Limite assumido: um scanner que apenas faz GET não consome o OTP, mas um scanner capaz de executar
+JavaScript pode executar a ponte. O risco continua registrado; reenvio rotativo e handoff por código
+reduzem o impacto, mas não autorizam chamá-lo de eliminado.
 
 ## Estado final
 
@@ -17,7 +112,7 @@ pendente, assim como crédito Ads e as configurações administrativas ainda ina
 | Fatia | Resultado | Onde a prova está |
 | ----- | --------- | ----------------- |
 | **O-1** | **PASS** (publicado, ligado e com requisição de conversão emitida) | `qoro/scripts/verificar-comecar.mjs` 27/27 + navegador |
-| **O-5** | **PASS** | Sandbox 4/4 + cleanup 2/2; webhook/reconciliação/compensação 12/12 em 21/09 |
+| **O-5** | **PASS** | Sandbox 6/6 + cleanup 5/5; webhook/reconciliação/compensação 12/12 + cleanup 2/2 |
 | **O-6** | **PASS em SCHEMA** | 12/12 contra 105 migrations reais; C1 adicional prova compensação externa após perda de CAS |
 | **O-7** | **PASS** | 13/13 em schema real + **5/5** E2E autenticado, sem skip |
 | **O.H** | **PASS** | carga geral + carga Track O 8/8 + chaos 59/59 |

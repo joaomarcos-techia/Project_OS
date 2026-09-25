@@ -2,14 +2,14 @@ import { redirect } from 'next/navigation';
 
 import { Logo } from '@/components/shared/logo';
 import { Card, CardContent } from '@/components/ui/card';
-import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
+import { resolveReadyOwnedSignupOnboarding } from '@/contexts/onboarding';
 
 import { ContinueSignupForm } from './continue-signup-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ContinueSignupPage() {
-  const onboarding = await resolvePreTenantOnboarding();
+  const onboarding = await resolveReadyOwnedSignupOnboarding();
   if (!onboarding.ok) redirect('/login');
   if (onboarding.kind === 'redirect') redirect(onboarding.route);
   // O vínculo do draft NÃO acontece aqui: renderizar é leitura, e escrever no

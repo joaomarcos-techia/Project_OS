@@ -32,6 +32,9 @@ vi.mock('@/lib/auth/email-hash', async (importOriginal) => {
 
 import {
   claimSignupDraftByVerifiedEmail,
+  ensureSignupDraftForVerifiedEmail,
+  readOwnedSignupReference,
+  readSignupDraft,
   readSignupPlan,
   signupDraftMutationSchema,
   signupPlanMutationSchema,
@@ -49,6 +52,7 @@ const context = {
   userId: '11111111-1111-4111-8111-111111111111',
   email: 'verified@example.invalid',
 };
+const signupRef = 'd'.repeat(64);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -81,6 +85,21 @@ function updateChain(rows: unknown[]) {
   chain.where.mockReturnValue(chain);
   chain.returning.mockResolvedValue(rows);
   return chain;
+}
+
+function deleteChain() {
+  return vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) });
+}
+
+/** Texto de qualquer estrutura, inclusive o objeto `sql` do drizzle (circular). */
+function textoDe(valor: unknown, vistos = new Set<unknown>()): string {
+  if (typeof valor === 'string') return valor;
+  if (valor === null || typeof valor !== 'object') return '';
+  if (vistos.has(valor)) return '';
+  vistos.add(valor);
+  return Object.values(valor as Record<string, unknown>)
+    .map((item) => textoDe(item, vistos))
+    .join(' ');
 }
 
 function orderedSelectChain(rows: unknown[]) {
@@ -176,8 +195,9 @@ describe('signup draft contract', () => {
       returning: vi.fn().mockResolvedValue([{ rowVersion: 1 }]),
     };
     insertChain.values.mockReturnValue(insertChain);
+    const removeExpiredOwner = deleteChain();
     const tx = {
-      delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+      delete: removeExpiredOwner,
       select: vi.fn().mockReturnValue(selectChain([])),
       insert: vi.fn().mockReturnValue(insertChain),
     };
@@ -195,16 +215,58 @@ describe('signup draft contract', () => {
     const values = insertChain.values.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(values.status).toBe('email_verified');
     expect(values.authUserId).toBe(context.userId);
+    const deleteWhere = removeExpiredOwner.mock.results[0]?.value.where.mock.calls[0]?.[0];
+    const deleteSql = textoDe(deleteWhere);
+    expect(deleteSql).toContain('billing_attempt_state');
+    expect(deleteSql).toContain('billing_attempted_at');
+    expect(deleteSql).toContain('asaas_customer_id');
+    expect(deleteSql).toContain('asaas_subscription_id');
     // A leitura autenticada não renova prazo nenhum: se o idle nascesse menor
     // que o absoluto, o cadastro recém-redigitado morreria antes do checkout.
     expect(values.idleExpiresAt).toEqual(values.absoluteExpiresAt);
   });
 });
 
+describe('referência autoritativa do draft vinculado', () => {
+  it('lê a referência somente pelo owner e pelo HMAC do e-mail verificado', async () => {
+    mocks.select.mockReturnValue(selectChain([{ signupRef, credentialState: 'completed' }]));
+
+    await expect(readOwnedSignupReference(context.userId, context.email)).resolves.toEqual({
+      ok: true,
+      signupRef,
+      credentialState: 'completed',
+    });
+    expect(mocks.hashedEmails).toEqual([context.email]);
+  });
+
+  it('distingue ausência, identidade inválida e indisponibilidade', async () => {
+    mocks.select.mockReturnValueOnce(selectChain([]));
+    await expect(readOwnedSignupReference(context.userId, context.email)).resolves.toEqual({
+      ok: false,
+      reason: 'gone',
+    });
+
+    await expect(readOwnedSignupReference('invalid', 'invalid')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+
+    mocks.select.mockImplementationOnce(() => {
+      throw new Error('database unavailable');
+    });
+    await expect(readOwnedSignupReference(context.userId, context.email)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+  });
+});
+
 describe('claim cross-device do draft verificado', () => {
   it('é idempotente quando o usuário já possui o draft', async () => {
     const owned = selectChain([{ rowVersion: 8 }]);
+    const removeExpiredOwner = deleteChain();
     const tx = {
+      delete: removeExpiredOwner,
       select: vi.fn().mockReturnValue(owned),
       update: vi.fn(),
     };
@@ -212,11 +274,23 @@ describe('claim cross-device do draft verificado', () => {
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
     );
 
-    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+    await expect(
+      claimSignupDraftByVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({
       ok: true,
       rowVersion: 8,
     });
     expect(owned.for).toHaveBeenCalledWith('update');
+    expect(tx.delete).toHaveBeenCalledOnce();
+    expect(tx.delete.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.select.mock.invocationCallOrder[0]!,
+    );
+    const deleteWhere = removeExpiredOwner.mock.results[0]?.value.where.mock.calls[0]?.[0];
+    const deleteSql = textoDe(deleteWhere);
+    expect(deleteSql).toContain('billing_attempt_state');
+    expect(deleteSql).toContain('billing_attempted_at');
+    expect(deleteSql).toContain('asaas_customer_id');
+    expect(deleteSql).toContain('asaas_subscription_id');
     expect(tx.update).not.toHaveBeenCalled();
   });
 
@@ -225,6 +299,7 @@ describe('claim cross-device do draft verificado', () => {
     const candidate = orderedSelectChain([{ id: 'draft-id', rowVersion: 5 }]);
     const claimed = updateChain([{ rowVersion: 6 }]);
     const tx = {
+      delete: deleteChain(),
       select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
       update: vi.fn().mockReturnValue(claimed),
     };
@@ -232,7 +307,9 @@ describe('claim cross-device do draft verificado', () => {
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
     );
 
-    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+    await expect(
+      claimSignupDraftByVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({
       ok: true,
       rowVersion: 6,
     });
@@ -242,6 +319,7 @@ describe('claim cross-device do draft verificado', () => {
       expect.objectContaining({
         status: 'email_verified',
         authUserId: context.userId,
+        authAttemptState: 'completed',
         rowVersion: expect.anything(),
       }),
     );
@@ -251,6 +329,7 @@ describe('claim cross-device do draft verificado', () => {
     const owned = selectChain([]);
     const candidate = orderedSelectChain([{ id: 'draft-id', rowVersion: 5 }]);
     const tx = {
+      delete: deleteChain(),
       select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
       update: vi.fn().mockReturnValue(updateChain([{ rowVersion: 6 }])),
     };
@@ -258,7 +337,7 @@ describe('claim cross-device do draft verificado', () => {
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
     );
 
-    await claimSignupDraftByVerifiedEmail(context.userId, context.email);
+    await claimSignupDraftByVerifiedEmail(context.userId, context.email, signupRef);
 
     // Só o endereço devolvido por getUser() vira chave; nada além dele é
     // hasheado, e o claim não regrava e-mail, nome, resposta nem aceite.
@@ -272,6 +351,7 @@ describe('claim cross-device do draft verificado', () => {
     const owned = selectChain([]);
     const candidate = orderedSelectChain([]);
     const tx = {
+      delete: deleteChain(),
       select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
       update: vi.fn(),
     };
@@ -279,7 +359,9 @@ describe('claim cross-device do draft verificado', () => {
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
     );
 
-    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+    await expect(
+      claimSignupDraftByVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({
       ok: false,
       reason: 'gone',
     });
@@ -290,6 +372,7 @@ describe('claim cross-device do draft verificado', () => {
     const owned = selectChain([]);
     const candidate = orderedSelectChain([{ id: 'draft-id', rowVersion: 5 }]);
     const tx = {
+      delete: deleteChain(),
       select: vi.fn().mockReturnValueOnce(owned).mockReturnValueOnce(candidate),
       update: vi.fn().mockReturnValue(updateChain([])),
     };
@@ -297,7 +380,9 @@ describe('claim cross-device do draft verificado', () => {
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
     );
 
-    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+    await expect(
+      claimSignupDraftByVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({
       ok: false,
       reason: 'conflict',
     });
@@ -306,7 +391,9 @@ describe('claim cross-device do draft verificado', () => {
   it('traduz a disputa do unique de owner em conflito, não em erro cru', async () => {
     mocks.transaction.mockRejectedValueOnce(Object.assign(new Error('unique'), { code: '23505' }));
 
-    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+    await expect(
+      claimSignupDraftByVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({
       ok: false,
       reason: 'conflict',
     });
@@ -316,7 +403,9 @@ describe('claim cross-device do draft verificado', () => {
     if (gate === 'auth') mocks.env.SIGNUP_AUTH_ENABLED = false;
     if (gate === 'identity') mocks.env.SIGNUP_IDENTITY_ENABLED = false;
 
-    await expect(claimSignupDraftByVerifiedEmail(context.userId, context.email)).resolves.toEqual({
+    await expect(
+      claimSignupDraftByVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({
       ok: false,
       reason: 'unavailable',
     });
@@ -324,11 +413,68 @@ describe('claim cross-device do draft verificado', () => {
   });
 
   it('recusa identidade não verificada pelo contrato antes da transação', async () => {
-    await expect(claimSignupDraftByVerifiedEmail('invalid-user', 'invalid-email')).resolves.toEqual(
-      { ok: false, reason: 'unavailable' },
-    );
+    await expect(
+      claimSignupDraftByVerifiedEmail('invalid-user', 'invalid-email', signupRef),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.hashedEmails).toEqual([]);
+  });
+});
+
+describe('garantia idempotente do vínculo no callback', () => {
+  it('recusa referência inválida antes de consultar ou abrir transação', async () => {
+    await expect(readSignupDraft(context.userId, 'invalid-ref')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    await expect(
+      claimSignupDraftByVerifiedEmail(context.userId, context.email, 'invalid-ref'),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+    await expect(
+      ensureSignupDraftForVerifiedEmail(context.userId, context.email, 'invalid-ref'),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it('sem referência não consulta nem reivindica draft', async () => {
+    await expect(
+      Reflect.apply(ensureSignupDraftForVerifiedEmail, undefined, [context.userId, context.email]),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+    expect(mocks.select).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.hashedEmails).toEqual([]);
+  });
+
+  it('aceita o draft já vinculado sem abrir outra transação', async () => {
+    const now = new Date('2026-09-22T12:00:00Z');
+    mocks.select.mockReturnValue(
+      selectChain([
+        {
+          rowVersion: 8,
+          ownerName: 'Ana',
+          clinicName: 'Clínica',
+          ...answers,
+          idleExpiresAt: now,
+          absoluteExpiresAt: now,
+        },
+      ]),
+    );
+
+    await expect(
+      ensureSignupDraftForVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({ ok: true, rowVersion: 8 });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it('preserva falha operacional como retryable para a página de destino', async () => {
+    mocks.select.mockImplementation(() => {
+      throw new Error('database unavailable');
+    });
+
+    await expect(
+      ensureSignupDraftForVerifiedEmail(context.userId, context.email, signupRef),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
   });
 });
 

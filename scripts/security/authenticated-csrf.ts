@@ -9,7 +9,7 @@ assert.ok(
   cookieFile,
   'Uso: pnpm exec tsx scripts/security/authenticated-csrf.ts <cookie-file-local> [baseURL]',
 );
-const base = new URL(process.argv[3] ?? 'http://127.0.0.1:3217');
+const base = new URL(process.argv[3] ?? 'http://localhost:3217');
 assert.ok(
   ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname),
   'Somente localhost autorizado',

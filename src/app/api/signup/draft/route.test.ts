@@ -13,10 +13,8 @@ const mocks = vi.hoisted(() => ({
   writeLimit: vi.fn(),
   readDraft: vi.fn(),
   writeDraft: vi.fn(),
-  claimDraft: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
-vi.mock('@/lib/auth/pretenant-onboarding', () => ({ resolvePreTenantOnboarding: mocks.resolve }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hashUser }));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertSignupDraftReadAllowed: mocks.readLimit,
@@ -30,7 +28,7 @@ vi.mock('@/contexts/onboarding', async () => {
     signupDraftMutationSchema,
     readSignupDraft: mocks.readDraft,
     writeSignupDraft: mocks.writeDraft,
-    claimSignupDraftByVerifiedEmail: mocks.claimDraft,
+    resolveReadyOwnedSignupOnboarding: mocks.resolve,
   };
 });
 
@@ -38,6 +36,7 @@ import { GET, POST } from './route';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const token = 'A'.repeat(42) + '-';
+const signupRef = 'd'.repeat(64);
 const answers = {
   professionalsBand: '2_5',
   weeklyAppointmentsBand: '21_50',
@@ -63,14 +62,14 @@ const draft = {
 function request(
   method: 'GET' | 'POST',
   body: string | undefined = method === 'POST' ? JSON.stringify(restart) : undefined,
-  cookie: string | undefined = token,
+  cookie: string | null = token,
 ): Request {
   return new Request('https://app.qoro.test/api/signup/draft', {
     method,
     ...(body === undefined ? {} : { body }),
     headers: {
       origin: mocks.env.APP_BASE_URL,
-      ...(cookie === undefined ? {} : { cookie: `__Host-qoro_signup=${cookie}` }),
+      ...(cookie === null ? {} : { cookie: `__Host-qoro_signup=${cookie}` }),
     },
   });
 }
@@ -88,13 +87,13 @@ beforeEach(() => {
     kind: 'pretenant',
     userId: USER_ID,
     email: 'verified@example.invalid',
+    signupRef,
   });
   mocks.hashUser.mockReturnValue('c'.repeat(64));
   mocks.readLimit.mockResolvedValue({ ok: true });
   mocks.writeLimit.mockResolvedValue({ ok: true });
   mocks.readDraft.mockResolvedValue({ ok: true, draft });
   mocks.writeDraft.mockResolvedValue({ ok: true, rowVersion: 6 });
-  mocks.claimDraft.mockResolvedValue({ ok: false, reason: 'gone' });
 });
 
 describe('GET /api/signup/draft', () => {
@@ -104,28 +103,20 @@ describe('GET /api/signup/draft', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toEqual(draft);
     expect(mocks.readLimit).toHaveBeenCalledWith('127.0.0.1', 'c'.repeat(64));
-    expect(mocks.readDraft).toHaveBeenCalledWith(USER_ID);
-    expect(mocks.claimDraft).not.toHaveBeenCalled();
+    expect(mocks.readDraft).toHaveBeenCalledWith(USER_ID, signupRef);
     expect(JSON.stringify(await (await GET(request('GET'))).json())).not.toContain(
       'verified@example.invalid',
     );
   });
 
-  it('vincula pelo e-mail verificado quando o navegador não tem o cadastro e relê o resultado', async () => {
-    mocks.readDraft
-      .mockResolvedValueOnce({ ok: false, reason: 'gone' })
-      .mockResolvedValueOnce({ ok: true, draft });
-    mocks.claimDraft.mockResolvedValue({ ok: true, rowVersion: 6 });
-
-    const response = await GET(request('GET'));
+  it.each([
+    ['cookie anônimo antigo', token],
+    ['sem cookie anônimo', null],
+  ])('usa a referência autoritativa mesmo com %s', async (_case, cookie) => {
+    const response = await GET(request('GET', undefined, cookie));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(draft);
-    expect(mocks.claimDraft).toHaveBeenCalledWith(USER_ID, 'verified@example.invalid');
-    expect(mocks.readDraft).toHaveBeenCalledTimes(2);
-    // Quem limpa o cookie é o `/me` da aba original, que também precisa contar a
-    // ela que o e-mail foi confirmado; limpar aqui a faria anunciar expiração.
-    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(mocks.readDraft).toHaveBeenCalledWith(USER_ID, signupRef);
   });
 
   it('não vincula por navegação cross-site, mesmo com sessão verificada', async () => {
@@ -135,57 +126,30 @@ describe('GET /api/signup/draft', () => {
 
     expect((await GET(cross)).status).toBe(403);
     expect(mocks.resolve).not.toHaveBeenCalled();
-    expect(mocks.claimDraft).not.toHaveBeenCalled();
     expect(mocks.readDraft).not.toHaveBeenCalled();
   });
 
   it('mantém 410 quando não há draft do usuário nem candidato pelo e-mail verificado', async () => {
     mocks.readDraft.mockResolvedValue({ ok: false, reason: 'gone' });
-    mocks.claimDraft.mockResolvedValue({ ok: false, reason: 'gone' });
-
     const response = await GET(request('GET'));
 
     expect(response.status).toBe(410);
     expect(response.headers.get('set-cookie')).toBeNull();
   });
 
-  it('fecha em 503 quando o vínculo fica indisponível, sem inventar 410', async () => {
-    mocks.readDraft.mockResolvedValue({ ok: false, reason: 'gone' });
-    mocks.claimDraft.mockResolvedValue({ ok: false, reason: 'unavailable' });
-
-    expect((await GET(request('GET'))).status).toBe(503);
-  });
-
-  it.each(['conflict', 'gone'] as const)(
-    'devolve o draft que a outra aba acabou de vincular quando o vínculo perde por %s',
-    async (reason) => {
-      mocks.readDraft
-        .mockResolvedValueOnce({ ok: false, reason: 'gone' })
-        .mockResolvedValueOnce({ ok: true, draft });
-      mocks.claimDraft.mockResolvedValue({ ok: false, reason });
-
-      const response = await GET(request('GET'));
-
-      // A perdedora da disputa não pode receber 410: o cadastro existe, e 410
-      // mandaria redigitar.
-      expect(response.status).toBe(200);
-      expect(await response.json()).toEqual(draft);
-      expect(response.headers.get('set-cookie')).toBeNull();
-    },
-  );
-
   it.each([
     ['invalid_session', 401],
     ['anonymous', 401],
     ['email_unverified', 401],
     ['profile_denied', 403],
+    ['credentials_pending', 403],
+    ['credentials_invalid', 403],
     ['unavailable', 503],
   ] as const)('mapeia seam %s sem tocar limiter/DB', async (reason, status) => {
     mocks.resolve.mockResolvedValue({ ok: false, reason });
     expect((await GET(request('GET'))).status).toBe(status);
     expect(mocks.readLimit).not.toHaveBeenCalled();
     expect(mocks.readDraft).not.toHaveBeenCalled();
-    expect(mocks.claimDraft).not.toHaveBeenCalled();
   });
 
   it('recusa profile existente e fecha limiter/reader indisponíveis', async () => {
@@ -206,7 +170,6 @@ describe('GET /api/signup/draft', () => {
     mocks.readLimit.mockResolvedValue({ ok: true });
     mocks.readDraft.mockResolvedValue({ ok: false, reason: 'unavailable' });
     expect((await GET(request('GET'))).status).toBe(503);
-    expect(mocks.claimDraft).not.toHaveBeenCalled();
   });
 });
 
@@ -227,7 +190,7 @@ describe('POST /api/signup/draft', () => {
   });
 
   it('não exige cookie anônimo nenhum para recomeçar em outro aparelho', async () => {
-    const response = await POST(request('POST', JSON.stringify(restart), undefined));
+    const response = await POST(request('POST', JSON.stringify(restart), null));
     expect(response.status).toBe(200);
     expect(mocks.writeDraft).toHaveBeenCalledWith({
       userId: USER_ID,

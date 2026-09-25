@@ -29,6 +29,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:signup-confirmation": "tsx scripts/run-signup-confirmation-e2e.ts",
     "test:e2e:prod": "cross-env NODE_OPTIONS=--conditions=react-server playwright test",
     "test:e2e:ci": "playwright test --config=playwright.ci.config.ts",
     "test:e2e:public": "playwright test e2e/public-surface.spec.ts e2e/signup-session-api.spec.ts e2e/admin-boundary-rbac.spec.ts e2e/payments-account-lifecycle.spec.ts",

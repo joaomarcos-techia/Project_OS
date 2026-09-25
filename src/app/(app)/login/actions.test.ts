@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   assertPasswordResetAllowed: vi.fn(),
   createPasswordResetRedirectUrl: vi.fn(),
   createServerClient: vi.fn(),
+  ensurePasswordAuthenticatedSignupAuthBinding: vi.fn(),
   getAal: vi.fn(),
   getClientIp: vi.fn(),
   hashEmail: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   metricsEmit: vi.fn(),
   postLoginRedirect: vi.fn(),
   readAuthoritativeProfile: vi.fn(),
+  readSignupAuthBinding: vi.fn(),
   resolvePreTenantOnboarding: vi.fn(),
   recordLoginAttempt: vi.fn(),
   redirect: vi.fn(),
@@ -25,6 +27,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/headers', () => ({ headers: mocks.headers }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
+vi.mock('@/contexts/onboarding', () => ({
+  ensurePasswordAuthenticatedSignupAuthBinding: mocks.ensurePasswordAuthenticatedSignupAuthBinding,
+  readSignupAuthBinding: mocks.readSignupAuthBinding,
+}));
 vi.mock('@/lib/auth/supabase-server', () => ({
   createServerClient: mocks.createServerClient,
 }));
@@ -268,6 +274,8 @@ describe('login de usuário verificado pré-tenant', () => {
       userId: '11111111-1111-4111-8111-111111111111',
       email: 'verified@example.invalid',
     });
+    mocks.ensurePasswordAuthenticatedSignupAuthBinding.mockResolvedValue({ ok: true });
+    mocks.readSignupAuthBinding.mockReturnValue(null);
     mocks.isRole.mockReturnValue(true);
     mocks.getAal.mockResolvedValue('aal1');
     mocks.postLoginRedirect.mockReturnValue('/dashboard');
@@ -276,13 +284,44 @@ describe('login de usuário verificado pré-tenant', () => {
     });
   });
 
+  it('não exige compatibilidade para marker ready já instalado', async () => {
+    mocks.readSignupAuthBinding.mockReturnValue({
+      signupRef: 'a'.repeat(64),
+      passwordState: 'set',
+    });
+    const { loginAction } = await import('./actions');
+
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(
+      'REDIRECT:/cadastro/continuar',
+    );
+    expect(mocks.ensurePasswordAuthenticatedSignupAuthBinding).not.toHaveBeenCalled();
+  });
+
   it('retoma cadastro somente depois da seam server-only', async () => {
     const { loginAction } = await import('./actions');
     await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(
       'REDIRECT:/cadastro/continuar',
     );
     expect(mocks.resolvePreTenantOnboarding).toHaveBeenCalled();
+    expect(mocks.ensurePasswordAuthenticatedSignupAuthBinding).toHaveBeenCalledWith({
+      userId: '11111111-1111-4111-8111-111111111111',
+      email: 'verified@example.invalid',
+    });
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('fecha a sessão quando a compatibilidade pré-tenant não prova o draft possuído', async () => {
+    mocks.ensurePasswordAuthenticatedSignupAuthBinding.mockResolvedValue({
+      ok: false,
+      reason: 'obfuscated',
+    });
+    const { loginAction } = await import('./actions');
+
+    await expect(loginAction({ error: null }, loginForm())).resolves.toEqual({
+      error: 'Profile inválido. Contate o administrador.',
+    });
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it('preserva redirect de profile/MFA decidido pela seam em caso de corrida', async () => {

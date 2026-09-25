@@ -6,16 +6,75 @@ Canonical para as fatias do **§21.19** (implementação), não para os marcos d
 Criado em 18/09/2026. Cada célula só descreve algo efetivamente executado; o que não foi executado
 aparece como `NOT TESTED` ou `BLOCKED`, nunca em branco.
 
-> **Esta matriz não substitui a §10.9 da ADR-062.** Aquela seção é a evidência da emenda de identidade
+> **Esta matriz não substitui a §11.4 da ADR-062.** Aquela seção é a evidência da emenda de identidade
 > e continua com o significado dela. Esta aqui é por fatia.
 
-SHAs de referência da reconciliação: app `4d51cef` em `docs/funil-com-entrada`; landing `048b9ce`
-em `main`. Última atualização: 21/09/2026.
+SHAs de referência da reconciliação de 21/09: app `4d51cef` em `docs/funil-com-entrada`; landing
+`048b9ce` em `main`. A emenda de identidade abaixo foi atualizada em 25/09/2026 e só terá SHA final
+depois do commit; os números históricos das outras fatias não foram reatribuídos a ela.
 
 **Revalidação atual:** [relatório de 21/09](track-o-revalidacao-2026-09-21.md). Corrige a retomada
 das perguntas, a validação da reconciliação, as provas P2/P3 do Sandbox e a captura RSC do gate de
 sessão. Os números abaixo documentam execuções históricas; a tabela do relatório identifica quais
 foram repetidas e quais configurações externas continuam sem prova.
+
+## Emenda de identidade — 23/09/2026
+
+> Esta emenda tem precedência apenas sobre o fluxo de confirmação descrito antes dela. As provas de
+> O-5, O-6, O-7, hardening e stabilization continuam como registros das execuções indicadas nas suas
+> próprias datas. O E2E 2/2 de confirmação executado em 22/09 pertence à implementação automática
+> substituída e **não** é prova do contrato abaixo.
+
+A revisão adversarial separou a prova de controle do e-mail da autorização para a aba que iniciou o
+cadastro. A implementação atual cria usuário Auth sem senha e com binding pendente, envia pelo Resend
+um link `recovery` e um código de oito dígitos, termina o link em `/cadastro/confirmado` e exige o
+código na aba do cadastro antes de instalar a senha. O clique isolado não libera plano nem checkout.
+Uma revisão posterior fechou a perda do claim depois do OTP, a recuperação concorrente, a adoção
+segura por um segundo draft e qualquer liberação baseada apenas no marker do Auth.
+
+| Requisito atual | Código a medir | Evidência desta rodada | Resultado atual |
+| --------------- | -------------- | ---------------------- | --------------- |
+| Usuário nasce sem senha, não confirmado e preso à referência exata | `signup-confirmation-email.ts`, `signup-auth-binding.ts` | suíte integral + E2E real verificaram marker pendente antes do clique | **PASS** |
+| Token novo não entra no request target, access log ou referrer | link com fragmento + ponte GET → POST em `/auth/confirm` | regressões do template/ponte + E2E; GET recebe apenas a ponte e o destino final fica limpo | **PASS** para links novos |
+| Query antiga permanece utilizável sem consumir OTP no GET | ramo transitório da mesma ponte; a URL legada já pode ter sido registrada antes do POST | integração de convite 11/11 prova GET sem chamada a `/auth/v1/verify` e POST 303 | **PASS**, sem sigilo retroativo |
+| Link confirma a caixa, mas não autoriza a aba original | `/auth/confirm`, `/cadastro/confirmado`, `signup-email-verified.tsx` | E2E real: aparelho do link mostrou confirmado e aba original permaneceu no handoff | **PASS** |
+| Handoff exige código de oito dígitos, e-mail, senha, binding e `row_version` | `POST /api/signup/sessions/continue` | E2E real recusou código incorreto e concluiu somente com as quatro provas | **PASS** |
+| HIBP é avaliado no envio e repetido imediatamente antes do CAS | `signup-confirmation-email.ts`, rota `continue` | 238/238 focados em oito arquivos + suíte integral 4.378/4.378 | **PASS** |
+| Reenvio da mesma sessão gira link e código e invalida a tentativa anterior | reserva de Auth em `signup-session.ts`, rota `resend`, template | quinto cenário do E2E recusou link/código anteriores e aceitou os novos | **PASS** |
+| Segundo draft não gira um link ativo de outro draft e só pode adotar via código | `readSignupReferenceLiveness`, `adoptVerifiedSignupDraftWithCredential`, rota `continue` | quarto cenário do E2E: nenhum segundo e-mail; código da tentativa viva transfere ownership, senha e dados sob CAS; regressão SQL confirma origem `reserved` e destino `completed` | **PASS DEV + integration** |
+| Falha transitória depois do OTP pode reparar claim/binding | `signup-confirmation-grant.ts`, callback e página confirmada | grant HMAC de 15 min em cookie HttpOnly, vinculado ao mesmo usuário; a referência assinada vence marker Auth antigo antes do claim, e o banco vence depois; testes de assinatura, expiração, precedência e retry | **PASS local/integration** |
+| Draft expirado não bloqueia recovery de pré-tenant pronto | `pretenant_orphan`, `ensureReadyOwnedSignupAuthBinding`, reset de senha | epoch de `Auth.updated_at` relido antes da escrita; grant stale é recusado | **PASS local/integration** |
+| Lookup Auth por e-mail não varre a base nem aceita resultado aproximado | `findAdminUserByEmail` | filtro oficial GoTrue + igualdade exata + falha fechada para ambiguidade/indisponibilidade | **PASS local/integration** |
+| Legado markerless só migra com prova suficiente; marker `set` divergente falha fechado | `signup-auth-admin.ts`, tela confirmada e login | conta não confirmada exige reserva+OTP; conta confirmada exige login por senha; Auth `set` divergente nunca é reparado silenciosamente | **PASS local/integration + DEV** |
+| Só Auth e banco concordantes liberam draft, plano e checkout | `resolveReadyOwnedSignupOnboarding` e consumidores | exige marker `set`, referência DB-owned idêntica e `auth_attempt_state=completed`; falha parcial Auth→SQL fica bloqueada e retry da mesma adoção conclui sem segunda senha | **PASS local/integration** |
+| Recovery concorrente tem um único vencedor | `recovery-consumption.ts`, `session-epoch.ts`, reset de senha | profile consome `claims_version`; pré-tenant consome epoch da credencial; órfão usa advisory lock e relê `Auth.updated_at` | **PASS local/integration** |
+| Resposta pública de envio não enumera resultado do provider | rotas `auth`/`resend`, finalização em `signup-session.ts` | envio aceito, conta ofuscada e efeito incerto retornam envelope 200 uniforme depois do início; estado interno preserva `uncertain`; finalização só aceita dois pares exatos de estado/ownership | **PASS local/integration** |
+| Jornada Supabase DEV + Resend da implementação atual | `e2e/signup-confirmation.spec.ts` via runner fail-closed | **5/5 em 9,4 min** contra `next dev`, Chromium, um worker, zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero | **PASS DEV** |
+| Jornada no Preview do commit final | mesmo spec, alvo Preview exato | ainda não existe evidência desta revisão em Preview | **NOT TESTED** |
+| Chegada e renderização numa caixa postal real | inspeção humana do inbox consentido | API/evento do Resend não substitui o inbox | **NOT TESTED** |
+
+O runner canônico desta prova é:
+
+```bash
+npx tsx scripts/run-signup-confirmation-e2e.ts
+```
+
+Ele exige opt-in explícito de escrita, recusa produção, fixa o projeto Supabase DEV aceito, usa um
+worker sem retry e precisa encerrar com readback de limpeza. Rodar diretamente o arquivo Playwright e
+obter skip por falta de env não é PASS.
+
+O spec termina quando a tela `/cadastro/plano` abre. Portanto, mesmo quando ele passar, **não prova**
+checkout, chamada ao Asaas, criação de assinatura, reconciliação, webhook ou provisionamento. As
+provas Sandbox de O-5/O-6 abaixo são separadas e não devem ser atribuídas a esse E2E.
+
+A ponte protege contra scanner que apenas faz GET porque o fragmento nunca chega ao servidor e o GET
+não consome OTP. Scanner que executa JavaScript pode autoenviar o POST e continua como risco
+residual; essa limitação deve permanecer explícita mesmo depois de um E2E verde.
+
+O ramo de compatibilidade para query antiga também não verifica no GET, porém não oferece sigilo
+retroativo de access log: a credencial já estava no request target quando a ponte a recebeu. Ele
+existe apenas para não quebrar mensagens emitidas antes da mudança e deve ser removido depois do TTL
+desse estoque.
 
 ## Legenda de ambiente
 
@@ -51,12 +110,12 @@ a fecha. A defesa real é o CAS de `reserveSignupBillingAttempt`, que deixa exat
 alcançar o provedor — provado em `SCRATCH`. Qualquer caminho futuro que chame o provedor sem passar
 pela reserva reintroduz cobrança duplicada.
 
-### Artefato Sandbox (P1–P4)
+### Artefato Sandbox (P1–P4 + cleanup)
 
-Reexecutado em 21/09: `dist/track-o-sandbox/asaas-results.json` — host `sandbox.asaas.com`,
-**P1–P4 4/4 PASS + cleanup 2/2 PASS**, exit 0. Readback confirmou a remoção de cinco assinaturas e
-cinco customers. Um DELETE respondeu 500, apesar da exclusão; o contador HTTP foi 4/5,
-e o readback, 5/5. Não confundir contador de resposta com estado final.
+Reexecutado na rodada final: `dist/track-o-sandbox/asaas-results.json` — host `sandbox.asaas.com`,
+**6/6 PASS**: P1–P4 mais `CLEANUP_DISCOVERY` e `CLEANUP_READBACK`. O cleanup confirmou por readback
+**5/5 assinaturas** e **5/5 customers** removidos. Um DELETE pode responder 500 apesar da exclusão;
+o estado final vem do readback, não do contador HTTP.
 
 | Prova | Estabelecido                                                                                |
 | ----- | ------------------------------------------------------------------------------------------- |
@@ -67,9 +126,9 @@ e o readback, 5/5. Não confundir contador de resposta com estado final.
 
 ### Webhook da assinatura originada no cadastro — `signup-webhook-sandbox.ts`
 
-Ambiente `SCHEMA` + `SANDBOX`. **12/12 PASS em 21/09**: nove provas originais, duas de reconciliação
-e C1 de compensação. C1 relê uma assinatura e um customer excluídos pela aplicação antes do teardown;
-cleanup relê os outros 2/2 de cada tipo. Exige `deleted=true` ou 404 nos dois recursos.
+Ambiente `SCHEMA` + `SANDBOX`. **12/12 PASS**: nove provas originais, duas de reconciliação e C1 de
+compensação. O cleanup final passou **2/2**; C1 relê a assinatura e o customer compensados pela
+aplicação antes do teardown. A prova exige `deleted=true` ou 404 nos dois recursos.
 
 A assinatura é criada de verdade no sandbox, o tenant é provisionado a partir dela e os eventos vão
 para a **mesma rota de produção**. A rota não confia no corpo: ela busca o estado autoritativo com
@@ -260,13 +319,13 @@ O harness foi conferido contra falsos verdes, alterando o produto de propósito:
 | Cross-tenant A→B                                  | `SCHEMA`  | **PASS**                                   |
 | Segredo em resposta/log                           | `LOCAL`   | **PASS** (`cpfcnpj` em `SENSITIVE_KEYS`)   |
 | Carga scratch (`test:load`)                       | `SCRATCH` | **PASS** — ver abaixo                      |
-| `security:build` (= gate build)                   | `LOCAL`   | **PASS** exit 0                            |
-| `security:bundle`                                 | `LOCAL`   | **PASS** 170 arquivos de cliente, 0 falhas |
-| `security:http`                                   | `LOCAL`   | **PASS** — 49 actions com negativa explícita |
+| `security:build` (= gate build)                   | `LOCAL`   | **PASS histórico**; rodada final em validação |
+| `security:bundle`                                 | `LOCAL`   | **PASS histórico**; contagem atual aguarda inventário final |
+| `security:http`                                   | `LOCAL`   | **PASS histórico**; contagem atual aguarda inventário final |
 | `security:tenant`                                 | `SCRATCH` | **PASS** com contrafactual de role-switch  |
 | `security:unit`                                   | `LOCAL`   | **PASS** 332/332                           |
 | `security:risks`                                  | `LOCAL`   | **PASS** sem drift                         |
-| `security:browser-session`                        | `BROWSER` | **FAIL — pré-existente**, ver abaixo       |
+| `security:browser-session`                        | `BROWSER` | **PASS 7/7**, ver abaixo                   |
 | Chaos/degradação de Redis                         | `LOCAL`   | **PASS** — 59/59, ver abaixo               |
 | Carga específica do Track O                       | `SCHEMA`  | **PASS** — 8/8, ver abaixo                 |
 
@@ -289,12 +348,12 @@ Nenhum SLO foi alterado. Os caminhos do Track O (sessão de cadastro, reserva de
 assinatura, provisionamento, onboarding) **não** estão neste harness — ele é de Camada 1. O que esta
 execução prova é que o Track O não regrediu a carga existente, e que o gate voltou a ser executável.
 
-### `security:browser-session` — falha pré-existente, atribuída
+### `security:browser-session` — falha atribuída e corrigida
 
-4 testes falham por não conseguir ler o corpo de um prefetch RSC de `/cadastro`
-(`Não foi possível inspecionar .../cadastro?_rsc=...`). **Não é regressão desta sessão**: o mesmo gate
-foi executado num worktree do commit `8df4ab7` — anterior a todo o trabalho de O-7 — e falhou nos
-**mesmos 4 testes**, com a mesma assinatura. Registrado como `FAIL` pré-existente em vez de omitido.
+A falha histórica ocorria porque o gate navegava antes de o prefetch RSC terminar e perdia o corpo
+que precisava inspecionar. A sincronização foi corrigida sem ignorar erro de leitura, e os controles
+que injetam vazamento e corpo ilegível continuam precisando falhar. A reexecução atual terminou
+**7/7 PASS** em Chromium.
 
 ---
 

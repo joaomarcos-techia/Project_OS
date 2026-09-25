@@ -37,7 +37,7 @@
  */
 import 'server-only';
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 /* eslint-disable boundaries/element-types -- mesma travessia por PK que o resto de lib/auth já faz para manter a decisão de sessão num ponto só. */
 import { profiles } from '@/contexts/identity/schema';
@@ -67,6 +67,29 @@ export async function bumpSessionEpoch(userId: string, reason: string): Promise<
   const bumped = rows.length > 0;
   // Mesmo canal do `auth.session.revoked` emitido pelo epoch-check: revogação
   // ativa e revogação percebida ficam correlacionáveis no mesmo gráfico.
+  if (bumped) metrics.emit('auth.session.revoked', { reason });
+  return bumped;
+}
+
+/**
+ * Consome um epoch conhecido e o incrementa numa única escrita.
+ *
+ * Diferente de `bumpSessionEpoch`, este helper só vence quando o profile ainda
+ * está exatamente na versão carregada pelo grant. Assim duas requisições com o
+ * mesmo recovery nunca chegam juntas à escrita externa da senha.
+ */
+export async function bumpSessionEpochIfCurrent(
+  userId: string,
+  expectedClaimsVersion: number,
+  reason: string,
+): Promise<boolean> {
+  const rows = await dbAdmin
+    .update(profiles)
+    .set({ claimsVersion: sql`${profiles.claimsVersion} + 1` })
+    .where(and(eq(profiles.id, userId), eq(profiles.claimsVersion, expectedClaimsVersion)))
+    .returning({ claimsVersion: profiles.claimsVersion });
+
+  const bumped = rows.length > 0;
   if (bumped) metrics.emit('auth.session.revoked', { reason });
   return bumped;
 }

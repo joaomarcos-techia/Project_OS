@@ -637,6 +637,72 @@ export async function assertSignupAuthAllowed(
   }
 }
 
+const lazySignupContinuationLimiters = (() => {
+  let cached: { ip: Ratelimit; session: Ratelimit; email: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/continue] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (
+      scope: string,
+      requests: number,
+      window: Parameters<typeof Ratelimit.slidingWindow>[1],
+    ) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, window),
+        prefix: redisKey.global('rl', 'signup', 'continue', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = {
+      ip: create('ip', 10, '15 m'),
+      session: create('session', 5, '1 h'),
+      email: create('email', 5, '1 h'),
+    };
+    return cached;
+  };
+})();
+
+/** Troca cross-device: buckets próprios para não consumir o orçamento de criação. */
+export async function assertSignupContinuationAllowed(
+  ip: string,
+  tokenHash: string,
+  emailHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+    return { ok: false, reason: 'unavailable' };
+  try {
+    const limiters = lazySignupContinuationLimiters();
+    const results = await Promise.all([
+      limiters.ip.limit(ipRateLimitKey(ip)),
+      limiters.session.limit(tokenHash),
+      limiters.email.limit(emailHash),
+    ]);
+    if (results.some((result) => result.reason === 'timeout'))
+      return { ok: false, reason: 'unavailable' };
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length)
+      return {
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: Math.max(
+          1,
+          Math.ceil((Math.max(...blocked.map((result) => result.reset)) - Date.now()) / 1_000),
+        ),
+      };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
 const lazySignupResendLimiters = (() => {
   let cached: { ip: Ratelimit; session: Ratelimit; email: Ratelimit } | null = null;
   return () => {
@@ -1230,6 +1296,7 @@ export const __testing__ = {
   envSegment,
   signupIdentityLimiters: lazySignupIdentityLimiters,
   signupAuthLimiters: lazySignupAuthLimiters,
+  signupContinuationLimiters: lazySignupContinuationLimiters,
   signupResendLimiters: lazySignupResendLimiters,
   signupDraftLimiters: lazySignupDraftLimiters,
 };
