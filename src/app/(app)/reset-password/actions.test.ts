@@ -52,10 +52,10 @@ vi.mock('@/lib/auth/recovery-grant', () => ({
 vi.mock('@/lib/auth/recovery-consumption', () => ({
   isOrphanRecoveryEpochConsumed: mocks.isOrphanConsumed,
   markOrphanRecoveryEpochConsumed: mocks.markOrphanConsumed,
-  withOrphanRecoveryLock: mocks.orphanLock,
 }));
 vi.mock('@/lib/auth/session-epoch', () => ({
   bumpSessionEpochIfCurrent: mocks.bumpEpochIfCurrent,
+  withOrphanRecoveryLock: mocks.orphanLock,
 }));
 vi.mock('@/lib/auth/supabase-admin', () => ({
   createAdminClient: () => ({

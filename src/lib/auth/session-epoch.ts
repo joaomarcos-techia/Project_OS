@@ -93,3 +93,22 @@ export async function bumpSessionEpochIfCurrent(
   if (bumped) metrics.emit('auth.session.revoked', { reason });
   return bumped;
 }
+
+/**
+ * Serializa a única escrita Auth de um recovery sem profile/draft.
+ *
+ * O lock é transacional e compartilhado por todas as instâncias. A transação
+ * deliberadamente cobre a releitura e uma única chamada à Admin API: sem uma
+ * linha autoritativa para CAS, soltar o lock antes desse I/O reabriria a corrida.
+ */
+export async function withOrphanRecoveryLock<T>(
+  userId: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  return dbAdmin.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`qoro:password-recovery:${userId}`}, 0))`,
+    );
+    return work();
+  });
+}

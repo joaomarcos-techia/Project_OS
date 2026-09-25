@@ -16,10 +16,9 @@ import { assertPasswordResetCompletionAllowed, getClientIp } from '@/lib/auth/ra
 import {
   isOrphanRecoveryEpochConsumed,
   markOrphanRecoveryEpochConsumed,
-  withOrphanRecoveryLock,
 } from '@/lib/auth/recovery-consumption';
 import { RECOVERY_GRANT_COOKIE, readRecoveryGrant } from '@/lib/auth/recovery-grant';
-import { bumpSessionEpochIfCurrent } from '@/lib/auth/session-epoch';
+import { bumpSessionEpochIfCurrent, withOrphanRecoveryLock } from '@/lib/auth/session-epoch';
 import { signupPasswordSchema } from '@/lib/auth/signup-password';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
