@@ -49,10 +49,9 @@ O E2E automatizado executou os cinco cenários nesse alias em 4,9 min no SHA `96
 zero retry, fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. Isso torna o alvo
 válido para o roteiro; não substitui a inspeção humana do inbox nem o julgamento de produto.
 
-**Antes do merge técnico**, publique a revisão final da branch e use um Preview cujo detalhe mostre
-exatamente esse SHA. O E2E automatizado de Preview é gate para o merge autorizado pelo owner. O aceite
-humano pode ocorrer depois do merge, mas continua obrigatório antes de declarar o fluxo aceito como
-produto; ele deve usar esse mesmo Preview e nunca produção. As flags
+O PR #15 já foi mesclado na `main` em `193ce31`, depois de o E2E e todos os checks ficarem verdes. O
+aceite humano continua obrigatório antes de declarar o fluxo aceito como produto; use o Preview acima
+e nunca produção. As flags
 `SIGNUP_IDENTITY_ENABLED` e `SIGNUP_AUTH_ENABLED` já estão no escopo **Preview** do projeto
 `project-os`; confira também que Supabase é DEV e Asaas é Sandbox antes do cadastro.
 

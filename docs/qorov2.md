@@ -27,7 +27,9 @@ cleanup Auth/DB/fixture/lock zero. O mesmo spec passou **5/5 em 4,9 min** no Pre
 branch no SHA `9608e1e`, com fingerprint do Auth e banco DEV, um worker, zero retry e cleanup
 Auth/DB/fixture/lock zero.
 A suíte integral passou 4.378/4.378 em 414 arquivos. Inspeção do inbox e aceitação humana ainda são
-necessárias antes de o fluxo ser chamado de aceito como produto.
+necessárias antes de o fluxo ser chamado de aceito como produto. O PR #15 foi mesclado na `main` em
+`193ce31`; o deployment de produção ficou `Ready` e sondagens GET de `/login` e `/cadastro` retornaram
+200. Nenhum cadastro, e-mail ou billing foi exercitado em produção.
 
 **A partir daqui há dinheiro real em jogo:** uma passagem em produção pode criar clínica e assinatura
 reais. A aceitação permanece no **Preview**, que usa Sandbox e banco DEV — roteiro em
@@ -7022,6 +7024,7 @@ depois do código e da instalação da senha a navegação vai para `/cadastro/p
 | Build otimizado e inventário atual | **PASS** — Next 15.5.24 otimizado, exit 0; inventário regenerado e conferido com 180 actions, 49 métodos de rota, 16 props, 254 usos de `process.env` e 9 variáveis públicas, sem gaps |
 | Gates integrados de segurança | **PASS** — browser-session 7/7 em 45,5 s; tenant isolation e cleanup; bundle 174 arquivos/zero falha; HTTP 12 vetores, 164 actions e 328 requests; DB/arquitetura/migrations/observabilidade/registry, exit 0 |
 | Jornada atual em Preview | **PASS 5/5** — 4,9 min no SHA `9608e1e`, no alias protegido da branch, Chromium, um worker e zero retry; fingerprint confirmou Auth e banco DEV; cleanup Auth/DB/fixture/lock zero |
+| Publicação da revisão na `main` | **PASS técnico** — PR #15 mesclado em `193ce31`; Vercel Production `Ready`; GET `/login` e `/cadastro` 200, sem escrita |
 | Jornada atual em produção | **NOT TESTED** — não se cria conta em produção para esta validação |
 | Mensagem visível numa caixa de entrada real | **NOT TESTED** — aceite do Resend ou leitura pela API do provider não prova entrega e renderização no inbox |
 | Cobrança, reconciliação ou provisionamento pelo E2E de confirmação | **NÃO É PROVADO por este spec** — a jornada termina quando `/cadastro/plano` abre; os PASS acima vêm dos runners próprios de O-5/O-6 |

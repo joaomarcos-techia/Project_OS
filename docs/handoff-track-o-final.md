@@ -67,6 +67,7 @@ O worktree passou a usar este contrato:
 | Prettier | **PASS** | `npx prettier --check .`, exit 0; o único desvio de baseline era uma quebra de linha num teste de WhatsApp e foi normalizado sem mudança de comportamento |
 | E2E atual contra Supabase DEV + Resend | **PASS 5/5** | Chromium, 9,4 min contra `next dev`, um worker/zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero |
 | E2E atual em Preview | **PASS 5/5** | 4,9 min no SHA `9608e1e`, no alias protegido da branch, Chromium, um worker/zero retry; fingerprint Auth + DB DEV; cleanup Auth/DB/fixture/lock zero |
+| Merge e publicação | **PASS técnico** | PR #15 mesclado em `193ce31`; Vercel Production `Ready`; GET `/login` e `/cadastro` 200, sem escrita |
 | Inbox real | **NOT TESTED** | pessoa confirma recebimento, conteúdo e link na caixa consentida |
 | Aceitação de produto | **PENDENTE** | executar o runbook atualizado no Preview |
 | Billing e provisionamento nos runners próprios | **PASS** | Asaas 6/6, cleanup 5/5; webhook/provisionamento 12/12, cleanup 2/2 |
@@ -81,8 +82,8 @@ O worktree passou a usar este contrato:
    Auth/DB/fixture/lock zero.~~ **Concluído: 5/5 em 4,9 min no SHA `9608e1e`, um worker e zero retry.**
 4. ~~Registrar a prova automatizada na
    [matriz de evidência](evidence/track-o.md#emenda-de-identidade--23092026) e no
-   [§37 do qorov2](qorov2.md#378-evidência-válida-para-esta-emenda).~~ **Concluído.** Com os checks
-   finais verdes, concluir o merge técnico já autorizado pelo owner;
+   [§37 do qorov2](qorov2.md#378-evidência-válida-para-esta-emenda) e concluir o merge técnico com os
+   checks finais verdes.~~ **Concluído no PR #15, merge `193ce31`.**
 5. executar a
    [aceitação humana](runbooks/aceitacao-humana-cadastro.md#1-cadastro-e-handoff-entre-aparelhos),
    incluindo a inspeção da mensagem numa caixa consentida, e registrar o veredito. Essa etapa não
