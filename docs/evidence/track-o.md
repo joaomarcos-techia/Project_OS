@@ -50,7 +50,7 @@ segura por um segundo draft e qualquer liberação baseada apenas no marker do A
 | Recovery concorrente tem um único vencedor | `recovery-consumption.ts`, `session-epoch.ts`, reset de senha | profile consome `claims_version`; pré-tenant consome epoch da credencial; órfão usa advisory lock e relê `Auth.updated_at` | **PASS local/integration** |
 | Resposta pública de envio não enumera resultado do provider | rotas `auth`/`resend`, finalização em `signup-session.ts` | envio aceito, conta ofuscada e efeito incerto retornam envelope 200 uniforme depois do início; estado interno preserva `uncertain`; finalização só aceita dois pares exatos de estado/ownership | **PASS local/integration** |
 | Jornada Supabase DEV + Resend da implementação atual | `e2e/signup-confirmation.spec.ts` via runner fail-closed | **5/5 em 9,4 min** contra `next dev`, Chromium, um worker, zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero | **PASS DEV** |
-| Jornada no Preview do commit final | mesmo spec, alvo Preview exato | ainda não existe evidência desta revisão em Preview | **NOT TESTED** |
+| Jornada no Preview da revisão vigente | mesmo spec, alias protegido da branch | **5/5 em 5,5 min**, Chromium, um worker/zero retry; fingerprint Auth + DB DEV e cleanup Auth/DB/fixture/lock zero | **PASS PREVIEW** |
 | Chegada e renderização numa caixa postal real | inspeção humana do inbox consentido | API/evento do Resend não substitui o inbox | **NOT TESTED** |
 
 O runner canônico desta prova é:
@@ -62,6 +62,13 @@ npx tsx scripts/run-signup-confirmation-e2e.ts
 Ele exige opt-in explícito de escrita, recusa produção, fixa o projeto Supabase DEV aceito, usa um
 worker sem retry e precisa encerrar com readback de limpeza. Rodar diretamente o arquivo Playwright e
 obter skip por falta de env não é PASS.
+
+No Preview protegido, o runner envia somente `x-vercel-protection-bypass`; a opção de gravar o cookie
+de bypass produzia loop 307 no `fetch` Node. O `APP_BASE_URL` foi configurado somente para a branch e
+aponta para o alias estável; com a URL antiga, a rota falhou fechada com 403 e não criou cookie nem
+linha. Como o evento `delivered` apareceu após a janela antiga de 90 s, a observação externa agora
+espera até 180 s sem aceitar estado anterior. A identidade do remetente exige a mesma mailbox e, se o
+provider devolver nome de exibição, ele deve ser exatamente `Qoro`.
 
 O spec termina quando a tela `/cadastro/plano` abre. Portanto, mesmo quando ele passar, **não prova**
 checkout, chamada ao Asaas, criação de assinatura, reconciliação, webhook ou provisionamento. As

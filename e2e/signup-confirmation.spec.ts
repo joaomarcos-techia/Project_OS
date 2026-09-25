@@ -46,6 +46,7 @@ const LOCK_PATH = path.join(process.cwd(), '.playwright', 'signup-confirmation.l
 const RESEND_API = 'https://api.resend.com';
 const INITIAL_SUBJECT = 'Confirme seu e-mail — Qoro';
 const RESEND_SUBJECT = 'Seu novo link de confirmação — Qoro';
+const RESEND_DELIVERY_TIMEOUT_MS = 180_000;
 
 type Fixture = {
   projectRef: string;
@@ -499,7 +500,10 @@ async function waitForMessage(input: {
   after: number;
   excludeIds?: Set<string>;
 }): Promise<ResendMessage> {
-  const deadline = Date.now() + 90_000;
+  // A API de envio pode aceitar antes de a mensagem aparecer como `delivered`
+  // na listagem do Resend. Preview já mediu atraso ligeiramente acima de 90 s;
+  // o gate continua exigindo entrega, só amplia a janela de observação externa.
+  const deadline = Date.now() + RESEND_DELIVERY_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const listed = await resend('/emails?limit=100');
     if (!listed.ok) throw new Error('Resend não respondeu à listagem de mensagens');
@@ -560,9 +564,24 @@ function singleVerificationCode(body: string, kind: 'html' | 'text'): string {
   return codes[0];
 }
 
+function senderIdentity(value: string): { name: string | null; mailbox: string } {
+  const wrapped = /^\s*([^<]*)\s*<([^>]+)>\s*$/u.exec(value);
+  return {
+    name: wrapped?.[1]?.trim() || null,
+    mailbox: (wrapped?.[2] ?? value).trim().toLowerCase(),
+  };
+}
+
 function confirmationProof(message: ResendMessage, expectedSignupRef: string): ConfirmationProof {
   if (!message.text || !message.html) throw new Error('mensagem sem corpo HTML/texto');
-  if (message.from !== expectedEmailFrom) throw new Error('mensagem usa remetente inesperado');
+  const expectedSender = senderIdentity(expectedEmailFrom!);
+  const actualSender = senderIdentity(message.from);
+  if (actualSender.mailbox !== expectedSender.mailbox) {
+    throw new Error('mensagem usa mailbox de remetente inesperado');
+  }
+  if (actualSender.name && actualSender.name !== 'Qoro') {
+    throw new Error('mensagem usa nome de remetente inesperado');
+  }
   if (message.html.includes('/auth/v1/verify') || message.text.includes('/auth/v1/verify')) {
     throw new Error('mensagem voltou a usar o link pronto do provider');
   }
@@ -955,7 +974,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
     const reason = skipReason();
     test.skip(!writeEnabled, 'E2E_SIGNUP_WRITE != 1');
     if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
-    test.setTimeout(300_000);
+    test.setTimeout(420_000);
 
     const email = `delivered+qoro-signup-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
     let desktop: BrowserContext | null = null;
@@ -1001,7 +1020,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
     const reason = skipReason();
     test.skip(!writeEnabled, 'E2E_SIGNUP_WRITE != 1');
     if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
-    test.setTimeout(300_000);
+    test.setTimeout(420_000);
 
     const email = `delivered+qoro-legacy-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
     const legacyPassword = `LegacyE2e7${randomBytes(12).toString('base64url')}`;

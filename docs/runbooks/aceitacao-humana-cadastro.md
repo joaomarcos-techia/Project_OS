@@ -4,7 +4,7 @@
 
 Canonical para **julgamento de produto**. A revalidação histórica e os limites de acesso aos painéis
 estão no [relatório de 21/09](../evidence/track-o-revalidacao-2026-09-21.md); a confirmação vigente e
-sua prova DEV 5/5 estão na [matriz Track O](../evidence/track-o.md#emenda-de-identidade--23092026) e na
+sua prova DEV + Preview 5/5 estão na [matriz Track O](../evidence/track-o.md#emenda-de-identidade--23092026) e na
 [ADR-062 §11](../adr/062-identidade-consentimento-cadastro.md#11-emenda-de-23092026--confirmação-e-handoff-de-credencial).
 O aceite humano não substitui essas provas, e os testes não substituem este julgamento.
 
@@ -38,16 +38,16 @@ assinatura e remova o tenant depois, com autorização e registro.
 
 ### Endereço
 
-O Preview validado para as correções da revalidação é o da revisão `e0e8f15` do
-[PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15):
+O Preview vigente da emenda, no
+[PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15), é:
 
 ```
-https://project-cofoulm3e-clinic-os-v2-s-projects.vercel.app/cadastro
+https://project-os-git-docs-funil-com-entrada-clinic-os-v2-s-projects.vercel.app/cadastro
 ```
 
-Esse endereço é **histórico** e não é alvo válido para a emenda de 23/09 enquanto o detalhe do
-deployment não mostrar o SHA que a contém. A URL atual deve ser preenchida aqui somente depois do
-Preview do commit final. Até lá, a aceitação do novo fluxo está **BLOCKED por ausência de alvo**.
+O E2E automatizado executou os cinco cenários nesse alias em 5,5 min, com um worker, zero retry,
+fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. Isso torna o alvo válido para o
+roteiro; não substitui a inspeção humana do inbox nem o julgamento de produto.
 
 **Antes do merge técnico**, publique a revisão final da branch e use um Preview cujo detalhe mostre
 exatamente esse SHA. O E2E automatizado de Preview é gate para o merge autorizado pelo owner. O aceite

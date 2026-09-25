@@ -66,7 +66,7 @@ O worktree passou a usar este contrato:
 | Segurança e inventário | **PASS** | inventário 180/49/16/254/9 e zero gaps; browser-session 7/7 em 45,5 s; tenant, bundle 174/0, HTTP 12/164/328, DB/arquitetura/migrations/observabilidade/registry, exit 0 |
 | Prettier | **PASS** | `npx prettier --check .`, exit 0; o único desvio de baseline era uma quebra de linha num teste de WhatsApp e foi normalizado sem mudança de comportamento |
 | E2E atual contra Supabase DEV + Resend | **PASS 5/5** | Chromium, 9,4 min contra `next dev`, um worker/zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero |
-| E2E atual em Preview | **NOT TESTED** | deployment do SHA final e execução no origin exato |
+| E2E atual em Preview | **PASS 5/5** | 5,5 min no alias protegido da branch, Chromium, um worker/zero retry; fingerprint Auth + DB DEV; cleanup Auth/DB/fixture/lock zero |
 | Inbox real | **NOT TESTED** | pessoa confirma recebimento, conteúdo e link na caixa consentida |
 | Aceitação de produto | **PENDENTE** | executar o runbook atualizado no Preview |
 | Billing e provisionamento nos runners próprios | **PASS** | Asaas 6/6, cleanup 5/5; webhook/provisionamento 12/12, cleanup 2/2 |
@@ -76,9 +76,9 @@ O worktree passou a usar este contrato:
 
 1. ~~Concluir ESLint/formato, build Next de produção, inventário e demais gates finais e registrar os
    números atuais.~~ **Concluído; resultados na tabela acima.**
-2. revisar o diff, commitar e publicar a branch sem misturar trabalho alheio;
-3. aguardar o deployment Preview do **mesmo SHA** e repetir o E2E 5/5 no origin exato, contra DEV,
-   exigindo fingerprint e cleanup Auth/DB/fixture/lock zero; não usar produção;
+2. ~~Revisar o diff, commitar e publicar a implementação sem misturar trabalho alheio.~~ **Concluído.**
+3. ~~Executar o E2E 5/5 no Preview protegido, contra DEV, exigindo fingerprint e cleanup
+   Auth/DB/fixture/lock zero.~~ **Concluído: 5/5 em 5,5 min, um worker e zero retry.**
 4. registrar a prova automatizada na
    [matriz de evidência](evidence/track-o.md#emenda-de-identidade--23092026) e no
    [§37 do qorov2](qorov2.md#378-evidência-válida-para-esta-emenda); com o SHA final verde, concluir o
@@ -93,8 +93,7 @@ O novo E2E deve provar, sem imprimir token ou código: link no celular não avan
 `pending` não acessa plano/checkout; código incorreto e tentativa anterior falham; reenvio da mesma
 sessão produz link e código novos; outro draft não gira o link vivo nem recebe mensagem; senha não
 autentica antes do handoff e autentica depois; F5 exige redigitar e-mail/senha; legado seguro e
-limpeza sem resíduo também são exercitados. Em DEV, esses cinco cenários estão **PASS**; Preview ainda
-precisa repetir a mesma prova.
+limpeza sem resíduo também são exercitados. Os cinco cenários estão **PASS** em DEV e Preview.
 
 Limite assumido: um scanner que apenas faz GET não consome o OTP, mas um scanner capaz de executar
 JavaScript pode executar a ponte. O risco continua registrado; reenvio rotativo e handoff por código

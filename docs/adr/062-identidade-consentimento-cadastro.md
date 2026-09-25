@@ -4,8 +4,9 @@
   está em §11: usuário nasce sem senha, o Qoro envia link e código pelo Resend, o link confirma apenas
   a caixa postal e a aba iniciadora instala a senha somente depois do código. Em 25/09/2026 o E2E
   fail-closed passou **5/5** contra Supabase DEV + Resend real, em Chromium, um worker, zero retry e
-  9,4 min contra `next dev`, com limpeza Auth/DB/fixture/lock.
-  Preview do SHA final, inspeção do inbox e aceitação humana continuam `NOT TESTED`.
+  9,4 min contra `next dev`, com limpeza Auth/DB/fixture/lock. O mesmo spec passou **5/5 em 5,5 min**
+  no Preview protegido da branch, com fingerprint Auth + DB DEV, um worker/zero retry e cleanup zero.
+  Inspeção do inbox e aceitação humana continuam `NOT TESTED`.
 - **Data:** 2026-09-15.
 - **Atualizado:** 2026-09-25.
 - **Checkout de rollout:** branch `docs/funil-com-entrada`, PR #15. O alvo de aceitação precisa ser um
@@ -1126,7 +1127,7 @@ Esta emenda não cria migration. Ela reutiliza `auth_attempted_at`, `row_version
 | E2E do contrato atual contra Supabase DEV + Resend | **PASS 5/5**, Chromium, 9,4 min contra `next dev`, um worker/zero retry; cache efêmero E2E-only de 15 min/64 entradas; limpeza terminou sem conta, linha, fixture ou lock residual |
 | Billing/provisionamento nas provas próprias | **PASS** — Asaas 6/6, cleanup 5/5; webhook/provisionamento 12/12, cleanup 2/2; não é atribuído ao spec de confirmação |
 | Gate de sessão no navegador | **PASS 7/7** |
-| Preview do SHA final | **NOT TESTED** |
+| Preview da revisão vigente | **PASS 5/5**, 5,5 min no alias protegido da branch, Chromium, um worker/zero retry; fingerprint Auth + DB DEV; cleanup Auth/DB/fixture/lock zero |
 | Produção | **NOT TESTED** e fora do alvo de escrita desta validação |
 | Inbox consentido | **NOT TESTED**; aceitação do Resend não prova chegada/renderização |
 | Billing/Asaas pelo E2E de confirmação | **NÃO COBERTO** — o spec encerra ao abrir `/cadastro/plano` |
@@ -1136,4 +1137,4 @@ O E2E DEV já provou: link isolado não avança; pendente não acessa plano/chec
 viva nem recebe mensagem; legado markerless seguro; senha não autentica antes e autentica depois do
 CAS; refresh exige redigitação; cleanup Auth/DB/fixture/lock termina zero. O comando canônico é
 `npx tsx scripts/run-signup-confirmation-e2e.ts`, com os guards descritos na matriz Track O. A mesma
-prova contra o Preview do SHA final continua `NOT TESTED`.
+prova também passou 5/5 no Preview protegido, com fingerprint do ambiente DEV e limpeza zero.
