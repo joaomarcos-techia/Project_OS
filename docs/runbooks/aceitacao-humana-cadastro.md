@@ -45,9 +45,9 @@ O Preview vigente da emenda, no
 https://project-os-git-docs-funil-com-entrada-clinic-os-v2-s-projects.vercel.app/cadastro
 ```
 
-O E2E automatizado executou os cinco cenários nesse alias em 5,5 min, com um worker, zero retry,
-fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. Isso torna o alvo válido para o
-roteiro; não substitui a inspeção humana do inbox nem o julgamento de produto.
+O E2E automatizado executou os cinco cenários nesse alias em 4,9 min no SHA `9608e1e`, com um worker,
+zero retry, fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. Isso torna o alvo
+válido para o roteiro; não substitui a inspeção humana do inbox nem o julgamento de produto.
 
 **Antes do merge técnico**, publique a revisão final da branch e use um Preview cujo detalhe mostre
 exatamente esse SHA. O E2E automatizado de Preview é gate para o merge autorizado pelo owner. O aceite

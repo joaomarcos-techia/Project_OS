@@ -66,7 +66,7 @@ O worktree passou a usar este contrato:
 | Segurança e inventário | **PASS** | inventário 180/49/16/254/9 e zero gaps; browser-session 7/7 em 45,5 s; tenant, bundle 174/0, HTTP 12/164/328, DB/arquitetura/migrations/observabilidade/registry, exit 0 |
 | Prettier | **PASS** | `npx prettier --check .`, exit 0; o único desvio de baseline era uma quebra de linha num teste de WhatsApp e foi normalizado sem mudança de comportamento |
 | E2E atual contra Supabase DEV + Resend | **PASS 5/5** | Chromium, 9,4 min contra `next dev`, um worker/zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero |
-| E2E atual em Preview | **PASS 5/5** | 5,5 min no alias protegido da branch, Chromium, um worker/zero retry; fingerprint Auth + DB DEV; cleanup Auth/DB/fixture/lock zero |
+| E2E atual em Preview | **PASS 5/5** | 4,9 min no SHA `9608e1e`, no alias protegido da branch, Chromium, um worker/zero retry; fingerprint Auth + DB DEV; cleanup Auth/DB/fixture/lock zero |
 | Inbox real | **NOT TESTED** | pessoa confirma recebimento, conteúdo e link na caixa consentida |
 | Aceitação de produto | **PENDENTE** | executar o runbook atualizado no Preview |
 | Billing e provisionamento nos runners próprios | **PASS** | Asaas 6/6, cleanup 5/5; webhook/provisionamento 12/12, cleanup 2/2 |
@@ -78,11 +78,11 @@ O worktree passou a usar este contrato:
    números atuais.~~ **Concluído; resultados na tabela acima.**
 2. ~~Revisar o diff, commitar e publicar a implementação sem misturar trabalho alheio.~~ **Concluído.**
 3. ~~Executar o E2E 5/5 no Preview protegido, contra DEV, exigindo fingerprint e cleanup
-   Auth/DB/fixture/lock zero.~~ **Concluído: 5/5 em 5,5 min, um worker e zero retry.**
-4. registrar a prova automatizada na
+   Auth/DB/fixture/lock zero.~~ **Concluído: 5/5 em 4,9 min no SHA `9608e1e`, um worker e zero retry.**
+4. ~~Registrar a prova automatizada na
    [matriz de evidência](evidence/track-o.md#emenda-de-identidade--23092026) e no
-   [§37 do qorov2](qorov2.md#378-evidência-válida-para-esta-emenda); com o SHA final verde, concluir o
-   merge técnico já autorizado pelo owner;
+   [§37 do qorov2](qorov2.md#378-evidência-válida-para-esta-emenda).~~ **Concluído.** Com os checks
+   finais verdes, concluir o merge técnico já autorizado pelo owner;
 5. executar a
    [aceitação humana](runbooks/aceitacao-humana-cadastro.md#1-cadastro-e-handoff-entre-aparelhos),
    incluindo a inspeção da mensagem numa caixa consentida, e registrar o veredito. Essa etapa não

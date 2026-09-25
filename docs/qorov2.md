@@ -23,8 +23,9 @@ cadastro autônomo está aberto. A tentativa humana revelou, porém, que o fluxo
 dependia do template divergente do painel Supabase e podia terminar em link inválido. A emenda vigente
 de §37.6/ADR-062 §11 remove essa dependência, separa confirmação da caixa e entrega da credencial e
 passou **5/5** contra Supabase DEV + Resend real, em Chromium, um worker, zero retry e 9,4 min, com
-cleanup Auth/DB/fixture/lock zero. O mesmo spec passou **5/5 em 5,5 min** no Preview protegido da
-branch, com fingerprint do Auth e banco DEV, um worker, zero retry e cleanup Auth/DB/fixture/lock zero.
+cleanup Auth/DB/fixture/lock zero. O mesmo spec passou **5/5 em 4,9 min** no Preview protegido da
+branch no SHA `9608e1e`, com fingerprint do Auth e banco DEV, um worker, zero retry e cleanup
+Auth/DB/fixture/lock zero.
 A suíte integral passou 4.378/4.378 em 414 arquivos. Inspeção do inbox e aceitação humana ainda são
 necessárias antes de o fluxo ser chamado de aceito como produto.
 
@@ -7020,7 +7021,7 @@ depois do código e da instalação da senha a navegação vai para `/cadastro/p
 | Billing e provisionamento, nas provas próprias | **PASS separado do spec de confirmação** — Asaas Sandbox final 6/6, cleanup 5/5 assinaturas e 5/5 customers; webhook/reconciliação/provisionamento 12/12, cleanup 2/2; `security:browser-session` 7/7 |
 | Build otimizado e inventário atual | **PASS** — Next 15.5.24 otimizado, exit 0; inventário regenerado e conferido com 180 actions, 49 métodos de rota, 16 props, 254 usos de `process.env` e 9 variáveis públicas, sem gaps |
 | Gates integrados de segurança | **PASS** — browser-session 7/7 em 45,5 s; tenant isolation e cleanup; bundle 174 arquivos/zero falha; HTTP 12 vetores, 164 actions e 328 requests; DB/arquitetura/migrations/observabilidade/registry, exit 0 |
-| Jornada atual em Preview | **PASS 5/5** — 5,5 min no alias protegido da branch, Chromium, um worker e zero retry; fingerprint confirmou Auth e banco DEV; cleanup Auth/DB/fixture/lock zero |
+| Jornada atual em Preview | **PASS 5/5** — 4,9 min no SHA `9608e1e`, no alias protegido da branch, Chromium, um worker e zero retry; fingerprint confirmou Auth e banco DEV; cleanup Auth/DB/fixture/lock zero |
 | Jornada atual em produção | **NOT TESTED** — não se cria conta em produção para esta validação |
 | Mensagem visível numa caixa de entrada real | **NOT TESTED** — aceite do Resend ou leitura pela API do provider não prova entrega e renderização no inbox |
 | Cobrança, reconciliação ou provisionamento pelo E2E de confirmação | **NÃO É PROVADO por este spec** — a jornada termina quando `/cadastro/plano` abre; os PASS acima vêm dos runners próprios de O-5/O-6 |
