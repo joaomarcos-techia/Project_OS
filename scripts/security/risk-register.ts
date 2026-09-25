@@ -84,7 +84,7 @@ export const RISK_REGISTER: RiskEntry[] = [
     registradoEm: REGISTRADO_EM,
     revisarEm: REVISAR_EM,
     evidencia:
-      'pnpm exec tsx scripts/security/authenticated-csrf.ts <cookie-file-local> http://127.0.0.1:3217, contra Supabase Auth local.',
+      'pnpm exec tsx scripts/security/authenticated-csrf.ts <cookie-file-local> http://localhost:3217, contra Supabase Auth local.',
   },
   {
     id: 'inventario-acesso-rotacao',

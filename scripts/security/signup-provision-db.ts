@@ -3,19 +3,21 @@
  *
  * O harness de cadastro (`signup-regression`) recria à mão um `clinics(id, nome)`
  * mínimo, o que basta para provar a sessão e não basta para provar o tenant.
- * Aqui as 104 migrations de verdade são aplicadas em ordem: as mesmas
+ * Aqui todas as migrations de verdade são aplicadas em ordem: as mesmas
  * constraints, os mesmos grants, o mesmo RLS, as mesmas funções, o mesmo
  * catálogo de eventos de outbox.
  *
  * O que se prova:
  *   1. execução normal → uma clínica, um owner, uma config, um customer, uma
  *      assinatura e os eventos de outbox, com os vínculos corretos;
- *   2. concorrência → duas abas, um tenant. É também a prova de ROLLBACK: a
- *      perdedora chega a inserir a clínica e a transação inteira volta atrás;
+ *   2. concorrência → duas abas, um tenant; a perdedora não chega a inserir;
  *   3. repetição depois do sucesso → nenhum segundo tenant;
  *   4. sessão sem assinatura confirmada → nada criado;
  *   5. plano sem preço ativo → nada criado;
- *   6. RLS + least privilege → o runtime de um tenant não alcança o outro.
+ *   6. RLS + least privilege → o runtime de um tenant não alcança o outro;
+ *   7. falha SQL e crash em etapas observadas → rollback integral e retomada;
+ *   8. compensação → estado SQL real e chamadas a provider STUB explícito.
+ *      Não prova cancelamento ou exclusão no Asaas externo.
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -23,7 +25,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { startScratchSchema } from './scratch-schema';
+import type { PaymentProvider } from '../../src/lib/payments/asaas';
+
+import { readMigrations, startScratchSchema } from './scratch-schema';
 
 const PORT = 55462;
 const root = process.cwd();
@@ -46,8 +50,8 @@ async function check(name: string, run: () => Promise<void>): Promise<void> {
  *
  * Roda ANTES de qualquer cluster ser criado: ele não sobe banco nenhum, usa o
  * do pai por `DATABASE_URL` herdada. Provisiona de verdade e fica à mercê do
- * pai, que o mata em instantes diferentes — cada morte cai num ponto distinto
- * da transação.
+ * pai, que só o mata depois de observar no Postgres o bloqueio deliberado de
+ * um trigger, em uma etapa conhecida da transação.
  */
 const childFlag = process.argv.find((a) => a.startsWith('--provision-child='));
 if (childFlag) {
@@ -65,7 +69,13 @@ const cluster = await startScratchSchema({ port: PORT });
 const sql = cluster.sql;
 
 // A aplicação lê a conexão de `DATABASE_URL` no momento do import.
+// Neutraliza aliases herdados: `env.ts` promove DATABASE_URL_DEV fora de
+// production, e o runtime pool prefere DATABASE_URL_RUNTIME. Todos os pools
+// desta prova precisam apontar para o mesmo Postgres descartável.
 process.env.DATABASE_URL = cluster.url;
+process.env.DATABASE_URL_DEV = cluster.url;
+process.env.DATABASE_URL_RUNTIME = cluster.url;
+process.env.SUPABASE_PROJECT_ENV = 'dev';
 process.env.SIGNUP_IDENTITY_ENABLED = 'true';
 process.env.SIGNUP_AUTH_ENABLED = 'true';
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'https://test.supabase.co';
@@ -83,6 +93,9 @@ const { provisionTenantFromSignup } =
   await import('../../src/contexts/onboarding/internal/signup-provision');
 const { reserveSignupBillingAttempt } =
   await import('../../src/contexts/onboarding/internal/signup-billing');
+const { startSignupSubscription } =
+  await import('../../src/contexts/onboarding/internal/signup-checkout');
+const { asaasProvider, BillingProviderError } = await import('../../src/lib/payments/asaas');
 
 const CPF = '24971563792';
 /** Resolvidos do catálogo que a própria migration 0026 semeia. */
@@ -156,6 +169,99 @@ async function clinicCount(): Promise<number> {
   return row!.n;
 }
 
+/** Compara todas as entidades escritas pela transação, não só a clínica. */
+async function tenantCounts(): Promise<Record<string, number>> {
+  const [counts] = await sql<Record<string, number>[]>`SELECT
+    (SELECT count(*)::int FROM clinics) AS clinics,
+    (SELECT count(*)::int FROM profiles) AS profiles,
+    (SELECT count(*)::int FROM ai_clinic_config) AS config,
+    (SELECT count(*)::int FROM billing_customers) AS customers,
+    (SELECT count(*)::int FROM subscriptions) AS subscriptions,
+    (SELECT count(*)::int FROM outbox) AS events`;
+  assert.ok(counts);
+  return { ...counts };
+}
+
+/**
+ * Provider deliberadamente em memória: só testa a orquestração + SQL real.
+ * Qualquer método fora dos seis previstos explode, sem alcançar a rede.
+ */
+function compensationStub(userId: string, mode: 'declined' | 'mismatch' | 'cas') {
+  const calls: string[] = [];
+  const customerId = `stub_customer_${mode}`;
+  const subscriptionId = `stub_subscription_${mode}`;
+  let value = 0;
+  let externalReference = '';
+  const methods: Pick<
+    PaymentProvider,
+    | 'findSubscriptionByExternalReference'
+    | 'createCustomer'
+    | 'createSubscription'
+    | 'getSubscription'
+    | 'cancelSubscription'
+    | 'deleteCustomer'
+  > = {
+    async findSubscriptionByExternalReference(reference) {
+      // Consulta em outra conexão: a reserva já precisa estar COMMITADA antes
+      // da primeira chamada ao provider, não apenas pendente na mesma tx.
+      const [draft] = await sql<{ state: string; id: string }[]>`
+        SELECT billing_attempt_state AS state, id FROM signup_sessions
+        WHERE auth_user_id = ${userId}::uuid`;
+      assert.equal(draft?.state, 'reserved');
+      assert.equal(reference, `signup:${draft?.id}`);
+      calls.push('find');
+      return null;
+    },
+    async createCustomer() {
+      calls.push('createCustomer');
+      return { customerId };
+    },
+    async createSubscription(input) {
+      calls.push('createSubscription');
+      if (mode === 'declined') {
+        throw new BillingProviderError('synthetic refusal', 'billing_provider_error', 400, [
+          'invalid_object',
+        ]);
+      }
+      value = input.value;
+      externalReference = input.externalReference ?? '';
+      assert.equal(input.customerId, customerId);
+      return { subscriptionId };
+    },
+    async getSubscription(id) {
+      assert.equal(id, subscriptionId);
+      calls.push('getSubscription');
+      if (mode === 'cas') {
+        // Perda de CAS produzida no banco, não mock da função de ativação.
+        await sql`UPDATE signup_sessions SET row_version = row_version + 1
+          WHERE auth_user_id = ${userId}::uuid`;
+      }
+      return {
+        subscriptionId,
+        status: 'ACTIVE',
+        value: mode === 'mismatch' ? value + 1 : value,
+        customerId,
+        externalReference,
+      };
+    },
+    async cancelSubscription(id) {
+      assert.equal(id, subscriptionId);
+      calls.push('cancelSubscription');
+    },
+    async deleteCustomer(id) {
+      assert.equal(id, customerId);
+      calls.push('deleteCustomer');
+    },
+  };
+  const client = new Proxy(asaasProvider, {
+    get(_target, method) {
+      if (Object.hasOwn(methods, method)) return Reflect.get(methods, method);
+      throw new Error(`provider stub: metodo inesperado ${String(method)}`);
+    },
+  });
+  return { client, calls };
+}
+
 try {
   await seedCatalog();
 
@@ -217,7 +323,7 @@ try {
     assert.equal(left?.n, 0, 'a sessao deveria ter sido consumida pelo DELETE');
   });
 
-  await check('duas abas: um tenant, e a perdedora nao deixa residuo (rollback)', async () => {
+  await check('duas abas: um tenant, e a perdedora nao deixa residuo', async () => {
     const userId = await seedSession('race');
     const before = await clinicCount();
 
@@ -227,10 +333,118 @@ try {
     ]);
     assert.equal([a, b].filter((r) => r.ok).length, 1, 'exatamente uma execucao pode vencer');
 
-    // A perdedora INSERE a clínica antes de o claim falhar. Sem rollback, a
-    // diferença seria 2 — e existiria um tenant órfão, sem dono e sem cobrança.
+    // O FOR UPDATE serializa: a perdedora encontra a sessão já removida e não
+    // chega a inserir. Rollback de escrita é provado separadamente abaixo.
     assert.equal((await clinicCount()) - before, 1, 'a perdedora deixou clinica orfa');
   });
+
+  await check(
+    'falha SQL apos o DELETE da sessao faz rollback integral e permite retomada',
+    async () => {
+      const userId = await seedSession('sql-failure');
+      const before = await tenantCounts();
+      // O outbox é escrito depois das cinco entidades e do DELETE da sessão.
+      // Um erro aqui precisa desfazer tudo, inclusive restaurar o draft ativo.
+      await sql.unsafe(`CREATE FUNCTION qoro_test_reject_outbox() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN
+        RAISE EXCEPTION 'synthetic_signup_outbox_failure' USING ERRCODE = '23514';
+      END $$;
+      CREATE TRIGGER qoro_test_reject_outbox BEFORE INSERT ON outbox
+      FOR EACH ROW EXECUTE FUNCTION qoro_test_reject_outbox()`);
+      try {
+        await assert.rejects(
+          provisionTenantFromSignup({
+            userId,
+            verifiedEmail: 'failure@example.invalid',
+            cpfCnpj: CPF,
+          }),
+          (error: unknown) => {
+            // Drizzle preserva o erro SQL em cause, sem expor valores de query.
+            assert.ok(error instanceof Error);
+            const cause = error.cause;
+            assert.ok(cause instanceof Error);
+            assert.match(cause.message, /synthetic_signup_outbox_failure/u);
+            return true;
+          },
+        );
+        assert.deepEqual(await tenantCounts(), before, 'erro SQL deixou entidade parcial');
+        const [draft] = await sql<{ state: string; subscription_id: string }[]>`
+        SELECT billing_attempt_state AS state, asaas_subscription_id AS subscription_id
+        FROM signup_sessions WHERE auth_user_id = ${userId}::uuid`;
+        assert.equal(draft?.state, 'active', 'rollback nao restaurou o draft');
+        assert.equal(draft?.subscription_id, 'sub_sql-failure');
+      } finally {
+        await sql.unsafe(
+          'DROP TRIGGER qoro_test_reject_outbox ON outbox; DROP FUNCTION qoro_test_reject_outbox()',
+        );
+      }
+      const resumed = await provisionTenantFromSignup({
+        userId,
+        verifiedEmail: 'failure@example.invalid',
+        cpfCnpj: CPF,
+      });
+      assert.ok(resumed.ok, 'retomada depois de remover a falha SQL nao convergiu');
+      assert.equal((await clinicCount()) - before.clinics!, 1);
+    },
+  );
+
+  for (const mode of ['declined', 'mismatch', 'cas'] as const) {
+    await check(`compensacao ${mode}: SQL real + provider STUB (sem prova externa)`, async () => {
+      const userId = await seedSession(`compensation-${mode}`, { billingState: null });
+      const before = await tenantCounts();
+      const { client, calls } = compensationStub(userId, mode);
+      const result = await startSignupSubscription({
+        userId,
+        verifiedEmail: 'compensation@example.invalid',
+        cpfCnpj: CPF,
+        client,
+      });
+      assert.deepEqual(result, { ok: false, reason: mode === 'cas' ? 'conflict' : 'declined' });
+      assert.deepEqual(
+        calls,
+        mode === 'declined'
+          ? ['find', 'createCustomer', 'createSubscription', 'deleteCustomer']
+          : [
+              'find',
+              'createCustomer',
+              'createSubscription',
+              'getSubscription',
+              'cancelSubscription',
+              'deleteCustomer',
+            ],
+      );
+      const [draft] = await sql<
+        {
+          state: string;
+          failure: string | null;
+          customer_id: string | null;
+          subscription_id: string | null;
+        }[]
+      >`SELECT billing_attempt_state AS state, billing_failure_code AS failure,
+          asaas_customer_id AS customer_id, asaas_subscription_id AS subscription_id
+        FROM signup_sessions WHERE auth_user_id = ${userId}::uuid`;
+      assert.equal(draft?.state, mode === 'cas' ? 'reserved' : 'failed');
+      assert.equal(
+        draft?.failure,
+        mode === 'declined'
+          ? 'invalid_object'
+          : mode === 'mismatch'
+            ? 'subscription_readback_mismatch'
+            : null,
+      );
+      assert.equal(draft?.customer_id, null);
+      assert.equal(draft?.subscription_id, null);
+      assert.deepEqual(await tenantCounts(), before, 'compensacao criou entidade de tenant');
+      assert.deepEqual(
+        await provisionTenantFromSignup({
+          userId,
+          verifiedEmail: 'compensation@example.invalid',
+          cpfCnpj: CPF,
+        }),
+        { ok: false, reason: 'not_paid' },
+      );
+    });
+  }
 
   await check('repetir depois do sucesso nao cria segundo tenant', async () => {
     const userId = await seedSession('repeat');
@@ -305,75 +519,106 @@ try {
   });
 
   await check(
-    'crash em qualquer ponto nao deixa tenant parcial, e a retomada converge',
+    'crash em sete etapas SQL observadas nao deixa tenant parcial, e a retomada converge',
     async () => {
-      // O que garante cada transição aqui é UMA transação: não existe "meio do
-      // caminho" durável. Matar o processo derruba a conexão, o Postgres aborta a
-      // transação aberta e nada sobra. As mortes acontecem em instantes
-      // diferentes para cair depois do claim, da clínica, do owner, da config, do
-      // billing e do outbox — e provar que em nenhum deles fica estado preso.
-      const interrupted: number[] = [];
-      for (const delayMs of [40, 90, 160, 260, 420, 700]) {
-        const userId = await seedSession(`crash-${delayMs}`);
-        const before = await clinicCount();
-
-        const child = spawn(
-          process.execPath,
-          [
-            path.join(root, 'node_modules/tsx/dist/cli.mjs'),
-            path.join(root, 'scripts/security/signup-provision-db.ts'),
-            `--provision-child=${userId}`,
-          ],
-          { windowsHide: true, stdio: 'ignore', env: { ...process.env } },
-        );
-        const killed = await new Promise<boolean>((resolve) => {
-          const timer = setTimeout(() => {
-            child.kill('SIGKILL');
-            resolve(true);
-          }, delayMs);
-          child.on('exit', () => {
-            clearTimeout(timer);
-            resolve(false);
-          });
-        });
-
-        // Dá tempo de o Postgres perceber a conexão morta e abortar.
-        await new Promise((r) => setTimeout(r, 500));
-
-        if (killed) {
-          interrupted.push(delayMs);
-          assert.equal(await clinicCount(), before, `crash em ${delayMs}ms deixou clinica parcial`);
-
-          const [session] = await sql<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM signup_sessions WHERE auth_user_id = ${userId}::uuid`;
-          assert.equal(session?.n, 1, `crash em ${delayMs}ms consumiu a sessao sem criar tenant`);
-
-          // Retomada: a mesma sessão provisiona normalmente depois do crash.
+      const lockKey = 860_006;
+      const checkpoints = [
+        'clinics',
+        'profiles',
+        'ai_clinic_config',
+        'billing_customers',
+        'subscriptions',
+        'signup_sessions',
+        'outbox',
+      ] as const;
+      // AFTER garante que a escrita da etapa já ocorreu dentro da transação.
+      await sql.unsafe(`CREATE FUNCTION qoro_test_pause_provision() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN
+          PERFORM pg_advisory_xact_lock(${lockKey});
+          RETURN NULL;
+        END $$`);
+      try {
+        for (const table of checkpoints) {
+          const userId = await seedSession(`crash-${table}`);
+          const before = await tenantCounts();
+          const event = table === 'signup_sessions' ? 'DELETE' : 'INSERT';
+          await sql.unsafe(`CREATE TRIGGER qoro_test_pause_provision AFTER ${event} ON ${table}
+            FOR EACH ROW EXECUTE FUNCTION qoro_test_pause_provision()`);
+          let backendPid: number | undefined;
+          try {
+            await sql.begin(async (lockTx) => {
+              await lockTx`SELECT pg_advisory_xact_lock(${lockKey})`;
+              // Processo que executa TypeScript diretamente. Matar o launcher
+              // tsx não prova que o worker iniciou nem que a transação morreu.
+              const child = spawn(
+                process.execPath,
+                [
+                  '--conditions=react-server',
+                  '--import',
+                  'tsx',
+                  path.join(root, 'scripts/security/signup-provision-db.ts'),
+                  `--provision-child=${userId}`,
+                ],
+                { windowsHide: true, stdio: 'ignore', env: { ...process.env } },
+              );
+              const exited = new Promise<void>((resolve, reject) => {
+                child.once('exit', () => resolve());
+                child.once('error', reject);
+              });
+              try {
+                const deadline = Date.now() + 30_000;
+                while (Date.now() < deadline && child.exitCode === null) {
+                  const [blocked] = await sql<{ pid: number }[]>`SELECT pid FROM pg_locks
+                    WHERE locktype = 'advisory' AND objid = ${lockKey}::oid AND NOT granted`;
+                  if (blocked) {
+                    backendPid = blocked.pid;
+                    break;
+                  }
+                  await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+                assert.ok(backendPid, `filho nao alcancou trigger AFTER ${event} em ${table}`);
+                assert.ok(child.kill('SIGKILL'), 'nao foi possivel matar o processo real');
+                await exited;
+              } finally {
+                if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+                await exited;
+              }
+            });
+            // O lock só foi liberado DEPOIS da morte confirmada do processo.
+            // O backend volta da espera, percebe a conexão fechada e aborta.
+            let stillConnected = true;
+            const disconnectedBy = Date.now() + 10_000;
+            while (Date.now() < disconnectedBy) {
+              const [connection] = await sql<{ n: number }[]>`SELECT count(*)::int AS n
+                FROM pg_stat_activity WHERE pid = ${backendPid!}`;
+              stillConnected = connection?.n !== 0;
+              if (!stillConnected) break;
+              await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+            assert.equal(stillConnected, false, `backend sobreviveu ao crash em ${table}`);
+          } finally {
+            await sql.unsafe(`DROP TRIGGER qoro_test_pause_provision ON ${table}`);
+          }
+          assert.deepEqual(
+            await tenantCounts(),
+            before,
+            `crash em ${table} deixou entidade parcial`,
+          );
+          const [session] = await sql<{ n: number }[]>`SELECT count(*)::int AS n
+            FROM signup_sessions WHERE auth_user_id = ${userId}::uuid`;
+          assert.equal(session?.n, 1, `crash em ${table} consumiu a sessao`);
           const resumed = await provisionTenantFromSignup({
             userId,
             verifiedEmail: 'crash@example.invalid',
             cpfCnpj: CPF,
           });
-          assert.ok(resumed.ok, `retomada apos crash em ${delayMs}ms falhou`);
-
-          const [counts] = await sql<{ profiles: number; subs: number }[]>`
-          SELECT
-            (SELECT count(*)::int FROM profiles WHERE clinic_id = ${resumed.clinicId}::uuid) AS profiles,
-            (SELECT count(*)::int FROM subscriptions WHERE clinic_id = ${resumed.clinicId}::uuid) AS subs`;
-          assert.deepEqual({ ...counts }, { profiles: 1, subs: 1 }, 'retomada gerou duplicata');
-        } else {
-          // O filho terminou antes da faca: o provisionamento vale, e o estado
-          // precisa ser exatamente um tenant novo.
-          assert.equal(
-            (await clinicCount()) - before,
-            1,
-            `execucao completa em ${delayMs}ms nao criou tenant`,
-          );
+          assert.ok(resumed.ok, `retomada apos crash em ${table} falhou`);
+          assert.equal((await clinicCount()) - before.clinics!, 1, 'retomada gerou duplicata');
+          console.log(`  [crash] AFTER ${event} ${table}: observado, interrompido e retomado`);
         }
+      } finally {
+        await sql.unsafe('DROP FUNCTION qoro_test_pause_provision()');
       }
-
-      assert.ok(interrupted.length > 0, 'nenhuma execucao foi interrompida — nao provou crash');
-      console.log(`  [crash] interrompido em ${interrupted.join('ms, ')}ms`);
     },
   );
 
@@ -445,14 +690,20 @@ try {
 } finally {
   const [residual] = await sql<{ n: number }[]>`SELECT count(*)::int AS n FROM signup_sessions`;
   console.log(`[provision-db] signup_sessions remanescentes: ${residual?.n}`);
+  const migrations = await readMigrations();
 
   await mkdir(path.join(root, 'dist/track-o-provision'), { recursive: true });
   await writeFile(
     path.join(root, 'dist/track-o-provision/results.json'),
     JSON.stringify(
       {
-        environment: 'Postgres 17 descartavel com as 104 migrations reais + scaffolding Supabase',
-        migrations: 'drizzle/migrations/0000..0103 aplicadas em ordem',
+        environment: 'Postgres 17 descartavel com todas as migrations reais + scaffolding Supabase',
+        migrations: {
+          count: migrations.length,
+          first: migrations[0]?.file,
+          last: migrations.at(-1)?.file,
+        },
+        compensationProvider: 'STUB em memoria; cancelamento/exclusao externa NAO TESTADOS aqui',
         residualSignupSessions: residual?.n ?? null,
         finishedAt: new Date().toISOString(),
         results: results.map((r) => ({ name: r.name, status: r.status })),

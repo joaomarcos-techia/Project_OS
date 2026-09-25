@@ -335,6 +335,7 @@ export async function markSignupBillingIssue(input: {
  */
 export async function reconcileSignupBillingAttempt(input: {
   userId: string;
+  expectedVersion: number;
   asaasCustomerId: string;
   asaasSubscriptionId: string;
 }): Promise<SettleOutcome> {
@@ -352,9 +353,9 @@ export async function reconcileSignupBillingAttempt(input: {
     })
     .where(
       and(
-        eq(signupSessions.authUserId, input.userId),
-        eq(signupSessions.status, 'email_verified'),
+        ownerDraftCondition(input.userId),
         eq(signupSessions.billingAttemptState, 'creation_unknown'),
+        eq(signupSessions.rowVersion, input.expectedVersion),
       ),
     )
     .returning({ rowVersion: signupSessions.rowVersion });
@@ -371,9 +372,12 @@ export async function reconcileSignupBillingAttempt(input: {
  * id da sessão de cadastro, e id de sessão não vai para resposta de API. Quem
  * precisa disto é a orquestração, nunca a tela.
  */
-export async function readSignupBillingReconcileTarget(
-  userId: string,
-): Promise<{ externalReference: string; asaasCustomerId: string | null } | null> {
+export async function readSignupBillingReconcileTarget(userId: string): Promise<{
+  externalReference: string;
+  asaasCustomerId: string | null;
+  priceCents: number;
+  rowVersion: number;
+} | null> {
   if (!enabled()) return null;
   if (!userIdSchema.safeParse(userId).success) return null;
 
@@ -381,15 +385,34 @@ export async function readSignupBillingReconcileTarget(
     .select({
       id: signupSessions.id,
       asaasCustomerId: signupSessions.asaasCustomerId,
+      rowVersion: signupSessions.rowVersion,
+      amount: prices.amount,
     })
     .from(signupSessions)
+    .innerJoin(plans, and(eq(plans.id, signupSessions.selectedPlanId), eq(plans.ativo, true)))
+    .innerJoin(
+      prices,
+      and(
+        eq(prices.planId, plans.id),
+        eq(prices.billingCycle, 'monthly'),
+        eq(prices.currency, 'BRL'),
+        lte(prices.activeFrom, sql`now()`),
+        isNull(prices.activeUntil),
+        isNull(prices.campaignCode),
+      ),
+    )
     .where(
       and(ownerDraftCondition(userId), eq(signupSessions.billingAttemptState, 'creation_unknown')),
     )
     .limit(1);
   if (!row) return null;
 
-  return { externalReference: `signup:${row.id}`, asaasCustomerId: row.asaasCustomerId };
+  return {
+    externalReference: `signup:${row.id}`,
+    asaasCustomerId: row.asaasCustomerId,
+    priceCents: priceToCents(row.amount),
+    rowVersion: row.rowVersion,
+  };
 }
 
 /** Leitura do estado, sem PII e sem segredo — o que a UI pode saber. */

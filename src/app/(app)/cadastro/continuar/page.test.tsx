@@ -4,11 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ redirect: vi.fn(), resolve: vi.fn(), claim: vi.fn() }));
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
-vi.mock('@/lib/auth/pretenant-onboarding', () => ({
-  resolvePreTenantOnboarding: mocks.resolve,
-}));
 vi.mock('@/contexts/onboarding', () => ({
   claimSignupDraftByVerifiedEmail: mocks.claim,
+  resolveReadyOwnedSignupOnboarding: mocks.resolve,
 }));
 
 import ContinueSignupPage from './page';
@@ -44,6 +42,8 @@ describe('/cadastro/continuar', () => {
   it.each([
     [{ ok: false, reason: 'invalid_session' }, '/login'],
     [{ ok: false, reason: 'email_unverified' }, '/login'],
+    [{ ok: false, reason: 'credentials_pending' }, '/login'],
+    [{ ok: false, reason: 'credentials_invalid' }, '/login'],
     [{ ok: true, kind: 'redirect', route: '/login/mfa' }, '/login/mfa'],
     [{ ok: true, kind: 'redirect', route: '/convite' }, '/convite'],
   ])('redireciona estados que não são pré-tenant %#', async (result, destination) => {

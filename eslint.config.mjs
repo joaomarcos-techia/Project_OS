@@ -278,6 +278,19 @@ const config = [
       // O-6: provisionamento a partir do cadastro pré-tenant. Lê/apaga
       // signup_sessions e cria o tenant na MESMA tx — irmão da saga de convite.
       'src/contexts/onboarding/internal/signup-provision.ts',
+      // O-3b (22/09/2026): o e-mail de confirmação passou a ser NOSSO. Emitir o
+      // token de confirmação é `auth.admin.generateLink`, que só existe na Admin
+      // API — a chave anônima não a alcança, e não há caminho de menor
+      // privilégio para isso. Exceção MAIS ESTREITA que as vizinhas: este módulo
+      // não abre banco nenhum (nada de dbAdmin), só fala com o GoTrue e com o
+      // Resend. Por isso ele não entra na allowlist do arch:db-check.
+      'src/contexts/onboarding/internal/signup-confirmation-email.ts',
+      // Cadastro self-service: estes tres pontos executam transicoes Auth que
+      // nao existem no client comum. Todos derivam user/ref do banco ou de um
+      // grant assinado e usam CAS antes de instalar a senha.
+      'src/contexts/onboarding/internal/signup-auth-admin.ts',
+      'src/app/api/signup/sessions/continue/route.ts',
+      'src/app/(app)/reset-password/actions.ts',
       // Fase 2 (ADR-032): convite de funcionário cria auth user (inviteUserByEmail via
       // createAdminClient) + insere profile via dbAdmin — profiles não tem INSERT p/
       // authenticated (D31). Mesma justificativa da saga de onboarding.

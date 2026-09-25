@@ -17,6 +17,7 @@ import {
   assertResendInviteAllowed,
   assertSignupIdentityAllowed,
   assertSignupAuthAllowed,
+  assertSignupContinuationAllowed,
   assertSignupResendAllowed,
   assertSignupDraftReadAllowed,
   assertSignupDraftWriteAllowed,
@@ -193,6 +194,74 @@ describe('signup auth — distributed fail-closed limits', () => {
       for (const limit of Object.values(limits)) expect(limit).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('signup continuation — independent fail-closed limits', () => {
+  const original = { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN };
+  const allowed = {
+    success: true,
+    limit: 10,
+    remaining: 9,
+    reset: 145_000,
+    pending: Promise.resolve(),
+  };
+  beforeEach(() => {
+    env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
+    env.UPSTASH_REDIS_REST_TOKEN = 'fixture-only';
+  });
+  afterEach(() => {
+    env.UPSTASH_REDIS_REST_URL = original.url;
+    env.UPSTASH_REDIS_REST_TOKEN = original.token;
+    vi.restoreAllMocks();
+  });
+  function spies() {
+    const limiters = __testing__.signupContinuationLimiters();
+    return {
+      ip: vi.spyOn(limiters.ip, 'limit'),
+      session: vi.spyOn(limiters.session, 'limit'),
+      email: vi.spyOn(limiters.email, 'limit'),
+    };
+  }
+
+  it('não consome os baldes de criação e limita IP 10/15m, sessão 5/h e e-mail 5/h', async () => {
+    const sliding = vi.spyOn(Ratelimit, 'slidingWindow');
+    const limits = spies();
+    for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+
+    await expect(
+      assertSignupContinuationAllowed('2001:db8::1', 'a'.repeat(64), 'b'.repeat(64)),
+    ).resolves.toEqual({ ok: true });
+    expect(sliding).toHaveBeenCalledWith(10, '15 m');
+    expect(sliding).toHaveBeenCalledWith(5, '1 h');
+    expect(limits.ip).toHaveBeenCalledWith('2001:db8:0:0::/64');
+    expect(limits.session).toHaveBeenCalledWith('a'.repeat(64));
+    expect(limits.email).toHaveBeenCalledWith('b'.repeat(64));
+  });
+
+  it('fecha em bloqueio, timeout, exceção e credencial Redis ausente', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(100_000);
+    const limits = spies();
+    for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+    limits.email.mockResolvedValue({ ...allowed, success: false });
+    await expect(
+      assertSignupContinuationAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+    ).resolves.toEqual({ ok: false, reason: 'rate_limited', retryAfter: 45 });
+
+    limits.email.mockResolvedValue({ ...allowed, reason: 'timeout' });
+    await expect(
+      assertSignupContinuationAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+
+    limits.email.mockRejectedValue(new Error('redis unavailable'));
+    await expect(
+      assertSignupContinuationAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+
+    env.UPSTASH_REDIS_REST_TOKEN = undefined;
+    await expect(
+      assertSignupContinuationAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+    ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+  });
 });
 
 describe('signup resend — independent distributed fail-closed limits', () => {

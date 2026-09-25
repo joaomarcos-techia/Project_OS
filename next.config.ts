@@ -6,6 +6,7 @@ import './src/lib/env';
 import type { NextConfig } from 'next';
 
 import { buildContentSecurityPolicy } from './src/lib/http/content-security-policy';
+import { AUTH_CONFIRM_CONTENT_SECURITY_POLICY } from './src/lib/http/auth-confirm-security';
 import { CLINIC_LOGO_ACTION_BODY_SIZE_LIMIT } from './src/lib/storage/clinic-logo-policy';
 
 /** Política base, exportada para o teste de não-regressão do Embedded Signup. */
@@ -16,6 +17,15 @@ export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy(
 
 export const nextConfig: NextConfig = {
   reactStrictMode: true,
+  ...(process.env.NODE_ENV === 'development' && process.env.E2E_SIGNUP_WRITE === '1'
+    ? {
+        // O fluxo real compila páginas e handlers suficientes para ultrapassar
+        // os 60 s/5 entries padrão do dev server em máquinas frias. Manter as
+        // entradas somente no runner destrutivo evita recompilações que gastam
+        // o timeout do cenário; Preview e desenvolvimento normal não mudam.
+        onDemandEntries: { maxInactiveAge: 15 * 60 * 1000, pagesBufferLength: 64 },
+      }
+    : {}),
   experimental: {
     // O upload de logo aceita 4 MB. A margem cobre o envelope multipart sem
     // ultrapassar o teto de 4,5 MB das Vercel Functions.
@@ -90,6 +100,18 @@ export const nextConfig: NextConfig = {
             value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
           },
           { key: 'Content-Security-Policy', value: csp },
+        ],
+      },
+      {
+        // A ponte recebe bearer no fragmento e o move para POST. O catch-all
+        // acima não pode substituir sua CSP por `unsafe-inline` nem reativar
+        // Referer; esta entrada posterior é a política efetivamente servida.
+        source: '/auth/confirm',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'Content-Security-Policy', value: AUTH_CONFIRM_CONTENT_SECURITY_POLICY },
+          { key: 'Cache-Control', value: 'no-store, private, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
       },
     ];

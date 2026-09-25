@@ -28,6 +28,9 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { z } from 'zod';
+
+import type { PaymentProvider } from '../../src/lib/payments/asaas';
 
 import { startScratchSchema } from './scratch-schema';
 
@@ -46,12 +49,17 @@ function guard(): void {
     throw new Error(`[sandbox] exige SANDBOX_CONFIRM=${CONFIRM}`);
   }
   const base = process.env.ASAAS_BASE_URL ?? '';
-  // Duas asserções, não uma: "contém sandbox" sozinho aceitaria um host
-  // malicioso tipo `api.asaas.com/?x=sandbox`. A negativa é a que protege.
-  assert.ok(base.includes('sandbox'), '[sandbox] ASAAS_BASE_URL nao aparenta ser sandbox');
+  const parsed = new URL(base);
   assert.ok(
-    !/(^|\/\/)api\.asaas\.com/u.test(base),
-    '[sandbox] ASAAS_BASE_URL aponta para PRODUCAO — abortado',
+    parsed.protocol === 'https:' &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.port &&
+      !parsed.search &&
+      !parsed.hash &&
+      ((parsed.hostname === 'sandbox.asaas.com' && parsed.pathname === '/api/v3') ||
+        (parsed.hostname === 'api-sandbox.asaas.com' && parsed.pathname === '/v3')),
+    '[sandbox] ASAAS_BASE_URL fora dos endpoints HTTPS oficiais de sandbox — abortado',
   );
   assert.ok(process.env.ASAAS_API_KEY, '[sandbox] ASAAS_API_KEY ausente');
   assert.ok(process.env.ASAAS_WEBHOOK_TOKEN, '[sandbox] ASAAS_WEBHOOK_TOKEN ausente');
@@ -74,7 +82,16 @@ guard();
 const cluster = await startScratchSchema({ port: PORT });
 const sql = cluster.sql;
 
+// O runner deve medir SOMENTE o cluster descartável, mesmo quando é iniciado
+// por um shell que pré-carregou `.env.local`. Fora de production, `env.ts`
+// promove `DATABASE_URL_DEV` sobre a canônica; `DATABASE_URL_RUNTIME` também
+// poderia mandar os handlers tenant para outro banco. Fixar as três entradas
+// fecha essa fuga e foi provado pela execução que antes devolveu `gone` ao ler
+// um DEV herdado enquanto a fixture existia no scratch.
 process.env.DATABASE_URL = cluster.url;
+process.env.DATABASE_URL_DEV = cluster.url;
+process.env.DATABASE_URL_RUNTIME = cluster.url;
+process.env.SUPABASE_PROJECT_ENV = 'dev';
 process.env.SIGNUP_IDENTITY_ENABLED = 'true';
 process.env.SIGNUP_AUTH_ENABLED = 'true';
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'https://test.supabase.co';
@@ -90,6 +107,8 @@ const { asaasProvider } = await import('../../src/lib/payments/asaas');
 const { redactOpaqueId } = await import('../../src/lib/sanitize/redact');
 const { provisionTenantFromSignup } =
   await import('../../src/contexts/onboarding/internal/signup-provision');
+const { reconcileSignupSubscription, startSignupSubscription } =
+  await import('../../src/contexts/onboarding/internal/signup-checkout');
 const { POST } = await import('../../src/app/api/webhooks/asaas/route');
 
 const WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN!;
@@ -127,8 +146,10 @@ async function createSandboxSubscription(tag: string): Promise<{
   customerId: string;
   subscriptionId: string;
   externalReference: string;
+  signupSessionId: string;
 }> {
-  const externalReference = `signup-webhook:${tag}:${Date.now()}`;
+  const signupSessionId = randomUUID();
+  const externalReference = `signup:${signupSessionId}`;
   const { customerId } = await asaasProvider.createCustomer({
     name: `Clinica Webhook ${tag}`,
     email: `webhook-${tag}@example.invalid`,
@@ -145,15 +166,16 @@ async function createSandboxSubscription(tag: string): Promise<{
     externalReference,
   });
   createdSubscriptions.add(subscriptionId);
-  return { customerId, subscriptionId, externalReference };
+  return { customerId, subscriptionId, externalReference, signupSessionId };
 }
 
-/** Provisiona o tenant a partir de uma sessão de cadastro já paga. */
+/** Reconcilia no provedor real antes de permitir provisionar o tenant. */
 async function provisionFromSignup(
   tag: string,
   planId: string,
   customerId: string,
   subscriptionId: string,
+  signupSessionId: string,
 ): Promise<string> {
   const userId = randomUUID();
   await sql`INSERT INTO auth.users (id, email, email_confirmed_at)
@@ -161,16 +183,48 @@ async function provisionFromSignup(
   const tokenHash = createHash('sha256').update(`webhook-${tag}-${Date.now()}`).digest('hex');
   const emailHash = createHash('sha256').update(`webhook-${tag}@example.invalid`).digest('hex');
   await sql`INSERT INTO signup_sessions (
-      token_hash, status, idle_expires_at, absolute_expires_at, consumed_at, auth_user_id,
+      id, token_hash, status, idle_expires_at, absolute_expires_at, consumed_at, auth_user_id,
       owner_name, clinic_name, email_hash, accepted_at, answered_at, professionals_band,
       weekly_appointments_band, current_tooling, discovery_source, selected_plan_id,
       billing_attempt_state, billing_attempted_at, asaas_customer_id, asaas_subscription_id)
     VALUES (
-      ${tokenHash}, 'email_verified', now() + interval '30 minutes',
+      ${signupSessionId}::uuid, ${tokenHash}, 'email_verified', now() + interval '30 minutes',
       now() + interval '45 minutes', now(), ${userId}::uuid,
       'Ana Prado', ${`Clinica Webhook ${tag}`}, ${emailHash}, now(), now(),
       '2_5', '21_50', 'outro_sistema', 'indicacao_colega', ${planId}::uuid,
-      'active', now(), ${customerId}, ${subscriptionId})`;
+      'creation_unknown', now(), ${customerId}, NULL)`;
+
+  await check(
+    `R-${tag}`,
+    'reconcile real rejeita valor divergente e ativa apenas após readback válido',
+    async () => {
+      // O preço é fixture do SCHEMA efêmero. Nenhum catálogo externo é alterado.
+      const prior = await sql`SELECT id, amount FROM prices WHERE plan_id = ${planId}::uuid`;
+      try {
+        await sql`UPDATE prices SET amount = 1 WHERE plan_id = ${planId}::uuid`;
+        assert.deepEqual(await reconcileSignupSubscription({ userId }), {
+          ok: false,
+          reason: 'conflict',
+        });
+        const [blocked] =
+          await sql`SELECT billing_attempt_state, asaas_subscription_id FROM signup_sessions WHERE id = ${signupSessionId}::uuid`;
+        assert.equal(blocked?.billing_attempt_state, 'creation_unknown');
+        assert.equal(blocked?.asaas_subscription_id, null);
+      } finally {
+        for (const price of prior) {
+          await sql`UPDATE prices SET amount = ${price.amount} WHERE id = ${price.id}::uuid`;
+        }
+      }
+      assert.deepEqual(await reconcileSignupSubscription({ userId }), {
+        ok: true,
+        state: 'active',
+      });
+      const [active] =
+        await sql`SELECT billing_attempt_state, asaas_subscription_id FROM signup_sessions WHERE id = ${signupSessionId}::uuid`;
+      assert.equal(active?.billing_attempt_state, 'active');
+      assert.equal(active?.asaas_subscription_id, subscriptionId);
+    },
+  );
 
   const outcome = await provisionTenantFromSignup({
     userId,
@@ -188,16 +242,116 @@ async function invoiceRows(clinicId: string) {
     WHERE clinic_id = ${clinicId}::uuid ORDER BY created_at`;
 }
 
+/** Estado remoto, antes de qualquer limpeza de segurança do finally. */
+async function assertDeleted(resource: 'subscriptions' | 'customers', id: string): Promise<void> {
+  guard();
+  const response = await fetch(
+    `${process.env.ASAAS_BASE_URL}/${resource}/${encodeURIComponent(id)}`,
+    {
+      headers: { access_token: process.env.ASAAS_API_KEY ?? '' },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (response.status === 404) return;
+  assert.ok(response.ok, `readback ${resource}: HTTP ${response.status}`);
+  const row = z.object({ id: z.string(), deleted: z.boolean() }).parse(await response.json());
+  assert.equal(row.id, id, 'readback devolveu outro recurso');
+  assert.equal(row.deleted, true, `${resource}: recurso ainda existe no sandbox`);
+}
+
 try {
   const { planId } = await seedPlanCatalog();
 
+  await check('C1', 'perda de CAS SQL compensa assinatura e customer no Sandbox real', async () => {
+    const userId = randomUUID();
+    const sessionId = randomUUID();
+    const email = `compensation-${sessionId}@example.invalid`;
+    await sql`INSERT INTO auth.users (id, email, email_confirmed_at)
+      VALUES (${userId}::uuid, ${email}, now())`;
+    await sql`INSERT INTO signup_sessions (
+        id, token_hash, status, idle_expires_at, absolute_expires_at, consumed_at, auth_user_id,
+        owner_name, clinic_name, email_hash, accepted_at, answered_at, professionals_band,
+        weekly_appointments_band, current_tooling, discovery_source, selected_plan_id)
+      VALUES (${sessionId}::uuid, ${createHash('sha256').update(sessionId).digest('hex')},
+        'email_verified', now() + interval '30 minutes', now() + interval '45 minutes', now(),
+        ${userId}::uuid, 'Teste Qoro', 'Clinica Compensation Sandbox',
+        ${createHash('sha256').update(email).digest('hex')}, now(), now(),
+        '2_5', '21_50', 'outro_sistema', 'indicacao_colega', ${planId}::uuid)`;
+    const [before] = await sql`SELECT count(*)::int AS n FROM clinics`;
+    let customerId: string | undefined;
+    let subscriptionId: string | undefined;
+    let posts = 0;
+    // Todas as chamadas atravessam o adapter real. Só a versão da fixture SQL
+    // muda entre readback e ativação, produzindo a perda de CAS de verdade.
+    const client: PaymentProvider = {
+      ...asaasProvider,
+      async createCustomer(input) {
+        const [draft] = await sql`SELECT billing_attempt_state FROM signup_sessions
+          WHERE id = ${sessionId}::uuid`;
+        assert.equal(draft?.billing_attempt_state, 'reserved');
+        const created = await asaasProvider.createCustomer(input);
+        customerId = created.customerId;
+        createdCustomers.add(customerId);
+        return created;
+      },
+      async createSubscription(input) {
+        assert.equal(++posts, 1, 'compensação não autoriza outro POST');
+        const created = await asaasProvider.createSubscription(input);
+        subscriptionId = created.subscriptionId;
+        createdSubscriptions.add(subscriptionId);
+        return created;
+      },
+      async getSubscription(id) {
+        const actual = await asaasProvider.getSubscription(id);
+        await sql`UPDATE signup_sessions SET row_version = row_version + 1
+          WHERE id = ${sessionId}::uuid`;
+        return actual;
+      },
+    };
+    assert.deepEqual(
+      await startSignupSubscription({
+        userId,
+        verifiedEmail: email,
+        cpfCnpj: SANDBOX_TEST_CPF,
+        client,
+      }),
+      { ok: false, reason: 'conflict' },
+    );
+    assert.ok(subscriptionId);
+    assert.ok(customerId);
+    assert.equal(posts, 1);
+    await assertDeleted('subscriptions', subscriptionId);
+    await assertDeleted('customers', customerId);
+    const [after] = await sql`SELECT count(*)::int AS n FROM clinics`;
+    assert.equal(after?.n, before?.n, 'compensação deixou tenant parcial');
+    assert.deepEqual(
+      await provisionTenantFromSignup({ userId, verifiedEmail: email, cpfCnpj: SANDBOX_TEST_CPF }),
+      { ok: false, reason: 'not_paid' },
+    );
+    // Já foram removidos pela aplicação e relidos, antes do teardown do runner.
+    createdSubscriptions.delete(subscriptionId);
+    createdCustomers.delete(customerId);
+  });
+
   // --- tenant A: o cadastro de verdade, com assinatura de verdade -----------
   const a = await createSandboxSubscription('a');
-  const clinicA = await provisionFromSignup('a', planId, a.customerId, a.subscriptionId);
+  const clinicA = await provisionFromSignup(
+    'a',
+    planId,
+    a.customerId,
+    a.subscriptionId,
+    a.signupSessionId,
+  );
 
   // --- tenant B: existe só para provar que o webhook de A não o alcança -----
   const b = await createSandboxSubscription('b');
-  const clinicB = await provisionFromSignup('b', planId, b.customerId, b.subscriptionId);
+  const clinicB = await provisionFromSignup(
+    'b',
+    planId,
+    b.customerId,
+    b.subscriptionId,
+    b.signupSessionId,
+  );
 
   console.log(
     `contexto: clinicaA=${redactOpaqueId(clinicA)} clinicaB=${redactOpaqueId(clinicB)} ` +
@@ -365,6 +519,8 @@ try {
   // código de retorno — confiar no retorno produziria tanto falso resíduo
   // quanto, pior, falsa limpeza.
   const residue: string[] = [];
+  let subscriptionsRemoved = 0;
+  let customersRemoved = 0;
   for (const subscriptionId of createdSubscriptions) {
     try {
       await asaasProvider.cancelSubscription(subscriptionId);
@@ -372,11 +528,8 @@ try {
       // Indeterminado: quem responde é o readback abaixo.
     }
     try {
-      const after = await asaasProvider.getSubscription(subscriptionId);
-      // ACTIVE é a única leitura que significa "continua cobrando".
-      if (after.status === 'ACTIVE') {
-        residue.push(`assinatura ${redactOpaqueId(subscriptionId)}: ainda ACTIVE`);
-      }
+      await assertDeleted('subscriptions', subscriptionId);
+      subscriptionsRemoved += 1;
     } catch (error) {
       residue.push(
         `assinatura ${redactOpaqueId(subscriptionId)}: readback falhou — ${String(error)}`,
@@ -386,13 +539,19 @@ try {
   for (const customerId of createdCustomers) {
     try {
       await asaasProvider.deleteCustomer(customerId);
+    } catch {
+      // Resposta inconclusiva; a leitura abaixo decide a limpeza.
+    }
+    try {
+      await assertDeleted('customers', customerId);
+      customersRemoved += 1;
     } catch (error) {
       residue.push(`customer ${redactOpaqueId(customerId)}: ${String(error)}`);
     }
   }
   console.log(
-    `limpeza (por readback): ${createdSubscriptions.size - residue.length}/${createdSubscriptions.size} assinaturas, ` +
-      `${createdCustomers.size}/${createdCustomers.size} customers`,
+    `limpeza (por readback): ${subscriptionsRemoved}/${createdSubscriptions.size} assinaturas, ` +
+      `${customersRemoved}/${createdCustomers.size} customers`,
   );
   for (const line of residue) console.log(`RESIDUO ${line}`);
 

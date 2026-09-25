@@ -15,23 +15,31 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Checkpoint atual — 20/09/2026: TRACK O EM PRODUÇÃO, AGUARDANDO ACEITAÇÃO HUMANA.** As nove fatias
-do §21.19 estão implementadas; O-1 vive no repositório da landing e as demais neste. O banco de
-**produção** está em **105 migrations** (`0096`–`0104` aplicadas em 19/09 com backup, advisory lock e
-leitura de conferência), o cadastro autônomo está **aberto** em `app.qoro.dev/cadastro`, e a ponte
-`/comecar` está publicada e ligada. O inventário completo do que foi construído, com as invariantes
-e o porquê de cada decisão, está em **§36**; a prova por fatia continua na
-[matriz de evidência](evidence/track-o.md), e o diário em §35.23–§35.29.
+**Checkpoint atual — 25/09/2026: TRACK O PUBLICADO; EMENDA DE CONFIRMAÇÃO VERDE EM DEV E PREVIEW, COM
+ACEITE HUMANO PENDENTE.** As nove fatias do §21.19 estão implementadas; O-1 vive no repositório da landing
+e as demais neste. O banco de **produção** está em **105 migrations** (`0096`–`0104` aplicadas em
+19/09 com backup, advisory lock e leitura de conferência), `/comecar` está publicado e ligado e o
+cadastro autônomo está aberto. A tentativa humana revelou, porém, que o fluxo de confirmação publicado
+dependia do template divergente do painel Supabase e podia terminar em link inválido. A emenda vigente
+de §37.6/ADR-062 §11 remove essa dependência, separa confirmação da caixa e entrega da credencial e
+passou **5/5** contra Supabase DEV + Resend real, em Chromium, um worker, zero retry e 9,4 min, com
+cleanup Auth/DB/fixture/lock zero. O mesmo spec passou **5/5 em 4,9 min** no Preview protegido da
+branch no SHA `9608e1e`, com fingerprint do Auth e banco DEV, um worker, zero retry e cleanup
+Auth/DB/fixture/lock zero.
+A suíte integral passou 4.378/4.378 em 414 arquivos. Inspeção do inbox e aceitação humana ainda são
+necessárias antes de o fluxo ser chamado de aceito como produto.
 
-**A partir daqui há dinheiro real em jogo:** o cadastro aberto cria clínica de verdade e assinatura
-cobrada de verdade no Asaas de produção. Aceitação é no **Preview**, que usa Sandbox e banco DEV —
-roteiro em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md).
+**A partir daqui há dinheiro real em jogo:** uma passagem em produção pode criar clínica e assinatura
+reais. A aceitação permanece no **Preview**, que usa Sandbox e banco DEV — roteiro em
+[runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md). O inventário de engenharia
+está em §36, a prova por fatia na [matriz](evidence/track-o.md) e a confirmação vigente em §37.
 
-**O que falta, e nada disso é código deste repositório:** (a) a landing não tem CTA apontando para
-`/comecar` — medido em produção, 0 links —, então o funil não tem entrada; (b) `GOOGLE_TAG_ID` e
-`ROTULO_CONVERSAO` estão vazios, então a campanha não mede; (c) o roteiro de aceitação humana não foi
-rodado; (d) a **ADR-053 continua `Proposed`** embora os seis itens de "Evidência necessária para
-Accepted" estejam cumpridos. Detalhe em §36.8.
+**Pendências externas/canônicas:** (a) roteiro humano no Preview; (b) chegada e render do e-mail numa
+caixa consentida; (c) crédito final da conversão dentro do Google Ads — a requisição de
+conversão sair foi provada, a atribuição do painel não; (d) estados administrativos de painéis que não
+foram reconsultados nesta rodada; (e) a **ADR-053 continua `Proposed`**. As afirmações antigas de que a
+landing não tinha CTA ou que as constantes Ads estavam vazias foram superadas pela implementação da
+landing e não descrevem o estado atual.
 
 **Checkpoint anterior — 17/09/2026 (histórico).** O-3a, O-3b.1–6 e O-4 estão fechados
 localmente. As migrations 0099–0102 estão aplicadas no DEV; SMTP, callback corrigido, confirmação e
@@ -6063,10 +6071,12 @@ uma assinatura de tenant comum e o handler existente passa a valer para ela. É 
 reconciliação — mas **não foi provado ponta a ponta** para uma assinatura originada no cadastro.
 
 **Defeito de integridade financeira, encontrado ao desenhar a 0103.** O janitor apagava qualquer linha
-vencida. Com as colunas novas, apagaria também a linha que guarda a assinatura já criada no Asaas, e o
-Qoro perderia o único vínculo com uma cobrança que continua existindo. `purgeExpiredSignupSessions`
-passou a excluir linhas com `asaas_subscription_id` e a emitir `signup.session.subscription_retained`.
-Linha órfã é barata; assinatura órfã cobra alguém todo mês.
+vencida. Com as colunas novas, apagaria também a evidência de uma tentativa de billing, inclusive antes
+de existir assinatura, e o Qoro poderia perder o vínculo necessário à reconciliação/compensação.
+`purgeExpiredSignupSessions` preserva qualquer linha com `billing_attempt_state`,
+`billing_attempted_at`, `asaas_customer_id` ou `asaas_subscription_id`. O nome legado da métrica
+`signup.session.subscription_retained` e do campo `retainedWithSubscription` conta os quatro casos.
+Linha órfã é barata; efeito financeiro órfão pode persistir ou cobrar alguém.
 
 **O browser não decide nada.** O corpo de `POST /api/signup/checkout` é vazio por contrato, e corpo
 com conteúdo é recusado com `400` em vez de ignorado — ignorar ensina o cliente a mandar plano e
@@ -6442,38 +6452,55 @@ provada — e verificar isso, leitura por leitura, custa mais caro do que simple
 
 ---
 
-## 36. Track O — inventário de engenharia: o que foi construído, e como — 20/09/2026
+## 36. Track O — inventário de engenharia: o que foi construído, e como — 23/09/2026
 
 > **Esta seção é o consolidado.** O §21 é o **plano**, o §35.x é o **diário** e a
 > [matriz de evidência](evidence/track-o.md) é a **prova por fatia**. Aqui está o que efetivamente
 > existe em código, por que cada peça está do jeito que está, e o que continua pendente. Onde houver
 > divergência entre esta seção e o código, vale o código — e a seção está errada.
+> **Revalidação de 21/09:** [correções, comandos, resultados e pendências](evidence/track-o-revalidacao-2026-09-21.md).
+> Inclui [handoff](handoff-track-o-final.md), [roteiro humano corrigido](runbooks/aceitacao-humana-cadastro.md)
+> e [inventário de segurança regenerado](security/acoes.md).
+> **Emenda de identidade de 23/09:** a §37.6 e a [ADR-062 §11](adr/062-identidade-consentimento-cadastro.md)
+> substituem as descrições abaixo que ainda falam em senha antes do clique ou avanço automático.
 
 ### 36.1 O tamanho, medido
 
-Entre `fd3ddd5` (antes do scope freeze do O-2, em 12/09) e a ponta de hoje:
+Entre `fd3ddd5` (antes do scope freeze do O-2, em 12/09) e a ponta que inclui a reconciliação
+independente de 20/09:
 
 | Medida                                                     | Valor                                        |
 | ---------------------------------------------------------- | -------------------------------------------- |
-| commits de código                                           | 42 (70 com os de documentação)                |
-| arquivos tocados em `src/`, `scripts/`, `drizzle/`, `e2e/`  | **195** (+26.876 / −682)                      |
+| commits de código                                           | 44 (80 com os de documentação)                |
+| arquivos tocados em `src/`, `scripts/`, `drizzle/`, `e2e/`  | **196** (+27.106 / −705)                      |
 | arquivos novos de produção                                  | 72                                            |
-| arquivos novos de teste                                     | 52                                            |
-| linhas novas: produção × teste                              | 14.994 × 8.781 (**0,59 linha de teste por linha de produção**) |
+| arquivos novos de teste                                     | 53                                            |
+| linhas novas: produção × teste                              | 14.992 × 8.872 (**0,59 linha de teste por linha de produção**) |
 | migrations                                                  | 9 (`0096`–`0104`)                             |
 | rotas de API novas                                          | 10 (9 de cadastro + 1 cron)                   |
 | páginas novas                                               | 5 (`/cadastro`, `/cadastro/continuar`, `/cadastro/plano`, `/documentacao`, `/documentacao/[topic]`) |
-| runners de evidência novos                                  | 12 em `scripts/`                              |
+| scripts novos do Track O                                    | 12: 9 runners + 3 apoios                      |
 | specs Playwright novos                                      | 7                                             |
 
-A suíte inteira foi reexecutada em 20/09/2026 para escrever esta seção: **3.974 testes em 396
-arquivos, todos passando**, exit 0, 255 s.
+Para tornar a contagem reproduzível, “arquivo de teste” significa arquivo novo cujo nome contém
+`.test.` ou `.spec.`; os demais arquivos novos entram em produção, inclusive fixtures e runners. As
+linhas de produção e teste são as adições nesses arquivos novos, não as adições feitas em arquivos
+preexistentes.
+
+A suíte inteira foi reexecutada em 21/09 após as correções de retomada, reconciliação e bloqueio
+de troca de plano durante billing: **3.997 testes em 397 arquivos, todos passando**, exit 0, 148,82 s,
+antes de integrar as alterações independentes do perfil WhatsApp vindas de `main`.
+Após essa integração (`e0e8f15`), o [CI](https://github.com/joaomarcos-techia/Project_OS/actions/runs/35668163487)
+mediu **4.086 testes em 401 arquivos**, todos passando, exit 0, 270,31 s. O aumento inclui o perfil
+WhatsApp do PR #16; não é atribuído integralmente ao Track O.
+As contagens de código da tabela acima são o snapshot da reconciliação de 20/09, não uma contagem
+da ponta móvel da branch. A atualização de 21/09 está discriminada na evidência vinculada acima.
 
 A razão teste/produção não conta a história inteira, porque a prova mais cara deste track não está em
 `*.test.ts`: está nos **runners de ambiente real** (`scripts/security/*.ts`), que sobem Postgres
 efêmero com as migrations do repositório, falam com o Asaas Sandbox de verdade e dirigem Chromium
-contra o build de produção. Esses doze arquivos são a diferença entre "o mock concorda comigo" e "o
-mundo concorda comigo".
+contra o build de produção. São nove runners; `scratch-schema.ts`, `signup-redis-fixture.mjs` e
+`seed-super-admin-mfa.ts` dão suporte a eles. Essa separação evita contar fixture como prova executável.
 
 ### 36.2 O mapa — onde cada fatia vive
 
@@ -6481,7 +6508,7 @@ mundo concorda comigo".
 | ----- | ------- | ------------------ |
 | **O-1** atribuição | `/comecar`, allowlist de UTM, linker cross-domain | repositório **da landing** (`C:\dev\qoro`), fora deste |
 | **O-2** bootstrap | sessão anônima, cookie/HMAC/TTL, risco, Turnstile, janitor | `contexts/onboarding/internal/signup-session.ts`, `signup-risk.ts`, `turnstile.ts`, `api/signup/sessions/*`, `api/cron/signup-sessions-cleanup` |
-| **O-3** identidade | Supabase `signUp`, confirmação, anti-enumeração, vínculo | `signup-auth`, `api/signup/sessions/{auth,identity,resend}`, `auth/confirm` |
+| **O-3** identidade | conta sem senha, e-mail Qoro/Resend, confirmação e handoff explícito | `signup-auth-admin.ts`, `signup-auth-binding.ts`, `signup-confirmation-email.ts`, `api/signup/sessions/{auth,identity,resend,continue}`, `auth/confirm` |
 | **O-4** clínica/plano | draft autenticado, plano resolvido no servidor | `signup-draft.ts`, `api/signup/draft`, `api/signup/plan`, `/cadastro/plano` |
 | **O-5** billing | intenção, reserva, assinatura recorrente, reconciliação | `signup-billing.ts`, `signup-checkout.ts`, `api/signup/checkout` |
 | **O-6** provisionamento | tenant/owner/config em uma transação | `signup-provision.ts` |
@@ -6505,10 +6532,11 @@ O §21.1 separou quatro identidades no papel. O que as mantém separadas na prá
    comprometimento, de escrever uma sessão de cadastro no app: o navegador recusa o cookie se ele
    tiver `Domain`. `secure` é sempre `true`, inclusive em dev — um `__Host-` sem `Secure` não seria
    "menos seguro em dev", seria "não funciona em dev".
-3. **Identidade verificada** — usuário do Supabase depois de confirmar o e-mail. O draft é
-   reencontrado por `claimSignupDraftByVerifiedEmail`, e **não** pelo cookie: foi o veredito do
-   fundador de 17/09, e é o que faz o cadastro sobreviver a trocar de aparelho no meio.
-4. **Sessão do produto** — só nasce depois do provisionamento confirmado.
+3. **Identidade verificada** — usuário do Supabase depois de confirmar o e-mail. O callback reivindica
+   o draft por e-mail verificado **e pela `signup_ref` exata**, não pela autoridade do cookie; o cookie
+   da aba iniciadora só participa do handoff posterior junto com e-mail, senha e código.
+4. **Sessão do produto** — a sessão Auth pré-tenant pode existir após o clique, mas o acesso ao draft,
+   plano e checkout exige `password_state=set`; a sessão tenant nasce depois do provisionamento.
 
 **Os prazos são contados pelo relógio do banco, não pelo do processo.** `idle_expires_at` e
 `absolute_expires_at` são gravados com `now()` do Postgres e comparados em SQL. Se a validade viesse
@@ -6527,17 +6555,23 @@ nenhuma policy** — negação por padrão para qualquer role sem `BYPASSRLS` �
 | --------- | ---------------- | ---------------------------- |
 | `0096` | tabela, TTLs, `row_version`, RLS sem policy | o navegador tocar a tabela; status fora do escopo da fatia |
 | `0097` | least privilege, parte 2 | `qoro_runtime` herdar DML pelo default ACL do `postgres` |
-| `0098` | as quatro perguntas | responder sem sessão viva |
+| `0098` | as quatro perguntas | valor fora das opções fechadas; conjunto de respostas parcial |
 | `0099` | identidade e consentimento | PII sem aceite registrado |
-| `0100` | tentativa de envio (reserva + CAS) | reenvio virar spam; envio perdido virar estado mudo |
-| `0101` | ownership Auth e consumo atômico | dois usuários reivindicarem o mesmo draft |
-| `0102` | plano selecionado | plano e preço virem do browser |
+| `0100` | tentativa de envio | `email_pending` sem tentativa registrada; trio de tentativa parcial ou incoerente |
+| `0101` | ownership Auth e consumo atômico | o mesmo usuário Auth possuir dois drafts; `email_verified` sem ownership e consumo completos |
+| `0102` | plano selecionado | `selected_plan_id` apontar para plano inexistente |
 | `0103` | tentativa de billing | `id` de assinatura sem estado; `active` sem assinatura; a mesma assinatura em dois cadastros (`UNIQUE`) |
 | `0104` | `onboarding_progress` | colega da mesma clínica ler o tour alheio; estado terminal sem data; passo fora da faixa |
 
+Esta coluna descreve somente o que o **SQL** impede. Vivacidade na 0098, cooldown/rate limit na 0100
+e claim concorrente na 0101 são garantias adicionais das queries e transações da aplicação; não são
+constraints dessas migrations. Na 0102, o browser escolhe `planId`, enquanto o servidor valida que o
+plano está ativo e relê preço, ciclo e trial.
+
 **O padrão que se repete, e que é a espinha do track:** `text` + `CHECK` em vez de `pgEnum`. O
-conjunto é fechado, mas quase sempre cresce — e `ALTER TYPE ... ADD VALUE` não roda dentro de
-transação no Postgres, enquanto `DROP`/`ADD CONSTRAINT` roda. Cada fatia **substitui** o CHECK da
+conjunto é fechado, mas quase sempre cresce. No PostgreSQL 17, `ALTER TYPE ... ADD VALUE` pode
+rodar em transação, mas o valor novo só pode ser usado após o commit; substituir um CHECK permite
+alterar e usar o conjunto na mesma transação ([contrato do PostgreSQL](https://www.postgresql.org/docs/17/sql-altertype.html#SQL-ALTERTYPE-NOTES)). Cada fatia **substitui** o CHECK da
 anterior acrescentando os seus estados, o que transforma o scope freeze em constraint de banco em vez
 de comentário em documento.
 
@@ -6547,10 +6581,11 @@ alfabética, onde `blocked` viria antes de `initiated`. Quem precisa comparar et
 
 ### 36.5 As seis invariantes que o código defende
 
-**1. O browser nunca escolhe `clinic_id`, papel, plano, preço, ciclo nem trial.** Não é validação: é
-ausência de porta de entrada. Os corpos são `.strict()`, então um `clinicId` enviado é **recusado**,
-não descartado em silêncio — a diferença importa, porque descartar deixa quem tentou achando que
-funcionou. `userId` vem sempre de `getUser()`.
+**1. O browser escolhe somente o identificador do plano; nunca escolhe `clinic_id`, papel, preço,
+ciclo nem trial.** `planId` é parte explícita do contrato porque a pessoa precisa selecionar uma das
+ofertas ativas. O servidor relê o plano e o preço vigentes e decide ciclo e trial. Os corpos são
+`.strict()`, então um `clinicId`, preço ou trial enviado é **recusado**, não descartado em silêncio.
+`userId` vem sempre de `getUser()`.
 
 **2. Não existe cobrança duplicada.** O Asaas **não aceita `Idempotency-Key` em POST** — medido, não
 suposto. A defesa é em três camadas: a intenção é reservada no banco **por CAS antes de qualquer
@@ -6576,6 +6611,15 @@ sobrevive ao provisionamento**.
 prova valor nem estado; o servidor relê a assinatura no provedor e confere `ACTIVE` e valor igual ao
 do catálogo. Divergência cancela, compensa o customer e marca `failed`.
 `provisionTenantFromSignup` exige `billing_attempt_state = 'active'` como pré-condição inegociável.
+Na reconciliação de `creation_unknown`, a revisão de 21/09 encontrou uma exceção a essa regra:
+o código ativava a referência encontrada sem readback. Corrigido para validar estado, valor,
+assinatura, customer e referência antes de atualizar, com CAS e TTL no banco. Divergência nesse
+caminho mantém `creation_unknown` e exige resolução operacional, sem liberar outra cobrança.
+Outra regressão real impedia garantir a correspondência com o plano: `PUT /api/signup/plan`
+aceitava trocar `selectedPlanId` após a reserva, inclusive com assinatura `active`. Corrigido na
+reanálise: troca só antes do billing ou após `failed`; estado e versão são verificados no mesmo
+UPDATE. O harness reproduziu a falha antes da correção e passou a exercitar também a corrida
+entre troca de plano e reserva.
 
 **6. O que a clínica fez é derivado; o que a pessoa viu é guardado.** O checklist de ativação
 continua sendo **derivação de presença de dado** — "cadastre um médico" está feito se, e somente se,
@@ -6625,17 +6669,48 @@ Todos foram achados por um gate ou por releitura crítica de um verde, nenhum po
 
 O padrão é um só: **contar resposta não é ler estado**. Três dos cinco vêm daí.
 
+**Reconciliação independente de 20/09.** A releitura posterior encontrou o janitor comparando os TTLs
+com `new Date()` do processo, apesar do contrato exigir o relógio do banco. O código passou a usar
+`now()` do PostgreSQL e o teste agora inspeciona a condição do DELETE. A mesma releitura removeu um
+byte NUL literal de `signup-provision.test.ts` — preservado como `\u0000` — que fazia o Git tratar o
+arquivo como binário e o excluir das contagens de linhas. As divergências restantes foram resolvidas
+fazendo este inventário descrever o contrato realmente implementado.
+
 ### 36.8 O que está pendente
 
 Dividido pelo que de fato separa os itens: **quem pode fazer**.
 
-#### Bloqueia a medição da campanha — repositório da landing
+#### Instrumentação da campanha — ativa em 20/09
 
 | Item | Estado |
 | ---- | ------ |
-| `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` | **pendente** — sem eles o tag nunca carrega, e conversão em `app.qoro.dev` aparece como "direta" |
-| Nenhum CTA aponta para `/comecar` | **pendente** — medido no HTML de produção: 0 links em `/`, `/para/psiquiatria` e `/precos`. A ponte está no ar, ligada e **inalcançável** |
-| Ação de conversão criada no Google Ads | **pendente** — roteiro em `docs/GOOGLE-ADS.md`, no repositório da landing |
+| ~~Nenhum CTA aponta para `/comecar`~~ | **resolvido** — todo CTA leva ao cadastro e o formulário de diagnóstico saiu do funil. Medido em produção: **8 / 5 / 4** links em `/`, `/precos` e `/para/psiquiatria`, e **0** `wa.me` nas três |
+| ~~`GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios~~ | **resolvido** — `AW-18384694179` / `Q4QJCIDelv8cEKPXwL5E`. Em produção: config processado, `google_tag_data.gl` carregado, `_gcl_au` gravado e requisições de conversão iniciadas para os endpoints do Google; crédito final no painel não revalidado |
+| Ação de conversão no Google Ads | **configuração declarada pelo painel** — "Cadastro iniciado", Leads → Inscrever-se, contagem Uma, janela 30 dias; a auditoria independente provou a saída da requisição, não o crédito final no painel |
+
+**O defeito que ligar a medição revelou, e a ordem que o causou.** `conversaoGoogleAds()` era chamada
+em `ComecarPage`, e no React **o efeito do filho roda antes do efeito do pai** — `useSessao()` vive em
+`PageShell`. Quando a ponte pedia a conversão, `window.gtag` ainda não existia, o guarda desviava e o
+evento **nunca era empilhado**. Não era corrida de rede; era ordem de montagem. Ficou invisível
+enquanto as constantes estavam vazias, porque a função saía cedo de qualquer jeito — ou seja, o
+momento de ligar a medição era exatamente o momento em que o defeito apareceria. Corrigido garantindo
+o tag antes de usá-lo, apoiado em o shim `window.gtag` ser atribuído de forma síncrona.
+
+**O prazo fixo cortava o sinal mesmo no caso bom.** A ponte encaminhava em 400 ms fixos; medido, a
+navegação guiada pelo `event_callback` acontece aos **583 ms** com o tag respondendo rápido. O prazo
+antigo cortava a saída 183 ms antes de o sinal partir — no caso favorável, não no de borda. Hoje a
+navegação espera o sinal, com teto próprio de 1200 ms para o caso de o `gtag.js` nunca chegar
+(medido: 1720 ms até a navegação, ninguém fica preso).
+
+**O `_gl` decora o clique de âncora, mas não o encaminhamento automático.** A verificação independente
+de 20/09 interceptou os dois caminhos: `location.replace` saiu sem `_gl`; o clique real numa âncora
+para `app.qoro.dev/cadastro` saiu com `_gl`. Portanto o linker do tag Ads está funcionando, mas não
+participa da navegação programática. Se o app passar a carregar tag Google, a ponte terá de navegar
+por clique real ou usar uma URL decorada de forma suportada para preservar a sessão cross-domain.
+
+Isso **não bloqueia nada hoje**: o `_gl` existe para o destino reconstruir a sessão de medição, e
+`app.qoro.dev` não tem tag para recebê-lo. O evento de conversão é emitido em `qoro.dev`; o crédito
+final no painel não foi revalidado. O `_gl` é pré-requisito da tarefa da tag no app, não desta.
 
 #### Exige julgamento de produto — uma pessoa
 
@@ -6652,18 +6727,325 @@ Dividido pelo que de fato separa os itens: **quem pode fazer**.
 | §21.20 — a maioria dos itens segue sem marcar | vários já têm prova nesta seção e na matriz; a lista nunca foi reconciliada contra a evidência |
 | O-5, O-6 e O-7 sem ADR própria | cobertos pela emenda de 18/09 na ADR-053, não por decisão dedicada |
 
+#### Estado externo ao código
+
+| Item | Estado |
+| ---- | ------ |
+| Regra de Vercel Firewall em `/api/lead` | **resolvida** — verificação independente: GET e POST em `/api/lead`, além de POST em caminho irmão inexistente, devolvem 404 e nenhum traz `X-Vercel-Mitigated` |
+| Variáveis antigas do endpoint no painel da landing | **PASS em 21/09** — `npx vercel env ls`, exit 0: nenhuma variável no projeto `landing-page`; Supabase órfão ausente |
+
 #### Conhecido e aceito
 
 | Item | Estado |
 | ---- | ------ |
 | WAF/DDoS por rota | **não existe** — o classificador já tem o lugar reservado (a função é pura e recebe sinais prontos), mas o sinal de WAF não existe |
 | Sinais de e-mail e dispositivo no risco | **não existem** — a ordem A põe as perguntas depois |
-| Compensação de recurso externo em `SCHEMA` | **PARCIAL** — coberta em unit, não em banco real |
-| `security:browser-session` | **FAIL pré-existente**, atribuído ao commit `8df4ab7`, anterior ao O-7 |
-| Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte |
+| Compensação de recurso externo em `SCHEMA` | **PASS no cenário C1 em 21/09** — perda de CAS no SQL + orquestração real + cancel/delete no Sandbox, readback antes do teardown e nenhum tenant; recusa/mismatch adicionais usam provider stub explícito |
+| `security:browser-session` | **corrigido em 21/09** — o teste navegava antes de terminar o prefetch RSC e perdia acesso ao corpo no Chromium; sincronização corrigida sem ignorar falhas de leitura, com controles de detecção; resultado final na revalidação |
+| Sem tag do Google no app | **gap** — "quem assinou de verdade" não é medível hoje; a conversão que existe é a passagem pela ponte. É também o que torna o `_gl` inútil por enquanto: não há destinatário. Fechar isto é uma tarefa deste repositório, não da landing |
 
-**A pendência de maior valor não é técnica.** Tudo que é verificável está verde. O que falta é (a)
-um botão na landing, sem o qual o funil inteiro não tem entrada, e (b) vinte minutos de uma pessoa
-percorrendo o cadastro para dizer se os textos fazem sentido para quem nunca viu o produto.
+**A pendência de maior valor não é técnica.** O funil já tem entrada na landing. Falta uma pessoa
+percorrer o cadastro por cerca de vinte minutos e dizer se os textos e a ordem fazem sentido para
+quem nunca viu o produto. A tag no app permanece uma tarefa separada para medir a assinatura final.
+O aceite humano não encerra as verificações externas pendentes: crédito final no Ads, configuração
+administrativa Supabase e entrega automática do webhook ainda têm os limites descritos na
+[revalidação de 21/09](evidence/track-o-revalidacao-2026-09-21.md).
 
 ---
+## 37. A confirmação de e-mail saiu do painel do Supabase — 22/09/2026
+
+> **Nota de precedência — 23/09/2026.** As §§37.1–37.5 abaixo preservam o diagnóstico e a primeira
+> implementação de 22/09. A revisão adversarial posterior encontrou que confirmar o link ainda
+> autorizava a aba anônima que havia iniciado o cadastro a avançar, embora quem abriu o e-mail não
+> tivesse transferido essa autorização. Esse contrato foi revogado. A **§37.6 em diante** descreve o
+> fluxo vigente no worktree; os números e o E2E 2/2 da §37.5 continuam como evidência histórica da
+> versão substituída e não provam a versão atual.
+
+O cadastro estava **quebrado em produção**, e o relato de quem tentou usá-lo descreveu o defeito
+com precisão: o e-mail que chegou não era o modelo salvo no Supabase, o link dizia que não era
+válido, e nenhum outro link era reenviado.
+
+### 37.1 A causa, e por que ela já tinha acontecido antes
+
+Os três sintomas são **um defeito só**, e ele não morava no código: morava numa configuração de
+painel.
+
+O e-mail de confirmação era o template "Confirm signup" do dashboard do Supabase — colado à mão,
+**um por projeto**. Com o template padrão em vigor, o link do e-mail é o `{{ .ConfirmationURL }}`,
+que aponta para o `/auth/v1/verify` do próprio GoTrue. Clicar nele faz o GoTrue **consumir o OTP**,
+confirmar a conta e redirecionar para o nosso `/auth/confirm` — só que sem `token_hash`. O nosso
+handler recusa: `missing_token` → "Link inválido". A conta ficou confirmada; a pessoa leu que o
+link não presta. E o reenvio então falha **com razão**: `auth.resend({type:'signup'})` não tem o
+que reenviar para uma conta já confirmada, e a rota devolve o 503 conservador.
+
+O mais importante: **isto já tinha acontecido**. A §35.18 registrou exatamente esta sequência em
+DEV, em 17/09, e o conserto foi colar o template corrigido — **em DEV**. Produção ficou com o
+antigo. Cinco dias depois o mesmo defeito reapareceu onde ninguém tinha colado nada.
+
+Uma etapa manual, por projeto, que nenhum teste enxerga, quebra uma segunda vez. Consertá-la
+colando de novo, com mais cuidado, apenas marca a data da terceira.
+
+### 37.2 O conserto: o e-mail passou a ser nosso
+
+O corpo, o assunto e o link vivem no repositório
+(`src/lib/email/templates/signup-confirmation.ts`), e o envio é pelo Resend — o mesmo caminho que o
+convite de clínica já usava. Ao GoTrue pedimos **só o token**, pela Admin API:
+
+| Momento | Chamada | Por quê |
+| ------- | ------- | ------- |
+| Primeiro envio | `generateLink({ type: 'signup', email, password })` | é o que cria a conta com a senha escolhida |
+| Reenvio | `generateLink({ type: 'magiclink', email })` | é o **único** tipo que dispensa a senha — e a senha não existe nesse momento |
+
+`generate_link` **não envia e-mail nenhum**; devolve o `hashed_token`, e a URL é montada por
+`createSignupConfirmationUrl()` no formato que o `/auth/confirm` entende. Some a dependência do
+template do painel **e** a da allowlist de "Redirect URLs": `redirectTo` não é enviado, porque
+`verifyOtp` no servidor não usa redirect — quem redireciona é o nosso handler.
+
+**O que foi medido no GoTrue de DEV antes de escolher**, não suposto:
+
+| Cenário | Resultado |
+| ------- | --------- |
+| `magiclink` em conta não confirmada → `verifyOtp` | `email_confirmed_at` **definido** — serve como confirmação |
+| `signup` com senha curta / vazada (HIBP) | `422 weak_password` — **mesma política do `signUp`**, o caminho 422 continua valendo |
+| `signup` em conta já confirmada | `422 email_exists` — mapeado para o desfecho ofuscado |
+| `magiclink` em e-mail **sem** usuário | **CRIA o usuário**, sem senha |
+
+A última linha é a que obrigou o reenvio a procurar a conta antes. Se o primeiro envio tivesse
+terminado `uncertain` sem criar nada, um reenvio cego nasceria uma conta **sem senha**: a pessoa
+ficaria com o e-mail confirmado e sem conseguir entrar com a senha que escolheu. O reenvio só gera
+link quando a conta existe **e** está pendente; nos demais casos responde como sucesso e não envia
+nada — a resposta pública não distingue, porque distinguir contaria a um terceiro o estado daquele
+endereço (§6).
+
+Os quatro usuários descartáveis das sondas foram removidos do projeto DEV ao fim de cada uma.
+
+### 37.3 As três correções de tela da implementação de 22/09 (histórico)
+
+**A senha podia ser conferida.** O campo não tinha olho. Uma senha que a pessoa não vê é uma senha
+que ela digita errado e só descobre no login — depois de já ter confirmado o e-mail e criado a
+conta. O botão fecha sozinho ao fim de cada tentativa, junto com a limpeza do campo, para não expor
+a digitação seguinte.
+
+**A tela de espera virou só a espera.** Ela abria com um formulário inteiro de reenvio à mostra:
+e-mail, caixa de aceite, desafio e botão primário. O caminho de exceção tinha o peso visual do
+caminho principal — e o caminho principal ali é não fazer nada. Agora são o título, uma frase e um
+botão discreto. O aceite deixou de ser pedido de novo: ele já foi dado e está registrado em
+`accepted_at`, e reenviar a mesma confirmação para o mesmo endereço não é ato novo de
+consentimento.
+
+O campo de e-mail continua existindo, e a razão é uma invariante, não um esquecimento: a ADR-062
+proíbe guardar endereço bruto — `signup_sessions` só tem o HMAC. **O servidor não sabe para onde
+reenviar.** Na aba que digitou o endereço ele fica em memória e o reenvio é um clique; numa aba
+recarregada o botão pede o endereço antes de tentar.
+
+**O link agora termina em `/cadastro/confirmado`**, uma tela que diz "E-mail confirmado" e para por
+aí. O destino anterior era `/cadastro/continuar`, uma revisão de formulário — e quem clica no link
+quase sempre está no celular enquanto o cadastro segue aberto no computador. O formulário ali
+sugeria que a continuação era naquele aparelho, e sem o cookie anônimo ela não era: a pessoa
+redigitava tudo por engano (§35.19 já tinha observado exatamente isso). A tela guarda um link
+discreto "Continuar por aqui" para quem confirmou no mesmo aparelho, e **redireciona para `/login`
+quem não tem sessão verificada** — senão seria um texto numa URL que qualquer um abre.
+
+**Na versão substituída, a aba do cadastro seguia sozinha.** Ao ver `email_verified` ela chamava `GET /api/signup/draft` —
+que é quem **vincula** o cadastro à conta recém-verificada — e navega para `/cadastro/plano`, a
+etapa que leva ao checkout do Asaas. Os três desfechos que não navegam têm telas próprias: 401/403 é
+confirmação em outro aparelho, 410 é cadastro vencido, e o resto é indisponibilidade.
+
+### 37.4 O que o próprio trabalho encontrou
+
+**Um defeito que eu mesmo introduzi, pego pelo teste que já existia.** Ao trocar o `signUp` pela
+chamada nova, a exceção passou a escapar para o `try` externo da rota, que devolve 503 **sem
+finalizar a reserva** — a linha ficaria em `reserved` sem desfecho registrado. O `signUp` tinha
+`try/catch` próprio e garantia o `finish(uncertain)`. O caso `timeout` do spec da rota falhou e
+apontou para isso. Corrigido com um `.catch` explícito nas duas rotas.
+
+**O defeito que só o E2E encontrou — e era meu.** Quem marca a sessão de cadastro como
+`email_verified` é o `GET /api/signup/draft`: ele acha o cadastro pelo e-mail já verificado, grava o
+`auth_user_id` e consome a linha. Quem disparava esse GET era o formulário de `/cadastro/continuar`,
+que era o destino do link. **Ao mover o destino para `/cadastro/confirmado`, o vínculo ficou sem
+ninguém para disparar** — a aba do cadastro continuaria lendo `email_pending` para sempre. Nenhum
+teste de unidade podia ver isso: cada peça estava certa isolada; o que quebrou foi a cadeia. O
+conserto é um componente cliente invisível na tela de confirmado, que dispara o mesmo GET pelo mesmo
+endpoint limitado — escrever no render continua proibido, pela mesma razão registrada em
+`/cadastro/continuar`.
+
+**Dois testes meus estavam errados, e o código certo.** Eu afirmava encontrar a URL crua dentro do
+HTML; no HTML o `&` vira `&amp;`, que é o escape correto. E afirmava ver `&quot;&gt;` a partir de um
+valor que a `URL` mantém percent-encoded. Nos dois casos a asserção mudou, não o template.
+
+### 37.5 O que ficou provado, e o que não
+
+| Item | Estado |
+| ---- | ------ |
+| Comportamento do GoTrue para os quatro cenários de token | **PASS** — medido no projeto DEV, com limpeza |
+| Formato do e-mail e do link (HTML + texto, escape, recusa de URL inválida) | **PASS** — 14 casos de unidade |
+| Emissão, ofuscação, `weak_password`, incerteza e guarda do reenvio | **PASS** — 15 casos de unidade |
+| Rotas `auth` e `resend` (limite, CAS, uniformidade, reserva sempre finalizada) | **PASS** — 58 casos |
+| Olho da senha, espera mínima, reenvio discreto, avanço para o pagamento | **PASS** — 37 casos de UI |
+| `/cadastro/confirmado` não afirma confirmação sem sessão | **PASS** — 6 casos |
+| Vínculo do cadastro disparado pela tela de confirmado | **PASS** — 3 casos, inclusive StrictMode |
+| **Jornada real pelas telas, com Supabase e Resend de verdade** | **PASS** — `e2e/signup-confirmation.spec.ts`, 2/2, contra o app rodando local e o projeto **DEV** real. A conta nasceu pendente, o Resend aceitou a mensagem (`signup.confirmation.sent`), `/auth/confirm?token_hash=…&type=magiclink` levou a `/cadastro/confirmado`, o vínculo rodou e a aba do cadastro abriu `/cadastro/plano`. Contas de teste removidas ao fim |
+| A mesma jornada em Preview ou produção | **NOT TESTED nesta versão histórica**. O runner atual aceita somente o projeto DEV e recusa qualquer origem `qoro.dev`; não existe opt-in de produção |
+| **Entrega da mensagem numa caixa de entrada real** | **NOT TESTED** — o Resend ACEITOU a mensagem (provado acima), mas ler a caixa de entrada exigiria abrir conta de e-mail de terceiro, o que não foi feito. Ver a mensagem chegar continua sendo verificação humana |
+
+Dois atritos do próprio ferramental apareceram e ficam registrados porque custam tempo a quem repetir:
+o Supabase **recusa chave secreta quando a requisição parece vir de um browser** (o `request` do
+Playwright manda cabeçalhos de browser, e a resposta é `401 Forbidden use of secret API key in
+browser`), então as chamadas de Admin API do spec usam o `fetch` do Node; e o `input[type=radio]` dos
+cards é `sr-only`, então clicar nele trava na checagem de acionabilidade do Playwright — quem clica é
+o `<label>`, como uma pessoa faria.
+
+O `design_system/email-confirmar-cadastro.html` foi **absorvido** pelo módulo e removido, junto com
+o teste que travava as variáveis do painel. Manter as duas cópias recriaria, numa camada mais barata
+de ignorar, exatamente a divergência que causou o defeito.
+
+**Uma consequência a registrar.** O `captchaToken` das rotas `auth` e `resend` saiu do schema porque a
+Admin API não o valida; aceitar o campo transmitiria uma proteção inexistente. A criação da sessão sob
+risco moderado continua exigindo o Turnstile do Qoro e valida a nossa secret. O estado atual do captcha
+do painel Supabase não foi reconsultado nesta rodada e permanece **NOT TESTED**; se ele for ligado, isso
+não protege automaticamente essas duas rotas — a integração teria de chamar `verifyTurnstileToken`
+diretamente.
+
+### 37.6 Emenda de segurança: confirmar a caixa não entrega a conta à aba iniciadora — 23/09/2026
+
+O desenho anterior resolvia o template divergente, mas ainda misturava duas provas diferentes. O
+clique demonstrava controle da caixa postal; sozinho, porém, também fazia a aba anônima que havia
+enviado aquele endereço avançar. Uma pessoa poderia iniciar o cadastro com o e-mail de outra, escolher
+a senha e esperar que a vítima clicasse. A confirmação legítima da vítima terminaria autorizando a
+sessão e a senha escolhidas pelo iniciador.
+
+O contrato atual separa as provas:
+
+1. a rota de identidade avalia a senha local e o HIBP, mas a Admin API cria o usuário **sem senha**,
+   com `email_confirm: false`, marcador Qoro, referência exata do draft e `password_state=pending`;
+2. tanto o primeiro envio quanto o reenvio usam `generateLink({ type: 'recovery' })`; o painel de
+   templates do Supabase não participa do conteúdo nem do transporte. O token vai no **fragmento**
+   do link, que não é enviado no GET: `/auth/confirm` devolve uma ponte HTML mínima, `no-store` e
+   `no-referrer`, e o navegador transforma o fragmento em POST para a verificação server-side. Assim,
+   nos links novos, token, tipo e referência não entram na URL observada pelo access log nem no
+   `Referer`;
+3. o e-mail produzido pelo repositório leva duas provas: o link de confirmação e um código numérico
+   de oito dígitos no corpo. O código não aparece na URL e não é gravado em claro no banco;
+4. abrir o link cria a sessão verificada naquele aparelho e termina em `/cadastro/confirmado`, cuja
+   única mensagem de sucesso é **“E-mail confirmado”**. O clique não instala senha, não abre plano,
+   não abre checkout e não autoriza sozinho a aba original;
+5. a aba que iniciou o cadastro reconhece `email_verified` e mostra o handoff explícito. Ela só chama
+   `POST /api/signup/sessions/continue` depois de receber o código, o mesmo e-mail e a senha. Se a aba
+   foi recarregada, e-mail e senha são digitados novamente porque ambos existiam apenas em memória;
+6. a continuação exige usuário verificado, vínculo Qoro pendente, referência exata, versão atual do
+   draft e código correto. O HIBP é consultado novamente imediatamente antes do CAS que consome a
+   época da credencial. Somente o vencedor instala a senha pela Admin API, marca
+   `password_state=set` e autentica;
+7. `/cadastro/continuar`, `/cadastro/plano` e as APIs de draft, plano e checkout usam o gate
+   **ready-owned**. Ele exige marker Auth `set`, a mesma referência realmente possuída no banco e
+   `auth_attempt_state=completed`. Uma sessão apenas verificada, um marker `pending`, uma referência
+   divergente ou uma escrita Auth que ficou à frente do commit SQL recebem recusa e não alcançam
+   leitura do draft nem billing;
+8. o reenvio deliberado da **mesma** sessão define uma nova época: gira token e código, invalida a
+   tentativa anterior e relê a reserva exata antes de entregar. Um segundo draft para o mesmo e-mail,
+   porém, não pode girar uma referência pendente ainda viva: a liveness é conferida pela referência,
+   HMAC do e-mail, usuário quando já reivindicado e expiração absoluta. Nesse caso a resposta fica
+   ofuscada e nenhum segundo e-mail é enviado. Se o primeiro efeito terminou incerto e a busca exata
+   prova que o Auth não criou usuário, o reenvio da própria reserva pode recriar explicitamente a
+   conta, ainda sem senha e vinculada àquele draft; a senha continua dependendo do handoff e do CAS;
+9. recuperação de senha distingue grants `profile`, `pretenant` e `pretenant_orphan`. O grant de
+   profile consome `claims_version` por CAS antes da escrita Auth; o pré-tenant com draft consome a
+   época exata da credencial; e o órfão serializa por advisory lock e relê o epoch de
+   `Auth.updated_at` junto com id, e-mail, confirmação e marker. Assim, somente uma troca concorrente
+   vence em qualquer um dos três casos;
+10. se o OTP já foi consumido e validação, claim ou binding falha transitoriamente, o callback não
+    perde a única prova. Ele grava por 15 minutos um grant HMAC em cookie HttpOnly contendo usuário,
+    referência e expiração; nada disso entra na URL ou no DOM. `/cadastro/confirmado` só o aceita para
+    o mesmo usuário autenticado e repete a operação idempotente. Se o banco ainda não tem referência
+    possuída e o Auth aponta para uma tentativa antiga, a referência assinada por esse callback vence
+    no retry; depois do claim, a referência possuída no banco volta a ser a autoridade;
+11. a procura administrativa por e-mail usa o filtro oficial indexado do GoTrue, exige igualdade
+    normalizada exata e falha fechado para resposta ambígua, inválida ou indisponível; não pagina a
+    base inteira a cada envio;
+12. contas legadas sem marker não recebem confiança por aparência. Uma conta não confirmada só é
+    adotada depois de tentativa exata ainda reservada, ausência de profile/convite/banimento e OTP;
+    uma conta já confirmada só migra para `password_state=set` depois que o login com a senha conhecida
+    foi aceito;
+13. depois do claim, o banco é a autoridade da referência, mas nunca promove silenciosamente um
+    marker Auth `set` divergente. O gate autoritativo exige igualdade exata Auth↔banco e estado
+    `completed`; repetir a mesma referência pronta é idempotente. Se uma adoção atualizar o Auth e o
+    commit SQL falhar, a conta fica bloqueada. Repetir o mesmo código pode concluir a transferência
+    transacional no banco sem instalar a senha de novo;
+14. depois que uma operação de envio começa, `auth` e `resend` mantêm a resposta pública uniforme em
+    `200`, tanto para envio aceito quanto para conta ofuscada ou efeito externo incerto. O banco
+    preserva `uncertain` para reconciliação. A finalização do Resend só aceita os pares exatos
+    `email_pending + reserved` ou `email_verified + completed` do mesmo usuário, fechando a corrida
+    entre entrega e claim;
+15. um segundo draft para o mesmo e-mail não recebe outra mensagem, mas o código da tentativa viva
+    pode transferir a autoridade para os dados desse novo draft. A sequência Auth + SQL é protegida
+    pelo gate `ready-owned`: falha parcial não libera login, leitura ou cobrança, e o retry com o
+    mesmo código conclui a adoção sem uma segunda escrita de senha.
+
+O vínculo normal do callback respeita a mesma ordem de autoridade: primeiro valida a conta Auth
+pendente, depois reivindica **a referência exata** no banco e só então atualiza o marcador Auth para
+o draft vencedor. Na adoção por código, em que o Auth pode ficar à frente do commit SQL, o gate
+`ready-owned` mantém o estado parcial inacessível até o retry concluir a mesma transferência.
+
+A ponte reduz o efeito de scanners que apenas fazem GET: eles não recebem o fragmento e não consomem
+o OTP. Um scanner capaz de executar JavaScript ainda pode acionar o POST. Esse risco residual não é
+tratado como eliminado; token single-use, rotação no reenvio e o código separado limitam o efeito,
+mas o E2E e a aceitação humana precisam observar link expirado/consumido e a recuperação por reenvio.
+
+Há compatibilidade transitória para mensagens antigas, cujo `token_hash` já estava no querystring.
+Esse GET também **não consome** o OTP: entrega a ponte, que move os dados para POST. A compatibilidade
+evita invalidar e-mails em voo, mas não consegue apagar o fato de que a URL antiga já chegou ao
+request target e pode ter entrado no access log. Só links emitidos no formato novo têm a propriedade
+completa de não expor credencial na URL HTTP; o ramo legado deve sair depois do TTL das mensagens
+anteriores.
+
+### 37.7 Interface atual
+
+A tela `email_pending` contém apenas o estado de espera e o botão discreto de reenvio. Na aba que
+mantém o e-mail em memória, reenviar é um clique; depois de F5, o formulário revela somente o campo
+de e-mail. O aceite não é pedido outra vez.
+
+Depois do clique, o celular mostra apenas “E-mail confirmado”. No computador, a tela muda para o
+handoff e pede o código de oito dígitos. A senha possui controle de mostrar/ocultar e continua com o
+contrato de 8–72 caracteres, sem espaços, com maiúscula, minúscula e número; símbolo é opcional. Só
+depois do código e da instalação da senha a navegação vai para `/cadastro/plano`.
+
+### 37.8 Evidência válida para esta emenda
+
+| Afirmação | Estado em 25/09/2026 |
+| --------- | -------------------- |
+| Implementação passwordless, handoff por código, gate `ready-owned`, HIBP pré-CAS, repair grant, recovery concorrente, adoção segura, compatibilidade legada e proteção do link ativo | **PASS local/integration** — 238/238 testes focados em oito arquivos; suíte integral **4.378/4.378 em 414 arquivos**, exit 0, 185,27 s; `tsc --noEmit` e ESLint completo, exit 0 |
+| Fragmento + ponte GET → POST, com token novo fora de access log/referrer | **PASS local/integration + DEV** — GET não chama verify, POST exige mesma origem; query antiga fica compatível sem consumo no GET, mas já pode ter sido logada; scanner que executa JavaScript continua como risco residual |
+| Regressão HTTP/SQL do cadastro | **PASS 29/29** — `signup-regression.ts` com as migrations do repositório; verifica também a transferência de ownership `reserved → completed`; cleanup zero |
+| Spec `e2e/signup-confirmation.spec.ts` para o contrato novo | **PASS 5/5**, Chromium, 9,4 min, um worker e zero retry contra `next dev`; cache efêmero existe somente com `NODE_ENV=development` + `E2E_SIGNUP_WRITE=1`, limitado a 15 min/64 entradas; fixture e lock ausentes depois da limpeza |
+| Jornada atual contra Supabase DEV + Resend real | **PASS 5/5** — página sem sessão não mente; link em aparelho separado + código; conta legada não confirmada; segundo draft não gira o link ativo nem recebe novo e-mail e só adota via código; reenvio da mesma sessão gira link/código; cleanup Auth/DB zero |
+| Billing e provisionamento, nas provas próprias | **PASS separado do spec de confirmação** — Asaas Sandbox final 6/6, cleanup 5/5 assinaturas e 5/5 customers; webhook/reconciliação/provisionamento 12/12, cleanup 2/2; `security:browser-session` 7/7 |
+| Build otimizado e inventário atual | **PASS** — Next 15.5.24 otimizado, exit 0; inventário regenerado e conferido com 180 actions, 49 métodos de rota, 16 props, 254 usos de `process.env` e 9 variáveis públicas, sem gaps |
+| Gates integrados de segurança | **PASS** — browser-session 7/7 em 45,5 s; tenant isolation e cleanup; bundle 174 arquivos/zero falha; HTTP 12 vetores, 164 actions e 328 requests; DB/arquitetura/migrations/observabilidade/registry, exit 0 |
+| Jornada atual em Preview | **PASS 5/5** — 4,9 min no SHA `9608e1e`, no alias protegido da branch, Chromium, um worker e zero retry; fingerprint confirmou Auth e banco DEV; cleanup Auth/DB/fixture/lock zero |
+| Jornada atual em produção | **NOT TESTED** — não se cria conta em produção para esta validação |
+| Mensagem visível numa caixa de entrada real | **NOT TESTED** — aceite do Resend ou leitura pela API do provider não prova entrega e renderização no inbox |
+| Cobrança, reconciliação ou provisionamento pelo E2E de confirmação | **NÃO É PROVADO por este spec** — a jornada termina quando `/cadastro/plano` abre; os PASS acima vêm dos runners próprios de O-5/O-6 |
+
+O runner autorizado é `npx tsx scripts/run-signup-confirmation-e2e.ts`. Ele falha fechado sem o
+opt-in de escrita, recusa produção, fixa o projeto Supabase DEV esperado e executa Playwright com um
+worker e sem retry. No Preview protegido ele envia apenas o header de bypass: pedir também o cookie de
+bypass causava um loop 307 no `fetch` Node. O `APP_BASE_URL` ficou restrito à branch e aponta para o
+alias estável; antes dessa correção a rota falhava fechada com 403, sem cookie nem linha no banco. O
+runner espera até 180 s pelo evento `delivered` do Resend, compara a mailbox normalizada exatamente e
+aceita nome de exibição somente quando é `Qoro`. O PASS exige execução real da versão atual e readback
+de cleanup sem usuário Auth, `signup_session`, fixture ou lock residual.
+
+### 37.9 Documentos que compõem o fechamento
+
+- a decisão e as invariantes de identidade estão na
+  [emenda da ADR-062](adr/062-identidade-consentimento-cadastro.md#11-emenda-de-23092026--confirmação-e-handoff-de-credencial);
+- a separação entre prova histórica e prova atual está na
+  [matriz de evidência Track O](evidence/track-o.md#emenda-de-identidade--23092026);
+- o estado de entrega e a ordem dos próximos gates estão no
+  [handoff final](handoff-track-o-final.md#atualização-de-identidade--23092026);
+- os passos que só uma pessoa pode julgar estão no
+  [runbook de aceitação humana](runbooks/aceitacao-humana-cadastro.md#1-cadastro-e-handoff-entre-aparelhos).
+
+Esses quatro documentos devem ser atualizados juntos quando a execução real ocorrer. Um PASS na
+suíte local não promove automaticamente o E2E externo, o Preview, a caixa de entrada, o billing ou o
+aceite humano.

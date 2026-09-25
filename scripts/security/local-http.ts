@@ -14,7 +14,7 @@ import {
 const root = process.cwd();
 const output = path.join(root, 'dist/security-local');
 const target = path.join(output, 'app');
-const base = 'http://127.0.0.1:3217';
+const base = 'http://localhost:3217';
 const manifest = z
   .object({
     node: z.record(
@@ -43,7 +43,7 @@ assert.ok(invalidSessionCookieName, 'runtime env sem nome válido de cookie Supa
 const invalidSessionCookie = `${SUPABASE_SESSION_SELECTOR_COOKIE}=${invalidSessionGeneration}; ${invalidSessionCookieName}=invalid`;
 const server = spawn(
   process.execPath,
-  [path.join(root, 'node_modules/next/dist/bin/next'), 'start', '-p', '3217', '-H', '127.0.0.1'],
+  [path.join(root, 'node_modules/next/dist/bin/next'), 'start', '-p', '3217', '-H', 'localhost'],
   { cwd: target, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
 );
 let serverLog = '';
@@ -78,7 +78,7 @@ async function request(
   // node:http preserva /./ e //; fetch/URL normalizariam alguns vetores antes do envio.
   const result = await new Promise<Observation>((resolve, reject) => {
     const req = http.request(
-      { hostname: '127.0.0.1', port: 3217, path: route, method, headers },
+      { hostname: 'localhost', port: 3217, path: route, method, headers },
       (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (chunk: Buffer) => chunks.push(chunk));

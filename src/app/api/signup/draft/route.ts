@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
 import {
-  claimSignupDraftByVerifiedEmail,
   readSignupDraft,
+  resolveReadyOwnedSignupOnboarding,
   signupDraftMutationSchema,
   writeSignupDraft,
 } from '@/contexts/onboarding';
@@ -11,7 +11,6 @@ import {
   assertSignupDraftWriteAllowed,
   getClientIp,
 } from '@/lib/auth/rate-limit';
-import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
@@ -28,20 +27,32 @@ function json(body: object, status = 200): NextResponse {
 }
 
 function authFailure(reason: string): NextResponse {
-  if (reason === 'profile_denied') return json({ error: 'forbidden' }, 403);
+  if (
+    reason === 'profile_denied' ||
+    reason === 'credentials_pending' ||
+    reason === 'credentials_invalid'
+  ) {
+    return json({ error: 'forbidden' }, 403);
+  }
   if (reason === 'unavailable') return json({ error: 'unavailable' }, 503);
   return json({ error: 'unauthorized' }, 401);
 }
 
-async function verifiedPreTenant(): Promise<
-  { ok: true; userId: string; email: string } | { ok: false; response: NextResponse }
+async function readyPreTenant(): Promise<
+  | { ok: true; userId: string; email: string; signupRef: string }
+  | { ok: false; response: NextResponse }
 > {
-  const onboarding = await resolvePreTenantOnboarding();
+  const onboarding = await resolveReadyOwnedSignupOnboarding();
   if (!onboarding.ok) return { ok: false, response: authFailure(onboarding.reason) };
   if (onboarding.kind !== 'pretenant') {
     return { ok: false, response: json({ error: 'forbidden' }, 403) };
   }
-  return { ok: true, userId: onboarding.userId, email: onboarding.email };
+  return {
+    ok: true,
+    userId: onboarding.userId,
+    email: onboarding.email,
+    signupRef: onboarding.signupRef,
+  };
 }
 
 function limited(reason: 'unavailable' | 'rate_limited', retryAfter?: number): NextResponse {
@@ -50,26 +61,15 @@ function limited(reason: 'unavailable' | 'rate_limited', retryAfter?: number): N
   return response;
 }
 
-/**
- * Leitura do próprio draft e, quando ainda não há um, o vínculo pelo e-mail já
- * verificado — o caminho que devolve o cadastro a quem confirmou o link em outro
- * aparelho, sem o cookie anônimo do navegador original.
- *
- * O vínculo é tentado SÓ depois de a leitura devolver `gone`: quem já é dono
- * paga apenas o SELECT, e a transação com `FOR UPDATE` não roda a cada carga.
- * Ele é idempotente, não renova nenhum dos dois prazos e depende exclusivamente
- * da identidade provada por `getUser()` — nunca de e-mail, id ou cookie enviados
- * pelo cliente.
- */
+/** Leitura exata do draft que Auth e banco já declararam como a mesma posse pronta. */
 export async function GET(req: Request): Promise<Response> {
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
     return json({ error: 'unavailable' }, 503);
-  // Fetch Metadata antes de qualquer efeito: a leitura passou a poder vincular,
-  // e uma navegação de terceiro não deve disparar esse vínculo. Ausência do
-  // cabeçalho não bloqueia — só o `cross-site` explícito.
+  // Fetch Metadata antes da leitura autenticada. Ausência do cabeçalho não
+  // bloqueia — só o `cross-site` explícito.
   if (req.headers.get('sec-fetch-site') === 'cross-site') return json({ error: 'blocked' }, 403);
   try {
-    const identity = await verifiedPreTenant();
+    const identity = await readyPreTenant();
     if (!identity.ok) return identity.response;
     const limit = await assertSignupDraftReadAllowed(
       getClientIp(req.headers),
@@ -78,27 +78,17 @@ export async function GET(req: Request): Promise<Response> {
     if (!limit.ok)
       return limited(limit.reason, 'retryAfter' in limit ? limit.retryAfter : undefined);
 
-    let result = await readSignupDraft(identity.userId);
-    if (!result.ok && result.reason === 'gone') {
-      const claim = await claimSignupDraftByVerifiedEmail(identity.userId, identity.email);
-      if (!claim.ok && claim.reason === 'unavailable') return json({ error: 'unavailable' }, 503);
-      // Relê mesmo quando o vínculo falhou. Duas abas do mesmo usuário disputando
-      // o mesmo cadastro fazem a perdedora receber `conflict` — ou `gone`, porque
-      // o `FOR UPDATE` reavalia a linha já vinculada e ela deixa de casar. Nos
-      // dois casos o draft EXISTE, e responder 410 mandaria a pessoa redigitar
-      // um cadastro que acabou de ser recuperado.
-      result = await readSignupDraft(identity.userId);
-    }
+    const result = await readSignupDraft(identity.userId, identity.signupRef);
     if (!result.ok) {
       return json({ error: result.reason }, result.reason === 'gone' ? 410 : 503);
     }
     // O cookie anônimo NÃO é apagado aqui. Quem confirma no mesmo navegador
     // costuma deixar a aba do cadastro aberta; apagar o cookie desta resposta
     // faria aquela aba receber 410 e anunciar "sessão expirou" logo depois de
-    // uma confirmação bem-sucedida. Quem limpa é o `GET /me` que reporta
-    // `email_verified` — a mesma resposta que conta à aba o que aconteceu. O
-    // cookie também morre sozinho em 60 min (`maxAge`), e o replay já é negado
-    // por `consumed_at`, não pela limpeza.
+    // uma confirmação bem-sucedida. O cookie também morre sozinho em 60 min
+    // (`maxAge`), e o replay já é negado por `consumed_at`, não pela limpeza. A
+    // aba original o remove apenas depois que `/sessions/continue` abre a sessão
+    // Auth com sucesso.
     return json(result.draft);
   } catch {
     return json({ error: 'unavailable' }, 503);
@@ -123,7 +113,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const identity = await verifiedPreTenant();
+    const identity = await readyPreTenant();
     if (!identity.ok) return identity.response;
     const limit = await assertSignupDraftWriteAllowed(
       getClientIp(req.headers),

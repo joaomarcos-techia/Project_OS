@@ -100,21 +100,42 @@ function collectBrowserPayloads(page: Page): {
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
   page.on('response', (response) => {
+    const request = response.request();
+    const redirectedFrom = request.redirectedFrom();
+    const redirectedFromBridge =
+      request.resourceType() === 'fetch' &&
+      redirectedFrom !== null &&
+      new URL(redirectedFrom.url()).pathname === '/auth/confirm';
     // Redirects e 204 não têm corpo disponível no protocolo do navegador.
+    // A ponte usa `fetch(..., redirect: 'follow')` só para descobrir o destino
+    // same-origin e então navega para ele. Essa primeira cópia do destino é
+    // abortada pela navegação e o Playwright deixa `response.text()` pendurado;
+    // a resposta document subsequente da MESMA URL continua sendo inspecionada.
     if (
-      ['document', 'fetch', 'xhr'].includes(response.request().resourceType()) &&
+      ['document', 'fetch', 'xhr'].includes(request.resourceType()) &&
+      !redirectedFromBridge &&
       !(response.status() >= 300 && response.status() < 400) &&
       response.status() !== 204
     ) {
       bodies.push(
         response.text().then(
           (body) => ({ body }),
-          () => ({ readError: `Não foi possível inspecionar ${response.url()}` }),
+          (error: unknown) => ({
+            readError: `Não foi possível inspecionar ${new URL(response.url()).pathname}: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+          }),
         ),
       );
     }
   });
   return { bodies, requests };
+}
+
+async function confirmInviteThroughBridge(page: Page): Promise<void> {
+  const bridge = await page.goto(
+    '/auth/confirm#token_hash=valid-invite&type=invite&next=%2Freset-password',
+  );
+  expect(bridge?.status()).toBe(200);
+  await page.waitForURL((url) => url.pathname === '/reset-password');
 }
 
 async function expectNoBearerInBrowser(
@@ -256,7 +277,10 @@ test.afterAll(async () => {
 });
 
 test('cookie legado legível é apagado e exige uma autenticação nova', async ({ page, context }) => {
-  await page.goto('/login');
+  // Completa também o prefetch RSC de /cadastro antes de iniciar outra
+  // navegação. Chromium invalida o corpo pendente quando a página é trocada.
+  // Os testes continuam reprovando TODO corpo ilegível durante o fluxo medido.
+  await page.goto('/login', { waitUntil: 'networkidle' });
   const origin = new URL(page.url()).origin;
   const value = encodedSession(TOKENS.legacyAccess, TOKENS.legacyRefresh, 3600);
   const splitAt = Math.floor(value.length / 2);
@@ -291,16 +315,13 @@ test('confirmação server-side cria geração HttpOnly sem expor bearer ao brow
   page,
   context,
 }) => {
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle' });
   const origin = new URL(page.url()).origin;
   const observed = collectBrowserPayloads(page);
   const before = verifications;
 
   // Destino permitido do OTP; convite não emite grant de recovery nem abre formulário de senha.
-  const confirmation = await page.goto(
-    '/auth/confirm?token_hash=valid-invite&type=invite&next=%2Freset-password',
-  );
-  expect(confirmation?.status()).toBe(200);
+  await confirmInviteThroughBridge(page);
   expect(new URL(page.url()).pathname).toBe('/reset-password');
   await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'Link inválido ou expirado',
@@ -323,6 +344,7 @@ test('confirmação server-side cria geração HttpOnly sem expor bearer ao brow
   expect(observed.requests.some((url) => url.startsWith(runtimeEnv.NEXT_PUBLIC_SUPABASE_URL))).toBe(
     false,
   );
+  expect(observed.requests.some((url) => url.includes('valid-invite'))).toBe(false);
   await expectNoBearerInBrowser(page, observed.bodies);
 });
 
@@ -330,7 +352,7 @@ test('token na janela crítica é rotacionado uma vez sem loop nem troca de gera
   page,
   context,
 }) => {
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle' });
   const origin = new URL(page.url()).origin;
   const value = encodedSession(TOKENS.expiringAccess, TOKENS.expiringRefresh, 100);
   await context.addCookies([
@@ -379,7 +401,7 @@ for (const outcome of ['success', 'failure'] as const) {
     page,
     context,
   }) => {
-    await page.goto('/login');
+    await page.goto('/login', { waitUntil: 'networkidle' });
     const origin = new URL(page.url()).origin;
     await context.addCookies([
       {
@@ -409,10 +431,7 @@ for (const outcome of ['success', 'failure'] as const) {
 
     try {
       await expect.poll(() => hold.entered).toBe(true);
-      const confirmation = await page.goto(
-        '/auth/confirm?token_hash=valid-invite&type=invite&next=%2Freset-password',
-      );
-      expect(confirmation?.status()).toBe(200);
+      await confirmInviteThroughBridge(page);
       expect(new URL(page.url()).pathname).toBe('/reset-password');
       await expect(page.getByRole('main').getByRole('alert')).toContainText(
         'Link inválido ou expirado',
@@ -452,6 +471,11 @@ for (const outcome of ['success', 'failure'] as const) {
           url.startsWith(runtimeEnv.NEXT_PUBLIC_SUPABASE_URL),
         ),
       ).toBe(false);
+      expect(
+        [...observedOld.requests, ...observedNew.requests].some((url) =>
+          url.includes('valid-invite'),
+        ),
+      ).toBe(false);
       await expectNoBearerInBrowser(oldPage, observedOld.bodies);
       await expectNoBearerInBrowser(page, observedNew.bodies);
     } finally {
@@ -466,7 +490,7 @@ for (const outcome of ['success', 'failure'] as const) {
 test('validador detecta sessão base64 em registro IndexedDB genérico e passa após limpeza', async ({
   page,
 }) => {
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'networkidle' });
   const databaseName = 'security-detector-positive-control';
   await page.evaluate(
     async ({ name, value }) => {
@@ -508,4 +532,15 @@ test('validador detecta sessão base64 em registro IndexedDB genérico e passa a
     }, databaseName);
   }
   await expectNoBearerInBrowser(page, []);
+});
+
+test('validador reprova bearer no payload e corpo que não pôde ser lido', async ({ page }) => {
+  await page.goto('/login', { waitUntil: 'networkidle' });
+  const leaked = encodedSession(TOKENS.legacyAccess, TOKENS.legacyRefresh, 3600);
+  await expect(expectNoBearerInBrowser(page, [Promise.resolve({ body: leaked })])).rejects.toThrow(
+    TOKENS.legacyAccess,
+  );
+  await expect(
+    expectNoBearerInBrowser(page, [Promise.resolve({ readError: 'unreadable-response-control' })]),
+  ).rejects.toThrow('unreadable-response-control');
 });

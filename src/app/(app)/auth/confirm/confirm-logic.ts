@@ -18,7 +18,12 @@ export function isValidOtpType(v: string | null): v is EmailOtpType {
   return v !== null && (VALID_OTP_TYPES as readonly string[]).includes(v);
 }
 
-const SAFE_NEXT_PATHS = new Set(['/dashboard', '/convite', '/reset-password']);
+const SAFE_NEXT_PATHS = new Set([
+  '/dashboard',
+  '/convite',
+  '/reset-password',
+  '/cadastro/confirmado',
+]);
 const INTERNAL_ORIGIN = 'https://auth-confirm.internal';
 
 /**
@@ -44,9 +49,24 @@ export function safeNext(raw: string | null | undefined): string {
   }
 }
 
-/** Signup sempre termina no onboarding; query/fragmento e `next` arbitrário são ignorados. */
+/**
+ * O link de confirmação do cadastro termina numa tela que só diz "e-mail
+ * confirmado" — não mais na revisão.
+ *
+ * A troca é de UX e de verdade ao mesmo tempo. Quem clica costuma estar no
+ * celular, enquanto o cadastro continua aberto no computador; jogar o celular
+ * numa revisão de formulário sugeria que a continuação era ali, e no aparelho
+ * sem o cookie anônimo ela não era. A aba que começou o cadastro percebe a
+ * confirmação sozinha e segue para a escolha do plano; o telefone só precisa dizer que
+ * deu certo — com um caminho discreto para continuar ali, se for o caso.
+ *
+ * `signup` ignora `next` de propósito: o tipo já determina o destino, e aceitar
+ * um `next` do e-mail só ampliaria a superfície sem ganho. Os tipos legados e
+ * `recovery` continuam presos à allowlist; a rota escolhe o ramo pela identidade
+ * autoritativa (draft pré-tenant ou profile existente).
+ */
 export function safeNextForOtp(raw: string | null | undefined, type: EmailOtpType): string {
-  if (type === 'signup') return '/cadastro/continuar';
+  if (type === 'signup') return '/cadastro/confirmado';
   return safeNext(raw);
 }
 

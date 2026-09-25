@@ -8,7 +8,7 @@
  * As quatro perguntas que a implementação local não podia responder sozinha:
  *   P1  o Asaas aceita assinar para um customer SEM CPF/CNPJ?
  *   P2  o readback devolve valor/ciclo/vencimento/estado como pedimos?
- *   P3  uma resposta PERDIDA (timeout depois do POST) é recuperável por
+ *   P3  uma resposta PERDIDA (descarte injetado após um POST real) é recuperável por
  *       `externalReference`, sem reenviar o POST?
  *   P4  duas tentativas concorrentes com a mesma referência produzem UMA
  *       assinatura ou duas?
@@ -23,12 +23,9 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { z } from 'zod';
 
-import {
-  asaasProvider,
-  BillingProviderError,
-  BillingProviderUnreachableError,
-} from '@/lib/payments/asaas';
+import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { redactOpaqueId } from '@/lib/sanitize/redact';
 
 const CONFIRM = 'ASAAS_SANDBOX_ONLY';
@@ -50,18 +47,24 @@ const results: Result[] = [];
 /** Tudo que for criado entra aqui para a limpeza acontecer mesmo em falha. */
 const createdSubscriptions = new Set<string>();
 const createdCustomers = new Set<string>();
+const attemptedReferences = new Set<string>();
 
 function guard(): string {
   if (process.env.SANDBOX_CONFIRM !== CONFIRM) {
     throw new Error(`[sandbox] exige SANDBOX_CONFIRM=${CONFIRM}`);
   }
   const base = process.env.ASAAS_BASE_URL ?? '';
-  // Duas asserções, não uma: "contém sandbox" sozinho aceitaria um host
-  // malicioso tipo `api.asaas.com/?x=sandbox`. A negativa é a que protege.
-  assert.ok(base.includes('sandbox'), `[sandbox] ASAAS_BASE_URL nao aparenta ser sandbox`);
+  const parsed = new URL(base);
   assert.ok(
-    !/(^|\/\/)api\.asaas\.com/u.test(base),
-    '[sandbox] ASAAS_BASE_URL aponta para PRODUCAO — abortado',
+    parsed.protocol === 'https:' &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.port &&
+      !parsed.search &&
+      !parsed.hash &&
+      ((parsed.hostname === 'sandbox.asaas.com' && parsed.pathname === '/api/v3') ||
+        (parsed.hostname === 'api-sandbox.asaas.com' && parsed.pathname === '/v3')),
+    '[sandbox] ASAAS_BASE_URL fora dos endpoints HTTPS oficiais de sandbox — abortado',
   );
   assert.ok(process.env.ASAAS_API_KEY, '[sandbox] ASAAS_API_KEY ausente');
   return base;
@@ -85,22 +88,36 @@ function dueDateAfterTrial(days: number): string {
 
 /** Referência estável, com marca de runner para a limpeza reconhecer o que é nosso. */
 function reference(tag: string): string {
-  return `signup-sandbox:${tag}:${Date.now()}`;
+  const value = `signup-sandbox:${tag}:${Date.now()}`;
+  attemptedReferences.add(value);
+  return value;
 }
 
 /**
  * Modo filho do P3.
  *
- * Existe porque `env` é snapshot de import: baixar `ASAAS_HTTP_TIMEOUT_MS` em
- * `process.env` no meio da execução não afeta o adapter já carregado. O pai
- * dispara este processo com o timeout curto, e ele faz SÓ o POST — a
- * reconciliação acontece de volta no pai, com timeout normal. Os dois lados
- * usam o adapter real.
- *
- * Ele é MORTO em voo pelo pai; se chegar a terminar sozinho, a prova não vale
- * e o pai tenta de novo com menos folga.
+ * Falha de transporte INJETADA, com I/O real: native fetch envia o POST ao
+ * sandbox; seu corpo de resposta é descartado antes de retornar ao adapter.
+ * O pai mata este processo nessa fronteira, então reconcilia por GET. Não há
+ * resposta sintética, mock de provedor, segundo POST ou medição de estado DB.
  */
 async function lostPostChild(customerId: string, externalReference: string): Promise<never> {
+  const base = guard();
+  assert.ok(process.send, '[sandbox] modo filho exige canal IPC');
+  const nativeFetch = globalThis.fetch;
+  let posts = 0;
+  globalThis.fetch = async (input, init) => {
+    assert.equal(input, `${base}/subscriptions`, '[sandbox] I/O inesperado no filho');
+    assert.equal(init?.method, 'POST', '[sandbox] o filho só pode criar uma assinatura');
+    posts += 1;
+    assert.equal(posts, 1, '[sandbox] POST repetido durante perda de resposta');
+    const response = await nativeFetch(input, init);
+    await response.body?.cancel();
+    process.send?.({ type: 'response-discarded', posts, httpStatus: response.status });
+    // Nunca entrega Response ao adapter. IPC mantém o filho vivo até o pai
+    // encerrá-lo; o timeout do pai também cobre falhas anteriores a este ponto.
+    return new Promise<Response>(() => {});
+  };
   try {
     await asaasProvider.createSubscription({
       customerId,
@@ -113,9 +130,38 @@ async function lostPostChild(customerId: string, externalReference: string): Pro
     });
     process.exit(0);
   } catch (error) {
-    if (error instanceof BillingProviderUnreachableError) process.exit(3);
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
+  }
+}
+
+const subscriptionRow = z.object({
+  id: z.string(),
+  status: z.string().optional(),
+  deleted: z.boolean().optional(),
+  externalReference: z.string().nullable().optional(),
+});
+const customerRow = z.object({ id: z.string(), name: z.string().optional() });
+
+async function sandboxGet(resource: string): Promise<Response> {
+  const base = guard();
+  return fetch(`${base}${resource}`, {
+    headers: { access_token: process.env.ASAAS_API_KEY ?? '' },
+    signal: AbortSignal.timeout(15_000),
+  });
+}
+
+async function listSandbox<T>(resource: string, row: z.ZodType<T>): Promise<T[]> {
+  const pageSchema = z.object({ data: z.array(row), hasMore: z.boolean() });
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += 100) {
+    const separator = resource.includes('?') ? '&' : '?';
+    const response = await sandboxGet(`${resource}${separator}limit=100&offset=${offset}`);
+    assert.ok(response.ok, `[sandbox] listagem falhou: HTTP ${response.status}`);
+    const page = pageSchema.parse(await response.json());
+    rows.push(...page.data);
+    if (!page.hasMore) return rows;
+    assert.ok(page.data.length > 0, '[sandbox] paginação vazia com hasMore=true');
   }
 }
 
@@ -293,6 +339,13 @@ async function main(): Promise<void> {
 
     const readback = await asaasProvider.getSubscription(created.subscriptionId);
     const found = await asaasProvider.findSubscriptionByExternalReference(externalReference);
+    const rawResponse = await sandboxGet(
+      `/subscriptions/${encodeURIComponent(created.subscriptionId)}`,
+    );
+    assert.ok(rawResponse.ok, `readback do contrato falhou: HTTP ${rawResponse.status}`);
+    const schedule = z
+      .object({ cycle: z.string(), nextDueDate: z.string() })
+      .parse(await rawResponse.json());
 
     // A comparação é campo a campo e explícita: o servidor do Qoro é autoridade
     // de valor e ciclo (vêm do catálogo); o provedor é autoridade de estado.
@@ -300,6 +353,20 @@ async function main(): Promise<void> {
     assert.equal(readback.status, 'ACTIVE', 'assinatura não nasceu ACTIVE');
     assert.equal(found?.externalReference, externalReference, 'externalReference não voltou');
     assert.equal(found?.subscriptionId, created.subscriptionId, 'referência apontou para outra');
+    assert.equal(schedule.cycle, intent.cycle, 'ciclo divergiu do catálogo');
+    // nextDueDate avança assim que o Asaas gera a primeira cobrança. O trial
+    // contratado é medido no vencimento dessa cobrança, não no próximo ciclo.
+    const payments = await asaasProvider.listSubscriptionPayments(created.subscriptionId);
+    const firstPayment = payments
+      .filter((payment) => !payment.deleted)
+      .sort((left, right) => left.dueDate.localeCompare(right.dueDate))[0];
+    assert.ok(firstPayment, 'primeira cobrança não encontrada no sandbox');
+    assert.equal(firstPayment.dueDate, intent.nextDueDate, 'primeira cobrança divergiu do trial');
+    assert.equal(
+      firstPayment.value,
+      intent.value,
+      'valor da primeira cobrança divergiu do catálogo',
+    );
 
     return {
       subscription: redactOpaqueId(created.subscriptionId),
@@ -308,11 +375,14 @@ async function main(): Promise<void> {
       providerValue: readback.value,
       providerStatus: readback.status,
       qoroNextDueDate: intent.nextDueDate,
+      providerNextDueDate: schedule.nextDueDate,
+      firstPaymentDueDate: firstPayment.dueDate,
+      providerCycle: schedule.cycle,
     };
   });
 
   /* ------------------------------------------------------------------ P3 */
-  await check('P3', 'resposta PERDIDA vira creation_unknown e reconcilia', async () => {
+  await check('P3', 'resposta perdida reconcilia sem repetir POST', async () => {
     const customer = (
       await asaasProvider.createCustomer({
         name: 'Qoro Sandbox Timeout',
@@ -321,67 +391,88 @@ async function main(): Promise<void> {
       })
     ).customerId;
     createdCustomers.add(customer);
-
     const externalReference = reference('p3');
 
-    // Perda de resposta DE VERDADE: o filho dispara o POST e é morto em voo.
-    // O request chega ao Asaas; nós nunca lemos a resposta. É o cenário que o
-    // `creation_unknown` existe para cobrir — e não dá para simular com `throw`.
-    //
-    // O atraso da morte é auto-ajustável: se o POST ainda não tinha saído, a
-    // referência não aparece e tentamos de novo com mais folga, até 3 vezes.
-    let killDelayMs = 0;
-    let reconciledEarly: Awaited<
-      ReturnType<typeof asaasProvider.findSubscriptionByExternalReference>
-    > = null;
-    for (const delay of [250, 600, 1200]) {
-      killDelayMs = delay;
-      const child = spawn(
-        process.execPath,
-        [
-          path.join(root, 'node_modules/tsx/dist/cli.mjs'),
-          path.join(root, 'scripts/security/signup-billing-sandbox.ts'),
-          `--lost-post=${customer}|${externalReference}`,
-        ],
-        { windowsHide: true, stdio: 'ignore', env: { ...process.env } },
-      );
-      const killed = await new Promise<boolean>((resolve) => {
-        const timer = setTimeout(() => {
+    // Um único processo Node: matar o launcher do tsx deixava um neto vivo no
+    // Windows. A fronteira de falha é sinalizada por IPC após I/O real.
+    const child = spawn(
+      process.execPath,
+      [
+        '--conditions=react-server',
+        '--import',
+        'tsx',
+        path.join(root, 'scripts/security/signup-billing-sandbox.ts'),
+        `--lost-post=${customer}|${externalReference}`,
+      ],
+      { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], env: { ...process.env } },
+    );
+    const lost = await new Promise<{ posts: number; httpStatus: number }>((resolve, reject) => {
+      let received: { posts: number; httpStatus: number } | null = null;
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, 30_000);
+      child.on('message', (message: unknown) => {
+        const parsed = z
+          .object({
+            type: z.literal('response-discarded'),
+            posts: z.literal(1),
+            httpStatus: z.number().int(),
+          })
+          .safeParse(message);
+        if (parsed.success) {
+          received = parsed.data;
           child.kill('SIGKILL');
-          resolve(true);
-        }, delay);
-        child.on('exit', () => {
-          clearTimeout(timer);
-          resolve(false);
-        });
+        }
       });
-      // Dá tempo de o Asaas terminar de aplicar o que já recebeu.
-      await new Promise((r) => setTimeout(r, 1_500));
-      reconciledEarly = await asaasProvider.findSubscriptionByExternalReference(externalReference);
-      if (reconciledEarly) {
-        assert.ok(killed, 'a assinatura apareceu, mas o filho terminou sozinho');
-        break;
-      }
+      child.once('error', () => {
+        clearTimeout(timer);
+        reject(new Error('falha ao iniciar o processo da prova P3'));
+      });
+      child.once('close', () => {
+        clearTimeout(timer);
+        if (!received || timedOut) {
+          reject(new Error('filho terminou sem provar descarte da resposta real'));
+        } else {
+          resolve(received);
+        }
+      });
+    });
+    assert.ok(lost.httpStatus >= 200 && lost.httpStatus < 300, 'POST não foi aceito pelo sandbox');
+
+    // Somente GET depois da perda. Ausência momentânea jamais autoriza novo POST.
+    let reconciled = await asaasProvider.findSubscriptionByExternalReference(externalReference);
+    for (let attempt = 0; !reconciled && attempt < 4; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      reconciled = await asaasProvider.findSubscriptionByExternalReference(externalReference);
     }
-
-    // O contrato do O-5: daqui NAO se reenvia POST. Pergunta-se, com o timeout
-    // normal deste processo.
-    const reconciled =
-      reconciledEarly ??
-      (await asaasProvider.findSubscriptionByExternalReference(externalReference));
     if (reconciled) createdSubscriptions.add(reconciled.subscriptionId);
-    assert.ok(reconciled, 'o POST nunca chegou ao provedor — prova inconclusiva');
-
+    assert.ok(reconciled, 'assinatura não encontrada por externalReference após resposta perdida');
+    assert.equal(reconciled.status, 'ACTIVE');
+    const matches = await listSandbox(
+      `/subscriptions?externalReference=${encodeURIComponent(externalReference)}`,
+      subscriptionRow,
+    );
+    for (const row of matches) {
+      assert.equal(row.externalReference, externalReference, 'provedor devolveu outra referência');
+      createdSubscriptions.add(row.id);
+    }
+    assert.equal(
+      matches.length,
+      1,
+      'a referência precisa corresponder a exatamente uma assinatura',
+    );
     return {
       externalReference,
       lostResponse: true,
-      killDelayMs,
-      reconciled: reconciled !== null,
-      subscription: reconciled ? redactOpaqueId(reconciled.subscriptionId) : null,
-      providerStatus: reconciled?.status ?? null,
-      // `false` aqui nao e falha: significa que o POST morreu antes de chegar,
-      // e o estado local `creation_unknown` continua correto e conservador.
-      verdict: reconciled ? 'RECOVERED_WITHOUT_SECOND_POST' : 'NOTHING_WAS_CREATED',
+      injectedTransportLoss: true,
+      targetPosts: lost.posts,
+      subscription: redactOpaqueId(reconciled.subscriptionId),
+      providerStatus: reconciled.status,
+      verdict: 'RECOVERED_WITHOUT_SECOND_POST',
+      scope:
+        'adapter + sandbox reais; estado creation_unknown do banco provado em signup-regression',
     };
   });
 
@@ -458,18 +549,31 @@ async function main(): Promise<void> {
 
   /* -------------------------------------------------------------- cleanup */
   const cleanup: Record<string, unknown> = {};
+  const cleanupErrors: { resource: string; httpStatus: number | null }[] = [];
+  // Descobre também efeitos que aconteceram antes de uma asserção falhar ou
+  // cuja resposta se perdeu. O contador local sozinho não prova ausência.
+  await check('CLEANUP_DISCOVERY', 'localiza todas as referências desta execução', async () => {
+    for (const externalReference of attemptedReferences) {
+      const rows = await listSandbox(
+        `/subscriptions?externalReference=${encodeURIComponent(externalReference)}`,
+        subscriptionRow,
+      );
+      for (const row of rows) {
+        assert.equal(row.externalReference, externalReference, 'cleanup recebeu referência alheia');
+        createdSubscriptions.add(row.id);
+      }
+    }
+  });
   let cancelled = 0;
   for (const id of createdSubscriptions) {
     try {
       await asaasProvider.cancelSubscription(id);
       cancelled += 1;
     } catch (error) {
-      console.log(`[sandbox] falha ao cancelar ${redactOpaqueId(id)}`);
-      results.push({
-        id: 'CLEANUP',
-        name: `cancelamento de assinatura ${redactOpaqueId(id)}`,
-        status: 'FAIL',
-        detail: error instanceof Error ? error.message : String(error),
+      console.log(`[sandbox] DELETE inconclusivo ${redactOpaqueId(id)}; readback obrigatório`);
+      cleanupErrors.push({
+        resource: 'subscription',
+        httpStatus: error instanceof BillingProviderError ? error.httpStatus : null,
       });
     }
   }
@@ -479,12 +583,10 @@ async function main(): Promise<void> {
       await asaasProvider.deleteCustomer(id);
       deleted += 1;
     } catch (error) {
-      console.log(`[sandbox] falha ao apagar customer ${redactOpaqueId(id)}`);
-      results.push({
-        id: 'CLEANUP',
-        name: `remocao de customer ${redactOpaqueId(id)}`,
-        status: 'FAIL',
-        detail: error instanceof Error ? error.message : String(error),
+      console.log(`[sandbox] DELETE inconclusivo ${redactOpaqueId(id)}; readback obrigatório`);
+      cleanupErrors.push({
+        resource: 'customer',
+        httpStatus: error instanceof BillingProviderError ? error.httpStatus : null,
       });
     }
   }
@@ -492,6 +594,28 @@ async function main(): Promise<void> {
   cleanup.subscriptionsCancelled = cancelled;
   cleanup.customersCreated = createdCustomers.size;
   cleanup.customersDeleted = deleted;
+  cleanup.deleteResponsesInconclusive = cleanupErrors;
+  await check(
+    'CLEANUP_READBACK',
+    'nenhuma assinatura ou customer da execução permanece',
+    async () => {
+      for (const id of createdSubscriptions) {
+        const response = await sandboxGet(`/subscriptions/${encodeURIComponent(id)}`);
+        if (response.status === 404) continue;
+        assert.ok(response.ok, `readback de assinatura falhou: HTTP ${response.status}`);
+        const row = subscriptionRow.parse(await response.json());
+        assert.equal(row.deleted, true, 'assinatura de teste permanece no sandbox');
+      }
+      for (const id of createdCustomers) {
+        const response = await sandboxGet(`/customers/${encodeURIComponent(id)}`);
+        if (response.status === 404) continue;
+        assert.ok(response.ok, `readback de customer falhou: HTTP ${response.status}`);
+        const row = customerRow.extend({ deleted: z.boolean() }).parse(await response.json());
+        assert.equal(row.deleted, true, 'customer de teste permanece no sandbox');
+      }
+      return { subscriptionsRemaining: 0, customersRemaining: 0 };
+    },
+  );
   console.log(
     `[sandbox] cleanup: ${cancelled}/${createdSubscriptions.size} assinaturas, ${deleted}/${createdCustomers.size} customers`,
   );

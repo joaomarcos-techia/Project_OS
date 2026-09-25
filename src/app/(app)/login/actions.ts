@@ -5,6 +5,10 @@ import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import {
+  ensurePasswordAuthenticatedSignupAuthBinding,
+  readSignupAuthBinding,
+} from '@/contexts/onboarding';
+import {
   CAPTCHA_ERROR_MESSAGE,
   captchaOptions,
   isCaptchaError,
@@ -147,7 +151,17 @@ export async function loginAction(
   if (!profile) {
     const onboarding = await resolvePreTenantOnboarding(supabase);
     if (onboarding.ok) {
-      redirect(onboarding.kind === 'pretenant' ? '/cadastro/continuar' : onboarding.route);
+      if (onboarding.kind === 'redirect') redirect(onboarding.route);
+      const currentBinding = readSignupAuthBinding(data.user);
+      if (currentBinding?.passwordState === 'set') redirect('/cadastro/continuar');
+      // Contas pré-tenant criadas antes do marker em app_metadata já têm senha.
+      // O login acabou de prová-la; reata o marker apenas à linha verificada que
+      // o mesmo user/e-mail possui, sem aceitar referência vinda do formulário.
+      const binding = await ensurePasswordAuthenticatedSignupAuthBinding({
+        userId: onboarding.userId,
+        email: onboarding.email,
+      });
+      if (binding.ok) redirect('/cadastro/continuar');
     }
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Profile inválido. Contate o administrador.' };

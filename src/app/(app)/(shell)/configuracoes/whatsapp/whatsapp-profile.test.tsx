@@ -118,9 +118,7 @@ describe('leitura bem-sucedida', () => {
 
     // §33.3 nº 2 — o aviso precede os campos. Depois deles seria decoração.
     const primeiroCampo = container.querySelector('input, textarea');
-    expect(publico?.compareDocumentPosition(primeiroCampo!)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    expect(publico?.compareDocumentPosition(primeiroCampo!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('rotula o e-mail como sendo DA CLÍNICA, nunca genérico', () => {

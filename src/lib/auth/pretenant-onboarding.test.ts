@@ -17,7 +17,10 @@ vi.mock('./tenant-context', () => ({
 }));
 vi.mock('./policies', () => ({ postLoginRedirect: mocks.postLoginRedirect }));
 
-import { resolvePreTenantOnboarding } from './pretenant-onboarding';
+import {
+  resolvePreTenantOnboarding,
+  resolveReadyPreTenantOnboarding,
+} from './pretenant-onboarding';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const verifiedUser = {
@@ -25,6 +28,14 @@ const verifiedUser = {
   email: 'verified@example.invalid',
   email_confirmed_at: '2026-09-16T00:00:00.000Z',
   is_anonymous: false,
+  app_metadata: {
+    qoro_self_service_signup: {
+      version: 1,
+      kind: 'self_service',
+      signup_ref: 'a'.repeat(64),
+      password_state: 'set',
+    },
+  },
 };
 
 beforeEach(() => {
@@ -73,6 +84,8 @@ describe('resolvePreTenantOnboarding', () => {
       kind: 'pretenant',
       userId: USER_ID,
       email: verifiedUser.email,
+      signupRef: 'a'.repeat(64),
+      pendingSignupRef: null,
     });
     expect(mocks.readAuthoritativeProfile).toHaveBeenCalledWith(USER_ID);
     expect(mocks.authenticate).not.toHaveBeenCalled();
@@ -149,4 +162,83 @@ describe('resolvePreTenantOnboarding', () => {
       });
     },
   );
+});
+
+describe('resolveReadyPreTenantOnboarding', () => {
+  it('admite pré-tenant somente depois de a credencial ficar pronta', async () => {
+    await expect(resolveReadyPreTenantOnboarding()).resolves.toEqual({
+      ok: true,
+      kind: 'pretenant',
+      userId: USER_ID,
+      email: verifiedUser.email,
+      signupRef: 'a'.repeat(64),
+      pendingSignupRef: null,
+    });
+  });
+
+  it('recusa com razão tipada a sessão confirmada cujo handoff segue pendente', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: {
+        user: {
+          ...verifiedUser,
+          app_metadata: {
+            qoro_self_service_signup: {
+              ...verifiedUser.app_metadata.qoro_self_service_signup,
+              password_state: 'pending',
+            },
+          },
+        },
+      },
+      error: null,
+    });
+
+    await expect(resolveReadyPreTenantOnboarding()).resolves.toEqual({
+      ok: false,
+      reason: 'credentials_pending',
+    });
+    expect(mocks.authenticate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    undefined,
+    {},
+    { qoro_self_service_signup: { password_state: 'set' } },
+    {
+      qoro_self_service_signup: {
+        version: 1,
+        kind: 'self_service',
+        signup_ref: 'not-a-reference',
+        password_state: 'set',
+      },
+    },
+  ])('falha fechada para marcador ausente ou inválido %#', async (appMetadata) => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { ...verifiedUser, app_metadata: appMetadata } },
+      error: null,
+    });
+
+    await expect(resolveReadyPreTenantOnboarding()).resolves.toEqual({
+      ok: false,
+      reason: 'credentials_invalid',
+    });
+  });
+
+  it('preserva o redirecionamento de perfil existente sem exigir marcador de cadastro', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { ...verifiedUser, app_metadata: {} } },
+      error: null,
+    });
+    mocks.readAuthoritativeProfile.mockResolvedValue({ mfaEnrolledAt: null });
+    mocks.authenticate.mockResolvedValue({
+      ok: true,
+      identity: { userId: USER_ID, role: 'owner', aal: 'aal1' },
+    });
+    mocks.postLoginRedirect.mockReturnValue('/dashboard');
+
+    await expect(resolveReadyPreTenantOnboarding()).resolves.toEqual({
+      ok: true,
+      kind: 'redirect',
+      route: '/dashboard',
+    });
+  });
 });

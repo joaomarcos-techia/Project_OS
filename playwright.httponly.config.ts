@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const APP_DIR = path.join(process.cwd(), 'dist/security-local/app');
 const RUNTIME_ENV = path.join(process.cwd(), 'dist/security-local/runtime-env.json');
-const PORT = 3220;
+const PORT = 3217;
 const baseURL = `http://localhost:${PORT}`;
 
 function runtimeEnv(): Record<string, string> {
@@ -25,6 +25,8 @@ export default defineConfig({
   webServer: {
     command: `node ${path.join(process.cwd(), 'node_modules/next/dist/bin/next')} start -p ${PORT} -H localhost`,
     cwd: APP_DIR,
+    // A rota de confirmação compara o Origin com o APP_BASE_URL usado no build.
+    // Servir no mesmo origin também prova o artefato exatamente como foi gerado.
     env: runtimeEnv(),
     url: `${baseURL}/login`,
     reuseExistingServer: false,

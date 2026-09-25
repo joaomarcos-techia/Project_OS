@@ -4,23 +4,31 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
+import {
+  advanceSignupCredentialEpoch,
+  checkSignupPasswordExposure,
+  finishSignupCredentialEpoch,
+  markSignupPasswordSet,
+  readSignupPasswordState,
+} from '@/contexts/onboarding';
 import { hashEmail } from '@/lib/auth/email-hash';
 import { assertPasswordResetCompletionAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import {
+  isOrphanRecoveryEpochConsumed,
+  markOrphanRecoveryEpochConsumed,
+} from '@/lib/auth/recovery-consumption';
 import { RECOVERY_GRANT_COOKIE, readRecoveryGrant } from '@/lib/auth/recovery-grant';
-import { bumpSessionEpoch } from '@/lib/auth/session-epoch';
+import { bumpSessionEpochIfCurrent, withOrphanRecoveryLock } from '@/lib/auth/session-epoch';
+import { signupPasswordSchema } from '@/lib/auth/signup-password';
+import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { logger } from '@/lib/observability/logger';
 
-const Schema = z.object({ password: z.string().min(8).max(256) });
+const Schema = z.object({ password: signupPasswordSchema });
 
 export type ResetState = { error: string | null };
 
-/**
- * Mensagem única para TODAS as recusas de autorização (ausente, expirado,
- * forjado, usuário errado, já consumido). Distingui-las diria a um atacante
- * qual metade do ataque funcionou.
- */
 const INVALID_GRANT =
   'Link de redefinição inválido, expirado ou já utilizado. Peça um novo ao administrador.';
 
@@ -29,26 +37,15 @@ export async function resetPasswordAction(
   formData: FormData,
 ): Promise<ResetState> {
   const parsed = Schema.safeParse({ password: formData.get('password') });
-  if (!parsed.success) {
-    return { error: 'Senha deve ter ao menos 8 caracteres.' };
-  }
+  if (!parsed.success) return { error: 'Senha deve ter ao menos 8 caracteres.' };
+
   const supabase = await createServerClient({ cookieWrites: 'required' });
-
-  // V10 (auditoria de segurança): valida EXPLICITAMENTE a sessão (não confia só
-  // no cookie) e aplica rate-limit.
   const { data: userData } = await supabase.auth.getUser();
-  const email = userData.user?.email;
-  const userId = userData.user?.id;
-  if (!email || !userId) {
-    return { error: INVALID_GRANT };
-  }
+  const user = userData.user;
+  const email = user?.email;
+  const userId = user?.id;
+  if (!user || !email || !userId) return { error: INVALID_GRANT };
 
-  // ------------------------------------------------------------------
-  // AUTH-006 — prova de recovery, não "tem sessão"
-  // ------------------------------------------------------------------
-  // Antes, o único check era o `getUser()` acima: uma sessão autenticada por
-  // SENHA passava por ele e trocava a credencial. O grant abaixo só existe se
-  // um `verifyOtp(type:'recovery')` tiver acontecido no servidor.
   const jar = await cookies();
   const grant = readRecoveryGrant(jar.get(RECOVERY_GRANT_COOKIE)?.value);
   if (!grant || grant.userId !== userId) {
@@ -56,16 +53,15 @@ export async function resetPasswordAction(
     return { error: INVALID_GRANT };
   }
 
-  // Uso único: o grant carrega o epoch da emissão e vale enquanto o banco
-  // ainda estiver nele. O bump no fim deste fluxo é o que o queima.
   const profile = await readAuthoritativeProfile(userId);
-  if (!profile || profile.claimsVersion !== grant.epoch) {
-    logger.warn('reset_password.grant_stale', {});
+  if (
+    (grant.kind === 'profile' && (!profile || profile.claimsVersion !== grant.epoch)) ||
+    (grant.kind !== 'profile' && profile !== null)
+  ) {
+    logger.warn('reset_password.grant_stale', { kind: grant.kind });
     return { error: INVALID_GRANT };
   }
 
-  // Mesma defesa do login/forgot (F-06/F-08): IP + email_hash, fail-open se o
-  // Upstash cair. Limitado → mensagem genérica (não confirma nada ao atacante).
   const limit = await assertPasswordResetCompletionAllowed(
     getClientIp(await headers()),
     hashEmail(email),
@@ -74,50 +70,182 @@ export async function resetPasswordAction(
     return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
   }
 
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) {
-    // V10: NÃO vazar `error.message` cru (podia expor detalhe interno). Mensagem
-    // genérica ao usuário; o detalhe vai só para o observability.
-    logger.warn('reset_password.update_failed', { message: error.message });
-    return { error: 'Não foi possível redefinir a senha. Tente novamente.' };
+  if (grant.kind === 'profile') {
+    let consumed = false;
+    try {
+      // CAS antes do Auth I/O: só uma requisição que carrega este epoch pode
+      // instalar a senha e as sessões antigas já ficam revogadas.
+      consumed = await bumpSessionEpochIfCurrent(userId, grant.epoch, 'password_reset');
+    } catch (error) {
+      logger.error('reset_password.epoch_bump_failed', {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return { error: 'Não foi possível redefinir a senha agora. Tente novamente.' };
+    }
+    if (!consumed) {
+      jar.delete(RECOVERY_GRANT_COOKIE);
+      logger.warn('reset_password.grant_stale', { kind: grant.kind });
+      return { error: INVALID_GRANT };
+    }
+    jar.delete(RECOVERY_GRANT_COOKIE);
+
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+    if (error) {
+      logger.warn('reset_password.update_failed', { kind: grant.kind });
+      await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined);
+      await clearSupabaseSessionSelector();
+      return { error: 'Não foi possível redefinir a senha. Solicite um novo link.' };
+    }
+
+    await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined);
+    await clearSupabaseSessionSelector();
+    redirect('/login?reason=password_updated');
   }
 
-  // ------------------------------------------------------------------
-  // AUTH-007 — expulsar de verdade quem já estava dentro
-  // ------------------------------------------------------------------
-  // Quem redefine a senha está recuperando uma conta possivelmente
-  // comprometida. Antes existia só `signOut({scope:'others'})`, que revoga
-  // REFRESH tokens — e o pentest mostrou a segunda sessão navegando no
-  // Dashboard depois do reset, porque o ACCESS token dela continuava válido.
-  // O bump do epoch mata todos os tokens já emitidos no próximo request,
-  // inclusive o desta própria sessão de recovery (que vai para /login).
-  // Ele TAMBÉM queima o grant consumido acima.
-  let revoked = true;
-  try {
-    revoked = await bumpSessionEpoch(userId, 'password_reset');
-  } catch (err) {
-    revoked = false;
-    logger.error('reset_password.epoch_bump_failed', {
-      message: err instanceof Error ? err.message : String(err),
+  if (grant.kind === 'pretenant_orphan') {
+    const exposure = await checkSignupPasswordExposure(parsed.data.password);
+    if (exposure === 'pwned') {
+      return { error: 'Escolha uma senha que não apareceu em vazamentos conhecidos.' };
+    }
+    if (exposure === 'unavailable') {
+      return { error: 'Não foi possível validar a senha agora. Tente novamente.' };
+    }
+
+    jar.delete(RECOVERY_GRANT_COOKIE);
+    const result = await withOrphanRecoveryLock(userId, async () => {
+      const admin = createAdminClient();
+      const { data: authoritative, error: readError } = await admin.auth.admin.getUserById(userId);
+      const authUser = authoritative.user;
+      const authEpoch = Date.parse(authUser?.updated_at ?? '');
+      if (
+        readError ||
+        !authUser ||
+        authUser.id !== userId ||
+        authUser.email?.trim().toLowerCase() !== email.trim().toLowerCase() ||
+        !authUser.email_confirmed_at ||
+        !Number.isFinite(authEpoch) ||
+        authEpoch !== grant.epoch ||
+        isOrphanRecoveryEpochConsumed(authUser.app_metadata, grant.epoch) ||
+        readSignupPasswordState(authUser, grant.signupRef) !== 'set'
+      ) {
+        return { ok: false as const, reason: 'stale' as const };
+      }
+
+      const appMetadata = markOrphanRecoveryEpochConsumed(
+        markSignupPasswordSet(authUser, grant.signupRef),
+        grant.epoch,
+      );
+      const { data: updated, error } = await admin.auth.admin.updateUserById(userId, {
+        password: parsed.data.password,
+        app_metadata: appMetadata,
+      });
+      if (
+        error ||
+        readSignupPasswordState(updated.user, grant.signupRef) !== 'set' ||
+        !isOrphanRecoveryEpochConsumed(updated.user?.app_metadata, grant.epoch)
+      ) {
+        return { ok: false as const, reason: 'update_failed' as const };
+      }
+      return { ok: true as const };
     });
+
+    if (!result.ok && result.reason === 'stale') {
+      logger.warn('reset_password.grant_stale', { kind: grant.kind });
+      return { error: INVALID_GRANT };
+    }
+    if (!result.ok) {
+      logger.warn('reset_password.update_failed', { kind: grant.kind });
+      return { error: 'Não foi possível redefinir a senha. Solicite um novo link.' };
+    }
+
+    await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined);
+    await clearSupabaseSessionSelector();
+    redirect('/login?reason=password_updated');
   }
 
-  // Fecha o outro lado: refresh tokens de TODAS as sessões (antes era
-  // 'others'; a desta sessão também deve morrer, já que o epoch a derrubou).
-  await supabase.auth.signOut({ scope: 'global' }).catch(() => {
-    /* não-fatal: o epoch já derrubou os access tokens */
-  });
-  await clearSupabaseSessionSelector();
-  jar.delete(RECOVERY_GRANT_COOKIE);
+  if (grant.kind === 'pretenant') {
+    const passwordState = readSignupPasswordState(user, grant.signupRef);
+    if (passwordState === null) {
+      logger.warn('reset_password.grant_stale', { kind: grant.kind });
+      return { error: INVALID_GRANT };
+    }
 
-  if (!revoked) {
-    // A senha JÁ mudou — não dá para desfazer, e fingir sucesso pleno seria
-    // mentir sobre o estado das outras sessões. Dizemos o que aconteceu.
-    return {
-      error:
-        'Senha atualizada, mas não foi possível encerrar as outras sessões. Entre novamente e avise o administrador da clínica.',
-    };
+    // Recovery sempre escolhe uma senha nova, inclusive quando a conta já
+    // tinha marker `set`; por isso a checagem HIBP não pode ser pulada nesse
+    // ramo. Só o retry de continuação com a MESMA senha evita uma nova consulta.
+    const exposure = await checkSignupPasswordExposure(parsed.data.password);
+    if (exposure === 'pwned') {
+      return { error: 'Escolha uma senha que não apareceu em vazamentos conhecidos.' };
+    }
+    if (exposure === 'unavailable') {
+      return { error: 'Não foi possível validar a senha agora. Tente novamente.' };
+    }
+
+    let expectedRowVersion = grant.epoch;
+    if (passwordState === 'set') {
+      // Uma atualização Auth pode ter sido confirmada enquanto a finalização
+      // no banco falhou. O marker autoritativo permite fechar essa reserva antes
+      // de a nova prova de recovery disputar outro epoch.
+      const repaired = await finishSignupCredentialEpoch({
+        userId,
+        signupRef: grant.signupRef,
+        expectedRowVersion,
+        outcome: 'completed',
+      });
+      if (!repaired.ok) {
+        jar.delete(RECOVERY_GRANT_COOKIE);
+        logger.warn('reset_password.grant_stale', { kind: grant.kind });
+        return { error: INVALID_GRANT };
+      }
+      expectedRowVersion = repaired.rowVersion;
+    }
+
+    // Este CAS é o mesmo usado pelo handoff. O grant deixa de valer antes de
+    // qualquer I/O externo; somente o vencedor pode instalar a credencial.
+    const consumed = await advanceSignupCredentialEpoch({
+      userId,
+      signupRef: grant.signupRef,
+      expectedRowVersion,
+      source: 'recovery',
+    });
+    if (!consumed.ok) {
+      jar.delete(RECOVERY_GRANT_COOKIE);
+      logger.warn('reset_password.grant_stale', { kind: grant.kind });
+      return { error: INVALID_GRANT };
+    }
+    jar.delete(RECOVERY_GRANT_COOKIE);
+
+    const admin = createAdminClient();
+    const { data: updated, error } = await admin.auth.admin.updateUserById(userId, {
+      password: parsed.data.password,
+      app_metadata: markSignupPasswordSet(user, grant.signupRef),
+    });
+    if (error || readSignupPasswordState(updated.user, grant.signupRef) !== 'set') {
+      await finishSignupCredentialEpoch({
+        userId,
+        signupRef: grant.signupRef,
+        expectedRowVersion: consumed.rowVersion,
+        outcome: 'uncertain',
+      }).catch(() => undefined);
+      logger.warn('reset_password.update_failed', { kind: grant.kind });
+      return { error: 'Não foi possível redefinir a senha. Solicite um novo link.' };
+    }
+
+    const finished = await finishSignupCredentialEpoch({
+      userId,
+      signupRef: grant.signupRef,
+      expectedRowVersion: consumed.rowVersion,
+      outcome: 'completed',
+    });
+    if (!finished.ok) {
+      logger.warn('reset_password.finish_failed', { kind: grant.kind });
+      return { error: 'Não foi possível concluir a redefinição. Solicite um novo link.' };
+    }
+
+    await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined);
+    await clearSupabaseSessionSelector();
+    redirect('/login?reason=password_updated');
   }
 
-  redirect('/login?reason=password_updated');
+  return { error: INVALID_GRANT };
 }

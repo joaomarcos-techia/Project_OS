@@ -46,9 +46,9 @@ export async function GET(req: Request): Promise<Response> {
   const state = await readSignupSession(rawToken);
   if (!state) return gone();
 
-  const response = NextResponse.json({ session: state }, { status: 200 });
-  if (state.status === 'email_verified') {
-    response.cookies.set(SIGNUP_SESSION_COOKIE, '', SIGNUP_COOKIE_CLEAR_OPTIONS);
-  }
-  return response;
+  // O cookie verificado ainda prova qual aba iniciou o cadastro. Ele só é
+  // apagado depois que essa aba abre a sessão Auth no endpoint `/continue`.
+  // Apagá-lo aqui quebrava exatamente o fluxo em que o link era aberto no
+  // celular e o checkout precisava seguir no computador.
+  return NextResponse.json({ session: state }, { status: 200 });
 }

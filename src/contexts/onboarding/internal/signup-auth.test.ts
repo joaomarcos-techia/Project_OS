@@ -16,6 +16,7 @@ vi.mock('@/lib/db', () => ({ dbAdmin: { update, select } }));
 
 import {
   abortSignupAuthAttempt,
+  abortSignupResendAttempt,
   finishSignupAuthAttempt,
   finishSignupResendAttempt,
   reserveSignupAuthAttempt,
@@ -34,7 +35,6 @@ const valid = {
 const validResend = {
   rowVersion: 5,
   email: valid.email,
-  accepted: true,
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -98,7 +98,7 @@ describe('senha e contrato inicial', () => {
     expect(update).not.toHaveBeenCalled();
   });
   it('reserva só metadados da intenção, sem credenciais/PII retornadas', async () => {
-    expect(await reserveSignupAuthAttempt(token, { ...valid, captchaToken: 'fresh' })).toEqual({
+    expect(await reserveSignupAuthAttempt(token, valid)).toEqual({
       ok: true,
       rowVersion: 4,
     });
@@ -133,6 +133,19 @@ describe('senha e contrato inicial', () => {
       ]);
     },
   );
+
+  it('libera reenvio sem efeito sem apagar o estado pendente', async () => {
+    await expect(abortSignupResendAttempt(token, 6)).resolves.toEqual({
+      ok: true,
+      rowVersion: 4,
+    });
+    expect(Object.keys(set.mock.calls[0]?.[0]).sort()).toEqual([
+      'authAttemptState',
+      'authAttemptedAt',
+      'rowVersion',
+    ]);
+    expect(set.mock.calls[0]?.[0]).toMatchObject({ authAttemptState: 'uncertain' });
+  });
   it.each([0, 1.5, 2_147_483_647])('recusa versão de resultado inválida %s', async (version) => {
     await expect(finishSignupAuthAttempt(token, version, 'completed')).rejects.toThrow(
       '[signup] invalid_auth_result',
@@ -213,7 +226,7 @@ describe('reenvio explícito', () => {
     { rowVersion: 0 },
     { rowVersion: 2_147_483_646 },
     { email: 'invalid' },
-    { password: 'Abcdef1!' },
+    { password: 'abcdefgh' },
     { authUserId: 'forged' },
     { captchaToken: '' },
     { captchaToken: 'x'.repeat(2049) },

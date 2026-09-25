@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   reconcile: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
-vi.mock('@/lib/auth/pretenant-onboarding', () => ({ resolvePreTenantOnboarding: mocks.resolve }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hashUser }));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertSignupDraftWriteAllowed: mocks.writeLimit,
@@ -26,6 +25,7 @@ vi.mock('@/contexts/onboarding', () => ({
   startSignupSubscription: mocks.start,
   provisionTenantFromSignup: mocks.provision,
   reconcileSignupSubscription: mocks.reconcile,
+  resolveReadyOwnedSignupOnboarding: mocks.resolve,
 }));
 
 import { POST } from './route';
@@ -150,6 +150,8 @@ describe('POST /api/signup/checkout', () => {
   it.each([
     ['sem identidade', { ok: false, reason: 'unauthenticated' }, 401],
     ['perfil negado', { ok: false, reason: 'profile_denied' }, 403],
+    ['credencial pendente', { ok: false, reason: 'credentials_pending' }, 403],
+    ['marcador inválido', { ok: false, reason: 'credentials_invalid' }, 403],
     ['já tem tenant', { ok: true, kind: 'redirect', route: '/dashboard' }, 403],
   ])('%s não chega ao billing', async (_l, resolved, status) => {
     mocks.resolve.mockResolvedValue(resolved);

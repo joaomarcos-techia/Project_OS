@@ -23,12 +23,12 @@ import { z } from 'zod';
 import {
   provisionTenantFromSignup,
   reconcileSignupSubscription,
+  resolveReadyOwnedSignupOnboarding,
   startSignupSubscription,
   type StartSignupSubscriptionOutcome,
 } from '@/contexts/onboarding';
 import { assertSignupDraftWriteAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { parseDocument } from '@/lib/validation/document';
-import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
@@ -52,7 +52,13 @@ function json(body: object, status = 200): NextResponse {
 }
 
 function authFailure(reason: string): NextResponse {
-  if (reason === 'profile_denied') return json({ error: 'forbidden' }, 403);
+  if (
+    reason === 'profile_denied' ||
+    reason === 'credentials_pending' ||
+    reason === 'credentials_invalid'
+  ) {
+    return json({ error: 'forbidden' }, 403);
+  }
   if (reason === 'unavailable') return json({ error: 'unavailable' }, 503);
   return json({ error: 'unauthorized' }, 401);
 }
@@ -101,7 +107,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const onboarding = await resolvePreTenantOnboarding();
+    const onboarding = await resolveReadyOwnedSignupOnboarding();
     if (!onboarding.ok) return authFailure(onboarding.reason);
     if (onboarding.kind !== 'pretenant') return json({ error: 'forbidden' }, 403);
 

@@ -89,7 +89,7 @@ Object.assign(childEnv, {
   GEMINI_API_KEY: 'security_bundle_canary_gemini_secret',
   ASAAS_API_KEY: 'security_bundle_canary_asaas_secret',
   CRYPTO_SECRET_BACKEND: 'env',
-  APP_BASE_URL: 'http://127.0.0.1:3217',
+  APP_BASE_URL: 'http://localhost:3217',
 });
 // Somente fixtures públicas/sintéticas; útil para reproduzir next start sem dotenv.
 await writeFile(path.join(output, 'runtime-env.json'), JSON.stringify(childEnv, null, 2));

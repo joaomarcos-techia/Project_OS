@@ -47,7 +47,7 @@ describe('GET signup session', () => {
     expect(read).toHaveBeenCalledWith('valid-token');
   });
 
-  it('informa confirmação em outro aparelho e encerra o cookie anônimo consumido', async () => {
+  it('informa confirmação em outro aparelho e preserva a prova para /continue', async () => {
     const state = {
       status: 'email_verified',
       rowVersion: 6,
@@ -61,7 +61,7 @@ describe('GET signup session', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ session: state });
-    expect(res.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(res.headers.get('set-cookie')).toBeNull();
   });
 
   it('limits before looking up or renewing a session', async () => {

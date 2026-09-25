@@ -7,6 +7,7 @@ vi.mock('@/lib/env', () => ({
 import {
   buildApplicationUrl,
   createAuthConfirmationUrl,
+  createSignupConfirmationUrl,
   createOnboardingInviteUrl,
   createPasswordResetRedirectUrl,
 } from './application-url';
@@ -34,9 +35,32 @@ describe('buildApplicationUrl', () => {
     ).toBe('http://localhost:3000/convite');
   });
 
-  it('constrói a confirmação SSR de um token de uso único sem aceitar redirect externo', () => {
+  it('mantém o token de confirmação fora do GET inicial', () => {
     expect(createAuthConfirmationUrl('token-hash-de-teste', 'recovery')).toBe(
-      'https://app.qoro.test/auth/confirm?token_hash=token-hash-de-teste&type=recovery&next=%2Fconvite',
+      'https://app.qoro.test/auth/confirm#token_hash=token-hash-de-teste&type=recovery&next=%2Fconvite',
+    );
+    expect(new URL(createAuthConfirmationUrl('token-hash-de-teste', 'recovery')).search).toBe('');
+  });
+
+  it.each(['signup', 'magiclink', 'recovery'] as const)(
+    'monta a confirmação do cadastro com destino próprio: %s',
+    (type) => {
+      // `next` é `/cadastro/confirmado`, não `/convite`: o link do cadastro
+      // termina numa tela que só diz que o e-mail foi confirmado.
+      expect(createSignupConfirmationUrl('hash', type, 'a'.repeat(64))).toBe(
+        `https://app.qoro.test/auth/confirm#token_hash=hash&type=${type}&next=%2Fcadastro%2Fconfirmado&signup_ref=${'a'.repeat(64)}`,
+      );
+      expect(new URL(createSignupConfirmationUrl('hash', type, 'a'.repeat(64))).search).toBe('');
+    },
+  );
+
+  it('recusa token vazio em vez de montar um link que não confirma nada', () => {
+    expect(() => createSignupConfirmationUrl('   ', 'signup', 'a'.repeat(64))).toThrow('[app-url]');
+  });
+
+  it('recusa referência que não seja o HMAC do draft', () => {
+    expect(() => createSignupConfirmationUrl('hash', 'recovery', 'draft-em-claro')).toThrow(
+      '[app-url]',
     );
   });
 

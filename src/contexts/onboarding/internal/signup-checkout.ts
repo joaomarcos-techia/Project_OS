@@ -100,7 +100,7 @@ function describe(intent: SignupBillingIntent): string {
  */
 function subscriptionMatchesIntent(
   subscription: { status: string; value: number },
-  intent: SignupBillingIntent,
+  intent: Pick<SignupBillingIntent, 'priceCents'>,
 ): boolean {
   if (subscription.status !== 'ACTIVE') return false;
   return Math.round(subscription.value * 100) === intent.priceCents;
@@ -253,6 +253,21 @@ export async function reconcileSignupSubscription(input: {
   let found: Awaited<ReturnType<PaymentProvider['findSubscriptionByExternalReference']>>;
   try {
     found = await client.findSubscriptionByExternalReference(target.externalReference);
+    if (found?.customerId) {
+      const readback = await client.getSubscription(found.subscriptionId);
+      if (
+        !subscriptionMatchesIntent(readback, target) ||
+        readback.subscriptionId !== found.subscriptionId ||
+        readback.externalReference !== target.externalReference ||
+        readback.customerId !== found.customerId ||
+        (target.asaasCustomerId !== null && readback.customerId !== target.asaasCustomerId)
+      ) {
+        // Mantém creation_unknown: não provisiona, não cria outra assinatura
+        // e não apaga um customer cuja correlação não foi confirmada.
+        metrics.emit('signup.billing.reconcile_mismatch', {});
+        return { ok: false, reason: 'conflict' };
+      }
+    }
   } catch (error) {
     if (
       error instanceof BillingProviderUnreachableError ||
@@ -270,6 +285,7 @@ export async function reconcileSignupSubscription(input: {
 
   const settled = await reconcileSignupBillingAttempt({
     userId: input.userId,
+    expectedVersion: target.rowVersion,
     asaasCustomerId: found.customerId,
     asaasSubscriptionId: found.subscriptionId,
   });

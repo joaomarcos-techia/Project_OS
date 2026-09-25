@@ -1,17 +1,20 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { MailCheck } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
-import { TurnstileWidget } from '@/components/shared/turnstile-widget';
 import { Alert } from '@/components/ui/alert';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type Props = {
   rowVersion: number;
+  /**
+   * O endereço vive só na memória da aba que iniciou o cadastro. Depois de um
+   * refresh, a pessoa o digita novamente porque o servidor guarda apenas HMAC.
+   */
+  email?: string | undefined;
   onUpdated: (rowVersion: number) => void;
   onReconcile: (reason: 'conflict' | 'uncertain') => Promise<void>;
   onGone: () => void;
@@ -28,27 +31,42 @@ function readRowVersion(value: unknown, minimum: number): number | null {
     : null;
 }
 
-export function SignupEmailPending({ rowVersion, onUpdated, onReconcile, onGone }: Props) {
-  const [accepted, setAccepted] = useState(false);
+/**
+ * Espera da confirmação. O caminho principal é abrir a mensagem recebida; o
+ * reenvio fica discreto e revela somente o e-mail quando a aba foi recarregada.
+ */
+export function SignupEmailPending({ rowVersion, email, onUpdated, onReconcile, onGone }: Props) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [challengeAttempt, setChallengeAttempt] = useState(0);
+  const [pedindoEmail, setPedindoEmail] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const submitting = useRef(false);
+
+  const conheceEmail = typeof email === 'string' && email.trim().length > 0;
+
+  useEffect(() => {
+    if (pedindoEmail)
+      formRef.current?.querySelector<HTMLInputElement>('input[name="email"]')?.focus();
+  }, [pedindoEmail]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current) return;
     const form = event.currentTarget;
-    const fields = new FormData(form);
-    const email = form.elements.namedItem('email');
-    if (!(email instanceof HTMLInputElement) || !email.validity.valid || !email.value.trim()) {
-      if (email instanceof HTMLInputElement) email.focus();
-      setMessage('Digite novamente o e-mail usado no cadastro.');
+
+    if (!conheceEmail && !pedindoEmail) {
+      setPedindoEmail(true);
+      setMessage(null);
       return;
     }
-    if (!accepted) {
-      form.querySelector<HTMLButtonElement>('[role="checkbox"]')?.focus();
-      setMessage('Confirme novamente o aceite para solicitar o reenvio.');
+
+    const fields = new FormData(form);
+    const digitado = String(fields.get('email') ?? '').trim();
+    const alvo = conheceEmail ? email.trim() : digitado;
+    const campo = form.querySelector<HTMLInputElement>('input[name="email"]');
+    if (!alvo || (campo && !campo.validity.valid)) {
+      campo?.focus();
+      setMessage('Digite novamente o e-mail usado no cadastro.');
       return;
     }
 
@@ -56,23 +74,18 @@ export function SignupEmailPending({ rowVersion, onUpdated, onReconcile, onGone 
     setSaving(true);
     setMessage(null);
     try {
-      const captchaToken = String(fields.get('captchaToken') ?? '').trim() || undefined;
       const response = await fetch('/api/signup/sessions/resend', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          rowVersion,
-          email: email.value.trim(),
-          accepted: true,
-          ...(captchaToken ? { captchaToken } : {}),
-        }),
+        body: JSON.stringify({ rowVersion, email: alvo }),
       });
       if (response.ok) {
         const nextVersion = readRowVersion(await response.json(), rowVersion);
         if (nextVersion !== null) {
           onUpdated(nextVersion);
+          setPedindoEmail(false);
           setMessage(
-            'A nova solicitação foi concluída. Se o endereço puder continuar, você receberá as instruções.',
+            'Pronto. Se o endereço puder continuar, um novo e-mail está a caminho — use o link mais recente.',
           );
         } else {
           await onReconcile('uncertain');
@@ -96,45 +109,39 @@ export function SignupEmailPending({ rowVersion, onUpdated, onReconcile, onGone 
       await onReconcile('uncertain');
       setMessage('A conexão falhou e o resultado do reenvio não pôde ser confirmado.');
     } finally {
-      form.reset();
-      setAccepted(false);
-      setChallengeAttempt((attempt) => attempt + 1);
       submitting.current = false;
       setSaving(false);
     }
   }
 
+  const rotuloBotao =
+    !conheceEmail && !pedindoEmail
+      ? 'Não recebeu? Reenviar o e-mail'
+      : saving
+        ? 'Reenviando…'
+        : 'Reenviar o e-mail';
+
   return (
     <section
       aria-labelledby="signup-email-title"
-      className="mt-8 rounded-(--r-2xl) bg-surface-raised p-5 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-7"
+      data-slot="signup-email-pending"
+      className="mt-8 rounded-(--r-2xl) bg-surface-raised p-6 text-center shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8"
     >
-      <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+      <MailCheck aria-hidden="true" className="mx-auto size-8 text-primary" />
+      <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
         Etapa 3 · confirmação
       </p>
-      <h2 id="signup-email-title" className="mt-3 font-display text-2xl font-semibold">
+      <h2 id="signup-email-title" className="mt-3 text-balance font-display text-2xl font-semibold">
         Aguardando a confirmação do e-mail
       </h2>
-      <p className="mt-3 text-pretty text-sm leading-relaxed text-fg-muted">
-        Se o endereço puder continuar, você receberá uma mensagem com o link de confirmação. Abra o
-        link neste ou em outro aparelho: esta tela reconhece a confirmação sozinha. Se já confirmou
-        e nada mudou aqui, recarregue a página ou entre novamente.
+      <p className="mx-auto mt-3 max-w-[46ch] text-pretty text-sm leading-relaxed text-fg-muted">
+        Se o endereço puder continuar, enviaremos um link e um código de 8 dígitos. Abra o link;
+        esta tela reconhecerá a confirmação e pedirá o código para continuar.
       </p>
-      <a
-        href="/login"
-        className={buttonVariants({ variant: 'secondary', size: 'sm', className: 'mt-5' })}
-      >
-        Entrar novamente
-      </a>
 
-      <form onSubmit={submit} noValidate className="mt-7 border-t border-border pt-6">
-        <h3 className="font-semibold">Não recebeu as instruções?</h3>
-        <p className="mt-1 text-pretty text-xs leading-relaxed text-fg-muted">
-          O reenvio é uma ação separada. Digite novamente o e-mail e confirme o aceite; a senha não
-          é solicitada de novo.
-        </p>
-        <fieldset disabled={saving} className="mt-4 space-y-4">
-          <div className="space-y-2">
+      <form ref={formRef} onSubmit={submit} noValidate className="mt-6">
+        {pedindoEmail ? (
+          <div className="mx-auto max-w-sm space-y-2 text-left">
             <Label htmlFor="signup-resend-email">E-mail usado no cadastro</Label>
             <Input
               id="signup-resend-email"
@@ -143,29 +150,23 @@ export function SignupEmailPending({ rowVersion, onUpdated, onReconcile, onGone 
               autoComplete="email"
               required
               maxLength={160}
-            />
-          </div>
-          <div className="flex min-h-10 items-start gap-3">
-            <Checkbox
-              id="signup-resend-accepted"
-              checked={accepted}
-              onCheckedChange={(value) => setAccepted(value === true)}
               disabled={saving}
-              className="mt-0.5"
             />
-            <Label htmlFor="signup-resend-accepted" className="text-pretty text-sm leading-relaxed">
-              Confirmo novamente o aceite dos Termos de Uso e da Política de Privacidade.
-            </Label>
           </div>
-          <TurnstileWidget action="signup_resend" resetSignal={challengeAttempt} />
-        </fieldset>
-        <div aria-live="polite" className="mt-4">
-          {message ? <Alert variant="warning">{message}</Alert> : null}
-        </div>
-        <Button type="submit" variant="subtle" loading={saving} className="mt-4">
-          Reenviar instruções
-        </Button>
+        ) : null}
+        <button
+          type="submit"
+          disabled={saving}
+          aria-expanded={conheceEmail ? undefined : pedindoEmail}
+          className="mt-3 inline-flex min-h-10 items-center justify-center rounded-(--r-md) px-3 text-sm font-medium text-fg-subtle underline underline-offset-4 transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {rotuloBotao}
+        </button>
       </form>
+
+      <div aria-live="polite" className="mt-4 text-left">
+        {message ? <Alert variant="warning">{message}</Alert> : null}
+      </div>
     </section>
   );
 }

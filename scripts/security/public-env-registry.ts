@@ -61,6 +61,13 @@ export const PUBLIC_ENV_REGISTRY: Record<string, PublicEnvEntry> = {
     rationale:
       'É o endereço público do serviço. O nome NEXT_PUBLIC_ é legado de configuração; nenhum bearer de sessão deve ser exposto ao navegador. A autorização ocorre nos guards do servidor.',
   },
+  NEXT_PUBLIC_SUPABASE_URL_DEV: {
+    owner: 'plataforma',
+    purpose: 'URL pública do projeto Supabase DEV usada pelos runners locais fail-closed.',
+    exposure: 'public-by-design',
+    rationale:
+      'É o mesmo identificador público da URL canônica, segregado para que a prova destrutiva de cadastro recuse qualquer projeto diferente do DEV autorizado.',
+  },
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: {
     owner: 'plataforma',
     purpose: 'Chave publishable (sb_publishable_) do Supabase Auth usada no servidor.',

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 
@@ -15,6 +15,7 @@ import type {
 } from '@/contexts/onboarding';
 
 import { SignupEmailPending } from './signup-email-pending';
+import { SignupEmailVerified } from './signup-email-verified';
 import { SignupIdentity } from './signup-identity';
 
 type ProfessionalsBand = SignupAnswerValues['professionalsBand'];
@@ -22,13 +23,16 @@ type WeeklyAppointmentsBand = SignupAnswerValues['weeklyAppointmentsBand'];
 type CurrentTooling = SignupAnswerValues['currentTooling'];
 type DiscoverySource = SignupAnswerValues['discoverySource'];
 type Draft = Partial<SignupAnswerValues>;
+type LocalDraft = { answers: Draft; expiresAt: number };
 type Phase = 'loading' | 'challenge' | 'ready' | 'expired' | 'unavailable';
 type QuestionIndex = 0 | 1 | 2 | 3;
+type ContinuationCredentials = { email: string; password: string };
 
 const EMPTY_DRAFT: Draft = {};
 const QUESTION_COUNT = 4;
 const CONFIRMATION_POLL_INTERVAL_MS = 20_000;
-const CONFIRMATION_POLL_MAX_ATTEMPTS = 30;
+const LOCAL_DRAFT_KEY = 'qoro-signup-answers-v1';
+const LOCAL_DRAFT_TTL_MS = 60 * 60 * 1_000;
 
 const PROFESSIONAL_OPTIONS: OptionCard<ProfessionalsBand>[] = [
   { value: '1', label: '1 profissional' },
@@ -94,6 +98,63 @@ function isAnswers(value: unknown): value is SignupAnswerValues {
     isDiscoverySource(value.discoverySource)
   );
 }
+function isDraft(value: unknown): value is Draft {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  return (
+    keys.every((key) => FIELD_NAMES.some((field) => field === key)) &&
+    (value.professionalsBand === undefined || isProfessionalsBand(value.professionalsBand)) &&
+    (value.weeklyAppointmentsBand === undefined ||
+      isWeeklyAppointmentsBand(value.weeklyAppointmentsBand)) &&
+    (value.currentTooling === undefined || isCurrentTooling(value.currentTooling)) &&
+    (value.discoverySource === undefined || isDiscoverySource(value.discoverySource))
+  );
+}
+function clearLocalDraft(): void {
+  try {
+    window.localStorage.removeItem(LOCAL_DRAFT_KEY);
+  } catch {
+    // O cadastro continua funcional quando o navegador bloqueia armazenamento local.
+  }
+}
+function readLocalDraft(): LocalDraft | null {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_DRAFT_KEY);
+    if (!raw) return null;
+    const stored: unknown = JSON.parse(raw);
+    if (
+      !isRecord(stored) ||
+      stored.version !== 1 ||
+      typeof stored.expiresAt !== 'number' ||
+      !Number.isFinite(stored.expiresAt) ||
+      stored.expiresAt <= Date.now() ||
+      stored.expiresAt > Date.now() + LOCAL_DRAFT_TTL_MS ||
+      !isDraft(stored.answers)
+    ) {
+      clearLocalDraft();
+      return null;
+    }
+    return { answers: stored.answers, expiresAt: stored.expiresAt };
+  } catch {
+    clearLocalDraft();
+    return null;
+  }
+}
+function writeLocalDraft(answers: Draft): void {
+  try {
+    const expiresAt = readLocalDraft()?.expiresAt ?? Date.now() + LOCAL_DRAFT_TTL_MS;
+    window.localStorage.setItem(
+      LOCAL_DRAFT_KEY,
+      JSON.stringify({ version: 1, expiresAt, answers }),
+    );
+  } catch {
+    // Falta de quota ou armazenamento bloqueado não pode interromper o cadastro.
+  }
+}
+function firstUnansweredQuestion(answers: Draft): QuestionIndex {
+  const missing = FIELD_NAMES.findIndex((field) => answers[field] === undefined);
+  return (missing === -1 ? QUESTION_COUNT - 1 : missing) as QuestionIndex;
+}
 function isSessionStatus(value: unknown): value is SignupSessionStatus {
   return (
     value === 'initiated' ||
@@ -135,10 +196,15 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   const [saving, setSaving] = useState(false);
   const [challengeAttempt, setChallengeAttempt] = useState(0);
   const [questionIndex, setQuestionIndex] = useState<QuestionIndex>(0);
+  // Só em memória, só nesta aba (ver o prop `email` de SignupEmailPending).
+  const [emailPendente, setEmailPendente] = useState<string | undefined>(undefined);
+  const continuationCredentials = useRef<ContinuationCredentials | null>(null);
   const startedRef = useRef(false);
   const submitInFlight = useRef(false);
 
   const expireSession = useCallback(() => {
+    continuationCredentials.current = null;
+    clearLocalDraft();
     setSession(null);
     setPhase('expired');
     setMessage('Esta sessão expirou. Inicie novamente para responder com segurança.');
@@ -146,14 +212,20 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   }, []);
 
   const hydrateSession = useCallback(
-    (next: SignupSessionState) => {
+    (next: SignupSessionState, restoreLocal = true) => {
+      const localDraft =
+        restoreLocal && next.status === 'initiated' && next.answers === null
+          ? readLocalDraft()
+          : null;
+      const nextDraft = next.answers ?? localDraft?.answers ?? EMPTY_DRAFT;
+      if (next.answers || next.status !== 'initiated') clearLocalDraft();
       setSession(next);
-      setDraft(next.answers ?? EMPTY_DRAFT);
+      setDraft(nextDraft);
+      setQuestionIndex(firstUnansweredQuestion(nextDraft));
       setMessage(
-        next.status === 'email_pending'
-          ? 'Se houver uma etapa de confirmação para este endereço, você receberá as instruções. Se já tem conta, entre para continuar.'
-          : // `email_verified` não usa `message`: aquela tela tem copy própria.
-            next.status === 'identity_pending' && !identityEnabled
+        next.status === 'email_pending' || next.status === 'email_verified'
+          ? null
+          : next.status === 'identity_pending' && !identityEnabled
             ? 'Dados salvos; criação da conta ainda indisponível. Nenhum e-mail de confirmação foi enviado.'
             : next.answers
               ? 'Carregamos as respostas salvas nesta sessão.'
@@ -195,7 +267,10 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
         });
         const createdBody = await responseBody(created);
         if (created.status === 201 && isSession(createdBody?.session)) {
-          hydrateSession(createdBody.session);
+          // Um 201 identifica uma sessão nova. Respostas locais da sessão
+          // anterior não podem atravessar esse limite silenciosamente.
+          clearLocalDraft();
+          hydrateSession(createdBody.session, false);
           return;
         }
         if (created.status === 401 && createdBody?.error === 'challenge_required') {
@@ -241,17 +316,14 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
    * requisições por 15 min POR IP, compartilhado com as outras abas e com quem
    * mais estiver atrás do mesmo NAT. A 10 s a própria espera estouraria o
    * limite antes da metade do TTL absoluto e passaria a receber 429 justamente
-   * enquanto a pessoa aguarda. A 20 s, por até 10 min, o pior caso fica em 45
-   * leituras por janela. Esgotado o teto, quem confirmar depois recarrega a
-   * página — o cookie continua válido e a primeira leitura mostra o resultado.
+   * enquanto a pessoa aguarda. A 20 s são no máximo 45 leituras por janela de
+   * 15 min. A espera termina quando o servidor confirma ou encerra a sessão;
+   * parar aos 10 min quebrava o caso real de quem abre o e-mail mais tarde.
    */
   useEffect(() => {
     if (phase !== 'ready' || session?.status !== 'email_pending') return;
     let active = true;
-    let attempts = 0;
     const interval = window.setInterval(() => {
-      attempts += 1;
-      if (attempts >= CONFIRMATION_POLL_MAX_ATTEMPTS) window.clearInterval(interval);
       void (async () => {
         try {
           const response = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
@@ -276,7 +348,9 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   }, [expireSession, hydrateSession, phase, session?.status]);
 
   function answer<K extends keyof SignupAnswerValues>(field: K, value: SignupAnswerValues[K]) {
-    setDraft((current) => ({ ...current, [field]: value }));
+    const next = { ...draft, [field]: value };
+    writeLocalDraft(next);
+    setDraft(next);
     setMessage(null);
   }
 
@@ -367,6 +441,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
         Number.isInteger(body.rowVersion) &&
         body.rowVersion >= 1
       ) {
+        clearLocalDraft();
         setDraft(submittedAnswers);
         setSession({
           ...session,
@@ -447,29 +522,16 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
   if (session?.status === 'email_verified') {
     return (
       <section className="mx-auto w-full max-w-[680px] px-5 pb-16 pt-5 sm:px-8 lg:pt-9">
-        <div className="rounded-(--r-2xl) bg-surface-raised p-6 text-center shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8">
-          <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success-600" />
-          <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-            Etapa 3 · confirmação
-          </p>
-          <h1 className="mt-3 text-balance font-display text-3xl font-semibold tracking-[-0.03em]">
-            E-mail confirmado
-          </h1>
-          {/* A confirmação pode ter sido nesta máquina, em outra aba ou no
-              celular — a tela não sabe qual, e afirmar "em outro dispositivo"
-              estaria errado no caso mais comum. O destino serve aos três: com
-              sessão verificada a continuação segue; sem ela, manda ao login. */}
-          <p className="mx-auto mt-3 max-w-[48ch] text-pretty text-sm leading-relaxed text-fg-muted">
-            Seu cadastro continua de onde parou, com as respostas já salvas. Se você confirmou em
-            outro aparelho, entre com a conta verificada para seguir aqui.
-          </p>
-          <a
-            href="/cadastro/continuar"
-            className="mt-6 inline-flex min-h-10 items-center justify-center rounded-(--r-md) bg-primary px-5 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
-          >
-            Continuar cadastro
-          </a>
-        </div>
+        <SignupEmailVerified
+          rowVersion={session.rowVersion}
+          preparedCredentials={continuationCredentials.current}
+          onCredentialsCleared={() => {
+            continuationCredentials.current = null;
+          }}
+          onReconcile={reconcileSession}
+          onGone={expireSession}
+          onCompleted={() => window.location.assign('/cadastro/plano')}
+        />
       </section>
     );
   }
@@ -484,6 +546,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
         ) : null}
         <SignupEmailPending
           rowVersion={session.rowVersion}
+          email={emailPendente}
           onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
           onReconcile={reconcileSession}
           onGone={expireSession}
@@ -504,7 +567,14 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           key={session.rowVersion}
           rowVersion={session.rowVersion}
           saved={session.status === 'identity_pending'}
-          onEmailPending={(rowVersion) => {
+          onCredentialsPrepared={(email, password) => {
+            continuationCredentials.current = { email, password };
+          }}
+          onCredentialsCleared={() => {
+            continuationCredentials.current = null;
+          }}
+          onEmailPending={(rowVersion, email) => {
+            setEmailPendente(email);
             setSession({ ...session, status: 'email_pending', rowVersion });
             setMessage(null);
           }}

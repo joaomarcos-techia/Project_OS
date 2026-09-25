@@ -1,22 +1,123 @@
-# Track O — handoff final (19/09/2026)
+# Track O — handoff final (reconciliado em 25/09/2026)
 
 > **Inventário de engenharia consolidado em [§36 do qorov2](qorov2.md)** — o que foi construído,
 > como, e o que está pendente. Detalhe por fatia em [docs/evidence/track-o.md](evidence/track-o.md).
 > Histórico narrativo em [§35 do qorov2](qorov2.md). O handoff de 18/09 permanece como registro
 > daquela sessão.
 
+## Atualização de identidade — 23/09/2026
+
+> Esta atualização substitui, para confirmação de e-mail, o estado chamado “final” abaixo. As
+> tabelas de 18–21/09 permanecem como histórico das execuções feitas naquela versão; elas não provam
+> a emenda de credencial. A evidência vigente começa nesta atualização.
+
+A revisão adversarial encontrou um problema de autoridade no conserto de 22/09: o clique legítimo no
+e-mail confirmava a caixa e também liberava a aba anônima que havia iniciado o cadastro. Como aquela
+aba já tinha escolhido a senha, um terceiro podia iniciar o fluxo com o e-mail da vítima e esperar o
+clique dela.
+
+O worktree passou a usar este contrato:
+
+- Admin `createUser` cria a conta sem senha, não confirmada, com binding Qoro exato e
+  `password_state=pending`;
+- o repositório gera o e-mail e o Resend transporta um link `recovery` mais um código de oito
+  dígitos; templates do painel Supabase não participam;
+- o token fica no fragmento; um GET sem credencial entrega uma ponte HTML `no-store`/`no-referrer`
+  que autoenvia POST, mantendo token, tipo e referência fora do request target, access log e
+  `Referer`;
+- links antigos com query têm compatibilidade transitória, também sem consumo no GET. Esse ramo não
+  consegue impedir o log do request target legado e deve ser removido depois do TTL dos e-mails já
+  emitidos;
+- o link termina em `/cadastro/confirmado` e apenas confirma o e-mail naquele aparelho;
+- a aba iniciadora precisa do código para concluir o handoff, instalar a senha por CAS e abrir
+  `/cadastro/plano`;
+- HIBP é consultado no envio e novamente imediatamente antes do CAS;
+- reenvio gira link e código; recovery separa grants `profile` e `pretenant`;
+- o gate `ready-owned` exige marker Auth `set`, a mesma referência possuída no banco e credencial
+  `completed`; uma conta apenas confirmada ou um estado parcial Auth→SQL não alcança draft, plano ou
+  checkout;
+- outro draft não pode girar uma referência pendente ainda viva nem provocar segundo e-mail; somente
+  o reenvio deliberado da mesma sessão gira token e código;
+- se o OTP foi consumido antes de uma falha transitória de claim/binding, um grant HMAC de 15 minutos
+  em cookie HttpOnly permite à tela confirmada repetir a operação para o mesmo usuário, sem levar
+  usuário ou referência à URL/DOM; antes do claim, essa referência assinada vence um marker Auth
+  pendente antigo; depois do claim, a referência possuída no banco vence somente no reparo pendente —
+  marker `set` divergente falha fechado;
+- recovery cobre também `pretenant_orphan` e tem um único vencedor concorrente: profile consome
+  `claims_version`, pré-tenant consome o epoch da credencial e órfão usa advisory lock mais releitura
+  de `Auth.updated_at` imediatamente antes de trocar a senha;
+- o lookup administrativo usa o filtro indexado do GoTrue e igualdade exata; legado markerless só é
+  adotado depois de OTP/reserva ou login por senha conhecido, conforme o estado;
+- marker Auth `set` divergente do banco falha fechado. Adoção por segundo draft usa o código da
+  tentativa viva; se o Auth ficar à frente do commit SQL, o gate bloqueia tudo até um retry concluir a
+  transferência sem escrever a senha outra vez;
+- depois que um envio começou, resultado aceito, ofuscado ou incerto usa o mesmo envelope público
+  `200`; o banco preserva o estado incerto, e a finalização do Resend aceita apenas combinações exatas
+  de estado e ownership.
+
+### Estado desta atualização
+
+| Gate | Estado | Critério para fechar |
+| ---- | ------ | -------------------- |
+| Implementação e testes locais focados | **PASS** | 238/238 em oito arquivos; inclui ready-owned, adoção parcial, recovery concorrente, resposta uniforme, repair grant, liveness, lookup exato e legado seguro |
+| Suíte integral e TypeScript | **PASS** | 4.378/4.378 em 414 arquivos, 185,27 s; `tsc --noEmit`, exit 0 |
+| Regressão HTTP/SQL do cadastro | **PASS** | `signup-regression.ts` 29/29, incluindo transferência de ownership; cleanup zero |
+| ESLint completo e Next build de produção | **PASS** | ESLint exit 0; Next 15.5.24 otimizado, exit 0 |
+| Segurança e inventário | **PASS** | inventário 180/49/16/254/9 e zero gaps; browser-session 7/7 em 45,5 s; tenant, bundle 174/0, HTTP 12/164/328, DB/arquitetura/migrations/observabilidade/registry, exit 0 |
+| Prettier | **PASS** | `npx prettier --check .`, exit 0; o único desvio de baseline era uma quebra de linha num teste de WhatsApp e foi normalizado sem mudança de comportamento |
+| E2E atual contra Supabase DEV + Resend | **PASS 5/5** | Chromium, 9,4 min contra `next dev`, um worker/zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero |
+| E2E atual em Preview | **PASS 5/5** | 4,9 min no SHA `9608e1e`, no alias protegido da branch, Chromium, um worker/zero retry; fingerprint Auth + DB DEV; cleanup Auth/DB/fixture/lock zero |
+| Inbox real | **NOT TESTED** | pessoa confirma recebimento, conteúdo e link na caixa consentida |
+| Aceitação de produto | **PENDENTE** | executar o runbook atualizado no Preview |
+| Billing e provisionamento nos runners próprios | **PASS** | Asaas 6/6, cleanup 5/5; webhook/provisionamento 12/12, cleanup 2/2 |
+| Billing pelo spec de confirmação | **FORA DO ALCANCE DO SPEC** | o spec para em `/cadastro/plano`; os PASS acima vêm de O-5/O-6 |
+
+### Ordem segura para continuar
+
+1. ~~Concluir ESLint/formato, build Next de produção, inventário e demais gates finais e registrar os
+   números atuais.~~ **Concluído; resultados na tabela acima.**
+2. ~~Revisar o diff, commitar e publicar a implementação sem misturar trabalho alheio.~~ **Concluído.**
+3. ~~Executar o E2E 5/5 no Preview protegido, contra DEV, exigindo fingerprint e cleanup
+   Auth/DB/fixture/lock zero.~~ **Concluído: 5/5 em 4,9 min no SHA `9608e1e`, um worker e zero retry.**
+4. ~~Registrar a prova automatizada na
+   [matriz de evidência](evidence/track-o.md#emenda-de-identidade--23092026) e no
+   [§37 do qorov2](qorov2.md#378-evidência-válida-para-esta-emenda).~~ **Concluído.** Com os checks
+   finais verdes, concluir o merge técnico já autorizado pelo owner;
+5. executar a
+   [aceitação humana](runbooks/aceitacao-humana-cadastro.md#1-cadastro-e-handoff-entre-aparelhos),
+   incluindo a inspeção da mensagem numa caixa consentida, e registrar o veredito. Essa etapa não
+   bloqueia o merge autorizado, mas continua pendente até o fluxo poder ser chamado de aceito como
+   produto e não deve ser substituída por cadastro em produção.
+
+O novo E2E deve provar, sem imprimir token ou código: link no celular não avança a aba; conta
+`pending` não acessa plano/checkout; código incorreto e tentativa anterior falham; reenvio da mesma
+sessão produz link e código novos; outro draft não gira o link vivo nem recebe mensagem; senha não
+autentica antes do handoff e autentica depois; F5 exige redigitar e-mail/senha; legado seguro e
+limpeza sem resíduo também são exercitados. Os cinco cenários estão **PASS** em DEV e Preview.
+
+Limite assumido: um scanner que apenas faz GET não consome o OTP, mas um scanner capaz de executar
+JavaScript pode executar a ponte. O risco continua registrado; reenvio rotativo e handoff por código
+reduzem o impacto, mas não autorizam chamá-lo de eliminado.
+
 ## Estado final
+
+**Atualização de 21/09:** [revalidação e correções](evidence/track-o-revalidacao-2026-09-21.md).
+A releitura encontrou retomada perdida após F5, validação incompleta na reconciliação de billing,
+troca de plano depois da reserva e falhas nos próprios runners de Sandbox/sessão. Foram corrigidas
+com regressões; o relatório separa
+execuções atuais das históricas e detalha as ações ainda necessárias. O aceite humano continua
+pendente, assim como crédito Ads e as configurações administrativas ainda inacessíveis.
 
 | Fatia | Resultado | Onde a prova está |
 | ----- | --------- | ----------------- |
-| **O-1** | **PASS** (publicado e ligado) | `qoro/scripts/verificar-comecar.mjs` 19/19 + navegador |
-| **O-5** | **PASS** | Sandbox 4/4 + webhook 9/9 |
-| **O-6** | **PASS** | 8/8 contra 105 migrations reais |
+| **O-1** | **PASS** (publicado, ligado e com requisição de conversão emitida) | `qoro/scripts/verificar-comecar.mjs` 27/27 + navegador |
+| **O-5** | **PASS** | Sandbox 6/6 + cleanup 5/5; webhook/reconciliação/compensação 12/12 + cleanup 2/2 |
+| **O-6** | **PASS em SCHEMA** | 12/12 contra 105 migrations reais; C1 adicional prova compensação externa após perda de CAS |
 | **O-7** | **PASS** | 13/13 em schema real + **5/5** E2E autenticado, sem skip |
 | **O.H** | **PASS** | carga geral + carga Track O 8/8 + chaos 59/59 |
 | **O.S** | **PASS** | kill switch 9/9 + simulação + Preview + CI |
 
-## O que esta sessão acrescentou
+## Histórico da entrega original (18–20/09)
 
 ### O-1 — a ponte existe
 
@@ -25,9 +126,9 @@ a classe de open redirect por construção — 17 vetores recusados sem nenhum f
 vindo de fora. Só os cinco UTM da allowlist atravessam; `clinic_id`, `role`, `price`, `trial` e
 `token` são descartados. **Atribuição não é autorização.**
 
-O linker cross-domain foi a peça que faltava: o Google tag já tinha Consent Mode v2 e
-`url_passthrough`, mas não `linker.domains` — sem ele a conversão em `app.qoro.dev` apareceria como
-"direta", pagando o clique sem creditar a venda.
+O linker cross-domain foi configurado na landing. A medição independente posterior encontrou
+`_gl` no clique da âncora, mas não no encaminhamento automático. O app não tem tag receptora:
+atribuição da assinatura e crédito final no Ads continuam sem prova, como registra o §36.8.
 
 Provado no navegador com a ponte apontada para o Preview: a URL capturada carregava
 `?utm_source=google-ads&utm_medium=cpc&utm_campaign=clinicas-sp`, com hífen preservado e sem nenhum
@@ -35,10 +136,10 @@ parâmetro proibido.
 
 ### O-7 — o E2E autenticado, e o 500 que ele achou
 
-3/3 contra o Preview com sessão real. Na PRIMEIRA execução falhou: `500 em /dashboard`. A causa era
-minha — a leitura de `onboarding_progress` estava no layout do shell, por onde passa toda página
-autenticada, e o banco do Preview não tem a migration 0104. Um tour derrubava agenda, consultório e
-caixa. Corrigido com degradação observável.
+5/5 contra o Preview com sessão real, sem skip. Na PRIMEIRA execução anterior à migration 0104 houve
+`500 em /dashboard`: a leitura de `onboarding_progress` estava no layout do shell, por onde passa toda
+página autenticada. Um tour derrubava agenda, consultório e caixa. Corrigido com degradação observável;
+depois da migration, cinco testes passaram em três execuções seguidas.
 
 ### Carga e chaos
 
@@ -59,10 +160,12 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 
 | Bloqueio | Por quê | Como desbloquear |
 | -------- | ------- | ---------------- |
-| **Nenhum CTA aponta para `/comecar`** | a ponte está ligada e publicada, mas **inalcançável**: 0 links em `/`, `/para/psiquiatria` e `/precos`, medido no HTML de produção | acrescentar "Criar conta" em `/precos` e no fim das páginas de vertical, na landing |
-| **Google Ads não mede** | `GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios em `src/lib/conversao.ts` da landing | preencher as duas constantes; roteiro em `docs/GOOGLE-ADS.md` da landing |
-| **`security:browser-session`** | falha pré-existente, atribuída ao commit `8df4ab7` | fora do escopo do Track O |
+| **`security:browser-session`** | falha anterior de captura RSC, corrigida | **PASS 7/7 em 21/09**, incluindo controles que precisam detectar vazamento e corpo ilegível |
 | **Product Acceptance humano** | exige julgamento de produto | roteiro completo em [runbooks/aceitacao-humana-cadastro](runbooks/aceitacao-humana-cadastro.md) — rodar no Preview, com Sandbox |
+
+Google Ads está configurado e a requisição de conversão sai de `/comecar`. A regra órfã de firewall
+também não aparece mais: GET e POST em `/api/lead` devolvem 404 sem `X-Vercel-Mitigated`. O app ainda
+não possui tag Google; medir a assinatura final continua sendo uma tarefa separada.
 
 **Resolvidos em 19/09/2026:**
 
@@ -85,7 +188,10 @@ nenhum. Chaos de Redis: 59/59, incluindo o caso que responde ao §27 — `fail-o
 6. ~~ligar `PONTE_ATIVA` na landing (`src/lib/comecar.ts`, `false` → `true`)~~ — **feito**
    (`13a2fea`; medido em 20/09: `qoro.dev/comecar` responde 200 com o link de fallback para
    `app.qoro.dev/cadastro`, que é o que o verificador exige no estado ligado);
-7. dar **entrada** ao funil: nenhuma página da landing linka para `/comecar` — **pendente**;
+7. ~~dar **entrada** ao funil~~ — **feito** em 20/09 (`1338f90`): todo CTA leva ao cadastro e o
+   formulário de diagnóstico saiu da aquisição. Medido em produção: 8 / 5 / 4 links para `/comecar`
+   em `/`, `/precos` e `/para/psiquiatria`, e 0 `wa.me` nas três — com o canal da LGPD intacto na
+   política de privacidade;
 8. rodar o roteiro de aceitação humana — **pendente**.
 
 ### O passo 5, e a variável que estava no projeto errado

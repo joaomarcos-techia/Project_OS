@@ -1,0 +1,164 @@
+import { CheckCircle2 } from 'lucide-react';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+
+import { Logo } from '@/components/shared/logo';
+import { Card, CardContent } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
+import {
+  ensureSignupDraftForVerifiedEmail,
+  ensureVerifiedSignupAuthBinding,
+  readOwnedSignupReference,
+  validateVerifiedSignupAuthUserForClaim,
+} from '@/contexts/onboarding';
+import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
+import {
+  readSignupConfirmationGrant,
+  SIGNUP_CONFIRMATION_GRANT_COOKIE,
+} from '@/lib/auth/signup-confirmation-grant';
+
+export const dynamic = 'force-dynamic';
+
+function TemporarilyUnavailable({ retryHref }: { retryHref: string }) {
+  return (
+    <Card>
+      <CardContent className="text-center">
+        <h1 className="text-balance font-display text-2xl font-semibold">
+          Não foi possível verificar agora
+        </h1>
+        <p className="mt-3 text-sm leading-relaxed text-fg-muted">
+          Tente verificar a confirmação novamente em instantes.
+        </p>
+        <a
+          href={retryHref}
+          className={buttonVariants({ variant: 'subtle', size: 'sm', className: 'mt-5' })}
+        >
+          Tentar novamente
+        </a>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Fim do link de confirmação — e só isso.
+ *
+ * O destino anterior era `/cadastro/continuar`, uma revisão de formulário. Quem
+ * clica no link quase sempre está no celular enquanto o cadastro segue aberto no
+ * computador; cair num formulário ali sugeria que a continuação era naquele
+ * aparelho, e sem o cookie anônimo do navegador original ela não era — a pessoa
+ * redigitava tudo por engano. Agora esta tela diz o fato e para por aí: a aba do
+ * cadastro percebe a confirmação sozinha e segue para a escolha do plano.
+ *
+ * A checagem abaixo é o que impede a tela de MENTIR. Sem sessão verificada,
+ * "E-mail confirmado" seria só um texto numa URL que qualquer um abre. Quem já
+ * tem clínica (`redirect`) vai para o destino real em vez de ver uma tela de
+ * cadastro que não lhe diz respeito.
+ */
+export default async function CadastroConfirmadoPage() {
+  const retryHref = '/cadastro/confirmado';
+  const onboarding = await resolvePreTenantOnboarding();
+  if (!onboarding.ok) {
+    if (onboarding.reason === 'unavailable') {
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+          <div className="w-full max-w-[420px]">
+            <TemporarilyUnavailable retryHref={retryHref} />
+          </div>
+        </main>
+      );
+    }
+    redirect('/login');
+  }
+  if (onboarding.kind === 'redirect') redirect(onboarding.route);
+  const jar = await cookies();
+  const repairGrant = readSignupConfirmationGrant(jar.get(SIGNUP_CONFIRMATION_GRANT_COOKIE)?.value);
+  const repairSignupRef = repairGrant?.userId === onboarding.userId ? repairGrant.signupRef : null;
+  const owned = await readOwnedSignupReference(onboarding.userId, onboarding.email);
+  if (!owned.ok && owned.reason === 'unavailable') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+        <div className="w-full max-w-[420px]">
+          <TemporarilyUnavailable retryHref={retryHref} />
+        </div>
+      </main>
+    );
+  }
+
+  // O grant existe somente depois que este callback consumiu e validou o OTP.
+  // Se o Auth ainda aponta para uma tentativa anterior, a prova mais recente
+  // precisa vencer no retry; depois do claim, a referencia possuida no banco
+  // continua sendo a autoridade principal.
+  const signupRef = owned.ok ? owned.signupRef : (repairSignupRef ?? onboarding.pendingSignupRef);
+  if (!owned.ok && signupRef) {
+    const validation = await validateVerifiedSignupAuthUserForClaim({
+      userId: onboarding.userId,
+      email: onboarding.email,
+    });
+    if (!validation.ok) {
+      if (validation.reason === 'obfuscated') redirect('/auth/auth-error?reason=invalid_token');
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+          <div className="w-full max-w-[420px]">
+            <TemporarilyUnavailable retryHref={retryHref} />
+          </div>
+        </main>
+      );
+    }
+    const claimed = await ensureSignupDraftForVerifiedEmail(
+      onboarding.userId,
+      onboarding.email,
+      signupRef,
+    );
+    if (!claimed.ok) {
+      if (claimed.reason === 'gone') redirect('/auth/auth-error?reason=invalid_token');
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+          <div className="w-full max-w-[420px]">
+            <TemporarilyUnavailable retryHref={retryHref} />
+          </div>
+        </main>
+      );
+    }
+  }
+  if (!signupRef) redirect('/auth/auth-error?reason=invalid_token');
+
+  // O banco vence quando o claim já aconteceu. Assim, se a Admin API falhou
+  // depois do commit SQL, uma nova carga reata o marker à referência realmente
+  // possuída em vez de insistir na referência antiga do Auth.
+  const binding = await ensureVerifiedSignupAuthBinding({
+    userId: onboarding.userId,
+    email: onboarding.email,
+    signupRef,
+  });
+  if (!binding.ok) {
+    if (binding.reason === 'obfuscated') redirect('/auth/auth-error?reason=invalid_token');
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-12">
+        <div className="w-full max-w-[420px]">
+          <TemporarilyUnavailable retryHref={retryHref} />
+        </div>
+      </main>
+    );
+  }
+  return (
+    <main
+      data-qoro-tokens="qorov2"
+      className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 py-12 text-fg antialiased"
+    >
+      <div className="w-full max-w-[420px]">
+        <div className="mb-6 flex justify-center">
+          <Logo className="h-7 w-auto" />
+        </div>
+        <Card>
+          <CardContent className="text-center" data-slot="cadastro-confirmado">
+            <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success-600" />
+            <h1 className="mt-4 text-balance font-display text-2xl font-semibold">
+              E-mail confirmado
+            </h1>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  );
+}

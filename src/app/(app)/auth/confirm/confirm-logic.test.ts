@@ -69,11 +69,19 @@ describe('safeNextForOtp', () => {
     null,
     '',
     '/dashboard',
-    '/cadastro/continuar?draft=segredo',
-    '/cadastro/continuar#token',
-    'https://evil.example/cadastro/continuar',
-  ])('fixa signup em /cadastro/continuar sem query/fragmento: %s', (next) => {
-    expect(safeNextForOtp(next, 'signup')).toBe('/cadastro/continuar');
+    '/cadastro/confirmado?draft=segredo',
+    '/cadastro/confirmado#token',
+    'https://evil.example/cadastro/confirmado',
+    '/cadastro/continuar',
+  ])('fixa signup em /cadastro/confirmado sem query/fragmento: %s', (next) => {
+    expect(safeNextForOtp(next, 'signup')).toBe('/cadastro/confirmado');
+  });
+
+  it('magiclink do reenvio chega na MESMA tela de confirmado', () => {
+    // O reenvio emite `magiclink` porque é o único tipo que dispensa a senha.
+    // Se a allowlist não tivesse o destino, ele cairia no fallback `/dashboard`
+    // — uma pessoa sem clínica numa tela que o gate nega.
+    expect(safeNextForOtp('/cadastro/confirmado', 'magiclink')).toBe('/cadastro/confirmado');
   });
 
   it('preserva a allowlist dos fluxos existentes', () => {

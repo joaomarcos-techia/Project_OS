@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   writePlan: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
-vi.mock('@/lib/auth/pretenant-onboarding', () => ({ resolvePreTenantOnboarding: mocks.resolve }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hashUser }));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertSignupDraftReadAllowed: mocks.readLimit,
@@ -29,6 +28,7 @@ vi.mock('@/contexts/onboarding', async () => {
     signupPlanMutationSchema,
     readSignupPlan: mocks.readPlan,
     writeSignupPlan: mocks.writePlan,
+    resolveReadyOwnedSignupOnboarding: mocks.resolve,
   };
 });
 
@@ -101,6 +101,8 @@ describe('GET /api/signup/plan', () => {
     ['anonymous', 401],
     ['email_unverified', 401],
     ['profile_denied', 403],
+    ['credentials_pending', 403],
+    ['credentials_invalid', 403],
     ['unavailable', 503],
   ] as const)('mapeia seam %s antes do limiter', async (reason, status) => {
     mocks.resolve.mockResolvedValue({ ok: false, reason });
