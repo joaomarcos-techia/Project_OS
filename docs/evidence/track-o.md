@@ -51,6 +51,7 @@ segura por um segundo draft e qualquer liberação baseada apenas no marker do A
 | Resposta pública de envio não enumera resultado do provider | rotas `auth`/`resend`, finalização em `signup-session.ts` | envio aceito, conta ofuscada e efeito incerto retornam envelope 200 uniforme depois do início; estado interno preserva `uncertain`; finalização só aceita dois pares exatos de estado/ownership | **PASS local/integration** |
 | Jornada Supabase DEV + Resend da implementação atual | `e2e/signup-confirmation.spec.ts` via runner fail-closed | **5/5 em 9,4 min** contra `next dev`, Chromium, um worker, zero retry; retenção E2E-only 15 min/64 entradas; cleanup Auth/DB/fixture/lock zero | **PASS DEV** |
 | Jornada no Preview da revisão vigente | mesmo spec, alias protegido da branch no SHA `9608e1e` | **5/5 em 4,9 min**, Chromium, um worker/zero retry; fingerprint Auth + DB DEV e cleanup Auth/DB/fixture/lock zero | **PASS PREVIEW** |
+| Publicação da revisão | PR #15 e deployment de produção | merge `193ce31`, Vercel Production `Ready`; GET `/login` e `/cadastro` 200, sem escrita | **PASS técnico; jornada PROD NOT TESTED** |
 | Chegada e renderização numa caixa postal real | inspeção humana do inbox consentido | API/evento do Resend não substitui o inbox | **NOT TESTED** |
 
 O runner canônico desta prova é:

@@ -10,8 +10,8 @@
   Inspeção do inbox e aceitação humana continuam `NOT TESTED`.
 - **Data:** 2026-09-15.
 - **Atualizado:** 2026-09-25.
-- **Checkout de rollout:** branch `docs/funil-com-entrada`, PR #15. O alvo de aceitação precisa ser um
-  Preview da revisão final; os checkouts de 16–17/09 são apenas histórico.
+- **Checkout de rollout:** PR #15 mesclado na `main` em `193ce31`. O alvo da aceitação humana continua
+  sendo o Preview validado da branch; os checkouts de 16–17/09 são apenas histórico.
 - **Contextos por subfatia:** onboarding + `lib/db` em O-3a; onboarding + infraestrutura Auth em
   O-3b. Não alterar o contexto identity/RBAC nem adicionar tenancy/billing.
 - **Relaciona:** [ADR-060 §1.c/§1.c.1/§1.d/§5–§8](060-sessao-anonima-de-cadastro.md),
@@ -1129,6 +1129,7 @@ Esta emenda não cria migration. Ela reutiliza `auth_attempted_at`, `row_version
 | Billing/provisionamento nas provas próprias | **PASS** — Asaas 6/6, cleanup 5/5; webhook/provisionamento 12/12, cleanup 2/2; não é atribuído ao spec de confirmação |
 | Gate de sessão no navegador | **PASS 7/7** |
 | Preview da revisão vigente | **PASS 5/5**, 4,9 min no SHA `9608e1e`, no alias protegido da branch, Chromium, um worker/zero retry; fingerprint Auth + DB DEV; cleanup Auth/DB/fixture/lock zero |
+| Merge/publicação | **PASS técnico** — PR #15 mesclado em `193ce31`; Vercel Production `Ready`; GET `/login` e `/cadastro` 200, sem escrita |
 | Produção | **NOT TESTED** e fora do alvo de escrita desta validação |
 | Inbox consentido | **NOT TESTED**; aceitação do Resend não prova chegada/renderização |
 | Billing/Asaas pelo E2E de confirmação | **NÃO COBERTO** — o spec encerra ao abrir `/cadastro/plano` |
