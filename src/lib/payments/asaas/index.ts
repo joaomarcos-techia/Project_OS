@@ -400,7 +400,7 @@ export interface PaymentProvider {
   /** Resolve a cobrança criada por uma sessão de Checkout sem confiar no webhook. */
   findPaymentByCheckoutSession(
     asaasCheckoutId: string,
-    opts?: { attempts?: number },
+    opts?: { attempts?: number; createdSince?: string },
   ): Promise<ProviderPayment | null>;
   /**
    * `POST /payments/{id}/refund` — devolve o dinheiro ao paciente (ADR-049 1.5,
@@ -955,15 +955,35 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       const r = (await request('GET', `/payments?${query.toString()}`, undefined, opts)) as {
         data?: unknown;
       };
-      const payments = Array.isArray(r.data) ? r.data : [];
-      const exact = payments.find(
-        (payment) =>
-          payment &&
-          typeof payment === 'object' &&
-          asStr((payment as Record<string, unknown>).checkoutSession) === checkoutId,
-      );
-      if (!exact || typeof exact !== 'object') return null;
-      const p = exact as Record<string, unknown>;
+      const findExact = (payments: unknown[]): Record<string, unknown> | null => {
+        const exact = payments.find(
+          (payment) =>
+            payment &&
+            typeof payment === 'object' &&
+            asStr((payment as Record<string, unknown>).checkoutSession) === checkoutId,
+        );
+        return exact && typeof exact === 'object' ? (exact as Record<string, unknown>) : null;
+      };
+      let exact = findExact(Array.isArray(r.data) ? r.data : []);
+
+      // O Sandbox pode devolver uma lista vazia para o filtro documentado
+      // `checkoutSession` mesmo quando a cobrança expõe esse mesmo ID. O
+      // fallback é limitado e continua exigindo igualdade exata do vínculo;
+      // data/valor nunca são usados como identidade.
+      if (!exact) {
+        const recoveryQuery = new URLSearchParams({ limit: '100', offset: '0' });
+        if (opts?.createdSince) recoveryQuery.set('dateCreated[ge]', opts.createdSince);
+        const recovery = (await request(
+          'GET',
+          `/payments?${recoveryQuery.toString()}`,
+          undefined,
+          opts,
+        )) as { data?: unknown };
+        exact = findExact(Array.isArray(recovery.data) ? recovery.data : []);
+      }
+
+      if (!exact) return null;
+      const p = exact;
       return {
         paymentId: String(p.id),
         status: asStr(p.status) ?? 'UNKNOWN',

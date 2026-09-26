@@ -10,7 +10,7 @@ import {
   completeSignupHostedCheckout,
   resolveReadyOwnedSignupOnboarding,
 } from '@/contexts/onboarding';
-import { assertSignupDraftWriteAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import { assertSignupDraftReadAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
 import { buildApplicationUrl } from '@/lib/http/application-url';
@@ -57,7 +57,11 @@ export async function POST(req: Request): Promise<Response> {
     }
     if (onboarding.kind === 'redirect') return json({ state: 'provisioned' });
 
-    const limit = await assertSignupDraftWriteAllowed(
+    // O retorno faz polling. Consumir aqui o orçamento de escrita (5/15 min)
+    // fazia plano + criação do Checkout + três leituras esgotarem a janela antes
+    // de o Asaas materializar a assinatura. O readback continua autenticado e
+    // rate-limited, mas usa o orçamento próprio de leitura (60/15 min por usuário).
+    const limit = await assertSignupDraftReadAllowed(
       getClientIp(req.headers),
       hashSignupUserId(onboarding.userId),
     );

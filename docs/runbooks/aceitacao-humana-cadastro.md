@@ -134,7 +134,8 @@ confirma a reserva persistida, mas a conclusão interativa depende do reCAPTCHA 
 confirmação de e-mail não prova pagamento, retorno, reconciliação ou provisionamento.
 
 **Esperado:** nenhuma tela pede CPF/CNPJ, telefone, endereço ou cartão **dentro** do Qoro — quem
-coleta é o Asaas. Ao concluir, o Asaas redireciona para `/cadastro/pagamento?resultado=success`; essa
+coleta é o Asaas. O Checkout hospedado pode exibir o botão “Acompanhar pedido”; esse rótulo é controlado
+pelo Asaas. Ao acioná-lo, deve abrir `/cadastro/pagamento?resultado=success`; essa
 tela consulta o provedor e só segue para o dashboard depois de confirmar customer, assinatura
 `ACTIVE`, cartão, ciclo mensal, valor e vencimento. O callback sozinho não concede acesso.
 

@@ -15,8 +15,8 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 > execução, não no fim. ADR e Discovery Log continuam existindo e guardam o detalhe; este bloco
 > guarda o **estado consolidado**.
 
-**Checkpoint atual — 25/09/2026: TRACK O PUBLICADO; EMENDA DE CONFIRMAÇÃO VERDE EM DEV E PREVIEW, COM
-ACEITE HUMANO PENDENTE.** As nove fatias do §21.19 estão implementadas; O-1 vive no repositório da landing
+**Checkpoint atual — 26/09/2026: TRACK O PUBLICADO; CHECKOUT HOSPEDADO EM CORREÇÃO NO PR #18, COM
+RETESTE HUMANO PENDENTE.** As nove fatias do §21.19 estão implementadas; O-1 vive no repositório da landing
 e as demais neste. O banco de **produção** está em **105 migrations** (`0096`–`0104` aplicadas em
 19/09 com backup, advisory lock e leitura de conferência), `/comecar` está publicado e ligado e o
 cadastro autônomo está aberto. A tentativa humana revelou, porém, que o fluxo de confirmação publicado
@@ -26,8 +26,10 @@ passou **5/5** contra Supabase DEV + Resend real, em Chromium, um worker, zero r
 cleanup Auth/DB/fixture/lock zero. O mesmo spec passou **5/5 em 4,9 min** no Preview protegido da
 branch no SHA `9608e1e`, com fingerprint do Auth e banco DEV, um worker, zero retry e cleanup
 Auth/DB/fixture/lock zero.
-A suíte integral passou 4.378/4.378 em 414 arquivos. Inspeção do inbox e aceitação humana ainda são
-necessárias antes de o fluxo ser chamado de aceito como produto. O PR #15 foi mesclado na `main` em
+A suíte integral da emenda de confirmação passou 4.378/4.378 em 414 arquivos. A execução humana posterior
+chegou ao Checkout Sandbox e concluiu o cartão, mas o retorno ficou preso em validação; o incidente e o
+corretivo estão registrados em §38.6. Inspeção do inbox e um reteste humano positivo ainda são necessários
+antes de o fluxo ser chamado de aceito como produto. O PR #15 foi mesclado na `main` em
 `193ce31`; o deployment de produção ficou `Ready` e sondagens GET de `/login` e `/cadastro` retornaram
 200. Nenhum cadastro, e-mail ou billing foi exercitado em produção.
 
@@ -7141,3 +7143,34 @@ aplicação autorizada das duas migrations.
 - [handoff final](handoff-track-o-final.md) registra o gate de release e a causa da divergência;
 - [roteiro humano](runbooks/aceitacao-humana-cadastro.md) passa a exigir o Checkout Sandbox e o
   retorno ao dashboard.
+
+### 38.6 Primeiro pagamento humano: falha medida e corretivo — 26/09/2026
+
+O roteiro humano avançou além do ponto que a automação não atravessava: o cartão de teste foi concluído
+no Checkout Sandbox e o Asaas criou uma cobrança `PENDING` de R$ 149, vinculada ao `checkoutSession`, e
+uma assinatura `ACTIVE`, mensal e em cartão. O botão final exibido pelo Checkout é “Acompanhar pedido”;
+esse texto pertence ao produto hospedado do Asaas. O schema vigente de `CheckoutSessionCallbackDTO`
+expõe somente `successUrl`, `cancelUrl` e `expiredUrl`, sem opção de rótulo ou `autoRedirect`.
+
+Ao voltar a `/cadastro/pagamento?resultado=success`, o dashboard não abriu. Os logs do Preview mostraram
+três respostas `202` seguidas por `429`: plano e criação do Checkout já consumiam duas das cinco escritas
+permitidas por usuário em 15 minutos, e três polls consumiam as restantes. A rota de status é readback
+autenticado, portanto passou para o orçamento de leitura de 60 requisições por usuário em 15 minutos.
+
+O readback independente encontrou outras duas divergências do Sandbox. `GET /payments` com o filtro
+documentado `checkoutSession` retornou zero, embora a listagem limitada expusesse uma cobrança com o ID
+exato. O adapter agora tenta primeiro o filtro oficial e, se ele omitir o resultado, lista no máximo 100
+cobranças desde a data da tentativa e exige igualdade exata de `checkoutSession`; data, valor ou posição
+na lista nunca servem como identidade. Além disso, a primeira cobrança conservou vencimento em 03/10,
+mas a assinatura `ACTIVE` já expunha 03/11, o próximo ciclo mensal. A validação passou a aceitar somente
+o primeiro vencimento ou seu sucessor mensal, preservando as demais conferências de customer, cartão,
+ciclo e valor.
+
+As três causas têm regressões focadas e o readback real do Sandbox confirmou o caso observado. O estado
+do roteiro continua **FAIL até reteste no novo Preview**: teste local e leitura do provider não provam o
+provisionamento, a renovação da sessão e a chegada ao dashboard pelo navegador do usuário.
+
+Validação local do corretivo: **4.402/4.402 testes em 419 arquivos**, TypeScript, ESLint, Prettier,
+inventário de segurança sem pendências e build Next de produção com `NODE_ENV=production`, todos com
+exit 0. A primeira tentativa de build, herdando um `NODE_ENV` não padrão do arquivo local, compilou mas
+falhou no prerender de `/404`; a repetição no ambiente de produção usado pela Vercel passou por inteiro.

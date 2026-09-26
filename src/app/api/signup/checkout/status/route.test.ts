@@ -19,7 +19,7 @@ vi.mock('@/contexts/onboarding', () => ({
   completeSignupHostedCheckout: mocks.complete,
 }));
 vi.mock('@/lib/auth/rate-limit', () => ({
-  assertSignupDraftWriteAllowed: mocks.limit,
+  assertSignupDraftReadAllowed: mocks.limit,
   getClientIp: () => '127.0.0.1',
 }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hash }));
@@ -54,6 +54,7 @@ describe('POST /api/signup/checkout/status', () => {
 
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({ state: 'pending' });
+    expect(mocks.limit).toHaveBeenCalledWith('127.0.0.1', 'user-hmac');
   });
 
   it('só libera depois que a conciliação provisiona', async () => {

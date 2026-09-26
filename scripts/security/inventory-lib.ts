@@ -283,7 +283,7 @@ export function collectInventory(root: string): Inventory {
       call: 'startSignupHostedCheckout',
     },
     'src/app/api/signup/checkout/status/route.ts#POST': {
-      guard: 'origin-verified-pretenant-user-hmac-write-limit-provider-readback-cas',
+      guard: 'origin-verified-pretenant-user-hmac-read-limit-provider-readback-cas',
       call: 'completeSignupHostedCheckout',
     },
     'src/app/api/signup/checkout/cancel/route.ts#POST': {

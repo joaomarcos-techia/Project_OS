@@ -430,6 +430,7 @@ export interface SignupHostedCheckoutTarget {
   externalReference: string;
   priceCents: number;
   trialDays: number;
+  attemptedOn: string;
   nextDueDate: string;
   asaasCustomerId: string | null;
   asaasCheckoutId: string;
@@ -492,6 +493,7 @@ export async function readSignupHostedCheckoutTarget(
     externalReference: `signup:${row.id}`,
     priceCents: priceToCents(row.amount),
     trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
+    attemptedOn: row.attemptedAt.toISOString().slice(0, 10),
     nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, row.attemptedAt),
     asaasCustomerId: row.asaasCustomerId,
     asaasCheckoutId: row.asaasCheckoutId,

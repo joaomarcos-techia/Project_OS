@@ -256,5 +256,9 @@ Estado atual:
 - cancelado/expirado encerra o Checkout antes de liberar nova tentativa;
 - conclusão automatizada ficou bloqueada no reCAPTCHA do Asaas. O roteiro humano deve concluir o
   cartão de teste no Preview e observar o redirecionamento ao dashboard;
+- a primeira conclusão humana criou cobrança e assinatura reais no Sandbox, mas o retorno ficou preso:
+  o polling consumia o limite de escrita, o filtro `checkoutSession` omitiu a cobrança e a assinatura
+  já expunha o vencimento do ciclo seguinte. O corretivo está no PR #18, com testes locais e readback
+  externo; o gate continua **FAIL até novo retorno chegar ao dashboard**;
 - não mesclar/publicar em produção antes de aplicar 0105–0106 no banco de produção em janela
   autorizada. O Preview com banco DEV é o alvo de validação.

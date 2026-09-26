@@ -110,6 +110,7 @@ desse estoque.
 | Reconcile por `externalReference`       | `signup-checkout.ts`             | `signup-checkout.test.ts`      | `SCRATCH` billing O-5 | `SANDBOX` P3            | **PASS**  |
 | Sem assinatura duplicada                | CAS + `UNIQUE` 0103              | —                              | `SCRATCH` billing O-5 | `SANDBOX` P4 (ver nota) | **PASS**  |
 | Dados do pagador coletados pelo Asaas   | body `{}` estrito; sem `customer/customerData` | rota recusa CPF/PII extra | DEV: `checkout_pending` sem customer | criação real aceita no `SANDBOX` | **PASS** |
+| Retorno, readback e provisionamento após cartão | rota de status + correlação exata | regressões de limite, fallback e ciclo | cobrança/assinatura reais relidas em DEV/Sandbox | primeira execução humana ficou em espera | **FAIL; reteste pendente** |
 | Webhook da assinatura **do cadastro**   | rota `/api/webhooks/asaas`       | —                              | `SCHEMA`              | `SANDBOX` W1–W4         | **PASS**  |
 
 **Nota P4.** O sandbox provou que **o Asaas não tem idempotência**: duas criações concorrentes com a
@@ -187,8 +188,9 @@ O contrato vigente cria `POST /checkouts` com `CREDIT_CARD` + `RECURRENT`, sem `
 URL do Checkout até o retorno. A criação real no Sandbox passou e o cleanup foi relido. Tentativas
 com customer mínimo ou `customerData` parcial foram recusadas pelo próprio Asaas, o que determinou o
 payload atual. O preenchimento automatizado chegou ao POST final do Asaas, mas o Sandbox exigiu
-reCAPTCHA; a conclusão financeira, o callback de sucesso e o provisionamento continuam
-**NOT TESTED externamente** até o roteiro humano.
+reCAPTCHA. A execução humana posterior concluiu o cartão e provou cobrança/assinatura no provider,
+porém o retorno não provisionou o tenant; esse resultado substitui o `NOT TESTED` anterior por **FAIL
+em reteste**.
 
 Na primeira execução do E2E no Preview, o clique final reproduziu `HTTP 400 invalid_object`: o
 adapter usava a descrição completa como `items[].name`, cujo limite real é 30 caracteres. Um probe com
@@ -196,10 +198,21 @@ o mesmo payload isolou a mensagem do provider. Separar o nome técnico curto da 
 mesma criação de 400 para 200; o Checkout sintético foi cancelado com 200. O teste de contrato agora
 trava essa separação.
 
-O rerun completo contra o Preview HTTPS terminou **5/5 PASS**. No caso principal, a automação chegou
+O rerun automatizado contra o Preview HTTPS terminou **5/5 PASS**. No caso principal, a automação chegou
 ao domínio `sandbox.asaas.com`, encontrou a página de assinatura e releu no DEV o estado
 `checkout_pending` com id/URL e sem customer/assinatura. A limpeza cancelou o recurso externo e
-removeu a conta/draft. A conclusão com cartão segue `NOT TESTED` por exigir reCAPTCHA humano.
+removeu a conta/draft. A conclusão com cartão foi exercitada depois e falhou no retorno ao Qoro.
+
+Os logs mostraram `202, 202, 202` e depois `429`: o polling usava o orçamento de escrita de 5/15 min,
+já parcialmente consumido pelo plano e pela criação do Checkout. O provider também omitiu a cobrança
+quando filtrada por `checkoutSession`, apesar de devolvê-la com o ID exato numa listagem limitada, e
+avançou `nextDueDate` da assinatura `ACTIVE` para o ciclo seguinte. O corretivo usa orçamento de leitura,
+fallback limitado com igualdade exata do checkout e aceita apenas a primeira data ou o próximo ciclo.
+O readback real confirmou a cobrança e a assinatura; provisionamento e dashboard permanecem **FAIL até
+um reteste humano positivo no Preview corrigido**.
+
+O corretivo passou localmente em 4.402 testes/419 arquivos, TypeScript, ESLint, Prettier, inventário de
+segurança e build Next de produção. Esses gates não promovem o resultado humano para PASS.
 
 No retorno de sucesso, o Qoro não confia na URL: consulta a cobrança pelo `checkoutSession`, relê a
 assinatura e valida customer, `ACTIVE`, cartão, ciclo mensal, valor e vencimento antes de provisionar.

@@ -60,6 +60,7 @@ const TARGET = {
   externalReference: INTENT.externalReference,
   priceCents: INTENT.priceCents,
   trialDays: 7,
+  attemptedOn: '2026-09-26',
   nextDueDate: INTENT.nextDueDate,
   asaasCustomerId: null,
   asaasCheckoutId: 'checkout_1',
@@ -277,6 +278,10 @@ describe('Checkout hospedado do cadastro', () => {
       asaasSubscriptionId: 'sub_1',
     });
     expect(client.getCustomer).toHaveBeenCalledWith('cus_1', { attempts: 1 });
+    expect(client.findPaymentByCheckoutSession).toHaveBeenCalledWith('checkout_1', {
+      attempts: 1,
+      createdSince: '2026-09-26',
+    });
     expect(mocks.provision).toHaveBeenCalledWith({
       userId: USER,
       verifiedEmail: EMAIL,
@@ -301,6 +306,36 @@ describe('Checkout hospedado do cadastro', () => {
       findPaymentByCheckoutSession: vi
         .fn()
         .mockResolvedValue({ ...PAYMENT, dueDate: '2026-09-27' }),
+    });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: false, reason: 'conflict' });
+    expect(mocks.activate).not.toHaveBeenCalled();
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('aceita a assinatura avançada para o ciclo seguinte após gerar a primeira cobrança', async () => {
+    const client = fakeProvider({
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        nextDueDate: '2026-11-03',
+      }),
+    });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'provisioned' });
+    expect(mocks.activate).toHaveBeenCalledTimes(1);
+    expect(mocks.provision).toHaveBeenCalledTimes(1);
+  });
+
+  it('recusa uma data da assinatura fora da primeira cobrança e do ciclo seguinte', async () => {
+    const client = fakeProvider({
+      getSubscription: vi.fn().mockResolvedValue({
+        ...SUBSCRIPTION,
+        nextDueDate: '2026-12-03',
+      }),
     });
 
     await expect(

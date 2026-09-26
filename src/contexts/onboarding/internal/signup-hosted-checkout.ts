@@ -220,15 +220,48 @@ function subscriptionMatchesTarget(
   const customerMatches = target.asaasCustomerId
     ? subscription.customerId === target.asaasCustomerId
     : Boolean(subscription.customerId);
+  const firstDueDate = parseIsoDate(target.nextDueDate);
+  const nextCycleDueDate = firstDueDate ? addCalendarMonth(firstDueDate) : null;
+  const dueDateMatches =
+    subscription.nextDueDate === target.nextDueDate ||
+    (nextCycleDueDate !== null && subscription.nextDueDate === nextCycleDueDate);
   return (
     subscription.status === 'ACTIVE' &&
     customerMatches &&
     subscription.cycle === 'MONTHLY' &&
     subscription.billingType === 'CREDIT_CARD' &&
-    subscription.nextDueDate === target.nextDueDate &&
+    dueDateMatches &&
     Math.round(subscription.value * 100) === target.priceCents &&
     externalReferenceMatches
   );
+}
+
+function parseIsoDate(raw: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(raw);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function addCalendarMonth(date: { year: number; month: number; day: number }): string {
+  const nextMonthIndex = date.month;
+  const year = date.year + Math.floor(nextMonthIndex / 12);
+  const monthIndex = nextMonthIndex % 12;
+  const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const day = Math.min(date.day, lastDay);
+  return `${year.toString().padStart(4, '0')}-${(monthIndex + 1)
+    .toString()
+    .padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
 
 async function authoritativeSubscription(
@@ -242,6 +275,7 @@ async function authoritativeSubscription(
 
   const payment = await client.findPaymentByCheckoutSession(target.asaasCheckoutId, {
     attempts: 1,
+    createdSince: target.attemptedOn,
   });
   if (!payment) return null;
   if (
