@@ -259,6 +259,7 @@ Estado atual:
 - a primeira conclusão humana criou cobrança e assinatura reais no Sandbox, mas o retorno ficou preso:
   o polling consumia o limite de escrita, o filtro `checkoutSession` omitiu a cobrança e a assinatura
   já expunha o vencimento do ciclo seguinte. O corretivo está no PR #18, com testes locais e readback
-  externo; o gate continua **FAIL até novo retorno chegar ao dashboard**;
+  externo. O reteste da mesma tentativa passou: status 200, assinatura/trial publicados,
+  `signup.provisioned`, sessão renovada e dashboard 200. O gate é **PASS em DEV/Preview**;
 - não mesclar/publicar em produção antes de aplicar 0105–0106 no banco de produção em janela
   autorizada. O Preview com banco DEV é o alvo de validação.
