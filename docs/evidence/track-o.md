@@ -190,6 +190,12 @@ payload atual. O preenchimento automatizado chegou ao POST final do Asaas, mas o
 reCAPTCHA; a conclusão financeira, o callback de sucesso e o provisionamento continuam
 **NOT TESTED externamente** até o roteiro humano.
 
+Na primeira execução do E2E no Preview, o clique final reproduziu `HTTP 400 invalid_object`: o
+adapter usava a descrição completa como `items[].name`, cujo limite real é 30 caracteres. Um probe com
+o mesmo payload isolou a mensagem do provider. Separar o nome técnico curto da descrição mudou a
+mesma criação de 400 para 200; o Checkout sintético foi cancelado com 200. O teste de contrato agora
+trava essa separação.
+
 No retorno de sucesso, o Qoro não confia na URL: consulta a cobrança pelo `checkoutSession`, relê a
 assinatura e valida customer, `ACTIVE`, cartão, ciclo mensal, valor e vencimento antes de provisionar.
 Cancelamento/expiração também não confiam no callback: primeiro verificam ausência de assinatura,

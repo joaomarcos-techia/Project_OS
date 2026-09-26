@@ -283,6 +283,8 @@ O contrato vigente é:
 
 - migrations 0105–0106 aplicadas e relidas no banco DEV;
 - criação recorrente real aceita no Sandbox sem PII no payload; cleanup confirmado;
+- `items[].name` usa identificador técnico limitado a 30 caracteres; a descrição completa fica em
+  `items[].description`, conforme defeito encontrado pelo primeiro E2E do Preview;
 - customer mínimo e `customerData` parcial recusados pelo Asaas, confirmando que o pagador precisa
   completar os dados na página hospedada;
 - contrato, retorno autoritativo, corrida de cancelamento e UI cobertos por testes locais;

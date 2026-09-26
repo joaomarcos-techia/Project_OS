@@ -25,7 +25,8 @@ describe('Asaas Checkout recorrente', () => {
       client.createCheckout({
         kind: 'recurrent',
         value: 149,
-        description: 'Qoro plano Essencial',
+        itemName: 'Qoro · solo',
+        description: 'Qoro plano Essencial para uma clínica com nome comprido',
         externalReference: 'signup:session-1',
         minutesToExpire: 60,
         callback: {
@@ -58,8 +59,8 @@ describe('Asaas Checkout recorrente', () => {
           },
           items: [
             {
-              name: 'Qoro plano Essencial',
-              description: 'Qoro plano Essencial',
+              name: 'Qoro · solo',
+              description: 'Qoro plano Essencial para uma clínica com nome comprido',
               quantity: 1,
               value: 149,
             },

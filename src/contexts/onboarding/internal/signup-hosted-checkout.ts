@@ -143,6 +143,7 @@ export async function startSignupHostedCheckout(input: {
     const checkout = await client.createCheckout({
       kind: 'recurrent',
       value: centsToReais(intent.priceCents),
+      itemName: `Qoro · ${intent.planCode}`,
       description: describe(intent),
       externalReference: intent.externalReference,
       minutesToExpire: CHECKOUT_EXPIRATION_MINUTES,

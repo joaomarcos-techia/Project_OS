@@ -138,6 +138,7 @@ describe('Checkout hospedado do cadastro', () => {
     expect(client.createCheckout).toHaveBeenCalledWith({
       kind: 'recurrent',
       value: 349,
+      itemName: 'Qoro · essencial',
       description: expect.stringContaining('essencial'),
       externalReference: INTENT.externalReference,
       minutesToExpire: 60,

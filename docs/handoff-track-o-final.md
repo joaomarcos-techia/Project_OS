@@ -243,6 +243,8 @@ Estado atual:
 
 - 0105–0106 aplicadas e relidas somente no banco DEV; produção ainda não está pronta para esse código;
 - Checkout real criado no Sandbox, com dados do pagador e cartão coletados no domínio do Asaas;
+- o primeiro E2E do Preview encontrou o limite real de 30 caracteres em `items[].name`; o nome técnico
+  foi separado da descrição, um probe externo passou de 400 para 200 e o recurso foi cancelado;
 - retorno de sucesso faz polling autoritativo e só libera dashboard após readback e provisionamento;
 - cancelado/expirado encerra o Checkout antes de liberar nova tentativa;
 - conclusão automatizada ficou bloqueada no reCAPTCHA do Asaas. O roteiro humano deve concluir o

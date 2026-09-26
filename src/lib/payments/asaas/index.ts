@@ -211,6 +211,8 @@ export interface GenerateInvoiceInput {
 
 interface CreateCheckoutBaseInput {
   value: number;
+  /** Nome curto do item no Asaas; o contrato do Checkout limita a 30 caracteres. */
+  itemName?: string;
   description: string;
   externalReference: string;
   /** Contrato do Asaas: entre 10 minutos e 24 horas. */
@@ -306,6 +308,8 @@ export interface ProviderCustomer {
   customerId: string;
   cpfCnpj: string | null;
 }
+
+const ASAAS_CHECKOUT_ITEM_NAME_MAX_LENGTH = 30;
 
 /**
  * Evento de webhook Asaas normalizado (sem wire format cru).
@@ -783,6 +787,12 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
       }
 
       const recurrent = input.kind === 'recurrent';
+      const itemName = (input.itemName ?? input.description)
+        .trim()
+        .slice(0, ASAAS_CHECKOUT_ITEM_NAME_MAX_LENGTH);
+      if (!itemName) {
+        throw new BillingProviderError('checkout item name ausente', 'invalid_checkout_item_name');
+      }
       const r = (await request('POST', '/checkouts', {
         billingTypes: recurrent ? ['CREDIT_CARD'] : ['PIX', 'CREDIT_CARD'],
         chargeTypes: recurrent ? ['RECURRENT'] : ['DETACHED'],
@@ -791,7 +801,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         callback: input.callback,
         items: [
           {
-            name: input.description,
+            name: itemName,
             description: input.description,
             quantity: 1,
             value: input.value,

@@ -7103,6 +7103,12 @@ adotado. A automação preencheu as etapas, mas o POST final respondeu com reCAP
 houve bypass. Conclusão, callback, readback e provisionamento externos permanecem pendentes do roteiro
 humano.
 
+O primeiro E2E do Preview encontrou uma segunda diferença de contrato: `items[].name` reutilizava a
+descrição completa com o nome da clínica, e o Asaas respondeu `400 invalid_object` porque esse campo
+aceita no máximo 30 caracteres. O adapter agora recebe um nome técnico curto, limita-o a 30 e conserva
+a descrição completa em `items[].description`. A reprodução externa com os mesmos callbacks passou de
+400 para 200 e o Checkout criado foi cancelado com 200; há regressão de contrato dedicada.
+
 As migrations 0105–0106 foram aplicadas somente no DEV. O readback encontrou as duas versões, as
 duas colunas e um único CHECK exigindo `asaas_customer_id IS NULL` em `checkout_pending`. Produção
 continua com 0104 como última migration deste track e não pode receber este runtime antes de uma
