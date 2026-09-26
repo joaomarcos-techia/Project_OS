@@ -280,7 +280,15 @@ export function collectInventory(root: string): Inventory {
     },
     'src/app/api/signup/checkout/route.ts#POST': {
       guard: 'origin-verified-pretenant-user-hmac-write-limit-empty-body-cas',
-      call: 'startSignupSubscription',
+      call: 'startSignupHostedCheckout',
+    },
+    'src/app/api/signup/checkout/status/route.ts#POST': {
+      guard: 'origin-verified-pretenant-user-hmac-write-limit-provider-readback-cas',
+      call: 'completeSignupHostedCheckout',
+    },
+    'src/app/api/signup/checkout/cancel/route.ts#POST': {
+      guard: 'origin-verified-pretenant-user-hmac-write-limit-strict-body-provider-cancel-cas',
+      call: 'abandonSignupHostedCheckout',
     },
     'src/app/api/signup/plan/route.ts#GET': {
       guard: 'verified-pretenant-user-hmac-read-limit',

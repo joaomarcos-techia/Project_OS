@@ -7116,6 +7116,12 @@ concluiu o handoff com o código de oito dígitos, salvou o plano, navegou para
 customer/assinatura nulos. O `finally` cancelou o Checkout e removeu conta, draft e lock sintéticos.
 Isso prova a abertura do Checkout; o pagamento final continua humano por causa do reCAPTCHA.
 
+O primeiro CI do PR reprovou corretamente o inventário de segurança: ele ainda procurava a função
+direta removida e não conhecia as rotas de status/cancelamento. As três superfícies foram revisadas e
+registradas com origem, identidade pré-tenant, HMAC, limite, body estrito, readback/cancelamento no
+provider e CAS. O gate passou localmente com zero `REVIEW_REQUIRED`; os testes do inventário e da
+catraca de rotas passaram 14/14.
+
 As migrations 0105–0106 foram aplicadas somente no DEV. O readback encontrou as duas versões, as
 duas colunas e um único CHECK exigindo `asaas_customer_id IS NULL` em `checkout_pending`. Produção
 continua com 0104 como última migration deste track e não pode receber este runtime antes de uma

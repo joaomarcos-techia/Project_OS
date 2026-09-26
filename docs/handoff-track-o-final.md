@@ -247,6 +247,8 @@ Estado atual:
   foi separado da descrição, um probe externo passou de 400 para 200 e o recurso foi cancelado;
 - rerun externo no Preview: **5/5 PASS**; o cenário principal chegou ao Asaas Sandbox e provou no DEV
   `checkout_pending` sem customer/assinatura, com cleanup exato ao final;
+- o primeiro CI detectou as três rotas fora do inventário de segurança; o mapa foi atualizado para os
+  guards atuais e o gate local terminou com zero `REVIEW_REQUIRED` (14/14 testes focados);
 - retorno de sucesso faz polling autoritativo e só libera dashboard após readback e provisionamento;
 - cancelado/expirado encerra o Checkout antes de liberar nova tentativa;
 - conclusão automatizada ficou bloqueada no reCAPTCHA do Asaas. O roteiro humano deve concluir o
