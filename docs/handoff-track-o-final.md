@@ -231,3 +231,21 @@ pessoal foi inserido e o funil não foi avançado além da primeira tela.
 **A partir daqui há dinheiro real em jogo.** O cadastro aberto cria assinatura de verdade no Asaas de
 produção no passo de checkout. O `ASAAS_API_KEY` de Production tem 94 dias e já atende clientes
 pagantes; o webhook de assinatura responde 401 sem token no alias estável, que é a recusa correta.
+
+## Atualização de billing — 26/09/2026
+
+O contrato direto que pedia CPF no Qoro e criava assinatura `UNDEFINED` foi substituído por Checkout
+recorrente hospedado. O defeito observado era real: a própria rota considerava o readback da
+assinatura direta suficiente e provisionava imediatamente; o E2E de confirmação terminava em
+`/cadastro/plano`, então o botão final nunca havia sido exercitado.
+
+Estado atual:
+
+- 0105–0106 aplicadas e relidas somente no banco DEV; produção ainda não está pronta para esse código;
+- Checkout real criado no Sandbox, com dados do pagador e cartão coletados no domínio do Asaas;
+- retorno de sucesso faz polling autoritativo e só libera dashboard após readback e provisionamento;
+- cancelado/expirado encerra o Checkout antes de liberar nova tentativa;
+- conclusão automatizada ficou bloqueada no reCAPTCHA do Asaas. O roteiro humano deve concluir o
+  cartão de teste no Preview e observar o redirecionamento ao dashboard;
+- não mesclar/publicar em produção antes de aplicar 0105–0106 no banco de produção em janela
+  autorizada. O Preview com banco DEV é o alvo de validação.

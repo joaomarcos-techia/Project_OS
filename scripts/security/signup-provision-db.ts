@@ -242,6 +242,9 @@ function compensationStub(userId: string, mode: 'declined' | 'mismatch' | 'cas')
         value: mode === 'mismatch' ? value + 1 : value,
         customerId,
         externalReference,
+        cycle: 'MONTHLY',
+        nextDueDate: '2026-10-03',
+        billingType: 'UNDEFINED',
       };
     },
     async cancelSubscription(id) {

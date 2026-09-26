@@ -8,6 +8,7 @@ import type { SignupPlanState } from '@/contexts/onboarding';
 import { PlanSelectionForm } from './plan-selection-form';
 
 const fetchMock = vi.fn<typeof fetch>();
+const assignMock = vi.fn<(url: string | URL) => void>();
 const ESSENTIAL_ID = '22222222-2222-4222-8222-222222222222';
 const COMPLETE_ID = '33333333-3333-4333-8333-333333333333';
 const STATE: SignupPlanState = {
@@ -43,11 +44,14 @@ function json(status: number, body: unknown): Response {
 
 beforeEach(() => {
   fetchMock.mockReset();
+  assignMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
+  vi.spyOn(window.location, 'assign').mockImplementation(assignMock);
 });
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -80,7 +84,7 @@ describe('seleção de plano O-4', () => {
     expect(screen.getByText(/dias grátis começam quando a clínica for ativada/u)).toBeTruthy();
     expect(screen.getByText(/nós não pedimos cartão aqui/u)).toBeTruthy();
     // A ativação é um segundo ato explícito, nunca efeito colateral do salvar.
-    expect(screen.getByRole('button', { name: 'Ativar clínica e entrar' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continuar no Checkout Asaas' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls.some((call) => call[0] === '/api/signup/checkout')).toBe(false);
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/signup/plan');
@@ -154,5 +158,43 @@ describe('seleção de plano O-4', () => {
       expect(screen.getByText('Selecione um plano para continuar.')).toBeTruthy();
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('abre a URL hospedada do Asaas e não entra direto no dashboard', async () => {
+    const checkoutUrl = 'https://sandbox.asaas.com/checkoutSession/show?id=checkout_1';
+    fetchMock
+      .mockResolvedValueOnce(json(200, STATE))
+      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }))
+      .mockResolvedValueOnce(json(200, { state: 'checkout_pending', checkoutUrl }));
+    render(<PlanSelectionForm />);
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
+    await screen.findByText('Plano salvo');
+    expect(screen.queryByRole('textbox', { name: /CPF ou CNPJ/u })).toBeNull();
+    expect(screen.getByText(/Asaas solicitará os dados de cobrança e o cartão/u)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar no Checkout Asaas' }));
+
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith(checkoutUrl));
+    expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(JSON.stringify({}));
+    expect(assignMock).not.toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard');
+  });
+
+  it('recusa URL de Checkout fora dos hosts oficiais', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, STATE))
+      .mockResolvedValueOnce(json(200, { rowVersion: 8, selectedPlanId: COMPLETE_ID }))
+      .mockResolvedValueOnce(
+        json(200, { state: 'checkout_pending', checkoutUrl: 'https://evil.test/coletar-cartao' }),
+      );
+    render(<PlanSelectionForm />);
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Completo/u }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
+    await screen.findByText('Plano salvo');
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar no Checkout Asaas' }));
+
+    await screen.findByText(/poss.vel concluir agora/u);
+    expect(assignMock).not.toHaveBeenCalled();
   });
 });

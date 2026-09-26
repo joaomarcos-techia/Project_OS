@@ -130,6 +130,9 @@ describe('reconciliação de assinatura', () => {
       status: 'ACTIVE',
       value: 149,
       externalReference: 'onboarding:00000000-0000-0000-0000-000000000001',
+      cycle: null,
+      nextDueDate: null,
+      billingType: null,
     });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://sandbox.asaas.com/api/v3/subscriptions?externalReference=onboarding%3A00000000-0000-0000-0000-000000000001&limit=1',

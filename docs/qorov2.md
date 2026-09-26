@@ -6465,6 +6465,9 @@ provada — e verificar isso, leitura por leitura, custa mais caro do que simple
 > e [inventário de segurança regenerado](security/acoes.md).
 > **Emenda de identidade de 23/09:** a §37.6 e a [ADR-062 §11](adr/062-identidade-consentimento-cadastro.md)
 > substituem as descrições abaixo que ainda falam em senha antes do clique ou avanço automático.
+> **Emenda de billing de 26/09:** a §38 e a emenda da [ADR-053](adr/053-cadastro-autonomo-seguro.md)
+> substituem o contrato direto `UNDEFINED`, a coleta de CPF no Qoro e o inventário de migrations
+> abaixo. Os números da §36.1 permanecem como snapshot histórico de 20/09.
 
 ### 36.1 O tamanho, medido
 
@@ -6512,7 +6515,7 @@ contra o build de produção. São nove runners; `scratch-schema.ts`, `signup-re
 | **O-2** bootstrap | sessão anônima, cookie/HMAC/TTL, risco, Turnstile, janitor | `contexts/onboarding/internal/signup-session.ts`, `signup-risk.ts`, `turnstile.ts`, `api/signup/sessions/*`, `api/cron/signup-sessions-cleanup` |
 | **O-3** identidade | conta sem senha, e-mail Qoro/Resend, confirmação e handoff explícito | `signup-auth-admin.ts`, `signup-auth-binding.ts`, `signup-confirmation-email.ts`, `api/signup/sessions/{auth,identity,resend,continue}`, `auth/confirm` |
 | **O-4** clínica/plano | draft autenticado, plano resolvido no servidor | `signup-draft.ts`, `api/signup/draft`, `api/signup/plan`, `/cadastro/plano` |
-| **O-5** billing | intenção, reserva, assinatura recorrente, reconciliação | `signup-billing.ts`, `signup-checkout.ts`, `api/signup/checkout` |
+| **O-5** billing | intenção, reserva, Checkout recorrente hospedado, retorno autoritativo | `signup-billing.ts`, `signup-hosted-checkout.ts`, `api/signup/checkout/{route,status,cancel}` |
 | **O-6** provisionamento | tenant/owner/config em uma transação | `signup-provision.ts` |
 | **O-7** onboarding operacional | checklist, tour, central de ajuda | `operational-onboarding.ts`, `_painel/product-tour.tsx`, `_painel/onboarding-*.ts`, `/documentacao` |
 | **O.H/O.S** | adversarial, carga, chaos, kill switch | `scripts/security/*`, `scripts/load-signup-degraded.ts`, `scripts/security/track-o-load.ts` |
@@ -6546,7 +6549,7 @@ do relógio de uma instância serverless e fosse comparada pelo do banco, qualqu
 viraria sessão morrendo cedo ou vivendo demais — e ninguém reproduziria, porque dependeria de qual
 instância atendeu a requisição.
 
-### 36.4 O banco — nove migrations, e o que cada uma torna impossível
+### 36.4 O banco — onze migrations no contrato atual, e o que cada uma torna impossível
 
 `signup_sessions` é **GLOBAL PROTECTED** (ADR-007 §10): nasce antes de existir clínica, então não tem
 `clinic_id` e `withTenant` não teria GUC para setar. O que a protege é RLS `ENABLE` + `FORCE` **sem
@@ -6564,6 +6567,8 @@ nenhuma policy** — negação por padrão para qualquer role sem `BYPASSRLS` �
 | `0102` | plano selecionado | `selected_plan_id` apontar para plano inexistente |
 | `0103` | tentativa de billing | `id` de assinatura sem estado; `active` sem assinatura; a mesma assinatura em dois cadastros (`UNIQUE`) |
 | `0104` | `onboarding_progress` | colega da mesma clínica ler o tour alheio; estado terminal sem data; passo fora da faixa |
+| `0105` | id e URL do Checkout hospedado; estado `checkout_pending` | dois cadastros usarem o mesmo Checkout; estado pendente sem o par id/URL |
+| `0106` | customer nasce somente após o Checkout | `checkout_pending` carregar customer/assinatura antes de o pagador concluir no Asaas |
 
 Esta coluna descreve somente o que o **SQL** impede. Vivacidade na 0098, cooldown/rate limit na 0100
 e claim concorrente na 0101 são garantias adicionais das queries e transações da aplicação; não são
@@ -6597,10 +6602,11 @@ criação; e a constraint `UNIQUE` em `asaas_subscription_id` é a rede de baixo
 "procurar antes de criar" **estreita a janela e não a fecha** — duas criações concorrentes com a
 mesma referência produzem duas assinaturas. Quem fecha é o CAS.
 
-**3. Nenhum dado de cartão passa pelo Qoro.** `createSubscription` sem cartão
-(`billingType: 'UNDEFINED'`); o Asaas emite as faturas e hospeda o pagamento na página dele. O corpo
+**3. Nenhum dado do pagador ou de cartão passa pelo Qoro.** O servidor cria Checkout hospedado
+`CREDIT_CARD` + `RECURRENT`, sem `customer` e sem `customerData`; documento, telefone, endereço e
+cartão são coletados no domínio do Asaas. O body de `/api/signup/checkout` é `{}` estrito. O corpo
 de um 4xx do provedor pode refletir o request, então ele **nunca** é persistido, logado ou exibido —
-só um código curto e nosso. `cpfcnpj` entrou em `SENSITIVE_KEYS` do scrub do Sentry.
+só um código curto e nosso. `cpfcnpj` permanece em `SENSITIVE_KEYS` como defesa geral.
 
 **4. O tenant nasce exatamente uma vez.** Não por flag, e sim porque o claim é um
 `DELETE FROM signup_sessions ... RETURNING` dentro da mesma transação que cria clínica, owner,
@@ -6649,8 +6655,8 @@ inteiro:
   carga de escrita sustentada;
 - **`env-aliases.ts`** — uma tabela de aliases `*_DEV` compartilhada e testada, no lugar do
   espalhamento anterior;
-- **`validation/document.ts`** — CPF/CNPJ, que existe porque o contrato do provedor exige documento
-  para assinar (bisecção medida no sandbox), não por precaução;
+- **`validation/document.ts`** — preservado para contratos legados e outros contextos. O Checkout
+  autônomo atual não recebe documento; o próprio Asaas o coleta na página hospedada;
 - **`/admin` ganhou a visão do funil vivo** — as respostas declaradas nos cadastros em andamento, sem
   e-mail e sem hashes. É esta leitura que estourou quando o merge foi para produção antes do schema
   (§35.29);
@@ -6688,7 +6694,7 @@ Dividido pelo que de fato separa os itens: **quem pode fazer**.
 | ---- | ------ |
 | ~~Nenhum CTA aponta para `/comecar`~~ | **resolvido** — todo CTA leva ao cadastro e o formulário de diagnóstico saiu do funil. Medido em produção: **8 / 5 / 4** links em `/`, `/precos` e `/para/psiquiatria`, e **0** `wa.me` nas três |
 | ~~`GOOGLE_TAG_ID` e `ROTULO_CONVERSAO` vazios~~ | **resolvido** — `AW-18384694179` / `Q4QJCIDelv8cEKPXwL5E`. Em produção: config processado, `google_tag_data.gl` carregado, `_gcl_au` gravado e requisições de conversão iniciadas para os endpoints do Google; crédito final no painel não revalidado |
-| Ação de conversão no Google Ads | **configuração declarada pelo painel** — "Cadastro iniciado", Leads → Inscrever-se, contagem Uma, janela 30 dias; a auditoria independente provou a saída da requisição, não o crédito final no painel |
+| Ação de conversão no Google Ads | **configuração observada no painel em 26/09/2026** — "Cadastro iniciado", origem Site, otimização Principal, contagem Uma, janela de clique 90 dias e incluída nas metas da conta. O painel mostrava `Requer atenção` e 0 conversões com a campanha desativada; a auditoria independente provou a saída da requisição, não o crédito final no painel nem a causa exata do alerta |
 
 **O defeito que ligar a medição revelou, e a ordem que o causou.** `conversaoGoogleAds()` era chamada
 em `ComecarPage`, e no React **o efeito do filho roda antes do efeito do pai** — `useSessao()` vive em
@@ -7052,3 +7058,60 @@ de cleanup sem usuário Auth, `signup_session`, fixture ou lock residual.
 Esses quatro documentos devem ser atualizados juntos quando a execução real ocorrer. Um PASS na
 suíte local não promove automaticamente o E2E externo, o Preview, a caixa de entrada, o billing ou o
 aceite humano.
+
+## 38. Checkout recorrente hospedado e limites do cadastro — 26/09/2026
+
+### 38.1 O defeito observado e por que os testes anteriores passaram
+
+O relato “escolhi o plano, informei o CPF e fui ao dashboard sem Checkout” estava correto. O contrato
+implementado em O-5 criava customer e assinatura `UNDEFINED` diretamente, fazia readback e
+provisionava o tenant no mesmo request. A interface, portanto, obedecia ao código ao pular a página
+de pagamento. Os verdes anteriores não contradiziam esse comportamento: os testes de unidade
+esperavam `{ state: provisioned }`, e o E2E de confirmação parava ao abrir `/cadastro/plano`. Nenhum
+deles clicava no botão final e exigia navegação para o domínio do Asaas.
+
+### 38.2 Contrato que substitui o O-5 direto
+
+O cadastro autônomo agora cria Checkout hospedado `CREDIT_CARD` + `RECURRENT`. O body da rota é `{}`
+estrito. Plano e preço vêm do draft e do catálogo; ciclo mensal, trial de sete dias e vencimento vêm
+do servidor. O payload não contém customer nem PII: documento, telefone, endereço e cartão ficam no
+Asaas. As migrations 0105–0106 adicionam id/URL do Checkout e fecham o estado
+`checkout_pending` sem customer ou assinatura.
+
+O sucesso do browser é apenas navegação. `/api/signup/checkout/status` procura a cobrança pelo
+`checkoutSession`, relê a assinatura exata e confere customer, `ACTIVE`, `CREDIT_CARD`, `MONTHLY`,
+valor e vencimento. Depois disso o CAS grava customer/assinatura e o provisionamento transacional
+consome o draft. Só então a sessão é renovada e o dashboard abre.
+
+Cancelamento e expiração também não são autoridade. “Voltar ao plano” relê o Asaas, cancela o
+Checkout e limpa a tentativa por CAS. Se uma assinatura apareceu na corrida, ela não é apagada: a
+tela muda para a validação de sucesso. Timeout conserva o estado pendente e não cria nova cobrança.
+
+### 38.3 Limites de entrada
+
+O código de handoff tem exatamente oito dígitos. O input aceita apenas dígitos, tem `minLength`,
+`maxLength` e `size` oito e corta qualquer excesso na digitação. Nome da pessoa e da clínica têm 120
+caracteres, e-mail 160 e senha 72 nas telas em que podem ser digitados ou redigitados. As quatro
+perguntas são escolhas fechadas e não têm texto livre para limitar.
+
+### 38.4 Medição externa e bancos
+
+O Sandbox aceitou a criação recorrente real e devolveu URL oficial. Enviar um customer criado só com
+nome/e-mail/documento foi recusado por falta de telefone e endereço; `customerData` parcial também
+foi recusado. Sem ambos, o Checkout abriu e exibiu os campos do pagador e do cartão, que é o contrato
+adotado. A automação preencheu as etapas, mas o POST final respondeu com reCAPTCHA habilitado; não
+houve bypass. Conclusão, callback, readback e provisionamento externos permanecem pendentes do roteiro
+humano.
+
+As migrations 0105–0106 foram aplicadas somente no DEV. O readback encontrou as duas versões, as
+duas colunas e um único CHECK exigindo `asaas_customer_id IS NULL` em `checkout_pending`. Produção
+continua com 0104 como última migration deste track e não pode receber este runtime antes de uma
+aplicação autorizada das duas migrations.
+
+### 38.5 Documentos sincronizados
+
+- [ADR-053](adr/053-cadastro-autonomo-seguro.md) registra a decisão que substitui a emenda direta;
+- [matriz Track O](evidence/track-o.md) separa as provas históricas do contrato atual;
+- [handoff final](handoff-track-o-final.md) registra o gate de release e a causa da divergência;
+- [roteiro humano](runbooks/aceitacao-humana-cadastro.md) passa a exigir o Checkout Sandbox e o
+  retorno ao dashboard.

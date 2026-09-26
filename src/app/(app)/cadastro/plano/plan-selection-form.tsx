@@ -5,8 +5,6 @@ import type { FormEvent } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { OptionCardGroup, type OptionCard } from '@/components/ui/option-card-group';
 import type { SignupPlan, SignupPlanState } from '@/contexts/onboarding';
 
@@ -59,6 +57,17 @@ function formatMonthlyPrice(priceCents: number): string {
   }).format(priceCents / 100);
 }
 
+function trustedCheckoutUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    const trustedHost = url.hostname === 'asaas.com' || url.hostname === 'sandbox.asaas.com';
+    return url.protocol === 'https:' && trustedHost ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function PlanSelectionForm() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [state, setState] = useState<SignupPlanState | null>(null);
@@ -68,7 +77,6 @@ export function PlanSelectionForm() {
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
-  const [document, setDocument] = useState('');
   const started = useRef(false);
   const submitting = useRef(false);
   const finishingRef = useRef(false);
@@ -174,16 +182,7 @@ export function PlanSelectionForm() {
     }
   }
 
-  /**
-   * Fecha o cadastro: assina e provisiona. O corpo leva SÓ o documento — o
-   * servidor já sabe o plano, e o preço nunca sai daqui. O documento está aqui
-   * porque o Asaas recusa assinar sem ele (medido no sandbox, ADR-053).
-   *
-   * Sucesso não navega direto para `/dashboard`: passa por `session-refresh`,
-   * porque o JWT desta aba ainda é o de antes da clínica existir e não carrega
-   * as claims de tenant/papel. Sem a rotação, o dashboard receberia uma sessão
-   * que ainda não sabe quem a pessoa virou.
-   */
+  /** Inicia a página hospedada. O Asaas coleta identificação, endereço e cartão. */
   async function finish() {
     if (finishingRef.current) return;
     finishingRef.current = true;
@@ -193,11 +192,19 @@ export function PlanSelectionForm() {
       const response = await fetch('/api/signup/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ cpfCnpj: document }),
+        body: JSON.stringify({}),
       });
-      if (response.ok) {
-        window.location.assign('/auth/session-refresh?next=/dashboard');
-        return;
+      const body = await responseJson(response);
+      if (response.ok && isRecord(body)) {
+        if (body.state === 'provisioned') {
+          window.location.assign('/auth/session-refresh?next=/dashboard');
+          return;
+        }
+        const checkoutUrl = trustedCheckoutUrl(body.checkoutUrl);
+        if (body.state === 'checkout_pending' && checkoutUrl) {
+          window.location.assign(checkoutUrl);
+          return;
+        }
       }
       if (response.status === 410) {
         setPhase('expired');
@@ -207,12 +214,6 @@ export function PlanSelectionForm() {
         setPhase('signed_out');
         return;
       }
-      if (response.status === 422) {
-        setFinishError(
-          'Confira o CPF ou CNPJ: os dígitos não conferem. Nada foi enviado ao provedor de pagamento.',
-        );
-        return;
-      }
       if (response.status === 402) {
         setFinishError(
           'O provedor de pagamento recusou a assinatura. Nenhuma cobrança foi feita — revise os dados e tente novamente.',
@@ -220,7 +221,6 @@ export function PlanSelectionForm() {
         return;
       }
       if (response.status === 409) {
-        const body = await responseJson(response);
         const reason = isRecord(body) ? body.error : null;
         setFinishError(
           reason === 'reconcile_required'
@@ -336,30 +336,16 @@ export function PlanSelectionForm() {
       </div>
       {saved ? (
         <div className="space-y-3 rounded-(--r-md) border border-border bg-surface-muted p-4">
-          <Field
-            label="CPF ou CNPJ do responsável pela cobrança"
-            htmlFor="signup-billing-document"
-            hint="O provedor de pagamento exige o documento para emitir a assinatura. Ele não aparece na sua clínica nem em relatórios."
-          >
-            <Input
-              id="signup-billing-document"
-              name="cpfCnpj"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={18}
-              value={document}
-              onChange={(event) => setDocument(event.target.value)}
-              placeholder="000.000.000-00"
-            />
-          </Field>
+          <p className="text-sm leading-relaxed text-fg-muted">
+            Na próxima página, o Asaas solicitará os dados de cobrança e o cartão com segurança.
+          </p>
           <Button
             type="button"
             onClick={() => void finish()}
             loading={finishing}
-            disabled={document.trim().length === 0}
             className="w-full"
           >
-            Ativar clínica e entrar
+            Continuar no Checkout Asaas
           </Button>
         </div>
       ) : null}

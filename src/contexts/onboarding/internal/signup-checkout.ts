@@ -48,6 +48,7 @@ export type StartSignupSubscriptionOutcome =
         | 'invalid_plan'
         | 'conflict'
         | 'already_active'
+        | 'checkout_pending'
         | 'reconcile_required'
         | 'declined'
         | 'provider_unreachable'

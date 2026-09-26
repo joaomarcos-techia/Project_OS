@@ -14,6 +14,8 @@ const localEnvironment = {
   RESEND_API_KEY_DEV: 'configured-resend-key',
   EMAIL_FROM_DEV: 'Qoro <no-reply@example.test>',
   DATABASE_URL_DEV: `postgresql://postgres.${SIGNUP_E2E_DEV_PROJECT_REF}:configured@aws-0-sa-east-1.pooler.supabase.com:6543/postgres`,
+  ASAAS_BASE_URL_DEV: 'https://sandbox.asaas.com/api/v3',
+  ASAAS_API_KEY_DEV: 'configured-asaas-key',
   MAGIC_TOKEN_SECRET_DEV: 'configured-magic-secret',
   LOGIN_HASH_PEPPER_DEV: 'configured-login-pepper',
   SUPABASE_PROJECT_ENV: 'dev',
@@ -90,6 +92,8 @@ describe('signupConfirmationE2EGuardErrors', () => {
     expect(errors.some((error) => error.includes('chave pública do Supabase DEV'))).toBe(true);
     expect(errors.some((error) => error.includes('RESEND_API_KEY_DEV'))).toBe(true);
     expect(errors.some((error) => error.includes('DATABASE_URL_DEV'))).toBe(true);
+    expect(errors.some((error) => error.includes('ASAAS_BASE_URL'))).toBe(true);
+    expect(errors.some((error) => error.includes('ASAAS_API_KEY'))).toBe(true);
   });
 
   it.each(aliasCases)(
@@ -132,6 +136,15 @@ describe('signupConfirmationE2EGuardErrors', () => {
     });
 
     expect(errors.filter((error) => error.includes('projeto DEV fixado'))).toHaveLength(2);
+  });
+
+  it('refuses an Asaas host outside the Sandbox', () => {
+    const errors = signupConfirmationE2EGuardErrors({
+      ...localEnvironment,
+      ASAAS_BASE_URL_DEV: 'https://api.asaas.com/v3',
+    });
+
+    expect(errors.some((error) => error.includes('Sandbox esperado'))).toBe(true);
   });
 
   it('requires explicit opt-in and an exact Preview origin', () => {

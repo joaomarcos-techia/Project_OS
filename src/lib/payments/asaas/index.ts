@@ -209,8 +209,7 @@ export interface GenerateInvoiceInput {
   externalReference?: string;
 }
 
-/** Checkout hospedado e avulso: o Asaas coleta o meio, nunca o Qoro. */
-export interface CreateCheckoutInput {
+interface CreateCheckoutBaseInput {
   value: number;
   description: string;
   externalReference: string;
@@ -222,6 +221,21 @@ export interface CreateCheckoutInput {
     expiredUrl: string;
   };
 }
+
+/** Checkout hospedado: o Asaas coleta o meio, nunca o Qoro. */
+export type CreateCheckoutInput = CreateCheckoutBaseInput &
+  (
+    | {
+        kind?: 'detached';
+      }
+    | {
+        kind: 'recurrent';
+        subscription: {
+          cycle: 'MONTHLY' | 'YEARLY';
+          nextDueDate: string;
+        };
+      }
+  );
 
 export interface ProviderCheckout {
   checkoutId: string;
@@ -283,6 +297,14 @@ export interface ProviderSubscription {
   value: number;
   customerId: string | null;
   externalReference: string | null;
+  cycle: string | null;
+  nextDueDate: string | null;
+  billingType: string | null;
+}
+
+export interface ProviderCustomer {
+  customerId: string;
+  cpfCnpj: string | null;
 }
 
 /**
@@ -352,6 +374,8 @@ export interface PaymentProvider {
   /** Cancela uma geração de Checkout que ainda não deve aceitar pagamento. */
   cancelCheckout(asaasCheckoutId: string): Promise<void>;
   getSubscription(asaasSubscriptionId: string): Promise<ProviderSubscription>;
+  /** Recupera o documento somente no servidor, depois que o Checkout foi concluído. */
+  getCustomer(asaasCustomerId: string, opts?: { attempts?: number }): Promise<ProviderCustomer>;
   /** Recupera uma assinatura criada por tentativa anterior após timeout de POST. */
   findSubscriptionByExternalReference(
     externalReference: string,
@@ -758,9 +782,10 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         );
       }
 
+      const recurrent = input.kind === 'recurrent';
       const r = (await request('POST', '/checkouts', {
-        billingTypes: ['PIX', 'CREDIT_CARD'],
-        chargeTypes: ['DETACHED'],
+        billingTypes: recurrent ? ['CREDIT_CARD'] : ['PIX', 'CREDIT_CARD'],
+        chargeTypes: recurrent ? ['RECURRENT'] : ['DETACHED'],
         minutesToExpire: input.minutesToExpire,
         externalReference: input.externalReference,
         callback: input.callback,
@@ -772,12 +797,24 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
             value: input.value,
           },
         ],
+        ...(recurrent ? { subscription: input.subscription } : {}),
       })) as Record<string, unknown>;
 
+      const checkoutId = String(r.id);
+      const configuredBaseUrl = resolveValue(credential.baseUrl) ?? env.ASAAS_BASE_URL;
+      const checkoutOrigin = configuredBaseUrl.includes('sandbox.asaas.com')
+        ? 'https://sandbox.asaas.com'
+        : 'https://asaas.com';
+
       return {
-        checkoutId: String(r.id),
+        checkoutId,
         status: asStr(r.status) ?? 'UNKNOWN',
-        link: asStr(r.link),
+        // A versão atual do endpoint documenta somente o `id`; contas antigas
+        // também podem devolver `link`. O formato abaixo é o oficial dos dois
+        // ambientes e evita transformar uma resposta válida em falha local.
+        link:
+          asStr(r.link) ??
+          `${checkoutOrigin}/checkoutSession/show?id=${encodeURIComponent(checkoutId)}`,
         externalReference: asStr(r.externalReference),
       };
     },
@@ -795,6 +832,22 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         value: asNum(r.value),
         customerId: asStr(r.customer),
         externalReference: asStr(r.externalReference),
+        cycle: asStr(r.cycle),
+        nextDueDate: asStr(r.nextDueDate),
+        billingType: asStr(r.billingType),
+      };
+    },
+
+    async getCustomer(id, opts) {
+      const r = (await request(
+        'GET',
+        `/customers/${encodeURIComponent(id)}`,
+        undefined,
+        opts,
+      )) as Record<string, unknown>;
+      return {
+        customerId: String(r.id),
+        cpfCnpj: asStr(r.cpfCnpj),
       };
     },
 
@@ -812,6 +865,9 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
         value: asNum(subscription.value),
         customerId: asStr(subscription.customer),
         externalReference: asStr(subscription.externalReference),
+        cycle: asStr(subscription.cycle),
+        nextDueDate: asStr(subscription.nextDueDate),
+        billingType: asStr(subscription.billingType),
       };
     },
 

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { signupPasswordSchema } from '@/lib/auth/signup-password';
 
 type Props = {
@@ -261,7 +262,7 @@ export function SignupIdentity({
                 name="ownerName"
                 autoComplete="name"
                 required
-                maxLength={120}
+                maxLength={SIGNUP_INPUT_LIMITS.personName}
               />
             </div>
             <div className="space-y-2">
@@ -271,7 +272,7 @@ export function SignupIdentity({
                 name="clinicName"
                 autoComplete="organization"
                 required
-                maxLength={120}
+                maxLength={SIGNUP_INPUT_LIMITS.clinicName}
               />
             </div>
             <div className="space-y-2">
@@ -282,7 +283,7 @@ export function SignupIdentity({
                 type="email"
                 autoComplete="email"
                 required
-                maxLength={160}
+                maxLength={SIGNUP_INPUT_LIMITS.email}
               />
             </div>
             <div className="space-y-2">
@@ -294,7 +295,7 @@ export function SignupIdentity({
                   type={senhaVisivel ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
-                  maxLength={72}
+                  maxLength={SIGNUP_INPUT_LIMITS.password}
                   aria-describedby="signup-password-help"
                   className="pr-11"
                 />

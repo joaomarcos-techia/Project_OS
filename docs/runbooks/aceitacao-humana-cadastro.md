@@ -60,8 +60,9 @@ e nunca produção. As flags
 - **Login da Vercel** — o Preview é protegido; a primeira visita pede autenticação.
 - **Um e-mail que você consiga abrir.** Use um alias consentido (`voce+aceite1@…`) e confirme pelo
   link recebido. **Não use e-mail de cliente.**
-- **CPF/CNPJ sintético válido para o Sandbox.** Use a fixture aprovada do ambiente de teste.
-  Não é necessário cartão para concluir o cadastro e iniciar o trial.
+- **Dados sintéticos completos do pagador e um cartão de teste do Asaas Sandbox.** Documento,
+  telefone, endereço e cartão são informados somente na página hospedada pelo Asaas. O Qoro não
+  coleta nem transporta esses campos.
 
 ## O roteiro
 
@@ -121,14 +122,24 @@ cadastro” no computador ficou clara sem explicar a implementação?
 
 ### 2. Plano e billing
 
-Escolha o plano, informe CPF/CNPJ sintético e conclua a criação da assinatura.
+Escolha o plano e confirme. O navegador deve sair do Qoro e abrir uma URL HTTPS em
+`sandbox.asaas.com/checkoutSession/show`. Preencha ali os dados sintéticos do pagador e o cartão de
+teste e conclua a assinatura recorrente. O plano, o valor, o ciclo e o primeiro vencimento não podem
+ser campos editáveis no Qoro.
 
-Esta parte é deliberadamente humana e separada: o E2E técnico de confirmação para quando
-`/cadastro/plano` abre. Um PASS naquele spec não diz que checkout, Asaas, webhook, reconciliação ou
-provisionamento funcionaram nesta execução.
+Esta parte é deliberadamente humana e separada: a prova automatizada chega ao Checkout hospedado e
+confirma a reserva persistida, mas a conclusão interativa depende do reCAPTCHA do Asaas. Um PASS de
+confirmação de e-mail não prova pagamento, retorno, reconciliação ou provisionamento.
 
-**Esperado:** nenhuma tela pede dado de cartão **dentro** do Qoro — quem coleta é o Asaas. Se você vir
-um campo de cartão com a cara do Qoro, isso é um achado, e é grave.
+**Esperado:** nenhuma tela pede CPF/CNPJ, telefone, endereço ou cartão **dentro** do Qoro — quem
+coleta é o Asaas. Ao concluir, o Asaas redireciona para `/cadastro/pagamento?resultado=success`; essa
+tela consulta o provedor e só segue para o dashboard depois de confirmar customer, assinatura
+`ACTIVE`, cartão, ciclo mensal, valor e vencimento. O callback sozinho não concede acesso.
+
+Se cancelar ou deixar o Checkout expirar, use “Voltar ao plano”. A aplicação precisa encerrar ou
+confirmar o encerramento daquele Checkout no Asaas antes de liberar outro. Ela não pode reabrir a URL
+expirada nem criar duas assinaturas. Se você vir um campo financeiro com a cara do Qoro, chegar ao
+dashboard antes de concluir o Checkout ou ficar preso na URL antiga, registre como **FAIL**.
 
 **Julgue:** o preço e o que está incluído ficam claros antes de confirmar? Dá para saber o que
 acontece no fim do trial?
