@@ -29,8 +29,9 @@ trabalho — não vira "conhecido".
 ## Onde rodar, e por que não em produção
 
 **Rode no Preview.** O Preview usa o **Sandbox** do Asaas e o banco DEV, então você pode percorrer o
-funil inteiro sem criar assinatura em produção. O cadastro atual não solicita cartão: a primeira
-fatura vence ao fim dos sete dias e o pagamento é hospedado pelo Asaas.
+funil inteiro sem criar assinatura em produção. O Qoro não coleta cartão: depois da escolha do plano,
+o Checkout hospedado do Asaas solicita os dados sintéticos do pagador e o cartão de teste. A primeira
+fatura vence ao fim dos sete dias.
 
 Em produção cada passagem cria **uma clínica de verdade e uma assinatura cobrada de verdade**. Não
 use produção para aceitação, e se algum dia precisar, trate como operação com dinheiro: cancele a
@@ -38,20 +39,21 @@ assinatura e remova o tenant depois, com autorização e registro.
 
 ### Endereço
 
-O Preview vigente da emenda, no
-[PR #15](https://github.com/joaomarcos-techia/Project_OS/pull/15), é:
+O Preview vigente do Checkout hospedado, no
+[PR #18](https://github.com/joaomarcos-techia/Project_OS/pull/18), é:
 
 ```
-https://project-os-git-docs-funil-com-entrada-clinic-os-v2-s-projects.vercel.app/cadastro
+https://project-os-git-fix-signup-hosted-9ea790-clinic-os-v2-s-projects.vercel.app/cadastro
 ```
 
-O E2E automatizado executou os cinco cenários nesse alias em 4,9 min no SHA `9608e1e`, com um worker,
-zero retry, fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. Isso torna o alvo
-válido para o roteiro; não substitui a inspeção humana do inbox nem o julgamento de produto.
+O E2E automatizado executou os cinco cenários nesse alias em 4,9 min, com um worker, zero retry,
+fingerprint do Auth e banco DEV e cleanup Auth/DB/fixture/lock zero. O cenário principal chegou à
+página de assinatura no Sandbox e comprovou `checkout_pending`; o cartão/reCAPTCHA e o retorno ao
+dashboard continuam sendo esta prova humana. Isso torna o alvo válido para o roteiro, sem substituir
+a inspeção humana do inbox nem o julgamento de produto.
 
-O PR #15 já foi mesclado na `main` em `193ce31`, depois de o E2E e todos os checks ficarem verdes. O
-aceite humano continua obrigatório antes de declarar o fluxo aceito como produto; use o Preview acima
-e nunca produção. As flags
+O PR #18 continua em draft, com CI e Preview verdes, até este aceite humano comprovar a conclusão do
+Checkout e o retorno ao dashboard. Use o Preview acima e nunca produção. As flags
 `SIGNUP_IDENTITY_ENABLED` e `SIGNUP_AUTH_ENABLED` já estão no escopo **Preview** do projeto
 `project-os`; confira também que Supabase é DEV e Asaas é Sandbox antes do cadastro.
 
@@ -204,8 +206,9 @@ Não registre o e-mail usado, o código recebido, nem nada do cartão.
 
 ## Medição da campanha, fora deste roteiro
 
-O Google Ads da landing está ligado. O tag carrega em `/comecar`, o evento de conversão é enfileirado
-e a requisição sai para o Google antes da navegação. O encaminhamento automático por
+O tag do Google Ads na landing está configurado, mas a campanha permanece pausada por decisão do
+fundador até o produto ser aceito. Em `/comecar`, o evento de conversão é enfileirado e a requisição
+sai para o Google antes da navegação. O encaminhamento automático por
 `location.replace` não recebe `_gl`; o clique real na âncora de fallback recebe. Isso não afeta a
 conversão registrada na landing hoje, porque o app ainda não carrega tag Google.
 
