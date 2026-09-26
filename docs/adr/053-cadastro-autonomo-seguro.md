@@ -288,6 +288,8 @@ O contrato vigente é:
 - customer mínimo e `customerData` parcial recusados pelo Asaas, confirmando que o pagador precisa
   completar os dados na página hospedada;
 - contrato, retorno autoritativo, corrida de cancelamento e UI cobertos por testes locais;
+- E2E Preview 5/5, incluindo confirmação entre aparelhos, código fixo, abertura do Checkout Sandbox e
+  readback de `checkout_pending` antes do cleanup;
 - conclusão externa permanece pendente porque o POST final do Checkout exigiu reCAPTCHA. Ela será
   julgada pelo roteiro humano no Preview HTTPS.
 

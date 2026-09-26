@@ -1108,7 +1108,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
           url.pathname.startsWith('/checkoutSession/show'),
         { timeout: 90_000 },
       );
-      await expect(signup.page.locator('input[name="email"]')).toBeVisible({ timeout: 30_000 });
+      await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
+        timeout: 30_000,
+      });
       await assertHostedCheckoutPersisted(fixture.tokenHash!);
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);

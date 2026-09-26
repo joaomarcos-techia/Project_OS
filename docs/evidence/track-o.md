@@ -196,6 +196,11 @@ o mesmo payload isolou a mensagem do provider. Separar o nome técnico curto da 
 mesma criação de 400 para 200; o Checkout sintético foi cancelado com 200. O teste de contrato agora
 trava essa separação.
 
+O rerun completo contra o Preview HTTPS terminou **5/5 PASS**. No caso principal, a automação chegou
+ao domínio `sandbox.asaas.com`, encontrou a página de assinatura e releu no DEV o estado
+`checkout_pending` com id/URL e sem customer/assinatura. A limpeza cancelou o recurso externo e
+removeu a conta/draft. A conclusão com cartão segue `NOT TESTED` por exigir reCAPTCHA humano.
+
 No retorno de sucesso, o Qoro não confia na URL: consulta a cobrança pelo `checkoutSession`, relê a
 assinatura e valida customer, `ACTIVE`, cartão, ciclo mensal, valor e vencimento antes de provisionar.
 Cancelamento/expiração também não confiam no callback: primeiro verificam ausência de assinatura,

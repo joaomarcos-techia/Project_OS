@@ -7109,6 +7109,13 @@ aceita no máximo 30 caracteres. O adapter agora recebe um nome técnico curto, 
 a descrição completa em `items[].description`. A reprodução externa com os mesmos callbacks passou de
 400 para 200 e o Checkout criado foi cancelado com 200; há regressão de contrato dedicada.
 
+Depois do corretivo, o E2E de confirmação executou **5/5 PASS** contra o Preview HTTPS. O cenário
+principal criou conta e mensagem reais em DEV/Resend, confirmou em outro contexto de navegador,
+concluiu o handoff com o código de oito dígitos, salvou o plano, navegou para
+`sandbox.asaas.com/checkoutSession/show` e conferiu no banco `checkout_pending`, id/URL presentes e
+customer/assinatura nulos. O `finally` cancelou o Checkout e removeu conta, draft e lock sintéticos.
+Isso prova a abertura do Checkout; o pagamento final continua humano por causa do reCAPTCHA.
+
 As migrations 0105–0106 foram aplicadas somente no DEV. O readback encontrou as duas versões, as
 duas colunas e um único CHECK exigindo `asaas_customer_id IS NULL` em `checkout_pending`. Produção
 continua com 0104 como última migration deste track e não pode receber este runtime antes de uma
