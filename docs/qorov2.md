@@ -7122,6 +7122,13 @@ registradas com origem, identidade pré-tenant, HMAC, limite, body estrito, read
 provider e CAS. O gate passou localmente com zero `REVIEW_REQUIRED`; os testes do inventário e da
 catraca de rotas passaram 14/14.
 
+O rerun remoto no commit `6ec03d0` encerrou o pipeline completo com **PASS** no
+[run 36274393423](https://github.com/joaomarcos-techia/Project_OS/actions/runs/36274393423): auditoria de
+dependências, TypeScript, ESLint, arquitetura, migrations, observabilidade, registry, 4.399 testes com
+cobertura, inventário de segurança, isolamento entre tenants, build Next, inspeção do bundle e E2E
+público. Vercel, Semgrep e Snyk também terminaram verdes no PR #18. Esse verde prova o código e o
+Preview; não substitui a conclusão humana do cartão/reCAPTCHA no Sandbox.
+
 As migrations 0105–0106 foram aplicadas somente no DEV. O readback encontrou as duas versões, as
 duas colunas e um único CHECK exigindo `asaas_customer_id IS NULL` em `checkout_pending`. Produção
 continua com 0104 como última migration deste track e não pode receber este runtime antes de uma

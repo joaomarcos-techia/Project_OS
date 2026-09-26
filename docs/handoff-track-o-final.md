@@ -249,6 +249,9 @@ Estado atual:
   `checkout_pending` sem customer/assinatura, com cleanup exato ao final;
 - o primeiro CI detectou as três rotas fora do inventário de segurança; o mapa foi atualizado para os
   guards atuais e o gate local terminou com zero `REVIEW_REQUIRED` (14/14 testes focados);
+- o rerun do CI no commit `6ec03d0` terminou completamente verde no run `36274393423`: 4.399 testes
+  com cobertura, inventário de segurança, isolamento entre tenants, build Next, bundle e E2E público;
+  Vercel, Semgrep e Snyk também passaram;
 - retorno de sucesso faz polling autoritativo e só libera dashboard após readback e provisionamento;
 - cancelado/expirado encerra o Checkout antes de liberar nova tentativa;
 - conclusão automatizada ficou bloqueada no reCAPTCHA do Asaas. O roteiro humano deve concluir o

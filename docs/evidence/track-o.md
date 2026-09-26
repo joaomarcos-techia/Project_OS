@@ -208,6 +208,11 @@ cancelam o Checkout no provider e só então limpam a tentativa por CAS. A migra
 ao DEV; readback confirmou as duas versões, as colunas e um único CHECK exigindo customer nulo em
 `checkout_pending`. Produção permanece sem 0105–0106 nesta etapa.
 
+O pipeline remoto final do PR #18 passou integralmente no commit `6ec03d0` (run `36274393423`):
+4.399 testes com cobertura, inventário de segurança, isolamento entre tenants, build Next, inspeção do
+bundle e E2E público, além dos checks Vercel, Semgrep e Snyk. A prova financeira após reCAPTCHA segue
+separada e `NOT TESTED` até a execução humana no Checkout Sandbox.
+
 ## O-6 — provisionamento
 
 Artefato: `dist/track-o-provision/results.json`. Ambiente `SCHEMA`. **12/12 PASS em 21/09**, exit 0.
