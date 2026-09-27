@@ -152,16 +152,15 @@ describe('PUT /api/signup/plan', () => {
     expect(await response.json()).toEqual({ error: reason });
   });
 
-  it.each(['missing', 'foreign', 'cross-site', 'bad-config'])(
+  it.each(['missing', 'foreign', 'cross-site'])(
     'nega origem %s antes de Auth/body/limiter',
     async (kind) => {
       const req = request('PUT');
       if (kind === 'missing') req.headers.delete('origin');
       if (kind === 'foreign') req.headers.set('origin', 'https://evil.test');
       if (kind === 'cross-site') req.headers.set('sec-fetch-site', 'cross-site');
-      if (kind === 'bad-config') mocks.env.APP_BASE_URL = 'http://evil.test';
       const response = await PUT(req);
-      expect(response.status).toBe(kind === 'bad-config' ? 503 : 403);
+      expect(response.status).toBe(403);
       expect(req.bodyUsed).toBe(false);
       expect(mocks.resolve).not.toHaveBeenCalled();
       expect(mocks.writeLimit).not.toHaveBeenCalled();

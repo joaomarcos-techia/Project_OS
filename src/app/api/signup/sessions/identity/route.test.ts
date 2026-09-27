@@ -56,6 +56,23 @@ describe('POST signup identity', () => {
     expect(record).toHaveBeenCalledWith(token, data);
     expect(limit).toHaveBeenCalledWith('127.0.0.1', 'a'.repeat(64));
   });
+  it('accepts the effective Preview origin even when APP_BASE_URL is canonical', async () => {
+    const previewOrigin = 'https://project-os-git-preview.example.vercel.app';
+    const res = await POST(
+      new Request(`${previewOrigin}/api/signup/sessions/identity`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: {
+          origin: previewOrigin,
+          'sec-fetch-site': 'same-origin',
+          cookie: `__Host-qoro_signup=${token}`,
+        },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(record).toHaveBeenCalledWith(token, data);
+  });
   it('clears absent cookie before reading the body', async () => {
     const req = request();
     req.headers.delete('cookie');
@@ -64,13 +81,6 @@ describe('POST signup identity', () => {
     expect(res.headers.get('set-cookie')).toContain('Max-Age=0');
     expect(req.bodyUsed).toBe(false);
     expect(limit).not.toHaveBeenCalled();
-  });
-  it('allows configured insecure localhost only outside production', async () => {
-    config.APP_BASE_URL = 'http://localhost:3000';
-    expect((await POST(request())).status).toBe(200);
-    config.NODE_ENV = 'production';
-    expect((await POST(request())).status).toBe(503);
-    config.NODE_ENV = 'test';
   });
   it.each(['missing', 'foreign', 'cross-site', 'spoofed-host'])(
     'blocks %s origin before body/limiter/writer',
@@ -117,26 +127,21 @@ describe('POST signup identity', () => {
     expect((await POST(request(body))).status).toBe(400);
     expect(record).not.toHaveBeenCalled();
   });
-  it.each(['gate', 'configuration', 'limiter', 'hash', 'database'])(
-    'fails closed on %s failure',
-    async (kind) => {
-      if (kind === 'gate') config.SIGNUP_IDENTITY_ENABLED = false;
-      if (kind === 'configuration') config.APP_BASE_URL = 'http://evil.test';
-      if (kind === 'limiter') limit.mockResolvedValue({ ok: false, reason: 'unavailable' });
-      if (kind === 'hash')
-        hash.mockImplementation(() => {
-          throw new Error('secret unavailable');
-        });
-      if (kind === 'database') record.mockRejectedValue(new Error('raw PII database failure'));
-      const req = request();
-      const res = await POST(req);
-      expect(res.status).toBe(503);
-      expect(await res.json()).toEqual({ error: 'unavailable' });
-      if (kind !== 'database') expect(record).not.toHaveBeenCalled();
-      if (kind === 'gate' || kind === 'configuration' || kind === 'limiter')
-        expect(req.bodyUsed).toBe(false);
-    },
-  );
+  it.each(['gate', 'limiter', 'hash', 'database'])('fails closed on %s failure', async (kind) => {
+    if (kind === 'gate') config.SIGNUP_IDENTITY_ENABLED = false;
+    if (kind === 'limiter') limit.mockResolvedValue({ ok: false, reason: 'unavailable' });
+    if (kind === 'hash')
+      hash.mockImplementation(() => {
+        throw new Error('secret unavailable');
+      });
+    if (kind === 'database') record.mockRejectedValue(new Error('raw PII database failure'));
+    const req = request();
+    const res = await POST(req);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    if (kind !== 'database') expect(record).not.toHaveBeenCalled();
+    if (kind === 'gate' || kind === 'limiter') expect(req.bodyUsed).toBe(false);
+  });
   it('limits before reading PII and returns Retry-After', async () => {
     limit.mockResolvedValue({ ok: false, reason: 'rate_limited', retryAfter: 45 });
     const req = request();

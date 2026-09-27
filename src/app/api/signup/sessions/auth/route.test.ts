@@ -178,7 +178,6 @@ describe('POST signup auth', () => {
   it.each([
     'auth-gate',
     'identity-gate',
-    'configuration',
     'missing-origin',
     'foreign-origin',
     'cross-site',
@@ -192,10 +191,6 @@ describe('POST signup auth', () => {
     }
     if (kind === 'identity-gate') {
       config.SIGNUP_IDENTITY_ENABLED = false;
-      status = 503;
-    }
-    if (kind === 'configuration') {
-      config.APP_BASE_URL = 'http://evil.test';
       status = 503;
     }
     if (kind === 'missing-origin') req.headers.delete('origin');

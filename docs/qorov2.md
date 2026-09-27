@@ -7233,3 +7233,24 @@ dia, R$ 460 a receber, R$ 420 a pagar e cinco atividades recentes.
 
 Validação local: **56/56 testes focados**, suíte integral **4.403/4.403 em 419 arquivos**, TypeScript,
 ESLint integral, Prettier dos arquivos tocados e build otimizado do Next 15.5.24, todos com exit 0.
+
+### 38.8 Preview recusava a segunda etapa por origem canônica fixa — 27/09/2026
+
+No primeiro teste do Preview consolidado, a sessão anônima era criada, mas o envio da identidade em
+`POST /api/signup/sessions/identity` respondia `403 blocked`. A primeira rota já comparava o `Origin`
+com o hostname efetivo da requisição; as mutações seguintes ainda exigiam que ele fosse exatamente o
+`APP_BASE_URL`. Assim, uma página e sua API no mesmo hostname de Preview eram tratadas como cross-site
+apenas porque o hostname não era `app.qoro.dev`. Os testes anteriores montavam a URL da requisição e o
+header `Origin` com o mesmo valor canônico e, por isso, não reproduziam o alias.
+
+O contrato comum `isSameOriginMutationRequest` agora compara o origin do navegador com
+`new URL(req.url).origin`, rejeita `Origin` ausente ou malformado e continua negando
+`sec-fetch-site: cross-site` antes de ler o corpo. Ele foi aplicado a identidade, criação/reenvio da
+conta, continuação, plano, draft e criação/status/cancelamento do Checkout. A URL transacional do
+e-mail continua vindo da configuração confiável da branch; nenhum destino fornecido pelo browser foi
+aceito.
+
+A regressão dedicada usa `APP_BASE_URL` canônico com página e API no hostname do Preview e exige 200.
+Origem ausente, estrangeira, com caminho ou explicitamente cross-site permanece em 403. Validação:
+**224/224 testes focados**, suíte integral **4.421/4.421 em 420 arquivos**, TypeScript, ESLint integral,
+Prettier, inventário de segurança e build otimizado do Next 15.5.24, todos com exit 0.

@@ -13,7 +13,7 @@ import {
 } from '@/lib/auth/rate-limit';
 import { hashSignupUserId } from '@/lib/auth/signup-user-hash';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { isSameOriginMutationRequest } from '@/lib/http/same-origin';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 
 export const runtime = 'nodejs';
@@ -79,19 +79,7 @@ export async function GET(req: Request): Promise<Response> {
 export async function PUT(req: Request): Promise<Response> {
   if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
     return json({ error: 'unavailable' }, 503);
-  let origin: string;
-  try {
-    origin = new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
-    ).origin;
-  } catch {
-    return json({ error: 'unavailable' }, 503);
-  }
-  if (req.headers.get('origin') !== origin || req.headers.get('sec-fetch-site') === 'cross-site') {
-    return json({ error: 'blocked' }, 403);
-  }
+  if (!isSameOriginMutationRequest(req)) return json({ error: 'blocked' }, 403);
 
   try {
     const identity = await readyPreTenant();
