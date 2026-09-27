@@ -124,8 +124,18 @@ export function PlanSelectionForm() {
     () =>
       (state?.plans ?? []).map((plan) => ({
         value: plan.id,
-        label: plan.name,
-        description: `${formatMonthlyPrice(plan.priceCents)} por mês · ${state?.trialDays ?? 0} dias grátis após a ativação`,
+        label: (
+          <span className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-fg">{plan.name}</span>
+            <span className="flex items-baseline gap-1 text-primary">
+              <span className="font-display text-2xl font-semibold tracking-tight tabular-nums">
+                {formatMonthlyPrice(plan.priceCents)}
+              </span>
+              <span className="text-xs font-medium text-fg-muted">/mês</span>
+            </span>
+          </span>
+        ),
+        description: `${state?.trialDays ?? 0} dias grátis após a ativação`,
       })),
     [state],
   );
@@ -303,13 +313,13 @@ export function PlanSelectionForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
-      <div className="rounded-(--r-md) bg-surface-inset px-4 py-3">
+    <form onSubmit={submit} className="space-y-4">
+      <div className="flex items-center justify-between gap-3 rounded-(--r-md) bg-surface-inset px-4 py-2.5">
         <p className="text-xs font-medium text-fg-subtle">Clínica</p>
-        <p className="mt-0.5 text-sm font-semibold text-fg">{state.clinicName}</p>
+        <p className="truncate text-sm font-semibold text-fg">{state.clinicName}</p>
       </div>
-      <fieldset disabled={saving} className="space-y-3">
-        <legend className="mb-3 text-sm font-semibold text-fg">Plano mensal</legend>
+      <fieldset disabled={saving} className="space-y-2.5">
+        <legend className="mb-2.5 text-sm font-semibold text-fg">Plano mensal</legend>
         <OptionCardGroup
           name="signupPlan"
           value={selectedPlanId}
@@ -321,41 +331,37 @@ export function PlanSelectionForm() {
           options={options}
           disabled={saving}
           aria-label="Planos disponíveis"
+          className="grid gap-3 md:grid-cols-3"
         />
       </fieldset>
-      <div aria-live="polite" className="space-y-3">
+      <div aria-live="polite" className="space-y-2">
         {saved ? (
           <Alert variant="success" title="Plano salvo">
-            Seus {state.trialDays} dias grátis começam quando a clínica for ativada. A primeira
-            cobrança vence só no fim desse período, e o pagamento acontece na página do provedor —
-            nós não pedimos cartão aqui.
+            {state.trialDays} dias grátis após a ativação. O pagamento acontece com segurança na
+            página do Asaas.
           </Alert>
         ) : null}
         {message ? <Alert variant="warning">{message}</Alert> : null}
         {finishError ? <Alert variant="warning">{finishError}</Alert> : null}
       </div>
-      {saved ? (
-        <div className="space-y-3 rounded-(--r-md) border border-border bg-surface-muted p-4">
-          <p className="text-sm leading-relaxed text-fg-muted">
-            Na próxima página, o Asaas solicitará os dados de cobrança e o cartão com segurança.
-          </p>
+      <div className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <a href="/cadastro/continuar" className={buttonVariants({ variant: 'secondary' })}>
+          Voltar aos dados
+        </a>
+        {saved ? (
           <Button
             type="button"
             onClick={() => void finish()}
             loading={finishing}
-            className="w-full"
+            className="sm:min-w-64"
           >
             Continuar no Checkout Asaas
           </Button>
-        </div>
-      ) : null}
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-        <a href="/cadastro/continuar" className={buttonVariants({ variant: 'secondary' })}>
-          Voltar aos dados
-        </a>
-        <Button type="submit" loading={saving} className="sm:min-w-40">
-          Salvar plano
-        </Button>
+        ) : (
+          <Button type="submit" loading={saving} className="sm:min-w-40">
+            Salvar plano
+          </Button>
+        )}
       </div>
     </form>
   );

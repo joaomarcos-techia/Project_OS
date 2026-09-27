@@ -263,7 +263,7 @@ export function SignupEmailVerified({
               required
               disabled={saving}
               aria-describedby="signup-verification-code-help"
-              className="pl-10 font-mono text-base tracking-[0.18em] tabular-nums"
+              className="px-10 text-center font-mono text-base tracking-[0.18em] tabular-nums"
               onInput={(event) => {
                 event.currentTarget.value = event.currentTarget.value
                   .replace(/\D/gu, '')

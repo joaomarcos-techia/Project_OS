@@ -7181,3 +7181,31 @@ inventário de segurança sem pendências e build Next de produção com `NODE_E
 exit 0. A primeira tentativa de build, herdando um `NODE_ENV` não padrão do arquivo local, compilou mas
 falhou no prerender de `/404`; a repetição no ambiente de produção usado pela Vercel passou por inteiro.
 O CI remoto do commit `a417619` também passou integralmente em 12m33s, junto de Vercel, Semgrep e Snyk.
+
+### 38.7 Aceite humano, acabamento da entrada e estado demonstrativo — 27/09/2026
+
+O roteiro humano concluiu cadastro, confirmação, seleção de plano, Checkout Sandbox, retorno,
+reconciliação e entrada no dashboard. O Asaas mantém o botão **“Acompanhar pedido”** como ação de
+retorno: o contrato público usado pelo adapter oferece `successUrl`, `cancelUrl` e `expiredUrl`, mas
+não oferece `autoRedirect`. Enquanto a pessoa permanece na página hospedada, o Qoro não controla a
+navegação. Ao apertar o botão, `/cadastro/pagamento?resultado=success` faz o readback autoritativo e
+redireciona para o dashboard quando o tenant está provisionado.
+
+O acabamento posterior ao aceite deixou o código de oito dígitos centralizado no campo de largura
+fixa. A tela de plano passou a usar largura maior e três cards lado a lado a partir do desktop, com o
+preço mensal como informação principal. Clínica, espaçamentos, confirmação e ações foram compactados;
+depois de salvar, o botão de Checkout ocupa a mesma faixa de ações, sem criar um segundo card abaixo.
+No dashboard, a saudação usa o nome completo do profile: `Dr. Matheus` deixa de ser reduzido a `Dr.`.
+
+Para material de demonstração, somente no banco DEV, o usuário
+`4fe6ea1f-aed2-4232-88f5-1600513a3b4e` recebeu dados sintéticos idempotentes em sua clínica: CRM
+marcado como demonstração (`000000/SP`), especialidade, cinco pacientes fictícios, dois procedimentos,
+agenda de segunda a sexta, oito consultas do dia, seis lançamentos financeiros, três recebimentos,
+seis dias de série financeira e cinco atividades de auditoria. O tour foi marcado como concluído e o
+checklist dispensado para não cobrir o dashboard na captura. Nenhuma linha foi criada em produção e
+nenhuma conexão fictícia de WhatsApp foi adicionada. O readback pelas mesmas queries da tela mediu 7
+consultas, 1 aguardando, 1 em atendimento, 2 finalizadas, 1 falta, 1 cancelamento, R$ 910 recebidos no
+dia, R$ 460 a receber, R$ 420 a pagar e cinco atividades recentes.
+
+Validação local: **56/56 testes focados**, suíte integral **4.403/4.403 em 419 arquivos**, TypeScript,
+ESLint integral, Prettier dos arquivos tocados e build otimizado do Next 15.5.24, todos com exit 0.

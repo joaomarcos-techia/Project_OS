@@ -63,8 +63,13 @@ describe('seleção de plano O-4', () => {
     expect(await screen.findByText('Clínica Sintética')).toBeTruthy();
     expect(screen.getByRole('radio', { name: /Essencial/u })).toBeTruthy();
     expect(screen.getByRole('radio', { name: /Completo/u })).toBeTruthy();
-    expect(screen.getByText(/R\$.*149,00 por mês · 7 dias grátis/u)).toBeTruthy();
-    expect(screen.getByText(/R\$.*249,90 por mês · 7 dias grátis/u)).toBeTruthy();
+    expect(screen.getByText(/R\$.*149,00/u)).toBeTruthy();
+    expect(screen.getByText(/R\$.*249,90/u)).toBeTruthy();
+    expect(screen.getAllByText('/mês')).toHaveLength(2);
+    expect(screen.getAllByText('7 dias grátis após a ativação')).toHaveLength(2);
+    expect(screen.getByRole('radiogroup', { name: 'Planos disponíveis' }).className).toContain(
+      'md:grid-cols-3',
+    );
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
   });
 
@@ -81,8 +86,10 @@ describe('seleção de plano O-4', () => {
     // O texto mudou quando O-5 passou a existir: salvar o plano deixou de ser o
     // fim do funil e virou o passo anterior à ativação. O que segue valendo, e
     // é o ponto do caso, é que salvar NÃO cobra nada.
-    expect(screen.getByText(/dias grátis começam quando a clínica for ativada/u)).toBeTruthy();
-    expect(screen.getByText(/nós não pedimos cartão aqui/u)).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toMatch(/7 dias grátis após a ativação/u);
+    expect(screen.getByRole('alert').textContent).toMatch(
+      /pagamento acontece com segurança na página do Asaas/u,
+    );
     // A ativação é um segundo ato explícito, nunca efeito colateral do salvar.
     expect(screen.getByRole('button', { name: 'Continuar no Checkout Asaas' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -172,7 +179,6 @@ describe('seleção de plano O-4', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Salvar plano' }));
     await screen.findByText('Plano salvo');
     expect(screen.queryByRole('textbox', { name: /CPF ou CNPJ/u })).toBeNull();
-    expect(screen.getByText(/Asaas solicitará os dados de cobrança e o cartão/u)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar no Checkout Asaas' }));
 
     await waitFor(() => expect(assignMock).toHaveBeenCalledWith(checkoutUrl));
