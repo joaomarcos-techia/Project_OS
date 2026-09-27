@@ -1,6 +1,6 @@
 # contexts/messaging
 
-Fundação de mensagens WhatsApp (C10). **Sem IA, sem mídia, sem retry engine.** A IA conversacional
+Fundação de mensagens WhatsApp (C10). **Sem IA, sem mídia de conversa, sem retry engine.** A IA conversacional
 vive em `ai-agent` (C11+) e reage a `messaging.inbound.received`.
 
 ## Responsabilidade
@@ -9,6 +9,8 @@ vive em `ai-agent` (C11+) e reage a `messaging.inbound.received`.
 - Identificar o tenant pelo número (`meta_phone_id`) — via seam `@/lib/messaging/number-store`.
 - Publicar `messaging.inbound.received` no Outbox (única integração cross-context de saída).
 - Conectar/desconectar/rotacionar número (Server Actions super_admin + audit).
+- Ler e atualizar o perfil público do número; a foto usa upload retomável direto na Meta, sem
+  persistência local do arquivo ou do handle.
 
 ## Bounded context (contrato C10)
 
@@ -22,6 +24,7 @@ Proibido: Scheduling, Financial, Clinical, JOIN cross-context, acesso direto a t
 - `actions.ts` — connect/disconnect/rotate (super_admin via `superAdminAction`).
 - `internal/inbound.ts` — `persistInbound` (mesma tx do publishEvent) + `persistStatusEvents`.
 - `internal/sender.ts` — `sendOutbound` (reserve→send→finalize; status accepted/failed/unknown).
+- `internal/meta-business-profile.ts` — perfil, identidade e foto pública via Graph API.
 
 Transporte (HTTP Meta, parse, assinatura) e o seam privilegiado de número vivem em `@/lib/messaging`.
 

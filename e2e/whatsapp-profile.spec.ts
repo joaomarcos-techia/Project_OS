@@ -100,11 +100,14 @@ test.describe('§33 — perfil público do WhatsApp', () => {
       'A Meta não respondeu à leitura do perfil agora: round-trip não testado.',
     );
 
-    await expect(secao.getByText('Este conteúdo é público')).toBeVisible();
+    await expect(secao.getByText('Estas informações são públicas')).toBeVisible();
     await expect(secao.getByText('Não escreva nome de paciente')).toBeVisible();
     // §33.3 nº 2 — o rótulo diz "da clínica", nunca "E-mail" genérico.
     await expect(secao.getByLabel('E-mail de contato da clínica')).toBeVisible();
     await expect(secao.getByLabel('Recado')).toBeVisible();
+    await expect(secao.getByLabel('Nome exibido no WhatsApp')).toHaveAttribute('readonly', '');
+    await expect(secao.locator('[data-slot="whatsapp-profile-preview"]')).toBeVisible();
+    await expect(secao.getByRole('button', { name: /foto/u })).toBeVisible();
   });
 
   test('o token da Meta não chega ao HTML servido', async ({ page }) => {
