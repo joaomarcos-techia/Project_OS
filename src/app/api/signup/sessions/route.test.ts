@@ -95,6 +95,28 @@ describe('POST signup sessions', () => {
     });
   });
 
+  it('usa o host efetivo do Preview para não classificar a própria página como cross-site', async () => {
+    const previewRequest = new Request(
+      'https://project-os-git-preview.example.vercel.app/api/signup/sessions',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://project-os-git-preview.example.vercel.app',
+          'content-type': 'application/json',
+        },
+        body: '{}',
+      },
+    );
+
+    expect((await POST(previewRequest)).status).toBe(201);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: 'https://project-os-git-preview.example.vercel.app',
+        expectedHost: 'project-os-git-preview.example.vercel.app',
+      }),
+    );
+  });
+
   it.each([
     ['rate_limited', 429],
     ['at_capacity', 503],

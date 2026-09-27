@@ -40,21 +40,12 @@ const MAX_BODY_BYTES = 16 * 1024;
 const bodySchema = z.object({ turnstileToken: z.string().min(1).max(2048).optional() }).strict();
 
 /**
- * Host que esperamos para nós mesmos, usado no sinal cross-site do O-2b.
- *
- * `APP_BASE_URL` quando configurado — valor de confiança, vindo do ambiente.
- * Sem ele, cai no `Host` da requisição, que é o que permite o Preview funcionar
- * (cada deployment tem host próprio e um valor fixo recusaria todos).
+ * O sinal cross-site compara `Origin` com o destino efetivo desta requisição.
+ * Uma origem canônica fixa recusaria todo Preview e todo alias legítimo cujo
+ * hostname difere de `APP_BASE_URL`.
  */
 function expectedHostOf(req: Request): string {
-  if (env.APP_BASE_URL) {
-    try {
-      return new URL(env.APP_BASE_URL).host;
-    } catch {
-      // URL malformada no ambiente não derruba a rota — cai no Host.
-    }
-  }
-  return req.headers.get('host') ?? '';
+  return new URL(req.url).host;
 }
 
 export async function POST(req: Request): Promise<Response> {

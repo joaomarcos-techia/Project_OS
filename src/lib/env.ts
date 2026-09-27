@@ -60,13 +60,19 @@ const EnvSchema = z
       emptyToUndefined,
       z.enum(['production', 'preview', 'development']).optional(),
     ),
+    // Hostnames confiáveis injetados pela Vercel, sem protocolo. Em Preview,
+    // mantêm links de Auth no deployment que iniciou o cadastro mesmo quando
+    // APP_BASE_URL aponta para a origem canônica de outro ambiente.
+    VERCEL_BRANCH_URL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    VERCEL_URL: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
     // Gerado pela Vercel quando Protection Bypass for Automation está ativo.
     // Em Preview protegido, acompanha SOMENTE URLs de webhook server-to-server;
     // nunca vai para o browser, log ou resposta. Opcional porque produção/dev
     // local não precisam dele e builds sem Deployment Protection devem continuar.
     VERCEL_AUTOMATION_BYPASS_SECRET: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
-    // Origem canônica, controlada no servidor, usada nos links transacionais e
-    // redirects do Supabase Auth. Nunca derive links autenticados do header Origin.
+    // Origem canônica de produção/desenvolvimento. Preview usa primeiro os
+    // hostnames confiáveis injetados pela Vercel. Nunca derive links autenticados
+    // do header Origin.
     APP_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
     // ADR-062 O-3a: opt-in server-only; rollout externo separado dos testes locais.
     SIGNUP_IDENTITY_ENABLED: z.preprocess(
