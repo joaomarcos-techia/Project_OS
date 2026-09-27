@@ -446,9 +446,10 @@ async function entregar(
 ): Promise<SignupConfirmationOutcome> {
   try {
     const first = stage === 'initial';
+    const confirmUrl = createSignupConfirmationUrl(tokenHash, 'recovery', signupRef);
     const conteudo = renderSignupConfirmationEmail({
-      confirmUrl: createSignupConfirmationUrl(tokenHash, 'recovery', signupRef),
-      expectedOrigin: env.APP_BASE_URL ?? '',
+      confirmUrl,
+      expectedOrigin: new URL(confirmUrl).origin,
       verificationCode: deriveSignupHandoffCode(signupRef, attemptEpoch),
       first,
     });

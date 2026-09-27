@@ -14,6 +14,14 @@ const seams = vi.hoisted(() => ({
   readAttemptState: vi.fn(),
   readReferenceLiveness: vi.fn(),
   validateLegacyCandidate: vi.fn(),
+  env: {
+    APP_BASE_URL: 'https://app.qoro.test',
+    NODE_ENV: 'test',
+    MAGIC_TOKEN_SECRET: 'segredo-dedicado-de-teste',
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
+    VERCEL_URL: undefined as string | undefined,
+  },
 }));
 
 vi.mock('@/lib/auth/supabase-admin', () => ({
@@ -37,11 +45,7 @@ vi.mock('./signup-auth-admin', () => ({
 }));
 vi.mock('@/lib/email/resend', () => ({ sendTransactionalEmail: seams.sendEmail }));
 vi.mock('@/lib/env', () => ({
-  env: {
-    APP_BASE_URL: 'https://app.qoro.test',
-    NODE_ENV: 'test',
-    MAGIC_TOKEN_SECRET: 'segredo-dedicado-de-teste',
-  },
+  env: seams.env,
   assertEmailRuntimeReady: () => undefined,
 }));
 vi.mock('@/lib/observability/logger', () => ({
@@ -77,6 +81,11 @@ function hibpSafe(): Response {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal('fetch', seams.fetch);
+  seams.env.APP_BASE_URL = 'https://app.qoro.test';
+  seams.env.NODE_ENV = 'test';
+  seams.env.VERCEL_ENV = undefined;
+  seams.env.VERCEL_BRANCH_URL = undefined;
+  seams.env.VERCEL_URL = undefined;
   seams.fetch.mockResolvedValue(hibpSafe());
   seams.createUser.mockResolvedValue({
     data: { user: { id: 'u1', email, email_confirmed_at: null, app_metadata: pendingAppMetadata } },
@@ -129,6 +138,18 @@ describe('sendSignupConfirmation', () => {
     expect(sent.html).not.toContain('/auth/v1/verify');
     expect(sent.idempotencyKey).toMatch(/^signup-confirmation:initial:[a-f0-9]{64}$/u);
     expect(sent.idempotencyKey).not.toContain(tokenHash);
+  });
+
+  it('envia o callback pela origem confiável do Preview mesmo com APP_BASE_URL canônico', async () => {
+    seams.env.VERCEL_ENV = 'preview';
+    seams.env.VERCEL_BRANCH_URL = 'project-os-git-preview.example.vercel.app';
+
+    await expect(sendInitial()).resolves.toEqual({ kind: 'sent' });
+
+    const sent = seams.sendEmail.mock.calls[0]?.[0] as { html: string; text: string };
+    const previewLink = `https://project-os-git-preview.example.vercel.app/auth/confirm#token_hash=hash-novo&type=recovery&next=%2Fcadastro%2Fconfirmado&signup_ref=${signupRef}`;
+    expect(sent.text).toContain(previewLink);
+    expect(sent.html).toContain(previewLink.replaceAll('&', '&amp;'));
   });
 
   it('rejeita senha vazada antes de tocar no Supabase ou no Resend', async () => {
