@@ -44,12 +44,16 @@ export function buildApplicationUrl(
 }
 
 function configuredApplicationUrl(pathname: string): string {
-  if (!env.APP_BASE_URL) {
+  const vercelPreviewHost =
+    env.VERCEL_ENV === 'preview' ? (env.VERCEL_BRANCH_URL ?? env.VERCEL_URL) : undefined;
+  const baseUrl = vercelPreviewHost ? `https://${vercelPreviewHost}` : env.APP_BASE_URL;
+
+  if (!baseUrl) {
     throw new Error(
       '[app-url] APP_BASE_URL is required for transactional links and Auth redirects',
     );
   }
-  return buildApplicationUrl(env.APP_BASE_URL, pathname, {
+  return buildApplicationUrl(baseUrl, pathname, {
     allowInsecureLocalhost: env.NODE_ENV !== 'production',
   });
 }

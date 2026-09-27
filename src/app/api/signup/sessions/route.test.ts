@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { create } = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock('@/contexts/onboarding', () => ({ createSignupSession: create }));
 vi.mock('@/lib/auth/rate-limit', () => ({ getClientIp: () => '127.0.0.1' }));
-vi.mock('@/lib/env', () => ({ env: { APP_BASE_URL: 'https://localhost' } }));
 
 import { POST } from './route';
 
@@ -41,6 +40,28 @@ describe('POST signup sessions', () => {
       origin: 'https://localhost',
       expectedHost: 'localhost',
     });
+  });
+
+  it('usa o host efetivo do Preview para não classificar a própria página como cross-site', async () => {
+    const previewRequest = new Request(
+      'https://project-os-git-preview.example.vercel.app/api/signup/sessions',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://project-os-git-preview.example.vercel.app',
+          'content-type': 'application/json',
+        },
+        body: '{}',
+      },
+    );
+
+    expect((await POST(previewRequest)).status).toBe(201);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: 'https://project-os-git-preview.example.vercel.app',
+        expectedHost: 'project-os-git-preview.example.vercel.app',
+      }),
+    );
   });
 
   it.each([
