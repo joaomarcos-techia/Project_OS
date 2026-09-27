@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   camposAlterados,
+  isPerfilFotoMime,
   PERFIL_CAMPOS,
   PERFIL_LIMITES,
   PERFIL_VERTICALS,
@@ -18,6 +19,15 @@ import {
   PERFIL_VAZIO,
   type PerfilWhatsapp,
 } from './business-profile-contract';
+
+describe('foto do perfil — MIME fechado', () => {
+  it('aceita somente as chaves próprias da allowlist', () => {
+    expect(isPerfilFotoMime('image/jpeg')).toBe(true);
+    expect(isPerfilFotoMime('image/png')).toBe(true);
+    expect(isPerfilFotoMime('image/webp')).toBe(false);
+    expect(isPerfilFotoMime('toString')).toBe(false);
+  });
+});
 
 /** Base válida mínima — cada teste muda um campo só. */
 const base = {
