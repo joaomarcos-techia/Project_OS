@@ -89,8 +89,9 @@ demonstrada.
   recado, descrição, endereço, e-mail de contato, sites e categoria são editáveis em
   `/configuracoes/whatsapp` (§33.9 do `qorov2.md`). Não houve escopo novo: o
   `whatsapp_business_management` que o Embedded Signup já concede é o que autoriza esse endpoint, e
-  nenhuma clínica precisou reconectar. **A FOTO continua manual** — upload retomável ficou fora de
-  escopo por decisão própria (§33.6).
+  nenhuma clínica precisou reconectar. **Atualizado em 26/09/2026:** a foto também pode ser enviada
+  pelo Qoro com upload retomável e `profile_picture_handle`; nome/status são lidos da Meta e o nome
+  continua sendo alterado no WhatsApp Manager porque passa por revisão (§33.10).
 
 ## 5. Evidência real que os mocks não cobrem
 

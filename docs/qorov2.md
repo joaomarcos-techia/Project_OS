@@ -4486,8 +4486,8 @@ foi provado, em qual ambiente, e o que continua sem prova está na
 
 ## 33. Perfil do WhatsApp Business da clínica — spec e execução
 
-**Status:** **implementado em 20/09/2026**, exceto a foto de perfil, que continua fora de escopo por
-decisão própria (§33.6). A spec abaixo (§33.1–§33.8) fica como estava escrita, porque ela é o
+**Status:** **implementado em 20/09/2026 e ampliado em 26/09/2026** com foto, identidade e prévia ao
+vivo. A spec abaixo (§33.1–§33.8) fica como estava escrita, porque ela é o
 contrato contra o qual a implementação foi conferida; o que a execução decidiu por conta própria, o
 que ela contrariou e o que ela encontrou estão na **§33.9**.
 
@@ -4536,7 +4536,7 @@ erro do Graph:
 | `email`               | 128              | e-mail de CONTATO da clínica, não do paciente |
 | `websites`            | até 2, 256 cada  |                                               |
 | `vertical`            | enum fechado     | para clínica, `HEALTH`                        |
-| `profile_picture_url` | upload retomável | **fora desta fatia** — ver §33.6              |
+| `profile_picture_url` | upload retomável | implementado na ampliação da §33.10          |
 
 ### 33.3 As quatro invariantes de segurança
 
@@ -4619,10 +4619,6 @@ estava lá.
 
 ### 33.6 Fora do escopo desta fatia, e por quê
 
-- **Foto de perfil.** Exige upload retomável (`/{app-id}/uploads`), que é outra forma de API, com
-  manipulação de binário e um handle intermediário. Além do tamanho, traz o risco que os campos de
-  texto não têm: alguém subir uma imagem com paciente nela. Se entrar, entra com decisão própria
-  sobre limite de tamanho, MIME e quem pode.
 - **Nome de exibição (display name).** Não é campo deste endpoint — passa por **revisão da Meta** e
   tem regra própria. Misturar com os campos livres daria a impressão de que muda na hora.
 - **Múltiplos números por clínica.** O modelo hoje é um número ativo por clínica
@@ -4767,6 +4763,7 @@ e foi verificada por mutação: forçando o ramo de erro a renderizar o formulá
 | Sem número conectado | **PASS** | a seção não renderiza (página) e a action lança `NumberNotConnectedError` (teste) |
 | Leitura falha não esvazia | **PASS** | `whatsapp-profile.test.tsx` — asserção negativa, verificada por mutação |
 | Token não vaza | **PASS** em unit | mensagem e cadeia de causas; o E2E cobre o HTML servido |
+| Foto, nome e prévia | **PASS local** | upload retomável em três chamadas, magic bytes, tamanho/MIME, handle sanitizado e UI ao vivo; round-trip real da foto segue pendente |
 | **Round-trip real** | **NOT TESTED** | exige número de teste conectado em Preview; ver §33.9.7 |
 
 Suíte inteira depois da fatia: **4.062 testes em 401 arquivos, exit 0**, contra 3.979 em 397 na ponta
@@ -4788,8 +4785,9 @@ chamadas; remover a reetiquetagem do 4xx; e fazer o erro de leitura renderizar f
   **pula com o motivo anotado** quando não há número conectado ou quando
   `E2E_WHATSAPP_PROFILE_WRITE=1` não está ligado. Não vira verde vazio. É a única prova que responde
   "a Meta aceita o que mandamos", e só um número de teste em Preview a produz;
-- **foto de perfil** — fora de escopo (§33.6). Exige upload retomável e traz um risco que os campos
-  de texto não têm: alguém subir uma imagem com paciente nela;
+- **round-trip real da foto — `NOT TESTED`.** O contrato, o binário e a aplicação do handle têm
+  cobertura local, mas ainda falta subir uma imagem sintética num número de teste conectado em
+  Preview, reler `profile_picture_url` e restaurar a foto anterior;
 - **ADR-061** — a decisão nº 2 (Meta como fonte da verdade) continua sem ADR própria;
 - **concorrência** — dois administradores salvando ao mesmo tempo: o último vence, na Meta. Não há
   CAS possível sobre estado que mora fora, e um `row_version` local seria fingir controle. A tela relê
@@ -4797,6 +4795,32 @@ chamadas; remover a reetiquetagem do 4xx; e fazer o erro de leitura renderizar f
 - **`about` (139)** — é o único limite que a referência pública do endpoint não repete por extenso. Se
   a Meta recusar um recado dentro de 139, o caminho de `profile_write` recusado já dá a mensagem
   certa, e o número se ajusta no contrato.
+
+### 33.10 Ampliação — foto, identidade e prévia (26/09/2026)
+
+A tela passou a apresentar uma seção de identidade e uma prévia aproximada do perfil. O nome e o
+número são lidos de `GET /{phone-number-id}?fields=verified_name,display_phone_number`.
+O nome aparece como somente leitura porque alterá-lo inicia revisão da Meta; a ação da tela abre o
+WhatsApp Manager em vez de simular uma atualização instantânea.
+
+A foto usa o fluxo oficial: cria sessão em `/{app-id}/uploads`, envia o binário com `file_offset: 0`,
+recebe o handle e aplica `profile_picture_handle` no Business Profile. O Qoro não persiste arquivo,
+handle nem URL: a Meta continua sendo a fonte da verdade. A entrada aceita somente JPEG/PNG, até 4 MB;
+o cliente exige 192×192 px e o servidor valida MIME, tamanho e magic bytes antes de decifrar o token.
+O ID assinado da sessão é rotulado de forma opaca nos erros e nunca entra em log ou resposta.
+
+A prévia usa os valores ainda não salvos, mostra a foto publicada ou o blob local durante o upload e
+é rotulada como aproximada. O upload não apaga alterações textuais que a pessoa ainda não salvou. A
+releitura posterior continua decidindo o estado confirmado pela Meta.
+
+**Validação desta ampliação.** Os cinco arquivos focados passaram **104/104**; a suíte integral passou
+**4.389/4.389 em 414 arquivos**; TypeScript, ESLint completo, Prettier, inventário de segurança
+(`182 actions`, `49 métodos`, zero unresolved) e build Next 15.5.24 com `NODE_ENV=production` passaram
+com exit 0. O Playwright autenticado contra o build otimizado local executou **4 PASS + 2 skips
+declarados**: abriu a tela com número conectado, leu o perfil real, exibiu identidade/prévia, recusou
+entrada inválida antes da Meta e não encontrou token no HTML. O caso sem número foi pulado porque a
+fixture tem número conectado; o round-trip de escrita, inclusive o upload real da foto, permanece
+**NOT TESTED** porque `E2E_WHATSAPP_PROFILE_WRITE=1` não foi habilitado.
 
 ---
 

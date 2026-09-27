@@ -13,6 +13,7 @@ import {
   disconnectMyClinicWhatsapp,
   getMyClinicWhatsappProfile,
   updateMyClinicWhatsappProfile,
+  updateMyClinicWhatsappProfilePicture,
   type AtualizacaoDePerfil,
   type ConnectMyClinicInput,
 } from '@/contexts/messaging/actions';
@@ -66,6 +67,21 @@ export async function saveWhatsappProfileAction(
 ): Promise<ActionResult<AtualizacaoDePerfil>> {
   try {
     return ok(await updateMyClinicWhatsappProfile(input));
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** A foto é enviada direto à Meta; nenhum binário ou URL fica persistido no Qoro. */
+export async function uploadWhatsappProfilePictureAction(
+  formData: FormData,
+): Promise<ActionResult<AtualizacaoDePerfil>> {
+  try {
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+      return { ok: false, code: 'validation', message: 'Escolha uma imagem PNG ou JPG.' };
+    }
+    return ok(await updateMyClinicWhatsappProfilePicture(file));
   } catch (err) {
     return fail(err);
   }
