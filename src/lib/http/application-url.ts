@@ -58,6 +58,11 @@ function configuredApplicationUrl(pathname: string): string {
   });
 }
 
+/** Origem pública configurada para o deployment atual, incluindo Preview. */
+export function createApplicationRootUrl(): string {
+  return configuredApplicationUrl('/');
+}
+
 export function createOnboardingInviteUrl(rawToken: string): string {
   if (!isOnboardingInviteToken(rawToken)) {
     throw new Error('[app-url] onboarding invite token is invalid');

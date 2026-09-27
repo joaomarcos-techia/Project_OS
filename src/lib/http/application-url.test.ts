@@ -14,6 +14,7 @@ vi.mock('@/lib/env', () => ({ env: mockEnv }));
 
 import {
   buildApplicationUrl,
+  createApplicationRootUrl,
   createAuthConfirmationUrl,
   createSignupConfirmationUrl,
   createOnboardingInviteUrl,
@@ -91,6 +92,7 @@ describe('buildApplicationUrl', () => {
     expect(createPasswordResetRedirectUrl()).toBe(
       'https://project-os-git-preview.example.vercel.app/reset-password',
     );
+    expect(createApplicationRootUrl()).toBe('https://project-os-git-preview.example.vercel.app/');
   });
 
   it('usa a URL única do deployment quando a URL estável da branch não existe', () => {

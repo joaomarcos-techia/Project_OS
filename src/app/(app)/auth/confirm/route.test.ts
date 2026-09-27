@@ -3,23 +3,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AUTH_CONFIRM_CONTENT_SECURITY_POLICY } from '@/lib/http/auth-confirm-security';
 
-const mocks = vi.hoisted(() => ({
-  ensureDraft: vi.fn(),
-  ensureReadyOwnedBinding: vi.fn(),
-  ensureAuthBinding: vi.fn(),
-  validateAuthBinding: vi.fn(),
-  readDraft: vi.fn(),
-  clearSelector: vi.fn(),
-  cookies: vi.fn(),
-  cookieSet: vi.fn(),
-  createServerClient: vi.fn(),
-  loggerWarn: vi.fn(),
-  readAuthoritativeProfile: vi.fn(),
-  resolvePreTenant: vi.fn(),
-  signOut: vi.fn(),
-  signRecoveryGrant: vi.fn(),
-  signSignupConfirmationGrant: vi.fn(),
-  verifyOtp: vi.fn(),
+const { mocks, mockEnv } = vi.hoisted(() => ({
+  mocks: {
+    ensureDraft: vi.fn(),
+    ensureReadyOwnedBinding: vi.fn(),
+    ensureAuthBinding: vi.fn(),
+    validateAuthBinding: vi.fn(),
+    readDraft: vi.fn(),
+    clearSelector: vi.fn(),
+    cookies: vi.fn(),
+    cookieSet: vi.fn(),
+    createServerClient: vi.fn(),
+    loggerWarn: vi.fn(),
+    readAuthoritativeProfile: vi.fn(),
+    resolvePreTenant: vi.fn(),
+    signOut: vi.fn(),
+    signRecoveryGrant: vi.fn(),
+    signSignupConfirmationGrant: vi.fn(),
+    verifyOtp: vi.fn(),
+  },
+  mockEnv: {
+    NODE_ENV: 'test',
+    APP_BASE_URL: 'https://app.qoro.test',
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
+    VERCEL_URL: undefined as string | undefined,
+  },
 }));
 
 vi.mock('next/headers', () => ({ cookies: mocks.cookies }));
@@ -51,7 +60,7 @@ vi.mock('@/lib/auth/tenant-context', () => ({
   readAuthoritativeProfile: mocks.readAuthoritativeProfile,
 }));
 vi.mock('@/lib/env', () => ({
-  env: { NODE_ENV: 'test', APP_BASE_URL: 'https://app.qoro.test' },
+  env: mockEnv,
 }));
 vi.mock('@/lib/observability/logger', () => ({ logger: { warn: mocks.loggerWarn } }));
 
@@ -104,6 +113,11 @@ function redirectPath(response: Response): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockEnv.NODE_ENV = 'test';
+  mockEnv.APP_BASE_URL = origin;
+  mockEnv.VERCEL_ENV = undefined;
+  mockEnv.VERCEL_BRANCH_URL = undefined;
+  mockEnv.VERCEL_URL = undefined;
   mocks.cookies.mockResolvedValue({ set: mocks.cookieSet });
   mocks.createServerClient.mockResolvedValue(client);
   mocks.verifyOtp.mockResolvedValue({
@@ -184,6 +198,27 @@ describe('POST /auth/confirm — envelope estrito', () => {
 
     expect(response.status).toBe(303);
     expect(response.headers.get('location')).toBe(`${origin}/cadastro/confirmado`);
+    expect(mocks.verifyOtp).toHaveBeenCalledOnce();
+  });
+
+  it('aceita o callback na origem pública da branch de Preview', async () => {
+    const previewOrigin = 'https://project-os-git-preview.example.vercel.app';
+    mockEnv.VERCEL_ENV = 'preview';
+    mockEnv.VERCEL_BRANCH_URL = new URL(previewOrigin).host;
+    const request = new NextRequest(`${previewOrigin}/auth/confirm`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        origin: previewOrigin,
+        'sec-fetch-site': 'same-origin',
+      },
+      body: signupBody().toString(),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe(`${previewOrigin}/cadastro/confirmado`);
     expect(mocks.verifyOtp).toHaveBeenCalledOnce();
   });
 

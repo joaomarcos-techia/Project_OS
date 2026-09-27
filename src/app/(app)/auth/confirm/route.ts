@@ -29,7 +29,7 @@ import {
   AUTH_CONFIRM_BRIDGE_STYLE,
   AUTH_CONFIRM_CONTENT_SECURITY_POLICY,
 } from '@/lib/http/auth-confirm-security';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { createApplicationRootUrl } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { logger } from '@/lib/observability/logger';
 
@@ -121,13 +121,7 @@ export async function GET(_request?: NextRequest): Promise<Response> {
 
 function resolveConfirmationPublicOrigin(): string | null {
   try {
-    return new URL(
-      buildApplicationUrl(env.APP_BASE_URL ?? '', '/', {
-        // O gate executa o build de produção em loopback sem TLS. A opção só
-        // admite localhost/127.0.0.1/[::1]; hosts externos continuam HTTPS-only.
-        allowInsecureLocalhost: true,
-      }),
-    ).origin;
+    return new URL(createApplicationRootUrl()).origin;
   } catch {
     return null;
   }
