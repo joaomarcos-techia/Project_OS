@@ -7253,4 +7253,29 @@ aceito.
 A regressão dedicada usa `APP_BASE_URL` canônico com página e API no hostname do Preview e exige 200.
 Origem ausente, estrangeira, com caminho ou explicitamente cross-site permanece em 403. Validação:
 **224/224 testes focados**, suíte integral **4.421/4.421 em 420 arquivos**, TypeScript, ESLint integral,
-Prettier, inventário de segurança e build otimizado do Next 15.5.24, todos com exit 0.
+Prettier, inventário de segurança e build otimizado do Next 15.5.24, todos com exit 0. A correção foi
+publicada no Preview em `4264da8`.
+
+O primeiro E2E real depois desse deploy comprovou que a identidade já atravessava a segunda etapa, mas
+encontrou outra divergência de origem antes do Resend: o link era criado com o hostname da branch e o
+template ainda o validava contra `APP_BASE_URL`. A exceção virava resultado `uncertain`, mantendo a
+resposta pública opaca, mas nenhuma mensagem era enviada. `01cc209` passou a validar o template com a
+origem da própria URL transacional, que é construída no servidor por `createSignupConfirmationUrl`.
+O teste unitário reproduz `APP_BASE_URL` canônico e `VERCEL_BRANCH_URL` de Preview e exige que HTML e
+texto contenham o callback da branch.
+
+No E2E seguinte o Resend entregou a mensagem, e a prova parou honestamente em **Link inválido ou já
+utilizado**. A ponte do navegador fazia o `POST /auth/confirm` no Preview, porém essa rota ainda resolvia
+sua origem pública exclusivamente de `APP_BASE_URL`; portanto recusava o OTP antes de `verifyOtp`. O
+commit `8dca7a5` passou a reutilizar a mesma resolução preview-aware dos links transacionais tanto para o
+gate de origem quanto para o redirecionamento sanitizado. A regressão da rota mantém o caso de proxy
+interno, recusa origens estrangeiras e prova o callback no hostname da branch.
+
+**Prova final no ambiente real:** depois do deployment Vercel `success` de `8dca7a5`,
+`e2e/signup-confirmation.spec.ts` passou **5/5 em 4,6 min**, Chromium, um worker e zero retry, contra o
+Preview protegido, Supabase DEV e Resend real. Foram exercitados: página sem sessão; link aberto em
+outro aparelho com handoff por código; conta legada não confirmada; adoção segura de um segundo draft;
+e reenvio que entrega um token novo e invalida o anterior. As contas Auth, drafts, fixture e lock foram
+removidos no cleanup. Validação local final: **97/97 focados**, suíte integral **4.423/4.423 em 420
+arquivos**, TypeScript, ESLint integral, Prettier, inventário de segurança e build otimizado do Next
+15.5.24, todos com exit 0.
