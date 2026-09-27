@@ -197,21 +197,51 @@ revogação** e respondia sucesso — um refresh token podia seguir vivo com o
 usuário achando que saiu. Agora exige retorno positivo do epoch e devolve 503 em
 vez de mentir.
 
-### #9 SEC-010/036/038/043 — cadeia XSS → token → takeover — **REFUTADO no elo principal**
+### #9 SEC-010/036/038/043 — cadeia XSS → token → takeover — **CHECKPOINT D126, SUPERADO LOCALMENTE**
 
-O elo que a cadeia exige é token de sessão legível por JS. **Não existe**:
+No checkpoint D126, o cookie de sessão do `@supabase/ssr` precisava ser legível por JavaScript para
+os consumidores então existentes de `/convite` e Realtime. Aquele contrato fixava `httpOnly: false`,
+`SameSite=Lax` e `Secure` em produção. Um XSS same-origin pode ler e tentar reutilizar access e
+refresh tokens enquanto válidos; SameSite e Secure não impedem esse acesso.
 
 ```text
 grep -rn "localStorage|sessionStorage" src/ → tema e dispensa de aviso, nada de sessão
 ```
 
-A sessão vive em cookie do `@supabase/ssr`, e desde 2026-09-10 os atributos são
-**fixados pelo repositório** (`hardenCookie`: `httpOnly` e `SameSite=Lax` mesmo
-que a biblioteca peça o contrário). Com o token fora do alcance de script, XSS
-deixa de render takeover.
+A ausência de `localStorage` continua reduzindo superfícies, mas não demonstra sigilo do cookie em
+runtime. Requests e actions validam assinatura, profile, epoch e guards no servidor; o Realtime
+depende de JWT sob RLS. Esses controles limitam autorização e revogam por epoch, mas aceitam um
+bearer roubado ainda válido.
 
 O bundle é varrido por `pnpm security:bundle` (166 arquivos, canários de
-`sb_secret_`, chave privada e script do Vercel Live): **0 achados**.
+`sb_secret_`, chave privada e script do Vercel Live): **0 achados**. Essa varredura prova ausência
+dos canários nos artefatos, não inacessibilidade da sessão ao JavaScript.
+
+**Estado naquele checkpoint:** `supabase-session-browser-readable` ficou pendente e sem aceite.
+
+**Emenda de 14–15/09/2026 — estado local posterior a D126.** O parágrafo acima preserva a
+observação histórica. O código atual removeu o SDK Supabase do browser, passou o convite à
+verificação server-side e substituiu Postgres Changes no Consultório por `getBoard` via Server
+Action a cada 20 s com aba visível. A sessão usa `sb-<project>-auth-token-v2-<geração>`, com
+geração de 32 caracteres hexadecimais, e seletor `qoro-auth-session`. Ambos, incluindo fragmentos,
+são `HttpOnly`, `SameSite=Lax` e `Secure` em produção. Login, OTP e login final de `/join` criam
+uma geração e gravam o seletor depois dos fragmentos. Refresh nunca altera o seletor, mesmo em
+falha; logout, troca de conta e reset o removem explicitamente. OTP inválido deixa a identidade
+anterior desvinculada. Uma resposta atrasada de refresh só pode escrever sua geração órfã.
+
+O middleware expira cookies legados e órfãos, sem copiar bearer ou reemitir a sessão ativa; o
+cutover exige uma nova autenticação dos navegadores com o legado. `/auth/session-refresh` força
+renovação e validação em resposta gravável, sem rede no Edge. JavaScript não lê access/refresh
+tokens das novas sessões. O risco específico de **exfiltração do bearer pelo cookie** foi fechado
+pela validação local descrita em [Qoro v2 §35.6](../qorov2.md).
+`security:browser-session` usa `playwright.httponly.config.ts` para exercitar Chromium real contra
+o build Next isolado; o convite usa o SDK SSR instalado sobre Auth HTTP sintético em loopback.
+GoTrue/Supabase externo, rollout e revogação pelo provedor permanecem **NOT TESTED** nesta emenda.
+O isolamento por geração não prova revogação de bearer copiado externamente nem corrige a janela
+entre incremento de epoch e `signOut` do logout.
+Isso não neutraliza XSS same-origin: uma página comprometida ainda pode executar ações da sessão.
+`csp-nonce-inline-script` e `csrf-sessao-valida` continuam pendentes; produção precisa de prova
+separada.
 
 **Pendente:** supply chain de CI (`pull_request_target`, pin de actions por SHA,
 `--ignore-scripts`) não foi endurecido. É trabalho de workflow, registrado.
@@ -277,7 +307,7 @@ item é `pendente`, com prazo de revisão.
 | Replay de webhook em Postgres real | As constraints existem; falta exercitá-las com transação real em vez de dependência substituída |
 | IDOR/CSRF por HTTP com dois usuários | Exige Supabase Auth **local**; a prova hoje é do caminho SQL |
 | Gemini adversarial | Exige credencial real e chamada externa |
-| Nonce na CSP | Exige ampliar o matcher do middleware sem quebrar o redirect de `/login` |
+| Nonce na CSP | Exige gerar e propagar nonce ao script de tema, retirar unsafe-inline e validar hidratação/cache; o matcher já inclui páginas públicas |
 | Hash chain / WORM na auditoria | `service_role` ainda pode `UPDATE`/`DELETE` em `audit_events` |
 | Supply chain de CI | `permissions` mínimo, pin por SHA, `--ignore-scripts` |
 | `DATABASE_URL_RUNTIME` provisionado | Papel sem BYPASSRLS existe no código, falta criar no Postgres |

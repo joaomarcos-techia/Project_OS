@@ -1,9 +1,9 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 738,
-    "elements": 55,
-    "importEdges": 296,
+    "modules": 769,
+    "elements": 56,
+    "importEdges": 297,
     "moduleCycles": 0,
     "events": 67,
     "eventsWithoutConsumer": 42
@@ -87,13 +87,14 @@
       "id": "app:api",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 20,
+      "fanOut": 21,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
         "context:clinical",
         "context:financial",
         "context:messaging",
+        "context:onboarding",
         "context:patient",
         "context:payments",
         "context:scheduling",
@@ -326,7 +327,7 @@
     {
       "id": "context:onboarding",
       "kind": "context",
-      "fanIn": 3,
+      "fanIn": 4,
       "fanOut": 11,
       "dependsOn": [
         "context:ai-agent",
@@ -459,7 +460,7 @@
     {
       "id": "lib:auth",
       "kind": "lib",
-      "fanIn": 21,
+      "fanIn": 20,
       "fanOut": 6,
       "dependsOn": [
         "context:identity",
@@ -525,10 +526,18 @@
       "id": "lib:env",
       "kind": "lib",
       "fanIn": 19,
-      "fanOut": 1,
+      "fanOut": 2,
       "dependsOn": [
+        "lib:env-aliases",
         "lib:env-coherence"
       ]
+    },
+    {
+      "id": "lib:env-aliases",
+      "kind": "lib",
+      "fanIn": 1,
+      "fanOut": 0,
+      "dependsOn": []
     },
     {
       "id": "lib:env-coherence",
@@ -682,10 +691,8 @@
       "id": "lib:realtime",
       "kind": "lib",
       "fanIn": 1,
-      "fanOut": 1,
-      "dependsOn": [
-        "lib:auth"
-      ]
+      "fanOut": 0,
+      "dependsOn": []
     },
     {
       "id": "lib:sanitize",

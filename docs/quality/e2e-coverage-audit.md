@@ -4,6 +4,10 @@
 
 Canonical — retrato de 2026-09-13, derivado do código, não de suposição.
 
+> **Adendo de 14/09/2026:** a nova tela `/cadastro` e a persistência de `/answers` estão descritas
+> em §D.6. O retrato e as contagens anteriores permanecem históricos; a matriz canônica incorpora
+> a cobertura nova sem reinterpretar execuções de Preview como prova atual.
+
 ## Ordem de autoridade
 
 Este documento está no nível 3 (`docs/README.md`). Onde ele divergir do código,
@@ -297,6 +301,40 @@ O único spec que roda **sem segredo nenhum**:
 ainda não foi redeployado com a mudança. Fica vermelha até o deploy — que é
 exatamente o que se espera de um gate.
 
+### D.6 `/cadastro` + `/answers` em browser e Postgres locais (adendo de 14/09)
+
+`scripts/security/signup-regression.ts --browser` sobe Postgres 17 próprio com migrations
+0096–0098, Redis REST sintético para atravessar o SDK real de rate limit e o build isolado do Next.
+No Chromium real ele prova a tela das **quatro** perguntas: 17 radios e zero campo de PII/texto,
+labels e teclado, foco no primeiro item ausente, cookie `__Host-`, envio sem duplicação, estado
+preservado em 429/falha de rede e mensagem de desafio obrigatório.
+
+O mesmo percurso usa criação/`me`/`answers` reais, confirma no banco as quatro colunas/status/versão,
+faz duas abas disputarem o CAS, recarrega o vencedor, vence o idle e reinicia uma única sessão.
+O resultado registrado foi **14 checks PASS**, incluindo a jornada agregada de browser, cleanup com
+readback zero e encerramento do Postgres próprio. O runner não usa `.env.local` nem prova Cloudflare,
+Supabase, Preview ou produção; esses limites permanecem separados.
+
+---
+
+### D.7 Identidade: staging O-3a local e Auth O-3b pendente (15/09)
+
+A [ADR-062](../adr/062-identidade-consentimento-cadastro.md) recebeu aprovação explícita O-3a.
+Staging/API/migration têm prova local: SQL real, aceite/CAS/TTL/janitor e Chromium com resposta
+perdida seguida de reload sem PII. UI e HTTP/limiter cobrem as negativas; Redis REST é sintético
+pelo SDK instalado. Auth/ownership O-3b, confirmação cruzada, anti-enumeração e provider externo
+continuam **NOT TESTED**. Nenhum fluxo Auth novo foi instalado.
+
+A matriz viva distingue O-3a coberto localmente de O-3b **Não coberto**: 84 Coberto /
+5 Parcial / 4 Não coberto / 9 Fora do navegador / 0 Superficial. As três pendências anteriores
+permanecem; contagens abaixo são fotografias históricas.
+
+O retrato de 13/09 abaixo e as contagens de 14/09 permanecem históricos. O patch CI atual já
+autorizado chama `pnpm test:e2e:ci && pnpm security:browser-session`; seu PASS local de 15/09
+está em Qoro v2 §35.7 e não é prova de CI remota deste worktree (**NOT TESTED**).
+Validação documental desta retomada e próximos passos estão em [Qoro v2 §35.9](../qorov2.md).
+Nenhum E2E produtivo ou provider externo foi executado para fechar identidade.
+
 ---
 
 ## E. Falhas encontradas
@@ -335,7 +373,7 @@ O que **esta auditoria acrescentou**:
 | Sessão de cadastro a partir de origem de terceiro | **403**, sem cookie |
 | Token de Turnstile forjado | Não vira sessão sem cookie |
 | Cookie de cadastro inventado (43 chars) | **410 idêntico** ao de cookie ausente — mesmo corpo, byte a byte |
-| Corpo > 1 KB no endpoint público | Cortado antes de virar trabalho |
+| Corpo acima do teto do endpoint público | 413; criação aceita até 16 KiB para manter o schema Turnstile de 2.048 caracteres, e `/answers` mantém 1 KiB |
 | Campo desconhecido no corpo | 400, não ignorado |
 | 22 rotas protegidas sem sessão, sem seguir redirect | Nenhuma entrega corpo |
 | Secret do Turnstile no HTML público | Ausente |

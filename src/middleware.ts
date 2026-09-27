@@ -20,27 +20,48 @@
  * middleware DECIDIR em 3s, mas a promise de rede abandonada continuava pendente e
  * a invocação Edge não finalizava a resposta (status 0).
  *
- * Como o ADR-037 já tirou do middleware qualquer papel de enforcement, a chamada de
- * rede aqui era só (a) refresh de cookie de sessão e (b) redirect rápido de UX. Sem
- * ela:
- *   - (a) refresh de sessão: NÃO acontece mais aqui. `authenticate()` valida o
- *     access token via getClaims a cada request; quando ele expira, o usuário
- *     reautentica. Reintroduzir refresh sem pendurar o Edge é trabalho à parte —
- *     candidato natural é rodar o middleware no runtime NODE (onde getUser não
- *     pendura) OU um refresh client-side. Ver follow-up.
- *   - (b) redirect de UX: preservado com um check SÍNCRONO de presença do cookie de
- *     sessão (sem rede). Quem não tem cookie nenhum vai pro /login na hora; quem tem
- *     passa e a porta única decide (inclusive nega token expirado/inválido).
+ * O middleware mantém apenas operações síncronas: presença da geração selecionada,
+ * expiração de cookies legados/órfãos e detecção de vencimento. Navegações
+ * próximas do vencimento passam por `/auth/session-refresh`, Route Handler Node
+ * gravável; não há chamada de rede no Edge. A porta única segue autorizando.
  *
  * `x-request-id`: correlação de logger/Sentry/audit (C16 1.1) — mantido.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 
+import {
+  sessionNeedsRefresh,
+  supabaseAuthCookiePrefix,
+  supabaseAuthCookieName,
+  supabaseAuthCookies,
+  supabaseLegacyAuthCookieName,
+  supabaseVersionedAuthCookies,
+  SUPABASE_SESSION_SELECTOR_COOKIE,
+  SUPABASE_SESSION_COOKIE_OPTIONS,
+} from '@/lib/auth/supabase-session-cookie';
+
+const PUBLIC_PATHS = [
+  '/login',
+  '/reset-password',
+  '/convite',
+  '/auth/callback',
+  '/auth/confirm',
+  '/auth/auth-error',
+  '/auth/session-refresh',
+  '/account/security',
+  '/join',
+  '/cadastro',
+  '/api/signup',
+] as const;
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
 export const config = {
-  // Rotas excluídas: assets estáticos, healthchecks, CRON (Bearer CRON_SECRET) e
-  // WEBHOOKS (token/assinatura do provider), + fluxos auth não-autenticados +
-  // /account/security (pré-MFA) + /join (onboarding público) + `monitoring`
-  // (tunnelRoute do Sentry). Essas rotas não têm sessão Supabase.
+  // Assets, healthchecks, CRON, webhooks e tunnel Sentry não passam aqui.
+  // Páginas públicas passam também para expirar cookies legados e órfãos;
+  // `isPublicPath` impede exigir sessão onde ela ainda não existe.
   //
   // `api/signup` (ADR-060, O-2a): cadastro autônomo é PÚBLICO por definição —
   // quem chega ali ainda não tem conta, então exigir cookie de sessão redirecionaria
@@ -48,7 +69,7 @@ export const config = {
   // por IP, teto de sessões vivas e, na fatia O-2b, desafio adaptativo. Elas não leem
   // nem escrevem dado de tenant.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks|api/signup|login|reset-password|convite|auth/callback|auth/confirm|auth/auth-error|account/security|join).*)',
+    '/((?!_next/static|_next/image|favicon.ico|monitoring|api/health|api/cron|api/webhooks).*)',
   ],
 };
 
@@ -58,19 +79,68 @@ export function middleware(req: NextRequest): NextResponse {
   const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID();
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-request-id', requestId);
-  const res = NextResponse.next({ request: { headers: requestHeaders } });
-  res.headers.set('x-request-id', requestId);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const cookiePrefix = supabaseAuthCookiePrefix(supabaseUrl);
+  const cookieName = supabaseAuthCookieName(
+    supabaseUrl,
+    req.cookies.get(SUPABASE_SESSION_SELECTOR_COOKIE)?.value,
+  );
+  const legacyCookieName = supabaseLegacyAuthCookieName(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const allCookies = req.cookies.getAll();
+  const authCookies = cookieName ? supabaseAuthCookies(allCookies, cookieName) : [];
+  const legacyAuthCookies = legacyCookieName
+    ? supabaseAuthCookies(allCookies, legacyCookieName)
+    : [];
+  const inactiveVersionedCookies = cookiePrefix
+    ? supabaseVersionedAuthCookies(allCookies, cookiePrefix).filter(
+        ({ name }) => !cookieName || (name !== cookieName && !name.startsWith(`${cookieName}.`)),
+      )
+    : [];
+  const path = req.nextUrl.pathname;
+  const emailTokenType = req.nextUrl.searchParams.get('type');
+  const hasLegacyEmailToken =
+    Boolean(req.nextUrl.searchParams.get('token_hash')) &&
+    ((path === '/convite' && (emailTokenType === 'invite' || emailTokenType === 'recovery')) ||
+      (path === '/reset-password' && emailTokenType === 'recovery'));
+  const sessionPage =
+    !isPublicPath(path) ||
+    path === '/convite' ||
+    path === '/reset-password' ||
+    path === '/login/mfa' ||
+    path === '/account/security';
+  let res: NextResponse;
 
-  // Presença de sessão — SÍNCRONO, sem rede (o @supabase/ssr guarda o token em
-  // `sb-<ref>-auth-token`, possivelmente fragmentado em `.0/.1`). Isto é só UX; a
-  // validação real (assinatura, expiração, epoch) é da porta única no servidor.
-  const hasSessionCookie = req.cookies
-    .getAll()
-    .some((c) => c.name.startsWith('sb-') && c.name.includes('-auth-token'));
-
-  if (!hasSessionCookie) {
-    return NextResponse.redirect(new URL('/login', req.url), { headers: res.headers });
+  if (!isPublicPath(path) && authCookies.length === 0) {
+    res = NextResponse.redirect(new URL('/login', req.url));
+  } else if (
+    cookieName &&
+    authCookies.length > 0 &&
+    req.method === 'GET' &&
+    sessionPage &&
+    !hasLegacyEmailToken &&
+    !path.startsWith('/api/') &&
+    path !== '/auth/session-refresh' &&
+    sessionNeedsRefresh(allCookies, cookieName)
+  ) {
+    const refreshUrl = new URL('/auth/session-refresh', req.url);
+    refreshUrl.searchParams.set('next', `${path}${req.nextUrl.search}`);
+    res = NextResponse.redirect(refreshUrl);
+  } else {
+    res = NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  res.headers.set('x-request-id', requestId);
+  // O request não informa se um cookie é HttpOnly. Por isso a sessão antiga
+  // usa outro nome e nunca é copiada: uma GET lenta poderia terminar depois de
+  // logout/login/confirm e ressuscitar o snapshot recebido. O cutover é
+  // fail-closed: expira o legado e exige uma autenticação única novamente.
+  for (const { name } of [...legacyAuthCookies, ...inactiveVersionedCookies]) {
+    res.cookies.set(name, '', {
+      ...SUPABASE_SESSION_COOKIE_OPTIONS,
+      path: '/',
+      maxAge: 0,
+      expires: new Date(0),
+    });
+  }
   return res;
 }

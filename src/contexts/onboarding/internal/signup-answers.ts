@@ -17,57 +17,45 @@
  */
 import 'server-only';
 
-import { and, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { dbAdmin } from '@/lib/db';
 
 import { signupSessions } from '../schema';
 
+import { signupAnswerValuesSchema } from './signup-answer-values';
 import { hashSignupToken } from './signup-session';
 
 /** Quantos profissionais atendem na clínica. */
-export const PROFESSIONALS_BANDS = ['1', '2_5', '6_15', '16_plus'] as const;
+export { PROFESSIONALS_BANDS } from './signup-answer-values';
 
 /**
  * Atendimentos por semana, em FAIXA e nunca em número livre. Ninguém sabe o
  * número de cabeça, então um inteiro produziria precisão falsa — e em clínica
  * pequena ele se aproxima de um identificador.
  */
-export const WEEKLY_APPOINTMENT_BANDS = ['ate_20', '21_50', '51_100', '100_plus'] as const;
+export { WEEKLY_APPOINTMENT_BANDS } from './signup-answer-values';
 
 /** `outro_sistema` é a resposta com consequência: oferece `/agenda/importar`. */
-export const CURRENT_TOOLING = ['nada_papel', 'agenda_generica', 'outro_sistema'] as const;
+export { CURRENT_TOOLING } from './signup-answer-values';
 
 /**
  * Canal DECLARADO. Não duplica o `gclid`/UTM do §21.3 — aquilo só enxerga o que
  * é pago e etiquetado, e é cego para indicação de colega, que é justamente o
  * canal que se quer medir. Guarda o CANAL, nunca quem indicou.
  */
-export const DISCOVERY_SOURCES = [
-  'busca_google',
-  'indicacao_colega',
-  'redes_sociais',
-  'grupo_comunidade',
-  'evento',
-  'outro',
-] as const;
+export { DISCOVERY_SOURCES } from './signup-answer-values';
 
 /**
  * `.strict()` recusa campo desconhecido em vez de ignorar — mesmo motivo do
  * corpo de `POST /api/signup/sessions`: ignorar ensina o cliente a mandar lixo e
  * esconde a divergência quando as fatias seguintes lerem campos novos.
  */
-export const signupAnswersSchema = z
-  .object({
-    professionalsBand: z.enum(PROFESSIONALS_BANDS),
-    weeklyAppointmentsBand: z.enum(WEEKLY_APPOINTMENT_BANDS),
-    currentTooling: z.enum(CURRENT_TOOLING),
-    discoverySource: z.enum(DISCOVERY_SOURCES),
-    /** Versão lida pelo cliente. A aba que perder a corrida recebe conflito. */
-    rowVersion: z.number().int().min(1),
-  })
-  .strict();
+export const signupAnswersSchema = signupAnswerValuesSchema.extend({
+  /** Versão lida pelo cliente. A aba que perder a corrida recebe conflito. */
+  rowVersion: z.number().int().min(1),
+});
 
 export type SignupAnswers = z.infer<typeof signupAnswersSchema>;
 
@@ -105,7 +93,6 @@ export async function recordSignupAnswers(
   rawToken: string,
   answers: SignupAnswers,
 ): Promise<RecordAnswersOutcome> {
-  const now = new Date();
   const tokenHash = hashSignupToken(rawToken);
 
   const [row] = await dbAdmin
@@ -127,8 +114,9 @@ export async function recordSignupAnswers(
         eq(signupSessions.tokenHash, tokenHash),
         eq(signupSessions.rowVersion, answers.rowVersion),
         inArray(signupSessions.status, [...ACTIVE_STATUSES]),
-        gt(signupSessions.idleExpiresAt, now),
-        gt(signupSessions.absoluteExpiresAt, now),
+        isNull(signupSessions.consumedAt),
+        gt(signupSessions.idleExpiresAt, sql`now()`),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
       ),
     )
     .returning({ rowVersion: signupSessions.rowVersion });
@@ -144,8 +132,11 @@ export async function recordSignupAnswers(
     .where(
       and(
         eq(signupSessions.tokenHash, tokenHash),
-        inArray(signupSessions.status, [...ACTIVE_STATUSES]),
-        gt(signupSessions.absoluteExpiresAt, now),
+        // Identidade já salva congela respostas: conflito exige reler /me.
+        inArray(signupSessions.status, [...ACTIVE_STATUSES, 'identity_pending', 'email_pending']),
+        isNull(signupSessions.consumedAt),
+        gt(signupSessions.idleExpiresAt, sql`now()`),
+        gt(signupSessions.absoluteExpiresAt, sql`now()`),
       ),
     )
     .limit(1);

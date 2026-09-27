@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { markInviteAccepted } from '@/contexts/identity/internal/members';
 import { assertInviteAcceptAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { createServerClient } from '@/lib/auth/supabase-server';
+import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { logger } from '@/lib/observability/logger';
 
 const Schema = z
@@ -59,10 +60,14 @@ export async function acceptInviteAction(
   const rl = await assertInviteAcceptAllowed(ip);
   if (!rl.ok) return { error: RATE_LIMITED };
 
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData.user) {
     return { error: 'Sessão inválida. Abra o link do convite novamente.' };
+  }
+  const profile = await readAuthoritativeProfile(userData.user.id);
+  if (!profile || !profile.ativo || profile.deletedAt || profile.inviteAcceptedAt) {
+    return { error: 'Convite inválido ou já aceito. Peça um novo ao administrador da clínica.' };
   }
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });

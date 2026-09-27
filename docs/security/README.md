@@ -1,6 +1,14 @@
 # Segurança do Qoro — o que foi feito, como, e o que falta
 
-**Atualizado em 2026-09-11.** Este arquivo é o ponto de entrada. Ele não repete
+> **Checkpoint de 14/09/2026:** o Qoro v2 está em desenvolvimento. A
+> [revisão intermediária](revisao-intermediaria-2026-09-14.md) reproduziu D126–D130 e corrigiu
+> a atribuição D131; a retomada local na mesma base implementou as seis correções e a tela das
+> quatro perguntas. Os gates locais daquele checkpoint passaram, inclusive `security:check`, build e
+> regressão Postgres/Chromium. A sessão Supabase foi substituída depois por transporte HttpOnly por geração no código
+> local; a atualização do Consultório usa leitura periódica pelo servidor. Isso não libera o
+> roadmap inteiro nem substitui prova externa.
+
+**Atualizado em 2026-09-15.** Este arquivo é o ponto de entrada. Ele não repete
 evidência: aponta para onde ela está e diz, em uma linha por item, o que dá para
 afirmar e o que não dá.
 
@@ -16,7 +24,7 @@ Onde nada foi executado, está escrito "não testado" — e não "provavelmente 
 | --- | --- | --- |
 | [model.md](./model.md) | Modelo de segurança do produto (camadas de controle) | manual |
 | [endurecimento-local.md](./endurecimento-local.md) | Relatório da auditoria: achados, diffs, saídas brutas | manual |
-| [acoes.md](./acoes.md) | Inventário vivo: 174 Server Actions + 33 métodos HTTP, guard por superfície | **gerado** — `pnpm security:inventory` |
+| [acoes.md](./acoes.md) | Inventário vivo: 174 Server Actions + 38 métodos HTTP em 37 handlers, guard por superfície | **gerado** — `pnpm security:inventory` |
 | [riscos.md](./riscos.md) | Registro de risco com prazo; nenhum item aceito | **gerado** — `pnpm security:risks` |
 | [SECURITY-DELTA.md](./SECURITY-DELTA.md) | Triagem da auditoria adversarial externa: SEC-001..050 confirmado/refutado contra o código | manual |
 | [webhooks.md](./webhooks.md) | Ingress externo: os 3 webhooks, autenticação e dedup | manual |
@@ -35,24 +43,25 @@ evidência.
 pnpm security:check
 ```
 
-Encadeia seis etapas, nesta ordem, e para na primeira que falhar:
+Encadeia sete etapas, nesta ordem, e para na primeira que falhar:
 
 | Etapa | O que faz | Duração típica |
 | --- | --- | --- |
 | `security:inventory` | AST de `src`: toda action, rota e leitura de env; reprova guard não resolvido, `NEXT_PUBLIC_` sem dono e rota nova sem teste | ~1 min |
-| `security:unit` | testes focados em segurança (252 na última execução) | ~40 s |
+| `security:unit` | testes focados em segurança (330 na execução de 15/09) | ~40 s |
 | `security:tenant` | Sobe um Postgres temporário próprio e exercita RLS real com duas clínicas | ~1 min |
-| `security:build` | `next build` numa cópia SEM `.env`, com canários sintéticos | ~3,5 min |
-| `security:bundle` | Varre os 166 arquivos de cliente por segredo, chave privada e script do Vercel Live | ~5 s |
+| `security:build` | `next build` numa cópia SEM `.env`, com canários sintéticos | ~8–10 min no checkout local |
+| `security:browser-session` | Sobe o build isolado e prova em Chromium cutover, fragmentação HttpOnly, concorrência e ausência de bearer; 6/6 PASS | ~10 s |
+| `security:bundle` | Varre 160 artefatos de cliente por segredo, chave privada e script do Vercel Live | ~5 s |
 | `security:http` | Sobe o build e ataca `127.0.0.1`: vetores de borda, CSRF, cabeçalhos, 306 requisições de action | ~2 min |
 
 Pré-requisitos por máquina: Node 22, pnpm 11.17 e binários do Postgres 17
-(`initdb`, `postgres`, `pg_ctl`). Se não estiverem no caminho padrão, exporte
+(`initdb`, `postgres`, `pg_ctl`) e Chromium (`pnpm exec playwright install chromium`). Se não estiverem no caminho padrão, exporte
 `SECURITY_PG_BIN`. **Nenhum segredo novo é necessário** — os scripts não leem
 `.env.local` nem aceitam URL externa.
 
-Última execução completa, em processo único: **`EXIT=0`**. Suíte inteira do
-repositório: **3251 testes, 350 arquivos, verde**.
+Suíte inteira de 15/09: **3.458/3.458 testes em 370 arquivos PASS**, com coverage acima dos pisos.
+As sete etapas de `security:check` passaram; gate Chromium final repetido **6/6 PASS** no mesmo build. Resultado consolidado em [Qoro v2 §35.6](../qorov2.md).
 
 ---
 
@@ -84,7 +93,7 @@ mensagem em massa está exposta no catálogo. Isto não mede o modelo — ver §
 ### Peso 8,5 — Autorização no middleware
 
 A decisão real já era no servidor (`authenticate()` confere epoch contra o banco
-a cada request). O que faltava era prova e trava: 12 vetores de bypass de borda
+a cada request). O que faltava era prova e trava: 11 vetores de bypass de borda + OPTIONS preflight
 contra `/api/health` no build real, mais o gate AST.
 
 ### Peso 8 — Isolamento entre clínicas
@@ -112,11 +121,20 @@ da outra clínica. Quem isola é o `SET LOCAL ROLE`, não a RLS sozinha.
 
 ### Peso 7 — CSRF e cookie de sessão
 
-Origem forjada (`https://evil.test`) com cookie: rejeitada pelo Next antes da
-ação. E os atributos do cookie de sessão deixaram de depender do default do
-`@supabase/ssr`: `hardenCookie` força `httpOnly` e `SameSite=Lax` mesmo que a
-biblioteca peça o contrário, com `secure` acompanhando o ambiente para não
-quebrar login em `http://localhost`.
+Origem forjada (`https://evil.test`) com cookie inválido: rejeitada pelo Next antes da
+ação. A prova histórica D126 mostrou que os consumidores browser não funcionavam
+com cookie HttpOnly e fixou temporariamente `httpOnly: false`. A emenda posterior
+removeu esses consumidores: `/convite` valida sessão e perfil no servidor;
+`/consultorio` atualiza por Server Action a cada 20 s enquanto visível. A sessão
+Supabase é emitida com `HttpOnly`, `SameSite=Lax` e `Secure` em produção; o
+middleware expira fragmentos legados e órfãos sem copiar bearer nem reemitir sessão ativa e encaminha renovação próxima
+do vencimento ao handler server-side. A autorização permanece nos guards do
+servidor. O teste com Auth/WebSocket sintéticos de D126 não é prova dessa emenda;
+o alcance das novas validações está no [Qoro v2 §35.6](../qorov2.md).
+
+HttpOnly impede que um script leia o bearer da nova sessão; o legado exige novo login, mas XSS
+ainda pode fazer requisições same-origin. A prova de CSRF **com sessão Supabase válida**
+e o hardening da CSP continuam separados no registro de riscos.
 
 ### Peso 6,5 — Logout confirmava revogação que falhou
 
@@ -188,7 +206,7 @@ para humano, e sai `ai_agent.quota.blocked`.
 
 ### Higiene — SEO, robots, sitemap
 
-**Não se aplica.** Não há área pública: `/` redireciona para `/login`.
+O aplicativo tem fluxos públicos de login, convite, recovery e `/cadastro`; `/` redireciona para `/login`. SEO de conteúdo pertence ao site institucional. Cadastro e autenticação devem preservar privacidade e não expor estado sensível a indexadores.
 
 ---
 
@@ -210,11 +228,13 @@ dez anos.
 | `webhook-replay-persistido` (9,5) | Provar as constraints UNIQUE e o rollback no Postgres real — o teste atual usa dependência substituída |
 | `idor-http-dois-usuarios` (8) | Exercitar IDOR por HTTP com dois usuários autenticados; hoje a prova é do caminho SQL |
 | `csrf-sessao-valida` (7) | Repetir o CSRF com cookie Supabase **válido** e cobrir double-submit nas ações de dinheiro |
-| `csp-nonce-inline-script` (3) | Trocar `'unsafe-inline'` por nonce — exige ampliar o matcher do middleware sem quebrar o redirect de `/login` |
+| `csp-nonce-inline-script` (3) | Gerar e propagar nonce por resposta HTML até o script de tema, retirar `'unsafe-inline'` e validar hidratação/cache |
 | `ia-teto-custo-corrida` (2) | Reserva transacional antes da chamada ao LLM; hoje turnos paralelos podem ultrapassar em centavos |
 
-Os três primeiros dependem de um Supabase Auth **local** com dois usuários
-sintéticos. Esse é o desbloqueio de maior alavancagem que sobrou.
+As provas de IDOR e CSRF dependem de um Supabase Auth **local** com usuários sintéticos. Esse é o
+desbloqueio de maior alavancagem para essas duas linhas. O fechamento local da leitura do bearer
+Supabase está na [ADR-037](../adr/037-server-authoritative-session.md); ele não fecha o risco de
+execução de ações por XSS nem comprova o comportamento em Preview/produção.
 
 ### Depende de console externo — não dá para fechar daqui
 
@@ -275,11 +295,17 @@ sprint apertada. O que reprova hoje:
   usa mais (registro que envelhece deixa de ser evidência);
 - rota nova sem `route.test.ts`, e rota que já tinha perder o teste;
 - `vercel.live` ou segredo no bundle de produção;
-- `/api/health` cedendo a qualquer um dos 12 vetores de borda;
+- `/api/health` cedendo a qualquer um dos 11 vetores de borda + OPTIONS preflight;
 - leitor de prontuário decifrado nascendo fora do caminho auditado;
 - `checkQuota` perder o caller, ou o teto passar a rodar depois do provider;
 - túnel do Sentry deixar de engatar enquanto a CSP não libera o host de ingestão;
 - risco aceito sem prazo, anônimo ou vencido.
+
+Os testes Vitest incluem a barreira arquitetural contra imports transitivos do SDK Supabase no
+cliente. O gate Chromium de sessão entra em `security:check` local. Após autorização explícita em
+15/09, `.github/workflows/ci.yml` passou a chamar `pnpm test:e2e:ci && pnpm security:browser-session`.
+O comando exato passou localmente: 6 públicos PASS, 2 skips Turnstile e 6 HttpOnly PASS;
+`actionlint` 1.7.12 PASS. O patch permanece no working tree; execução remota da emenda **NOT TESTED**.
 
 ### Uma armadilha que já mordeu
 
@@ -298,8 +324,8 @@ falha, porque passa parecendo verde.**
   operado. Tudo local, contra o checkout.
 - O diff de segurança convive no working tree com o redesenho de UI, de outra
   sessão, preservado intacto. **Nada foi commitado.**
-- As telas autenticadas e o fluxo do Embedded Signup do WhatsApp não foram
-  abertos em browser — exigem sessão Supabase local.
-- O CI remoto nunca rodou estes passos: `security:tenant` depende de
+- As telas autenticadas da clínica e o Embedded Signup do WhatsApp não foram
+  revalidados com Supabase externo nesta emenda. O teste de sessão usa Auth sintético em loopback.
+- O CI remoto desta emenda é **NOT TESTED**: `security:tenant` depende de
   `pg_config --bindir` resolver no runner Linux, e isso só a primeira execução
   remota confirma.

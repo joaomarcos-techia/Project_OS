@@ -22,6 +22,19 @@ describe('scrubEvent', () => {
     expect(event!.request?.data).toBe('[REDACTED_REQUEST_BODY]');
   });
 
+  it('redige TokenHash da URL de confirmação de e-mail', () => {
+    const event = scrubEvent({
+      type: undefined,
+      request: {
+        url: 'https://app.example.test/auth/confirm?token_hash=signup-secret&type=signup&next=%2Fcadastro%2Fcontinuar',
+      },
+    });
+
+    expect(event!.request?.url).toBe(
+      'https://app.example.test/auth/confirm?token_hash=[REDACTED]&type=signup&next=%2Fcadastro%2Fcontinuar',
+    );
+  });
+
   it('remove por inteiro um body multipart bruto', () => {
     const event = scrubEvent({
       type: undefined,

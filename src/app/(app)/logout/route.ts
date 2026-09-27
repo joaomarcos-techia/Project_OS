@@ -23,7 +23,7 @@
 import { redirect } from 'next/navigation';
 
 import { bumpSessionEpoch } from '@/lib/auth/session-epoch';
-import { createServerClient } from '@/lib/auth/supabase-server';
+import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { logger } from '@/lib/observability/logger';
 
@@ -31,7 +31,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(): Promise<Response> {
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
   // Sem sessão válida não há epoch a bumpar (nem token vivo a matar): limpar
   // cookies e seguir para o login é o comportamento correto e idempotente.
   const user = await getCurrentUser();
@@ -61,5 +61,6 @@ export async function POST(): Promise<Response> {
     logger.error('logout.refresh_revoke_failed', { code: error.code ?? 'unknown' });
     return new Response('Não foi possível encerrar a sessão. Tente novamente.', { status: 503 });
   }
+  await clearSupabaseSessionSelector();
   redirect('/login');
 }

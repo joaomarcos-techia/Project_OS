@@ -309,7 +309,18 @@ describe('leitura de sessão', () => {
     updateMock.mockImplementation(() => ({
       set: (v: Record<string, unknown>) => {
         setArg = v;
-        return chain([{ status: 'initiated', riskLevel: 0, rowVersion: 1, idleExpiresAt: idle }]);
+        return chain([
+          {
+            status: 'initiated',
+            riskLevel: 0,
+            rowVersion: 1,
+            idleExpiresAt: idle,
+            professionalsBand: null,
+            weeklyAppointmentsBand: null,
+            currentTooling: null,
+            discoverySource: null,
+          },
+        ]);
       },
       where: () => chain([]),
     }));
@@ -317,9 +328,55 @@ describe('leitura de sessão', () => {
     const estado = await readSignupSession('qualquer');
 
     expect(estado?.status).toBe('initiated');
+    expect(estado?.answers).toBeNull();
     // `least(novo_idle, absolute)`: sem isso, atividade contínua a cada 15 min
     // tornaria a sessão eterna e o teto absoluto viraria decoração.
     expect(textoDe(setArg)).toContain('least');
+  });
+
+  it('devolve as quatro respostas fechadas para retomada após reload', async () => {
+    const answers = {
+      professionalsBand: '2_5',
+      weeklyAppointmentsBand: '21_50',
+      currentTooling: 'outro_sistema',
+      discoverySource: 'indicacao_colega',
+    } as const;
+    updateMock.mockReturnValue(
+      chain([
+        {
+          status: 'details_complete',
+          riskLevel: 0,
+          rowVersion: 2,
+          idleExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+          ...answers,
+        },
+      ]),
+    );
+
+    await expect(readSignupSession('com-respostas')).resolves.toEqual(
+      expect.objectContaining({ status: 'details_complete', rowVersion: 2, answers }),
+    );
+  });
+
+  it('falha fechado se o banco devolver respostas parciais', async () => {
+    updateMock.mockReturnValue(
+      chain([
+        {
+          status: 'details_complete',
+          riskLevel: 0,
+          rowVersion: 2,
+          idleExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+          professionalsBand: '2_5',
+          weeklyAppointmentsBand: '21_50',
+          currentTooling: 'outro_sistema',
+          discoverySource: null,
+        },
+      ]),
+    );
+
+    await expect(readSignupSession('parcial')).rejects.toThrow(
+      'respostas persistidas violam o contrato',
+    );
   });
 });
 

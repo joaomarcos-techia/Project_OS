@@ -252,7 +252,7 @@ export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<
   }
 
   // 4. Link novo (recovery — ver docstring). Devolvemos a confirmação SSR canônica,
-  // não o action_link bruto: ela troca o hash one-time por cookies HttpOnly antes de
+  // não o action_link bruto: ela troca o hash one-time pela sessão SSR antes de
   // redirecionar para /convite, sem expor bearer credentials no fragmento da URL.
   const { data: link, error: lErr } = await admin.auth.admin.generateLink({
     type: 'recovery',

@@ -62,6 +62,20 @@ o outro de credencial. Ele exercita
 do próprio produto (20 aberturas/15 min) estoura — skip anotado, nunca verde,
 pelo mesmo motivo do `n/v` acima.
 
+### Cadastro autônomo local com persistência real
+
+Depois de `pnpm security:build`, execute:
+
+```bash
+pnpm exec tsx --conditions=react-server scripts/security/signup-regression.ts --browser
+```
+
+O runner não carrega `.env.local`: cria Postgres 17 temporário, aplica somente migrations
+0096–0098, usa um Redis REST sintético local através do SDK de rate limit e abre o build isolado no
+Chromium. Ele cobre `/cadastro`, criação/`me`/`answers`, duas abas/CAS, reload/readback, expiração,
+rate limit/falha de rede na UI e cleanup zero. Cloudflare e Supabase externos permanecem fora dessa
+prova. As portas locais usadas são 55447 (Postgres), 55449 (Redis) e 3217 (Next); deixe-as livres.
+
 ## Verificações contra o provedor real (sandbox)
 
 ```bash

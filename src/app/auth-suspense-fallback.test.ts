@@ -3,14 +3,16 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const AUTH_ROUTES = ['(app)/login/page.tsx', '(app)/convite/page.tsx'];
-
 describe('P-15 — fallbacks de autenticação', () => {
-  it.each(AUTH_ROUTES)('%s não deixa a tela vazia durante o CSR bailout', (route) => {
-    const source = readFileSync(resolve(process.cwd(), 'src/app', route), 'utf8');
-
-    expect(source).toContain('<AuthScreenSkeleton');
-    expect(source).not.toContain('fallback={null}');
+  it('login mantém fallback no CSR e convite server-side usa loading.tsx', () => {
+    const login = readFileSync(resolve(process.cwd(), 'src/app/(app)/login/page.tsx'), 'utf8');
+    const convite = readFileSync(
+      resolve(process.cwd(), 'src/app/(app)/convite/loading.tsx'),
+      'utf8',
+    );
+    expect(login).toContain('<AuthScreenSkeleton');
+    expect(login).not.toContain('fallback={null}');
+    expect(convite).toContain('<AuthScreenSkeleton variant="invite" />');
   });
 
   it('usa a marca e os ícones canônicos nas superfícies de autenticação', () => {

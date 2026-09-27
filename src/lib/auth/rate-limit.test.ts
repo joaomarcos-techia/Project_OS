@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Ratelimit } from '@upstash/ratelimit';
+import { env } from '@/lib/env';
 
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
@@ -12,11 +15,329 @@ import {
   assertPasswordResetAllowed,
   assertPasswordResetCompletionAllowed,
   assertResendInviteAllowed,
+  assertSignupIdentityAllowed,
+  assertSignupAuthAllowed,
+  assertSignupResendAllowed,
+  assertSignupDraftReadAllowed,
+  assertSignupDraftWriteAllowed,
   classifyRedisError,
   ipRateLimitKey,
   redisKey,
   __testing__,
 } from './rate-limit';
+
+describe('signup draft — authenticated distributed fail-closed limits', () => {
+  const original = { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN };
+  const allowed = {
+    success: true,
+    limit: 120,
+    remaining: 119,
+    reset: 145_000,
+    pending: Promise.resolve(),
+  };
+  beforeEach(() => {
+    env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
+    env.UPSTASH_REDIS_REST_TOKEN = 'fixture-only';
+  });
+  afterEach(() => {
+    env.UPSTASH_REDIS_REST_URL = original.url;
+    env.UPSTASH_REDIS_REST_TOKEN = original.token;
+    vi.restoreAllMocks();
+  });
+  function spies() {
+    const limiters = __testing__.signupDraftLimiters();
+    return {
+      readIp: vi.spyOn(limiters.readIp, 'limit'),
+      readUser: vi.spyOn(limiters.readUser, 'limit'),
+      writeIp: vi.spyOn(limiters.writeIp, 'limit'),
+      writeUser: vi.spyOn(limiters.writeUser, 'limit'),
+    };
+  }
+  it('separa leitura 120/60 de escrita 10/5 e nunca usa UUID bruto como prefixo', async () => {
+    const sliding = vi.spyOn(Ratelimit, 'slidingWindow');
+    const limits = spies();
+    for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+    const userHash = 'c'.repeat(64);
+    expect(await assertSignupDraftReadAllowed('2001:db8::1', userHash)).toEqual({ ok: true });
+    expect(await assertSignupDraftWriteAllowed('2001:db8::1', userHash)).toEqual({ ok: true });
+    expect(sliding).toHaveBeenCalledWith(120, '15 m');
+    expect(sliding).toHaveBeenCalledWith(60, '15 m');
+    expect(sliding).toHaveBeenCalledWith(10, '15 m');
+    expect(sliding).toHaveBeenCalledWith(5, '15 m');
+    expect(limits.readIp).toHaveBeenCalledWith('2001:db8:0:0::/64');
+    expect(limits.readUser).toHaveBeenCalledWith(userHash);
+    expect(limits.writeIp).toHaveBeenCalledWith('2001:db8:0:0::/64');
+    expect(limits.writeUser).toHaveBeenCalledWith(userHash);
+  });
+  it.each(['read-ip', 'read-user', 'write-ip', 'write-user'] as const)(
+    'bloqueia ou fecha timeout no bucket %s',
+    async (bucket) => {
+      vi.spyOn(Date, 'now').mockReturnValue(100_000);
+      const limits = spies();
+      for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+      const target =
+        bucket === 'read-ip'
+          ? limits.readIp
+          : bucket === 'read-user'
+            ? limits.readUser
+            : bucket === 'write-ip'
+              ? limits.writeIp
+              : limits.writeUser;
+      target.mockResolvedValue({ ...allowed, success: false });
+      const check = bucket.startsWith('read')
+        ? assertSignupDraftReadAllowed
+        : assertSignupDraftWriteAllowed;
+      await expect(check('127.0.0.1', 'c'.repeat(64))).resolves.toEqual({
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: 45,
+      });
+      target.mockResolvedValue({ ...allowed, reason: 'timeout' });
+      await expect(check('127.0.0.1', 'c'.repeat(64))).resolves.toEqual({
+        ok: false,
+        reason: 'unavailable',
+      });
+    },
+  );
+  it('fecha sem credenciais ou em exceção Redis', async () => {
+    const limits = spies();
+    for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+    env.UPSTASH_REDIS_REST_TOKEN = undefined;
+    await expect(assertSignupDraftReadAllowed('127.0.0.1', 'c'.repeat(64))).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(limits.readIp).not.toHaveBeenCalled();
+    env.UPSTASH_REDIS_REST_TOKEN = 'fixture-only';
+    limits.writeIp.mockRejectedValue(new Error('raw redis failure'));
+    await expect(assertSignupDraftWriteAllowed('127.0.0.1', 'c'.repeat(64))).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+  });
+});
+
+describe('signup auth — distributed fail-closed limits', () => {
+  const original = { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN };
+  const allowed = {
+    success: true,
+    limit: 10,
+    remaining: 9,
+    reset: 145_000,
+    pending: Promise.resolve(),
+  };
+  beforeEach(() => {
+    env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
+    env.UPSTASH_REDIS_REST_TOKEN = 'fixture-only';
+  });
+  afterEach(() => {
+    env.UPSTASH_REDIS_REST_URL = original.url;
+    env.UPSTASH_REDIS_REST_TOKEN = original.token;
+    vi.restoreAllMocks();
+  });
+  function spies() {
+    const limiters = __testing__.signupAuthLimiters();
+    return {
+      ip: vi.spyOn(limiters.ip, 'limit'),
+      session: vi.spyOn(limiters.session, 'limit'),
+      email: vi.spyOn(limiters.email, 'limit'),
+    };
+  }
+  it('isolates IP 10/15m, session 5/h and email HMAC 3/h', async () => {
+    const sliding = vi.spyOn(Ratelimit, 'slidingWindow');
+    const limits = spies();
+    for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+    expect(await assertSignupAuthAllowed('2001:db8::1', 'a'.repeat(64), 'b'.repeat(64))).toEqual({
+      ok: true,
+    });
+    expect(sliding).toHaveBeenCalledWith(10, '15 m');
+    expect(sliding).toHaveBeenCalledWith(5, '1 h');
+    expect(sliding).toHaveBeenCalledWith(3, '1 h');
+    expect(limits.ip).toHaveBeenCalledWith('2001:db8:0:0::/64');
+    expect(limits.session).toHaveBeenCalledWith('a'.repeat(64));
+    expect(limits.email).toHaveBeenCalledWith('b'.repeat(64));
+  });
+  it.each(['ip', 'session', 'email'] as const)(
+    'blocks %s, including SDK success=true timeout',
+    async (bucket) => {
+      vi.spyOn(Date, 'now').mockReturnValue(100_000);
+      const limits = spies();
+      for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+      limits[bucket].mockResolvedValue({ ...allowed, success: false });
+      expect(await assertSignupAuthAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64))).toEqual({
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: 45,
+      });
+      limits[bucket].mockResolvedValue({ ...allowed, reason: 'timeout' });
+      expect(await assertSignupAuthAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64))).toEqual({
+        ok: false,
+        reason: 'unavailable',
+      });
+      limits[bucket].mockRejectedValue(new Error('raw Redis error'));
+      expect(await assertSignupAuthAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64))).toEqual({
+        ok: false,
+        reason: 'unavailable',
+      });
+    },
+  );
+  it.each(['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'] as const)(
+    'closes without %s, zero Redis calls',
+    async (key) => {
+      const limits = spies();
+      env[key] = undefined;
+      expect(await assertSignupAuthAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64))).toEqual({
+        ok: false,
+        reason: 'unavailable',
+      });
+      for (const limit of Object.values(limits)) expect(limit).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('signup resend — independent distributed fail-closed limits', () => {
+  const original = { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN };
+  const allowed = {
+    success: true,
+    limit: 10,
+    remaining: 9,
+    reset: 145_000,
+    pending: Promise.resolve(),
+  };
+  beforeEach(() => {
+    env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
+    env.UPSTASH_REDIS_REST_TOKEN = 'fixture-only';
+  });
+  afterEach(() => {
+    env.UPSTASH_REDIS_REST_URL = original.url;
+    env.UPSTASH_REDIS_REST_TOKEN = original.token;
+    vi.restoreAllMocks();
+  });
+  function spies() {
+    const limiters = __testing__.signupResendLimiters();
+    return {
+      ip: vi.spyOn(limiters.ip, 'limit'),
+      session: vi.spyOn(limiters.session, 'limit'),
+      email: vi.spyOn(limiters.email, 'limit'),
+    };
+  }
+  it('separa IP 10/h, sessão 3/h e e-mail HMAC 3/h dos baldes iniciais', async () => {
+    const sliding = vi.spyOn(Ratelimit, 'slidingWindow');
+    const limits = spies();
+    for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+    expect(await assertSignupResendAllowed('2001:db8::1', 'a'.repeat(64), 'b'.repeat(64))).toEqual({
+      ok: true,
+    });
+    expect(sliding).toHaveBeenCalledWith(10, '1 h');
+    expect(sliding).toHaveBeenCalledWith(3, '1 h');
+    expect(limits.ip).toHaveBeenCalledWith('2001:db8:0:0::/64');
+    expect(limits.session).toHaveBeenCalledWith('a'.repeat(64));
+    expect(limits.email).toHaveBeenCalledWith('b'.repeat(64));
+  });
+  it.each(['ip', 'session', 'email'] as const)(
+    'bloqueia, fecha timeout e fecha exceção no bucket %s',
+    async (bucket) => {
+      vi.spyOn(Date, 'now').mockReturnValue(100_000);
+      const limits = spies();
+      for (const limit of Object.values(limits)) limit.mockResolvedValue(allowed);
+      limits[bucket].mockResolvedValue({ ...allowed, success: false });
+      await expect(
+        assertSignupResendAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+      ).resolves.toEqual({ ok: false, reason: 'rate_limited', retryAfter: 45 });
+      limits[bucket].mockResolvedValue({ ...allowed, reason: 'timeout' });
+      await expect(
+        assertSignupResendAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+      ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+      limits[bucket].mockRejectedValue(new Error('raw Redis error'));
+      await expect(
+        assertSignupResendAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+      ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+    },
+  );
+  it.each(['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'] as const)(
+    'fecha sem %s antes de tocar Redis',
+    async (key) => {
+      const limits = spies();
+      env[key] = undefined;
+      await expect(
+        assertSignupResendAllowed('127.0.0.1', 'a'.repeat(64), 'b'.repeat(64)),
+      ).resolves.toEqual({ ok: false, reason: 'unavailable' });
+      for (const limit of Object.values(limits)) expect(limit).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('signup identity — distributed fail-closed limits', () => {
+  const original = { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN };
+  const allowed = {
+    success: true,
+    limit: 10,
+    remaining: 9,
+    reset: Date.now() + 60_000,
+    pending: Promise.resolve(),
+  };
+  const spies = () => {
+    const limiters = __testing__.signupIdentityLimiters();
+    return { ip: vi.spyOn(limiters.ip, 'limit'), session: vi.spyOn(limiters.session, 'limit') };
+  };
+  beforeEach(() => {
+    env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
+    env.UPSTASH_REDIS_REST_TOKEN = 'fixture-only';
+  });
+  afterEach(() => {
+    env.UPSTASH_REDIS_REST_URL = original.url;
+    env.UPSTASH_REDIS_REST_TOKEN = original.token;
+    vi.restoreAllMocks();
+  });
+  it('uses independent 10/15m IP and 5/15m HMAC session buckets', async () => {
+    const sliding = vi.spyOn(Ratelimit, 'slidingWindow');
+    const limit = spies();
+    limit.ip.mockResolvedValue(allowed);
+    limit.session.mockResolvedValue(allowed);
+    expect(await assertSignupIdentityAllowed('2001:db8::1', 'a'.repeat(64))).toEqual({ ok: true });
+    expect(sliding).toHaveBeenCalledWith(10, '15 m');
+    expect(sliding).toHaveBeenCalledWith(5, '15 m');
+    expect(limit.ip).toHaveBeenCalledWith('2001:db8:0:0::/64');
+    expect(limit.session).toHaveBeenCalledWith('a'.repeat(64));
+  });
+  it.each(['ip', 'session'])(
+    'rejects a blocked %s bucket with reset-based Retry-After',
+    async (bucket) => {
+      vi.spyOn(Date, 'now').mockReturnValue(100_000);
+      const blocked = { ...allowed, success: false, reset: 145_000 };
+      const limit = spies();
+      limit.ip.mockResolvedValue(bucket === 'ip' ? blocked : allowed);
+      limit.session.mockResolvedValue(bucket === 'session' ? blocked : allowed);
+      expect(await assertSignupIdentityAllowed('127.0.0.1', 'a'.repeat(64))).toEqual({
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: 45,
+      });
+    },
+  );
+  it.each(['credentials', 'url', 'error', 'session-error', 'timeout', 'session-timeout'])(
+    'closes on %s without fallback or raw logs',
+    async (kind) => {
+      const limit = spies();
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      if (kind === 'credentials') env.UPSTASH_REDIS_REST_TOKEN = undefined;
+      if (kind === 'url') env.UPSTASH_REDIS_REST_URL = undefined;
+      limit.ip.mockResolvedValue(allowed);
+      limit.session.mockResolvedValue(allowed);
+      if (kind === 'error') limit.ip.mockRejectedValue(new Error('raw redis error'));
+      if (kind === 'session-error') limit.session.mockRejectedValue(new Error('raw redis error'));
+      if (kind === 'timeout') limit.ip.mockResolvedValue({ ...allowed, reason: 'timeout' });
+      if (kind === 'session-timeout')
+        limit.session.mockResolvedValue({ ...allowed, reason: 'timeout' });
+      expect(await assertSignupIdentityAllowed('127.0.0.1', 'a'.repeat(64))).toEqual({
+        ok: false,
+        reason: 'unavailable',
+      });
+      if (kind === 'credentials' || kind === 'url') expect(limit.ip).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    },
+  );
+});
 
 /**
  * F-08: prova de contenção de memória do fallback in-memory. Sem isso, o finding

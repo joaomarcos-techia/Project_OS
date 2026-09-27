@@ -37,7 +37,7 @@ const INITIAL_ENROLL: EnrollResultState = {
 export async function startEnrollAction(): Promise<EnrollResultState> {
   const user = await requireUser();
   if (await mfaRateLimited(user.userId)) return { ...INITIAL_ENROLL, error: RATE_LIMITED };
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
   try {
     const enroll = await enrollTotp(supabase);
     return {
@@ -66,7 +66,7 @@ export async function verifyEnrollAction(
   }
   const user = await requireUser();
   if (await mfaRateLimited(user.userId)) return { ...prev, error: RATE_LIMITED };
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
   try {
     await verifyTotpEnroll(supabase, factorId, code);
   } catch (e) {
@@ -117,7 +117,7 @@ export async function unenrollAction(formData: FormData): Promise<void> {
   if (await mfaRateLimited(user.userId)) {
     redirect('/account/security?rate_limited=1');
   }
-  const supabase = await createServerClient();
+  const supabase = await createServerClient({ cookieWrites: 'required' });
   try {
     await unenrollTotp(supabase, factorId);
   } catch {

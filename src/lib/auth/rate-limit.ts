@@ -500,6 +500,280 @@ export async function assertSignupReadAllowed(ip: string): Promise<LimitResult> 
   }
 }
 
+type SignupIdentityLimitResult =
+  | { ok: true }
+  | { ok: false; reason: 'unavailable' }
+  | { ok: false; reason: 'rate_limited'; retryAfter: number };
+
+const SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS = 2_000;
+const lazySignupIdentityLimiters = (() => {
+  let cached: { ip: Ratelimit; session: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/identity] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (scope: string, requests: number) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, '15 m'),
+        prefix: redisKey.global('rl', 'signup', 'identity', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = { ip: create('ip', 10), session: create('session', 5) };
+    return cached;
+  };
+})();
+
+/** PII staging requires both distributed buckets; no local fallback (ADR-062). */
+export async function assertSignupIdentityAllowed(
+  ip: string,
+  tokenHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+    return { ok: false, reason: 'unavailable' };
+  }
+  try {
+    const limiters = lazySignupIdentityLimiters();
+    const results = await Promise.all([
+      limiters.ip.limit(ipRateLimitKey(ip)),
+      limiters.session.limit(tokenHash),
+    ]);
+    // Upstash returns success:true on its timeout; that cannot authorize PII.
+    if (results.some((result) => result.reason === 'timeout')) {
+      return { ok: false, reason: 'unavailable' };
+    }
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length) {
+      const retryAfter = Math.max(
+        1,
+        Math.ceil((Math.max(...blocked.map((r) => r.reset)) - Date.now()) / 1_000),
+      );
+      return { ok: false, reason: 'rate_limited', retryAfter };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+const lazySignupAuthLimiters = (() => {
+  let cached: { ip: Ratelimit; session: Ratelimit; email: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/auth] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (
+      scope: string,
+      requests: number,
+      window: Parameters<typeof Ratelimit.slidingWindow>[1],
+    ) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, window),
+        prefix: redisKey.global('rl', 'signup', 'auth', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = {
+      ip: create('ip', 10, '15 m'),
+      session: create('session', 5, '1 h'),
+      email: create('email', 3, '1 h'),
+    };
+    return cached;
+  };
+})();
+
+/** Nenhuma degradação local autoriza criar conta ou enviar confirmação. */
+export async function assertSignupAuthAllowed(
+  ip: string,
+  tokenHash: string,
+  emailHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+    return { ok: false, reason: 'unavailable' };
+  try {
+    const limiters = lazySignupAuthLimiters();
+    const results = await Promise.all([
+      limiters.ip.limit(ipRateLimitKey(ip)),
+      limiters.session.limit(tokenHash),
+      limiters.email.limit(emailHash),
+    ]);
+    if (results.some((result) => result.reason === 'timeout'))
+      return { ok: false, reason: 'unavailable' };
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length)
+      return {
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: Math.max(
+          1,
+          Math.ceil((Math.max(...blocked.map((result) => result.reset)) - Date.now()) / 1_000),
+        ),
+      };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+const lazySignupResendLimiters = (() => {
+  let cached: { ip: Ratelimit; session: Ratelimit; email: Ratelimit } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/resend] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (scope: string, requests: number) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, '1 h'),
+        prefix: redisKey.global('rl', 'signup', 'resend', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = {
+      ip: create('ip', 10),
+      session: create('session', 3),
+      email: create('email', 3),
+    };
+    return cached;
+  };
+})();
+
+/** Reenvio explícito: IP 10/h + sessão 3/h + e-mail 3/h, sempre fail-closed. */
+export async function assertSignupResendAllowed(
+  ip: string,
+  tokenHash: string,
+  emailHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+    return { ok: false, reason: 'unavailable' };
+  try {
+    const limiters = lazySignupResendLimiters();
+    const results = await Promise.all([
+      limiters.ip.limit(ipRateLimitKey(ip)),
+      limiters.session.limit(tokenHash),
+      limiters.email.limit(emailHash),
+    ]);
+    if (results.some((result) => result.reason === 'timeout'))
+      return { ok: false, reason: 'unavailable' };
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length)
+      return {
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: Math.max(
+          1,
+          Math.ceil((Math.max(...blocked.map((result) => result.reset)) - Date.now()) / 1_000),
+        ),
+      };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+const lazySignupDraftLimiters = (() => {
+  let cached: {
+    readIp: Ratelimit;
+    readUser: Ratelimit;
+    writeIp: Ratelimit;
+    writeUser: Ratelimit;
+  } | null = null;
+  return () => {
+    if (cached) return cached;
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error('[signup/draft] Distributed limiter unavailable');
+    }
+    const redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    const create = (scope: string, requests: number) =>
+      new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(requests, '15 m'),
+        prefix: redisKey.global('rl', 'signup', 'draft', scope),
+        analytics: false,
+        ephemeralCache: false,
+        timeout: SIGNUP_IDENTITY_LIMIT_TIMEOUT_MS,
+      });
+    cached = {
+      readIp: create('read-ip', 120),
+      readUser: create('read-user', 60),
+      writeIp: create('write-ip', 10),
+      writeUser: create('write-user', 5),
+    };
+    return cached;
+  };
+})();
+
+async function assertSignupDraftAllowed(
+  kind: 'read' | 'write',
+  ip: string,
+  userHash: string,
+): Promise<SignupIdentityLimitResult> {
+  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+    return { ok: false, reason: 'unavailable' };
+  try {
+    const limiters = lazySignupDraftLimiters();
+    const [ipResult, userResult] = await Promise.all([
+      limiters[`${kind}Ip`].limit(ipRateLimitKey(ip)),
+      limiters[`${kind}User`].limit(userHash),
+    ]);
+    const results = [ipResult, userResult];
+    if (results.some((result) => result.reason === 'timeout'))
+      return { ok: false, reason: 'unavailable' };
+    const blocked = results.filter((result) => !result.success);
+    if (blocked.length)
+      return {
+        ok: false,
+        reason: 'rate_limited',
+        retryAfter: Math.max(
+          1,
+          Math.ceil((Math.max(...blocked.map((result) => result.reset)) - Date.now()) / 1_000),
+        ),
+      };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+}
+
+/** Leitura autenticada do próprio draft: IP 120/15m + usuário 60/15m, fail-closed. */
+export function assertSignupDraftReadAllowed(
+  ip: string,
+  userHash: string,
+): Promise<SignupIdentityLimitResult> {
+  return assertSignupDraftAllowed('read', ip, userHash);
+}
+
+/** Vínculo/restart: IP 10/15m + usuário 5/15m, fail-closed. */
+export function assertSignupDraftWriteAllowed(
+  ip: string,
+  userHash: string,
+): Promise<SignupIdentityLimitResult> {
+  return assertSignupDraftAllowed('write', ip, userHash);
+}
+
 const lazySignupReadLimiter = (() => {
   let cached: Ratelimit | null = null;
   return () => {
@@ -884,5 +1158,12 @@ export function getClientIp(headers: Headers): string {
   return '0.0.0.0';
 }
 
-/** Test-only — expõe o ponto privado de emissão de degradação (padrão do repo). */
-export const __testing__ = { degraded, envSegment };
+/** Test-only — emissão de degradação e buckets de signup (padrão do repo). */
+export const __testing__ = {
+  degraded,
+  envSegment,
+  signupIdentityLimiters: lazySignupIdentityLimiters,
+  signupAuthLimiters: lazySignupAuthLimiters,
+  signupResendLimiters: lazySignupResendLimiters,
+  signupDraftLimiters: lazySignupDraftLimiters,
+};

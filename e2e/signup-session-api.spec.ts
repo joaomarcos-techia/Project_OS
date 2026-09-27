@@ -152,7 +152,9 @@ test.describe.serial('cadastro anônimo — ciclo de uma sessão', () => {
 
     const { response, cookie } = opened!;
     expect(response.status(), await response.text()).toBe(201);
-    expect(((await response.json()) as SessionBody).session, 'resposta sem estado').toBeTruthy();
+    expect(((await response.json()) as SessionBody).session, 'resposta sem estado').toMatchObject({
+      answers: null,
+    });
     setCookieHeader = cookie;
 
     // O prefixo `__Host-` só é aceito pelo navegador com Secure + Path=/ e SEM
@@ -176,7 +178,9 @@ test.describe.serial('cadastro anônimo — ciclo de uma sessão', () => {
     const me = await session.get('/api/signup/sessions/me');
 
     expect(me.status(), await me.text()).toBe(200);
-    expect(((await me.json()) as SessionBody).session, '/me sem estado').toBeTruthy();
+    expect(((await me.json()) as SessionBody).session, '/me sem estado').toMatchObject({
+      answers: null,
+    });
 
     expect(await me.text(), 'o /me devolveu o token cru').not.toContain(
       cookieValue(setCookieHeader),
@@ -221,11 +225,12 @@ test.describe('cadastro anônimo — validação do corpo', () => {
   test('corpo grande demais é cortado antes de virar trabalho', async ({ request }) => {
     const response = await request.post('/api/signup/sessions', {
       headers: { origin: `https://${expectedHost()}`, 'content-type': 'application/json' },
-      data: JSON.stringify({ turnstileToken: 'x'.repeat(4096) }),
+      data: JSON.stringify({ turnstileToken: 'x'.repeat(17 * 1024) }),
     });
 
-    // 413 pelo teto de corpo ou 400 pelo schema — o que não pode é 201 nem 5xx.
-    expect([400, 413]).toContain(response.status());
+    // A rota aceita o schema existente de até 2.048 caracteres e limita o
+    // envelope a 16 KiB; este payload precisa parar no teto, antes do serviço.
+    expect(response.status()).toBe(413);
   });
 });
 

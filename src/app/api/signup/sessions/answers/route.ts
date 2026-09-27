@@ -14,8 +14,9 @@ import { NextResponse } from 'next/server';
 
 import { recordSignupAnswers, signupAnswersSchema } from '@/contexts/onboarding';
 import { assertSignupReadAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 
-import { SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../../cookie';
+import { readSignupCookie, SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../../cookie';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,17 +29,6 @@ function gone(): NextResponse {
   const res = NextResponse.json({ error: 'gone' }, { status: 410 });
   res.cookies.set(SIGNUP_SESSION_COOKIE, '', SIGNUP_COOKIE_CLEAR_OPTIONS);
   return res;
-}
-
-function readCookie(req: Request): string | null {
-  const raw = req.headers
-    .get('cookie')
-    ?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${SIGNUP_SESSION_COOKIE}=`));
-  if (!raw) return null;
-  const token = decodeURIComponent(raw.slice(SIGNUP_SESSION_COOKIE.length + 1));
-  return token || null;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -59,8 +49,8 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'body_too_large' }, { status: 413 });
   }
 
-  const raw = await req.text();
-  if (raw.length > MAX_BODY_BYTES) {
+  const raw = await readWebhookBodyCapped(req, MAX_BODY_BYTES);
+  if (raw === null) {
     return NextResponse.json({ error: 'body_too_large' }, { status: 413 });
   }
 
@@ -78,7 +68,7 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  const token = readCookie(req);
+  const token = readSignupCookie(req);
   if (!token) return gone();
 
   const result = await recordSignupAnswers(token, check.data);

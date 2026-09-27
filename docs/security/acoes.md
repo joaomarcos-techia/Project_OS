@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 174 actions (0 inline); 33 métodos em 32 handlers; 14 props com referência de action; 175 acessos diretos a process.env; 5 nomes NEXT_PUBLIC.
+Contagem: 174 actions (0 inline); 43 métodos em 41 handlers; 14 props com referência de action; 193 acessos diretos a process.env; 8 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -94,15 +94,15 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/(app)/(shell)/pacientes/actions.ts:329#revokeConsentForm`                                    | session                             | session                             | `src/app/(app)/(shell)/pacientes/actions.ts:329#revokeConsentForm` → `src/contexts/patient/actions.ts:1176#revokeConsent` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                       |
 | `src/app/(app)/(shell)/pacientes/actions.ts:181#unlinkPatientRelationshipForm`                        | session                             | session                             | `src/app/(app)/(shell)/pacientes/actions.ts:181#unlinkPatientRelationshipForm` → `src/contexts/patient/actions.ts:630#unlinkPatientRelationship` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                |
 | `src/app/(app)/(shell)/pacientes/actions.ts:117#updatePatientForm`                                    | session                             | session                             | `src/app/(app)/(shell)/pacientes/actions.ts:117#updatePatientForm` → `src/contexts/patient/actions.ts:211#updatePatient` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                        |
-| `src/app/(app)/convite/actions.ts:48#acceptInviteAction`                                              | supabase-invite-session             | supabase-invite-session             | `src/app/(app)/convite/actions.ts:63#supabase.auth.getUser`                                                                                                                                                                                        |
+| `src/app/(app)/convite/actions.ts:49#acceptInviteAction`                                              | supabase-invite-session             | supabase-invite-session             | `src/app/(app)/convite/actions.ts:64#supabase.auth.getUser`                                                                                                                                                                                        |
 | `src/app/(app)/documentos/[id]/pdf/actions.ts:9#regenerateDocumentPdfForm`                            | session                             | session                             | `src/app/(app)/documentos/[id]/pdf/actions.ts:9#regenerateDocumentPdfForm` → `src/contexts/clinical/actions.ts:553#regenerateDocumentPdf` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                       |
-| `src/app/(app)/join/[token]/actions.ts:57#saveStepAction`                                             | invite-token                        | invite-token                        | `src/app/(app)/join/[token]/actions.ts:57#saveStepAction` → `src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite`                                                                                                                     |
-| `src/app/(app)/join/[token]/actions.ts:132#submitCheckoutAction`                                      | invite-token                        | invite-token                        | `src/app/(app)/join/[token]/actions.ts:132#submitCheckoutAction` → `src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite`                                                                                                              |
+| `src/app/(app)/join/[token]/actions.ts:58#saveStepAction`                                             | invite-token                        | invite-token                        | `src/app/(app)/join/[token]/actions.ts:58#saveStepAction` → `src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite`                                                                                                                     |
+| `src/app/(app)/join/[token]/actions.ts:133#submitCheckoutAction`                                      | invite-token                        | invite-token                        | `src/app/(app)/join/[token]/actions.ts:133#submitCheckoutAction` → `src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite`                                                                                                              |
 | `src/app/(app)/join/bootstrap.ts:33#bootstrapJoinAction`                                              | invite-token                        | invite-token                        | `src/app/(app)/join/bootstrap.ts:33#bootstrapJoinAction` → `src/contexts/onboarding/internal/invites.ts:49#resolveOpenInvite`                                                                                                                      |
-| `src/app/(app)/login/actions.ts:42#forgotPasswordAction`                                              | public-recovery-request             | public-recovery-request             | `src/app/(app)/login/actions.ts:52#assertPasswordResetAllowed`                                                                                                                                                                                     |
-| `src/app/(app)/login/actions.ts:75#loginAction`                                                       | public-login                        | public-login                        | `src/app/(app)/login/actions.ts:103#supabase.auth.signInWithPassword`                                                                                                                                                                              |
+| `src/app/(app)/login/actions.ts:49#forgotPasswordAction`                                              | public-recovery-request             | public-recovery-request             | `src/app/(app)/login/actions.ts:59#assertPasswordResetAllowed`                                                                                                                                                                                     |
+| `src/app/(app)/login/actions.ts:92#loginAction`                                                       | public-login                        | public-login                        | `src/app/(app)/login/actions.ts:123#supabase.auth.signInWithPassword`                                                                                                                                                                              |
 | `src/app/(app)/login/mfa/actions.ts:23#switchAccountAction`                                           | public-local-session-clear          | public-local-session-clear          | `src/app/(app)/login/mfa/actions.ts:26#supabase.auth.signOut`                                                                                                                                                                                      |
-| `src/app/(app)/login/mfa/actions.ts:37#verifyMfaAction`                                               | supabase-session-and-mfa            | supabase-session-and-mfa            | `src/app/(app)/login/mfa/actions.ts:49#supabase.auth.getUser` → `src/app/(app)/login/mfa/actions.ts:81#supabase.auth.getUser`                                                                                                                      |
+| `src/app/(app)/login/mfa/actions.ts:38#verifyMfaAction`                                               | supabase-session-and-mfa            | supabase-session-and-mfa            | `src/app/(app)/login/mfa/actions.ts:50#supabase.auth.getUser` → `src/app/(app)/login/mfa/actions.ts:82#supabase.auth.getUser`                                                                                                                      |
 | `src/app/(app)/prescricoes/[id]/pdf/actions.ts:9#regeneratePrescriptionPdfForm`                       | session                             | session                             | `src/app/(app)/prescricoes/[id]/pdf/actions.ts:9#regeneratePrescriptionPdfForm` → `src/contexts/clinical/actions.ts:483#regeneratePrescriptionPdf` → `src/lib/auth/tenant-context.ts:366#requireUser`                                              |
 | `src/app/(app)/reset-password/actions.ts:27#resetPasswordAction`                                      | supabase-session-and-recovery-grant | supabase-session-and-recovery-grant | `src/app/(app)/reset-password/actions.ts:53#readRecoveryGrant`                                                                                                                                                                                     |
 | `src/contexts/ai-agent/actions.ts:124#assumirConversa`                                                | session                             | session                             | `src/contexts/ai-agent/actions.ts:124#assumirConversa` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                                                                                          |
@@ -191,41 +191,51 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 
 ## Route handlers
 
-| Arquivo:linha / export                                               | Antes                   | Depois                  | Evidência estática                                                                                                                                                           |
-| -------------------------------------------------------------------- | ----------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/app/(admin)/admin/clinicas/[id]/audit/export/route.ts:60#POST`  | session                 | session                 | `src/app/(admin)/admin/clinicas/[id]/audit/export/route.ts:60#POST` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                       |
-| `src/app/(admin)/admin/feedbacks/export/route.ts:18#GET`             | session                 | session                 | `src/app/(admin)/admin/feedbacks/export/route.ts:18#GET` → `src/lib/audit/super-admin.ts:25#superAdminAction` → `src/lib/auth/tenant-context.ts:366#requireUser`             |
-| `src/app/(app)/(shell)/relatorios/contabilidade.csv/route.ts:33#GET` | session                 | session                 | `src/app/(app)/(shell)/relatorios/contabilidade.csv/route.ts:33#GET` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                      |
-| `src/app/(app)/(shell)/relatorios/pdf/route.ts:19#GET`               | session                 | session                 | `src/app/(app)/(shell)/relatorios/pdf/route.ts:19#GET` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                    |
-| `src/app/(app)/auth/confirm/route.ts:42#GET`                         | supabase-otp            | supabase-otp            | `src/app/(app)/auth/confirm/route.ts:61#supabase.auth.verifyOtp`                                                                                                             |
-| `src/app/(app)/documentos/[id]/pdf/arquivo/route.ts:6#GET`           | REVIEW_REQUIRED         | session-resource-gate   | `src/app/(app)/documentos/[id]/pdf/arquivo/route.ts:6#GET` → `src/app/(app)/_lib/clinical-pdf-route.ts:44#serveClinicalPdf` → `src/lib/auth/page-guard.ts:103#resourceGate`  |
-| `src/app/(app)/logout/route.ts:33#POST`                              | optional-session-logout | optional-session-logout | `src/app/(app)/logout/route.ts:37#getCurrentUser`                                                                                                                            |
-| `src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts:6#GET`          | REVIEW_REQUIRED         | session-resource-gate   | `src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts:6#GET` → `src/app/(app)/_lib/clinical-pdf-route.ts:44#serveClinicalPdf` → `src/lib/auth/page-guard.ts:103#resourceGate` |
-| `src/app/api/cron/audit-partitions/route.ts:48#GET`                  | cron-token              | cron-token              | `src/app/api/cron/audit-partitions/route.ts:48#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
-| `src/app/api/cron/billing-dunning/route.ts:27#GET`                   | cron-token              | cron-token              | `src/app/api/cron/billing-dunning/route.ts:27#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
-| `src/app/api/cron/billing-reconcile/route.ts:58#GET`                 | cron-token              | cron-token              | `src/app/api/cron/billing-reconcile/route.ts:58#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                    |
-| `src/app/api/cron/cash-flow-rollup/route.ts:29#GET`                  | cron-token              | cron-token              | `src/app/api/cron/cash-flow-rollup/route.ts:29#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
-| `src/app/api/cron/data-retention/route.ts:44#GET`                    | cron-token              | cron-token              | `src/app/api/cron/data-retention/route.ts:44#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                       |
-| `src/app/api/cron/financial-reconcile/route.ts:41#GET`               | cron-token              | cron-token              | `src/app/api/cron/financial-reconcile/route.ts:41#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
-| `src/app/api/cron/invites-cleanup/route.ts:31#GET`                   | cron-token              | cron-token              | `src/app/api/cron/invites-cleanup/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
-| `src/app/api/cron/metrics-rollup/route.ts:108#GET`                   | cron-token              | cron-token              | `src/app/api/cron/metrics-rollup/route.ts:108#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
-| `src/app/api/cron/outbox/route.ts:31#GET`                            | cron-token              | cron-token              | `src/app/api/cron/outbox/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
-| `src/app/api/cron/patient-hard-delete/route.ts:50#GET`               | cron-token              | cron-token              | `src/app/api/cron/patient-hard-delete/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
-| `src/app/api/cron/payments-deposit/route.ts:50#GET`                  | cron-token              | cron-token              | `src/app/api/cron/payments-deposit/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
-| `src/app/api/cron/proactive-deposit-link/route.ts:33#GET`            | cron-token              | cron-token              | `src/app/api/cron/proactive-deposit-link/route.ts:33#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                               |
-| `src/app/api/cron/proactive-dunning/route.ts:20#GET`                 | cron-token              | cron-token              | `src/app/api/cron/proactive-dunning/route.ts:20#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                    |
-| `src/app/api/cron/proactive-followup/route.ts:18#GET`                | cron-token              | cron-token              | `src/app/api/cron/proactive-followup/route.ts:18#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                   |
-| `src/app/api/cron/proactive-remainder-link/route.ts:18#GET`          | cron-token              | cron-token              | `src/app/api/cron/proactive-remainder-link/route.ts:18#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                             |
-| `src/app/api/cron/proactive-reminders/route.ts:20#GET`               | cron-token              | cron-token              | `src/app/api/cron/proactive-reminders/route.ts:20#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
-| `src/app/api/cron/proactive-waitlist/route.ts:33#GET`                | cron-token              | cron-token              | `src/app/api/cron/proactive-waitlist/route.ts:33#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                   |
-| `src/app/api/cron/whatsapp-health/route.ts:25#GET`                   | cron-token              | cron-token              | `src/app/api/cron/whatsapp-health/route.ts:25#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
-| `src/app/api/health/auth-hook/route.ts:39#GET`                       | health-token-or-admin   | health-token-or-admin   | `src/app/api/health/auth-hook/route.ts:39#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                            |
-| `src/app/api/health/outbox/route.ts:84#GET`                          | health-token-or-admin   | health-token-or-admin   | `src/app/api/health/outbox/route.ts:84#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                               |
-| `src/app/api/health/route.ts:62#GET`                                 | health-token-or-admin   | health-token-or-admin   | `src/app/api/health/route.ts:62#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                                      |
-| `src/app/api/webhooks/asaas/patient/[ref]/route.ts:68#POST`          | asaas-tenant-token      | asaas-tenant-token      | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:108#safeEqual` → `src/lib/payments/asaas/index.ts:1041#safeEqual`                                                         |
-| `src/app/api/webhooks/asaas/route.ts:90#POST`                        | asaas-shared-token      | asaas-shared-token      | `src/app/api/webhooks/asaas/route.ts:110#asaasProvider.validateWebhookToken`                                                                                                 |
-| `src/app/api/webhooks/meta/route.ts:61#GET`                          | meta-handshake-token    | meta-handshake-token    | `src/app/api/webhooks/meta/route.ts:74#safeEqual`                                                                                                                            |
-| `src/app/api/webhooks/meta/route.ts:112#POST`                        | meta-hmac               | meta-hmac               | `src/app/api/webhooks/meta/route.ts:136#provider.validateSignature`                                                                                                          |
+| Arquivo:linha / export                                               | Antes                   | Depois                                               | Evidência estática                                                                                                                                                           |
+| -------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/(admin)/admin/clinicas/[id]/audit/export/route.ts:60#POST`  | session                 | session                                              | `src/app/(admin)/admin/clinicas/[id]/audit/export/route.ts:60#POST` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                       |
+| `src/app/(admin)/admin/feedbacks/export/route.ts:18#GET`             | session                 | session                                              | `src/app/(admin)/admin/feedbacks/export/route.ts:18#GET` → `src/lib/audit/super-admin.ts:25#superAdminAction` → `src/lib/auth/tenant-context.ts:366#requireUser`             |
+| `src/app/(app)/(shell)/relatorios/contabilidade.csv/route.ts:33#GET` | session                 | session                                              | `src/app/(app)/(shell)/relatorios/contabilidade.csv/route.ts:33#GET` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                      |
+| `src/app/(app)/(shell)/relatorios/pdf/route.ts:19#GET`               | session                 | session                                              | `src/app/(app)/(shell)/relatorios/pdf/route.ts:19#GET` → `src/lib/auth/tenant-context.ts:366#requireUser`                                                                    |
+| `src/app/(app)/auth/confirm/route.ts:43#GET`                         | supabase-otp            | supabase-otp                                         | `src/app/(app)/auth/confirm/route.ts:59#supabase.auth.verifyOtp`                                                                                                             |
+| `src/app/(app)/auth/session-refresh/route.ts:28#GET`                 | NEW                     | supabase-session-refresh                             | `src/app/(app)/auth/session-refresh/route.ts:50#supabase.auth.getUser`                                                                                                       |
+| `src/app/(app)/documentos/[id]/pdf/arquivo/route.ts:6#GET`           | REVIEW_REQUIRED         | session-resource-gate                                | `src/app/(app)/documentos/[id]/pdf/arquivo/route.ts:6#GET` → `src/app/(app)/_lib/clinical-pdf-route.ts:44#serveClinicalPdf` → `src/lib/auth/page-guard.ts:103#resourceGate`  |
+| `src/app/(app)/logout/route.ts:33#POST`                              | optional-session-logout | optional-session-logout                              | `src/app/(app)/logout/route.ts:37#getCurrentUser`                                                                                                                            |
+| `src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts:6#GET`          | REVIEW_REQUIRED         | session-resource-gate                                | `src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts:6#GET` → `src/app/(app)/_lib/clinical-pdf-route.ts:44#serveClinicalPdf` → `src/lib/auth/page-guard.ts:103#resourceGate` |
+| `src/app/api/cron/audit-partitions/route.ts:48#GET`                  | cron-token              | cron-token                                           | `src/app/api/cron/audit-partitions/route.ts:48#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
+| `src/app/api/cron/billing-dunning/route.ts:27#GET`                   | cron-token              | cron-token                                           | `src/app/api/cron/billing-dunning/route.ts:27#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
+| `src/app/api/cron/billing-reconcile/route.ts:58#GET`                 | cron-token              | cron-token                                           | `src/app/api/cron/billing-reconcile/route.ts:58#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                    |
+| `src/app/api/cron/cash-flow-rollup/route.ts:29#GET`                  | cron-token              | cron-token                                           | `src/app/api/cron/cash-flow-rollup/route.ts:29#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
+| `src/app/api/cron/data-retention/route.ts:44#GET`                    | cron-token              | cron-token                                           | `src/app/api/cron/data-retention/route.ts:44#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                       |
+| `src/app/api/cron/financial-reconcile/route.ts:41#GET`               | cron-token              | cron-token                                           | `src/app/api/cron/financial-reconcile/route.ts:41#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
+| `src/app/api/cron/invites-cleanup/route.ts:31#GET`                   | cron-token              | cron-token                                           | `src/app/api/cron/invites-cleanup/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
+| `src/app/api/cron/metrics-rollup/route.ts:108#GET`                   | cron-token              | cron-token                                           | `src/app/api/cron/metrics-rollup/route.ts:108#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
+| `src/app/api/cron/outbox/route.ts:31#GET`                            | cron-token              | cron-token                                           | `src/app/api/cron/outbox/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                               |
+| `src/app/api/cron/patient-hard-delete/route.ts:50#GET`               | cron-token              | cron-token                                           | `src/app/api/cron/patient-hard-delete/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
+| `src/app/api/cron/payments-deposit/route.ts:50#GET`                  | cron-token              | cron-token                                           | `src/app/api/cron/payments-deposit/route.ts:50#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                     |
+| `src/app/api/cron/proactive-deposit-link/route.ts:33#GET`            | cron-token              | cron-token                                           | `src/app/api/cron/proactive-deposit-link/route.ts:33#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                               |
+| `src/app/api/cron/proactive-dunning/route.ts:20#GET`                 | cron-token              | cron-token                                           | `src/app/api/cron/proactive-dunning/route.ts:20#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                    |
+| `src/app/api/cron/proactive-followup/route.ts:18#GET`                | cron-token              | cron-token                                           | `src/app/api/cron/proactive-followup/route.ts:18#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                   |
+| `src/app/api/cron/proactive-remainder-link/route.ts:18#GET`          | cron-token              | cron-token                                           | `src/app/api/cron/proactive-remainder-link/route.ts:18#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                             |
+| `src/app/api/cron/proactive-reminders/route.ts:20#GET`               | cron-token              | cron-token                                           | `src/app/api/cron/proactive-reminders/route.ts:20#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                  |
+| `src/app/api/cron/proactive-waitlist/route.ts:33#GET`                | cron-token              | cron-token                                           | `src/app/api/cron/proactive-waitlist/route.ts:33#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                   |
+| `src/app/api/cron/signup-sessions-cleanup/route.ts:31#GET`           | NEW                     | cron-token                                           | `src/app/api/cron/signup-sessions-cleanup/route.ts:31#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                              |
+| `src/app/api/cron/whatsapp-health/route.ts:25#GET`                   | cron-token              | cron-token                                           | `src/app/api/cron/whatsapp-health/route.ts:25#GET` → `src/lib/http/cron.ts:45#withCron` → `src/lib/http/cron-auth.ts:43#assertCronAuth`                                      |
+| `src/app/api/health/auth-hook/route.ts:39#GET`                       | health-token-or-admin   | health-token-or-admin                                | `src/app/api/health/auth-hook/route.ts:39#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                            |
+| `src/app/api/health/outbox/route.ts:84#GET`                          | health-token-or-admin   | health-token-or-admin                                | `src/app/api/health/outbox/route.ts:84#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                               |
+| `src/app/api/health/route.ts:77#GET`                                 | health-token-or-admin   | health-token-or-admin                                | `src/app/api/health/route.ts:77#GET` → `src/lib/http/health-auth.ts:22#healthAuthLevel`                                                                                      |
+| `src/app/api/signup/draft/route.ts:52#GET`                           | NEW                     | verified-pretenant-user-hmac-read-limit              | `src/app/api/signup/draft/route.ts:64#readSignupDraft`                                                                                                                       |
+| `src/app/api/signup/draft/route.ts:74#POST`                          | NEW                     | origin-verified-pretenant-user-hmac-write-limit-cas  | `src/app/api/signup/draft/route.ts:112#writeSignupDraft`                                                                                                                     |
+| `src/app/api/signup/sessions/answers/route.ts:34#POST`               | NEW                     | signup-cookie-cas-and-read-rate-limit                | `src/app/api/signup/sessions/answers/route.ts:74#recordSignupAnswers`                                                                                                        |
+| `src/app/api/signup/sessions/auth/route.ts:38#POST`                  | NEW                     | SIGNUP_AUTH_ENABLED-origin-limit-cookie-cas          | `src/app/api/signup/sessions/auth/route.ts:80#reserveSignupAuthAttempt`                                                                                                      |
+| `src/app/api/signup/sessions/identity/route.ts:24#POST`              | NEW                     | SIGNUP_IDENTITY_ENABLED-origin-limit-cookie-cas      | `src/app/api/signup/sessions/identity/route.ts:62#recordSignupIdentity`                                                                                                      |
+| `src/app/api/signup/sessions/me/route.ts:33#GET`                     | NEW                     | signup-cookie-and-read-rate-limit                    | `src/app/api/signup/sessions/me/route.ts:46#readSignupSession`                                                                                                               |
+| `src/app/api/signup/sessions/resend/route.ts:31#POST`                | NEW                     | SIGNUP_AUTH_ENABLED-origin-resend-limit-cooldown-cas | `src/app/api/signup/sessions/resend/route.ts:75#reserveSignupResendAttempt`                                                                                                  |
+| `src/app/api/signup/sessions/route.ts:60#POST`                       | NEW                     | public-signup-rate-limit-risk-and-cap                | `src/app/api/signup/sessions/route.ts:86#createSignupSession`                                                                                                                |
+| `src/app/api/webhooks/asaas/patient/[ref]/route.ts:68#POST`          | asaas-tenant-token      | asaas-tenant-token                                   | `src/app/api/webhooks/asaas/patient/[ref]/route.ts:108#safeEqual` → `src/lib/payments/asaas/index.ts:1041#safeEqual`                                                         |
+| `src/app/api/webhooks/asaas/route.ts:90#POST`                        | asaas-shared-token      | asaas-shared-token                                   | `src/app/api/webhooks/asaas/route.ts:110#asaasProvider.validateWebhookToken`                                                                                                 |
+| `src/app/api/webhooks/meta/route.ts:61#GET`                          | meta-handshake-token    | meta-handshake-token                                 | `src/app/api/webhooks/meta/route.ts:74#safeEqual`                                                                                                                            |
+| `src/app/api/webhooks/meta/route.ts:112#POST`                        | meta-hmac               | meta-hmac                                            | `src/app/api/webhooks/meta/route.ts:136#provider.validateSignature`                                                                                                          |
 
 ## Superfícies removidas
 
@@ -245,7 +255,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/(app)/(shell)/configuracoes/lgpd/lgpd-work-queue.tsx:235`             | `action`     | `src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#notifyLgpdRequesterForm` |
 | `src/app/(app)/(shell)/configuracoes/procedimentos/procedures-manager.tsx:287` | `action`     | `src/contexts/scheduling/catalog-actions.ts#deactivateProcedure`              |
 | `src/app/(app)/(shell)/documentos/new-clinical-document-drawer.tsx:90`         | `onSearch`   | `src/app/(app)/(shell)/documentos/actions.ts#buscarPacientesParaDocumento`    |
-| `src/app/(app)/(shell)/layout.tsx:69`                                          | `stopAction` | `src/app/(admin)/admin/actions/impersonation.ts#stopImpersonationAction`      |
+| `src/app/(app)/(shell)/layout.tsx:85`                                          | `stopAction` | `src/app/(admin)/admin/actions/impersonation.ts#stopImpersonationAction`      |
 | `src/app/(app)/(shell)/modelos-receita/templates-manager.tsx:277`              | `action`     | `src/contexts/clinical/actions-templates.ts#deletePrescriptionTemplate`       |
 | `src/app/(app)/(shell)/pacientes/[id]/patient-profile-card.tsx:170`            | `action`     | `src/app/(app)/(shell)/pacientes/actions.ts#updatePatientForm`                |
 | `src/app/(app)/(shell)/pacientes/new-patient-drawer.tsx:60`                    | `action`     | `src/app/(app)/(shell)/pacientes/actions.ts#createPatientForm`                |
@@ -254,190 +264,211 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 
 Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `scripts/security/public-env-registry.ts`; nome sem entrada (ou entrada sem nome no código) reprova `pnpm security:inventory`.
 
-| Nome                                       | Dono       | Uso                                                               | Exposição        | Por quê                                                                                                                                                                                                                                                                      |
-| ------------------------------------------ | ---------- | ----------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SENTRY_DSN`                   | plataforma | Endpoint de ingestão do Sentry usado pelo SDK do browser.         | public-by-design | DSN é chave de ingestão write-only: aceita evento, não lê projeto nem administra a org. O risco real do DSN público é evento forjado/ruído, contido por rate limit e sample rate do projeto — não leitura de dado. Rotação e região continuam na Fase 2 (console do Sentry). |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`            | plataforma | Nome legado da chave anônima do Supabase (compatibilidade).       | public-by-design | Antecessor de PUBLISHABLE_KEY, com o mesmo escopo limitado por RLS. Continua listado enquanto houver leitura no código; a remoção do nome legado é higiene, não contenção de credencial.                                                                                     |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     | plataforma | Chave publishable (sb*publishable*) do Supabase Auth no browser.  | public-by-design | Par público da chave de serviço: só permite o que RLS permitir para a sessão. A credencial administrativa é a secret (sb*secret*), que o bundle-check varre e nunca pode aparecer no cliente.                                                                                |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV` | plataforma | Mesma chave publishable, apontando ao projeto de desenvolvimento. | public-by-design | Mesmo contrato da anterior, contra um projeto que não contém dado de paciente real. Se algum dia contiver, esta entrada deixa de ser verdadeira e a linha tem de mudar junto.                                                                                                |
-| `NEXT_PUBLIC_SUPABASE_URL`                 | plataforma | URL do projeto Supabase que o cliente do browser chama.           | public-by-design | É o endereço do serviço; todo request do browser o revela de qualquer forma. A autorização é do JWT + RLS, nunca do sigilo da URL.                                                                                                                                           |
+| Nome                                       | Dono       | Uso                                                                     | Exposição        | Por quê                                                                                                                                                                                                                                                                      |
+| ------------------------------------------ | ---------- | ----------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SENTRY_DSN`                   | plataforma | Endpoint de ingestão do Sentry usado pelo SDK do browser.               | public-by-design | DSN é chave de ingestão write-only: aceita evento, não lê projeto nem administra a org. O risco real do DSN público é evento forjado/ruído, contido por rate limit e sample rate do projeto — não leitura de dado. Rotação e região continuam na Fase 2 (console do Sentry). |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`            | plataforma | Nome legado da chave anônima do Supabase (compatibilidade).             | public-by-design | Antecessor de PUBLISHABLE_KEY, com o mesmo escopo limitado por RLS. Continua listado enquanto houver leitura no código; a remoção do nome legado é higiene, não contenção de credencial.                                                                                     |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     | plataforma | Chave publishable (sb*publishable*) do Supabase Auth usada no servidor. | public-by-design | A chave é pública por contrato, mas a sessão do usuário fica em cookie HttpOnly e as chamadas autenticadas ocorrem no servidor. A credencial administrativa é a secret (sb*secret*), que nunca pode aparecer no cliente.                                                     |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV` | plataforma | Mesma chave publishable, apontando ao projeto de desenvolvimento.       | public-by-design | Mesmo contrato da anterior, contra um projeto que não contém dado de paciente real. Se algum dia contiver, esta entrada deixa de ser verdadeira e a linha tem de mudar junto.                                                                                                |
+| `NEXT_PUBLIC_SUPABASE_URL`                 | plataforma | URL do projeto Supabase usada pelo Auth no servidor e pelo middleware.  | public-by-design | É o endereço público do serviço. O nome NEXT*PUBLIC* é legado de configuração; nenhum bearer de sessão deve ser exposto ao navegador. A autorização ocorre nos guards do servidor.                                                                                           |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY`           | plataforma | Identificador público do widget Cloudflare Turnstile no browser.        | public-by-design | O browser precisa enviar a site key à Cloudflare para renderizar o desafio. Ela identifica o widget, mas não valida tokens; essa autoridade pertence à TURNSTILE_SECRET_KEY, lida apenas no servidor.                                                                        |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`       | plataforma | Site key pública do Turnstile para o ambiente de desenvolvimento.       | public-by-design | Mesmo contrato público da chave canônica, segregado para que desenvolvimento não exercite o widget de produção.                                                                                                                                                              |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL`     | plataforma | Site key pública do Turnstile para localhost.                           | public-by-design | Mesmo contrato público da chave canônica, com precedência local explícita. A chave secreta correspondente não usa NEXT*PUBLIC*.                                                                                                                                              |
 
 ## Acessos process.env (nomes, sem valores)
 
-| Arquivo:linha                                      | Nome                                       | Forma                                                  |
-| -------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
-| `src/instrumentation-client.ts:9`                  | `NEXT_PUBLIC_SENTRY_DSN`                   | `process.env.NEXT_PUBLIC_SENTRY_DSN`                   |
-| `src/instrumentation-client.ts:15`                 | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
-| `src/instrumentation.ts:4`                         | `NEXT_RUNTIME`                             | `process.env.NEXT_RUNTIME`                             |
-| `src/instrumentation.ts:8`                         | `NEXT_RUNTIME`                             | `process.env.NEXT_RUNTIME`                             |
-| `src/lib/auth/supabase-browser.ts:17`              | `NEXT_PUBLIC_SUPABASE_URL`                 | `process.env.NEXT_PUBLIC_SUPABASE_URL`                 |
-| `src/lib/auth/supabase-browser.ts:19`              | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     |
-| `src/lib/auth/supabase-browser.ts:20`              | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_DEV` |
-| `src/lib/auth/supabase-browser.ts:21`              | `NEXT_PUBLIC_SUPABASE_ANON_KEY`            | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`            |
-| `src/lib/db/index.ts:39`                           | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `src/lib/db/index.ts:53`                           | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `src/lib/env.ts:398`                               | `<object>`                                 | `process.env`                                          |
-| `src/lib/impersonation/index.ts:64`                | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
-| `drizzle.config.ts:24`                             | `DATABASE_URL`                             | `process.env.DATABASE_URL`                             |
-| `next.config.ts:14`                                | `NEXT_PUBLIC_SUPABASE_URL`                 | `process.env.NEXT_PUBLIC_SUPABASE_URL`                 |
-| `next.config.ts:73`                                | `VERCEL_ENV`                               | `process.env.VERCEL_ENV`                               |
-| `next.config.ts:74`                                | `NEXT_PUBLIC_SUPABASE_URL`                 | `process.env.NEXT_PUBLIC_SUPABASE_URL`                 |
-| `next.config.ts:75`                                | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
-| `next.config.ts:108`                               | `CI`                                       | `process.env.CI`                                       |
-| `playwright.config.ts:12`                          | `E2E_BASE_URL`                             | `process.env.E2E_BASE_URL`                             |
-| `playwright.config.ts:13`                          | `E2E_MUTATION`                             | `process.env.E2E_MUTATION`                             |
-| `playwright.config.ts:14`                          | `E2E_ARTIFACTS`                            | `process.env.E2E_ARTIFACTS`                            |
-| `playwright.config.ts:15`                          | `E2E_AUTH_REUSE`                           | `process.env.E2E_AUTH_REUSE`                           |
-| `playwright.config.ts:22`                          | `E2E_USER_EMAIL`                           | `process.env.E2E_USER_EMAIL`                           |
-| `playwright.config.ts:22`                          | `E2E_USER_PASSWORD`                        | `process.env.E2E_USER_PASSWORD`                        |
-| `playwright.config.ts:28`                          | `E2E_BASE_URL`                             | `process.env.E2E_BASE_URL`                             |
-| `playwright.config.ts:31`                          | `E2E_USER_EMAIL`                           | `process.env.E2E_USER_EMAIL`                           |
-| `playwright.config.ts:31`                          | `E2E_USER_PASSWORD`                        | `process.env.E2E_USER_PASSWORD`                        |
-| `playwright.config.ts:50`                          | `CI`                                       | `process.env.CI`                                       |
-| `playwright.config.ts:51`                          | `CI`                                       | `process.env.CI`                                       |
-| `playwright.config.ts:52`                          | `CI`                                       | `process.env.CI`                                       |
-| `playwright.config.ts:68`                          | `E2E_BASE_URL`                             | `process.env.E2E_BASE_URL`                             |
-| `playwright.config.ts:74`                          | `CI`                                       | `process.env.CI`                                       |
-| `playwright.visual.config.ts:12`                   | `E2E_BASE_URL`                             | `process.env.E2E_BASE_URL`                             |
-| `playwright.visual.config.ts:14`                   | `E2E_AUTH_REUSE`                           | `process.env.E2E_AUTH_REUSE`                           |
-| `playwright.visual.config.ts:15`                   | `E2E_BASE_URL`                             | `process.env.E2E_BASE_URL`                             |
-| `playwright.visual.config.ts:15`                   | `E2E_USER_EMAIL`                           | `process.env.E2E_USER_EMAIL`                           |
-| `playwright.visual.config.ts:15`                   | `E2E_USER_PASSWORD`                        | `process.env.E2E_USER_PASSWORD`                        |
-| `playwright.visual.config.ts:33`                   | `CI`                                       | `process.env.CI`                                       |
-| `playwright.visual.config.ts:40`                   | `VISUAL_WAVE`                              | `process.env.VISUAL_WAVE`                              |
-| `playwright.visual.config.ts:41`                   | `VISUAL_WAVE`                              | `process.env.VISUAL_WAVE`                              |
-| `scripts/_env.ts:21`                               | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
-| `scripts/_env.ts:32`                               | `<dynamic>`                                | `process.env[development]`                             |
-| `scripts/_env.ts:33`                               | `<dynamic>`                                | `process.env[canonical]`                               |
-| `scripts/_env.ts:48`                               | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `scripts/_env.ts:71`                               | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `scripts/_env.ts:81`                               | `DATABASE_URL_PROD`                        | `process.env.DATABASE_URL_PROD`                        |
-| `scripts/_env.ts:106`                              | `DATABASE_URL`                             | `process.env.DATABASE_URL`                             |
-| `scripts/_env.ts:113`                              | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `scripts/_env.ts:176`                              | `USER`                                     | `process.env.USER`                                     |
-| `scripts/_env.ts:176`                              | `USERNAME`                                 | `process.env.USERNAME`                                 |
-| `scripts/ai-adversarial-check.ts:222`              | `GEMINI_API_KEY`                           | `process.env.GEMINI_API_KEY`                           |
-| `scripts/asaas-card-live-check.ts:28`              | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `scripts/asaas-checkout-e2e.ts:80`                 | `ASAAS_CHECKOUT_E2E`                       | `process.env.ASAAS_CHECKOUT_E2E`                       |
-| `scripts/asaas-checkout-e2e.ts:86`                 | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `scripts/asaas-checkout-e2e.ts:87`                 | `ASAAS_API_KEY`                            | `process.env.ASAAS_API_KEY`                            |
-| `scripts/asaas-checkout-e2e.ts:117`                | `ASAAS_CHECKOUT_E2E_INTERACTIVE`           | `process.env.ASAAS_CHECKOUT_E2E_INTERACTIVE`           |
-| `scripts/asaas-checkout-e2e.ts:124`                | `ASAAS_CHECKOUT_E2E_METHOD`                | `process.env.ASAAS_CHECKOUT_E2E_METHOD`                |
-| `scripts/asaas-checkout-e2e.ts:517`                | `ASAAS_CHECKOUT_E2E_CHARGEBACK`            | `process.env.ASAAS_CHECKOUT_E2E_CHARGEBACK`            |
-| `scripts/asaas-delete-restore-e2e.ts:84`           | `BILLING_DELETE_RESTORE_E2E`               | `process.env.BILLING_DELETE_RESTORE_E2E`               |
-| `scripts/asaas-delete-restore-e2e.ts:85`           | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `scripts/asaas-delete-restore-e2e.ts:86`           | `ASAAS_API_KEY`                            | `process.env.ASAAS_API_KEY`                            |
-| `scripts/asaas-delete-restore-e2e.ts:106`          | `APP_BASE_URL`                             | `process.env.APP_BASE_URL`                             |
-| `scripts/asaas-delete-restore-e2e.ts:107`          | `ASAAS_WEBHOOK_TOKEN`                      | `process.env.ASAAS_WEBHOOK_TOKEN`                      |
-| `scripts/asaas-delete-restore-e2e.ts:108`          | `VERCEL_AUTOMATION_BYPASS_SECRET`          | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`          |
-| `scripts/asaas-live-check.ts:20`                   | `ASAAS_API_KEY`                            | `process.env.ASAAS_API_KEY`                            |
-| `scripts/asaas-live-check.ts:24`                   | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `scripts/asaas-live-roundtrip.ts:28`               | `ASAAS_API_KEY`                            | `process.env.ASAAS_API_KEY`                            |
-| `scripts/audit-partition-maintenance.ts:29`        | `AUDIT_MONTHS_AHEAD`                       | `process.env.AUDIT_MONTHS_AHEAD`                       |
-| `scripts/check-handler-registry.ts:40`             | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
-| `scripts/db-migrate-dev.ts:22`                     | `<object>`                                 | `process.env`                                          |
-| `scripts/db-migrate-prod.ts:230`                   | `<object>`                                 | `process.env`                                          |
-| `scripts/db-studio.ts:13`                          | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
-| `scripts/db-studio.ts:23`                          | `<object>`                                 | `process.env`                                          |
-| `scripts/delete-test-clinics-prod.ts:159`          | `<dynamic>`                                | `process.env[name]`                                    |
-| `scripts/e2e-mutation-fixture.ts:55`               | `E2E_MUTATION`                             | `process.env.E2E_MUTATION`                             |
-| `scripts/e2e-mutation-fixture.ts:58`               | `E2E_USER_EMAIL`                           | `process.env.E2E_USER_EMAIL`                           |
-| `scripts/e2e-mutation-fixture.ts:206`              | `E2E_USER_EMAIL`                           | `process.env.E2E_USER_EMAIL`                           |
-| `scripts/gemini-live-check.ts:50`                  | `GEMINI_API_KEY`                           | `process.env.GEMINI_API_KEY`                           |
-| `scripts/load-test-meta-preload.mjs:5`             | `LOAD_TEST_META_STUB`                      | `process.env.LOAD_TEST_META_STUB`                      |
-| `scripts/load-test-meta-preload.mjs:11`            | `LOAD_TEST_META_LOG`                       | `process.env.LOAD_TEST_META_LOG`                       |
-| `scripts/load-test-proactive-runner.ts:29`         | `LOAD_TEST_CONFIRM`                        | `process.env.LOAD_TEST_CONFIRM`                        |
-| `scripts/load-test-proactive-runner.ts:30`         | `DATABASE_URL`                             | `process.env.DATABASE_URL`                             |
-| `scripts/load-test-proactive-runner.ts:31`         | `LOAD_TEST_SCHEMA_SOURCE`                  | `process.env.LOAD_TEST_SCHEMA_SOURCE`                  |
-| `scripts/load-test-proactive-runner.ts:32`         | `LOAD_TEST_SEED_PATH`                      | `process.env.LOAD_TEST_SEED_PATH`                      |
-| `scripts/load-test-proactive-runner.ts:33`         | `LOAD_TEST_RESULT_PATH`                    | `process.env.LOAD_TEST_RESULT_PATH`                    |
-| `scripts/load-test-proactive-runner.ts:34`         | `LOAD_TEST_EXPECTED_JOBS`                  | `process.env.LOAD_TEST_EXPECTED_JOBS`                  |
-| `scripts/load-test-seed-runner.ts:17`              | `LOAD_TEST_CONFIRM`                        | `process.env.LOAD_TEST_CONFIRM`                        |
-| `scripts/load-test-seed-runner.ts:18`              | `DATABASE_URL`                             | `process.env.DATABASE_URL`                             |
-| `scripts/load-test-seed-runner.ts:19`              | `LOAD_TEST_SCHEMA_SOURCE`                  | `process.env.LOAD_TEST_SCHEMA_SOURCE`                  |
-| `scripts/load-test-seed-runner.ts:20`              | `LOAD_TEST_RESULT_PATH`                    | `process.env.LOAD_TEST_RESULT_PATH`                    |
-| `scripts/load-test-seed-runner.ts:21`              | `LOAD_TEST_CLINIC_TIMEZONE`                | `process.env.LOAD_TEST_CLINIC_TIMEZONE`                |
-| `scripts/load-test.ts:173`                         | `<object>`                                 | `process.env`                                          |
-| `scripts/load-test.ts:243`                         | `<dynamic>`                                | `process.env[key]`                                     |
-| `scripts/load-test.ts:243`                         | `<dynamic>`                                | `process.env[key]`                                     |
-| `scripts/load-test.ts:443`                         | `LOAD_TEST_CONFIRM`                        | `process.env.LOAD_TEST_CONFIRM`                        |
-| `scripts/load-test.ts:444`                         | `DATABASE_URL_DEV`                         | `process.env.DATABASE_URL_DEV`                         |
-| `scripts/load-test.ts:447`                         | `DATABASE_URL_PROD`                        | `process.env.DATABASE_URL_PROD`                        |
-| `scripts/load-test.ts:448`                         | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `scripts/no-show-meta-e2e.ts:39`                   | `META_E2E_RECIPIENT_E164`                  | `process.env.META_E2E_RECIPIENT_E164`                  |
-| `scripts/payments-live-check.ts:24`                | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `scripts/payments-live-check.ts:129`               | `ASAAS_CLINIC_SANDBOX_KEY`                 | `process.env.ASAAS_CLINIC_SANDBOX_KEY`                 |
-| `scripts/payments-meta-e2e.ts:79`                  | `PAYMENTS_META_E2E_CLINIC_ID`              | `process.env.PAYMENTS_META_E2E_CLINIC_ID`              |
-| `scripts/payments-meta-e2e.ts:80`                  | `META_E2E_RECIPIENT_E164`                  | `process.env.META_E2E_RECIPIENT_E164`                  |
-| `scripts/payments-meta-e2e.ts:126`                 | `PAYMENTS_META_E2E`                        | `process.env.PAYMENTS_META_E2E`                        |
-| `scripts/payments-meta-e2e.ts:129`                 | `APP_BASE_URL`                             | `process.env.APP_BASE_URL`                             |
-| `scripts/payments-meta-e2e.ts:130`                 | `META_TEMPLATE_DEPOSIT_LINK_ID`            | `process.env.META_TEMPLATE_DEPOSIT_LINK_ID`            |
-| `scripts/payments-meta-e2e.ts:131`                 | `META_TEMPLATE_REMAINDER_LINK_ID`          | `process.env.META_TEMPLATE_REMAINDER_LINK_ID`          |
-| `scripts/pentest-account-inventory.ts:61`          | `PENTEST_ACCOUNT_EMAILS_JSON`              | `process.env.PENTEST_ACCOUNT_EMAILS_JSON`              |
-| `scripts/pentest-account-inventory.ts:75`          | `<object>`                                 | `process.env`                                          |
-| `scripts/prod-data-api-authorization-check.ts:81`  | `E2E_STORAGE_STATE_PATH`                   | `process.env.E2E_STORAGE_STATE_PATH`                   |
-| `scripts/prod-data-api-authorization-check.ts:95`  | `E2E_USER_EMAIL`                           | `process.env.E2E_USER_EMAIL`                           |
-| `scripts/prod-data-api-authorization-check.ts:96`  | `E2E_USER_PASSWORD`                        | `process.env.E2E_USER_PASSWORD`                        |
-| `scripts/prod-data-api-authorization-check.ts:106` | `SUPABASE_SECRET_KEY_PROD`                 | `process.env.SUPABASE_SECRET_KEY_PROD`                 |
-| `scripts/prod-storage-authorization-check.ts:92`   | `SUPABASE_SECRET_KEY_PROD`                 | `process.env.SUPABASE_SECRET_KEY_PROD`                 |
-| `scripts/resend-live-check.ts:15`                  | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `scripts/restore-test.ts:45`                       | `RESTORE_TARGET_URL`                       | `process.env.RESTORE_TARGET_URL`                       |
-| `scripts/restore-test.ts:54`                       | `SUPABASE_PROJECT_ENV`                     | `process.env.SUPABASE_PROJECT_ENV`                     |
-| `scripts/restore-test.ts:59`                       | `DATABASE_URL_PROD`                        | `process.env.DATABASE_URL_PROD`                        |
-| `scripts/restore-test.ts:59`                       | `DATABASE_URL_PROD`                        | `process.env.DATABASE_URL_PROD`                        |
-| `scripts/run-hard-delete.ts:24`                    | `HARD_DELETE_LIMIT`                        | `process.env.HARD_DELETE_LIMIT`                        |
-| `scripts/security/local-build.ts:63`               | `<dynamic>`                                | `process.env[key]`                                     |
-| `scripts/security/local-build.ts:63`               | `<dynamic>`                                | `process.env[key]`                                     |
-| `scripts/security/tenant-isolation.ts:12`          | `SECURITY_PG_BIN`                          | `process.env.SECURITY_PG_BIN`                          |
-| `scripts/security/tenant-isolation.ts:120`         | `<dynamic>`                                | `process.env[key]`                                     |
-| `scripts/security/tenant-isolation.ts:121`         | `<object>`                                 | `process.env`                                          |
-| `scripts/seed-c9-test.ts:38`                       | `SEED_C9_PASSWORD`                         | `process.env.SEED_C9_PASSWORD`                         |
-| `scripts/seed-clinic-user.ts:36`                   | `SEED_USER_EMAIL`                          | `process.env.SEED_USER_EMAIL`                          |
-| `scripts/seed-clinic-user.ts:37`                   | `SEED_USER_PASSWORD`                       | `process.env.SEED_USER_PASSWORD`                       |
-| `scripts/seed-clinic-user.ts:38`                   | `SEED_USER_ROLE`                           | `process.env.SEED_USER_ROLE`                           |
-| `scripts/seed-clinic-user.ts:39`                   | `SEED_USER_NOME`                           | `process.env.SEED_USER_NOME`                           |
-| `scripts/seed-clinic-user.ts:40`                   | `SEED_USER_CRM`                            | `process.env.SEED_USER_CRM`                            |
-| `scripts/seed-clinic-user.ts:41`                   | `SEED_USER_CRM_UF`                         | `process.env.SEED_USER_CRM_UF`                         |
-| `scripts/seed-clinic-user.ts:42`                   | `SEED_USER_ESPECIALIDADE`                  | `process.env.SEED_USER_ESPECIALIDADE`                  |
-| `scripts/seed-clinic-user.ts:43`                   | `SEED_CLINIC_SLUG`                         | `process.env.SEED_CLINIC_SLUG`                         |
-| `scripts/seed-clinic-user.ts:44`                   | `SEED_CLINIC_NOME`                         | `process.env.SEED_CLINIC_NOME`                         |
-| `scripts/seed-clinic-user.ts:45`                   | `SEED_CLINIC_ENDERECO`                     | `process.env.SEED_CLINIC_ENDERECO`                     |
-| `scripts/seed-clinic-user.ts:46`                   | `SEED_CLINIC_CNPJ`                         | `process.env.SEED_CLINIC_CNPJ`                         |
-| `scripts/seed-clinic-user.ts:47`                   | `SEED_CLINIC_CNES`                         | `process.env.SEED_CLINIC_CNES`                         |
-| `scripts/seed-clinic-user.ts:48`                   | `SEED_CLINIC_PRIMARY_COLOR`                | `process.env.SEED_CLINIC_PRIMARY_COLOR`                |
-| `scripts/seed-clinic-user.ts:49`                   | `SEED_CLINIC_LOGO_URL`                     | `process.env.SEED_CLINIC_LOGO_URL`                     |
-| `scripts/seed-super-admin.ts:36`                   | `SUPER_ADMIN_EMAIL`                        | `process.env.SUPER_ADMIN_EMAIL`                        |
-| `scripts/seed-super-admin.ts:37`                   | `SUPER_ADMIN_PASSWORD`                     | `process.env.SUPER_ADMIN_PASSWORD`                     |
-| `scripts/smoke-c3-manual.ts:39`                    | `LOGIN_HASH_PEPPER`                        | `process.env.LOGIN_HASH_PEPPER`                        |
-| `scripts/smoke-c3-manual.ts:48`                    | `UPSTASH_REDIS_REST_URL`                   | `process.env.UPSTASH_REDIS_REST_URL`                   |
-| `scripts/smoke-c3-manual.ts:49`                    | `UPSTASH_REDIS_REST_TOKEN`                 | `process.env.UPSTASH_REDIS_REST_TOKEN`                 |
-| `scripts/smoke-c3-manual.ts:72`                    | `NEXT_PUBLIC_SUPABASE_URL`                 | `process.env.NEXT_PUBLIC_SUPABASE_URL`                 |
-| `scripts/smoke-c3-manual.ts:74`                    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     |
-| `scripts/smoke-c3-manual.ts:74`                    | `NEXT_PUBLIC_SUPABASE_ANON_KEY`            | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`            |
-| `scripts/smoke-c4.ts:742`                          | `CRON_SECRET`                              | `process.env.CRON_SECRET`                              |
-| `scripts/smoke-c4.ts:742`                          | `CRON_SECRET`                              | `process.env.CRON_SECRET`                              |
-| `scripts/smoke-c4.ts:754`                          | `CRON_SECRET`                              | `process.env.CRON_SECRET`                              |
-| `scripts/smoke-c4.ts:1027`                         | `CRON_SECRET`                              | `process.env.CRON_SECRET`                              |
-| `scripts/smoke-c4.ts:1075`                         | `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`       | `process.env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`       |
-| `scripts/smoke-login.ts:31`                        | `SMOKE_USER_EMAIL`                         | `process.env.SMOKE_USER_EMAIL`                         |
-| `scripts/smoke-login.ts:32`                        | `SMOKE_USER_PASSWORD`                      | `process.env.SMOKE_USER_PASSWORD`                      |
-| `scripts/smoke-login.ts:35`                        | `NEXT_PUBLIC_SUPABASE_URL`                 | `process.env.NEXT_PUBLIC_SUPABASE_URL`                 |
-| `scripts/smoke-login.ts:37`                        | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`     |
-| `scripts/smoke-login.ts:37`                        | `NEXT_PUBLIC_SUPABASE_ANON_KEY`            | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`            |
-| `scripts/smoke-payments-post-recovery.ts:118`      | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `scripts/smoke-payments-post-recovery.ts:119`      | `ASAAS_BASE_URL_DEV`                       | `process.env.ASAAS_BASE_URL_DEV`                       |
-| `scripts/smoke-payments-post-recovery.ts:122`      | `APP_BASE_URL`                             | `process.env.APP_BASE_URL`                             |
-| `scripts/tmp-run-deposit-refund-e2e.ts:82`         | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `scripts/tmp-run-deposit-refund-e2e.ts:88`         | `ASAAS_API_KEY`                            | `process.env.ASAAS_API_KEY`                            |
-| `scripts/tmp-run-deposit-refund-e2e.ts:96`         | `PAYMENTS_D77_E2E`                         | `process.env.PAYMENTS_D77_E2E`                         |
-| `scripts/tmp-run-deposit-refund-e2e.ts:98`         | `PAYMENTS_D77_OPERATOR_GATE`               | `process.env.PAYMENTS_D77_OPERATOR_GATE`               |
-| `scripts/tmp-run-deposit-refund-e2e.ts:385`        | `PAYMENTS_D77_RESUME`                      | `process.env.PAYMENTS_D77_RESUME`                      |
-| `scripts/tmp-run-deposit-refund-e2e.ts:454`        | `PAYMENTS_D77_RESUME`                      | `process.env.PAYMENTS_D77_RESUME`                      |
-| `scripts/tmp-run-patient-excess-refund-e2e.ts:134` | `PAYMENTS_D50_E2E`                         | `process.env.PAYMENTS_D50_E2E`                         |
-| `scripts/tmp-run-patient-excess-refund-e2e.ts:146` | `ASAAS_BASE_URL`                           | `process.env.ASAAS_BASE_URL`                           |
-| `sentry.edge.config.ts:9`                          | `NEXT_PUBLIC_SENTRY_DSN`                   | `process.env.NEXT_PUBLIC_SENTRY_DSN`                   |
-| `sentry.edge.config.ts:10`                         | `SENTRY_DSN`                               | `process.env.SENTRY_DSN`                               |
-| `sentry.edge.config.ts:16`                         | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
-| `sentry.server.config.ts:10`                       | `NEXT_PUBLIC_SENTRY_DSN`                   | `process.env.NEXT_PUBLIC_SENTRY_DSN`                   |
-| `sentry.server.config.ts:11`                       | `SENTRY_DSN`                               | `process.env.SENTRY_DSN`                               |
-| `sentry.server.config.ts:17`                       | `NODE_ENV`                                 | `process.env.NODE_ENV`                                 |
+| Arquivo:linha                                      | Nome                                   | Forma                                              |
+| -------------------------------------------------- | -------------------------------------- | -------------------------------------------------- |
+| `src/components/shared/turnstile-widget.tsx:143`   | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `src/components/shared/turnstile-widget.tsx:144`   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`       | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY`       |
+| `src/components/shared/turnstile-widget.tsx:150`   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL` | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY_LOCAL` |
+| `src/components/shared/turnstile-widget.tsx:151`   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`   | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`   |
+| `src/components/shared/turnstile-widget.tsx:152`   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`       | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY`       |
+| `src/instrumentation-client.ts:9`                  | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`               |
+| `src/instrumentation-client.ts:15`                 | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `src/instrumentation.ts:4`                         | `NEXT_RUNTIME`                         | `process.env.NEXT_RUNTIME`                         |
+| `src/instrumentation.ts:8`                         | `NEXT_RUNTIME`                         | `process.env.NEXT_RUNTIME`                         |
+| `src/lib/auth/supabase-session-cookie.ts:5`        | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `src/lib/db/index.ts:39`                           | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `src/lib/db/index.ts:53`                           | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `src/lib/env.ts:428`                               | `<object>`                             | `process.env`                                      |
+| `src/lib/impersonation/index.ts:64`                | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `src/middleware.ts:82`                             | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `src/middleware.ts:88`                             | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `drizzle.config.ts:24`                             | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `next.config.ts:14`                                | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `next.config.ts:73`                                | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                           |
+| `next.config.ts:74`                                | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `next.config.ts:75`                                | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `next.config.ts:108`                               | `CI`                                   | `process.env.CI`                                   |
+| `playwright.ci.config.ts:63`                       | `CI`                                   | `process.env.CI`                                   |
+| `playwright.ci.config.ts:64`                       | `CI`                                   | `process.env.CI`                                   |
+| `playwright.ci.config.ts:65`                       | `CI`                                   | `process.env.CI`                                   |
+| `playwright.config.ts:12`                          | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                         |
+| `playwright.config.ts:13`                          | `E2E_MUTATION`                         | `process.env.E2E_MUTATION`                         |
+| `playwright.config.ts:14`                          | `E2E_ARTIFACTS`                        | `process.env.E2E_ARTIFACTS`                        |
+| `playwright.config.ts:15`                          | `E2E_AUTH_REUSE`                       | `process.env.E2E_AUTH_REUSE`                       |
+| `playwright.config.ts:22`                          | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
+| `playwright.config.ts:22`                          | `E2E_USER_PASSWORD`                    | `process.env.E2E_USER_PASSWORD`                    |
+| `playwright.config.ts:28`                          | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                         |
+| `playwright.config.ts:31`                          | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
+| `playwright.config.ts:31`                          | `E2E_USER_PASSWORD`                    | `process.env.E2E_USER_PASSWORD`                    |
+| `playwright.config.ts:50`                          | `CI`                                   | `process.env.CI`                                   |
+| `playwright.config.ts:51`                          | `CI`                                   | `process.env.CI`                                   |
+| `playwright.config.ts:52`                          | `CI`                                   | `process.env.CI`                                   |
+| `playwright.config.ts:68`                          | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                         |
+| `playwright.config.ts:74`                          | `CI`                                   | `process.env.CI`                                   |
+| `playwright.visual.config.ts:12`                   | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                         |
+| `playwright.visual.config.ts:14`                   | `E2E_AUTH_REUSE`                       | `process.env.E2E_AUTH_REUSE`                       |
+| `playwright.visual.config.ts:15`                   | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                         |
+| `playwright.visual.config.ts:15`                   | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
+| `playwright.visual.config.ts:15`                   | `E2E_USER_PASSWORD`                    | `process.env.E2E_USER_PASSWORD`                    |
+| `playwright.visual.config.ts:33`                   | `CI`                                   | `process.env.CI`                                   |
+| `playwright.visual.config.ts:40`                   | `VISUAL_WAVE`                          | `process.env.VISUAL_WAVE`                          |
+| `playwright.visual.config.ts:41`                   | `VISUAL_WAVE`                          | `process.env.VISUAL_WAVE`                          |
+| `scripts/_env.ts:28`                               | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `scripts/_env.ts:30`                               | `<dynamic>`                            | `process.env[name]`                                |
+| `scripts/_env.ts:31`                               | `<dynamic>`                            | `process.env[canonical]`                           |
+| `scripts/_env.ts:46`                               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/_env.ts:69`                               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/_env.ts:79`                               | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
+| `scripts/_env.ts:104`                              | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/_env.ts:111`                              | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/_env.ts:174`                              | `USER`                                 | `process.env.USER`                                 |
+| `scripts/_env.ts:174`                              | `USERNAME`                             | `process.env.USERNAME`                             |
+| `scripts/ai-adversarial-check.ts:222`              | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                       |
+| `scripts/asaas-card-live-check.ts:28`              | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/asaas-checkout-e2e.ts:80`                 | `ASAAS_CHECKOUT_E2E`                   | `process.env.ASAAS_CHECKOUT_E2E`                   |
+| `scripts/asaas-checkout-e2e.ts:86`                 | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/asaas-checkout-e2e.ts:87`                 | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
+| `scripts/asaas-checkout-e2e.ts:117`                | `ASAAS_CHECKOUT_E2E_INTERACTIVE`       | `process.env.ASAAS_CHECKOUT_E2E_INTERACTIVE`       |
+| `scripts/asaas-checkout-e2e.ts:124`                | `ASAAS_CHECKOUT_E2E_METHOD`            | `process.env.ASAAS_CHECKOUT_E2E_METHOD`            |
+| `scripts/asaas-checkout-e2e.ts:517`                | `ASAAS_CHECKOUT_E2E_CHARGEBACK`        | `process.env.ASAAS_CHECKOUT_E2E_CHARGEBACK`        |
+| `scripts/asaas-delete-restore-e2e.ts:84`           | `BILLING_DELETE_RESTORE_E2E`           | `process.env.BILLING_DELETE_RESTORE_E2E`           |
+| `scripts/asaas-delete-restore-e2e.ts:85`           | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/asaas-delete-restore-e2e.ts:86`           | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
+| `scripts/asaas-delete-restore-e2e.ts:106`          | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
+| `scripts/asaas-delete-restore-e2e.ts:107`          | `ASAAS_WEBHOOK_TOKEN`                  | `process.env.ASAAS_WEBHOOK_TOKEN`                  |
+| `scripts/asaas-delete-restore-e2e.ts:108`          | `VERCEL_AUTOMATION_BYPASS_SECRET`      | `process.env.VERCEL_AUTOMATION_BYPASS_SECRET`      |
+| `scripts/asaas-live-check.ts:20`                   | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
+| `scripts/asaas-live-check.ts:24`                   | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/asaas-live-roundtrip.ts:28`               | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
+| `scripts/audit-partition-maintenance.ts:29`        | `AUDIT_MONTHS_AHEAD`                   | `process.env.AUDIT_MONTHS_AHEAD`                   |
+| `scripts/check-handler-registry.ts:40`             | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `scripts/db-migrate-dev.ts:22`                     | `<object>`                             | `process.env`                                      |
+| `scripts/db-migrate-prod.ts:230`                   | `<object>`                             | `process.env`                                      |
+| `scripts/db-studio.ts:13`                          | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `scripts/db-studio.ts:23`                          | `<object>`                             | `process.env`                                      |
+| `scripts/delete-test-clinics-prod.ts:159`          | `<dynamic>`                            | `process.env[name]`                                |
+| `scripts/e2e-mutation-fixture.ts:55`               | `E2E_MUTATION`                         | `process.env.E2E_MUTATION`                         |
+| `scripts/e2e-mutation-fixture.ts:58`               | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
+| `scripts/e2e-mutation-fixture.ts:206`              | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
+| `scripts/gemini-live-check.ts:50`                  | `GEMINI_API_KEY`                       | `process.env.GEMINI_API_KEY`                       |
+| `scripts/load-signup-degraded.ts:111`              | `LOAD_SIGNUP_CONFIRM`                  | `process.env.LOAD_SIGNUP_CONFIRM`                  |
+| `scripts/load-signup-degraded.ts:118`              | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`               |
+| `scripts/load-test-meta-preload.mjs:5`             | `LOAD_TEST_META_STUB`                  | `process.env.LOAD_TEST_META_STUB`                  |
+| `scripts/load-test-meta-preload.mjs:11`            | `LOAD_TEST_META_LOG`                   | `process.env.LOAD_TEST_META_LOG`                   |
+| `scripts/load-test-proactive-runner.ts:29`         | `LOAD_TEST_CONFIRM`                    | `process.env.LOAD_TEST_CONFIRM`                    |
+| `scripts/load-test-proactive-runner.ts:30`         | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/load-test-proactive-runner.ts:31`         | `LOAD_TEST_SCHEMA_SOURCE`              | `process.env.LOAD_TEST_SCHEMA_SOURCE`              |
+| `scripts/load-test-proactive-runner.ts:32`         | `LOAD_TEST_SEED_PATH`                  | `process.env.LOAD_TEST_SEED_PATH`                  |
+| `scripts/load-test-proactive-runner.ts:33`         | `LOAD_TEST_RESULT_PATH`                | `process.env.LOAD_TEST_RESULT_PATH`                |
+| `scripts/load-test-proactive-runner.ts:34`         | `LOAD_TEST_EXPECTED_JOBS`              | `process.env.LOAD_TEST_EXPECTED_JOBS`              |
+| `scripts/load-test-seed-runner.ts:17`              | `LOAD_TEST_CONFIRM`                    | `process.env.LOAD_TEST_CONFIRM`                    |
+| `scripts/load-test-seed-runner.ts:18`              | `DATABASE_URL`                         | `process.env.DATABASE_URL`                         |
+| `scripts/load-test-seed-runner.ts:19`              | `LOAD_TEST_SCHEMA_SOURCE`              | `process.env.LOAD_TEST_SCHEMA_SOURCE`              |
+| `scripts/load-test-seed-runner.ts:20`              | `LOAD_TEST_RESULT_PATH`                | `process.env.LOAD_TEST_RESULT_PATH`                |
+| `scripts/load-test-seed-runner.ts:21`              | `LOAD_TEST_CLINIC_TIMEZONE`            | `process.env.LOAD_TEST_CLINIC_TIMEZONE`            |
+| `scripts/load-test.ts:173`                         | `<object>`                             | `process.env`                                      |
+| `scripts/load-test.ts:243`                         | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/load-test.ts:243`                         | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/load-test.ts:443`                         | `LOAD_TEST_CONFIRM`                    | `process.env.LOAD_TEST_CONFIRM`                    |
+| `scripts/load-test.ts:444`                         | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                     |
+| `scripts/load-test.ts:447`                         | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
+| `scripts/load-test.ts:448`                         | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/no-show-meta-e2e.ts:39`                   | `META_E2E_RECIPIENT_E164`              | `process.env.META_E2E_RECIPIENT_E164`              |
+| `scripts/payments-live-check.ts:24`                | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/payments-live-check.ts:129`               | `ASAAS_CLINIC_SANDBOX_KEY`             | `process.env.ASAAS_CLINIC_SANDBOX_KEY`             |
+| `scripts/payments-meta-e2e.ts:79`                  | `PAYMENTS_META_E2E_CLINIC_ID`          | `process.env.PAYMENTS_META_E2E_CLINIC_ID`          |
+| `scripts/payments-meta-e2e.ts:80`                  | `META_E2E_RECIPIENT_E164`              | `process.env.META_E2E_RECIPIENT_E164`              |
+| `scripts/payments-meta-e2e.ts:126`                 | `PAYMENTS_META_E2E`                    | `process.env.PAYMENTS_META_E2E`                    |
+| `scripts/payments-meta-e2e.ts:129`                 | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
+| `scripts/payments-meta-e2e.ts:130`                 | `META_TEMPLATE_DEPOSIT_LINK_ID`        | `process.env.META_TEMPLATE_DEPOSIT_LINK_ID`        |
+| `scripts/payments-meta-e2e.ts:131`                 | `META_TEMPLATE_REMAINDER_LINK_ID`      | `process.env.META_TEMPLATE_REMAINDER_LINK_ID`      |
+| `scripts/pentest-account-inventory.ts:61`          | `PENTEST_ACCOUNT_EMAILS_JSON`          | `process.env.PENTEST_ACCOUNT_EMAILS_JSON`          |
+| `scripts/pentest-account-inventory.ts:75`          | `<object>`                             | `process.env`                                      |
+| `scripts/prod-data-api-authorization-check.ts:81`  | `E2E_STORAGE_STATE_PATH`               | `process.env.E2E_STORAGE_STATE_PATH`               |
+| `scripts/prod-data-api-authorization-check.ts:95`  | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                       |
+| `scripts/prod-data-api-authorization-check.ts:96`  | `E2E_USER_PASSWORD`                    | `process.env.E2E_USER_PASSWORD`                    |
+| `scripts/prod-data-api-authorization-check.ts:106` | `SUPABASE_SECRET_KEY_PROD`             | `process.env.SUPABASE_SECRET_KEY_PROD`             |
+| `scripts/prod-storage-authorization-check.ts:92`   | `SUPABASE_SECRET_KEY_PROD`             | `process.env.SUPABASE_SECRET_KEY_PROD`             |
+| `scripts/resend-live-check.ts:15`                  | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/restore-test.ts:45`                       | `RESTORE_TARGET_URL`                   | `process.env.RESTORE_TARGET_URL`                   |
+| `scripts/restore-test.ts:54`                       | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                 |
+| `scripts/restore-test.ts:59`                       | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
+| `scripts/restore-test.ts:59`                       | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                    |
+| `scripts/run-hard-delete.ts:24`                    | `HARD_DELETE_LIMIT`                    | `process.env.HARD_DELETE_LIMIT`                    |
+| `scripts/security/local-build.ts:75`               | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/security/local-build.ts:75`               | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/security/signup-regression.ts:15`         | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
+| `scripts/security/signup-regression.ts:31`         | `<object>`                             | `process.env`                                      |
+| `scripts/security/signup-regression.ts:31`         | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/security/signup-regression.ts:1568`       | `<object>`                             | `process.env`                                      |
+| `scripts/security/tenant-isolation.ts:12`          | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                      |
+| `scripts/security/tenant-isolation.ts:120`         | `<dynamic>`                            | `process.env[key]`                                 |
+| `scripts/security/tenant-isolation.ts:121`         | `<object>`                             | `process.env`                                      |
+| `scripts/seed-c9-test.ts:38`                       | `SEED_C9_PASSWORD`                     | `process.env.SEED_C9_PASSWORD`                     |
+| `scripts/seed-clinic-user.ts:36`                   | `SEED_USER_EMAIL`                      | `process.env.SEED_USER_EMAIL`                      |
+| `scripts/seed-clinic-user.ts:37`                   | `SEED_USER_PASSWORD`                   | `process.env.SEED_USER_PASSWORD`                   |
+| `scripts/seed-clinic-user.ts:38`                   | `SEED_USER_ROLE`                       | `process.env.SEED_USER_ROLE`                       |
+| `scripts/seed-clinic-user.ts:39`                   | `SEED_USER_NOME`                       | `process.env.SEED_USER_NOME`                       |
+| `scripts/seed-clinic-user.ts:40`                   | `SEED_USER_CRM`                        | `process.env.SEED_USER_CRM`                        |
+| `scripts/seed-clinic-user.ts:41`                   | `SEED_USER_CRM_UF`                     | `process.env.SEED_USER_CRM_UF`                     |
+| `scripts/seed-clinic-user.ts:42`                   | `SEED_USER_ESPECIALIDADE`              | `process.env.SEED_USER_ESPECIALIDADE`              |
+| `scripts/seed-clinic-user.ts:43`                   | `SEED_CLINIC_SLUG`                     | `process.env.SEED_CLINIC_SLUG`                     |
+| `scripts/seed-clinic-user.ts:44`                   | `SEED_CLINIC_NOME`                     | `process.env.SEED_CLINIC_NOME`                     |
+| `scripts/seed-clinic-user.ts:45`                   | `SEED_CLINIC_ENDERECO`                 | `process.env.SEED_CLINIC_ENDERECO`                 |
+| `scripts/seed-clinic-user.ts:46`                   | `SEED_CLINIC_CNPJ`                     | `process.env.SEED_CLINIC_CNPJ`                     |
+| `scripts/seed-clinic-user.ts:47`                   | `SEED_CLINIC_CNES`                     | `process.env.SEED_CLINIC_CNES`                     |
+| `scripts/seed-clinic-user.ts:48`                   | `SEED_CLINIC_PRIMARY_COLOR`            | `process.env.SEED_CLINIC_PRIMARY_COLOR`            |
+| `scripts/seed-clinic-user.ts:49`                   | `SEED_CLINIC_LOGO_URL`                 | `process.env.SEED_CLINIC_LOGO_URL`                 |
+| `scripts/seed-super-admin-mfa.ts:44`               | `SUPER_ADMIN_EMAIL_DEV`                | `process.env.SUPER_ADMIN_EMAIL_DEV`                |
+| `scripts/seed-super-admin-mfa.ts:45`               | `SUPER_ADMIN_PASSWORD_DEV`             | `process.env.SUPER_ADMIN_PASSWORD_DEV`             |
+| `scripts/seed-super-admin-mfa.ts:90`               | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/seed-super-admin-mfa.ts:92`               | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `scripts/seed-super-admin-mfa.ts:92`               | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`        |
+| `scripts/seed-super-admin.ts:36`                   | `SUPER_ADMIN_EMAIL`                    | `process.env.SUPER_ADMIN_EMAIL`                    |
+| `scripts/seed-super-admin.ts:37`                   | `SUPER_ADMIN_PASSWORD`                 | `process.env.SUPER_ADMIN_PASSWORD`                 |
+| `scripts/smoke-c3-manual.ts:39`                    | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                    |
+| `scripts/smoke-c3-manual.ts:48`                    | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`               |
+| `scripts/smoke-c3-manual.ts:49`                    | `UPSTASH_REDIS_REST_TOKEN`             | `process.env.UPSTASH_REDIS_REST_TOKEN`             |
+| `scripts/smoke-c3-manual.ts:72`                    | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/smoke-c3-manual.ts:74`                    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `scripts/smoke-c3-manual.ts:74`                    | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`        |
+| `scripts/smoke-c4.ts:742`                          | `CRON_SECRET`                          | `process.env.CRON_SECRET`                          |
+| `scripts/smoke-c4.ts:742`                          | `CRON_SECRET`                          | `process.env.CRON_SECRET`                          |
+| `scripts/smoke-c4.ts:754`                          | `CRON_SECRET`                          | `process.env.CRON_SECRET`                          |
+| `scripts/smoke-c4.ts:1027`                         | `CRON_SECRET`                          | `process.env.CRON_SECRET`                          |
+| `scripts/smoke-c4.ts:1075`                         | `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`   | `process.env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`   |
+| `scripts/smoke-login.ts:31`                        | `SMOKE_USER_EMAIL`                     | `process.env.SMOKE_USER_EMAIL`                     |
+| `scripts/smoke-login.ts:32`                        | `SMOKE_USER_PASSWORD`                  | `process.env.SMOKE_USER_PASSWORD`                  |
+| `scripts/smoke-login.ts:35`                        | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`             |
+| `scripts/smoke-login.ts:37`                        | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| `scripts/smoke-login.ts:37`                        | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`        |
+| `scripts/smoke-payments-post-recovery.ts:118`      | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/smoke-payments-post-recovery.ts:119`      | `ASAAS_BASE_URL_DEV`                   | `process.env.ASAAS_BASE_URL_DEV`                   |
+| `scripts/smoke-payments-post-recovery.ts:122`      | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                         |
+| `scripts/tmp-run-deposit-refund-e2e.ts:82`         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `scripts/tmp-run-deposit-refund-e2e.ts:88`         | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                        |
+| `scripts/tmp-run-deposit-refund-e2e.ts:96`         | `PAYMENTS_D77_E2E`                     | `process.env.PAYMENTS_D77_E2E`                     |
+| `scripts/tmp-run-deposit-refund-e2e.ts:98`         | `PAYMENTS_D77_OPERATOR_GATE`           | `process.env.PAYMENTS_D77_OPERATOR_GATE`           |
+| `scripts/tmp-run-deposit-refund-e2e.ts:385`        | `PAYMENTS_D77_RESUME`                  | `process.env.PAYMENTS_D77_RESUME`                  |
+| `scripts/tmp-run-deposit-refund-e2e.ts:454`        | `PAYMENTS_D77_RESUME`                  | `process.env.PAYMENTS_D77_RESUME`                  |
+| `scripts/tmp-run-patient-excess-refund-e2e.ts:134` | `PAYMENTS_D50_E2E`                     | `process.env.PAYMENTS_D50_E2E`                     |
+| `scripts/tmp-run-patient-excess-refund-e2e.ts:146` | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                       |
+| `sentry.edge.config.ts:9`                          | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`               |
+| `sentry.edge.config.ts:10`                         | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                           |
+| `sentry.edge.config.ts:16`                         | `NODE_ENV`                             | `process.env.NODE_ENV`                             |
+| `sentry.server.config.ts:10`                       | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`               |
+| `sentry.server.config.ts:11`                       | `SENTRY_DSN`                           | `process.env.SENTRY_DSN`                           |
+| `sentry.server.config.ts:17`                       | `NODE_ENV`                             | `process.env.NODE_ENV`                             |

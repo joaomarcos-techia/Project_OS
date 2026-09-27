@@ -124,13 +124,13 @@ export const RISK_REGISTER: RiskEntry[] = [
     id: 'csp-nonce-inline-script',
     peso: 3,
     risco:
-      "A CSP passou a BLOQUEAR e fechou connect-src/img-src por origem nomeada, mas script-src mantém 'unsafe-inline'. Trocar por nonce exige ampliar o matcher do middleware — que hoje EXCLUI /login, /convite, /reset-password, /auth/* e /join —, propagar o nonce até o <script> de tema e tornar / dinâmica. Feito pela metade, endurece o interior e deixa a porta da frente como está.",
+      "A CSP é bloqueante e fecha connect-src/img-src por origem nomeada, mas script-src ainda mantém 'unsafe-inline'. O middleware já cobre as páginas públicas e de autenticação; o residual é gerar uma nonce por resposta HTML, propagá-la pelo request até o <script> de tema em app/layout.tsx e então remover 'unsafe-inline' sem quebrar hidratação ou cache.",
     status: 'pendente',
     dono: 'pendente do humano',
     registradoEm: REGISTRADO_EM,
     revisarEm: REVISAR_EM,
     evidencia:
-      'Repo tem UM dangerouslySetInnerHTML (script constante de tema em app/layout.tsx) e nenhum sink de HTML de usuário: sem caminho de injeção inline conhecido hoje.',
+      "Repo tem um dangerouslySetInnerHTML (script constante de tema em app/layout.tsx) e nenhum sink de HTML de usuário conhecido. O matcher atual já alcança /login, /convite, /reset-password, /auth/* e /join; falta implementar e testar a nonce antes de retirar 'unsafe-inline'.",
   },
   {
     id: 'ia-teto-custo-corrida',

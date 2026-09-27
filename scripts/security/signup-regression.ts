@@ -1,0 +1,2286 @@
+/** Local real Postgres + real handlers. No dotenv, provider credentials or external targets. */
+import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import type { Route } from '@playwright/test';
+import postgres from 'postgres';
+import selfsigned from 'selfsigned';
+
+const root = process.cwd();
+const bin =
+  process.env.SECURITY_PG_BIN ??
+  (process.platform === 'win32'
+    ? 'C:/Program Files/PostgreSQL/17/bin'
+    : '/usr/lib/postgresql/17/bin');
+const allowed = new Set([
+  'PATH',
+  'Path',
+  'SystemRoot',
+  'WINDIR',
+  'TEMP',
+  'TMP',
+  'HOME',
+  'USERPROFILE',
+  'COMSPEC',
+  'PATHEXT',
+]);
+for (const key of Object.keys(process.env)) if (!allowed.has(key)) delete process.env[key];
+const suffix = process.platform === 'win32' ? '.exe' : '';
+const cluster = await mkdtemp(path.join(os.tmpdir(), 'qoro-signup-regression-'));
+const data = path.join(cluster, 'data');
+const port = 55447;
+const init = spawnSync(
+  path.join(bin, `initdb${suffix}`),
+  ['-D', data, '-U', 'signup_local', '--auth=trust', '--encoding=UTF8', '--no-locale'],
+  { windowsHide: true, encoding: 'utf8' },
+);
+if (init.error) throw init.error;
+assert.equal(init.status, 0, init.stderr);
+const cert = await selfsigned.generate([{ name: 'commonName', value: 'localhost' }], {
+  keySize: 2048,
+});
+await writeFile(path.join(data, 'server.crt'), cert.cert);
+await writeFile(path.join(data, 'server.key'), cert.private, { mode: 0o600 });
+const server = spawn(
+  path.join(bin, `postgres${suffix}`),
+  ['-D', data, '-p', String(port), '-h', '127.0.0.1', '-c', 'ssl=on'],
+  { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+);
+let serverLog = '';
+server.stderr.on('data', (chunk: Buffer) => {
+  serverLog += chunk.toString();
+});
+const url = `postgres://signup_local@127.0.0.1:${port}/postgres?sslmode=require`;
+const admin = postgres(url, {
+  ssl: 'require',
+  max: 1,
+  connect_timeout: 2,
+  onnotice: () => undefined,
+});
+const results: { name: string; status: 'PASS' | 'FAIL'; detail?: string }[] = [];
+let verified = false;
+let schemaReady = false;
+async function check(name: string, run: () => Promise<void>) {
+  try {
+    await run();
+    results.push({ name, status: 'PASS' });
+  } catch (error) {
+    results.push({
+      name,
+      status: 'FAIL',
+      detail: error instanceof Error ? (error.stack ?? error.message) : 'unknown failure',
+    });
+  }
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  );
+}
+
+async function readJsonBody(request: import('node:http').IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += buffer.byteLength;
+    if (bytes > 64 * 1024) throw new Error('Redis fixture body exceeds 64 KiB');
+    chunks.push(buffer);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+function redisCommandResult(
+  value: unknown,
+  counters: Map<string, number>,
+): { result: [number, number] } {
+  assert.ok(Array.isArray(value), 'Redis fixture expects a command array');
+  assert.equal(String(value[0]).toLowerCase(), 'evalsha');
+  const keyCount = Number(value[2]);
+  assert.equal(keyCount, 3, 'Redis fixture expects the sliding-window script');
+  const currentKey = value[3];
+  const previousKey = value[4];
+  assert.equal(typeof currentKey, 'string');
+  assert.equal(typeof previousKey, 'string');
+  const argsAt = 3 + keyCount;
+  const limit = Number(value[argsAt]);
+  const now = Number(value[argsAt + 1]);
+  const windowMs = Number(value[argsAt + 2]);
+  const incrementBy = Number(value[argsAt + 3]);
+  assert.ok(
+    [limit, now, windowMs, incrementBy].every(Number.isFinite),
+    'Redis fixture received invalid numeric arguments',
+  );
+  const current = (counters.get(currentKey) ?? 0) + incrementBy;
+  counters.set(currentKey, current);
+  const previous = counters.get(previousKey) ?? 0;
+  const previousWeighted = Math.floor((1 - (now % windowMs) / windowMs) * previous);
+  return { result: [limit - (current + previousWeighted), limit] };
+}
+
+async function runBrowserJourney(
+  databaseUrl: string,
+  sql: ReturnType<typeof postgres>,
+  hashToken: (rawToken: string) => string,
+): Promise<void> {
+  const buildResult: unknown = JSON.parse(
+    await readFile(path.join(root, 'dist/security-local/build-result.json'), 'utf8'),
+  );
+  assert.ok(
+    typeof buildResult === 'object' &&
+      buildResult !== null &&
+      'exitCode' in buildResult &&
+      buildResult.exitCode === 0,
+    'build isolado ausente ou inválido; rode pnpm security:build antes de --browser',
+  );
+  const parsedRuntime: unknown = JSON.parse(
+    await readFile(path.join(root, 'dist/security-local/runtime-env.json'), 'utf8'),
+  );
+  assert.ok(isStringRecord(parsedRuntime), 'runtime-env.json não contém apenas strings');
+  const providerUrl = new URL(parsedRuntime.NEXT_PUBLIC_SUPABASE_URL ?? '');
+  assert.equal(providerUrl.hostname, '127.0.0.1', 'Auth fixture requires loopback');
+  assert.equal(providerUrl.protocol, 'http:', 'Synthetic Auth fixture requires HTTP');
+
+  const appPort = 3217;
+  const baseUrl = `http://127.0.0.1:${appPort}`;
+  const redisPort = 55449;
+  const redisCounters = new Map<string, number>();
+  let redisRequests = 0;
+  let redisUnavailable = false;
+  const redisServer = createServer(async (request, response) => {
+    try {
+      if (redisUnavailable) {
+        response.writeHead(503, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ error: 'synthetic unavailable' }));
+        return;
+      }
+      assert.equal(request.method, 'POST');
+      assert.equal(request.headers.authorization, 'Bearer synthetic-upstash-token');
+      const body = await readJsonBody(request);
+      const commands = Array.isArray(body) && Array.isArray(body[0]) ? body : null;
+      const payload = commands
+        ? commands.map((command) => redisCommandResult(command, redisCounters))
+        : redisCommandResult(body, redisCounters);
+      redisRequests += commands?.length ?? 1;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(payload));
+    } catch (error) {
+      response.writeHead(400, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify({ error: error instanceof Error ? error.message : 'invalid request' }),
+      );
+    }
+  });
+  await new Promise<void>((resolve, reject) => {
+    redisServer.once('error', reject);
+    redisServer.listen(redisPort, '127.0.0.1', resolve);
+  });
+  const appEnv: NodeJS.ProcessEnv = {
+    ...parsedRuntime,
+    NODE_ENV: 'development', // Loopback HTTP fixture; the inspected Next build remains production.
+    DATABASE_URL: databaseUrl,
+    APP_BASE_URL: baseUrl,
+    MAGIC_TOKEN_SECRET: 'synthetic-local-signup-only-magic-token-secret',
+    LOGIN_HASH_PEPPER: 'synthetic-local-signup-only-email-hmac-pepper',
+    SIGNUP_IDENTITY_ENABLED: 'true',
+    SIGNUP_AUTH_ENABLED: 'true',
+    LOG_LEVEL: 'warn',
+    UPSTASH_REDIS_REST_URL: `http://127.0.0.1:${redisPort}`,
+    UPSTASH_REDIS_REST_TOKEN: 'synthetic-upstash-token',
+  };
+  const appServer = spawn(
+    process.execPath,
+    [
+      path.join(root, 'node_modules/next/dist/bin/next'),
+      'start',
+      '-p',
+      String(appPort),
+      '-H',
+      '127.0.0.1',
+    ],
+    {
+      cwd: path.join(root, 'dist/security-local/app'),
+      env: appEnv,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  let appLog = '';
+  appServer.stdout.on('data', (chunk: Buffer) => {
+    appLog += chunk.toString();
+  });
+  appServer.stderr.on('data', (chunk: Buffer) => {
+    appLog += chunk.toString();
+  });
+
+  let browser: Awaited<
+    ReturnType<(typeof import('@playwright/test'))['chromium']['launch']>
+  > | null = null;
+  let providerCalls = 0;
+  let otpVerifyCalls = 0;
+  let getUserCalls = 0;
+  let providerMode = 'new';
+  let expectedReservedVersion = 4;
+  let resendMode = 'success';
+  let resendCalls = 0;
+  let activeHash = '';
+  const verifiedOtpUser = {
+    id: '33333333-3333-4333-8333-333333333333',
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: 'confirmed.synthetic@example.invalid',
+    email_confirmed_at: '2026-09-16T03:00:00.000Z',
+    is_anonymous: false,
+    identities: [{ provider: 'email' }],
+    app_metadata: { provider: 'email', providers: ['email'] },
+    user_metadata: {},
+    created_at: '2026-09-16T02:59:00.000Z',
+  };
+  const verifiedOtpToken = [
+    '{"alg":"HS256","typ":"JWT"}',
+    JSON.stringify({
+      sub: verifiedOtpUser.id,
+      aud: 'authenticated',
+      role: 'authenticated',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    }),
+    'synthetic-signature',
+  ]
+    .map((part) => Buffer.from(part).toString('base64url'))
+    .join('.');
+  const providerFailures: string[] = [];
+  const providerServer = createServer(async (request, response) => {
+    try {
+      const target = new URL(request.url ?? '', providerUrl);
+      if (request.method === 'POST' && target.pathname === '/auth/v1/verify') {
+        const body = await readJsonBody(request);
+        assert.ok(typeof body === 'object' && body !== null && 'token_hash' in body);
+        assert.equal(body.token_hash, 'synthetic-signup-token');
+        assert.equal('type' in body ? body.type : undefined, 'signup');
+        otpVerifyCalls++;
+        if (providerMode === 'otp-expired' || providerMode === 'otp-invalid') {
+          response.writeHead(403, { 'content-type': 'application/json' });
+          response.end(
+            JSON.stringify({
+              code: providerMode === 'otp-expired' ? 'otp_expired' : 'bad_jwt',
+              error_code: providerMode === 'otp-expired' ? 'otp_expired' : 'bad_jwt',
+              msg:
+                providerMode === 'otp-expired'
+                  ? 'OTP expired for raw-person@example.invalid'
+                  : 'Synthetic invalid OTP',
+            }),
+          );
+          return;
+        }
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(
+          JSON.stringify({
+            user: verifiedOtpUser,
+            access_token: verifiedOtpToken,
+            refresh_token: 'synthetic-otp-refresh',
+            expires_in: 3600,
+            token_type: 'bearer',
+          }),
+        );
+        return;
+      }
+      if (request.method === 'GET' && target.pathname === '/auth/v1/user') {
+        assert.equal(request.headers.authorization, `Bearer ${verifiedOtpToken}`);
+        getUserCalls++;
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(verifiedOtpUser));
+        return;
+      }
+      if (request.method === 'POST' && target.pathname === '/auth/v1/resend') {
+        const body = await readJsonBody(request);
+        assert.ok(typeof body === 'object' && body !== null);
+        assert.equal('type' in body ? body.type : undefined, 'signup');
+        assert.equal('email' in body ? body.email : undefined, 'synthetic@example.invalid');
+        assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/auth/confirm`);
+        resendCalls++;
+        if (resendMode === 'timeout') return;
+        if (resendMode === 'concurrent') await new Promise((resolve) => setTimeout(resolve, 300));
+        if (resendMode === 'provider-5xx') {
+          response.writeHead(503, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ msg: 'synthetic resend unavailable' }));
+          return;
+        }
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end('{}');
+        return;
+      }
+      assert.equal(request.method, 'POST');
+      assert.equal(target.pathname, '/auth/v1/signup');
+      assert.equal(target.searchParams.get('redirect_to'), `${baseUrl}/auth/confirm`);
+      const body = await readJsonBody(request);
+      assert.ok(
+        typeof body === 'object' && body !== null && 'password' in body && 'code_challenge' in body,
+      );
+      assert.equal(body.password, 'Abcdef1!');
+      const [row] =
+        await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      assert.equal(row?.status, 'email_pending');
+      assert.equal(row?.auth_attempt_state, 'reserved');
+      assert.equal(row?.row_version, expectedReservedVersion);
+      providerCalls++;
+      if (providerMode === 'timeout') return; // Real SDK 20s abort; close connections in finally.
+      if (providerMode === 'concurrent') await new Promise((resolve) => setTimeout(resolve, 300));
+      if (providerMode === 'finish-conflict')
+        await sql`UPDATE signup_sessions SET row_version = row_version + 1 WHERE token_hash = ${activeHash}`;
+      const user = {
+        id:
+          providerMode === 'verified'
+            ? '22222222-2222-4222-8222-222222222222'
+            : '11111111-1111-4111-8111-111111111111',
+        aud: 'authenticated',
+        role: 'authenticated',
+        email: 'synthetic@example.invalid',
+        email_confirmed_at: providerMode === 'verified' ? new Date().toISOString() : null,
+        identities: providerMode === 'unverified' ? [{ provider: 'email' }] : [],
+        app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: {},
+        created_at: new Date().toISOString(),
+      };
+      let payload: unknown = { user };
+      let status = 200;
+      if (['user_already_exists', 'weak_password'].includes(providerMode)) {
+        status = 422;
+        payload = {
+          code: providerMode,
+          error_code: providerMode,
+          msg: 'synthetic account outcome',
+        };
+      }
+      if (providerMode === 'provider-5xx') {
+        status = 503;
+        payload = { msg: 'synthetic provider unavailable' };
+      }
+      if (providerMode === 'unexpected-session') {
+        const token = [
+          '{"alg":"HS256","typ":"JWT"}',
+          JSON.stringify({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 3600 }),
+          'synthetic-signature',
+        ]
+          .map((part) => Buffer.from(part).toString('base64url'))
+          .join('.');
+        payload = {
+          user,
+          access_token: token,
+          refresh_token: 'synthetic-refresh',
+          expires_in: 3600,
+          token_type: 'bearer',
+        };
+      }
+      response.writeHead(status, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(payload));
+    } catch (error) {
+      providerFailures.push(error instanceof Error ? error.message : 'fixture failure');
+      response.writeHead(500, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ msg: 'synthetic fixture failed' }));
+    }
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      providerServer.once('error', reject);
+      providerServer.listen(Number(providerUrl.port), '127.0.0.1', resolve);
+    });
+    const readyUntil = Date.now() + 60_000;
+    let ready = false;
+    while (Date.now() < readyUntil && !ready) {
+      if (appServer.exitCode !== null)
+        throw new Error(`next start exit ${appServer.exitCode}: ${appLog}`);
+      try {
+        const response = await fetch(`${baseUrl}/cadastro`);
+        ready = response.status > 0;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+    assert.ok(ready, `next start timeout: ${appLog}`);
+
+    const { chromium } = await import('@playwright/test');
+    browser = await chromium.launch({ headless: true });
+    const authProofs: { name: string; status: 'PASS'; durationMs?: number }[] = [];
+    async function seedAuth(label: string, email = 'synthetic@example.invalid') {
+      const token = createHash('sha256').update(`http-auth-${label}`).digest('base64url');
+      const { hashEmail } = await import('../../src/lib/auth/email-hash');
+      activeHash = hashToken(token);
+      await sql`INSERT INTO signup_sessions (token_hash, status, row_version, idle_expires_at, absolute_expires_at,
+        professionals_band, weekly_appointments_band, current_tooling, discovery_source, answered_at,
+        owner_name, clinic_name, email_hash, accepted_at)
+        VALUES (${activeHash}, 'identity_pending', 3, now() + interval '10 minutes', now() + interval '45 minutes',
+          '2_5', '21_50', 'outro_sistema', 'indicacao_colega', now(), 'Synthetic owner', 'Synthetic clinic', ${hashEmail(email)}, now())`;
+      return token;
+    }
+    const postAuth = (token: string, email = 'synthetic@example.invalid', rowVersion = 3) =>
+      fetch(`${baseUrl}/api/signup/sessions/auth`, {
+        method: 'POST',
+        headers: {
+          origin: baseUrl,
+          cookie: `__Host-qoro_signup=${token}; qoro-auth-session=${'a'.repeat(32)}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ rowVersion, email, password: 'Abcdef1!', accepted: true }),
+      });
+    async function seedResend(
+      label: string,
+      state: 'reserved' | 'completed' | 'uncertain' = 'completed',
+      secondsAgo = 61,
+    ) {
+      const token = createHash('sha256').update(`http-resend-${label}`).digest('base64url');
+      const tokenHash = hashToken(token);
+      const { hashEmail } = await import('../../src/lib/auth/email-hash');
+      await sql`INSERT INTO signup_sessions (token_hash, status, row_version,
+        idle_expires_at, absolute_expires_at, professionals_band,
+        weekly_appointments_band, current_tooling, discovery_source, answered_at,
+        owner_name, clinic_name, email_hash, accepted_at, auth_attempt_kind,
+        auth_attempt_state, auth_attempted_at)
+        VALUES (${tokenHash}, 'email_pending', 5, now() + interval '10 minutes',
+          now() + interval '45 minutes', '2_5', '21_50', 'outro_sistema',
+          'indicacao_colega', now(), 'Synthetic owner', 'Synthetic clinic',
+          ${hashEmail('synthetic@example.invalid')}, now(), 'initial', ${state},
+          now() - make_interval(secs => ${secondsAgo}))`;
+      return { token, tokenHash };
+    }
+    const postResend = (token: string, rowVersion = 5) =>
+      fetch(`${baseUrl}/api/signup/sessions/resend`, {
+        method: 'POST',
+        headers: {
+          origin: baseUrl,
+          cookie: `__Host-qoro_signup=${token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          rowVersion,
+          email: 'synthetic@example.invalid',
+          accepted: true,
+        }),
+      });
+    providerMode = 'new';
+    const warmToken = await seedAuth('warm');
+    assert.equal((await postAuth(warmToken)).status, 200);
+    await sql`DELETE FROM signup_sessions WHERE token_hash = ${activeHash}`;
+    redisCounters.clear();
+    const accountDurationSamples: number[] = [];
+    for (const mode of [
+      'new',
+      'verified',
+      'unverified',
+      'user_already_exists',
+      'weak_password',
+      'provider-5xx',
+      'unexpected-session',
+      'finish-conflict',
+      'timeout',
+    ]) {
+      redisCounters.clear();
+      providerMode = mode;
+      const token = await seedAuth(mode),
+        callsBefore = providerCalls;
+      const startedAt = performance.now();
+      const response = await postAuth(token),
+        failed = ['provider-5xx', 'unexpected-session', 'finish-conflict', 'timeout'].includes(
+          mode,
+        );
+      const requestDurationMs = Math.round(performance.now() - startedAt);
+      if (['new', 'verified', 'unverified', 'user_already_exists'].includes(mode))
+        accountDurationSamples.push(requestDurationMs);
+      assert.equal(response.status, failed ? 503 : 200, `real SDK ${mode}`);
+      assert.deepEqual(
+        await response.json(),
+        failed ? { error: 'unavailable' } : { rowVersion: 5 },
+      );
+      assert.equal(providerCalls - callsBefore, 1, 'No automatic provider retry');
+      const cookie = response.headers.get('set-cookie') ?? '';
+      assert.equal(
+        cookie.includes('qoro-auth-session='),
+        false,
+        'Initial signup may not replace current selector',
+      );
+      assert.equal(
+        /sb-127-auth-token-v2-[a-f0-9]+(?:\.\d+)?=/u.test(cookie),
+        false,
+        'No session cookie installed',
+      );
+      if (mode === 'new')
+        assert.ok(cookie.includes('-code-verifier=') && cookie.includes('HttpOnly'));
+      const [pending] =
+        await sql`SELECT auth_attempt_state, row_version, idle_expires_at, absolute_expires_at FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      assert.equal(
+        pending?.auth_attempt_state,
+        mode === 'finish-conflict' ? 'reserved' : failed ? 'uncertain' : 'completed',
+      );
+      const readback = await fetch(`${baseUrl}/api/signup/sessions/me`, {
+        headers: { cookie: `__Host-qoro_signup=${token}` },
+      });
+      assert.equal(readback.status, 200);
+      const state = await readback.json();
+      assert.equal(state.session.status, 'email_pending');
+      assert.deepEqual(Object.keys(state.session).sort(), [
+        'answers',
+        'expiresAt',
+        'riskLevel',
+        'rowVersion',
+        'status',
+      ]);
+      assert.equal(
+        (await postAuth(token, 'synthetic@example.invalid', pending?.row_version)).status,
+        409,
+      );
+      assert.equal(providerCalls - callsBefore, 1);
+      const [after] =
+        await sql`SELECT idle_expires_at, absolute_expires_at FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      assert.equal(after?.idle_expires_at.getTime(), pending?.idle_expires_at.getTime());
+      assert.equal(after?.absolute_expires_at.getTime(), pending?.absolute_expires_at.getTime());
+      if (mode === 'new') {
+        const context = await browser.newContext({ baseURL: baseUrl });
+        try {
+          await context.addCookies([
+            {
+              name: '__Host-qoro_signup',
+              value: token,
+              domain: '127.0.0.1',
+              path: '/',
+              httpOnly: true,
+              secure: true,
+              sameSite: 'Lax',
+            },
+          ]);
+          const page = await context.newPage();
+          await page.goto('/cadastro');
+          await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
+          assert.equal(await page.getByRole('radio').count(), 17);
+          assert.equal(await page.getByRole('radio').first().isDisabled(), true);
+          assert.equal(await page.getByLabel('Seu nome').count(), 0);
+          assert.equal(await page.getByRole('button', { name: 'Salvar e continuar' }).count(), 0);
+          assert.equal(providerCalls - callsBefore, 1);
+        } finally {
+          await context.close();
+        }
+      }
+      authProofs.push({
+        name: `real HTTP/SDK ${mode}: uniform response, no retry/session, frozen pending`,
+        status: 'PASS',
+        durationMs: requestDurationMs,
+      });
+    }
+    assert.ok(
+      Math.max(...accountDurationSamples) - Math.min(...accountDurationSamples) <= 500,
+      `Synthetic account timing spread exceeded 500ms: ${accountDurationSamples.join(',')}`,
+    );
+    redisCounters.clear();
+    providerMode = 'concurrent';
+    const concurrentToken = await seedAuth('concurrent'),
+      callsBefore = providerCalls;
+    const responses = await Promise.all([postAuth(concurrentToken), postAuth(concurrentToken)]);
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+    assert.equal(providerCalls - callsBefore, 1);
+    authProofs.push({
+      name: 'real HTTP concurrent requests: one CAS winner and one SDK call',
+      status: 'PASS',
+    });
+    redisCounters.clear();
+    providerMode = 'new';
+    const lostToken = await seedAuth('lost-response'),
+      lostBefore = providerCalls;
+    const lostContext = await browser.newContext({ baseURL: baseUrl });
+    try {
+      await lostContext.addCookies([
+        {
+          name: '__Host-qoro_signup',
+          value: lostToken,
+          domain: '127.0.0.1',
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        },
+      ]);
+      const page = await lostContext.newPage();
+      await page.goto('/cadastro');
+      await page.route('**/api/signup/sessions/auth', async (route) => {
+        const response = await route.fetch();
+        const responseBody = await response.json();
+        assert.equal(
+          response.status(),
+          200,
+          `lost-response auth route: ${JSON.stringify(responseBody)}`,
+        );
+        await route.abort('failed'); // Real commit happened, browser loses HTTP response.
+      });
+      const lost = await page.evaluate(async () => {
+        try {
+          await fetch('/api/signup/sessions/auth', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              rowVersion: 3,
+              email: 'synthetic@example.invalid',
+              password: 'Abcdef1!',
+              accepted: true,
+            }),
+          });
+          return false;
+        } catch {
+          return true;
+        }
+      });
+      assert.equal(lost, true);
+      await page.reload();
+      await page.getByText(/Se houver uma etapa de confirmação/u).waitFor();
+      assert.equal(await page.getByRole('radio').first().isDisabled(), true);
+      assert.equal(providerCalls - lostBefore, 1);
+      const [saved] =
+        await sql`SELECT status, auth_attempt_state, row_version FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      assert.deepEqual(saved, {
+        status: 'email_pending',
+        auth_attempt_state: 'completed',
+        row_version: 5,
+      });
+    } finally {
+      await lostContext.close();
+    }
+    authProofs.push({
+      name: 'real Chromium lost POST response: committed attempt survives reload without resend',
+      status: 'PASS',
+    });
+    redisCounters.clear();
+    providerMode = 'new';
+    const rateBefore = providerCalls;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      const token = await seedAuth(`rate-${attempt}`, 'rate@example.invalid');
+      const response = await postAuth(token, 'rate@example.invalid');
+      assert.equal(response.status, attempt === 4 ? 429 : 200);
+      if (attempt === 4) assert.ok(Number(response.headers.get('retry-after')) > 0);
+    }
+    assert.equal(providerCalls - rateBefore, 3);
+    authProofs.push({
+      name: 'real Upstash SDK: fourth email HMAC bucket request blocked before Auth',
+      status: 'PASS',
+    });
+    redisCounters.clear();
+    redisUnavailable = true;
+    const unavailableToken = await seedAuth('redis-unavailable'),
+      unavailableBefore = providerCalls;
+    assert.equal((await postAuth(unavailableToken)).status, 503);
+    assert.equal(providerCalls, unavailableBefore);
+    const [notReserved] =
+      await sql`SELECT status, auth_attempt_kind FROM signup_sessions WHERE token_hash = ${activeHash}`;
+    assert.equal(notReserved?.status, 'identity_pending');
+    assert.equal(notReserved?.auth_attempt_kind, null);
+    redisUnavailable = false;
+    redisCounters.clear();
+    authProofs.push({
+      name: 'real HTTP unavailable Redis: zero CAS/provider, no fallback',
+      status: 'PASS',
+    });
+
+    for (const state of ['completed', 'uncertain', 'reserved'] as const) {
+      redisCounters.clear();
+      resendMode = 'success';
+      const seeded = await seedResend(`recover-${state}`, state);
+      const callsBefore = resendCalls;
+      const [before] = await sql`SELECT idle_expires_at, absolute_expires_at
+        FROM signup_sessions WHERE token_hash = ${seeded.tokenHash}`;
+      const response = await postResend(seeded.token);
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { rowVersion: 7 });
+      assert.equal(resendCalls - callsBefore, 1);
+      const [saved] = await sql`SELECT auth_attempt_kind, auth_attempt_state, row_version,
+        idle_expires_at, absolute_expires_at FROM signup_sessions
+        WHERE token_hash = ${seeded.tokenHash}`;
+      assert.equal(saved?.auth_attempt_kind, 'resend');
+      assert.equal(saved?.auth_attempt_state, 'completed');
+      assert.equal(saved?.row_version, 7);
+      assert.equal(saved?.idle_expires_at.getTime(), before?.idle_expires_at.getTime());
+      assert.equal(saved?.absolute_expires_at.getTime(), before?.absolute_expires_at.getTime());
+      const cooldown = await postResend(seeded.token, 7);
+      assert.equal(cooldown.status, 429);
+      assert.ok(Number(cooldown.headers.get('retry-after')) >= 1);
+      assert.equal(resendCalls - callsBefore, 1);
+      const [afterCooldown] = await sql`SELECT auth_attempt_kind, auth_attempt_state,
+        row_version, idle_expires_at, absolute_expires_at FROM signup_sessions
+        WHERE token_hash = ${seeded.tokenHash}`;
+      assert.deepEqual(afterCooldown, saved);
+      await sql`DELETE FROM signup_sessions WHERE token_hash = ${seeded.tokenHash}`;
+    }
+    authProofs.push({
+      name: 'real SDK resend: completed/uncertain/abandoned reservation recover after DB cooldown, immediate repeat denied',
+      status: 'PASS',
+    });
+
+    redisCounters.clear();
+    resendMode = 'concurrent';
+    const concurrentResend = await seedResend('concurrent');
+    const resendBefore = resendCalls;
+    const resendResponses = await Promise.all([
+      postResend(concurrentResend.token),
+      postResend(concurrentResend.token),
+    ]);
+    assert.deepEqual(resendResponses.map((response) => response.status).sort(), [200, 409]);
+    assert.equal(resendCalls - resendBefore, 1);
+    await sql`DELETE FROM signup_sessions WHERE token_hash = ${concurrentResend.tokenHash}`;
+    authProofs.push({
+      name: 'real HTTP concurrent resend: one CAS winner and one SDK call',
+      status: 'PASS',
+    });
+
+    for (const mode of ['provider-5xx', 'timeout'] as const) {
+      redisCounters.clear();
+      resendMode = mode;
+      const seeded = await seedResend(mode);
+      const callsBefore = resendCalls;
+      const startedAt = performance.now();
+      const response = await postResend(seeded.token);
+      const durationMs = Math.round(performance.now() - startedAt);
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { error: 'unavailable' });
+      assert.equal(resendCalls - callsBefore, 1);
+      if (mode === 'timeout') assert.ok(durationMs >= 15_000 && durationMs <= 30_000);
+      const [uncertain] = await sql`SELECT auth_attempt_kind, auth_attempt_state, row_version
+        FROM signup_sessions WHERE token_hash = ${seeded.tokenHash}`;
+      assert.deepEqual(uncertain, {
+        auth_attempt_kind: 'resend',
+        auth_attempt_state: 'uncertain',
+        row_version: 7,
+      });
+      await sql`DELETE FROM signup_sessions WHERE token_hash = ${seeded.tokenHash}`;
+    }
+    authProofs.push({
+      name: 'real SDK resend 5xx/timeout: one call, uncertain reservation and no automatic retry',
+      status: 'PASS',
+    });
+
+    redisCounters.clear();
+    resendMode = 'success';
+    const rateResends: { token: string; tokenHash: string }[] = [];
+    const rateCallsBefore = resendCalls;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      const seeded = await seedResend(`rate-${attempt}`);
+      rateResends.push(seeded);
+      const response = await postResend(seeded.token);
+      assert.equal(response.status, attempt === 4 ? 429 : 200);
+      if (attempt === 4) assert.ok(Number(response.headers.get('retry-after')) > 0);
+    }
+    assert.equal(resendCalls - rateCallsBefore, 3);
+    for (const seeded of rateResends)
+      await sql`DELETE FROM signup_sessions WHERE token_hash = ${seeded.tokenHash}`;
+    authProofs.push({
+      name: 'real Upstash SDK resend: fourth email HMAC bucket request blocked before Auth',
+      status: 'PASS',
+    });
+
+    redisCounters.clear();
+    const unavailableResend = await seedResend('redis-unavailable');
+    redisUnavailable = true;
+    const unavailableResendBefore = resendCalls;
+    assert.equal((await postResend(unavailableResend.token)).status, 503);
+    assert.equal(resendCalls, unavailableResendBefore);
+    const [unchangedResend] = await sql`SELECT auth_attempt_kind, auth_attempt_state, row_version
+      FROM signup_sessions WHERE token_hash = ${unavailableResend.tokenHash}`;
+    assert.deepEqual(unchangedResend, {
+      auth_attempt_kind: 'initial',
+      auth_attempt_state: 'completed',
+      row_version: 5,
+    });
+    redisUnavailable = false;
+    await sql`DELETE FROM signup_sessions WHERE token_hash = ${unavailableResend.tokenHash}`;
+    authProofs.push({
+      name: 'real HTTP resend unavailable Redis: zero reservation/provider and no fallback',
+      status: 'PASS',
+    });
+
+    providerMode = 'otp-success';
+    for (const next of [
+      '/dashboard',
+      '/cadastro/continuar?draft=secret',
+      '/cadastro/continuar#access-token',
+      'https://evil.example/steal',
+    ]) {
+      const otpContext = await browser.newContext({ baseURL: baseUrl });
+      try {
+        assert.deepEqual(
+          await otpContext.cookies(),
+          [],
+          'OTP context must start without PKCE/session',
+        );
+        const page = await otpContext.newPage();
+        const verifyBefore = otpVerifyCalls;
+        const getUserBefore = getUserCalls;
+        await page.goto(
+          `/auth/confirm?token_hash=synthetic-signup-token&type=signup&next=${encodeURIComponent(next)}`,
+        );
+        await page.getByText('E-mail confirmado', { exact: true }).waitFor();
+        const destination = new URL(page.url());
+        assert.equal(destination.pathname, '/cadastro/continuar');
+        assert.equal(destination.search, '');
+        assert.equal(destination.hash, '');
+        assert.equal(otpVerifyCalls - verifyBefore, 1);
+        assert.equal(
+          getUserCalls - getUserBefore,
+          3,
+          'confirm route, protected continuation and authenticated draft GET each revalidate getUser',
+        );
+        const cookies = await otpContext.cookies();
+        const selector = cookies.find((entry) => entry.name === 'qoro-auth-session');
+        const session = cookies.find((entry) =>
+          /^sb-127-auth-token-v2-[a-f0-9]+(?:\.\d+)?$/u.test(entry.name),
+        );
+        assert.equal(selector?.httpOnly, true);
+        assert.equal(session?.httpOnly, true);
+        const body = await page.locator('body').innerText();
+        assert.equal(body.includes(verifiedOtpUser.email), false);
+        assert.equal(body.includes(verifiedOtpUser.id), false);
+        assert.equal(body.includes(verifiedOtpToken), false);
+      } finally {
+        await otpContext.close();
+      }
+    }
+    authProofs.push({
+      name: 'real SDK token-hash signup: fixed destination, getUser seam and HttpOnly session',
+      status: 'PASS',
+    });
+
+    for (const [mode, reason] of [
+      ['otp-expired', 'expired'],
+      ['otp-invalid', 'invalid_token'],
+    ] as const) {
+      providerMode = mode;
+      const errorContext: import('@playwright/test').BrowserContext = await browser.newContext({
+        baseURL: baseUrl,
+      });
+      try {
+        const errorPage: import('@playwright/test').Page = await errorContext.newPage();
+        const verifyBefore = otpVerifyCalls;
+        const getUserBefore = getUserCalls;
+        await errorPage.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
+        const errorDestination: URL = new URL(errorPage.url());
+        assert.equal(errorDestination.pathname, '/auth/auth-error');
+        assert.equal(errorDestination.searchParams.get('reason'), reason);
+        assert.equal(otpVerifyCalls - verifyBefore, 1);
+        assert.equal(getUserCalls - getUserBefore, 0);
+        assert.equal(
+          (await errorContext.cookies()).some((entry) =>
+            /^sb-127-auth-token-v2-[a-f0-9]+(?:\.\d+)?$/u.test(entry.name),
+          ),
+          false,
+        );
+      } finally {
+        await errorContext.close();
+      }
+    }
+    assert.equal(appLog.includes('raw-person@example.invalid'), false);
+    authProofs.push({
+      name: 'real SDK invalid/expired OTP: categorical redirect, no session or raw provider PII log',
+      status: 'PASS',
+    });
+
+    redisCounters.clear();
+    providerMode = 'otp-success';
+    const draftToken = createHash('sha256').update('http-verified-draft').digest('base64url');
+    const draftHash = hashToken(draftToken);
+    const { hashEmail } = await import('../../src/lib/auth/email-hash');
+    await sql`INSERT INTO signup_sessions (
+      token_hash, status, row_version, idle_expires_at, absolute_expires_at,
+      professionals_band, weekly_appointments_band, current_tooling, discovery_source,
+      answered_at, owner_name, clinic_name, email_hash, accepted_at,
+      auth_attempt_kind, auth_attempt_state, auth_attempted_at
+    ) VALUES (
+      ${draftHash}, 'email_pending', 5, now() + interval '10 minutes',
+      now() + interval '45 minutes', '2_5', '21_50', 'outro_sistema', 'indicacao_colega',
+      now(), 'Bootstrap owner', 'Bootstrap clinic', ${hashEmail(verifiedOtpUser.email)}, now(),
+      'initial', 'completed', now()
+    )`;
+    const draftContext = await browser.newContext({ baseURL: baseUrl });
+    let replayContext: import('@playwright/test').BrowserContext | null = null;
+    try {
+      await draftContext.addCookies([
+        {
+          name: '__Host-qoro_signup',
+          value: draftToken,
+          domain: '127.0.0.1',
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        },
+      ]);
+      const page = await draftContext.newPage();
+      await page.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
+      await page.getByText(/Encontramos as respostas deste navegador/u).waitFor();
+      assert.equal(await page.getByLabel('Seu nome').inputValue(), '');
+      assert.equal(await page.getByLabel('Nome da clínica').inputValue(), '');
+      assert.equal(await page.locator('input[type=password]').count(), 0);
+      const copiedCookies = await draftContext.cookies();
+      replayContext = await browser.newContext({ baseURL: baseUrl });
+      await replayContext.addCookies(copiedCookies);
+      const input = {
+        mode: 'link',
+        rowVersion: 5,
+        ownerName: 'Pessoa HTTP',
+        clinicName: 'ClÃ­nica HTTP',
+        answers: {
+          professionalsBand: '2_5',
+          weeklyAppointmentsBand: '21_50',
+          currentTooling: 'outro_sistema',
+          discoverySource: 'indicacao_colega',
+        },
+        accepted: true,
+      } as const;
+      const [beforeLink] = await sql`SELECT idle_expires_at, absolute_expires_at
+        FROM signup_sessions WHERE token_hash = ${draftHash}`;
+      await page.getByLabel('Seu nome').fill(input.ownerName);
+      await page.getByLabel('Nome da clínica').fill(input.clinicName);
+      await page.getByRole('checkbox').check();
+      await page.getByRole('button', { name: 'Confirmar e revisar dados' }).click();
+      await page.getByText('Dados vinculados à conta verificada', { exact: true }).waitFor();
+      assert.equal(
+        (await draftContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
+        false,
+      );
+      const readback = await page.evaluate(async () => {
+        const response = await fetch('/api/signup/draft');
+        return { status: response.status, body: await response.json() };
+      });
+      assert.equal(readback.status, 200);
+      assert.deepEqual(Object.keys(readback.body).sort(), [
+        'absoluteExpiresAt',
+        'answers',
+        'clinicName',
+        'idleExpiresAt',
+        'ownerName',
+        'rowVersion',
+        'status',
+      ]);
+      const publicDraft = JSON.stringify(readback.body);
+      assert.equal(publicDraft.includes(verifiedOtpUser.email), false);
+      assert.equal(publicDraft.includes(verifiedOtpUser.id), false);
+      assert.equal(publicDraft.includes(draftToken), false);
+      const [afterRead] = await sql`SELECT status, auth_user_id, consumed_at, idle_expires_at,
+        absolute_expires_at FROM signup_sessions WHERE token_hash = ${draftHash}`;
+      assert.equal(afterRead?.status, 'email_verified');
+      assert.equal(afterRead?.auth_user_id, verifiedOtpUser.id);
+      assert.ok(afterRead?.consumed_at instanceof Date);
+      assert.equal(afterRead?.idle_expires_at.getTime(), beforeLink?.idle_expires_at.getTime());
+      assert.equal(
+        afterRead?.absolute_expires_at.getTime(),
+        beforeLink?.absolute_expires_at.getTime(),
+      );
+
+      const replayPage = await replayContext.newPage();
+      await replayPage.goto('/cadastro/continuar');
+      const replay = await replayPage.evaluate(async (body) => {
+        const response = await fetch('/api/signup/draft', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { status: response.status, body: await response.json() };
+      }, input);
+      assert.deepEqual(replay, { status: 409, body: { error: 'conflict' } });
+      const [afterReplay] = await sql`SELECT row_version, auth_user_id, consumed_at,
+        idle_expires_at, absolute_expires_at FROM signup_sessions WHERE token_hash = ${draftHash}`;
+      assert.equal(afterReplay?.row_version, 6);
+      assert.equal(afterReplay?.auth_user_id, verifiedOtpUser.id);
+      assert.equal(afterReplay?.consumed_at.getTime(), afterRead?.consumed_at.getTime());
+      assert.equal(afterReplay?.idle_expires_at.getTime(), afterRead?.idle_expires_at.getTime());
+      assert.equal(
+        afterReplay?.absolute_expires_at.getTime(),
+        afterRead?.absolute_expires_at.getTime(),
+      );
+    } finally {
+      if (replayContext) await replayContext.close();
+      await draftContext.close();
+      await sql`DELETE FROM signup_sessions WHERE token_hash = ${draftHash}`;
+    }
+    authProofs.push({
+      name: 'real Auth/browser UI link: blank PII, explicit review, consumed owner, stable TTL and copied-cookie replay denied',
+      status: 'PASS',
+    });
+
+    const restartContext = await browser.newContext({ baseURL: baseUrl });
+    try {
+      const restartPage = await restartContext.newPage();
+      await restartPage.goto('/auth/confirm?token_hash=synthetic-signup-token&type=signup');
+      await restartPage.getByText(/não possui o cadastro original/u).waitFor();
+      assert.equal(
+        (await restartContext.cookies()).some((cookie) => cookie.name === '__Host-qoro_signup'),
+        false,
+      );
+      await restartPage.getByLabel('Seu nome').fill('Pessoa Restart');
+      await restartPage.getByLabel('Nome da clínica').fill('Clínica Restart');
+      await restartPage.getByLabel('Profissionais').selectOption('2_5');
+      await restartPage.getByLabel('Atendimentos por semana').selectOption('21_50');
+      await restartPage.getByLabel('Organização atual').selectOption('outro_sistema');
+      await restartPage.getByLabel('Como conheceu a Qoro').selectOption('indicacao_colega');
+      await restartPage.getByRole('checkbox').check();
+      await restartPage.getByRole('button', { name: 'Confirmar e revisar dados' }).click();
+      await restartPage.getByText('Dados vinculados à conta verificada', { exact: true }).waitFor();
+      const [restarted] = await sql`SELECT status, auth_user_id, consumed_at, owner_name,
+        clinic_name, row_version FROM signup_sessions WHERE auth_user_id = ${verifiedOtpUser.id}`;
+      assert.equal(restarted?.status, 'email_verified');
+      assert.equal(restarted?.auth_user_id, verifiedOtpUser.id);
+      assert.ok(restarted?.consumed_at instanceof Date);
+      assert.equal(restarted?.owner_name, 'Pessoa Restart');
+      assert.equal(restarted?.clinic_name, 'Clínica Restart');
+      assert.equal(restarted?.row_version, 1);
+      const restartPublic = await restartPage.locator('body').innerText();
+      assert.equal(restartPublic.includes(verifiedOtpUser.email), false);
+      assert.equal(restartPublic.includes(verifiedOtpUser.id), false);
+      await sql`DELETE FROM signup_sessions WHERE auth_user_id = ${verifiedOtpUser.id}`;
+    } finally {
+      await restartContext.close();
+    }
+    authProofs.push({
+      name: 'real Auth/browser UI restart: another browser re-enters all fields and owns a sanitized draft',
+      status: 'PASS',
+    });
+
+    assert.deepEqual(providerFailures, []);
+    await mkdir(path.join(root, 'dist/signup-regression'), { recursive: true });
+    await writeFile(
+      path.join(root, 'dist/signup-regression/auth-http-results.json'),
+      JSON.stringify(
+        {
+          environment: 'loopback synthetic Auth/Redis, real installed SDK and disposable Postgres',
+          results: authProofs,
+        },
+        null,
+        2,
+      ),
+    );
+    const context = await browser.newContext({ baseURL: baseUrl });
+    try {
+      const [before] = await sql`SELECT count(*)::int AS n FROM signup_sessions`;
+      const page = await context.newPage();
+      await page.goto('/cadastro');
+      await page.getByRole('heading', { name: 'Conte como sua clínica funciona hoje' }).waitFor();
+
+      assert.equal(await page.getByRole('radio').count(), 17);
+      assert.equal(await page.getByRole('textbox').count(), 0);
+      assert.equal(
+        await page.locator('input[type=email], input[type=password], textarea').count(),
+        0,
+      );
+      const cookies = await context.cookies();
+      const cookie = cookies.find((entry) => entry.name === '__Host-qoro_signup');
+      assert.ok(cookie, 'navegador não armazenou __Host-qoro_signup');
+      assert.equal(cookie.httpOnly, true);
+      assert.equal(cookie.secure, true);
+      assert.equal(cookie.sameSite, 'Lax');
+      const [afterOpen] = await sql`SELECT count(*)::int AS n FROM signup_sessions`;
+      assert.equal(afterOpen?.n, Number(before?.n) + 1);
+
+      await mkdir(path.join(root, 'dist/signup-regression'), { recursive: true });
+      await page.screenshot({
+        path: path.join(root, 'dist/signup-regression/signup-page.png'),
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({
+        path: path.join(root, 'dist/signup-regression/signup-page-mobile.png'),
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 1280, height: 720 });
+
+      const first = page.getByRole('radio', { name: '1 profissional' });
+      await first.focus();
+      await page.keyboard.press('ArrowRight');
+      assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
+      await page.getByText('21 a 50', { exact: true }).click();
+      await page.getByText('Outro sistema', { exact: true }).click();
+      await page.getByText('Indicação de um colega', { exact: true }).click();
+
+      // A segunda aba lê a mesma versão antes de a primeira vencer o CAS.
+      const secondPage = await context.newPage();
+      await secondPage.goto('/cadastro');
+      await secondPage
+        .getByRole('heading', { name: 'Conte como sua clínica funciona hoje' })
+        .waitFor();
+
+      const rateLimited = async (route: Route) => {
+        await route.fulfill({
+          status: 429,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'rate_limited' }),
+        });
+      };
+      await page.route('**/api/signup/sessions/answers', rateLimited);
+      await page.getByRole('button', { name: 'Salvar respostas' }).click();
+      await page.getByText(/Aguarde um minuto antes de salvar/u).waitFor();
+      await page.unroute('**/api/signup/sessions/answers', rateLimited);
+      assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
+
+      const disconnected = async (route: Route) => route.abort('failed');
+      await page.route('**/api/signup/sessions/answers', disconnected);
+      await page.getByRole('button', { name: 'Salvar respostas' }).click();
+      await page.getByText(/A conexão falhou antes da confirmação/u).waitFor();
+      await page.unroute('**/api/signup/sessions/answers', disconnected);
+
+      let releaseRequest = (): void => undefined;
+      const holdRequest = new Promise<void>((resolve) => {
+        releaseRequest = resolve;
+      });
+      let answerPosts = 0;
+      const delayed = async (route: Route) => {
+        answerPosts += 1;
+        await holdRequest;
+        await route.continue();
+      };
+      await page.route('**/api/signup/sessions/answers', delayed);
+      const submit = page.getByRole('button', { name: 'Salvar respostas' });
+      await submit.click();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll<HTMLInputElement>('input[type=radio]')].every(
+          (input) => input.disabled,
+        ),
+      );
+      await submit.click({ force: true });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      assert.equal(answerPosts, 1);
+      releaseRequest();
+      await page.getByText(/Respostas salvas\. Preencha seus dados/u).waitFor();
+      await page.unroute('**/api/signup/sessions/answers', delayed);
+
+      const [saved] = await sql`SELECT token_hash, status, row_version, professionals_band,
+        weekly_appointments_band, current_tooling, discovery_source
+        FROM signup_sessions ORDER BY created_at DESC LIMIT 1`;
+      assert.equal(saved?.status, 'details_complete');
+      assert.equal(saved?.row_version, 2);
+      assert.equal(saved?.professionals_band, '2_5');
+      assert.equal(saved?.weekly_appointments_band, '21_50');
+      assert.equal(saved?.current_tooling, 'outro_sistema');
+      assert.equal(saved?.discovery_source, 'indicacao_colega');
+
+      await secondPage.getByText('16 ou mais', { exact: true }).click();
+      await secondPage.getByText('Mais de 100', { exact: true }).click();
+      await secondPage.getByText('Nada ou papel', { exact: true }).click();
+      await secondPage.getByText('Evento ou congresso', { exact: true }).click();
+      await secondPage.getByRole('button', { name: 'Salvar respostas' }).click();
+      await secondPage.getByText(/Outra aba salvou primeiro/u).waitFor();
+      assert.equal(await secondPage.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
+      assert.equal(await secondPage.getByRole('radio', { name: '21 a 50' }).isChecked(), true);
+      assert.equal(
+        await secondPage.getByRole('radio', { name: 'Outro sistema' }).isChecked(),
+        true,
+      );
+      assert.equal(
+        await secondPage.getByRole('radio', { name: 'Indicação de um colega' }).isChecked(),
+        true,
+      );
+
+      await page.reload();
+      await page.getByRole('heading', { name: 'Conte como sua clínica funciona hoje' }).waitFor();
+      assert.equal(await page.getByRole('radio', { name: '2 a 5' }).isChecked(), true);
+      await page.getByText('Carregamos as respostas salvas nesta sessão.').waitFor();
+      const [afterReload] = await sql`SELECT count(*)::int AS n FROM signup_sessions`;
+      assert.equal(afterReload?.n, afterOpen?.n);
+
+      await page.getByRole('heading', { name: 'Seus dados e o nome da clínica' }).waitFor();
+      const owner = page.getByRole('textbox', { name: 'Seu nome', exact: true });
+      const clinic = page.getByRole('textbox', { name: 'Nome da clínica', exact: true });
+      const email = page.getByRole('textbox', { name: 'E-mail', exact: true });
+      const password = page.getByLabel('Senha', { exact: true });
+      const accepted = page.getByRole('checkbox');
+      assert.equal(await accepted.isChecked(), false);
+      assert.equal(await page.locator('input[type=password]').count(), 1);
+      await owner.fill('Pessoa Browser Sintética');
+      await owner.focus();
+      await page.keyboard.press('Tab');
+      assert.equal(await clinic.evaluate((input) => input === document.activeElement), true);
+      await clinic.fill('Clínica Browser Sintética');
+      await email.fill('browser.synthetic@example.test');
+      await password.fill('sem-regras');
+      let identityPosts = 0;
+      const lostResponse = async (route: Route) => {
+        identityPosts += 1;
+        assert.equal(route.request().postData()?.includes('password'), false);
+        const response = await route.fetch();
+        const responseBody = await response.json();
+        assert.equal(response.status(), 200, `identity route: ${JSON.stringify(responseBody)}`);
+        assert.deepEqual(responseBody, { rowVersion: 3 });
+        await route.abort('failed'); // Actual HTTP+DB committed; browser never receives the response.
+      };
+      await page.route('**/api/signup/sessions/identity', lostResponse);
+      await page.getByRole('button', { name: 'Criar conta e continuar' }).click();
+      await page.getByText(/confirme o aceite para continuar/u).waitFor();
+      assert.equal(identityPosts, 0, 'PII was transmitted before consent');
+      await accepted.check();
+      await page.getByRole('button', { name: 'Criar conta e continuar' }).click();
+      await page.getByText(/Use de 8 a 72 caracteres, sem espaços/u).waitFor();
+      assert.equal(identityPosts, 0, 'invalid password reached staging');
+      await password.fill('Abcdef1!');
+      await page.getByRole('button', { name: 'Criar conta e continuar' }).click();
+      await page.getByText(/A conexão falhou antes da confirmação.*somente nesta tela/u).waitFor();
+      await page.unroute('**/api/signup/sessions/identity', lostResponse);
+      assert.equal(identityPosts, 1);
+      assert.equal(await password.inputValue(), '', 'password survived a staging attempt');
+      const [identityRow] = await sql`SELECT status, row_version FROM signup_sessions
+        WHERE token_hash = ${hashToken(cookie.value)}`;
+      assert.equal(identityRow?.status, 'identity_pending');
+      assert.equal(identityRow?.row_version, 3);
+      await page.reload();
+      await page.getByText(/solicitação da conta ainda não foi confirmada/u).waitFor();
+      assert.equal(await page.getByRole('textbox').count(), 0);
+      assert.equal(await page.locator('input[type=password]').count(), 0);
+      assert.equal(await page.locator('input[type=radio]:enabled').count(), 0);
+      assert.equal(
+        /Pessoa Browser|Clínica Browser|browser.synthetic/u.test(
+          await page.locator('body').innerText(),
+        ),
+        false,
+      );
+      assert.equal(
+        await page.evaluate(() =>
+          /Pessoa Browser|Clínica Browser|browser.synthetic/u.test(
+            JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]),
+          ),
+        ),
+        false,
+      );
+
+      await page.getByRole('button', { name: 'Retomar criação da conta' }).click();
+      assert.equal(await owner.inputValue(), '');
+      assert.equal(await password.inputValue(), '');
+      assert.equal(await accepted.isChecked(), false);
+      await owner.fill('Pessoa Browser Sintética');
+      await clinic.fill('Clínica Browser Sintética');
+      await email.fill('synthetic@example.invalid');
+      await password.fill('Abcdef1!');
+      await accepted.check();
+      activeHash = hashToken(cookie.value);
+      expectedReservedVersion = 5;
+      providerMode = 'new';
+      redisCounters.clear();
+      const providerBeforeUi = providerCalls;
+      let authPosts = 0;
+      const lostAuthResponse = async (route: Route) => {
+        authPosts += 1;
+        assert.equal(route.request().postData()?.includes('Abcdef1!'), true);
+        const response = await route.fetch();
+        const responseBody = await response.json();
+        assert.equal(response.status(), 200, `auth route: ${JSON.stringify(responseBody)}`);
+        assert.deepEqual(responseBody, { rowVersion: 6 });
+        await route.abort('failed'); // Auth/DB concluíram; o browser perdeu somente a resposta.
+      };
+      await page.route('**/api/signup/sessions/auth', lostAuthResponse);
+      await page.getByRole('button', { name: 'Criar conta e continuar' }).click();
+      await page.getByRole('heading', { name: 'Aguardando a confirmação do e-mail' }).waitFor();
+      await page.getByText(/Não repetimos automaticamente a criação da conta/u).waitFor();
+      await page.unroute('**/api/signup/sessions/auth', lostAuthResponse);
+      expectedReservedVersion = 4;
+      assert.equal(authPosts, 1);
+      assert.equal(providerCalls - providerBeforeUi, 1, 'lost Auth response retried provider');
+      assert.equal(await page.locator('input[type=password]').count(), 0);
+      const [pendingUi] = await sql`SELECT status, row_version, auth_attempt_kind,
+        auth_attempt_state FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      assert.deepEqual(pendingUi, {
+        status: 'email_pending',
+        row_version: 6,
+        auth_attempt_kind: 'initial',
+        auth_attempt_state: 'completed',
+      });
+      const pageAndStorage = await page.evaluate(() =>
+        JSON.stringify({
+          body: document.body.innerText,
+          local: Object.entries(localStorage),
+          session: Object.entries(sessionStorage),
+        }),
+      );
+      assert.equal(/Pessoa Browser|Clínica Browser|Abcdef1!/u.test(pageAndStorage), false);
+
+      const resendEmail = page.getByLabel('E-mail usado no cadastro');
+      const resendAccepted = page.getByRole('checkbox');
+      const resendBeforeUi = resendCalls;
+      await resendEmail.fill('synthetic@example.invalid');
+      await resendAccepted.check();
+      await page.getByRole('button', { name: 'Reenviar instruções' }).click();
+      await page.getByText(/Aguarde \d+ segundos antes/u).waitFor();
+      assert.equal(resendCalls, resendBeforeUi, 'cooldown reached provider');
+      assert.equal(await resendEmail.inputValue(), '');
+      assert.equal(await resendAccepted.isChecked(), false);
+
+      await sql`UPDATE signup_sessions SET auth_attempted_at = now() - interval '61 seconds'
+        WHERE token_hash = ${activeHash}`;
+      redisCounters.clear();
+      resendMode = 'success';
+      await resendEmail.fill('synthetic@example.invalid');
+      await resendAccepted.check();
+      await page.getByRole('button', { name: 'Reenviar instruções' }).click();
+      await page.getByText(/nova solicitação foi concluída/u).waitFor();
+      assert.equal(resendCalls - resendBeforeUi, 1);
+      assert.equal(await resendEmail.inputValue(), '');
+      assert.equal(await resendAccepted.isChecked(), false);
+      const [resentUi] = await sql`SELECT row_version, auth_attempt_kind, auth_attempt_state
+        FROM signup_sessions WHERE token_hash = ${activeHash}`;
+      assert.deepEqual(resentUi, {
+        row_version: 8,
+        auth_attempt_kind: 'resend',
+        auth_attempt_state: 'completed',
+      });
+    } finally {
+      await context.close();
+    }
+
+    const challengeContext = await browser.newContext({ baseURL: baseUrl });
+    try {
+      const challengePage = await challengeContext.newPage();
+      await challengePage.route('**/api/signup/sessions', async (route) => {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'challenge_required' }),
+        });
+      });
+      await challengePage.goto('/cadastro');
+      await challengePage.getByText(/Conclua a verificação de segurança/u).waitFor();
+      await challengePage.getByRole('button', { name: 'Continuar' }).click();
+      await challengePage.getByText(/A verificação ainda não foi concluída/u).waitFor();
+    } finally {
+      await challengeContext.close();
+    }
+    assert.ok(redisRequests > 0, 'E2E não atravessou o limiter Redis real');
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : 'browser journey failed'}\nnext start log:\n${appLog.slice(-4_000)}`,
+      { cause: error },
+    );
+  } finally {
+    await browser?.close();
+    providerServer.closeAllConnections();
+    if (providerServer.listening)
+      await new Promise<void>((resolve, reject) => {
+        providerServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    if (appServer.exitCode === null) appServer.kill();
+    await Promise.race([
+      new Promise<void>((resolve) => appServer.once('exit', () => resolve())),
+      new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+    ]);
+    await new Promise<void>((resolve, reject) => {
+      redisServer.close((error) => (error ? reject(error) : resolve()));
+    });
+    assert.ok(
+      appServer.exitCode !== null || appServer.signalCode !== null,
+      'next start não encerrou após o E2E',
+    );
+  }
+}
+try {
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Local PG readiness timeout')), 20_000);
+    server.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    server.once('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`Local PG exit ${code}`));
+    });
+    server.stderr.on('data', (chunk: Buffer) => {
+      if (chunk.toString().includes('ready to accept connections')) {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+    if (serverLog.includes('ready to accept connections')) {
+      clearTimeout(timer);
+      resolve();
+    }
+  });
+  const [settings] = await admin`SELECT current_setting('data_directory') AS dir`;
+  assert.equal(path.resolve(String(settings?.dir)), path.resolve(data));
+  verified = true;
+  await admin.unsafe(`CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS; CREATE ROLE qoro_runtime NOLOGIN;
+    CREATE TABLE _schema_version(version text PRIMARY KEY);
+    CREATE FUNCTION set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END $$;`);
+  for (const file of [
+    '0096_signup_sessions.sql',
+    '0097_signup_sessions_runtime_revoke.sql',
+    '0098_signup_session_answers.sql',
+  ]) {
+    await admin.unsafe(await readFile(path.join(root, 'drizzle/migrations', file), 'utf8'));
+  }
+  schemaReady = true;
+  const identityMigration = await readFile(
+    path.join(root, 'drizzle/migrations/0099_signup_session_identity.sql'),
+    'utf8',
+  );
+  async function downIdentity() {
+    // Only this verified, disposable cluster; deliberately drops synthetic PII.
+    const [staging] = await admin`SELECT count(*)::int AS n FROM signup_sessions
+      WHERE owner_name IS NOT NULL OR clinic_name IS NOT NULL
+        OR email_hash IS NOT NULL OR accepted_at IS NOT NULL`;
+    assert.equal(staging?.n, 0, 'down refused while staging PII exists; purge first');
+    await admin.unsafe(`UPDATE signup_sessions SET status = 'details_complete'
+      WHERE status = 'identity_pending';
+      ALTER TABLE signup_sessions DROP CONSTRAINT signup_sessions_identity_all_or_none_check,
+        DROP CONSTRAINT signup_sessions_identity_values_check,
+        DROP CONSTRAINT signup_sessions_identity_pending_check;
+      ALTER TABLE signup_sessions DROP COLUMN owner_name, DROP COLUMN clinic_name,
+        DROP COLUMN email_hash, DROP COLUMN accepted_at;
+      ALTER TABLE signup_sessions DROP CONSTRAINT signup_sessions_status_check;
+      ALTER TABLE signup_sessions ADD CONSTRAINT signup_sessions_status_check
+        CHECK (status IN ('initiated', 'details_complete', 'expired', 'blocked'));
+      DELETE FROM _schema_version WHERE version = 'signup-session-identity';`);
+  }
+  await check('migration 0099 empty up/down/up, populated volume, RLS and grants', async () => {
+    await admin.unsafe(identityMigration);
+    await downIdentity();
+    await admin.unsafe(`INSERT INTO signup_sessions
+      (token_hash, idle_expires_at, absolute_expires_at)
+      SELECT md5(n::text) || md5(('old-' || n)::text), now() + interval '10 minutes',
+        now() + interval '45 minutes' FROM generate_series(1, 2000) n;`);
+    const before =
+      await admin`SELECT to_jsonb(s) AS row FROM signup_sessions s ORDER BY token_hash`;
+    await admin.unsafe(identityMigration);
+    const after = await admin`SELECT to_jsonb(s) - 'owner_name' - 'clinic_name'
+      - 'email_hash' - 'accepted_at' AS row FROM signup_sessions s ORDER BY token_hash`;
+    assert.equal(after.length, 2000);
+    assert.deepEqual(after, before);
+    const [pii] = await admin`SELECT count(*)::int AS n FROM signup_sessions
+      WHERE num_nonnulls(owner_name, clinic_name, email_hash, accepted_at) <> 0`;
+    assert.equal(pii?.n, 0);
+    const [rls] = await admin`SELECT relrowsecurity, relforcerowsecurity,
+      (SELECT count(*)::int FROM pg_policy WHERE polrelid = 'signup_sessions'::regclass) AS policies
+      FROM pg_class WHERE oid = 'signup_sessions'::regclass`;
+    assert.deepEqual(rls, { relrowsecurity: true, relforcerowsecurity: true, policies: 0 });
+    await admin`DELETE FROM signup_sessions`;
+  });
+  const authMigration = await readFile(
+    path.join(root, 'drizzle/migrations/0100_signup_auth_attempt.sql'),
+    'utf8',
+  );
+  async function downAuth() {
+    const [attempts] =
+      await admin`SELECT count(*)::int AS n FROM signup_sessions WHERE auth_attempt_kind IS NOT NULL`;
+    assert.equal(attempts?.n, 0, 'down refused while attempts exist; purge first');
+    await admin.unsafe(`ALTER TABLE signup_sessions DROP CONSTRAINT signup_sessions_auth_attempt_check,
+      DROP CONSTRAINT signup_sessions_email_pending_check, DROP CONSTRAINT signup_sessions_status_check;
+      ALTER TABLE signup_sessions DROP COLUMN auth_attempt_kind, DROP COLUMN auth_attempt_state, DROP COLUMN auth_attempted_at;
+      ALTER TABLE signup_sessions ADD CONSTRAINT signup_sessions_status_check
+        CHECK (status IN ('initiated', 'details_complete', 'identity_pending', 'expired', 'blocked'));
+      DELETE FROM _schema_version WHERE version = 'signup-auth-attempt';`);
+  }
+  await check(
+    'migration 0100 empty up/down/up, populated 2000 rows, no privilege expansion',
+    async () => {
+      await admin.unsafe(authMigration);
+      await downAuth();
+      await admin.unsafe(authMigration);
+      await downAuth();
+      await admin.unsafe(`INSERT INTO signup_sessions (token_hash, idle_expires_at, absolute_expires_at)
+      SELECT md5(('auth-old-' || n)::text) || md5(n::text), now() + interval '10 minutes', now() + interval '45 minutes'
+      FROM generate_series(1, 2000) n;`);
+      const before =
+        await admin`SELECT to_jsonb(s) AS row FROM signup_sessions s ORDER BY token_hash`;
+      await admin.unsafe(authMigration);
+      const after =
+        await admin`SELECT to_jsonb(s) - 'auth_attempt_kind' - 'auth_attempt_state' - 'auth_attempted_at' AS row
+      FROM signup_sessions s ORDER BY token_hash`;
+      assert.deepEqual(after, before);
+      for (const role of ['anon', 'authenticated', 'qoro_runtime', 'service_role']) {
+        const [grants] =
+          await admin`SELECT has_table_privilege(${role}, 'signup_sessions', 'SELECT,INSERT,UPDATE,DELETE') AS allowed`;
+        assert.equal(grants?.allowed, role === 'service_role');
+      }
+      const [rls] = await admin`SELECT relrowsecurity, relforcerowsecurity,
+      (SELECT count(*)::int FROM pg_policy WHERE polrelid = 'signup_sessions'::regclass) AS policies
+      FROM pg_class WHERE oid = 'signup_sessions'::regclass`;
+      assert.deepEqual(rls, { relrowsecurity: true, relforcerowsecurity: true, policies: 0 });
+      await admin`DELETE FROM signup_sessions`;
+    },
+  );
+  const ownershipMigration = await readFile(
+    path.join(root, 'drizzle/migrations/0101_signup_draft_ownership.sql'),
+    'utf8',
+  );
+  async function downOwnership() {
+    const [owned] = await admin`SELECT count(*)::int AS n FROM signup_sessions
+      WHERE auth_user_id IS NOT NULL OR consumed_at IS NOT NULL OR status = 'email_verified'`;
+    assert.equal(owned?.n, 0, 'down refused while owned/consumed drafts exist; purge first');
+    await admin.unsafe(`ALTER TABLE signup_sessions
+      DROP CONSTRAINT signup_sessions_email_verified_owner_check,
+      DROP CONSTRAINT signup_sessions_auth_user_id_unique,
+      DROP CONSTRAINT signup_sessions_auth_attempt_check,
+      DROP CONSTRAINT signup_sessions_status_check;
+      ALTER TABLE signup_sessions DROP COLUMN auth_user_id;
+      ALTER TABLE signup_sessions ADD CONSTRAINT signup_sessions_auth_attempt_check CHECK (
+        num_nonnulls(auth_attempt_kind, auth_attempt_state, auth_attempted_at) IN (0, 3)
+        AND (auth_attempt_kind IS NULL OR (
+          auth_attempt_kind IN ('initial', 'resend')
+          AND auth_attempt_state IN ('reserved', 'completed', 'uncertain')
+          AND status IN ('email_pending', 'blocked', 'expired')
+        ))
+      );
+      ALTER TABLE signup_sessions ADD CONSTRAINT signup_sessions_status_check
+        CHECK (status IN ('initiated', 'details_complete', 'identity_pending', 'email_pending', 'expired', 'blocked'));
+      DELETE FROM _schema_version WHERE version = 'signup-draft-ownership';`);
+  }
+  await check(
+    'migration 0101 empty up/down/up, populated 2000 rows, unique owner and no privilege expansion',
+    async () => {
+      await admin.unsafe(ownershipMigration);
+      await downOwnership();
+      await admin.unsafe(ownershipMigration);
+      await downOwnership();
+      await admin.unsafe(`INSERT INTO signup_sessions (token_hash, idle_expires_at, absolute_expires_at)
+        SELECT md5(('owner-old-' || n)::text) || md5(n::text), now() + interval '10 minutes',
+          now() + interval '45 minutes' FROM generate_series(1, 2000) n;`);
+      const before =
+        await admin`SELECT to_jsonb(s) AS row FROM signup_sessions s ORDER BY token_hash`;
+      await admin.unsafe(ownershipMigration);
+      const after = await admin`SELECT to_jsonb(s) - 'auth_user_id' AS row
+        FROM signup_sessions s ORDER BY token_hash`;
+      assert.equal(after.length, 2000);
+      assert.deepEqual(after, before);
+      const [owners] =
+        await admin`SELECT count(*)::int AS n FROM signup_sessions WHERE auth_user_id IS NOT NULL`;
+      assert.equal(owners?.n, 0);
+      for (const role of ['anon', 'authenticated', 'qoro_runtime', 'service_role']) {
+        const [grants] =
+          await admin`SELECT has_table_privilege(${role}, 'signup_sessions', 'SELECT,INSERT,UPDATE,DELETE') AS allowed`;
+        assert.equal(grants?.allowed, role === 'service_role');
+      }
+      const [rls] = await admin`SELECT relrowsecurity, relforcerowsecurity,
+        (SELECT count(*)::int FROM pg_policy WHERE polrelid = 'signup_sessions'::regclass) AS policies
+        FROM pg_class WHERE oid = 'signup_sessions'::regclass`;
+      assert.deepEqual(rls, { relrowsecurity: true, relforcerowsecurity: true, policies: 0 });
+      await admin`DELETE FROM signup_sessions`;
+    },
+  );
+  await admin.unsafe(`CREATE TABLE clinics (
+      id uuid PRIMARY KEY,
+      nome text NOT NULL
+    );
+    CREATE TABLE profiles (
+      id uuid PRIMARY KEY,
+      clinic_id uuid REFERENCES clinics(id),
+      nome text NOT NULL,
+      role text NOT NULL,
+      ativo boolean NOT NULL DEFAULT true,
+      mfa_enrolled_at timestamptz,
+      deleted_at timestamptz,
+      claims_version integer NOT NULL DEFAULT 1,
+      invite_accepted_at timestamptz DEFAULT now()
+    );`);
+  Object.assign(process.env, {
+    NODE_ENV: 'test',
+    DATABASE_URL: url,
+    NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55448',
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic_signup',
+    MAGIC_TOKEN_SECRET: 'synthetic-local-signup-only-magic-token-secret',
+    LOGIN_HASH_PEPPER: 'synthetic-local-signup-only-email-hmac-pepper',
+    SIGNUP_IDENTITY_ENABLED: 'true',
+    SIGNUP_AUTH_ENABLED: 'true',
+    LOG_LEVEL: 'error',
+  });
+  const {
+    SIGNUP_RESEND_COOLDOWN_SECONDS,
+    hashSignupToken,
+    readSignupSession,
+    purgeExpiredSignupSessions,
+    recordSignupIdentity,
+    reserveSignupAuthAttempt,
+    finishSignupAuthAttempt,
+    reserveSignupResendAttempt,
+    finishSignupResendAttempt,
+  } = await import('../../src/contexts/onboarding/internal/signup-session');
+  const { recordSignupAnswers } =
+    await import('../../src/contexts/onboarding/internal/signup-answers');
+  const { readSignupDraft, writeSignupDraft } =
+    await import('../../src/contexts/onboarding/internal/signup-draft');
+  const { hashEmail } = await import('../../src/lib/auth/email-hash');
+  const { POST } = await import('../../src/app/api/signup/sessions/answers/route');
+  const { GET } = await import('../../src/app/api/signup/sessions/me/route');
+  const answerValues = {
+    professionalsBand: '2_5',
+    weeklyAppointmentsBand: '21_50',
+    currentTooling: 'outro_sistema',
+    discoverySource: 'indicacao_colega',
+  } as const;
+  const answers = {
+    ...answerValues,
+    rowVersion: 1,
+  } as const;
+  const request = (token: string, rowVersion = 1) =>
+    new Request('https://localhost/api/signup/sessions/answers', {
+      method: 'POST',
+      headers: { cookie: `__Host-qoro_signup=${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ ...answers, rowVersion }),
+    });
+  async function seed(token: string, idleMinutes = 10, absoluteMinutes = 45, status = 'initiated') {
+    await admin`INSERT INTO signup_sessions (token_hash, idle_expires_at, absolute_expires_at, status)
+      VALUES (${hashSignupToken(token)}, now() + make_interval(mins => ${idleMinutes}), now() + make_interval(mins => ${absoluteMinutes}), ${status})`;
+  }
+  async function snapshot(token: string) {
+    return admin`SELECT * FROM signup_sessions WHERE token_hash = ${hashSignupToken(token)}`;
+  }
+
+  await check('real handler saves answers, CAS version, status and bounded idle', async () => {
+    await seed('live', 1, 5);
+    const res = await POST(request('live'));
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { rowVersion: 2 });
+    const [row] = await snapshot('live');
+    assert.equal(row?.professionals_band, answers.professionalsBand);
+    assert.equal(row?.weekly_appointments_band, answers.weeklyAppointmentsBand);
+    assert.equal(row?.current_tooling, answers.currentTooling);
+    assert.equal(row?.discovery_source, answers.discoverySource);
+    assert.equal(row?.status, 'details_complete');
+    assert.ok(row?.answered_at instanceof Date);
+    assert.equal(row?.idle_expires_at.getTime(), row?.absolute_expires_at.getTime());
+    const state = await readSignupSession('live');
+    assert.equal(state?.rowVersion, 2);
+    assert.deepEqual(state?.answers, answerValues);
+    const readback = await GET(
+      new Request('https://localhost/api/signup/sessions/me', {
+        headers: { cookie: '__Host-qoro_signup=live' },
+      }),
+    );
+    assert.equal(readback.status, 200);
+    const readbackBody = await readback.json();
+    assert.deepEqual(readbackBody.session.answers, answerValues);
+  });
+  await check('stale CAS returns 409, preserves cookie and every database column', async () => {
+    const before = await snapshot('live');
+    const res = await POST(request('live'));
+    assert.equal(res.status, 409);
+    assert.equal(res.headers.get('set-cookie'), null);
+    assert.deepEqual(await snapshot('live'), before);
+  });
+  await check('concurrent CAS has exactly one winner', async () => {
+    await seed('concurrent');
+    const responses = await Promise.all([POST(request('concurrent')), POST(request('concurrent'))]);
+    assert.deepEqual(responses.map((r) => r.status).sort(), [200, 409]);
+    const [row] = await snapshot('concurrent');
+    assert.equal(row?.row_version, 2);
+  });
+  for (const [token, idle, absolute, status] of [
+    ['idle', -1, 45, 'initiated'],
+    ['absolute', 10, -1, 'initiated'],
+    ['blocked', 10, 45, 'blocked'],
+    ['expired', 10, 45, 'expired'],
+  ] as const) {
+    await check(
+      `${token}: service and handler return gone, clear cookie, zero mutation`,
+      async () => {
+        await seed(token, idle, absolute, status);
+        const before = await snapshot(token);
+        assert.deepEqual(await recordSignupAnswers(token, answers), { ok: false, reason: 'gone' });
+        const res = await POST(request(token));
+        assert.equal(res.status, 410);
+        assert.deepEqual(await res.json(), { error: 'gone' });
+        assert.ok(res.headers.get('set-cookie')?.includes('Max-Age=0'));
+        assert.equal(await readSignupSession(token), null);
+        assert.deepEqual(await snapshot(token), before);
+      },
+    );
+  }
+  await check('unknown token and malformed cookies are uniform, no row created', async () => {
+    const [before] = await admin`SELECT count(*)::int AS n FROM signup_sessions`;
+    for (const token of ['unknown', '%', '%E0%A4', '']) {
+      for (const res of [
+        await POST(request(token)),
+        await GET(
+          new Request('https://localhost/api/signup/sessions/me', {
+            headers: { cookie: `__Host-qoro_signup=${token}` },
+          }),
+        ),
+      ]) {
+        assert.equal(res.status, 410);
+        assert.deepEqual(await res.json(), { error: 'gone' });
+        assert.ok(res.headers.get('set-cookie')?.includes('Max-Age=0'));
+      }
+    }
+    const [after] = await admin`SELECT count(*)::int AS n FROM signup_sessions`;
+    assert.equal(after?.n, before?.n);
+  });
+  await check(
+    'database denies non-enum/partial answers and anonymous/authenticated/runtime grants',
+    async () => {
+      for (const role of ['anon', 'authenticated', 'qoro_runtime', 'service_role']) {
+        const [row] =
+          await admin`SELECT has_table_privilege(${role}, 'signup_sessions', 'SELECT,INSERT,UPDATE,DELETE') AS granted`;
+        assert.equal(row?.granted, role === 'service_role');
+      }
+      const before = await snapshot('live');
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET discovery_source = 'free text' WHERE token_hash = ${hashSignupToken('live')}`,
+        { code: '23514' },
+      );
+      await assert.rejects(
+        admin`UPDATE signup_sessions SET discovery_source = NULL WHERE token_hash = ${hashSignupToken('live')}`,
+        { code: '23514' },
+      );
+      assert.deepEqual(await snapshot('live'), before);
+    },
+  );
+  await check('janitor removes expired rows without removing live sessions', async () => {
+    const result = await purgeExpiredSignupSessions();
+    assert.equal(result.deleted, 2);
+    assert.equal((await snapshot('live')).length, 1);
+    assert.equal((await snapshot('idle')).length, 0);
+    assert.equal((await snapshot('absolute')).length, 0);
+  });
+  const identity = {
+    rowVersion: 2,
+    ownerName: '  Pessoa Sintética  ',
+    clinicName: '  Clínica Sintética  ',
+    email: '  Owner.Synthetic@EXAMPLE.test  ',
+    accepted: true,
+  } as const;
+  const identityToken = (label: string) => createHash('sha256').update(label).digest('base64url');
+  const liveToken = identityToken('identity-live');
+  const earlyToken = identityToken('identity-initiated');
+  const savedIdentity = { ok: true, rowVersion: 3 };
+  const conflictingIdentity = { ok: false, reason: 'conflict' };
+  const goneIdentity = { ok: false, reason: 'gone' };
+  async function seedDetails(token: string, absoluteMinutes = 45) {
+    await seed(token, 1, absoluteMinutes);
+    assert.deepEqual(await recordSignupAnswers(token, answers), { ok: true, rowVersion: 2 });
+  }
+  await check('identity: names/HMAC/DB acceptance/TTL and public readback', async () => {
+    await seedDetails(liveToken, 5);
+    const [clockBefore] = await admin`SELECT now() AS at`;
+    assert.deepEqual(await recordSignupIdentity(liveToken, identity), savedIdentity);
+    const [clockAfter] = await admin`SELECT now() AS at`;
+    const [row] = await snapshot(liveToken);
+    assert.equal(row?.owner_name, 'Pessoa Sintética');
+    assert.equal(row?.clinic_name, 'Clínica Sintética');
+    assert.equal(row?.email_hash, hashEmail(identity.email));
+    assert.equal(JSON.stringify(row).toLowerCase().includes('owner.synthetic@'), false);
+    assert.equal(row?.status, 'identity_pending');
+    assert.equal(row?.row_version, 3);
+    assert.ok(row?.accepted_at instanceof Date);
+    assert.ok(row.accepted_at >= clockBefore?.at && row.accepted_at <= clockAfter?.at);
+    assert.equal(row?.idle_expires_at.getTime(), row?.absolute_expires_at.getTime());
+    const res = await GET(
+      new Request('https://localhost/api/signup/sessions/me', {
+        headers: { cookie: `__Host-qoro_signup=${liveToken}` },
+      }),
+    );
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.session.status, 'identity_pending');
+    assert.equal(body.session.rowVersion, 3);
+    const publicFields = ['answers', 'expiresAt', 'riskLevel', 'rowVersion', 'status'];
+    assert.deepEqual(Object.keys(body.session).sort(), publicFields);
+  });
+  await check('identity: two-tab CAS, stale replay, frozen answers, no skipped step', async () => {
+    const before = await snapshot(liveToken);
+    assert.deepEqual(await recordSignupIdentity(liveToken, identity), conflictingIdentity);
+    assert.deepEqual(
+      await recordSignupAnswers(liveToken, { ...answers, rowVersion: 3 }),
+      conflictingIdentity,
+    );
+    assert.deepEqual(await snapshot(liveToken), before);
+    const replacement = { ...identity, rowVersion: 3 };
+    const outcomes = await Promise.all([
+      recordSignupIdentity(liveToken, replacement),
+      recordSignupIdentity(liveToken, replacement),
+    ]);
+    assert.equal(outcomes.filter((outcome) => outcome.ok).length, 1);
+    assert.ok(outcomes.some((outcome) => !outcome.ok && outcome.reason === 'conflict'));
+    assert.equal((await snapshot(liveToken))[0]?.row_version, 4);
+    await seed(earlyToken);
+    const earlyBefore = await snapshot(earlyToken);
+    assert.deepEqual(
+      await recordSignupIdentity(earlyToken, { ...identity, rowVersion: 1 }),
+      goneIdentity,
+    );
+    assert.deepEqual(await snapshot(earlyToken), earlyBefore);
+  });
+  await check('identity: SQL checks and PII prevents down migration', async () => {
+    const assignments = [
+      'owner_name = NULL',
+      'clinic_name = NULL',
+      'email_hash = NULL',
+      'accepted_at = NULL',
+      "owner_name = ''",
+      "clinic_name = repeat('x', 121)",
+      "owner_name = E'bad\\nname'",
+      "owner_name = chr(133) || 'x'",
+      "email_hash = 'raw@example.test'",
+      "email_hash = repeat('A', 64)",
+      'professionals_band = NULL',
+      'consumed_at = now()',
+      'professionals_band = NULL, weekly_appointments_band = NULL, current_tooling = NULL, discovery_source = NULL, answered_at = NULL',
+    ];
+    const before = await snapshot(liveToken);
+    await assert.rejects(downIdentity(), /down refused while staging PII exists/u);
+    for (const assignment of assignments) {
+      await assert.rejects(
+        admin.unsafe(
+          `UPDATE signup_sessions SET ${assignment}
+        WHERE token_hash = $1`,
+          [hashSignupToken(liveToken)],
+        ),
+        { code: '23514' },
+      );
+    }
+    await assert.rejects(
+      admin`UPDATE signup_sessions SET owner_name = 'partial'
+      WHERE token_hash = ${hashSignupToken(earlyToken)}`,
+      { code: '23514' },
+    );
+    await assert.rejects(
+      admin`UPDATE signup_sessions SET status = 'identity_pending'
+      WHERE token_hash = ${hashSignupToken(earlyToken)}`,
+      { code: '23514' },
+    );
+    assert.deepEqual(await snapshot(liveToken), before);
+  });
+  await check('identity: terminal/expired replay and physical PII deletion', async () => {
+    for (const mode of ['idle', 'absolute', 'blocked']) {
+      const token = identityToken(`identity-${mode}`);
+      await seedDetails(token);
+      assert.deepEqual(await recordSignupIdentity(token, identity), savedIdentity);
+      if (mode === 'idle')
+        await admin`UPDATE signup_sessions SET idle_expires_at = now() - interval '1 second' WHERE token_hash = ${hashSignupToken(token)}`;
+      if (mode === 'absolute')
+        await admin`UPDATE signup_sessions SET absolute_expires_at = now() - interval '1 second' WHERE token_hash = ${hashSignupToken(token)}`;
+      if (mode === 'blocked')
+        await admin`UPDATE signup_sessions SET status = 'blocked' WHERE token_hash = ${hashSignupToken(token)}`;
+      const before = await snapshot(token);
+      assert.deepEqual(
+        await recordSignupIdentity(token, { ...identity, rowVersion: 3 }),
+        goneIdentity,
+      );
+      assert.equal(await readSignupSession(token), null);
+      assert.deepEqual(await snapshot(token), before);
+    }
+    assert.equal((await purgeExpiredSignupSessions()).deleted, 2);
+    for (const token of ['identity-idle', 'identity-absolute'])
+      assert.equal((await snapshot(identityToken(token))).length, 0);
+    assert.equal((await snapshot(liveToken)).length, 1);
+    assert.equal((await snapshot(identityToken('identity-blocked'))).length, 1);
+  });
+  await check(
+    'auth: real CAS one winner, frozen staging, GET does not renew, completion once',
+    async () => {
+      const token = identityToken('auth-cas');
+      await seedDetails(token);
+      assert.deepEqual(await recordSignupIdentity(token, identity), savedIdentity);
+      const input = { rowVersion: 3, email: identity.email, password: 'Abcdef1!', accepted: true };
+      const before = await snapshot(token);
+      assert.deepEqual(
+        await reserveSignupAuthAttempt(token, { ...input, email: 'wrong@example.invalid' }),
+        conflictingIdentity,
+      );
+      assert.deepEqual(await snapshot(token), before);
+      const results = await Promise.all([
+        reserveSignupAuthAttempt(token, input),
+        reserveSignupAuthAttempt(token, input),
+      ]);
+      assert.deepEqual(
+        results.filter((result) => result.ok),
+        [{ ok: true, rowVersion: 4 }],
+      );
+      assert.ok(results.some((result) => !result.ok && result.reason === 'conflict'));
+      const [reserved] = await snapshot(token);
+      assert.equal(reserved?.auth_attempt_kind, 'initial');
+      assert.equal(reserved?.auth_attempt_state, 'reserved');
+      assert.equal(reserved?.status, 'email_pending');
+      assert.ok(reserved?.auth_attempted_at instanceof Date);
+      assert.equal(JSON.stringify(reserved).includes(input.password), false);
+      for (const operation of [
+        recordSignupIdentity(token, { ...identity, rowVersion: 4 }),
+        recordSignupAnswers(token, { ...answers, rowVersion: 4 }),
+        reserveSignupAuthAttempt(token, { ...input, rowVersion: 4 }),
+      ]) {
+        assert.deepEqual(await operation, conflictingIdentity);
+      }
+      assert.deepEqual((await snapshot(token))[0], reserved);
+      const state = await readSignupSession(token);
+      assert.equal(state?.status, 'email_pending');
+      const [read] = await snapshot(token);
+      assert.equal(read?.idle_expires_at.getTime(), reserved?.idle_expires_at.getTime());
+      assert.equal(read?.row_version, 4);
+      assert.equal(read?.auth_attempted_at.getTime(), reserved?.auth_attempted_at.getTime());
+      assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'completed'), {
+        ok: true,
+        rowVersion: 5,
+      });
+      const [done] = await snapshot(token);
+      assert.equal(done?.auth_attempt_state, 'completed');
+      assert.equal(done?.idle_expires_at.getTime(), read?.idle_expires_at.getTime());
+      assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'uncertain'), conflictingIdentity);
+      assert.deepEqual((await snapshot(token))[0], done);
+      await assert.rejects(downAuth(), /down refused while attempts exist/u);
+      for (const assignment of [
+        'auth_attempt_kind = NULL',
+        "auth_attempt_state = 'other'",
+        'owner_name = NULL',
+        'auth_attempted_at = NULL',
+        "status = 'identity_pending'",
+        'consumed_at = now()',
+      ]) {
+        await assert.rejects(
+          admin.unsafe(`UPDATE signup_sessions SET ${assignment} WHERE token_hash = $1`, [
+            hashSignupToken(token),
+          ]),
+          { code: '23514' },
+        );
+      }
+    },
+  );
+  await check(
+    'auth: uncertain/crash stays pending, terminal/TTL rejects, janitor deletes attempt and PII',
+    async () => {
+      for (const mode of ['uncertain', 'crash', 'idle', 'absolute', 'blocked']) {
+        const token = identityToken(`auth-${mode}`);
+        await seedDetails(token);
+        assert.deepEqual(await recordSignupIdentity(token, identity), savedIdentity);
+        const input = {
+          rowVersion: 3,
+          email: identity.email,
+          password: 'Abcdef1!',
+          accepted: true,
+        };
+        assert.deepEqual(await reserveSignupAuthAttempt(token, input), { ok: true, rowVersion: 4 });
+        if (mode === 'uncertain')
+          assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'uncertain'), {
+            ok: true,
+            rowVersion: 5,
+          });
+        if (mode === 'idle')
+          await admin`UPDATE signup_sessions SET idle_expires_at = now() - interval '1 second' WHERE token_hash = ${hashSignupToken(token)}`;
+        if (mode === 'absolute')
+          await admin`UPDATE signup_sessions SET absolute_expires_at = now() - interval '1 second' WHERE token_hash = ${hashSignupToken(token)}`;
+        if (mode === 'blocked')
+          await admin`UPDATE signup_sessions SET status = 'blocked' WHERE token_hash = ${hashSignupToken(token)}`;
+        const before = await snapshot(token);
+        const terminal = ['idle', 'absolute', 'blocked'].includes(mode);
+        assert.deepEqual(
+          await reserveSignupAuthAttempt(token, {
+            ...input,
+            rowVersion: mode === 'uncertain' ? 5 : 4,
+          }),
+          terminal ? goneIdentity : conflictingIdentity,
+        );
+        if (terminal)
+          assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'completed'), goneIdentity);
+        assert.deepEqual(await snapshot(token), before);
+      }
+      assert.equal((await purgeExpiredSignupSessions()).deleted, 2);
+      assert.equal((await snapshot(identityToken('auth-idle'))).length, 0);
+      assert.equal((await snapshot(identityToken('auth-absolute'))).length, 0);
+    },
+  );
+  await check(
+    'resend: cooldown DB, CAS one winner, recovery and late finalization isolation',
+    async () => {
+      const token = identityToken('resend-direct');
+      await seedDetails(token);
+      assert.deepEqual(await recordSignupIdentity(token, identity), savedIdentity);
+      const initial = {
+        rowVersion: 3,
+        email: identity.email,
+        password: 'Abcdef1!',
+        accepted: true,
+      } as const;
+      assert.deepEqual(await reserveSignupAuthAttempt(token, initial), {
+        ok: true,
+        rowVersion: 4,
+      });
+      assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'completed'), {
+        ok: true,
+        rowVersion: 5,
+      });
+      await admin`UPDATE signup_sessions
+        SET auth_attempted_at = now() - make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS + 1})
+        WHERE token_hash = ${hashSignupToken(token)}`;
+      const [before] = await snapshot(token);
+      const resend = { rowVersion: 5, email: identity.email, accepted: true } as const;
+      const outcomes = await Promise.all([
+        reserveSignupResendAttempt(token, resend),
+        reserveSignupResendAttempt(token, resend),
+      ]);
+      assert.deepEqual(
+        outcomes.filter((outcome) => outcome.ok),
+        [{ ok: true, rowVersion: 6 }],
+      );
+      assert.ok(outcomes.some((outcome) => !outcome.ok && outcome.reason === 'conflict'));
+      const [reserved] = await snapshot(token);
+      assert.equal(reserved?.auth_attempt_kind, 'resend');
+      assert.equal(reserved?.auth_attempt_state, 'reserved');
+      assert.equal(reserved?.row_version, 6);
+      assert.equal(reserved?.idle_expires_at.getTime(), before?.idle_expires_at.getTime());
+      assert.equal(reserved?.absolute_expires_at.getTime(), before?.absolute_expires_at.getTime());
+      assert.deepEqual(await finishSignupAuthAttempt(token, 4, 'completed'), conflictingIdentity);
+      assert.deepEqual(await finishSignupResendAttempt(token, 6, 'completed'), {
+        ok: true,
+        rowVersion: 7,
+      });
+      const [completed] = await snapshot(token);
+      assert.equal(completed?.idle_expires_at.getTime(), reserved?.idle_expires_at.getTime());
+      const cooldown = await reserveSignupResendAttempt(token, {
+        ...resend,
+        rowVersion: 7,
+      });
+      assert.equal(cooldown.ok, false);
+      if (cooldown.ok || cooldown.reason !== 'cooldown') {
+        throw new Error('resend cooldown was not enforced');
+      }
+      assert.ok(cooldown.retryAfter >= 1 && cooldown.retryAfter <= SIGNUP_RESEND_COOLDOWN_SECONDS);
+      assert.deepEqual((await snapshot(token))[0], completed);
+
+      await admin`UPDATE signup_sessions
+        SET auth_attempt_state = 'uncertain',
+          auth_attempted_at = now() - make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS + 1})
+        WHERE token_hash = ${hashSignupToken(token)}`;
+      assert.deepEqual(await reserveSignupResendAttempt(token, { ...resend, rowVersion: 7 }), {
+        ok: true,
+        rowVersion: 8,
+      });
+      const [secondReservation] = await snapshot(token);
+      assert.deepEqual(await finishSignupResendAttempt(token, 6, 'completed'), conflictingIdentity);
+      assert.deepEqual((await snapshot(token))[0], secondReservation);
+      await admin`UPDATE signup_sessions
+        SET auth_attempted_at = now() - make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS + 1})
+        WHERE token_hash = ${hashSignupToken(token)}`;
+      assert.deepEqual(await reserveSignupResendAttempt(token, { ...resend, rowVersion: 8 }), {
+        ok: true,
+        rowVersion: 9,
+      });
+      assert.deepEqual(await finishSignupResendAttempt(token, 9, 'uncertain'), {
+        ok: true,
+        rowVersion: 10,
+      });
+      const [final] = await snapshot(token);
+      assert.equal(final?.auth_attempt_kind, 'resend');
+      assert.equal(final?.auth_attempt_state, 'uncertain');
+      assert.equal(final?.idle_expires_at.getTime(), before?.idle_expires_at.getTime());
+      assert.equal(JSON.stringify(final).includes(initial.password), false);
+      await admin`DELETE FROM signup_sessions WHERE token_hash = ${hashSignupToken(token)}`;
+    },
+  );
+  await check(
+    'draft owner: atomic link, replay/transfer denial, no TTL renewal, exclusive restart and purge',
+    async () => {
+      const ownerA = '44444444-4444-4444-8444-444444444444';
+      const ownerB = '55555555-5555-4555-8555-555555555555';
+      const ownerC = '66666666-6666-4666-8666-666666666666';
+      const ownerD = '77777777-7777-4777-8777-777777777777';
+      const ownerE = '88888888-8888-4888-8888-888888888888';
+      const ownerF = '99999999-9999-4999-8999-999999999999';
+      const email = 'verified.draft@example.invalid';
+      const draftInput = {
+        mode: 'link',
+        rowVersion: 5,
+        ownerName: '  Pessoa Verificada  ',
+        clinicName: '  ClÃ­nica Verificada  ',
+        answers: answerValues,
+        accepted: true,
+      } as const;
+      const restartInput = {
+        mode: 'restart',
+        ownerName: 'Pessoa Reiniciada',
+        clinicName: 'ClÃ­nica Reiniciada',
+        answers: answerValues,
+        accepted: true,
+      } as const;
+      const linkToken = identityToken('draft-link');
+      const mismatchToken = identityToken('draft-mismatch');
+      const staleToken = identityToken('draft-stale');
+      const raceTokens = [identityToken('draft-race-a'), identityToken('draft-race-b')];
+      const seededTokens = [linkToken, mismatchToken, staleToken, ...raceTokens];
+
+      async function seedEmailPending(token: string, pendingEmail = email) {
+        await admin`INSERT INTO signup_sessions (
+          token_hash, status, row_version, idle_expires_at, absolute_expires_at,
+          professionals_band, weekly_appointments_band, current_tooling, discovery_source,
+          answered_at, owner_name, clinic_name, email_hash, accepted_at,
+          auth_attempt_kind, auth_attempt_state, auth_attempted_at
+        ) VALUES (
+          ${hashSignupToken(token)}, 'email_pending', 5, now() + interval '10 minutes',
+          now() + interval '45 minutes', ${answerValues.professionalsBand},
+          ${answerValues.weeklyAppointmentsBand}, ${answerValues.currentTooling},
+          ${answerValues.discoverySource}, now(), 'Bootstrap Owner', 'Bootstrap Clinic',
+          ${hashEmail(pendingEmail)}, now(), 'initial', 'completed', now()
+        )`;
+      }
+
+      for (const token of seededTokens) await seedEmailPending(token);
+      const [linkBefore] = await snapshot(linkToken);
+      assert.deepEqual(
+        await writeSignupDraft({ userId: ownerA, email, rawToken: linkToken, input: draftInput }),
+        { ok: true, rowVersion: 6 },
+      );
+      const [linked] = await snapshot(linkToken);
+      assert.equal(linked?.status, 'email_verified');
+      assert.equal(linked?.auth_user_id, ownerA);
+      assert.ok(linked?.consumed_at instanceof Date);
+      assert.equal(linked?.owner_name, 'Pessoa Verificada');
+      assert.equal(linked?.clinic_name, 'ClÃ­nica Verificada');
+      assert.equal(linked?.row_version, 6);
+      assert.equal(linked?.idle_expires_at.getTime(), linkBefore?.idle_expires_at.getTime());
+      assert.equal(
+        linked?.absolute_expires_at.getTime(),
+        linkBefore?.absolute_expires_at.getTime(),
+      );
+
+      const read = await readSignupDraft(ownerA);
+      assert.equal(read.ok, true);
+      if (!read.ok) throw new Error('linked owner draft not readable');
+      assert.deepEqual(Object.keys(read.draft).sort(), [
+        'absoluteExpiresAt',
+        'answers',
+        'clinicName',
+        'idleExpiresAt',
+        'ownerName',
+        'rowVersion',
+        'status',
+      ]);
+      const publicDraft = JSON.stringify(read.draft);
+      assert.equal(publicDraft.includes(email), false);
+      assert.equal(publicDraft.includes(ownerA), false);
+      assert.equal(publicDraft.includes(linkToken), false);
+      const [afterRead] = await snapshot(linkToken);
+      assert.equal(afterRead?.idle_expires_at.getTime(), linked?.idle_expires_at.getTime());
+      assert.equal(afterRead?.absolute_expires_at.getTime(), linked?.absolute_expires_at.getTime());
+
+      assert.deepEqual(
+        await writeSignupDraft({ userId: ownerA, email, rawToken: linkToken, input: draftInput }),
+        { ok: false, reason: 'conflict' },
+      );
+      assert.deepEqual(
+        await writeSignupDraft({ userId: ownerB, email, rawToken: linkToken, input: draftInput }),
+        { ok: false, reason: 'gone' },
+      );
+
+      const mismatchBefore = await snapshot(mismatchToken);
+      assert.deepEqual(
+        await writeSignupDraft({
+          userId: ownerC,
+          email: 'different@example.invalid',
+          rawToken: mismatchToken,
+          input: draftInput,
+        }),
+        { ok: false, reason: 'conflict' },
+      );
+      assert.deepEqual(await snapshot(mismatchToken), mismatchBefore);
+      const staleBefore = await snapshot(staleToken);
+      assert.deepEqual(
+        await writeSignupDraft({
+          userId: ownerD,
+          email,
+          rawToken: staleToken,
+          input: { ...draftInput, rowVersion: 4 },
+        }),
+        { ok: false, reason: 'conflict' },
+      );
+      assert.deepEqual(await snapshot(staleToken), staleBefore);
+
+      const raceOutcomes = await Promise.all(
+        raceTokens.map((rawToken) =>
+          writeSignupDraft({ userId: ownerE, email, rawToken, input: draftInput }),
+        ),
+      );
+      assert.equal(raceOutcomes.filter((outcome) => outcome.ok).length, 1);
+      assert.ok(raceOutcomes.some((outcome) => !outcome.ok && outcome.reason === 'conflict'));
+      const [exclusiveOwner] =
+        await admin`SELECT count(*)::int AS n FROM signup_sessions WHERE auth_user_id = ${ownerE}`;
+      assert.equal(exclusiveOwner?.n, 1);
+
+      await admin`UPDATE signup_sessions SET idle_expires_at = now() - interval '1 second'
+        WHERE auth_user_id = ${ownerA}`;
+      assert.deepEqual(await readSignupDraft(ownerA), { ok: false, reason: 'gone' });
+      const [restartClock] = await admin`SELECT now() AS at`;
+      assert.deepEqual(
+        await writeSignupDraft({ userId: ownerA, email, rawToken: null, input: restartInput }),
+        { ok: true, rowVersion: 1 },
+      );
+      const [restarted] = await admin`SELECT * FROM signup_sessions WHERE auth_user_id = ${ownerA}`;
+      assert.equal(restarted?.status, 'email_verified');
+      assert.equal(restarted?.owner_name, restartInput.ownerName);
+      assert.equal(restarted?.token_hash === hashSignupToken(linkToken), false);
+      assert.match(String(restarted?.token_hash), /^[0-9a-f]{64}$/u);
+      assert.ok(restarted?.idle_expires_at > restartClock?.at);
+      assert.ok(restarted?.absolute_expires_at > restarted?.idle_expires_at);
+      assert.equal(
+        JSON.stringify(await readSignupDraft(ownerA)).includes(restarted?.token_hash),
+        false,
+      );
+      assert.deepEqual(
+        await writeSignupDraft({ userId: ownerA, email, rawToken: null, input: restartInput }),
+        { ok: false, reason: 'conflict' },
+      );
+      await assert.rejects(downOwnership(), /down refused while owned\/consumed drafts exist/u);
+
+      const concurrentRestart = await Promise.all([
+        writeSignupDraft({ userId: ownerF, email, rawToken: null, input: restartInput }),
+        writeSignupDraft({ userId: ownerF, email, rawToken: null, input: restartInput }),
+      ]);
+      assert.equal(concurrentRestart.filter((outcome) => outcome.ok).length, 1);
+      assert.ok(concurrentRestart.some((outcome) => !outcome.ok && outcome.reason === 'conflict'));
+      const [oneRestart] =
+        await admin`SELECT count(*)::int AS n FROM signup_sessions WHERE auth_user_id = ${ownerF}`;
+      assert.equal(oneRestart?.n, 1);
+
+      await admin`UPDATE signup_sessions SET idle_expires_at = now() - interval '1 second'
+        WHERE auth_user_id IN (${ownerA}, ${ownerE}, ${ownerF})`;
+      const purge = await purgeExpiredSignupSessions();
+      assert.ok(purge.deleted >= 3);
+      const [ownedAfterPurge] = await admin`SELECT count(*)::int AS n FROM signup_sessions
+        WHERE auth_user_id IN (${ownerA}, ${ownerE}, ${ownerF})`;
+      assert.equal(ownedAfterPurge?.n, 0);
+      for (const token of seededTokens) {
+        await admin`DELETE FROM signup_sessions WHERE token_hash = ${hashSignupToken(token)}`;
+      }
+    },
+  );
+  if (process.argv.includes('--browser')) {
+    await check('real browser signup journey, two-tab CAS, readback and expiry', async () => {
+      await runBrowserJourney(url, admin, hashSignupToken);
+    });
+  }
+} finally {
+  try {
+    if (verified && schemaReady) {
+      await admin`DELETE FROM signup_sessions`;
+      const [remaining] = await admin`SELECT count(*)::int AS n FROM signup_sessions`;
+      assert.equal(remaining?.n, 0);
+      results.push({ name: 'fixture cleanup readback zero', status: 'PASS' });
+    }
+  } finally {
+    try {
+      for (const key of ['__runtimeClient', '__adminClient', '__workerClient']) {
+        const client: unknown = Reflect.get(globalThis, key);
+        if (typeof client === 'function' && 'end' in client && typeof client.end === 'function')
+          await client.end({ timeout: 1 });
+      }
+    } finally {
+      await admin.end({ timeout: 1 });
+      const stop = spawnSync(
+        path.join(bin, `pg_ctl${suffix}`),
+        ['-D', data, '-m', 'fast', '-w', 'stop'],
+        { windowsHide: true, encoding: 'utf8' },
+      );
+      assert.equal(stop.status, 0, stop.stderr);
+    }
+  }
+  results.push({ name: 'own Postgres stopped', status: 'PASS' });
+  const resolved = path.resolve(cluster);
+  assert.equal(path.dirname(resolved), path.resolve(os.tmpdir()));
+  assert.ok(path.basename(resolved).startsWith('qoro-signup-regression-'));
+  await rm(resolved, { recursive: true });
+  const output = path.join(root, 'dist/signup-regression');
+  await mkdir(output, { recursive: true });
+  await writeFile(
+    path.join(output, 'results.json'),
+    JSON.stringify({ environment: 'local synthetic Postgres 17', results }, null, 2),
+  );
+  for (const result of results)
+    console.log(`${result.status} ${result.name}${result.detail ? `: ${result.detail}` : ''}`);
+  if (results.some((result) => result.status === 'FAIL')) process.exitCode = 1;
+}

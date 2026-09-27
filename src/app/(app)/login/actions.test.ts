@@ -15,10 +15,12 @@ const mocks = vi.hoisted(() => ({
   metricsEmit: vi.fn(),
   postLoginRedirect: vi.fn(),
   readAuthoritativeProfile: vi.fn(),
+  resolvePreTenantOnboarding: vi.fn(),
   recordLoginAttempt: vi.fn(),
   redirect: vi.fn(),
   resetPasswordForEmail: vi.fn(),
   signInWithPassword: vi.fn(),
+  signOut: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({ headers: mocks.headers }));
@@ -28,6 +30,9 @@ vi.mock('@/lib/auth/supabase-server', () => ({
 }));
 vi.mock('@/lib/auth/tenant-context', () => ({
   readAuthoritativeProfile: mocks.readAuthoritativeProfile,
+}));
+vi.mock('@/lib/auth/pretenant-onboarding', () => ({
+  resolvePreTenantOnboarding: mocks.resolvePreTenantOnboarding,
 }));
 vi.mock('@/lib/auth/email-hash', () => ({ hashEmail: mocks.hashEmail }));
 vi.mock('@/lib/auth/login-audit', () => ({ recordLoginAttempt: mocks.recordLoginAttempt }));
@@ -149,7 +154,7 @@ describe('repasse do captchaToken', () => {
       auth: {
         resetPasswordForEmail: mocks.resetPasswordForEmail,
         signInWithPassword: mocks.signInWithPassword,
-        signOut: vi.fn(),
+        signOut: mocks.signOut,
       },
     });
     mocks.signInWithPassword.mockResolvedValue({
@@ -231,6 +236,92 @@ describe('repasse do captchaToken', () => {
     expect(result).toEqual({ error: null, sent: true });
     expect(mocks.loggerWarn).toHaveBeenCalledWith('forgot_password.request_failed', {
       reason: 'captcha_failed',
+    });
+  });
+});
+
+describe('login de usuário verificado pré-tenant', () => {
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'verified@example.invalid');
+    data.set('password', 'senha-correta-123');
+    return data;
+  }
+
+  beforeEach(() => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: { id: '11111111-1111-4111-8111-111111111111' } },
+      error: null,
+    });
+    mocks.signOut.mockResolvedValue({ error: null });
+    mocks.createServerClient.mockResolvedValue({
+      auth: {
+        signInWithPassword: mocks.signInWithPassword,
+        signOut: mocks.signOut,
+      },
+    });
+    mocks.readAuthoritativeProfile.mockResolvedValue(null);
+    mocks.resolvePreTenantOnboarding.mockResolvedValue({
+      ok: true,
+      kind: 'pretenant',
+      userId: '11111111-1111-4111-8111-111111111111',
+      email: 'verified@example.invalid',
+    });
+    mocks.isRole.mockReturnValue(true);
+    mocks.getAal.mockResolvedValue('aal1');
+    mocks.postLoginRedirect.mockReturnValue('/dashboard');
+    mocks.redirect.mockImplementation((destination: string) => {
+      throw new Error(`REDIRECT:${destination}`);
+    });
+  });
+
+  it('retoma cadastro somente depois da seam server-only', async () => {
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(
+      'REDIRECT:/cadastro/continuar',
+    );
+    expect(mocks.resolvePreTenantOnboarding).toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('preserva redirect de profile/MFA decidido pela seam em caso de corrida', async () => {
+    mocks.resolvePreTenantOnboarding.mockResolvedValue({
+      ok: true,
+      kind: 'redirect',
+      route: '/login/mfa',
+    });
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/login/mfa');
+  });
+
+  it.each(['unavailable', 'invalid_session', 'email_unverified', 'profile_denied'])(
+    'fecha sessão quando a seam recusa: %s',
+    async (reason) => {
+      mocks.resolvePreTenantOnboarding.mockResolvedValue({ ok: false, reason });
+      const { loginAction } = await import('./actions');
+      await expect(loginAction({ error: null }, loginForm())).resolves.toEqual({
+        error: 'Profile inválido. Contate o administrador.',
+      });
+      expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    },
+  );
+
+  it('mantém o caminho existente de profile válido e MFA', async () => {
+    mocks.readAuthoritativeProfile.mockResolvedValue({
+      role: 'owner',
+      ativo: true,
+      deletedAt: null,
+      mfaEnrolledAt: null,
+    });
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/dashboard');
+    expect(mocks.resolvePreTenantOnboarding).not.toHaveBeenCalled();
+    expect(mocks.getAal).toHaveBeenCalled();
+    expect(mocks.postLoginRedirect).toHaveBeenCalledWith({
+      role: 'owner',
+      mfaEnrolledAt: null,
+      aal: 'aal1',
     });
   });
 });

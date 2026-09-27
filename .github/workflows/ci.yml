@@ -114,7 +114,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: E2E gate (superfície pública, sem credencial)
-        run: pnpm test:e2e:ci
+        run: pnpm test:e2e:ci && pnpm security:browser-session
 
       - name: Upload E2E report on failure
         if: failure()

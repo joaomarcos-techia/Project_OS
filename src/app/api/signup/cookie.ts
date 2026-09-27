@@ -16,6 +16,22 @@
  */
 export const SIGNUP_SESSION_COOKIE = '__Host-qoro_signup';
 
+/** Malformed percent encoding is invalid input, not a server failure. */
+export function readSignupCookie(req: Request): string | null {
+  const cookie = req.headers
+    .get('cookie')
+    ?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${SIGNUP_SESSION_COOKIE}=`));
+  if (!cookie) return null;
+  try {
+    return decodeURIComponent(cookie.slice(SIGNUP_SESSION_COOKIE.length + 1)) || null;
+  } catch (error) {
+    if (error instanceof URIError) return null;
+    throw error;
+  }
+}
+
 /** 60 min — o teto ABSOLUTO da sessão (§21.6). O idle vive no banco. */
 const MAX_AGE_SECONDS = 60 * 60;
 

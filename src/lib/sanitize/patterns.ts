@@ -33,9 +33,9 @@ export const VALUE_PATTERNS: ReadonlyArray<Pattern> = [
     re: /\b(?:postgres(?:ql)?|mysql):\/\/[^:\s]+:[^@\s]+@[^\s]+/gi,
     replacement: '[REDACTED_DSN]',
   },
-  // Query-string credential leak: "?password=...&token=..."
+  // Query-string credential leak: "?password=...&token=...&token_hash=..."
   {
-    re: /\b(password|secret|token|api_key|apikey)=([^&\s"]+)/gi,
+    re: /\b(password|secret|token|token_hash|api_key|apikey)=([^&\s"]+)/gi,
     replacement: (m: string, _key: string, value: string) => m.replace(value, '[REDACTED]'),
   },
 ];

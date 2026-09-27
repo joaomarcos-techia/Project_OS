@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isValidOtpType, safeNext, verifyErrorReason } from './confirm-logic';
+import { isValidOtpType, safeNext, safeNextForOtp, verifyErrorReason } from './confirm-logic';
 
 describe('safeNext — anti open-redirect (invariante de segurança)', () => {
   it('aceita path relativo interno', () => {
@@ -55,11 +55,30 @@ describe('isValidOtpType', () => {
     expect(isValidOtpType('invite')).toBe(true);
     expect(isValidOtpType('recovery')).toBe(true);
     expect(isValidOtpType('email')).toBe(true);
+    expect(isValidOtpType('signup')).toBe(true);
   });
   it('rejeita inválido/null', () => {
     expect(isValidOtpType('bogus')).toBe(false);
     expect(isValidOtpType(null)).toBe(false);
     expect(isValidOtpType('')).toBe(false);
+  });
+});
+
+describe('safeNextForOtp', () => {
+  it.each([
+    null,
+    '',
+    '/dashboard',
+    '/cadastro/continuar?draft=segredo',
+    '/cadastro/continuar#token',
+    'https://evil.example/cadastro/continuar',
+  ])('fixa signup em /cadastro/continuar sem query/fragmento: %s', (next) => {
+    expect(safeNextForOtp(next, 'signup')).toBe('/cadastro/continuar');
+  });
+
+  it('preserva a allowlist dos fluxos existentes', () => {
+    expect(safeNextForOtp('/convite', 'invite')).toBe('/convite');
+    expect(safeNextForOtp('/reset-password', 'recovery')).toBe('/reset-password');
   });
 });
 

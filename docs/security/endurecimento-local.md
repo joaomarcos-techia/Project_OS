@@ -17,7 +17,7 @@ Três rodadas consolidadas: **1** — itens 1–8 e a infraestrutura da fase 0; 
 | 8 | Tenant / IDOR | **provado no SQL** (Postgres temporário, RLS real, dois sentidos) | `scripts/security/tenant-isolation.ts` | `pnpm security:tenant` |
 | 7 | CSRF de Server Action | **provado sem sessão**; com sessão válida continua pendente | `scripts/security/local-http.ts` | `pnpm security:http` |
 | 6.5 | Saída do time / logout | **corrigido** (logout não confirma revogação que falhou) | `src/app/(app)/logout/route.ts` | `pnpm security:unit` |
-| 7 | Cookie de sessão | **fixado na rodada 3**: `httpOnly`/`SameSite=Lax` deixam de depender do default do `@supabase/ssr` | `src/lib/auth/supabase-server.ts` | `pnpm security:unit` |
+| 7 | Cookie de sessão | **D126 histórico substituído na retomada local**: sessão Supabase e seletor HttpOnly por geração, consumidores browser removidos, renovação server-side; legado expirado sem cópia e nova autenticação; XSS/CSRF residual separado | `src/lib/auth/supabase-session-cookie.ts` · ADR-037 | validação da emenda em `qorov2.md` §35.6; teste D126 antigo prova apenas o contrato anterior |
 | 6 | Segredo no bundle / Sentry | **corrigido** (scrub de body/PII; varredura de canário no bundle) | `src/lib/observability/sentry-scrub.ts` | `pnpm security:bundle` |
 | 5 | LGPD — leitura de prontuário | **corrigido na rodada 2** (trilha na mesma tx + gate estático) | `src/contexts/clinical/prontuario-access.ts` | `pnpm security:unit` |
 | 3 | CSP | **corrigido na rodada 3**: bloqueante, `connect-src`/`img-src` por origem nomeada, sem `unsafe-eval` | `src/lib/http/content-security-policy.ts` | `pnpm security:http` |
@@ -165,7 +165,11 @@ Essas linhas deixaram de ser prosa: viraram [riscos.md](./riscos.md), gerado de 
 
 ## Fase 3 — o que ficou travado no pipeline
 
-`pnpm security:check` = `security:inventory && security:unit && security:tenant && security:build && security:bundle && security:http`. O CI (`.github/workflows/ci.yml`) roda inventário, isolamento de duas clínicas, build isolado, bundle e HTTP como passos próprios; os gates de teste entram pela suíte Vitest (`pnpm test:coverage`).
+O comando atual tem sete etapas: `pnpm security:check` = `security:inventory && security:unit && security:tenant && security:build && security:browser-session && security:bundle && security:http`. `security:browser-session` usa `playwright.httponly.config.ts` e requer Chromium instalado (`pnpm exec playwright install chromium`). O CI (`.github/workflows/ci.yml`) roda inventário, isolamento de duas clínicas, build isolado, bundle e HTTP como passos próprios; os gates unitários entram pela suíte Vitest (`pnpm test:coverage`). Após autorização explícita em 15/09, o patch foi aplicado: `pnpm test:e2e:ci && pnpm security:browser-session`. O comando exato passou localmente (6 públicos PASS, 2 skips Turnstile, 6 HttpOnly PASS), e `actionlint` 1.7.12 PASS; publicação e execução remota da emenda continuam **NOT TESTED**.
+
+Na emenda de 14–15/09/2026, a sessão usa `sb-<project>-auth-token-v2-<geração>`, com geração de 32 caracteres hexadecimais, e seletor `qoro-auth-session`, ambos HttpOnly, Lax e Secure em produção. Login, OTP e login final de `/join` criam uma geração nova e gravam o seletor depois dos fragmentos. Refresh nunca grava nem apaga o seletor, mesmo em falha; uma resposta atrasada só pode escrever cookies da geração antiga. Logout, troca de conta e reset removem o seletor; OTP inválido também deixa a identidade anterior desvinculada. O middleware expira cookies legados e órfãos, sem copiar bearer ou reemitir cookies ativos. O cutover exige uma nova autenticação para a sessão legada.
+
+A prova usa Chromium real contra o build Next de produção isolado e, no convite, o SDK SSR instalado sobre Auth HTTP sintético em loopback. **Não executa GoTrue/Supabase externo.** Rollout e revogação pelo provedor são **NOT TESTED** nesta emenda. O seletor impede refresh atrasado de reativar a identidade no navegador; não é prova de revogação de bearer copiado externamente nem de correção da janela epoch → `signOut` no logout. Evidência atual em [Qoro v2 §35.6](../qorov2.md); as saídas numéricas das rodadas anteriores abaixo permanecem históricas.
 
 Gate a gate, contra a lista pedida — sem arredondar “parcial” para “feito”:
 
@@ -182,6 +186,7 @@ Gate a gate, contra a lista pedida — sem arredondar “parcial” para “feit
 | Teto de custo de IA desligado do handler | **implementado (rodada 3)** — reprova se `checkQuota` perder o caller ou correr depois do provider | `src/contexts/ai-agent/internal/quota.test.ts` |
 | Rota nova sem teste | **implementado (rodada 3)** como catraca: rota nova exige `route.test.ts`; rota que já tinha não pode perder | `routeTestDrift` + `route-test-ratchet.test.ts` |
 | Registro de aceite de risco com validade | **implementado** | `risk-register.ts` + `risk-register.test.ts` |
+| Legado legível, confirmação HttpOnly e renovação sem loop no navegador | **implementado no pipeline local e workflow**; emenda remota NOT TESTED | `security-e2e/http-only-session.spec.ts` + `playwright.httponly.config.ts` |
 | CSP com nonce (sem `unsafe-inline`) | **não implementado**, com razão escrita | `csp-nonce-inline-script` em riscos.md |
 | CSRF com sessão válida | **não implementado** | `csrf-sessao-valida` em riscos.md |
 
@@ -189,9 +194,9 @@ Isolamento de duas clínicas, CSRF de origem forjada (sem sessão), prompt injec
 
 Cada pessoa precisa Node22, pnpm11.17 e Postgres com `initdb`, `postgres`, `pg_ctl`. `.env.example` descreve `SECURITY_PG_BIN`; os scripts locais não exigem criar segredo nem ler `.env.local`. Runtime do produto autenticado exige setup local separado. Não é necessário console de produção para reproduzir os testes executados.
 
-## Validação final — saída concluída
+## Validação final da rodada de 10/09/2026 — histórico
 
-`pnpm security:check` executado ponta a ponta, em processo único, sobre o estado final do checkout:
+`pnpm security:check` executado ponta a ponta, em processo único, sobre o estado final daquela rodada, antes da emenda HttpOnly por geração de 14–15/09:
 
 ```text
 $ pnpm security:check

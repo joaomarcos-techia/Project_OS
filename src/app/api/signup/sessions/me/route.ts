@@ -16,7 +16,7 @@ import { NextResponse } from 'next/server';
 import { readSignupSession } from '@/contexts/onboarding';
 import { assertSignupReadAllowed, getClientIp } from '@/lib/auth/rate-limit';
 
-import { SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../../cookie';
+import { readSignupCookie, SIGNUP_COOKIE_CLEAR_OPTIONS, SIGNUP_SESSION_COOKIE } from '../../cookie';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,15 +40,7 @@ export async function GET(req: Request): Promise<Response> {
     );
   }
 
-  const cookie = req.headers
-    .get('cookie')
-    ?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${SIGNUP_SESSION_COOKIE}=`));
-
-  if (!cookie) return gone();
-
-  const rawToken = decodeURIComponent(cookie.slice(SIGNUP_SESSION_COOKIE.length + 1));
+  const rawToken = readSignupCookie(req);
   if (!rawToken) return gone();
 
   const state = await readSignupSession(rawToken);

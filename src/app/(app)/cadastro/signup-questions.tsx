@@ -1,0 +1,555 @@
+'use client';
+
+import { ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+
+import { Logo } from '@/components/shared/logo';
+import { TurnstileWidget } from '@/components/shared/turnstile-widget';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { OptionCardGroup, type OptionCard } from '@/components/ui/option-card-group';
+import type {
+  SignupAnswerValues,
+  SignupSessionState,
+  SignupSessionStatus,
+} from '@/contexts/onboarding';
+
+import { SignupEmailPending } from './signup-email-pending';
+import { SignupIdentity } from './signup-identity';
+
+type ProfessionalsBand = SignupAnswerValues['professionalsBand'];
+type WeeklyAppointmentsBand = SignupAnswerValues['weeklyAppointmentsBand'];
+type CurrentTooling = SignupAnswerValues['currentTooling'];
+type DiscoverySource = SignupAnswerValues['discoverySource'];
+type Draft = Partial<SignupAnswerValues>;
+type Phase = 'loading' | 'challenge' | 'ready' | 'expired' | 'unavailable';
+
+const EMPTY_DRAFT: Draft = {};
+
+const PROFESSIONAL_OPTIONS: OptionCard<ProfessionalsBand>[] = [
+  { value: '1', label: '1 profissional' },
+  { value: '2_5', label: '2 a 5' },
+  { value: '6_15', label: '6 a 15' },
+  { value: '16_plus', label: '16 ou mais' },
+];
+const APPOINTMENT_OPTIONS: OptionCard<WeeklyAppointmentsBand>[] = [
+  { value: 'ate_20', label: 'Até 20' },
+  { value: '21_50', label: '21 a 50' },
+  { value: '51_100', label: '51 a 100' },
+  { value: '100_plus', label: 'Mais de 100' },
+];
+const TOOLING_OPTIONS: OptionCard<CurrentTooling>[] = [
+  { value: 'nada_papel', label: 'Nada ou papel' },
+  { value: 'agenda_generica', label: 'Agenda genérica' },
+  { value: 'outro_sistema', label: 'Outro sistema' },
+];
+const DISCOVERY_OPTIONS: OptionCard<DiscoverySource>[] = [
+  { value: 'busca_google', label: 'Busca no Google' },
+  { value: 'indicacao_colega', label: 'Indicação de um colega' },
+  { value: 'redes_sociais', label: 'Redes sociais' },
+  { value: 'grupo_comunidade', label: 'Grupo ou comunidade' },
+  { value: 'evento', label: 'Evento ou congresso' },
+  { value: 'outro', label: 'Outro' },
+];
+
+const FIELD_NAMES: (keyof SignupAnswerValues)[] = [
+  'professionalsBand',
+  'weeklyAppointmentsBand',
+  'currentTooling',
+  'discoverySource',
+];
+
+function isProfessionalsBand(value: unknown): value is ProfessionalsBand {
+  return value === '1' || value === '2_5' || value === '6_15' || value === '16_plus';
+}
+function isWeeklyAppointmentsBand(value: unknown): value is WeeklyAppointmentsBand {
+  return value === 'ate_20' || value === '21_50' || value === '51_100' || value === '100_plus';
+}
+function isCurrentTooling(value: unknown): value is CurrentTooling {
+  return value === 'nada_papel' || value === 'agenda_generica' || value === 'outro_sistema';
+}
+function isDiscoverySource(value: unknown): value is DiscoverySource {
+  return (
+    value === 'busca_google' ||
+    value === 'indicacao_colega' ||
+    value === 'redes_sociais' ||
+    value === 'grupo_comunidade' ||
+    value === 'evento' ||
+    value === 'outro'
+  );
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+function isAnswers(value: unknown): value is SignupAnswerValues {
+  if (!isRecord(value)) return false;
+  return (
+    isProfessionalsBand(value.professionalsBand) &&
+    isWeeklyAppointmentsBand(value.weeklyAppointmentsBand) &&
+    isCurrentTooling(value.currentTooling) &&
+    isDiscoverySource(value.discoverySource)
+  );
+}
+function isSessionStatus(value: unknown): value is SignupSessionStatus {
+  return (
+    value === 'initiated' ||
+    value === 'details_complete' ||
+    value === 'identity_pending' ||
+    value === 'email_pending' ||
+    value === 'blocked' ||
+    value === 'expired'
+  );
+}
+function isSession(value: unknown): value is SignupSessionState {
+  if (!isRecord(value)) return false;
+  return (
+    isSessionStatus(value.status) &&
+    typeof value.riskLevel === 'number' &&
+    typeof value.expiresAt === 'string' &&
+    typeof value.rowVersion === 'number' &&
+    Number.isInteger(value.rowVersion) &&
+    value.rowVersion >= 1 &&
+    (value.answers === null || isAnswers(value.answers))
+  );
+}
+async function responseBody(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    const value: unknown = await response.json();
+    return isRecord(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function SignupQuestions({ identityEnabled = false }: { identityEnabled?: boolean }) {
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [session, setSession] = useState<SignupSessionState | null>(null);
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageKind, setMessageKind] = useState<'danger' | 'warning' | 'success'>('danger');
+  const [saving, setSaving] = useState(false);
+  const [challengeAttempt, setChallengeAttempt] = useState(0);
+  const startedRef = useRef(false);
+  const submitInFlight = useRef(false);
+  const answersFrozen =
+    session?.status === 'identity_pending' || session?.status === 'email_pending';
+
+  function expireSession() {
+    setSession(null);
+    setPhase('expired');
+    setMessage('Esta sessão expirou. Inicie novamente para responder com segurança.');
+    setMessageKind('warning');
+  }
+
+  const hydrateSession = useCallback(
+    (next: SignupSessionState) => {
+      setSession(next);
+      setDraft(next.answers ?? EMPTY_DRAFT);
+      setMessage(
+        next.status === 'email_pending'
+          ? 'Se houver uma etapa de confirmação para este endereço, você receberá as instruções. Se já tem conta, entre para continuar.'
+          : next.status === 'identity_pending' && !identityEnabled
+            ? 'Dados salvos; criação da conta ainda indisponível. Nenhum e-mail de confirmação foi enviado.'
+            : next.answers
+              ? 'Carregamos as respostas salvas nesta sessão.'
+              : null,
+      );
+      setMessageKind('success');
+      setPhase('ready');
+    },
+    [identityEnabled],
+  );
+
+  const bootstrap = useCallback(
+    async (turnstileToken?: string) => {
+      setPhase('loading');
+      setMessage(null);
+      try {
+        const current = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
+        const currentBody = await responseBody(current);
+        if (current.ok && isSession(currentBody?.session)) {
+          hydrateSession(currentBody.session);
+          return;
+        }
+        if (current.status !== 410) {
+          if (current.status === 429) {
+            setMessage('Muitas consultas em pouco tempo. Aguarde um minuto e tente novamente.');
+            setMessageKind('warning');
+          } else {
+            setMessage('Não foi possível consultar seu cadastro agora. Tente novamente.');
+            setMessageKind('danger');
+          }
+          setPhase('unavailable');
+          return;
+        }
+
+        const created = await fetch('/api/signup/sessions', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(turnstileToken ? { turnstileToken } : {}),
+        });
+        const createdBody = await responseBody(created);
+        if (created.status === 201 && isSession(createdBody?.session)) {
+          hydrateSession(createdBody.session);
+          return;
+        }
+        if (created.status === 401 && createdBody?.error === 'challenge_required') {
+          setMessage('Conclua a verificação de segurança para iniciar.');
+          setMessageKind('warning');
+          setChallengeAttempt((attempt) => attempt + (turnstileToken ? 1 : 0));
+          setPhase('challenge');
+          return;
+        }
+        if (created.status === 429) {
+          setMessage('Muitas tentativas em pouco tempo. Aguarde um minuto e tente novamente.');
+          setMessageKind('warning');
+        } else if (created.status === 503) {
+          setMessage('O cadastro está temporariamente cheio. Tente novamente em alguns minutos.');
+          setMessageKind('warning');
+        } else if (created.status === 403) {
+          setMessage('Não foi possível iniciar o cadastro nesta conexão.');
+          setMessageKind('danger');
+        } else {
+          setMessage('Não foi possível iniciar seu cadastro agora. Tente novamente.');
+          setMessageKind('danger');
+        }
+        setPhase('unavailable');
+      } catch {
+        setMessage('A conexão falhou. Confira sua internet e tente novamente.');
+        setMessageKind('danger');
+        setPhase('unavailable');
+      }
+    },
+    [hydrateSession],
+  );
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    void bootstrap();
+  }, [bootstrap]);
+
+  function answer<K extends keyof SignupAnswerValues>(field: K, value: SignupAnswerValues[K]) {
+    setDraft((current) => ({ ...current, [field]: value }));
+    setMessage(null);
+  }
+
+  async function submitChallenge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = new FormData(event.currentTarget).get('captchaToken');
+    if (typeof token !== 'string' || token.length === 0) {
+      setMessage('A verificação ainda não foi concluída. Aguarde e tente novamente.');
+      setMessageKind('warning');
+      return;
+    }
+    await bootstrap(token);
+  }
+
+  async function reconcileSession(reason: 'conflict' | 'uncertain') {
+    try {
+      const response = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
+      const body = await responseBody(response);
+      if (response.ok && isSession(body?.session)) {
+        hydrateSession(body.session);
+        setMessage(
+          body.session.status === 'email_pending'
+            ? 'A solicitação está em espera. Não repetimos automaticamente a criação da conta.'
+            : reason === 'conflict'
+              ? 'Outra aba salvou primeiro. Carregamos aqui a versão mais recente.'
+              : 'A criação da conta não foi confirmada. Revise os dados antes de tentar novamente.',
+        );
+        setMessageKind('warning');
+      } else if (response.status === 410) {
+        expireSession();
+      } else if (response.status === 429) {
+        setMessage(
+          reason === 'conflict'
+            ? 'Outra aba salvou primeiro, mas a releitura atingiu o limite. Aguarde um minuto e tente novamente.'
+            : 'O resultado não foi confirmado e a releitura atingiu o limite. Aguarde antes de tentar novamente.',
+        );
+        setMessageKind('warning');
+      } else {
+        setMessage(
+          reason === 'conflict'
+            ? 'Outra aba salvou primeiro, mas não foi possível carregar a versão mais recente. Tente novamente.'
+            : 'O resultado não foi confirmado. Recarregue o cadastro antes de fazer uma nova tentativa.',
+        );
+        setMessageKind('danger');
+      }
+    } catch {
+      setMessage(
+        reason === 'conflict'
+          ? 'Outra aba salvou primeiro, mas a conexão falhou durante a releitura. Tente novamente.'
+          : 'A conexão falhou e o resultado não foi confirmado. Recarregue antes de tentar novamente.',
+      );
+      setMessageKind('danger');
+    }
+  }
+
+  async function refreshAfterConflict() {
+    await reconcileSession('conflict');
+  }
+
+  async function submitAnswers(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session || answersFrozen || submitInFlight.current) return;
+    const missing = FIELD_NAMES.find((field) => draft[field] === undefined);
+    if (missing) {
+      document.querySelector<HTMLInputElement>(`input[name="${missing}"]`)?.focus();
+      setMessage('Marque uma opção em cada pergunta para continuar.');
+      setMessageKind('warning');
+      return;
+    }
+    if (!isAnswers(draft)) return;
+    const submittedAnswers = draft;
+
+    submitInFlight.current = true;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/signup/sessions/answers', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...submittedAnswers, rowVersion: session.rowVersion }),
+      });
+      const body = await responseBody(response);
+      if (
+        response.ok &&
+        typeof body?.rowVersion === 'number' &&
+        Number.isInteger(body.rowVersion) &&
+        body.rowVersion >= 1
+      ) {
+        setDraft(submittedAnswers);
+        setSession({
+          ...session,
+          status: 'details_complete',
+          rowVersion: body.rowVersion,
+          answers: submittedAnswers,
+        });
+        setMessage(
+          identityEnabled
+            ? 'Respostas salvas. Preencha seus dados e confirme o aceite abaixo.'
+            : 'Respostas salvas. A etapa de criação da conta será conectada na próxima fatia.',
+        );
+        setMessageKind('success');
+      } else if (response.status === 409) {
+        await refreshAfterConflict();
+      } else if (response.status === 410) {
+        expireSession();
+      } else if (response.status === 429) {
+        setMessage('Muitas tentativas em pouco tempo. Aguarde um minuto antes de salvar.');
+        setMessageKind('warning');
+      } else {
+        setMessage('Não foi possível salvar suas respostas. Tente novamente.');
+        setMessageKind('danger');
+      }
+    } catch {
+      setMessage(
+        'A conexão falhou antes da confirmação. Suas escolhas continuam nesta tela; tente novamente.',
+      );
+      setMessageKind('danger');
+    } finally {
+      submitInFlight.current = false;
+      setSaving(false);
+    }
+  }
+
+  if (phase !== 'ready') {
+    return (
+      <section className="mx-auto flex w-full max-w-[600px] flex-col items-center px-5 pb-16 pt-[12vh] text-center sm:px-8">
+        <div className="w-full rounded-(--r-2xl) bg-surface-raised px-6 py-8 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.08)] sm:px-9">
+          <ShieldCheck aria-hidden="true" className="mx-auto size-8 text-primary" />
+          <h1 className="mt-4 text-balance font-display text-2xl font-semibold tracking-[-0.024em]">
+            {phase === 'loading' ? 'Preparando seu cadastro' : 'Vamos retomar daqui'}
+          </h1>
+          <p
+            aria-live="polite"
+            className="mx-auto mt-2 max-w-[48ch] text-pretty text-sm leading-relaxed text-fg-muted"
+          >
+            {phase === 'loading'
+              ? 'Estamos abrindo uma sessão curta e segura. Nenhum dado pessoal é solicitado nesta etapa.'
+              : message}
+          </p>
+          {phase === 'loading' ? (
+            <div
+              aria-label="Carregando"
+              className="mx-auto mt-6 size-6 animate-spin rounded-full border-2 border-border border-t-primary"
+            />
+          ) : phase === 'challenge' ? (
+            <form onSubmit={submitChallenge} className="mt-6 flex flex-col gap-4">
+              <TurnstileWidget action="signup_start" resetSignal={challengeAttempt} />
+              <Button type="submit" className="mx-auto min-w-44 active:scale-[0.96]">
+                Continuar
+              </Button>
+            </form>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => void bootstrap()}
+              className="mt-6 active:scale-[0.96]"
+            >
+              {phase === 'expired' ? 'Começar novamente' : 'Tentar novamente'}
+            </Button>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto grid w-full max-w-[1120px] gap-8 px-5 pb-16 pt-5 sm:px-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-12 lg:pt-9">
+      <div className="min-w-0">
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+          Etapa 1 · perfil da clínica
+        </p>
+        <h1 className="mt-3 max-w-[19ch] text-balance font-display text-3xl font-semibold leading-[1.12] tracking-[-0.03em] sm:text-4xl">
+          Conte como sua clínica funciona hoje
+        </h1>
+        <p className="mt-3 max-w-[62ch] text-pretty text-sm leading-relaxed text-fg-muted">
+          São quatro perguntas de marcar. Não pedimos nome, contato ou dados de pacientes nesta
+          etapa.
+        </p>
+
+        <form
+          onSubmit={submitAnswers}
+          className="mt-8 rounded-(--r-2xl) bg-surface-raised p-5 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-7"
+        >
+          <div className="grid gap-x-7 gap-y-7 lg:grid-cols-2">
+            <Question number="01" title="Quantos profissionais atendem na clínica?">
+              <OptionCardGroup<ProfessionalsBand>
+                name="professionalsBand"
+                aria-label="Quantidade de profissionais"
+                value={draft.professionalsBand}
+                onValueChange={(value) => answer('professionalsBand', value)}
+                options={PROFESSIONAL_OPTIONS}
+                disabled={saving || answersFrozen}
+                className="grid grid-cols-2"
+              />
+            </Question>
+            <Question number="02" title="Quantos atendimentos por semana, aproximadamente?">
+              <OptionCardGroup<WeeklyAppointmentsBand>
+                name="weeklyAppointmentsBand"
+                aria-label="Atendimentos por semana"
+                value={draft.weeklyAppointmentsBand}
+                onValueChange={(value) => answer('weeklyAppointmentsBand', value)}
+                options={APPOINTMENT_OPTIONS}
+                disabled={saving || answersFrozen}
+                className="grid grid-cols-2"
+              />
+            </Question>
+            <Question number="03" title="O que você usa hoje para organizar a clínica?">
+              <OptionCardGroup<CurrentTooling>
+                name="currentTooling"
+                aria-label="Ferramenta atual"
+                value={draft.currentTooling}
+                onValueChange={(value) => answer('currentTooling', value)}
+                options={TOOLING_OPTIONS}
+                disabled={saving || answersFrozen}
+              />
+            </Question>
+            <Question number="04" title="Por onde ficou sabendo da Qoro?">
+              <OptionCardGroup<DiscoverySource>
+                name="discoverySource"
+                aria-label="Como conheceu a Qoro"
+                value={draft.discoverySource}
+                onValueChange={(value) => answer('discoverySource', value)}
+                options={DISCOVERY_OPTIONS}
+                disabled={saving || answersFrozen}
+                className="grid grid-cols-1 sm:grid-cols-2"
+              />
+            </Question>
+          </div>
+
+          <div aria-live="polite" className="mt-7">
+            {message ? <Alert variant={messageKind}>{message}</Alert> : null}
+          </div>
+          <div className="mt-6 flex flex-col-reverse items-stretch justify-between gap-4 border-t border-border pt-5 sm:flex-row sm:items-center">
+            <span className="inline-flex items-center justify-center gap-2 text-pretty text-xs text-fg-subtle sm:justify-start">
+              <LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
+              Sessão protegida e temporária
+            </span>
+            {!answersFrozen ? (
+              <Button
+                type="submit"
+                loading={saving}
+                className="min-w-44 gap-2 pl-4 pr-3.5 active:scale-[0.96]"
+              >
+                Salvar respostas <ArrowRight aria-hidden="true" className="size-4" />
+              </Button>
+            ) : null}
+          </div>
+        </form>
+        {identityEnabled &&
+        session &&
+        session.status !== 'initiated' &&
+        session.status !== 'email_pending' ? (
+          <SignupIdentity
+            key={session.rowVersion}
+            rowVersion={session.rowVersion}
+            saved={answersFrozen}
+            onEmailPending={(rowVersion) => {
+              setSession({ ...session, status: 'email_pending', rowVersion });
+              setMessage(
+                'A solicitação está em espera. Se o endereço puder continuar, você receberá as instruções.',
+              );
+              setMessageKind('success');
+            }}
+            onReconcile={reconcileSession}
+            onGone={expireSession}
+          />
+        ) : null}
+        {identityEnabled && session?.status === 'email_pending' ? (
+          <SignupEmailPending
+            rowVersion={session.rowVersion}
+            onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
+            onReconcile={reconcileSession}
+            onGone={expireSession}
+          />
+        ) : null}
+      </div>
+
+      <aside className="self-start rounded-(--r-xl) bg-(--primary-soft) p-5 text-(--primary-active) lg:sticky lg:top-8">
+        <Logo className="h-auto w-[64px] opacity-80" />
+        <h2 className="mt-8 text-balance font-display text-xl font-semibold tracking-[-0.02em]">
+          {identityEnabled
+            ? 'Um começo simples e protegido'
+            : 'Um começo simples e sem dados pessoais'}
+        </h2>
+        <p className="mt-2 text-pretty text-sm leading-relaxed opacity-80">
+          Suas respostas ficam ligadas apenas a esta sessão temporária.
+        </p>
+        <div className="mt-6 border-t border-current/15 pt-5 text-xs leading-relaxed opacity-75">
+          {identityEnabled
+            ? 'Depois das quatro perguntas, seus dados, senha e aceite são preenchidos juntos abaixo.'
+            : 'Depois desta etapa, identidade e consentimento serão tratados juntos em uma tela própria.'}
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function Question({
+  number,
+  title,
+  children,
+}: {
+  number: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <fieldset className="min-w-0 border-t border-border pt-4">
+      <legend className="mb-3 flex w-full items-start gap-3 text-left">
+        <span
+          aria-hidden="true"
+          className="font-mono text-xs font-semibold tabular-nums text-primary"
+        >
+          {number}
+        </span>
+        <span className="text-pretty text-sm font-semibold leading-snug text-fg">{title}</span>
+      </legend>
+      {children}
+    </fieldset>
+  );
+}

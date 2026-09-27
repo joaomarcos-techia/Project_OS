@@ -13,12 +13,30 @@ export {
   type RecordAnswersOutcome,
   type SignupAnswers,
 } from './internal/signup-answers';
+export type { SignupAnswerValues } from './internal/signup-answer-values';
+export {
+  readSignupDraft,
+  signupDraftMutationSchema,
+  writeSignupDraft,
+  type SignupDraftState,
+  type WriteSignupDraftInput,
+} from './internal/signup-draft';
 export {
   SIGNUP_SESSION_CEILING,
   createSignupSession,
+  hashSignupToken,
   getSignupSessionPressure,
   purgeExpiredSignupSessions,
   readSignupSession,
+  recordSignupIdentity,
+  signupIdentitySchema,
+  signupAuthSchema,
+  signupResendSchema,
+  reserveSignupAuthAttempt,
+  reserveSignupResendAttempt,
+  finishSignupAuthAttempt,
+  finishSignupResendAttempt,
+  SIGNUP_RESEND_COOLDOWN_SECONDS,
   type SignupSessionState,
   type SignupSessionStatus,
 } from './internal/signup-session';

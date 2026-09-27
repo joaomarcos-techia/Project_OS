@@ -16,15 +16,21 @@ import 'server-only';
 
 import { createHmac, randomBytes } from 'node:crypto';
 
-import { and, eq, gt, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { assertSignupSessionAllowed } from '@/lib/auth/rate-limit';
 import { RISK_HIGH, RISK_LOW, classifySignupRisk } from './signup-risk';
 import { verifyTurnstileToken } from './turnstile';
+import { z } from 'zod';
+
+import { hashEmail } from '@/lib/auth/email-hash';
+import { signupPasswordSchema } from '@/lib/auth/signup-password';
 import { dbAdmin } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+
+import { signupAnswerValuesSchema, type SignupAnswerValues } from './signup-answer-values';
 
 /**
  * TTLs em SEGUNDOS, e computados pelo relógio do BANCO (`now()`), não pelo do
@@ -37,9 +43,9 @@ import { metrics } from '@/lib/observability/metrics';
  * conseguiria reproduzir, porque dependeria de qual instância atendeu.
  */
 /** 15 min de inatividade (§21.6). Atividade válida renova SÓ este. */
-const IDLE_TTL_SECONDS = 15 * 60;
+export const SIGNUP_IDLE_TTL_SECONDS = 15 * 60;
 /** 60 min absolutos (§21.6). Atividade NÃO renova. */
-const ABSOLUTE_TTL_SECONDS = 60 * 60;
+export const SIGNUP_ABSOLUTE_TTL_SECONDS = 60 * 60;
 
 /**
  * Teto de sessões vivas simultâneas — a válvula que torna defensável degradar o
@@ -73,7 +79,14 @@ const CEILING_RECHECK_MS = 30_000;
  * ficam no fim porque são saídas, não avanço. `details_complete` entrou com a
  * migration 0098 (as quatro perguntas do §1.c.1 do ADR-060).
  */
-export const SIGNUP_FUNNEL_ORDER = ['initiated', 'details_complete', 'blocked', 'expired'] as const;
+export const SIGNUP_FUNNEL_ORDER = [
+  'initiated',
+  'details_complete',
+  'identity_pending',
+  'email_pending',
+  'blocked',
+  'expired',
+] as const;
 
 export type SignupSessionStatus = (typeof SIGNUP_FUNNEL_ORDER)[number];
 
@@ -84,6 +97,22 @@ export interface SignupSessionState {
   /** ISO. O cliente usa para saber quando a sessão morre sem ficar adivinhando. */
   expiresAt: string;
   rowVersion: number;
+  /** Respostas sanitizadas para refresh/retomada; nenhuma PII ou id interno. */
+  answers: SignupAnswerValues | null;
+}
+
+type PersistedAnswers = {
+  professionalsBand: string | null;
+  weeklyAppointmentsBand: string | null;
+  currentTooling: string | null;
+  discoverySource: string | null;
+};
+
+function readPersistedAnswers(row: PersistedAnswers): SignupAnswerValues | null {
+  if (Object.values(row).every((value) => value === null)) return null;
+  const parsed = signupAnswerValuesSchema.safeParse(row);
+  if (!parsed.success) throw new Error('[signup] respostas persistidas violam o contrato');
+  return parsed.data;
 }
 
 /**
@@ -119,20 +148,26 @@ export function hashSignupToken(rawToken: string): string {
 }
 
 /**
- * Predicado de "viva": ainda `initiated` e dentro dos DOIS prazos.
+ * Predicado de "viva": progresso não consumido dentro dos DOIS prazos.
  *
  * `idle` e `absolute` são conferidos os dois porque a renovação de atividade
  * mexe só no primeiro — uma sessão pode ter idle no futuro e absoluto no
  * passado, e essa está morta.
  */
-function liveCondition(now: Date) {
+function liveCondition() {
   return and(
     // `details_complete` também é sessão VIVA: responder as perguntas avança o
     // funil, não o encerra. Sem isto, `GET /me` passaria a devolver 410 logo
     // depois do passo 1 — e a página perderia a própria sessão ao recarregar.
-    inArray(signupSessions.status, ['initiated', 'details_complete']),
-    gt(signupSessions.idleExpiresAt, now),
-    gt(signupSessions.absoluteExpiresAt, now),
+    inArray(signupSessions.status, [
+      'initiated',
+      'details_complete',
+      'identity_pending',
+      'email_pending',
+    ]),
+    isNull(signupSessions.consumedAt),
+    gt(signupSessions.idleExpiresAt, sql`now()`),
+    gt(signupSessions.absoluteExpiresAt, sql`now()`),
   );
 }
 
@@ -153,7 +188,7 @@ async function atCapacity(now: Date): Promise<boolean> {
   const [row] = await dbAdmin
     .select({ live: sql<number>`count(*)::int` })
     .from(signupSessions)
-    .where(liveCondition(now));
+    .where(liveCondition());
   const live = row?.live ?? 0;
   ceilingCheckedAt = now.getTime();
   ceilingReached = live >= SIGNUP_SESSION_CEILING;
@@ -232,8 +267,8 @@ export async function createSignupSession(
       tokenHash: hashSignupToken(rawToken),
       status: 'initiated',
       riskLevel: risk.level,
-      idleExpiresAt: sql`now() + make_interval(secs => ${IDLE_TTL_SECONDS})`,
-      absoluteExpiresAt: sql`now() + make_interval(secs => ${ABSOLUTE_TTL_SECONDS})`,
+      idleExpiresAt: sql`now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS})`,
+      absoluteExpiresAt: sql`now() + make_interval(secs => ${SIGNUP_ABSOLUTE_TTL_SECONDS})`,
     })
     .returning({
       status: signupSessions.status,
@@ -257,12 +292,13 @@ export async function createSignupSession(
       riskLevel: row.riskLevel,
       expiresAt: row.idleExpiresAt.toISOString(),
       rowVersion: row.rowVersion,
+      answers: null,
     },
   };
 }
 
 /**
- * Lê o estado da própria sessão e RENOVA o TTL de inatividade.
+ * Lê o estado e renova idle antes do envio; espera email_pending não renova.
  *
  * Devolve `null` tanto para token inexistente quanto para sessão vencida ou
  * bloqueada: quem chama responde `410` genérico, sem distinguir os casos — a
@@ -274,7 +310,6 @@ export async function createSignupSession(
  * varia de forma útil com o valor procurado.
  */
 export async function readSignupSession(rawToken: string): Promise<SignupSessionState | null> {
-  const now = new Date();
   const tokenHash = hashSignupToken(rawToken);
 
   // Renova o idle na MESMA ida ao banco que lê — ler e depois atualizar seriam
@@ -293,23 +328,37 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
   const [row] = await dbAdmin
     .update(signupSessions)
     .set({
-      idleExpiresAt: sql`least(now() + make_interval(secs => ${IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
+      idleExpiresAt: sql`CASE WHEN ${signupSessions.status} = 'email_pending'
+        THEN ${signupSessions.idleExpiresAt}
+        ELSE least(now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt}) END`,
     })
-    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition(now)))
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
     .returning({
       status: signupSessions.status,
       riskLevel: signupSessions.riskLevel,
       rowVersion: signupSessions.rowVersion,
       idleExpiresAt: signupSessions.idleExpiresAt,
+      professionalsBand: signupSessions.professionalsBand,
+      weeklyAppointmentsBand: signupSessions.weeklyAppointmentsBand,
+      currentTooling: signupSessions.currentTooling,
+      discoverySource: signupSessions.discoverySource,
     });
 
   if (!row) return null;
+  const status = SIGNUP_FUNNEL_ORDER.find((value) => value === row.status);
+  if (!status) throw new Error('[signup] invalid_persisted_status');
 
   return {
-    status: row.status as SignupSessionStatus,
+    status,
     riskLevel: row.riskLevel,
     expiresAt: row.idleExpiresAt.toISOString(),
     rowVersion: row.rowVersion,
+    answers: readPersistedAnswers({
+      professionalsBand: row.professionalsBand,
+      weeklyAppointmentsBand: row.weeklyAppointmentsBand,
+      currentTooling: row.currentTooling,
+      discoverySource: row.discoverySource,
+    }),
   };
 }
 
@@ -323,11 +372,8 @@ export interface SignupPurgeResult {
 /**
  * Janitor: apaga as vencidas e devolve quantas seguem vivas.
  *
- * APAGA, não anonimiza, porque esta fatia não guarda PII nenhuma. **Mas já nasce
- * preparado para PII**: a fatia seguinte (as três perguntas, que na ordem A vêm
- * antes da identidade) traz `owner_name`, e um janitor que só soubesse apagar
- * linha "vazia" precisaria ser reescrito justamente na parte onde esquecer tem
- * consequência de LGPD. O `DELETE` cobre os dois casos por construção.
+ * APAGA toda a linha, inclusive nomes/HMAC/aceite do staging O-3a. A expiração
+ * encerra acesso; a remoção física depende da execução deste janitor limitado.
  *
  * Lote pequeno: a tabela é de alta rotatividade e um `DELETE` sem teto poderia
  * segurar lock por muito tempo num pico.
@@ -352,7 +398,7 @@ export async function purgeExpiredSignupSessions(batch = 500): Promise<SignupPur
   const [row] = await dbAdmin
     .select({ live: sql<number>`count(*)::int` })
     .from(signupSessions)
-    .where(liveCondition(now));
+    .where(liveCondition());
   const live = row?.live ?? 0;
 
   if (deletedRows.length > 0) {
@@ -373,6 +419,302 @@ export async function getSignupSessionPressure(): Promise<{ live: number; ceilin
   const [row] = await dbAdmin
     .select({ live: sql<number>`count(*)::int` })
     .from(signupSessions)
-    .where(liveCondition(new Date()));
+    .where(liveCondition());
   return { live: row?.live ?? 0, ceiling: SIGNUP_SESSION_CEILING };
+}
+
+const MAX_NAME_CHARACTERS = 120;
+export const signupNameSchema = z
+  .string()
+  .refine((v) => !/[\u0000-\u001f\u007f-\u009f]/u.test(v))
+  .transform((v) => v.trim())
+  .refine((v) => Array.from(v).length >= 1 && Array.from(v).length <= MAX_NAME_CHARACTERS);
+
+/** Nenhum detalhe deste parser atravessa a resposta ou observabilidade. */
+export const signupIdentitySchema = z
+  .object({
+    rowVersion: z.number().int().min(1).max(2_147_483_646),
+    ownerName: signupNameSchema,
+    clinicName: signupNameSchema,
+    email: z.string().trim().max(160).email(),
+    accepted: z.literal(true),
+  })
+  .strict();
+
+type IdentityOutcome =
+  | { ok: true; rowVersion: number }
+  | { ok: false; reason: 'gone' | 'conflict' | 'unavailable' };
+
+function usableIdentity(tokenHash: string) {
+  return and(
+    eq(signupSessions.tokenHash, tokenHash),
+    inArray(signupSessions.status, ['details_complete', 'identity_pending', 'email_pending']),
+    isNull(signupSessions.consumedAt),
+    isNotNull(signupSessions.professionalsBand),
+    isNotNull(signupSessions.weeklyAppointmentsBand),
+    isNotNull(signupSessions.currentTooling),
+    isNotNull(signupSessions.discoverySource),
+    isNotNull(signupSessions.answeredAt),
+    gt(signupSessions.idleExpiresAt, sql`now()`),
+    gt(signupSessions.absoluteExpiresAt, sql`now()`),
+  );
+}
+
+/** Aceite, staging, avanço e renovação idle são uma única escrita guardada. */
+export async function recordSignupIdentity(
+  rawToken: string,
+  input: unknown,
+): Promise<IdentityOutcome> {
+  if (!env.SIGNUP_IDENTITY_ENABLED) return { ok: false, reason: 'unavailable' };
+  const check = signupIdentitySchema.safeParse(input);
+  if (!check.success) throw new Error('[signup] invalid_identity');
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  const tokenHash = hashSignupToken(rawToken);
+  const { ownerName, clinicName, email, rowVersion } = check.data;
+  const [saved] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      ownerName,
+      clinicName,
+      emailHash: hashEmail(email),
+      acceptedAt: sql`now()`,
+      status: 'identity_pending',
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+      idleExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
+    })
+    .where(
+      and(
+        usableIdentity(tokenHash),
+        inArray(signupSessions.status, ['details_complete', 'identity_pending']),
+        isNull(signupSessions.authAttemptState),
+        eq(signupSessions.rowVersion, rowVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (saved) return { ok: true, rowVersion: saved.rowVersion };
+  const [live] = await dbAdmin
+    .select({ rowVersion: signupSessions.rowVersion })
+    .from(signupSessions)
+    .where(usableIdentity(tokenHash))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
+}
+
+/** Senha/captcha/e-mail bruto só existem no request; não entram no staging. */
+export const signupAuthSchema = z
+  .object({
+    rowVersion: z.number().int().min(1).max(2_147_483_645),
+    email: z.string().trim().max(160).email(),
+    password: signupPasswordSchema,
+    accepted: z.literal(true),
+    captchaToken: z.string().trim().min(1).max(2_048).optional(),
+  })
+  .strict();
+
+export const SIGNUP_RESEND_COOLDOWN_SECONDS = 60;
+export const signupResendSchema = z
+  .object({
+    rowVersion: z.number().int().min(1).max(2_147_483_645),
+    email: z.string().trim().max(160).email(),
+    accepted: z.literal(true),
+    captchaToken: z.string().trim().min(1).max(2_048).optional(),
+  })
+  .strict();
+
+type ResendReserveOutcome = IdentityOutcome | { ok: false; reason: 'cooldown'; retryAfter: number };
+
+/** CAS autoriza uma única chamada inicial ao Auth, sempre fora da transação. */
+export async function reserveSignupAuthAttempt(
+  rawToken: string,
+  input: unknown,
+): Promise<IdentityOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  const check = signupAuthSchema.safeParse(input);
+  if (!check.success) throw new Error('[signup] invalid_auth');
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  const tokenHash = hashSignupToken(rawToken);
+  const [reserved] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      status: 'email_pending',
+      authAttemptKind: 'initial',
+      authAttemptState: 'reserved',
+      authAttemptedAt: sql`now()`,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+      idleExpiresAt: sql`least(now() + make_interval(secs => ${SIGNUP_IDLE_TTL_SECONDS}), ${signupSessions.absoluteExpiresAt})`,
+    })
+    .where(
+      and(
+        usableIdentity(tokenHash),
+        eq(signupSessions.status, 'identity_pending'),
+        eq(signupSessions.emailHash, hashEmail(check.data.email)),
+        isNotNull(signupSessions.ownerName),
+        isNotNull(signupSessions.clinicName),
+        isNotNull(signupSessions.acceptedAt),
+        isNull(signupSessions.authAttemptState),
+        eq(signupSessions.rowVersion, check.data.rowVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (reserved) return { ok: true, rowVersion: reserved.rowVersion };
+  const [live] = await dbAdmin
+    .select({ rowVersion: signupSessions.rowVersion })
+    .from(signupSessions)
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
+}
+
+/** Finalização tardia não modifica uma reserva nova nem renova TTL por máquina. */
+export async function finishSignupAuthAttempt(
+  rawToken: string,
+  reservedVersion: number,
+  outcome: 'completed' | 'uncertain',
+): Promise<IdentityOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  if (
+    !Number.isInteger(reservedVersion) ||
+    reservedVersion < 2 ||
+    reservedVersion > 2_147_483_646 ||
+    (outcome !== 'completed' && outcome !== 'uncertain')
+  )
+    throw new Error('[signup] invalid_auth_result');
+  const tokenHash = hashSignupToken(rawToken);
+  const [finished] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      authAttemptState: outcome,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        liveCondition(),
+        eq(signupSessions.status, 'email_pending'),
+        eq(signupSessions.authAttemptKind, 'initial'),
+        eq(signupSessions.authAttemptState, 'reserved'),
+        eq(signupSessions.rowVersion, reservedVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (finished) return { ok: true, rowVersion: finished.rowVersion };
+  const [live] = await dbAdmin
+    .select({ rowVersion: signupSessions.rowVersion })
+    .from(signupSessions)
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
+}
+
+/** Reserva reenvio explícito após cooldown; nunca renova TTL nem repete signUp. */
+export async function reserveSignupResendAttempt(
+  rawToken: string,
+  input: unknown,
+): Promise<ResendReserveOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  const check = signupResendSchema.safeParse(input);
+  if (!check.success) throw new Error('[signup] invalid_resend');
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  const tokenHash = hashSignupToken(rawToken);
+  const cooldownThreshold = sql`now() - make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS})`;
+  const [reserved] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      authAttemptKind: 'resend',
+      authAttemptState: 'reserved',
+      authAttemptedAt: sql`now()`,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        liveCondition(),
+        eq(signupSessions.status, 'email_pending'),
+        eq(signupSessions.emailHash, hashEmail(check.data.email)),
+        isNotNull(signupSessions.authAttemptKind),
+        inArray(signupSessions.authAttemptState, ['reserved', 'completed', 'uncertain']),
+        isNotNull(signupSessions.authAttemptedAt),
+        lte(signupSessions.authAttemptedAt, cooldownThreshold),
+        eq(signupSessions.rowVersion, check.data.rowVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (reserved) return { ok: true, rowVersion: reserved.rowVersion };
+
+  const [cooldown] = await dbAdmin
+    .select({
+      retryAfter: sql<number>`greatest(1, ceil(extract(epoch from (
+        ${signupSessions.authAttemptedAt} + make_interval(secs => ${SIGNUP_RESEND_COOLDOWN_SECONDS}) - now()
+      )))::int)`,
+    })
+    .from(signupSessions)
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        liveCondition(),
+        eq(signupSessions.status, 'email_pending'),
+        eq(signupSessions.emailHash, hashEmail(check.data.email)),
+        isNotNull(signupSessions.authAttemptKind),
+        inArray(signupSessions.authAttemptState, ['reserved', 'completed', 'uncertain']),
+        isNotNull(signupSessions.authAttemptedAt),
+        gt(signupSessions.authAttemptedAt, cooldownThreshold),
+        eq(signupSessions.rowVersion, check.data.rowVersion),
+      ),
+    )
+    .limit(1);
+  if (cooldown) return { ok: false, reason: 'cooldown', retryAfter: cooldown.retryAfter };
+
+  const [live] = await dbAdmin
+    .select({ rowVersion: signupSessions.rowVersion })
+    .from(signupSessions)
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
+}
+
+/** Resultado tardio só conclui a reserva resend de mesma versão. */
+export async function finishSignupResendAttempt(
+  rawToken: string,
+  reservedVersion: number,
+  outcome: 'completed' | 'uncertain',
+): Promise<IdentityOutcome> {
+  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED)
+    return { ok: false, reason: 'unavailable' };
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return { ok: false, reason: 'gone' };
+  if (
+    !Number.isInteger(reservedVersion) ||
+    reservedVersion < 2 ||
+    reservedVersion > 2_147_483_646 ||
+    (outcome !== 'completed' && outcome !== 'uncertain')
+  )
+    throw new Error('[signup] invalid_resend_result');
+  const tokenHash = hashSignupToken(rawToken);
+  const [finished] = await dbAdmin
+    .update(signupSessions)
+    .set({
+      authAttemptState: outcome,
+      rowVersion: sql`${signupSessions.rowVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(signupSessions.tokenHash, tokenHash),
+        liveCondition(),
+        eq(signupSessions.status, 'email_pending'),
+        eq(signupSessions.authAttemptKind, 'resend'),
+        eq(signupSessions.authAttemptState, 'reserved'),
+        eq(signupSessions.rowVersion, reservedVersion),
+      ),
+    )
+    .returning({ rowVersion: signupSessions.rowVersion });
+  if (finished) return { ok: true, rowVersion: finished.rowVersion };
+  const [live] = await dbAdmin
+    .select({ rowVersion: signupSessions.rowVersion })
+    .from(signupSessions)
+    .where(and(eq(signupSessions.tokenHash, tokenHash), liveCondition()))
+    .limit(1);
+  return { ok: false, reason: live ? 'conflict' : 'gone' };
 }
