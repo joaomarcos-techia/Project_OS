@@ -17,8 +17,8 @@ Plano canônico para evoluir o Qoro para **plataforma de saúde mental que cobra
 
 **Checkpoint atual — 26/09/2026: TRACK O PUBLICADO; CHECKOUT HOSPEDADO VALIDADO EM DEV/PREVIEW NO
 PR #18.** As nove fatias do §21.19 estão implementadas; O-1 vive no repositório da landing
-e as demais neste. O banco de **produção** está em **105 migrations** (`0096`–`0104` aplicadas em
-19/09 com backup, advisory lock e leitura de conferência), `/comecar` está publicado e ligado e o
+e as demais neste. O banco de **produção** está em **107 migrations**: `0096`–`0104` foram aplicadas em
+19/09 e `0105`–`0106` em 26/09, sempre com backup, advisory lock e leitura de conferência. `/comecar` está publicado e ligado e o
 cadastro autônomo está aberto. A tentativa humana revelou, porém, que o fluxo de confirmação publicado
 dependia do template divergente do painel Supabase e podia terminar em link inválido. A emenda vigente
 de §37.6/ADR-062 §11 remove essa dependência, separa confirmação da caixa e entrega da credencial e
@@ -7130,10 +7130,14 @@ cobertura, inventário de segurança, isolamento entre tenants, build Next, insp
 público. Vercel, Semgrep e Snyk também terminaram verdes no PR #18. Esse verde prova o código e o
 Preview; não substitui a conclusão humana do cartão/reCAPTCHA no Sandbox.
 
-As migrations 0105–0106 foram aplicadas somente no DEV. O readback encontrou as duas versões, as
-duas colunas e um único CHECK exigindo `asaas_customer_id IS NULL` em `checkout_pending`. Produção
-continua com 0104 como última migration deste track e não pode receber este runtime antes de uma
-aplicação autorizada das duas migrations.
+As migrations 0105–0106 foram aplicadas e relidas em **DEV e produção**. Em produção, o migrador
+protegido criou `prod-pre-migration-2026-09-26T23-42-32.sql` (**2.741.328 bytes**), adquiriu e liberou
+o advisory lock `4242` e terminou `DONE`, exit 0. O readback independente encontrou o journal em
+`0106` (107 migrations), as versões `signup-hosted-checkout` e
+`signup-checkout-collects-payer`, as colunas `asaas_checkout_id`/`asaas_checkout_url`, o `UNIQUE` do
+checkout, os CHECKs fechados de estado, RLS `ENABLE` + `FORCE`, ausência de privilégios para `anon` e
+`authenticated`, zero linha inválida e zero advisory lock residual. O gate de schema de produção está
+**PASS**; o PR #18 continua sem merge por decisão explícita do owner.
 
 ### 38.5 Documentos sincronizados
 

@@ -222,7 +222,13 @@ assinatura e valida customer, `ACTIVE`, cartão, ciclo mensal, valor e venciment
 Cancelamento/expiração também não confiam no callback: primeiro verificam ausência de assinatura,
 cancelam o Checkout no provider e só então limpam a tentativa por CAS. A migration 0106 foi aplicada
 ao DEV; readback confirmou as duas versões, as colunas e um único CHECK exigindo customer nulo em
-`checkout_pending`. Produção permanece sem 0105–0106 nesta etapa.
+`checkout_pending`.
+
+Em 26/09/2026, 0105–0106 também foram aplicadas em produção com o migrador protegido: backup
+pré-migration de **2.741.328 bytes**, advisory lock `4242` adquirido/liberado e `DONE`, exit 0. O
+readback independente confirmou journal em 0106 (107 migrations), versões, colunas, `UNIQUE`, CHECKs,
+RLS `ENABLE` + `FORCE`, privilégios `anon`/`authenticated` ausentes, zero estado inválido e zero lock
+residual. Isso fecha o gate de schema; não publica nem mescla o runtime do PR #18.
 
 O pipeline remoto final do PR #18 passou integralmente no commit `6ec03d0` (run `36274393423`):
 4.399 testes com cobertura, inventário de segurança, isolamento entre tenants, build Next, inspeção do

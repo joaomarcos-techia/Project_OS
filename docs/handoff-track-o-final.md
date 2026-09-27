@@ -241,7 +241,9 @@ assinatura direta suficiente e provisionava imediatamente; o E2E de confirmaçã
 
 Estado atual:
 
-- 0105–0106 aplicadas e relidas somente no banco DEV; produção ainda não está pronta para esse código;
+- 0105–0106 aplicadas e relidas em DEV e produção; em produção houve backup de 2.741.328 bytes,
+  advisory lock 4242 adquirido/liberado, journal em 0106, constraints/RLS/grants conferidos, zero
+  estado inválido e zero lock residual;
 - Checkout real criado no Sandbox, com dados do pagador e cartão coletados no domínio do Asaas;
 - o primeiro E2E do Preview encontrou o limite real de 30 caracteres em `items[].name`; o nome técnico
   foi separado da descrição, um probe externo passou de 400 para 200 e o recurso foi cancelado;
@@ -261,5 +263,5 @@ Estado atual:
   já expunha o vencimento do ciclo seguinte. O corretivo está no PR #18, com testes locais e readback
   externo. O reteste da mesma tentativa passou: status 200, assinatura/trial publicados,
   `signup.provisioned`, sessão renovada e dashboard 200. O gate é **PASS em DEV/Preview**;
-- não mesclar/publicar em produção antes de aplicar 0105–0106 no banco de produção em janela
-  autorizada. O Preview com banco DEV é o alvo de validação.
+- o gate de schema de produção está fechado. O PR #18 permanece sem merge/publicação até autorização
+  explícita do owner; o Preview com banco DEV continua sendo o alvo do roteiro humano.
