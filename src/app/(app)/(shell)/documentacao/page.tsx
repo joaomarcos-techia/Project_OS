@@ -1,28 +1,16 @@
-import { ChevronRight } from 'lucide-react';
-import Link from 'next/link';
+import { Compass } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
-import { Card } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 
 import { currentOnboardingProgress } from '../_painel/onboarding-progress';
 
-import { DOC_TOPICS } from './content';
+import { DocumentationDirectory } from './documentation-directory';
+import { DocumentationNavigation } from './documentation-navigation';
 import { MarkDocsVisited } from './mark-visited';
 import { RestartTour } from './restart-tour';
 
-/**
- * O-7 — central de documentação DO PRODUTO (`/documentacao`).
- *
- * Autenticada como qualquer tela do shell. O guard aqui é o mesmo backstop do
- * dashboard: o layout também redireciona, mas segmentos renderizam
- * concorrentemente e um `AuthError` esperado não deve virar 500 antes de o
- * redirect do layout ganhar a corrida.
- *
- * Nenhuma leitura de tenant acontece nesta página — o texto é igual para todas
- * as clínicas. É o que a torna tenant-safe por construção.
- */
+/** Central autenticada com conteúdo estático, igual para todas as clínicas. */
 export const metadata = { title: 'Ajuda' };
 
 export default async function DocumentacaoPage() {
@@ -33,32 +21,33 @@ export default async function DocumentacaoPage() {
   return (
     <>
       <MarkDocsVisited />
-      <PageHeader
-        crumbs={[{ label: 'Ajuda' }]}
-        title="Central de ajuda"
-        description="Como cada parte do Qoro funciona, por escrito."
-        {...(onboarding ? { actions: <RestartTour state={onboarding.tourState} /> } : {})}
-      />
-      <ul className="flex flex-col gap-2.5" data-testid="doc-topics">
-        {DOC_TOPICS.map((topic) => (
-          <li key={topic.slug}>
-            <Card className="overflow-hidden">
-              <Link
-                href={`/documentacao/${topic.slug}`}
-                className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-(length:--fs-sm) font-semibold">{topic.title}</span>
-                  <span className="block text-pretty text-(length:--fs-xs) text-fg-muted">
-                    {topic.summary}
-                  </span>
+      <div className="grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <DocumentationNavigation />
+        <main className="min-w-0">
+          <DocumentationDirectory />
+
+          {onboarding && onboarding.tourState !== 'in_progress' ? (
+            <section className="mt-9 flex flex-col gap-4 rounded-(--r-lg) bg-surface p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-(--r-sm) bg-(--primary-soft) text-(--primary-active)">
+                  <Compass aria-hidden="true" className="size-5" />
                 </span>
-                <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-fg-subtle" />
-              </Link>
-            </Card>
-          </li>
-        ))}
-      </ul>
+                <div>
+                  <h2 className="text-balance font-semibold text-fg">
+                    Prefere conhecer pelas telas?
+                  </h2>
+                  <p className="mt-1 text-pretty text-(length:--fs-sm) text-fg-muted">
+                    Inicie um tour curto quando quiser. Ele não abre sozinho no primeiro acesso.
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0">
+                <RestartTour state={onboarding.tourState} />
+              </div>
+            </section>
+          ) : null}
+        </main>
+      </div>
     </>
   );
 }

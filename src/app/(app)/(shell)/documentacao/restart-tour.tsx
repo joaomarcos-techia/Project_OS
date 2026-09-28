@@ -1,5 +1,6 @@
 'use client';
 
+import { PlayCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 
@@ -23,9 +24,11 @@ export function RestartTour({ state }: { state: TourState }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  // `tour_reopen` só sai de estado terminal. Oferecer o botão em `in_progress`
-  // prometeria uma ação que o servidor recusaria — o tour já está aberto.
-  if (state !== 'completed' && state !== 'skipped') return null;
+  // Em `in_progress` a janela já está aberta no shell. Não oferecemos uma
+  // segunda ação concorrente na página que fica atrás dela.
+  if (state === 'in_progress') return null;
+
+  const firstRun = state === 'not_started';
 
   return (
     <Button
@@ -33,14 +36,16 @@ export function RestartTour({ state }: { state: TourState }) {
       variant="secondary"
       loading={pending}
       data-testid="restart-tour"
+      className="active:scale-[0.96]"
       onClick={() =>
         startTransition(async () => {
-          await submitOnboardingAction({ action: 'tour_reopen' });
+          await submitOnboardingAction({ action: firstRun ? 'tour_start' : 'tour_reopen' });
           router.refresh();
         })
       }
     >
-      Refazer o tour
+      <PlayCircle aria-hidden="true" className="size-4" />
+      {firstRun ? 'Iniciar tour guiado' : 'Refazer tour guiado'}
     </Button>
   );
 }

@@ -341,7 +341,7 @@ passo do tour, se pulou, se já abriu a ajuda, se dispensou o checklist.
 
 | Requisito                                    | Como foi provado                                                             | Resultado |
 | -------------------------------------------- | ---------------------------------------------------------------------------- | --------- |
-| Primeira abertura                             | estado inicial **sem criar linha** — leitura de dashboard não escreve         | **PASS**  |
+| Primeiro acesso                               | estado inicial sem criar linha e sem abrir modal — dashboard não escreve      | **PASS**  |
 | Marcar etapa                                  | `tour_start` → `in_progress`; `tour_next` persiste o passo                    | **PASS**  |
 | Repetir a mesma etapa                         | mesmo `fromStep` duas vezes → `changed: false`, passo inalterado              | **PASS**  |
 | Dois submits simultâneos                      | `Promise.all` de dois avanços → exatamente **1** mudança                      | **PASS**  |
@@ -530,7 +530,7 @@ contexto de tenant reais) e conta sintética de teste.
 | dashboard abre com sessão real, sem 5xx e sem `pageerror`  | **PASS**         |
 | `/documentacao` autenticada, listando os tópicos           | **PASS**         |
 | tópico abre; slug inexistente devolve **404**, não 500     | **PASS**         |
-| tour dispensado não reabre após reload                     | **PASS**         |
+| tour iniciado por escolha some ao ser dispensado e não reabre | **PASS**         |
 | duas abas convergem para o mesmo estado                    | **PASS**         |
 
 **O 500 que este spec encontrou.** Na primeira execução ele falhou com `500 em /dashboard`. A causa
@@ -541,7 +541,7 @@ tour, e a falha vai para a observabilidade em vez de virar 500.
 
 **Os dois SKIP eram verde vazio; hoje são prova.** Como o shell degrada, o tour não aparece num banco
 sem a 0104 — e "o tour não está na tela" passava sem provar nada. O spec passou a detectar se a
-máquina está viva (tour presente, ou "Refazer o tour" na central de ajuda) e a pular com motivo
+máquina está viva (tour presente, ou iniciar/refazer na central de ajuda) e a pular com motivo
 quando não está. Em 19/09/2026 as migrations do Track O foram aplicadas ao banco DEV, que é o banco
 do Preview, e os **cinco** testes passam sem skip — três execuções seguidas, 5/5, exit 0.
 
@@ -709,3 +709,23 @@ node node_modules/tsx/dist/cli.mjs scripts/load-test.ts
 
 Todos precisam de PowerShell no Windows e de `NODE_OPTIONS=--conditions=react-server`, exceto o
 runner do kill switch, que zera `NODE_OPTIONS` para o `next start` filho.
+
+---
+
+## Refinamento do O-7 e webhook de paciente observado — 28/09/2026
+
+| Afirmação | Evidência | Veredito |
+| --- | --- | --- |
+| primeiro login não é interrompido pelo tour | `not_started → shouldAutoOpenTour=false`; teste do `ProductTour` exige ausência do diálogo | **PASS** |
+| tour continua disponível por escolha | Central de Ajuda envia `tour_start` para `not_started` e `tour_reopen` para estado terminal; 3 testes do controle | **PASS** |
+| central oferece busca e navegação estruturada | busca por título/resumo, quatro categorias, barra lateral responsiva, índice de artigo e anterior/próximo; 2 testes da busca | **PASS código** |
+| checklist de ativação | owner informou “checklist está ok”; nenhuma regra derivada foi alterada | **ACEITO humano** |
+| entrega futura do webhook de paciente | evento sintético novo gerou `PAYMENT_RECEIVED` real e linha nova em `patient_webhook_events` no DEV | **PASS externo** |
+| reversão também chega | `undoReceivedInCash` gerou `PAYMENT_RECEIVED_IN_CASH_UNDONE`, persistido pelo mesmo Preview | **PASS externo** |
+| fila termina saudável | readback Sandbox: webhook habilitado e `interrupted=false`; cobrança/cliente sintéticos removidos | **PASS** |
+| remoção explícita do backoff | endpoint oficial respondeu HTTP 400; readback já indicava fila não interrompida | **NÃO APLICÁVEL, não contado como PASS** |
+| crédito no Google Ads | campanha permanece pausada | **BLOCKED pela ativação da campanha** |
+
+Validação local do estado: **4.434/4.434 testes em 422 arquivos**, `npx tsc --noEmit`, `npx eslint .`
+e build otimizado pelo runner isolado, todos com exit 0. A prova do webhook usou somente DEV/Sandbox;
+nenhum dado de produção foi criado ou alterado.

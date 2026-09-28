@@ -160,7 +160,8 @@ que está acontecendo?
 
 **Esperado:**
 
-- o tour abre sozinho na primeira visita;
+- o tour **não abre sozinho** na primeira visita;
+- em `/documentacao`, “Iniciar tour guiado” abre o primeiro passo quando você escolher;
 - "Pular" fecha e **não reabre** — nem na navegação seguinte, nem depois de um F5;
 - recarregar no meio do tour volta **no mesmo passo**;
 - "Refazer o tour", na central de ajuda, reabre **de onde parou**.
@@ -180,7 +181,9 @@ algum que não importa na primeira semana?
 
 Abra `/documentacao` e navegue pelos nove tópicos.
 
-**Esperado:** todos abrem; um endereço inventado devolve 404, não erro.
+**Esperado:** a busca filtra por título ou resumo; as quatro categorias e a navegação lateral levam
+aos nove tópicos; cada artigo mostra seu índice e anterior/próximo; um endereço inventado devolve 404,
+não erro. No celular, “Navegar pela ajuda” precisa expor a mesma lista.
 
 **Julgue:** você encontraria a resposta que procura? Os títulos são o que uma pessoa digitaria?
 
@@ -192,7 +195,7 @@ Pare imediatamente e registre, sem continuar, se:
 - qualquer tela pedir **dado de cartão dentro do Qoro**;
 - você chegar ao dashboard de **outra clínica** que não a sua;
 - um erro `500` aparecer em qualquer passo;
-- o tour reabrir depois de você ter pulado;
+- o tour abrir sozinho no primeiro acesso ou reabrir depois de você ter pulado;
 - um item do checklist marcar **sem** você ter feito a coisa correspondente.
 
 Os seis são falhas de contrato, não de gosto. Há regressões específicas para isolamento de tenant,
@@ -224,3 +227,10 @@ No Preview consolidado, depois da correção do callback e da atualização da f
 informou que uma **nova conta foi criada com sucesso**. O registro comprova o desfecho que havia falhado
 na tentativa anterior. Ele não marca automaticamente como aceitos os julgamentos de tour, checklist,
 ajuda nem a atribuição no Google Ads; esses itens precisam de observação própria.
+
+Atualização do mesmo dia: o owner aceitou o checklist e recusou o tour automático e a apresentação da
+Ajuda. O contrato acima foi atualizado: o tour passou a ser opt-in, e a Central de Ajuda foi refeita
+com busca e navegação estruturada. O comportamento está coberto por testes e build; o julgamento visual
+da nova tela continua pendente no Preview. A fila de cobrança de paciente recebeu dois eventos reais
+do Sandbox com persistência no DEV e cleanup externo; essa pendência técnica não depende mais do
+roteiro humano.

@@ -6312,10 +6312,10 @@ progresso alheio. A pré-condição de cada ação viaja no `WHERE` do `UPDATE`,
 — é o que remove a janela por onde duas abas passariam juntas. **13/13** contra as 105 migrations
 reais, incluindo concorrência, RLS por usuário e cinco estados impossíveis recusados pelo banco.
 
-**Fechar o tour É pular.** Se fechar deixasse `in_progress`, ou o tour reabriria na navegação seguinte
-(e fechar não significaria nada), ou nunca mais reabriria (e o refresh perderia o fluxo). Pular
-preserva o passo, então quem reabre pela central de ajuda volta de onde parou. Não existe um "aberto"
-que só o componente conheça: a janela está aberta exatamente quando o estado persistido é não-terminal.
+**Fechar o tour É pular.** Se fechar deixasse `in_progress`, o tour reabriria na navegação seguinte e
+fechar não significaria nada. Pular preserva o passo, então quem reabre pela central de ajuda volta de
+onde parou. A emenda de 28/09 (§38.10) tornou a entrada opt-in: `not_started` permanece fechado e a
+janela abre exatamente quando a escolha explícita grava `in_progress`.
 
 **O webhook, provado.** O runner cria assinatura REAL no sandbox, provisiona o tenant a partir dela e
 entrega eventos à MESMA rota de produção — que busca o estado autoritativo com `getPayment()` contra a
@@ -7327,3 +7327,34 @@ atual com `interrupted:false`; uma segunda execução reencontrou o mesmo recurs
 por `PUT`, sem duplicá-lo. Depois disso, o owner criou uma **nova conta com sucesso** pelo Preview.
 Essa evidência fecha a regressão de criação/retorno observada aqui; os julgamentos de tour, checklist,
 ajuda e o crédito final do Google Ads continuam sendo verificações separadas do roteiro humano.
+
+### 38.10 O-7 sem interrupção e entrega real do webhook — 28/09/2026
+
+O julgamento humano mudou o contrato do tour: ele não deve disputar atenção no primeiro acesso a um
+produto com muitos módulos. `not_started` deixou de abrir a janela; somente `in_progress`, criado por
+uma escolha explícita na Central de Ajuda, monta o diálogo. O progresso continua no servidor e ainda
+sobrevive a refresh, aba e dispositivo. Estados concluído ou pulado podem ser reabertos pela mesma
+porta. O checklist derivado foi aceito pelo owner sem alteração.
+
+A Central de Ajuda deixou de ser uma lista vertical de nove cards. A entrada agora tem busca por título
+e resumo, guias de começo, categorias e navegação lateral. Cada artigo usa uma coluna de leitura, menu
+de tópicos, índice “Nesta página” e navegação anterior/próximo. Em telas menores a navegação vira um
+`details`, sem esconder os tópicos. A solução reaproveita os tokens e componentes existentes, sem nova
+dependência e sem leitura de dados do tenant.
+
+A pendência da fila `Qoro — cobranca de paciente` foi medida com um evento novo, e não inferida do
+`PUT`. Um runner temporário com guards exatos para Supabase DEV e Asaas Sandbox atualizou a mesma fila
+para o Preview integrado, criou cliente/cobrança sintéticos e marcou R$ 10 como recebido em dinheiro.
+O readback autoritativo confirmou o pagamento e o endpoint do Preview persistiu um novo
+`PAYMENT_RECEIVED` em `patient_webhook_events`. Em seguida o recebimento foi desfeito pela API oficial
+e o Preview persistiu `PAYMENT_RECEIVED_IN_CASH_UNDONE`. Cobrança e cliente foram removidos; o readback
+final encontrou webhook habilitado e `interrupted=false`.
+
+`POST /webhooks/{id}/removeBackoff` respondeu **HTTP 400**, portanto não foi registrado como PASS. O
+readback já mostrava a fila ativa e sem interrupção, e as duas entregas sequenciais ocorreram depois
+disso. A prova comportamental da entrega vence a hipótese de penalidade residual. O contrato do
+endpoint retorna HTTP 200 após a persistência; o Asaas considera somente 200 como sucesso.
+
+Validação do código: **4.434/4.434 testes em 422 arquivos**, TypeScript, ESLint integral e build
+otimizado isolado do Next 15.5.24, todos com exit 0. O crédito final da conversão no Google Ads continua
+pendente até a campanha ser ativada; saída da requisição com campanha pausada não prova atribuição.

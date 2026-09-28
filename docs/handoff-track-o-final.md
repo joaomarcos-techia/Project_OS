@@ -293,3 +293,24 @@ para a origem atual e uma segunda execução idempotente confirmou o reuso do me
 correção, o owner criou uma nova conta com sucesso no Preview. Permanecem fora dessa evidência os itens
 subjetivos do roteiro (tour, checklist e ajuda) e a atribuição final no painel do Google Ads. A branch
 continua fora de `main` até autorização explícita.
+
+## Handoff adicional — O-7 e fila Sandbox (28/09/2026)
+
+O owner aceitou o checklist, recusou o tour automático e pediu uma Central de Ajuda com hierarquia
+próxima à documentação do Asaas. No estado atual do branch, `not_started` não abre modal. O tour só
+passa a `in_progress` pelo botão “Iniciar tour guiado” em `/documentacao`; refresh, múltiplas abas,
+conclusão e reabertura continuam apoiados no estado persistido.
+
+A ajuda agora tem busca, começo recomendado, categorias, navegação lateral responsiva, artigos em
+coluna de leitura, índice local e anterior/próximo. Não houve dependência nova nem alteração no
+checklist.
+
+A pendência operacional do webhook foi encerrada contra DEV/Sandbox: `PAYMENT_RECEIVED` e
+`PAYMENT_RECEIVED_IN_CASH_UNDONE` novos chegaram do Asaas ao Preview e foram persistidos em
+`patient_webhook_events`; o readback terminou habilitado e não interrompido, e a fixture externa foi
+removida. `removeBackoff` respondeu 400 e foi registrado separadamente, sem ser promovido a verde;
+as duas entregas posteriores provaram que ele não bloqueava a fila.
+
+Gates locais: 4.434/4.434 testes em 422 arquivos, TypeScript, ESLint integral e build otimizado, todos
+com exit 0. Continua pendente somente o julgamento visual da ajuda no Preview e a atribuição final do
+Google Ads depois que o owner ativar a campanha. A branch continua fora de `main`.

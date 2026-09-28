@@ -28,6 +28,30 @@ export interface DocTopic {
   sections: DocSection[];
 }
 
+export interface DocGroup {
+  label: string;
+  slugs: readonly string[];
+}
+
+export const DOC_GROUPS: readonly DocGroup[] = [
+  {
+    label: 'Comece aqui',
+    slugs: ['primeiros-passos', 'fluxos-por-papel'],
+  },
+  {
+    label: 'Operação clínica',
+    slugs: ['prontuario-e-documentos', 'financeiro'],
+  },
+  {
+    label: 'Integrações',
+    slugs: ['asaas', 'whatsapp', 'ia'],
+  },
+  {
+    label: 'Conta e suporte',
+    slugs: ['seguranca', 'troubleshooting'],
+  },
+] as const;
+
 export const DOC_TOPICS: readonly DocTopic[] = [
   {
     slug: 'primeiros-passos',
