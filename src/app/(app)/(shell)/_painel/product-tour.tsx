@@ -43,7 +43,6 @@ export function ProductTour({
   steps: readonly TourStep[];
 }) {
   const [progress, setProgress] = useState(initial);
-  const [closing, setClosing] = useState(false);
   const [seenVersion, setSeenVersion] = useState(initial.rowVersion);
   const [pending, startTransition] = useTransition();
 
@@ -53,7 +52,6 @@ export function ProductTour({
   if (initial.rowVersion !== seenVersion) {
     setSeenVersion(initial.rowVersion);
     setProgress(initial);
-    setClosing(false);
   }
 
   const send = useCallback((input: OnboardingAction) => {
@@ -77,12 +75,11 @@ export function ProductTour({
 
   // `shouldAutoOpenTour` é a MESMA regra do servidor (`in_progress`);
   // recalculá-la aqui abriria espaço para as duas versões divergirem.
-  const open = progress.shouldAutoOpenTour && !closing;
+  const open = progress.shouldAutoOpenTour;
   const isLast = step >= lastStep;
 
   /** X, Esc e clique no scrim entram por aqui — todos significam "pular". */
   const dismiss = () => {
-    setClosing(true);
     send({ action: 'tour_skip' });
   };
 
@@ -90,7 +87,7 @@ export function ProductTour({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) dismiss();
+        if (!next && !pending) dismiss();
       }}
     >
       <DialogContent aria-describedby={undefined} data-testid="product-tour">
@@ -127,10 +124,7 @@ export function ProductTour({
               type="button"
               loading={pending}
               data-testid="tour-complete"
-              onClick={() => {
-                setClosing(true);
-                send({ action: 'tour_complete' });
-              }}
+              onClick={() => send({ action: 'tour_complete' })}
             >
               Concluir
             </Button>

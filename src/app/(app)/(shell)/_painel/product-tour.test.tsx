@@ -91,6 +91,30 @@ describe('ProductTour', () => {
     await waitFor(() => expect(screen.queryByTestId('product-tour')).toBeNull());
   });
 
+  it('só fecha depois de o servidor persistir a dispensa', async () => {
+    let resolveAction: ((value: unknown) => void) | undefined;
+    submitOnboardingAction.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAction = resolve;
+      }),
+    );
+    render(
+      <ProductTour steps={TOUR_STEPS} initial={state({ tourState: 'in_progress', tourStep: 1 })} />,
+    );
+
+    fireEvent.click(screen.getByTestId('tour-skip'));
+    expect(screen.getByTestId('product-tour')).toBeTruthy();
+
+    await act(async () => {
+      resolveAction?.({
+        ok: true,
+        progress: state({ tourState: 'skipped', tourStep: 1, rowVersion: 2 }),
+        changed: true,
+      });
+    });
+    await waitFor(() => expect(screen.queryByTestId('product-tour')).toBeNull());
+  });
+
   it('adota o estado autoritativo quando o servidor responde `stale`', async () => {
     // Outra aba já avançou para o passo 4 enquanto esta achava estar no 1.
     submitOnboardingAction.mockResolvedValue({
