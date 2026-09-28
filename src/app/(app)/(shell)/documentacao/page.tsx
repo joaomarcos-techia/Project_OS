@@ -21,7 +21,7 @@ export default async function DocumentacaoPage() {
   return (
     <>
       <MarkDocsVisited />
-      <div className="grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="grid items-start gap-6 max-nav:mt-12 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <DocumentationNavigation />
         <main className="min-w-0">
           <DocumentationDirectory />

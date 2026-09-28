@@ -119,37 +119,37 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
     expect(erros, erros.join(' | ')).toEqual([]);
   });
 
-  test('duas abas convergem para o mesmo estado de onboarding', async ({ browser }) => {
-    const contexto = await browser.newContext();
-    try {
-      const abaA = await contexto.newPage();
-      const { erros } = vigiar(abaA);
-      await authenticate(abaA);
+  test('duas abas convergem para o mesmo estado de onboarding', async ({ page }) => {
+    // Reaproveita o contexto autenticado do fixture. Criar um BrowserContext
+    // vazio aqui descartava o storageState da suíte e fazia um sexto login
+    // real, consumindo o orçamento de 5/15 min por e-mail antes de testar o
+    // comportamento que interessa.
+    const contexto = page.context();
+    const abaA = page;
+    const { erros } = vigiar(abaA);
+    await authenticate(abaA);
 
-      test.skip(
-        !(await onboardingDisponivel(abaA)),
-        'onboarding indisponível neste ambiente (banco sem a migration 0104).',
-      );
-      const tourA = abaA.getByTestId('product-tour');
-      if (await tourA.count()) await abaA.getByTestId('tour-skip').click();
-      await abaA.goto('/documentacao');
-      await abaA.getByTestId('restart-tour').click();
-      await expect(tourA).toBeVisible();
+    test.skip(
+      !(await onboardingDisponivel(abaA)),
+      'onboarding indisponível neste ambiente (banco sem a migration 0104).',
+    );
+    const tourA = abaA.getByTestId('product-tour');
+    if (await tourA.count()) await abaA.getByTestId('tour-skip').click();
+    await abaA.goto('/documentacao');
+    await abaA.getByTestId('restart-tour').click();
+    await expect(tourA).toBeVisible();
 
-      const abaB = await contexto.newPage();
-      await abaB.goto('/dashboard');
-      await expect(abaB.getByTestId('product-tour')).toBeVisible();
+    const abaB = await contexto.newPage();
+    await abaB.goto('/dashboard');
+    await expect(abaB.getByTestId('product-tour')).toBeVisible();
 
-      // Dispensar em A; B tem de concordar depois de recarregar, porque a
-      // autoridade é o servidor e não a aba.
-      await abaA.getByTestId('tour-skip').click();
-      await abaA.reload();
+    // Dispensar em A; B tem de concordar depois de recarregar, porque a
+    // autoridade é o servidor e não a aba.
+    await abaA.getByTestId('tour-skip').click();
+    await abaA.reload();
 
-      await abaB.reload();
-      await expect(abaB.getByTestId('product-tour')).toHaveCount(0);
-      expect(erros, erros.join(' | ')).toEqual([]);
-    } finally {
-      await contexto.close();
-    }
+    await abaB.reload();
+    await expect(abaB.getByTestId('product-tour')).toHaveCount(0);
+    expect(erros, erros.join(' | ')).toEqual([]);
   });
 });

@@ -36,7 +36,7 @@ export default async function DocumentacaoTopicPage({
       <MarkDocsVisited />
       <Breadcrumbs
         items={[{ label: 'Ajuda', href: '/documentacao' }, { label: topic.title }]}
-        className="mb-5"
+        className="mb-5 max-nav:mt-12"
       />
       <div className="grid items-start gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_13rem]">
         <DocumentationNavigation activeSlug={topic.slug} />

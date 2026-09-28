@@ -718,7 +718,10 @@ runner do kill switch, que zera `NODE_OPTIONS` para o `next start` filho.
 | --- | --- | --- |
 | primeiro login não é interrompido pelo tour | `not_started → shouldAutoOpenTour=false`; teste do `ProductTour` exige ausência do diálogo | **PASS** |
 | tour continua disponível por escolha | Central de Ajuda envia `tour_start` para `not_started` e `tour_reopen` para estado terminal; 3 testes do controle | **PASS** |
+| dispensa sobrevive a reload imediato | o diálogo aguarda a persistência de `tour_skip`; regressão unitária e E2E autenticado | **PASS** |
+| convergência entre abas | sessão reutilizada; aba A dispensa, aba B recarrega e não reabre | **PASS Preview 5/5** |
 | central oferece busca e navegação estruturada | busca por título/resumo, quatro categorias, barra lateral responsiva, índice de artigo e anterior/próximo; 2 testes da busca | **PASS código** |
+| composição móvel da ajuda | captura em 390 × 844 encontrou sobreposição do menu do shell; reserva superior de 48 px aplicada à central e aos artigos | **PASS visual após correção** |
 | checklist de ativação | owner informou “checklist está ok”; nenhuma regra derivada foi alterada | **ACEITO humano** |
 | entrega futura do webhook de paciente | evento sintético novo gerou `PAYMENT_RECEIVED` real e linha nova em `patient_webhook_events` no DEV | **PASS externo** |
 | reversão também chega | `undoReceivedInCash` gerou `PAYMENT_RECEIVED_IN_CASH_UNDONE`, persistido pelo mesmo Preview | **PASS externo** |
@@ -726,6 +729,8 @@ runner do kill switch, que zera `NODE_OPTIONS` para o `next start` filho.
 | remoção explícita do backoff | endpoint oficial respondeu HTTP 400; readback já indicava fila não interrompida | **NÃO APLICÁVEL, não contado como PASS** |
 | crédito no Google Ads | campanha permanece pausada | **BLOCKED pela ativação da campanha** |
 
-Validação local do estado: **4.434/4.434 testes em 422 arquivos**, `npx tsc --noEmit`, `npx eslint .`
-e build otimizado pelo runner isolado, todos com exit 0. A prova do webhook usou somente DEV/Sandbox;
-nenhum dado de produção foi criado ou alterado.
+Validação local do estado: **4.435/4.435 testes em 422 arquivos**, `npx tsc --noEmit`, `npx eslint .`
+e build otimizado pelo runner isolado, todos com exit 0. O primeiro rerun do navegador teve 3/5 antes
+de alcançar a asserção do tour: o limite de login bloqueou a sexta autenticação. Depois de reutilizar o
+`storageState`, a execução terminou **5/5**. A prova do webhook usou somente DEV/Sandbox; nenhum dado
+de produção foi criado ou alterado.

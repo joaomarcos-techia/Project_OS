@@ -303,7 +303,8 @@ conclusão e reabertura continuam apoiados no estado persistido.
 
 A ajuda agora tem busca, começo recomendado, categorias, navegação lateral responsiva, artigos em
 coluna de leitura, índice local e anterior/próximo. Não houve dependência nova nem alteração no
-checklist.
+checklist. A inspeção visual desktop/mobile encontrou a navegação móvel sob o botão fixo do shell; a
+central e os artigos agora reservam 48 px no mobile.
 
 A pendência operacional do webhook foi encerrada contra DEV/Sandbox: `PAYMENT_RECEIVED` e
 `PAYMENT_RECEIVED_IN_CASH_UNDONE` novos chegaram do Asaas ao Preview e foram persistidos em
@@ -311,6 +312,11 @@ A pendência operacional do webhook foi encerrada contra DEV/Sandbox: `PAYMENT_R
 removida. `removeBackoff` respondeu 400 e foi registrado separadamente, sem ser promovido a verde;
 as duas entregas posteriores provaram que ele não bloqueava a fila.
 
-Gates locais: 4.434/4.434 testes em 422 arquivos, TypeScript, ESLint integral e build otimizado, todos
-com exit 0. Continua pendente somente o julgamento visual da ajuda no Preview e a atribuição final do
-Google Ads depois que o owner ativar a campanha. A branch continua fora de `main`.
+O E2E encontrou e fechou duas falhas diferentes. No produto, a dispensa otimista permitia reload antes
+de `tour_skip` persistir; o modal agora aguarda o servidor. No harness, novos contextos descartavam o
+`storageState` e consumiam o limite de 5 logins/15 min. Com sessão reutilizada, o O-7 passou **5/5**,
+incluindo reload imediato e convergência de duas abas.
+
+Gates locais: 4.435/4.435 testes em 422 arquivos, TypeScript, ESLint integral e build otimizado, todos
+com exit 0. Continua pendente a atribuição final do Google Ads depois que o owner ativar a campanha. A
+branch continua fora de `main`.

@@ -7340,7 +7340,8 @@ A Central de Ajuda deixou de ser uma lista vertical de nove cards. A entrada ago
 e resumo, guias de começo, categorias e navegação lateral. Cada artigo usa uma coluna de leitura, menu
 de tópicos, índice “Nesta página” e navegação anterior/próximo. Em telas menores a navegação vira um
 `details`, sem esconder os tópicos. A solução reaproveita os tokens e componentes existentes, sem nova
-dependência e sem leitura de dados do tenant.
+dependência e sem leitura de dados do tenant. A inspeção visual em 1.440 px e 390 px encontrou a
+navegação móvel sob o botão fixo do shell; a central e os artigos passaram a reservar 48 px no mobile.
 
 A pendência da fila `Qoro — cobranca de paciente` foi medida com um evento novo, e não inferida do
 `PUT`. Um runner temporário com guards exatos para Supabase DEV e Asaas Sandbox atualizou a mesma fila
@@ -7355,6 +7356,12 @@ readback já mostrava a fila ativa e sem interrupção, e as duas entregas seque
 disso. A prova comportamental da entrega vence a hipótese de penalidade residual. O contrato do
 endpoint retorna HTTP 200 após a persistência; o Asaas considera somente 200 como sucesso.
 
-Validação do código: **4.434/4.434 testes em 422 arquivos**, TypeScript, ESLint integral e build
+O primeiro E2E depois da mudança expôs uma corrida real: o modal sumia antes de `tour_skip` ser
+persistido e podia reaparecer num reload imediato. O diálogo agora permanece aberto enquanto a Server
+Action está pendente, com regressão unitária específica. A repetição seguinte parou no quarto login
+com o rate limit correto de 5/15 min por e-mail: o spec criava contextos sem `storageState`. O harness
+passou a reutilizar a sessão autenticada e o O-7 terminou **5/5**, incluindo reload imediato e duas abas.
+
+Validação do código: **4.435/4.435 testes em 422 arquivos**, TypeScript, ESLint integral e build
 otimizado isolado do Next 15.5.24, todos com exit 0. O crédito final da conversão no Google Ads continua
 pendente até a campanha ser ativada; saída da requisição com campanha pausada não prova atribuição.
