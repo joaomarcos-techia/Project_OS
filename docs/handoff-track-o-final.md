@@ -280,9 +280,16 @@ expirado somente após encerramento autoritativo.
 O E2E de confirmação foi reduzido ao seu contrato: Supabase, Resend, confirmação, código, handoff e
 plano. Ele não chama mais o Asaas. Os avisos de remoção eram efeito do cancelamento do Checkout no
 cleanup; o aviso de webhook interrompido vinha de uma fila persistente apontando para um Preview
-antigo. O adapter agora atualiza a mesma fila quando só o hostname muda. Ainda é necessário, depois do
-deploy, executar o `PUT` no webhook Sandbox existente e observar uma entrega 2xx.
+antigo. O adapter agora atualiza a mesma fila quando só o hostname muda. Depois do deploy, o `PUT` foi
+executado no webhook Sandbox existente; ainda falta observar uma entrega real 2xx na próxima cobrança
+de paciente para fechar a entrega do evento, sem criar uma cobrança apenas para esse teste.
 
 Validação local do estado: **4.429/4.429 testes em 420 arquivos**, TypeScript, ESLint, Prettier e build
-otimizado, todos com exit 0. Deployment e readback externo devem ser registrados no fechamento desta
-entrega.
+otimizado, todos com exit 0. O deployment e o readback externo estão registrados no fechamento abaixo.
+
+Fechamento de 28/09: `568110b` foi publicado com Vercel `Ready`; o alias estável serviu
+`/cadastro/pagamento` com HTTP 200 e pathname reconhecido. O webhook Sandbox existente foi atualizado
+para a origem atual e uma segunda execução idempotente confirmou o reuso do mesmo recurso. Depois da
+correção, o owner criou uma nova conta com sucesso no Preview. Permanecem fora dessa evidência os itens
+subjetivos do roteiro (tour, checklist e ajuda) e a atribuição final no painel do Google Ads. A branch
+continua fora de `main` até autorização explícita.

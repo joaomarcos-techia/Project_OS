@@ -214,6 +214,13 @@ sai para o Google antes da navegação. O encaminhamento automático por
 `location.replace` não recebe `_gl`; o clique real na âncora de fallback recebe. Isso não afeta a
 conversão registrada na landing hoje, porque o app ainda não carrega tag Google.
 
-Este roteiro julga o produto. A chegada e a renderização do e-mail na caixa usada aqui são a evidência
-humana que ainda falta; evento/API do Resend não as substitui. Medir a assinatura final no app e
-confirmar atribuição no painel do Google Ads são tarefas separadas.
+Este roteiro julga o produto. A chegada e a renderização do e-mail na caixa usada aqui exigem evidência
+humana; evento/API do Resend não as substitui. Medir a assinatura final no app e confirmar atribuição
+no painel do Google Ads são tarefas separadas.
+
+## Registro parcial — 28/09/2026
+
+No Preview consolidado, depois da correção do callback e da atualização da fila Sandbox, o owner
+informou que uma **nova conta foi criada com sucesso**. O registro comprova o desfecho que havia falhado
+na tentativa anterior. Ele não marca automaticamente como aceitos os julgamentos de tour, checklist,
+ajuda nem a atribuição no Google Ads; esses itens precisam de observação própria.

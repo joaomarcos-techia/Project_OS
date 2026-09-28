@@ -7318,3 +7318,12 @@ continuava alinhado à esquerda. Label, input e ajuda agora formam um bloco cent
 com o próprio input centralizado dentro dele. A suíte integral após os corretivos passou **4.429/4.429
 em 420 arquivos**, exit 0. TypeScript, ESLint, Prettier e o build otimizado do Next 15.5.24 em
 ambiente sintético sem segredos também terminaram com exit 0.
+
+**Fechamento externo em 28/09/2026.** O commit `568110b` foi publicado com status `Ready` no Preview
+consolidado. Sondas protegidas no alias estável receberam **HTTP 200** e
+`X-Matched-Path: /cadastro/pagamento` tanto no retorno `success` quanto no caminho de recuperação
+`expired`. No Asaas Sandbox, a fila persistente de cobrança de paciente foi atualizada para o alias
+atual com `interrupted:false`; uma segunda execução reencontrou o mesmo recurso e concluiu novamente
+por `PUT`, sem duplicá-lo. Depois disso, o owner criou uma **nova conta com sucesso** pelo Preview.
+Essa evidência fecha a regressão de criação/retorno observada aqui; os julgamentos de tour, checklist,
+ajuda e o crédito final do Google Ads continuam sendo verificações separadas do roteiro humano.

@@ -695,8 +695,11 @@ interrompidas do runner de billing: o mesmo comando com `--cleanup-orphans`.
 - o adapter reconhece o mesmo webhook pelo nome e pathname estável mesmo quando a branch muda de
   hostname, permitindo `PUT` com `interrupted:false` na fila existente;
 - suíte integral local: **420 arquivos, 4.429 testes, exit 0**; TypeScript, ESLint, Prettier e build
-  otimizado também passaram. A atualização do webhook já interrompido no provider e a prova no novo
-  deployment são operações posteriores ao deploy.
+  otimizado também passaram;
+- fechamento externo: `568110b` ficou `Ready`; o alias estável respondeu HTTP 200 com
+  `X-Matched-Path: /cadastro/pagamento`; a fila interrompida foi atualizada no Asaas Sandbox e a
+  repetição convergiu no mesmo recurso; em seguida, o owner informou que uma nova conta foi criada com
+  sucesso no Preview. Tour, checklist, ajuda e crédito final do Ads não foram inferidos desse relato.
 
 O gate de carga precisa de `pnpm build` antes e de `LOAD_TEST_CONFIRM=LOCAL_SCRATCH_ONLY`:
 
