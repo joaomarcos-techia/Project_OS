@@ -43,8 +43,6 @@ const REQUIRED_EXTERNAL_ENV: readonly RequiredGroup[] = [
   { label: 'RESEND_API_KEY_DEV', names: ['RESEND_API_KEY_DEV'] },
   { label: 'EMAIL_FROM_DEV', names: ['EMAIL_FROM_DEV'] },
   { label: 'DATABASE_URL_DEV', names: ['DATABASE_URL_DEV'] },
-  { label: 'ASAAS_BASE_URL do Sandbox', names: ['ASAAS_BASE_URL_DEV', 'ASAAS_BASE_URL'] },
-  { label: 'ASAAS_API_KEY do Sandbox', names: ['ASAAS_API_KEY_DEV', 'ASAAS_API_KEY'] },
   {
     label: 'MAGIC_TOKEN_SECRET do DEV',
     names: SIGNUP_E2E_ENV_ALIASES.magicTokenSecret,
@@ -148,24 +146,6 @@ export function signupConfirmationE2EGuardErrors(environment: Environment): stri
 
   if (environment.SUPABASE_PROJECT_ENV !== 'dev') {
     errors.push('SUPABASE_PROJECT_ENV=dev é obrigatório neste E2E');
-  }
-
-  const rawAsaasBaseUrl = firstConfiguredValue(environment, [
-    'ASAAS_BASE_URL_DEV',
-    'ASAAS_BASE_URL',
-  ]);
-  if (rawAsaasBaseUrl) {
-    try {
-      const asaas = new URL(rawAsaasBaseUrl);
-      if (
-        asaas.protocol !== 'https:' ||
-        !['api-sandbox.asaas.com', 'sandbox.asaas.com'].includes(asaas.hostname)
-      ) {
-        errors.push('Asaas não corresponde ao Sandbox esperado');
-      }
-    } catch {
-      errors.push('ASAAS_BASE_URL do Sandbox não é válida');
-    }
   }
 
   if (local) {

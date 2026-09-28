@@ -265,3 +265,24 @@ Estado atual:
   `signup.provisioned`, sessão renovada e dashboard 200. O gate é **PASS em DEV/Preview**;
 - o gate de schema de produção está fechado. O PR #18 permanece sem merge/publicação até autorização
   explícita do owner; o Preview com banco DEV continua sendo o alvo do roteiro humano.
+
+## Handoff adicional — retorno e webhooks de Preview (28/09/2026)
+
+Branch de trabalho: `integration/estado-completo-atual-2026-09-27`. A alteração permanece fora de
+`main` até autorização do owner.
+
+O retorno 404 após “Acompanhar pedido” foi causado por callbacks construídos com `APP_BASE_URL` de
+uma branch antiga. Checkout e webhook de paciente agora resolvem a origem do deployment atual com
+`VERCEL_BRANCH_URL`/`VERCEL_URL`, com regressões para hostname divergente. A rota de criação faz
+readback antes de devolver uma URL pendente, provisiona pagamento já concluído e recicla Checkout
+expirado somente após encerramento autoritativo.
+
+O E2E de confirmação foi reduzido ao seu contrato: Supabase, Resend, confirmação, código, handoff e
+plano. Ele não chama mais o Asaas. Os avisos de remoção eram efeito do cancelamento do Checkout no
+cleanup; o aviso de webhook interrompido vinha de uma fila persistente apontando para um Preview
+antigo. O adapter agora atualiza a mesma fila quando só o hostname muda. Ainda é necessário, depois do
+deploy, executar o `PUT` no webhook Sandbox existente e observar uma entrega 2xx.
+
+Validação local do estado: **4.429/4.429 testes em 420 arquivos**, TypeScript, ESLint, Prettier e build
+otimizado, todos com exit 0. Deployment e readback externo devem ser registrados no fechamento desta
+entrega.

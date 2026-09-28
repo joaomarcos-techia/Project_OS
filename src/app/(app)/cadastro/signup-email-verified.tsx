@@ -243,9 +243,9 @@ export function SignupEmailVerified({
           </div>
         ) : null}
 
-        <div className="space-y-2">
+        <div className="mx-auto w-full max-w-[24rem] space-y-2 text-center">
           <Label htmlFor="signup-verification-code">Código do e-mail</Label>
-          <div className="relative w-full max-w-[13rem]">
+          <div className="relative mx-auto w-full max-w-[13rem]">
             <KeyRound
               aria-hidden="true"
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle"

@@ -7134,12 +7134,12 @@ aceita no máximo 30 caracteres. O adapter agora recebe um nome técnico curto, 
 a descrição completa em `items[].description`. A reprodução externa com os mesmos callbacks passou de
 400 para 200 e o Checkout criado foi cancelado com 200; há regressão de contrato dedicada.
 
-Depois do corretivo, o E2E de confirmação executou **5/5 PASS** contra o Preview HTTPS. O cenário
-principal criou conta e mensagem reais em DEV/Resend, confirmou em outro contexto de navegador,
-concluiu o handoff com o código de oito dígitos, salvou o plano, navegou para
-`sandbox.asaas.com/checkoutSession/show` e conferiu no banco `checkout_pending`, id/URL presentes e
-customer/assinatura nulos. O `finally` cancelou o Checkout e removeu conta, draft e lock sintéticos.
-Isso prova a abertura do Checkout; o pagamento final continua humano por causa do reCAPTCHA.
+Na execução de 26/09, antes da separação descrita em §38.9, o E2E de confirmação executou **5/5
+PASS** contra o Preview HTTPS. O cenário principal criou conta e mensagem reais em DEV/Resend,
+confirmou em outro contexto de navegador, concluiu o handoff com o código de oito dígitos, salvou o
+plano e abriu um Checkout Sandbox, depois cancelado no `finally`. Essa prova histórica encontrou o
+limite real do `items[].name`, mas misturava autenticação com uma mutação financeira desnecessária;
+ela não descreve mais o limite atual daquele spec.
 
 O primeiro CI do PR reprovou corretamente o inventário de segurança: ele ainda procurava a função
 direta removida e não conhecia as rotas de status/cancelamento. As três superfícies foram revisadas e
@@ -7279,3 +7279,42 @@ e reenvio que entrega um token novo e invalida o anterior. As contas Auth, draft
 removidos no cleanup. Validação local final: **97/97 focados**, suíte integral **4.423/4.423 em 420
 arquivos**, TypeScript, ESLint integral, Prettier, inventário de segurança e build otimizado do Next
 15.5.24, todos com exit 0.
+
+### 38.9 Origem do retorno, retomada do Checkout e isolamento dos E2Es — 28/09/2026
+
+O retorno em uma branch antiga não era falha do Asaas. `signup-hosted-checkout.ts` ainda montava
+`successUrl`, `cancelUrl` e `expiredUrl` diretamente com `APP_BASE_URL`; no Preview consolidado esse
+valor permanecia apontando para outro deployment. O Checkout conservou o callback recebido na
+criação e, depois de “Acompanhar pedido”, abriu uma branch sem `/cadastro/pagamento`. A configuração
+do webhook de cobrança de paciente tinha o mesmo defeito e podia manter no Asaas uma URL de Preview
+abandonada.
+
+Os dois caminhos agora usam `createApplicationRootUrl()`: em Preview, a origem vem primeiro de
+`VERCEL_BRANCH_URL` e depois de `VERCEL_URL`; fora dele, continua sendo `APP_BASE_URL`. O destino não
+vem do browser. A regressão cria `APP_BASE_URL` canônico e um hostname de branch diferente, e exige
+que callbacks e webhook usem a branch. Ao reencontrar o webhook, o adapter usa nome + pathname com o
+`webhook_ref` estável; mudança de hostname ou rotação do bypass atualiza a mesma fila por `PUT`, com
+`interrupted:false`, em vez de criar uma segunda fila órfã.
+
+A retomada também deixou de devolver cegamente a URL persistida. Antes de abrir o Checkout, a rota
+faz o mesmo readback autoritativo do retorno: se a assinatura já existe, provisiona e responde
+`provisioned`; se ainda está pendente, conserva a tentativa; se os 60 minutos venceram, a expiração é
+decidida em SQL pelo `now()` do Postgres, o Checkout é encerrado e só então outra tentativa é
+reservada. Isso cobre o caso em que o pagamento terminou, mas o navegador voltou para uma branch
+antiga, e o caso em que um link morto continuava preso ao botão “Pagar”.
+
+O `e2e/signup-confirmation.spec.ts` não toca mais o Asaas. Ele prova Supabase, Resend, link, código,
+handoff e seleção do plano, terminando quando o botão do Checkout aparece. A criação/cancelamento de
+Checkout e as provas de billing continuam nos runners explícitos de Sandbox. Essa separação elimina
+os eventos financeiros gerados por uma suíte de e-mail e, portanto, os e-mails de remoção que ela
+provocava. O aviso de “sincronização de Webhooks interrompida” tinha outra causa: uma fila persistente
+`Qoro — cobranca de paciente` apontava para um Preview antigo que respondia 500; qualquer evento da
+mesma conta Sandbox era entregue ali e entrava em retry. O código agora consegue convergir essa fila
+para a origem atual, mas o recurso já interrompido precisa de uma atualização no provider depois do
+deployment.
+
+Na tela de handoff, não bastava centralizar os oito dígitos dentro do input: o bloco de 13 rem
+continuava alinhado à esquerda. Label, input e ajuda agora formam um bloco central de largura limitada,
+com o próprio input centralizado dentro dele. A suíte integral após os corretivos passou **4.429/4.429
+em 420 arquivos**, exit 0. TypeScript, ESLint, Prettier e o build otimizado do Next 15.5.24 em
+ambiente sintético sem segredos também terminaram com exit 0.

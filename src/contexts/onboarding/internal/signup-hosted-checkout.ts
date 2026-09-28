@@ -15,8 +15,7 @@ import {
   type PaymentProvider,
   type ProviderSubscription,
 } from '@/lib/payments/asaas';
-import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { createApplicationRootUrl } from '@/lib/http/application-url';
 import { metrics } from '@/lib/observability/metrics';
 import { parseDocument } from '@/lib/validation/document';
 
@@ -28,12 +27,11 @@ import {
   recordSignupHostedCheckout,
   reserveSignupBillingAttempt,
   resetSignupHostedCheckout,
+  SIGNUP_HOSTED_CHECKOUT_EXPIRATION_MINUTES,
   type SignupBillingIntent,
   type SignupHostedCheckoutTarget,
 } from './signup-billing';
 import { provisionTenantFromSignup } from './signup-provision';
-
-const CHECKOUT_EXPIRATION_MINUTES = 60;
 
 export type StartSignupHostedCheckoutOutcome =
   | { ok: true; state: 'checkout_pending'; checkoutUrl: string }
@@ -52,7 +50,7 @@ export type StartSignupHostedCheckoutOutcome =
     };
 
 export type CompleteSignupHostedCheckoutOutcome =
-  | { ok: true; state: 'pending' | 'provisioned' }
+  | { ok: true; state: 'pending' | 'expired' | 'provisioned' }
   | {
       ok: false;
       reason: 'gone' | 'conflict' | 'provider_unreachable' | 'unavailable';
@@ -83,13 +81,9 @@ function checkoutCallbacks(): {
   cancelUrl: string;
   expiredUrl: string;
 } {
-  if (!env.APP_BASE_URL) throw new Error('[signup] APP_BASE_URL ausente para Checkout');
+  const applicationRoot = createApplicationRootUrl();
   const callback = (result: 'success' | 'cancelled' | 'expired') => {
-    const url = new URL(
-      buildApplicationUrl(env.APP_BASE_URL!, '/cadastro/pagamento', {
-        allowInsecureLocalhost: env.NODE_ENV !== 'production',
-      }),
-    );
+    const url = new URL('/cadastro/pagamento', applicationRoot);
     url.searchParams.set('resultado', result);
     return url.toString();
   };
@@ -146,7 +140,7 @@ export async function startSignupHostedCheckout(input: {
       itemName: `Qoro · ${intent.planCode}`,
       description: describe(intent),
       externalReference: intent.externalReference,
-      minutesToExpire: CHECKOUT_EXPIRATION_MINUTES,
+      minutesToExpire: SIGNUP_HOSTED_CHECKOUT_EXPIRATION_MINUTES,
       callback: callbacks,
       subscription: {
         cycle: 'MONTHLY',
@@ -364,7 +358,9 @@ export async function completeSignupHostedCheckout(input: {
 
   try {
     const subscription = await authoritativeSubscription(client, target);
-    if (subscription === null) return { ok: true, state: 'pending' };
+    if (subscription === null) {
+      return { ok: true, state: target.expired ? 'expired' : 'pending' };
+    }
     if (subscription === 'conflict') {
       metrics.emit('signup.checkout.subscription_mismatch', {});
       return { ok: false, reason: 'conflict' };

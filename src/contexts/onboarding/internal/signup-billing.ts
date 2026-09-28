@@ -37,6 +37,7 @@ import { env } from '@/lib/env';
 import { QORO_SELF_SERVICE_TRIAL_DAYS } from '../trial';
 
 const userIdSchema = z.string().uuid();
+export const SIGNUP_HOSTED_CHECKOUT_EXPIRATION_MINUTES = 60;
 
 /** Estados possíveis da tentativa, espelhando o CHECK da migration 0103. */
 export type SignupBillingAttemptState =
@@ -431,6 +432,7 @@ export interface SignupHostedCheckoutTarget {
   priceCents: number;
   trialDays: number;
   attemptedOn: string;
+  expired: boolean;
   nextDueDate: string;
   asaasCustomerId: string | null;
   asaasCheckoutId: string;
@@ -448,6 +450,7 @@ export async function readSignupHostedCheckoutTarget(
       id: signupSessions.id,
       state: signupSessions.billingAttemptState,
       attemptedAt: signupSessions.billingAttemptedAt,
+      expired: sql<boolean>`${signupSessions.billingAttemptedAt} + (${SIGNUP_HOSTED_CHECKOUT_EXPIRATION_MINUTES} * interval '1 minute') <= now()`,
       rowVersion: signupSessions.rowVersion,
       asaasCustomerId: signupSessions.asaasCustomerId,
       asaasCheckoutId: signupSessions.asaasCheckoutId,
@@ -494,6 +497,7 @@ export async function readSignupHostedCheckoutTarget(
     priceCents: priceToCents(row.amount),
     trialDays: QORO_SELF_SERVICE_TRIAL_DAYS,
     attemptedOn: row.attemptedAt.toISOString().slice(0, 10),
+    expired: row.expired,
     nextDueDate: dueDateAfterTrial(QORO_SELF_SERVICE_TRIAL_DAYS, row.attemptedAt),
     asaasCustomerId: row.asaasCustomerId,
     asaasCheckoutId: row.asaasCheckoutId,

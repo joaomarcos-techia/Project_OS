@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   hashUser: vi.fn(),
   writeLimit: vi.fn(),
   start: vi.fn(),
+  complete: vi.fn(),
+  abandon: vi.fn(),
   provision: vi.fn(),
   reconcile: vi.fn(),
   readBilling: vi.fn(),
@@ -24,6 +26,8 @@ vi.mock('@/lib/auth/rate-limit', () => ({
 }));
 vi.mock('@/contexts/onboarding', () => ({
   startSignupHostedCheckout: mocks.start,
+  completeSignupHostedCheckout: mocks.complete,
+  abandonSignupHostedCheckout: mocks.abandon,
   provisionTenantFromSignup: mocks.provision,
   reconcileSignupSubscription: mocks.reconcile,
   readSignupBilling: mocks.readBilling,
@@ -69,6 +73,8 @@ beforeEach(() => {
     state: 'checkout_pending',
     checkoutUrl: CHECKOUT_URL,
   });
+  mocks.complete.mockResolvedValue({ ok: false, reason: 'gone' });
+  mocks.abandon.mockResolvedValue({ ok: true, state: 'reset' });
   mocks.provision.mockResolvedValue({ ok: true, clinicId: 'clinic-1' });
   mocks.reconcile.mockResolvedValue({ ok: true, state: 'active' });
   mocks.readBilling.mockResolvedValue({
@@ -91,6 +97,49 @@ describe('POST /api/signup/checkout', () => {
       userId: USER_ID,
     });
     expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('provisiona por readback antes de tentar reabrir um Checkout já pago', async () => {
+    mocks.complete.mockResolvedValue({ ok: true, state: 'provisioned' });
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ state: 'provisioned' });
+    expect(mocks.complete).toHaveBeenCalledWith({ userId: USER_ID, verifiedEmail: EMAIL });
+    expect(mocks.start).not.toHaveBeenCalled();
+  });
+
+  it('mantém o Checkout existente quando o readback ainda está pendente', async () => {
+    mocks.complete.mockResolvedValue({ ok: true, state: 'pending' });
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(200);
+    expect(mocks.start).toHaveBeenCalledOnce();
+  });
+
+  it('encerra um Checkout expirado e cria outro com callbacks atuais', async () => {
+    mocks.complete.mockResolvedValue({ ok: true, state: 'expired' });
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(200);
+    expect(mocks.abandon).toHaveBeenCalledWith({ userId: USER_ID, reason: 'expired' });
+    expect(mocks.start).toHaveBeenCalledOnce();
+  });
+
+  it('não reabre durante corrida cujo readback final ficou indisponível', async () => {
+    mocks.complete
+      .mockResolvedValueOnce({ ok: true, state: 'expired' })
+      .mockResolvedValueOnce({ ok: false, reason: 'provider_unreachable' });
+    mocks.abandon.mockResolvedValue({ ok: true, state: 'already_completed' });
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'unavailable' });
+    expect(mocks.start).not.toHaveBeenCalled();
   });
 
   it('não devolve documento, clinicId ou assinatura para o browser', async () => {

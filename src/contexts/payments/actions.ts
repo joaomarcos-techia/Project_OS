@@ -51,7 +51,7 @@ import {
   upsertPaymentAccount,
 } from '@/lib/payments/account-store';
 import { env } from '@/lib/env';
-import { buildApplicationUrl } from '@/lib/http/application-url';
+import { buildApplicationUrl, createApplicationRootUrl } from '@/lib/http/application-url';
 
 import { PaymentCredentialRejectedError, PaymentProviderUnavailableError } from './errors';
 import { getDepositPolicy, getPaymentAccountStatus } from './queries';
@@ -177,14 +177,17 @@ async function tryConfigureWebhook(
     return { ok: false, issue };
   };
 
-  const baseUrl = env.APP_BASE_URL;
-  if (!baseUrl) {
+  const hasDeploymentOrigin =
+    (env.VERCEL_ENV === 'preview' && Boolean(env.VERCEL_BRANCH_URL ?? env.VERCEL_URL)) ||
+    Boolean(env.APP_BASE_URL);
+  if (!hasDeploymentOrigin) {
     return fail({
       code: 'qoro_missing_app_base_url',
       location: 'Configuração do Qoro, antes de chamar o Asaas',
       message: 'APP_BASE_URL não está disponível no runtime deste deploy.',
     });
   }
+
   // O Asaas exige um e-mail de contato para o webhook. Sem ele não dá para
   // registrar — e forjar um endereço nosso na conta de um cliente seria pior.
   if (!accountEmail) {
@@ -226,7 +229,7 @@ async function tryConfigureWebhook(
 
   let webhookUrl: string;
   try {
-    webhookUrl = buildPatientWebhookUrl(baseUrl, target.webhookRef)!;
+    webhookUrl = buildPatientWebhookUrl(createApplicationRootUrl(), target.webhookRef)!;
   } catch (error) {
     return fail(
       {

@@ -66,6 +66,15 @@ describe('POST /api/signup/checkout/status', () => {
     expect(await response.json()).toEqual({ state: 'provisioned' });
   });
 
+  it('não mantém polling de um Checkout que o relógio do banco já expirou', async () => {
+    mocks.complete.mockResolvedValue({ ok: true, state: 'expired' });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'expired' });
+  });
+
   it('tenant já criado é sucesso idempotente', async () => {
     mocks.resolve.mockResolvedValue({ ok: true, kind: 'redirect', route: '/dashboard' });
 

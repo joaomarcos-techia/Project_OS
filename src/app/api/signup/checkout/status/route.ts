@@ -59,6 +59,7 @@ export async function POST(req: Request): Promise<Response> {
       verifiedEmail: onboarding.email,
     });
     if (completed.ok) {
+      if (completed.state === 'expired') return json({ error: 'expired' }, 409);
       return json({ state: completed.state }, completed.state === 'pending' ? 202 : 200);
     }
     if (completed.reason === 'gone') return json({ error: 'gone' }, 410);

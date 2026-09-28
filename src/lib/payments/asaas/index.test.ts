@@ -576,6 +576,38 @@ describe('criação de webhook', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('atualiza o webhook quando a branch de Preview muda de hostname', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: 'wh_existing',
+              name: 'Qoro — cobranca de paciente',
+              url: 'https://preview-antigo.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=antigo',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'wh_existing' }));
+    const clinica = createAsaasClient({ apiKey: 'chave-da-clinica' });
+
+    await clinica.createWebhook({
+      name: 'Qoro — cobranca de paciente',
+      url: 'https://preview-atual.qoro.test/api/webhooks/asaas/patient/ref-1?x-vercel-protection-bypass=atual',
+      email: 'gestor@example.test',
+      authToken: 'token-atual-com-mais-de-32-caracteres',
+      events: ['PAYMENT_RECEIVED'],
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://sandbox.asaas.com/api/v3/webhooks/wh_existing',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('converge por PUT quando outro request cria o webhook entre GET e POST', async () => {
     fetchMock
       .mockResolvedValueOnce(Response.json({ data: [] }))

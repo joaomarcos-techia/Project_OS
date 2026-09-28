@@ -11,6 +11,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import {
+  abandonSignupHostedCheckout,
+  completeSignupHostedCheckout,
   provisionTenantFromSignup,
   readSignupBilling,
   reconcileSignupSubscription,
@@ -131,6 +133,51 @@ export async function POST(req: Request): Promise<Response> {
     }
     const body = checkoutBodySchema.safeParse(parsed);
     if (!body.success) return json({ error: 'invalid_body' }, 400);
+
+    // Um callback pode ter sido concluído no Asaas enquanto a navegação voltou
+    // para um deployment antigo ou foi interrompida. Releia o provider antes de
+    // devolver a URL persistida: Checkout pago não deve ser reaberto como se
+    // ainda estivesse pendente.
+    const completed = await completeSignupHostedCheckout({
+      userId: onboarding.userId,
+      verifiedEmail: onboarding.email,
+    });
+    if (completed.ok && completed.state === 'provisioned') {
+      return json({ state: 'provisioned' });
+    }
+    if (completed.ok && completed.state === 'expired') {
+      const abandoned = await abandonSignupHostedCheckout({
+        userId: onboarding.userId,
+        reason: 'expired',
+      });
+      if (!abandoned.ok && !['gone', 'conflict'].includes(abandoned.reason)) {
+        return json({ error: 'unavailable' }, 503);
+      }
+      if (abandoned.ok && abandoned.state === 'already_completed') {
+        const afterRace = await completeSignupHostedCheckout({
+          userId: onboarding.userId,
+          verifiedEmail: onboarding.email,
+        });
+        if (afterRace.ok && afterRace.state === 'provisioned') {
+          return json({ state: 'provisioned' });
+        }
+        if (!afterRace.ok) {
+          const retryable =
+            afterRace.reason === 'provider_unreachable' || afterRace.reason === 'unavailable';
+          return json(
+            { error: retryable ? 'unavailable' : afterRace.reason },
+            retryable ? 503 : 409,
+          );
+        }
+        return json({ error: 'conflict' }, 409);
+      }
+    }
+    if (!completed.ok && completed.reason !== 'gone') {
+      return json(
+        { error: completed.reason === 'conflict' ? 'conflict' : 'unavailable' },
+        completed.reason === 'conflict' ? 409 : 503,
+      );
+    }
 
     const checkout = await startSignupHostedCheckout({
       userId: onboarding.userId,

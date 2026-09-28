@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   env: {
     APP_BASE_URL: 'https://app.qoro.test',
     NODE_ENV: 'test',
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
+    VERCEL_URL: undefined as string | undefined,
   },
   reserve: vi.fn(),
   record: vi.fn(),
@@ -23,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('./signup-billing', () => ({
+  SIGNUP_HOSTED_CHECKOUT_EXPIRATION_MINUTES: 60,
   reserveSignupBillingAttempt: mocks.reserve,
   recordSignupHostedCheckout: mocks.record,
   activateSignupHostedCheckout: mocks.activate,
@@ -61,6 +65,7 @@ const TARGET = {
   priceCents: INTENT.priceCents,
   trialDays: 7,
   attemptedOn: '2026-09-26',
+  expired: false,
   nextDueDate: INTENT.nextDueDate,
   asaasCustomerId: null,
   asaasCheckoutId: 'checkout_1',
@@ -117,6 +122,11 @@ function fakeProvider(overrides: Partial<PaymentProvider> = {}): PaymentProvider
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.env.APP_BASE_URL = 'https://app.qoro.test';
+  mocks.env.NODE_ENV = 'test';
+  mocks.env.VERCEL_ENV = undefined;
+  mocks.env.VERCEL_BRANCH_URL = undefined;
+  mocks.env.VERCEL_URL = undefined;
   mocks.reserve.mockResolvedValue({ ok: true, rowVersion: 7, intent: INTENT });
   mocks.record.mockResolvedValue({ ok: true, rowVersion: 8 });
   mocks.activate.mockResolvedValue({ ok: true, rowVersion: 9 });
@@ -177,6 +187,27 @@ describe('Checkout hospedado do cadastro', () => {
     expect(client.createCheckout).not.toHaveBeenCalled();
   });
 
+  it('mantém callbacks na origem pública da branch de Preview atual', async () => {
+    mocks.env.VERCEL_ENV = 'preview';
+    mocks.env.VERCEL_BRANCH_URL = 'project-os-git-integration.example.vercel.app';
+    const client = fakeProvider();
+
+    await startSignupHostedCheckout({ userId: USER, client });
+
+    expect(client.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callback: {
+          successUrl:
+            'https://project-os-git-integration.example.vercel.app/cadastro/pagamento?resultado=success',
+          cancelUrl:
+            'https://project-os-git-integration.example.vercel.app/cadastro/pagamento?resultado=cancelled',
+          expiredUrl:
+            'https://project-os-git-integration.example.vercel.app/cadastro/pagamento?resultado=expired',
+        },
+      }),
+    );
+  });
+
   it('timeout do POST congela a tentativa e não faz retry cego', async () => {
     const client = fakeProvider({
       createCheckout: vi
@@ -202,6 +233,17 @@ describe('Checkout hospedado do cadastro', () => {
     await expect(
       completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
     ).resolves.toEqual({ ok: true, state: 'pending' });
+    expect(mocks.activate).not.toHaveBeenCalled();
+    expect(mocks.provision).not.toHaveBeenCalled();
+  });
+
+  it('distingue pelo relógio do banco um Checkout expirado sem pagamento', async () => {
+    mocks.target.mockResolvedValue({ ...TARGET, expired: true });
+    const client = fakeProvider({ findPaymentByCheckoutSession: vi.fn().mockResolvedValue(null) });
+
+    await expect(
+      completeSignupHostedCheckout({ userId: USER, verifiedEmail: EMAIL, client }),
+    ).resolves.toEqual({ ok: true, state: 'expired' });
     expect(mocks.activate).not.toHaveBeenCalled();
     expect(mocks.provision).not.toHaveBeenCalled();
   });

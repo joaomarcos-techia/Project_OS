@@ -617,9 +617,11 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
   function webhookTarget(url: string): string | null {
     try {
       const parsed = new URL(url);
-      // O bypass de Preview pode ser rotacionado. A identidade operacional do
-      // webhook é origem + rota; a query será substituída pelo valor atual no PUT.
-      return `${parsed.origin}${parsed.pathname}`;
+      // Preview muda de origem quando a branch/deployment muda, e o bypass pode
+      // ser rotacionado. O nome da integração já é conferido pelo caller; dentro
+      // da mesma conta Asaas, a rota com o ref estável identifica o webhook que
+      // deve ser atualizado por PUT, em vez de criar uma segunda fila órfã.
+      return parsed.pathname;
     } catch {
       return null;
     }

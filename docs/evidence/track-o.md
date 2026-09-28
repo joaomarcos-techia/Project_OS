@@ -680,6 +680,24 @@ interrompidas do runner de billing: o mesmo comando com `--cleanup-orphans`.
 > rodar qualquer runner de sandbox — o guard aborta se o host não for sandbox, mas contar com o guard
 > é pior que configurar certo.
 
+---
+
+## Corretivo de Preview e isolamento dos efeitos do Sandbox — 28/09/2026
+
+- callbacks do Checkout e URL do webhook passam a usar a origem do deployment atual; o browser não
+  fornece destino;
+- retorno perdido não prende um pagamento concluído: `POST /api/signup/checkout` faz readback antes
+  de reabrir e provisiona a assinatura já ativa;
+- expiração é decidida com `now()` do Postgres; somente depois de cancelar ou confirmar o encerramento
+  o estado é liberado para um Checkout novo;
+- o E2E de confirmação de e-mail não exige credenciais Asaas e não cria nem cancela mais recursos no
+  Sandbox; billing permanece nos runners explícitos;
+- o adapter reconhece o mesmo webhook pelo nome e pathname estável mesmo quando a branch muda de
+  hostname, permitindo `PUT` com `interrupted:false` na fila existente;
+- suíte integral local: **420 arquivos, 4.429 testes, exit 0**; TypeScript, ESLint, Prettier e build
+  otimizado também passaram. A atualização do webhook já interrompido no provider e a prova no novo
+  deployment são operações posteriores ao deploy.
+
 O gate de carga precisa de `pnpm build` antes e de `LOAD_TEST_CONFIRM=LOCAL_SCRATCH_ONLY`:
 
 ```bash

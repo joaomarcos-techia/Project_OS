@@ -129,9 +129,10 @@ Escolha o plano e confirme. O navegador deve sair do Qoro e abrir uma URL HTTPS 
 teste e conclua a assinatura recorrente. O plano, o valor, o ciclo e o primeiro vencimento não podem
 ser campos editáveis no Qoro.
 
-Esta parte é deliberadamente humana e separada: a prova automatizada chega ao Checkout hospedado e
-confirma a reserva persistida, mas a conclusão interativa depende do reCAPTCHA do Asaas. Um PASS de
-confirmação de e-mail não prova pagamento, retorno, reconciliação ou provisionamento.
+Esta parte é deliberadamente humana e separada: o E2E de confirmação de e-mail termina depois de
+salvar o plano e não chama o Asaas. Os runners explícitos de billing provam criação, reserva,
+reconciliação e cleanup no Sandbox, mas a conclusão interativa depende do reCAPTCHA do Asaas. Um PASS
+de confirmação de e-mail não prova pagamento, retorno, reconciliação ou provisionamento.
 
 **Esperado:** nenhuma tela pede CPF/CNPJ, telefone, endereço ou cartão **dentro** do Qoro — quem
 coleta é o Asaas. O Checkout hospedado pode exibir o botão “Acompanhar pedido”; esse rótulo é controlado
