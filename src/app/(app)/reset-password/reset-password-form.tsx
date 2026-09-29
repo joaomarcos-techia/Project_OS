@@ -21,7 +21,11 @@ export function ResetPasswordForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Field label="Nova senha (mín 8 caracteres)" htmlFor="password">
+      <Field
+        label="Nova senha (mín 8 caracteres)"
+        htmlFor="password"
+        hint="Senhas comuns ou que já apareceram em vazamentos são recusadas."
+      >
         <Input
           id="password"
           name="password"

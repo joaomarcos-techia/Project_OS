@@ -12,8 +12,9 @@ import { expect, test } from '@playwright/test';
  * O spec lê a mensagem que de fato saiu, pela API do Resend, e abre o link DELA.
  * Não usa atalho: se o e-mail voltar a sair com o link errado, é aqui que quebra.
  *
- * Não troca a senha da conta de teste: para no formulário de nova senha, que só
- * aparece depois de `/auth/confirm` verificar o token e emitir o grant.
+ * Não troca a senha da conta de teste: chega ao formulário de nova senha, que só
+ * aparece depois de `/auth/confirm` verificar o token e emitir o grant, e só
+ * envia senhas que o Auth recusa (vazada e, se informada, a atual).
  *
  * Só em localhost (digita o e-mail da conta de teste e usa o Resend de DEV).
  *
@@ -22,11 +23,14 @@ import { expect, test } from '@playwright/test';
  *   E2E_PASSWORD_RESET=1                     opt-in (envia e-mail de verdade)
  *   E2E_USER_EMAIL                           conta de teste com perfil de clínica
  *   E2E_RESEND_API_KEY                       chave do Resend usada pelo app local
+ *   E2E_USER_PASSWORD                        opcional: senha atual (prova same_password)
  */
 
 const baseUrl = process.env.E2E_BASE_URL ?? '';
 const email = process.env.E2E_USER_EMAIL ?? '';
 const resendKey = process.env.E2E_RESEND_API_KEY ?? '';
+/** Opcional: a senha ATUAL da conta de teste, para provar a recusa `same_password`. */
+const currentPassword = process.env.E2E_USER_PASSWORD ?? '';
 
 function skipReason(): string | null {
   if (process.env.E2E_PASSWORD_RESET !== '1') return 'E2E_PASSWORD_RESET != 1';
@@ -93,4 +97,32 @@ test('esqueci a senha: o link do e-mail real abre o formulário de nova senha', 
   await expect(page).toHaveURL(/\/reset-password$/u, { timeout: 180_000 });
   await expect(page.getByText('Link inválido ou expirado')).toHaveCount(0);
   await expect(page.locator('input[type="password"]').first()).toBeVisible();
+
+  // 29/09/2026: o Auth recusa senha vazada (HIBP) e senha igual à atual. Antes, a
+  // recusa consumia o link e a tela virava "Link inválido ou expirado"; a pessoa
+  // pedia outro link, escolhia a mesma senha e nunca saía disso. A senha recusada
+  // tem que deixar o formulário de pé, com o motivo. Nada aqui troca a senha.
+  const submit = async (value: string) => {
+    await page.locator('input[type="password"]').first().fill(value);
+    await page.getByRole('button', { name: 'Atualizar senha' }).click();
+  };
+
+  await submit('Senha1234');
+  await expect(
+    page.getByText('Escolha uma senha que não apareceu em vazamentos conhecidos.'),
+  ).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('Link inválido ou expirado')).toHaveCount(0);
+
+  if (currentPassword) {
+    // A mesma senha passa pelo CAS e só o Auth a recusa. Duas vezes seguidas: a
+    // segunda só chega à mesma mensagem se o grant reemitido passou pelo CAS.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await submit(currentPassword);
+      await expect(
+        page.getByText('A nova senha precisa ser diferente da senha atual.'),
+      ).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByText('Link inválido ou expirado')).toHaveCount(0);
+      await expect(page.getByText('Link de redefinição inválido')).toHaveCount(0);
+    }
+  }
 });
